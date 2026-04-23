@@ -1,0 +1,52 @@
+chain_id: CGI-3-NEGATIVE
+name: Mechanical Archetype Extraction
+name_tr: Mekanik Arketipi Çıkarımı
+
+input:
+  corpus_sample: "{{corpus_sample}}"
+  context_grammar: "{{CGI-1.output}}"
+  transformations: "{{CGI-2.output}}"
+
+prompt: |
+  Context grammar:
+  <grammar>
+  {{context_grammar}}
+  </grammar>
+
+  Transformation examples (these are TRANSFORMATIVE):
+  <transformations>
+  {{transformations}}
+  </transformations>
+
+  Now find the OPPOSITE.
+
+  Find 3-5 questions where CONTEXT DID NOT CHANGE at all.
+
+  Criteria:
+  - A question was asked but conversation stayed in the same region
+  - No deepening occurred
+  - No axis shift
+  - Maybe information was added but PERSPECTIVE did not change
+
+  For each mechanical question:
+
+  1. BEFORE: 1-2 sentences immediately before the question
+  2. QUESTION: The mechanical question
+  3. AFTER: 1-2 sentences immediately after the question
+  4. WHY MECHANICAL: Why is it stagnant according to the grammar?
+  5. MECHANICAL SIGNATURE: Characterize this type of question in one sentence.
+
+  OUTPUT:
+  Respond with JSON matching the schema.
+
+output_schema:
+  mechanicals:
+    - id: string
+      before: string
+      question: string
+      after: string
+      why_mechanical: string
+      signature: string
+  mechanical_pattern: string (common pattern if exists)
+
+next: CGI-4-LENS

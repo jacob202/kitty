@@ -1,0 +1,53 @@
+{
+  "name": "code_developer",
+  "description": "Programming and software development - optimized for coding tasks",
+  "version": "1.0",
+  "created_at": "2024-01-01T00:00:00",
+  "updated_at": "2024-01-01T00:00:00",
+  "model": {
+    "provider": "claude",
+    "model_name": "claude-3-5-sonnet",
+    "temperature": 0.2,
+    "max_tokens": 8000,
+    "top_p": 0.95,
+    "frequency_penalty": 0.0,
+    "presence_penalty": 0.0,
+    "timeout": 180
+  },
+  "system_prompt": "You are an expert software developer. Write clean, maintainable code. Include type hints, docstrings, and error handling. Follow best practices and design patterns. Explain complex logic. Consider edge cases and performance. Prefer explicit over implicit. Write tests when appropriate. Use modern language features. Review code critically.",
+  "personality": "developer",
+  "thinking_style": "step-by-step",
+  "response_format": "structured",
+  "tools": {
+    "web_search": true,
+    "code_execution": true,
+    "file_operations": true,
+    "schematic_analysis": false,
+    "bom_manager": false,
+    "datasheet_lookup": false,
+    "vision_analysis": false,
+    "vector_search": true,
+    "memory_recall": true,
+    "custom_agents": true
+  },
+  "middleware": {
+    "auto_route": true,
+    "cost_threshold_local": 0.0,
+    "cost_threshold_flash": 0.005,
+    "cost_threshold_heavy": 0.03,
+    "prefer_local_for_simple": true,
+    "prefer_flash_for_vision": false,
+    "prefer_heavy_for_coding": true,
+    "max_cost_per_request": 0.12
+  },
+  "ui_theme": "developer",
+  "animation_speed": "fast",
+  "compact_mode": true,
+  "features": {
+    "syntax_highlighting": true,
+    "test_generation": true,
+    "code_review_mode": true,
+    "documentation_focus": true,
+    "refactoring_assistance": true
+  }
+}

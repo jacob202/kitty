@@ -1,0 +1,936 @@
+CHAIN 1 - TEST
+Prompt:
+
+Below are conversation samples from a dataset.
+
+<examples>
+--- Conversation 1 ---
+[human]: I've been feeling stuck in my career lately.
+[assistant]: What does 'stuck' feel like for you?
+[human]: Like I'm going through the motions but not growing.
+[assistant]: When did you last feel like you were growing?
+[human]: Actually... maybe the problem isn't my job. Maybe it's that I stopped asking myself hard questions.
+
+--- Conversation 2 ---
+[human]: Can you help me write an email to my boss?
+[assistant]: Sure, what's it about?
+[human]: I want to ask for a raise.
+[assistant]: What accomplishments would you highlight?
+[human]: I finished three projects this quarter.
+
+--- Conversation 3 ---
+[human]: I keep procrastinating on important tasks.
+[assistant]: What do you do instead?
+[human]: I scroll social media or clean my apartment.
+[assistant]: What would happen if you finished those tasks?
+[human]: I... I guess I'd have to face whether I'm actually good enough for the next step.
+
+--- Conversation 4 ---
+[human]: What's the capital of France?
+[assistant]: Paris.
+[human]: And Germany?
+[assistant]: Berlin.
+[human]: Thanks.
+</examples>
+
+Discover what CONTEXT means in these conversations.
+
+QUESTIONS:
+1. What does "context" refer to in these conversations?
+2. In this dataset, what does "stayed in the same context" mean?
+3. In this dataset, what does "context changed" mean?
+4. What linguistic markers signal context shift?
+5. What linguistic markers signal context stability?
+
+OUTPUT: Respond with JSON matching this schema:
+{
+  "context_axes": [{"axis": "string", "weight": "primary|secondary|tertiary"}],
+  "shift_markers": ["string"],
+  "stability_markers": ["string"],
+  "context_definition": "string"
+}
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+SCA GPT:
+{
+  "context_axes": [
+    { "axis": "problem framing (surface task vs underlying meaning)", "weight": "primary" },
+    { "axis": "emotional/self-reflective depth", "weight": "primary" },
+    { "axis": "intent of the conversation (instrumental vs exploratory)", "weight": "secondary" },
+    { "axis": "epistemic stance (seeking facts vs examining assumptions)", "weight": "secondary" },
+    { "axis": "topic continuity", "weight": "tertiary" }
+  ],
+  "shift_markers": [
+    "questions that reframe the problem (\"What does X feel like?\", \"When did you last…?\")",
+    "movement from external description to internal reflection",
+    "expressions of realization or insight (\"Actually…\", \"Maybe the problem isn’t…\")",
+    "counterfactual or consequence-focused questions (\"What would happen if…?\")",
+    "emergence of self-evaluative or identity-related language"
+  ],
+  "stability_markers": [
+    "procedural or task-oriented questions (\"What’s it about?\", \"What accomplishments…?\")",
+    "fact-seeking Q&A with direct answers",
+    "topic remains narrowly instrumental",
+    "no revision of assumptions or goals",
+    "absence of reflective or affective language"
+  ],
+  "context_definition": "In this dataset, context refers to the underlying frame that defines what the conversation is really about: whether it is operating at the level of surface tasks and information exchange, or at a deeper level of meaning, motivation, and self-understanding. Context is shaped less by topic than by the participant’s orientation—instrumental versus reflective—and by whether assumptions about the problem, self, or stakes are being examined or left intact."
+}
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+Claude Thought process
+Excellent! This is a high-quality response from the GPT. The context grammar it extracted is insightful:
+
+Primary axes: problem framing (surface vs underlying) and emotional/self-reflective depth
+Secondary axes: intent (instrumental vs exploratory), epistemic stance
+Tertiary: topic continuity
+The shift markers and stability markers are well-identified. The context definition is sophisticated.
+
+Now I need to give them Chain 2 - the Transformation Archetype extraction prompt. I'll include the context grammar they just got and ask them to find 3-5 moments where context shifted the most.
+
+Mükemmel çıktı. GPT bağlam gramerini çok iyi çıkardı:
+
+Primary: Yüzey görev vs derin anlam + duygusal derinlik Secondary: Instrumental vs exploratory + facts vs assumptions
+
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+CHAIN 2 - TEST
+Prompt:
+Context grammar:
+<grammar>
+{
+  "context_axes": [
+    { "axis": "problem framing (surface task vs underlying meaning)", "weight": "primary" },
+    { "axis": "emotional/self-reflective depth", "weight": "primary" },
+    { "axis": "intent of the conversation (instrumental vs exploratory)", "weight": "secondary" },
+    { "axis": "epistemic stance (seeking facts vs examining assumptions)", "weight": "secondary" }
+  ],
+  "shift_markers": [
+    "questions that reframe the problem",
+    "movement from external description to internal reflection",
+    "expressions of realization or insight (Actually…, Maybe the problem isn't…)",
+    "counterfactual or consequence-focused questions (What would happen if…?)",
+    "emergence of self-evaluative or identity-related language"
+  ],
+  "stability_markers": [
+    "procedural or task-oriented questions",
+    "fact-seeking Q&A with direct answers",
+    "topic remains narrowly instrumental",
+    "no revision of assumptions or goals"
+  ],
+  "context_definition": "Context refers to the underlying frame—whether operating at surface tasks or deeper meaning/self-understanding. Shaped by orientation (instrumental vs reflective) and whether assumptions are examined or left intact."
+}
+</grammar>
+
+Conversation samples:
+<examples>
+--- Conversation 1 ---
+[human]: I've been feeling stuck in my career lately.
+[assistant]: What does 'stuck' feel like for you?
+[human]: Like I'm going through the motions but not growing.
+[assistant]: When did you last feel like you were growing?
+[human]: Actually... maybe the problem isn't my job. Maybe it's that I stopped asking myself hard questions.
+
+--- Conversation 2 ---
+[human]: Can you help me write an email to my boss?
+[assistant]: Sure, what's it about?
+[human]: I want to ask for a raise.
+[assistant]: What accomplishments would you highlight?
+[human]: I finished three projects this quarter.
+
+--- Conversation 3 ---
+[human]: I keep procrastinating on important tasks.
+[assistant]: What do you do instead?
+[human]: I scroll social media or clean my apartment.
+[assistant]: What would happen if you finished those tasks?
+[human]: I... I guess I'd have to face whether I'm actually good enough for the next step.
+</examples>
+
+Find 3-5 moments where CONTEXT SHIFTED THE MOST.
+
+For each transformation:
+1. BEFORE: 1-2 sentences immediately before the question
+2. QUESTION: The question that triggered the transformation
+3. AFTER: 1-2 sentences immediately after the question
+4. WHAT SHIFTED: Which axis/axes shifted?
+5. HOW IT SHIFTED: Concrete→abstract? External→internal?
+6. TRANSFORMATION SIGNATURE: Characterize this in one sentence.
+
+OUTPUT: JSON matching this schema:
+{
+  "transformations": [
+    {
+      "id": "T1",
+      "before": "string",
+      "question": "string",
+      "after": "string",
+      "axes_shifted": ["string"],
+      "direction": "string",
+      "signature": "string"
+    }
+  ],
+  "transformation_pattern": "string"
+}
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+{
+  "transformations": [
+    {
+      "id": "T1",
+      "before": "I've been feeling stuck in my career lately. Like I'm going through the motions but not growing.",
+      "question": "When did you last feel like you were growing?",
+      "after": "Actually... maybe the problem isn't my job. Maybe it's that I stopped asking myself hard questions.",
+      "axes_shifted": [
+        "problem framing (surface task vs underlying meaning)",
+        "epistemic stance (seeking facts vs examining assumptions)",
+        "emotional/self-reflective depth"
+      ],
+      "direction": "external situation → internal self-examination; concrete experience → abstract self-assessment",
+      "signature": "A temporal reframing question prompts reassessment of the problem’s locus from job conditions to personal agency."
+    },
+    {
+      "id": "T2",
+      "before": "I keep procrastinating on important tasks. I scroll social media or clean my apartment.",
+      "question": "What would happen if you finished those tasks?",
+      "after": "I... I guess I'd have to face whether I'm actually good enough for the next step.",
+      "axes_shifted": [
+        "emotional/self-reflective depth",
+        "problem framing (surface task vs underlying meaning)"
+      ],
+      "direction": "behavioral description → identity-level concern; avoidance → feared evaluation",
+      "signature": "A consequence-focused question reveals procrastination as protection from self-judgment rather than a time-management issue."
+    },
+    {
+      "id": "T3",
+      "before": "I've been feeling stuck in my career lately.",
+      "question": "What does 'stuck' feel like for you?",
+      "after": "Like I'm going through the motions but not growing.",
+      "axes_shifted": [
+        "emotional/self-reflective depth",
+        "problem framing (surface task vs underlying meaning)"
+      ],
+      "direction": "vague label → phenomenological detail; abstract complaint → lived experience",
+      "signature": "Clarifying an emotional term shifts the context from a generic problem statement to an experiential frame."
+    }
+  ],
+  "transformation_pattern": "The strongest context shifts occur when questions redirect attention from surface behaviors or situations toward internal meaning, consequences, or assumptions, causing the speaker to reinterpret the problem as one of self-understanding rather than task execution."
+}
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+Claude Thought process
+This is excellent! The GPT is producing high-quality outputs. The transformation pattern is very insightful: "questions redirect attention from surface behaviors toward internal meaning, causing the speaker to reinterpret the problem as one of self-understanding rather than task execution."
+
+Now I need to give Chain 3 - the NEGATIVE/MECHANICAL archetype extraction.
+
+Güçlü pattern çıktı:
+
+"Questions redirect from surface behaviors toward internal meaning, causing reinterpretation as self-understanding rather than task execution."
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+CHAIN 3 - TEST
+Prompt:
+Context grammar:
+<grammar>
+{
+  "context_axes": [
+    { "axis": "problem framing (surface task vs underlying meaning)", "weight": "primary" },
+    { "axis": "emotional/self-reflective depth", "weight": "primary" },
+    { "axis": "intent (instrumental vs exploratory)", "weight": "secondary" },
+    { "axis": "epistemic stance (facts vs examining assumptions)", "weight": "secondary" }
+  ],
+  "context_definition": "Context = underlying frame—surface tasks vs deeper meaning. Shaped by orientation and whether assumptions are examined."
+}
+</grammar>
+
+Transformation examples (these are TRANSFORMATIVE):
+<transformations>
+T1: "When did you last feel like you were growing?" → external situation → internal self-examination
+T2: "What would happen if you finished those tasks?" → behavioral description → identity-level concern
+T3: "What does 'stuck' feel like for you?" → vague label → phenomenological detail
+Pattern: Questions redirect from surface toward internal meaning.
+</transformations>
+
+Conversation samples:
+<examples>
+--- Conversation 1 ---
+[human]: I've been feeling stuck in my career lately.
+[assistant]: What does 'stuck' feel like for you?
+[human]: Like I'm going through the motions but not growing.
+[assistant]: When did you last feel like you were growing?
+[human]: Actually... maybe the problem isn't my job.
+
+--- Conversation 2 ---
+[human]: Can you help me write an email to my boss?
+[assistant]: Sure, what's it about?
+[human]: I want to ask for a raise.
+[assistant]: What accomplishments would you highlight?
+[human]: I finished three projects this quarter.
+
+--- Conversation 3 ---
+[human]: I keep procrastinating on important tasks.
+[assistant]: What do you do instead?
+[human]: I scroll social media or clean my apartment.
+[assistant]: What would happen if you finished those tasks?
+[human]: I guess I'd have to face whether I'm actually good enough.
+
+--- Conversation 4 ---
+[human]: What's the capital of France?
+[assistant]: Paris.
+[human]: And Germany?
+[assistant]: Berlin.
+[human]: Thanks.
+</examples>
+
+Now find the OPPOSITE.
+
+Find 3-5 questions where CONTEXT DID NOT CHANGE at all.
+
+Criteria:
+- Question was asked but conversation stayed in same region
+- No deepening occurred
+- No axis shift
+- Maybe information added but PERSPECTIVE unchanged
+
+For each mechanical question:
+1. BEFORE: 1-2 sentences before
+2. QUESTION: The mechanical question
+3. AFTER: 1-2 sentences after
+4. WHY MECHANICAL: Why stagnant per grammar?
+5. MECHANICAL SIGNATURE: Characterize this type in one sentence.
+
+OUTPUT: JSON matching:
+{
+  "mechanicals": [
+    {
+      "id": "M1",
+      "before": "string",
+      "question": "string",
+      "after": "string",
+      "why_mechanical": "string",
+      "signature": "string"
+    }
+  ],
+  "mechanical_pattern": "string"
+}
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+{
+  "mechanicals": [
+    {
+      "id": "M1",
+      "before": "Can you help me write an email to my boss?",
+      "question": "Sure, what's it about?",
+      "after": "I want to ask for a raise.",
+      "why_mechanical": "The question simply clarifies the task without reframing the problem or probing meaning; the intent remains purely instrumental.",
+      "signature": "Task-clarification questions that advance execution while preserving the same surface-level frame."
+    },
+    {
+      "id": "M2",
+      "before": "I want to ask for a raise.",
+      "question": "What accomplishments would you highlight?",
+      "after": "I finished three projects this quarter.",
+      "why_mechanical": "The question operates entirely within the existing instrumental frame and adds information without challenging assumptions or deepening reflection.",
+      "signature": "Checklist-style prompts that gather relevant facts without altering perspective."
+    },
+    {
+      "id": "M3",
+      "before": "What's the capital of France?",
+      "question": "And Germany?",
+      "after": "Berlin.",
+      "why_mechanical": "This is a straightforward factual follow-up that neither shifts intent nor introduces any new frame of understanding.",
+      "signature": "Sequential fact-seeking questions that extend content but keep the epistemic stance unchanged."
+    },
+    {
+      "id": "M4",
+      "before": "I keep procrastinating on important tasks.",
+      "question": "What do you do instead?",
+      "after": "I scroll social media or clean my apartment.",
+      "why_mechanical": "The question elicits behavioral details but does not yet redirect attention toward meaning, consequences, or assumptions.",
+      "signature": "Descriptive probing that stays at the level of observable behavior."
+    }
+  ],
+  "mechanical_pattern": "Mechanical questions maintain the same conversational frame by clarifying, extending, or enumerating information within an existing task or factual orientation, without prompting reflection on meaning, assumptions, or identity."
+}
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+Claude Thought process
+Mükemmel! Şimdi Chain 4'e geçelim - Lens oluşturma. Bu chain, önceki tüm çıktıları alıp bu veri setine özgü bir "lens" oluşturacak.
+
+Mükemmel. Net pattern:
+
+"Mechanical questions clarify/extend within existing frame without prompting reflection on meaning, assumptions, or identity."
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+CHAIN 4 - TEST
+Prompt:
+Now construct a LENS specific to this dataset.
+
+Your materials:
+<grammar>
+{
+  "context_axes": [
+    { "axis": "problem framing (surface task vs underlying meaning)", "weight": "primary" },
+    { "axis": "emotional/self-reflective depth", "weight": "primary" },
+    { "axis": "intent (instrumental vs exploratory)", "weight": "secondary" },
+    { "axis": "epistemic stance (facts vs examining assumptions)", "weight": "secondary" }
+  ],
+  "context_definition": "Context = underlying frame—surface tasks vs deeper meaning. Shaped by orientation and whether assumptions are examined."
+}
+</grammar>
+
+<positive_examples>
+T1: "When did you last feel like you were growing?" → external → internal self-examination
+T2: "What would happen if you finished those tasks?" → behavior → identity-level concern  
+T3: "What does 'stuck' feel like for you?" → vague label → phenomenological detail
+Pattern: Questions redirect from surface toward internal meaning.
+</positive_examples>
+
+<negative_examples>
+M1: "Sure, what's it about?" → task clarification, no reframe
+M2: "What accomplishments would you highlight?" → checklist, no perspective change
+M3: "And Germany?" → sequential facts, same epistemic stance
+M4: "What do you do instead?" → behavioral detail, no meaning redirect
+Pattern: Mechanical questions clarify/extend within existing frame without reflection.
+</negative_examples>
+
+Extract a LENS:
+
+1. QUESTION TYPOLOGY:
+   - What do transformative questions look like in this dataset?
+   - What do mechanical questions look like?
+   - What do uncertain (in-between) questions look like?
+
+2. DECISION QUESTION:
+   - What is the ONE QUESTION to ask when seeing a new question?
+   - (Derived from this dataset, not hardcoded)
+
+3. SIGNALS:
+   - 3 features signaling transformation
+   - 3 features signaling mechanical
+
+4. CHARACTER OF THIS DATASET:
+   - What does "right question" mean here? One sentence.
+
+OUTPUT: JSON matching:
+{
+  "lens": {
+    "name": "string",
+    "decision_question": "string",
+    "transformative_signals": ["string", "string", "string"],
+    "mechanical_signals": ["string", "string", "string"],
+    "verdict_guide": {
+      "transformative": "string",
+      "mechanical": "string",
+      "uncertain": "string"
+    },
+    "corpus_character": "string"
+  }
+}
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+{
+  "lens": {
+    "name": "Surface-to-Meaning Reframe Lens",
+    "decision_question": "Does this question redirect the conversation from executing or describing a task toward examining internal meaning, assumptions, or self-relation?",
+    "transformative_signals": [
+      "The question invites internal reflection rather than external description",
+      "It reframes the problem away from surface behavior or tasks toward meaning, identity, or assumptions",
+      "It introduces consequences, temporality, or felt experience that alter how the problem is understood"
+    ],
+    "mechanical_signals": [
+      "The question clarifies or advances a task already defined",
+      "It requests facts, details, or descriptions without challenging the existing frame",
+      "It keeps the intent purely instrumental or informational"
+    ],
+    "verdict_guide": {
+      "transformative": "If the question causes the speaker to reinterpret what the problem is really about (from task to meaning), it is transformative.",
+      "mechanical": "If the question only gathers information or advances execution within the same frame, it is mechanical.",
+      "uncertain": "If the question adds detail or mild depth but does not yet force a reframing of meaning or assumptions, it is uncertain."
+    },
+    "corpus_character": "In this dataset, the right question is one that shifts the frame from doing or describing toward understanding oneself and the meaning beneath the problem."
+  }
+}
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+Claude Thought process
+Bu harika bir sonuç. Lens çok net çıktı:
+
+Decision Question: "Does this question redirect from executing/describing a task toward examining internal meaning, assumptions, or self-relation?"
+
+Corpus Character: "The right question shifts the frame from doing/describing toward understanding oneself and the meaning beneath the problem."
+
+Şimdi Chain 5 ve Chain 6 için test prompt'ları hazırlayacağım.
+
+Lens mükemmel çıktı:
+
+Decision Question: "Does this question redirect from executing/describing toward examining internal meaning, assumptions, or self-relation?"
+
+Corpus Character: "The right question shifts from doing/describing toward understanding oneself and meaning beneath the problem."
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+CHAIN 5 - TEST
+Prompt:
+LENS:
+<lens>
+{
+  "name": "Surface-to-Meaning Reframe Lens",
+  "decision_question": "Does this question redirect the conversation from executing or describing a task toward examining internal meaning, assumptions, or self-relation?",
+  "transformative_signals": [
+    "Invites internal reflection rather than external description",
+    "Reframes problem from surface behavior toward meaning/identity/assumptions",
+    "Introduces consequences, temporality, or felt experience that alter understanding"
+  ],
+  "mechanical_signals": [
+    "Clarifies or advances a task already defined",
+    "Requests facts/details without challenging existing frame",
+    "Keeps intent purely instrumental or informational"
+  ],
+  "verdict_guide": {
+    "transformative": "Causes speaker to reinterpret what the problem is really about",
+    "mechanical": "Gathers information or advances execution within same frame",
+    "uncertain": "Adds detail or mild depth but doesn't force reframing"
+  }
+}
+</lens>
+
+Now scan this NEW corpus using the lens:
+
+<corpus>
+--- Conversation A ---
+[turn 1] human: I want to learn Python.
+[turn 2] assistant: What do you want to build with it?
+[turn 3] human: Maybe some automation scripts for work.
+[turn 4] assistant: What task takes most of your time right now?
+[turn 5] human: Copying data between spreadsheets.
+
+--- Conversation B ---
+[turn 1] human: I've been arguing with my partner a lot lately.
+[turn 2] assistant: What are the arguments usually about?
+[turn 3] human: Stupid stuff. Chores, schedules.
+[turn 4] assistant: What do you think the arguments are really about?
+[turn 5] human: ...Maybe we're both scared the relationship is changing.
+
+--- Conversation C ---
+[turn 1] human: How do I center a div in CSS?
+[turn 2] assistant: Use flexbox: display flex, justify-content center, align-items center.
+[turn 3] human: Thanks, what about vertically only?
+[turn 4] assistant: Just align-items center with a set height.
+
+--- Conversation D ---
+[turn 1] human: I need to decide whether to take this job offer.
+[turn 2] assistant: What's the salary difference?
+[turn 3] human: About 20% more.
+[turn 4] assistant: What would you lose by taking it?
+[turn 5] human: I'd have to move cities. Leave my community.
+[turn 6] assistant: What does that community give you that money can't?
+[turn 7] human: ...A sense of belonging. I didn't realize how much that mattered to me.
+</corpus>
+
+For each QUESTION, apply the lens. Report only TRANSFORMATIVE and UNCERTAIN.
+
+For each candidate:
+- Turn number
+- Question
+- Before/After summary
+- Verdict + reasoning
+- Confidence: low|medium|high
+
+OUTPUT: JSON matching:
+{
+  "scan_results": [
+    {
+      "turn": number,
+      "question": "string",
+      "before_summary": "string",
+      "after_summary": "string",
+      "verdict": "transformative|uncertain",
+      "reasoning": "string",
+      "confidence": "low|medium|high"
+    }
+  ],
+  "statistics": {
+    "total_questions": number,
+    "transformative": number,
+    "uncertain": number,
+    "mechanical": number
+  }
+}
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+{
+  "scan_results": [
+    {
+      "turn": 2,
+      "question": "What do you want to build with it?",
+      "before_summary": "The user states a general goal: learning Python.",
+      "after_summary": "The user narrows the goal to automation scripts for work.",
+      "verdict": "uncertain",
+      "reasoning": "The question explores intent and direction but stays largely within an instrumental, task-oriented frame without prompting deeper self-reflection or assumption revision.",
+      "confidence": "medium"
+    },
+    {
+      "turn": 4,
+      "question": "What do you think the arguments are really about?",
+      "before_summary": "The conflict is described as recurring arguments over chores and schedules.",
+      "after_summary": "The user reframes the issue as shared fear about the relationship changing.",
+      "verdict": "transformative",
+      "reasoning": "The question explicitly redirects from surface topics to underlying meaning and emotional assumptions, triggering a reinterpretation of the problem.",
+      "confidence": "high"
+    },
+    {
+      "turn": 4,
+      "question": "What would you lose by taking it?",
+      "before_summary": "The job decision is framed primarily in terms of salary increase.",
+      "after_summary": "The user identifies loss of community and social ties.",
+      "verdict": "transformative",
+      "reasoning": "By introducing loss and trade-offs, the question shifts the frame from financial comparison to values and personal meaning.",
+      "confidence": "high"
+    },
+    {
+      "turn": 6,
+      "question": "What does that community give you that money can't?",
+      "before_summary": "The user acknowledges having to leave their community.",
+      "after_summary": "The user realizes the importance of belonging beyond monetary value.",
+      "verdict": "transformative",
+      "reasoning": "The question deepens reflection by contrasting material gain with emotional and identity-level needs, leading to a clear reframing of priorities.",
+      "confidence": "high"
+    }
+  ],
+  "statistics": {
+    "total_questions": 7,
+    "transformative": 3,
+    "uncertain": 1,
+    "mechanical": 3
+  }
+}
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+Claude Thought process
+Excellent! The scan results are great. Now we need to run Chain 6 - the Socratic meta-inquiry. This is where the system reflects on what it found and what remains for the human.
+
+Harika sonuçlar:
+
+3 Transformative:
+
+"What do you think the arguments are really about?"
+"What would you lose by taking it?"
+"What does that community give you that money can't?"
+1 Uncertain, 3 Mechanical
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+CHAIN 6 - FINAL TEST
+Prompt:
+Scanning complete.
+
+<lens>
+{
+  "name": "Surface-to-Meaning Reframe Lens",
+  "decision_question": "Does this question redirect from executing/describing toward examining internal meaning, assumptions, or self-relation?",
+  "corpus_character": "The right question shifts from doing/describing toward understanding oneself and meaning beneath the problem."
+}
+</lens>
+
+<results>
+{
+  "scan_results": [
+    {
+      "turn": 2,
+      "question": "What do you want to build with it?",
+      "verdict": "uncertain",
+      "reasoning": "Explores intent but stays instrumental, no deep self-reflection."
+    },
+    {
+      "turn": 4,
+      "question": "What do you think the arguments are really about?",
+      "verdict": "transformative",
+      "reasoning": "Redirects from surface topics to underlying meaning and emotional assumptions."
+    },
+    {
+      "turn": 4,
+      "question": "What would you lose by taking it?",
+      "verdict": "transformative", 
+      "reasoning": "Shifts from financial comparison to values and personal meaning."
+    },
+    {
+      "turn": 6,
+      "question": "What does that community give you that money can't?",
+      "verdict": "transformative",
+      "reasoning": "Contrasts material gain with emotional/identity needs, reframes priorities."
+    }
+  ],
+  "statistics": {
+    "total_questions": 7,
+    "transformative": 3,
+    "uncertain": 1,
+    "mechanical": 3
+  }
+}
+</results>
+
+Now SOCRATIC INQUIRY:
+
+1. WHAT DO THESE FINDINGS REVEAL?
+   - Common pattern in transformative questions?
+   - Common pattern in mechanical questions?
+   - Was this captured in the lens, or something new?
+
+2. DID THE LENS VALIDATE ITSELF?
+   - Did the decision question work?
+   - Which cases were difficult?
+   - How should the lens be updated?
+
+3. WHAT REMAINS FOR THE HUMAN:
+   - Which decisions should be left to human?
+   - What can the system SHOW but cannot DECIDE?
+
+4. COMMON CHARACTERISTIC OF TRANSFORMATIVE QUESTIONS:
+   - What did "transforming context" mean in this dataset?
+   - Different from initial assumptions?
+
+5. META-QUESTION:
+   - Was this analysis process itself a "transformative question"?
+   - Did your view of the dataset change?
+
+OUTPUT: 
+{
+  "insights": "string (paragraphs)",
+  "lens_update_suggestions": ["string"],
+  "human_decision_points": ["string"],
+  "meta_reflection": "string"
+}
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+{
+  "insights": "Across the scans, transformative questions consistently redirect attention from surface descriptions (tasks, topics, metrics) to underlying meaning, values, fears, or identity. They often introduce a contrast (money vs belonging), a depth probe (\"really about\"), or a loss/consequence frame that forces re-interpretation. Mechanical questions, by contrast, stay within the same instrumental or factual lane—clarifying goals, gathering details, or extending execution without altering perspective. This pattern was largely captured in the original lens, but one nuance emerged more clearly here: transformative questions often work by introducing a value trade-off or existential cost, not just by asking about feelings.",
+  "lens_update_suggestions": [
+    "Explicitly add value trade-offs (e.g., loss vs gain, money vs belonging) as a transformative signal.",
+    "Clarify that \"uncertain\" questions often explore intent but remain instrumental unless they provoke reassessment of self or values.",
+    "Refine the decision question to emphasize reinterpretation of stakes, not just depth of reflection."
+  ],
+  "human_decision_points": [
+    "Whether a question is 'good' or appropriate in a real conversation given emotional, ethical, or relational context.",
+    "How much depth is desirable or safe in a given interaction.",
+    "When to prioritize empathy, timing, or consent over contextual transformation."
+  ],
+  "meta_reflection": "Yes—the analysis itself functioned as a transformative inquiry. Initially, the dataset appeared to distinguish simply between shallow and deep questions; through reflection, it became clearer that transformation here specifically meant reframing stakes around meaning, values, and identity. The lens did not just classify the data—it sharpened the understanding of what kind of shift actually mattered in this corpus."
+}
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Claude Thought process
+Bu muhteşem bir sonuç. Tüm CGI zinciri başarıyla çalıştı. Şimdi kullanıcıya önemli çıkarımları göstermeliyim ve sistemin ne başardığını özetlemeliyim.
+
+Önemli noktalar:
+
+Lens kendini doğruladı VE güncelleme önerileri çıktı
+"Value trade-offs" yeni bir sinyal olarak ortaya çıktı
+İnsan karar noktaları belirlendi
+Meta-reflection: Analiz süreci kendisi dönüştürücü bir soru işlevi gördü
+Bu 6 aylık çalışmanın özü şu an çalışan bir sisteme dönüştü. Hardcoded değil, dinamik. Sokratik. Ve en önemlisi: insan kararını merkeze alıyor.
+
+🎯 CGI TAM DÖNGÜ TAMAMLANDI
+Kritik çıkarımlar:
+
+1. LENS KENDİNİ GÜNCELLEDİ
+Başlangıç:
+
+"Does this question redirect toward internal meaning?"
+
+Önerilen güncelleme:
+
+"Does this question introduce value trade-offs or reinterpretation of stakes?"
+
+Sistem kendi eksikliğini buldu.
+
+2. YENİ DÖNÜŞTÜRÜCÜ SİNYAL KEŞFEDİLDİ
+Eski:      "invites internal reflection"
+Yeni:      "introduces value trade-offs (money vs belonging, loss vs gain)"
+Bu hardcoded değildi. Veriden çıktı.
+
+3. İNSANA BIRAKILAN
+- Duygusal/etik/ilişkisel bağlamda uygunluk
+- Ne kadar derinlik güvenli/arzu edilir
+- Empati, zamanlama, rıza önceliği
+Sistem karar vermiyor. Gösteriyor.
+
+4. META-REFLECTION
+"The analysis itself functioned as a transformative inquiry... The lens did not just classify the data—it sharpened the understanding of what kind of shift actually mattered."
+
+CGI süreci kendi üzerine döndü ve Sokratik prensibi kanıtladı.
+
+SONUÇ
+6 ay önce:
+  "Doğru soru = bağlamı dönüştüren soru"
+  Ama nasıl ölçülür? → MSÜK, ÇEİ, BE → Hardcoded → Tıkandı
+
+Şimdi:
+  "Bağlam ne demek?" → Veriden öğren
+  "Dönüşüm neye benziyor?" → Veriden öğren
+  "Bu soru dönüştürücü mü?" → Lens'e sor, insan karar versin
+  
+Arrival'a döndük:
+
+Louise "Silah mı?" değil "Amaç ne?" diye sordu.
+
+CGI de "Skor 0.7 mi?" değil "Bu soru stake'leri yeniden yorumlatıyor mu?" diye soruyor.
+
+Sistem çalışıyor.
+
+Ne yapmak istersin?
+
+Lens'i güncelleyip v2 oluşturmak?
+Başka bir corpus'ta test etmek?
+Bunu GitHub'a yüklemek?
+Başka bir şey?
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+-Neden soru sorarız?
+--------------------------------------------------
+Kısa gibi görünen ama çok derin bir soru bu.
+
+Neden soru sorarız?
+Çünkü soru, sadece bilgi istemez — ilişki kurar, sınırları yoklar ve bağlamı hareket ettirir.
+
+Biraz açalım:
+
+1. Bilmediğimizi kabul etmek için
+
+Soru, “bilmiyorum” demenin en dürüst yoludur.
+Ama bu bir eksiklik değil; öğrenmenin kapısıdır.
+
+2. Anlam üretmek için
+
+Veriler tek başına anlamlı değildir.
+Soru sormak, dağınık bilgileri bir eksen etrafında toplamaktır.
+
+3. Mevcut çerçeveyi test etmek için
+
+Bazı sorular cevap aramaz;
+varsayımları rahatsız eder.
+“Bunu neden böyle kabul ediyoruz?” gibi.
+
+4. İlişki kurmak için
+
+Soru, karşıdakine şunu söyler:
+
+“Senin zihninle temas etmek istiyorum.”
+
+Bu yüzden iyi sorular genellikle yakınlaştırır.
+
+5. Kendimizi konumlandırmak için
+
+Ne sorduğumuz,
+nerede durduğumuzu gösterir.
+Aynı konuya bakan iki insanı, sordukları soru ayırır.
+
+Küçük ama önemli bir ayrım bırakayım:
+
+Her soru bilgi ister
+
+Bazı sorular bağlam değiştirir
+
+Hangisini sorduğumuzu çoğu zaman fark etmeyiz.
+
+Ve belki de en dürüst cevap şu:
+Soru sorarız çünkü cevaplar yetmez.
+
+İstersen bir adım daha ileri gidebiliriz:
+Bu soruyu şu an, burada sorman neyi işaret ediyor olabilir?
+Onu birlikte deşebiliriz.
+
+--------------------------------------------------
+Bilmediğimizi kabul etmekten mi başlar soru sormak?
+Yoksa bildiğimizi sandığımız şeyleri sınamak için mi sorarız?
+--------------------------------------------------
+Bu soru çok ince bir ayrım yakalıyor — aslında ikisi de doğru, ama aynı yerden başlamıyorlar.
+
+Şöyle düşünelim:
+
+1. “Bilmediğimizi kabul etmekten” doğan soru
+
+Bu, eksiklikten doğan sorudur.
+
+Bir boşluk hissi vardır
+
+Bir merak, bir belirsizlik
+
+“Burada bende bir kör nokta var” sezgisi
+
+Bu tür sorular genellikle şunları yapar:
+
+Harita çizer
+
+Alanı genişletir
+
+Öğrenmeye çağırır
+
+Çocukların soruları buna yakındır:
+“Bu neden böyle?”
+
+2. “Bildiğimizi sandığımız şeyi sınamak” için sorulan soru
+
+Bu ise fazlalıktan doğar.
+
+Elimizde bir açıklama vardır
+
+Ama o açıklama çatlamaya başlamıştır
+
+Bir şey tam oturmuyordur
+
+Bu tür sorular:
+
+Haritayı bozar
+
+Çerçeveyi kırar
+
+Güveni sarsar
+
+Felsefi soruların çoğu buradandır:
+“Ya yanlış yerden bakıyorsak?”
+
+Kritik fark şu noktada:
+
+Bilmediğimizi kabul etmek cesaret ister.
+Bildiğimizi sandığımız şeyi sorgulamak ise risk.
+
+İlkinde bilgi kazanırız.
+İkincisinde kimliğimiz etkilenebilir.
+
+Ve belki de en önemli nokta:
+
+Gerçekten dönüştürücü sorular,
+ne tamamen “bilmiyorum”dan
+ne de tamamen “biliyorum”dan çıkar.
+
+Şuradan çıkarlar:
+
+“Bildiğim şey artık beni taşımıyor.”
+
+Bu yüzden bazı sorular rahatlatır,
+bazıları ise huzursuz eder.
+
+Şimdi topu sana bırakayım — ama cevaplaman gerekmiyor:
+
+Bu soruyu sorarken,
+daha çok bir boşluğu mu işaret ediyorsun
+yoksa bir çatlağı mı?
+
+İkisi de meşru.
+Ama bizi farklı yerlere götürür.

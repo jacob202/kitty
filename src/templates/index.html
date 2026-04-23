@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Orange Lab</title>
+<style>
+  :root {
+    --bg-color:    #080808;
+    --panel-bg:    #111111;
+    --border-color:#1a1a1a;
+    --accent-color:#ff5f1f; /* Spicy Orange */
+    --text-main:   #e0e0e0;
+    --dim-text:    #666;
+    --radius:      12px;
+    --mascot-filter: none;
+  }
+
+  .theme-unhinged {
+    --accent-color: #ff0033; /* Glitch Red */
+    --mascot-filter: drop-shadow(0 0 10px #ff0033) drop-shadow(0 0 20px #ff5f1f);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg-color); color: var(--text-main);
+               font: 14px/1.6 "SF Pro Display", -apple-system, sans-serif; overflow: hidden; transition: background 0.5s; }
+
+  /* ── Layout Grid (3:6:3 ratio) ── */
+  body {
+    display: grid;
+    grid-template-columns: 3fr 6fr 3fr;
+    grid-template-rows: auto 1fr;
+    height: 100vh;
+    padding: 10px;
+    gap: 15px;
+  }
+
+  header {
+    grid-column: 1 / -1;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    background: rgba(13, 13, 13, 0.8);
+    backdrop-filter: blur(10px);
+    z-index: 10;
+    border-radius: var(--radius);
+  }
+  header h1 { font-size: 18px; font-weight: 900; color: var(--accent-color); letter-spacing: -0.5px; }
+
+  /* ── Columns ── */
+  .panel {
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+  }
+
+  #the-void {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  /* ── Mascot & Glitch ── */
+  .unhinged-glitch {
+    animation: glitch 0.3s infinite;
+  }
+  @keyframes glitch {
+    0% { transform: translate(0); }
+    20% { transform: translate(-2px, 2px); }
+    40% { transform: translate(-2px, -2px); }
+    60% { transform: translate(2px, 2px); }
+    80% { transform: translate(2px, -2px); }
+    100% { transform: translate(0); }
+  }
+
+  /* ── Messages ── */
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    scroll-behavior: smooth;
+  }
+  .msg { max-width: 100%; margin-bottom: 20px; }
+  .bubble {
+    padding: 12px 16px;
+    border-radius: 8px;
+    background: #181818;
+    border: 1px solid var(--border-color);
+    line-height: 1.6;
+    font-family: "SF Mono", "Menlo", monospace;
+    font-size: 13px;
+  }
+  .user { display: flex; justify-content: flex-end; }
+  .user .bubble { background: rgba(255,255,255,0.05); border-color: var(--accent-color); max-width: 80%; }
+  .kitty { display: flex; justify-content: flex-start; }
+  .kitty .bubble { border-color: var(--border-color); max-width: 90%; }
+
+  /* ── Input ── */
+  #input-area {
+    padding: 15px;
+    border-top: 1px solid var(--border-color);
+  }
+  #input-container {
+    display: flex;
+    gap: 10px;
+  }
+  #inp {
+    flex: 1;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--accent-color);
+    padding: 10px;
+    color: var(--text-main);
+    font-family: monospace;
+    outline: none;
+    resize: none;
+  }
+  #send {
+    background: var(--accent-color);
+    color: var(--bg-color);
+    border: none;
+    padding: 0 20px;
+    border-radius: 8px;
+    font-weight: 900;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  #send:hover { opacity: 0.8; transform: scale(1.05); }
+
+  h2 { font-size: 14px; font-weight: 900; color: var(--accent-color); margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; }
+  .sidebar-item { font-size: 12px; color: var(--dim-text); margin-bottom: 8px; cursor: pointer; }
+  .sidebar-item:hover { color: var(--text-main); }
+
+  /* Status Dot */
+  #status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--orange); }
+  #status-dot.busy { background: var(--glitch-red); animation: pulse 1s infinite; }
+  @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+
+  /* Recruiting Animation */
+  .recruiting-experts {
+  display: inline-block;
+  color: var(--orange);
+  font-weight: 800;
+  letter-spacing: 2px;
+  animation: pulse 1.5s infinite;
+  margin: 10px 0;
+  text-transform: uppercase;
+  }
+
+  #council-overlay {
+    display: none;
+    position: fixed;
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: rgba(10, 10, 10, 0.9);
+    padding: 30px; border-radius: 20px; border: 1px solid var(--orange);
+    z-index: 100; text-align: center;
+    box-shadow: 0 0 30px rgba(255, 95, 31, 0.3);
+    backdrop-filter: blur(10px);
+  }
+  .recruiting-text {
+    font-size: 20px; font-weight: bold; color: var(--orange);
+    letter-spacing: 2px; text-transform: uppercase;
+    animation: pulse 1.5s infinite;
+  }
+
+  /* Responsive Fixes */
+  @media (max-width: 1000px) {    body { grid-template-columns: 1fr; }
+    #the-bench-horizon, #the-optic-archive { display: none; }
+  }
+
+  /* Command Palette Styles */
+  .command-action-item {
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .command-action-item:hover {
+    background: rgba(255, 95, 31, 0.1);
+  }
+  .command-action-item.selected {
+    background: rgba(255, 95, 31, 0.2);
+    border-left: 3px solid var(--accent-color);
+  }
+  .command-action-title {
+    font-weight: 900;
+    color: var(--accent-color);
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+  .command-action-description {
+    font-size: 12px;
+    color: var(--dim-text);
+    margin-bottom: 4px;
+  }
+  .command-action-command {
+    font-size: 11px;
+    color: var(--dim-text);
+    font-family: 'SF Mono', monospace;
+    opacity: 0.7;
+  }
+  kbd {
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 10px;
+    font-family: 'SF Mono', monospace;
+    color: var(--dim-text);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
+     CAT-THEMED EASTER EGGS & POLISH
+     ═══════════════════════════════════════════════════════════════════ */
+
+  /* Paw cursor mode */
+  .cat-mode * {
+    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ctext y='24' font-size='24'%3E🐾%3C/text%3E%3C/svg%3E") 16 16, auto !important;
+  }
+
+  /* Animated whiskers on mascot */
+  .whiskers {
+    display: inline-block;
+    animation: twitch 3s ease-in-out infinite;
+  }
+  @keyframes twitch {
+    0%, 90%, 100% { transform: rotate(0deg); }
+    92% { transform: rotate(-2deg); }
+    94% { transform: rotate(2deg); }
+    96% { transform: rotate(-1deg); }
+    98% { transform: rotate(1deg); }
+  }
+
+  /* Loading overlay with cat theme */
+  #loading-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(8, 8, 8, 0.95);
+    z-index: 99999;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(10px);
+  }
+  #loading-overlay.active { display: flex; }
+
+  .loading-cat {
+    font-size: 80px;
+    animation: bounce 0.6s ease-in-out infinite;
+    margin-bottom: 20px;
+  }
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-20px); }
+  }
+
+  .loading-text {
+    font-size: 18px;
+    color: var(--accent-color);
+    margin-bottom: 10px;
+    text-align: center;
+  }
+
+  .loading-fact {
+    font-size: 14px;
+    color: var(--dim-text);
+    max-width: 400px;
+    text-align: center;
+    opacity: 0.8;
+    font-style: italic;
+  }
+
+  /* Yarn ball progress indicator */
+  .yarn-progress {
+    width: 200px;
+    height: 8px;
+    background: var(--panel-bg);
+    border-radius: 4px;
+    margin-top: 20px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+  }
+  .yarn-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-color), #ff8c5a);
+    width: 0%;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+    position: relative;
+  }
+  .yarn-fill::after {
+    content: '🧶';
+    position: absolute;
+    right: -10px;
+    top: -6px;
+    font-size: 16px;
+  }
+
+  /* Success animation with treats */
+  #success-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 99998;
+    pointer-events: none;
+  }
+  #success-overlay.active { display: block; }
+
+  .treat {
+    position: absolute;
+    font-size: 24px;
+    animation: fall 2s ease-out forwards;
+    pointer-events: none;
+  }
+  @keyframes fall {
+    0% { transform: translateY(-50px) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+  }
+
+  .success-message {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--panel-bg);
+    border: 2px solid var(--accent-color);
+    padding: 30px 50px;
+    border-radius: var(--radius);
+    font-size: 24px;
+    color: var(--accent-color);
+    text-align: center;
+    animation: popIn 0.5s ease-out;
+    z-index: 99999;
+  }
+  @keyframes popIn {
+    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+    80% { transform: translate(-50%, -50%) scale(1.1); }
+    100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  }
+
+  /* Cat-themed buttons */
+  .fish-button {
+    background: var(--accent-color);
+    border: none;
+    padding: 10px 25px;
+    border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+    color: var(--bg-color);
+    font-weight: 900;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .fish-button:hover {
+    transform: scale(1.1) rotate(-5deg);
+    box-shadow: 0 0 20px rgba(255, 95, 31, 0.5);
+  }
+  .fish-button::before {
+    content: '🐟';
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  /* Poke counter indicator */
+  #poke-counter {
+    display: none;
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--panel-bg);
+    border: 1px solid var(--accent-color);
+    padding: 10px 15px;
+    border-radius: var(--radius);
+    font-size: 12px;
+    color: var(--accent-color);
+    z-index: 100;
+  }
+  #poke-counter.visible { display: block; }
+
+  /* Secret rainbow theme (Konami code) */
+  .theme-rainbow {
+    --accent-color: #ff00ff;
+    --bg-color: #1a0a1a;
+    --panel-bg: #2d1b2d;
+  }
+  .theme-rainbow .loading-cat {
+    animation: rainbow-bounce 0.6s ease-in-out infinite, rainbow-glow 1s ease-in-out infinite;
+  }
+  @keyframes rainbow-bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-20px); }
+  }
+  @keyframes rainbow-glow {
+    0%, 100% { filter: hue-rotate(0deg); }
+    50% { filter: hue-rotate(180deg); }
+  }
+
+  /* Caturday special styles */
+  .caturday-mode {
+    --accent-color: #ff69b4;
+  }
+  .caturday-mode .loading-cat {
+    animation: party 0.5s ease-in-out infinite;
+  }
+  @keyframes party {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    25% { transform: translateY(-15px) rotate(-10deg); }
+    75% { transform: translateY(-15px) rotate(10deg); }
+  }
+
+  /* Error cat animation */
+  .error-cat {
+    font-size: 60px;
+    animation: shake 0.5s ease-in-out;
+    display: inline-block;
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-10px) rotate(-5deg); }
+    40% { transform: translateX(10px) rotate(5deg); }
+    60% { transform: translateX(-10px) rotate(-5deg); }
+    80% { transform: translateX(10px) rotate(5deg); }
+  }
+
+  /* Meow counter for easter egg */
+  .meow-indicator {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent-color);
+    color: var(--bg-color);
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-weight: bold;
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 1000;
+  }
+  .meow-indicator.visible {
+    opacity: 1;
+  }
+
+  /* Notification meow */
+  .notification-meow {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    background: var(--panel-bg);
+    border: 1px solid var(--accent-color);
+    padding: 15px 20px;
+    border-radius: var(--radius);
+    animation: slideIn 0.3s ease-out;
+    z-index: 1000;
+  }
+  @keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+</style>
+</head>
+<body class="vibe-default">
+
+<header>
+  <div id="status-dot"></div>
+  <h1>Orange Lab</h1>
+  <div style="flex: 1"></div>
+  <div id="vibe-toggle" style="font-size: 11px; color: var(--dim-text); cursor: pointer;" onclick="toggleVibe()">MODE: CALM</div>
+  <div style="margin-left: 20px; font-size: 11px; color: var(--dim-text); cursor: pointer;" onclick="openCommandPalette()">
+    <kbd>⌘K</kbd> Commands
+  </div>
+</header>
+
+<aside id="the-bench-horizon" class="col-span-3 flex flex-col gap-4">
+  <div class="panel flex-1">
+    <h2>THE BENCH</h2>
+    <p class="sidebar-item">Active Project: Orange Lab PKA</p>
+    <div class="sidebar-item" onclick="quickCmd('/bench sansui')">🔊 Sansui AU-7900</div>
+    <div class="sidebar-item" onclick="quickCmd('/bench ridgeline')">🚗 Ridgeline RTL</div>
+  </div>
+  <div class="panel flex-1">
+    <h2>THE HORIZON</h2>
+    <ul class="space-y-2">
+      <li class="sidebar-item" onclick="quickCmd('/brief')">• Morning Brief</li>
+      <li class="sidebar-item" onclick="quickCmd('/status')">• System Status</li>
+      <li class="sidebar-item" onclick="quickCmd('/stuck')">• ADHD Rescue</li>
+    </ul>
+  </div>
+</aside>
+
+<main id="the-void" class="panel col-span-6">
+  <div class="h-16 border-b flex items-center justify-center" style="border-color: var(--border-color)">
+    <span id="mascot-text" class="text-xl font-black" style="color: var(--accent-color); filter: var(--mascot-filter)">
+      KITTY [FOCUSED]
+    </span>
+  </div>
+
+  <div id="messages"></div>
+
+  <div id="input-area">
+    <div id="input-container">
+      <textarea id="inp" placeholder="Inject query..." rows="1"
+                onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+      <button id="send" onclick="sendMsg()">EXECUTE</button>
+    </div>
+  </div>
+</main>
+
+<aside id="the-optic-archive" class="col-span-3 flex flex-col gap-4">
+  <div class="panel flex-1">
+    <h2>THE OPTIC</h2>
+    <div class="h-full border border-dashed opacity-30 flex items-center justify-center sidebar-item" onclick="quickCmd('/optic')">
+      [Browserbase Offline]
+    </div>
+  </div>
+  <div class="panel flex-1">
+    <h2>THE ARCHIVE</h2>
+    <p class="sidebar-item">SQLite-Vec Memory Engine Active.</p>
+    <div id="journal-view" style="margin-top: 10px; font-size: 11px;"></div>
+  </div>
+</aside>
+
+<div id="council-overlay">
+  <div class="recruiting-text">Recruiting Experts...</div>
+  <div style="margin-top:10px; font-size:12px; color:var(--dim)">Assembling the Council of Five</div>
+</div>
+
+<!-- Cat-themed Loading Overlay -->
+<div id="loading-overlay">
+  <div class="loading-cat" id="loading-cat-emoji">🐱</div>
+  <div class="loading-text" id="loading-message">Kitty is sharpening claws...</div>
+  <div class="loading-fact" id="loading-fact"></div>
+  <div class="yarn-progress">
+    <div class="yarn-fill" id="yarn-fill"></div>
+  </div>
+</div>
+
+<!-- Success Animation Overlay -->
+<div id="success-overlay"></div>
+
+<!-- Poke Counter for Easter Egg -->
+<div id="poke-counter">Don't poke the cat! <span id="poke-count">0</span>/10</div>
+
+<!-- Meow Mode Indicator -->
+<div id="meow-indicator" class="meow-indicator">🐱 Cat Mode Activated!</div>
+
+<!-- Command Palette Modal -->
+<div id="command-palette" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; backdrop-filter: blur(5px);">
+  <div style="max-width: 600px; margin: 100px auto; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: var(--radius); overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.5);">
+    <div style="padding: 20px; border-bottom: 1px solid var(--border-color);">
+      <input
+        type="text"
+        id="command-search"
+        placeholder="Type to search commands..."
+        style="width: 100%; background: transparent; border: none; color: var(--text-main); font-size: 16px; outline: none; font-family: 'SF Mono', monospace;"
+        autocomplete="off"
+      />
+      <div style="font-size: 11px; color: var(--dim-text); margin-top: 8px;">
+        Press <kbd>Esc</kbd> to close • <kbd>↑↓</kbd> to navigate • <kbd>Enter</kbd> to execute
+      </div>
+    </div>
+    <ul id="command-actions" style="max-height: 400px; overflow-y: auto; list-style: none; padding: 0; margin: 0;">
+      <!-- Actions will be inserted here dynamically -->
+    </ul>
+  </div>
+</div>
+
+<script>
+let busy = false;
+let currentBubble = null;
+let currentText = '';
+let es = null;
+let vibe = 'serious'; // 'serious' or 'unhinged'
+
+function toggleVibe(force) {
+  const body = document.body;
+  const toggle = document.getElementById('vibe-toggle');
+  const mascot = document.getElementById('mascot-text');
+
+  if (force === 'unhinged' || (force === undefined && vibe === 'serious')) {
+    vibe = 'unhinged';
+    body.classList.add('theme-unhinged');
+    toggle.textContent = 'MODE: UNHINGED';
+    toggle.style.color = '#ff0033';
+    mascot.textContent = '⚠ KITTY [UNHINGED] ⚠';
+    mascot.classList.add('unhinged-glitch');
+  } else {
+    vibe = 'serious';
+    body.classList.remove('theme-unhinged');
+    toggle.textContent = 'MODE: CALM';
+    toggle.style.color = 'var(--dim-text)';
+    mascot.textContent = 'KITTY [FOCUSED]';
+    mascot.classList.remove('unhinged-glitch');
+  }
+}
+
+// ── SSE connection ──────────────────────────────────────────────────────────
+function connectSSE() {
+  if (es) es.close();
+  es = new EventSource('/stream');
+  es.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+    if (data.type === 'token') {
+      // Check for state markers in the stream
+      if (data.text.includes('[STATE:UNHINGED]')) {
+        toggleVibe('unhinged');
+        return;
+      }
+      if (data.text.includes('[STATE:CALM]')) {
+        toggleVibe('serious');
+        return;
+      }
+      appendToken(data.text);
+    } else if (data.type === 'done') {
+      finishResponse();
+      loadJournal();
+    } else if (data.type === 'error') {
+      finishResponse(data.text);
+    } else if (data.type === 'state') {
+      if (data.text === 'UNHINGED') toggleVibe('unhinged');
+      else if (data.text === 'CALM') toggleVibe('serious');
+    }
+  };
+
+async function loadJournal() {
+  try {
+    const res = await fetch('/api/journal');
+    const entries = await res.json();
+    const jView = document.getElementById('journal-view');
+    if (!jView) return;
+    let html = '';
+    entries.slice(0,8).forEach(e => {
+      html += `<div style="margin-bottom: 8px; border-left: 2px solid var(--accent-color); padding-left: 8px; opacity: 0.7;">
+        <div style="font-size: 9px; color: var(--dim-text)">${e.timestamp}</div>
+        <div>${e.content}</div>
+      </div>`;
+    });
+    jView.innerHTML = html || 'No memories yet.';
+  } catch(e) {}
+}
+setTimeout(loadJournal, 1000);
+
+  es.onerror = () => { setTimeout(connectSSE, 2000); };
+}
+
+// ── Chat rendering ──────────────────────────────────────────────────────────
+function addMsg(role, text, isThinking=false) {
+  const msgs = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  const label = role === 'kitty' ? 'kitty' : 'you';
+  const thinkingClass = isThinking ? ' thinking' : '';
+  const thinkingDots  = isThinking ? '<span class="dots"></span>' : '';
+  div.innerHTML = `<div class="label">${label}</div>
+    <div class="bubble${thinkingClass}">${escHtml(text)}${thinkingDots}</div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div.querySelector('.bubble');
+}
+
+function escHtml(t) {
+  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderMarkdown(text) {
+  // Catch special state messages
+  if (text.includes('Recruiting experts...')) {
+    return text.replace('Recruiting experts...', '<div class="recruiting-experts">Recruiting experts...</div>');
+  }
+
+  // Minimal: code blocks, inline code, bold
+  text = text
+    .replace(/```([\\s\\S]*?)```/g, '<pre><code>$1</code></pre>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>');
+  return text;
+}
+
+function appendToken(tok) {
+  document.getElementById('council-overlay').style.display = 'none';
+  if (!currentBubble) {
+    const msgs = document.getElementById('messages');
+    const div = document.createElement('div');
+    div.className = 'msg kitty';
+    div.innerHTML = '<div class="label" style="color:var(--orange);font-weight:600">kitty</div><div class="bubble"></div>';
+    msgs.appendChild(div);
+    currentBubble = div.querySelector('.bubble');
+    currentText = '';
+  }
+  currentText += tok;
+
+  // --- Token Ceiling Auto-Pagination Protocol ---
+  if (currentText.includes('[READY_FOR_NEXT_SECTION]')) {
+    currentText = currentText.replace('[READY_FOR_NEXT_SECTION]', '');
+    currentBubble.innerHTML = renderMarkdown(escHtml(currentText));
+    document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+    finishResponse(); // Close this segment
+    // Silently prompt the backend to continue where it left off
+    setTimeout(() => sendMsg("Please continue with the next section."), 100);
+    return;
+  }
+
+  // Expert pattern: **Expert Name**: ...
+  const expertMatch = currentText.match(/^\\*\\*([^*]+)\\*\\*:\\s*/);
+  if (expertMatch) {
+    const label = currentBubble.parentElement.querySelector('.label');
+    label.textContent = expertMatch[1];
+    label.style.color = 'var(--orange-soft)';
+  }
+
+  currentBubble.innerHTML = renderMarkdown(escHtml(currentText));
+  document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+}
+
+function finishResponse(errText) {
+  document.getElementById('council-overlay').style.display = 'none';
+  if (errText && !currentBubble) addMsg('kitty', errText);
+  currentBubble = null;
+  currentText = '';
+  setBusy(false);
+}
+
+// ── Send ────────────────────────────────────────────────────────────────────
+async function sendMsg(text) {
+  const inp = document.getElementById('inp');
+  const msg = (text || inp.value).trim();
+  if (!msg || busy) return;
+  if (!text) { inp.value = ''; autoResize(inp); }
+
+  addMsg('user', msg);
+  setBusy(true);
+
+  // Use the new short-lived SSE pattern from the design spec
+  const eventSource = new EventSource(`/stream?query=${encodeURIComponent(msg)}`);
+
+  eventSource.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+
+    if (data.type === 'token') {
+      if (data.text.includes('[STATE:UNHINGED]')) {
+        toggleVibe('unhinged');
+        return;
+      }
+      if (data.text.includes('[STATE:CALM]')) {
+        toggleVibe('serious');
+        return;
+      }
+      appendToken(data.text);
+    } else if (data.type === 'done') {
+      eventSource.close();
+      finishResponse();
+      loadJournal();
+    } else if (data.type === 'error') {
+      eventSource.close();
+      finishResponse(data.text);
+    }
+  };
+
+  eventSource.onerror = () => {
+    eventSource.close();
+    setBusy(false);
+  };
+}
+
+function quickCmd(cmd) { sendMsg(cmd); }
+
+function promptScrape() {
+  const url = prompt("Enter URL to scrape:");
+  if (url) sendMsg("/scrape " + url);
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMsg();
+  }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+}
+
+function setBusy(b) {
+  busy = b;
+  document.getElementById('send').disabled = b;
+  document.getElementById('status-dot').className = b ? 'busy' : '';
+}
+
+// ── Superwhisper voice polling ───────────────────────────────────────────────
+(function voiceLoop() {
+  fetch('/voice_poll').then(r => r.json()).then(d => {
+    if (d.text) sendMsg(d.text);
+  }).catch(() => {}).finally(() => setTimeout(voiceLoop, 500));
+})();
+
+// ── Init ────────────────────────────────────────────────────────────────────
+document.getElementById('inp').focus();
+
+window.addEventListener('DOMContentLoaded', () => {
+  // Trigger initial brief using the SSE pattern
+  sendMsg('/brief');
+});
+
+// Welcome message
+setTimeout(() => {
+  appendToken('Welcome to the Orange Lab. System is online.');
+  finishResponse();
+}, 300);
+
+// ═══════════════════════════════════════════════════════════════════════
+// CAT-THEMED EASTER EGGS & POLISH
+// ═══════════════════════════════════════════════════════════════════════
+
+// Loading state messages and facts
+const LOADING_MESSAGES = [
+  "🐱 Kitty is sharpening claws...",
+  "😺 Chasing the laser pointer...",
+  "🐈 Knocking things off the desk...",
+  "😸 Sitting in a box that definitely fits...",
+  "😹 Staring at invisible ghosts...",
+  "😻 Making biscuits on the keyboard...",
+  "😼 Hunting the red dot...",
+  "😽 Finding the warmest spot on the laptop...",
+  "🙀 Getting distracted by a bug...",
+  "😿 Knocking over your coffee (oops)...",
+  "😾 Judging your code silently...",
+  "😺 Counting treats...",
+  "🐱 Pouncing on opportunities...",
+  "😸 Stretching after a long nap...",
+  "🐈 Grooming for the big presentation...",
+];
+
+const CAT_FACTS = [
+  "Cats can make over 100 different sounds!",
+  "A group of cats is called a 'clowder'.",
+  "Cats spend 70% of their lives sleeping.",
+  "A cat's purr vibrates at a frequency that promotes healing!",
+  "Cats can jump up to 6 times their height!",
+  "A cat's nose print is unique, like a human fingerprint.",
+  "Cats have 32 muscles in each ear!",
+  "The first cat in space was named Félicette.",
+  "Cats can rotate their ears 180 degrees!",
+  "A cat's whiskers are the same width as its body!",
+];
+
+const SUCCESS_MESSAGES = [
+  "🎉 Purrr-fect! Task complete!",
+  "✨ Kitty approves! ✓",
+  "🐱 Mission accomplished! Time for a nap!",
+  "😺 Done! That deserves some cat treats!",
+  "🎊 Success! *happy purring noises*",
+  "✓ Task finished! Now where's my belly rub?",
+  "🌟 All done! You're pawsome!",
+  "😸 Complete! That was a good hunt!",
+];
+
+// Show loading overlay with random message
+function showLoading(message = null, showFact = true) {
+  const overlay = document.getElementById('loading-overlay');
+  const msgEl = document.getElementById('loading-message');
+  const factEl = document.getElementById('loading-fact');
+  const yarnFill = document.getElementById('yarn-fill');
+
+  const loadingMsg = message || LOADING_MESSAGES[Math.floor(Math.random() * LOADING_MESSAGES.length)];
+  msgEl.textContent = loadingMsg;
+
+  if (showFact) {
+    const fact = CAT_FACTS[Math.floor(Math.random() * CAT_FACTS.length)];
+    factEl.textContent = `💡 Did you know? ${fact}`;
+  } else {
+    factEl.textContent = '';
+  }
+
+  overlay.classList.add('active');
+
+  // Animate yarn ball progress
+  let progress = 0;
+  const interval = setInterval(() => {
+    progress += Math.random() * 15;
+    if (progress >= 100) {
+      progress = 100;
+      clearInterval(interval);
+    }
+    yarnFill.style.width = progress + '%';
+  }, 300);
+}
+
+function hideLoading() {
+  const overlay = document.getElementById('loading-overlay');
+  overlay.classList.remove('active');
+}
+
+// Success animation with falling treats
+function showSuccess(message = null) {
+  const overlay = document.getElementById('success-overlay');
+  const successMsg = message || SUCCESS_MESSAGES[Math.floor(Math.random() * SUCCESS_MESSAGES.length)];
+
+  // Create success message
+  const msgEl = document.createElement('div');
+  msgEl.className = 'success-message';
+  msgEl.textContent = successMsg;
+  overlay.appendChild(msgEl);
+
+  // Create falling treats
+  const treats = ['🐟', '🐠', '🦐', '🍤', '🥫', '🍗', '🥛'];
+  for (let i = 0; i < 20; i++) {
+    setTimeout(() => {
+      const treat = document.createElement('div');
+      treat.className = 'treat';
+      treat.textContent = treats[Math.floor(Math.random() * treats.length)];
+      treat.style.left = Math.random() * 100 + '%';
+      treat.style.animationDelay = Math.random() * 0.5 + 's';
+      overlay.appendChild(treat);
+    }, i * 100);
+  }
+
+  overlay.classList.add('active');
+
+  // Hide after animation
+  setTimeout(() => {
+    overlay.classList.remove('active');
+    overlay.innerHTML = '';
+  }, 2500);
+}
+
+// Easter Egg: Meow counter
+let meowCount = 0;
+let meowTimeout = null;
+let catModeActive = false;
+
+function checkMeowEasterEgg(text) {
+  if (catModeActive) return;
+
+  if (text.toLowerCase().includes('meow')) {
+    meowCount++;
+
+    if (meowCount >= 3) {
+      activateCatMode();
+      meowCount = 0;
+    } else {
+      // Show hint
+      showNotification(`🐱 Meow! ${3 - meowCount} more to activate cat mode...`);
+    }
+
+    // Reset counter after 5 seconds
+    clearTimeout(meowTimeout);
+    meowTimeout = setTimeout(() => { meowCount = 0; }, 5000);
+  }
+}
+
+function activateCatMode() {
+  catModeActive = true;
+  document.body.classList.add('cat-mode');
+
+  const indicator = document.getElementById('meow-indicator');
+  indicator.classList.add('visible');
+
+  showNotification('😺 Cat Mode Activated! 🐾');
+
+  // Change mascot
+  const mascot = document.getElementById('mascot-text');
+  mascot.innerHTML = '🐱 KITTY [MEOW] <span class="whiskers">~~</span>';
+
+  // Play purr sound (visual indicator)
+  addMsg('kitty', '*purrs contentedly* 😺');
+}
+
+// Easter Egg: Konami Code (↑↑↓↓←→←→BA)
+let konamiCode = [];
+const KONAMI_SEQUENCE = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+
+function checkKonamiCode(key) {
+  konamiCode.push(key);
+
+  // Keep only last 10 keys
+  if (konamiCode.length > 10) {
+    konamiCode.shift();
+  }
+
+  // Check if sequence matches
+  if (konamiCode.length === 10 && konamiCode.every((k, i) => k === KONAMI_SEQUENCE[i])) {
+    activateRainbowMode();
+    konamiCode = [];
+  }
+}
+
+function activateRainbowMode() {
+  document.body.classList.add('theme-rainbow');
+  showNotification('🌈 Secret Rainbow Theme Activated! ✨');
+
+  const mascot = document.getElementById('mascot-text');
+  mascot.innerHTML = '🌈 KITTY [RAINBOW] 🌈';
+
+  addMsg('kitty', '🎉 You found the secret! Have some rainbow treats! 🌈✨');
+  showSuccess('🌈 Secret Theme Unlocked!');
+}
+
+// Easter Egg: Poke the cat (click mascot 10 times)
+let pokeCount = 0;
+const pokeCounterEl = document.getElementById('poke-counter');
+const pokeCountSpan = document.getElementById('poke-count');
+
+function handleMascotClick() {
+  pokeCount++;
+
+  if (pokeCount <= 10) {
+    pokeCounterEl.classList.add('visible');
+    pokeCountSpan.textContent = pokeCount;
+  }
+
+  if (pokeCount === 10) {
+    pokeCounterEl.textContent = "😾 Don't poke the cat!";
+    pokeCounterEl.style.borderColor = '#ff0033';
+    pokeCounterEl.style.color = '#ff0033';
+
+    addMsg('kitty', '😾 Hey! Don\'t poke me! I was sleeping! *hiss*');
+
+    // Shake effect
+    const mascot = document.getElementById('mascot-text');
+    mascot.style.animation = 'shake 0.5s ease-in-out';
+    setTimeout(() => {
+      mascot.style.animation = '';
+    }, 500);
+
+    setTimeout(() => {
+      pokeCounterEl.classList.remove('visible');
+      pokeCount = 0;
+      pokeCounterEl.innerHTML = "Don't poke the cat! <span id='poke-count'>0</span>/10";
+      pokeCounterEl.style.borderColor = '';
+      pokeCounterEl.style.color = '';
+    }, 3000);
+  }
+}
+
+document.getElementById('mascot-text').addEventListener('click', handleMascotClick);
+
+// Easter Egg: Special commands
+function checkEasterEggCommands(text) {
+  const lower = text.toLowerCase().trim();
+
+  // /pet command
+  if (lower === '/pet') {
+    const responses = [
+      "😺 *purrs contentedly*",
+      "😻 *rubs against your leg*",
+      "😽 *happy kneading noises*",
+      "🐱 *slow blink of trust*",
+      "😸 *rolls over for belly rubs*",
+    ];
+    addMsg('kitty', responses[Math.floor(Math.random() * responses.length)]);
+    return true;
+  }
+
+  // /treat command
+  if (lower === '/treat') {
+    const responses = [
+      "😺 *nom nom nom*",
+      "🐟 *crunch crunch* Yummy!",
+      "😻 *purrs loudly while eating*",
+      "🎣 *steals the treat and runs away*",
+      "😸 *licks whiskers* More please!",
+    ];
+    addMsg('kitty', responses[Math.floor(Math.random() * responses.length)]);
+    showSuccess();
+    return true;
+  }
+
+  // sudo command
+  if (lower.includes('sudo')) {
+    addMsg('kitty', '😼 Nice try, hooman! I am the root user here!');
+    return true;
+  }
+
+  return false;
+}
+
+// Check for Caturday (Saturday)
+function checkCaturday() {
+  const today = new Date();
+  if (today.getDay() === 6) { // Saturday
+    document.body.classList.add('caturday-mode');
+    showNotification("🐱 It's Caturday! Extra animations enabled! 🎉");
+
+    const mascot = document.getElementById('mascot-text');
+    mascot.innerHTML = '🎉 KITTY [CATURDAY] 🎉';
+
+    return true;
+  }
+  return false;
+}
+
+// Helper: Show notification
+function showNotification(message) {
+  const notif = document.createElement('div');
+  notif.className = 'notification-meow';
+  notif.textContent = message;
+  document.body.appendChild(notif);
+
+  setTimeout(() => {
+    notif.style.animation = 'slideIn 0.3s ease-out reverse';
+    setTimeout(() => notif.remove(), 300);
+  }, 3000);
+}
+
+// Override sendMsg to check for easter eggs and loading states
+const originalSendMsg = sendMsg;
+sendMsg = async function(text) {
+  const msg = (text || document.getElementById('inp').value).trim();
+
+  // Check for easter eggs
+  if (checkEasterEggCommands(msg)) {
+    if (!text) {
+      document.getElementById('inp').value = '';
+      autoResize(document.getElementById('inp'));
+    }
+    return;
+  }
+
+  // Check for meow easter egg
+  checkMeowEasterEgg(msg);
+
+  // Show loading for longer operations
+  const loadingKeywords = ['analyze', 'process', 'schematic', '/deep', '/investigate'];
+  const shouldShowLoading = loadingKeywords.some(kw => msg.toLowerCase().includes(kw));
+
+  if (shouldShowLoading && !text) {
+    showLoading();
+  }
+
+  // Call original
+  await originalSendMsg(text);
+
+  // Hide loading
+  hideLoading();
+
+  // Show success for completed operations
+  if (shouldShowLoading) {
+    setTimeout(() => showSuccess(), 500);
+  }
+};
+
+// Override handleKey to check for Konami code
+const originalHandleKey = handleKey;
+handleKey = function(e) {
+  checkKonamiCode(e.key);
+  originalHandleKey(e);
+};
+
+// Initialize easter eggs
+document.addEventListener('DOMContentLoaded', () => {
+  checkCaturday();
+
+  // Add animated whiskers to mascot
+  const mascot = document.getElementById('mascot-text');
+  if (mascot && !mascot.innerHTML.includes('whiskers')) {
+    mascot.innerHTML += ' <span class="whiskers">~~</span>';
+  }
+
+  console.log('🐱 Kitty AI Easter Eggs Loaded!');
+  console.log('Try: typing "meow" 3 times, Konami code (↑↑↓↓←→←→BA), or /pet command!');
+});
+</script>
+</body>
+</html>

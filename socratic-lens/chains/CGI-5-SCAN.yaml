@@ -1,0 +1,54 @@
+chain_id: CGI-5-SCAN
+name: Dynamic Scanning
+name_tr: Dinamik Tarama
+
+input:
+  lens: "{{CGI-4.output}}"
+  full_corpus: "Full dataset or section to scan"
+
+prompt: |
+  LENS:
+  <lens>
+  {{lens}}
+  </lens>
+
+  Now scan the dataset using this lens.
+
+  <corpus>
+  {{full_corpus}}
+  </corpus>
+
+  For each QUESTION in the corpus:
+
+  1. Ask the DECISION QUESTION from the lens
+  2. Check for transformative and mechanical signals
+  3. Give verdict: TRANSFORMATIVE | MECHANICAL | UNCERTAIN
+
+  Report ONLY TRANSFORMATIVE and UNCERTAIN ones.
+
+  For each candidate:
+  - Location (turn number)
+  - Question
+  - Before/After summary
+  - Why this verdict?
+  - Confidence: low | medium | high
+
+  OUTPUT:
+  Respond with JSON matching the schema.
+
+output_schema:
+  scan_results:
+    - turn: number
+      question: string
+      before_summary: string
+      after_summary: string
+      verdict: transformative|uncertain
+      reasoning: string
+      confidence: low|medium|high
+  statistics:
+    total_questions: number
+    transformative: number
+    uncertain: number
+    mechanical: number
+
+next: CGI-6-SOCRATIC

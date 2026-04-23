@@ -1,0 +1,12 @@
+venv/
+lightrag/.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.env
+*.egg-info/
+dist/
+build/
+.sass-cache/
+node_modules/
+*.log

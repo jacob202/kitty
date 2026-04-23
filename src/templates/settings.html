@@ -1,0 +1,688 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Kitty AI{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h1 class="display-5">
+                <i class="bi bi-gear-fill text-primary"></i> Settings
+            </h1>
+            <p class="text-muted">Customize your Kitty AI experience with profiles and preferences</p>
+        </div>
+    </div>
+
+    <!-- Active Profile Card -->
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-person-check"></i> Active Profile</span>
+                    <span class="badge bg-light text-primary" id="activeProfileBadge">Loading...</span>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5 id="activeProfileName">Loading...</h5>
+                            <p class="text-muted" id="activeProfileDesc">Loading...</p>
+                        </div>
+                        <div class="col-md-6 text-md-end">
+                            <button class="btn btn-outline-primary" onclick="showProfileSwitcher()">
+                                <i class="bi bi-arrow-repeat"></i> Switch Profile
+                            </button>
+                            <button class="btn btn-primary" onclick="editCurrentProfile()">
+                                <i class="bi bi-pencil"></i> Edit Profile
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Selection -->
+    <div class="row mb-4" id="profileSwitcher" style="display: none;">
+        <div class="col">
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-collection"></i> Available Profiles
+                </div>
+                <div class="card-body">
+                    <div class="row" id="profilesList">
+                        <!-- Profiles will be loaded here -->
+                    </div>
+                    <div class="mt-3">
+                        <button class="btn btn-success" onclick="showCreateProfileModal()">
+                            <i class="bi bi-plus-lg"></i> Create New Profile
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Tabs -->
+    <div class="row">
+        <div class="col">
+            <div class="card">
+                <div class="card-header">
+                    <ul class="nav nav-tabs card-header-tabs" id="settingsTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="model-tab" data-bs-toggle="tab" data-bs-target="#model" type="button">
+                                <i class="bi bi-cpu"></i> Model
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="personality-tab" data-bs-toggle="tab" data-bs-target="#personality" type="button">
+                                <i class="bi bi-emoji-smile"></i> Personality
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="tools-tab" data-bs-toggle="tab" data-bs-target="#tools" type="button">
+                                <i class="bi bi-tools"></i> Tools
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="middleware-tab" data-bs-toggle="tab" data-bs-target="#middleware" type="button">
+                                <i class="bi bi-diagram-3"></i> Middleware
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="ui-tab" data-bs-toggle="tab" data-bs-target="#ui" type="button">
+                                <i class="bi bi-palette"></i> UI
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-body">
+                    <div class="tab-content" id="settingsTabContent">
+                        <!-- Model Settings -->
+                        <div class="tab-pane fade show active" id="model" role="tabpanel">
+                            <h5 class="mb-3">Model Configuration</h5>
+                            <form id="modelForm">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Provider</label>
+                                        <select class="form-select" id="modelProvider">
+                                            <option value="claude">Claude (Anthropic)</option>
+                                            <option value="openai">OpenAI (GPT)</option>
+                                            <option value="ollama">Ollama (Local)</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Model Name</label>
+                                        <input type="text" class="form-control" id="modelName" placeholder="claude-3-5-sonnet">
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Temperature: <span id="tempValue">0.7</span></label>
+                                        <input type="range" class="form-range" id="temperature" min="0" max="2" step="0.1" value="0.7">
+                                        <div class="form-text">0.0 = focused, 2.0 = creative</div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Max Tokens: <span id="tokensValue">4000</span></label>
+                                        <input type="range" class="form-range" id="maxTokens" min="100" max="8000" step="100" value="4000">
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Top-p</label>
+                                        <input type="number" class="form-control" id="topP" min="0" max="1" step="0.05" value="1.0">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Frequency Penalty</label>
+                                        <input type="number" class="form-control" id="freqPenalty" min="-2" max="2" step="0.1" value="0">
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Presence Penalty</label>
+                                        <input type="number" class="form-control" id="presPenalty" min="-2" max="2" step="0.1" value="0">
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- Personality Settings -->
+                        <div class="tab-pane fade" id="personality" role="tabpanel">
+                            <h5 class="mb-3">Personality & Behavior</h5>
+                            <form id="personalityForm">
+                                <div class="mb-3">
+                                    <label class="form-label">System Prompt</label>
+                                    <textarea class="form-control" id="systemPrompt" rows="6" placeholder="Enter the system prompt that defines Kitty's behavior..."></textarea>
+                                    <div class="form-text">This prompt guides how Kitty responds to all queries.</div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Personality</label>
+                                        <select class="form-select" id="personality">
+                                            <option value="helpful">Helpful</option>
+                                            <option value="analytical">Analytical</option>
+                                            <option value="precise">Precise</option>
+                                            <option value="creative">Creative</option>
+                                            <option value="technician">Technician</option>
+                                            <option value="teacher">Teacher</option>
+                                            <option value="developer">Developer</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Thinking Style</label>
+                                        <select class="form-select" id="thinkingStyle">
+                                            <option value="step-by-step">Step-by-Step</option>
+                                            <option value="direct">Direct</option>
+                                            <option value="creative">Creative</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Response Format</label>
+                                        <select class="form-select" id="responseFormat">
+                                            <option value="concise">Concise</option>
+                                            <option value="verbose">Verbose</option>
+                                            <option value="structured">Structured</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- Tools Settings -->
+                        <div class="tab-pane fade" id="tools" role="tabpanel">
+                            <h5 class="mb-3">Tool Availability</h5>
+                            <form id="toolsForm">
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="toolWebSearch">
+                                            <label class="form-check-label" for="toolWebSearch">
+                                                <i class="bi bi-search"></i> Web Search
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="toolCodeExec">
+                                            <label class="form-check-label" for="toolCodeExec">
+                                                <i class="bi bi-code-square"></i> Code Execution
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="toolFileOps">
+                                            <label class="form-check-label" for="toolFileOps">
+                                                <i class="bi bi-folder"></i> File Operations
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="toolSchematic">
+                                            <label class="form-check-label" for="toolSchematic">
+                                                <i class="bi bi-circuit-board"></i> Schematic Analysis
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="toolBOM">
+                                            <label class="form-check-label" for="toolBOM">
+                                                <i class="bi bi-list-check"></i> BOM Manager
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="toolDatasheet">
+                                            <label class="form-check-label" for="toolDatasheet">
+                                                <i class="bi bi-file-pdf"></i> Datasheet Lookup
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="toolVision">
+                                            <label class="form-check-label" for="toolVision">
+                                                <i class="bi bi-eye"></i> Vision Analysis
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="toolVector">
+                                            <label class="form-check-label" for="toolVector">
+                                                <i class="bi bi-database"></i> Vector Search
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="toolMemory">
+                                            <label class="form-check-label" for="toolMemory">
+                                                <i class="bi bi-memory"></i> Memory Recall
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" id="toolAgents">
+                                            <label class="form-check-label" for="toolAgents">
+                                                <i class="bi bi-people"></i> Custom Agents
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- Middleware Settings -->
+                        <div class="tab-pane fade" id="middleware" role="tabpanel">
+                            <h5 class="mb-3">Middleware & Cost Control</h5>
+                            <form id="middlewareForm">
+                                <div class="mb-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="autoRoute" checked>
+                                        <label class="form-check-label" for="autoRoute">
+                                            Enable Auto-Routing
+                                        </label>
+                                        <div class="form-text">Automatically route requests to the most cost-effective model</div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Max Cost Per Request ($)</label>
+                                        <input type="number" class="form-control" id="maxCost" min="0" max="1" step="0.01" value="0.10">
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Cost Threshold - Flash ($)</label>
+                                        <input type="number" class="form-control" id="costFlash" min="0" max="1" step="0.001" value="0.01">
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="preferLocal" checked>
+                                            <label class="form-check-label">Prefer Local for Simple</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="preferFlash" checked>
+                                            <label class="form-check-label">Prefer Flash for Vision</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="preferHeavy" checked>
+                                            <label class="form-check-label">Prefer Heavy for Coding</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- UI Settings -->
+                        <div class="tab-pane fade" id="ui" role="tabpanel">
+                            <h5 class="mb-3">UI Preferences</h5>
+                            <form id="uiForm">
+                                <div class="row">
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Theme</label>
+                                        <select class="form-select" id="uiTheme">
+                                            <option value="hardware">Hardware (Default)</option>
+                                            <option value="research">Research</option>
+                                            <option value="creative">Creative</option>
+                                            <option value="developer">Developer</option>
+                                            <option value="calm">Calm</option>
+                                            <option value="dark">Dark</option>
+                                            <option value="light">Light</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4 mb-3">
+                                        <label class="form-label">Animation Speed</label>
+                                        <select class="form-select" id="animSpeed">
+                                            <option value="slow">Slow</option>
+                                            <option value="normal">Normal</option>
+                                            <option value="fast">Fast</option>
+                                            <option value="none">None</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="compactMode">
+                                        <label class="form-check-label" for="compactMode">
+                                            Compact Mode
+                                        </label>
+                                        <div class="form-text">Reduce padding and margins for dense layouts</div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Save Button -->
+                    <div class="mt-4 text-end">
+                        <button class="btn btn-secondary me-2" onclick="resetChanges()">
+                            <i class="bi bi-arrow-counterclockwise"></i> Reset
+                        </button>
+                        <button class="btn btn-success" onclick="saveSettings()">
+                            <i class="bi bi-check-lg"></i> Save Changes
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Profile Modal -->
+<div class="modal fade" id="createProfileModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create New Profile</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Profile Name</label>
+                    <input type="text" class="form-control" id="newProfileName" placeholder="my-custom-profile">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Base Profile (Optional)</label>
+                    <select class="form-select" id="newProfileBase">
+                        <option value="">Start from scratch</option>
+                        <option value="research_reasoning">Research & Reasoning</option>
+                        <option value="analytical_precise">Analytical & Precise</option>
+                        <option value="creative_innovative">Creative & Innovative</option>
+                        <option value="repair_technician">Repair Technician</option>
+                        <option value="code_developer">Code Developer</option>
+                        <option value="teacher_educator">Teacher/Educator</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="createProfile()">Create</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentProfile = null;
+let profiles = [];
+
+// Load settings on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadProfiles();
+    loadActiveProfile();
+    setupEventListeners();
+});
+
+function setupEventListeners() {
+    // Temperature slider
+    document.getElementById('temperature').addEventListener('input', function() {
+        document.getElementById('tempValue').textContent = this.value;
+    });
+
+    // Max tokens slider
+    document.getElementById('maxTokens').addEventListener('input', function() {
+        document.getElementById('tokensValue').textContent = this.value;
+    });
+}
+
+async function loadProfiles() {
+    try {
+        const response = await fetch('/api/settings/profiles');
+        profiles = await response.json();
+        renderProfilesList();
+    } catch (error) {
+        console.error('Failed to load profiles:', error);
+        showToast('Failed to load profiles', 'error');
+    }
+}
+
+async function loadActiveProfile() {
+    try {
+        const response = await fetch('/api/settings/profiles/active');
+        const data = await response.json();
+        currentProfile = data.settings;
+
+        // Update UI
+        document.getElementById('activeProfileBadge').textContent = data.name;
+        document.getElementById('activeProfileName').textContent = data.name;
+        document.getElementById('activeProfileDesc').textContent = currentProfile.description;
+
+        // Populate forms
+        populateForms(currentProfile);
+    } catch (error) {
+        console.error('Failed to load active profile:', error);
+        showToast('Failed to load settings', 'error');
+    }
+}
+
+function renderProfilesList() {
+    const container = document.getElementById('profilesList');
+    container.innerHTML = '';
+
+    profiles.forEach(profile => {
+        const card = document.createElement('div');
+        card.className = 'col-md-4 mb-3';
+        card.innerHTML = `
+            <div class="card h-100 ${profile.active ? 'border-primary' : ''}">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        ${profile.active ? '<i class="bi bi-check-circle-fill text-primary"></i> ' : ''}
+                        ${profile.name}
+                    </h6>
+                    <p class="card-text small text-muted">${profile.description}</p>
+                    ${!profile.active ? `
+                        <button class="btn btn-sm btn-outline-primary" onclick="switchProfile('${profile.name}')">
+                            Use This Profile
+                        </button>
+                    ` : '<span class="badge bg-primary">Active</span>'}
+                </div>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+function populateForms(settings) {
+    // Model form
+    document.getElementById('modelProvider').value = settings.model.provider;
+    document.getElementById('modelName').value = settings.model.model_name;
+    document.getElementById('temperature').value = settings.model.temperature;
+    document.getElementById('tempValue').textContent = settings.model.temperature;
+    document.getElementById('maxTokens').value = settings.model.max_tokens;
+    document.getElementById('tokensValue').textContent = settings.model.max_tokens;
+    document.getElementById('topP').value = settings.model.top_p;
+    document.getElementById('freqPenalty').value = settings.model.frequency_penalty;
+    document.getElementById('presPenalty').value = settings.model.presence_penalty;
+
+    // Personality form
+    document.getElementById('systemPrompt').value = settings.system_prompt;
+    document.getElementById('personality').value = settings.personality;
+    document.getElementById('thinkingStyle').value = settings.thinking_style;
+    document.getElementById('responseFormat').value = settings.response_format;
+
+    // Tools form
+    document.getElementById('toolWebSearch').checked = settings.tools.web_search;
+    document.getElementById('toolCodeExec').checked = settings.tools.code_execution;
+    document.getElementById('toolFileOps').checked = settings.tools.file_operations;
+    document.getElementById('toolSchematic').checked = settings.tools.schematic_analysis;
+    document.getElementById('toolBOM').checked = settings.tools.bom_manager;
+    document.getElementById('toolDatasheet').checked = settings.tools.datasheet_lookup;
+    document.getElementById('toolVision').checked = settings.tools.vision_analysis;
+    document.getElementById('toolVector').checked = settings.tools.vector_search;
+    document.getElementById('toolMemory').checked = settings.tools.memory_recall;
+    document.getElementById('toolAgents').checked = settings.tools.custom_agents;
+
+    // Middleware form
+    document.getElementById('autoRoute').checked = settings.middleware.auto_route;
+    document.getElementById('maxCost').value = settings.middleware.max_cost_per_request;
+    document.getElementById('costFlash').value = settings.middleware.cost_threshold_flash;
+    document.getElementById('preferLocal').checked = settings.middleware.prefer_local_for_simple;
+    document.getElementById('preferFlash').checked = settings.middleware.prefer_flash_for_vision;
+    document.getElementById('preferHeavy').checked = settings.middleware.prefer_heavy_for_coding;
+
+    // UI form
+    document.getElementById('uiTheme').value = settings.ui_theme;
+    document.getElementById('animSpeed').value = settings.animation_speed;
+    document.getElementById('compactMode').checked = settings.compact_mode;
+}
+
+function showProfileSwitcher() {
+    const switcher = document.getElementById('profileSwitcher');
+    switcher.style.display = switcher.style.display === 'none' ? 'block' : 'none';
+}
+
+function editCurrentProfile() {
+    // Scroll to settings tabs
+    document.getElementById('settingsTabs').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function switchProfile(profileName) {
+    try {
+        const response = await fetch(`/api/settings/profiles/active/${profileName}`, {
+            method: 'POST'
+        });
+
+        if (response.ok) {
+            showToast(`Switched to profile: ${profileName}`, 'success');
+            loadActiveProfile();
+            loadProfiles(); // Refresh list to update active status
+        } else {
+            throw new Error('Failed to switch profile');
+        }
+    } catch (error) {
+        console.error('Failed to switch profile:', error);
+        showToast('Failed to switch profile', 'error');
+    }
+}
+
+async function saveSettings() {
+    if (!currentProfile) return;
+
+    // Gather settings from all forms
+    const settings = {
+        ...currentProfile,
+        model: {
+            provider: document.getElementById('modelProvider').value,
+            model_name: document.getElementById('modelName').value,
+            temperature: parseFloat(document.getElementById('temperature').value),
+            max_tokens: parseInt(document.getElementById('maxTokens').value),
+            top_p: parseFloat(document.getElementById('topP').value),
+            frequency_penalty: parseFloat(document.getElementById('freqPenalty').value),
+            presence_penalty: parseFloat(document.getElementById('presPenalty').value),
+            timeout: currentProfile.model.timeout
+        },
+        system_prompt: document.getElementById('systemPrompt').value,
+        personality: document.getElementById('personality').value,
+        thinking_style: document.getElementById('thinkingStyle').value,
+        response_format: document.getElementById('responseFormat').value,
+        tools: {
+            web_search: document.getElementById('toolWebSearch').checked,
+            code_execution: document.getElementById('toolCodeExec').checked,
+            file_operations: document.getElementById('toolFileOps').checked,
+            schematic_analysis: document.getElementById('toolSchematic').checked,
+            bom_manager: document.getElementById('toolBOM').checked,
+            datasheet_lookup: document.getElementById('toolDatasheet').checked,
+            vision_analysis: document.getElementById('toolVision').checked,
+            vector_search: document.getElementById('toolVector').checked,
+            memory_recall: document.getElementById('toolMemory').checked,
+            custom_agents: document.getElementById('toolAgents').checked
+        },
+        middleware: {
+            auto_route: document.getElementById('autoRoute').checked,
+            max_cost_per_request: parseFloat(document.getElementById('maxCost').value),
+            cost_threshold_flash: parseFloat(document.getElementById('costFlash').value),
+            cost_threshold_local: currentProfile.middleware.cost_threshold_local,
+            cost_threshold_heavy: currentProfile.middleware.cost_threshold_heavy,
+            prefer_local_for_simple: document.getElementById('preferLocal').checked,
+            prefer_flash_for_vision: document.getElementById('preferFlash').checked,
+            prefer_heavy_for_coding: document.getElementById('preferHeavy').checked
+        },
+        ui_theme: document.getElementById('uiTheme').value,
+        animation_speed: document.getElementById('animSpeed').value,
+        compact_mode: document.getElementById('compactMode').checked
+    };
+
+    try {
+        const response = await fetch(`/api/settings/profiles/${currentProfile.name}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(settings)
+        });
+
+        if (response.ok) {
+            showToast('Settings saved successfully', 'success');
+            loadActiveProfile(); // Refresh
+        } else {
+            throw new Error('Failed to save settings');
+        }
+    } catch (error) {
+        console.error('Failed to save settings:', error);
+        showToast('Failed to save settings', 'error');
+    }
+}
+
+function resetChanges() {
+    if (currentProfile) {
+        populateForms(currentProfile);
+        showToast('Changes reset', 'info');
+    }
+}
+
+function showCreateProfileModal() {
+    const modal = new bootstrap.Modal(document.getElementById('createProfileModal'));
+    modal.show();
+}
+
+async function createProfile() {
+    const name = document.getElementById('newProfileName').value;
+    const base = document.getElementById('newProfileBase').value;
+
+    if (!name) {
+        showToast('Please enter a profile name', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/settings/profiles', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, base_profile: base || null })
+        });
+
+        if (response.ok) {
+            showToast(`Profile '${name}' created`, 'success');
+            bootstrap.Modal.getInstance(document.getElementById('createProfileModal')).hide();
+            loadProfiles(); // Refresh list
+        } else {
+            throw new Error('Failed to create profile');
+        }
+    } catch (error) {
+        console.error('Failed to create profile:', error);
+        showToast('Failed to create profile', 'error');
+    }
+}
+
+function showToast(message, type = 'info') {
+    // Simple toast implementation - you can replace with your preferred toast library
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type === 'error' ? 'danger' : type === 'success' ? 'success' : 'info'} alert-dismissible fade show position-fixed`;
+    toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 250px;';
+    toast.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+</script>
+{% endblock %}

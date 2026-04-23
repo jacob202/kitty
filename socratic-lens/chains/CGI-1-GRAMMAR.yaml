@@ -1,0 +1,50 @@
+chain_id: CGI-1-GRAMMAR
+name: Context Grammar Extraction
+name_tr: Bağlam Grameri Çıkarımı
+
+input:
+  corpus_sample: "10-20 randomly sampled conversation segments from dataset"
+  sample_method: stratified_random
+
+prompt: |
+  Below are conversation samples from a dataset.
+
+  <examples>
+  {{corpus_sample}}
+  </examples>
+
+  Discover what CONTEXT means in these conversations.
+
+  QUESTIONS:
+  1. What does "context" refer to in these conversations?
+     - Topic? (what is being discussed)
+     - Tone? (how it is being discussed)
+     - Abstraction level? (concrete ↔ abstract)
+     - Relationship dynamics? (power, distance, intimacy)
+     - Time perspective? (past, present, future)
+     - Epistemic state? (knowing, guessing, questioning)
+     - Something else?
+
+  2. In this dataset, what does "stayed in the same context" mean?
+
+  3. In this dataset, what does "context changed" mean?
+
+  4. What linguistic markers signal context shift?
+     (words, patterns, transition phrases)
+
+  5. What linguistic markers signal context stability?
+
+  OUTPUT:
+  Respond with JSON matching the schema.
+
+output_schema:
+  context_axes:
+    - axis: string
+      weight: primary|secondary|tertiary
+  shift_markers:
+    - string
+  stability_markers:
+    - string
+  context_definition: string
+
+next: CGI-2-POSITIVE

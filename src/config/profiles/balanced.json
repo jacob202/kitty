@@ -1,0 +1,50 @@
+{
+  "name": "balanced",
+  "description": "Balanced general-purpose profile - good for most tasks",
+  "version": "1.0",
+  "created_at": "2024-01-01T00:00:00",
+  "updated_at": "2024-01-01T00:00:00",
+  "model": {
+    "provider": "claude",
+    "model_name": "claude-3-5-sonnet",
+    "temperature": 0.7,
+    "max_tokens": 4000,
+    "top_p": 0.95,
+    "frequency_penalty": 0.0,
+    "presence_penalty": 0.0,
+    "timeout": 120
+  },
+  "system_prompt": "You are Kitty, a helpful AI assistant. You provide balanced, accurate responses that are neither too brief nor overly verbose. You adapt your style to match the user's needs and provide practical, actionable advice.",
+  "personality": "helpful",
+  "thinking_style": "step-by-step",
+  "response_format": "verbose",
+  "tools": {
+    "web_search": true,
+    "code_execution": false,
+    "file_operations": true,
+    "schematic_analysis": true,
+    "bom_manager": true,
+    "datasheet_lookup": true,
+    "vision_analysis": true,
+    "vector_search": true,
+    "memory_recall": true,
+    "custom_agents": true
+  },
+  "middleware": {
+    "auto_route": true,
+    "cost_threshold_local": 0.0,
+    "cost_threshold_flash": 0.01,
+    "cost_threshold_heavy": 0.05,
+    "prefer_local_for_simple": true,
+    "prefer_flash_for_vision": true,
+    "prefer_heavy_for_coding": true,
+    "max_cost_per_request": 0.08
+  },
+  "ui_theme": "hardware",
+  "animation_speed": "normal",
+  "compact_mode": false,
+  "features": {
+    "auto_suggestions": true,
+    "context_awareness": true
+  }
+}

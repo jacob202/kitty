@@ -1,0 +1,66 @@
+chain_id: CGI-4-LENS
+name: Dynamic Lens Construction
+name_tr: Dinamik Lens Oluşturma
+
+input:
+  context_grammar: "{{CGI-1.output}}"
+  transformations: "{{CGI-2.output}}"
+  mechanicals: "{{CGI-3.output}}"
+
+prompt: |
+  Now construct a LENS specific to this dataset.
+
+  Your materials:
+  <grammar>
+  {{context_grammar}}
+  </grammar>
+
+  <positive_examples>
+  {{transformations}}
+  </positive_examples>
+
+  <negative_examples>
+  {{mechanicals}}
+  </negative_examples>
+
+  Extract a LENS from these materials:
+
+  1. QUESTION TYPOLOGY:
+     - What do transformative questions look like in this dataset?
+     - What do mechanical questions look like in this dataset?
+     - What do uncertain (in-between) questions look like?
+
+  2. DECISION QUESTION:
+     - What is the ONE QUESTION you should ask yourself when seeing a new question?
+     - (This question is not hardcoded — it must be derived from this dataset)
+
+  3. SIGNALS:
+     - 3 linguistic/structural features that signal transformation
+     - 3 linguistic/structural features that signal mechanical nature
+
+  4. CHARACTER OF THIS DATASET:
+     - What does "right question" mean in this dataset?
+     - In one sentence.
+
+  OUTPUT:
+  Respond with JSON matching the schema.
+
+output_schema:
+  lens:
+    name: string
+    decision_question: string
+    transformative_signals:
+      - string
+      - string
+      - string
+    mechanical_signals:
+      - string
+      - string
+      - string
+    verdict_guide:
+      transformative: string
+      mechanical: string
+      uncertain: string
+    corpus_character: string
+
+next: CGI-5-SCAN

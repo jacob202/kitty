@@ -1,0 +1,55 @@
+chain_id: CGI-6-SOCRATIC
+name: Socratic Meta-Inquiry
+name_tr: Sokratik Meta-Sorgulama
+
+input:
+  lens: "{{CGI-4.output}}"
+  scan_results: "{{CGI-5.output}}"
+
+prompt: |
+  Scanning complete.
+
+  <lens>
+  {{lens}}
+  </lens>
+
+  <results>
+  {{scan_results}}
+  </results>
+
+  Now SOCRATIC INQUIRY:
+
+  1. WHAT DO THESE FINDINGS REVEAL?
+     - Is there a common pattern in transformative questions?
+     - Is there a common pattern in mechanical questions?
+     - Was this pattern captured in the lens, or is it something new?
+
+  2. DID THE LENS VALIDATE ITSELF?
+     - Did the lens's decision question work?
+     - Which cases were difficult?
+     - If the lens were to be updated, how should it be updated?
+
+  3. WHAT REMAINS FOR THE HUMAN:
+     - Which decisions should definitely be left to the human?
+     - What can the system SHOW but cannot DECIDE?
+
+  4. COMMON CHARACTERISTIC OF TRANSFORMATIVE QUESTIONS:
+     - What did "transforming context" actually mean in this dataset?
+     - Is it different from initial assumptions?
+
+  5. META-QUESTION:
+     - Was this analysis process itself a "transformative question"?
+     - Did your view of the dataset change?
+
+  OUTPUT:
+  Plain text, insights in paragraphs.
+
+output_schema:
+  insights: string (paragraphs)
+  lens_update_suggestions:
+    - string
+  human_decision_points:
+    - string
+  meta_reflection: string
+
+next: null

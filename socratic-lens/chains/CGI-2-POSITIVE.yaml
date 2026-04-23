@@ -1,0 +1,46 @@
+chain_id: CGI-2-POSITIVE
+name: Transformation Archetype Extraction
+name_tr: Dönüşüm Arketipi Çıkarımı
+
+input:
+  corpus_sample: "{{corpus_sample}}"
+  context_grammar: "{{CGI-1.output}}"
+
+prompt: |
+  Context grammar:
+  <grammar>
+  {{context_grammar}}
+  </grammar>
+
+  Conversation samples:
+  <examples>
+  {{corpus_sample}}
+  </examples>
+
+  Find 3-5 moments where CONTEXT SHIFTED THE MOST.
+
+  For each transformation:
+
+  1. BEFORE: 1-2 sentences immediately before the question
+  2. QUESTION: The question that triggered the transformation
+  3. AFTER: 1-2 sentences immediately after the question
+  4. WHAT SHIFTED: Which axis/axes shifted according to the grammar?
+  5. HOW IT SHIFTED: Concrete→abstract? External→internal? Past→future?
+  6. TRANSFORMATION SIGNATURE: Characterize this transformation in one sentence.
+
+  OUTPUT:
+  Respond with JSON matching the schema.
+
+output_schema:
+  transformations:
+    - id: string
+      before: string
+      question: string
+      after: string
+      axes_shifted:
+        - string
+      direction: string
+      signature: string
+  transformation_pattern: string (common pattern if exists)
+
+next: CGI-3-NEGATIVE
