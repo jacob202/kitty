@@ -10,3 +10,7 @@ build/
 .sass-cache/
 node_modules/
 *.log
+
+# Embedded git repos (external tools with their own repos)
+src/tools/lightrag/
+src/tools/superpowers/
