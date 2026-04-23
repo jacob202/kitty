@@ -52,6 +52,7 @@ The design introduces one browser path and one server path.
 
 - The existing chat UI gets a mic button near the composer.
 - Recording uses `navigator.mediaDevices.getUserMedia()` plus `MediaRecorder`.
+- The frontend should choose a preferred `mimeType` when constructing `MediaRecorder`, preferring browser-supported formats in this order: `audio/webm`, then `audio/mp4`, then the browser default if neither can be requested explicitly.
 - Audio chunks are collected client-side and combined into a `Blob`.
 - The blob is uploaded to `POST /api/transcribe` using `multipart/form-data`.
 - On success, the returned transcript is passed into the same send-message flow used by typed messages.
@@ -110,6 +111,7 @@ Outputs:
 Request:
 - `multipart/form-data`
 - Field name: `audio`
+- Accepted recording formats for first pass: `audio/webm` and `audio/mp4`
 - Optional metadata fields if useful later, but not required for first pass
 
 Successful response:
@@ -134,9 +136,14 @@ Failure response:
 
 Rules:
 - Reject missing files with `400`
-- Reject unsupported uploads with `400`
+- Reject uploads outside the accepted first-pass recording formats with `400`
 - Reject oversized uploads with `413`
 - Return `500` only for true server-side failures
+
+Format note:
+- Safari/iOS commonly records as `audio/mp4`
+- Chromium browsers commonly record as `audio/webm`
+- The server should accept both formats and rely on `ffmpeg` compatibility underneath `faster-whisper`
 
 ## Error Handling
 
