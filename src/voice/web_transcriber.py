@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from faster_whisper import WhisperModel
-
 
 @dataclass(eq=True)
 class TranscriptionResult:
@@ -20,6 +18,8 @@ class WebTranscriber:
 
     def _load_model(self):
         if self._model is None:
+            from faster_whisper import WhisperModel
+
             self._model = WhisperModel(self.model_size, device=self.device, compute_type=self.compute_type)
         return self._model
 

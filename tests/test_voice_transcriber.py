@@ -1,3 +1,5 @@
+import sys
+from types import SimpleNamespace
 from pathlib import Path
 
 import pytest
@@ -49,3 +51,21 @@ def test_transcribe_file_raises_when_transcript_is_empty(monkeypatch, tmp_path):
 
     with pytest.raises(ValueError, match="No speech detected"):
         WebTranscriber().transcribe_file(audio_path)
+
+
+def test_load_model_caches_constructor(monkeypatch):
+    calls = []
+
+    class FakeWhisperModel:
+        def __init__(self, model_size, device, compute_type):
+            calls.append((model_size, device, compute_type))
+
+    monkeypatch.setitem(sys.modules, "faster_whisper", SimpleNamespace(WhisperModel=FakeWhisperModel))
+
+    transcriber = WebTranscriber(model_size="tiny", device="cpu", compute_type="float32")
+
+    first_model = transcriber._load_model()
+    second_model = transcriber._load_model()
+
+    assert first_model is second_model
+    assert calls == [("tiny", "cpu", "float32")]
