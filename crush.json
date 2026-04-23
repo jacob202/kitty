@@ -59,8 +59,8 @@
       "type": "stdio",
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
-    },
-  },,
+    }
+  },
   "options": {
     "skills_paths": ["./src/tools/superpowers/skills", "./skills"],
     "auto_lsp": true
