@@ -15,6 +15,9 @@ import threading
 from pathlib import Path
 from typing import Any
 
+# Semaphore to cap concurrent OpenRouter calls from LightRAG (bypasses call_llm circuit breaker)
+_LIGHTRAG_OPENROUTER_SEM = asyncio.Semaphore(5)
+
 from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
@@ -96,39 +99,85 @@ class LightRAGStore:
 
         Path(working_dir).mkdir(parents=True, exist_ok=True)
 
-        # ─── LLM Function (OpenRouter via call_llm) ───────────────────────────
-        from src.space_kitty.llm_client import call_llm
+        # ─── LLM Function (OpenRouter direct via aiohttp) ────────────────────
+        # Bypasses call_llm's circuit breaker, which is intended for real-time
+        # user-facing conversation, not background ingestion parallelism.
+        import aiohttp
+
+        _openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
 
         async def openrouter_model_complete(prompt, system_prompt=None, history_messages=[], **kwargs) -> str:
-            """Adapter for call_llm to fit LightRAG's expectations."""
+            """Direct async OpenRouter call for LightRAG graph extraction.
+
+            Uses a module-level semaphore to cap concurrency at 5, and retries
+            up to 3 times with exponential backoff on HTTP 429.
+            """
             # LightRAG sometimes passes system_prompt in kwargs
             sys_p = system_prompt or kwargs.get("system_prompt", "")
-            
-            # Combine history if present (LightRAG usually handles its own history management)
+
+            # Combine history if present
             full_prompt = prompt
             if history_messages:
                 hist_str = "\n".join([f"{m['role']}: {m['content']}" for m in history_messages])
                 full_prompt = f"History:\n{hist_str}\n\nTask: {prompt}"
 
-            # call_llm is synchronous, but we are in an async context here.
-            # We run it in the loop's default executor.
-            loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(
-                None,
-                lambda: call_llm(
-                    prompt=full_prompt,
-                    system_prompt=sys_p,
-                    model=llm_model,
-                    max_tokens=kwargs.get("max_tokens", 2048),
-                    temperature=kwargs.get("temperature", 0.1) # Low temp for extraction
+            messages = []
+            if sys_p:
+                messages.append({"role": "system", "content": sys_p})
+            messages.append({"role": "user", "content": full_prompt})
+
+            payload = {
+                "model": llm_model,
+                "messages": messages,
+                "max_tokens": kwargs.get("max_tokens", 2048),
+                "temperature": kwargs.get("temperature", 0.1),
+            }
+            headers = {
+                "Authorization": f"Bearer {_openrouter_api_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://github.com/kitty",
+            }
+
+            async with _LIGHTRAG_OPENROUTER_SEM:
+                for attempt in range(3):
+                    try:
+                        async with aiohttp.ClientSession() as session:
+                            async with session.post(
+                                "https://openrouter.ai/api/v1/chat/completions",
+                                json=payload,
+                                headers=headers,
+                                timeout=aiohttp.ClientTimeout(total=120),
+                            ) as resp:
+                                if resp.status == 200:
+                                    data = await resp.json()
+                                    return data["choices"][0]["message"]["content"]
+                                if resp.status == 429:
+                                    backoff = 2 ** attempt
+                                    logger.warning(
+                                        f"OpenRouter rate limit (429) for LightRAG, "
+                                        f"attempt {attempt + 1}/3, backing off {backoff}s"
+                                    )
+                                    await asyncio.sleep(backoff)
+                                    continue
+                                text = await resp.text()
+                                raise RuntimeError(
+                                    f"OpenRouter {resp.status} for LightRAG: {text[:200]}"
+                                )
+                    except RuntimeError:
+                        raise
+                    except Exception as e:
+                        if attempt < 2:
+                            backoff = 2 ** attempt
+                            logger.warning(
+                                f"OpenRouter request error for LightRAG (attempt {attempt + 1}/3): "
+                                f"{e}, retrying in {backoff}s"
+                            )
+                            await asyncio.sleep(backoff)
+                        else:
+                            raise
+                raise RuntimeError(
+                    f"OpenRouter LightRAG call failed after 3 attempts (persistent 429)"
                 )
-            )
-            
-            # Strip offline mode markers if they appear
-            if result.startswith("[offline mode"):
-                raise RuntimeError(f"LightRAG LLM call failed: {result}")
-                
-            return result
 
         # ─── Embedding Function (Ollama nomic-embed-text) ─────────────────────
         # We keep Ollama for embeddings as it's local and fast.
