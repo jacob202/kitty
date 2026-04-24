@@ -33,7 +33,7 @@ def list_memory():
             with sqlite3.connect(cm.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 rows = conn.execute(
-                    "SELECT id, correction_text, category FROM corrections ORDER BY timestamp DESC LIMIT 50"
+                    "SELECT id, correction_text, category, scope FROM corrections ORDER BY timestamp DESC LIMIT 50"
                 ).fetchall()
 
         corrections = [
@@ -41,7 +41,7 @@ def list_memory():
                 "id": row["id"],
                 "text": row["correction_text"],
                 "category": row["category"],
-                "scope": "durable",
+                "scope": row["scope"] if row["scope"] else "durable",
                 "why": "Saved correction from prior interaction",
             }
             for row in rows
@@ -60,13 +60,27 @@ def list_memory():
             for snap in raw_snapshots
         ]
 
+        # MCP server-memory entities (no-op if store absent)
+        from src.core.memory_surface import _load_entities
+        raw_entities = _load_entities()
+        entities = [
+            {
+                "name": e.get("name", ""),
+                "type": e.get("entityType", ""),
+                "notes": (e.get("observations") or [])[:2],
+            }
+            for e in raw_entities
+        ]
+
         return jsonify({
             "ok": True,
             "corrections": corrections,
             "snapshots": snapshots,
+            "entities": entities,
             "summary": {
                 "correction_count": len(corrections),
                 "snapshot_count": len(snapshots),
+                "entity_count": len(entities),
             },
         })
 
@@ -122,13 +136,40 @@ def pin_memory():
     kind = body.get("kind", "").strip()
     scope = body.get("scope", "").strip()
 
+    item_id = body.get("id")
+
     if kind not in _VALID_KINDS:
         return jsonify({"ok": False, "error": f"kind must be one of {sorted(_VALID_KINDS)}"}), 400
     if scope not in _VALID_SCOPES:
         return jsonify({"ok": False, "error": f"scope must be one of {sorted(_VALID_SCOPES)}"}), 400
+    if item_id is None:
+        return jsonify({"ok": False, "error": "id is required"}), 400
 
-    return jsonify({
-        "ok": False,
-        "error": "Scope promotion not yet supported — corrections DB does not have a scope column yet.",
-        "code": "not_implemented",
-    }), 501
+    if kind == "snapshot":
+        return jsonify({
+            "ok": False,
+            "error": "Snapshot pinning not yet supported.",
+            "code": "not_implemented",
+        }), 501
+
+    try:
+        cm = _get_correction_memory()
+        with cm._lock:
+            import sqlite3
+            with sqlite3.connect(cm.db_path) as conn:
+                cursor = conn.execute(
+                    "UPDATE corrections SET scope = ? WHERE id = ?",
+                    (scope, int(item_id)),
+                )
+                conn.commit()
+                updated = cursor.rowcount
+
+        if updated:
+            return jsonify({"ok": True, "id": int(item_id), "scope": scope})
+        return jsonify({"ok": False, "error": "Correction not found", "id": item_id}), 404
+
+    except (ValueError, TypeError):
+        return jsonify({"ok": False, "error": "id must be an integer for corrections"}), 400
+    except Exception as exc:
+        logger.exception("Memory pin error")
+        return jsonify({"ok": False, "error": str(exc)}), 500

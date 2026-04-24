@@ -926,6 +926,47 @@ kbd {
   25%  { transform: translateY(-12px) rotate(-8deg); }
   75%  { transform: translateY(-12px) rotate(8deg); }
 }
+
+/* ── Memory panel ── */
+.memory-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 5px 4px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+  transition: background 0.15s;
+}
+.memory-item:hover { background: rgba(255,95,31,0.04); }
+.memory-item-text { flex: 1; line-height: 1.4; word-break: break-word; }
+.memory-scope {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.06);
+  color: var(--text-dim);
+  white-space: nowrap;
+  margin-top: 1px;
+}
+.memory-scope.pinned { background: rgba(255,95,31,0.18); color: var(--accent); }
+.memory-forget {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0 2px;
+  opacity: 0.4;
+  line-height: 1;
+}
+.memory-forget:hover { opacity: 1; color: #e55; }
+.memory-entity-row {
+  font-size: 10px;
+  color: var(--text-dim);
+  padding: 2px 4px;
+  opacity: 0.7;
+}
 </style>
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
@@ -1024,9 +1065,11 @@ kbd {
       Last: <span id="last-specialist-name" style="color:var(--accent)"></span>
     </div>
   </div>
-  <div class="panel">
+  <div class="panel" id="memory-panel">
     <h2>THE ARCHIVE</h2>
-    <p class="sidebar-item">Memory engine active.</p>
+    <div id="memory-summary" class="sidebar-item" style="margin-bottom:8px">Loading…</div>
+    <div id="memory-corrections"></div>
+    <div id="memory-entities" style="margin-top:8px"></div>
     <div id="journal-view" style="margin-top:8px"></div>
   </div>
 </aside>
@@ -1540,8 +1583,88 @@ setTimeout(loadJournal, 1000);
 // ── Init ────────────────────────────────────────────────────────────────────
 document.getElementById('inp').focus();
 
+// ── Memory panel ──────────────────────────────────────────────────────
+async function loadMemory() {
+  try {
+    const res = await fetch('/api/memory');
+    if (!res.ok) return;
+    const data = await res.json();
+
+    const s = data.summary || {};
+    const summary = document.getElementById('memory-summary');
+    summary.textContent = `${s.correction_count || 0} corrections · ${s.entity_count || 0} entities`;
+
+    // Corrections list
+    const corrEl = document.getElementById('memory-corrections');
+    corrEl.textContent = '';
+    const corrections = data.corrections || [];
+    if (corrections.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'sidebar-item';
+      empty.style.opacity = '0.4';
+      empty.textContent = 'No corrections yet.';
+      corrEl.appendChild(empty);
+    } else {
+      corrections.forEach(c => {
+        const row = document.createElement('div');
+        row.className = 'memory-item';
+
+        const text = document.createElement('div');
+        text.className = 'memory-item-text';
+        text.textContent = c.text;
+
+        const scope = document.createElement('span');
+        scope.className = 'memory-scope' + (c.scope === 'project' ? ' pinned' : '');
+        scope.textContent = c.scope;
+
+        const btn = document.createElement('button');
+        btn.className = 'memory-forget';
+        btn.title = 'Forget';
+        btn.textContent = '✕';
+        btn.addEventListener('click', () => forgetMemory(c.id));
+
+        row.appendChild(text);
+        row.appendChild(scope);
+        row.appendChild(btn);
+        corrEl.appendChild(row);
+      });
+    }
+
+    // MCP entities (compact)
+    const entEl = document.getElementById('memory-entities');
+    entEl.textContent = '';
+    const entities = data.entities || [];
+    if (entities.length > 0) {
+      const header = document.createElement('div');
+      header.className = 'sidebar-item';
+      header.style.opacity = '0.5';
+      header.style.marginBottom = '2px';
+      header.textContent = `${entities.length} remembered entities`;
+      entEl.appendChild(header);
+      entities.slice(0, 5).forEach(e => {
+        const row = document.createElement('div');
+        row.className = 'memory-entity-row';
+        row.textContent = `· ${e.name}${e.type ? ' (' + e.type + ')' : ''}`;
+        entEl.appendChild(row);
+      });
+    }
+  } catch (_) {}
+}
+
+async function forgetMemory(id) {
+  try {
+    const res = await fetch('/api/memory/forget', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({kind: 'correction', id})
+    });
+    if (res.ok) loadMemory();
+  } catch (_) {}
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   sendMsg('/brief');
+  loadMemory();
 });
 
 // ═══════════════════════════════════════════════════════════════════════

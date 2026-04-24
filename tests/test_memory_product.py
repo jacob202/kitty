@@ -44,6 +44,13 @@ def test_memory_summary_has_counts(client):
     data = client.get("/api/memory").get_json()
     assert "correction_count" in data["summary"]
     assert "snapshot_count" in data["summary"]
+    assert "entity_count" in data["summary"]
+
+
+def test_memory_list_has_entities_key(client):
+    data = client.get("/api/memory").get_json()
+    assert "entities" in data
+    assert isinstance(data["entities"], list)
 
 
 def test_forget_missing_correction_does_not_500(client):
@@ -73,6 +80,17 @@ def test_pin_invalid_scope_returns_400(client):
 def test_pin_snapshot_returns_non500(client):
     resp = client.post("/api/memory/pin", json={"kind": "snapshot", "id": "x", "scope": "durable"})
     assert resp.status_code in (200, 404, 501)
+
+
+def test_pin_missing_id_returns_400(client):
+    resp = client.post("/api/memory/pin", json={"kind": "correction", "scope": "durable"})
+    assert resp.status_code == 400
+    assert resp.get_json()["ok"] is False
+
+
+def test_pin_nonexistent_correction_returns_404(client):
+    resp = client.post("/api/memory/pin", json={"kind": "correction", "id": 999999, "scope": "project"})
+    assert resp.status_code == 404
 
 
 # ── ContextManager slot-routing tests ─────────────────────────────────────────

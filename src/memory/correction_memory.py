@@ -192,6 +192,12 @@ class CorrectionMemory:
                         tags TEXT DEFAULT '[]'
                     )
                 """)
+                # Idempotent migration: add scope column if not present
+                try:
+                    conn.execute("ALTER TABLE corrections ADD COLUMN scope TEXT DEFAULT 'durable'")
+                    conn.commit()
+                except Exception:
+                    pass  # Column already exists
 
                 # Track which corrections were used in context generation
                 conn.execute("""
