@@ -316,8 +316,8 @@ class CoreOrchestrator:
             for w in decision.warnings:
                 logger.warning(f"CostRouter: {w}")
 
-        if decision.tier == ModelTier.FREE or decision.provider == "mlx":
-            return None  # fall through to MLX in llm_client
+        if decision.tier in (ModelTier.FREE, ModelTier.CHEAP) or decision.provider == "mlx":
+            return None  # fall through to local MLX in llm_client
 
         return decision.model
 
@@ -334,6 +334,8 @@ class CoreOrchestrator:
         try:
             from src.space_kitty.llm_client import call_llm
 
+            from src.core.memory_surface import surface_memory
+
             soul = self.personality.get_system_context()
             system_prompt = soul if soul else "You are Kitty. Direct, warm, budget-conscious. No bullshit."
 
@@ -343,6 +345,11 @@ class CoreOrchestrator:
 
             if context_preamble:
                 system_prompt = context_preamble + "\n\n" + system_prompt
+
+            # Surface relevant memory entities (no-op if store absent or no matches)
+            memory_ctx = surface_memory(query)
+            if memory_ctx:
+                system_prompt = system_prompt + "\n\n" + memory_ctx
 
             content = call_llm(
                 prompt=query,

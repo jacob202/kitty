@@ -139,7 +139,7 @@ class BaseSpecialist(ABC):
         self.agent_spec = AgentSpec(
             name=self.name,
             description=f"{self.domain} specialist",
-            model="openrouter/free",  # Default fallback
+            model=None,  # Falls through to local MLX in llm_client.py
             system_prompt=self._soul_content if self._soul_content else self._get_system_prompt(),
             tools=agent_tools,
             temperature=0.7

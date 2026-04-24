@@ -26,7 +26,7 @@ MLX_MODEL = os.getenv("MLX_MODEL", "mlx-community/Qwen3.5-4B-4bit")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
-DEFAULT_MODEL = "qwen/qwen3-235b-a22b-2507"
+DEFAULT_MODEL = None  # None = fall through to local MLX; pass explicit model for remote
 
 # Reusable session for connection pooling
 _http_session = None

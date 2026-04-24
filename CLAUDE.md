@@ -17,9 +17,9 @@ Violating this routing is the #1 source of data-loss bugs in this project.
 ## Model Routing
 | Need | Model | Notes |
 |------|-------|-------|
-| Fast/free/local | MLX Qwen3.5-4B | `enable_thinking=True` for reasoning |
-| Cheap remote | deepseek-chat | currently wired for both large + small slots |
-| Heavy reasoning | deepseek-reasoner | paid — use sparingly |
+| Default + fallback | MLX Qwen3.5-4B (local) | T0–T3 complexity; free, private, no API key needed |
+| Reasoning | deepseek/deepseek-r1-0528 | MODERATE tier (T4), paid — use sparingly |
+| Premium | anthropic/claude-sonnet-4-6 | EXPENSIVE tier (T5), explicit requests only |
 
 Local models are free. Use them first.
 
