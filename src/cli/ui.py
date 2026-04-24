@@ -352,6 +352,29 @@ _CMD_DETAILS = {
 }
 
 
+def _greedy_columns(panels, console, padding=(0, 1)):
+    """Pack panels into rows using greedy width-fitting algorithm."""
+    rows = []
+    current_row = []
+    current_w = 0
+    gap = padding[1] if len(padding) > 1 else 0
+    for p in panels:
+        w = getattr(p, "width", None)
+        if w is None:
+            w = console.measure(p).maximum
+        needed = w + (gap if current_row else 0)
+        if current_row and current_w + needed > console.width:
+            rows.append(Columns(current_row, equal=False, padding=padding))
+            current_row = [p]
+            current_w = w
+        else:
+            current_row.append(p)
+            current_w += needed
+    if current_row:
+        rows.append(Columns(current_row, equal=False, padding=padding))
+    return rows
+
+
 def print_help(target: str = ""):
     if target:
         key = target.strip().lstrip("/")
@@ -374,11 +397,10 @@ def print_help(target: str = ""):
 
     # ── Grouped help columns ──────────────────────────────────────────────────
     def _section(title: str, rows: list, color: str = "cyan"):
-        w = console.width
-        cmd_w = max(22, min(32, w // 6))
-        desc_w = max(28, min(52, w // 4))
+        cmd_w = max(len(c) for c, d, *_ in rows)
+        desc_w = max(len(d) for c, d, *_ in rows)
         t = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
-        t.add_column("cmd", style=color, width=cmd_w)
+        t.add_column("cmd", style=color, width=cmd_w, no_wrap=True)
         t.add_column("desc", style="white", width=desc_w)
         for cmd, desc, *_ in rows:
             t.add_row(cmd, desc)
@@ -387,6 +409,7 @@ def print_help(target: str = ""):
             title=f"[bold {color}]{title}[/bold {color}]",
             border_style=f"dim {color}",
             padding=(0, 1),
+            width=cmd_w + desc_w + 8,
         )
 
     sections = [
@@ -474,19 +497,14 @@ def print_help(target: str = ""):
         ),
     ]
 
-    w = console.width
-    if w >= 200:
-        for i in range(0, len(sections), 3):
-            console.print(Columns(sections[i : i + 3], equal=True))
-    elif w >= 120:
-        for i in range(0, len(sections), 2):
-            console.print(Columns(sections[i : i + 2], equal=True))
-    else:
-        for s in sections:
-            console.print(s)
+    for row in _greedy_columns(sections, console):
+        console.print(row)
 
     console.print(
-        "\n  [dim]Tab autocompletes commands. Drag any image from Finder — auto-detects repair vs general.[/dim]\n"
+        "\n  [dim]Tab autocompletes commands. Drag any image from Finder — auto-detects repair vs general.[/dim]"
+    )
+    console.print(
+        "  [dim]Type [bold]kitty ref[/bold] for the terminal commands reference.[/dim]\n"
     )
 
 

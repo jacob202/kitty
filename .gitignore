@@ -4,6 +4,8 @@ __pycache__/
 *.pyc
 .DS_Store
 .env
+.env.*
+!.env.example
 *.egg-info/
 dist/
 build/
@@ -14,3 +16,11 @@ node_modules/
 # Embedded git repos (external tools with their own repos)
 src/tools/lightrag/
 src/tools/superpowers/
+.aider*
+
+# Runtime / local-only files
+.kitty.pid
+.zshrc.aider
+.zshrc.shim
+data/
+eval_snapshots/

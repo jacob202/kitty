@@ -35,8 +35,8 @@ class SlidingWindowRateLimiter:
             return True
 
     def _evict_stale(self, now: float):
-        """Remove stale entries to prevent unbounded growth."""
-        if len(self._cache) > self._max_entries:
+        """Remove stale entries only when cache exceeds 2x max entries."""
+        if len(self._cache) > self._max_entries * 2:
             stale_keys = [
                 k for k, (_, ws) in self._cache.items()
                 if now - ws > self._window
@@ -85,6 +85,16 @@ class TokenBroadcaster:
             for cid in dead_clients:
                 del self._queues[cid]
 
+    def put_for(self, client_id: str, kind: str, text: str):
+        """Put a message into a single client's queue only."""
+        with self._lock:
+            q = self._queues.get(client_id)
+            if q:
+                try:
+                    q.put_nowait((kind, text))
+                except queue.Full:
+                    self._queues.pop(client_id, None)
+
 
 token_broadcaster = TokenBroadcaster()
 
@@ -109,6 +119,12 @@ class TokenCapture:
                 clean = clean.replace("[STATE:CALM]", "")
             if clean and not clean.lstrip().startswith(("INFO:", "WARNING:", "DEBUG:")):
                 token_broadcaster.broadcast("token", clean)
+                try:
+                    from src.api.emitters import _socketio as sio_instance
+                    if sio_instance:
+                        sio_instance.emit("token", {"text": clean})
+                except ImportError:
+                    pass
 
         now = time.time()
         if now - self._last_flush > self._flush_interval:

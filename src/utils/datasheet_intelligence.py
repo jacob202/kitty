@@ -1258,21 +1258,4 @@ def extract_specs_from_datasheet(pdf_path: str) -> ComponentSpecs:
     return fetcher.extract_specs(pdf_path)
 
 
-if __name__ == "__main__":
-    # Simple test
-    logging.basicConfig(level=logging.INFO)
 
-    print("Datasheet Intelligence System - Test")
-    print("=" * 50)
-
-    # Test cross-reference
-    xref = CrossReferenceEngine()
-    print("\nEquivalent parts for 2N2222:")
-    for eq in xref.find_equivalent_parts("2N2222", limit=5):
-        print(f"  - {eq['part_number']} ({eq['manufacturer']}): {eq['notes']}")
-
-    # Test compatibility check
-    print("\nCompatibility check (2N2222 vs PN2222):")
-    result = xref.check_compatibility("2N2222", "PN2222")
-    print(f"  Compatible: {result['compatible']}, Confidence: {result['confidence']}")
-    print(f"  Notes: {result['notes']}")

@@ -2,15 +2,16 @@
 
 import json
 import logging
+import threading
 from pathlib import Path
 
+from flask import current_app, request
 from flask_socketio import emit
 
-logger = logging.getLogger("kitty.api.socket")
+from src.api.emitters import get_active_nodes, get_node_history, _MAX_HISTORY
+from src.core.capabilities import command_palette_suggestions, record_invocation
 
-_active_nodes = {}
-_node_history = []
-_MAX_HISTORY = 100
+logger = logging.getLogger("kitty.api.socket")
 
 
 def register_socket_handlers(socketio):
@@ -19,9 +20,9 @@ def register_socket_handlers(socketio):
     @socketio.on("connect")
     def handle_connect():
         emit("connected", {"message": "Connected to Agent Status Dashboard"})
-        for node_name, data in _active_nodes.items():
+        for node_name, data in get_active_nodes().items():
             emit("node_status", data)
-        for event in _node_history[-20:]:
+        for event in get_node_history()[-20:]:
             emit("node_status", event)
 
         recent_logs = []
@@ -34,7 +35,7 @@ def register_socket_handlers(socketio):
         except Exception as e:
             logger.error(f"Error reading canonical log: {e}")
 
-        emit("sync_state", {"recent_logs": recent_logs, "active_nodes": _active_nodes})
+        emit("sync_state", {"recent_logs": recent_logs, "active_nodes": get_active_nodes()})
 
         from src.api.emitters import emit_system_health
         emit_system_health()
@@ -45,40 +46,89 @@ def register_socket_handlers(socketio):
 
     @socketio.on("request_history")
     def handle_history_request():
-        emit("node_history", _node_history[-50:])
+        emit("node_history", get_node_history()[-50:])
 
     @socketio.on("command_palette_search")
     def handle_command_search(data):
         query = data.get("query", "").lower()
-        suggestions = []
-
-        if query:
-            if "hardware" in query or "schematic" in query:
-                suggestions = [
-                    {"command": "/analyze schematic", "description": "Analyze hardware schematic"},
-                    {"command": "/bench hardware", "description": "Switch to hardware mode"},
-                    {"command": "/process-pdf", "description": "Process PDF schematic"},
-                ]
-            elif "investigate" in query or "research" in query:
-                suggestions = [
-                    {"command": "/deepsearch", "description": "Deep web research"},
-                    {"command": "/investigate", "description": "Investigative analysis"},
-                    {"command": "/scrape", "description": "Scrape webpage"},
-                ]
-            elif "self" in query or "improve" in query:
-                suggestions = [
-                    {"command": "/vibe", "description": "Check current vibe"},
-                    {"command": "/stuck", "description": "ADHD rescue"},
-                    {"command": "/brief", "description": "Morning brief"},
-                ]
-            else:
-                suggestions = [
-                    {"command": "/help", "description": "Show all commands"},
-                    {"command": "/status", "description": "System status"},
-                    {"command": "/clear", "description": "Clear history"},
-                ]
-
+        suggestions = command_palette_suggestions(query)
+        for suggestion in suggestions:
+            record_invocation(suggestion["command"], outcome="suggested")
         emit("command_suggestions", suggestions)
+
+    @socketio.on("send_message")
+    def handle_send_message(data):
+        message = data.get("text", "").strip()
+        mode = data.get("mode", "fast")
+        model_target = data.get("modelTarget", "free")
+        reasoning = data.get("reasoning", False)
+        sid = request.sid
+        if not message:
+            return
+
+        from src.api.dispatcher import dispatch
+        sup = current_app.supervisor
+        orch = current_app.orchestrator
+        fallback = getattr(current_app, "web_llm", None)
+        busy = getattr(current_app, "_busy_lock", None)
+
+        def run():
+            try:
+                if message.startswith("/"):
+                    if busy:
+                        with busy:
+                            response = dispatch(
+                                message,
+                                sup=sup,
+                                orch=orch,
+                                fallback_chat=fallback.chat if fallback else None,
+                                fallback_stream=True,
+                            )
+                    else:
+                        response = dispatch(
+                            message,
+                            sup=sup,
+                            orch=orch,
+                            fallback_chat=fallback.chat if fallback else None,
+                            fallback_stream=True,
+                        )
+                    if response and getattr(response, "content", None):
+                        socketio.emit("token", {"text": response.content}, to=sid, namespace="/")
+                    return
+
+                from src.api.web_orchestrator import stream_response
+
+                if busy:
+                    with busy:
+                        response = stream_response(
+                            message,
+                            sid,
+                            mode=mode,
+                            reasoning=reasoning,
+                            model_target=model_target,
+                        )
+                else:
+                    response = stream_response(
+                        message,
+                        sid,
+                        mode=mode,
+                        reasoning=reasoning,
+                        model_target=model_target,
+                    )
+                if response:
+                    socketio.emit("token", {"text": response}, to=sid, namespace="/")
+            except Exception as e:
+                socketio.emit("error", {"text": f"Error: {e}"}, to=sid, namespace="/")
+            finally:
+                socketio.emit("done", {"specialist": ""}, to=sid, namespace="/")
+
+        app = current_app._get_current_object()
+        threading.Thread(target=_run_with_app_context, args=(app, run), daemon=True).start()
+
+
+def _run_with_app_context(app, func):
+    with app.app_context():
+        func()
 
 
 def emit_psychological_state(socketio):
@@ -102,7 +152,7 @@ def emit_psychological_state(socketio):
 
 def record_node_event(event_data):
     """Utility to record a LangGraph node event and broadcast it."""
-    global _node_history
+    from src.api.emitters import _node_history, _active_nodes, _MAX_HISTORY
     _node_history.append(event_data)
     if len(_node_history) > _MAX_HISTORY:
         _node_history.pop(0)

@@ -35,6 +35,8 @@ NOISE_PATTERNS = [
     r"Forum post #\d+",  # forum garbage
 ]
 
+_INVENTORY_PATH = Path("data/knowledge_bases/INVENTORY.md")
+
 
 class IngestEngine:
     def __init__(
@@ -59,18 +61,13 @@ class IngestEngine:
         import sqlite3
 
         conn = sqlite3.connect(str(self.registry_path.with_suffix(".sqlite")))
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS registry (hash TEXT PRIMARY KEY)"
-        )
+        conn.execute("CREATE TABLE IF NOT EXISTS registry (hash TEXT PRIMARY KEY)")
         conn.commit()
         self._reg_conn = conn
 
     def _hash_seen(self, h: str) -> bool:
-
         try:
-            cur = self._reg_conn.execute(
-                "SELECT 1 FROM registry WHERE hash = ?", (h,)
-            ).fetchone()
+            cur = self._reg_conn.execute("SELECT 1 FROM registry WHERE hash = ?", (h,)).fetchone()
             return cur is not None
         except Exception:
             return False
@@ -142,83 +139,71 @@ DOCUMENT:
             logger.error(f"LLM synthesis failed: {e}")
             return None
 
-    def embed_chunks(self, chunks: list[str]) -> list[list[float]]:
-        """Embed chunks using Ollama with batching and caching."""
-        ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-
-        if not chunks:
-            return []
-
-        embeddings: list[list[float]] = []
-        uncached_chunks: list[str] = []
-        uncached_indices: list[int] = []
-
-        for i, chunk in enumerate(chunks):
-            h = hashlib.sha256(chunk.encode()).hexdigest()
-            if h in self._emb_cache:
-                embeddings.append(self._emb_cache[h])
-            else:
-                uncached_chunks.append(chunk)
-                uncached_indices.append(i)
-
-        if not uncached_chunks:
-            return embeddings
-
+    def store_in_lightrag(self, content: str, domain: str, source_file: str, summary: str = "") -> bool:
+        """Store content in domain-specific LightRAG."""
         try:
-            payload = json.dumps({
-                "model": "nomic-embed-text",
-                "input": uncached_chunks,
-            }).encode()
-            req = urllib.request.Request(
-                f"{ollama_base_url}/api/embed",
-                data=payload,
-                headers={"Content-Type": "application/json"},
-            )
-            with urllib.request.urlopen(req, timeout=120) as resp:
-                result = json.loads(resp.read().decode())
-                batch_embeddings = result.get("embeddings", [])
+            from src.memory.lightrag_store import LightRAGStore
 
-            for idx, emb in zip(uncached_indices, batch_embeddings):
-                h = hashlib.sha256(chunks[idx].encode()).hexdigest()
-                self._emb_cache[h] = emb
-                embeddings.append(emb)
+            store = LightRAGStore(domain=domain)
+            store.add_document(content)
+            self._update_inventory(domain, source_file, summary)
+            return True
         except Exception as e:
-            logger.warning(f"Ollama batch embedding failed: {e}; using deterministic fallback")
-            for idx in uncached_indices:
-                chunk = chunks[idx]
-                h = hashlib.sha256(chunk.encode()).hexdigest()
-                emb = []
-                for i in range(0, min(len(h), 768 * 2), 4):
-                    if len(emb) >= 768:
-                        break
-                    val = float(int(h[i : i + 4], 16)) / (16**4)
-                    emb.append(val * 2 - 1)
-                emb = emb[:768] if len(emb) >= 768 else emb + [0.0] * (768 - len(emb))
-                self._emb_cache[h] = emb
-                embeddings.append(emb)
+            logger.error(f"Failed to store in LightRAG (domain={domain}): {e}")
+            return False
 
-        return embeddings
+    def _update_inventory(self, domain: str, source_file: str, summary: str):
+        """Update the centralized knowledge inventory."""
+        try:
+            _INVENTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
+            if not _INVENTORY_PATH.exists():
+                _INVENTORY_PATH.write_text("# Knowledge Base Inventory\n\n| Date | Domain | Source | Summary |\n|------|--------|--------|---------|\n")
 
-    def dedup_check(self, text: str) -> str | None:
-        """Check if text is a duplicate. Returns text if new, None if duplicate."""
-        h = hashlib.sha256(text.encode()).hexdigest()
-        if self._hash_seen(h):
-            return None
-        return text
+            date_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+            filename = os.path.basename(source_file)
+            summary_clean = summary.replace("\n", " ").replace("|", " ")[:100] + "..."
+            entry = f"| {date_str} | {domain} | {filename} | {summary_clean} |\n"
+            
+            with open(_INVENTORY_PATH, "a") as f:
+                f.write(entry)
+        except Exception as e:
+            logger.error(f"Failed to update inventory: {e}")
 
-    def chunk_text(self, text: str, chunk_size: int = 1000, overlap: int = 200) -> list[str]:
-        """Split text into overlapping chunks."""
-        words = text.split()
-        chunks = []
-        start = 0
-        while start < len(words):
-            end = min(start + chunk_size, len(words))
-            chunk = " ".join(words[start:end])
-            chunks.append(chunk)
-            if end == len(words):
-                break
-            start = end - overlap
-        return chunks
+    def ingest_file(self, file_path: Path, store_in_kb: bool = True, domain: str | None = None) -> int:
+        """Full pipeline for one file."""
+        # Auto-detect domain from parent folder if not provided
+        if domain is None:
+            domain = file_path.parent.name
+            if domain == "staging" or not domain:
+                domain = "general"
+
+        pearl = self.process_file(file_path)
+        if pearl is None:
+            return 0
+
+        if store_in_kb:
+            success = self.store_in_lightrag(pearl, domain, str(file_path), summary=pearl)
+            return 1 if success else 0
+
+        return 1
+
+    def ingest_directory(self, store_in_kb: bool = True, domain: str | None = None) -> dict[str, Any]:
+        """Ingest all files in watch_dir."""
+        files = self.scan_directory()
+        results = {"processed": [], "skipped": [], "failed": [], "total_chunks": 0}
+
+        for f in files:
+            try:
+                count = self.ingest_file(f, store_in_kb=store_in_kb, domain=domain)
+                if count > 0:
+                    results["processed"].append({"file": f.name, "chunks": count})
+                    results["total_chunks"] += count
+                else:
+                    results["skipped"].append({"file": f.name, "reason": "duplicate or empty"})
+            except Exception as e:
+                results["failed"].append({"file": f.name, "error": str(e)})
+
+        return results
 
     def scan_directory(self) -> list[Path]:
         """Scan watch_dir for supported files (.md, .pdf)."""
@@ -229,79 +214,3 @@ DOCUMENT:
             if f.is_file() and f.suffix in (".md", ".pdf"):
                 files.append(f)
         return files
-
-    def store_embeddings(self, chunks: list[str], source_file: str = None) -> int:
-        """Store chunks in LightRAGStore for specialist KB queries.
-
-        Args:
-            chunks: Text chunks to store
-            source_file: Optional source file path for metadata
-
-        Returns:
-            Number of chunks stored
-        """
-        try:
-            from src.memory.kitty_memory_enhanced import KittyMemoryEnhanced
-
-            mem = KittyMemoryEnhanced()
-            if source_file and Path(source_file).exists():
-                ids = mem.ingest_document(source_file)
-                logger.info(f"Stored {len(ids)} chunks in ChromaDB from {source_file}")
-                return len(ids)
-            # fallback: store synthesized text chunks directly
-            for i, chunk in enumerate(chunks):
-                chunk_id = hashlib.md5(f"{source_file}{chunk}{i}".encode()).hexdigest()
-                mem.documents.upsert(
-                    documents=[chunk],
-                    ids=[chunk_id],
-                    metadatas=[{"source": source_file or "ingest", "timestamp": datetime.now().isoformat()}],
-                )
-            logger.info(f"Stored {len(chunks)} chunks in ChromaDB")
-            return len(chunks)
-        except Exception as e:
-            logger.error(f"Failed to store in ChromaDB: {e}")
-            return 0
-
-    def ingest_file(self, file_path: Path, store_in_kb: bool = True) -> int:
-        """Full pipeline for one file. Returns chunk count or 0 if duplicate.
-
-        Args:
-            file_path: Path to file to ingest
-            store_in_kb: If True, store chunks in LightRAG for specialist queries
-
-        Returns:
-            Number of chunks stored (1 for synthesized, or actual chunk count if storing raw)
-        """
-        pearl = self.process_file(file_path)
-        if pearl is None:
-            return 0
-
-        if store_in_kb:
-            # Store the synthesized content as a chunk for KB retrieval
-            chunks = [pearl]
-            return self.store_embeddings(chunks, source_file=str(file_path))
-
-        return 1
-
-    def ingest_directory(self, store_in_kb: bool = True) -> dict[str, Any]:
-        """Ingest all files in watch_dir. Returns detailed stats."""
-        files = self.scan_directory()
-        results = {
-            "processed": [],
-            "skipped": [],
-            "failed": [],
-            "total_chunks": 0
-        }
-
-        for f in files:
-            try:
-                count = self.ingest_file(f, store_in_kb=store_in_kb)
-                if count > 0:
-                    results["processed"].append({"file": f.name, "chunks": count})
-                    results["total_chunks"] += count
-                else:
-                    results["skipped"].append({"file": f.name, "reason": "duplicate or empty"})
-            except Exception as e:
-                results["failed"].append({"file": f.name, "error": str(e)})
-
-        return results

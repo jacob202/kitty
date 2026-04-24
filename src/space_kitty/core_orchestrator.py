@@ -60,7 +60,13 @@ class CoreOrchestrator:
       → log to journal → analyze with Honcho → checkpoint state
     """
 
-    def __init__(self, stt_model: str = "base", voice: str = "lessac", socketio: Any = None):
+    def __init__(
+        self,
+        stt_model: str = "base",
+        voice: str = "lessac",
+        socketio: Any = None,
+        enable_voice_components: bool = True,
+    ):
         self.personality = KittyPersonality()
         self.domain_router = DomainRouter()
         self.specialists = SpecialistRegistry()
@@ -70,6 +76,13 @@ class CoreOrchestrator:
         self._conversation_history: list[dict[str, str]] = []
         self._bg_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="kitty-bg")
         self._cost_router = None
+        self._last_checkpoint = None
+
+        # Auto-resume from most recent session
+        self._last_checkpoint = self.resume_from_checkpoint()
+        if self._last_checkpoint:
+            hist = self._last_checkpoint.get("state", {}).get("history", [])
+            logger.info("Resumed session: %d messages from %s", len(hist), self._last_checkpoint.get("session_id"))
 
         # Reasoning layer
         self.reasoning = ReasoningLayer(
@@ -77,7 +90,7 @@ class CoreOrchestrator:
         )
 
         # Voice components (Piper TTS + Whisper STT)
-        if VOICE_AVAILABLE:
+        if enable_voice_components and VOICE_AVAILABLE:
             self.ears = KittyEars(model_size=stt_model)
             self.voice = KittyVoice(voice=voice)
         else:
@@ -149,8 +162,10 @@ class CoreOrchestrator:
             query, routing.domain.value
         )
 
-        # 2. Build unified context preamble (include reasoning conclusion)
-        context_preamble = self.context_manager.build_unified_context(query, routing.domain.value)
+        # 2. Build unified context preamble (include reasoning conclusion + resumed history)
+        context_preamble = self.context_manager.build_unified_context(
+            query, routing.domain.value, recent_history=self._conversation_history
+        )
         if reasoning_trace.conclusion:
             context_preamble += f"\n\n[Reasoning trace: {reasoning_trace.conclusion}]"
 
@@ -171,7 +186,8 @@ class CoreOrchestrator:
         logger.info(f"Model selected: {model}")
 
         # Get specialist response
-        if routing.domain == Domain.COUNCIL:
+        council_domain = getattr(Domain, "COUNCIL", None)
+        if council_domain is not None and routing.domain == council_domain:
             from src.orchestrator.specialist_council import SpecialistCouncil
 
             # Identify relevant specialists using semantic similarity
@@ -464,9 +480,21 @@ class CoreOrchestrator:
         """Resume from most recent checkpoint after context cutoff."""
         checkpoint = self.checkpoint.get_last_checkpoint()
         if checkpoint:
-            self._conversation_history = checkpoint.get("history", [])
+            state = checkpoint.get("state", {})
+            self._conversation_history = state.get("history", [])
             return checkpoint
         return None
+
+    def get_resume_summary(self) -> str | None:
+        """Get a human-readable summary of the resumed session."""
+        if not self._last_checkpoint:
+            return None
+        state = self._last_checkpoint.get("state", {})
+        hist = state.get("history", [])
+        session_id = self._last_checkpoint.get("session_id", "unknown")
+        msg_count = len(hist)
+        mood = state.get("mood", "unknown")
+        return f"Resumed session {session_id}: {msg_count} messages, mood={mood}"
 
     def get_conversation_summary(self, limit: int = 10) -> str:
         return self.context_manager.journal.get_summary(limit=limit)

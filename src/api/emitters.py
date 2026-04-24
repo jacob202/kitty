@@ -6,8 +6,8 @@ from dataclasses import asdict
 
 logger = logging.getLogger(__name__)
 
-_node_history: list = []
-_active_nodes: dict = {}
+_node_history: list[dict] = []
+_active_nodes: dict[str, dict] = {}
 _MAX_HISTORY = 100
 
 _socketio = None
@@ -51,7 +51,7 @@ def emit_theme_change(theme):
         _socketio.emit("theme_change", {"theme": theme, "timestamp": time.time()})
 
 
-_health_cache = {"data": None, "timestamp": 0}
+_health_cache: dict = {"data": None, "timestamp": 0.0}
 _HEALTH_CACHE_TTL = 30
 _health_checker = None
 

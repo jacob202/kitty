@@ -1,0 +1,118 @@
+#!/bin/zsh
+# Kitty launcher — run from anywhere: ./kitty or add to PATH
+# Usage:
+#   ./kitty          start web server (default port 5001)
+#   ./kitty stop     kill running server
+#   ./kitty restart  stop + start
+#   ./kitty status   show if running + URL
+#   ./kitty logs     tail the log file
+#   ./kitty ref      show terminal quick reference
+
+PYTHON=/opt/homebrew/bin/python3.12
+SCRIPT_DIR="${0:A:h}"
+PIDFILE="$SCRIPT_DIR/.kitty.pid"
+LOGFILE="$SCRIPT_DIR/.kitty.log"
+PORT="${KITTY_PORT:-5001}"
+CURL="${CURL:-/usr/bin/curl}"
+[[ -x "$CURL" ]] || CURL="curl"
+
+_ip() {
+  python3 -c "import socket; s=socket.socket(); s.settimeout(1); s.connect(('8.8.8.8',80)); print(s.getsockname()[0]); s.close()" 2>/dev/null || echo "127.0.0.1"
+}
+
+_start() {
+  if [[ -f "$PIDFILE" ]] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+    echo "Kitty is already running (PID $(cat "$PIDFILE")) — http://localhost:$PORT"
+    return 0
+  fi
+
+  echo "Starting Kitty…"
+  local pid
+  pid=$(SCRIPT_DIR="$SCRIPT_DIR" LOGFILE="$LOGFILE" PYTHON="$PYTHON" "$PYTHON" - <<'PY'
+import os
+import subprocess
+
+script_dir = os.environ["SCRIPT_DIR"]
+logfile = os.environ["LOGFILE"]
+python = os.environ["PYTHON"]
+
+log = open(logfile, "ab", buffering=0)
+process = subprocess.Popen(
+    [python, "web.py"],
+    cwd=script_dir,
+    stdin=subprocess.DEVNULL,
+    stdout=log,
+    stderr=subprocess.STDOUT,
+    close_fds=True,
+    start_new_session=True,
+)
+print(process.pid)
+PY
+  )
+  echo "$pid" > "$PIDFILE"
+
+  # Wait for server to be ready (max 8s)
+  local waited=0
+  until "$CURL" -sf "http://localhost:$PORT/" > /dev/null 2>&1; do
+    sleep 0.5
+    (( waited++ ))
+    [[ $waited -ge 16 ]] && { echo "Server didn't respond after 8s — check .kitty.log"; return 1; }
+  done
+
+  local ip=$(_ip)
+  echo ""
+  echo "  ┌────────────────────────────────────────┐"
+  echo "  │  🐱  Kitty is live                     │"
+  echo "  │                                        │"
+  printf "  │  Local  →  http://localhost:%s        │\n" "$PORT"
+  printf "  │  Phone  →  http://%s:%s  │\n" "$ip" "$PORT"
+  echo "  └────────────────────────────────────────┘"
+  echo ""
+
+  # Open browser on macOS
+  if [[ "$OSTYPE" == darwin* ]]; then
+    open "http://localhost:$PORT" 2>/dev/null
+  fi
+}
+
+_stop() {
+  if [[ -f "$PIDFILE" ]]; then
+    local pid=$(cat "$PIDFILE")
+    if kill -0 "$pid" 2>/dev/null; then
+      kill "$pid"
+      echo "Kitty stopped (PID $pid)"
+    else
+      echo "No process at PID $pid"
+    fi
+    rm -f "$PIDFILE"
+  else
+    # Fallback: kill by port
+    local pid=$(lsof -ti tcp:$PORT 2>/dev/null | head -1)
+    if [[ -n "$pid" ]]; then
+      kill "$pid" && echo "Killed process on port $PORT (PID $pid)"
+    else
+      echo "Kitty doesn't appear to be running"
+    fi
+  fi
+}
+
+_status() {
+  if [[ -f "$PIDFILE" ]] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+    local ip=$(_ip)
+    echo "  running  PID $(cat "$PIDFILE")"
+    echo "  local    http://localhost:$PORT"
+    echo "  phone    http://$ip:$PORT"
+  else
+    echo "  stopped"
+  fi
+}
+
+case "${1:-start}" in
+  start)   _start ;;
+  stop)    _stop ;;
+  restart) _stop; sleep 1; _start ;;
+  status)  _status ;;
+  logs)    tail -f "$LOGFILE" ;;
+  ref)     cd "$SCRIPT_DIR" && "$PYTHON" "$SCRIPT_DIR/src/cli/reference.py" "$2" ;;
+  *)       echo "Usage: kitty [start|stop|restart|status|logs|ref]"; exit 1 ;;
+esac

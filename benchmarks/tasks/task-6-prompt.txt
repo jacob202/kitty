@@ -1,0 +1,1 @@
+Write comprehensive pytest unit tests for src/utils/fuzzy_matcher.py. Create a new file tests/test_fuzzy_matcher.py. Cover all 6 functions: normalize_component_id, fuzzy_match, extract_component_ids, fix_typo, tokenize_query, and expand_query. Include happy paths, edge cases, and empty inputs. Make sure the tests can run with `python -m pytest tests/test_fuzzy_matcher.py -v`.

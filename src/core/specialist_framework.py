@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
-"""
-Specialist Framework - Domain experts with LLM + knowledge base integration.
-Each specialist has a personality, domain expertise, and can query knowledge bases.
-"""
+"""Specialist Framework - Domain experts with LLM + knowledge base integration."""
+from __future__ import annotations
 
 import logging
 import re
@@ -14,7 +12,7 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 _memory_instance = None
-_lightrag_instance = None
+_lightrag_stores: dict[str, Any] = {}
 _kb_cache: dict[str, str] = {}
 _KB_CACHE_MAX_SIZE = 500
 
@@ -28,14 +26,14 @@ def _get_memory():
     return _memory_instance
 
 
-def _get_lightrag():
-    """Singleton LightRAG instance to avoid per-query instantiation."""
-    global _lightrag_instance
-    if _lightrag_instance is None:
+def _get_lightrag_for_domain(domain: str):
+    """Get or create a LightRAGStore for a specific domain."""
+    global _lightrag_stores
+    if domain not in _lightrag_stores:
         from src.memory.lightrag_store import LightRAGStore
 
-        _lightrag_instance = LightRAGStore()
-    return _lightrag_instance
+        _lightrag_stores[domain] = LightRAGStore(domain=domain)
+    return _lightrag_stores[domain]
 
 
 @dataclass
@@ -50,15 +48,15 @@ class SpecialistResponse:
     diagnostics: dict[str, Any] | None = None
 
 
-
-def _query_knowledge_base(question: str, domain: str) -> str:
+def _query_knowledge_base(question: str, domain: str, store: Any | None = None) -> str:
     """Query LightRAG or ChromaDB for domain-relevant context with caching."""
     cache_key = f"{domain}:{question[:100]}"
     if cache_key in _kb_cache:
         return _kb_cache[cache_key]
 
     try:
-        store = _get_lightrag()
+        if store is None:
+            store = _get_lightrag_for_domain(domain)
         result = store.search(question)
         if result and "not found" not in result.lower():
             _kb_cache[cache_key] = result[:3000]
@@ -67,13 +65,11 @@ def _query_knowledge_base(question: str, domain: str) -> str:
                 del _kb_cache[oldest_key]
             return _kb_cache[cache_key]
     except Exception as e:
-        logger.debug(f"LightRAG unavailable: {e}")
+        logger.debug(f"LightRAG unavailable for domain {domain}: {e}")
 
     try:
         mem = _get_memory()
-        context = mem.retrieve_context(
-            question, n_conversations=0, n_facts=0, n_documents=5
-        )
+        context = mem.retrieve_context(question, n_conversations=0, n_facts=0, n_documents=5, domain=domain)
         docs = context.get("documents", [])
         if docs:
             content = "\n---\n".join(docs)[:3000]
@@ -88,11 +84,12 @@ def _query_knowledge_base(question: str, domain: str) -> str:
     return ""
 
 
-def ingest_domain_documents(watch_dir: str = "data/staging") -> dict[str, int]:
+def ingest_domain_documents(watch_dir: str = "data/staging", domain: str | None = None) -> dict[str, int]:
     """Ingest documents from staging directory into specialist KB.
 
     Args:
         watch_dir: Directory containing .md and .pdf files to ingest
+        domain: Specific domain to ingest into
 
     Returns:
         Dict mapping filename to chunk count stored
@@ -100,7 +97,7 @@ def ingest_domain_documents(watch_dir: str = "data/staging") -> dict[str, int]:
     from src.memory.ingest_engine import IngestEngine
 
     engine = IngestEngine(watch_dir=watch_dir)
-    return engine.ingest_directory(store_in_kb=True)
+    return engine.ingest_directory(store_in_kb=True, domain=domain)
 
 
 class BaseSpecialist(ABC):
@@ -130,13 +127,28 @@ class BaseSpecialist(ABC):
         # Personality and prompt are derived from soul file or fallbacks
         self.personality = self._extract_personality() or self._get_personality()
 
+        # Domain-specific LightRAG store
+        self._kb_store = _get_lightrag_for_domain(self.domain)
+        
+        # Map to AgentSpec
+        from src.agents.custom_agents import AgentSpec
+        
+        # Tools available to specialists: browse (web), search_files (grep), read_diagnostics (logs)
+        agent_tools = ["browse", "search_files", "read_diagnostics", "read_file", "calculate"]
+        
+        self.agent_spec = AgentSpec(
+            name=self.name,
+            description=f"{self.domain} specialist",
+            model="openrouter/free",  # Default fallback
+            system_prompt=self._soul_content if self._soul_content else self._get_system_prompt(),
+            tools=agent_tools,
+            temperature=0.7
+        )
+
     def _load_soul_file(self) -> str | None:
         """Load the markdown soul file from config/specialists/."""
         # 1. Direct match by name or domain
-        paths = [
-            self._SOUL_DIR / f"{self.name.lower()}.md",
-            self._SOUL_DIR / f"{self.domain.lower()}.md"
-        ]
+        paths = [self._SOUL_DIR / f"{self.name.lower()}.md", self._SOUL_DIR / f"{self.domain.lower()}.md"]
         for path in paths:
             if path.exists():
                 return path.read_text().strip()
@@ -157,7 +169,7 @@ class BaseSpecialist(ABC):
         if not self._soul_content:
             return metadata
 
-        # Look for # Name: <value> or # Name\n<value>
+        # Look for # Name\n<value>
         name_match = re.search(r"# Name\n(.*?)(?=\n#|$)", self._soul_content, re.DOTALL)
         if name_match:
             metadata["name"] = name_match.group(1).strip()
@@ -196,13 +208,13 @@ class BaseSpecialist(ABC):
     def query(
         self,
         question: str,
-        context: dict = None,
-        model: str = None,
+        context: dict[str, Any] | None = None,
+        model: str | None = None,
         context_preamble: str = "",
         honcho_approach: str = "",
     ) -> SpecialistResponse:
         """Query the specialist with LLM + knowledge base + temporal cross-check."""
-        kb_context = _query_knowledge_base(question, self.domain)
+        kb_context = _query_knowledge_base(question, self.domain, store=self._kb_store)
 
         # ─── Temporal Cross-Check (Memory Weave) ────────────────────────────────
         weave_context = ""
@@ -210,15 +222,17 @@ class BaseSpecialist(ABC):
             from src.memory.memory_weave import get_weave
 
             weave = get_weave()
-            # Single combined query using key entities (not per-word loops)
-            key_entities = list(set(
-                "".join(filter(str.isalnum, w)) for w in question.split() if len(w) > 4
-            ))[:5]
+            # Single combined query using key entities
+            key_entities = list(
+                set("".join(filter(str.isalnum, w)) for w in question.split() if len(w) > 4)
+            )[:5]
             if key_entities:
                 combined_query = " ".join(key_entities)
                 fact_query = weave.query(combined_query, "*")
                 if fact_query and fact_query.confidence > 0.6:
-                    weave_context = f"\nNote from Memory Weave: {fact_query.fact} (Source: {fact_query.source_chain[0]})"
+                    weave_context = (
+                        f"\nNote from Memory Weave: {fact_query.fact} (Source: {fact_query.source_chain[0]})"
+                    )
         except Exception:
             pass
 
@@ -234,8 +248,9 @@ class BaseSpecialist(ABC):
 
         try:
             from src.space_kitty.llm_client import call_llm
+            from src.tools.kitty_tools import KittyTools, ToolCallingLoop
 
-            system_prompt = self._soul_content if self._soul_content else self._get_system_prompt()
+            system_prompt = self.agent_spec.system_prompt
 
             # Inject Honcho approach for emotional adaptation
             if honcho_approach:
@@ -244,26 +259,33 @@ class BaseSpecialist(ABC):
             if context_preamble:
                 system_prompt = context_preamble + "\n\n" + system_prompt
 
-            content = call_llm(
-                prompt=full_prompt,
-                system_prompt=system_prompt,
-                temperature=0.7,
-                model=model,
-            )
+            model_to_use = model or self.agent_spec.model
+
+            def llm_callback(prompt_text: str) -> str:
+                return call_llm(
+                    prompt=prompt_text,
+                    system_prompt=system_prompt,
+                    temperature=self.agent_spec.temperature,
+                    model=model_to_use,
+                )
+
+            kitty_tools = KittyTools()
+            # Filter tools to only those specified in agent_spec
+            if self.agent_spec.tools:
+                kitty_tools.tools = {k: v for k, v in kitty_tools.tools.items() if k in self.agent_spec.tools}
+
+            loop = ToolCallingLoop(tools=kitty_tools, process_callback=llm_callback)
+            content = loop.process(full_prompt)
         except Exception as e:
             logger.warning(f"LLM call failed for {self.name}: {e}")
             content = self._fallback_response(question)
 
         safety = self._check_safety(question)
         diag = {
-            "fallback_used": content.startswith("[offline mode]")
-            or content.startswith(f"[{self.name}]: I'd help with"),
+            "fallback_used": content.startswith("[offline mode]") or content.startswith(f"[{self.name}]: I'd help with"),
             "mode": (
                 "offline"
-                if (
-                    content.startswith("[offline mode]")
-                    or content.startswith(f"[{self.name}]: I'd help with")
-                )
+                if (content.startswith("[offline mode]") or content.startswith(f"[{self.name}]: I'd help with"))
                 else "online"
             ),
             "specialist": self.name,
@@ -313,35 +335,32 @@ class SpecialistRegistry:
         import pkgutil
 
         import src.core.specialists as specialists_pkg
-        from src.core.specialist_framework import BaseSpecialist
 
         for loader, module_name, is_pkg in pkgutil.iter_modules(specialists_pkg.__path__):
             if module_name == "soul":
-                continue # Handled specially or mapped to Kitty
+                continue  # Handled specially or mapped to Kitty
 
             full_module_name = f"src.core.specialists.{module_name}"
             module = importlib.import_module(full_module_name)
 
             for attr_name in dir(module):
                 attr = getattr(module, attr_name)
-                if (isinstance(attr, type) and
-                    issubclass(attr, BaseSpecialist) and
-                    attr is not BaseSpecialist):
-
-                    # Instantiate with standard paths (name will be overridden by soul file if available)
+                if (
+                    isinstance(attr, type)
+                    and issubclass(attr, BaseSpecialist)
+                    and attr is not BaseSpecialist
+                ):
+                    # Instantiate with standard paths
                     name = module_name.capitalize()
                     domain = module_name
                     kb_path = f"data/knowledge_bases/{module_name}/"
-
-                    # Soul is special
-                    if module_name == "soul":
-                        continue
 
                     instance = attr(name, domain, kb_path)
                     self.specialists[instance.name] = instance
 
         # Always add the core Soul
         from src.core.specialists.soul import KittySoulSpecialist
+
         self.specialists["Kitty"] = KittySoulSpecialist("Kitty", "general", "")
 
     def get_specialist(self, name: str) -> BaseSpecialist | None:

@@ -73,6 +73,10 @@ MODEL_PRICING = {
     "google/gemini-1.5-pro": (0.00125, 0.005),
     "gemini-pro": (0.0005, 0.0015),
     # OpenRouter models
+    "openrouter/free": (0.0, 0.0),
+    "google/gemini-2.0-flash-exp:free": (0.0, 0.0),
+    "meta-llama/llama-3.3-70b-instruct:free": (0.0, 0.0),
+    "qwen/qwen3-coder:free": (0.0, 0.0),
     "deepseek/deepseek-chat": (0.00014, 0.00028),
     "qwen/qwen2.5-coder-32b-instruct": (0.00007, 0.00028),
     "meta-llama/llama-3.1-70b-instruct": (0.00052, 0.00075),
@@ -725,7 +729,6 @@ class MetricsCollector:
 
         # Project for remaining days in month
         days_in_month = 30
-        len(daily_costs)
         projected = daily_avg * days_in_month
 
         return {
@@ -919,16 +922,6 @@ class CostTracker:
             with cost_tracker.track_latency("gpt-4", "chat"):
                 response = make_api_call()
         """
-        start_time = time.time()
-        try:
-            yield
-        except Exception:
-            raise
-        finally:
-            (time.time() - start_time) * 1000
-            # Note: This is a simplified version - in practice you'd need
-            # to pass tokens in/out to track_request
-
     def get_daily_costs(self, days: int = 30) -> list[dict[str, Any]]:
         """Get daily cost breakdown."""
         return self.collector.get_daily_costs(days)
@@ -1342,43 +1335,3 @@ class _Lazy:
 
 metrics_collector = _Lazy(MetricsCollector)
 cost_tracker = _Lazy(CostTracker)
-dashboard_generator = _Lazy(DashboardGenerator)
-
-
-if __name__ == "__main__":
-    # Demo/test code
-    print("Performance Monitor Demo")
-    print("=" * 50)
-
-    # Track some sample requests
-    collector = MetricsCollector()
-
-    collector.track_request(
-        model="google/gemini-2.0-flash-001",
-        tokens_in=1000,
-        tokens_out=500,
-        latency_ms=1200,
-        feature="chat",
-    )
-
-    collector.track_request(
-        model="claude-3-5-sonnet-20241022",
-        tokens_in=2000,
-        tokens_out=1500,
-        latency_ms=2500,
-        feature="code_generation",
-    )
-
-    collector.track_cache_hit("embedding_cache")
-    collector.track_cache_hit("embedding_cache")
-    collector.track_cache_miss("embedding_cache")
-
-    # Generate summary
-    summary = collector.get_performance_summary()
-    print("\nPerformance Summary:")
-    print(json.dumps(summary, indent=2, default=str))
-
-    # Generate dashboard
-    dashboard = DashboardGenerator()
-    html_path = dashboard.generate_html_dashboard()
-    print(f"\nDashboard generated: {html_path}")

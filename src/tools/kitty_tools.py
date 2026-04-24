@@ -103,6 +103,15 @@ class KittyTools:
             function=self._tool_search_web,
         )
 
+        # Browse tool (alias for search_web)
+        self.register_tool(
+            name="browse",
+            description="Browse the web for information",
+            parameters={"query": {"type": "string", "description": "Search query"}},
+            required=["query"],
+            function=self._tool_search_web,
+        )
+
         # Weather tool (placeholder)
         self.register_tool(
             name="get_weather",
@@ -134,6 +143,29 @@ class KittyTools:
             parameters={"file_path": {"type": "string", "description": "Path to file"}},
             required=["file_path"],
             function=self._tool_read_file,
+        )
+
+        # File search tool
+        self.register_tool(
+            name="search_files",
+            description="Search for a pattern in files",
+            parameters={
+                "query": {"type": "string", "description": "Pattern to search for"},
+                "path": {"type": "string", "description": "Directory to search in", "default": "."}
+            },
+            required=["query"],
+            function=self._tool_search_files,
+        )
+
+        # Diagnostics tool
+        self.register_tool(
+            name="read_diagnostics",
+            description="Read system diagnostics and logs",
+            parameters={
+                "component": {"type": "string", "description": "Component to check (e.g., 'orchestrator', 'memory')"}
+            },
+            required=[],
+            function=self._tool_read_diagnostics,
         )
 
     def register_tool(
@@ -289,6 +321,35 @@ class KittyTools:
                 return content
         except Exception as e:
             return f"❌ Could not read file: {str(e)}"
+
+    def _tool_search_files(self, query: str, path: str = ".") -> str:
+        """Search files for pattern"""
+        try:
+            from src.tools.tool_manager import get_tool_manager
+            manager = get_tool_manager()
+            result = manager.execute("search_files", query=query, path=path)
+            if result.ok:
+                matches = result.result.get("matches", [])
+                if not matches:
+                    return "No matches found"
+                lines = [f"{m['file']}:{m['line']}: {m['text']}" for m in matches[:10]]
+                return "\n".join(lines) + ("\n... [truncated]" if len(matches) > 10 else "")
+            return f"❌ Search failed: {result.error}"
+        except Exception as e:
+            return f"❌ Search error: {str(e)}"
+
+    def _tool_read_diagnostics(self, component: str = "all") -> str:
+        """Read diagnostics"""
+        try:
+            log_path = ".kitty.log"
+            if os.path.exists(log_path):
+                with open(log_path, "r") as f:
+                    lines = f.readlines()
+                    last_lines = lines[-20:]
+                    return f"Last 20 lines of {log_path}:\n" + "".join(last_lines)
+            return "No diagnostic logs found."
+        except Exception as e:
+            return f"❌ Diagnostics error: {str(e)}"
 
 
 class ToolCallingLoop:

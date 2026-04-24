@@ -1,0 +1,8 @@
+{
+  "hooks": {
+    "postToolUse": [{
+      "matcher": "Edit|Write",
+      "command": "/opt/homebrew/bin/python3.12 -m py_compile $CLAUDE_FILE_PATH 2>&1 || true"
+    }]
+  }
+}

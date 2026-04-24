@@ -27,10 +27,10 @@ OLLAMA_API_URL = os.getenv("OLLAMA_API_BASE", "http://localhost:11434") + "/api/
 
 # Default models for fallback chain
 DEFAULT_MODELS = [
-    "google/gemini-2.0-flash-001",  # Primary - fast & cheap
-    "deepseek/deepseek-chat",  # Fallback 1
-    "anthropic/claude-3.5-haiku",  # Fallback 2
-    "meta-llama/llama-3.2-3b",  # Fallback 3
+    "openrouter/free",  # Primary - free tier
+    "google/gemini-2.0-flash-exp:free",  # Fallback 1
+    "meta-llama/llama-3.3-70b-instruct:free",  # Fallback 2
+    "qwen/qwen3-coder:free",  # Fallback 3
 ]
 
 

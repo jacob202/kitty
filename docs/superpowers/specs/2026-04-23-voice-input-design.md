@@ -216,3 +216,23 @@ This phase is complete when:
 - The transcript is sent through the normal chat path automatically
 - Poll-based browser voice behavior is no longer required
 - Errors are visible instead of silent
+
+---
+
+## Audit Stamp — 2026-04-23
+
+**Status**: ✅ Verified — Design spec matches implementation
+
+**Verification method**: Cross-referenced spec requirements against `web_transcriber.py`, `voice_routes.py`, `index.html`
+
+| Requirement | Implementation Status |
+|-------------|----------------------|
+| Mic button in web UI | ✅ Present in `index.html` |
+| Blob-based recording (JS) | ✅ `startRecording()` / `stopRecording()` |
+| POST `/api/transcribe` | ✅ Route registered in `voice_routes.py` |
+| Server-side transcription | ✅ `Transcriber.transcribe()` in `web_transcriber.py` |
+| Auto-send as chat message | ✅ Returned transcript sent via normal chat path |
+| No `/voice_poll` | ✅ Confirmed absent |
+| Visible errors | ✅ Inline error display in UI |
+
+**Deferred items (intentionally not implemented)**: Spoken replies, playback controls, hold-to-record, conversation-aware voice settings.

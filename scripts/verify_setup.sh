@@ -1,0 +1,13 @@
+#!/bin/bash
+echo "=== Setup Verification ==="
+echo "1. MCP servers..."
+curl -s localhost:11434/api/tags >/dev/null && echo "   ✅ Ollama running" || echo "   ❌ Ollama not running"
+echo "2. ChromaDB..."
+python3 -c "import chromadb; chromadb.Client()" 2>/dev/null && echo "   ✅ ChromaDB accessible" || echo "   ❌ ChromaDB not accessible"
+echo "3. LightRAG..."
+python3 -c "import lightrag" 2>/dev/null && echo "   ✅ LightRAG installed" || echo "   ❌ LightRAG not installed"
+echo "4. Python deps..."
+pip check 2>/dev/null | grep -q "No broken" && echo "   ✅ No broken dependencies" || echo "   ⚠️ Some dependency issues"
+echo "5. Project files..."
+ls scripts/kitty_cli.py >/dev/null 2>&1 && echo "   ✅ scripts/kitty_cli.py present" || echo "   ❌ scripts/kitty_cli.py missing"
+ls docs/TASKS.md >/dev/null 2>&1 && echo "   ✅ docs/TASKS.md present" || echo "   ❌ docs/TASKS.md missing"

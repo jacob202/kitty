@@ -1,0 +1,39 @@
+{
+  "run_id": "bdd945ea",
+  "suite": "smoke",
+  "started_at": 1777043753.235126,
+  "scores": {
+    "smoke": {
+      "passed": 5,
+      "total": 5,
+      "rate": 1.0
+    }
+  },
+  "checks": [
+    {
+      "name": "capabilities_200",
+      "passed": true,
+      "reason": ""
+    },
+    {
+      "name": "transcribe_400_on_missing_file",
+      "passed": true,
+      "reason": ""
+    },
+    {
+      "name": "index_has_voice_button",
+      "passed": true,
+      "reason": ""
+    },
+    {
+      "name": "index_no_voice_poll",
+      "passed": true,
+      "reason": ""
+    },
+    {
+      "name": "chat_not_500",
+      "passed": true,
+      "reason": ""
+    }
+  ]
+}

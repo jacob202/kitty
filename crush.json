@@ -1,6 +1,23 @@
 {
   "$schema": "https://charm.land/crush.json",
   "providers": {
+    "ollama": {
+      "type": "openai-compat",
+      "base_url": "http://localhost:11434/v1",
+      "api_key": "ollama",
+      "models": [
+        {
+          "id": "qwen2.5-coder:7b",
+          "name": "Qwen 2.5 Coder 7B",
+          "context_window": 32000
+        },
+        {
+          "id": "deepseek-coder-v2:16b",
+          "name": "DeepSeek Coder V2 16B",
+          "context_window": 32000
+        }
+      ]
+    },
     "deepseek": {
       "type": "openai-compat",
       "base_url": "https://api.deepseek.com/v1",
@@ -17,29 +34,45 @@
           "context_window": 64000
         }
       ]
+    },
+    "openrouter": {
+      "type": "openai-compat",
+      "base_url": "https://openrouter.ai/api/v1",
+      "api_key": "$OPENROUTER_API_KEY",
+      "models": [
+        {
+          "id": "google/gemini-2.0-flash-exp:free",
+          "name": "Gemini 2.0 Flash Exp (Free)",
+          "context_window": 1048576
+        },
+        {
+          "id": "qwen/qwen3-coder:free",
+          "name": "Qwen 3 Coder (Free)",
+          "context_window": 32000
+        },
+        {
+          "id": "meta-llama/llama-3.3-70b-instruct:free",
+          "name": "Llama 3.3 70B Instruct (Free)",
+          "context_window": 128000
+        }
+      ]
     }
   },
   "models": {
     "large": {
-      "model": "deepseek-chat",
-      "provider": "deepseek",
-      "max_tokens": 32768
+      "model": "qwen3.6-plus",
+      "provider": "opencode-go",
+      "max_tokens": 128000
     },
     "small": {
-      "model": "deepseek-chat",
-      "provider": "deepseek",
-      "max_tokens": 4096
-    },
-    "reasoner": {
-      "model": "deepseek-reasoner",
-      "provider": "deepseek",
-      "max_tokens": 8192,
-      "reasoning_effort": "high"
+      "model": "qwen3.5-plus",
+      "provider": "opencode-go",
+      "max_tokens": 64000
     }
   },
   "lsp": {
     "python": {
-      "command": "/Users/jacobbrizinski/Library/Python/3.9/bin/basedpyright-langserver",
+      "command": "/Users/jacobbrizinski/Library/Python/3.12/bin/basedpyright-langserver",
       "args": ["--stdio"],
       "filetypes": ["python"]
     }
@@ -54,15 +87,10 @@
       "type": "stdio",
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-memory"]
-    },
-    "sequential-thinking": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
     }
   },
   "options": {
-    "skills_paths": ["./src/tools/superpowers/skills", "./skills"],
+    "skills_paths": ["./src/tools/superpowers/skills", "./skills/consolidated-skills", "./skills/legacy-skills", "./skills"],
     "auto_lsp": true
   }
 }

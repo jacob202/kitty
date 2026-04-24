@@ -154,7 +154,7 @@ def safe_model_call(
     prompt: str,
     model: str = None,
     max_tokens: int = 1000,
-    fallback_model: str = "deepseek/deepseek-chat",
+    fallback_model: str = "openrouter/free",
 ) -> str | None:
     """
     Safe model call with automatic fallback and error handling.

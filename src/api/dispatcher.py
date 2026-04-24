@@ -2,16 +2,33 @@
 
 import difflib
 import logging
+import re
 import subprocess
 import sys
 import tempfile
 import threading
 from datetime import datetime as _dt
 from pathlib import Path
+from urllib.parse import urlparse
 
 from src.api.emitters import emit_theme_change
+from src.core.capabilities import (
+    capability_snapshot,
+    command_names,
+    visible_help_commands,
+)
+from src.tools.skill_commands import get_skill, list_skills
 
 logger = logging.getLogger(__name__)
+
+# Thread safety lock for memory operations — must be module-level
+# to be shared across threads. A local lock in dispatch() would be
+# recreated on every call, defeating thread safety entirely.
+_MEMORY_LOCK = threading.Lock()
+
+# Loaded skills state — token-conscious: max 3 skills, injected via context dict
+_loaded_skills: dict[str, str] = {}  # skill_name -> skill_content
+_MAX_LOADED_SKILLS = 3
 
 _MODE_CTX = {
     "sansui": "Currently working on Sansui AU-7900 integrated amplifier repair.",
@@ -31,29 +48,52 @@ _THEME_MAP = {
     "heathkit": "hardware",
 }
 
-_AVAILABLE_COMMANDS = [
-    "/brief", "/stuck", "/bench", "/prep", "/capture", "/review",
-    "/screen", "/repair", "/image", "/deepsearch", "/help", "/status",
-]
+_AVAILABLE_COMMANDS = command_names()
 
 
-def dispatch(inp: str, domain: str | None = None, sup=None, orch=None):
+def _validate_image_path(path: str) -> str | None:
+    """Validate and resolve image path, returning sanitized path or None."""
+    if not path:
+        return None
+    try:
+        p = Path(path).resolve()
+        if p.exists() and p.is_file():
+            return str(p)
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def dispatch(
+    inp: str,
+    domain: str | None = None,
+    sup=None,
+    orch=None,
+    fallback_chat=None,
+    fallback_stream: bool = False,
+):
     """Handle commands and natural language, returning response object if NL."""
-    _memory_lock = threading.Lock()
     inp = inp.strip()
 
     if not inp.startswith("/") or inp == "!!":
         if orch:
             try:
-                response = orch.process(inp, domain=domain)
+                # Inject loaded skills into context so they persist across NL queries
+                context = {}
+                if _loaded_skills:
+                    context["active_skills"] = "\n\n".join(_loaded_skills.values())
+                response = orch.process(inp, domain=domain, context=context or None)
                 logger.debug("Orchestrator response: %s", response.content[:200])
                 if response.safety_warnings:
                     for w in response.safety_warnings:
                         logger.warning("Safety warning: %s", w)
                 return response
             except Exception:
-                pass
-        sup.run(inp)
+                logger.exception("Orchestrator failed during dispatch")
+        if fallback_chat:
+            return fallback_chat(inp, domain=domain, stream=fallback_stream)
+        if sup:
+            sup.run(inp)
         return None
 
     cmd = inp.split()[0].lower()
@@ -115,12 +155,32 @@ def dispatch(inp: str, domain: str | None = None, sup=None, orch=None):
             else:
                 sys.stdout.write("Screenshot failed — grant Screen Recording permission.\n")
         else:
-            sup.ocr_image(img)
+            safe_path = _validate_image_path(img)
+            if safe_path:
+                sup.ocr_image(safe_path)
+            else:
+                sys.stdout.write(f"Invalid or inaccessible image path: {img}\n")
 
     elif cmd == "/scrape":
         parts = inp.split(maxsplit=1)
-        url = parts[1].strip() if len(parts) > 1 else ""
+        url = parts[1].strip().strip("'\"") if len(parts) > 1 else ""
         if url:
+            try:
+                parsed = urlparse(url)
+                if parsed.scheme not in ("http", "https"):
+                    sys.stdout.write("Only http/https URLs are allowed.\n")
+                    return
+                # Block requests to private/reserved IP ranges
+                host = parsed.hostname or ""
+                if host in ("localhost", "127.0.0.1", "::1", "0.0.0.0") or host.endswith(".local"):
+                    sys.stdout.write("Local network URLs are not allowed.\n")
+                    return
+                if re.match(r"^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|^192\.168\.", host):
+                    sys.stdout.write("Private IP ranges are not allowed.\n")
+                    return
+            except Exception:
+                sys.stdout.write("Invalid URL provided.\n")
+                return
             sup.scrape_webpage(url)
         else:
             sys.stdout.write("Please provide a URL: /scrape <url>\n")
@@ -138,7 +198,11 @@ def dispatch(inp: str, domain: str | None = None, sup=None, orch=None):
             else:
                 sys.stdout.write("Screenshot failed — grant Screen Recording permission.\n")
         else:
-            sup.repair_image(img, context)
+            safe_path = _validate_image_path(img)
+            if safe_path:
+                sup.repair_image(safe_path, context)
+            else:
+                sys.stdout.write(f"Invalid or inaccessible image path: {img}\n")
 
     elif cmd == "/image":
         parts = inp.split(maxsplit=2)
@@ -151,7 +215,11 @@ def dispatch(inp: str, domain: str | None = None, sup=None, orch=None):
                 sup.analyze_image(str(tmp), question)
                 tmp.unlink(missing_ok=True)
         else:
-            sup.analyze_image(img, question)
+            safe_path = _validate_image_path(img)
+            if safe_path:
+                sup.analyze_image(safe_path, question)
+            else:
+                sys.stdout.write(f"Invalid or inaccessible image path: {img}\n")
 
     elif cmd == "/capture":
         parts = inp.split(maxsplit=1)
@@ -159,7 +227,7 @@ def dispatch(inp: str, domain: str | None = None, sup=None, orch=None):
         if thought:
             ts = _dt.now().strftime("%Y-%m-%d %H:%M")
             key = f"capture_{_dt.now().strftime('%m%d_%H%M%S')}"
-            with _memory_lock:
+            with _MEMORY_LOCK:
                 sup.memory.remember_fact(key, f"[{ts}] {thought}")
             sys.stdout.write(f"Captured: {thought}\n")
 
@@ -168,7 +236,7 @@ def dispatch(inp: str, domain: str | None = None, sup=None, orch=None):
         fact = parts[1] if len(parts) > 1 else ""
         if fact:
             key = "_".join(fact.lower().split()[:3]).rstrip(".,")
-            with _memory_lock:
+            with _MEMORY_LOCK:
                 sup.memory.remember_fact(key, fact)
             sys.stdout.write(f"Remembered: {fact}\n")
 
@@ -207,13 +275,32 @@ def dispatch(inp: str, domain: str | None = None, sup=None, orch=None):
             sup.deep_search(parts[1].strip())
 
     elif cmd == "/status":
+        snapshot = capability_snapshot(
+            enable_experimental_swarm=bool(getattr(sup, "config", {}).get("enable_experimental_swarm", False)),
+            enable_internal_api=False,
+        )
         sys.stdout.write(
             f"Specialists: {', '.join(s['name'] for s in sup.specialists)}\n"
         )
         sys.stdout.write(f"Tools: {', '.join(sup.tools)}\n")
         sys.stdout.write(f"Session cost: ${sup.session_cost:.4f}\n")
         mode = sup._active_mode
-        sys.stdout.write(f"Work mode: {mode['name'] if mode else 'none'}\n")
+        mode_name = mode.get("name") if isinstance(mode, dict) else (mode or "none")
+        sys.stdout.write(f"Work mode: {mode_name}\n")
+        sys.stdout.write(
+            "Capabilities: "
+            f"{snapshot['commands']['visible_help_count']} visible, "
+            f"{snapshot['commands']['beta_count']} beta, "
+            f"{snapshot['commands']['internal_count']} internal\n"
+        )
+        mcp_summary = ", ".join(
+            f"{name}={details['status']}"
+            for name, details in snapshot["mcp"].items()
+            if details["configured"]
+        ) or "none"
+        sys.stdout.write(f"Repo MCP: {mcp_summary}\n")
+        swarm_state = "enabled" if snapshot["api"]["swarm"]["enabled"] else "hidden"
+        sys.stdout.write(f"Experimental swarm API: {swarm_state}\n")
 
     elif cmd == "/clear":
         sup.history = []
@@ -240,35 +327,80 @@ def dispatch(inp: str, domain: str | None = None, sup=None, orch=None):
         else:
             sys.stdout.write("Please provide a topic for the Council: /council <topic>\n")
 
+    elif cmd == "/skills":
+        all_skills = list_skills()
+        for name, info in all_skills.items():
+            archived = " [archived]" if info.get("archived") else ""
+            sys.stdout.write(f"  /skill {name:30s} {info['description']}{archived}\n")
+        sys.stdout.write(f"\n{len(all_skills)} skills registered. Use /skill <name> to view details.\n")
+
+    elif cmd == "/skill":
+        parts = inp.split(maxsplit=1)
+        skill_name = parts[1].strip() if len(parts) > 1 else ""
+        if not skill_name:
+            sys.stdout.write("Usage: /skill <name> — load a skill into context. Try /skills for the full list.\n")
+        else:
+            skill = get_skill(skill_name)
+            if skill:
+                if skill_name in _loaded_skills:
+                    sys.stdout.write(f"Skill '{skill_name}' is already loaded.\n")
+                elif len(_loaded_skills) >= _MAX_LOADED_SKILLS:
+                    sys.stdout.write(
+                        f"Cannot load '{skill_name}': max {_MAX_LOADED_SKILLS} skills loaded. "
+                        f"Use /skill-unload <name> or /skill-clear first.\n"
+                    )
+                else:
+                    _loaded_skills[skill_name] = skill["content"]
+                    sys.stdout.write(
+                        f"✅ Loaded skill: {skill['name']}\n"
+                        f"   {skill['description']}\n"
+                        f"   ({len(_loaded_skills)}/{_MAX_LOADED_SKILLS} slots used — "
+                        f"will be injected into subsequent queries)\n"
+                    )
+            else:
+                all_names = list(list_skills().keys())
+                similar = difflib.get_close_matches(skill_name, all_names, n=3, cutoff=0.4)
+                if similar:
+                    sys.stdout.write(
+                        f"Unknown skill: {skill_name}. Did you mean: {', '.join(similar)}?\n"
+                    )
+                else:
+                    sys.stdout.write(f"Unknown skill: {skill_name}. Try /skills for the full list.\n")
+
+    elif cmd == "/skill-unload":
+        parts = inp.split(maxsplit=1)
+        skill_name = parts[1].strip() if len(parts) > 1 else ""
+        if not skill_name:
+            sys.stdout.write("Usage: /skill-unload <name> — remove a loaded skill from context.\n")
+        elif skill_name not in _loaded_skills:
+            loaded = ", ".join(_loaded_skills) if _loaded_skills else "(none)"
+            sys.stdout.write(f"Skill '{skill_name}' is not loaded. Currently loaded: {loaded}\n")
+        else:
+            del _loaded_skills[skill_name]
+            sys.stdout.write(f"Unloaded skill: {skill_name}\n")
+
+    elif cmd == "/skill-clear":
+        count = len(_loaded_skills)
+        _loaded_skills.clear()
+        sys.stdout.write(f"Cleared {count} loaded skills.\n")
+
+    elif cmd == "/skill-loaded":
+        if not _loaded_skills:
+            sys.stdout.write("No skills currently loaded. Use /skill <name> to load one.\n")
+        else:
+            sys.stdout.write(f"Loaded skills ({len(_loaded_skills)}/{_MAX_LOADED_SKILLS}):\n")
+            for name in _loaded_skills:
+                sys.stdout.write(f"  · {name}\n")
+
     elif cmd == "/help":
-        sys.stdout.write(
-            "**Commands**\n"
-            "- `/brief` — morning brief, where you left off\n"
-            "- `/stuck [task]` — ADHD rescue: one next physical step\n"
-            "- `/bench [mode|off]` — set work mode (sansui, ridgeline, heathkit, or custom)\n"
-            "- `/council <topic>` — dynamic expert panel for deep-dive debates\n"
-            "- `/capture <thought>` — quick brain dump\n"
-            "- `/review` — show captures, saved facts, OBD health\n"
-            "- `/remember <fact>` — save a persistent fact\n"
-            "- `/forget <key>` — remove a saved fact\n"
-            "- `/memories` — list all saved facts\n"
-            "- `/ingest [path]` — ingest PDF/EPUB into library\n"
-            "- `/library` — list indexed documents\n"
-            "- `/deepsearch [--depth N] <query>` — web search + optional crawl + synthesis\n"
-            "- `/screen [question]` — screenshot + vision analysis\n"
-            "- `/repair <photo> [context]` — repair photo analysis\n"
-            "- `/image <photo> [question]` — vision question\n"
-            "- `/clip` — load clipboard as context\n"
-            "- `/paste` — multi-line input mode\n"
-            "- `/export` — save session to ~/Documents/Kitty/exports/\n"
-            "- `/status` — show models, tools, cost\n"
-            "- `/history` — conversation turns this session\n"
-            "- `/clear` — clear conversation history\n"
-            "- `/cal [days]` — list upcoming calendar events\n"
-            "- `/watch [on|off|30]` — continuous screen watcher\n"
-            "- `/debug` — toggle routing debug info\n"
-            "- `!!` — re-run last query escalated to next model tier\n"
-        )
+        lines = ["**Commands**"]
+        for info in visible_help_commands():
+            lines.append(f"- `{info.command}` — {info.description}")
+        lines.append("- `!!` — re-run last query escalated to next model tier")
+        lines.append("")
+        lines.append(f"Registered skills: {len(list_skills())}")
+        lines.append("Advanced commands are intentionally hidden from this list until they are production-safe.")
+        sys.stdout.write("\n".join(lines) + "\n")
 
     else:
         try:

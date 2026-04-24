@@ -22,6 +22,10 @@ _COSTS = {
     "claude-3-5-sonnet-20241022": (0.003, 0.015),
     "anthropic/claude-3-5-sonnet": (0.003, 0.015),
     "google/gemini-2.0-flash-001": (0.0001, 0.0004),
+    "openrouter/free": (0.0, 0.0),
+    "google/gemini-2.0-flash-exp:free": (0.0, 0.0),
+    "meta-llama/llama-3.3-70b-instruct:free": (0.0, 0.0),
+    "qwen/qwen3-coder:free": (0.0, 0.0),
     "deepseek/deepseek-chat": (0.00014, 0.00028),
     "qwen/qwen2.5-coder-32b-instruct": (0.00007, 0.00028),
 }

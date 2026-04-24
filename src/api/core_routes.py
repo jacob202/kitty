@@ -10,6 +10,21 @@ logger = logging.getLogger(__name__)
 
 core_bp = Blueprint('core', __name__)
 
+
+def _dispatch_chat(message: str, domain: str):
+    from src.api.dispatcher import dispatch
+
+    fallback = getattr(current_app, "web_llm", None)
+    fallback_chat = fallback.chat if fallback else None
+    return dispatch(
+        message,
+        domain=domain,
+        sup=getattr(current_app, "supervisor", None),
+        orch=getattr(current_app, "orchestrator", None),
+        fallback_chat=fallback_chat,
+        fallback_stream=False,
+    )
+
 @core_bp.route("/api/chat", methods=["POST"])
 def api_chat():
     """Synchronous chat endpoint with rate limiting."""
@@ -28,11 +43,8 @@ def api_chat():
     if len(message) > 10000:
         return jsonify({"ok": False, "error": "Message too long (max 10000 chars)"}), 400
 
-    # Get orchestrator from app context
-    orch = getattr(current_app, 'orchestrator', None)
-
-    if orch:
-        response = orch.process(message, domain=domain)
+    response = _dispatch_chat(message, domain)
+    if response:
         diag = response.diagnostics or {}
         return jsonify({
             "ok": True,
@@ -47,7 +59,7 @@ def api_chat():
             "conversation_id": diag.get("conversation_id"),
         })
 
-    return jsonify({"ok": False, "error": "Core orchestrator unavailable"}), 503
+    return jsonify({"ok": False, "error": "No web chat backend available"}), 503
 
 @core_bp.route("/api/route", methods=["POST"])
 def api_route_preview():

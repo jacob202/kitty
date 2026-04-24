@@ -5,7 +5,7 @@ Centralized memory management for the supervisor system.
 import gc
 import logging
 
-from .token_manager import TokenManager
+from src.utils.token_manager import TokenManager
 
 logger = logging.getLogger(__name__)
 

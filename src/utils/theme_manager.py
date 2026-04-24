@@ -79,7 +79,23 @@ class ThemeManager:
     def __init__(self):
         self.current_theme = "hardware"
         self.theme_mode = "auto"
+        self._custom_themes_cache: dict | None = None
         self._load_settings()
+
+    def _load_custom_themes(self) -> dict:
+        """Load custom themes from disk, using in-memory cache."""
+        if self._custom_themes_cache is not None:
+            return self._custom_themes_cache
+        if CUSTOM_THEMES_PATH.exists():
+            with open(CUSTOM_THEMES_PATH) as f:
+                self._custom_themes_cache = json.load(f)
+        else:
+            self._custom_themes_cache = {}
+        return self._custom_themes_cache
+
+    def _invalidate_custom_themes_cache(self):
+        """Clear the custom themes cache after modifications."""
+        self._custom_themes_cache = None
 
     def _load_settings(self):
         """Load theme settings from config"""
@@ -110,32 +126,32 @@ class ThemeManager:
         """Get theme by name"""
         theme_name = name or self.current_theme
 
-        # Check custom themes first
-        if CUSTOM_THEMES_PATH.exists():
-            with open(CUSTOM_THEMES_PATH) as f:
-                custom = json.load(f)
-            if theme_name in custom:
-                return custom[theme_name]
+        custom = self._load_custom_themes()
+        if theme_name in custom:
+            return custom[theme_name]
 
         return THEMES.get(theme_name, THEMES["hardware"])
 
     def list_themes(self) -> list:
         """List all available themes"""
         themes = list(THEMES.keys())
-        if CUSTOM_THEMES_PATH.exists():
-            with open(CUSTOM_THEMES_PATH) as f:
-                custom = json.load(f)
-            themes.extend(list(custom.keys()))
+        custom = self._load_custom_themes()
+        themes.extend(custom.keys())
         return themes
 
     def set_theme(self, name: str):
         """Set current theme"""
-        if name in THEMES or (
-            CUSTOM_THEMES_PATH.exists() and name in json.load(open(CUSTOM_THEMES_PATH))
-        ):
+        if name in THEMES:
             self.current_theme = name
             self._save_settings()
             return True
+        if CUSTOM_THEMES_PATH.exists():
+            with open(CUSTOM_THEMES_PATH) as f:
+                custom = json.load(f)
+            if name in custom:
+                self.current_theme = name
+                self._save_settings()
+                return True
         return False
 
     def set_mode(self, mode: str):
@@ -171,16 +187,11 @@ class ThemeManager:
 
     def create_custom_theme(self, name: str, colors: dict):
         """Create a custom theme"""
-        custom = {}
-        if CUSTOM_THEMES_PATH.exists():
-            with open(CUSTOM_THEMES_PATH) as f:
-                custom = json.load(f)
-
+        custom = self._load_custom_themes()
         custom[name] = colors
-
         with open(CUSTOM_THEMES_PATH, "w") as f:
             json.dump(custom, f, indent=2)
-
+        self._invalidate_custom_themes_cache()
         return True
 
     def get_rich_styles(self) -> dict:

@@ -314,11 +314,10 @@ class CorrectionMemory:
         with self._lock:
             with sqlite3.connect(self.db_path) as conn:
                 # Build query with optional filters
-                sql = """
-                    SELECT id, original_query, correction_text, applied_count, category, component_id
-                    FROM corrections
-                    WHERE 1=1
-                """
+                sql = (
+                    "SELECT id, original_query, correction_text, applied_count, "
+                    "category, component_id, timestamp FROM corrections WHERE 1=1"
+                )
                 params = []
 
                 if component_filter:
@@ -332,18 +331,32 @@ class CorrectionMemory:
                 cursor = conn.execute(sql, params)
                 rows = cursor.fetchall()
 
-        # Score corrections with 5x weighting
+        # Score corrections with recency + frequency weighting
+        now_ts = datetime.now()
         scored = []
-        for row_id, orig, corr, count, cat, comp in rows:
+        for row_id, orig, corr, count, cat, comp, ts_str in rows:
             orig_words = set(re.findall(r"[A-Za-z0-9]+", orig.lower()))
             corr_words = set(re.findall(r"[A-Za-z0-9]+", corr.lower()))
             overlap = len(query_words & (orig_words | corr_words))
 
             if overlap > 0 or component_filter or category_filter:
-                # Base score from word overlap
-                base_score = overlap * (1 + 0.1 * count)
-                # Apply 5x weighting for corrections
-                weighted_score = base_score * self.CORRECTION_WEIGHT_MULTIPLIER
+                # 1. Base score from word overlap
+                base_score = overlap
+
+                # 2. Recency decay — corrections from the last 30 days get 2x boost,
+                #    older corrections decay exponentially (half-life: 60 days)
+                try:
+                    correction_ts = datetime.fromisoformat(ts_str)
+                    days_old = max(0, (now_ts - correction_ts).days)
+                except Exception:
+                    days_old = 999  # very old if timestamp is invalid
+                recency_factor = 2.0 if days_old <= 30 else 2.0 * (0.5 ** (days_old / 60.0))
+
+                # 3. Frequency boost — each prior application adds 15% (was 10%)
+                frequency_factor = 1 + 0.15 * count
+
+                # Combine and apply 5x correction weighting
+                weighted_score = base_score * recency_factor * frequency_factor * self.CORRECTION_WEIGHT_MULTIPLIER
 
                 scored.append((weighted_score, row_id, orig, corr, cat, comp))
 

@@ -2,494 +2,956 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Orange Lab</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Kitty</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800;900&family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg-color:    #080808;
-    --panel-bg:    #111111;
-    --border-color:#1a1a1a;
-    --accent-color:#ff5f1f; /* Spicy Orange */
-    --text-main:   #e0e0e0;
-    --dim-text:    #666;
-    --radius:      12px;
-    --mascot-filter: none;
+/* ─────────────────────────────────────────────────────────────────
+   KITTY — Design System
+   Aesthetic: Warm Terminal / Quiet Signal
+   Fonts: Syne (identity) · JetBrains Mono (content)
+───────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Core palette */
+  --bg:           #070707;
+  --surface:      #0f0f0f;
+  --surface-2:    #141414;
+  --border:       rgba(255,255,255,0.05);
+  --border-warm:  rgba(255,95,31,0.2);
+  --accent:       #ff5f1f;
+  --accent-dim:   rgba(255,95,31,0.35);
+  --text:         #d6d6d6;
+  --text-mid:     #777;
+  --text-dim:     #383838;
+  --radius:       10px;
+
+  /* Fonts */
+  --font-id:      'Syne', sans-serif;
+  --font-mono:    'JetBrains Mono', 'SF Mono', monospace;
+
+  /* Easter egg state */
+  --mascot-filter: none;
+
+  /* Legacy aliases (used in inline JS) */
+  --accent-color:  #ff5f1f;
+  --bg-color:      #070707;
+  --panel-bg:      #0f0f0f;
+  --border-color:  rgba(255,255,255,0.05);
+  --dim-text:      #383838;
+  --text-main:     #d6d6d6;
+  --orange:        #ff5f1f;
+}
+
+/* Theme variants */
+.theme-unhinged {
+  --accent:        #ff0033;
+  --accent-color:  #ff0033;
+  --accent-dim:    rgba(255,0,51,0.35);
+  --mascot-filter: drop-shadow(0 0 10px #ff0033) drop-shadow(0 0 20px #ff5f1f);
+}
+.theme-rainbow  { --accent: #ff00ff; --accent-color: #ff00ff; --bg: #1a0a1a; --surface: #2d1b2d; }
+.caturday-mode  { --accent: #ff69b4; --accent-color: #ff69b4; }
+
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.7;
+  font-weight: 300;
+  overflow: hidden;
+}
+
+/* Atmospheric depth */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 55% 70% at 0% 100%, rgba(255,95,31,0.04) 0%, transparent 60%),
+    radial-gradient(ellipse 35% 45% at 100% 0%, rgba(255,95,31,0.025) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+body > * { position: relative; z-index: 1; }
+
+/* ── Page layout ── */
+body {
+  display: grid;
+  grid-template-columns: 230px 1fr 210px;
+  grid-template-rows: 48px 1fr;
+  height: 100vh;
+  gap: 8px;
+  padding: 8px;
+}
+
+/* ── Header ── */
+header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+header h1 {
+  font-family: var(--font-id);
+  font-weight: 900;
+  font-size: 17px;
+  letter-spacing: -0.2px;
+  color: var(--accent);
+  text-shadow: 0 0 28px rgba(255,95,31,0.28);
+}
+
+#status-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #252525;
+  flex-shrink: 0;
+  transition: background 0.3s, box-shadow 0.3s;
+}
+#status-dot.busy {
+  background: var(--accent);
+  box-shadow: 0 0 9px var(--accent-dim);
+  animation: pulse-dot 1.3s ease-in-out infinite;
+}
+
+#vibe-toggle {
+  font-family: var(--font-id);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 0.2s;
+  user-select: none;
+}
+#vibe-toggle:hover { color: var(--accent); }
+
+.header-cmd {
+  font-size: 11px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 0.2s;
+  user-select: none;
+}
+.header-cmd:hover { color: var(--text-mid); }
+
+/* ── Panels ── */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.018) inset;
+}
+
+h2 {
+  font-family: var(--font-id);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--accent);
+  opacity: 0.5;
+  margin-bottom: 14px;
+}
+
+/* ── Sidebars ── */
+#the-bench-horizon,
+#the-optic-archive {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#the-bench-horizon .panel,
+#the-optic-archive .panel { flex: 1; }
+
+.sidebar-item {
+  font-size: 11px;
+  font-weight: 300;
+  color: var(--text-dim);
+  margin-bottom: 7px;
+  cursor: pointer;
+  transition: color 0.15s;
+  display: block;
+}
+.sidebar-item:hover { color: var(--text); }
+
+/* ── Main chat (the void) ── */
+#the-void {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Status / mascot bar */
+.kitty-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 42px;
+  border-bottom: 1px solid var(--border);
+}
+
+#mascot-text {
+  font-family: var(--font-id);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  color: var(--accent);
+  filter: var(--mascot-filter);
+  user-select: none;
+  cursor: pointer;
+}
+
+/* ── Messages ── */
+#messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 22px 26px 10px;
+  scroll-behavior: smooth;
+}
+
+#messages::-webkit-scrollbar { width: 3px; }
+#messages::-webkit-scrollbar-track { background: transparent; }
+#messages::-webkit-scrollbar-thumb { background: rgba(255,95,31,0.18); border-radius: 2px; }
+#messages::-webkit-scrollbar-thumb:hover { background: rgba(255,95,31,0.32); }
+
+.msg {
+  margin-bottom: 20px;
+  animation: msg-appear 0.18s ease-out;
+}
+
+.msg .label {
+  font-family: var(--font-id);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  opacity: 0.42;
+  margin-bottom: 5px;
+}
+
+.bubble {
+  padding: 13px 16px;
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.8;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* Kitty messages */
+.kitty { display: flex; flex-direction: column; align-items: flex-start; }
+.kitty .label { color: var(--accent); }
+.kitty .bubble {
+  max-width: 90%;
+  border-left: 2px solid rgba(255,95,31,0.3);
+  background: linear-gradient(105deg, rgba(255,95,31,0.022) 0%, transparent 45%), var(--surface-2);
+}
+
+/* User messages */
+.user { display: flex; flex-direction: column; align-items: flex-end; }
+.user .label { color: var(--text-mid); text-align: right; }
+.user .bubble {
+  max-width: 76%;
+  background: rgba(255,255,255,0.033);
+  border-color: rgba(255,95,31,0.18);
+  font-weight: 400;
+}
+
+/* Thinking dots */
+.dots::after {
+  content: '▋';
+  animation: blink 1s ease-in-out infinite;
+}
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+
+/* ── Input area ── */
+#input-area {
+  flex-shrink: 0;
+  padding: 12px 18px 16px;
+  border-top: 1px solid var(--border);
+  position: sticky;
+  bottom: 0;
+  background: var(--surface);
+  z-index: 10;
+}
+
+#input-container {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+#composer-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+#inp {
+  flex: 1;
+  background: rgba(255,255,255,0.022);
+  border: 1px solid rgba(255,95,31,0.18);
+  border-radius: 8px;
+  padding: 11px 14px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 300;
+  line-height: 1.6;
+  outline: none;
+  resize: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  touch-action: manipulation;
+  -webkit-appearance: none;
+}
+#inp::placeholder { color: var(--text-dim); }
+#inp:focus {
+  border-color: rgba(255,95,31,0.42);
+  box-shadow: 0 0 0 3px rgba(255,95,31,0.07);
+}
+
+#send {
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  padding: 0 20px;
+  height: 40px;
+  border-radius: 8px;
+  font-family: var(--font-id);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+  white-space: nowrap;
+  flex-shrink: 0;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+#send:hover:not(:disabled) {
+  background: #ff7040;
+  box-shadow: 0 0 18px rgba(255,95,31,0.3);
+  transform: translateY(-1px);
+}
+#send:disabled { opacity: 0.28; transform: none; box-shadow: none; cursor: default; }
+
+#voice-toggle {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid rgba(255,95,31,0.25);
+  padding: 0 14px;
+  height: 40px;
+  border-radius: 8px;
+  font-family: var(--font-id);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+#voice-toggle:hover:not(:disabled) {
+  border-color: rgba(255,95,31,0.6);
+  background: rgba(255,95,31,0.08);
+}
+#voice-toggle[data-state="recording"] {
+  color: #ff9a76;
+  border-color: rgba(255,154,118,0.55);
+  background: rgba(255,95,31,0.14);
+}
+#voice-toggle[data-state="transcribing"] {
+  color: #64c8ff;
+  border-color: rgba(100,200,255,0.45);
+}
+#voice-toggle:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+#voice-status {
+  min-height: 16px;
+  font-size: 10px;
+  letter-spacing: 0.4px;
+  color: var(--text-dim);
+}
+
+/* ── Model mode bar ── */
+#mode-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.mode-btn {
+  font-family: var(--font-id);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.mode-btn:hover { color: var(--text-mid); border-color: rgba(255,95,31,0.2); }
+.mode-btn.active {
+  background: rgba(255,95,31,0.12);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.target-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+
+.target-btn {
+  font-family: var(--font-id);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.target-btn:hover { color: var(--text-mid); border-color: rgba(100,200,255,0.25); }
+.target-btn.active {
+  background: rgba(100,200,255,0.08);
+  border-color: rgba(100,200,255,0.45);
+  color: #64c8ff;
+}
+
+#reason-toggle {
+  margin-left: auto;
+  font-family: var(--font-id);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 3px 9px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+#reason-toggle.on {
+  background: rgba(100,200,255,0.08);
+  border-color: rgba(100,200,255,0.4);
+  color: #64c8ff;
+}
+
+/* ── Thinking bubble ── */
+.thinking-bubble {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-style: italic;
+  border-left: 2px solid rgba(100,200,255,0.25);
+  padding: 6px 10px;
+  margin-bottom: 4px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.thinking-bubble.collapsed { max-height: 20px; overflow: hidden; opacity: 0.5; }
+.thinking-label {
+  font-family: var(--font-id);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: rgba(100,200,255,0.5);
+  margin-bottom: 3px;
+}
+
+@media (max-width: 640px) {
+  #mode-bar { gap: 4px; margin-bottom: 6px; }
+  .mode-btn, .target-btn, #reason-toggle { font-size: 8px; padding: 3px 7px; }
+  .target-group { order: 2; width: 100%; padding-left: 0; border-left: 0; }
+}
+
+/* ── Specialist panel ── */
+.specialist-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 4px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+.specialist-row:hover { background: rgba(255,95,31,0.06); }
+
+.spec-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #222;
+  flex-shrink: 0;
+  transition: background 0.3s, box-shadow 0.3s;
+}
+.spec-dot.active { background: var(--accent); box-shadow: 0 0 7px var(--accent-dim); }
+.spec-dot.idle   { background: #2e2e2e; }
+
+.spec-name {
+  font-family: var(--font-id);
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text);
+  min-width: 46px;
+}
+.spec-domain { font-size: 10px; color: var(--text-dim); }
+
+/* ── Journal / Archive ── */
+.journal-entry {
+  margin-bottom: 9px;
+  border-left: 2px solid rgba(255,95,31,0.25);
+  padding-left: 8px;
+  opacity: 0.65;
+}
+.journal-ts { font-size: 9px; color: var(--text-dim); margin-bottom: 2px; }
+.journal-body { font-size: 11px; font-weight: 300; line-height: 1.5; }
+
+/* ── Markdown elements ── */
+.bubble pre {
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,95,31,0.1);
+  border-radius: 6px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  margin: 10px 0;
+  white-space: pre-wrap;
+  font-size: 12px;
+}
+.bubble code { font-family: var(--font-mono); font-size: 12px; }
+.bubble :not(pre) > code {
+  background: rgba(255,255,255,0.06);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.bubble strong { color: var(--text); font-weight: 500; }
+.bubble li { margin: 3px 0 3px 18px; list-style: disc; }
+
+/* ── Council overlay ── */
+#council-overlay {
+  display: none;
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(7,7,7,0.94);
+  padding: 28px 44px;
+  border-radius: 14px;
+  border: 1px solid var(--border-warm);
+  z-index: 100;
+  text-align: center;
+  box-shadow: 0 0 50px rgba(255,95,31,0.12);
+  backdrop-filter: blur(14px);
+}
+.recruiting-text {
+  font-family: var(--font-id);
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--accent);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+.recruiting-experts {
+  display: inline-block;
+  color: var(--accent);
+  font-weight: 800;
+  letter-spacing: 2px;
+  animation: pulse-dot 1.5s infinite;
+  text-transform: uppercase;
+}
+
+/* ── Success overlay ── */
+#success-overlay { display: none; position: fixed; inset: 0; z-index: 99998; pointer-events: none; }
+#success-overlay.active { display: block; }
+
+.treat { position: absolute; font-size: 22px; animation: fall 2s ease-out forwards; pointer-events: none; }
+
+.success-message {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--surface);
+  border: 1px solid var(--border-warm);
+  padding: 22px 44px;
+  border-radius: var(--radius);
+  font-family: var(--font-id);
+  font-size: 17px;
+  font-weight: 900;
+  color: var(--accent);
+  text-align: center;
+  animation: pop-in 0.35s ease-out;
+  z-index: 99999;
+}
+
+/* ── Poke counter ── */
+#poke-counter {
+  display: none;
+  position: fixed;
+  bottom: 20px; right: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border-warm);
+  padding: 9px 14px;
+  border-radius: var(--radius);
+  font-size: 11px;
+  color: var(--accent);
+  z-index: 100;
+}
+#poke-counter.visible { display: block; }
+
+/* ── Meow indicator ── */
+.meow-indicator {
+  position: fixed;
+  top: 60px; left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent);
+  color: var(--bg);
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-family: var(--font-id);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  opacity: 0;
+  transition: opacity 0.3s;
+  z-index: 1000;
+  pointer-events: none;
+}
+.meow-indicator.visible { opacity: 1; }
+
+/* ── Notifications ── */
+.notification-meow {
+  position: fixed;
+  top: 66px; right: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border-warm);
+  padding: 11px 16px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  animation: slide-in 0.22s ease-out;
+  z-index: 1000;
+}
+
+/* ── Command palette ── */
+#command-palette {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  z-index: 10000;
+  backdrop-filter: blur(6px);
+}
+.cmd-palette-inner {
+  max-width: 580px;
+  margin: 90px auto 0;
+  background: var(--surface);
+  border: 1px solid rgba(255,95,31,0.25);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+}
+.cmd-palette-header {
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border);
+}
+#command-search {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 15px;
+  font-family: var(--font-mono);
+  font-weight: 300;
+  outline: none;
+}
+#command-search::placeholder { color: var(--text-dim); }
+.cmd-palette-hint {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-top: 8px;
+  font-family: var(--font-mono);
+}
+#command-actions { max-height: 380px; overflow-y: auto; list-style: none; }
+
+.command-action-item {
+  padding: 11px 20px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.command-action-item:hover { background: rgba(255,95,31,0.07); }
+.command-action-item.selected {
+  background: rgba(255,95,31,0.11);
+  border-left: 2px solid var(--accent);
+}
+.command-action-title {
+  font-family: var(--font-id);
+  font-weight: 800;
+  color: var(--accent);
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+.command-action-description { font-size: 11px; color: var(--text-mid); margin-bottom: 2px; }
+.command-action-command { font-size: 10px; color: var(--text-dim); opacity: 0.7; }
+
+kbd {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-mid);
+}
+
+/* ── Easter eggs ── */
+.cat-mode * {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ctext y='24' font-size='24'%3E🐾%3C/text%3E%3C/svg%3E") 16 16, auto !important;
+}
+.whiskers { display: inline-block; animation: twitch 3s ease-in-out infinite; }
+.unhinged-glitch { animation: glitch 0.3s infinite; }
+
+.fish-button {
+  background: var(--accent);
+  border: none;
+  padding: 10px 25px;
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  color: var(--bg);
+  font-family: var(--font-id);
+  font-weight: 900;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  position: relative;
+}
+.fish-button:hover { transform: scale(1.1) rotate(-5deg); box-shadow: 0 0 20px var(--accent-dim); }
+.fish-button::before { content: '🐟'; position: absolute; left: 10px; top: 50%; transform: translateY(-50%); }
+
+.theme-rainbow .loading-cat { animation: bounce 0.6s ease-in-out infinite, rainbow-glow 1s ease-in-out infinite; }
+.caturday-mode .loading-cat { animation: party 0.5s ease-in-out infinite; }
+.error-cat { font-size: 56px; animation: shake 0.5s ease-in-out; display: inline-block; }
+
+/* ── Responsive — tablet ── */
+@media (max-width: 1000px) {
+  body { grid-template-columns: 1fr; }
+  #the-bench-horizon, #the-optic-archive { display: none; }
+}
+
+/* ── Responsive — mobile phone ── */
+@media (max-width: 640px) {
+  html, body {
+    overflow: hidden;
+    height: 100%;
+    height: 100dvh; /* dynamic viewport — accounts for browser chrome */
   }
 
-  .theme-unhinged {
-    --accent-color: #ff0033; /* Glitch Red */
-    --mascot-filter: drop-shadow(0 0 10px #ff0033) drop-shadow(0 0 20px #ff5f1f);
-  }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { height: 100%; background: var(--bg-color); color: var(--text-main);
-               font: 14px/1.6 "SF Pro Display", -apple-system, sans-serif; overflow: hidden; transition: background 0.5s; }
-
-  /* ── Layout Grid (3:6:3 ratio) ── */
   body {
-    display: grid;
-    grid-template-columns: 3fr 6fr 3fr;
-    grid-template-rows: auto 1fr;
-    height: 100vh;
-    padding: 10px;
-    gap: 15px;
+    grid-template-columns: 1fr;
+    grid-template-rows: 44px 1fr;
+    gap: 0;
+    padding: 0;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
   header {
-    grid-column: 1 / -1;
-    padding: 10px 20px;
-    border-bottom: 1px solid var(--border-color);
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    background: rgba(13, 13, 13, 0.8);
-    backdrop-filter: blur(10px);
-    z-index: 10;
-    border-radius: var(--radius);
+    border-radius: 0;
+    padding: 0 14px;
+    border-top: none;
+    border-left: none;
+    border-right: none;
   }
-  header h1 { font-size: 18px; font-weight: 900; color: var(--accent-color); letter-spacing: -0.5px; }
 
-  /* ── Columns ── */
-  .panel {
-    background: var(--panel-bg);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius);
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-  }
+  header h1 { font-size: 15px; }
+
+  #the-bench-horizon, #the-optic-archive { display: none; }
 
   #the-void {
-    display: flex;
-    flex-direction: column;
-    position: relative;
+    border-radius: 0;
+    border: none;
+    border-top: 1px solid var(--border);
   }
 
-  /* ── Mascot & Glitch ── */
-  .unhinged-glitch {
-    animation: glitch 0.3s infinite;
-  }
-  @keyframes glitch {
-    0% { transform: translate(0); }
-    20% { transform: translate(-2px, 2px); }
-    40% { transform: translate(-2px, -2px); }
-    60% { transform: translate(2px, 2px); }
-    80% { transform: translate(2px, -2px); }
-    100% { transform: translate(0); }
-  }
-
-  /* ── Messages ── */
   #messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 20px;
-    scroll-behavior: smooth;
+    padding: 16px 14px 8px;
+    font-size: 14px;
   }
-  .msg { max-width: 100%; margin-bottom: 20px; }
+
   .bubble {
-    padding: 12px 16px;
-    border-radius: 8px;
-    background: #181818;
-    border: 1px solid var(--border-color);
-    line-height: 1.6;
-    font-family: "SF Mono", "Menlo", monospace;
-    font-size: 13px;
+    font-size: 14px;
+    padding: 12px 14px;
+    max-width: 100% !important;
   }
-  .user { display: flex; justify-content: flex-end; }
-  .user .bubble { background: rgba(255,255,255,0.05); border-color: var(--accent-color); max-width: 80%; }
-  .kitty { display: flex; justify-content: flex-start; }
-  .kitty .bubble { border-color: var(--border-color); max-width: 90%; }
 
-  /* ── Input ── */
+  /* Larger input area for thumbs */
   #input-area {
-    padding: 15px;
-    border-top: 1px solid var(--border-color);
+    padding: 10px 12px 14px;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
   }
-  #input-container {
-    display: flex;
-    gap: 10px;
-  }
+
   #inp {
-    flex: 1;
-    background: transparent;
-    border: none;
-    border-bottom: 1px solid var(--accent-color);
-    padding: 10px;
-    color: var(--text-main);
-    font-family: monospace;
-    outline: none;
-    resize: none;
+    font-size: 16px; /* prevents iOS zoom-in on focus */
+    padding: 12px 14px;
+    min-height: 44px;
   }
+
   #send {
-    background: var(--accent-color);
-    color: var(--bg-color);
-    border: none;
-    padding: 0 20px;
-    border-radius: 8px;
-    font-weight: 900;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  #send:hover { opacity: 0.8; transform: scale(1.05); }
-
-  h2 { font-size: 14px; font-weight: 900; color: var(--accent-color); margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; }
-  .sidebar-item { font-size: 12px; color: var(--dim-text); margin-bottom: 8px; cursor: pointer; }
-  .sidebar-item:hover { color: var(--text-main); }
-
-  /* Status Dot */
-  #status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--orange); }
-  #status-dot.busy { background: var(--glitch-red); animation: pulse 1s infinite; }
-  @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
-
-  /* Recruiting Animation */
-  .recruiting-experts {
-  display: inline-block;
-  color: var(--orange);
-  font-weight: 800;
-  letter-spacing: 2px;
-  animation: pulse 1.5s infinite;
-  margin: 10px 0;
-  text-transform: uppercase;
-  }
-
-  #council-overlay {
-    display: none;
-    position: fixed;
-    top: 50%; left: 50%; transform: translate(-50%, -50%);
-    background: rgba(10, 10, 10, 0.9);
-    padding: 30px; border-radius: 20px; border: 1px solid var(--orange);
-    z-index: 100; text-align: center;
-    box-shadow: 0 0 30px rgba(255, 95, 31, 0.3);
-    backdrop-filter: blur(10px);
-  }
-  .recruiting-text {
-    font-size: 20px; font-weight: bold; color: var(--orange);
-    letter-spacing: 2px; text-transform: uppercase;
-    animation: pulse 1.5s infinite;
-  }
-
-  /* Responsive Fixes */
-  @media (max-width: 1000px) {    body { grid-template-columns: 1fr; }
-    #the-bench-horizon, #the-optic-archive { display: none; }
-  }
-
-  /* Command Palette Styles */
-  .command-action-item {
-    padding: 12px 20px;
-    border-bottom: 1px solid var(--border-color);
-    cursor: pointer;
-    transition: background 0.2s;
-  }
-  .command-action-item:hover {
-    background: rgba(255, 95, 31, 0.1);
-  }
-  .command-action-item.selected {
-    background: rgba(255, 95, 31, 0.2);
-    border-left: 3px solid var(--accent-color);
-  }
-  .command-action-title {
-    font-weight: 900;
-    color: var(--accent-color);
-    font-size: 14px;
-    margin-bottom: 4px;
-  }
-  .command-action-description {
-    font-size: 12px;
-    color: var(--dim-text);
-    margin-bottom: 4px;
-  }
-  .command-action-command {
+    height: 44px;
+    padding: 0 18px;
     font-size: 11px;
-    color: var(--dim-text);
-    font-family: 'SF Mono', monospace;
-    opacity: 0.7;
-  }
-  kbd {
-    background: var(--panel-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    padding: 2px 6px;
-    font-size: 10px;
-    font-family: 'SF Mono', monospace;
-    color: var(--dim-text);
+    min-width: 64px;
   }
 
-  /* ═══════════════════════════════════════════════════════════════════
-     CAT-THEMED EASTER EGGS & POLISH
-     ═══════════════════════════════════════════════════════════════════ */
-
-  /* Paw cursor mode */
-  .cat-mode * {
-    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ctext y='24' font-size='24'%3E🐾%3C/text%3E%3C/svg%3E") 16 16, auto !important;
+  #voice-toggle {
+    height: 44px;
+    padding: 0 14px;
+    font-size: 11px;
   }
 
-  /* Animated whiskers on mascot */
-  .whiskers {
-    display: inline-block;
-    animation: twitch 3s ease-in-out infinite;
-  }
-  @keyframes twitch {
-    0%, 90%, 100% { transform: rotate(0deg); }
-    92% { transform: rotate(-2deg); }
-    94% { transform: rotate(2deg); }
-    96% { transform: rotate(-1deg); }
-    98% { transform: rotate(1deg); }
+  /* Tap targets — no hover states on mobile */
+  .specialist-row:hover { background: transparent; }
+  .sidebar-item:hover   { color: var(--text-dim); }
+
+  /* Command palette — full width on mobile */
+  .cmd-palette-inner {
+    margin: 60px 12px 0;
+    max-width: none;
   }
 
-  /* Loading overlay with cat theme */
-  #loading-overlay {
-    display: none;
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(8, 8, 8, 0.95);
-    z-index: 99999;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    backdrop-filter: blur(10px);
-  }
-  #loading-overlay.active { display: flex; }
+  /* Overlays — full screen on mobile */
+  .success-message { padding: 18px 28px; font-size: 15px; }
+}
 
-  .loading-cat {
-    font-size: 80px;
-    animation: bounce 0.6s ease-in-out infinite;
-    margin-bottom: 20px;
-  }
-  @keyframes bounce {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-20px); }
-  }
-
-  .loading-text {
-    font-size: 18px;
-    color: var(--accent-color);
-    margin-bottom: 10px;
-    text-align: center;
-  }
-
-  .loading-fact {
-    font-size: 14px;
-    color: var(--dim-text);
-    max-width: 400px;
-    text-align: center;
-    opacity: 0.8;
-    font-style: italic;
-  }
-
-  /* Yarn ball progress indicator */
-  .yarn-progress {
-    width: 200px;
-    height: 8px;
-    background: var(--panel-bg);
-    border-radius: 4px;
-    margin-top: 20px;
-    overflow: hidden;
-    border: 1px solid var(--border-color);
-  }
-  .yarn-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--accent-color), #ff8c5a);
-    width: 0%;
-    border-radius: 4px;
-    transition: width 0.3s ease;
-    position: relative;
-  }
-  .yarn-fill::after {
-    content: '🧶';
-    position: absolute;
-    right: -10px;
-    top: -6px;
-    font-size: 16px;
-  }
-
-  /* Success animation with treats */
-  #success-overlay {
-    display: none;
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    z-index: 99998;
-    pointer-events: none;
-  }
-  #success-overlay.active { display: block; }
-
-  .treat {
-    position: absolute;
-    font-size: 24px;
-    animation: fall 2s ease-out forwards;
-    pointer-events: none;
-  }
-  @keyframes fall {
-    0% { transform: translateY(-50px) rotate(0deg); opacity: 1; }
-    100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
-  }
-
-  .success-message {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: var(--panel-bg);
-    border: 2px solid var(--accent-color);
-    padding: 30px 50px;
-    border-radius: var(--radius);
-    font-size: 24px;
-    color: var(--accent-color);
-    text-align: center;
-    animation: popIn 0.5s ease-out;
-    z-index: 99999;
-  }
-  @keyframes popIn {
-    0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
-    80% { transform: translate(-50%, -50%) scale(1.1); }
-    100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-  }
-
-  /* Cat-themed buttons */
-  .fish-button {
-    background: var(--accent-color);
-    border: none;
-    padding: 10px 25px;
-    border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
-    color: var(--bg-color);
-    font-weight: 900;
-    cursor: pointer;
-    transition: all 0.2s;
-    position: relative;
-  }
-  .fish-button:hover {
-    transform: scale(1.1) rotate(-5deg);
-    box-shadow: 0 0 20px rgba(255, 95, 31, 0.5);
-  }
-  .fish-button::before {
-    content: '🐟';
-    position: absolute;
-    left: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-  }
-
-  /* Poke counter indicator */
-  #poke-counter {
-    display: none;
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    background: var(--panel-bg);
-    border: 1px solid var(--accent-color);
-    padding: 10px 15px;
-    border-radius: var(--radius);
-    font-size: 12px;
-    color: var(--accent-color);
-    z-index: 100;
-  }
-  #poke-counter.visible { display: block; }
-
-  /* Secret rainbow theme (Konami code) */
-  .theme-rainbow {
-    --accent-color: #ff00ff;
-    --bg-color: #1a0a1a;
-    --panel-bg: #2d1b2d;
-  }
-  .theme-rainbow .loading-cat {
-    animation: rainbow-bounce 0.6s ease-in-out infinite, rainbow-glow 1s ease-in-out infinite;
-  }
-  @keyframes rainbow-bounce {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-20px); }
-  }
-  @keyframes rainbow-glow {
-    0%, 100% { filter: hue-rotate(0deg); }
-    50% { filter: hue-rotate(180deg); }
-  }
-
-  /* Caturday special styles */
-  .caturday-mode {
-    --accent-color: #ff69b4;
-  }
-  .caturday-mode .loading-cat {
-    animation: party 0.5s ease-in-out infinite;
-  }
-  @keyframes party {
-    0%, 100% { transform: translateY(0) rotate(0deg); }
-    25% { transform: translateY(-15px) rotate(-10deg); }
-    75% { transform: translateY(-15px) rotate(10deg); }
-  }
-
-  /* Error cat animation */
-  .error-cat {
-    font-size: 60px;
-    animation: shake 0.5s ease-in-out;
-    display: inline-block;
-  }
-  @keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    20% { transform: translateX(-10px) rotate(-5deg); }
-    40% { transform: translateX(10px) rotate(5deg); }
-    60% { transform: translateX(-10px) rotate(-5deg); }
-    80% { transform: translateX(10px) rotate(5deg); }
-  }
-
-  /* Meow counter for easter egg */
-  .meow-indicator {
-    position: fixed;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: var(--accent-color);
-    color: var(--bg-color);
-    padding: 10px 20px;
-    border-radius: 20px;
-    font-weight: bold;
-    opacity: 0;
-    transition: opacity 0.3s;
-    z-index: 1000;
-  }
-  .meow-indicator.visible {
-    opacity: 1;
-  }
-
-  /* Notification meow */
-  .notification-meow {
-    position: fixed;
-    top: 80px;
-    right: 20px;
-    background: var(--panel-bg);
-    border: 1px solid var(--accent-color);
-    padding: 15px 20px;
-    border-radius: var(--radius);
-    animation: slideIn 0.3s ease-out;
-    z-index: 1000;
-  }
-  @keyframes slideIn {
-    from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-  }
+/* ── Animations ── */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+@keyframes msg-appear {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-18px); }
+}
+@keyframes fall {
+  0%   { transform: translateY(-40px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+}
+@keyframes pop-in {
+  0%   { transform: translate(-50%, -50%) scale(0.85); opacity: 0; }
+  80%  { transform: translate(-50%, -50%) scale(1.04); }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+@keyframes glitch {
+  0%   { transform: translate(0); }
+  20%  { transform: translate(-2px, 2px); }
+  40%  { transform: translate(-2px, -2px); }
+  60%  { transform: translate(2px, 2px); }
+  80%  { transform: translate(2px, -2px); }
+  100% { transform: translate(0); }
+}
+@keyframes twitch {
+  0%, 90%, 100% { transform: rotate(0deg); }
+  92% { transform: rotate(-2deg); }
+  94% { transform: rotate(2deg); }
+  96% { transform: rotate(-1deg); }
+  98% { transform: rotate(1deg); }
+}
+@keyframes slide-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%  { transform: translateX(-10px) rotate(-5deg); }
+  40%  { transform: translateX(10px) rotate(5deg); }
+  60%  { transform: translateX(-10px) rotate(-5deg); }
+  80%  { transform: translateX(10px) rotate(5deg); }
+}
+@keyframes rainbow-glow {
+  0%, 100% { filter: hue-rotate(0deg); }
+  50%       { filter: hue-rotate(180deg); }
+}
+@keyframes party {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25%  { transform: translateY(-12px) rotate(-8deg); }
+  75%  { transform: translateY(-12px) rotate(8deg); }
+}
 </style>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body class="vibe-default">
 
 <header>
   <div id="status-dot"></div>
-  <h1>Orange Lab</h1>
-  <div style="flex: 1"></div>
-  <div id="vibe-toggle" style="font-size: 11px; color: var(--dim-text); cursor: pointer;" onclick="toggleVibe()">MODE: CALM</div>
-  <div style="margin-left: 20px; font-size: 11px; color: var(--dim-text); cursor: pointer;" onclick="openCommandPalette()">
-    <kbd>⌘K</kbd> Commands
+  <span id="connection-status" style="font-size:9px;letter-spacing:1px;margin-left:8px;color:var(--text-dim)">connecting</span>
+  <h1>Kitty</h1>
+  <div style="flex:1"></div>
+  <div id="vibe-toggle" onclick="toggleVibe()">MODE: CALM</div>
+  <div class="header-cmd" style="margin-left:16px" onclick="openCommandPalette()">
+    <kbd>⌘K</kbd>
   </div>
 </header>
 
-<aside id="the-bench-horizon" class="col-span-3 flex flex-col gap-4">
-  <div class="panel flex-1">
+<aside id="the-bench-horizon">
+  <div class="panel">
     <h2>THE BENCH</h2>
-    <p class="sidebar-item">Active Project: Orange Lab PKA</p>
+    <p class="sidebar-item">Active: Space Kitty</p>
     <div class="sidebar-item" onclick="quickCmd('/bench sansui')">🔊 Sansui AU-7900</div>
     <div class="sidebar-item" onclick="quickCmd('/bench ridgeline')">🚗 Ridgeline RTL</div>
   </div>
-  <div class="panel flex-1">
+  <div class="panel">
     <h2>THE HORIZON</h2>
-    <ul class="space-y-2">
+    <ul style="list-style:none">
       <li class="sidebar-item" onclick="quickCmd('/brief')">• Morning Brief</li>
       <li class="sidebar-item" onclick="quickCmd('/status')">• System Status</li>
       <li class="sidebar-item" onclick="quickCmd('/stuck')">• ADHD Rescue</li>
@@ -497,89 +959,148 @@
   </div>
 </aside>
 
-<main id="the-void" class="panel col-span-6">
-  <div class="h-16 border-b flex items-center justify-center" style="border-color: var(--border-color)">
-    <span id="mascot-text" class="text-xl font-black" style="color: var(--accent-color); filter: var(--mascot-filter)">
-      KITTY [FOCUSED]
-    </span>
+<main id="the-void" class="panel">
+  <div class="kitty-bar">
+    <span id="mascot-text">KITTY [FOCUSED]</span>
   </div>
 
   <div id="messages"></div>
 
   <div id="input-area">
+    <div id="mode-bar">
+      <button class="mode-btn active" data-mode="fast"     onclick="setMode('fast')">⚡ FAST</button>
+      <button class="mode-btn"        data-mode="balanced" onclick="setMode('balanced')">◈ BALANCED</button>
+      <button class="mode-btn"        data-mode="max"      onclick="setMode('max')">★ MAX</button>
+      <div class="target-group" aria-label="Model target behavior">
+        <button class="target-btn active" data-target="free" onclick="setModelTarget('free')" title="Use OpenRouter's free model router">FREE</button>
+        <button class="target-btn" data-target="configured" onclick="setModelTarget('configured')" title="Use the configured KITTY_MODEL route">CONFIG</button>
+        <button class="target-btn" data-target="local" onclick="setModelTarget('local')" title="Try local MLX first, then fall back online">LOCAL</button>
+      </div>
+      <button id="reason-toggle" onclick="toggleReasoning()" title="Enable chain-of-thought reasoning">THINK</button>
+    </div>
     <div id="input-container">
-      <textarea id="inp" placeholder="Inject query..." rows="1"
+      <textarea id="inp" placeholder="What's on your mind?" rows="1"
                 onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
-      <button id="send" onclick="sendMsg()">EXECUTE</button>
+      <button id="voice-toggle" data-state="idle" onclick="toggleVoiceInput()" title="Record voice input">MIC</button>
+      <button id="send" onclick="sendMsg()">SEND</button>
+    </div>
+    <div id="composer-meta">
+      <div id="voice-status" aria-live="polite">Mic ready</div>
     </div>
   </div>
 </main>
 
-<aside id="the-optic-archive" class="col-span-3 flex flex-col gap-4">
-  <div class="panel flex-1">
-    <h2>THE OPTIC</h2>
-    <div class="h-full border border-dashed opacity-30 flex items-center justify-center sidebar-item" onclick="quickCmd('/optic')">
-      [Browserbase Offline]
+<aside id="the-optic-archive">
+  <div class="panel">
+    <h2>SPECIALISTS</h2>
+    <div id="specialist-status">
+      <div class="specialist-row" onclick="quickCmd('/bench sansui')">
+        <span class="spec-dot" id="dot-alex"></span>
+        <span class="spec-name">Alex</span>
+        <span class="spec-domain">audio · electronics</span>
+      </div>
+      <div class="specialist-row" onclick="quickCmd('/fitness')">
+        <span class="spec-dot" id="dot-kelly"></span>
+        <span class="spec-name">Kelly</span>
+        <span class="spec-domain">fitness · health</span>
+      </div>
+      <div class="specialist-row" onclick="quickCmd('/bench ridgeline')">
+        <span class="spec-dot" id="dot-mike"></span>
+        <span class="spec-name">Mike</span>
+        <span class="spec-domain">automotive</span>
+      </div>
+      <div class="specialist-row" onclick="quickCmd('/growth')">
+        <span class="spec-dot" id="dot-taylor"></span>
+        <span class="spec-name">Taylor</span>
+        <span class="spec-domain">recovery · growth</span>
+      </div>
+      <div class="specialist-row" onclick="quickCmd('/code')">
+        <span class="spec-dot" id="dot-devin"></span>
+        <span class="spec-name">Devin</span>
+        <span class="spec-domain">code · systems</span>
+      </div>
+    </div>
+    <div id="last-specialist" style="margin-top:12px;font-size:11px;color:var(--text-dim);display:none">
+      Last: <span id="last-specialist-name" style="color:var(--accent)"></span>
     </div>
   </div>
-  <div class="panel flex-1">
+  <div class="panel">
     <h2>THE ARCHIVE</h2>
-    <p class="sidebar-item">SQLite-Vec Memory Engine Active.</p>
-    <div id="journal-view" style="margin-top: 10px; font-size: 11px;"></div>
+    <p class="sidebar-item">Memory engine active.</p>
+    <div id="journal-view" style="margin-top:8px"></div>
   </div>
 </aside>
 
+<!-- Council overlay -->
 <div id="council-overlay">
   <div class="recruiting-text">Recruiting Experts...</div>
-  <div style="margin-top:10px; font-size:12px; color:var(--dim)">Assembling the Council of Five</div>
+  <div style="margin-top:10px;font-size:11px;color:var(--text-mid)">Assembling the Council of Five</div>
 </div>
 
-<!-- Cat-themed Loading Overlay -->
-<div id="loading-overlay">
-  <div class="loading-cat" id="loading-cat-emoji">🐱</div>
-  <div class="loading-text" id="loading-message">Kitty is sharpening claws...</div>
-  <div class="loading-fact" id="loading-fact"></div>
-  <div class="yarn-progress">
-    <div class="yarn-fill" id="yarn-fill"></div>
-  </div>
-</div>
-
-<!-- Success Animation Overlay -->
+<!-- Success overlay -->
 <div id="success-overlay"></div>
 
-<!-- Poke Counter for Easter Egg -->
+<!-- Poke counter -->
 <div id="poke-counter">Don't poke the cat! <span id="poke-count">0</span>/10</div>
 
-<!-- Meow Mode Indicator -->
+<!-- Meow indicator -->
 <div id="meow-indicator" class="meow-indicator">🐱 Cat Mode Activated!</div>
 
-<!-- Command Palette Modal -->
-<div id="command-palette" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; backdrop-filter: blur(5px);">
-  <div style="max-width: 600px; margin: 100px auto; background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: var(--radius); overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.5);">
-    <div style="padding: 20px; border-bottom: 1px solid var(--border-color);">
-      <input
-        type="text"
-        id="command-search"
-        placeholder="Type to search commands..."
-        style="width: 100%; background: transparent; border: none; color: var(--text-main); font-size: 16px; outline: none; font-family: 'SF Mono', monospace;"
-        autocomplete="off"
-      />
-      <div style="font-size: 11px; color: var(--dim-text); margin-top: 8px;">
-        Press <kbd>Esc</kbd> to close • <kbd>↑↓</kbd> to navigate • <kbd>Enter</kbd> to execute
+<!-- Command palette -->
+<div id="command-palette">
+  <div class="cmd-palette-inner">
+    <div class="cmd-palette-header">
+      <input type="text" id="command-search" placeholder="Search commands..." autocomplete="off"/>
+      <div class="cmd-palette-hint">
+        <kbd>Esc</kbd> close &nbsp;·&nbsp; <kbd>↑↓</kbd> navigate &nbsp;·&nbsp; <kbd>Enter</kbd> run
       </div>
     </div>
-    <ul id="command-actions" style="max-height: 400px; overflow-y: auto; list-style: none; padding: 0; margin: 0;">
-      <!-- Actions will be inserted here dynamically -->
-    </ul>
+    <ul id="command-actions"></ul>
   </div>
 </div>
 
 <script>
 let busy = false;
 let currentBubble = null;
+let currentThinkBubble = null;
 let currentText = '';
-let es = null;
+let currentThinkText = '';
 let vibe = 'serious'; // 'serious' or 'unhinged'
+let voiceState = 'idle';
+let mediaRecorder = null;
+let recordingStream = null;
+let recordingChunks = [];
+let voiceAutoStopTimer = null;
+const MAX_VOICE_RECORDING_MS = 60000;
+const MAX_AUDIO_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+// ── Mode + reasoning state ───────────────────────────────────────────────────
+let activeMode = 'fast';
+let modelTarget = localStorage.getItem('kitty.modelTarget') || 'free';
+let reasoningOn = false;
+
+function setMode(mode) {
+  activeMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === mode);
+  });
+}
+
+function setModelTarget(target) {
+  modelTarget = ['free', 'configured', 'local'].includes(target) ? target : 'free';
+  localStorage.setItem('kitty.modelTarget', modelTarget);
+  document.querySelectorAll('.target-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.target === modelTarget);
+  });
+}
+setModelTarget(modelTarget);
+
+function toggleReasoning() {
+  reasoningOn = !reasoningOn;
+  const btn = document.getElementById('reason-toggle');
+  btn.classList.toggle('on', reasoningOn);
+  btn.textContent = reasoningOn ? 'THINK ✦' : 'THINK';
+}
 
 function toggleVibe(force) {
   const body = document.body;
@@ -597,60 +1118,58 @@ function toggleVibe(force) {
     vibe = 'serious';
     body.classList.remove('theme-unhinged');
     toggle.textContent = 'MODE: CALM';
-    toggle.style.color = 'var(--dim-text)';
+    toggle.style.color = '';
     mascot.textContent = 'KITTY [FOCUSED]';
     mascot.classList.remove('unhinged-glitch');
   }
 }
 
-// ── SSE connection ──────────────────────────────────────────────────────────
-function connectSSE() {
-  if (es) es.close();
-  es = new EventSource('/stream');
-  es.onmessage = (e) => {
-    const data = JSON.parse(e.data);
-    if (data.type === 'token') {
-      // Check for state markers in the stream
-      if (data.text.includes('[STATE:UNHINGED]')) {
-        toggleVibe('unhinged');
-        return;
-      }
-      if (data.text.includes('[STATE:CALM]')) {
-        toggleVibe('serious');
-        return;
-      }
-      appendToken(data.text);
-    } else if (data.type === 'done') {
-      finishResponse();
-      loadJournal();
-    } else if (data.type === 'error') {
-      finishResponse(data.text);
-    } else if (data.type === 'state') {
-      if (data.text === 'UNHINGED') toggleVibe('unhinged');
-      else if (data.text === 'CALM') toggleVibe('serious');
-    }
-  };
+// ── Socket.IO connection ────────────────────────────────────────────────────
+const socket = io({
+  transports: ['polling'],
+  reconnection: true,
+  reconnectionDelay: 1000,
+  reconnectionAttempts: Infinity,
+});
 
-async function loadJournal() {
-  try {
-    const res = await fetch('/api/journal');
-    const entries = await res.json();
-    const jView = document.getElementById('journal-view');
-    if (!jView) return;
-    let html = '';
-    entries.slice(0,8).forEach(e => {
-      html += `<div style="margin-bottom: 8px; border-left: 2px solid var(--accent-color); padding-left: 8px; opacity: 0.7;">
-        <div style="font-size: 9px; color: var(--dim-text)">${e.timestamp}</div>
-        <div>${e.content}</div>
-      </div>`;
-    });
-    jView.innerHTML = html || 'No memories yet.';
-  } catch(e) {}
-}
-setTimeout(loadJournal, 1000);
+socket.on('connect', () => {
+  document.getElementById('connection-status').textContent = 'connected';
+});
 
-  es.onerror = () => { setTimeout(connectSSE, 2000); };
-}
+socket.on('disconnect', () => {
+  document.getElementById('connection-status').textContent = 'disconnected';
+});
+
+socket.on('connect_error', () => {
+  document.getElementById('connection-status').textContent = 'error';
+});
+
+socket.on('token', (data) => {
+  if (data.text.includes('[STATE:UNHINGED]')) { toggleVibe('unhinged'); return; }
+  if (data.text.includes('[STATE:CALM]'))     { toggleVibe('serious');  return; }
+  appendToken(data.text);
+});
+
+socket.on('thinking', (data) => {
+  appendThinkToken(data.text);
+});
+
+socket.on('done', (data) => {
+  finishResponse();
+  loadJournal();
+  if (data && data.specialist) highlightSpecialist(data.specialist);
+});
+
+socket.on('error', (data) => {
+  finishResponse(data.text || 'An error occurred');
+});
+
+socket.on('state', (data) => {
+  if (data.text === 'UNHINGED') toggleVibe('unhinged');
+  else if (data.text === 'CALM') toggleVibe('serious');
+});
+
+loadJournal();
 
 // ── Chat rendering ──────────────────────────────────────────────────────────
 function addMsg(role, text, isThinking=false) {
@@ -672,16 +1191,15 @@ function escHtml(t) {
 }
 
 function renderMarkdown(text) {
-  // Catch special state messages
   if (text.includes('Recruiting experts...')) {
     return text.replace('Recruiting experts...', '<div class="recruiting-experts">Recruiting experts...</div>');
   }
-
-  // Minimal: code blocks, inline code, bold
   text = text
-    .replace(/```([\\s\\S]*?)```/g, '<pre><code>$1</code></pre>')
+    .replace(/```[\w]*\n?([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
     .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>');
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/\n/g, '<br>');
   return text;
 }
 
@@ -691,41 +1209,71 @@ function appendToken(tok) {
     const msgs = document.getElementById('messages');
     const div = document.createElement('div');
     div.className = 'msg kitty';
-    div.innerHTML = '<div class="label" style="color:var(--orange);font-weight:600">kitty</div><div class="bubble"></div>';
+    div.innerHTML = '<div class="label">kitty</div><div class="bubble"></div>'; // static label, not user input
     msgs.appendChild(div);
     currentBubble = div.querySelector('.bubble');
     currentText = '';
   }
   currentText += tok;
 
-  // --- Token Ceiling Auto-Pagination Protocol ---
   if (currentText.includes('[READY_FOR_NEXT_SECTION]')) {
     currentText = currentText.replace('[READY_FOR_NEXT_SECTION]', '');
     currentBubble.innerHTML = renderMarkdown(escHtml(currentText));
     document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
-    finishResponse(); // Close this segment
-    // Silently prompt the backend to continue where it left off
+    finishResponse();
     setTimeout(() => sendMsg("Please continue with the next section."), 100);
     return;
   }
 
   // Expert pattern: **Expert Name**: ...
-  const expertMatch = currentText.match(/^\\*\\*([^*]+)\\*\\*:\\s*/);
+  const expertMatch = currentText.match(/^\*\*([^*]+)\*\*:\s*/);
   if (expertMatch) {
     const label = currentBubble.parentElement.querySelector('.label');
     label.textContent = expertMatch[1];
-    label.style.color = 'var(--orange-soft)';
+    label.style.color = 'var(--accent)';
   }
 
   currentBubble.innerHTML = renderMarkdown(escHtml(currentText));
+  // Streaming cursor at end of active bubble
+  const cursor = document.createElement('span');
+  cursor.className = 'dots';
+  currentBubble.appendChild(cursor);
+  document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+}
+
+function appendThinkToken(tok) {
+  if (!currentThinkBubble) {
+    const msgs = document.getElementById('messages');
+    const wrap = document.createElement('div');
+    wrap.className = 'msg kitty';
+    wrap.innerHTML = '<div class="thinking-label">THINKING</div><div class="thinking-bubble collapsed"></div>';
+    msgs.appendChild(wrap);
+    currentThinkBubble = wrap.querySelector('.thinking-bubble');
+    currentThinkText = '';
+    // Click to expand/collapse
+    currentThinkBubble.addEventListener('click', () => {
+      currentThinkBubble.classList.toggle('collapsed');
+    });
+  }
+  currentThinkText += tok;
+  currentThinkBubble.textContent = currentThinkText;
+  // Auto-expand while streaming
+  currentThinkBubble.classList.remove('collapsed');
   document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
 }
 
 function finishResponse(errText) {
   document.getElementById('council-overlay').style.display = 'none';
   if (errText && !currentBubble) addMsg('kitty', errText);
+  if (currentBubble) {
+    currentBubble.innerHTML = renderMarkdown(escHtml(currentText));
+  }
+  // Collapse think bubble when answer arrives
+  if (currentThinkBubble) currentThinkBubble.classList.add('collapsed');
   currentBubble = null;
+  currentThinkBubble = null;
   currentText = '';
+  currentThinkText = '';
   setBusy(false);
 }
 
@@ -739,36 +1287,12 @@ async function sendMsg(text) {
   addMsg('user', msg);
   setBusy(true);
 
-  // Use the new short-lived SSE pattern from the design spec
-  const eventSource = new EventSource(`/stream?query=${encodeURIComponent(msg)}`);
-
-  eventSource.onmessage = (e) => {
-    const data = JSON.parse(e.data);
-
-    if (data.type === 'token') {
-      if (data.text.includes('[STATE:UNHINGED]')) {
-        toggleVibe('unhinged');
-        return;
-      }
-      if (data.text.includes('[STATE:CALM]')) {
-        toggleVibe('serious');
-        return;
-      }
-      appendToken(data.text);
-    } else if (data.type === 'done') {
-      eventSource.close();
-      finishResponse();
-      loadJournal();
-    } else if (data.type === 'error') {
-      eventSource.close();
-      finishResponse(data.text);
-    }
-  };
-
-  eventSource.onerror = () => {
-    eventSource.close();
-    setBusy(false);
-  };
+  socket.emit('send_message', {
+    text: msg,
+    mode: activeMode,
+    modelTarget,
+    reasoning: reasoningOn,
+  });
 }
 
 function quickCmd(cmd) { sendMsg(cmd); }
@@ -779,10 +1303,12 @@ function promptScrape() {
 }
 
 function handleKey(e) {
-  if (e.key === 'Enter' && !e.shiftKey) {
+  if (e.key === 'Escape' && voiceState === 'recording') {
     e.preventDefault();
-    sendMsg();
+    cancelVoiceRecording();
+    return;
   }
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
 }
 
 function autoResize(el) {
@@ -790,68 +1316,237 @@ function autoResize(el) {
   el.style.height = Math.min(el.scrollHeight, 160) + 'px';
 }
 
+// ── Specialist panel ────────────────────────────────────────────────────────
+const SPECIALIST_DOTS = {
+  'Alex': 'dot-alex', 'Kelly': 'dot-kelly', 'Mike': 'dot-mike',
+  'Taylor': 'dot-taylor', 'Devin': 'dot-devin'
+};
+
+function highlightSpecialist(name) {
+  Object.values(SPECIALIST_DOTS).forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.classList.remove('active'); el.classList.add('idle'); }
+  });
+  const dotId = SPECIALIST_DOTS[name];
+  if (dotId) {
+    const el = document.getElementById(dotId);
+    if (el) { el.classList.add('active'); el.classList.remove('idle'); }
+  }
+  const lastEl = document.getElementById('last-specialist');
+  const nameEl = document.getElementById('last-specialist-name');
+  if (lastEl && nameEl) { nameEl.textContent = name; lastEl.style.display = 'block'; }
+}
+
 function setBusy(b) {
   busy = b;
   document.getElementById('send').disabled = b;
+  const voiceToggle = document.getElementById('voice-toggle');
+  if (voiceToggle) {
+    voiceToggle.disabled = b || voiceState === 'transcribing';
+  }
   document.getElementById('status-dot').className = b ? 'busy' : '';
 }
 
-// ── Superwhisper voice polling ───────────────────────────────────────────────
-(function voiceLoop() {
-  fetch('/voice_poll').then(r => r.json()).then(d => {
-    if (d.text) sendMsg(d.text);
-  }).catch(() => {}).finally(() => setTimeout(voiceLoop, 500));
-})();
+function setVoiceState(state, detail) {
+  voiceState = state;
+  const voiceToggle = document.getElementById('voice-toggle');
+  const voiceStatus = document.getElementById('voice-status');
+  if (!voiceToggle || !voiceStatus) return;
+
+  voiceToggle.dataset.state = state;
+  voiceToggle.disabled = state === 'unsupported' || busy || state === 'transcribing';
+  voiceToggle.textContent = state === 'recording' ? 'STOP' : state === 'transcribing' ? '...' : 'MIC';
+
+  if (detail) {
+    voiceStatus.textContent = detail;
+    return;
+  }
+
+  if (state === 'recording') {
+    voiceStatus.textContent = 'Recording… tap again to send.';
+  } else if (state === 'transcribing') {
+    voiceStatus.textContent = 'Transcribing…';
+  } else if (state === 'unsupported') {
+    voiceStatus.textContent = 'Voice input is not supported in this browser.';
+  } else {
+    voiceStatus.textContent = 'Mic ready';
+  }
+}
+
+function supportsVoiceInput() {
+  return Boolean(window.MediaRecorder && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+}
+
+function pickRecordingMimeType() {
+  const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
+  return candidates.find(type => !MediaRecorder.isTypeSupported || MediaRecorder.isTypeSupported(type)) || '';
+}
+
+function cleanupRecordingStream() {
+  if (recordingStream) {
+    recordingStream.getTracks().forEach(track => track.stop());
+    recordingStream = null;
+  }
+}
+
+function clearVoiceAutoStopTimer() {
+  if (voiceAutoStopTimer) {
+    clearTimeout(voiceAutoStopTimer);
+    voiceAutoStopTimer = null;
+  }
+}
+
+function cancelVoiceRecording(detail = 'Recording canceled.') {
+  clearVoiceAutoStopTimer();
+  recordingChunks = [];
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.onstop = null;
+    try { mediaRecorder.stop(); } catch (_error) {}
+  }
+  mediaRecorder = null;
+  cleanupRecordingStream();
+  setVoiceState(supportsVoiceInput() ? 'idle' : 'unsupported', detail);
+}
+
+async function transcribeRecording(blob, mimeType) {
+  setVoiceState('transcribing');
+
+  if (blob.size > MAX_AUDIO_UPLOAD_BYTES) {
+    setVoiceState('idle', 'Recording exceeded the upload limit.');
+    return;
+  }
+
+  const extension = mimeType.includes('mp4') ? 'mp4' : 'webm';
+  const formData = new FormData();
+  formData.append('audio', blob, `voice-note.${extension}`);
+
+  try {
+    const response = await fetch('/api/transcribe', {
+      method: 'POST',
+      body: formData,
+    });
+    const payload = await response.json().catch(() => ({ ok: false, error: 'Invalid transcription response' }));
+
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.error || 'Transcription failed');
+    }
+
+    const transcript = (payload.text || '').trim();
+    if (!transcript) {
+      throw new Error('Transcription was empty');
+    }
+
+    const input = document.getElementById('inp');
+    input.value = transcript;
+    autoResize(input);
+
+    setVoiceState('idle', payload.language ? `Transcript ready · ${payload.language}` : 'Transcript ready');
+    await sendMsg();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Transcription failed';
+    setVoiceState('idle', message);
+    addMsg('kitty', `Voice error: ${message}`);
+  }
+}
+
+async function startVoiceRecording() {
+  if (busy) return;
+
+  if (!supportsVoiceInput()) {
+    setVoiceState('unsupported');
+    return;
+  }
+
+  try {
+    recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recordingChunks = [];
+
+    const mimeType = pickRecordingMimeType();
+    mediaRecorder = mimeType ? new MediaRecorder(recordingStream, { mimeType }) : new MediaRecorder(recordingStream);
+
+    mediaRecorder.addEventListener('dataavailable', event => {
+      if (event.data && event.data.size > 0) {
+        recordingChunks.push(event.data);
+      }
+    });
+
+    mediaRecorder.addEventListener('stop', () => {
+      const recordedType = mediaRecorder && mediaRecorder.mimeType ? mediaRecorder.mimeType : (mimeType || 'audio/webm');
+      const blob = new Blob(recordingChunks, { type: recordedType });
+      clearVoiceAutoStopTimer();
+      recordingChunks = [];
+      mediaRecorder = null;
+      cleanupRecordingStream();
+      void transcribeRecording(blob, recordedType);
+    });
+
+    mediaRecorder.start();
+    voiceAutoStopTimer = setTimeout(() => {
+      if (voiceState === 'recording') {
+        stopVoiceRecording();
+      }
+    }, MAX_VOICE_RECORDING_MS);
+    setVoiceState('recording', 'Recording… press mic to send, Esc to cancel, auto-send in 60s.');
+  } catch (_error) {
+    cleanupRecordingStream();
+    mediaRecorder = null;
+    clearVoiceAutoStopTimer();
+    setVoiceState('idle', 'Microphone access was denied.');
+  }
+}
+
+function stopVoiceRecording() {
+  if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+    clearVoiceAutoStopTimer();
+    setVoiceState('idle');
+    cleanupRecordingStream();
+    return;
+  }
+
+  setVoiceState('transcribing');
+  mediaRecorder.stop();
+}
+
+async function toggleVoiceInput() {
+  if (voiceState === 'transcribing') return;
+  if (voiceState === 'recording') {
+    stopVoiceRecording();
+    return;
+  }
+  await startVoiceRecording();
+}
+
+setVoiceState(supportsVoiceInput() ? 'idle' : 'unsupported');
+
+// ── Journal loader (standalone for non-SSE calls) ───────────────────────────
+async function loadJournal() {
+  try {
+    const res = await fetch('/api/journal');
+    const entries = await res.json();
+    const jView = document.getElementById('journal-view');
+    if (!jView) return;
+    let html = '';
+    entries.slice(0,8).forEach(e => {
+      html += `<div class="journal-entry">
+        <div class="journal-ts">${escHtml(String(e.timestamp))}</div>
+        <div class="journal-body">${escHtml(String(e.content))}</div>
+      </div>`;
+    });
+    jView.innerHTML = html || '<span style="font-size:11px;color:var(--text-dim)">No memories yet.</span>';
+  } catch(e) {}
+}
+setTimeout(loadJournal, 1000);
 
 // ── Init ────────────────────────────────────────────────────────────────────
 document.getElementById('inp').focus();
 
 window.addEventListener('DOMContentLoaded', () => {
-  // Trigger initial brief using the SSE pattern
   sendMsg('/brief');
 });
 
-// Welcome message
-setTimeout(() => {
-  appendToken('Welcome to the Orange Lab. System is online.');
-  finishResponse();
-}, 300);
-
 // ═══════════════════════════════════════════════════════════════════════
-// CAT-THEMED EASTER EGGS & POLISH
+// EASTER EGGS
 // ═══════════════════════════════════════════════════════════════════════
-
-// Loading state messages and facts
-const LOADING_MESSAGES = [
-  "🐱 Kitty is sharpening claws...",
-  "😺 Chasing the laser pointer...",
-  "🐈 Knocking things off the desk...",
-  "😸 Sitting in a box that definitely fits...",
-  "😹 Staring at invisible ghosts...",
-  "😻 Making biscuits on the keyboard...",
-  "😼 Hunting the red dot...",
-  "😽 Finding the warmest spot on the laptop...",
-  "🙀 Getting distracted by a bug...",
-  "😿 Knocking over your coffee (oops)...",
-  "😾 Judging your code silently...",
-  "😺 Counting treats...",
-  "🐱 Pouncing on opportunities...",
-  "😸 Stretching after a long nap...",
-  "🐈 Grooming for the big presentation...",
-];
-
-const CAT_FACTS = [
-  "Cats can make over 100 different sounds!",
-  "A group of cats is called a 'clowder'.",
-  "Cats spend 70% of their lives sleeping.",
-  "A cat's purr vibrates at a frequency that promotes healing!",
-  "Cats can jump up to 6 times their height!",
-  "A cat's nose print is unique, like a human fingerprint.",
-  "Cats have 32 muscles in each ear!",
-  "The first cat in space was named Félicette.",
-  "Cats can rotate their ears 180 degrees!",
-  "A cat's whiskers are the same width as its body!",
-];
 
 const SUCCESS_MESSAGES = [
   "🎉 Purrr-fect! Task complete!",
@@ -860,99 +1555,40 @@ const SUCCESS_MESSAGES = [
   "😺 Done! That deserves some cat treats!",
   "🎊 Success! *happy purring noises*",
   "✓ Task finished! Now where's my belly rub?",
-  "🌟 All done! You're pawsome!",
-  "😸 Complete! That was a good hunt!",
 ];
 
-// Show loading overlay with random message
-function showLoading(message = null, showFact = true) {
-  const overlay = document.getElementById('loading-overlay');
-  const msgEl = document.getElementById('loading-message');
-  const factEl = document.getElementById('loading-fact');
-  const yarnFill = document.getElementById('yarn-fill');
-
-  const loadingMsg = message || LOADING_MESSAGES[Math.floor(Math.random() * LOADING_MESSAGES.length)];
-  msgEl.textContent = loadingMsg;
-
-  if (showFact) {
-    const fact = CAT_FACTS[Math.floor(Math.random() * CAT_FACTS.length)];
-    factEl.textContent = `💡 Did you know? ${fact}`;
-  } else {
-    factEl.textContent = '';
-  }
-
-  overlay.classList.add('active');
-
-  // Animate yarn ball progress
-  let progress = 0;
-  const interval = setInterval(() => {
-    progress += Math.random() * 15;
-    if (progress >= 100) {
-      progress = 100;
-      clearInterval(interval);
-    }
-    yarnFill.style.width = progress + '%';
-  }, 300);
-}
-
-function hideLoading() {
-  const overlay = document.getElementById('loading-overlay');
-  overlay.classList.remove('active');
-}
-
-// Success animation with falling treats
 function showSuccess(message = null) {
   const overlay = document.getElementById('success-overlay');
-  const successMsg = message || SUCCESS_MESSAGES[Math.floor(Math.random() * SUCCESS_MESSAGES.length)];
-
-  // Create success message
   const msgEl = document.createElement('div');
   msgEl.className = 'success-message';
-  msgEl.textContent = successMsg;
+  msgEl.textContent = message || SUCCESS_MESSAGES[Math.floor(Math.random() * SUCCESS_MESSAGES.length)];
   overlay.appendChild(msgEl);
 
-  // Create falling treats
-  const treats = ['🐟', '🐠', '🦐', '🍤', '🥫', '🍗', '🥛'];
+  const treats = ['🐟','🐠','🦐','🍤','🥫','🍗','🥛'];
   for (let i = 0; i < 20; i++) {
     setTimeout(() => {
-      const treat = document.createElement('div');
-      treat.className = 'treat';
-      treat.textContent = treats[Math.floor(Math.random() * treats.length)];
-      treat.style.left = Math.random() * 100 + '%';
-      treat.style.animationDelay = Math.random() * 0.5 + 's';
-      overlay.appendChild(treat);
+      const t = document.createElement('div');
+      t.className = 'treat';
+      t.textContent = treats[Math.floor(Math.random() * treats.length)];
+      t.style.left = Math.random() * 100 + '%';
+      t.style.animationDelay = Math.random() * 0.5 + 's';
+      overlay.appendChild(t);
     }, i * 100);
   }
 
   overlay.classList.add('active');
-
-  // Hide after animation
-  setTimeout(() => {
-    overlay.classList.remove('active');
-    overlay.innerHTML = '';
-  }, 2500);
+  setTimeout(() => { overlay.classList.remove('active'); overlay.innerHTML = ''; }, 2500);
 }
 
-// Easter Egg: Meow counter
-let meowCount = 0;
-let meowTimeout = null;
-let catModeActive = false;
+// Meow counter
+let meowCount = 0, meowTimeout = null, catModeActive = false;
 
 function checkMeowEasterEgg(text) {
   if (catModeActive) return;
-
   if (text.toLowerCase().includes('meow')) {
     meowCount++;
-
-    if (meowCount >= 3) {
-      activateCatMode();
-      meowCount = 0;
-    } else {
-      // Show hint
-      showNotification(`🐱 Meow! ${3 - meowCount} more to activate cat mode...`);
-    }
-
-    // Reset counter after 5 seconds
+    if (meowCount >= 3) { activateCatMode(); meowCount = 0; }
+    else showNotification(`🐱 Meow! ${3 - meowCount} more to activate cat mode...`);
     clearTimeout(meowTimeout);
     meowTimeout = setTimeout(() => { meowCount = 0; }, 5000);
   }
@@ -961,34 +1597,20 @@ function checkMeowEasterEgg(text) {
 function activateCatMode() {
   catModeActive = true;
   document.body.classList.add('cat-mode');
-
-  const indicator = document.getElementById('meow-indicator');
-  indicator.classList.add('visible');
-
+  document.getElementById('meow-indicator').classList.add('visible');
   showNotification('😺 Cat Mode Activated! 🐾');
-
-  // Change mascot
-  const mascot = document.getElementById('mascot-text');
-  mascot.innerHTML = '🐱 KITTY [MEOW] <span class="whiskers">~~</span>';
-
-  // Play purr sound (visual indicator)
+  document.getElementById('mascot-text').innerHTML = '🐱 KITTY [MEOW] <span class="whiskers">~~</span>';
   addMsg('kitty', '*purrs contentedly* 😺');
 }
 
-// Easter Egg: Konami Code (↑↑↓↓←→←→BA)
+// Konami code
 let konamiCode = [];
-const KONAMI_SEQUENCE = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+const KONAMI_SEQUENCE = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
 
 function checkKonamiCode(key) {
   konamiCode.push(key);
-
-  // Keep only last 10 keys
-  if (konamiCode.length > 10) {
-    konamiCode.shift();
-  }
-
-  // Check if sequence matches
-  if (konamiCode.length === 10 && konamiCode.every((k, i) => k === KONAMI_SEQUENCE[i])) {
+  if (konamiCode.length > 10) konamiCode.shift();
+  if (konamiCode.length === 10 && konamiCode.every((k,i) => k === KONAMI_SEQUENCE[i])) {
     activateRainbowMode();
     konamiCode = [];
   }
@@ -997,177 +1619,185 @@ function checkKonamiCode(key) {
 function activateRainbowMode() {
   document.body.classList.add('theme-rainbow');
   showNotification('🌈 Secret Rainbow Theme Activated! ✨');
-
-  const mascot = document.getElementById('mascot-text');
-  mascot.innerHTML = '🌈 KITTY [RAINBOW] 🌈';
-
-  addMsg('kitty', '🎉 You found the secret! Have some rainbow treats! 🌈✨');
+  document.getElementById('mascot-text').innerHTML = '🌈 KITTY [RAINBOW] 🌈';
+  addMsg('kitty', '🎉 You found the secret! 🌈✨');
   showSuccess('🌈 Secret Theme Unlocked!');
 }
 
-// Easter Egg: Poke the cat (click mascot 10 times)
+// Poke the mascot
 let pokeCount = 0;
-const pokeCounterEl = document.getElementById('poke-counter');
-const pokeCountSpan = document.getElementById('poke-count');
 
 function handleMascotClick() {
   pokeCount++;
-
-  if (pokeCount <= 10) {
-    pokeCounterEl.classList.add('visible');
-    pokeCountSpan.textContent = pokeCount;
-  }
-
+  const el = document.getElementById('poke-counter');
+  const sp = document.getElementById('poke-count');
+  if (pokeCount <= 10) { el.classList.add('visible'); sp.textContent = pokeCount; }
   if (pokeCount === 10) {
-    pokeCounterEl.textContent = "😾 Don't poke the cat!";
-    pokeCounterEl.style.borderColor = '#ff0033';
-    pokeCounterEl.style.color = '#ff0033';
-
+    el.textContent = "😾 Don't poke the cat!";
+    el.style.borderColor = '#ff0033';
+    el.style.color = '#ff0033';
     addMsg('kitty', '😾 Hey! Don\'t poke me! I was sleeping! *hiss*');
-
-    // Shake effect
     const mascot = document.getElementById('mascot-text');
     mascot.style.animation = 'shake 0.5s ease-in-out';
+    setTimeout(() => { mascot.style.animation = ''; }, 500);
     setTimeout(() => {
-      mascot.style.animation = '';
-    }, 500);
-
-    setTimeout(() => {
-      pokeCounterEl.classList.remove('visible');
+      el.classList.remove('visible');
       pokeCount = 0;
-      pokeCounterEl.innerHTML = "Don't poke the cat! <span id='poke-count'>0</span>/10";
-      pokeCounterEl.style.borderColor = '';
-      pokeCounterEl.style.color = '';
+      el.innerHTML = "Don't poke the cat! <span id='poke-count'>0</span>/10";
+      el.style.borderColor = '';
+      el.style.color = '';
     }, 3000);
   }
 }
 
 document.getElementById('mascot-text').addEventListener('click', handleMascotClick);
 
-// Easter Egg: Special commands
+// Special commands
 function checkEasterEggCommands(text) {
   const lower = text.toLowerCase().trim();
-
-  // /pet command
   if (lower === '/pet') {
-    const responses = [
-      "😺 *purrs contentedly*",
-      "😻 *rubs against your leg*",
-      "😽 *happy kneading noises*",
-      "🐱 *slow blink of trust*",
-      "😸 *rolls over for belly rubs*",
-    ];
-    addMsg('kitty', responses[Math.floor(Math.random() * responses.length)]);
+    const r = ["😺 *purrs contentedly*","😻 *rubs against your leg*","😽 *happy kneading noises*","🐱 *slow blink of trust*","😸 *rolls over for belly rubs*"];
+    addMsg('kitty', r[Math.floor(Math.random() * r.length)]);
     return true;
   }
-
-  // /treat command
   if (lower === '/treat') {
-    const responses = [
-      "😺 *nom nom nom*",
-      "🐟 *crunch crunch* Yummy!",
-      "😻 *purrs loudly while eating*",
-      "🎣 *steals the treat and runs away*",
-      "😸 *licks whiskers* More please!",
-    ];
-    addMsg('kitty', responses[Math.floor(Math.random() * responses.length)]);
+    const r = ["😺 *nom nom nom*","🐟 *crunch crunch* Yummy!","😻 *purrs loudly while eating*","🎣 *steals the treat and runs away*"];
+    addMsg('kitty', r[Math.floor(Math.random() * r.length)]);
     showSuccess();
     return true;
   }
-
-  // sudo command
-  if (lower.includes('sudo')) {
-    addMsg('kitty', '😼 Nice try, hooman! I am the root user here!');
-    return true;
-  }
-
+  if (lower.includes('sudo')) { addMsg('kitty', '😼 Nice try, hooman! I am the root user here!'); return true; }
   return false;
 }
 
-// Check for Caturday (Saturday)
 function checkCaturday() {
-  const today = new Date();
-  if (today.getDay() === 6) { // Saturday
+  if (new Date().getDay() === 6) {
     document.body.classList.add('caturday-mode');
-    showNotification("🐱 It's Caturday! Extra animations enabled! 🎉");
-
-    const mascot = document.getElementById('mascot-text');
-    mascot.innerHTML = '🎉 KITTY [CATURDAY] 🎉';
-
+    showNotification("🐱 It's Caturday! 🎉");
+    document.getElementById('mascot-text').innerHTML = '🎉 KITTY [CATURDAY] 🎉';
     return true;
   }
   return false;
 }
 
-// Helper: Show notification
 function showNotification(message) {
   const notif = document.createElement('div');
   notif.className = 'notification-meow';
   notif.textContent = message;
   document.body.appendChild(notif);
-
   setTimeout(() => {
-    notif.style.animation = 'slideIn 0.3s ease-out reverse';
-    setTimeout(() => notif.remove(), 300);
+    notif.style.animation = 'slide-in 0.22s ease-out reverse';
+    setTimeout(() => notif.remove(), 220);
   }, 3000);
 }
 
-// Override sendMsg to check for easter eggs and loading states
+// Override sendMsg for easter eggs
 const originalSendMsg = sendMsg;
 sendMsg = async function(text) {
   const msg = (text || document.getElementById('inp').value).trim();
-
-  // Check for easter eggs
   if (checkEasterEggCommands(msg)) {
-    if (!text) {
-      document.getElementById('inp').value = '';
-      autoResize(document.getElementById('inp'));
-    }
+    if (!text) { document.getElementById('inp').value = ''; autoResize(document.getElementById('inp')); }
     return;
   }
-
-  // Check for meow easter egg
   checkMeowEasterEgg(msg);
-
-  // Show loading for longer operations
-  const loadingKeywords = ['analyze', 'process', 'schematic', '/deep', '/investigate'];
-  const shouldShowLoading = loadingKeywords.some(kw => msg.toLowerCase().includes(kw));
-
-  if (shouldShowLoading && !text) {
-    showLoading();
-  }
-
-  // Call original
   await originalSendMsg(text);
-
-  // Hide loading
-  hideLoading();
-
-  // Show success for completed operations
-  if (shouldShowLoading) {
-    setTimeout(() => showSuccess(), 500);
-  }
 };
 
-// Override handleKey to check for Konami code
+// Override handleKey for Konami
 const originalHandleKey = handleKey;
-handleKey = function(e) {
-  checkKonamiCode(e.key);
-  originalHandleKey(e);
-};
+handleKey = function(e) { checkKonamiCode(e.key); originalHandleKey(e); };
 
-// Initialize easter eggs
+// Init easter eggs
 document.addEventListener('DOMContentLoaded', () => {
   checkCaturday();
-
-  // Add animated whiskers to mascot
   const mascot = document.getElementById('mascot-text');
   if (mascot && !mascot.innerHTML.includes('whiskers')) {
     mascot.innerHTML += ' <span class="whiskers">~~</span>';
   }
+  console.log('🐱 Kitty Easter Eggs: meow×3, Konami code, /pet, /treat');
+});
 
-  console.log('🐱 Kitty AI Easter Eggs Loaded!');
-  console.log('Try: typing "meow" 3 times, Konami code (↑↑↓↓←→←→BA), or /pet command!');
+// ── Command Palette ──────────────────────────────────────────────────────────
+const paletteFallbackSuggestions = [
+  { command: '/help', description: 'Show the core command set' },
+  { command: '/status', description: 'Show models, tools, and capability status' },
+  { command: '/brief', description: 'Morning brief, where you left off' },
+];
+let paletteSuggestions = [...paletteFallbackSuggestions];
+let cmdSelectedIndex = 0;
+
+function openCommandPalette() {
+  const palette = document.getElementById('command-palette');
+  palette.style.display = 'block';
+  const search = document.getElementById('command-search');
+  search.value = '';
+  requestCommandSuggestions('');
+  setTimeout(() => search.focus(), 30);
+}
+
+function closeCommandPalette() {
+  document.getElementById('command-palette').style.display = 'none';
+}
+
+function requestCommandSuggestions(query) {
+  if (window.socket && typeof socket.emit === 'function') {
+    socket.emit('command_palette_search', { query });
+    return;
+  }
+  renderCommandActions(paletteFallbackSuggestions);
+}
+
+function renderCommandActions(suggestions) {
+  const ul = document.getElementById('command-actions');
+  const filtered = Array.isArray(suggestions) && suggestions.length
+    ? suggestions
+    : paletteFallbackSuggestions;
+  cmdSelectedIndex = 0;
+  ul.innerHTML = '';
+  filtered.forEach((cmd, i) => {
+    const li = document.createElement('li');
+    li.className = 'command-action-item' + (i === 0 ? ' selected' : '');
+    li.innerHTML = `<div class="command-action-title">${escHtml(cmd.command || 'Suggestion')}</div>
+      <div class="command-action-description">${escHtml(cmd.description || '')}</div>
+      ${cmd.command ? `<div class="command-action-command">${escHtml(cmd.command)}</div>` : ''}`;
+    li.addEventListener('click', () => { executeCommand(cmd); closeCommandPalette(); });
+    ul.appendChild(li);
+  });
+}
+
+function executeCommand(cmd) {
+  if (cmd.action) cmd.action();
+  else if (cmd.command) sendMsg(cmd.command);
+}
+
+if (window.socket && typeof socket.on === 'function') {
+  socket.on('command_suggestions', (suggestions) => {
+    paletteSuggestions = Array.isArray(suggestions) && suggestions.length
+      ? suggestions
+      : [...paletteFallbackSuggestions];
+    renderCommandActions(paletteSuggestions);
+  });
+}
+
+document.addEventListener('keydown', (e) => {
+  const palette = document.getElementById('command-palette');
+  if (palette.style.display !== 'block') {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); openCommandPalette(); }
+    return;
+  }
+  const items = document.querySelectorAll('#command-actions .command-action-item');
+  if      (e.key === 'Escape')    { closeCommandPalette(); }
+  else if (e.key === 'ArrowDown') { e.preventDefault(); cmdSelectedIndex = Math.min(cmdSelectedIndex + 1, items.length - 1); items.forEach((el, i) => el.classList.toggle('selected', i === cmdSelectedIndex)); }
+  else if (e.key === 'ArrowUp')   { e.preventDefault(); cmdSelectedIndex = Math.max(cmdSelectedIndex - 1, 0); items.forEach((el, i) => el.classList.toggle('selected', i === cmdSelectedIndex)); }
+  else if (e.key === 'Enter')     { e.preventDefault(); if (items[cmdSelectedIndex]) items[cmdSelectedIndex].click(); }
+});
+
+document.getElementById('command-palette').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('command-palette')) closeCommandPalette();
+});
+
+document.getElementById('command-search').addEventListener('input', (e) => {
+  requestCommandSuggestions(e.target.value);
 });
 </script>
 </body>

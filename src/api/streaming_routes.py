@@ -2,6 +2,8 @@
 
 import json
 import logging
+import os
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -9,6 +11,15 @@ from pathlib import Path
 from flask import Blueprint, Response, current_app, jsonify, render_template, request
 
 from src.api.shared import chat_rate_limiter, token_broadcaster
+
+
+def _get_busy_lock():
+    """Get or create the app-level busy lock, ensuring it's set once."""
+    lock = getattr(current_app, "_busy_lock", None)
+    if lock is None:
+        lock = threading.Lock()
+        current_app._busy_lock = lock
+    return lock
 
 
 def _run_with_app_context(app, func):
@@ -27,18 +38,23 @@ def index():
 
 @streaming_bp.route("/stream")
 def stream():
-    query = request.args.get("query", "").strip()
-    domain = request.args.get("domain", "").strip() or None
-    is_voice = request.args.get("voice", "").lower() in ("1", "true")
+    query     = request.args.get("query", "").strip()
+    domain    = request.args.get("domain", "").strip() or None
+    is_voice  = request.args.get("voice", "").lower() in ("1", "true")
     client_id = request.args.get("client_id", f"client_{int(time.time())}")
+    mode      = request.args.get("mode", "fast")
+    reasoning = request.args.get("reasoning", "0").lower() in ("1", "true")
 
-    try:
-        from src.voice.prompt_transformer import transform as transform_voice_prompt
-        voice_transform = True
-    except ImportError:
-        voice_transform = False
+    transform_voice_prompt = None
+    voice_transform = False
+    if is_voice:
+        try:
+            from src.voice.prompt_transformer import transform as transform_voice_prompt
+            voice_transform = True
+        except ImportError:
+            pass
 
-    if is_voice and voice_transform:
+    if is_voice and voice_transform and transform_voice_prompt:
         result = transform_voice_prompt(query)
         query = result.cleaned or query
 
@@ -61,45 +77,42 @@ def stream():
             mimetype="text/event-stream",
         )
 
-    from src.api.dispatcher import dispatch
+    if query.startswith("/"):
+        # Slash commands go through the dispatcher (supervisor shim handles them)
+        from src.api.dispatcher import dispatch
 
-    def run_isolated():
-        try:
-            sup = getattr(current_app, "supervisor", None)
-            orch = getattr(current_app, "orchestrator", None)
-            if not sup:
-                q.put(("error", "System not ready. Please refresh and try again."))
-                return
-
-            cancel = threading.Event()
-
-            def run_query():
+        def run_cmd():
+            try:
+                sup = getattr(current_app, "supervisor", None)
+                if not sup:
+                    q.put(("error", "System not ready."))
+                    return
                 try:
-                    resp_obj = dispatch(query, domain=domain, sup=sup, orch=orch)
-                    sentiment = 0.0
-                    specialist = None
-                    if resp_obj and resp_obj.diagnostics:
-                        sentiment = resp_obj.diagnostics.get("sentiment", 0.0)
-                        specialist = resp_obj.diagnostics.get("specialist")
-                    q.put(("done", {"sentiment": sentiment, "specialist": specialist}))
+                    dispatch(query, domain=domain, sup=sup, orch=None)
                 except Exception as e:
-                    logger.debug(f"[SSE] Error for {client_id}: {e}")
-                    q.put(("error", "Processing error"))
-                finally:
-                    cancel.set()
+                    logger.warning("[SSE] Command error for %s: %s", client_id, e)
+                q.put(("done", {"sentiment": 0.0, "specialist": None}))
+            except Exception as e:
+                logger.warning("[SSE] Fatal command error: %s", e)
+                q.put(("error", "Command error"))
 
-            worker = threading.Thread(target=run_query, daemon=True)
-            worker.start()
+        app = current_app._get_current_object()
+        threading.Thread(
+            target=_run_with_app_context, args=(app, run_cmd), daemon=True
+        ).start()
+    else:
+        # Natural language → web orchestrator (direct LLM streaming, no CoreOrchestrator)
+        from src.api.web_orchestrator import stream_response
 
-            if not cancel.wait(timeout=120):
-                q.put(("error", "Query timed out after 2 minutes. Try a simpler request."))
-                logger.debug(f"[SSE] Timeout: {client_id}")
-        except Exception as e:
-            logger.debug(f"[SSE] Fatal isolated error: {e}")
-            q.put(("error", "Critical internal error"))
+        def run_nl():
+            try:
+                stream_response(query, client_id, mode=mode, reasoning=reasoning)
+                q.put(("done", {"sentiment": 0.0, "specialist": None}))
+            except Exception as e:
+                logger.error("[SSE] WebOrchestrator error for %s: %s", client_id, e)
+                q.put(("error", "LLM error — check server logs"))
 
-    app = current_app._get_current_object()
-    threading.Thread(target=_run_with_app_context, args=(app, run_isolated), daemon=True).start()
+        threading.Thread(target=run_nl, daemon=True).start()
 
     def generate():
         connection_start = time.time()
@@ -165,8 +178,8 @@ def stream():
                 yield f"data: {error_payload}\n\n"
             except Exception:
                 pass
-            finally:
-                token_broadcaster.unregister(client_id)
+        finally:
+            token_broadcaster.unregister(client_id)
             logger.debug(
                 f"[SSE] Cleaned up {client_id} (duration: {time.time() - connection_start:.1f}s)"
             )
@@ -180,31 +193,6 @@ def stream():
             "Connection": "keep-alive",
         },
     )
-
-
-@streaming_bp.route("/voice_poll")
-def voice_poll():
-    vf = Path("data/.kitty_voice.txt")
-    if vf.exists():
-        try:
-            text = vf.read_text().strip()
-            vf.unlink(missing_ok=True)
-            if text:
-                try:
-                    from src.voice.prompt_transformer import transform as transform_voice_prompt
-                    result = transform_voice_prompt(text)
-                    return jsonify(
-                        {
-                            "text": result.cleaned,
-                            "domain_hint": result.domain_hint,
-                            "intent_type": result.intent_type,
-                        }
-                    )
-                except ImportError:
-                    return jsonify({"text": text})
-        except Exception:
-            pass
-    return jsonify({"text": ""})
 
 
 @streaming_bp.route("/chat", methods=["POST"])
@@ -223,6 +211,7 @@ def chat():
     from src.api.dispatcher import dispatch
     sup = current_app.supervisor
     orch = current_app.orchestrator
+    fallback = getattr(current_app, "web_llm", None)
     busy = getattr(current_app, "_busy_lock", None)
 
     def run():
@@ -233,14 +222,26 @@ def chat():
                 if busy:
                     with busy:
                         try:
-                            dispatch(message, sup=sup, orch=orch)
+                            dispatch(
+                                message,
+                                sup=sup,
+                                orch=orch,
+                                fallback_chat=fallback.chat if fallback else None,
+                                fallback_stream=True,
+                            )
                         except Exception as e:
                             token_broadcaster.broadcast("error", f"Error: {e}")
                         finally:
                             token_broadcaster.broadcast("done", "")
                 else:
                     try:
-                        dispatch(message, sup=sup, orch=orch)
+                        dispatch(
+                            message,
+                            sup=sup,
+                            orch=orch,
+                            fallback_chat=fallback.chat if fallback else None,
+                            fallback_stream=True,
+                        )
                     except Exception as e:
                         token_broadcaster.broadcast("error", f"Error: {e}")
                     finally:
@@ -273,10 +274,8 @@ def unified():
         return jsonify({"ok": False, "error": "No message provided"}), 400
 
     sup = current_app.supervisor
-    busy = getattr(current_app, "_busy_lock", None)
-
     def run():
-        lock = busy or __import__("threading").Lock()
+        lock = _get_busy_lock()
         with lock:
             try:
                 sup.handle_unified_request(message)
@@ -295,8 +294,8 @@ def council():
     if not chat_rate_limiter.is_allowed(request.remote_addr or "unknown"):
         return jsonify({"error": "Rate limited. Try again later."}), 429
 
-    busy = getattr(current_app, "_busy_lock", None)
-    if busy and busy.locked():
+    busy_lock = _get_busy_lock()
+    if busy_lock.locked():
         return jsonify({"error": "Busy..."}), 429
 
     data = request.get_json(silent=True)
@@ -310,7 +309,7 @@ def council():
     sup = current_app.supervisor
 
     def run_council():
-        lock = busy or __import__("threading").Lock()
+        lock = busy_lock
         with lock:
             try:
                 sup.assemble_council(query)
@@ -327,10 +326,9 @@ def council():
 @streaming_bp.route("/brief", methods=["POST"])
 def brief():
     sup = current_app.supervisor
-    busy = getattr(current_app, "_busy_lock", None)
 
     def run():
-        lock = busy or __import__("threading").Lock()
+        lock = _get_busy_lock()
         with lock:
             try:
                 sup.morning_brief()
@@ -347,10 +345,9 @@ def brief():
 @streaming_bp.route("/optic", methods=["POST"])
 def optic():
     sup = current_app.supervisor
-    busy = getattr(current_app, "_busy_lock", None)
 
     def run():
-        lock = busy or __import__("threading").Lock()
+        lock = _get_busy_lock()
         with lock:
             try:
                 sup.run("/optic")
@@ -367,10 +364,9 @@ def optic():
 @streaming_bp.route("/horizon", methods=["POST"])
 def horizon():
     sup = current_app.supervisor
-    busy = getattr(current_app, "_busy_lock", None)
 
     def run():
-        lock = busy or __import__("threading").Lock()
+        lock = _get_busy_lock()
         with lock:
             try:
                 sup.run("/horizon")
@@ -539,6 +535,14 @@ def import_chat_history():
     except Exception:
         logger.error("Chat history import error")
         return jsonify({"error": "Import failed"}), 500
+
+
+@streaming_bp.route("/api/transcribe-legacy", methods=["POST"])
+def api_transcribe():
+    """Deprecated legacy transcription entrypoint."""
+    from src.api.voice_routes import transcribe_audio
+
+    return transcribe_audio()
 
 
 @streaming_bp.route("/schematic/<project_id>")

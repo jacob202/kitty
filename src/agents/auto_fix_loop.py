@@ -86,7 +86,7 @@ class CodeGenerator:
             },
         ]
         return self._call_openrouter(
-            model="deepseek/deepseek-chat-v3",
+            model="openrouter/free",
             messages=messages,
             temperature=0.2,
             max_tokens=2000,
@@ -99,7 +99,7 @@ class CodeGenerator:
             {"role": "user", "content": f"Task: {task}"},
         ]
         return self._call_openrouter(
-            model="deepseek/deepseek-chat-v3",
+            model="openrouter/free",
             messages=messages,
             temperature=0.2,
             max_tokens=2000,

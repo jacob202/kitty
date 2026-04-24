@@ -77,8 +77,11 @@ class KittyMiddleware:
         except Exception:
             return {}
 
-    def process(self, prompt: str, history: list[dict] = None) -> MiddlewareResult:
+    def process(self, prompt: str, history: list[dict] | None = None) -> MiddlewareResult:
         """Main entry point: Enhance prompt and route to best cost/performance model."""
+
+        if history is None:
+            history = []
 
         # 1. Basic Cleaning
         clean_prompt = prompt.strip()
@@ -177,7 +180,7 @@ class KittyMiddleware:
         if intent == "electronics_repair" or intent == "explanation":
             return (
                 "flash",
-                self.config.get("flash_model", "google/gemini-2.0-flash-001"),
+                self.config.get("flash_model", "openrouter/free"),
                 "[STATE:HELPFUL]",
             )
 
@@ -185,14 +188,14 @@ class KittyMiddleware:
         if intent == "coding" or intent == "research":
             return (
                 "heavy",
-                self.config.get("cheap_model", "deepseek/deepseek-chat"),
+                self.config.get("cheap_model", "openrouter/free"),
                 "[STATE:FOCUS]",
             )
 
         # Default to Flash
         return (
             "flash",
-            self.config.get("flash_model", "google/gemini-2.0-flash-001"),
+            self.config.get("flash_model", "openrouter/free"),
             "[STATE:UNHINGED]",
         )
 

@@ -1,0 +1,1 @@
+Rename the internal helper function `_resolve_state` to `_compute_state` in src/utils/circuit_breaker.py. Update the definition and all call sites within the file. Do not change anything else.

@@ -59,7 +59,7 @@ class RateLimiter:
         )
         self.db_path = db_path
         self._lock = Lock()
-        self._db_path.parent.mkdir(parents=True, exist_ok=True)
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
     def _init_db(self):

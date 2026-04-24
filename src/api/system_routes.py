@@ -6,7 +6,14 @@ import threading
 import time
 from pathlib import Path
 
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, abort, current_app, jsonify, request
+
+from src.core.capabilities import (
+    capability_snapshot,
+    command_palette_suggestions,
+    find_command_capability,
+    record_invocation,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +21,12 @@ system_bp = Blueprint('system', __name__)
 
 _HEALTH_CACHE = {"data": None, "timestamp": 0, "lock": threading.Lock()}
 _HEALTH_CACHE_TTL = 30  # seconds
+
+
+def _require_internal_api() -> None:
+    """404 internal-only routes unless explicitly enabled."""
+    if not current_app.config.get("ENABLE_INTERNAL_API", False):
+        abort(404)
 
 
 def _get_cached_health():
@@ -39,9 +52,14 @@ def _get_cached_health():
 @system_bp.route("/api/eval/scorecard", methods=["GET"])
 def get_scorecard():
     """Get the latest golden evaluation scorecard."""
+    _require_internal_api()
     report_path = Path("data/test_results/golden_eval_report.json")
     if not report_path.exists():
-        return jsonify({"error": "No scorecard available"}), 404
+        return jsonify({
+            "ok": False,
+            "status": "unavailable",
+            "error": "No scorecard available",
+        }), 200
 
     try:
         with open(report_path) as f:
@@ -68,11 +86,61 @@ def health_check():
 @system_bp.route("/api/health", methods=["GET"])
 def api_health():
     """Backward compatible health endpoint."""
+    _require_internal_api()
     try:
         return jsonify(_get_cached_health())
     except Exception as e:
         logger.error("API health error: %s", e)
         return jsonify({"status": "error", "error": "Health check failed"}), 500
+
+
+@system_bp.route("/api/capabilities", methods=["GET"])
+def api_capabilities():
+    """Return Kitty's current capability inventory and tiering."""
+    return jsonify(
+        capability_snapshot(
+            enable_experimental_swarm=bool(current_app.config.get("ENABLE_EXPERIMENTAL_SWARM", False)),
+            enable_internal_api=bool(current_app.config.get("ENABLE_INTERNAL_API", False)),
+        )
+    )
+
+
+@system_bp.route("/api/capabilities/explain", methods=["POST"])
+def api_capabilities_explain():
+    """Return a dry-run routing suggestion for a message."""
+    body = request.get_json(silent=True) or {}
+    message = (body.get("message") or "").strip()
+    suggestions = command_palette_suggestions(message, limit=3) if message else []
+
+    if not suggestions:
+        return jsonify(
+            {
+                "ok": True,
+                "message": message,
+                "suggested_command": None,
+                "description": None,
+                "tier": None,
+                "status": None,
+                "reason": "No matching capability found",
+                "all_suggestions": [],
+            }
+        )
+
+    best = suggestions[0]
+    capability = find_command_capability(best["command"])
+    record_invocation(best["command"], outcome="suggested")
+    return jsonify(
+        {
+            "ok": True,
+            "message": message,
+            "suggested_command": best["command"],
+            "description": best["description"],
+            "tier": capability.tier if capability else None,
+            "status": capability.status if capability else None,
+            "reason": "Matched keywords in the message to capability routing tags",
+            "all_suggestions": suggestions,
+        }
+    )
 
 @system_bp.route("/api/settings", methods=["GET"])
 def get_settings():
@@ -106,8 +174,8 @@ def get_settings():
             },
         },
         "models": {
-            "primary": sup.config.get("cheap_model", "deepseek/deepseek-chat"),
-            "fallback": sup.config.get("flash_model", "deepseek/deepseek-chat"),
+            "primary": sup.config.get("cheap_model", "openrouter/free"),
+            "fallback": sup.config.get("flash_model", "openrouter/free"),
             "vision": sup.config.get("hardware_model", "google/gemini-2.0-flash-001"),
         },
     }
@@ -116,6 +184,7 @@ def get_settings():
 @system_bp.route("/api/settings/update", methods=["POST"])
 def update_settings():
     """Update application settings."""
+    _require_internal_api()
     sup = getattr(current_app, 'supervisor', None)
     if not sup:
         return jsonify({"error": "Supervisor not initialized"}), 500
@@ -145,8 +214,12 @@ def update_settings():
 
         sup.config[config_key] = value
 
+    save_config = getattr(sup, "save_config", None)
+    if not callable(save_config):
+        return jsonify({"error": "Settings updates unavailable in this runtime"}), 503
+
     # Persist to disk
-    if sup.save_config():
+    if save_config():
         return jsonify({"status": "success"})
     else:
         return jsonify({"error": "Failed to save configuration"}), 500
@@ -154,6 +227,7 @@ def update_settings():
 @system_bp.route("/api/diagnostics", methods=["GET"])
 def api_diagnostics():
     """Run full diagnostic suite."""
+    _require_internal_api()
     try:
         from dataclasses import asdict
 
@@ -182,6 +256,7 @@ def api_diagnostics():
 @system_bp.route("/api/resilience/status", methods=["GET"])
 def api_resilience_status():
     """Get resilience system status."""
+    _require_internal_api()
     try:
         from src.utils.resilience import CircuitBreaker
         circuit_breakers = {}
@@ -199,6 +274,7 @@ def api_resilience_status():
 @system_bp.route("/api/settings/profiles", methods=["GET"])
 def api_list_profiles():
     """List all available profiles."""
+    _require_internal_api()
     try:
         from src.config.settings_manager import settings_manager
         profiles = settings_manager.list_profiles()
@@ -210,6 +286,7 @@ def api_list_profiles():
 @system_bp.route("/api/settings/profiles/active", methods=["GET"])
 def api_get_active_profile():
     """Get the currently active profile."""
+    _require_internal_api()
     try:
         from src.config.settings_manager import settings_manager
         profile = settings_manager.get_active_profile()

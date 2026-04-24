@@ -1235,42 +1235,4 @@ def timed_endpoint(endpoint_name: str):
     return decorator
 
 
-if __name__ == "__main__":
-    # Demo/test
-    print("Metrics Collector Demo")
-    print("=" * 50)
 
-    collector = MetricsCollector()
-
-    # Track some sample metrics
-    collector.track_api_request(
-        endpoint="/api/chat",
-        method="POST",
-        status_code=200,
-        response_time_ms=1250.5,
-        request_size_bytes=256,
-        response_size_bytes=1024,
-        user_id="user_123",
-    )
-
-    collector.track_llm_call(
-        model="gemini-2.0-flash",
-        provider="google",
-        tokens_in=1000,
-        tokens_out=500,
-        latency_ms=1200,
-        cost_usd=0.0005,
-        feature="chat",
-        success=True,
-    )
-
-    collector.track_cache_op(
-        cache_type="embedding",
-        operation="hit",
-        key="embed_123",
-    )
-
-    # Get summary
-    summary = collector.get_metrics_summary()
-    print("\nMetrics Summary:")
-    print(json.dumps(summary, indent=2, default=str))

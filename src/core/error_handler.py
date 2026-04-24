@@ -14,36 +14,29 @@ from rich.table import Table
 
 console = Console()
 
-# Loading state messages with cat theme
-LOADING_MESSAGES = [
-    "🐱 Kitty is sharpening claws...",
-    "😺 Chasing the laser pointer...",
-    "🐈 Knocking things off the desk...",
-    "😸 Sitting in a box that definitely fits...",
-    "😹 Staring at invisible ghosts...",
-    "😻 Making biscuits on the keyboard...",
-    "😼 Hunting the red dot...",
-    "😽 Finding the warmest spot on the laptop...",
-    "🙀 Getting distracted by a bug...",
-    "😿 Knocking over your coffee (oops)...",
-    "😾 Judging your code silently...",
-    "😺 Counting treats...",
-    "🐱 Pouncing on opportunities...",
-    "😸 Stretching after a long nap...",
-    "🐈 Grooming for the big presentation...",
-]
+def _load_ui_strings() -> dict:
+    """Load UI strings from config file"""
+    config_path = Path(__file__).parent.parent.parent / "config" / "ui_strings.json"
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Warning: Could not load ui_strings.json: {e}")
+        return {}
 
-# Success messages with cat theme
-SUCCESS_MESSAGES = [
-    "🎉 Purrr-fect! Task complete!",
-    "✨ Kitty approves! ✓",
-    "🐱 Mission accomplished! Time for a nap!",
-    "😺 Done! That deserves some cat treats!",
-    "🎊 Success! *happy purring noises*",
-    "✓ Task finished! Now where's my belly rub?",
-    "🌟 All done! You're pawsome!",
-    "😸 Complete! That was a good hunt!",
-]
+_UI_STRINGS = _load_ui_strings()
+LOADING_MESSAGES = _UI_STRINGS.get("LOADING_MESSAGES", ["Loading..."])
+SUCCESS_MESSAGES = _UI_STRINGS.get("SUCCESS_MESSAGES", ["Success!"])
+ERROR_MESSAGES = _UI_STRINGS.get("ERROR_MESSAGES", {
+    "unknown": {
+        "title": "🐾 Curious Cat-astrophe",
+        "user_message": "Something unexpected happened - probably a butterfly I had to chase!",
+        "action": "I'm landing on my feet and recovering. Please try again!"
+    }
+})
+CAT_ASCII_ART = _UI_STRINGS.get("CAT_ASCII_ART", {"sad": "\n    /\\_/\\\n   ( o.o )\n    > ^ <\n   \"I'm sorry...\"\n    "})
+CAT_FACTS = _UI_STRINGS.get("CAT_FACTS", ["Cats are cute."])
+EASTER_EGG_RESPONSES = _UI_STRINGS.get("EASTER_EGG_RESPONSES", {})
 
 
 def get_random_loading_message() -> str:
@@ -77,112 +70,8 @@ def display_success(message: str | None = None):
 
 def display_cat_ascii(mood: str = "sad"):
     """Display cat ASCII art"""
-    art = CAT_ASCII_ART.get(mood, CAT_ASCII_ART["sad"])
+    art = CAT_ASCII_ART.get(mood, CAT_ASCII_ART.get("sad", "Error"))
     console.print(art, style="orange3")
-
-
-# Cat-themed error messages - because errors should be cute! 🐱
-ERROR_MESSAGES = {
-    "api_error": {
-        "title": "🙀 API Error",
-        "user_message": "Oops! Kitty knocked the server off the table. But don't worry - I'm already landing on my feet!",
-        "action": "Your request was automatically re-routed to a backup server. All nine lives intact!",
-    },
-    "network_error": {
-        "title": "😿 Connection Issue",
-        "user_message": "The network went into stealth mode like a ninja cat!",
-        "action": "Try again in a few moments, or go 'secret' mode for offline purring.",
-    },
-    "model_unavailable": {
-        "title": "🐱 Model Unavailable",
-        "user_message": "The AI model is taking a catnap right now...",
-        "action": "I've switched to a wide-awake model. Your request is being processed at full zoomies speed!",
-    },
-    "rate_limit": {
-        "title": "😾 Rate Limited",
-        "user_message": "Too many requests! Even cats need to stop and groom themselves sometimes.",
-        "action": "Take a paws and try again soon, or use a cheaper tier for more treats!",
-    },
-    "auth_error": {
-        "title": "😼 Authentication Issue",
-        "user_message": "The API key was hidden too well - even I couldn't find it!",
-        "action": "I'm using my secret stash of backup keys. You might want to check yours though!",
-    },
-    "timeout": {
-        "title": "😴 Request Timeout",
-        "user_message": "The request curled up and fell asleep before finishing...",
-        "action": "Switching to turbo zoomies mode! Don't worry, I'm on it like a cat on a laser pointer!",
-    },
-    "invalid_input": {
-        "title": "🙀 Invalid Input",
-        "user_message": "That request made me tilt my head like a confused kitten!",
-        "action": "Try rephrasing or use /help to see all the tricks I know!",
-    },
-    "file_error": {
-        "title": "📁 File Error",
-        "user_message": "I couldn't bat that file around - it seems to be stuck under the couch!",
-        "action": "Check the file path and make sure I have permission to play with it.",
-    },
-    "memory_error": {
-        "title": "🧠 Memory Issue",
-        "user_message": "My brain is full of cat memes and can't fit any more!",
-        "action": "Try a shorter request or use /clear to make room for new toys!",
-    },
-    "unknown": {
-        "title": "🐾 Curious Cat-astrophe",
-        "user_message": "Something unexpected happened - probably a butterfly I had to chase!",
-        "action": "I'm landing on my feet and recovering. Please try again!",
-    },
-}
-
-# Cute cat ASCII art for different error states
-CAT_ASCII_ART = {
-    "sad": """
-    /\\_/\\
-   ( o.o )
-    > ^ <
-   "I'm sorry..."
-    """,
-    "apologetic": """
-      /\\_/\\
-     ( o.o )
-      > ^ <
-     /|   |\\
-    "Oops, my bad!"
-    """,
-    "working": """
-       /\\_/\\
-      ( -.- )
-       > ^ <
-      /|   |\\
-     "Fixing it..."
-    """,
-    "sleepy": """
-      /\\_/\\
-     ( -.- )  zZ
-      > ^ <
-     "Taking a nap..."
-    """,
-}
-
-# Random cat facts to show during loading
-CAT_FACTS = [
-    "Cats can make over 100 different sounds!",
-    "A group of cats is called a 'clowder'.",
-    "Cats spend 70% of their lives sleeping.",
-    "A cat's purr vibrates at a frequency that promotes healing!",
-    "Cats can jump up to 6 times their height!",
-    "A cat's nose print is unique, like a human fingerprint.",
-    "Cats have 32 muscles in each ear!",
-    "The first cat in space was named Félicette.",
-    "Cats can rotate their ears 180 degrees!",
-    "A cat's whiskers are the same width as its body!",
-    "Cats can't taste sweetness - but they love the texture!",
-    "The oldest known pet cat was found in a 9,500-year-old grave.",
-    "Cats have 5 toes on front paws, but only 4 on back paws!",
-    "A cat can run up to 30 mph in short bursts!",
-    "Cats sweat through their paw pads!",
-]
 
 
 def classify_error(error: Exception) -> str:
@@ -212,12 +101,16 @@ def classify_error(error: Exception) -> str:
 def get_user_friendly_error(error: Exception, include_debug: bool = False) -> dict[str, Any]:
     """Get user-friendly error information"""
     error_type = classify_error(error)
-    error_info = ERROR_MESSAGES.get(error_type, ERROR_MESSAGES["unknown"])
+    error_info = ERROR_MESSAGES.get(error_type, ERROR_MESSAGES.get("unknown", {
+        "title": "Error",
+        "user_message": "An error occurred.",
+        "action": "Please try again."
+    }))
 
     result = {
-        "title": error_info["title"],
-        "user_message": error_info["user_message"],
-        "action": error_info["action"],
+        "title": error_info.get("title", "Error"),
+        "user_message": error_info.get("user_message", "An error occurred."),
+        "action": error_info.get("action", "Please try again."),
         "error_type": error_type,
     }
 
@@ -308,61 +201,21 @@ def get_suggestion_for_error(error: Exception) -> str:
     return suggestions.get(error_type, suggestions["unknown"])
 
 
-# Easter egg responses for special commands
-EASTER_EGG_RESPONSES = {
-    "/pet": [
-        "😺 *purrs contentedly*",
-        "😻 *rubs against your leg*",
-        "😽 *happy kneading noises*",
-        "🐱 *slow blink of trust*",
-        "😸 *rolls over for belly rubs*",
-    ],
-    "/treat": [
-        "😺 *nom nom nom*",
-        "🐟 *crunch crunch* Yummy!",
-        "😻 *purrs loudly while eating*",
-        "🎣 *steals the treat and runs away*",
-        "😸 *licks whiskers* More please!",
-    ],
-    "meow": [
-        "😺 Meow!",
-        "🐱 *confused head tilt* Meow?",
-        "😸 Meow meow!",
-        "😻 *happy meowing*",
-        "😼 Are you trying to speak my language?",
-    ],
-    "sudo": [
-        "😼 Nice try, hooman!",
-        "😺 Sudo make me a sandwich?",
-        "🐱 *judges your Linux skills*",
-        "😸 Access denied! I'm the admin here!",
-        "🙀 *hisses at unauthorized access*",
-    ],
-    "poke": [
-        "😼 Don't poke the cat!",
-        "😾 *annoyed ears back*",
-        "😺 Fine, you can pet me instead.",
-        "🐱 *swats at your finger*",
-        "😸 Okay okay, I'm awake!",
-    ],
-}
-
-
 def get_easter_egg_response(command: str) -> str | None:
     """Get a random response for easter egg commands"""
     command = command.lower().strip()
 
     # Handle /pet and /treat commands
     if command == "/pet":
-        return random.choice(EASTER_EGG_RESPONSES["/pet"])
+        return random.choice(EASTER_EGG_RESPONSES.get("/pet", ["*purrs*"])) if EASTER_EGG_RESPONSES.get("/pet") else None
     elif command == "/treat":
-        return random.choice(EASTER_EGG_RESPONSES["/treat"])
+        return random.choice(EASTER_EGG_RESPONSES.get("/treat", ["*nom nom*"])) if EASTER_EGG_RESPONSES.get("/treat") else None
     elif command == "meow" or command == "/meow":
-        return random.choice(EASTER_EGG_RESPONSES["meow"])
+        return random.choice(EASTER_EGG_RESPONSES.get("meow", ["Meow!"])) if EASTER_EGG_RESPONSES.get("meow") else None
     elif "sudo" in command:
-        return random.choice(EASTER_EGG_RESPONSES["sudo"])
+        return random.choice(EASTER_EGG_RESPONSES.get("sudo", ["Access denied!"])) if EASTER_EGG_RESPONSES.get("sudo") else None
     elif "poke" in command or command == "/poke":
-        return random.choice(EASTER_EGG_RESPONSES["poke"])
+        return random.choice(EASTER_EGG_RESPONSES.get("poke", ["*swats*"])) if EASTER_EGG_RESPONSES.get("poke") else None
 
     return None
 

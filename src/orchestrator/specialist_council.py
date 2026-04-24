@@ -38,12 +38,20 @@ class SpecialistCouncil:
             )
 
         responses = []
-        for specialist in self.specialists:
-            try:
-                resp = specialist.query(query, context or {}, **kwargs)
-                responses.append(resp)
-            except Exception as e:
-                logger.warning(f"Specialist {specialist.name} failed during consultation: {e}")
+        import concurrent.futures
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(self.specialists)) as executor:
+            future_to_spec = {
+                executor.submit(specialist.query, query, context or {}, **kwargs): specialist
+                for specialist in self.specialists
+            }
+            for future in concurrent.futures.as_completed(future_to_spec):
+                spec = future_to_spec[future]
+                try:
+                    resp = future.result()
+                    responses.append(resp)
+                except Exception as e:
+                    logger.warning(f"Specialist {spec.name} failed during consultation: {e}")
 
         if not responses:
             return SpecialistResponse(

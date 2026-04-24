@@ -13,6 +13,7 @@ import os
 import sys
 import threading
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -21,63 +22,85 @@ logger = logging.getLogger(__name__)
 _PROJECT_ROOT = Path(__file__).parent.parent.parent
 _DEFAULT_WORKING_DIR = str(_PROJECT_ROOT / "data" / "lightrag")
 
+# Global event loop and thread shared by all LightRAGStore instances
+_GLOBAL_LOOP = None
+_GLOBAL_THREAD = None
+_GLOBAL_LOCK = threading.Lock()
+
 # Load environment variables
 load_dotenv(_PROJECT_ROOT / ".env")
 
-# Ensure local lightrag install (tools/lightrag/) is importable regardless of venv
-_lightrag_src = str(_PROJECT_ROOT / "tools" / "lightrag")
-if _lightrag_src not in sys.path:
-    sys.path.insert(0, _lightrag_src)
+def _get_global_loop():
+    """Ensure a global asyncio loop is running in a background thread."""
+    global _GLOBAL_LOOP, _GLOBAL_THREAD
+    with _GLOBAL_LOCK:
+        if _GLOBAL_LOOP is None:
+            _GLOBAL_LOOP = asyncio.new_event_loop()
+            _GLOBAL_THREAD = threading.Thread(
+                target=_run_global_loop, daemon=True, name="lightrag-global-loop"
+            )
+            _GLOBAL_THREAD.start()
+    return _GLOBAL_LOOP
+
+
+def _run_global_loop():
+    """Background thread target."""
+    asyncio.set_event_loop(_GLOBAL_LOOP)
+    _GLOBAL_LOOP.run_forever()
 
 
 class LightRAGStore:
     """
     Synchronous facade over LightRAG's async API.
 
-    Runs a persistent asyncio event loop in a daemon thread so LightRAG's
+    Uses a shared global asyncio event loop in a daemon thread so LightRAG's
     internal worker coroutines always have a live loop to run in.
 
+    Supports domain isolation by using separate working directories.
+
     Usage:
-        store = LightRAGStore()
-        store.add_document("The capacitor C47 is in the power supply section.")
-        answer = store.search("What capacitors are in the power supply?")
-        store.close()
+        store = LightRAGStore(domain="audio")
+        store.add_document("The Sansui AU-7900 is a solid-state amp.")
+        answer = store.search("Does AU-7900 have tubes?")
     """
 
     def __init__(
         self,
-        working_dir: str = _DEFAULT_WORKING_DIR,
+        domain: str | None = None,
+        working_dir: str | None = None,
         llm_model: str | None = None,
         embed_model: str = "nomic-embed-text",
     ):
+        # 1. Determine working directory
+        if working_dir:
+            self.working_dir = working_dir
+        elif domain:
+            self.working_dir = str(_PROJECT_ROOT / "data" / "lightrag" / domain)
+        else:
+            self.working_dir = _DEFAULT_WORKING_DIR
+
+        # 2. Determine LLM model
         if llm_model is None:
             try:
                 import json
 
-                _cfg = json.loads(
-                    (
-                        _PROJECT_ROOT / "data" / "config" / "kitty_config.json"
-                    ).read_text()
-                )
-                llm_model = _cfg.get("lightrag", {}).get("llm_model", "llama3.2:3b")
+                _cfg_path = _PROJECT_ROOT / "data" / "config" / "kitty_config.json"
+                if _cfg_path.exists():
+                    _cfg = json.loads(_cfg_path.read_text())
+                    llm_model = _cfg.get("lightrag", {}).get("llm_model", "llama3.2:3b")
+                else:
+                    llm_model = "llama3.2:3b"
             except Exception:
                 llm_model = "llama3.2:3b"
 
-        self._loop = asyncio.new_event_loop()
-        self._thread = threading.Thread(
-            target=self._run_loop, daemon=True, name="lightrag-loop"
-        )
-        self._thread.start()
+        # 3. Get shared loop
+        self._loop = _get_global_loop()
 
-        # Initialize LightRAG inside the persistent loop
+        # 4. Initialize LightRAG inside the persistent loop
         future = asyncio.run_coroutine_threadsafe(
-            self._init(working_dir, llm_model, embed_model), self._loop
+            self._init(self.working_dir, llm_model, embed_model), self._loop
         )
         future.result(timeout=60)  # wait up to 60s for storage init
-
-    def _run_loop(self):
-        asyncio.set_event_loop(self._loop)
-        self._loop.run_forever()
 
     async def _init(self, working_dir, llm_model, embed_model):
         import requests
@@ -121,7 +144,7 @@ class LightRAGStore:
                     batch_size = 100
                     all_results = []
                     for i in range(0, len(texts), batch_size):
-                        batch = texts[i:i+batch_size]
+                        batch = texts[i : i + batch_size]
                         results = []
                         for text in batch:
                             try:
@@ -143,9 +166,7 @@ class LightRAGStore:
                 else:
                     req = urllib.request.Request(
                         f"{ollama_base_url}/api/embeddings",
-                        data=json.dumps(
-                            {"model": "nomic-embed-text", "prompt": texts}
-                        ).encode(),
+                        data=json.dumps({"model": "nomic-embed-text", "prompt": texts}).encode(),
                         headers={"Content-Type": "application/json"},
                     )
                     with urllib.request.urlopen(req, timeout=30) as resp:
@@ -198,17 +219,12 @@ class LightRAGStore:
         await self._rag.initialize_storages()
 
     def add_document(self, text: str, metadata: dict = None) -> None:
-        """Insert text. Blocks until ingestion completes (can be slow — Ollama LLM extracts entities)."""
+        """Insert text. Blocks until ingestion completes."""
         future = asyncio.run_coroutine_threadsafe(self._rag.ainsert(text), self._loop)
         future.result(timeout=600)  # 10-minute ceiling per document
 
     def search(self, query: str, top_k: int = 5) -> str:
-        """
-        Vector search over ingested documents.
-        Uses 'naive' mode (embedding similarity only) so it works even when
-        LLM entity extraction times out. Switch to 'hybrid' once a faster
-        LLM model (qwen2.5:7b or better) is configured.
-        """
+        """Vector search over ingested documents using 'naive' mode."""
         from lightrag import QueryParam
 
         try:
@@ -221,37 +237,18 @@ class LightRAGStore:
             return f"[LightRAG search error: {e}]"
 
     def search_tiered(self, query: str, tier: str = "all", top_k: int = 5):
-        """
-        Search with hierarchical context (L0/L1/L2 tiers).
-
-        Wraps search() with ContextHierarchy for tiered retrieval.
-        - L0: abstract (~50 tokens) -- fast
-        - L1: overview (~500 tokens) -- moderate
-        - L2: detail (full) -- on demand
-
-        Args:
-            query: search query
-            tier: 'l0', 'l1', 'l2', or 'all'
-            top_k: number of documents
-
-        Returns:
-            HierarchyQueryResult from ContextHierarchy.query_tiered()
-        """
+        """Search with hierarchical context (L0/L1/L2 tiers)."""
         from src.memory.context_hierarchy import integrate_with_lightrag
 
         hierarchy = integrate_with_lightrag(self)
         return hierarchy.query_tiered(query, tier=tier, top_k=top_k)
 
     def close(self) -> None:
-        """Flush pending writes and stop the background event loop."""
+        """Flush pending writes."""
         try:
-            future = asyncio.run_coroutine_threadsafe(
-                self._rag.finalize_storages(), self._loop
-            )
+            future = asyncio.run_coroutine_threadsafe(self._rag.finalize_storages(), self._loop)
             future.result(timeout=30)
         except Exception as e:
             from src.core.exceptions import handle_exception
+
             handle_exception(e, context="lightrag_store.close", silent=True)
-        self._loop.call_soon_threadsafe(self._loop.stop)
-        self._thread.join(timeout=10)
-        self._loop.close()

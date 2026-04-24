@@ -1,7 +1,9 @@
 """Kitty's Core Soul Specialist."""
+from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
 from src.core.specialist_framework import BaseSpecialist, SpecialistResponse
 
@@ -15,8 +17,16 @@ class KittySoulSpecialist(BaseSpecialist):
 
     _SOUL_PATH = Path("config/SOUL.md")
 
+    @staticmethod
+    def _safe_float(value: object, default: float = 0.0) -> float:
+        """Safely coerce a value to float, returning default on failure."""
+        try:
+            return float(value)  # pyright: ignore[reportArgumentType]
+        except (TypeError, ValueError):
+            return default
+
     def _get_personality(self) -> str:
-        return "direct, warm, no bullshit — not clinical, not coddling"
+        return "empathetic, grounded, radically kind — sees the person, not the problem"
 
     def _get_system_prompt(self) -> str:
         if self._SOUL_PATH.exists():
@@ -54,7 +64,7 @@ class KittySoulSpecialist(BaseSpecialist):
             research_loop = state.get("research_loop", {})
             if (
                 research_loop.get("signal") == "active"
-                and research_loop.get("intensity", 0) > 0.6
+                and self._safe_float(research_loop.get("intensity", 0)) > 0.6
             ):
                 observations.append(
                     "Research loop detected — you've been looking into this for a few sessions. What's the smallest next step?"
@@ -64,7 +74,7 @@ class KittySoulSpecialist(BaseSpecialist):
             planning_loop = state.get("planning_loop", {})
             if (
                 planning_loop.get("signal") == "active"
-                and planning_loop.get("intensity", 0) > 0.6
+                and self._safe_float(planning_loop.get("intensity", 0)) > 0.6
             ):
                 observations.append(
                     "Noticed you're in planning mode — beautiful architecture, no implementation. What's the one thing you'd actually do?"
@@ -72,7 +82,7 @@ class KittySoulSpecialist(BaseSpecialist):
 
             # Execution gap (check via execution category if exists)
             execution = state.get("execution", {})
-            if execution.get("signal") == "gap" and execution.get("intensity", 0) > 0.6:
+            if execution.get("signal") == "gap" and self._safe_float(execution.get("intensity", 0)) > 0.6:
                 observations.append(
                     "Execution gap widening — what's specifically in the way?"
                 )
@@ -96,12 +106,13 @@ class KittySoulSpecialist(BaseSpecialist):
     def query(
         self,
         question: str,
-        context: dict = None,
-        model: str = None,
+        context: dict[str, Any] | None = None,
+        model: str | None = None,
         context_preamble: str = "",
         honcho_approach: str = "",
     ) -> SpecialistResponse:
         """Soul queries skip KB lookup — respond directly from personality."""
+        actual_approach = ""
         try:
             from src.space_kitty.llm_client import call_llm
 
@@ -109,8 +120,10 @@ class KittySoulSpecialist(BaseSpecialist):
             system_prompt = self._get_system_prompt()
 
             # Inject Honcho approach
-            actual_approach = honcho_approach if honcho_approach else ""
-            if not actual_approach:
+            actual_approach = ""
+            if honcho_approach:
+                actual_approach = honcho_approach
+            else:
                 try:
                     from src.space_kitty.honcho import Honcho
 

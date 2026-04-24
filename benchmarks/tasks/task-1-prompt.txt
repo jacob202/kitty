@@ -1,0 +1,8 @@
+I want you to read src/core/domain_router.py and explain how the routing system works. Specifically:
+
+1. How are routing decisions made? Walk me through the keyword matching algorithm and confidence scoring.
+2. What fallback mechanisms exist when no keywords match?
+3. What is the Domain enum and how is RoutingDecision structured?
+4. How does the DomainRouter's `route()` method decide which domain to route to?
+
+Please provide a clear, structured explanation. Do NOT modify any files.
