@@ -95,7 +95,7 @@
 
 ### Specialist Improvements
 - [x] Parallel specialist agents (wire specialists as agents, not just Python classes) — DONE
-- [ ] Specialist KB training (train each specialist on domain-specific knowledge)
+- [x] Specialist KB training (Implemented domain-isolated LightRAG + Ingestion engine fix + Knowledge Inventory) — DONE
 - [ ] MCP memory feedback loop (surface relevant memory entities into conversations automatically)
 
 ### New Features (post-cleanup)

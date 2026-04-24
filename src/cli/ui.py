@@ -125,6 +125,14 @@ COMMANDS = {
         "/bom <export|pricing|compare|summary|shopping> [args]",
         "BOM export, pricing, comparison and procurement tools",
     ),
+    "/skill": (
+        "/skill <name>",
+        "Load a superpower skill's instructions (use /skills to list)",
+    ),
+    "/skills": (
+        "/skills",
+        "List all available superpower skills",
+    ),
 }
 
 
@@ -339,6 +347,19 @@ _CMD_DETAILS = {
             "/synthesize 'Explain quantum computing in simple terms'",
         ],
     },
+    "/skill": {
+        "what": "Loads a skill's full instructions into the conversation. Skills are structured methodologies for coding, debugging, research, and more. Use /skills to see what's available.",
+        "examples": [
+            "/skill test-driven-development",
+            "/skill systematic-debugging",
+            "/skill surgical-coding",
+            "/skill brainstorming",
+        ],
+    },
+    "/skills": {
+        "what": "Lists all available skills with their descriptions. Skills are loaded via /skill <name>.",
+        "examples": ["/skills"],
+    },
     "/bom": {
         "what": "Bill of Materials (BOM) management tools for hardware projects. Export to CSV/Excel, get pricing from suppliers (DigiKey, Mouser, LCSC), compare revisions, and generate shopping lists.",
         "examples": [
@@ -484,6 +505,14 @@ def print_help(target: str = ""):
                 ("/export", "Save session as markdown"),
             ],
             "gold1",
+        ),
+        _section(
+            "SKILLS",
+            [
+                ("/skills", "List all available skills"),
+                ("/skill <name>", "Load a skill's instructions"),
+            ],
+            "magenta",
         ),
         _section(
             "SYSTEM",

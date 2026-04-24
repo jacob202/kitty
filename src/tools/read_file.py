@@ -1,5 +1,7 @@
 """Read file tool."""
 
+from typing import Any
+
 from src.tools import tool_registry
 from src.tools.base import BaseTool, ToolResult
 
@@ -19,7 +21,8 @@ class ReadFileTool(BaseTool):
     def description(self) -> str:
         return "Read the complete content of a specified file."
 
-    def execute(self, path: str) -> ToolResult:
+    def execute(self, **kwargs: Any) -> ToolResult:
+        path = kwargs.get("path", "")
         registry = tool_registry.get_registry()
         registry_result = registry.read_file(path)
 

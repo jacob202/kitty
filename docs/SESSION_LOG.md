@@ -97,6 +97,25 @@ Format:
 
 ---
 
+## 2026-04-24 — Specialist KB Training (Isolated LightRAG)
+
+**Done:**
+- Implemented **Domain-Isolated LightRAG Storage**: Separate directories for each specialist (`data/lightrag/{domain}`) to prevent knowledge cross-contamination.
+- Refactored `LightRAGStore` to use a **Shared Global Event Loop**, improving efficiency and preventing thread exhaustion.
+- Upgraded `IngestEngine`: Actually stores data in LightRAG (fixed lying logic) and uses **OpenRouter** (`google/gemini-2.0-flash-exp:free`) for faster, higher-quality extraction instead of Ollama.
+- Established **Knowledge Inventory**: Automatic indexing of ingested files in `data/knowledge_bases/INVENTORY.md`.
+- Refactored `BaseSpecialist` to bind directly to domain-specific KB stores.
+- Validated architecture with fast-mode ingestion test.
+
+**Open:**
+- Tuning Circuit Breaker for parallel ingestion (current limits are tight for mass graph extraction).
+- Mass ingestion of curated service manuals.
+
+**Corrections:**
+- Swapped Ollama for OpenRouter in LightRAG extraction per user directive ("Ollama is garbage").
+
+---
+
 ## 2026-04-24 — Specialist-to-Agent Refactor & Tool Integration
 
 **Done:**

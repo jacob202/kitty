@@ -49,6 +49,19 @@ class ToolDispatcher:
 
     def _dispatch_tool(self, name: str, params: dict[str, Any], tool: Any) -> str:
         """Dispatch to the specific tool implementation."""
+        # Try ToolManager first — all registered BaseTool subclasses
+        from src.tools.tool_manager import get_tool_manager
+
+        manager = get_tool_manager()
+        tool_cls = manager.get_tool_by_name(name)
+        if tool_cls is not None:
+            result = tool_cls().execute(**params)
+            if result.ok and result.result:
+                return str(result.result.get("output", str(result.result)))
+            elif result.error:
+                return f"Error: {result.error}"
+            return str(result.result or "")
+
         # SAFE COMMANDS ALLOWLIST - shell injection protection
         SAFE_SHELL_COMMANDS = {  # noqa: N806
             "git", "grep", "ls", "pwd", "cat", "head", "tail", "wc",

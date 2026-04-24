@@ -1,5 +1,7 @@
 """List directory tool."""
 
+from typing import Any
+
 from src.tools import tool_registry
 from src.tools.base import BaseTool, ToolResult
 
@@ -19,7 +21,8 @@ class ListDirectoryTool(BaseTool):
     def description(self) -> str:
         return "List files and subdirectories in a given path."
 
-    def execute(self, path: str = ".") -> ToolResult:
+    def execute(self, **kwargs: Any) -> ToolResult:
+        path = kwargs.get("path", ".")
         registry = tool_registry.get_registry()
         registry_result = registry.list_directory(path)
 
