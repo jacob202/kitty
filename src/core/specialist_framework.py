@@ -30,9 +30,13 @@ def _get_lightrag_for_domain(domain: str):
     """Get or create a LightRAGStore for a specific domain."""
     global _lightrag_stores
     if domain not in _lightrag_stores:
-        from src.memory.lightrag_store import LightRAGStore
+        try:
+            from src.memory.lightrag_store import LightRAGStore
 
-        _lightrag_stores[domain] = LightRAGStore(domain=domain)
+            _lightrag_stores[domain] = LightRAGStore(domain=domain)
+        except Exception as e:
+            logger.warning("LightRAG unavailable for domain %s: %s", domain, e)
+            _lightrag_stores[domain] = None
     return _lightrag_stores[domain]
 
 

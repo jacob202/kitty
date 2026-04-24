@@ -99,6 +99,24 @@ def test_web_orchestrator_prompt_prioritizes_friction_reduction():
     assert "reduce friction" in web_orchestrator._SYSTEM
 
 
+def test_missing_lightrag_degrades_specialist_kb_instead_of_raising(monkeypatch):
+    import src.core.specialist_framework as specialist_framework
+    import src.memory.lightrag_store as lightrag_store
+
+    specialist_framework._lightrag_stores.clear()
+
+    class BrokenLightRAGStore:
+        def __init__(self, *args, **kwargs):
+            raise ModuleNotFoundError("No module named 'lightrag'")
+
+    monkeypatch.setattr(lightrag_store, "LightRAGStore", BrokenLightRAGStore)
+
+    store = specialist_framework._get_lightrag_for_domain("audio")
+
+    assert store is None
+    assert specialist_framework._lightrag_stores["audio"] is None
+
+
 def test_model_target_free_overrides_configured_model(monkeypatch):
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
     monkeypatch.setenv("KITTY_MODEL", "paid/configured-model")

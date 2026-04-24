@@ -133,6 +133,28 @@ def test_core_orchestrator_process_handles_missing_council_enum(monkeypatch):
     assert response.content == "general fallback"
 
 
+def test_core_orchestrator_select_model_honors_web_preferences(monkeypatch):
+    monkeypatch.setattr(core_module, "ContextManager", _DummyContextManager)
+    monkeypatch.setattr(core_module, "DomainRouter", _DummyRouter)
+    monkeypatch.setattr(core_module, "SpecialistRegistry", _DummySpecialists)
+    monkeypatch.setattr(core_module, "CheckpointManager", _DummyCheckpoint)
+    monkeypatch.setattr(core_module, "KittyPersonality", _DummyPersonality)
+    monkeypatch.setattr(core_module, "ReasoningLayer", _DummyReasoningLayer)
+    monkeypatch.setattr(core_module, "VOICE_AVAILABLE", False)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("KITTY_MODEL", "configured/model")
+    monkeypatch.setenv("KITTY_MAX_MODEL", "max/model")
+    monkeypatch.setenv("KITTY_BALANCED_REASON", "reason/model")
+
+    orch = core_module.CoreOrchestrator(socketio=None)
+
+    assert orch._select_model("hello", mode="fast", model_target="free") == "openrouter/free"
+    assert orch._select_model("hello", mode="balanced", model_target="configured") == "configured/model"
+    assert orch._select_model("hello", mode="balanced", reasoning=True, model_target="configured") == "reason/model"
+    assert orch._select_model("hello", mode="max", model_target="configured") == "max/model"
+    assert orch._select_model("hello", mode="balanced", model_target="local") is None
+
+
 def test_dispatch_uses_web_llm_fallback_when_orchestrator_fails():
     sup = _DummySupervisor()
 
@@ -158,6 +180,38 @@ def test_dispatch_uses_web_llm_fallback_when_orchestrator_fails():
     assert response.content == "fallback response"
     assert calls == [("hello", "chat", True)]
     assert sup.ran == []
+
+
+def test_dispatch_passes_web_preferences_to_orchestrator():
+    class RecordingOrchestrator:
+        def __init__(self):
+            self.calls = []
+
+        def process(self, *_args, **kwargs):
+            self.calls.append(kwargs)
+            return _response("orchestrated")
+
+    orch = RecordingOrchestrator()
+
+    response = dispatch(
+        "hello",
+        domain="audio",
+        orch=orch,
+        mode="balanced",
+        reasoning=True,
+        model_target="configured",
+    )
+
+    assert response.content == "orchestrated"
+    assert orch.calls == [
+        {
+            "domain": "audio",
+            "context": None,
+            "mode": "balanced",
+            "reasoning": True,
+            "model_target": "configured",
+        }
+    ]
 
 
 def test_api_chat_falls_back_when_orchestrator_raises():
@@ -268,7 +322,7 @@ def test_socket_send_message_emits_done(monkeypatch):
     assert any(event["name"] == "done" for event in received), received
 
 
-def test_socket_send_message_emits_stream_response(monkeypatch):
+def test_socket_send_message_emits_dispatch_response(monkeypatch):
     import web as web_module
 
     class DummyOrchestrator:
@@ -281,11 +335,11 @@ def test_socket_send_message_emits_stream_response(monkeypatch):
     monkeypatch.setattr("src.space_kitty.core_orchestrator.CoreOrchestrator", DummyOrchestrator)
     calls = []
 
-    def fake_stream_response(message, client_id, mode="fast", reasoning=False, model_target="free"):
-        calls.append((message, mode, reasoning, model_target))
-        return "socket response"
+    def fake_dispatch(*args, **kwargs):
+        calls.append(kwargs)
+        return _response("socket response", specialist="Alex")
 
-    monkeypatch.setattr("src.api.web_orchestrator.stream_response", fake_stream_response)
+    monkeypatch.setattr("src.api.dispatcher.dispatch", fake_dispatch)
 
     app, socketio = web_module.create_app()
     client = socketio.test_client(app)
@@ -303,7 +357,17 @@ def test_socket_send_message_emits_stream_response(monkeypatch):
 
     received = client.get_received()
 
-    assert calls == [("hello", "balanced", True, "configured")]
+    assert calls == [
+        {
+            "sup": app.supervisor,
+            "orch": app.orchestrator,
+            "fallback_chat": app.web_llm.chat,
+            "fallback_stream": True,
+            "mode": "balanced",
+            "reasoning": True,
+            "model_target": "configured",
+        }
+    ]
     assert any(
         event["name"] == "token" and event["args"][0]["text"] == "socket response"
         for event in received

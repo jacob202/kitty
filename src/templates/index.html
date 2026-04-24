@@ -1197,6 +1197,10 @@ socket.on('thinking', (data) => {
   appendThinkToken(data.text);
 });
 
+socket.on('reasoning_progress', (data) => {
+  handleReasoningProgress(data);
+});
+
 socket.on('done', (data) => {
   finishResponse();
   loadJournal();

@@ -97,7 +97,15 @@ class CoreOrchestrator:
             self.ears = None
             self.voice = None
 
-    def process(self, query: str, context: dict | None = None, domain: str | None = None) -> SpecialistResponse:
+    def process(
+        self,
+        query: str,
+        context: dict | None = None,
+        domain: str | None = None,
+        mode: str | None = None,
+        reasoning: bool = False,
+        model_target: str | None = None,
+    ) -> SpecialistResponse:
         """
         Process a user query end-to-end:
         1. Log to journal
@@ -182,7 +190,12 @@ class CoreOrchestrator:
             logger.info(f"Wiki context added: {len(wiki_results)} pages")
 
         # Select model via 3-decision router
-        model = self._select_model(query)
+        model = self._select_model(
+            query,
+            mode=mode,
+            reasoning=reasoning,
+            model_target=model_target,
+        )
         logger.info(f"Model selected: {model}")
 
         # Get specialist response
@@ -296,11 +309,41 @@ class CoreOrchestrator:
 
         return response
 
-    def _select_model(self, query: str) -> str | None:
+    def _select_model(
+        self,
+        query: str,
+        mode: str | None = None,
+        reasoning: bool = False,
+        model_target: str | None = None,
+    ) -> str | None:
         """Model router using CostRouter. Returns OpenRouter model ID or None for local."""
         import os
 
         from src.core.cost_router import CostRouter, ModelTier
+
+        # Explicit web preferences override the cost router so the UI behaves predictably.
+        if mode or model_target:
+            if not os.getenv("OPENROUTER_API_KEY"):
+                return None
+
+            selected_mode = (mode or "balanced").lower()
+            selected_target = (model_target or "configured").lower()
+            configured_model = os.getenv("KITTY_MODEL", "openrouter/free")
+            balanced_reason_model = os.getenv(
+                "KITTY_BALANCED_REASON",
+                "deepseek/deepseek-r1-distill-qwen-7b",
+            )
+            max_model = os.getenv("KITTY_MAX_MODEL", "deepseek/deepseek-r1-0528")
+
+            if selected_target == "local":
+                return None
+            if selected_mode == "max":
+                return max_model
+            if selected_target == "free":
+                return "openrouter/free"
+            if selected_mode == "balanced" and reasoning:
+                return balanced_reason_model
+            return configured_model
 
         # No API key — let llm_client fall through to local MLX
         if not os.getenv("OPENROUTER_API_KEY"):

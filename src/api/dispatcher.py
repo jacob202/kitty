@@ -19,6 +19,14 @@ from src.core.capabilities import (
 )
 from src.tools.skill_commands import get_skill, list_skills
 
+
+def _screencapture(suffix: str = ".png") -> Path | None:
+    """Take a screenshot with screencapture, return path or None on failure."""
+    tmp = Path(tempfile.mktemp(suffix=suffix))
+    subprocess.run(["screencapture", "-x", str(tmp)], capture_output=True)
+    return tmp if tmp.exists() else None
+
+
 logger = logging.getLogger(__name__)
 
 # Thread safety lock for memory operations — must be module-level
@@ -71,6 +79,9 @@ def dispatch(
     orch=None,
     fallback_chat=None,
     fallback_stream: bool = False,
+    mode: str | None = None,
+    reasoning: bool = False,
+    model_target: str | None = None,
 ):
     """Handle commands and natural language, returning response object if NL."""
     inp = inp.strip()
@@ -82,7 +93,14 @@ def dispatch(
                 context = {}
                 if _loaded_skills:
                     context["active_skills"] = "\n\n".join(_loaded_skills.values())
-                response = orch.process(inp, domain=domain, context=context or None)
+                response = orch.process(
+                    inp,
+                    domain=domain,
+                    context=context or None,
+                    mode=mode,
+                    reasoning=reasoning,
+                    model_target=model_target,
+                )
                 logger.debug("Orchestrator response: %s", response.content[:200])
                 if response.safety_warnings:
                     for w in response.safety_warnings:
@@ -128,9 +146,8 @@ def dispatch(
         question = parts[1] if len(parts) > 1 else ""
         q_lower = question.lower()
         if any(w in q_lower for w in ["read", "text", "ocr", "transcribe", "words"]):
-            tmp = Path(tempfile.mktemp(suffix=".png"))
-            subprocess.run(["screencapture", "-x", str(tmp)], capture_output=True)
-            if tmp.exists():
+            tmp = _screencapture()
+            if tmp:
                 sup.ocr_image(str(tmp))
                 tmp.unlink(missing_ok=True)
             else:
@@ -147,9 +164,8 @@ def dispatch(
         parts = inp.split(maxsplit=1)
         img = parts[1].strip("'\"") if len(parts) > 1 else ""
         if not img:
-            tmp = Path(tempfile.mktemp(suffix=".png"))
-            subprocess.run(["screencapture", "-x", str(tmp)], capture_output=True)
-            if tmp.exists():
+            tmp = _screencapture()
+            if tmp:
                 sup.ocr_image(str(tmp))
                 tmp.unlink(missing_ok=True)
             else:
@@ -190,9 +206,8 @@ def dispatch(
         img = parts[1].strip("'\"") if len(parts) > 1 else ""
         context = parts[2] if len(parts) > 2 else ""
         if not img:
-            tmp = Path(tempfile.mktemp(suffix=".png"))
-            subprocess.run(["screencapture", "-x", str(tmp)], capture_output=True)
-            if tmp.exists():
+            tmp = _screencapture()
+            if tmp:
                 sup.repair_image(str(tmp), context)
                 tmp.unlink(missing_ok=True)
             else:
@@ -209,9 +224,8 @@ def dispatch(
         img = parts[1].strip("'\"") if len(parts) > 1 else ""
         question = parts[2] if len(parts) > 2 else ""
         if not img:
-            tmp = Path(tempfile.mktemp(suffix=".png"))
-            subprocess.run(["screencapture", "-x", str(tmp)], capture_output=True)
-            if tmp.exists():
+            tmp = _screencapture()
+            if tmp:
                 sup.analyze_image(str(tmp), question)
                 tmp.unlink(missing_ok=True)
         else:

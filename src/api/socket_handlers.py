@@ -73,54 +73,41 @@ def register_socket_handlers(socketio):
         busy = getattr(current_app, "_busy_lock", None)
 
         def run():
+            specialist = ""
             try:
-                if message.startswith("/"):
-                    if busy:
-                        with busy:
-                            response = dispatch(
-                                message,
-                                sup=sup,
-                                orch=orch,
-                                fallback_chat=fallback.chat if fallback else None,
-                                fallback_stream=True,
-                            )
-                    else:
+                if busy:
+                    with busy:
                         response = dispatch(
                             message,
                             sup=sup,
                             orch=orch,
                             fallback_chat=fallback.chat if fallback else None,
                             fallback_stream=True,
-                        )
-                    if response and getattr(response, "content", None):
-                        socketio.emit("token", {"text": response.content}, to=sid, namespace="/")
-                    return
-
-                from src.api.web_orchestrator import stream_response
-
-                if busy:
-                    with busy:
-                        response = stream_response(
-                            message,
-                            sid,
                             mode=mode,
                             reasoning=reasoning,
                             model_target=model_target,
                         )
                 else:
-                    response = stream_response(
+                    response = dispatch(
                         message,
-                        sid,
+                        sup=sup,
+                        orch=orch,
+                        fallback_chat=fallback.chat if fallback else None,
+                        fallback_stream=True,
                         mode=mode,
                         reasoning=reasoning,
                         model_target=model_target,
                     )
-                if response:
-                    socketio.emit("token", {"text": response}, to=sid, namespace="/")
+
+                if response and getattr(response, "content", None):
+                    diagnostics = response.diagnostics or {}
+                    routing = diagnostics.get("routing", {})
+                    specialist = routing.get("specialist") or diagnostics.get("specialist", "")
+                    socketio.emit("token", {"text": response.content}, to=sid, namespace="/")
             except Exception as e:
                 socketio.emit("error", {"text": f"Error: {e}"}, to=sid, namespace="/")
             finally:
-                socketio.emit("done", {"specialist": ""}, to=sid, namespace="/")
+                socketio.emit("done", {"specialist": specialist}, to=sid, namespace="/")
 
         app = current_app._get_current_object()
         threading.Thread(target=_run_with_app_context, args=(app, run), daemon=True).start()
