@@ -210,6 +210,8 @@ const ChatInterface = React.memo(({
           placeholder={placeholder}
           autoComplete="off"
           spellCheck={false}
+          inputMode="text"
+          enterKeyHint="send"
         />
         <button
           type="button"

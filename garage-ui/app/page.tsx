@@ -292,21 +292,21 @@ export default function GarageDashboard() {
       } as React.CSSProperties}
     >
       {/* TOP HEADER */}
-      <header className="h-12 flex items-center justify-between px-4 border-b border-color bg-panel-bg flex-shrink-0 z-10">
-        <div className="flex items-center gap-4">
+      <header className="h-12 flex items-center justify-between px-3 md:px-4 border-b border-color bg-panel-bg flex-shrink-0 z-10">
+        <div className="flex items-center gap-2 md:gap-4">
           <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${systemHealth.websocket === 'connected' ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`}></div>
-            <span className="text-[10px] font-bold tracking-tighter opacity-70">KITTY_CORE v0.4</span>
+            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${systemHealth.websocket === 'connected' ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`}></div>
+            <span className="hidden sm:inline text-[10px] font-bold tracking-tighter opacity-70">KITTY_CORE v0.4</span>
           </div>
           <div className="flex bg-white bg-opacity-5 rounded p-0.5 border border-white border-opacity-10 scale-90">
-            <button 
+            <button
               onClick={() => setActiveView('chat')}
               className={`px-3 py-1 rounded text-[9px] font-bold transition-all ${activeView === 'chat' ? 'bg-orange-500 text-black' : 'opacity-50 hover:opacity-100'}`}
               style={{ backgroundColor: activeView === 'chat' ? 'var(--accent-color)' : '' }}
             >
               THE VOID
             </button>
-            <button 
+            <button
               onClick={() => setActiveView('journal')}
               className={`px-3 py-1 rounded text-[9px] font-bold transition-all ${activeView === 'journal' ? 'bg-orange-500 text-black' : 'opacity-50 hover:opacity-100'}`}
               style={{ backgroundColor: activeView === 'journal' ? 'var(--accent-color)' : '' }}
@@ -316,37 +316,40 @@ export default function GarageDashboard() {
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <ActiveNodes nodes={activeNodes} />
-          <div className="flex items-center gap-3 text-[10px] font-mono opacity-50 mr-2">
-            <button onClick={toggleDensity} className="hover:text-white uppercase tracking-tighter">[{density}]</button>
-            <button onClick={() => setSettingsModalOpen(true)} className="hover:text-white">⚙ SETTINGS</button>
+        <div className="flex items-center gap-2 md:gap-4">
+          <div className="hidden md:flex"><ActiveNodes nodes={activeNodes} /></div>
+          <div className="flex items-center gap-2 md:gap-3 text-[10px] font-mono opacity-50">
+            <button onClick={toggleDensity} className="hidden sm:inline hover:text-white uppercase tracking-tighter">[{density}]</button>
+            <button onClick={() => setSettingsModalOpen(true)} className="hover:text-white">⚙ <span className="hidden sm:inline">SETTINGS</span></button>
           </div>
         </div>
       </header>
 
       {/* MAIN CONTENT GRID */}
       <div className="flex-1 flex overflow-hidden">
-        <CollapsiblePanel
-          id="sidebar"
-          isCollapsed={sidebarCollapsed}
-          onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-          widthVar="--sidebar-width"
-          expandedWidth="240px"
-          side="left"
-          title="The Bench"
-        >
-          <Sidebar 
-            currentMode={currentMode} 
-            systemHealth={systemHealth} 
-            thoughts={thoughts} 
-            onAction={(action) => {
-              const cmd = action.startsWith('/') ? action : `/${action}`;
-              setMessages(prev => [...prev, { role: 'user', text: cmd }]);
-              executeCommand(cmd);
-            }} 
-          />
-        </CollapsiblePanel>
+        {/* Sidebar — desktop only */}
+        <div className="hidden md:flex h-full flex-shrink-0">
+          <CollapsiblePanel
+            id="sidebar"
+            isCollapsed={sidebarCollapsed}
+            onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+            widthVar="--sidebar-width"
+            expandedWidth="240px"
+            side="left"
+            title="The Bench"
+          >
+            <Sidebar
+              currentMode={currentMode}
+              systemHealth={systemHealth}
+              thoughts={thoughts}
+              onAction={(action) => {
+                const cmd = action.startsWith('/') ? action : `/${action}`;
+                setMessages(prev => [...prev, { role: 'user', text: cmd }]);
+                executeCommand(cmd);
+              }}
+            />
+          </CollapsiblePanel>
+        </div>
 
         <section className="flex-1 flex flex-col min-w-0 relative">
           {/* Main workspace with persistent views */}
@@ -371,23 +374,26 @@ export default function GarageDashboard() {
           </div>
         </section>
 
-        <CollapsiblePanel
-          id="inspector"
-          isCollapsed={inspectorCollapsed}
-          onToggle={() => setInspectorCollapsed(!inspectorCollapsed)}
-          widthVar="--inspector-width"
-          expandedWidth="320px"
-          side="right"
-          title="The Optic"
-        >
-          <Inspector 
-            schematicData={schematicData}
-            onSchematicUpload={handleSchematicUpload}
-            onClearSchematic={() => setSchematicData(null)}
-            isAnalyzing={isAnalyzing}
-            memoryEntries={memoryEntries}
-          />
-        </CollapsiblePanel>
+        {/* Inspector — desktop only */}
+        <div className="hidden md:flex h-full flex-shrink-0">
+          <CollapsiblePanel
+            id="inspector"
+            isCollapsed={inspectorCollapsed}
+            onToggle={() => setInspectorCollapsed(!inspectorCollapsed)}
+            widthVar="--inspector-width"
+            expandedWidth="320px"
+            side="right"
+            title="The Optic"
+          >
+            <Inspector
+              schematicData={schematicData}
+              onSchematicUpload={handleSchematicUpload}
+              onClearSchematic={() => setSchematicData(null)}
+              isAnalyzing={isAnalyzing}
+              memoryEntries={memoryEntries}
+            />
+          </CollapsiblePanel>
+        </div>
       </div>
 
       <CommandPalette

@@ -57,14 +57,19 @@ else
   FRONTEND_PID=$!
 
   echo ""
-  echo "┌──────────────────────────────────────────┐"
-  echo "│  🐱  KITTY — full stack running          │"
-  echo "│                                          │"
-  echo "│  UI       →  http://localhost:3000       │"
-  echo "│  API      →  http://localhost:5001       │"
-  echo "│                                          │"
-  echo "│  Ctrl+C to stop both                     │"
-  echo "└──────────────────────────────────────────┘"
+  LOCAL_IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo "unknown")
+
+  echo "┌──────────────────────────────────────────────────┐"
+  echo "│  🐱  KITTY — full stack running                  │"
+  echo "│                                                  │"
+  echo "│  Local  UI   →  http://localhost:3000            │"
+  echo "│  Local  API  →  http://localhost:5001            │"
+  echo "│                                                  │"
+  echo "│  Mobile UI   →  http://${LOCAL_IP}:3000          │"
+  echo "│  Mobile API  →  http://${LOCAL_IP}:5001          │"
+  echo "│                                                  │"
+  echo "│  Ctrl+C to stop both                             │"
+  echo "└──────────────────────────────────────────────────┘"
 
   wait
 fi
