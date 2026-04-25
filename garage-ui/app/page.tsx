@@ -32,6 +32,7 @@ export default function GarageDashboard() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [memoryEntries, setMemoryEntries] = useState<{key: string, value: string}[]>([]);
   
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -59,14 +60,14 @@ export default function GarageDashboard() {
     });
 
     socket.on('thinking_bubble', (data: any) => {
+      const id = Math.random().toString(36).substring(7);
       const newThought: Thought = {
-        ...data,
-        id: Math.random().toString(36).substring(7)
+        id,
+        message: data.thought || data.message || '',
+        status: 'thinking',
       };
       setThoughts(prev => [newThought, ...prev].slice(0, 5));
-      setTimeout(() => {
-        setThoughts(prev => prev.filter(t => t.id !== newThought.id));
-      }, 5000);
+      setTimeout(() => setThoughts(prev => prev.filter(t => t.id !== id)), 5000);
     });
 
     socket.on('theme_change', (data: any) => {
@@ -95,7 +96,8 @@ export default function GarageDashboard() {
       setSystemHealth(prev => ({ ...prev, websocket: 'connected' }));
       if (!briefFiredRef.current) {
         briefFiredRef.current = true;
-        fetch(`http://${backendHost}:5001/brief`, { method: 'POST' }).catch(() => {});
+        // Stream brief into chat exactly like a user command
+        setTimeout(() => executeCommand('/brief'), 300);
       }
     });
 
@@ -144,7 +146,14 @@ export default function GarageDashboard() {
     fetch(`http://${backendHost}:5001/api/memory/library`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
-        if (data?.entries) setMemoryEntries(data.entries.slice(0, 10));
+        if (data?.documents) {
+          setMemoryEntries(
+            (data.documents as string[]).slice(0, 12).map(doc => ({
+              key: doc.split('/').pop() || doc,
+              value: doc,
+            }))
+          );
+        }
       })
       .catch(() => {});
   }, []);
@@ -197,39 +206,72 @@ export default function GarageDashboard() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [toggleDensity]);
 
-  const executeCommand = async (command: string) => {
+  const executeCommand = (command: string) => {
     const backendHost = window.location.hostname;
-    try {
-      const eventSource = new EventSource(`http://${backendHost}:5001/stream?query=${encodeURIComponent(command)}`);
-      let aiResponse = "";
-      setMessages(prev => [...prev, { role: 'kitty', text: '' }]);
-      eventSource.onmessage = (event) => {
+    const eventSource = new EventSource(`http://${backendHost}:5001/stream?query=${encodeURIComponent(command)}`);
+    let aiResponse = "";
+    setIsStreaming(true);
+    setMessages(prev => [...prev, { role: 'kitty', text: '' }]);
+
+    eventSource.onmessage = (event) => {
+      try {
+        let data: string;
         try {
-          let data;
-          try {
-            const parsed = JSON.parse(event.data);
-            if (parsed.type === 'done') { eventSource.close(); return; }
-            if (parsed.type === 'error') { eventSource.close(); return; }
-            data = parsed.text || parsed.data || event.data;
-          } catch { data = event.data; }
-          if (data === '[DONE]') { eventSource.close(); return; }
-          if (data.includes('[STATE:UNHINGED]')) { setUiState('unhinged'); return; }
-          if (data.includes('[STATE:CALM]')) { setUiState('calm'); return; }
-          if (!data || !data.trim()) return;
-          aiResponse += data;
-          setMessages(prev => {
-            if (prev.length > 0 && prev[prev.length - 1].role === 'kitty') {
-              if (prev[prev.length - 1].text === aiResponse) return prev;
-              const newArray = [...prev];
-              newArray[newArray.length - 1] = { ...newArray[newArray.length - 1], text: aiResponse };
-              return newArray;
+          const parsed = JSON.parse(event.data);
+          if (parsed.type === 'done') {
+            eventSource.close();
+            setIsStreaming(false);
+            return;
+          }
+          if (parsed.type === 'error') {
+            eventSource.close();
+            setIsStreaming(false);
+            return;
+          }
+          // Route thinking tokens to ThinkingMonologue, not the chat bubble
+          if (parsed.type === 'thinking') {
+            if (parsed.text?.trim()) {
+              const id = Math.random().toString(36).substring(7);
+              const thought: Thought = { id, message: (parsed.text as string).slice(0, 140), status: 'thinking' };
+              setThoughts(prev => [thought, ...prev].slice(0, 5));
+              setTimeout(() => setThoughts(prev => prev.filter(t => t.id !== id)), 4000);
             }
-            return [...prev, { role: 'kitty', text: aiResponse }];
-          });
-        } catch { }
-      };
-      eventSource.onerror = () => { eventSource.close(); };
-    } catch { }
+            return;
+          }
+          data = parsed.text || parsed.data || event.data;
+        } catch { data = event.data; }
+
+        if (data === '[DONE]') { eventSource.close(); setIsStreaming(false); return; }
+        if (data.includes('[STATE:UNHINGED]')) { setUiState('unhinged'); return; }
+        if (data.includes('[STATE:CALM]')) { setUiState('calm'); return; }
+        if (!data || !data.trim()) return;
+
+        aiResponse += data;
+        setMessages(prev => {
+          if (prev.length > 0 && prev[prev.length - 1].role === 'kitty') {
+            if (prev[prev.length - 1].text === aiResponse) return prev;
+            const next = [...prev];
+            next[next.length - 1] = { ...next[next.length - 1], text: aiResponse };
+            return next;
+          }
+          return [...prev, { role: 'kitty', text: aiResponse }];
+        });
+      } catch { /* ignore malformed frames */ }
+    };
+
+    eventSource.onerror = () => {
+      eventSource.close();
+      setIsStreaming(false);
+      setMessages(prev => {
+        const last = prev[prev.length - 1];
+        if (last?.role === 'kitty' && !last.text) {
+          const next = [...prev];
+          next[next.length - 1] = { ...last, text: '⚠ Connection lost. Is the backend running on :5001?' };
+          return next;
+        }
+        return prev;
+      });
+    };
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -309,14 +351,16 @@ export default function GarageDashboard() {
         <section className="flex-1 flex flex-col min-w-0 relative">
           {/* Main workspace with persistent views */}
           <div className={`flex-1 ${activeView === 'chat' ? 'block' : 'hidden'}`}>
-            <ChatInterface 
+            <ChatInterface
               messages={messages}
               input={input}
               setInput={setInput}
               onSubmit={handleSubmit}
               onVoiceToggle={handleVoiceToggle}
               isRecording={isRecording}
+              isStreaming={isStreaming}
               uiState={uiState}
+              currentMode={currentMode}
               systemHealth={systemHealth}
               isAnalyzing={isAnalyzing}
               activeNodes={activeNodes}

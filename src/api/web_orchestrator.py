@@ -42,6 +42,18 @@ _ANTH_MDL  = os.environ.get("KITTY_ANTHROPIC_MODEL","claude-haiku-4-5-20251001")
 _OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 _ANTHROPIC_URL  = "https://api.anthropic.com/v1/messages"
 
+_soul_context: str | None = None
+
+def _get_soul() -> str:
+    global _soul_context
+    if _soul_context is None:
+        try:
+            from src.space_kitty.personality import KittyPersonality
+            _soul_context = KittyPersonality().get_system_context() or ""
+        except Exception:
+            _soul_context = ""
+    return _soul_context
+
 
 def _normalize_model_target(model_target: str | None) -> str:
     if model_target in {"free", "configured", "local"}:
@@ -311,7 +323,9 @@ def stream_response(
     """
     model_target = _normalize_model_target(model_target)
     history  = get_history(client_id)
-    messages = [{"role": "system", "content": _SYSTEM}] + history + [
+    soul = _get_soul()
+    system_content = (soul + "\n\n---\n\n" + _SYSTEM) if soul else _SYSTEM
+    messages = [{"role": "system", "content": system_content}] + history + [
         {"role": "user", "content": query}
     ]
 
