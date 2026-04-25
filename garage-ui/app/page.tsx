@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import CommandPalette from './components/CommandPalette';
 import SettingsModal from './components/SettingsModal';
@@ -158,7 +158,7 @@ export default function GarageDashboard() {
       .catch(() => {});
   }, []);
 
-  const handleVoiceToggle = async () => {
+  const handleVoiceToggle = useCallback(async () => {
     const backendHost = window.location.hostname;
     if (isRecording) {
       mediaRecorderRef.current?.stop();
@@ -185,7 +185,7 @@ export default function GarageDashboard() {
       recorder.start();
       setIsRecording(true);
     } catch { }
-  };
+  }, [isRecording]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -206,7 +206,7 @@ export default function GarageDashboard() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [toggleDensity]);
 
-  const executeCommand = (command: string) => {
+  const executeCommand = useCallback((command: string) => {
     const backendHost = window.location.hostname;
     const eventSource = new EventSource(`http://${backendHost}:5001/stream?query=${encodeURIComponent(command)}`);
     let aiResponse = "";
@@ -272,16 +272,16 @@ export default function GarageDashboard() {
         return prev;
       });
     };
-  };
+  }, []); // stable: only refs stable setState fns + window.location
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
     setMessages(prev => [...prev, { role: 'user', text: input }]);
     const currentInput = input;
     setInput('');
     executeCommand(currentInput);
-  };
+  }, [input, executeCommand]);
 
   return (
     <main 

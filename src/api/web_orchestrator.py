@@ -54,6 +54,16 @@ def _get_soul() -> str:
             _soul_context = ""
     return _soul_context
 
+def _prewarm_soul() -> None:
+    """Load SOUL.md in a background thread so the first chat has no cold-start penalty."""
+    try:
+        import threading
+        threading.Thread(target=_get_soul, daemon=True, name="soul-prewarm").start()
+    except Exception:
+        pass
+
+_prewarm_soul()
+
 
 def _normalize_model_target(model_target: str | None) -> str:
     if model_target in {"free", "configured", "local"}:
