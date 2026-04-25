@@ -187,3 +187,13 @@ def test_webui_clears_streaming_cursor_on_done():
     )[0]
 
     assert "currentBubble.innerHTML = renderMarkdown(escHtml(currentText));" in finish_response_body
+
+
+def test_memory_runtime_avoids_stdout_prints_that_leak_into_chat():
+    memory_module = (
+        Path(__file__).resolve().parents[1] / "src" / "memory" / "kitty_memory_enhanced.py"
+    )
+    content = memory_module.read_text()
+    runtime_content = content.split('if __name__ == "__main__":', 1)[0]
+
+    assert "print(" not in runtime_content

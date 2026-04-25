@@ -1,0 +1,201 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-color: #080808;
+  --panel-bg: #111111;
+  --border-color: #1a1a1a;
+  --accent-color: #ff5f1f; /* Spicy Orange - Hardware Mode */
+  --text-main: #e0e0e0;
+  --dim-text: #666;
+  --mascot-filter: none;
+  --mode-indicator: "HARDWARE";
+
+  /* New Grid Variables */
+  --sidebar-width: 240px;
+  --inspector-width: 320px;
+  
+  /* Density Defaults */
+  --font-size-base: 14px;
+  --font-size-small: 12px;
+  --padding-base: 1rem;
+  --bubble-padding: 0.75rem 1rem;
+  --item-gap: 1rem;
+}
+
+/* Compact Density Overrides */
+[data-density="compact"] {
+  --font-size-base: 13px;
+  --font-size-small: 11px;
+  --padding-base: 0.5rem;
+  --bubble-padding: 0.4rem 0.75rem;
+  --item-gap: 0.5rem;
+}
+
+/* Hardware Mode (Default - Orange) */
+.theme-hardware {
+  --accent-color: #ff5f1f;
+  --panel-bg: #111111;
+  --border-color: #1a1a1a;
+  --mode-indicator: "HARDWARE";
+}
+
+/* Investigative Mode (Green) */
+.theme-investigative {
+  --bg-color: #020a08;
+  --panel-bg: #051a11;
+  --border-color: #1a2e1a;
+  --accent-color: #00ff88;
+  --text-main: #e0ffe0;
+  --dim-text: #4d8866;
+  --mode-indicator: "INVESTIGATIVE";
+}
+
+/* Self-Improvement Mode (Purple) */
+.theme-self-improvement {
+  --bg-color: #0a0214;
+  --panel-bg: #1a0534;
+  --border-color: #2e1a4d;
+  --accent-color: #8338ec;
+  --text-main: #f0e0ff;
+  --dim-text: #8866cc;
+  --mode-indicator: "SELF-IMPROVEMENT";
+}
+
+/* Unhinged State Overlay */
+.theme-unhinged {
+  --bg-color: #0d0200;
+  --panel-bg: #1a0500;
+  --text-main: #ff4d00;
+  --accent-color: #ff0000;
+  --mascot-filter: drop-shadow(0 0 12px rgba(255, 0, 0, 0.9)) contrast(1.5);
+  position: relative;
+}
+
+/* Error State (Red) */
+.theme-error {
+  --accent-color: #ff3333;
+  --text-main: #ffcccc;
+  --panel-bg: #2a0a0a;
+}
+
+/* The Scanline Overlay */
+.theme-unhinged::after {
+  content: " ";
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(
+      rgba(18, 16, 16, 0) 50%, 
+      rgba(0, 0, 0, 0.25) 50%
+    ), 
+    linear-gradient(
+      90deg, 
+      rgba(255, 0, 0, 0.06), 
+      rgba(0, 255, 0, 0.02), 
+      rgba(0, 0, 255, 0.06)
+    );
+  z-index: 9999;
+  background-size: 100% 4px, 3px 100%;
+  pointer-events: none;
+}
+
+/* The Moving Scanning Line */
+.theme-unhinged::before {
+  content: " ";
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: rgba(255, 0, 0, 0.1);
+  opacity: 0.75;
+  z-index: 10000;
+  animation: scanline 6s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes scanline {
+  0% { top: 0; }
+  100% { top: 100%; }
+}
+
+.theme-unhinged .panel {
+  box-shadow: 0 0 15px rgba(255, 0, 0, 0.2);
+  border: 1px solid rgba(255, 0, 0, 0.5);
+  text-shadow: 2px 0px 1px rgba(0, 30, 255, 0.5), -2px 0px 1px rgba(255, 0, 80, 0.5);
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-main);
+}
+
+.panel {
+  background-color: var(--panel-bg);
+  border: 1px solid var(--border-color);
+}
+
+@keyframes glitch {
+  0% { transform: translate(0); }
+  20% { transform: translate(-2px, 2px); }
+  40% { transform: translate(-2px, -2px); }
+  60% { transform: translate(2px, 2px); }
+  80% { transform: translate(2px, -2px); }
+  100% { transform: translate(0); }
+}
+
+/* Enhanced Glitch Effects */
+.unhinged-glitch {
+  animation: glitch 0.3s infinite;
+}
+
+.mode-transition {
+  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Investigative Mode Specific Effects */
+.theme-investigative .panel {
+  box-shadow: 0 0 20px rgba(0, 255, 136, 0.1);
+  border: 1px solid rgba(0, 255, 136, 0.3);
+}
+
+.theme-investigative::after {
+  content: "";
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(0, 255, 136, 0.02) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Self-Improvement Mode Effects */
+.theme-self-improvement .panel {
+  box-shadow: 0 0 20px rgba(131, 56, 236, 0.1);
+  border: 1px solid rgba(131, 56, 236, 0.3);
+}
+
+/* Active Node Pulse Animation */
+@keyframes node-pulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+.active-node {
+  animation: node-pulse 2s ease-in-out infinite;
+}
+
+/* Thinking Bubble Animation */
+@keyframes thinking-fade {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.thinking-bubble {
+  animation: thinking-fade 0.5s ease-out;
+}

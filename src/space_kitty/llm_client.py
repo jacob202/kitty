@@ -26,7 +26,7 @@ MLX_MODEL = os.getenv("MLX_MODEL", "mlx-community/Qwen3.5-4B-4bit")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
-DEFAULT_MODEL = None  # None = fall through to local MLX; pass explicit model for remote
+DEFAULT_MODEL = os.getenv("KITTY_DEFAULT_MODEL", "qwen/qwen3-8b:free")  # Free OpenRouter tier; None → local MLX only
 
 # Reusable session for connection pooling
 _http_session = None
@@ -290,8 +290,8 @@ def call_llm(
 
 
 def _call_llm_once(prompt, system_prompt, selected, max_tokens, temperature, errors):
-    # Try OpenRouter (with circuit breaker + rate limiting)
-    if OPENROUTER_API_KEY:
+    # Try OpenRouter only if we have a key AND an explicit model (None = local-only path)
+    if OPENROUTER_API_KEY and selected:
         if _check_provider_resilience("openrouter"):
             result = _try_openrouter(prompt, system_prompt, selected, max_tokens, temperature)
             if result is not None:
@@ -301,7 +301,7 @@ def _call_llm_once(prompt, system_prompt, selected, max_tokens, temperature, err
         errors.append(f"OpenRouter/{selected} unavailable")
 
     # Try Anthropic direct (only for claude models)
-    if not OPENROUTER_API_KEY and ANTHROPIC_API_KEY and "claude" in selected:
+    if not OPENROUTER_API_KEY and ANTHROPIC_API_KEY and selected and "claude" in selected:
         if _check_provider_resilience("anthropic"):
             result = _try_anthropic(prompt, system_prompt, selected, max_tokens, temperature)
             if result is not None:

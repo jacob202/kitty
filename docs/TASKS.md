@@ -87,16 +87,16 @@
 ## Priority 3 — Features
 
 ### Memory + Reasoning (Phase 3)
-- [ ] User-visible memory controls (what Kitty remembers, why, forget/pin controls)
-- [ ] Session vs project vs durable memory scope exposed to user
-- [ ] Reasoning traces → readable explanation surface (not raw internal logs)
-- [ ] Typed, budgeted context assembly (replace additive prompt stuffing)
-- [ ] Correction lifecycle: recency, scope, conflict handling, undo/forget
+- [x] User-visible memory controls (what Kitty remembers, why, forget/pin controls) — DONE
+- [x] Session vs project vs durable memory scope exposed to user — DONE
+- [x] Reasoning traces → readable explanation surface (not raw internal logs) — DONE
+- [x] Typed, budgeted context assembly (replace additive prompt stuffing) — DONE
+- [x] Correction lifecycle: recency, scope, conflict handling, undo/forget — DONE
 
 ### Specialist Improvements
 - [x] Parallel specialist agents (wire specialists as agents, not just Python classes) — DONE
 - [x] Specialist KB training (Implemented domain-isolated LightRAG + Ingestion engine fix + Knowledge Inventory) — DONE
-- [ ] MCP memory feedback loop (surface relevant memory entities into conversations automatically)
+- [x] MCP memory feedback loop (surface relevant memory entities into conversations automatically) — DONE
 
 ### New Features (post-cleanup)
 - [ ] AI model digest (daily summary of new models/updates)

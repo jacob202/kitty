@@ -1184,7 +1184,7 @@ socket.on('disconnect', () => {
 });
 
 socket.on('connect_error', () => {
-  document.getElementById('connection-status').textContent = 'error';
+  document.getElementById('connection-status').textContent = 'reconnecting';
 });
 
 socket.on('token', (data) => {
@@ -1307,6 +1307,23 @@ function appendThinkToken(tok) {
   // Auto-expand while streaming
   currentThinkBubble.classList.remove('collapsed');
   document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+}
+
+function handleReasoningProgress(data) {
+  let text = '';
+  if (data.event === 'thinking') {
+    text = `> ${data.data}\n`;
+  } else if (data.event === 'step') {
+    const step = data.data;
+    const type = (step.step_type || step.type || 'step').toUpperCase();
+    text = `[${type}] ${step.content}\n`;
+  } else if (data.event === 'done') {
+    text = `\nConclusion: ${data.data}\n`;
+  }
+  
+  if (text) {
+    appendThinkToken(text);
+  }
 }
 
 function finishResponse(errText) {

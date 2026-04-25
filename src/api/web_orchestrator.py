@@ -1,8 +1,8 @@
 """
 Web-mode LLM orchestrator — 3-tier routing with optional reasoning layer.
 
-Tier 1 — fast     OpenRouter free-model router by default; optional local MLX behind env flag
-Tier 2 — balanced OpenRouter DeepSeek-chat (cheap, fast remote fallback)
+Tier 1 — fast     local MLX (Qwen3.5-4B) by default; falls through to balanced on failure
+Tier 2 — balanced OpenRouter free router (openrouter/free) or configured model
 Tier 3 — max      OpenRouter DeepSeek-R1 (full chain-of-thought reasoning)
 
 Reasoning toggle (any tier):
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 # ── Model identifiers ────────────────────────────────────────────────────────
 _MLX_FAST  = os.environ.get("MLX_MODEL",           "mlx-community/Qwen3.5-4B-4bit")
-_MLX_ENABLED = os.environ.get("KITTY_ENABLE_LOCAL_MLX", "").lower() in {
+_MLX_ENABLED = os.environ.get("KITTY_ENABLE_LOCAL_MLX", "1").lower() in {
     "1", "true", "yes", "on",
 }
 _FREE_ROUTER = "openrouter/free"
@@ -314,6 +314,13 @@ def stream_response(
     messages = [{"role": "system", "content": _SYSTEM}] + history + [
         {"role": "user", "content": query}
     ]
+
+    try:
+        from src.api.emitters import emit_thinking_bubble
+        preview = query[:80] + ("…" if len(query) > 80 else "")
+        emit_thinking_bubble(f"Processing: {preview}", 0.7)
+    except Exception:
+        pass
 
     full = ""
 

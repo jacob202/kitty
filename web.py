@@ -83,13 +83,35 @@ class _SupervisorShim:
         self.history = []
         self.memory = _MemShim()
         self._active_mode = None
+        self._web_orchestrator = None
 
     def run(self, inp: str):
         sys.stdout.write(f"{inp}\n")
         sys.stdout.flush()
 
     # Stubs for routes that call these methods
-    def morning_brief(self): pass
+    def morning_brief(self):
+        summary = None
+        if self._web_orchestrator is not None:
+            try:
+                summary = self._web_orchestrator.get_resume_summary()
+            except Exception:
+                logger.exception("Failed to build resume summary for /brief")
+
+        if not summary:
+            if self._active_mode:
+                summary = (
+                    f"Fresh session. Current work mode: {self._active_mode}. "
+                    "Tell me what feels stuck and I'll give you one next step."
+                )
+            else:
+                summary = (
+                    "Fresh session. No saved resume yet. "
+                    "Tell me what you're working on and I'll help with the next step."
+                )
+
+        self.run(summary)
+
     def stuck_recovery(self, what: str = ""): pass
     def start_chatbox(self, **kw): return "chatbox unavailable in web mode"
     def chatbox_stop(self): return "stopped"
@@ -146,6 +168,7 @@ def create_app() -> tuple[Flask, SocketIO]:
     try:
         from src.space_kitty.core_orchestrator import CoreOrchestrator
         app.orchestrator = CoreOrchestrator(socketio=socketio, enable_voice_components=False)
+        app.supervisor._web_orchestrator = app.orchestrator
         resume_info = app.orchestrator.get_resume_summary()
         if resume_info:
             logger.info(resume_info)

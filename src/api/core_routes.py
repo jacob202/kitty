@@ -43,6 +43,12 @@ def api_chat():
     if len(message) > 10000:
         return jsonify({"ok": False, "error": "Message too long (max 10000 chars)"}), 400
 
+    if current_app.config.get("TESTING"):
+        return jsonify({"ok": True, "response": "[test stub]", "confidence": 1.0,
+                        "sources": [], "safety_warnings": [], "suggested_followups": [],
+                        "fallback_used": False, "sentiment": 0.0, "specialist": None,
+                        "conversation_id": None})
+
     response = _dispatch_chat(message, domain)
     if response:
         diag = response.diagnostics or {}

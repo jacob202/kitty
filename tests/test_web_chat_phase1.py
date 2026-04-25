@@ -373,3 +373,30 @@ def test_socket_send_message_emits_dispatch_response(monkeypatch):
         for event in received
     ), received
     assert any(event["name"] == "done" for event in received), received
+
+
+def test_socket_brief_emits_resume_summary(monkeypatch):
+    import web as web_module
+
+    class DummyOrchestrator:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def get_resume_summary(self):
+            return "You were testing Kitty. Next step: retry /brief."
+
+    monkeypatch.setattr("src.space_kitty.core_orchestrator.CoreOrchestrator", DummyOrchestrator)
+
+    app, socketio = web_module.create_app()
+    client = socketio.test_client(app)
+
+    client.emit("send_message", {"text": "/brief"})
+    socketio.sleep(0.1)
+
+    received = client.get_received()
+
+    assert any(
+        event["name"] == "token"
+        and event["args"][0]["text"].strip() == "You were testing Kitty. Next step: retry /brief."
+        for event in received
+    ), received

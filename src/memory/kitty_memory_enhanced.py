@@ -6,11 +6,14 @@ Combines ChromaDB (vectors) + DuckDB (structured)
 
 import hashlib
 import json
+import logging
 import math
 import os
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 try:
     import chromadb
@@ -19,7 +22,7 @@ try:
     CHROMA_AVAILABLE = True
 except ImportError:
     CHROMA_AVAILABLE = False
-    print("⚠️  ChromaDB not installed. Memory system disabled.")
+    logger.warning("ChromaDB not installed. Memory system disabled.")
 
 try:
     from sentence_transformers import SentenceTransformer
@@ -27,7 +30,7 @@ try:
     EMBEDDINGS_AVAILABLE = True
 except ImportError:
     EMBEDDINGS_AVAILABLE = False
-    print("⚠️  sentence-transformers not installed. Embeddings disabled.")
+    logger.warning("sentence-transformers not installed. Embeddings disabled.")
 
 
 @dataclass
@@ -76,7 +79,7 @@ class KittyMemoryEnhanced:
     def _initialize(self):
         """Initialize ChromaDB and embedding model"""
         if not CHROMA_AVAILABLE:
-            print("❌ ChromaDB not available")
+            logger.error("ChromaDB not available")
             return
 
         try:
@@ -100,31 +103,31 @@ class KittyMemoryEnhanced:
             # deterministic embeddings so local-first memory still works offline.
             if EMBEDDINGS_AVAILABLE:
                 try:
-                    print(f"📥 Loading embedding model: {self.embedding_model_name}")
+                    logger.info("Loading embedding model: %s", self.embedding_model_name)
                     self.embedding_model = SentenceTransformer(
                         self.embedding_model_name, local_files_only=True
                     )
                     self.embedding_dimension = int(self._embedding_model_dimension())
                     self.embedding_backend = self.embedding_model_name
-                    print(f"✅ Memory system initialized ({self.embedding_model_name})")
+                    logger.info("Memory system initialized (%s)", self.embedding_model_name)
                 except TypeError:
                     try:
                         self.embedding_model = SentenceTransformer(self.embedding_model_name)
                         self.embedding_dimension = int(self._embedding_model_dimension())
                         self.embedding_backend = self.embedding_model_name
-                        print(f"✅ Memory system initialized ({self.embedding_model_name})")
+                        logger.info("Memory system initialized (%s)", self.embedding_model_name)
                     except Exception as e:
-                        print(f"⚠️  Embedding model unavailable offline: {e}")
+                        logger.warning("Embedding model unavailable offline: %s", e)
                         self.embedding_backend = "deterministic-hash"
                 except Exception as e:
-                    print(f"⚠️  Embedding model unavailable offline: {e}")
+                    logger.warning("Embedding model unavailable offline: %s", e)
                     self.embedding_backend = "deterministic-hash"
             else:
-                print("⚠️  Embeddings not available")
+                logger.warning("Embeddings not available")
                 self.embedding_backend = "deterministic-hash"
 
         except Exception as e:
-            print(f"❌ Memory initialization error: {e}")
+            logger.exception("Memory initialization error: %s", e)
             self.client = None
 
     def add_conversation(
@@ -219,13 +222,13 @@ class KittyMemoryEnhanced:
             return []
 
         if not os.path.exists(file_path):
-            print(f"❌ File not found: {file_path}")
+            logger.error("File not found: %s", file_path)
             return []
 
         try:
             text = self._read_document_text(file_path)
             if not text.strip():
-                print(f"❌ No readable text found in {file_path}")
+                logger.error("No readable text found in %s", file_path)
                 return []
 
             # Simple chunking (can be improved with better splitter)
@@ -263,11 +266,11 @@ class KittyMemoryEnhanced:
                 )
                 ids.extend(batch_ids)
 
-            print(f"✅ Ingested {len(chunks)} chunks from {file_path}")
+            logger.info("Ingested %s chunks from %s", len(chunks), file_path)
             return ids
 
         except Exception as e:
-            print(f"❌ Document ingestion error: {e}")
+            logger.exception("Document ingestion error: %s", e)
             return []
 
     def has_document_source(self, file_path: str) -> bool:
@@ -342,7 +345,7 @@ class KittyMemoryEnhanced:
                     results["documents"] = doc_results["documents"][0]
 
         except Exception as e:
-            print(f"❌ Retrieval error: {e}")
+            logger.exception("Retrieval error: %s", e)
 
         return results
 
@@ -408,7 +411,7 @@ class KittyMemoryEnhanced:
                 return self.embedding_model.encode(text).tolist()
             return self._fallback_embedding(text)
         except Exception as e:
-            print(f"❌ Embedding error: {e}")
+            logger.exception("Embedding error: %s", e)
             return self._fallback_embedding(text)
 
     def _embedding_model_dimension(self) -> int:
@@ -422,7 +425,7 @@ class KittyMemoryEnhanced:
             if self.embedding_model is not None:
                 return self.embedding_model.encode(texts).tolist()
         except Exception as e:
-            print(f"❌ Batch embedding error: {e}")
+            logger.exception("Batch embedding error: %s", e)
         return [self._fallback_embedding(text) for text in texts]
 
     def _fallback_embedding(self, text: str) -> list[float]:
@@ -455,7 +458,7 @@ class KittyMemoryEnhanced:
                 finally:
                     doc.close()
             except Exception as e:
-                print(f"❌ PDF extraction error for {file_path}: {e}")
+                logger.exception("PDF extraction error for %s: %s", file_path, e)
                 return ""
 
         if suffix == ".json":

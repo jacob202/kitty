@@ -86,7 +86,6 @@ def health_check():
 @system_bp.route("/api/health", methods=["GET"])
 def api_health():
     """Backward compatible health endpoint."""
-    _require_internal_api()
     try:
         return jsonify(_get_cached_health())
     except Exception as e:

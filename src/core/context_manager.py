@@ -8,6 +8,7 @@ import logging
 from typing import Any
 
 from src.core.context_budget import ContextBudget, ContextSlot
+from src.core.memory_surface import surface_memory
 from src.memory.correction_memory import CorrectionMemory
 from src.space_kitty.honcho import Honcho
 from src.space_kitty.journal_interface import JournalInterface
@@ -30,6 +31,8 @@ class ContextManager:
         query: str,
         domain: str,
         recent_history: list[dict[str, str]] | None = None,
+        reasoning_conclusion: str | None = None,
+        wiki_context: str | None = None,
     ) -> str:
         """
         Build a comprehensive context preamble for the LLM.
@@ -37,6 +40,9 @@ class ContextManager:
         Args:
             query: The current user query
             domain: The resolved domain for this query
+            recent_history: Optional list of recent messages
+            reasoning_conclusion: Optional conclusion from reasoning layer
+            wiki_context: Optional context from wiki retrieval
 
         Returns:
             A formatted string to be prepended to the system prompt.
@@ -45,9 +51,7 @@ class ContextManager:
         if len(query) < 15:
             return ""
 
-        # Assemble through typed budget — each section goes to its named slot
-        # regardless of which other sections are empty. This prevents corrections
-        # from being misclassified as IDENTITY when Honcho returns nothing.
+        # Assemble through typed budget
         budget = ContextBudget(preset="balanced")
         has_content = False
 
@@ -63,40 +67,58 @@ class ContextManager:
             budget.add(ContextSlot.CORRECTIONS, "## Direct User Corrections (High Priority):\n" + corrections)
             has_content = True
 
-        # 3. Recent context snapshots (Emotional state, topics, loops) → RECENT slot
-        snap_text = ""
+        # 3. Project-level facts (MCP memory + Wiki) → PROJECT slot
+        project_text = ""
+        mcp_facts = surface_memory(query)
+        if mcp_facts:
+            project_text += f"### MCP Memory:\n{mcp_facts}\n"
+        
+        if wiki_context:
+            project_text += f"### Wiki Context:\n{wiki_context}\n"
+
+        if project_text:
+            budget.add(ContextSlot.PROJECT, "## Project Knowledge:\n" + project_text.strip())
+            has_content = True
+
+        # 4. Recent context snapshots (Emotional state, topics, loops + Reasoning) → RECENT slot
+        recent_text = ""
+        
+        if reasoning_conclusion:
+            recent_text += f"### Internal Reasoning Trace:\n{reasoning_conclusion}\n"
+
         snapshots = self.correction_memory.get_recent_snapshots(days=7, limit=3)
         if snapshots:
-            snap_text = "## Recent Context & Emotional Shifts:\n"
+            snap_part = "### Recent Context & Emotional Shifts:\n"
             for snap in snapshots:
                 sentiment_word = snap.get('sentiment_label', 'neutral')
                 topics = snap.get('topics', [])
                 topics_str = ", ".join(topics[:3]) if topics else "general state"
-                snap_text += f"- {sentiment_word} about {topics_str}. "
+                snap_part += f"- {sentiment_word} about {topics_str}. "
 
                 open_loops = snap.get('open_loops', [])
                 if open_loops:
-                    snap_text += f"Open loops: {', '.join(open_loops)}. "
+                    snap_part += f"Open loops: {', '.join(open_loops)}. "
 
                 if snap.get('identity_signals'):
-                    snap_text += "Identity shift noted. "
-                snap_text += "\n"
+                    snap_part += "Identity shift noted. "
+                snap_part += "\n"
+            recent_text += snap_part
 
         # 3b. Resumed conversation history → RECENT slot (if available)
         if recent_history:
             last_msgs = recent_history[-5:]  # Last 5 messages
-            history_text = "## Recent Conversation (resumed session):\n"
+            history_text = "### Recent Conversation (resumed session):\n"
             for msg in last_msgs:
                 role = msg.get("role", "unknown")
                 content = msg.get("content", "")[:200]  # Truncate each message
                 history_text += f"- {role}: {content}\n"
-            snap_text += history_text
+            recent_text += history_text
 
-        if snap_text:
-            budget.add(ContextSlot.RECENT, snap_text)
+        if recent_text:
+            budget.add(ContextSlot.RECENT, recent_text.strip())
             has_content = True
 
-        # 4. Behavioral Patterns (Journal) → EPHEMERAL slot
+        # 5. Behavioral Patterns (Journal) → EPHEMERAL slot
         patterns = self.journal.detect_patterns()
         if patterns:
             budget.add(ContextSlot.EPHEMERAL, "## Detected Behavioral Patterns:\n" + ", ".join(patterns))

@@ -102,6 +102,9 @@ def dispatch(
                     model_target=model_target,
                 )
                 logger.debug("Orchestrator response: %s", response.content[:200])
+                # In web mode, we need to print to stdout so TokenCapture picks it up
+                sys.stdout.write(response.content + "\n")
+                sys.stdout.flush()
                 if response.safety_warnings:
                     for w in response.safety_warnings:
                         logger.warning("Safety warning: %s", w)

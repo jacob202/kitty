@@ -153,6 +153,15 @@ class CoreOrchestrator:
             "system", f"routed:{routing.specialist}|{routing.domain.value}|{routing.confidence:.2f}"
         )
 
+        try:
+            from src.api.emitters import emit_thinking_bubble
+            emit_thinking_bubble(
+                f"Routing to {routing.specialist} [{routing.domain.value}]",
+                routing.confidence,
+            )
+        except Exception:
+            pass
+
         # Reasoning layer: structured thinking before responding
         honcho_approach = self.context_manager.honcho.get_approach_recommendation()
         personality_ctx = self.personality.get_system_context() or ""
@@ -164,30 +173,38 @@ class CoreOrchestrator:
             personality_context=personality_ctx,
         )
 
+        if reasoning_trace and reasoning_trace.conclusion:
+            try:
+                from src.api.emitters import emit_thinking_bubble
+                emit_thinking_bubble(
+                    reasoning_trace.conclusion[:140],
+                    min(1.0, routing.confidence + 0.05),
+                )
+            except Exception:
+                pass
+
         # 1. Capture context snapshot using thread pool (reuses threads)
         self._bg_executor.submit(
             self.context_manager.correction_memory.capture_context_snapshot,
             query, routing.domain.value
         )
 
-        # 2. Build unified context preamble (include reasoning conclusion + resumed history)
-        context_preamble = self.context_manager.build_unified_context(
-            query, routing.domain.value, recent_history=self._conversation_history
-        )
-        if reasoning_trace.conclusion:
-            context_preamble += f"\n\n[Reasoning trace: {reasoning_trace.conclusion}]"
-
-        # 3. Add wiki context if available and relevant
-        wiki_context = ""
+        # 2. Get Wiki context if available and relevant
+        wiki_ctx_raw = ""
         if WIKI_AVAILABLE and wiki_memory:
             wiki_results = wiki_memory.search(query)
             if wiki_results:
                 for page in wiki_results[:2]:
-                    wiki_context += f"\n\nFrom wiki ({page.title}):\n{page.content[:500]}"
+                    wiki_ctx_raw += f"From wiki ({page.title}):\n{page.content[:500]}\n"
 
-        if wiki_context:
-            context_preamble += wiki_context
-            logger.info(f"Wiki context added: {len(wiki_results)} pages")
+        # 3. Build unified context preamble (budgeted integration of all signals)
+        context_preamble = self.context_manager.build_unified_context(
+            query=query,
+            domain=routing.domain.value,
+            recent_history=self._conversation_history,
+            reasoning_conclusion=reasoning_trace.conclusion,
+            wiki_context=wiki_ctx_raw.strip() if wiki_ctx_raw else None
+        )
 
         # Select model via 3-decision router
         model = self._select_model(
@@ -377,8 +394,6 @@ class CoreOrchestrator:
         try:
             from src.space_kitty.llm_client import call_llm
 
-            from src.core.memory_surface import surface_memory
-
             soul = self.personality.get_system_context()
             system_prompt = soul if soul else "You are Kitty. Direct, warm, budget-conscious. No bullshit."
 
@@ -388,11 +403,6 @@ class CoreOrchestrator:
 
             if context_preamble:
                 system_prompt = context_preamble + "\n\n" + system_prompt
-
-            # Surface relevant memory entities (no-op if store absent or no matches)
-            memory_ctx = surface_memory(query)
-            if memory_ctx:
-                system_prompt = system_prompt + "\n\n" + memory_ctx
 
             content = call_llm(
                 prompt=query,
