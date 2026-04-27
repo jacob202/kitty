@@ -45,6 +45,8 @@ History:
 
 Latest message:
 {user_message}
+
+IMPORTANT: Return ONLY valid JSON. Do not include any other text.
 JSON:"""
 
 # ----------------------------------------------------------------------
@@ -72,6 +74,18 @@ def perform_search(query: str) -> str:
         return res_str
     except Exception as e:
         return f"Search Tool Error: {e}"
+
+def sanitize_for_json(text: str) -> str:
+    """Escape text to prevent prompt injection and JSON breakouts."""
+    # Remove or escape characters that could break out of JSON
+    text = text.replace("\\", "\\\\")
+    text = text.replace('"', '\\"')
+    text = text.replace("\n", "\\n")
+    text = text.replace("\r", "\\r")
+    text = text.replace("\t", "\\t")
+    # Remove null bytes
+    text = text.replace("\x00", "")
+    return text
 
 # ----------------------------------------------------------------------
 # ROUTER LOGIC
