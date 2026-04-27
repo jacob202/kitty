@@ -30,5 +30,17 @@
   "brainstorm": {
     "description": "Generate ideas and solutions",
     "prompt": "Generate creative solutions and ideas for this problem. Think broadly.\n\n{text}"
+  },
+  "test-plan": {
+    "description": "Generate test plan for a feature",
+    "prompt": "Create a test plan for this feature. Cover: unit tests, integration tests, edge cases, and success criteria.\n\n{text}"
+  },
+  "migrate-plan": {
+    "description": "Migration or refactoring plan",
+    "prompt": "Create a migration plan for this change. Cover: steps, risks, rollback plan, and verification.\n\n{text}"
+  },
+  "architect": {
+    "description": "Architecture decision record",
+    "prompt": "Create an architecture decision record. Cover: problem, options considered, decision, and consequences.\n\n{text}"
   }
 }

@@ -730,12 +730,35 @@ def _extract_json(text: str) -> dict | None:
 
     Uses json.JSONDecoder to track nesting depth correctly — closing braces
     inside quoted strings are handled automatically by the JSON parser.
+    
+    Tries multiple patterns:
+    1. ```json ... ``` block
+    2. ``` ... ``` any code block
+    3. Raw JSON-like text starting with {
     """
+    # Pattern 1: JSON code block
     block = re.search(r'```json\s*(.*?)\s*```', text, re.DOTALL)
-    raw = block.group(1) if block else text
+    if block:
+        raw = block.group(1)
+    else:
+        # Pattern 2: Any code block
+        block = re.search(r'```\s*(.*?)\s*```', text, re.DOTALL)
+        raw = block.group(1) if block else text
+    
+    # Find JSON start
     start = raw.find('{')
     if start == -1:
+        # Pattern 3: Look for key-value patterns in raw text
+        if '"tool"' in text:
+            # Try to extract from raw text
+            match = re.search(r'\{[^}]*"tool"[^}]*\}', text, re.DOTALL)
+            if match:
+                raw = match.group(0)
+                start = 0
+    
+    if start == -1:
         return None
+    
     try:
         decoder = json.JSONDecoder()
         obj, end = decoder.raw_decode(raw[start:])
@@ -870,19 +893,14 @@ def main():
                 save_session()
                 break
             elif inp.lower() in ["/help", "help"]: show_help()
-            elif inp.lower() in ["/health", "health"]: print(scan_project_health())
-            elif inp.lower() in ["/next", "next"]: print(suggest_next_steps())
-            elif inp.lower() in ["/patterns", "patterns"]:
-                with open(PROJECT_ROOT / "config" / "patterns.json") as f:
-                    patterns = json.load(f)
-                print("\n--- Available Patterns ---\n")
-                for name, info in patterns.items():
-                    print(f"  {name}: {info['description']}")
             elif inp.startswith("/council "): council(inp[9:])
             elif inp.startswith("/selfreview"): self_review()
             elif inp.startswith("/models"): show_models()
             else: chat(inp)
-        except KeyboardInterrupt: break
+        except (KeyboardInterrupt, EOFError):
+            save_session()
+            print("\nSession saved.")
+            break
         except Exception: traceback.print_exc()
     
     print("\nSession saved.")
