@@ -2,6 +2,9 @@
 """
 API Rate Limiting for Kitty
 Prevents abuse and manages resource usage
+
+NOTE: This is a general token-bucket rate limiter for API usage.
+For LLM provider-specific rate limiting, see src/core/rate_limiter.py (sliding window).
 """
 
 import time

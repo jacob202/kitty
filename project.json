@@ -1,0 +1,59 @@
+{
+  "milestones": [
+    {
+      "id": 1,
+      "title": "Core Routing & Streaming",
+      "status": "doing",
+      "tasks": [
+        "Implement smart JSON parsing",
+        "example task",
+        "clean up code"
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Specialist Integration",
+      "status": "doing",
+      "tasks": [
+        "Write tests for Llama"
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Project Manager (external)",
+      "status": "doing",
+      "tasks": [
+        "NOTE: Requires Ollama to be running with nomic-embed-text (src/memory/journal_db.py:275)"
+      ],
+      "done_tasks": [
+        "Update routing algorithm for project manager"
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Implementation Review Items (Deferred)",
+      "status": "todo",
+      "tasks": [
+        "Full garage-ui chat migration from SSE to SocketIO",
+        "LLM-client consolidation (web_llm.py, llm_client.py, resilient_llm_client.py)",
+        "Safari/iOS device verification for MediaRecorder",
+        "Fix _SupervisorShim not registered with Flask",
+        "Address prompt injection risk in kitty_v2.py"
+      ]
+    }
+  ],
+  "backlog": [
+    "Fine-tune router",
+    "Write unit tests",
+    "Build Gradio web UI",
+    "Add Phi-4-mini specialist",
+    "Implement web search plugin",
+    "Add memory export/import",
+    "Integrate Kitty Builder (AI project manager)",
+    "Add model_preloader.py for model management",
+    "Review implementation_review_2026-04-27.md"
+  ],
+  "notes": "Active in: /Users/jacobbrizinski/Projects/kitty",
+  "project_name": "Kitty AI Router",
+  "description": "Building a multi-model MLX router for Apple Silicon"
+}

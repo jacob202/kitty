@@ -65,7 +65,10 @@ class _MemShim:
         self.data = {}
 
     def get_facts(self):
-        return {}
+        return self.data
+
+    def set_facts(self, facts: dict):
+        self.data.update(facts)
 
 
 class _SupervisorShim:

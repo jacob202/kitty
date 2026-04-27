@@ -4,6 +4,9 @@ Outbound Rate Limiter for LLM Providers
 Sliding window rate limiter that tracks request counts per provider per time window.
 Preemptively throttles before hitting provider rate limits.
 
+NOTE: This is for LLM provider-specific rate limiting (SQLite-backed).
+For general API rate limiting, see src/utils/rate_limiter.py (token bucket).
+
 Usage:
     limiter = RateLimiter("openrouter", max_requests=100, window_seconds=60)
     if limiter.should_throttle():

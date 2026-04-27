@@ -36,7 +36,7 @@ def run_persona_suite(
 
     for persona in personas:
         resp = client.post("/api/chat", json={"message": persona["prompt"]})
-        passed = resp.status_code not in (500, 503)
+        passed = 200 <= resp.status_code < 400
         try:
             body = resp.get_json() or {}
             has_content = bool(body)

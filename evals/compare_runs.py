@@ -28,6 +28,10 @@ def detect_regression(
     """
     prev_artifact_dir = Path(prev_artifact_dir)
 
+    # Validate threshold
+    if not isinstance(threshold, (int, float)) or threshold < 0 or threshold > 1:
+        threshold = 0.05
+
     # Find the most recently written artifact for this suite
     candidates = sorted(
         prev_artifact_dir.glob(f"*_{suite}.json"),
@@ -45,7 +49,18 @@ def detect_regression(
             "reason": "no prior artifact found for suite",
         }
 
-    prev_data = json.loads(candidates[0].read_text())
+    try:
+        prev_data = json.loads(candidates[0].read_text())
+    except json.JSONDecodeError as e:
+        return {
+            "is_regression": False,
+            "delta": 0.0,
+            "prev_rate": None,
+            "curr_rate": current_scores.get(suite),
+            "prev_run_id": None,
+            "reason": f"corrupted artifact: {e}",
+        }
+    
     prev_rate = prev_data.get("scores", {}).get(suite, {}).get("rate", 0.0)
     curr_rate = current_scores.get(suite, 0.0)
     delta = curr_rate - prev_rate

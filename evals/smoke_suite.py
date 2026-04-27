@@ -81,9 +81,9 @@ def run_smoke_suite(
         "" if no_poll else "/voice_poll reference found in index",
     ))
 
-    # 5. /api/chat is reachable and does not return 500 or 503
+    # 5. /api/chat is reachable and does not return 5xx errors
     resp = client.post("/api/chat", json={"message": "hi"})
-    ok = resp.status_code not in (500, 503)
+    ok = 200 <= resp.status_code < 400
     checks.append(EvalCheck.record(
         "chat_not_500",
         ok,
