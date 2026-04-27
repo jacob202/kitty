@@ -4,18 +4,16 @@ from __future__ import annotations
 
 import logging
 import re
+import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-
-logger = logging.getLogger(__name__)
+from src.services.context_service import query_knowledge_base, _get_lightrag_for_domain, _lightrag_stores
+from src.agents.custom_agents import AgentSpec
 
 _memory_instance = None
-_lightrag_stores: dict[str, Any] = {}
-_kb_cache: dict[str, str] = {}
-_KB_CACHE_MAX_SIZE = 500
-
+logger = logging.getLogger(__name__)
 
 def _get_memory():
     global _memory_instance
@@ -24,21 +22,6 @@ def _get_memory():
 
         _memory_instance = KittyMemoryEnhanced()
     return _memory_instance
-
-
-def _get_lightrag_for_domain(domain: str):
-    """Get or create a LightRAGStore for a specific domain."""
-    global _lightrag_stores
-    if domain not in _lightrag_stores:
-        try:
-            from src.memory.lightrag_store import LightRAGStore
-
-            _lightrag_stores[domain] = LightRAGStore(domain=domain)
-        except Exception as e:
-            logger.warning("LightRAG unavailable for domain %s: %s", domain, e)
-            _lightrag_stores[domain] = None
-    return _lightrag_stores[domain]
-
 
 @dataclass
 class SpecialistResponse:
@@ -52,43 +35,8 @@ class SpecialistResponse:
     diagnostics: dict[str, Any] | None = None
 
 
-def _query_knowledge_base(question: str, domain: str, store: Any | None = None) -> str:
-    """Query LightRAG or ChromaDB for domain-relevant context with caching."""
-    cache_key = f"{domain}:{question[:100]}"
-    if cache_key in _kb_cache:
-        return _kb_cache[cache_key]
-
-    try:
-        if store is None:
-            store = _get_lightrag_for_domain(domain)
-        result = store.search(question)
-        if result and "not found" not in result.lower():
-            _kb_cache[cache_key] = result[:3000]
-            if len(_kb_cache) > _KB_CACHE_MAX_SIZE:
-                oldest_key = next(iter(_kb_cache))
-                del _kb_cache[oldest_key]
-            return _kb_cache[cache_key]
-    except Exception as e:
-        logger.debug(f"LightRAG unavailable for domain {domain}: {e}")
-
-    try:
-        mem = _get_memory()
-        context = mem.retrieve_context(question, n_conversations=0, n_facts=0, n_documents=5, domain=domain)
-        docs = context.get("documents", [])
-        if docs:
-            content = "\n---\n".join(docs)[:3000]
-            _kb_cache[cache_key] = content
-            if len(_kb_cache) > _KB_CACHE_MAX_SIZE:
-                oldest_key = next(iter(_kb_cache))
-                del _kb_cache[oldest_key]
-            return content
-    except Exception as e:
-        logger.debug(f"ChromaDB unavailable: {e}")
-
-    return ""
-
-
 def ingest_domain_documents(watch_dir: str = "data/staging", domain: str | None = None) -> dict[str, int]:
+
     """Ingest documents from staging directory into specialist KB.
 
     Args:
@@ -130,15 +78,17 @@ class BaseSpecialist(ABC):
 
         # Personality and prompt are derived from soul file or fallbacks
         self.personality = self._extract_personality() or self._get_personality()
-
-        # Domain-specific LightRAG store
-        self._kb_store = _get_lightrag_for_domain(self.domain)
         
-        # Map to AgentSpec
-        from src.agents.custom_agents import AgentSpec
-        
-        # Tools available to specialists: browse (web), search_files (grep), read_diagnostics (logs)
-        agent_tools = ["browse", "search_files", "read_diagnostics", "read_file", "calculate"]
+        # Load config file
+        config_path = Path(f"config/specialists/{self.domain.lower()}.json")
+        agent_tools = []
+        if config_path.exists():
+            with open(config_path, "r") as f:
+                config = json.load(f)
+                agent_tools = config.get("tools", [])
+        else:
+            # Default fallback
+            agent_tools = ["browse", "search_files", "read_diagnostics", "read_file", "calculate"]
         
         self.agent_spec = AgentSpec(
             name=self.name,
@@ -218,7 +168,7 @@ class BaseSpecialist(ABC):
         honcho_approach: str = "",
     ) -> SpecialistResponse:
         """Query the specialist with LLM + knowledge base + temporal cross-check."""
-        kb_context = _query_knowledge_base(question, self.domain, store=self._kb_store)
+        kb_context = query_knowledge_base(question, self.domain)
 
         # ─── Temporal Cross-Check (Memory Weave) ────────────────────────────────
         weave_context = ""
@@ -327,45 +277,11 @@ class BaseSpecialist(ABC):
 
 
 class SpecialistRegistry:
-    """Registry of all available specialists with auto-discovery."""
+    """Registry of all available specialists."""
 
     def __init__(self):
-        self.specialists = {}
-        self._discover_specialists()
-
-    def _discover_specialists(self):
-        """Auto-discover specialists in the src.core.specialists package."""
-        import importlib
-        import pkgutil
-
-        import src.core.specialists as specialists_pkg
-
-        for loader, module_name, is_pkg in pkgutil.iter_modules(specialists_pkg.__path__):
-            if module_name == "soul":
-                continue  # Handled specially or mapped to Kitty
-
-            full_module_name = f"src.core.specialists.{module_name}"
-            module = importlib.import_module(full_module_name)
-
-            for attr_name in dir(module):
-                attr = getattr(module, attr_name)
-                if (
-                    isinstance(attr, type)
-                    and issubclass(attr, BaseSpecialist)
-                    and attr is not BaseSpecialist
-                ):
-                    # Instantiate with standard paths
-                    name = module_name.capitalize()
-                    domain = module_name
-                    kb_path = f"data/knowledge_bases/{module_name}/"
-
-                    instance = attr(name, domain, kb_path)
-                    self.specialists[instance.name] = instance
-
-        # Always add the core Soul
-        from src.core.specialists.soul import KittySoulSpecialist
-
-        self.specialists["Kitty"] = KittySoulSpecialist("Kitty", "general", "")
+        from src.core.specialists.registry import SPECIALISTS
+        self.specialists = SPECIALISTS
 
     def get_specialist(self, name: str) -> BaseSpecialist | None:
         return self.specialists.get(name)

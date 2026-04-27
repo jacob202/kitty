@@ -1,0 +1,11 @@
+{
+  "name": "Fitness",
+  "domain": "fitness",
+  "tools": [
+    "browse",
+    "search_files",
+    "read_diagnostics",
+    "read_file",
+    "calculate"
+  ]
+}

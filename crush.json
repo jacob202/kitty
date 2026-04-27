@@ -41,14 +41,14 @@
       "api_key": "$OPENROUTER_API_KEY",
       "models": [
         {
-          "id": "google/gemini-2.0-flash-exp:free",
-          "name": "Gemini 2.0 Flash Exp (Free)",
-          "context_window": 1048576
+          "id": "anthropic/claude-3.7-sonnet",
+          "name": "Claude 3.7 Sonnet",
+          "context_window": 200000
         },
         {
-          "id": "qwen/qwen3-coder:free",
-          "name": "Qwen 3 Coder (Free)",
-          "context_window": 32000
+          "id": "google/gemini-2.0-flash-001",
+          "name": "Gemini 2.0 Flash",
+          "context_window": 1048576
         },
         {
           "id": "meta-llama/llama-3.3-70b-instruct:free",
@@ -60,14 +60,14 @@
   },
   "models": {
     "large": {
-      "model": "qwen3.6-plus",
-      "provider": "opencode-go",
-      "max_tokens": 128000
+      "model": "anthropic/claude-3.7-sonnet",
+      "provider": "openrouter",
+      "max_tokens": 4096
     },
     "small": {
-      "model": "qwen3.5-plus",
-      "provider": "opencode-go",
-      "max_tokens": 64000
+      "model": "qwen2.5-coder:7b",
+      "provider": "ollama",
+      "max_tokens": 4096
     }
   },
   "lsp": {

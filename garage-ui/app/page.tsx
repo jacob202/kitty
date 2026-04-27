@@ -13,6 +13,28 @@ import CollapsiblePanel from './components/CollapsiblePanel';
 import { useDensity } from './components/DensityContext';
 import { Thought } from './components/ThinkingMonologue';
 
+const RECORDING_MIME_CANDIDATES = [
+  'audio/webm;codecs=opus',
+  'audio/webm',
+  'audio/mp4;codecs=mp4a.40.2',
+  'audio/mp4',
+  'audio/wav',
+];
+
+function pickRecordingMimeType(): string {
+  if (typeof window === 'undefined' || typeof MediaRecorder === 'undefined') {
+    return '';
+  }
+  return RECORDING_MIME_CANDIDATES.find(type => MediaRecorder.isTypeSupported(type)) || '';
+}
+
+function extensionForMimeType(mimeType: string): string {
+  const normalized = mimeType.toLowerCase();
+  if (normalized.includes('mp4')) return 'mp4';
+  if (normalized.includes('wav')) return 'wav';
+  return 'webm';
+}
+
 export default function GarageDashboard() {
   const { density, toggleDensity } = useDensity();
   const [messages, setMessages] = useState<{role: string, text: string}[]>([]);
@@ -168,14 +190,18 @@ export default function GarageDashboard() {
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      const mimeType = pickRecordingMimeType();
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
       const chunks: BlobPart[] = [];
       recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
       recorder.onstop = async () => {
         stream.getTracks().forEach(t => t.stop());
-        const blob = new Blob(chunks, { type: 'audio/webm' });
+        const recordedType = recorder.mimeType || mimeType || 'audio/webm';
+        const blob = new Blob(chunks, { type: recordedType });
         const form = new FormData();
-        form.append('audio', blob, 'recording.webm');
+        form.append('audio', blob, `recording.${extensionForMimeType(recordedType)}`);
         try {
           const res = await fetch(`http://${backendHost}:5001/api/transcribe`, { method: 'POST', body: form });
           const data = await res.json();

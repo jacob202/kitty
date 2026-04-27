@@ -135,6 +135,11 @@ class CircuitBreaker:
     def _save_state(self, stats: CircuitStats):
         """Persist circuit state to SQLite."""
         with sqlite3.connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT failure_timestamps FROM circuits WHERE provider = ?",
+                (self.provider,),
+            ).fetchone()
+            failure_timestamps = row[0] if row and row[0] else "[]"
             conn.execute(
                 """INSERT OR REPLACE INTO circuits
                    (provider, state, failure_count, success_count,
@@ -151,7 +156,7 @@ class CircuitBreaker:
                     stats.last_state_change,
                     stats.total_failures,
                     stats.total_successes,
-                    "[]",
+                    failure_timestamps,
                 ),
             )
             conn.commit()
@@ -253,6 +258,7 @@ class CircuitBreaker:
             timestamps = self._load_failure_timestamps()
             timestamps.append(now)
             timestamps = self._prune_old_failures(timestamps)
+            self._save_state(self._state)
             self._save_failure_timestamps(timestamps)
 
             if self._state.state == CircuitState.HALF_OPEN:

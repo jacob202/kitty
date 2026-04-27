@@ -48,6 +48,13 @@ socket_handlers.py  ────►  dispatch()  ────►  LLM writes to 
 
 **Two transport paths coexist**: SSE still works server-side (`/chat` route in `streaming_routes.py`), but client only uses SocketIO. Tokens flow through both paths.
 
+**Current garage-ui status (2026-04-27)**: this guide describes the legacy `src/templates/index.html`
+Phase 3B migration. The active `garage-ui/app/page.tsx` surface still uses `EventSource` against
+`/stream` for chat tokens while SocketIO remains active for telemetry, node status, thinking bubbles,
+theme changes, and health updates. Treat that as intentional current-state drift until the garage UI
+is explicitly migrated to SocketIO chat end-to-end. Do not remove `/stream` or `fallback_stream` while
+`garage-ui` still depends on them.
+
 ---
 
 ## Files Changed

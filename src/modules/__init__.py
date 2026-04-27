@@ -1,1 +1,0 @@
-"""Kitty modules package."""

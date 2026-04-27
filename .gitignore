@@ -24,3 +24,4 @@ src/tools/superpowers/
 .zshrc.shim
 data/
 eval_snapshots/
+evals/artifacts/

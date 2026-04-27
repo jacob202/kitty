@@ -1,0 +1,11 @@
+{
+  "name": "Audio",
+  "domain": "audio",
+  "tools": [
+    "browse",
+    "search_files",
+    "read_diagnostics",
+    "read_file",
+    "calculate"
+  ]
+}

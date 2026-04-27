@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Preference-pair collection for lightweight RLHF data gathering."""
 
 from __future__ import annotations

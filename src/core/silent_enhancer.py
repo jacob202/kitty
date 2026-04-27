@@ -4,6 +4,27 @@ Runs locally with tiny model or rule-based fallback.
 """
 
 import re
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class EnhancedPrompt:
+    """Typed SPEAR prompt components for routing and prompt assembly."""
+
+    role: str
+    problem: str
+    expectation: str
+    audience: str
+    restrictions: str
+
+    def to_prompt(self) -> str:
+        return f"""System/Role: {self.role}
+Problem: {self.problem}
+Expectation: {self.expectation}
+Audience: {self.audience}
+Restrictions: {self.restrictions}
+
+Provide your response concisely but thoroughly."""
 
 
 class SilentPromptEnhancer:
@@ -32,14 +53,20 @@ class SilentPromptEnhancer:
     def enhance(self, raw_input: str) -> str:
         if self.use_llm and self.ollama:
             return self._llm_enhance(raw_input)
-        return self._rule_enhance(raw_input)
+        return self.enhance_structured(raw_input).to_prompt()
 
-    def _rule_enhance(self, raw: str) -> str:
+    def enhance_structured(self, raw_input: str) -> EnhancedPrompt:
+        """Return typed SPEAR components while preserving the legacy string API."""
+        return self._rule_enhance_structured(raw_input)
+
+    def _rule_enhance_structured(self, raw: str) -> EnhancedPrompt:
         raw_lower = raw.lower()
 
         role = "electronics repair assistant"
         if "schematic" in raw_lower or "diagram" in raw_lower:
             role = "schematic analysis expert"
+        elif any(term in raw_lower for term in ("sansui", "amp", "amplifier", "hum", "buzz", "capacitor")):
+            role = "audio electronics repair technician"
         elif "solder" in raw_lower or "iron" in raw_lower:
             role = "soldering technician"
 
@@ -63,15 +90,13 @@ class SilentPromptEnhancer:
         if "no voltage" in raw_lower:
             restrictions = "assume the device is unplugged and capacitors discharged."
 
-        enhanced = f"""System/Role: You are an expert {role}.
-Problem: {problem}
-Expectation: {expectation}
-Audience: {audience}
-Restrictions: {restrictions}
-
-Provide your response concisely but thoroughly."""
-
-        return enhanced
+        return EnhancedPrompt(
+            role=f"You are an expert {role}.",
+            problem=problem,
+            expectation=expectation,
+            audience=audience,
+            restrictions=restrictions,
+        )
 
     def _llm_enhance(self, raw: str) -> str:
         system_prompt = """You are a prompt enhancer. Convert the user's rambling request into a structured SPEAR prompt:
@@ -110,4 +135,4 @@ Output only the SPEAR prompt, no extra commentary."""
         return components
 
 
-__all__ = ["SilentPromptEnhancer"]
+__all__ = ["EnhancedPrompt", "SilentPromptEnhancer"]

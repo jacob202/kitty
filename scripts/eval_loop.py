@@ -111,14 +111,14 @@ def check_regression(current_scores: dict[str, float]) -> dict:
     return detect_regression(ARTIFACT_DIR, current_scores)
 
 
-def append_log(attempt: int, score: str, status: str) -> None:
+def append_log(attempt: int, score: str, status: str, change: str = "eval loop verification") -> None:
     ITERATION_LOG.parent.mkdir(parents=True, exist_ok=True)
     header = (
         "# Integration Iteration Log\n"
-        "| Attempt | Eval Score | Status |\n"
-        "|---------|------------|--------|\n"
+        "| Attempt | Change | Eval Score | Status |\n"
+        "|---------|--------|------------|--------|\n"
     )
-    row = f"| {attempt} | {score} | {status} |\n"
+    row = f"| {attempt} | {change} | {score} | {status} |\n"
     if ITERATION_LOG.exists():
         content = ITERATION_LOG.read_text()
         ITERATION_LOG.write_text(content.rstrip("\n") + "\n" + row)

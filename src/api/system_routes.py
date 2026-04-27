@@ -71,6 +71,7 @@ def get_scorecard():
 @system_bp.route("/health", methods=["GET"])
 def health_check():
     """Simple health check endpoint."""
+    _require_internal_api()
     try:
         result = _get_cached_health()
         if result["status"] == "critical":
@@ -86,6 +87,7 @@ def health_check():
 @system_bp.route("/api/health", methods=["GET"])
 def api_health():
     """Backward compatible health endpoint."""
+    _require_internal_api()
     try:
         return jsonify(_get_cached_health())
     except Exception as e:

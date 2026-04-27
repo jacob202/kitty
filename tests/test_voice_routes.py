@@ -79,6 +79,35 @@ def test_transcribe_accepts_wav_and_returns_json(monkeypatch):
     }
 
 
+def test_transcribe_accepts_mp4_and_returns_json(monkeypatch):
+    client = _make_app().test_client()
+
+    class FakeTranscriber:
+        def transcribe_file(self, path):
+            assert path.suffix == ".mp4"
+            return TranscriptionResult(
+                text="mp4 transcript",
+                language="en",
+                duration_seconds=2.25,
+            )
+
+    monkeypatch.setattr("src.api.voice_routes.get_transcriber", lambda: FakeTranscriber())
+
+    response = client.post(
+        "/api/transcribe",
+        data={"audio": (io.BytesIO(b"audio"), "sample.mp4", "audio/mp4")},
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "ok": True,
+        "text": "mp4 transcript",
+        "language": "en",
+        "duration_seconds": 2.25,
+    }
+
+
 def test_transcribe_rejects_unsupported_audio_format():
     client = _make_app().test_client()
 
