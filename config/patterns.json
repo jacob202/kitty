@@ -7,32 +7,28 @@
     "description": "Extract all actionable to-do items",
     "prompt": "Extract every actionable item from this text. Number them. Be specific — include who, what, when if present.\n\n{text}"
   },
-  "explain": {
-    "description": "Explain in plain language",
-    "prompt": "Explain this in plain language. No jargon. Short paragraphs. Assume I'm smart but unfamiliar.\n\n{text}"
+  "explain-code": {
+    "description": "Explain code in plain language",
+    "prompt": "Explain this code in plain language. What does it do? What's the intent? Any concerns?\n\n```\n{text}\n```"
   },
-  "prescriber-explain": {
-    "description": "Rephrase for NP appointment",
-    "prompt": "Rewrite this as a clear, concise clinical note I could show my NP at an appointment. Professional but readable. Focus on what's clinically relevant. Remove filler.\n\n{text}"
+  "review-code": {
+    "description": "Code review with suggestions",
+    "prompt": "Review this code for bugs, security issues, and improvements. Be specific and actionable.\n\n```\n{text}\n```"
   },
-  "parts-search": {
-    "description": "Format parts list for Canadian supplier search",
-    "prompt": "Extract all components and parts from this text. For each: quantity, value/spec, type. Then suggest the best search query for Digi-Key Canada (digikey.ca) or Mouser Canada. I'm in Regina, SK.\n\n{text}"
+  "audit": {
+    "description": "Full project audit with recommendations",
+    "prompt": "Perform a comprehensive audit of this project area. Cover: working well, issues, technical debt, and recommended next steps.\n\n{text}"
   },
-  "obd-explain": {
-    "description": "Explain OBD data in plain English",
-    "prompt": "Explain this OBD data in plain English for a non-mechanic. What do the fuel trim values mean? Any concerning patterns? What should I physically check next? My truck is a 2007 Honda Ridgeline J35A9 (MAP-only, no MAF). Bank 2 = front/radiator side.\n\n{text}"
+  "breakdown": {
+    "description": "Break down a feature into tasks",
+    "prompt": "Break this feature down into specific, actionable tasks. Estimate complexity for each.\n\n{text}"
   },
-  "med-check": {
-    "description": "Check medication interaction against Jacob's stack",
-    "prompt": "Check this medication/supplement for interactions with Jacob's current stack: Vyvanse 50mg, Venlafaxine (SNRI), Trazodone 100mg. Flag anything dangerous. Note if it's available in Canada and if Saskatchewan Drug Plan covers it. Be direct — no excessive disclaimers.\n\n{text}"
+  "compare": {
+    "description": "Compare two approaches or implementations",
+    "prompt": "Compare these two approaches. Cover pros, cons, and when to use each.\n\n{text}"
   },
-  "journal-prompt": {
-    "description": "Generate a recovery-aware journaling prompt",
-    "prompt": "Based on this context, give Jacob one specific journaling prompt. It should be grounded, recovery-aware, and not preachy. One question only. Something that opens a door rather than demanding an answer.\n\n{text}"
-  },
-  "chatbox-brainstorm": {
-    "description": "Format a topic for multi-LLM chatbox brainstorming",
-    "prompt": "Prepare this topic for a multi-LLM brainstorming session. Structure it to encourage diverse perspectives and creative solutions:\n\n{text}"
+  "brainstorm": {
+    "description": "Generate ideas and solutions",
+    "prompt": "Generate creative solutions and ideas for this problem. Think broadly.\n\n{text}"
   }
 }

@@ -396,11 +396,10 @@ def write_file(path: str, content: str) -> str:
 def quality_judge(path: str) -> str:
     try:
         with open(PROJECT_ROOT / path) as f: code = f.read(3000)
-        model_info = get_model(MODEL_BUILDER)
         content = f"Review this code briefly. Grade A-F and give one sentence of feedback.\nFile: {path}\nCode:\n```\n{code}\n```"
         if USE_OPENROUTER and OPENROUTER_API_KEY:
             return generate_openrouter(content, max_tokens=80, temp=0.1).strip()
-        model, tok = model_info
+        model, tok = get_model(MODEL_BUILDER)
         messages = [{"role": "user", "content": content}]
         prompt = _build_prompt(tok, messages)
         return generate(model, tok, prompt=prompt, max_tokens=80,
@@ -472,7 +471,7 @@ def get_project_brief() -> str:
     return generate_project_brief()
 
 def run_pattern(pattern_name: str, text: str) -> str:
-    """Run a pattern on the given text. Available patterns: summarize, action-items, explain, prescriber-explain, parts-search, obd-explain, med-check, journal-prompt, chatbox-brainstorm"""
+    """Run a pattern on the given text. Available patterns: summarize, action-items, explain-code, review-code, audit, breakdown, compare, brainstorm"""
     patterns_path = PROJECT_ROOT / "config" / "patterns.json"
     if not patterns_path.exists():
         return "Error: patterns.json not found"
@@ -497,6 +496,67 @@ def run_pattern(pattern_name: str, text: str) -> str:
     except Exception as e:
         return f"Error running pattern: {e}"
 
+def scan_project_health() -> str:
+    """Analyze project health and return a status report."""
+    state = build_project_state()
+    p = state["progress"]
+    
+    issues = []
+    if p["task_completion_pct"] < 30:
+        issues.append("Low task completion (<30%)")
+    if p["open_todos"] > 5:
+        issues.append(f"Many open TODOs ({p['open_todos']})")
+    if len(state.get("backlog", [])) > 10:
+        issues.append(f"Large backlog ({len(state['backlog'])} items)")
+    
+    git_status = state.get("git_info", {}).get("status", "")
+    untracked = len([l for l in git_status.split("\n") if l.startswith("??")])
+    if untracked > 10:
+        issues.append(f"Many untracked files ({untracked})")
+    
+    report = f"""# Project Health Report
+
+**Progress:** {p['task_completion_pct']}% tasks, {p['milestone_completion_pct']}% milestones
+**Remaining:** {p['remaining_tasks']} tasks, {p['open_todos']} TODOs
+
+## Status: {"⚠️ Needs Attention" if issues else "✅ Healthy"}
+
+"""
+    if issues:
+        report += "## Issues Found:\n" + "\n".join(f"- {i}" for i in issues) + "\n"
+    
+    report += f"""
+## Quick Stats
+- Milestones: {len(state['milestones'])}
+- Backlog: {len(state['backlog'])} items
+- Git changes: {len([l for l in git_status.split('\n') if l.strip()])}
+"""
+    return report
+
+def suggest_next_steps() -> str:
+    """Suggest the best next steps based on current state."""
+    state = session.project_state
+    p = state.get("progress", {})
+    
+    recommendations = []
+    
+    # Find incomplete milestones
+    for m in state.get("milestones", []):
+        if m.get("status") == "doing" and m.get("tasks"):
+            task = m["tasks"][0]
+            recommendations.append(f"1. Finish: {task} (Milestone: {m['title']})")
+    
+    # Check backlog
+    if state.get("backlog"):
+        recommendations.append(f"2. Pick from backlog: {state['backlog'][0]}")
+    
+    # Open TODOs
+    todos = state.get("open_todos", [])
+    if todos:
+        recommendations.append(f"3. Address TODO: {todos[0]['text'][:50]}")
+    
+    return "## Recommended Next Steps\n\n" + "\n\n".join(recommendations) if recommendations else "No specific recommendations - project looks good!"
+
 TOOLS = {
     "run_command": run_command,
     "read_file": read_file,
@@ -506,6 +566,8 @@ TOOLS = {
     "launch_kitty": lambda: run_command(f"{sys.executable} -m pytest tests/ -q --tb=short"),
     "generate_project_brief": get_project_brief,
     "run_pattern": run_pattern,
+    "scan_project_health": scan_project_health,
+    "suggest_next_steps": suggest_next_steps,
 }
 
 # ------------------------------------------------------------
@@ -514,7 +576,6 @@ TOOLS = {
 def council(question: str):
     """Run two independent reasoning passes then synthesize — single model, two prompts."""
     print("\n--- Council Deliberation ---")
-    model_info = get_model(MODEL_BUILDER)
     opinions = []
     for name, framing in [
         ("Pragmatist", "You are a pragmatic engineer focused on what works right now. Be direct and brief."),
@@ -529,7 +590,7 @@ def council(question: str):
                     max_tokens=200, temperature=0.7
                 ).choices[0].message.content
             else:
-                model, tok = model_info
+                model, tok = get_model(MODEL_BUILDER)
                 sampler = make_sampler(temp=0.7)
                 messages = [{"role": "system", "content": framing}, {"role": "user", "content": question}]
                 resp = generate(model, tok, prompt=_build_prompt(tok, messages),
@@ -551,7 +612,7 @@ def council(question: str):
                 max_tokens=300, temperature=0.7
             ).choices[0].message.content
         else:
-            model, tok = model_info
+            model, tok = get_model(MODEL_BUILDER)
             sampler = make_sampler(temp=0.7)
             synth_msg = [{"role": "user", "content":
                 f"Synthesize these two perspectives on: {question!r}\n\n" +
@@ -771,13 +832,19 @@ def show_help():
     print(
         "\n--- Kitty Builder Commands ---\n"
         "  /help          Show this help\n"
+        "  /health        Scan project health\n"
+        "  /next          Suggest next steps\n"
         "  /models        Show model info and VRAM state\n"
         "  /council <q>   Two-perspective deliberation on a question\n"
         "  /selfreview    Run code audit over the entire project\n"
+        "  /patterns      List available patterns\n"
         "  /exit          Quit\n"
-        "\nAnything else is sent to the Kitty agent.\n"
-        "Tools available to the agent: run_command, read_file, write_file,\n"
-        "  modify_project_tasks, search_web, launch_kitty\n"
+        "\nTools available: run_command, read_file, write_file,\n"
+        "  modify_project_tasks, search_web, launch_kitty,\n"
+        "  generate_project_brief, run_pattern, scan_project_health,\n"
+        "  suggest_next_steps\n"
+        "\nPatterns: summarize, action-items, explain-code, review-code,\n"
+        "  audit, breakdown, compare, brainstorm\n"
     )
 
 # ------------------------------------------------------------
@@ -803,6 +870,14 @@ def main():
                 save_session()
                 break
             elif inp.lower() in ["/help", "help"]: show_help()
+            elif inp.lower() in ["/health", "health"]: print(scan_project_health())
+            elif inp.lower() in ["/next", "next"]: print(suggest_next_steps())
+            elif inp.lower() in ["/patterns", "patterns"]:
+                with open(PROJECT_ROOT / "config" / "patterns.json") as f:
+                    patterns = json.load(f)
+                print("\n--- Available Patterns ---\n")
+                for name, info in patterns.items():
+                    print(f"  {name}: {info['description']}")
             elif inp.startswith("/council "): council(inp[9:])
             elif inp.startswith("/selfreview"): self_review()
             elif inp.startswith("/models"): show_models()

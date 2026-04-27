@@ -67,7 +67,7 @@
     "Implement voice_input feature (SuperWhisper)",
     "Review hardware_vision_auto_search component pricing"
   ],
-  "notes": "Active in: /Users/jacobbrizinski/Projects/kitty | AgentCompany docs integrated",
+  "notes": "Active in: /Users/jacobbrizinski/Projects/kitty",
   "project_name": "Kitty AI Router",
   "description": "Building a multi-model MLX router for Apple Silicon"
 }
