@@ -3,25 +3,34 @@
 @tailwind utilities;
 
 :root {
-  --bg-color: #080808;
-  --panel-bg: #111111;
-  --border-color: #1a1a1a;
-  --accent-color: #ff5f1f; /* Spicy Orange - Hardware Mode */
-  --text-main: #e0e0e0;
-  --dim-text: #666;
+  /* Warm dark — from v2 design tokens */
+  --bg-color: #1A1614;
+  --panel-bg: #241E1A;
+  --border-color: #3D3028;
+  --accent-color: #E8743C;
+  --accent-hover: #D4622A;
+  --accent-light: rgba(232, 116, 60, 0.12);
+  --text-main: #F5EFE8;
+  --dim-text: #9C8A7E;
   --mascot-filter: none;
   --mode-indicator: "HARDWARE";
 
-  /* New Grid Variables */
+  /* Grid */
   --sidebar-width: 240px;
   --inspector-width: 320px;
-  
+
   /* Density Defaults */
   --font-size-base: 14px;
   --font-size-small: 12px;
   --padding-base: 1rem;
   --bubble-padding: 0.75rem 1rem;
   --item-gap: 1rem;
+
+  /* Radii + shadow */
+  --radius: 8px;
+  --radius-lg: 14px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
 }
 
 /* Compact Density Overrides */
@@ -33,11 +42,15 @@
   --item-gap: 0.5rem;
 }
 
-/* Hardware Mode (Default - Orange) */
+/* Hardware Mode (Default - Warm Orange) */
 .theme-hardware {
-  --accent-color: #ff5f1f;
-  --panel-bg: #111111;
-  --border-color: #1a1a1a;
+  --accent-color: #E8743C;
+  --accent-hover: #D4622A;
+  --bg-color: #1A1614;
+  --panel-bg: #241E1A;
+  --border-color: #3D3028;
+  --text-main: #F5EFE8;
+  --dim-text: #9C8A7E;
   --mode-indicator: "HARDWARE";
 }
 
@@ -131,9 +144,22 @@
   text-shadow: 2px 0px 1px rgba(0, 30, 255, 0.5), -2px 0px 1px rgba(255, 0, 80, 0.5);
 }
 
-body {
+html, body {
   background-color: var(--bg-color);
   color: var(--text-main);
+  /* Prevent iOS bounce scroll */
+  overscroll-behavior: none;
+}
+
+/* Fix iOS Safari viewport height (100vh includes browser chrome) */
+.h-screen-safe {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* Hide Next.js dev overlay on mobile */
+nextjs-portal {
+  display: none;
 }
 
 .panel {
