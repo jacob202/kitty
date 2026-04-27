@@ -37,6 +37,7 @@ export default function GarageDashboard() {
   
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   const socketRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -285,7 +286,7 @@ export default function GarageDashboard() {
 
   return (
     <main 
-      className={`h-screen flex flex-col mode-transition overflow-hidden ${uiState === 'unhinged' ? 'theme-unhinged' : `theme-${currentMode}`}`}
+      className={`h-screen-safe flex flex-col mode-transition overflow-hidden ${uiState === 'unhinged' ? 'theme-unhinged' : `theme-${currentMode}`}`}
       style={{
         '--sidebar-width': sidebarCollapsed ? '48px' : '240px',
         '--inspector-width': inspectorCollapsed ? '48px' : '320px',
@@ -298,20 +299,24 @@ export default function GarageDashboard() {
             <div className={`w-2 h-2 rounded-full flex-shrink-0 ${systemHealth.websocket === 'connected' ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`}></div>
             <span className="hidden sm:inline text-[10px] font-bold tracking-tighter opacity-70">KITTY_CORE v0.4</span>
           </div>
-          <div className="flex bg-white bg-opacity-5 rounded p-0.5 border border-white border-opacity-10 scale-90">
+          <div className="flex rounded-xl p-0.5" style={{ background: 'var(--panel-bg)', border: '1px solid var(--border-color)' }}>
             <button
               onClick={() => setActiveView('chat')}
-              className={`px-3 py-1 rounded text-[9px] font-bold transition-all ${activeView === 'chat' ? 'bg-orange-500 text-black' : 'opacity-50 hover:opacity-100'}`}
-              style={{ backgroundColor: activeView === 'chat' ? 'var(--accent-color)' : '' }}
+              className="px-4 py-1.5 rounded-xl text-xs font-semibold transition-all"
+              style={activeView === 'chat'
+                ? { background: 'var(--accent-color)', color: '#fff' }
+                : { color: 'var(--dim-text)' }}
             >
-              THE VOID
+              Chat
             </button>
             <button
               onClick={() => setActiveView('journal')}
-              className={`px-3 py-1 rounded text-[9px] font-bold transition-all ${activeView === 'journal' ? 'bg-orange-500 text-black' : 'opacity-50 hover:opacity-100'}`}
-              style={{ backgroundColor: activeView === 'journal' ? 'var(--accent-color)' : '' }}
+              className="px-4 py-1.5 rounded-xl text-xs font-semibold transition-all"
+              style={activeView === 'journal'
+                ? { background: 'var(--accent-color)', color: '#fff' }
+                : { color: 'var(--dim-text)' }}
             >
-              REFLECTIONS
+              Journal
             </button>
           </div>
         </div>
@@ -322,6 +327,14 @@ export default function GarageDashboard() {
             <button onClick={toggleDensity} className="hidden sm:inline hover:text-white uppercase tracking-tighter">[{density}]</button>
             <button onClick={() => setSettingsModalOpen(true)} className="hover:text-white">⚙ <span className="hidden sm:inline">SETTINGS</span></button>
           </div>
+          {/* Mobile menu button */}
+          <button
+            className="md:hidden p-1 text-[var(--accent-color)] text-lg leading-none"
+            onClick={() => setMobileSidebarOpen(true)}
+            title="Menu"
+          >
+            ☰
+          </button>
         </div>
       </header>
 
@@ -395,6 +408,30 @@ export default function GarageDashboard() {
           </CollapsiblePanel>
         </div>
       </div>
+
+      {/* Mobile sidebar overlay */}
+      {mobileSidebarOpen && (
+        <div className="md:hidden fixed inset-0 z-50 flex">
+          <div className="absolute inset-0 bg-black bg-opacity-60" onClick={() => setMobileSidebarOpen(false)} />
+          <div className="relative w-72 max-w-[85vw] h-full bg-[var(--panel-bg)] border-r border-[var(--border-color)] overflow-y-auto z-10">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-color)]">
+              <span className="text-xs font-bold tracking-widest opacity-60 uppercase">The Bench</span>
+              <button onClick={() => setMobileSidebarOpen(false)} className="text-lg opacity-60">✕</button>
+            </div>
+            <Sidebar
+              currentMode={currentMode}
+              systemHealth={systemHealth}
+              thoughts={thoughts}
+              onAction={(action) => {
+                const cmd = action.startsWith('/') ? action : `/${action}`;
+                setMessages(prev => [...prev, { role: 'user', text: cmd }]);
+                executeCommand(cmd);
+                setMobileSidebarOpen(false);
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       <CommandPalette
         isOpen={commandPaletteOpen}
