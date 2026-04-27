@@ -14,9 +14,10 @@
     {
       "id": 2,
       "title": "Specialist Integration",
-      "status": "doing",
-      "tasks": [
-        "Write tests for Llama"
+      "status": "completed",
+      "tasks": [],
+      "done_tasks": [
+        "Write tests for Llama - Added 9 specialist framework tests"
       ]
     },
     {
@@ -57,7 +58,7 @@
     "Add Phi-4-mini specialist",
     "Add memory export/import"
   ],
-  "notes": "Active in: /Users/jacobbrizinski/Projects/kitty | Milestone 1 complete",
+  "notes": "Active in: /Users/jacobbrizinski/Projects/kitty | Milestones 1 & 2 complete",
   "project_name": "Kitty AI Router",
   "description": "Building a multi-model MLX router for Apple Silicon"
 }
