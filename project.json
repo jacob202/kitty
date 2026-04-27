@@ -3,11 +3,12 @@
     {
       "id": 1,
       "title": "Core Routing & Streaming",
-      "status": "doing",
-      "tasks": [
+      "status": "completed",
+      "tasks": [],
+      "done_tasks": [
         "Implement smart JSON parsing",
         "example task",
-        "clean up code"
+        "clean up code - verified compiles OK"
       ]
     },
     {
@@ -54,10 +55,9 @@
   "backlog": [
     "Build Gradio web UI",
     "Add Phi-4-mini specialist",
-    "Add memory export/import",
-    "Add DuckDuckGo search to web.py (from kitty_v2.py)"
+    "Add memory export/import"
   ],
-  "notes": "Active in: /Users/jacobbrizinski/Projects/kitty",
+  "notes": "Active in: /Users/jacobbrizinski/Projects/kitty | Milestone 1 complete",
   "project_name": "Kitty AI Router",
   "description": "Building a multi-model MLX router for Apple Silicon"
 }
