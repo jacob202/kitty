@@ -135,4 +135,24 @@ Format:
 
 ---
 
+## 2026-04-27 — Local MLX Multi-Specialist Router (Kitty v2) + Web Search
+
+**Done:**
+- Benchmarked Apple Silicon compatible MLX models, pivoting from 8B to 3B/1.5B to avoid Unified Memory OOM crashes.
+- Created `model_loader.py` to handle dynamic model switching and caching.
+- Developed `kitty_v2.py`: A persistent multi-specialist router with real-time token streaming, strict memory eviction (frees non-router models on switch), and session history.
+- Implemented an autonomous Web Search tool using `duckduckgo-search` for the new "research" specialist, allowing it to fetch and synthesize live data without API keys.
+- Configured optimized `mlx-community` 4-bit Safetensor models: `DeepSeek-R1-Distill-Qwen-1.5B` (Router), `Qwen2.5-3B-Instruct` (Code/Research), and `Llama-3.2-3B-Instruct` (Conversation).
+- Reclaimed disk space by deleting older/incompatible models (8B DeepSeek and 1.5B Dolphin) from `~/.cache/huggingface/hub/`.
+
+**Open:**
+- Fine-tune specialists via QLoRA on the "ingest folder digest" (must follow strict memory limits: Rank 16, batch size 1).
+- Wire `kitty_v2.py` logic directly into the main application orchestrator (`web.py` / `system_routes.py`).
+
+**Corrections:**
+- Initial 8B model benchmark caused `[METAL] Command buffer execution failed: Insufficient Memory`. Immediately pivoted to 3B models.
+- Parallel MLX generation is impossible on single GPU buffers (Unified Memory limits). Adapted architecture to strictly load one specialist at a time while keeping the 1.5B router warm.
+
+---
+
 <!-- Add new entries above this line, newest at top after the separator -->

@@ -72,10 +72,15 @@ def _normalize_model_target(model_target: str | None) -> str:
 
 
 def _model_for_target(model_target: str | None) -> str:
+    """Return the OpenRouter model ID for a given target.
+
+    "configured" → KITTY_MODEL (paid/configured model)
+    "free" / "local" / unknown → free router (local falls here when MLX failed)
+    """
     target = _normalize_model_target(model_target)
-    if target == "free":
-        return _FREE_ROUTER
-    return _OR_BAL
+    if target == "configured":
+        return _OR_BAL
+    return _FREE_ROUTER
 
 # ── System prompt ─────────────────────────────────────────────────────────────
 _SYSTEM = (

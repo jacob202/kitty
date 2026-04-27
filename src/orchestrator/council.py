@@ -8,10 +8,12 @@ This module implements a multi-model council system where:
 5. Agreement/disagreement points are identified
 """
 
+import asyncio
 import logging
+import threading
 from typing import Any
 
-import requests
+import aiohttp
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +23,24 @@ AnswerDict = dict[str, str]
 RankedAnswer = dict[str, Any]  # Contains model, answer, score, role
 
 
-def _ollama_chat(model: str, prompt: str, timeout: int = 60) -> str:
+# Global event loop for async Ollama calls
+_COUNCIL_LOOP = None
+_COUNCIL_THREAD = None
+
+
+def _get_council_loop():
+    """Ensure a global asyncio loop is running in a background thread."""
+    global _COUNCIL_LOOP, _COUNCIL_THREAD
+    if _COUNCIL_LOOP is None:
+        _COUNCIL_LOOP = asyncio.new_event_loop()
+        _COUNCIL_THREAD = threading.Thread(
+            target=lambda: _COUNCIL_LOOP.run_forever(), daemon=True, name="council-async-loop"
+        )
+        _COUNCIL_THREAD.start()
+    return _COUNCIL_LOOP
+
+
+def _ollama_chat_async(model: str, prompt: str, timeout: int = 60) -> str:
     """Send a prompt to Ollama and get the response."""
     try:
         r = requests.post(
@@ -69,25 +88,41 @@ class Council:
         self.expert_roles = roles
 
     def _get_answers(self, query: str) -> list[AnswerDict]:
-        """Query all models and collect their answers."""
-        answers = []
-        for model in self.models:
-            # Add expert role context if in expert panel mode
+        """Query all models in parallel using asyncio."""
+
+        async def _get_answer_for_model(model: str) -> AnswerDict | None:
             prompt = query
             if self.expert_panel_mode and model in self.expert_roles:
                 role_info = self.expert_roles[model]
                 role_name = role_info.get("role", "expert")
                 prompt = f"[{role_name.upper()} PERSPECTIVE]\n\n{query}"
 
-            resp = _ollama_chat(model, prompt)
-            if resp:
-                answers.append(
-                    {
-                        "model": model,
-                        "answer": resp,
-                        "role": self.expert_roles.get(model, {}).get("role", "general"),
-                    }
-                )
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        f"{OLLAMA_BASE}/api/generate",
+                        json={"model": model, "prompt": prompt, "stream": False},
+                        timeout=aiohttp.ClientTimeout(total=60),
+                    ) as resp:
+                        data = await resp.json()
+                        resp_text = data.get("response", "")
+                        if resp_text:
+                            return {
+                                "model": model,
+                                "answer": resp_text,
+                                "role": self.expert_roles.get(model, {}).get("role", "general"),
+                            }
+            except Exception as e:
+                logger.error(f"Ollama {model} error: {e}")
+            return None
+
+        async def _run_parallel():
+            tasks = [_get_answer_for_model(model) for model in self.models]
+            results = await asyncio.gather(*tasks)
+            return [r for r in results if r is not None]
+
+        loop = _get_council_loop()
+        answers = asyncio.run_coroutine_threadsafe(_run_parallel(), loop).result(timeout=120)
         return answers
 
     def _rank(self, answers: list[AnswerDict], query: str) -> list[RankedAnswer]:

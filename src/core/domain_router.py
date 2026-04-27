@@ -23,12 +23,15 @@ class Domain(Enum):
     SOUL = "soul"
 
 
+import concurrent.futures
 import json
 from pathlib import Path
 
 _CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "domain_config.json"
 with open(_CONFIG_PATH, "r") as f:
     _CONFIG_DATA = json.load(f)
+
+_LLM_FALLBACK_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
 # Domain behavior flags - controls Kitty's response style per domain
 DOMAIN_CONFIG = _CONFIG_DATA["DOMAIN_CONFIG"]

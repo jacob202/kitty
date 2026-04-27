@@ -557,6 +557,133 @@ def suggest_next_steps() -> str:
     
     return "## Recommended Next Steps\n\n" + "\n\n".join(recommendations) if recommendations else "No specific recommendations - project looks good!"
 
+def kitty_self_improve() -> str:
+    """Run comprehensive self-improvement loop: test, audit, grade, fix, improve."""
+    print("\n" + "="*60)
+    print("🐱 KITTY SELF-IMPROVEMENT LOOP")
+    print("="*60)
+    
+    results = {
+        "test_results": {},
+        "audit_findings": [],
+        "grade": "N/A",
+        "fixes_applied": [],
+        "feedback": [],
+    }
+    
+    # Step 1: Run tests
+    print("\n[1/6] Running test suite...")
+    test_output = run_command(f"{sys.executable} -m pytest tests/ -v --tb=short 2>&1 | tail -20")
+    results["test_results"]["output"] = test_output
+    # Check for actual test failures (e.g., "10 failed" or "1 failed")
+    test_passed = " passed" in test_output and "failed)" not in test_output and " failed" not in test_output
+    results["test_results"]["passed"] = test_passed
+    
+    # Step 2: Run self-review
+    print("[2/6] Running code audit...")
+    all_code = ""
+    for root, dirs, files in os.walk(PROJECT_ROOT):
+        dirs[:] = [d for d in dirs if not d.startswith('.') and d not in ('venv', 'node_modules')]
+        for f in files:
+            if f.endswith('.py') and len(all_code) < 8000:
+                try:
+                    with open(os.path.join(root, f)) as src:
+                        all_code += f"\n# {f}\n{src.read(1500)}"
+                except OSError:
+                    continue
+    
+    prompt = f"Audit this code for bugs, security issues, and logic flaws. List ONLY the top 5 most critical issues in this format:\n1. [file:line] - issue description\n\nCode:\n{all_code[:6000]}"
+    
+    if USE_OPENROUTER and OPENROUTER_API_KEY:
+        audit_result = generate_openrouter(prompt, max_tokens=800, temp=0.3)
+    else:
+        model, tok = get_model(MODEL_BUILDER)
+        messages = [{"role": "user", "content": prompt}]
+        audit_result = generate(model, tok, prompt=_build_prompt(tok, messages),
+                               max_tokens=800, sampler=make_sampler(temp=0.3))
+    
+    results["audit_findings"] = audit_result
+    
+    # Step 3: Generate grade
+    print("[3/6] Generating grade...")
+    grade_factors = []
+    if test_passed:
+        grade_factors.append("Tests passing")
+    else:
+        grade_factors.append("Tests failing")
+    
+    # Check for critical issues
+    critical_count = audit_result.lower().count("critical") + audit_result.lower().count("bug") + audit_result.lower().count("error")
+    if critical_count == 0:
+        grade_factors.append("No critical bugs")
+    else:
+        grade_factors.append(f"{critical_count} potential issues")
+    
+    # Calculate grade
+    score = 100
+    if not test_passed:
+        score -= 30
+    score -= min(critical_count * 10, 40)
+    score = max(score, 0)
+    
+    if score >= 90:
+        grade = "A"
+    elif score >= 80:
+        grade = "B"
+    elif score >= 70:
+        grade = "C"
+    elif score >= 60:
+        grade = "D"
+    else:
+        grade = "F"
+    
+    results["grade"] = grade
+    results["score"] = score
+    
+    # Step 4: Provide actionable feedback
+    print("[4/6] Generating feedback...")
+    feedback_items = []
+    if not test_passed:
+        feedback_items.append("- Fix failing tests first (run pytest for details)")
+    if critical_count > 0:
+        feedback_items.append(f"- Address {critical_count} critical issues from audit")
+    
+    feedback_items.append("- Review backlog and pick next task")
+    feedback_items.append("- Consider running /health for project status")
+    
+    results["feedback"] = feedback_items
+    
+    # Step 5: Summary
+    print("[5/6] Summary")
+    print("-" * 40)
+    print(f"Tests: {'✅ PASS' if test_passed else '❌ FAIL'}")
+    print(f"Audit: {critical_count} issues found")
+    print(f"Grade: {grade} ({score}/100)")
+    
+    # Step 6: Recommendations
+    print("\n[6/6] Actionable Feedback:")
+    for fb in feedback_items:
+        print(f"  {fb}")
+    
+    print("\n" + "="*60)
+    print(f"FINAL GRADE: {grade}")
+    print("="*60)
+    
+    return f"""# Kitty Self-Improvement Report
+
+## Test Results: {'✅ PASS' if test_passed else '❌ FAIL'}
+
+## Audit Findings:
+{audit_result[:1000]}
+
+## Grade: {grade} ({score}/100)
+
+## Actionable Feedback:
+{chr(10).join(feedback_items)}
+
+Run this function periodically to track Kitty's health.
+"""
+
 TOOLS = {
     "run_command": run_command,
     "read_file": read_file,
@@ -568,6 +695,7 @@ TOOLS = {
     "run_pattern": run_pattern,
     "scan_project_health": scan_project_health,
     "suggest_next_steps": suggest_next_steps,
+    "kitty_self_improve": kitty_self_improve,  # defined above
 }
 
 # ------------------------------------------------------------
@@ -857,6 +985,7 @@ def show_help():
         "  /help          Show this help\n"
         "  /health        Scan project health\n"
         "  /next          Suggest next steps\n"
+        "  /improve       Run self-improvement: test, audit, grade, feedback\n"
         "  /models        Show model info and VRAM state\n"
         "  /council <q>   Two-perspective deliberation on a question\n"
         "  /selfreview    Run code audit over the entire project\n"
@@ -865,9 +994,9 @@ def show_help():
         "\nTools available: run_command, read_file, write_file,\n"
         "  modify_project_tasks, search_web, launch_kitty,\n"
         "  generate_project_brief, run_pattern, scan_project_health,\n"
-        "  suggest_next_steps\n"
+        "  suggest_next_steps, kitty_self_improve\n"
         "\nPatterns: summarize, action-items, explain-code, review-code,\n"
-        "  audit, breakdown, compare, brainstorm\n"
+        "  audit, breakdown, compare, brainstorm, test-plan, migrate-plan\n"
     )
 
 # ------------------------------------------------------------
@@ -893,6 +1022,15 @@ def main():
                 save_session()
                 break
             elif inp.lower() in ["/help", "help"]: show_help()
+            elif inp.lower() in ["/health", "health"]: print(scan_project_health())
+            elif inp.lower() in ["/next", "next"]: print(suggest_next_steps())
+            elif inp.lower() in ["/improve", "improve"]: print(kitty_self_improve())
+            elif inp.lower() in ["/patterns", "patterns"]:
+                with open(PROJECT_ROOT / "config" / "patterns.json") as f:
+                    patterns = json.load(f)
+                print("\n--- Available Patterns ---\n")
+                for name, info in patterns.items():
+                    print(f"  {name}: {info['description']}")
             elif inp.startswith("/council "): council(inp[9:])
             elif inp.startswith("/selfreview"): self_review()
             elif inp.startswith("/models"): show_models()

@@ -24,7 +24,7 @@ The Gemini share link `https://gemini.google.com/app/81b5438e3f428df4` was also 
 | `src/voice/gemini_voice.py` | Archive/hold | Placeholder for Gemini TTS; explicitly notes Gemini native TTS was not available when written. Do not build around it as a current source of truth without verification. |
 | `src/tools/superpowers/GEMINI.md` | Ignore for runtime | Just tool instruction includes; not Kitty app logic. |
 | `docs/phase3b_ui_rebuild_guide.md` | Use | High-value UI streaming notes: SocketIO/SSE coexistence, circular import pitfalls, busy-lock edge, TokenCapture behavior, verification checklist. |
-| `garage-ui/app/page.tsx` | Review/fix next | Live UI currently streams via `EventSource` in `executeCommand()` while also maintaining SocketIO telemetry. This conflicts with the Phase 3B guide's "client only uses SocketIO" statement. |
+| `garage-ui/app/page.tsx` | Review streaming decision next | Live UI currently streams via `EventSource` in `executeCommand()` while also maintaining SocketIO telemetry. `docs/phase3b_ui_rebuild_guide.md` now documents this as current-state drift from the legacy SocketIO template. Voice recording MIME fallback is already present here. |
 | `garage-ui/app/components/ChatInterface.tsx` | Keep | Clean chat surface with mascot state, markdown rendering, source pills, empty states, and voice button wiring. |
 
 ## Harvested Decisions
@@ -50,15 +50,18 @@ This may be intentional drift, but it should be decided explicitly:
 - Option A: keep SSE for chat and update/remove stale SocketIO migration docs.
 - Option B: move `executeCommand()` to SocketIO `send_message` and use the guide's checklist as the implementation source.
 
-### 2. Browser voice MIME handling is Chrome-only
+### 2. Browser voice MIME handling is already covered
 
-`garage-ui/app/page.tsx` creates the recorder with `audio/webm` unconditionally:
+Self-review correction: the first harvest pass over-recommended a voice patch. The current tree already handles Safari/iOS and Chrome recording formats.
 
-```ts
-const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-```
+Verified current support:
 
-Safari/iOS generally needs `audio/mp4`. Use MIME preference detection before creating the recorder.
+- `garage-ui/app/page.tsx` defines `RECORDING_MIME_CANDIDATES` with `audio/webm`, `audio/mp4`, and codec variants, then chooses via `MediaRecorder.isTypeSupported`.
+- `src/templates/index.html` has the same browser-side MIME candidate pattern.
+- `src/api/voice_routes.py` maps `audio/mp4` uploads to `.mp4`.
+- `tests/test_voice_routes.py` covers `audio/mp4`.
+
+Do not spend the next patch on MIME handling unless a browser test proves a regression.
 
 ### 3. LLM client duplication
 
@@ -76,11 +79,11 @@ The useful consolidation direction is:
 
 ## Recommended Next Patch
 
-Smallest high-value patch:
+Smallest high-value patch after self-review:
 
-1. Fix MediaRecorder MIME detection in `garage-ui/app/page.tsx`.
-2. Add a short UI-streaming decision note to `docs/phase3b_ui_rebuild_guide.md` or a new current-state doc.
-3. Add a reference test or lint-safe helper if frontend test tooling is available.
+1. Decide whether `garage-ui/app/page.tsx` should keep SSE for chat streaming or move chat tokens to SocketIO.
+2. If chat streaming is migrated to SocketIO later, update both `docs/phase3b_ui_rebuild_guide.md` and this harvest note in the same patch.
+3. Import the actual Gemini conversation text into `docs/imports/gemini-kitty-ui.md` when available, then mine it before archiving or deleting related UI notes.
 
 ## If The Gemini Chat Is Needed
 

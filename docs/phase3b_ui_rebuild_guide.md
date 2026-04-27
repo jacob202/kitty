@@ -46,7 +46,7 @@ socket_handlers.py  ────►  dispatch()  ────►  LLM writes to 
   └────────────────────────────────┘
 ```
 
-**Two transport paths coexist**: SSE still works server-side (`/chat` route in `streaming_routes.py`), but client only uses SocketIO. Tokens flow through both paths.
+**Two transport paths coexist**: SSE still works server-side (`/chat` and `/stream` routes in `streaming_routes.py`). The legacy `src/templates/index.html` client uses SocketIO for chat tokens, while the active `garage-ui/app/page.tsx` client currently uses `EventSource` against `/stream` for chat tokens. Tokens can flow through both paths depending on which UI surface is running.
 
 **Current garage-ui status (2026-04-27)**: this guide describes the legacy `src/templates/index.html`
 Phase 3B migration. The active `garage-ui/app/page.tsx` surface still uses `EventSource` against
@@ -224,10 +224,10 @@ python3.12 -c "from src.api.streaming_routes import streaming_bp; print('OK')"
 # 2. Start server
 python3.12 web.py
 
-# 3. Open http://localhost:7070 in browser
+# 3. Open http://localhost:7070 in browser for the legacy template surface.
 # 4. Check console for:
 #    - "connected" status dot
-#    - No "EventSource" or "SSE" references
+#    - No "EventSource" or "SSE" references in src/templates/index.html
 # 5. Send a message, verify:
 #    - Tokens appear incrementally
 #    - "done" event fires
@@ -237,6 +237,8 @@ python3.12 web.py
 ---
 
 ## Verification Checklist
+
+For `src/templates/index.html` legacy SocketIO surface:
 
 - [ ] `/voice_poll` route removed from `streaming_routes.py`
 - [ ] No `connectSSE()` in `index.html`
@@ -257,6 +259,13 @@ python3.12 web.py
 - [ ] `loadJournal()` preserved and called after `done` event
 - [ ] `showSuccess()` and `SUCCESS_MESSAGES` preserved
 
+For active `garage-ui/app/page.tsx` surface:
+
+- [ ] `executeCommand()` SSE `/stream` usage is preserved unless intentionally migrated.
+- [ ] SocketIO telemetry remains connected for node status, thinking bubbles, theme changes, and health updates.
+- [ ] `RECORDING_MIME_CANDIDATES` keeps both `audio/webm` and `audio/mp4` candidates for browser voice capture.
+- [ ] If chat streaming is migrated to SocketIO, update `docs/archive/2026-04-27-tree-cleanup/gemini-ui-harvest.md` and remove this current-state drift note.
+
 ---
 
 ## Audit Stamp — 2026-04-23
@@ -271,6 +280,7 @@ python3.12 web.py
 | `send_message` handler in `socket_handlers.py` | ✅ Confirmed |
 | Token capture emit in `shared.py` | ✅ Confirmed |
 | No SSE in index.html | ✅ Confirmed |
+| Garage UI SSE current-state documented | ✅ Confirmed 2026-04-27 |
 | No voice_poll in index.html | ✅ Confirmed |
 | No loading overlay remnants | ✅ Confirmed |
 | Connection status element exists | ✅ Confirmed |

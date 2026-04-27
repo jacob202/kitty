@@ -13,6 +13,7 @@ import os
 import tempfile
 import threading
 import time
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
@@ -27,6 +28,72 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
 DEFAULT_MODEL = os.getenv("KITTY_DEFAULT_MODEL", "qwen/qwen3-8b:free")  # Free OpenRouter tier; None → local MLX only
+
+# ── Routing constants ────────────────────────────────────────────────
+# Mirrors web_orchestrator.py; configurable via env vars.
+_ROUTE_FREE   = "openrouter/free"
+_ROUTE_MAX    = os.getenv("KITTY_MAX_MODEL",        "deepseek/deepseek-r1-0528")
+_ROUTE_REASON = os.getenv("KITTY_BALANCED_REASON",  "deepseek/deepseek-r1-distill-qwen-7b")
+_PREFER_LOCAL = os.getenv("KITTY_ENABLE_LOCAL_MLX", "0").lower() in {"1", "true", "yes", "on"}
+
+
+@dataclass(frozen=True)
+class ModelRoute:
+    """Immutable routing decision returned by route_model()."""
+    provider: str  # "mlx_local" | "openrouter" | "anthropic"
+    model: str     # OpenRouter model ID; "" = use MLX_MODEL env var
+    reason: str    # human-readable decision note
+
+
+def route_model(
+    mode: str = "fast",
+    reasoning: bool = False,
+    offline: bool = False,
+    model_target: str = "free",
+    mlx_ready: bool | None = None,
+) -> ModelRoute:
+    """
+    Pure routing decision — no network or model calls.
+
+    Returns the *primary* route for this request.  call_llm() handles
+    fallbacks; this function answers "what to try first."
+
+    Parameters
+    ----------
+    mode         : "fast" | "balanced" | "max"
+    reasoning    : enable chain-of-thought
+    offline      : True when no API keys are configured
+    model_target : "free" | "configured" | "local"
+    mlx_ready    : override MLX availability (None = read KITTY_ENABLE_LOCAL_MLX)
+    """
+    use_mlx = mlx_ready if mlx_ready is not None else _PREFER_LOCAL
+
+    # No API keys — local only
+    if offline:
+        return ModelRoute("mlx_local", "", "offline — no API keys")
+
+    # Fast mode: MLX first when enabled or explicitly requested
+    if mode == "fast":
+        if model_target == "local" or use_mlx:
+            return ModelRoute("mlx_local", "", "fast + local MLX")
+        return ModelRoute("openrouter", _ROUTE_FREE, "fast, MLX not ready — free router")
+
+    # Balanced mode
+    if mode == "balanced":
+        if reasoning:
+            return ModelRoute("openrouter", _ROUTE_REASON, "balanced reasoning — DeepSeek R1 distill")
+        if model_target == "configured":
+            configured = os.getenv("KITTY_MODEL", _ROUTE_FREE)
+            return ModelRoute("openrouter", configured, "balanced configured")
+        return ModelRoute("openrouter", _ROUTE_FREE, "balanced free")
+
+    # Max mode: DeepSeek R1 full chain-of-thought
+    if mode == "max":
+        return ModelRoute("openrouter", _ROUTE_MAX, "max — DeepSeek R1")
+
+    # Unknown mode — safe default
+    return ModelRoute("openrouter", _ROUTE_FREE, f"unknown mode '{mode}' — default free")
+
 
 # Reusable session for connection pooling
 _http_session = None
@@ -87,7 +154,13 @@ def _load_mlx():
             return False
 
 
-def _generate_mlx(prompt: str, system_prompt: str, max_tokens: int, temperature: float) -> str | None:
+def _generate_mlx(
+    prompt: str,
+    system_prompt: str,
+    max_tokens: int,
+    temperature: float,
+    enable_thinking: bool = False,
+) -> str | None:
     """Generate text using native MLX (no HTTP server needed)."""
     if not _load_mlx() or _mlx_model is None:
         return None
@@ -101,10 +174,16 @@ def _generate_mlx(prompt: str, system_prompt: str, max_tokens: int, temperature:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
 
-        prompt_text = _mlx_tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True,
-            enable_thinking=False
-        )
+        try:
+            prompt_text = _mlx_tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True,
+                enable_thinking=enable_thinking,
+            )
+        except TypeError:
+            # Older tokenizer — no enable_thinking param
+            prompt_text = _mlx_tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True,
+            )
 
         sampler = make_sampler(temp=temperature)
         return generate(
@@ -262,22 +341,28 @@ def call_llm(
     model: str | None = None,
     max_tokens: int = 1024,
     temperature: float = 0.7,
+    reasoning: bool = False,
 ) -> str:
     """
-    Call an LLM. Primary: OpenRouter. Fallback: local MLX server. Last resort: placeholder.
+    Call an LLM.
 
-    model: OpenRouter model ID (e.g. "qwen/qwen3-235b-a22b-2507").
-           Pass "anthropic/claude-sonnet-4-6" for explicit premium requests.
-           None = use DEFAULT_MODEL.
+    When KITTY_ENABLE_LOCAL_MLX=1 (default offline strategy), MLX is tried
+    first and remote providers are used as fallback.  Without that flag, the
+    order is OpenRouter → Anthropic direct → MLX local.
+
+    model    : OpenRouter model ID (e.g. "qwen/qwen3-235b-a22b-2507").
+               Pass "anthropic/claude-sonnet-4-6" for explicit premium requests.
+               None = use DEFAULT_MODEL.
+    reasoning: enable chain-of-thought (Qwen3 enable_thinking / DeepSeek R1).
 
     Provider resilience: circuit breakers skip failing providers,
     rate limiters throttle preemptively before hitting provider limits.
     """
     selected = model or DEFAULT_MODEL
-    errors = []
+    errors: list[str] = []
 
     for attempt in range(3):
-        result = _call_llm_once(prompt, system_prompt, selected, max_tokens, temperature, errors)
+        result = _call_llm_once(prompt, system_prompt, selected, max_tokens, temperature, errors, reasoning)
         if result is not None:
             return result
         if attempt < 2:
@@ -289,8 +374,19 @@ def call_llm(
     return f"[offline mode — {'; '.join(errors)}]"
 
 
-def _call_llm_once(prompt, system_prompt, selected, max_tokens, temperature, errors):
-    # Try OpenRouter only if we have a key AND an explicit model (None = local-only path)
+def _call_llm_once(prompt, system_prompt, selected, max_tokens, temperature, errors, reasoning=False):
+    # When local MLX is preferred (KITTY_ENABLE_LOCAL_MLX=1), try it first.
+    if _PREFER_LOCAL:
+        if _check_provider_resilience("mlx_local"):
+            result = _try_mlx(prompt, system_prompt, max_tokens, temperature, reasoning=reasoning)
+            if result is not None:
+                _record_provider_outcome("mlx_local", True)
+                logger.info("Using native MLX local inference (preferred)")
+                return result
+            _record_provider_outcome("mlx_local", False, "mlx_unavailable")
+        errors.append("MLX local failed")
+
+    # OpenRouter (only if we have a key AND an explicit model)
     if OPENROUTER_API_KEY and selected:
         if _check_provider_resilience("openrouter"):
             result = _try_openrouter(prompt, system_prompt, selected, max_tokens, temperature)
@@ -300,7 +396,7 @@ def _call_llm_once(prompt, system_prompt, selected, max_tokens, temperature, err
             _record_provider_outcome("openrouter", False, "request_failed")
         errors.append(f"OpenRouter/{selected} unavailable")
 
-    # Try Anthropic direct (only for claude models)
+    # Anthropic direct (only for claude models, only when no OpenRouter key)
     if not OPENROUTER_API_KEY and ANTHROPIC_API_KEY and selected and "claude" in selected:
         if _check_provider_resilience("anthropic"):
             result = _try_anthropic(prompt, system_prompt, selected, max_tokens, temperature)
@@ -310,15 +406,17 @@ def _call_llm_once(prompt, system_prompt, selected, max_tokens, temperature, err
             _record_provider_outcome("anthropic", False, "request_failed")
         errors.append("Anthropic direct unavailable")
 
-    # Try MLX local fallback (native inference, no server needed)
-    if _check_provider_resilience("mlx_local"):
-        result = _try_mlx(prompt, system_prompt, max_tokens, temperature)
-        if result is not None:
-            _record_provider_outcome("mlx_local", True)
-            logger.info("Using native MLX local inference")
-            return result
-        _record_provider_outcome("mlx_local", False, "mlx_unavailable")
-    errors.append("MLX local inference failed (install mlx-lm: pip install mlx-lm)")
+    # MLX fallback (when not preferred above, or as last resort)
+    if not _PREFER_LOCAL:
+        if _check_provider_resilience("mlx_local"):
+            result = _try_mlx(prompt, system_prompt, max_tokens, temperature, reasoning=reasoning)
+            if result is not None:
+                _record_provider_outcome("mlx_local", True)
+                logger.info("Using native MLX local inference (fallback)")
+                return result
+            _record_provider_outcome("mlx_local", False, "mlx_unavailable")
+        errors.append("MLX local inference failed (install mlx-lm: pip install mlx-lm)")
+
     return None
 
 
@@ -383,7 +481,11 @@ def _try_anthropic(
 
 
 def _try_mlx(
-    prompt: str, system_prompt: str, max_tokens: int, temperature: float
+    prompt: str,
+    system_prompt: str,
+    max_tokens: int,
+    temperature: float,
+    reasoning: bool = False,
 ) -> str | None:
     """Native MLX inference on Apple Silicon — no HTTP server needed."""
-    return _generate_mlx(prompt, system_prompt, max_tokens, temperature)
+    return _generate_mlx(prompt, system_prompt, max_tokens, temperature, enable_thinking=reasoning)

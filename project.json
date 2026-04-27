@@ -22,17 +22,26 @@
     },
     {
       "id": 3,
-      "title": "Project Manager (external)",
-      "status": "doing",
-      "tasks": [
-        "NOTE: Requires Ollama to be running with nomic-embed-text (src/memory/journal_db.py:275)"
-      ],
+      "title": "Project Manager (Kitty Builder)",
+      "status": "completed",
+      "tasks": [],
       "done_tasks": [
-        "Update routing algorithm for project manager"
+        "Kitty Builder with full context, tools, patterns, health scanning"
       ]
     },
     {
       "id": 4,
+      "title": "Kitty Self-Improvement",
+      "status": "todo",
+      "tasks": [
+        "Create auto-audit function in kittybuilder",
+        "Create bug-fix function",
+        "Create grading system",
+        "Create feedback implementation"
+      ]
+    },
+    {
+      "id": 5,
       "title": "Implementation Review Items (Deferred)",
       "status": "todo",
       "tasks": [
@@ -44,7 +53,7 @@
       ]
     },
     {
-      "id": 5,
+      "id": 6,
       "title": "AgentCompany Integration",
       "status": "todo",
       "tasks": [
@@ -58,7 +67,7 @@
     "Add Phi-4-mini specialist",
     "Add memory export/import"
   ],
-  "notes": "Active in: /Users/jacobbrizinski/Projects/kitty | Milestones 1 & 2 complete",
+  "notes": "Active in: /Users/jacobbrizinski/Projects/kitty",
   "project_name": "Kitty AI Router",
   "description": "Building a multi-model MLX router for Apple Silicon"
 }
