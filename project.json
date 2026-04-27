@@ -40,6 +40,17 @@
         "Fix _SupervisorShim not registered with Flask",
         "Address prompt injection risk in kitty_v2.py"
       ]
+    },
+    {
+      "id": 5,
+      "title": "AgentCompany Integration",
+      "status": "todo",
+      "tasks": [
+        "Review AgentCompany patterns.json for prompt templates",
+        "Evaluate AgentCompany kitty_settings.json feature flags",
+        "Review AgentCompany audit reports for roadmap items",
+        "Consider supervisor.py architecture for future enhancements"
+      ]
     }
   ],
   "backlog": [
@@ -51,9 +62,12 @@
     "Add memory export/import",
     "Integrate Kitty Builder (AI project manager)",
     "Add model_preloader.py for model management",
-    "Review implementation_review_2026-04-27.md"
+    "Review implementation_review_2026-04-27.md",
+    "Add auto_pagination feature from AgentCompany",
+    "Implement voice_input feature (SuperWhisper)",
+    "Review hardware_vision_auto_search component pricing"
   ],
-  "notes": "Active in: /Users/jacobbrizinski/Projects/kitty",
+  "notes": "Active in: /Users/jacobbrizinski/Projects/kitty | AgentCompany docs integrated",
   "project_name": "Kitty AI Router",
   "description": "Building a multi-model MLX router for Apple Silicon"
 }

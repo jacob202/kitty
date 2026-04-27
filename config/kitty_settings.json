@@ -1,0 +1,49 @@
+{
+  "features": {
+    "auto_pagination": {
+      "enabled": true,
+      "description": "Automatically breaks massive AI responses into seamless chunks to bypass token limits.",
+      "impact": "Prevents 'cut off' responses on huge deep-dives."
+    },
+    "chat_history_profiling": {
+      "enabled": false,
+      "description": "Learn from conversation patterns for personalization",
+      "impact": "Kitty will automatically adapt her persona to your preferences over time."
+    },
+    "unhinged_mode": {
+      "enabled": false,
+      "description": "Allow chaotic personality shifts and glitch effects",
+      "impact": "Enables experimental personality modes with visual effects."
+    },
+    "voice_input": {
+      "enabled": true,
+      "description": "SuperWhisper voice integration",
+      "impact": "Allows hands-free interaction via voice commands."
+    },
+    "screen_watcher": {
+      "enabled": false,
+      "description": "Continuous screen monitoring for context",
+      "impact": "Provides ambient awareness but uses more system resources."
+    },
+    "hardware_vision_auto_search": {
+      "enabled": true,
+      "description": "Automatically searches for component prices (DigiKey, Mouser) when analyzing a PCB photo.",
+      "impact": "Saves time, but uses more API calls."
+    }
+  },
+  "models": {
+    "primary": "claude-3-5-sonnet",
+    "fallback": "deepseek-chat",
+    "vision": "claude-3-5-sonnet"
+  },
+  "ui": {
+    "default_theme": "hardware",
+    "animation_speed": "normal",
+    "compact_mode": false
+  },
+  "system": {
+    "max_tokens": 4000,
+    "temperature": 0.7,
+    "debug_mode": false
+  }
+}
