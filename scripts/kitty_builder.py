@@ -87,7 +87,7 @@ session = Session()
 _model_cache = {}
 
 def get_model(model_id: str, retries: int = 2):
-    if USE_OPENROUTER:
+    if USE_OPENROUTER and _openrouter_client:
         return ("openrouter", model_id)
     if model_id in _model_cache:
         return _model_cache[model_id]
@@ -471,6 +471,32 @@ def search_web(query: str) -> str:
 def get_project_brief() -> str:
     return generate_project_brief()
 
+def run_pattern(pattern_name: str, text: str) -> str:
+    """Run a pattern on the given text. Available patterns: summarize, action-items, explain, prescriber-explain, parts-search, obd-explain, med-check, journal-prompt, chatbox-brainstorm"""
+    patterns_path = PROJECT_ROOT / "config" / "patterns.json"
+    if not patterns_path.exists():
+        return "Error: patterns.json not found"
+    
+    try:
+        with open(patterns_path) as f:
+            patterns = json.load(f)
+        
+        if pattern_name not in patterns:
+            return f"Error: Pattern '{pattern_name}' not found. Available: {', '.join(patterns.keys())}"
+        
+        prompt_template = patterns[pattern_name]["prompt"]
+        prompt = prompt_template.replace("{text}", text)
+        
+        if USE_OPENROUTER and OPENROUTER_API_KEY:
+            return generate_openrouter(prompt, max_tokens=1000, temp=0.5)
+        else:
+            model, tok = get_model(MODEL_BUILDER)
+            messages = [{"role": "user", "content": prompt}]
+            return generate(model, tok, prompt=_build_prompt(tok, messages),
+                          max_tokens=1000, sampler=make_sampler(temp=0.5))
+    except Exception as e:
+        return f"Error running pattern: {e}"
+
 TOOLS = {
     "run_command": run_command,
     "read_file": read_file,
@@ -479,6 +505,7 @@ TOOLS = {
     "search_web": search_web,
     "launch_kitty": lambda: run_command(f"{sys.executable} -m pytest tests/ -q --tb=short"),
     "generate_project_brief": get_project_brief,
+    "run_pattern": run_pattern,
 }
 
 # ------------------------------------------------------------
@@ -552,13 +579,12 @@ def self_review():
                 except OSError:
                     continue
 
-    model_info = get_model(MODEL_CODE)
     prompt = f"Audit the following code for bugs, security issues, and logic flaws. IMPORTANT: The files have been truncated to fit in memory. DO NOT report missing closing brackets or 'incomplete code' at the very end of files. Be concise — list only real findings.\n\n{all_code}"
-    
+
     if USE_OPENROUTER and OPENROUTER_API_KEY:
         report = generate_openrouter(prompt, max_tokens=800, temp=0.3)
     else:
-        model, tok = model_info
+        model, tok = get_model(MODEL_CODE)
         messages = [{"role": "user", "content": prompt}]
         report = generate(model, tok, prompt=_build_prompt(tok, messages),
                           max_tokens=800, sampler=make_sampler(temp=0.3))
@@ -658,7 +684,6 @@ def _extract_json(text: str) -> dict | None:
 
 
 def chat(user_input: str):
-    model_info = get_model(MODEL_BUILDER)
     sys_msg = SYSTEM_PROMPT.format(root=PROJECT_ROOT, project=_format_project(session.project_state))
 
     if not session.history:
@@ -696,7 +721,7 @@ def chat(user_input: str):
                     print(f"[Retry {attempt + 2}] {e}")
                     time.sleep(1)
     else:
-        model, tok = model_info
+        model, tok = get_model(MODEL_BUILDER)
         prompt = _build_prompt(tok, session.history, thinking=False)
         print("[Kitty] ", end="", flush=True)
         response_parts = []
