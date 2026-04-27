@@ -47,25 +47,15 @@
       "status": "todo",
       "tasks": [
         "Review AgentCompany patterns.json for prompt templates",
-        "Evaluate AgentCompany kitty_settings.json feature flags",
-        "Review AgentCompany audit reports for roadmap items",
-        "Consider supervisor.py architecture for future enhancements"
+        "Evaluate AgentCompany kitty_settings.json feature flags"
       ]
     }
   ],
   "backlog": [
-    "Fine-tune router",
-    "Write unit tests",
     "Build Gradio web UI",
     "Add Phi-4-mini specialist",
-    "Implement web search plugin",
     "Add memory export/import",
-    "Integrate Kitty Builder (AI project manager)",
-    "Add model_preloader.py for model management",
-    "Review implementation_review_2026-04-27.md",
-    "Add auto_pagination feature from AgentCompany",
-    "Implement voice_input feature (SuperWhisper)",
-    "Review hardware_vision_auto_search component pricing"
+    "Add DuckDuckGo search to web.py (from kitty_v2.py)"
   ],
   "notes": "Active in: /Users/jacobbrizinski/Projects/kitty",
   "project_name": "Kitty AI Router",

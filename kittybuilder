@@ -1,0 +1,13 @@
+#!/bin/bash
+# Wrapper to launch the Kitty Builder agent
+
+# Navigate to project root if script is called from elsewhere
+cd "$(dirname "$0")"
+
+# Ensure venv is used if it exists
+if [ -d "venv" ]; then
+    source venv/bin/activate
+fi
+
+# Launch the builder
+python3 scripts/kitty_builder.py "$@"
