@@ -20,11 +20,31 @@ _ip() {
   python3 -c "import socket; s=socket.socket(); s.settimeout(1); s.connect(('8.8.8.8',80)); print(s.getsockname()[0]); s.close()" 2>/dev/null || echo "127.0.0.1"
 }
 
+_port_pid() {
+  lsof -tiTCP:"$PORT" -sTCP:LISTEN 2>/dev/null | head -1
+}
+
+_pidfile_pid() {
+  [[ -f "$PIDFILE" ]] && cat "$PIDFILE" 2>/dev/null
+}
+
+_pid_alive() {
+  [[ -n "$1" ]] && kill -0 "$1" 2>/dev/null
+}
+
 _start() {
-  if [[ -f "$PIDFILE" ]] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
-    echo "Kitty is already running (PID $(cat "$PIDFILE")) — http://localhost:$PORT"
+  local port_pid=$(_port_pid)
+  if [[ -n "$port_pid" ]]; then
+    echo "$port_pid" > "$PIDFILE"
+    echo "Kitty is already running (PID $port_pid) — http://localhost:$PORT"
     return 0
   fi
+
+  local file_pid=$(_pidfile_pid)
+  if _pid_alive "$file_pid"; then
+    echo "Ignoring stale Kitty PID $file_pid; it is not listening on port $PORT"
+  fi
+  rm -f "$PIDFILE"
 
   echo "Starting Kitty…"
   local pid
@@ -76,41 +96,44 @@ PY
 }
 
 _stop() {
-  if [[ -f "$PIDFILE" ]]; then
-    local pid=$(cat "$PIDFILE")
-    if kill -0 "$pid" 2>/dev/null; then
-      kill "$pid"
-      echo "Kitty stopped (PID $pid)"
-    else
-      echo "No process at PID $pid"
-    fi
-    rm -f "$PIDFILE"
-  else
-    # Fallback: kill by port
-    local pid=$(lsof -ti tcp:$PORT 2>/dev/null | head -1)
-    if [[ -n "$pid" ]]; then
-      kill "$pid" && echo "Killed process on port $PORT (PID $pid)"
-    else
-      echo "Kitty doesn't appear to be running"
-    fi
+  local file_pid=$(_pidfile_pid)
+  local port_pid=$(_port_pid)
+  local stopped=0
+
+  if [[ -n "$port_pid" ]]; then
+    kill "$port_pid" && echo "Kitty stopped (PID $port_pid)"
+    stopped=1
+  fi
+
+  if _pid_alive "$file_pid" && [[ "$file_pid" != "$port_pid" ]]; then
+    kill "$file_pid" && echo "Stopped stale Kitty PID $file_pid"
+    stopped=1
+  fi
+
+  rm -f "$PIDFILE"
+
+  if [[ "$stopped" -eq 0 ]]; then
+    echo "Kitty doesn't appear to be running"
   fi
 }
 
 _status() {
-  local running_pid=""
-  if [[ -f "$PIDFILE" ]] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
-    running_pid=$(cat "$PIDFILE")
-  else
-    # Fallback: check by port
-    running_pid=$(lsof -ti tcp:$PORT 2>/dev/null | head -1)
-  fi
+  local file_pid=$(_pidfile_pid)
+  local running_pid=$(_port_pid)
 
   if [[ -n "$running_pid" ]]; then
+    if [[ "$running_pid" != "$file_pid" ]]; then
+      echo "$running_pid" > "$PIDFILE"
+    fi
     local ip=$(_ip)
     echo "  running  PID $running_pid"
     echo "  local    http://localhost:$PORT"
     echo "  phone    http://$ip:$PORT"
   else
+    if _pid_alive "$file_pid"; then
+      echo "  stopped  stale PID $file_pid is alive but not listening on port $PORT"
+    fi
+    rm -f "$PIDFILE"
     echo "  stopped"
   fi
 }
