@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Kitty — AI Dev Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800;900&family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #070707; --surface: #0f0f0f; --surface-2: #141414;
+  --border: rgba(255,255,255,0.05); --border-warm: rgba(255,95,31,0.2);
+  --accent: #ff5f1f; --accent-dim: rgba(255,95,31,0.35);
+  --text: #d6d6d6; --text-mid: #777; --text-dim: #383838;
+  --radius: 10px;
+  --tag-standout: #ff5f1f; --tag-relevant: #4ecdc4; --tag-general: #777;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'JetBrains Mono', monospace; font-weight: 300;
+  min-height: 100vh; padding: 40px 24px;
+}
+.container { max-width: 960px; margin: 0 auto; }
+
+/* Header */
+header { margin-bottom: 40px; }
+header h1 {
+  font-family: 'Syne', sans-serif; font-weight: 800; font-size: 28px;
+  color: var(--accent); letter-spacing: -0.5px;
+}
+header p { color: var(--text-mid); font-size: 13px; margin-top: 6px; }
+header .nav { margin-top: 16px; display: flex; gap: 12px; }
+header .nav a {
+  color: var(--text-mid); text-decoration: none; font-size: 13px;
+  padding: 6px 14px; border: 1px solid var(--border); border-radius: var(--radius);
+  transition: all 0.2s;
+}
+header .nav a:hover { color: var(--accent); border-color: var(--border-warm); }
+
+/* Summary cards */
+.summary-row { display: flex; gap: 16px; margin-bottom: 28px; flex-wrap: wrap; }
+.summary-card {
+  flex: 1; min-width: 120px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px 20px;
+}
+.summary-card .num { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 800; }
+.summary-card .label { font-size: 11px; color: var(--text-mid); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; }
+.summary-card.standout .num { color: var(--tag-standout); }
+.summary-card.relevant .num { color: var(--tag-relevant); }
+.summary-card.general .num { color: var(--tag-general); }
+.summary-card.total .num { color: var(--text); }
+
+/* Filters */
+.filters { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+.filter-btn {
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text-mid); padding: 6px 16px; border-radius: var(--radius);
+  font-family: 'JetBrains Mono', monospace; font-size: 12px; cursor: pointer;
+  transition: all 0.2s;
+}
+.filter-btn:hover { border-color: var(--border-warm); color: var(--text); }
+.filter-btn.active { border-color: var(--accent); color: var(--accent); }
+.filter-btn.refresh { margin-left: auto; }
+.filter-btn.refresh:disabled { opacity: 0.4; cursor: wait; }
+
+/* Items */
+.item {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 18px 22px; margin-bottom: 12px;
+  transition: border-color 0.2s;
+}
+.item:hover { border-color: rgba(255,255,255,0.1); }
+.item.standout { border-left: 3px solid var(--tag-standout); }
+.item.relevant { border-left: 3px solid var(--tag-relevant); }
+.item.general { border-left: 3px solid var(--tag-general); }
+.item-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.item-title { font-size: 14px; font-weight: 500; color: var(--text); line-height: 1.4; }
+.item-title a { color: var(--text); text-decoration: none; }
+.item-title a:hover { color: var(--accent); }
+.item-tag {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
+  padding: 3px 8px; border-radius: 4px; white-space: nowrap; flex-shrink: 0;
+}
+.item-tag.standout { background: rgba(255,95,31,0.15); color: var(--tag-standout); }
+.item-tag.relevant { background: rgba(78,205,196,0.15); color: var(--tag-relevant); }
+.item-tag.general { background: rgba(119,119,119,0.15); color: var(--tag-general); }
+.item-reason { font-size: 12px; color: var(--accent-dim); margin-top: 8px; }
+.item-meta { font-size: 11px; color: var(--text-dim); margin-top: 6px; }
+.loading { text-align: center; color: var(--text-dim); padding: 40px; font-size: 13px; }
+.error { text-align: center; color: var(--accent); padding: 20px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>↗ AI Development Monitor</h1>
+    <p>Tracking MLX, Apple Silicon, local LLM, and open‑source AI developments relevant to Kitty</p>
+    <div class="nav">
+      <a href="/">← Back to Kitty</a>
+      <a href="/settings">Settings</a>
+    </div>
+  </header>
+
+  <div class="summary-row" id="summary"></div>
+
+  <div class="filters">
+    <button class="filter-btn active" data-tag="">All</button>
+    <button class="filter-btn" data-tag="standout">Standout</button>
+    <button class="filter-btn" data-tag="relevant">Relevant</button>
+    <button class="filter-btn" data-tag="general">General</button>
+    <button class="filter-btn refresh" id="refreshBtn" onclick="refreshData()">⟳ Refresh</button>
+  </div>
+
+  <div id="items" class="loading">Loading developments...</div>
+</div>
+
+<script>
+const API = "/api/ai-dev";
+let currentTag = "";
+
+async function loadItems(tag) {
+  currentTag = tag || "";
+  const el = document.getElementById("items");
+  el.className = "loading";
+  el.textContent = "Loading developments...";
+
+  try {
+    const url = `${API}/items?limit=30${tag ? "&tag=" + tag : ""}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    renderSummary(data.summary);
+    renderItems(data.items);
+  } catch (e) {
+    document.getElementById("items").className = "error";
+    document.getElementById("items").textContent = "Failed to load: " + e.message;
+  }
+}
+
+function renderSummary(summary) {
+  const el = document.getElementById("summary");
+  el.innerHTML = `
+    <div class="summary-card total">
+      <div class="num">${summary.total}</div>
+      <div class="label">Total Tracked</div>
+    </div>
+    <div class="summary-card standout">
+      <div class="num">${summary.standout}</div>
+      <div class="label">Standout</div>
+    </div>
+    <div class="summary-card relevant">
+      <div class="num">${summary.relevant}</div>
+      <div class="label">Relevant</div>
+    </div>
+    <div class="summary-card general">
+      <div class="num">${summary.general || 0}</div>
+      <div class="label">General</div>
+    </div>
+  `;
+}
+
+function renderItems(items) {
+  const el = document.getElementById("items");
+  if (!items.length) {
+    el.className = "loading";
+    el.textContent = "No developments yet. Click refresh to fetch the latest.";
+    return;
+  }
+  el.className = "";
+  el.innerHTML = items.map(i => `
+    <div class="item ${i.tag}">
+      <div class="item-header">
+        <div class="item-title">
+          <a href="${i.url}" target="_blank" rel="noopener">${i.title}</a>
+        </div>
+        <span class="item-tag ${i.tag}">${i.tag}</span>
+      </div>
+      <div class="item-reason">${i.reason}</div>
+      <div class="item-meta">${i.source} · ${i.date || "recent"}</div>
+    </div>
+  `).join("");
+}
+
+async function refreshData() {
+  const btn = document.getElementById("refreshBtn");
+  btn.disabled = true;
+  btn.textContent = "⟳ Fetching...";
+  try {
+    const resp = await fetch(`${API}/refresh`, { method: "POST" });
+    const data = await resp.json();
+    if (data.ok) {
+      await loadItems(currentTag);
+    }
+  } catch (e) {
+    console.error("Refresh failed:", e);
+  }
+  btn.disabled = false;
+  btn.textContent = "⟳ Refresh";
+}
+
+// Filter buttons
+document.querySelectorAll(".filter-btn[data-tag]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".filter-btn[data-tag]").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    loadItems(btn.dataset.tag);
+  });
+});
+
+// Initial load
+loadItems("");
+</script>
+</body>
+</html>

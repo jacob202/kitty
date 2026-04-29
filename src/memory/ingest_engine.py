@@ -188,15 +188,20 @@ DOCUMENT:
         return 1
 
     def ingest_directory(self, store_in_kb: bool = True, domain: str | None = None) -> dict[str, Any]:
-        """Ingest all files in watch_dir."""
+        """Ingest all files in watch_dir (recursive with subdir name as domain)."""
         files = self.scan_directory()
         results = {"processed": [], "skipped": [], "failed": [], "total_chunks": 0}
 
         for f in files:
             try:
-                count = self.ingest_file(f, store_in_kb=store_in_kb, domain=domain)
+                file_domain = domain
+                if file_domain is None:
+                    parent_dir = f.parent.name
+                    file_domain = parent_dir if parent_dir != self.watch_dir.name else "general"
+
+                count = self.ingest_file(f, store_in_kb=store_in_kb, domain=file_domain)
                 if count > 0:
-                    results["processed"].append({"file": f.name, "chunks": count})
+                    results["processed"].append({"file": str(f.relative_to(self.watch_dir)), "chunks": count})
                     results["total_chunks"] += count
                 else:
                     results["skipped"].append({"file": f.name, "reason": "duplicate or empty"})
@@ -206,11 +211,11 @@ DOCUMENT:
         return results
 
     def scan_directory(self) -> list[Path]:
-        """Scan watch_dir for supported files (.md, .pdf)."""
+        """Scan watch_dir recursively for supported files (.md, .pdf)."""
         files = []
         if not self.watch_dir.exists():
             return files
-        for f in self.watch_dir.iterdir():
+        for f in self.watch_dir.rglob("*"):
             if f.is_file() and f.suffix in (".md", ".pdf"):
                 files.append(f)
         return files

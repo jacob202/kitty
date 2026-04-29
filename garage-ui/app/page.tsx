@@ -5,6 +5,7 @@ import { io } from 'socket.io-client';
 import CommandPalette from './components/CommandPalette';
 import SettingsModal from './components/SettingsModal';
 import JournalDashboard from './components/JournalDashboard';
+import EvalDashboard from './components/EvalDashboard';
 import Sidebar from './components/Sidebar';
 import Inspector from './components/Inspector';
 import ChatInterface from './components/ChatInterface';
@@ -45,7 +46,7 @@ export default function GarageDashboard() {
   const [activeNodes, setActiveNodes] = useState<Record<string, any>>({});
   const [thoughts, setThoughts] = useState<Thought[]>([]);
   const [currentMode, setCurrentMode] = useState('hardware');
-  const [activeView, setActiveView] = useState<'chat' | 'journal'>('chat');
+  const [activeView, setActiveView] = useState<'chat' | 'journal' | 'evals'>('chat');
   const [systemHealth, setSystemHealth] = useState({
     mlx_engine: 'active',
     memory_engine: 'active',
@@ -344,6 +345,15 @@ export default function GarageDashboard() {
             >
               Journal
             </button>
+            <button
+              onClick={() => setActiveView('evals')}
+              className="px-4 py-1.5 rounded-xl text-xs font-semibold transition-all"
+              style={activeView === 'evals'
+                ? { background: 'var(--accent-color)', color: '#fff' }
+                : { color: 'var(--dim-text)' }}
+            >
+              Evals
+            </button>
           </div>
         </div>
 
@@ -410,6 +420,9 @@ export default function GarageDashboard() {
           </div>
           <div className={`flex-1 ${activeView === 'journal' ? 'block' : 'hidden'}`}>
             <JournalDashboard />
+          </div>
+          <div className={`flex-1 ${activeView === 'evals' ? 'block' : 'hidden'}`}>
+            <EvalDashboard />
           </div>
         </section>
 

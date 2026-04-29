@@ -271,7 +271,7 @@ def test_update_project_unknown_action(tmp_path, monkeypatch):
 
 def test_all_roles_use_same_model():
     assert kb.MODEL_BUILDER == kb.MODEL_CODE == kb.MODEL_CONV
-    assert "Qwen2.5" in kb.MODEL_BUILDER
+    assert "Qwen" in kb.MODEL_BUILDER
 
 
 # ── launch_kitty uses sys.executable ─────────────────────────────────────────
@@ -424,3 +424,112 @@ def test_run_command_uses_shell_false(monkeypatch):
     kb.run_command("ls -la")
     assert captured.get("shell") is False, "shell=False required for safety"
     assert isinstance(captured.get("args"), list), "args must be a list (from shlex.split)"
+
+
+def test_run_command_blocks_scanner_findings_before_popen(monkeypatch):
+    import subprocess as sp
+
+    def fail_popen(*args, **kwargs):
+        raise AssertionError("Popen should not be called for scanner-blocked commands")
+
+    monkeypatch.setattr(sp, "Popen", fail_popen)
+
+    result = kb.run_command("echo sk-testrealkey1234567890abcdef")
+
+    assert "Security scan blocked builder action" in result
+    assert "api_key_literal" in result
+
+
+# ── write_file security enforcement ─────────────────────────────────────────
+
+def test_write_file_blocks_api_key_before_disk_write(tmp_path, monkeypatch):
+    monkeypatch.setattr(kb, "PROJECT_ROOT", tmp_path)
+    target = tmp_path / "src" / "unsafe.py"
+
+    result = kb.write_file(
+        "src/unsafe.py",
+        'OPENROUTER_API_KEY = "sk-testrealkey1234567890abcdef"\n',
+    )
+
+    assert "Security scan blocked builder action" in result
+    assert "hardcoded_secret" in result or "api_key_literal" in result
+    assert not target.exists()
+
+
+def test_write_file_blocks_shell_true_before_disk_write(tmp_path, monkeypatch):
+    monkeypatch.setattr(kb, "PROJECT_ROOT", tmp_path)
+    target = tmp_path / "src" / "unsafe.py"
+
+    result = kb.write_file(
+        "src/unsafe.py",
+        "import subprocess\nsubprocess.run('echo hi', shell=True)\n",
+    )
+
+    assert "Security scan blocked builder action" in result
+    assert "subprocess_shell_true" in result
+    assert not target.exists()
+
+
+def test_write_file_does_not_create_parent_dirs_when_blocked(tmp_path, monkeypatch):
+    monkeypatch.setattr(kb, "PROJECT_ROOT", tmp_path)
+
+    result = kb.write_file(
+        "nested/unsafe.py",
+        'OPENROUTER_API_KEY = "sk-testrealkey1234567890abcdef"\n',
+    )
+
+    assert "Security scan blocked builder action" in result
+    assert not (tmp_path / "nested").exists()
+
+
+def test_write_file_allows_safe_content(tmp_path, monkeypatch):
+    monkeypatch.setattr(kb, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(kb, "quality_judge", lambda path: "A - safe")
+
+    result = kb.write_file("src/safe.py", "def add(a, b):\n    return a + b\n")
+
+    assert "File src/safe.py written" in result
+    assert (tmp_path / "src" / "safe.py").read_text() == "def add(a, b):\n    return a + b\n"
+
+
+# ── Builder contract CLI ─────────────────────────────────────────────────────
+
+def test_builder_contract_requires_project_and_spec():
+    with pytest.raises(SystemExit) as exc:
+        kb.main([])
+
+    assert exc.value.code == 2
+
+
+def test_builder_contract_rejects_missing_spec(tmp_path):
+    result = kb.run_builder_contract(tmp_path, tmp_path / "specs" / "missing.md")
+
+    assert result == 2
+
+
+def test_builder_contract_dry_run_accepts_project_spec(tmp_path, capsys):
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+    spec = spec_dir / "example.spec.md"
+    spec.write_text("# Spec\n", encoding="utf-8")
+
+    result = kb.run_builder_contract(tmp_path, Path("specs/example.spec.md"), execute=False)
+
+    output = capsys.readouterr().out
+    assert result == 0
+    assert "Mode: dry-run" in output
+    assert "Completion report required:" in output
+
+
+def test_builder_contract_execute_is_explicit(tmp_path, capsys):
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+    spec = spec_dir / "example.spec.md"
+    spec.write_text("# Spec\n", encoding="utf-8")
+
+    result = kb.run_builder_contract(tmp_path, spec, execute=True)
+
+    output = capsys.readouterr().out
+    assert result == 0
+    assert "Mode: execute" in output
+    assert "Legacy interactive builder is not auto-launched" in output

@@ -14,7 +14,7 @@ from src.core.specialist_framework import SpecialistResponse
 logger = logging.getLogger(__name__)
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_OPENROUTER_MODEL = os.getenv("KITTY_MODEL", "openrouter/free")
+DEFAULT_OPENROUTER_MODEL = os.getenv("KITTY_MODEL", "deepseek/deepseek-v4-flash")
 DEFAULT_ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5")
 
 
@@ -33,6 +33,8 @@ class WebLLMClient:
         openrouter_key = os.getenv("OPENROUTER_API_KEY")
         anthropic_key = os.getenv("ANTHROPIC_API_KEY")
 
+        errors = []
+
         if openrouter_key:
             try:
                 text = self._chat_openrouter(
@@ -42,8 +44,9 @@ class WebLLMClient:
                     stream=stream,
                 )
                 return self._success_response(text, provider="openrouter", model=DEFAULT_OPENROUTER_MODEL)
-            except Exception:
+            except Exception as e:
                 logger.exception("OpenRouter web fallback failed")
+                errors.append(f"OpenRouter: {str(e)}")
 
         if anthropic_key:
             try:
@@ -54,8 +57,15 @@ class WebLLMClient:
                     stream=stream,
                 )
                 return self._success_response(text, provider="anthropic", model=DEFAULT_ANTHROPIC_MODEL)
-            except Exception:
+            except Exception as e:
                 logger.exception("Anthropic web fallback failed")
+                errors.append(f"Anthropic: {str(e)}")
+
+        if errors:
+            return self._error_response(
+                "Provider fallback failed. " + " | ".join(errors),
+                stream,
+            )
 
         return self._error_response(
             "No LLM API key configured for web chat. Set OPENROUTER_API_KEY or ANTHROPIC_API_KEY.",

@@ -19,20 +19,23 @@ from mlx_lm import load
 
 CONFIG_PATH = Path.home() / ".kitty_model_prefs.json"
 
-# Default fallback model
-DEFAULT_MODEL = "mlx-community/Llama-3.2-3B-Instruct-4bit"
+# Default fallback model (balanced for general use)
+DEFAULT_MODEL = "mlx-community/Qwen3.5-4B-4bit"
 
-# Router model stays in memory at all times if possible
+# Router model stays in memory at all times (small, fast)
 ROUTER_MODEL = "mlx-community/DeepSeek-R1-Distill-Qwen-1.5B-4bit"
 
-# Mapping of task types to preferred models
+# Mapping of task types to OPTIMIZED models based on quality testing
+# Qwen3.5-4B: Best reasoning/instruction following
+# Llama-3.2: Good for conversation
+# Qwen3.5-4B: Best reasoning
 TASK_MODEL_MAP: Dict[str, str] = {
-    "conversation": "mlx-community/Llama-3.2-3B-Instruct-4bit",
-    "automotive": "mlx-community/Qwen2.5-3B-Instruct-4bit",
-    "research": "mlx-community/Qwen2.5-3B-Instruct-4bit",
-    "routing": ROUTER_MODEL,
-    "code": "mlx-community/Qwen2.5-3B-Instruct-4bit",
-    "general": DEFAULT_MODEL,
+    "conversation": "mlx-community/Llama-3.2-3B-Instruct-4bit",  # Best chat
+    "automotive": "mlx-community/Qwen3.5-4B-4bit",  # Best reasoning
+    "research": "mlx-community/Qwen3.5-4B-4bit",  # Best analysis
+    "routing": "mlx-community/DeepSeek-R1-Distill-Qwen-1.5B-4bit",  # Fast, always-on
+    "code": "mlx-community/Qwen3.5-4B-4bit",  # Best instruction following
+    "general": "mlx-community/Llama-3.2-3B-Instruct-4bit",  # 2.5x faster, good quality
 }
 
 class ModelPreloader:

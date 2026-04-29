@@ -97,9 +97,17 @@ _stop() {
 }
 
 _status() {
+  local running_pid=""
   if [[ -f "$PIDFILE" ]] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+    running_pid=$(cat "$PIDFILE")
+  else
+    # Fallback: check by port
+    running_pid=$(lsof -ti tcp:$PORT 2>/dev/null | head -1)
+  fi
+
+  if [[ -n "$running_pid" ]]; then
     local ip=$(_ip)
-    echo "  running  PID $(cat "$PIDFILE")"
+    echo "  running  PID $running_pid"
     echo "  local    http://localhost:$PORT"
     echo "  phone    http://$ip:$PORT"
   else

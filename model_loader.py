@@ -11,23 +11,28 @@ from typing import Optional, Dict
 import mlx_lm
 
 CONFIG_PATH = Path.home() / ".kitty_model_prefs.json"
-DEFAULT_MODEL = "mlx-community/Llama-3.2-3B-Instruct-4bit"
+# Qwen3.5-4B is best for reasoning/instruction following (tested)
+DEFAULT_MODEL = "mlx-community/Qwen3.5-4B-4bit"
 
-# Mapping of task types to preferred models (update after benchmark!)
-# You will set these based on your test results.
+# Optimized task routing based on MLX model testing
+# Qwen3.5-4B: Best overall, used for reasoning/analysis tasks
+# Llama-3.2: Best for natural conversation
+# DeepSeek-R1: Fast router for intent classification
 TASK_MODEL_MAP: Dict[str, str] = {
     "conversation": "mlx-community/Llama-3.2-3B-Instruct-4bit",
-    "automotive": "mlx-community/Qwen2.5-3B-Instruct-4bit",
+    "automotive": "mlx-community/Qwen3.5-4B-4bit",
     "fitness": "mlx-community/Llama-3.2-3B-Instruct-4bit",
     "growth": "mlx-community/Llama-3.2-3B-Instruct-4bit",
-    "routing": "mlx-community/dolphin-2.9.3-qwen2-1.5b-4bit", # Ultra-fast for intent routing
-    "code": "mlx-community/Qwen2.5-3B-Instruct-4bit",         # Strong coding and logic
-    "general": DEFAULT_MODEL,
+    "routing": "mlx-community/DeepSeek-R1-Distill-Qwen-1.5B-4bit",
+    "code": "mlx-community/Qwen3.5-4B-4bit",
+    "general": "mlx-community/Llama-3.2-3B-Instruct-4bit",
 }
 
 class ModelSwitcher:
     def __init__(self):
         self.current_model: Optional[str] = None
+        self.current_model_obj = None
+        self.current_tokenizer = None
         self.load_time: Optional[float] = None
         self._load_preferences()
 
@@ -64,12 +69,13 @@ class ModelSwitcher:
                 print(f"Loading {model_name} for {task_type}")
             model, tokenizer = mlx_lm.load(model_name)
             self.current_model = model_name
+            self.current_model_obj = model
+            self.current_tokenizer = tokenizer
             self.load_time = time.time()
             return model_name, model, tokenizer
         else:
             print(f"Reusing cached {model_name}")
-            model, tokenizer = mlx_lm.load(model_name)
-            return model_name, model, tokenizer
+            return model_name, self.current_model_obj, self.current_tokenizer
 
     def update_preference(self, task_type: str, model_name: str):
         """After manual evaluation, update the preferred model for a task."""

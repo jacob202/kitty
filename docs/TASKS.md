@@ -11,10 +11,11 @@
 - [ ] **postToolUse hook** — fires automatically on every `.py` Edit/Write; runs `py_compile` and prints errors inline. No action needed, just know it's there.
 - [ ] **`refactor_reports/`** — output dir for parallel agent runs. Use when doing multi-system work (backend + frontend + config simultaneously); each agent writes its report here
 
-### Needs fixing before use
-- [x] Move `checkpoint.log` from project root → `data/checkpoints/overnight.log` (root violates CLAUDE.md; `data/checkpoints/` already exists) — DONE
-- [x] Move `iteration_log.md` from project root → `docs/iteration_log.md` (same reason) — DONE
-- [ ] Verify postToolUse hook fires: edit any `.py` file and confirm syntax errors surface in Claude's output — `$CLAUDE_FILE_PATH` env var may need confirming
+### Ready to use now
+- [x] **`bash scripts/verify_setup.sh`** — run at start of any session to check Ollama, ChromaDB, LightRAG, Python deps, project files
+- [x] **`/audit` skill** — type `/audit` in Claude Code; runs structured health check (dir structure, ChromaDB/LightRAG access, broken imports, eval pass rate)
+- [ ] **postToolUse hook** — fires automatically on every `.py` Edit/Write; runs `py_compile` and prints errors inline. No action needed, just know it's there.
+- [ ] **`refactor_reports/`** — output dir for parallel agent runs. Use when doing multi-system work (backend + frontend + config simultaneously); each agent writes its report here
 
 ### Now usable (Phase 4 complete)
 - [x] **`eval_snapshots/`** — eval runner exists; `POST /api/eval/run {"suite":"smoke"}` writes artifacts here
@@ -99,17 +100,37 @@
 - [x] MCP memory feedback loop (surface relevant memory entities into conversations automatically) — DONE
 
 ### New Features (post-cleanup)
-- [ ] AI model digest (daily summary of new models/updates)
+- [x] AI model digest (daily summary of new models/updates) — exists in ai_dev_monitor.py, wired to /api/ai-dev/items
 - [ ] Domain news feed (specialist-relevant news surfaced in chat)
-- [ ] Small model routing fix: differentiate "small" slot (currently both large+small = deepseek-chat)
+
+---
+
+## Gemini/Chat-Log Extraction Review
+
+### From gemini_intake_20260428.md
+
+**Promoted to canon:**
+- Canadian-First Assistant Persona → docs/USER_PREFS.md
+- $129/month target price → docs/PROJECT_FACTS.md
+- Install mlx-lm → already done (installed)
+- Socket cleanup sYzrlwrRFthqlGpRAAAI → no code found, no action needed
+
+**Parked (leave open):**
+- Bank App Cash Flow Integration
+- Canadian Real Estate Analysis Engine  
+- Budget Leak Finder skill
+
+**Open loops:**
+- Is "Canadian-first" assistant persona permanent? → needs user confirmation
+- [x] Small model routing fix: differentiate "small" slot — DONE
 
 ---
 
 ## Priority 4 — Eval + Reliability (Phase 4)
-- [ ] Define eval domain model: run, scenario, persona, artifact, score, regression
-- [ ] Targeted pytest eval suite (not swarm-based)
+- [x] Define eval domain model: run, scenario, persona, artifact, score, regression — exists src/core/eval_domain.py
+- [x] Targeted pytest eval suite (not swarm-based) — exists evals/smoke_suite.py, 20 tests pass
 - [ ] Browser smoke flows: page load, text chat, voice state transitions
-- [ ] Persona scripts with consistent scoring
+- [x] Persona scripts with consistent scoring — exists evals/persona_suite.py
 - [ ] Artifact capture (raw outputs) + daily summary generation
 - [ ] Self-improving eval loop: propose → eval → only merge if score improves
 - [ ] Revisit swarm productization only after capability platform + eval system stable

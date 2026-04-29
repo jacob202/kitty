@@ -5,6 +5,7 @@ from __future__ import annotations
 from flask import Blueprint, current_app, jsonify, request
 
 from evals.smoke_suite import BASELINE, KNOWN_SUITES, SmokeBaselineError, run_smoke_suite
+from src.observability.evals_dashboard import load_eval_dashboard
 
 eval_bp = Blueprint("eval", __name__)
 
@@ -47,3 +48,9 @@ def run_eval():
             "rate": smoke_score.rate,
         },
     })
+
+
+@eval_bp.route("/api/eval/dashboard", methods=["GET"])
+def eval_dashboard():
+    """Return a read-only summary of existing eval artifacts."""
+    return jsonify({"ok": True, "dashboard": load_eval_dashboard()})

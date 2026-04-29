@@ -14,7 +14,7 @@ interface CommandPaletteProps {
   isOpen: boolean;
   onClose: () => void;
   onExecuteCommand: (command: string) => void;
-  onViewChange?: (view: 'chat' | 'journal') => void;
+  onViewChange?: (view: 'chat' | 'journal' | 'evals') => void;
   currentMode: string;
 }
 
@@ -39,6 +39,11 @@ export default function CommandPalette({ isOpen, onClose, onExecuteCommand, onVi
     { id: 'search', label: '/deepsearch', description: 'Deep web search', action: () => onExecuteCommand('/deepsearch '), category: 'action' },
     { id: 'screen', label: '/screen', description: 'Capture and analyze screen', action: () => onExecuteCommand('/screen'), category: 'action' },
     { id: 'council', label: '/council', description: 'Assemble expert council', action: () => onExecuteCommand('/council '), category: 'action' },
+    
+    // View Commands
+    { id: 'view-chat', label: 'View: Chat', description: 'Switch to Chat view', action: () => onViewChange?.('chat'), category: 'system' },
+    { id: 'view-journal', label: 'View: Journal', description: 'Switch to Journal view', action: () => onViewChange?.('journal'), category: 'system' },
+    { id: 'view-evals', label: 'View: Evals', description: 'Switch to Evals view', action: () => onViewChange?.('evals'), category: 'system' },
   ];
 
   const filteredCommands = commands.filter(cmd => 

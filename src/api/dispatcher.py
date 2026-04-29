@@ -101,6 +101,9 @@ def dispatch(
                     reasoning=reasoning,
                     model_target=model_target,
                 )
+                if not getattr(response, "content", "").strip() and fallback_chat:
+                    logger.warning("Orchestrator returned blank content; using web fallback")
+                    return fallback_chat(inp, domain=domain, stream=fallback_stream)
                 logger.debug("Orchestrator response: %s", response.content[:200])
                 # In web mode, we need to print to stdout so TokenCapture picks it up
                 sys.stdout.write(response.content + "\n")

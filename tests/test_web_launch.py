@@ -88,8 +88,8 @@ def test_web_openrouter_default_is_free_tier(monkeypatch):
     web_llm = importlib.reload(web_llm)
     web_orchestrator = importlib.reload(web_orchestrator)
 
-    assert web_llm.DEFAULT_OPENROUTER_MODEL == "openrouter/free"
-    assert web_orchestrator._OR_BAL == "openrouter/free"
+    assert web_llm.DEFAULT_OPENROUTER_MODEL == "deepseek/deepseek-v4-flash"
+    assert web_orchestrator._OR_BAL == "deepseek/deepseek-v4-flash"
 
 
 def test_web_orchestrator_prompt_prioritizes_friction_reduction():
@@ -140,7 +140,7 @@ def test_model_target_free_overrides_configured_model(monkeypatch):
     )
 
     assert result == "free response"
-    assert calls == ["openrouter/free"]
+    assert calls == ["deepseek/deepseek-v4-flash"]
 
 
 def test_model_target_configured_uses_configured_model(monkeypatch):

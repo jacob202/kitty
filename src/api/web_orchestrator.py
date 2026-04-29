@@ -33,8 +33,8 @@ _MLX_FAST  = os.environ.get("MLX_MODEL",           "mlx-community/Qwen3.5-4B-4bi
 _MLX_ENABLED = os.environ.get("KITTY_ENABLE_LOCAL_MLX", "1").lower() in {
     "1", "true", "yes", "on",
 }
-_FREE_ROUTER = "openrouter/free"
-_OR_BAL    = os.environ.get("KITTY_MODEL",          "openrouter/free")
+_FREE_ROUTER = "deepseek/deepseek-v4-flash"
+_OR_BAL    = os.environ.get("KITTY_MODEL",          "deepseek/deepseek-v4-flash")
 _OR_MAX    = os.environ.get("KITTY_MAX_MODEL",      "deepseek/deepseek-r1-0528")
 _OR_BAL_R  = os.environ.get("KITTY_BALANCED_REASON","deepseek/deepseek-r1-distill-qwen-7b")
 _ANTH_MDL  = os.environ.get("KITTY_ANTHROPIC_MODEL","claude-haiku-4-5-20251001")

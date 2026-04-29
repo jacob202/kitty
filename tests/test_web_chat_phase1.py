@@ -122,7 +122,7 @@ def test_core_orchestrator_process_handles_missing_council_enum(monkeypatch):
     monkeypatch.setattr(core_module, "VOICE_AVAILABLE", False)
     monkeypatch.setattr(
         core_module.CoreOrchestrator,
-        "_general_response",
+        "_general_llm_response",
         lambda self, *_args, **_kwargs: _response("general fallback"),
     )
 
@@ -131,6 +131,45 @@ def test_core_orchestrator_process_handles_missing_council_enum(monkeypatch):
     response = orch.process("hello")
 
     assert response.content == "general fallback"
+
+
+def test_core_orchestrator_falls_back_when_specialist_returns_empty(monkeypatch):
+    monkeypatch.setattr(core_module, "ContextManager", _DummyContextManager)
+    monkeypatch.setattr(core_module, "DomainRouter", _DummyRouter)
+    monkeypatch.setattr(core_module, "CheckpointManager", _DummyCheckpoint)
+    monkeypatch.setattr(core_module, "KittyPersonality", _DummyPersonality)
+    monkeypatch.setattr(core_module, "ReasoningLayer", _DummyReasoningLayer)
+    monkeypatch.setattr(core_module, "VOICE_AVAILABLE", False)
+
+    class EmptySpecialist:
+        def query(self, *_args, **_kwargs):
+            return _response("")
+
+    class Specialists:
+        def get_specialist(self, _name):
+            return EmptySpecialist()
+
+    monkeypatch.setattr(core_module, "SpecialistRegistry", Specialists)
+    monkeypatch.setattr(
+        core_module.CoreOrchestrator,
+        "_general_llm_response",
+        lambda self, *_args, **_kwargs: _response("general fallback"),
+    )
+
+    orch = core_module.CoreOrchestrator(socketio=None)
+
+    response = orch.process("hello")
+
+    assert response.content == "general fallback"
+
+
+def test_core_orchestrator_general_response_can_be_empty(monkeypatch):
+    monkeypatch.setattr("src.space_kitty.llm_client.call_llm", lambda **_kwargs: "")
+    orch = core_module.CoreOrchestrator(socketio=None)
+
+    response = orch._general_llm_response("status smoke test")
+
+    assert response.content == ""
 
 
 def test_core_orchestrator_select_model_honors_web_preferences(monkeypatch):
@@ -148,7 +187,7 @@ def test_core_orchestrator_select_model_honors_web_preferences(monkeypatch):
 
     orch = core_module.CoreOrchestrator(socketio=None)
 
-    assert orch._select_model("hello", mode="fast", model_target="free") == "openrouter/free"
+    assert orch._select_model("hello", mode="fast", model_target="free") == "deepseek/deepseek-v4-flash"
     assert orch._select_model("hello", mode="balanced", model_target="configured") == "configured/model"
     assert orch._select_model("hello", mode="balanced", reasoning=True, model_target="configured") == "reason/model"
     assert orch._select_model("hello", mode="max", model_target="configured") == "max/model"
@@ -173,6 +212,33 @@ def test_dispatch_uses_web_llm_fallback_when_orchestrator_fails():
         domain="chat",
         sup=sup,
         orch=BrokenOrchestrator(),
+        fallback_chat=fallback_chat,
+        fallback_stream=True,
+    )
+
+    assert response.content == "fallback response"
+    assert calls == [("hello", "chat", True)]
+    assert sup.ran == []
+
+
+def test_dispatch_uses_web_llm_fallback_when_orchestrator_returns_blank():
+    sup = _DummySupervisor()
+
+    class BlankOrchestrator:
+        def process(self, *_args, **_kwargs):
+            return _response("")
+
+    calls = []
+
+    def fallback_chat(message, domain=None, stream=False):
+        calls.append((message, domain, stream))
+        return _response("fallback response")
+
+    response = dispatch(
+        "hello",
+        domain="chat",
+        sup=sup,
+        orch=BlankOrchestrator(),
         fallback_chat=fallback_chat,
         fallback_stream=True,
     )

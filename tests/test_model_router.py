@@ -41,7 +41,7 @@ def test_fast_with_mlx_ready_routes_to_mlx():
 def test_fast_without_mlx_routes_to_free_router():
     r = route_model(mode="fast", mlx_ready=False)
     assert r.provider == "openrouter"
-    assert r.model == "openrouter/free"
+    assert r.model == "deepseek/deepseek-v4-flash"
 
 
 def test_fast_local_target_routes_to_mlx_even_without_mlx_ready():
@@ -60,7 +60,7 @@ def test_fast_mlx_ready_takes_priority_over_free_target():
 def test_balanced_no_reasoning_uses_free_router():
     r = route_model(mode="balanced", reasoning=False)
     assert r.provider == "openrouter"
-    assert r.model == "openrouter/free"
+    assert r.model == "deepseek/deepseek-v4-flash"
 
 
 def test_balanced_reasoning_routes_to_distill_model():
@@ -82,7 +82,7 @@ def test_balanced_configured_falls_back_to_free_when_env_unset(monkeypatch):
     monkeypatch.delenv("KITTY_MODEL", raising=False)
     r = route_model(mode="balanced", model_target="configured")
     assert r.provider == "openrouter"
-    assert r.model == "openrouter/free"
+    assert r.model == "deepseek/deepseek-v4-flash"
 
 
 def test_balanced_local_target_uses_free_router():
@@ -116,7 +116,7 @@ def test_max_uses_env_override(monkeypatch):
 def test_unknown_mode_falls_back_to_free():
     r = route_model(mode="turbo_ultra_premium")
     assert r.provider == "openrouter"
-    assert r.model == "openrouter/free"
+    assert r.model == "deepseek/deepseek-v4-flash"
     assert "unknown" in r.reason.lower()
 
 

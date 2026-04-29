@@ -33,7 +33,10 @@ from flask_cors import CORS
 from flask_socketio import SocketIO
 
 from src.api import (
+    ai_dev_bp,
+    brief_bp,
     bom_bp,
+    commands_bp,
     core_bp,
     eval_bp,
     hardware_bp,
@@ -76,9 +79,9 @@ class _SupervisorShim:
 
     def __init__(self):
         self.config = {
-            "flash_model": os.environ.get("KITTY_MODEL", "openrouter/free"),
-            "cheap_model": os.environ.get("KITTY_MODEL", "openrouter/free"),
-            "supervisor_model": os.environ.get("KITTY_MODEL", "openrouter/free"),
+            "flash_model": os.environ.get("KITTY_MODEL", "deepseek/deepseek-v4-flash"),
+            "cheap_model": os.environ.get("KITTY_MODEL", "deepseek/deepseek-v4-flash"),
+            "supervisor_model": os.environ.get("KITTY_MODEL", "deepseek/deepseek-v4-flash"),
             "enable_experimental_swarm": False,
         }
         self.specialists = []
@@ -152,9 +155,9 @@ def create_app() -> tuple[Flask, SocketIO]:
     register_socket_handlers(socketio)
 
     blueprints = [
-        bom_bp, core_bp, eval_bp, hardware_bp, honcho_bp,
+        ai_dev_bp, bom_bp, core_bp, eval_bp, hardware_bp, honcho_bp,
         memory_bp, memory_product_bp, reasoning_bp, settings_bp,
-        streaming_bp, system_bp, voice_bp,
+        streaming_bp, system_bp, voice_bp, brief_bp, commands_bp,
     ]
     if enable_experimental_swarm:
         blueprints.append(swarm_bp)

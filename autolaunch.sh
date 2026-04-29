@@ -72,6 +72,17 @@ else
   echo "WARNING: garage-ui/package.json is missing. Frontend install/build will not run."
 fi
 
+if [[ "${KITTY_ENABLE_LOCAL_MLX:-0}" == "1" ]]; then
+  if ! lsof -i :8080 >/dev/null 2>&1; then
+    echo "Starting MLX server (Qwen3.5-4B) on port 8080..."
+    nohup "$PROJECT_ROOT/venv/bin/mlx_lm.server" --model "${MLX_MODEL:-mlx-community/Qwen3.5-4B-4bit}" --host 127.0.0.1 --port 8080 > /tmp/mlx_server.log 2>&1 &
+    sleep 3
+    echo "MLX server started. Log: /tmp/mlx_server.log"
+  else
+    echo "MLX server already running on port 8080."
+  fi
+fi
+
 cat <<EOF
 
 Workspace prep complete.
