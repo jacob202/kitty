@@ -23,5 +23,6 @@ src/tools/superpowers/
 .zshrc.aider
 .zshrc.shim
 data/
+knowledge_db/
 eval_snapshots/
 evals/artifacts/

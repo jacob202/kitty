@@ -38,12 +38,15 @@ def write_minimal_project(root: Path) -> None:
         "docs/DELEGATION_BOARD.md",
         "docs/BUILDER_INTAKE.md",
         "docs/BUILDER_DIRECTIVE.md",
+        "docs/WORKSPACE_SEPARATION_MOVE_MAP.md",
         "specs/_template.md",
+        "specs/physical-workspace-separation.spec.md",
         "kittyintake",
         "kittybuilder",
         "scripts/builder_intake.py",
         "scripts/context_pack_generator.py",
         "scripts/kitty_builder.py",
+        "scripts/plan_workspace_separation.py",
     ]:
         (root / file_path).write_text("placeholder\n", encoding="utf-8")
 

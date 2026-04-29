@@ -1,25 +1,24 @@
 # Current Focus
-Last updated: 2026-04-28
+Last updated: 2026-04-29
 
 ## Active Phase
 
-Phase 4 — Consolidation and Cleanup
+Workspace separation preflight and blocker classification
 
 ## Current Task
 
-Build chat log consolidation pipeline (dry-run first).
+Prepare the future physical `kitty-system` split without moving files. Classify the dirty KnowledgeGetter / MCP lane as unverified parked work unless it receives a separate approved spec.
 
 ## Allowed Work
 
-- chat log consolidation dry-run
-- extract decisions/tasks/parked/features/preferences/open loops
-- file tree snapshot and cleanup candidates
-- update SESSION_SUMMARY.md with Phase 3 results
-- mark Phase 3 complete in all tracking files
+- workspace separation move map
+- read-only migration preflight
+- file governance updates
+- blocker reports for dirty worker lanes
+- parking unverified future features with enough context to revive later
 
 ## Forbidden Work
 
-- wiring Phase 3 modules to web.py
 - MCP expansion
 - QLoRA
 - proactive nudging
@@ -27,6 +26,9 @@ Build chat log consolidation pipeline (dry-run first).
 - UI polish
 - memory migration
 - deleting raw chat logs
+- physical repo move
+- import or launch path rewrites
+- deleting or committing generated databases
 
 ## Phase 3 Complete
 

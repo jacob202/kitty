@@ -49,6 +49,43 @@ Forbidden during unrelated work:
 
 ## Initial Parked List
 
+### Feature: KnowledgeGetter MCP Server
+
+Status: parked_unverified_dirty_tree
+Source: uncommitted worker lane found 2026-04-29
+Owner: unassigned
+Priority: medium
+
+Problem:
+Kitty may eventually need a standalone research/indexing tool that can search, scrape, and retrieve indexed knowledge.
+
+Proposed shape:
+A future MCP server wrapping search, retrieval, and domain reporting with durable local indexes.
+
+Why parked:
+The active focus forbids MCP expansion. The current dirty implementation is Phase 6+ work and has not passed the current master-plan sequence, source-grounding review, dependency review, or storage-routing review.
+
+Dependencies:
+Approved Phase 6+ spec, source-grounded specialist boundaries, storage routing review, dependency/cost review, and generated-data governance.
+
+Risks:
+Credential handling, web scraping scope creep, generated database commits, dependency bloat, duplicated knowledge storage, and violating local-first cost controls.
+
+Acceptance sketch:
+Future review proves the server imports without optional dependency crashes, keeps generated indexes out of git, documents required env vars, and has tests beyond import smoke.
+
+Revival trigger:
+Phase 0-4 control work is stable and Jacob explicitly approves MCP expansion through intake.
+
+Minimum safe version:
+Phase 6+
+
+Allowed future files:
+Future spec only until approved. Existing dirty files must be reviewed before adoption.
+
+Forbidden during unrelated work:
+Do not mark MCP expansion complete, remove the MCP block, commit generated `knowledge_db/`, or wire the tool into runtime routes.
+
 ### Feature: Physical `kitty-system` Split
 
 Status: parked

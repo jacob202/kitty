@@ -1,6 +1,6 @@
 # File Manifest
 
-Last updated: 2026-04-28
+Last updated: 2026-04-29
 
 This manifest explains the current app boundary and the planned, not-yet-started separation.
 
@@ -55,7 +55,9 @@ The Phase 0 control surface is:
 - `docs/BUILDER_INTAKE.md`
 - `docs/BUILDER_DIRECTIVE.md`
 - `docs/GATES.md`
+- `docs/WORKSPACE_SEPARATION_MOVE_MAP.md`
 - `specs/_template.md`
+- `specs/physical-workspace-separation.spec.md`
 - `intake/`
 - `kittyintake`
 - `kittybuilder`
@@ -63,6 +65,7 @@ The Phase 0 control surface is:
 - `scripts/context_pack_generator.py`
 - `scripts/kitty_builder.py`
 - `scripts/check_file_governance.py`
+- `scripts/plan_workspace_separation.py`
 - `scripts/run_gates.sh`
 
 ## Planned Separation
@@ -84,6 +87,7 @@ No worker should:
 - `scripts/context_pack_generator.py`: generates `.cache/kitty_context_pack.md` from canonical docs without calling models or modifying runtime source.
 - `scripts/kitty_builder.py`: validates `--project` and `--spec`, defaults to dry-run, and blocks implicit legacy startup.
 - `scripts/check_file_governance.py`: read-only file-governance validator and metadata-candidate reporter.
+- `scripts/plan_workspace_separation.py`: read-only physical split preflight and blocker reporter.
 - `scripts/run_gates.sh`: narrow control-layer gate for intake and governance tooling.
 
 Future migration must be driven by a spec that includes:

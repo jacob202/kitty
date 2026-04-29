@@ -296,7 +296,11 @@ git status --short
 - deletion of eval artifacts
 - deletion inside `src/` for `Icon\r` files without a narrow waiver spec
 
-## Completed 2026-04-28
+## Dirty / Unverified 2026-04-29
+
+- KnowledgeGetter / MCP lane exists in the working tree, but current focus forbids MCP expansion. Treat it as parked/unverified until a separate review spec accepts or removes it.
+
+## Completed 2026-04-29
 
 - /stuck command: 8 tests pass
 - Deterministic brief: 10+ tests pass  

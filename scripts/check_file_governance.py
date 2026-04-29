@@ -38,7 +38,9 @@ PROTECTED_PATHS = (
     "docs/DELEGATION_BOARD.md",
     "docs/BUILDER_INTAKE.md",
     "docs/BUILDER_DIRECTIVE.md",
+    "docs/WORKSPACE_SEPARATION_MOVE_MAP.md",
     "specs/_template.md",
+    "specs/physical-workspace-separation.spec.md",
 )
 
 REQUIRED_CONTROL_FILES = (
@@ -55,6 +57,7 @@ REQUIRED_CONTROL_FILES = (
     "scripts/builder_intake.py",
     "scripts/context_pack_generator.py",
     "scripts/kitty_builder.py",
+    "scripts/plan_workspace_separation.py",
 )
 
 TOP_LEVEL_CATEGORIES = {
@@ -73,6 +76,7 @@ TOP_LEVEL_CATEGORIES = {
     "evals": "test",
     "garage-ui": "runtime_source",
     "intake": "spec",
+    "knowledge_db": "data",
     "logs": "archive",
     "scripts": "script",
     "skills": "skill",
