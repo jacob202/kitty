@@ -7,13 +7,14 @@ Copy-first workspace separation validation
 
 ## Current Task
 
-Validate the new copy-first `kitty-system` workspace while keeping `/Users/jacobbrizinski/Projects/kitty` as the authoritative runnable checkout.
+Decide whether to switch daily work to `/Users/jacobbrizinski/Projects/kitty-system/kitty-app` after copied-app gates and basic launch smoke passed.
 
 ## Allowed Work
 
 - workspace separation move map
 - read-only migration preflight
 - copy-first workspace validation
+- launch-command decision docs
 - file governance updates
 - blocker reports for dirty worker lanes
 - parking unverified future features with enough context to revive later

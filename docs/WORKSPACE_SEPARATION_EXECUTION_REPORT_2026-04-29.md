@@ -46,6 +46,41 @@ test ! -d /Users/jacobbrizinski/Projects/kitty-system/kitty-app/garage-ui/node_m
 
 Result: passed.
 
+## Copied App Gate
+
+Command:
+
+```bash
+cd /Users/jacobbrizinski/Projects/kitty-system/kitty-app
+bash scripts/run_gates.sh
+```
+
+Result:
+
+```text
+92 passed
+```
+
+## Copied App Launch Smoke
+
+Command:
+
+```bash
+cd /Users/jacobbrizinski/Projects/kitty-system/kitty-app
+KITTY_PORT=5002 KITTY_ENABLE_INTERNAL_API=1 /opt/homebrew/bin/python3.12 web.py
+```
+
+Smoke results:
+
+- `GET /` returned 200.
+- `GET /api/brief` returned 200.
+- `POST /api/command` with `/stuck` returned 200.
+- `GET /api/health` returned 200 with status `degraded`.
+
+Note:
+
+`/api/health` is internal-gated in this codebase and returns 404 unless `KITTY_ENABLE_INTERNAL_API=1` is set.
+
 ## Size Check
 
 ```text
@@ -72,5 +107,6 @@ The copy excluded generated/tool-local material such as:
 ## Remaining Boundaries
 
 - Do not delete or rename `/Users/jacobbrizinski/Projects/kitty`.
-- Do not switch launch commands to `kitty-system/kitty-app` until launch verification passes there.
+- Do not delete the old checkout until Jacob explicitly approves.
+- Launch from `kitty-system/kitty-app` has a basic smoke pass on port 5002, but default launch commands have not been switched.
 - Do not merge the parked MCP bundle from branch `parked/mcp-agent-bundle-20260429` without a new review spec.
