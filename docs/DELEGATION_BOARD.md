@@ -296,12 +296,9 @@ git status --short
 - deletion of eval artifacts
 - deletion inside `src/` for `Icon\r` files without a narrow waiver spec
 
-## Dirty / Unverified 2026-04-29
-
-- KnowledgeGetter / MCP lane exists in the working tree, but current focus forbids MCP expansion. Treat it as parked/unverified until a separate review spec accepts or removes it.
-
 ## Completed 2026-04-29
 
+- MCP agent bundle review: KnowledgeGetter, Librarian, VisionGuide, CodeReviewer, and Overnighter are present in the dirty tree but parked/unverified; do not treat as complete.
 - /stuck command: 8 tests pass
 - Deterministic brief: 10+ tests pass  
 - Task/done tracking: 10+ tests pass

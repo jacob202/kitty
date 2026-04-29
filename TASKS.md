@@ -29,11 +29,11 @@ Last updated: 2026-04-29
 - Gemini/chat-log candidates reviewed; only durable preferences/safety rules were accepted, and uncertain items remain open loops.
 - `./kitty status` command fixed to correctly report server state based on port 5001 usage.
 - UI panel regression coverage added for eval dashboard failed-check rendering (using Vitest and React Testing Library).
-- KnowledgeGetter MCP lane exists in the dirty tree but is unverified and blocked by current focus; it is not accepted as canonical done.
+- MCP agent bundle exists in the dirty tree but is unverified, out of phase, and blocked by current focus; import smoke tests currently fail on missing optional dependencies.
 
 ## Next Smallest Action
 
-- Resolve the dirty KnowledgeGetter / MCP lane, then run the workspace separation preflight before any physical move.
+- Resolve or separately checkpoint the dirty MCP agent bundle, then rerun workspace separation preflight before any physical move.
 
 ## Delegation Queue
 

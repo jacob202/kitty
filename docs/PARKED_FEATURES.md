@@ -86,6 +86,43 @@ Future spec only until approved. Existing dirty files must be reviewed before ad
 Forbidden during unrelated work:
 Do not mark MCP expansion complete, remove the MCP block, commit generated `knowledge_db/`, or wire the tool into runtime routes.
 
+### Feature: Phase 6+ MCP Agent Bundle
+
+Status: parked_unverified_dirty_tree
+Source: uncommitted worker lane found 2026-04-29
+Owner: unassigned
+Priority: medium
+
+Problem:
+Kitty may eventually benefit from standalone agents for research, cataloging, code review, brainstorming, and overnight session processing.
+
+Proposed shape:
+Five future MCP-style agents: KnowledgeGetter, Librarian, VisionGuide, CodeReviewer, and Overnighter.
+
+Why parked:
+The active focus forbids MCP expansion. The bundle appeared as dirty work outside the approved phase sequence and changed task-board docs to claim completion before validation.
+
+Dependencies:
+Approved Phase 6+ intake/spec, dependency review, generated-data governance, storage routing review, subprocess safety review, and real tests.
+
+Risks:
+Import-time crashes from missing optional dependencies, generated database commits, broad subprocess execution through code-review tooling, uncontrolled LLM calls, source-routing drift, and cost creep.
+
+Acceptance sketch:
+Each agent has tests beyond import smoke, optional dependencies are lazy or documented, generated stores are ignored, no runtime route is wired without a spec, and dangerous subprocess tools are gated.
+
+Revival trigger:
+Jacob explicitly approves MCP expansion after workspace separation preflight is clean.
+
+Minimum safe version:
+Phase 6+
+
+Allowed future files:
+Future MCP review spec and narrowly approved agent files only.
+
+Forbidden during unrelated work:
+Do not accept the dirty agent bundle as complete, remove the MCP block, or commit generated `knowledge_db/` / `librarian_db/`.
+
 ### Feature: Physical `kitty-system` Split
 
 Status: parked

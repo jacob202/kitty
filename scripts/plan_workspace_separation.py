@@ -76,10 +76,19 @@ EXCLUDED_GENERATED = (
 )
 
 MCP_BLOCKER_PATHS = (
+    "specs/code-reviewer.spec.md",
     "specs/knowledge-getter.spec.md",
+    "specs/librarian.spec.md",
+    "specs/overnighter.spec.md",
+    "specs/vision-guide.spec.md",
+    "src/agents/code_reviewer.py",
     "src/agents/knowledge_getter.py",
     "src/agents/knowledge_getter_config.json",
+    "src/agents/librarian.py",
+    "src/agents/overnighter.py",
+    "src/agents/vision_guide.py",
     "knowledge_db/",
+    "librarian_db/",
 )
 
 
@@ -157,10 +166,14 @@ def build_plan(project: str | Path, target_root: str | Path | None = None) -> Se
 
     mcp_dirty = [entry.path for entry in dirty_entries if is_mcp_blocker(entry.path)]
     if mcp_dirty and focus_forbids_mcp(root):
-        blockers.append("MCP / KnowledgeGetter work is dirty while CURRENT_FOCUS.md forbids MCP expansion")
+        blockers.append("MCP agent bundle is dirty while CURRENT_FOCUS.md forbids MCP expansion")
 
-    if any(entry.path.startswith("knowledge_db/") for entry in dirty_entries):
-        blockers.append("knowledge_db/ is generated runtime data and must not be migrated as source")
+    generated_db_dirty = any(
+        entry.path.startswith("knowledge_db/") or entry.path.startswith("librarian_db/")
+        for entry in dirty_entries
+    )
+    if generated_db_dirty:
+        blockers.append("generated knowledge databases must not be migrated as source")
 
     return SeparationPlan(
         project=str(root),

@@ -19,7 +19,10 @@ def test_parse_git_status_handles_untracked_and_modified_paths():
 
 def test_mcp_blocker_matches_knowledge_getter_paths():
     assert is_mcp_blocker("src/agents/knowledge_getter.py")
+    assert is_mcp_blocker("src/agents/librarian.py")
+    assert is_mcp_blocker("specs/vision-guide.spec.md")
     assert is_mcp_blocker("knowledge_db/metadata.db")
+    assert is_mcp_blocker("librarian_db/catalog.db")
     assert not is_mcp_blocker("src/core/orchestrator.py")
 
 

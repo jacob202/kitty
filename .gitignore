@@ -24,5 +24,25 @@ src/tools/superpowers/
 .zshrc.shim
 data/
 knowledge_db/
+librarian_db/
 eval_snapshots/
 evals/artifacts/
+
+# Local agent/tool installations and symlink fan-out, not Kitty source
+.adal/
+.agents/
+.codebuddy/
+.commandcode/
+.factory/
+.goose/
+.iflow/
+.kilocode/
+.kiro/
+.kode/
+.pi/
+.qwen/
+.vibe/
+.zencoder/
+.claude/skills/
+skills/
+skills-lock.json
