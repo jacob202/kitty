@@ -1,6 +1,6 @@
 # Parked Features
 
-Last updated: 2026-04-28
+Last updated: 2026-04-29
 
 Parked features are ideas worth keeping but not authorized for current implementation. Parking an idea preserves it without letting it hijack focused work.
 
@@ -144,7 +144,7 @@ No deletions, `git reset`, source moves, or archive pruning.
 
 ### Feature: Bank App Cash Flow Integration
 
-Status: parked
+Status: needs_user_confirmation
 Source: 2026-04-27 session logs
 Owner: unassigned
 Priority: medium
@@ -156,7 +156,7 @@ Proposed shape:
 Pull transaction data from bank apps or emails (Shop.ca, Amazon.ca, Canadian Tire, etc.) and identify "nice to haves" to cut.
 
 Why parked:
-Privacy/security implications and current focus on core stabilization.
+Privacy/security implications, current focus on core stabilization, and weak source evidence. This came from assistant-authored session text, not a confirmed user request.
 
 Dependencies:
 Secure bank API integration, email parsing logic, and a privacy spec.
@@ -168,14 +168,14 @@ Acceptance sketch:
 Assistant correctly identifies and categorizes $500+ non-essential expenses from a transaction sample.
 
 Revival trigger:
-Core runtime stabilization complete and privacy framework approved.
+Jacob confirms this is wanted, core runtime stabilization is complete, and a privacy framework is approved.
 
 Minimum safe version:
 Phase 7+
 
 ### Feature: Canadian Real Estate Analysis Engine
 
-Status: parked_candidate
+Status: rejected_noisy_extraction
 Source: 2026-04-27 session logs
 Owner: unassigned
 Priority: low
@@ -187,7 +187,7 @@ Proposed shape:
 Filter listings for cash flow > $1k/mo, vacancy < 5%, and specific landlord conditions.
 
 Why parked:
-Requires specialized data scraping/APIs and is outside core assistant focus.
+Rejected as a current roadmap item. The source appears to be assistant-authored session text rather than a durable user request. If Jacob explicitly asks for this later, it must re-enter through intake as a new idea.
 
 Dependencies:
 MLS or similar real estate data source access.
@@ -199,7 +199,7 @@ Acceptance sketch:
 Assistant returns top 3 matches for a specific city based on cash flow criteria.
 
 Revival trigger:
-Specialist domain expansion phase.
+Jacob explicitly requests this as a real feature and approves a data-source/legal-risk spec.
 
 Minimum safe version:
 Phase 8+

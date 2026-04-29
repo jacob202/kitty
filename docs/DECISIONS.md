@@ -1,6 +1,6 @@
 # Decisions
 
-Last updated: 2026-04-28
+Last updated: 2026-04-29
 
 This file records durable project decisions. New work should follow these rules unless a later dated decision explicitly supersedes them.
 
@@ -88,14 +88,17 @@ The spec must live inside the project, and every run must end with a completion-
 Rationale:
 Raw builder launch is too easy to confuse with runtime Kitty startup and can lead to uncontrolled edits.
 
-## D-0008: Canadian-First Assistant Persona
+## D-0008: Canadian-First Assistant Persona Candidate
 
-Status: accepted
+Status: needs_user_confirmation
 
-Adopt a sharp, direct, budget-conscious, Canadian-sourced persona for the assistant.
+Do not treat the Canadian-first assistant persona as accepted canon yet.
 
 Rationale:
-User engagement in 2026-04-27 sessions suggests a preference for no-fluff, execution-oriented interaction focused on Canadian resources and budget constraints.
+The evidence in `docs/imports/gemini_intake_20260428.md` comes primarily from assistant-authored session text. It is useful as a candidate preference, but not strong enough to become a durable project decision without Jacob confirming it.
 
 Consequences:
-Responses will be more aggressive, brief, and focused on immediate financial/operational actions.
+Kitty should keep the accepted direct/practical/no-fluff style, but Canadian sourcing and budget-first behavior should be used only when the user asks for it or confirms this as a permanent preference.
+
+Review trigger:
+Jacob confirms whether Canadian-first sourcing/budget behavior is a permanent assistant preference.

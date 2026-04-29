@@ -110,18 +110,23 @@
 ### From gemini_intake_20260428.md
 
 **Promoted to canon:**
-- Canadian-First Assistant Persona → docs/USER_PREFS.md
-- $129/month target price → docs/PROJECT_FACTS.md
-- Install mlx-lm → already done (installed)
-- Socket cleanup sYzrlwrRFthqlGpRAAAI → no code found, no action needed
+- Direct, practical, no-fluff interaction preference → docs/USER_PREFS.md
+- Raw-log preservation rule → docs/DECISIONS.md / docs/USER_PREFS.md
+- `mlx_lm` package status corrected → docs/PROJECT_FACTS.md
 
 **Parked (leave open):**
-- Bank App Cash Flow Integration
-- Canadian Real Estate Analysis Engine  
-- Budget Leak Finder skill
+- Budget Leak Finder skill, privacy-spec required before any runtime work
+- AU-7900 specialist KB candidate, source-grounding required before canonical KB
 
 **Open loops:**
 - Is "Canadian-first" assistant persona permanent? → needs user confirmation
+- Is `$129/month` a real product/business target? → needs user confirmation
+- Should bank transaction analysis be rejected or parked behind a privacy spec?
+
+**Rejected as noisy extraction:**
+- Canadian Real Estate Analysis Engine
+- Socket cleanup for stale `sYzrlwrRFthqlGpRAAAI`
+- Generic "theory-first coaching" rejection
 - [x] Small model routing fix: differentiate "small" slot — DONE
 
 ---

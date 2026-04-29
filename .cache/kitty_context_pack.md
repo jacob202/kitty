@@ -64,7 +64,7 @@ Source: docs/DECISIONS.md
 
 # Decisions
 
-Last updated: 2026-04-28
+Last updated: 2026-04-29
 
 This file records durable project decisions. New work should follow these rules unless a later dated decision explicitly supersedes them.
 
@@ -152,17 +152,20 @@ The spec must live inside the project, and every run must end with a completion-
 Rationale:
 Raw builder launch is too easy to confuse with runtime Kitty startup and can lead to uncontrolled edits.
 
-## D-0008: Canadian-First Assistant Persona
+## D-0008: Canadian-First Assistant Persona Candidate
 
-Status: accepted_candidate
+Status: needs_user_confirmation
 
-Adopt a sharp, direct, budget-conscious, Canadian-sourced persona for the assistant.
+Do not treat the Canadian-first assistant persona as accepted canon yet.
 
 Rationale:
-User engagement in 2026-04-27 sessions suggests a preference for no-fluff, execution-oriented interaction focused on Canadian resources and budget constraints.
+The evidence in `docs/imports/gemini_intake_20260428.md` comes primarily from assistant-authored session text. It is useful as a candidate preference, but not strong enough to become a durable project decision without Jacob confirming it.
 
 Consequences:
-Responses will be more aggressive, brief, and focused on immediate financial/operational actions.
+Kitty should keep the accepted direct/practical/no-fluff style, but Canadian sourcing and budget-first behavior should be used only when the user asks for it or confirms this as a permanent preference.
+
+Review trigger:
+Jacob confirms whether Canadian-first sourcing/budget behavior is a permanent assistant preference.
 
 ## Open Tasks
 Source: TASKS.md
@@ -192,18 +195,20 @@ Last updated: 2026-04-29
 - Full suite verified: `333 passed, 2 warnings`.
 - Tiny generated-cache cleanup completed under `specs/tiny-generated-cache-cleanup.spec.md`.
 - Builder security enforcement verified: `53 passed`.
-- Gemini/chat-log candidate intake imported and partially propagated; candidate entries still need review before accepted-canon status.
+- Gemini/chat-log candidate intake imported and reviewed; weak assistant-authored claims were demoted to open loops or rejected/noisy.
 - Eval dashboard UI panel spec written, component implemented in Garage UI, and failed-check object rendering fixed.
+- `/api/chat` real provider response implementation completed (fallback logic improved and errors passed clearly).
+- Gemini/chat-log candidates reviewed; only durable preferences/safety rules were accepted, and uncertain items remain open loops.
+- `./kitty status` command fixed to correctly report server state based on port 5001 usage.
+- UI panel regression coverage added for eval dashboard failed-check rendering (using Vitest and React Testing Library).
 
 ## Next Smallest Action
 
-- Review Gemini/chat-log candidates before promoting them from candidate status to accepted canon.
+- Checkpoint the reviewed candidate disposition and current verified docs.
 
 ## Delegation Queue
 
 - Cleanup worker: only read-only/spec-first for remaining candidates; do not clean protected-tree metadata or tracked deletions.
-- UI worker: add regression coverage for eval dashboard failed-check rendering, after a frontend test spec.
-- Launcher worker: fix `./kitty status` reporting stopped while port 5001 is live, after a narrow launcher spec.
 
 ## Blocked Without New Spec
 
@@ -245,12 +250,7 @@ This file is the control-layer task list for the current Kitty stabilization pas
 - Phase 5 — Skills and Quality ✅__
   - Response quality critic (10 tests pass)__
   - Self-correction skill exists (SKILL.md)__
-  - Spec: quality-critic.spec.md__
-- Phase 6 — Memory and Source-Grounded Specialist ✅__
-  - Vector store (8 tests pass)__
-  - Specialist router (7 tests pass)__
-  - Specialist validator (5 tests pass)__
-  - Memory inspec
+  - Spec
 
 [truncated]
 
@@ -259,7 +259,7 @@ Source: docs/PARKED_FEATURES.md
 
 # Parked Features
 
-Last updated: 2026-04-28
+Last updated: 2026-04-29
 
 Parked features are ideas worth keeping but not authorized for current implementation. Parking an idea preserves it without letting it hijack focused work.
 
@@ -390,16 +390,13 @@ Source: docs/OPEN_LOOPS.md
 
 # Open Loops
 
-Last updated: 2026-04-28
+Last updated: 2026-04-29
 
 ## Active
 
-- Decide whether to physically migrate into `kitty-system/kitty-app` or keep the current checkout and simulate separation with docs first.
-- Decide whether `/api/chat` should route blank compatibility LLM output to `WebLLMClient` provider fallback or keep deterministic `Kitty heard:` fallback while stabilizing.
-- Choose the next runtime utility spec after the control layer: `/stuck`, deterministic brief, or task/done tracking.
-- Review dirty runtime source deletions before touching `src/space_kitty/`.
-- Review cleanup candidates before deleting generated artifacts.
-- Confirm if the "Canadian-first" assistant persona (D-0008) is a permanent shift or a specific test case.
+- Confirm whether "Canadian-first" sourcing and budget-conscious recommendations should become a permanent Kitty preference.
+- Confirm whether `$129/month` is a real product/business target, a generated artifact, or irrelevant.
+- Decide whether bank transaction / budget leak analysis should be rejected entirely or parked behind a privacy spec and manual-paste-only boundary.
 
 ## Waiting
 

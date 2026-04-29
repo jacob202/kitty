@@ -1,6 +1,6 @@
 # Skill Candidates
 
-Last updated: 2026-04-28
+Last updated: 2026-04-29
 
 Candidate skills must remain parked until intake and builder gates are stable.
 
@@ -11,6 +11,7 @@ Candidate skills must remain parked until intake and builder gates are stable.
 - chat-log consolidation assistant
 - source-grounded specialist answer checker
 - cleanup-spec generator
+- budget leak finder (candidate only; requires privacy spec before any runtime skill work)
 
 ## Rule
 

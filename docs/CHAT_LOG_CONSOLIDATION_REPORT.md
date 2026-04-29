@@ -4,6 +4,10 @@ Generated: 2026-04-28T22:05:35.045166
 
 Logs processed: 449
 
+Review note 2026-04-29:
+
+This keyword-generated report is not canonical-quality extraction. Use `docs/CHAT_LOG_CANDIDATE_REVIEW_2026-04-29.md` for reviewed dispositions. Do not promote items from this report directly into durable docs without separating user-authored evidence from assistant-authored inference.
+
 ## decisions: 3 items
 - "content": "Sketch one screen. Just one.  \nNot the whole app \u2014 the one that matters most.  \nPut it on paper. Then throw that paper away and do it again.  \nDo it seven times.  \nThe seventh sketch will be the first one worth showing.  \n\nStart there. Not with tools. Not with systems.  \nWith a decision.  \nWhat does this thing *do*? Not what it *is*.  \nAnswer that, then draw it.  \n\nYou don\u2019t need to know everything.  \nYou need one clear thought.  \nThen the next.  \n\nNow draw."
 - "content": "Sketch one screen. Just one.  \nNot the whole app \u2014 the one that matters most.  \nPut it on paper. Then throw that paper away and do it again.  \nDo it seven times.  \nThe seventh sketch will be the first one worth showing.  \n\nStart there. Not with tools. Not with systems.  \nWith a decision.  \nWhat does this thing *do*? Not what it *is*.  \nAnswer that, then draw it.  \n\nYou don\u2019t need to know everything.  \nYou need one clear thought.  \nThen the next.  \n\nNow draw."
@@ -62,4 +66,3 @@ Logs processed: 449
 - "content": "Discharge the power supply caps\u2014NOW. Use a 10k\u03a9 5W resistor across B+ to ground. Do it twice.  \n\nOnce done, check voltage at the amp input pin with no signal. Should be 0V. If it\u2019s over 100mV, there\u2019s a bias or op-amp failure.  \n\nTell me:  \n1. DC offset at speaker outputs (with amp off, then on)  \n2. Any burning smell near the power supply?  \n3. Did you check fuses with a multimeter\u2014real fuses or just look at them?  \n\nI need numbers, not guesses. Get me that, and I\u2019ll tell you where the fault is in the next step.  \n\nAnd Alex\u2014safety first: one hand in pocket, insulated tools. No exceptions."
 
 ## open_loops: 0 items
-

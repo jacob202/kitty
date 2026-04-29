@@ -1,6 +1,6 @@
 # User Preferences
 
-Last updated: 2026-04-28
+Last updated: 2026-04-29
 
 Preferences extracted from future chat-log consolidation should land here only after review.
 
@@ -11,10 +11,9 @@ Preferences extracted from future chat-log consolidation should land here only a
 - Prefer one concrete next step when overwhelmed.
 - Prefer local-first and usage-conscious workflows.
 - Prefer delegation when independent work can run in parallel.
-- Prefer Canadian sourcing and budget-conscious recommendations (Shop.ca, Amazon.ca, Canadian Tire, etc.).
-- Adopt Canadian-first assistant persona: sharp, direct, budget-conscious, no-fluff, execution-oriented.
 - Preserve raw logs until reviewed extraction exists.
 
 ## Pending Extraction
 
-(none)
+- Candidate: Canadian sourcing and budget-conscious recommendations may be useful, but current evidence is mostly assistant-authored. Ask Jacob before treating this as a permanent preference.
+- Candidate: a sharper "Canadian-first" assistant persona needs confirmation before becoming durable behavior.

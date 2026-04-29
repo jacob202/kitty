@@ -29,8 +29,10 @@ Last updated: 2026-04-29
   - failed-check object rendering is fixed
 - Gemini/chat-log intake:
   - `docs/imports/gemini_intake_20260428.md` exists as a candidate draft
-  - selected candidates were propagated into canonical docs
-  - candidate entries still require review before accepted-canon status
+  - `docs/CHAT_LOG_CANDIDATE_REVIEW_2026-04-29.md` records reviewed dispositions
+  - direct/no-fluff preference and raw-log preservation are accepted
+  - Canadian-first persona, `$129/month`, and bank transaction analysis remain open loops
+  - Canadian real estate analysis and stale SocketIO session cleanup were rejected as noisy extraction
 - Tiny generated-cache cleanup:
   - removed only approved ignored caches
   - left protected-tree metadata and tracked deletions untouched
@@ -48,6 +50,7 @@ Last updated: 2026-04-29
 - `docs/CLEANUP_CANDIDATES.md`
 - `docs/CHAT_LOG_CONSOLIDATION_REPORT.md`
 - `docs/imports/gemini_intake_20260428.md`
+- `docs/CHAT_LOG_CANDIDATE_REVIEW_2026-04-29.md`
 - `garage-ui/app/components/EvalDashboard.tsx`
 - `SESSION_SUMMARY.md`
 - `TASKS.md`
@@ -76,6 +79,6 @@ bash scripts/run_gates.sh
 
 ## Best Next Tasks
 
-1. Review Gemini/chat-log candidate entries before promoting them to accepted canon.
+1. Checkpoint the reviewed Gemini/chat-log candidate disposition and current verified docs.
 2. Add frontend regression coverage for eval dashboard failed-check rendering after a frontend test spec.
 3. Fix the launcher/PID status mismatch after a narrow launcher spec.

@@ -1,6 +1,6 @@
 # Project Facts
 
-Last updated: 2026-04-28
+Last updated: 2026-04-29
 
 Facts extracted from future chat-log consolidation should land here only after review.
 
@@ -11,9 +11,8 @@ Facts extracted from future chat-log consolidation should land here only after r
 - The Flask entrypoint is `web.py`.
 - The control layer requires intake before builder execution.
 - Parked features are preserved with enough context to revive later.
-- Target price for Kitty service is $129/month.
-- MLX local inference is currently failing due to missing `mlx-lm` package in the runtime environment.
+- `/opt/homebrew/bin/python3.12` can import `mlx_lm` as of 2026-04-29.
 
 ## Pending Extraction
 
-Use Gemini or another external reviewer to extract project facts from raw chat logs into a reviewed report before appending them here.
+- `$129/month` appeared in assistant-authored chat-log text and is not accepted as a project fact without user confirmation.

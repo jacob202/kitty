@@ -23,16 +23,16 @@ Last updated: 2026-04-29
 - Full suite verified: `333 passed, 2 warnings`.
 - Tiny generated-cache cleanup completed under `specs/tiny-generated-cache-cleanup.spec.md`.
 - Builder security enforcement verified: `53 passed`.
-- Gemini/chat-log candidate intake imported and partially propagated; candidate entries still need review before accepted-canon status.
+- Gemini/chat-log candidate intake imported and reviewed; weak assistant-authored claims were demoted to open loops or rejected/noisy.
 - Eval dashboard UI panel spec written, component implemented in Garage UI, and failed-check object rendering fixed.
 - `/api/chat` real provider response implementation completed (fallback logic improved and errors passed clearly).
-- Gemini/chat-log candidates reviewed and promoted to accepted canon in project docs.
+- Gemini/chat-log candidates reviewed; only durable preferences/safety rules were accepted, and uncertain items remain open loops.
 - `./kitty status` command fixed to correctly report server state based on port 5001 usage.
 - UI panel regression coverage added for eval dashboard failed-check rendering (using Vitest and React Testing Library).
 
 ## Next Smallest Action
 
-- Wait for a spec to migrate `kitty-system/kitty-app`.
+- Checkpoint the reviewed candidate disposition and current verified docs.
 
 ## Delegation Queue
 

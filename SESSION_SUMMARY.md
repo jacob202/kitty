@@ -26,6 +26,7 @@ Another worker added Phase 3 through Phase 6 feature files, but route wiring and
 - Wired `src/utils/security_scanner.py` into `scripts/kitty_builder.py` so unsafe proposed writes and scanner-flagged command strings are blocked before disk write or subprocess launch.
 - Imported Gemini chat-log intake draft (`docs/imports/gemini_intake_20260428.md`) and propagated selected candidates into `docs/DECISIONS.md`, `docs/PARKED_FEATURES.md`, `docs/PROJECT_FACTS.md`, `docs/USER_PREFS.md`, and `docs/OPEN_LOOPS.md`.
 - Verified that the Gemini intake is candidate-quality, not fully accepted canon; items marked `accepted_candidate` or `parked_candidate` still need review before being treated as durable truth.
+- Completed the 2026-04-29 candidate review: direct/no-fluff preference and raw-log preservation remain accepted, Canadian-first and `$129/month` are open loops, bank transaction analysis is privacy-gated, and real-estate/socket cleanup candidates were rejected as noisy extraction.
 - Verified the Garage UI eval dashboard build path and fixed failed-check rendering for backend object-shaped failures.
 
 ## Verified
@@ -95,7 +96,7 @@ Verified command:
 ## Next Steps
 
 1. Run route smoke with the live server: `/api/brief`, `/api/command`, `/api/chat`.
-2. Review Gemini/chat-log candidates before promoting them from candidate status to accepted canon.
+2. Use `docs/CHAT_LOG_CANDIDATE_REVIEW_2026-04-29.md` as the source of truth for the Gemini candidate disposition.
 3. Decide whether to fix launcher/PID status mismatch or write an eval dashboard UI regression test next.
 4. Commit or otherwise checkpoint the verified green state before additional runtime work.
 
