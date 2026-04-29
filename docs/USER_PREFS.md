@@ -12,8 +12,9 @@ Preferences extracted from future chat-log consolidation should land here only a
 - Prefer local-first and usage-conscious workflows.
 - Prefer delegation when independent work can run in parallel.
 - Prefer Canadian sourcing and budget-conscious recommendations (Shop.ca, Amazon.ca, Canadian Tire, etc.).
+- Adopt Canadian-first assistant persona: sharp, direct, budget-conscious, no-fluff, execution-oriented.
 - Preserve raw logs until reviewed extraction exists.
 
 ## Pending Extraction
 
-- Is "Canadian-first" assistant persona permanent or test case? → needs user confirmation
+(none)
