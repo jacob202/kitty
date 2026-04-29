@@ -3,16 +3,17 @@ Last updated: 2026-04-29
 
 ## Active Phase
 
-Workspace separation preflight and blocker classification
+Copy-first workspace separation validation
 
 ## Current Task
 
-Prepare the future physical `kitty-system` split without moving files. Classify the dirty KnowledgeGetter / MCP lane as unverified parked work unless it receives a separate approved spec.
+Validate the new copy-first `kitty-system` workspace while keeping `/Users/jacobbrizinski/Projects/kitty` as the authoritative runnable checkout.
 
 ## Allowed Work
 
 - workspace separation move map
 - read-only migration preflight
+- copy-first workspace validation
 - file governance updates
 - blocker reports for dirty worker lanes
 - parking unverified future features with enough context to revive later
@@ -26,7 +27,7 @@ Prepare the future physical `kitty-system` split without moving files. Classify 
 - UI polish
 - memory migration
 - deleting raw chat logs
-- physical repo move
+- deleting or renaming the old repo
 - import or launch path rewrites
 - deleting or committing generated databases
 

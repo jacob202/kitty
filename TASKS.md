@@ -30,10 +30,11 @@ Last updated: 2026-04-29
 - `./kitty status` command fixed to correctly report server state based on port 5001 usage.
 - UI panel regression coverage added for eval dashboard failed-check rendering (using Vitest and React Testing Library).
 - MCP agent bundle exists in the dirty tree but is unverified, out of phase, and blocked by current focus; import smoke tests currently fail on missing optional dependencies.
+- Copy-first `kitty-system` workspace created beside the old checkout; old checkout remains authoritative until launch verification passes.
 
 ## Next Smallest Action
 
-- Resolve or separately checkpoint the dirty MCP agent bundle, then rerun workspace separation preflight before any physical move.
+- Validate launch/test behavior from `/Users/jacobbrizinski/Projects/kitty-system/kitty-app` before changing any launcher or deleting/renaming the old checkout.
 
 ## Delegation Queue
 

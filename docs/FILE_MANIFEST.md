@@ -12,6 +12,14 @@ Path:
 
 This is the active runnable Kitty checkout. Launch, tests, and implementation work should assume this path unless a later migration decision changes it.
 
+## Copy-First Workspace
+
+Path:
+
+`/Users/jacobbrizinski/Projects/kitty-system`
+
+This copy-first workspace now exists with `kitty-app`, `kitty-workbench`, and `kitty-archives`. It is not yet the authoritative runtime path. Launch commands should not be switched until the copied app is verified.
+
 ## Not The Current Runnable App
 
 `/Users/jacobbrizinski/Documents/Kitty` may contain context, manuals, or copied instructions, but it is not the authoritative runnable app for Phase 0 work.
@@ -68,13 +76,12 @@ The Phase 0 control surface is:
 - `scripts/plan_workspace_separation.py`
 - `scripts/run_gates.sh`
 
-## Planned Separation
+## Separation Status
 
-The future `kitty-system` separation is a planned controlled migration. It has not happened.
+The future `kitty-system` separation has started as a copy-first, non-destructive migration. The old checkout remains in place.
 
 No worker should:
 
-- Move files into a new physical repo.
 - Rename the runnable checkout.
 - Rewrite imports or launch commands for a future path.
 - Delete docs because they appear to belong to the future system layer.

@@ -141,3 +141,11 @@ Latest result: `58 passed` (26 Phase 3 + 15 Phase 4 + 10 quality critic + 7 wiri
 3. **Physical repo migration**: `kitty-system/kitty-app` separation (requires approved spec). 
 
 4. **DeepSeek heavy lifting**: Use OpenRouter free tier (DeepSeek Chat) for planning/analysis, local MLX for building.
+## 2026-04-29 Copy-First Workspace Separation
+
+- Main branch cleaned after parking dirty MCP agent bundle on `parked/mcp-agent-bundle-20260429`.
+- Added and executed copy-first workspace separation.
+- Created `/Users/jacobbrizinski/Projects/kitty-system/kitty-app`.
+- Created `/Users/jacobbrizinski/Projects/kitty-system/kitty-workbench`.
+- Created `/Users/jacobbrizinski/Projects/kitty-system/kitty-archives`.
+- Original checkout `/Users/jacobbrizinski/Projects/kitty` remains authoritative until copied-app launch verification passes.

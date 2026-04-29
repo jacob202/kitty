@@ -1,25 +1,25 @@
 # Workspace Separation Move Map
 
 Last updated: 2026-04-29
-Status: preflight only
+Status: copy-first workspace created
 
 The current runnable checkout remains:
 
 `/Users/jacobbrizinski/Projects/kitty`
 
-No physical move has happened. This document is the reviewed move map for a future copy-first migration into:
+No destructive move has happened. This document is the reviewed move map used for the copy-first migration into:
 
 `/Users/jacobbrizinski/Projects/kitty-system`
 
 ## Current Preflight Result
 
-Status: blocked
+Status: created, pending launch verification
 
 Reason:
 
-- The tree contains uncommitted Phase 6+ MCP / KnowledgeGetter work.
-- `CURRENT_FOCUS.md` forbids MCP expansion.
-- `knowledge_db/` is generated runtime data and must not be committed or migrated as source.
+- `/Users/jacobbrizinski/Projects/kitty-system` exists.
+- `/Users/jacobbrizinski/Projects/kitty` remains the authoritative runnable checkout.
+- Launch commands are not switched yet.
 
 ## Target Layout
 
@@ -109,12 +109,10 @@ These are local, generated, bulky, or sensitive:
 
 ## Required Before Physical Move
 
-1. Resolve or separately checkpoint the KnowledgeGetter / MCP lane.
-2. Run `git status --short` and confirm no unrelated dirty files are mixed into the migration.
-3. Run `python3 scripts/plan_workspace_separation.py --project .`.
-4. Run `python3 scripts/check_file_governance.py --dry-run`.
-5. Run `bash scripts/run_gates.sh`.
-6. Create a copy-first backup or archive before any path rewrite.
+1. Verify tests from `/Users/jacobbrizinski/Projects/kitty-system/kitty-app`.
+2. Verify launch from `/Users/jacobbrizinski/Projects/kitty-system/kitty-app`.
+3. Update launch docs only after copied app validation passes.
+4. Keep `/Users/jacobbrizinski/Projects/kitty` until Jacob explicitly approves deletion or archival.
 
 ## Do Not Do Yet
 
