@@ -75,6 +75,11 @@ DOMAIN_TOPICS = {
         "scientific computing updates",
         "mathematics breakthroughs",
     ],
+    "news": [
+        "technology news today",
+        "open source AI developments",
+        "Apple Machine Learning news",
+    ],
 }
 
 

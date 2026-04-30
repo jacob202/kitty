@@ -7,6 +7,7 @@ from .hardware_routes import hardware_bp
 from .honcho_routes import honcho_bp
 from .memory_product_routes import memory_product_bp
 from .memory_routes import memory_bp
+from .news_routes import news_bp
 from .reasoning_routes import reasoning_bp
 from .settings_routes import settings_bp
 from .streaming_routes import streaming_bp
@@ -25,6 +26,7 @@ __all__ = [
     "honcho_bp",
     "memory_product_bp",
     "memory_bp",
+    "news_bp",
     "reasoning_bp",
     "settings_bp",
     "streaming_bp",
