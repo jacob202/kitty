@@ -33,11 +33,12 @@ Last updated: 2026-04-29
 - Copy-first `kitty-system` workspace created beside the old checkout; old checkout remains authoritative until launch verification passes.
 - Copied app gate and basic launch smoke passed from `/Users/jacobbrizinski/Projects/kitty-system/kitty-app` on `KITTY_PORT=5002`.
 - Phase 4 incoming worker changes enforced and cleared via `docs/PHASE4_MERGE_GATE_2026-04-30.md`.
+- Reviewed MCP-agent lane triage/spec-first reconciliation completed (no MCP expansion adopted).
+- `src/tools/image_gen.py` diff reviewed and adopted.
 
 ## Next Smallest Action
 
-- Reviewed MCP-agent lane triage/spec-first reconciliation completed (no MCP expansion adopted).
-- Next governance lane: decide whether to start physical `kitty-system` migration checklist or review isolated `src/tools/image_gen.py` diff.
+- Decide whether to start physical `kitty-system` migration checklist.
 
 ## Delegation Queue
 

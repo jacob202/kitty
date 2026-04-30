@@ -1,30 +1,37 @@
 import base64
+import json
 from pathlib import Path
 
 import requests
 
 
 class DrawThingsGenerator:
-    def __init__(self, base_url="http://127.0.0.1:8080"):
+    def __init__(self, base_url="http://127.0.0.1:7859"):
         self.base_url = base_url
         self.output_folder = Path("./outputs")
         self.output_folder.mkdir(exist_ok=True)
 
-    def generate(self, prompt, trigger_word="", negative_prompt="bad anatomy, blurry"):
-        full_prompt = f"{trigger_word}, {prompt}, photorealistic, 8K, natural lighting"
+    def generate(self, prompt, trigger_word="", negative_prompt="", seed=-1):
+        full_prompt = f"{trigger_word}, {prompt}" if trigger_word else prompt
         payload = {
             "prompt": full_prompt,
-            "negative_prompt": negative_prompt,
-            "steps": 20,
-            "seed": -1
+            "negative_prompt": negative_prompt or "blurry, low quality",
+            "seed": seed,
+            "steps": 28,
+            "width": 1024,
+            "height": 1024,
         }
         try:
-            response = requests.post(f"{self.base_url}/sdapi/v1/txt2img", json=payload)
-            response.raise_for_status()
+            response = requests.post(self.base_url, json=payload, timeout=300)
             r = response.json()
 
-            # Draw Things API returns base64 string
-            image_data = base64.b64decode(r['images'][0])
+            if "images" in r and r["images"]:
+                image_data = base64.b64decode(r['images'][0])
+            elif "image" in r:
+                image_data = base64.b64decode(r['image'])
+            else:
+                return f"Error: Unexpected response: {list(r.keys())}"
+
             safe_prompt = "".join(c for c in prompt if c.isalnum() or c in " _-")[:30]
             out_path = self.output_folder / f"drawthings_{safe_prompt}.png"
 
