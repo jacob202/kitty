@@ -3,11 +3,11 @@ Last updated: 2026-04-29
 
 ## Active Phase
 
-Copy-first workspace separation validation
+Market-ready baseline checkpoint (post copy-first separation)
 
 ## Current Task
 
-Decide whether to switch daily work to `/Users/jacobbrizinski/Projects/kitty-system/kitty-app` after copied-app gates and basic launch smoke passed.
+Execute Phase A of `docs/MARKET_READY_EXECUTION_PLAN_2026-04-30.md`: live smoke, launcher status validation, canonical chat-log disposition reconciliation, and checkpoint commit.
 
 ## Allowed Work
 
@@ -18,6 +18,8 @@ Decide whether to switch daily work to `/Users/jacobbrizinski/Projects/kitty-sys
 - file governance updates
 - blocker reports for dirty worker lanes
 - parking unverified future features with enough context to revive later
+- release baseline smoke and checkpointing
+- canonical docs reconciliation from reviewed candidate source of truth
 
 ## Forbidden Work
 

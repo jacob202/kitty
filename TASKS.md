@@ -35,7 +35,11 @@ Last updated: 2026-04-29
 
 ## Next Smallest Action
 
-- Decide whether to switch daily work to `/Users/jacobbrizinski/Projects/kitty-system/kitty-app`; do not delete or rename the old checkout yet.
+- Execute Phase A in `docs/MARKET_READY_EXECUTION_PLAN_2026-04-30.md`:
+  - run live route smoke (`/api/brief`, `/api/command`, `/api/chat`)
+  - confirm launcher status reflects actual listener state
+  - reconcile canonical docs to `docs/CHAT_LOG_CANDIDATE_REVIEW_2026-04-29.md`
+  - checkpoint verified green state
 
 ## Delegation Queue
 
