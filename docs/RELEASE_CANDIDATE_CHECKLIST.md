@@ -35,6 +35,6 @@ This checklist validates the completion of the `MARKET_READY_EXECUTION_PLAN_2026
 
 ## Signoff
 
-- **Checkpoint Hash:** *(Automatically generated upon final commit)*
-- **Status:** APPROVED for handoff.
+- **Checkpoint Hash:** `d08cd3b`
+- **Status:** APPROVED for handoff (2026-04-30).
 - **Note:** Use `GOLDEN_DEMO_STRICT_CHAT=1` when provider-key validity is part of release signoff.

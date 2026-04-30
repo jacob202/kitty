@@ -133,6 +133,10 @@ Definition of done:
 - smoke and test commands documented
 - known risks explicitly listed
 
+Status:
+- completed and checkpointed
+- signoff hash: `d08cd3b`
+
 ## Explicit Do-Not-Build Boundaries (unchanged)
 
 - MCP bundle adoption (currently parked/unverified)
@@ -163,4 +167,4 @@ Lane 4: checkpoint worker (git hygiene)
 
 ## Immediate Next Smallest Action
 
-Run Phase A command block, reconcile any mismatch against `docs/CHAT_LOG_CANDIDATE_REVIEW_2026-04-29.md`, then checkpoint.
+Post-checkpoint (user-approved): run spec-first triage for parked MCP agent bundle before any migration or adoption work.
