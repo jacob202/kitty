@@ -7,7 +7,7 @@ Market-ready baseline checkpoint (post copy-first separation)
 
 ## Current Task
 
-Finalize Phase E checkpoint and perform approved post-checkpoint triage: enforce Phase 4 merge gate and begin MCP-agent review lane as spec-first governance work.
+Phase E finalized. Post-checkpoint governance now focuses on: Phase 4 integration enforcement (completed) and MCP-agent parked-lane triage (completed), followed by migration-readiness decisions.
 
 ## Allowed Work
 
