@@ -7,8 +7,8 @@ Kitty Builder is not part of normal Kitty runtime startup. It is a controlled wo
 ## Required Invocation
 
 ```bash
-./kittybuilder --project /Users/jacobbrizinski/Projects/kitty --spec specs/example.spec.md
-./kittybuilder --project /Users/jacobbrizinski/Projects/kitty --spec specs/example.spec.md --execute
+./kittybuilder --project /Users/jacobbrizinski/Projects/kitty-system/kitty-app --spec specs/example.spec.md
+./kittybuilder --project /Users/jacobbrizinski/Projects/kitty-system/kitty-app --spec specs/example.spec.md --execute
 ```
 
 Rules:

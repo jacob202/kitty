@@ -13,7 +13,7 @@ Describe the user-facing outcome in plain language.
 
 Current runnable app:
 
-`/Users/jacobbrizinski/Projects/kitty`
+`/Users/jacobbrizinski/Projects/kitty-system/kitty-app`
 
 Physical repo move allowed:
 

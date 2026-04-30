@@ -4,7 +4,7 @@ Last updated: 2026-04-29
 
 ## Current Verified State
 
-- Runnable checkout: `/Users/jacobbrizinski/Projects/kitty`.
+- Runnable checkout: `/Users/jacobbrizinski/Projects/kitty-system/kitty-app`.
 - Do not treat `/Users/jacobbrizinski/Documents/Kitty` as the active repo unless proven otherwise.
 - Tree is intentionally dirty with many unrelated worker changes. Do not revert unrelated modified/deleted/untracked files.
 - Full suite after builder security enforcement: `333 passed, 2 warnings`.

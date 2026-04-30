@@ -115,6 +115,14 @@ cd /Users/jacobbrizinski/Projects/kitty
 ./kitty status
 ```
 
+## 2026-04-30 Gate Re-Run (Migrated Runtime Path)
+
+- Phase 4 merge gate commands were rerun from `/Users/jacobbrizinski/Projects/kitty-system/kitty-app`.
+- Full suite result: `348 passed, 2 warnings`.
+- Focused route result: `22 passed, 2 warnings`.
+- Live route smoke returned HTTP 200 for `/api/brief`, `/api/command`, and `/api/chat`.
+- Evidence doc: `docs/PHASE4_MERGE_GATE_RUN_2026-04-30.md`.
+
 ---
 
 ## Previous Imported Summary

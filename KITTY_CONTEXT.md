@@ -25,7 +25,11 @@ raw request -> `kittyintake` -> decision / clarification / parked feature / spec
 
 ## Runtime Boundary
 
-The active runnable checkout is:
+The active migration runtime checkout is:
+
+`/Users/jacobbrizinski/Projects/kitty-system/kitty-app`
+
+Legacy rollback checkout:
 
 `/Users/jacobbrizinski/Projects/kitty`
 

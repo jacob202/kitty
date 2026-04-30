@@ -33,11 +33,11 @@ Ship a market-ready Kitty baseline from a controlled, verifiable scope:
 
 ## Transition Decision
 
-Authoritative runtime stays:
+Authoritative migration runtime:
 
-`/Users/jacobbrizinski/Projects/kitty`
+`/Users/jacobbrizinski/Projects/kitty-system/kitty-app`
 
-Do not switch default daily path to `kitty-system/kitty-app` until launch/checkpoint parity is proven and documented.
+Legacy rollback remains available at `/Users/jacobbrizinski/Projects/kitty` until retirement criteria are met.
 
 ## Execution Phases
 

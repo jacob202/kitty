@@ -1,6 +1,6 @@
 # Kitty Skills Roster
 
-Project root: `/Users/jacobbrizinski/Projects/kitty`
+Project root: `/Users/jacobbrizinski/Projects/kitty-system/kitty-app`
 Crush config: `crush.json` → `skills_paths: ["./src/tools/superpowers/skills", "./skills"]`
 
 ---

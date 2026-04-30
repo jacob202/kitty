@@ -8,7 +8,7 @@ Worker lane:
 
 ## Current App Boundary
 
-Current runnable app: `/Users/jacobbrizinski/Projects/kitty`
+Current runnable app: `/Users/jacobbrizinski/Projects/kitty-system/kitty-app`
 
 Physical migration allowed: no, unless this intake is converted into an approved controlled migration spec.
 

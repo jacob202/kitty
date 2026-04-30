@@ -36,6 +36,7 @@ Last updated: 2026-04-30
 - Reviewed MCP-agent lane triage/spec-first reconciliation completed (no MCP expansion adopted).
 - `src/tools/image_gen.py` diff reviewed and adopted.
 - Migration lane started with refreshed copy-first sync, preflight `READY`, copied-app gate pass (`92 passed`), and launch validation on port 5004.
+- Phase 4 merge gate rerun completed from migrated runtime path; full suite `348 passed`, focused route suite `22 passed`, and route smoke returned HTTP 200 for `/api/brief`, `/api/command`, and `/api/chat`.
 
 ## Next Smallest Action
 

@@ -71,7 +71,7 @@ Control files coordinate work and may be edited only by assigned documentation/c
 
 Every worker must:
 
-1. Confirm the working directory is `/Users/jacobbrizinski/Projects/kitty`.
+1. Confirm the working directory is `/Users/jacobbrizinski/Projects/kitty-system/kitty-app`.
 2. Check `git status --short`.
 3. Read the assigned spec or intake note.
 4. Confirm allowed and forbidden files.
