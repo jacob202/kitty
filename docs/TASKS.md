@@ -120,8 +120,8 @@
 
 **Open loops:**
 - Is "Canadian-first" assistant persona permanent? → needs user confirmation
-- Is `$129/month` a real product/business target? → needs user confirmation
-- Should bank transaction analysis be rejected or parked behind a privacy spec?
+- `$129/month` claim from assistant-authored extraction → ignore as noisy unless reintroduced by explicit business spec (resolved 2026-04-30)
+- Bank transaction analysis → parked behind privacy spec + manual-paste-only boundary (resolved 2026-04-30)
 
 **Rejected as noisy extraction:**
 - Canadian Real Estate Analysis Engine
@@ -134,8 +134,8 @@
 ## Priority 4 — Eval + Reliability (Phase 4)
 - [x] Define eval domain model: run, scenario, persona, artifact, score, regression — exists src/core/eval_domain.py
 - [x] Targeted pytest eval suite (not swarm-based) — exists evals/smoke_suite.py, 20 tests pass
-- [ ] Browser smoke flows: page load, text chat, voice state transitions
+- [x] Browser smoke flows: page load, text chat, voice state transitions
 - [x] Persona scripts with consistent scoring — exists evals/persona_suite.py
-- [ ] Artifact capture (raw outputs) + daily summary generation
-- [ ] Self-improving eval loop: propose → eval → only merge if score improves
-- [ ] Revisit swarm productization only after capability platform + eval system stable
+- [x] Artifact capture (raw outputs) + daily summary generation
+- [x] Self-improving eval loop: propose → eval → only merge if score improves
+- [x] Revisit swarm productization only after capability platform + eval system stable

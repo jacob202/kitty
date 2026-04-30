@@ -15,4 +15,4 @@ Facts extracted from future chat-log consolidation should land here only after r
 
 ## Pending Extraction
 
-- `$129/month` appeared in assistant-authored chat-log text and is not accepted as a project fact without user confirmation. (confidence: low)
+- `$129/month` pricing claim from assistant-authored extraction is treated as irrelevant/noisy for current project governance unless reintroduced by explicit user business spec. (resolved 2026-04-30)

@@ -22,7 +22,7 @@ The following features have partial concepts or code in the repository but **mus
 
 ## 3. Documentation Limits
 
-- The chat log consolidation extraction process is explicitly designed to **avoid** promoting assistant-generated speculation into canon. As a result, certain preferences (like `$129/month` pricing goals) remain unverified "Open Loops."
+- The chat log consolidation extraction process is explicitly designed to **avoid** promoting assistant-generated speculation into canon. Candidate claims are either confirmed by explicit user instruction, parked, or rejected/noisy.
 
 ## Revival Trigger
 

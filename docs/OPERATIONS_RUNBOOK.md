@@ -58,6 +58,20 @@ The comprehensive test suite (currently validating ~342 tests) executes via `pyt
 /opt/homebrew/bin/python3.12 -m pytest tests/ -q --tb=short
 ```
 
+### Running the Golden Demo Smoke
+
+Use the release smoke script for an end-to-end check of tests + core routes + chat behavior:
+
+```bash
+bash scripts/golden_demo.sh
+```
+
+When provider credentials must be valid for the check, use strict mode:
+
+```bash
+GOLDEN_DEMO_STRICT_CHAT=1 bash scripts/golden_demo.sh
+```
+
 ### Running Frontend Tests
 
 The Garage UI contains its own regression test suite using Vitest.
