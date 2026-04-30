@@ -35,10 +35,11 @@ Last updated: 2026-04-29
 - Phase 4 incoming worker changes enforced and cleared via `docs/PHASE4_MERGE_GATE_2026-04-30.md`.
 - Reviewed MCP-agent lane triage/spec-first reconciliation completed (no MCP expansion adopted).
 - `src/tools/image_gen.py` diff reviewed and adopted.
+- Migration lane started with refreshed copy-first sync, preflight `READY`, copied-app gate pass (`92 passed`), and launch validation on port 5004.
 
 ## Next Smallest Action
 
-- Decide whether to start physical `kitty-system` migration checklist.
+- Execute controlled migration cutover checklist: update runtime source-of-truth docs and launch guidance to `kitty-system/kitty-app`, while keeping rollback path explicit.
 
 ## Delegation Queue
 

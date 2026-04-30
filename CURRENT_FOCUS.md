@@ -7,13 +7,14 @@ Market-ready baseline checkpoint (post copy-first separation)
 
 ## Current Task
 
-Phase E finalized. Post-checkpoint governance now focuses on: Phase 4 integration enforcement (completed) and MCP-agent parked-lane triage (completed), followed by migration-readiness decisions.
+Migration execution lane (post Phase E): run controlled `kitty-system` cutover checklist after preflight and copied-app parity validation.
 
 ## Allowed Work
 
 - workspace separation move map
 - read-only migration preflight
 - copy-first workspace validation
+- migration start reporting and cutover checklist prep
 - launch-command decision docs
 - file governance updates
 - blocker reports for dirty worker lanes
