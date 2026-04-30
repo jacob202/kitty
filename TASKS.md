@@ -37,10 +37,11 @@ Last updated: 2026-04-30
 - `src/tools/image_gen.py` diff reviewed and adopted.
 - Migration lane started with refreshed copy-first sync, preflight `READY`, copied-app gate pass (`92 passed`), and launch validation on port 5004.
 - Phase 4 merge gate rerun completed from migrated runtime path; full suite `348 passed`, focused route suite `22 passed`, and route smoke returned HTTP 200 for `/api/brief`, `/api/command`, and `/api/chat`.
+- Phase 4 merge-gate automation script added and validated: `scripts/run_phase4_merge_gate.sh` (full run passed against `kitty-system/kitty-app` and wrote `docs/PHASE4_MERGE_GATE_RUN_2026-04-30_114555.md`).
 
 ## Next Smallest Action
 
-- Keep running/merging from `kitty-system/kitty-app` and enforce `docs/PHASE4_MERGE_GATE_2026-04-30.md` before any Phase 4 merge/checkpoint.
+- For every incoming Phase 4 worker change, run `scripts/run_phase4_merge_gate.sh --project /Users/jacobbrizinski/Projects/kitty-system/kitty-app --port 5001` and only merge/checkpoint on pass.
 
 ## Delegation Queue
 

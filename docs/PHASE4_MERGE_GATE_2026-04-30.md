@@ -28,13 +28,21 @@ These changes are not auto-accepted. They must pass this gate.
 
 ## Required Commands
 
+Canonical runner:
+
+```bash
+scripts/run_phase4_merge_gate.sh --project /Users/jacobbrizinski/Projects/kitty-system/kitty-app --port 5001
+```
+
+Expanded/manual equivalent:
+
 ```bash
 /opt/homebrew/bin/python3.12 -m pytest tests/ -q --tb=short
 /opt/homebrew/bin/python3.12 -m pytest tests/test_web_chat_phase1.py tests/test_brief_route.py tests/test_commands_route.py -q --tb=short
 ./kitty status
-curl -sS http://localhost:5001/api/brief
-curl -sS -X POST http://localhost:5001/api/command -H "Content-Type: application/json" -d '{"command":"/stuck"}'
-curl -sS -X POST http://localhost:5001/api/chat -H "Content-Type: application/json" -d '{"message":"phase4 merge gate","domain":"chat"}'
+curl -fsS http://localhost:5001/api/brief
+curl -fsS -X POST http://localhost:5001/api/command -H "Content-Type: application/json" -d '{"command":"/stuck"}'
+curl -fsS -X POST http://localhost:5001/api/chat -H "Content-Type: application/json" -d '{"message":"phase4 merge gate","domain":"chat"}'
 ```
 
 ## Phase 4-Specific Test Additions Required If `NewsFeedSpecialist` Ships

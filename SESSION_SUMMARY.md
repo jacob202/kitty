@@ -28,6 +28,7 @@ Another worker added Phase 3 through Phase 6 feature files, but route wiring and
 - Verified that the Gemini intake is candidate-quality, not fully accepted canon; items marked `accepted_candidate` or `parked_candidate` still need review before being treated as durable truth.
 - Completed the 2026-04-29 candidate review: direct/no-fluff preference and raw-log preservation remain accepted, Canadian-first and `$129/month` are open loops, bank transaction analysis is privacy-gated, and real-estate/socket cleanup candidates were rejected as noisy extraction.
 - Verified the Garage UI eval dashboard build path and fixed failed-check rendering for backend object-shaped failures.
+- Added `scripts/run_phase4_merge_gate.sh` to enforce Phase 4 merge gating with one command and a generated markdown evidence report.
 
 ## Verified
 
@@ -56,6 +57,7 @@ Focused checks also passed:
 - eval dashboard backend check: `5 passed`
 - Garage UI typecheck: passed
 - Garage UI production build: passed
+- Automated Phase 4 gate runner against migrated runtime path: passed (`docs/PHASE4_MERGE_GATE_RUN_2026-04-30_114555.md`).
 
 ## Live Smoke
 
