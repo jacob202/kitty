@@ -116,3 +116,32 @@ def get_ai_dev_summary_cache() -> str:
     if not _AI_DEV_SUMMARY_CACHE:
         return query_ai_dev_context("latest AI developments")
     return _AI_DEV_SUMMARY_CACHE
+
+
+def query_domain_news(domain: str, limit: int = 3) -> str:
+    """Query domain-specific news for a specialist.
+
+    Args:
+        domain: The specialist domain (automotive, code, audio, etc.)
+        limit: Max news items to return
+
+    Returns:
+        Formatted string of domain news or empty string.
+    """
+    try:
+        from src.services.domain_news_monitor import get_domain_news_monitor
+        monitor = get_domain_news_monitor()
+        items = monitor.get_news(domain, limit=limit)
+
+        if not items:
+            return ""
+
+        lines = [f"## Recent {domain.capitalize()} News\n"]
+        for item in items:
+            lines.append(f"- {item.title}")
+            lines.append(f"  {item.url}\n")
+
+        return "\n".join(lines)[:2000]
+    except Exception as e:
+        logger.debug(f"Domain news context unavailable for {domain}: {e}")
+        return ""

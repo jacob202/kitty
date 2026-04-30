@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from src.services.context_service import query_knowledge_base, query_ai_dev_context, _get_lightrag_for_domain, _lightrag_stores
+from src.services.context_service import query_knowledge_base, query_ai_dev_context, query_domain_news, _get_lightrag_for_domain, _lightrag_stores
 from src.agents.custom_agents import AgentSpec
 
 _memory_instance = None
@@ -170,6 +170,7 @@ class BaseSpecialist(ABC):
         """Query the specialist with LLM + knowledge base + temporal cross-check + AI dev context."""
         kb_context = query_knowledge_base(question, self.domain)
         ai_dev_context = query_ai_dev_context(question)
+        domain_news_context = query_domain_news(self.domain)
 
         # ─── Temporal Cross-Check (Memory Weave) ────────────────────────────────
         weave_context = ""
@@ -198,6 +199,8 @@ class BaseSpecialist(ABC):
             prompt_parts.append(f"Relevant knowledge:\n{kb_context}\n---")
         if ai_dev_context:
             prompt_parts.append(f"Recent AI developments relevant to this query:\n{ai_dev_context}\n---")
+        if domain_news_context:
+            prompt_parts.append(f"Recent news relevant to your domain:\n{domain_news_context}\n---")
         if context:
             prompt_parts.append(f"Additional context: {context}")
         prompt_parts.append(f"User question: {question}")

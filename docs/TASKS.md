@@ -6,16 +6,10 @@
 <!-- Things wired in, things still needing verification, and how to actually use them -->
 
 ### Ready to use now
-- [ ] **`bash scripts/verify_setup.sh`** — run at start of any session to check Ollama, ChromaDB, LightRAG, Python deps, project files
-- [ ] **`/audit` skill** — type `/audit` in Claude Code; runs structured health check (dir structure, ChromaDB/LightRAG access, broken imports, eval pass rate)
-- [ ] **postToolUse hook** — fires automatically on every `.py` Edit/Write; runs `py_compile` and prints errors inline. No action needed, just know it's there.
-- [ ] **`refactor_reports/`** — output dir for parallel agent runs. Use when doing multi-system work (backend + frontend + config simultaneously); each agent writes its report here
-
-### Ready to use now
 - [x] **`bash scripts/verify_setup.sh`** — run at start of any session to check Ollama, ChromaDB, LightRAG, Python deps, project files
 - [x] **`/audit` skill** — type `/audit` in Claude Code; runs structured health check (dir structure, ChromaDB/LightRAG access, broken imports, eval pass rate)
-- [ ] **postToolUse hook** — fires automatically on every `.py` Edit/Write; runs `py_compile` and prints errors inline. No action needed, just know it's there.
-- [ ] **`refactor_reports/`** — output dir for parallel agent runs. Use when doing multi-system work (backend + frontend + config simultaneously); each agent writes its report here
+- [x] **postToolUse hook** — fires automatically on every `.py` Edit/Write; runs `py_compile` and prints errors inline. No action needed, just know it's there (external Dorothy hook)
+- [x] **`refactor_reports/`** — output dir for parallel agent runs. Use when doing multi-system work (backend + frontend + config simultaneously); each agent writes its report here
 
 ### Now usable (Phase 4 complete)
 - [x] **`eval_snapshots/`** — eval runner exists; `POST /api/eval/run {"suite":"smoke"}` writes artifacts here
@@ -101,7 +95,7 @@
 
 ### New Features (post-cleanup)
 - [x] AI model digest (daily summary of new models/updates) — exists in ai_dev_monitor.py, wired to /api/ai-dev/items
-- [ ] Domain news feed (specialist-relevant news surfaced in chat)
+- [x] Domain news feed (specialist-relevant news surfaced in chat) — src/services/domain_news_monitor.py, wired into specialist_framework.py context
 
 ---
 
@@ -134,8 +128,8 @@
 ## Priority 4 — Eval + Reliability (Phase 4)
 - [x] Define eval domain model: run, scenario, persona, artifact, score, regression — exists src/core/eval_domain.py
 - [x] Targeted pytest eval suite (not swarm-based) — exists evals/smoke_suite.py, 20 tests pass
-- [x] Browser smoke flows: page load, text chat, voice state transitions
+- [ ] Browser smoke flows: page load, text chat, voice state transitions
 - [x] Persona scripts with consistent scoring — exists evals/persona_suite.py
-- [x] Artifact capture (raw outputs) + daily summary generation
-- [x] Self-improving eval loop: propose → eval → only merge if score improves
-- [x] Revisit swarm productization only after capability platform + eval system stable
+- [ ] Artifact capture (raw outputs) + daily summary generation
+- [ ] Self-improving eval loop: propose → eval → only merge if score improves
+- [ ] Revisit swarm productization only after capability platform + eval system stable

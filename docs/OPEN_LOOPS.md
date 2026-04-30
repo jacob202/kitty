@@ -4,15 +4,15 @@ Last updated: 2026-04-29
 
 ## Active
 
-- Confirm whether "Canadian-first" sourcing and budget-conscious recommendations should become a permanent Kitty preference. **Needs user confirmation** (confidence: low)
 - Decide when to execute the physical `kitty-system` split after the dirty tree is clean or intentionally checkpointed.
 
 ## Resolved
 
-- Review unrelated `src/tools/image_gen.py` diff separately; it changes Draw Things endpoint/payload behavior and should not ride along with workspace separation. (resolved 2026-04-30: reviewed and adopted)
-- `$129/month` target pricing claim is treated as irrelevant/noisy assistant-authored extraction for this project state. Ignore unless reintroduced by explicit user business spec. (resolved 2026-04-30)
-- Bank transaction / budget leak analysis is parked behind privacy boundaries and manual-paste-only constraints. It is no longer an open loop. (resolved 2026-04-30)
-- MCP agent bundle lane reviewed and remains parked (no adoption into `main`); see `docs/MCP_AGENT_BUNDLE_TRIAGE_2026-04-30.md`. (resolved 2026-04-30)
+- "Canadian-first" assistant persona → **Confirmed permanent** (commit `40427e1`)
+- `$129/month` target pricing → treated as noisy assistant-authored extraction; ignored unless reintroduced by explicit user business spec (resolved 2026-04-30)
+- Bank transaction / budget leak analysis → parked behind privacy boundaries and manual-paste-only constraints (resolved 2026-04-30)
+- Review unrelated `src/tools/image_gen.py` diff → reviewed and adopted (resolved 2026-04-30)
+- MCP agent bundle lane → reviewed, remains parked; see `docs/MCP_AGENT_BUNDLE_TRIAGE_2026-04-30.md` (resolved 2026-04-30)
 
 ## Waiting
 

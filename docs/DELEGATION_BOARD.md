@@ -18,7 +18,7 @@ This is the queue for parallel agents. Delegated work must stay inside the lane 
 
 Type: verification
 
-Status: candidate intake imported 2026-04-28; canonical acceptance still pending
+Status: completed 2026-04-29 — all routes verified and documented below
 
 Task:
 
