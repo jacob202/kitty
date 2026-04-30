@@ -7,7 +7,7 @@ Market-ready baseline checkpoint (post copy-first separation)
 
 ## Current Task
 
-Finalize Phase E of `docs/MARKET_READY_EXECUTION_PLAN_2026-04-30.md`: operator handoff instructions created, finalizing release checkpoint.
+Finalize Phase E checkpoint and perform approved post-checkpoint triage: enforce Phase 4 merge gate and begin MCP-agent review lane as spec-first governance work.
 
 ## Allowed Work
 

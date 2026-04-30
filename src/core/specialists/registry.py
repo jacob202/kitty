@@ -9,6 +9,7 @@ from .infrastructure import MorganInfrastructureSpecialist
 from .knowledge_acquisition import KnowledgeAcquisitionSpecialist
 from .research import RowanResearchSpecialist
 from .soul import KittySoulSpecialist
+from .news import NewsFeedSpecialist
 
 SPECIALISTS = {
     "Alex": AlexAudioSpecialist("Alex", "audio", "data/knowledge_bases/audio/"),
@@ -22,6 +23,7 @@ SPECIALISTS = {
     "KnowledgeAcquisition": KnowledgeAcquisitionSpecialist("KnowledgeAcquisition", "knowledge_acquisition", "data/knowledge_bases/knowledge_acquisition/"),
     "Rowan": RowanResearchSpecialist("Rowan", "research", "data/knowledge_bases/research/"),
     "Kitty": KittySoulSpecialist("Kitty", "general", ""),
+    "News": NewsFeedSpecialist("News", "news", "data/knowledge_bases/news/"),
 }
 
 def get_specialist(name: str):
