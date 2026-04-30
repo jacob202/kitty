@@ -36,6 +36,7 @@ Last updated: 2026-04-29
 ## Next Smallest Action
 
 - Finalize the release candidate checkpoint (Phase E deliverables complete). Await user approval before moving to `kitty-system` repo migration or reviewing parked MCP agents.
+- For incoming Phase 4 worker changes, enforce `docs/PHASE4_MERGE_GATE_2026-04-30.md` before any merge/checkpoint.
 
 ## Delegation Queue
 
