@@ -40,9 +40,9 @@ Expanded/manual equivalent:
 /opt/homebrew/bin/python3.12 -m pytest tests/ -q --tb=short
 /opt/homebrew/bin/python3.12 -m pytest tests/test_web_chat_phase1.py tests/test_brief_route.py tests/test_commands_route.py -q --tb=short
 ./kitty status
-curl -fsS http://localhost:5001/api/brief
-curl -fsS -X POST http://localhost:5001/api/command -H "Content-Type: application/json" -d '{"command":"/stuck"}'
-curl -fsS -X POST http://localhost:5001/api/chat -H "Content-Type: application/json" -d '{"message":"phase4 merge gate","domain":"chat"}'
+curl -fsS --connect-timeout 5 --max-time 20 http://localhost:5001/api/brief
+curl -fsS --connect-timeout 5 --max-time 20 -X POST http://localhost:5001/api/command -H "Content-Type: application/json" -d '{"command":"/stuck"}'
+curl -fsS --connect-timeout 5 --max-time 20 -X POST http://localhost:5001/api/chat -H "Content-Type: application/json" -d '{"message":"phase4 merge gate","domain":"chat"}'
 ```
 
 ## Phase 4-Specific Test Additions Required If `NewsFeedSpecialist` Ships

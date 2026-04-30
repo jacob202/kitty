@@ -62,6 +62,21 @@ if [[ -z "${project_abs}" ]]; then
   exit 2
 fi
 
+# Normalize python interpreter so relative values like venv/bin/python do not
+# break against copied runtime paths that have no local virtualenv.
+if [[ ! -x "${PYTHON_BIN}" ]]; then
+  if [[ -x "${project_abs}/${PYTHON_BIN}" ]]; then
+    PYTHON_BIN="${project_abs}/${PYTHON_BIN}"
+  elif [[ -x "/opt/homebrew/bin/python3.12" ]]; then
+    PYTHON_BIN="/opt/homebrew/bin/python3.12"
+  elif command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="$(command -v python3)"
+  else
+    echo "Python interpreter not found. Set PYTHON_BIN to an executable path." >&2
+    exit 2
+  fi
+fi
+
 mkdir -p "$(dirname "${REPORT_PATH}")"
 
 if [[ -f "${REPORT_PATH}" ]]; then
@@ -91,7 +106,7 @@ run_step() {
   local exit_code=0
 
   output="$(
-    cd "${project_abs}" && bash -lc "${cmd}"
+    cd "${project_abs}" && eval "${cmd}" 2>&1
   )" || exit_code=$?
 
   {
@@ -148,9 +163,9 @@ fi
 
 run_step "Focused Route Suite" "${PYTHON_BIN} -m pytest tests/test_web_chat_phase1.py tests/test_brief_route.py tests/test_commands_route.py -q --tb=short"
 run_step "Launcher Status" "./kitty status"
-run_step "Brief Smoke" "curl -fsS http://localhost:${PORT}/api/brief"
-run_step "Command Smoke" "curl -fsS -X POST http://localhost:${PORT}/api/command -H \"Content-Type: application/json\" -d '{\"command\":\"/stuck\"}'"
-run_step "Chat Smoke" "curl -fsS -X POST http://localhost:${PORT}/api/chat -H \"Content-Type: application/json\" -d '{\"message\":\"phase4 merge gate\",\"domain\":\"chat\"}'"
+run_step "Brief Smoke" "curl -fsS --connect-timeout 5 --max-time 20 http://localhost:${PORT}/api/brief"
+run_step "Command Smoke" "curl -fsS --connect-timeout 5 --max-time 20 -X POST http://localhost:${PORT}/api/command -H \"Content-Type: application/json\" -d '{\"command\":\"/stuck\"}'"
+run_step "Chat Smoke" "curl -fsS --connect-timeout 5 --max-time 20 -X POST http://localhost:${PORT}/api/chat -H \"Content-Type: application/json\" -d '{\"message\":\"phase4 merge gate\",\"domain\":\"chat\"}'"
 
 finalize_report
 
