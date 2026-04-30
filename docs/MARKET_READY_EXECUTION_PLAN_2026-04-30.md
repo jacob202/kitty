@@ -41,7 +41,7 @@ Do not switch default daily path to `kitty-system/kitty-app` until launch/checkp
 
 ## Execution Phases
 
-### Phase A: Release Baseline Checkpoint (now)
+### Phase A: Release Baseline Checkpoint (done)
 
 Scope:
 - verify launcher state accuracy
@@ -60,12 +60,12 @@ curl -sS -X POST http://localhost:5001/api/chat -H "Content-Type: application/js
 ```
 
 Definition of done:
-- launcher status reflects real listener state
-- route smoke all 200 with non-empty useful responses
-- tests green
-- checkpoint commit created
+- launcher status reflects real listener state (completed)
+- route smoke all 200 with non-empty useful responses (completed)
+- tests green (completed)
+- checkpoint commit created (completed)
 
-### Phase B: Launch Reliability and UX Safety
+### Phase B: Launch Reliability and UX Safety (done)
 
 Scope:
 - resolve any launcher/PID mismatches
@@ -79,11 +79,11 @@ Validation:
 ```
 
 Definition of done:
-- no known launcher ambiguity
-- prior regressions covered by tests
-- no blank response path in `/api/chat`
+- no known launcher ambiguity (completed)
+- prior regressions covered by tests (completed)
+- no blank response path in `/api/chat` (completed)
 
-### Phase C: Canonical Governance Freeze
+### Phase C: Canonical Governance Freeze (done)
 
 Scope:
 - promote only high-confidence chat-log candidates into canonical docs
@@ -94,10 +94,10 @@ Source of truth:
 - `docs/CHAT_LOG_CANDIDATE_REVIEW_2026-04-29.md`
 
 Definition of done:
-- canonical docs and open loops are consistent with source-of-truth review
-- no assistant-authored speculation promoted as fact
+- canonical docs and open loops are consistent with source-of-truth review (completed)
+- no assistant-authored speculation promoted as fact (completed)
 
-### Phase D: Security and Builder Hardening
+### Phase D: Security and Builder Hardening (done)
 
 Scope:
 - keep builder security enforcement active
@@ -108,13 +108,13 @@ Validation:
 
 ```bash
 bash scripts/run_gates.sh
-/opt/homebrew/bin/python3.12 -m pytest tests/test_builder_security_integration.py tests/test_security_scanner.py -q --tb=short
+/opt/homebrew/bin/python3.12 -m pytest tests/test_kitty_builder.py tests/test_security_scanner.py -q --tb=short
 ```
 
 Definition of done:
-- security gates pass
-- blocked patterns still blocked
-- no protected file policy regressions
+- security gates pass (completed)
+- blocked patterns still blocked (completed)
+- no protected file policy regressions (completed)
 
 ### Phase E: Release Candidate Package
 

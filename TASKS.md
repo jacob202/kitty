@@ -35,11 +35,7 @@ Last updated: 2026-04-29
 
 ## Next Smallest Action
 
-- Execute Phase A in `docs/MARKET_READY_EXECUTION_PLAN_2026-04-30.md`:
-  - run live route smoke (`/api/brief`, `/api/command`, `/api/chat`)
-  - confirm launcher status reflects actual listener state
-  - reconcile canonical docs to `docs/CHAT_LOG_CANDIDATE_REVIEW_2026-04-29.md`
-  - checkpoint verified green state
+- Finalize the release candidate checkpoint (Phase E deliverables complete). Await user approval before moving to `kitty-system` repo migration or reviewing parked MCP agents.
 
 ## Delegation Queue
 

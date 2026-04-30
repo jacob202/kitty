@@ -7,7 +7,7 @@ Market-ready baseline checkpoint (post copy-first separation)
 
 ## Current Task
 
-Execute Phase A of `docs/MARKET_READY_EXECUTION_PLAN_2026-04-30.md`: live smoke, launcher status validation, canonical chat-log disposition reconciliation, and checkpoint commit.
+Finalize Phase E of `docs/MARKET_READY_EXECUTION_PLAN_2026-04-30.md`: operator handoff instructions created, finalizing release checkpoint.
 
 ## Allowed Work
 
