@@ -1,4 +1,4 @@
-#!/opt/homebrew/bin/python3.12
+#!/usr/bin/env python3
 """Kitty Web — Flask + SSE entry point.
 
 Run:

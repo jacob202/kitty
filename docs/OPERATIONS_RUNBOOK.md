@@ -67,7 +67,7 @@ bash scripts/run_gates.sh
 The comprehensive test suite (currently validating ~342 tests) executes via `pytest`.
 
 ```bash
-/opt/homebrew/bin/python3.12 -m pytest tests/ -q --tb=short
+venv/bin/python -m pytest tests/ -q --tb=short
 ```
 
 ### Running the Golden Demo Smoke
@@ -102,7 +102,7 @@ The Kitty project uses a strict control-layer system. Code changes should not ha
 3. A builder worker must operate within the boundaries of the spec (allowed files, forbidden files).
 4. Run `kittybuilder` with explicit limits:
    ```bash
-   /opt/homebrew/bin/python3.12 scripts/kitty_builder.py --project . --spec specs/your-spec.spec.md
+   venv/bin/python scripts/kitty_builder.py --project . --spec specs/your-spec.spec.md
    ```
    *(Note: Builder write paths may be blocked depending on active security enforcement gates.)*
 

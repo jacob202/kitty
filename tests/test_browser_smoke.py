@@ -6,11 +6,11 @@ installed so the regular unit-test run is never broken by a missing
 browser dependency.
 
 Install requirements (once):
-    /opt/homebrew/bin/python3.12 -m pip install playwright pytest-playwright
-    /opt/homebrew/bin/python3.12 -m playwright install chromium
+    venv/bin/python -m pip install playwright pytest-playwright
+    venv/bin/python -m playwright install chromium
 
 Run just these tests:
-    /opt/homebrew/bin/python3.12 -m pytest tests/test_browser_smoke.py -v
+    venv/bin/python -m pytest tests/test_browser_smoke.py -v
 """
 
 from __future__ import annotations

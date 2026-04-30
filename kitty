@@ -8,7 +8,7 @@
 #   ./kitty logs     tail the log file
 #   ./kitty ref      show terminal quick reference
 
-PYTHON=/opt/homebrew/bin/python3.12
+PYTHON=venv/bin/python
 SCRIPT_DIR="${0:A:h}"
 PIDFILE="$SCRIPT_DIR/.kitty.pid"
 LOGFILE="$SCRIPT_DIR/.kitty.log"
@@ -71,12 +71,12 @@ PY
   )
   echo "$pid" > "$PIDFILE"
 
-  # Wait for server to be ready (max 8s)
+  # Wait for server to be ready (max 30s)
   local waited=0
   until "$CURL" -sf "http://localhost:$PORT/" > /dev/null 2>&1; do
     sleep 0.5
     (( waited++ ))
-    [[ $waited -ge 16 ]] && { echo "Server didn't respond after 8s — check .kitty.log"; return 1; }
+    [[ $waited -ge 60 ]] && { echo "Server didn't respond after 30s — check .kitty.log"; return 1; }
   done
 
   local ip=$(_ip)

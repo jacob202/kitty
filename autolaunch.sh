@@ -89,7 +89,7 @@ Workspace prep complete.
 
 Next checks:
   ./kitty status
-  /opt/homebrew/bin/python3.12 -m pytest tests/test_voice_routes.py tests/test_web_chat_phase1.py -q --tb=short
+  venv/bin/python -m pytest tests/test_voice_routes.py tests/test_web_chat_phase1.py -q --tb=short
   cd garage-ui && npm run build
 
 Start surfaces:

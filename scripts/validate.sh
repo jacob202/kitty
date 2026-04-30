@@ -11,7 +11,7 @@ echo ""
 
 # 1. Tests
 echo "[1/3] Running pytest..."
-/opt/homebrew/bin/python3.12 -m pytest tests/ -q --tb=short
+venv/bin/python -m pytest tests/ -q --tb=short
 echo ""
 echo "[1/3] ✅ Tests passed"
 echo ""

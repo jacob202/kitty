@@ -22,12 +22,12 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 FLASK_PORT = 5098
-FLASK_STARTUP_WAIT = 15  # max seconds to wait for Flask to accept connections
+FLASK_STARTUP_WAIT = 30  # max seconds to wait for Flask to accept connections
 ARTIFACT_DIR = ROOT / "evals" / "artifacts"
 SNAPSHOT_DIR = ROOT / "eval_snapshots"
 ITERATION_LOG = ROOT / "docs" / "iteration_log.md"
 PYTEST_CMD = [
-    "/opt/homebrew/bin/python3.12", "-m", "pytest",
+    "venv/bin/python", "-m", "pytest",
     "tests/", "-q", "--tb=short",
 ]
 
@@ -58,7 +58,7 @@ def start_flask() -> subprocess.Popen:
     import os
     env = {**os.environ, "KITTY_PORT": str(FLASK_PORT), "KITTY_HOST": "127.0.0.1", "FLASK_DEBUG": "0"}
     proc = subprocess.Popen(
-        ["/opt/homebrew/bin/python3.12", "web.py"],
+        ["venv/bin/python", "web.py"],
         cwd=str(ROOT), env=env,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
     )
@@ -206,3 +206,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+in()

@@ -1,2 +1,2 @@
 #!/usr/bin/env sh
-exec /opt/homebrew/bin/python3.12 "$(dirname "$0")/scripts/builder_intake.py" "$@"
+exec venv/bin/python "$(dirname "$0")/scripts/builder_intake.py" "$@"
