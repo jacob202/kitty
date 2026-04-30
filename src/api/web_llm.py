@@ -32,8 +32,7 @@ class WebLLMClient:
         system_prompt = self._system_prompt(domain)
         openrouter_key = os.getenv("OPENROUTER_API_KEY")
         anthropic_key = os.getenv("ANTHROPIC_API_KEY")
-
-        errors = []
+        errors: list[str] = []
 
         if openrouter_key:
             try:
