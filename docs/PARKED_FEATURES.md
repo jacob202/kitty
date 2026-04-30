@@ -216,3 +216,65 @@ Cleanup spec and reviewed docs.
 Forbidden during unrelated work:
 No deletions, `git reset`, source moves, or archive pruning.
 
+### Feature: Budget Leak Finder Skill
+
+Status: parked_candidate (confidence: medium)
+Source: CHAT_LOG_CANDIDATE_REVIEW_2026-04-29.md
+Owner: unassigned
+Priority: low
+
+Problem:
+Users might want to identify budget leaks from financial data.
+
+Proposed shape:
+A new runtime skill for budget leak finding.
+
+Why parked:
+This could become a skill later, but only after a privacy spec and skills-system validation.
+
+Dependencies:
+Privacy spec, skills-system validation.
+
+Risks:
+Handling sensitive financial data.
+
+Acceptance sketch:
+Privacy boundaries are enforced and skill validation passes.
+
+Revival trigger:
+Approved privacy spec.
+
+Minimum safe version:
+Phase 7+
+
+### Feature: Audio specialist KB candidate from AU-7900 session text
+
+Status: parked_candidate (confidence: medium)
+Source: CHAT_LOG_CANDIDATE_REVIEW_2026-04-29.md
+Owner: unassigned
+Priority: low
+
+Problem:
+The logs contain Sansui/AU-7900 troubleshooting text that could be useful.
+
+Proposed shape:
+Specialist KB.
+
+Why parked:
+Specialist knowledge must be source-grounded before it becomes canonical KB.
+
+Dependencies:
+Source-grounded specialist engine.
+
+Risks:
+Hallucination without source grounding.
+
+Acceptance sketch:
+The knowledge is successfully source-grounded and integrated into a specialist KB.
+
+Revival trigger:
+Source-grounding engine is complete.
+
+Minimum safe version:
+Phase 6+
+

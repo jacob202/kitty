@@ -11,8 +11,8 @@ Facts extracted from future chat-log consolidation should land here only after r
 - The Flask entrypoint is `web.py`.
 - The control layer requires intake before builder execution.
 - Parked features are preserved with enough context to revive later.
-- `/opt/homebrew/bin/python3.12` can import `mlx_lm` as of 2026-04-29.
+- `/opt/homebrew/bin/python3.12` can import `mlx_lm` as of 2026-04-29. (confidence: high)
 
 ## Pending Extraction
 
-- `$129/month` appeared in assistant-authored chat-log text and is not accepted as a project fact without user confirmation.
+- `$129/month` appeared in assistant-authored chat-log text and is not accepted as a project fact without user confirmation. (confidence: low)

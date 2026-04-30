@@ -90,7 +90,7 @@ Raw builder launch is too easy to confuse with runtime Kitty startup and can lea
 
 ## D-0008: Canadian-First Assistant Persona Candidate
 
-Status: needs_user_confirmation
+Status: needs_user_confirmation (confidence: low)
 
 Do not treat the Canadian-first assistant persona as accepted canon yet.
 
@@ -102,3 +102,12 @@ Kitty should keep the accepted direct/practical/no-fluff style, but Canadian sou
 
 Review trigger:
 Jacob confirms whether Canadian-first sourcing/budget behavior is a permanent assistant preference.
+
+## D-0009: Preserve Raw Logs
+
+Status: accepted (confidence: high)
+
+Preserve raw logs until reviewed extraction exists.
+
+Rationale:
+This is already a project safety rule and matches the master plan. It prevents accidental deletion of unmodified data and forces humans/agents to perform an explicit review.

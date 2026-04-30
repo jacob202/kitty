@@ -49,7 +49,7 @@
 - [x] Global skills: think, ship, debug, improve, kitty-arch — 2026-04-23
 - [x] crush.json: consolidated-skills path, legacy-skills path, LSP Python 3.12 — 2026-04-23
 - [x] Project CLAUDE.md — 2026-04-23
-- [x] MCP memory layer (57 entities, 47 relations) — 2026-04-23
+- [x] MCP memory layer (57 entities, 47 relations) — 2026-04-23 (`src/memory/lightrag_store.py`, `docs/imports/gemini_intake_20260428.md`)
 - [x] Sequential thinking MCP wired — 2026-04-23
 - [x] Phase 4: Eval platform — EvalDomain, smoke suite, regression detection, POST /api/eval/run, persona fixtures — 2026-04-24 (23 tests, 100%)
 
