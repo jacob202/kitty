@@ -8,6 +8,18 @@ This document outlines the standard operational procedures for running, testing,
 
 The Kitty environment provides a convenient shell script wrapper for managing the server lifecycle.
 
+Primary runtime path:
+
+```bash
+cd /Users/jacobbrizinski/Projects/kitty-system/kitty-app
+```
+
+Legacy rollback path (preserved):
+
+```bash
+cd /Users/jacobbrizinski/Projects/kitty
+```
+
 ### Launching the Application
 
 Start the backend and UI (requires both Python and Node.js environments to be ready):

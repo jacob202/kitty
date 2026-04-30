@@ -1,6 +1,6 @@
 # Parked Features
 
-Last updated: 2026-04-29
+Last updated: 2026-04-30
 
 Parked features are ideas worth keeping but not authorized for current implementation. Parking an idea preserves it without letting it hijack focused work.
 
@@ -11,7 +11,7 @@ Use this shape for every new parked feature:
 ```md
 ### Feature: <short name>
 
-Status: parked
+Status: approved later (migration lane active)
 Source: <where this came from>
 Owner: unassigned
 Priority: low | medium | high
@@ -137,7 +137,7 @@ Proposed shape:
 Create a controlled `kitty-system` boundary for governance, specs, intake, and durable operating context while preserving the runnable app path.
 
 Why parked:
-No physical repo move is allowed in Phase 0.
+Phase 0 is complete, but migration closeout and legacy-path retirement are still controlled by the cutover checklist.
 
 Dependencies:
 File manifest, migration spec, import/path audit, rollback plan, and verification gates.
@@ -146,7 +146,7 @@ Risks:
 Broken imports, lost local state, stale launch commands, duplicated docs, and workers editing the wrong checkout.
 
 Acceptance sketch:
-The runnable app still launches from `/Users/jacobbrizinski/Projects/kitty`; migrated files are listed in a move map; rollback restores the previous layout.
+Daily migration runtime uses `/Users/jacobbrizinski/Projects/kitty-system/kitty-app`; move map stays current; rollback to `/Users/jacobbrizinski/Projects/kitty` remains available until retirement approval.
 
 Allowed future files:
 Future migration spec only, until approved.

@@ -1,20 +1,20 @@
 # Decisions
 
-Last updated: 2026-04-29
+Last updated: 2026-04-30
 
 This file records durable project decisions. New work should follow these rules unless a later dated decision explicitly supersedes them.
 
-## D-0001: Current App Stays Put
+## D-0001: Current App Stays Put (Phase 0)
 
-Status: accepted
+Status: superseded by D-0010
 
 `/Users/jacobbrizinski/Projects/kitty` is the current runnable app. Do not move it, rename it, split it, or physically migrate files during Phase 0.
 
 Rationale: the app is actively changing, and uncontrolled moves would make it hard to distinguish real regressions from path and import breakage.
 
-## D-0002: `kitty-system` Separation Is Planned, Not Started
+## D-0002: `kitty-system` Separation Is Planned, Not Started (Phase 0)
 
-Status: accepted
+Status: superseded by D-0010
 
 The future architecture may separate stable system/control material from the runnable app, using a future `kitty-system` boundary. That separation is pending controlled migration.
 
@@ -32,6 +32,8 @@ Required before migration:
 Status: accepted
 
 Builder tasks must enter through `docs/BUILDER_INTAKE.md` and `intake/`. A task is not ready for implementation until it has:
+
+All build work passes through kittyintake.
 
 - A named owner or worker lane.
 - Scope summary.
@@ -111,3 +113,25 @@ Preserve raw logs until reviewed extraction exists.
 
 Rationale:
 This is already a project safety rule and matches the master plan. It prevents accidental deletion of unmodified data and forces humans/agents to perform an explicit review.
+
+## D-0010: Migration Runtime Path Is Active With Rollback Preserved
+
+Status: accepted
+
+Daily migration execution path is now:
+
+`/Users/jacobbrizinski/Projects/kitty-system/kitty-app`
+
+Legacy rollback path remains:
+
+`/Users/jacobbrizinski/Projects/kitty`
+
+Rationale:
+Copy-first separation has passed preflight, gates, launch smoke, and full copied-app smoke. Runtime source-of-truth docs now point to the migrated app path while preserving a fast rollback.
+
+Consequences:
+- New implementation/testing/checkpoint work should run from `kitty-system/kitty-app`.
+- Legacy checkout must not be deleted or renamed until retirement criteria are met and explicitly approved.
+
+Review trigger:
+Legacy-path retirement checklist completion and user approval.

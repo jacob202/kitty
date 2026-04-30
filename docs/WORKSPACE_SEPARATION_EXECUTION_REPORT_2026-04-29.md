@@ -22,7 +22,7 @@ The original checkout remains:
 
 `/Users/jacobbrizinski/Projects/kitty`
 
-The original checkout is still the authoritative runnable app until a later launch-verification spec changes that.
+The original checkout was authoritative during initial copy-first validation and is now preserved as rollback while migration cutover proceeds.
 
 ## Commands Run
 
@@ -110,3 +110,17 @@ The copy excluded generated/tool-local material such as:
 - Do not delete the old checkout until Jacob explicitly approves.
 - Launch from `kitty-system/kitty-app` has a basic smoke pass on port 5002, but default launch commands have not been switched.
 - Do not merge the parked MCP bundle from branch `parked/mcp-agent-bundle-20260429` without a new review spec.
+
+## 2026-04-30 Migration Lane Update
+
+Additional verification run after post-Phase-E checkpoints:
+
+- refreshed copy-first sync from current `main`
+- copied-app gate rerun: `92 passed`
+- copied-app launch revalidated on `KITTY_PORT=5004`
+- migration preflight status: `READY`
+
+Current migration state:
+
+- runtime-doc source-of-truth can move to `kitty-system/kitty-app`
+- legacy checkout remains rollback path until explicit retirement

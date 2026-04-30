@@ -1,6 +1,6 @@
 # Tasks
 
-Last updated: 2026-04-29
+Last updated: 2026-04-30
 
 ## Verified Done
 
@@ -30,7 +30,7 @@ Last updated: 2026-04-29
 - `./kitty status` command fixed to correctly report server state based on port 5001 usage.
 - UI panel regression coverage added for eval dashboard failed-check rendering (using Vitest and React Testing Library).
 - MCP agent bundle exists in the dirty tree but is unverified, out of phase, and blocked by current focus; import smoke tests currently fail on missing optional dependencies.
-- Copy-first `kitty-system` workspace created beside the old checkout; old checkout remains authoritative until launch verification passes.
+- Copy-first `kitty-system` workspace created beside the old checkout; migrated path is active and old checkout remains rollback.
 - Copied app gate and basic launch smoke passed from `/Users/jacobbrizinski/Projects/kitty-system/kitty-app` on `KITTY_PORT=5002`.
 - Phase 4 incoming worker changes enforced and cleared via `docs/PHASE4_MERGE_GATE_2026-04-30.md`.
 - Reviewed MCP-agent lane triage/spec-first reconciliation completed (no MCP expansion adopted).
@@ -39,7 +39,7 @@ Last updated: 2026-04-29
 
 ## Next Smallest Action
 
-- Execute controlled migration cutover checklist: update runtime source-of-truth docs and launch guidance to `kitty-system/kitty-app`, while keeping rollback path explicit.
+- Keep running/merging from `kitty-system/kitty-app` and enforce `docs/PHASE4_MERGE_GATE_2026-04-30.md` before any Phase 4 merge/checkpoint.
 
 ## Delegation Queue
 

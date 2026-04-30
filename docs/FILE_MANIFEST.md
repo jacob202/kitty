@@ -1,16 +1,24 @@
 # File Manifest
 
-Last updated: 2026-04-29
+Last updated: 2026-04-30
 
-This manifest explains the current app boundary and the planned, not-yet-started separation.
+This manifest explains the current app boundary and the migration state.
 
 ## Current Runnable App
 
 Path:
 
+`/Users/jacobbrizinski/Projects/kitty-system/kitty-app`
+
+This is now the active runnable Kitty checkout for migration execution.
+
+## Legacy Fallback Checkout
+
+Path:
+
 `/Users/jacobbrizinski/Projects/kitty`
 
-This is the active runnable Kitty checkout. Launch, tests, and implementation work should assume this path unless a later migration decision changes it.
+This path remains as rollback/fallback until migration cutover is fully closed. Do not delete or rename it.
 
 ## Copy-First Workspace
 
@@ -18,7 +26,7 @@ Path:
 
 `/Users/jacobbrizinski/Projects/kitty-system`
 
-This copy-first workspace now exists with `kitty-app`, `kitty-workbench`, and `kitty-archives`. It is not yet the authoritative runtime path. Launch commands should not be switched until the copied app is verified.
+This workspace exists with `kitty-app`, `kitty-workbench`, and `kitty-archives`. Copied-app parity has been revalidated and launch smoke has passed.
 
 ## Not The Current Runnable App
 
@@ -78,13 +86,13 @@ The Phase 0 control surface is:
 
 ## Separation Status
 
-The future `kitty-system` separation has started as a copy-first, non-destructive migration. The old checkout remains in place.
+Migration lane is active. Runtime source-of-truth docs now point to `kitty-system/kitty-app`, while legacy checkout is preserved for rollback.
 
 No worker should:
 
-- Rename the runnable checkout.
-- Rewrite imports or launch commands for a future path.
+- Rewrite imports.
 - Delete docs because they appear to belong to the future system layer.
+- Delete or rename `/Users/jacobbrizinski/Projects/kitty` until rollback retirement is explicitly approved.
 
 ## Current Control Tools
 

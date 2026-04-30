@@ -7,7 +7,7 @@ Facts extracted from future chat-log consolidation should land here only after r
 ## Current Facts
 
 - Kitty is Jacob's local-first personal AI assistant.
-- The current runnable checkout is `/Users/jacobbrizinski/Projects/kitty`.
+- The current migration runtime path is `/Users/jacobbrizinski/Projects/kitty-system/kitty-app` (legacy rollback path: `/Users/jacobbrizinski/Projects/kitty`).
 - The Flask entrypoint is `web.py`.
 - The control layer requires intake before builder execution.
 - Parked features are preserved with enough context to revive later.

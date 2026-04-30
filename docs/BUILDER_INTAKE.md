@@ -1,6 +1,6 @@
 # Builder Intake
 
-Last updated: 2026-04-28
+Last updated: 2026-04-30
 
 Builder intake turns ideas into bounded work. If a task is not small, obvious, and already scoped, create an intake note before implementation.
 
@@ -18,7 +18,7 @@ Every intake note must include:
 
 - Request summary.
 - User-facing goal.
-- Current runnable app path.
+- Current runtime app path.
 - Worker lane or owner.
 - Allowed files.
 - Forbidden files.
@@ -32,7 +32,7 @@ Every intake note must include:
 
 A task is ready for builder/spec work only when:
 
-- The runnable app remains `/Users/jacobbrizinski/Projects/kitty`.
+- The runtime app path is `/Users/jacobbrizinski/Projects/kitty-system/kitty-app` (legacy rollback path: `/Users/jacobbrizinski/Projects/kitty`).
 - No physical repo move is implied unless this is an approved migration spec.
 - Allowed files are narrower than forbidden files.
 - Protected files from `docs/FILE_GOVERNANCE.md` are not touched casually.
@@ -59,7 +59,8 @@ Worker lane:
 
 ## Current App Boundary
 
-Current runnable app: `/Users/jacobbrizinski/Projects/kitty`
+Current runtime app: `/Users/jacobbrizinski/Projects/kitty-system/kitty-app`
+Legacy rollback path: `/Users/jacobbrizinski/Projects/kitty`
 
 Physical migration allowed: no, unless this intake is converted into an approved migration spec.
 

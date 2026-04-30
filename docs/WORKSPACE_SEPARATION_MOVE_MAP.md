@@ -1,25 +1,29 @@
 # Workspace Separation Move Map
 
-Last updated: 2026-04-29
-Status: copy-first workspace created
+Last updated: 2026-04-30
+Status: copy-first workspace created, migration lane active
 
-The current runnable checkout remains:
+Active runtime path:
+
+`/Users/jacobbrizinski/Projects/kitty-system/kitty-app`
+
+Legacy rollback path:
 
 `/Users/jacobbrizinski/Projects/kitty`
 
-No destructive move has happened. This document is the reviewed move map used for the copy-first migration into:
+No destructive move has happened. This document is the reviewed move map used for copy-first migration into:
 
 `/Users/jacobbrizinski/Projects/kitty-system`
 
 ## Current Preflight Result
 
-Status: created, pending launch verification
+Status: validated, pending full cutover closeout
 
 Reason:
 
 - `/Users/jacobbrizinski/Projects/kitty-system` exists.
-- `/Users/jacobbrizinski/Projects/kitty` remains the authoritative runnable checkout.
-- Launch commands are not switched yet.
+- copied app gate and launch smoke have passed.
+- legacy checkout remains preserved for rollback.
 
 ## Target Layout
 
@@ -114,10 +118,8 @@ These are local, generated, bulky, or sensitive:
 3. Update launch docs only after copied app validation passes.
 4. Keep `/Users/jacobbrizinski/Projects/kitty` until Jacob explicitly approves deletion or archival.
 
-## Do Not Do Yet
+## Do Not Do
 
-- Do not rename the active checkout.
 - Do not rewrite imports.
-- Do not update launch commands to future paths.
 - Do not delete the old folder.
 - Do not migrate generated local databases as source files.

@@ -1,6 +1,6 @@
 # Session Summary
 
-Last updated: 2026-04-29
+Last updated: 2026-04-30
 
 ## Verified Current State
 
@@ -90,15 +90,30 @@ Verified command:
 - The tree is still dirty with many unrelated untracked/modified/deleted files.
 - Several `src/space_kitty` files remain deleted and were not fully restored; only compatibility shims needed by the current runtime/tests were added.
 - Protected-tree `Icon\r` metadata, `src/` deletions, `skills/` deletions, frontend caches, eval snapshots, and environment directories were not cleaned.
-- Physical `kitty-system/kitty-app` separation has not been performed.
+- Copy-first `kitty-system/kitty-app` migration lane is active; legacy checkout is preserved for rollback.
 - Raw chat logs and eval artifacts were not deleted.
 
 ## Next Steps
 
-1. Run route smoke with the live server: `/api/brief`, `/api/command`, `/api/chat`.
-2. Use `docs/CHAT_LOG_CANDIDATE_REVIEW_2026-04-29.md` as the source of truth for the Gemini candidate disposition.
-3. Decide whether to fix launcher/PID status mismatch or write an eval dashboard UI regression test next.
-4. Commit or otherwise checkpoint the verified green state before additional runtime work.
+1. Keep daily execution in `/Users/jacobbrizinski/Projects/kitty-system/kitty-app`.
+2. Enforce `docs/PHASE4_MERGE_GATE_2026-04-30.md` for any incoming Phase 4 worker merge.
+3. Keep legacy rollback path available until explicit retirement approval.
+
+## Forward And Rollback Commands
+
+Forward (daily migration path):
+
+```bash
+cd /Users/jacobbrizinski/Projects/kitty-system/kitty-app
+./kitty status
+```
+
+Rollback (legacy fallback path):
+
+```bash
+cd /Users/jacobbrizinski/Projects/kitty
+./kitty status
+```
 
 ---
 
@@ -148,4 +163,4 @@ Latest result: `58 passed` (26 Phase 3 + 15 Phase 4 + 10 quality critic + 7 wiri
 - Created `/Users/jacobbrizinski/Projects/kitty-system/kitty-app`.
 - Created `/Users/jacobbrizinski/Projects/kitty-system/kitty-workbench`.
 - Created `/Users/jacobbrizinski/Projects/kitty-system/kitty-archives`.
-- Original checkout `/Users/jacobbrizinski/Projects/kitty` remains authoritative until copied-app launch verification passes.
+- Original checkout `/Users/jacobbrizinski/Projects/kitty` is retained as rollback while migrated path is active.
