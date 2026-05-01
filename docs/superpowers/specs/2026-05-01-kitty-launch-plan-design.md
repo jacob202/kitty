@@ -828,7 +828,6 @@ Beyond the milestone gates, these run continuously:
 | Pre-commit hook | Every `git commit` | Full test suite (399+ tests, ~47s). Blocks commit on failure |
 | Fast dev gate | Every WIP checkpoint commit | Critical route + component tests (< 10s). For parallel agent velocity |
 | Storage routing test | Every commit that touches `src/services/` or storage files | Verifies KB → LightRAG, journal → JournalDB, MCP entities → server-memory |
-| Mission drift check | Weekly, during Jacob demo review | "Does this still serve 'so that no one becomes themselves alone'?" If a feature optimizes for technical elegance at the expense of presence, it's re-scoped |
 
 ### Test Suite Baseline
 
