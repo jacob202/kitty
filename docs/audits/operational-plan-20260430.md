@@ -1,6 +1,7 @@
 # Kitty Operational Plan — Fully Operational & Polished
 
-Date: 2026-04-30
+Date: 2026-04-30  
+Phase A completion recorded: 2026-05-01
 Source: Cross-agent audit (specialists, API, frontend, memory)
 
 ## Audit Summary
@@ -18,14 +19,16 @@ Source: Cross-agent audit (specialists, API, frontend, memory)
 ### Phase A — Critical Fixes (Blockers)
 **Goal**: Zero crashes. All registered features work.
 
-| # | Task | Severity | Est. Time |
-|---|------|----------|-----------|
-| A1 | Wire KittyCoderSpecialist to BaseSpecialist — LLM, KB, devin.md loading | BLOCKER | 15m |
-| A2 | Fix MemoryWeave — add `memory_weave` to DB_PATHS in db_config.py | BLOCKER | 5m |
-| A3 | Remove honcho_bp dead blueprint or add routes | BLOCKER | 5m |
-| A4 | Add supervisor shim methods for 8 crashy slash commands | HIGH | 20m |
-| A5 | Remove or guard `/unified` and `/council` broken routes | BLOCKER | 5m |
-| A6 | Create `config/SOUL.md` with proper personality content | HIGH | 10m |
+**Status: complete** (code + docs verified 2026-05-01). Implementation narrative: `docs/HANDOFF.md` (“Executed: Phase A”). This section is kept as the original checklist; completion evidence is in the table below.
+
+| # | Task | Severity | Est. Time | Done |
+|---|------|----------|-----------|------|
+| A1 | Wire KittyCoderSpecialist to BaseSpecialist — LLM, KB, devin.md loading | BLOCKER | 15m | Yes — `src/core/specialists/code.py` extends `BaseSpecialist` |
+| A2 | Fix MemoryWeave — add `memory_weave` to DB_PATHS in db_config.py | BLOCKER | 5m | Yes — `src/core/db_config.py` |
+| A3 | Remove honcho_bp dead blueprint or add routes | BLOCKER | 5m | Yes — not registered in `web.py` / `src/api/__init__.py`; orphan placeholder file removed |
+| A4 | Add supervisor shim methods for 8 crashy slash commands | HIGH | 20m | Yes — `web.py:_SupervisorShim` (+ related stubs) |
+| A5 | Remove or guard `/unified` and `/council` broken routes | BLOCKER | 5m | Yes — `hasattr` 501 guards + `spawn_broadcasting_task` in `streaming_routes.py` |
+| A6 | Create `config/SOUL.md` with proper personality content | HIGH | 10m | Yes — `config/SOUL.md`; `KittySoulSpecialist` loads it |
 
 ### Phase B — Polish & UX (User-Facing)
 **Goal**: Exceptional user experience. Dark/light toggle, mobile complete, error states.
@@ -68,7 +71,7 @@ Source: Cross-agent audit (specialists, API, frontend, memory)
 
 ## Build Order
 
-**Today**: Phase A (all blockers) → commit → sync.
+**Phase A**: Done — commit history + verification above; re-sync migrated app after each batch (`scripts/copy_workspace_separation.py --execute`).
 **Then**: Phase B items B1-B5 (highest UX impact) → commit → sync.
 **Then**: Phase C item C1 (slash commands) + Phase D items D1-D2 (OBD + MLX).
 **Remaining**: Phase B polish + Phase C hardening + Phase D completion.

@@ -206,6 +206,20 @@ def chat():
     fallback = getattr(current_app, "web_llm", None)
     busy = getattr(current_app, "_busy_lock", None)
 
+    def _dispatch_chat_message():
+        try:
+            dispatch(
+                message,
+                sup=sup,
+                orch=orch,
+                fallback_chat=fallback.chat if fallback else None,
+                fallback_stream=True,
+            )
+        except Exception as e:
+            token_broadcaster.broadcast("error", f"Error: {e}")
+        finally:
+            token_broadcaster.broadcast("done", "")
+
     def run():
         cancel = threading.Event()
 
@@ -213,31 +227,9 @@ def chat():
             try:
                 if busy:
                     with busy:
-                        try:
-                            dispatch(
-                                message,
-                                sup=sup,
-                                orch=orch,
-                                fallback_chat=fallback.chat if fallback else None,
-                                fallback_stream=True,
-                            )
-                        except Exception as e:
-                            token_broadcaster.broadcast("error", f"Error: {e}")
-                        finally:
-                            token_broadcaster.broadcast("done", "")
+                        _dispatch_chat_message()
                 else:
-                    try:
-                        dispatch(
-                            message,
-                            sup=sup,
-                            orch=orch,
-                            fallback_chat=fallback.chat if fallback else None,
-                            fallback_stream=True,
-                        )
-                    except Exception as e:
-                        token_broadcaster.broadcast("error", f"Error: {e}")
-                    finally:
-                        token_broadcaster.broadcast("done", "")
+                    _dispatch_chat_message()
             finally:
                 cancel.set()
 
