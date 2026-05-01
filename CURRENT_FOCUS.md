@@ -3,23 +3,22 @@ Last updated: 2026-04-30
 
 ## Active Phase
 
-Phase B — Polish & UX (User-Facing Milestone)
+Phase C — Hardening & Coverage
 
 ## Current Task
 
-Executing Phase B: Polish & UX (B1-B8). Improving stability, mobile access, and visual consistency across the migrated workspace.
+Executing Phase C: Hardening & Coverage. Goal is production-grade reliability, test coverage, and implementing full functionality for all slash commands.
 
 ## Allowed Work
 
-- Light theme variant (cream palette)
-- React ErrorBoundaries
-- Mobile accessibility (sidebar/inspector overlays)
-- Toast notification system
-- SVG sanitization (The Optic)
-- Settings persistence (model dropdowns)
-- UI/UX consistency (Mode indicator pills, click-outside-to-close)
-- Blocker fixes for Phase A residuals
-- Canonical docs reconciliation
+- Implementing broken slash commands (deepsearch, watch, scrape, repair, image, clear, cal, status)
+- Specialist unit tests (coverage for all 12 specialists)
+- Route tests (brief, chatbox, stream)
+- Frontend component tests
+- SQLiteVecStore refactor/rename
+- `prefers-reduced-motion` support
+- TypeScript strict mode fixes
+- Blocker fixes from Phase B feedback
 - Workspace sync to `kitty-system/kitty-app`
 
 ## Forbidden Work

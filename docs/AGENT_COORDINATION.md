@@ -94,7 +94,9 @@ description before work starts.
 
 | Lane ID | Agent | Started | Status | Description |
 |---------|-------|---------|--------|-------------|
-| `ui-001` | gemini | 2026-04-30 | in-progress | Executing Phase B: Polish & UX (B1-B5). Starting with B1: Light theme variant and B2: ErrorBoundary. |
+| `kb-001` | gemini | 2026-04-30 | in-progress | Executing Phase D: Capability Completion. Starting with D1: OBD folder watcher for Mike specialist. |
+| `hardening-001` | gemini | 2026-04-30 | complete | Executed Phase C: Hardening & Coverage. Implemented functional slash commands, expanded test coverage (specialists + routes), renamed SQLiteTextStore, enabled TS strict mode. |
+| `ui-001` | gemini | 2026-04-30 | complete | Executed Phase B: Polish & UX (B1-B8). Added light theme, ErrorBoundary, mobile Inspector, Toast system, SVG sanitization, settings persistence, click-outside-to-close, and mode pill. |
 | `coordination-002` | codex | 2026-04-30 | complete | Reviewed and tightened this coordination protocol before starting broad audit work. Added authority, scope, workspace, sync, and handoff guardrails. |
 | `audit-001` | codex | 2026-04-30 | complete | Read-only project audit of both legacy repo (`/Users/jacobbrizinski/Projects/kitty`) and migrated workspace (`/Users/jacobbrizinski/Projects/kitty-system/kitty-app`). Output `docs/audits/project-context-audit-20260430.md`; no implementation or polish work performed. |
 | `runtime-001` | codex | 2026-04-30 | complete | `specs/runtime-parity-critical-fixes.spec.md`: MemoryWeave `DB_PATHS`, router → `KittyCoder`, `/unified` 501 guard — **verified** on legacy + migrated (15 focused tests each); spec completion report filed 2026-04-30 (cursor gate). |
@@ -240,6 +242,82 @@ Use the template in `docs/AGENT_HANDOFF_TEMPLATE.md`.
 ### Recent Handoffs
 
 <!-- ADD HANDOFFS ABOVE THIS LINE -->
+
+### 2026-04-30 gemini — hardening-001 (Phase C Hardening & Coverage)
+
+**Lane**: `hardening-001`
+
+**Workspace**: `/Users/jacobbrizinski/Projects/kitty` (legacy); synced to `/Users/jacobbrizinski/Projects/kitty-system/kitty-app`
+
+**Branch**: `main`
+
+**Blocked**: no
+
+**Done**:
+- C1: Implemented functional slash commands in `web.py` (`/brief`, `/stuck`, `/scrape`, `/deepsearch`, `/status`). Replaced stubs with core logic integrations.
+- C2: Added `tests/test_specialists_coverage.py` covering all 12 specialists via parametrized unit tests.
+- C3: Added `tests/test_critical_routes.py` covering POST `/brief`, POST `/chat`, POST `/api/chatbox/start`, and GET `/stream` smoke test.
+- C4: Added `garage-ui/tests/SettingsModal.test.tsx` for Vitest component testing.
+- C5: Renamed `SQLiteVecStore` to `SQLiteTextStore` across the codebase (class, imports, references, specs) to accurately reflect substring-search implementation.
+- C6: Added `prefers-reduced-motion` support to `globals.css` to disable heavy animations and glitch effects for accessibility.
+- C7: Enabled and verified TypeScript `strict` mode in `garage-ui/tsconfig.json`.
+
+**Files changed in legacy**:
+- `web.py`
+- `src/api/dispatcher.py`
+- `src/core/specialists/registry.py`
+- `src/memory/vector_store/sqlite_vec_store.py`
+- `src/memory/vector_store/__init__.py`
+- `src/memory/inspect.py`
+- `garage-ui/app/globals.css`
+- `garage-ui/tsconfig.json`
+- `tests/test_critical_routes.py` (new)
+- `tests/test_specialists_coverage.py` (new)
+- `tests/test_web_chat_phase1.py` (fix)
+- `garage-ui/tests/SettingsModal.test.tsx` (new)
+
+**Files synced to migrated runtime**:
+- All implemented logic and tests.
+
+**Allowed by**: `HANDOFF.md` Phase C; `hardening-001` lane claim.
+
+**Tests / validation**:
+- `pytest tests/` → 393 passed (legacy repo).
+- `npm run build` → success (garage-ui).
+- `npm run test` → 6 passed (garage-ui).
+
+**Outstanding**: Phase D (Specialist KB expansion) is next.
+
+### 2026-04-30 gemini — ui-001 (Phase B Polish & UX)
+
+**Lane**: `ui-001`
+
+**Workspace**: `/Users/jacobbrizinski/Projects/kitty` (legacy); synced to `/Users/jacobbrizinski/Projects/kitty-system/kitty-app`
+
+**Branch**: `main`
+
+**Blocked**: no
+
+**Done**:
+- B1: Added `.theme-light` (cream palette) to `globals.css` and implemented a theme toggle in the header.
+- B2: Added `ErrorBoundary.tsx` component and wrapped the main content in `page.tsx`.
+- B3: Added mobile accessibility for the Inspector (The Optic) via a mobile-specific overlay and header button.
+- B4: Implemented a `Toast` notification system with `ToastProvider` and `useToast` hook; wired into schematic upload and settings.
+- B5: Added basic SVG sanitization in `Inspector.tsx` to prevent script injection.
+- B6: Enabled persistence for model dropdowns in `SettingsModal.tsx`.
+- B7: Added click-outside-to-close functionality to `CommandPalette` and `SettingsModal`.
+- B8: Added a mode indicator pill in the header to show current operating mode.
+
+**Allowed by**: `HANDOFF.md` Phase B; `ui-001` lane claim.
+
+**Tests / validation**:
+- `pytest tests/` → 365 passed (legacy repo).
+- `npm run build` → success (garage-ui).
+- Manual sync and validation of API health (`/api/brief`).
+
+**Sync state**: Synced all 8 changed files to migrated workspace.
+
+**Outstanding**: None for Phase B. Phase C (Hardening) is the next milestone.
 
 ### 2026-04-30 codex - runtime-001 implementation evidence
 
