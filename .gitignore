@@ -13,6 +13,9 @@ build/
 node_modules/
 *.log
 
+# Ephemeral merge-gate anchor files from tests/test_phase4_merge_gate_report_path.py
+docs/_merge_gate_anchor_*.md
+
 # Embedded git repos (external tools with their own repos)
 src/tools/lightrag/
 src/tools/superpowers/
