@@ -19,9 +19,8 @@ Options:
   --skip-full        Skip full pytest suite (faster local check)
   -h, --help         Show this help
 
-Tip: pass an absolute path to --report (e.g. \$(pwd)/docs/PHASE4_....md) so the
-header and Full Suite sections are written even if the shell cwd is not the
-project root. See learnings L-005 in docs/AGENT_COORDINATION.md.
+Relative --report paths are anchored to the directory given by --project (see
+D-0011 in docs/DECISIONS.md). Absolute paths are unchanged.
 EOF
 }
 
@@ -64,6 +63,13 @@ project_abs="$(cd "${PROJECT_PATH}" 2>/dev/null && pwd)"
 if [[ -z "${project_abs}" ]]; then
   echo "Project path not found: ${PROJECT_PATH}" >&2
   exit 2
+fi
+
+# Anchor relative report paths to the validated project (D-0011). Otherwise
+# mkdir/write_header follow the shell cwd and the report can be truncated or
+# written outside the project.
+if [[ "${REPORT_PATH}" != /* ]]; then
+  REPORT_PATH="${project_abs}/${REPORT_PATH}"
 fi
 
 # Normalize python interpreter so relative values like venv/bin/python do not

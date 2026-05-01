@@ -1,6 +1,6 @@
 # Decisions
 
-Last updated: 2026-04-30
+Last updated: 2026-05-01
 
 This file records durable project decisions. New work should follow these rules unless a later dated decision explicitly supersedes them.
 
@@ -135,3 +135,35 @@ Consequences:
 
 Review trigger:
 Legacy-path retirement checklist completion and user approval.
+
+## D-0011: Phase 4 Merge Gate Report Path Is Project-Anchored
+
+Status: accepted
+
+`scripts/run_phase4_merge_gate.sh` resolves a **relative** `--report` path against the directory passed to **`--project`** (after `pwd` resolution), not against the shell’s current working directory.
+
+Rationale:
+A relative report path combined with a mismatched cwd produced incomplete markdown (missing header and Full Suite section) while steps still ran against `--project`.
+
+Consequences:
+- Default and relative reports (for example `docs/PHASE4_MERGE_GATE_RUN_<date>.md`) are created under the **validated project tree**.
+- Use an absolute `--report` only when the report must live outside `--project`.
+
+Review trigger:
+Change to merge gate contract or CI layout that requires cwd-relative reports.
+
+## D-0012: Commit Message Must Match Staged Content
+
+Status: accepted
+
+Before finalizing a commit message, authors run **`git diff --cached --stat`** (or equivalent) and ensure the **title and body describe only what is staged**.
+
+Rationale:
+Mismatched narratives (message references files not in the commit, or omits staged files) confuse bisect, audits, and coordination handoffs.
+
+Consequences:
+- Agents treat the staged diff as the source of truth for the commit message.
+- Unrelated staged changes are split into a separate commit or unstaged.
+
+Review trigger:
+Repeated coordination confusion from commit metadata; optional automation (prepare-commit-msg hook) if desired.
