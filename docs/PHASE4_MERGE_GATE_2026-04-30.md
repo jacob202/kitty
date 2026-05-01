@@ -7,13 +7,12 @@ Scope owner: mainline integrator
 Purpose:
 Provide a deterministic acceptance gate for parallel Phase 4 workers before any merge/checkpoint into release baseline.
 
-## Current In-Flight Signals
+## Latest Verification
 
-- Modified: `src/core/specialists/registry.py`
-- New file: `src/core/specialists/news.py`
-- Modified log row: `docs/iteration_log.md` (includes one failed/unreachable eval row)
+- Evidence: `docs/PHASE4_MERGE_GATE_RUN_2026-04-30_session_continue.md` (2026-04-30; migrated runtime path; gate **pass**).
+- `NewsFeedSpecialist` ships with registry wiring + tests (`tests/test_news_specialist.py`, `tests/test_specialist_registry.py`).
 
-These changes are not auto-accepted. They must pass this gate.
+Incoming Phase 4 worker changes still require a fresh gate run before merge.
 
 ## Required Acceptance Criteria
 

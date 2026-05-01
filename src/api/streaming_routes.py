@@ -10,7 +10,7 @@ from pathlib import Path
 
 from flask import Blueprint, Response, current_app, jsonify, render_template, request
 
-from src.api.shared import chat_rate_limiter, token_broadcaster
+from src.api.shared import chat_rate_limiter, default_web_chat_mode, token_broadcaster
 
 
 def _get_busy_lock():
@@ -42,7 +42,7 @@ def stream():
     domain    = request.args.get("domain", "").strip() or None
     is_voice  = request.args.get("voice", "").lower() in ("1", "true")
     client_id = request.args.get("client_id", f"client_{int(time.time())}")
-    mode      = request.args.get("mode", "fast")
+    mode      = request.args.get("mode") or default_web_chat_mode()
     reasoning = request.args.get("reasoning", "0").lower() in ("1", "true")
 
     transform_voice_prompt = None

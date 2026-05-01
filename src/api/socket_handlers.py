@@ -9,6 +9,7 @@ from flask import current_app, request
 from flask_socketio import emit
 
 from src.api.emitters import get_active_nodes, get_node_history, _MAX_HISTORY
+from src.api.shared import default_web_chat_mode
 from src.core.capabilities import command_palette_suggestions, record_invocation
 
 logger = logging.getLogger("kitty.api.socket")
@@ -59,7 +60,7 @@ def register_socket_handlers(socketio):
     @socketio.on("send_message")
     def handle_send_message(data):
         message = data.get("text", "").strip()
-        mode = data.get("mode", "fast")
+        mode = data.get("mode") or default_web_chat_mode()
         model_target = data.get("modelTarget", "free")
         reasoning = data.get("reasoning", False)
         sid = request.sid

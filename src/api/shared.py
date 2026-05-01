@@ -1,5 +1,6 @@
 """Shared rate limiter middleware, token broadcasting, and utilities for Flask blueprints."""
 
+import os
 import queue
 import re
 import threading
@@ -137,6 +138,17 @@ class TokenCapture:
 
     def __getattr__(self, name):
         return getattr(self._orig, name)
+
+
+def default_web_chat_mode() -> str:
+    """Default SSE/socket chat tier when the client omits ``mode``.
+
+    ``KITTY_WEB_DEFAULT_MODE`` may be ``fast``, ``balanced``, or ``max``.
+    Invalid values fall back to ``balanced`` (OpenRouter-first when MLX is not selected).
+    """
+
+    raw = os.environ.get("KITTY_WEB_DEFAULT_MODE", "balanced").strip().lower()
+    return raw if raw in ("fast", "balanced", "max") else "balanced"
 
 
 def get_pka_db():
