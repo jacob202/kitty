@@ -1,15 +1,13 @@
 """Defaults for SSE/socket chat tier."""
 
-import os
-
 import pytest
 
 from src.api.shared import default_web_chat_mode
 
 
-def test_default_web_chat_mode_balanced(monkeypatch):
+def test_default_web_chat_mode_fast_when_unset(monkeypatch):
     monkeypatch.delenv("KITTY_WEB_DEFAULT_MODE", raising=False)
-    assert default_web_chat_mode() == "balanced"
+    assert default_web_chat_mode() == "fast"
 
 
 @pytest.mark.parametrize(
@@ -18,8 +16,8 @@ def test_default_web_chat_mode_balanced(monkeypatch):
         ("fast", "fast"),
         ("BALANCED", "balanced"),
         ("max", "max"),
-        ("nope", "balanced"),
-        ("", "balanced"),
+        ("nope", "fast"),
+        ("", "fast"),
     ],
 )
 def test_default_web_chat_mode_env(monkeypatch, raw, want):

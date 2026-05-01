@@ -144,11 +144,11 @@ def default_web_chat_mode() -> str:
     """Default SSE/socket chat tier when the client omits ``mode``.
 
     ``KITTY_WEB_DEFAULT_MODE`` may be ``fast``, ``balanced``, or ``max``.
-    Invalid values fall back to ``balanced`` (OpenRouter-first when MLX is not selected).
+    Invalid values fall back to ``fast`` to preserve the local-first no-mode path.
     """
 
-    raw = os.environ.get("KITTY_WEB_DEFAULT_MODE", "balanced").strip().lower()
-    return raw if raw in ("fast", "balanced", "max") else "balanced"
+    raw = os.environ.get("KITTY_WEB_DEFAULT_MODE", "fast").strip().lower()
+    return raw if raw in ("fast", "balanced", "max") else "fast"
 
 
 def get_pka_db():
