@@ -4,6 +4,7 @@ Last updated: 2026-05-01
 
 ## Active
 
+- **Unified Command System (Candidate C):** Consolidate slash commands (`/stuck`, `/brief`, `/scrape`, etc.) from `web.py` and `dispatcher.py` into a deep `CommandEngine`. This was attempted but shelved due to subagent failure and time constraints. Must be picked up to complete the architectural deepening roadmap.
 - **Gemini architecture trio (indexed):** `docs/plans/gemini-architecture-priorities-2026-04-30.md` — grep tag `GEMINI-ARCH-PRIORITIES` (Tool runtime → Specialist runtime → builder/spec velocity).
 - Decide when to execute the physical `kitty-system` split after the dirty tree is clean or intentionally checkpointed.
 

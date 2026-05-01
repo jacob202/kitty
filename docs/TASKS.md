@@ -51,6 +51,11 @@
 
 ## Priority 1 — Foundation (unblocks everything else)
 
+### Phase 3: Architectural Deepening (In Progress)
+- [x] **Unified Tool Runtime** — Centralized registry with authorization and recursion guards (`src/tools/runtime.py`).
+- [x] **Specialist Runtime** — Data-driven identity, async execution engine isolating domain logic from infra.
+- [ ] **Unified Command System** (Candidate C) — Consolidate fragmented slash commands (`/stuck`, `/brief`, `/scrape`, etc.) from `web.py` and `dispatcher.py` into a deep `CommandEngine`. Attempted but shelved due to time constraints; must be completed to finish the architecture deepening roadmap.
+
 ### Phase 1: Prune MCP + Dead Surfaces
 - [x] Audit all capability surfaces: classify each as keep / hide / remove / investigate
   - /api/swarm/* — returns 503, hide from UX until stable
