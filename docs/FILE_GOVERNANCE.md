@@ -64,6 +64,8 @@ Control files coordinate work and may be edited only by assigned documentation/c
 - `docs/FILE_GOVERNANCE.md`
 - `docs/FILE_MANIFEST.md`
 - `docs/BUILDER_INTAKE.md`
+- `docs/AGENT_COORDINATION.md`
+- `docs/AGENT_HANDOFF_TEMPLATE.md`
 - `specs/_template.md`
 - `intake/`
 
