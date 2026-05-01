@@ -1,5 +1,6 @@
 """
-Tests for critical untested routes: POST /brief, POST /chat, POST /api/chatbox/start.
+Tests for critical untested routes: POST /brief, POST /chat, GET /api/news,
+POST /api/chatbox/start, SSE /stream.
 """
 import sys, os, pytest, json
 from flask import Flask
@@ -37,6 +38,19 @@ class TestCriticalRoutes:
         data = json.loads(resp.data)
         assert data['success'] is True
         assert "chatbox unavailable" in data['message']
+
+    def test_get_api_news(self, client):
+        resp = client.get("/api/news")
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert isinstance(data, dict)
+
+    def test_get_api_news_summary(self, client):
+        resp = client.get("/api/news/summary")
+        assert resp.status_code == 200
+        data = json.loads(resp.data)
+        assert "domains" in data
+        assert "total" in data
 
     def test_stream_smoke(self, client):
         # Smoke test for SSE endpoint
