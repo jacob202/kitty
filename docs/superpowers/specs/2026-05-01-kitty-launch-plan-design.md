@@ -71,9 +71,9 @@ Jacob never reads code. His job is vision, gut-feel approval, demo review, and r
 
 Claude Sonnet (with Opus reserved for highest-leverage strategic decisions) is the technical authority. It translates Jacob's vision into architecture, reviews all code output, maintains the design docs, and owns the technical coherence of the whole project. No code merges without Sonnet review.
 
-#### PM Layer: Dorothy MCP — Kanban + Telegram + Vault
+#### PM Layer: Dorothy MCP — Kanban + Telegram + Vault + DrawThings
 
-Dorothy is slimmed from 8 MCP servers to the 3 that serve the launch plan:
+Dorothy is slimmed from 8 MCP servers to the 4 that serve the launch plan:
 
 - **claude-mgr-kanban:** a visible task board (Backlog → Spec Ready → Building → Review → Demo Ready → Done). Each card has: sub-project label, assigned builder, file boundaries, current status, and the mission test question. Jacob can glance at it and know project state. The board is the source of truth — handoff files feed from it, not vice versa.
 
@@ -81,7 +81,9 @@ Dorothy is slimmed from 8 MCP servers to the 3 that serve the launch plan:
 
 - **claude-mgr-vault:** durable storage for specs, handoffs, and session context. Agents read/write without polluting the working tree.
 
-**Cut:** orchestrator (replaced by bridge daemon + CrewAI), socialdata, X, world, drawthings (kept separately for mascot visuals).
+- **claude-mgr-drawthings:** local image generation for mascot visuals, onboarding illustrations, and demo assets. This stays available, but it is not in the critical execution path.
+
+**Cut:** orchestrator (replaced by bridge daemon + CrewAI), socialdata, X, world.
 
 **Why Dorothy instead of SaaS:** runs locally, needs no external accounts, agents can update programmatically, already wired into Claude Code hooks. Zero new costs.
 
@@ -152,22 +154,22 @@ The stack stays as-is for B launch: **Flask + Next.js + MLX + LightRAG**. Flask 
 Before any Layer 1 work begins, the surrounding infrastructure must be stripped to essentials. Current state: ~35 skills, 9 Claude plugins, 8 MCP servers, and 30+ scripts — many unused, overlapping, or dead-weight. This bloat burns tokens on every agent session and causes agents to load irrelevant context.
 
 **Phase A — Cut MCP servers first (lowest risk):**
-Remove from `.claude/mcp.json`: dorothy-socialdata, dorothy-x, dorothy-world. The orchestrator gets stripped to a simple launcher (if kept at all) since CrewAI replaces its routing. Result: 8 → 4 MCP servers (kanban, telegram, vault, drawthings). Verify `./kitty status` still works after cut.
+Remove from `.claude/mcp.json`: orchestrator, dorothy-socialdata, dorothy-x, dorothy-world. The bridge daemon and CrewAI replace orchestrator-style routing. Result: 8 → 4 MCP servers (kanban, telegram, vault, drawthings). Verify with `./kitty status`, then `venv/bin/python -m pytest tests/ -q --tb=short`.
 
 **Phase B — Cut skills second:**  
-Unlink 18 skills from `.claude/skills/` (symlinks to `~/.agents/skills/`). Keep 18: fix-and-verify, parallel-subagents, overnight-queue, prompt-answer-quality, tdd, caveman, grill-me, spec-to-impl, demo, audit, zoom-out, all firecrawl-* (11), skill-creator, find-skills. Cut: domain-news, grill-with-docs, improve-codebase-architecture, recommend, setup-matt-pocock-skills, to-issues, to-prd, triage, write-a-skill, execution, improve, planning, reasoning, ship, think, world-builder, ast-grep, agent-browser (reactivate if page navigation is needed). Verify superpowers plugin still loads after cuts.
+Cut 18 skills from `.claude/skills/` (symlinks to `~/.agents/skills/`). Keep 24: fix-and-verify, parallel-subagents, overnight-queue, prompt-answer-quality, tdd, caveman, grill-me, spec-to-impl, demo, audit, zoom-out, all firecrawl-* (11), skill-creator, find-skills. Cut: domain-news, grill-with-docs, improve-codebase-architecture, recommend, setup-matt-pocock-skills, to-issues, to-prd, triage, write-a-skill, execution, improve, planning, reasoning, ship, think, world-builder, ast-grep, agent-browser (reactivate if page navigation is needed). Verify with `find .claude/skills -maxdepth 2 -name SKILL.md | wc -l`, then run a fresh Claude/OpenCode session smoke check.
 
 **Phase C — Cut plugins third:**  
-Disable 5 Claude plugins: security-guidance, pr-review-toolkit, agent-sdk-dev, pyright-lsp, frontend-design. Keep 4: commit-commands, code-review, superpowers, feature-dev. Verify Claude.app/OpenCode sessions load correctly.
+Disable 5 Claude plugins: security-guidance, pr-review-toolkit, agent-sdk-dev, pyright-lsp, frontend-design. Keep 4: commit-commands, code-review, superpowers, feature-dev. Verify by starting Claude.app/OpenCode in the repo and confirming the kept plugins load without startup errors.
 
 **Phase D — Clean scripts last:**  
-Keep 7 scripts: clear-and-test.sh, quick-smoke.sh, checkpoint.sh, run_gates.sh, validate.sh, golden_demo.sh, context_pack_generator.py (+ dorothy_bridge.py which is new). Archive remaining 25+ scripts to `scripts/archive/`. Verify full test suite still passes.
+Keep 7 scripts: clear-and-test.sh, quick-smoke.sh, checkpoint.sh, run_gates.sh, validate.sh, golden_demo.sh, context_pack_generator.py (+ dorothy_bridge.py which is new). Archive remaining 25+ scripts to `scripts/archive/`. Verify with `bash -n scripts/*.sh`, then `venv/bin/python -m pytest tests/ -q --tb=short`.
 
 **Phase E — Write Dorothy bridge daemon:**  
-The `scripts/dorothy_bridge.py` daemon that polls Kanban, spawns CrewAI/Crush/Aider, and posts Telegram updates. ~150 lines. Test: create a Kanban card with `#build`, verify the bridge detects it and starts the pipeline.
+The `scripts/dorothy_bridge.py` daemon that polls Kanban, spawns CrewAI/Crush/Aider, and posts Telegram updates. ~150 lines. Verify with `venv/bin/python -m py_compile scripts/dorothy_bridge.py`, then create a Kanban card with `#build` and confirm the bridge detects it, starts the pipeline, and posts a Telegram update.
 
 **Phase F — Optimize reference docs:**  
-Trim CLAUDE.md and AGENTS.md to ~80 lines each. Keep critical gotchas (storage routing, port split, Werkzeug flag, TokenCapture leak). Cut narrative prose. Run `context_pack_generator.py` to verify context packs still contain essential reference data.
+Trim CLAUDE.md and AGENTS.md to ~80 lines each. Keep critical gotchas (storage routing, port split, Werkzeug flag, TokenCapture leak). Cut narrative prose. Verify with `venv/bin/python scripts/context_pack_generator.py`, then `venv/bin/python -m pytest tests/ -q --tb=short`.
 
 All phases commit separately. Each phase verifies before proceeding.
 
@@ -295,7 +297,7 @@ At these prices, a full day of parallel builder-agent work costs cents, not doll
 
 ### Dorothy Already Wired
 
-Dorothy MCP is already connected to Claude Code through hooks, with Orchestrator, Kanban, Telegram, and DrawThings components. The infrastructure exists. The Layer 0 work is configuration and integration, not greenfield development.
+Dorothy MCP is already connected to Claude Code through hooks, with Kanban, Telegram, Vault, and DrawThings components available. The old orchestrator component is cut from the launch path and replaced by the bridge daemon. The infrastructure exists; the Layer 0 work is configuration and integration, not greenfield development.
 
 ### Telegram Means Phone Notifications
 
@@ -303,7 +305,7 @@ Because Dorothy can send Telegram messages, Jacob gets push notifications on his
 
 ### Crush Runs Non-Interactively
 
-Crush accepts tasks and returns results without a conversation loop. This is the critical property for parallel execution. Interactive agents (where the human or coordinator has to respond to each output) can only run one at a time. Non-interactive agents can run N at a time — the coordinator sends a task, the agent returns a result, and the coordinator reviews all results in a batch.
+Crush accepts tasks and returns results without a conversation loop. This is the critical property for parallel execution. Interactive agents (where the human or Sonnet has to respond to each output) can only run one at a time. Non-interactive agents can run N at a time — the bridge daemon sends a task, the agent returns a result, and Sonnet reviews all results in a batch.
 
 In practice: Sonnet writes a spec for the Onboarding Pipeline's domain-selection wizard. It spawns a Crush instance with the spec, assigns it the `garage-ui/app/components/onboarding/` directory as its lane boundary, and moves on. Crush works autonomously — generating components, writing tests, handling import structure — and returns a diff plus a test result. Sonnet reviews it later in a batch with results from the parallel builder working on the backend ingestion pipeline. No interactive back-and-forth. No waiting for "what should I do next?" prompts.
 
@@ -348,7 +350,7 @@ DrawThings provides local image generation capability, which supports mascot vis
 
 ## 7. Model Routing Strategy
 
-Every agent in the system routes through this strategy. No agent picks a model on its own judgment — the routing is defined here and enforced by the coordinator.
+Every agent in the system routes through this strategy. No agent picks a model on its own judgment — the routing is defined here and enforced by the bridge daemon, with Sonnet deciding exceptions.
 
 ### Primary Tier — Cheap and Reliable (Default)
 
@@ -392,7 +394,7 @@ Free models have rate limits, queues, quality variance, and outage risk. They ar
 
 ### Routing Decision Flow
 
-When a task needs a model, the coordinator follows this decision tree:
+When a task needs a model, the bridge daemon and Sonnet follow this decision tree:
 
 ```
 Task arrives → Is this a strategic decision affecting architecture?
@@ -471,44 +473,54 @@ Budget is flexible — no hard cap. Use cheap API when parallel speed matters, f
 | Pipeline Agents | **CrewAI** (searcher, digester, embedder, organizer) | Sequential knowledge ingestion for onboarding. Runs on cheap API with local fallback |
 | Review Pair | **AutoGen / CrewAI-hybrid** | Adversarial code review — second agent challenges Sonnet's review. Reserved for merge gates |
 | Builder Agents | **Crush + Aider** (cheap-tier models, parallel) | Code generation, test writing, file edits. Work on independent lanes |
+| Available Paid Seats | **Codex + OpenCode** | Already-paid coding agents available for implementation, review, and repair work when they are the best fit |
 | Code Reviewer | **Claude.app/Sonnet** | Quality gate. Every merge gets Sonnet review. Catches scope drift, routing violations, security issues |
 
 ### Information Flow
 
 ```
 Jacob (CPO)
-  ↑ demos, status pings (Telegram)
-Dorothy (PM)
-  ↑ task completion reports
-Claude Sonnet (CTO)
-  ↑ code review, architecture decisions
-  ↑ merged diffs
-Crush + Aider (Builders)
-  ↑ parallel execution on independent lanes
-  ↑ cheap AI models (DeepSeek Flash, Gemini Flash, Groq)
+  ↓ vision, demo feedback, yes/no/redirect
+Dorothy Kanban + Vault (PM memory)
+  ↓ approved cards and specs
+Bridge Daemon (`scripts/dorothy_bridge.py`)
+  ↓ routes work and posts Telegram status
+Claude Sonnet / Opus (CTO)
+  ↓ architecture, scope, review decisions
+CrewAI Pipeline
+  ↓ search → digest → embed → organize
+Crush + Aider + Codex + OpenCode (Builders)
+  ↓ diffs, tests, docs, repair work
+AutoGen / CrewAI Review Pair
+  ↓ adversarial review findings
+Claude Sonnet Merge Review
+  ↓ accepted changes and demo notes
+Dorothy Telegram
+  ↓ phone notification: ready, blocked, shipped
+Jacob (CPO)
 ```
 
 ### Coordination Failure Modes and Recovery
 
-Parallel agent execution introduces failure modes that don't exist in serial work. The coordinator must handle these without Jacob ever needing to intervene:
+Parallel agent execution introduces failure modes that don't exist in serial work. Sonnet owns judgment calls; the bridge daemon owns mechanical routing and retry behavior so Jacob does not need to intervene.
 
 | Failure Mode | Detection | Recovery |
 |-------------|-----------|----------|
-| **Builder agent dies mid-task** (usage limit, model error, process crash) | No result returned within time budget; coordinator's heartbeat check fails | Read the HANDOFF checkpoint written before the task started. Spawn a fresh builder with the same spec and lane assignment. The checkpoint includes current file state so the new agent can diff and resume |
-| **Two builders produce conflicting edits** (coordinator lane assignment was imperfect) | Sonnet review detects overlapping file changes in two builders' diffs | Accept the primary lane's changes (the one that had stricter file ownership defined in the spec). Log the conflict for the coordinator to improve future lane boundaries. The rejected builder's work is not lost — it's parked and manually reconciled if valuable |
-| **Model routing failure** (primary API down, budget exhausted, rate limit hit) | Builder returns an error instead of a diff. Error code identifies the failure type | Coordinator reroutes to backup tier automatically. If backup also fails, marks the task as blocked on Dorothy Kanban with the specific failure reason. Jacob sees "Model API unavailable — retrying on backup tier" rather than "build failed" |
-| **Scope drift** (builder agent adds code outside its allowed files) | Sonnet review catches files in the diff that aren't in the spec's allowed-files list | Reject the entire diff. The builder is re-spawned with explicit "FORBIDDEN FILES" instruction reinforced. Repeated scope drift from the same builder may indicate the spec or lane boundaries were unclear — coordinator revises |
-| **Test regression from unrelated area** (builder's change broke something in another subsystem) | Pre-commit hook or CI catches test failures in files the builder didn't touch | The test failure is diagnostic, not accusatory. The coordinator spawns a fix-and-verify agent to identify the root cause. If the fix is small and contained, the coordinator applies it. If it's a deeper integration issue, the coordinator sequences the work — the current sub-project pauses, the fix takes priority, then the sub-project resumes |
+| **Builder agent dies mid-task** (usage limit, model error, process crash) | No result returned within time budget; bridge daemon heartbeat check fails | Read the HANDOFF checkpoint written before the task started. Spawn a fresh builder with the same spec and lane assignment. The checkpoint includes current file state so the new agent can diff and resume |
+| **Two builders produce conflicting edits** (lane assignment was imperfect) | Sonnet review detects overlapping file changes in two builders' diffs | Accept the primary lane's changes (the one that had stricter file ownership defined in the spec). Log the conflict so Sonnet can tighten future lane boundaries. The rejected builder's work is not lost — it's parked and manually reconciled if valuable |
+| **Model routing failure** (primary API down, budget exhausted, rate limit hit) | Builder returns an error instead of a diff. Error code identifies the failure type | Bridge daemon reroutes to backup tier automatically. If backup also fails, it marks the task as blocked on Dorothy Kanban with the specific failure reason. Jacob sees "Model API unavailable — retrying on backup tier" rather than "build failed" |
+| **Scope drift** (builder agent adds code outside its allowed files) | Sonnet review catches files in the diff that aren't in the spec's allowed-files list | Reject the entire diff. The builder is re-spawned with explicit "FORBIDDEN FILES" instruction reinforced. Repeated scope drift from the same builder means Sonnet revises the spec or lane boundaries before retrying |
+| **Test regression from unrelated area** (builder's change broke something in another subsystem) | Pre-commit hook or CI catches test failures in files the builder didn't touch | The test failure is diagnostic, not accusatory. Sonnet assigns a fix-and-verify pass to identify the root cause. If the fix is small and contained, Sonnet applies it. If it's a deeper integration issue, Sonnet sequences the work — the current sub-project pauses, the fix takes priority, then the sub-project resumes |
 
-These recovery patterns mean that a builder failure does not become a Jacob-intervention. The coordinator handles it, Dorothy reports it, and work continues. Jacob only gets involved if the same failure repeats three times or the coordinator explicitly flags a decision it cannot make (e.g., "two fundamentally incompatible approaches to the same problem").
+These recovery patterns mean that a builder failure does not become a Jacob-intervention. Sonnet and the bridge daemon handle it, Dorothy reports it, and work continues. Jacob only gets involved if the same failure repeats three times or Sonnet explicitly flags a product decision it cannot make (e.g., "two fundamentally incompatible approaches to the same problem").
 
 ### Lane Discipline
 
-Builders never work on the same files at the same time. The coordinator assigns explicit file boundaries before spawning parallel agents. No builder commits directly — the coordinator owns all merges. This prevents the most common failure mode of parallel agent execution: merge conflicts from overlapping edits.
+Builders never work on the same files at the same time. Sonnet assigns explicit file boundaries before the bridge daemon spawns parallel agents. No builder commits directly — Sonnet owns all merges. This prevents the most common failure mode of parallel agent execution: merge conflicts from overlapping edits.
 
-When a spec defines allowed files as a directory (e.g., `garage-ui/app/components/onboarding/`), the coordinator checks that no other active lane has files inside that directory before spawning. If a potential conflict is detected, the coordinator either widens the lane boundary (if the tasks are truly independent within the directory) or sequences the work (if they would touch the same files).
+When a spec defines allowed files as a directory (e.g., `garage-ui/app/components/onboarding/`), the bridge daemon checks that no other active lane has files inside that directory before spawning. If a potential conflict is detected, Sonnet either widens the lane boundary (if the tasks are truly independent within the directory) or sequences the work (if they would touch the same files).
 
-The coordinator also enforces a rule: no two builders may touch the same import structure simultaneously. If Sub-Project 1 adds a new import to `src/api/__init__.py` and Sub-Project 3 also needs to modify that file, the coordinator sequences them — Sub-Project 1 commits first, Sub-Project 3 rebases on top.
+Sonnet also enforces a rule: no two builders may touch the same import structure simultaneously. If Sub-Project 1 adds a new import to `src/api/__init__.py` and Sub-Project 3 also needs to modify that file, Sonnet sequences them — Sub-Project 1 commits first, Sub-Project 3 rebases on top.
 
 ---
 
@@ -525,19 +537,19 @@ This is the baseline. It assumes one builder working through sub-projects one at
 If multiple agents work in parallel on independent lanes: **3–4 weeks.**
 
 This assumes:
-- Layer 0 infrastructure (Dorothy PM, agent coordination, fast dev gate) is set up in week 1
+- Layer 0 infrastructure (Dorothy PM, bridge daemon dispatch, fast dev gate) is set up in week 1
 - Layer 1 sub-projects 1–3 (Onboarding, Memory, Commands) can run partially in parallel once their interfaces are defined
 - Sub-projects 4–6 (Tests, UX, Launch Ops) run in parallel after 1–3 are stable
 
-The parallel timeline is aggressive but grounded: most sub-projects touch different subsystems (backend vs frontend vs docs vs tests), so file conflicts are minimal. The coordinator's lane discipline keeps them separate.
+The parallel timeline is aggressive but grounded: most sub-projects touch different subsystems (backend vs frontend vs docs vs tests), so file conflicts are minimal. Sonnet's lane discipline keeps them separate.
 
 ### Phase Breakdown
 
 | Week | Layer 0 | Layer 1 |
 |------|---------|---------|
-| 1 | Dorothy PM Kanban configured, Telegram notifications wired, coordinator pipeline functional, fast dev gate designed | Sub-Project 1: Onboarding Pipeline domain-selection wizard and agent dispatch built |
+| 1 | Dorothy PM Kanban configured, Telegram notifications wired, bridge daemon pipeline functional, fast dev gate designed | Sub-Project 1: Onboarding Pipeline domain-selection wizard and agent dispatch built |
 | 2 | Layer 0 validation gate (Dorothy shows real tasks, Telegram delivers real ping, one checkpoint survives usage-limit cutoff) | Sub-Project 1 completes (ingestion, embedding, first-conversation demo). Sub-Project 2: Memory & Continuity begins (session summaries, journal integration) |
-| 3 | Memory routing enforcement in place, coordinator managing 2 parallel builder lanes | Sub-Projects 2–3 in parallel (Memory & Commands in different subsystems). Sub-Project 4: Test Coverage begins expanding route tests |
+| 3 | Memory routing enforcement in place, bridge daemon managing 2 parallel builder lanes under Sonnet review | Sub-Projects 2–3 in parallel (Memory & Commands in different subsystems). Sub-Project 4: Test Coverage begins expanding route tests |
 | 4 | — | Sub-Project 3 (Unified Commands) completes. Sub-Projects 4–6 begin parallel work (tests + UX + launch ops touch different areas) |
 | 5 | — | Sub-Projects 4–6 complete. Integration testing. Jacob demos full launch experience |
 | 6 | — | Launch validation gate: a real friend goes through setup → onboarding → conversation in < 30 minutes. Bug fixes from feedback. Final commit |
@@ -549,7 +561,7 @@ This is the optimistic path — assumes no major blockers, Jacob's demos pass on
 The realistic path adds 2 weeks of buffer for:
 
 - **Demo redirection:** Jacob approves the shape but redirects the feel. "This works but it doesn't feel like Kitty." A day or two per sub-project to adjust tone, language, and mascot presence to match the mission.
-- **Integration friction:** even with lane discipline, two sub-projects that looked independent reveal a shared dependency. The coordinator spots it during review and sequences the work — one lane pauses while the other ships, then resumes. Cost: 1–2 days.
+- **Integration friction:** even with lane discipline, two sub-projects that looked independent reveal a shared dependency. Sonnet spots it during review and sequences the work — one lane pauses while the other ships, then resumes. Cost: 1–2 days.
 - **"It works on my machine":** the first friend who tries the setup wizard hits a failure Jacob never saw — wrong Python version, missing system library, port conflict with another app. Fixing these one by one during Sub-Project 6 is expected and budgeted.
 - **MCP agent bundle decision:** if the team decides to audit and adopt parts of the KnowledgeGetter MCP server for the onboarding pipeline, that audit costs 2–3 days. If they build fresh, those days are absorbed into Sub-Project 1's build time.
 
@@ -559,9 +571,9 @@ This is still significantly faster than the 6–8 week serial baseline because t
 
 ### When to Abandon Parallel and Go Serial
 
-Parallel execution is not dogma. If the coordinator detects repeated lane conflicts, or if two sub-projects that were assumed independent turn out to share critical interfaces, the coordinator has authority to sequence them — pause one lane, let the other complete, then resume. The fallback from parallel to serial costs time but prevents the worse cost: two builders generating code against different assumptions about the same interface, producing a merge that takes longer to reconcile than building sequentially would have taken.
+Parallel execution is not dogma. If Sonnet detects repeated lane conflicts, or if two sub-projects that were assumed independent turn out to share critical interfaces, Sonnet has authority to sequence them — pause one lane, let the other complete, then resume. The fallback from parallel to serial costs time but prevents the worse cost: two builders generating code against different assumptions about the same interface, producing a merge that takes longer to reconcile than building sequentially would have taken.
 
-**Trigger condition:** two lane conflicts within the same sub-project pair, or one merge that takes more than 2 hours to reconcile. Either condition triggers a coordinator decision: either widen lane boundaries to eliminate the conflict, or sequence the work. This is a process decision the coordinator can make autonomously — Jacob doesn't need to approve sequencing adjustments.
+**Trigger condition:** two lane conflicts within the same sub-project pair, or one merge that takes more than 2 hours to reconcile. Either condition triggers a Sonnet decision: either widen lane boundaries to eliminate the conflict, or sequence the work. This is a process decision Sonnet can make autonomously — Jacob doesn't need to approve sequencing adjustments.
 
 ---
 
@@ -587,7 +599,7 @@ The wizard runs in `garage-ui` as a guided flow. It explains what's happening in
 
 **Files likely touched:** `garage-ui/app/components/onboarding/`, `src/services/onboarding_pipeline.py`, `src/agents/`, onboarding configs, knowledge ingestion pipeline.
 
-**Dependencies:** Layer 0 coordinator must be functional (to dispatch research agents). Knowledge ingestion pipeline must route correctly to LightRAG. Frontend wizard must exist in `garage-ui`.
+**Dependencies:** Layer 0 bridge daemon must be functional (to dispatch research agents). Knowledge ingestion pipeline must route correctly to LightRAG. Frontend wizard must exist in `garage-ui`.
 
 ---
 
@@ -802,7 +814,7 @@ Before Layer 1 sub-projects begin in parallel — this gate confirms the operati
 
 1. **Dorothy Kanban** shows a real task flowing through the pipeline: intake → spec → build → demo → ship. Each status transition is visible on the board. Jacob can look at it and know exactly where each sub-project stands.
 2. **Dorothy Telegram delivers a real progress ping:** Jacob's phone buzzes with "Sub-Project 1: Onboarding Pipeline — domain-selection wizard built, ready for demo." Not a test message. Not a screenshot. A real notification from the actual pipeline.
-3. **Checkpoint survival test:** The coordinator is mid-task on a builder assignment. The session ends (simulated by killing the process). A fresh session starts, reads the HANDOFF checkpoint, and resumes the task from where it left off. No work is lost. The builder picks up the same spec, in the same lane, with the same allowed files. The only difference is a new session ID in the handoff log.
+3. **Checkpoint survival test:** The bridge daemon is mid-task on a builder assignment. The session ends (simulated by killing the process). A fresh session starts, reads the HANDOFF checkpoint, and resumes the task from where it left off. No work is lost. The builder picks up the same spec, in the same lane, with the same allowed files. The only difference is a new session ID in the handoff log.
 4. **Memory routing enforcement:** A test verifies that attempts to write journal entries to LightRAG (wrong store) are caught and blocked at the routing layer. A test verifies that KB content routed to JournalDB is similarly blocked. This isn't a unit test of the routing logic — it's a system test that the enforcement mechanism actually prevents the #1 source of data-loss bugs.
 
 ### Pre-Launch Validation Gate (End of Sub-Project 6)
@@ -818,16 +830,6 @@ The single gate that determines whether launch happens:
 > 6. Never once ask Jacob for help
 
 This is not a benchmark. It's a real person doing it. If they can't, launch is not ready. The specific failure points become the priority fixes. The test is repeated with a second friend after those fixes. When two friends in a row succeed independently, launch is ready.
-
-### Continuous Enforcement
-
-Beyond the milestone gates, these run continuously:
-
-| Check | When | What |
-|-------|------|------|
-| Pre-commit hook | Every `git commit` | Full test suite (399+ tests, ~47s). Blocks commit on failure |
-| Fast dev gate | Every WIP checkpoint commit | Critical route + component tests (< 10s). For parallel agent velocity |
-| Storage routing test | Every commit that touches `src/services/` or storage files | Verifies KB → LightRAG, journal → JournalDB, MCP entities → server-memory |
 
 ### Test Suite Baseline
 

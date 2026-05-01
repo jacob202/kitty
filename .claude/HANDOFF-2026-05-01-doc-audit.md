@@ -99,3 +99,7 @@
 2. `venv/bin/python -m pytest tests/ -q --tb=short` — must be 399 passing
 3. Commit with: `fix: resolve 8 audit defects in launch plan design doc`
 4. Append completion note here
+
+---
+
+Completion note: 2026-05-01 — audit defects D1-D9 resolved by Codex; doc checks pass (all 13 sections, mission quote intact, 881 lines); `venv/bin/python -m pytest tests/ -q --tb=short` passed with 399 tests and 2 warnings.
