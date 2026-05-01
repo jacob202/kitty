@@ -18,6 +18,10 @@ Options:
   --report <path>    Output markdown report path (default: docs/PHASE4_MERGE_GATE_RUN_<date>.md)
   --skip-full        Skip full pytest suite (faster local check)
   -h, --help         Show this help
+
+Tip: pass an absolute path to --report (e.g. \$(pwd)/docs/PHASE4_....md) so the
+header and Full Suite sections are written even if the shell cwd is not the
+project root. See learnings L-005 in docs/AGENT_COORDINATION.md.
 EOF
 }
 

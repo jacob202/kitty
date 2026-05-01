@@ -94,6 +94,7 @@ description before work starts.
 
 | Lane ID | Agent | Started | Status | Description |
 |---------|-------|---------|--------|-------------|
+| `kb-002` | gemini | 2026-04-30 | complete | Implemented Full Builder Automation from Intake. Tool converts classified MD to compliant specs. |
 | `kb-001` | gemini | 2026-04-30 | complete | Executed Phase D: Capability Completion. Added OBD folder watcher, downloaded Qwen3.5-4B, wired end-to-end voice, and triggered specialist KB ingestion. |
 | `hardening-001` | gemini | 2026-04-30 | complete | Executed Phase C: Hardening & Coverage. Implemented functional slash commands, expanded test coverage (specialists + routes), renamed SQLiteTextStore, enabled TS strict mode. |
 | `ui-001` | gemini | 2026-04-30 | complete | Executed Phase B: Polish & UX (B1-B8). Added light theme, ErrorBoundary, mobile Inspector, Toast system, SVG sanitization, settings persistence, click-outside-to-close, and mode pill. |
@@ -204,6 +205,13 @@ promotes verified learnings to `docs/DECISIONS.md`.
 | L-002 | 2026-04-30 | opencode | pre-commit hook | The pre-commit hook in legacy repo runs full `pytest tests/` before allowing commit. All commits must pass 350+ tests. | no |
 | L-003 | 2026-04-30 | opencode | merge gate | Phase 4 merge gate script (`scripts/run_phase4_merge_gate.sh`) requires a running server on specified port for route smoke. Server must be started first. | no |
 | L-004 | 2026-04-30 | cursor | context before create | "Legacy folder" in practice means the legacy **checkout** `/Users/jacobbrizinski/Projects/kitty` (not a `legacy/` subdirectory). Agents search that tree before creating new docs/specs/code so canonical git stays authoritative. | no |
+| L-005 | 2026-04-30 | cursor | merge gate reports | Relative `--report` paths depend on shell cwd; a bad cwd produced a truncated Phase 4 report (missing header / Full Suite). Prefer **absolute** `--report` until the script resolves paths. | no |
+| L-006 | 2026-04-30 | cursor | commit hygiene | Commit body claimed files (e.g. AGENT_COORDINATION) not in `git diff --cached`; unrelated doc (`PARKED_FEATURES`) sometimes staged. **Match message to `git diff --cached --stat` every time.** | no |
+| L-007 | 2026-04-30 | cursor | doc drift | `docs/audits/operational-plan-20260430.md` Audit Summary can contradict later “Phase A complete” rows if the summary table is left as a frozen snapshot—add a pointer or refresh after closures. | no |
+| L-008 | 2026-04-30 | cursor | refactor safety | Renaming module-level helpers (e.g. `_run_with_app_context` → `run_with_app_context`) needs **rg old symbol** across callers; one stale reference broke `/chat` until fixed. | no |
+| L-009 | 2026-04-30 | cursor | orphan blueprints | `honcho_bp` removed from registration but empty `honcho_routes.py` lingered—audits still “saw” honcho. **Delete or register** placeholder modules promptly. | no |
+| L-010 | 2026-04-30 | cursor | test noise | Provider fallback emits **401** during tests while staying green; risks hiding real auth failures—prefer mocks or explicit disabled providers in those tests. | no |
+| L-011 | 2026-04-30 | cursor | phase narrative | `CURRENT_FOCUS`, coordination lanes, and `HANDOFF.md` can describe different active phases same day—reconcile **Next smallest action** + **Current task** after lane completions. | no |
 
 ---
 
@@ -242,6 +250,39 @@ Use the template in `docs/AGENT_HANDOFF_TEMPLATE.md`.
 ### Recent Handoffs
 
 <!-- ADD HANDOFFS ABOVE THIS LINE -->
+
+### 2026-04-30 gemini — kb-002 (Builder Automation)
+
+**Lane**: `kb-002`
+
+**Workspace**: `/Users/jacobbrizinski/Projects/kitty` (legacy); synced to `/Users/jacobbrizinski/Projects/kitty-system/kitty-app`
+
+**Branch**: `main`
+
+**Blocked**: no
+
+**Done**:
+- Implemented `scripts/automate_builder.py` to automate the transition from intake records to implementation specs.
+- Added file boundary enforcement: the tool checks for "Forbidden" leaks into "Allowed" files.
+- Added `tests/test_builder_automation.py` with 100% logic coverage.
+- Generated the implementation spec for itself as a final validation.
+
+**Files changed in legacy**:
+- `scripts/automate_builder.py`
+- `tests/test_builder_automation.py`
+- `intake/2026-04-30-builder-automation.md`
+- `specs/builder-automation.spec.md`
+
+**Files synced to migrated runtime**:
+- All implemented logic and tests.
+
+**Allowed by**: `docs/PARKED_FEATURES.md` (Full Builder Automation).
+
+**Tests / validation**:
+- `pytest tests/test_builder_automation.py` → 3 passed.
+- Full suite → 396 passed.
+
+**Sync state**: Synced all 4 new files to migrated workspace.
 
 ### 2026-04-30 gemini — kb-001 (Phase D Capability Completion)
 
