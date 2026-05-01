@@ -97,9 +97,9 @@ def health_check():
         return jsonify({"status": "error", "error": "Health check failed"}), 503
 
 @system_bp.route("/api/health", methods=["GET"])
+@internal_api_only
 def api_health():
     """Backward compatible health endpoint."""
-    _require_internal_api()
     try:
         return jsonify(_get_cached_health())
     except Exception as e:
@@ -195,9 +195,9 @@ def get_settings():
     return jsonify(settings)
 
 @system_bp.route("/api/settings/update", methods=["POST"])
+@internal_api_only
 def update_settings():
     """Update application settings."""
-    _require_internal_api()
     sup = getattr(current_app, 'supervisor', None)
     if not sup:
         return jsonify({"error": "Supervisor not initialized"}), 500
@@ -238,9 +238,9 @@ def update_settings():
         return jsonify({"error": "Failed to save configuration"}), 500
 
 @system_bp.route("/api/diagnostics", methods=["GET"])
+@internal_api_only
 def api_diagnostics():
     """Run full diagnostic suite."""
-    _require_internal_api()
     try:
         from dataclasses import asdict
 
@@ -267,9 +267,9 @@ def api_diagnostics():
         return jsonify({"status": "error", "error": "Diagnostics unavailable"}), 500
 
 @system_bp.route("/api/resilience/status", methods=["GET"])
+@internal_api_only
 def api_resilience_status():
     """Get resilience system status."""
-    _require_internal_api()
     try:
         from src.utils.resilience import CircuitBreaker
         circuit_breakers = {}
@@ -285,9 +285,9 @@ def api_resilience_status():
         return jsonify({"error": "Resilience status unavailable"}), 500
 
 @system_bp.route("/api/settings/profiles", methods=["GET"])
+@internal_api_only
 def api_list_profiles():
     """List all available profiles."""
-    _require_internal_api()
     try:
         from src.config.settings_manager import settings_manager
         profiles = settings_manager.list_profiles()
@@ -297,9 +297,9 @@ def api_list_profiles():
         return jsonify({"error": "Profiles unavailable"}), 500
 
 @system_bp.route("/api/settings/profiles/active", methods=["GET"])
+@internal_api_only
 def api_get_active_profile():
     """Get the currently active profile."""
-    _require_internal_api()
     try:
         from src.config.settings_manager import settings_manager
         profile = settings_manager.get_active_profile()
