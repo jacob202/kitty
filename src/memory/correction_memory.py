@@ -165,11 +165,11 @@ class CorrectionMemory:
         self.collection = None
         if CHROMA_AVAILABLE:
             try:
-                self.client = chromadb.PersistentClient(
-                    path=self.persist_dir, settings=Settings(anonymized_telemetry_enabled=False)
-                )
-                self.collection = self.client.get_or_create_collection(
-                    name="context_snapshots", metadata={"hnsw:space": "cosine"}
+                from .chroma_manager import ChromaDBManager
+                settings = Settings(anonymized_telemetry_enabled=False)
+                self.client = ChromaDBManager.get_client(self.persist_dir, settings)
+                self.collection = ChromaDBManager.get_collection(
+                    self.persist_dir, "context_snapshots", settings
                 )
             except Exception as e:
                 print(f"⚠️  Failed to initialize ChromaDB for snapshots: {e}")

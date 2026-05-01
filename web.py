@@ -14,7 +14,11 @@ import os
 import secrets
 import socket
 import sys
+import queue
+import threading
 from pathlib import Path
+
+from src.core.watchers import OBDWatcher
 
 # Ensure project root is on sys.path so `src.*` imports resolve
 _root = Path(__file__).parent.resolve()
@@ -218,6 +222,21 @@ def create_app() -> tuple[Flask, SocketIO]:
         from src.space_kitty.core_orchestrator import CoreOrchestrator
         app.orchestrator = CoreOrchestrator(socketio=socketio, enable_voice_components=False)
         app.supervisor._web_orchestrator = app.orchestrator
+        
+        # Start OBD Watcher
+        obd_queue: queue.Queue = queue.Queue()
+        obd_watcher = OBDWatcher(obd_queue)
+        obd_watcher.start()
+        
+        # Background thread to bridge OBD notifications to SocketIO
+        def obd_bridge():
+            while True:
+                msg = obd_queue.get()
+                socketio.emit('token', {'text': f"\n\n{msg}\n"})
+                obd_queue.task_done()
+        
+        threading.Thread(target=obd_bridge, daemon=True).start()
+
         resume_info = app.orchestrator.get_resume_summary()
         if resume_info:
             logger.info(resume_info)

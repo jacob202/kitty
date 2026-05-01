@@ -4,6 +4,7 @@ import json
 import logging
 import threading
 import time
+from functools import wraps
 from pathlib import Path
 
 from flask import Blueprint, abort, current_app, jsonify, request
@@ -29,6 +30,17 @@ def _require_internal_api() -> None:
         abort(404)
 
 
+def internal_api_only(view_func):
+    """Decorator: require ENABLE_INTERNAL_API before running the view."""
+
+    @wraps(view_func)
+    def wrapped(*args, **kwargs):
+        _require_internal_api()
+        return view_func(*args, **kwargs)
+
+    return wrapped
+
+
 def _get_cached_health():
     """Get cached health check result, refreshing if expired."""
     now = time.time()
@@ -50,9 +62,9 @@ def _get_cached_health():
         return result
 
 @system_bp.route("/api/eval/scorecard", methods=["GET"])
+@internal_api_only
 def get_scorecard():
     """Get the latest golden evaluation scorecard."""
-    _require_internal_api()
     report_path = Path("data/test_results/golden_eval_report.json")
     if not report_path.exists():
         return jsonify({
@@ -69,9 +81,9 @@ def get_scorecard():
         return jsonify({"error": "Scorecard unavailable"}), 500
 
 @system_bp.route("/health", methods=["GET"])
+@internal_api_only
 def health_check():
     """Simple health check endpoint."""
-    _require_internal_api()
     try:
         result = _get_cached_health()
         if result["status"] == "critical":

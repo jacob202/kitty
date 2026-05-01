@@ -220,8 +220,16 @@ export default function GarageDashboard() {
         try {
           const res = await fetch(`http://${backendHost}:5001/api/transcribe`, { method: 'POST', body: form });
           const data = await res.json();
-          if (data.ok && data.text) setInput(data.text);
-        } catch { }
+          if (data.ok && data.text) {
+            setInput(data.text);
+            // End-to-end integration: auto-submit the transcribed text
+            setMessages(prev => [...prev, { role: 'user', text: data.text }]);
+            executeCommand(data.text);
+          }
+        } catch (error) {
+          console.error("Transcription failed:", error);
+          toast("Voice transcription failed", "error");
+        }
       };
       mediaRecorderRef.current = recorder;
       recorder.start();

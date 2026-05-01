@@ -20,6 +20,7 @@ try:
     from chromadb.config import Settings
 
     CHROMA_AVAILABLE = True
+    from .chroma_manager import ChromaDBManager
 except ImportError:
     CHROMA_AVAILABLE = False
     logger.warning("ChromaDB not installed. Memory system disabled.")
@@ -83,20 +84,19 @@ class KittyMemoryEnhanced:
             return
 
         try:
-            # Initialize ChromaDB
-            self.client = chromadb.PersistentClient(
-                path=self.persist_dir, settings=Settings(anonymized_telemetry_enabled=False)
-            )
+            # Initialize ChromaDB using shared manager
+            settings = Settings(anonymized_telemetry_enabled=False)
+            self.client = ChromaDBManager.get_client(self.persist_dir, settings)
 
             # Get or create collections
-            self.conversations = self.client.get_or_create_collection(
-                name="conversations", metadata={"hnsw:space": "cosine"}
+            self.conversations = ChromaDBManager.get_collection(
+                self.persist_dir, "conversations", settings
             )
-            self.facts = self.client.get_or_create_collection(
-                name="user_facts", metadata={"hnsw:space": "cosine"}
+            self.facts = ChromaDBManager.get_collection(
+                self.persist_dir, "user_facts", settings
             )
-            self.documents = self.client.get_or_create_collection(
-                name="documents", metadata={"hnsw:space": "cosine"}
+            self.documents = ChromaDBManager.get_collection(
+                self.persist_dir, "documents", settings
             )
 
             # Initialize embedding model. Prefer cached local models; fall back to

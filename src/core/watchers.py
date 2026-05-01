@@ -140,4 +140,37 @@ class DesktopPhotoWatcher(threading.Thread):
                 pass
 
 
+# ── OBD-II Log Watcher ────────────────────────────────────────────────────────
+class OBDWatcher(threading.Thread):
+    """Watches iCloud and local folders for new OBD Fusion CSV logs."""
+    def __init__(self, q: queue.Queue, interval: float = 60.0):
+        super().__init__(daemon=True)
+        self.queue = q
+        self.interval = interval
+        self._seen: set[Path] = set()
+        from src.tools.obd_parser import OBD_APP_PATH, ICLOUD_PATH, RIDGELINE_VIN
+        self.paths = [OBD_APP_PATH / RIDGELINE_VIN, ICLOUD_PATH]
+
+    def _get_files(self) -> set[Path]:
+        files = set()
+        for p in self.paths:
+            if p.exists():
+                files.update(p.glob("*.csv"))
+        return files
+
+    def run(self):
+        self._seen = self._get_files()
+        while True:
+            time.sleep(self.interval)
+            try:
+                current = self._get_files()
+                new_files = current - self._seen
+                for f in new_files:
+                    console.print(f"[cyan]🚗 New OBD log detected: {f.name}[/cyan]")
+                    self.queue.put(f"System Notification: New OBD-II diagnostic log received: {f.name}. Mike is ready to analyze it.")
+                self._seen = current
+            except Exception as e:
+                console.print(f"[yellow]⚠ OBD Watcher error: {e}[/yellow]")
+
+
 # ── Fabric-style patterns ────────────────────────────────────────────────────────

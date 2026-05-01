@@ -82,7 +82,7 @@ class LightRAGStore:
 
         # 2. Determine LLM model (prefer OpenRouter free tier for extraction)
         if llm_model is None:
-            llm_model = os.getenv("KITTY_LIGHTRAG_MODEL", "google/gemini-2.0-flash-exp:free")
+            llm_model = os.getenv("KITTY_LIGHTRAG_MODEL", "google/gemini-2.0-flash-001")
 
         # 3. Get shared loop
         self._loop = _get_global_loop()

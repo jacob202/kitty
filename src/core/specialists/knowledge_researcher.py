@@ -23,6 +23,10 @@ _USER_AGENT = "KittyKnowledgeAcquisition/1.0 (research-bot; +https://github.com/
 _REQUEST_TIMEOUT = 15  # seconds
 _RATE_LIMIT_DELAY = 0.5  # seconds between requests to be polite
 
+# Shared session for connection pooling
+_session = requests.Session()
+_session.headers.update({"User-Agent": _USER_AGENT})
+
 # ─── Exa client singleton ───────────────────────────────────────────────────
 
 _EXA_CLIENT = None
@@ -63,10 +67,10 @@ def _get_firecrawl():
 def _fetch_json(url: str, headers: dict[str, str] | None = None) -> dict[str, Any] | None:
     """Fetch JSON from a URL with rate limiting and error handling."""
     try:
-        hdrs = {"User-Agent": _USER_AGENT}
+        hdrs = {}
         if headers:
             hdrs.update(headers)
-        resp = requests.get(url, headers=hdrs, timeout=_REQUEST_TIMEOUT)
+        resp = _session.get(url, headers=hdrs, timeout=_REQUEST_TIMEOUT)
         resp.raise_for_status()
         return resp.json()
     except Exception as e:
@@ -77,9 +81,7 @@ def _fetch_json(url: str, headers: dict[str, str] | None = None) -> dict[str, An
 def _fetch_text(url: str) -> str | None:
     """Fetch text content from a URL."""
     try:
-        resp = requests.get(
-            url, headers={"User-Agent": _USER_AGENT}, timeout=_REQUEST_TIMEOUT
-        )
+        resp = _session.get(url, timeout=_REQUEST_TIMEOUT)
         resp.raise_for_status()
         return resp.text
     except Exception as e:

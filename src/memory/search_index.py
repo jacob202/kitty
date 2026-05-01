@@ -73,16 +73,12 @@ class SearchIndex:
             return
 
         try:
-            import chromadb
             from chromadb.config import Settings
+            from src.memory.chroma_manager import ChromaDBManager
 
-            client = chromadb.PersistentClient(
-                path=str(self.persist_dir),
-                settings=Settings(allow_reset=True, anonymized_telemetry=False),
-            )
-
-            self._collection = client.get_or_create_collection(
-                name=self.collection_name, metadata={"hnsw:space": "cosine"}
+            settings = Settings(allow_reset=True, anonymized_telemetry=False)
+            self._collection = ChromaDBManager.get_collection(
+                str(self.persist_dir), self.collection_name, settings
             )
 
             self._initialized = True
