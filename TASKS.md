@@ -42,6 +42,7 @@ Last updated: 2026-05-01
 - `runtime-001` / `specs/runtime-parity-critical-fixes.spec.md` **completed** and verified on legacy + migrated focused tests (2026-04-30, cursor closeout).
 - Streaming supervisor DRY refactor shipped (`f134a2f`); copy-first sync to `kitty-system/kitty-app`, migrated `pytest tests/` **393 passed**, Phase 4 merge gate **PASS** (`docs/PHASE4_MERGE_GATE_RUN_2026-05-01_resume.md`, 2026-04-30).
 - **Phase A** (`docs/audits/operational-plan-20260430.md`): all six blocker items verified in tree; plan doc updated with completion row + build-order note (2026-05-01).
+- D-0011/D-0012 recorded in `docs/DECISIONS.md`; merge gate script anchors relative `--report` to `--project`; regression `tests/test_phase4_merge_gate_report_path.py` (2026-05-01).
 
 ## Next Smallest Action
 
