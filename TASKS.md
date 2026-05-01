@@ -40,6 +40,7 @@ Last updated: 2026-04-30
 - Phase 4 merge-gate automation script added and validated: `scripts/run_phase4_merge_gate.sh` (full run passed against `kitty-system/kitty-app` and wrote `docs/PHASE4_MERGE_GATE_RUN_2026-04-30_114555.md`).
 - Phase 4 merge gate re-run **PASS** on migrated app (`kitty-system/kitty-app`, port **5001**): `docs/PHASE4_MERGE_GATE_RUN_2026-04-30_goahead.md` (2026-04-30, cursor).
 - `runtime-001` / `specs/runtime-parity-critical-fixes.spec.md` **completed** and verified on legacy + migrated focused tests (2026-04-30, cursor closeout).
+- Streaming supervisor DRY refactor shipped (`f134a2f`); copy-first sync to `kitty-system/kitty-app`, migrated `pytest tests/` **393 passed**, Phase 4 merge gate **PASS** (`docs/PHASE4_MERGE_GATE_RUN_2026-05-01_resume.md`, 2026-04-30).
 
 ## Next Smallest Action
 

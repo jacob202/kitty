@@ -187,9 +187,9 @@ No edits to `scripts/`, `src/`, tests, or UI files.
 
 ### Feature: Repo Cleanup And Archive Pruning
 
-Status: parked
+Status: completed (2026-04-30)
 Source: Dirty tree and existing archive docs
-Owner: unassigned
+Owner: gemini
 Priority: medium
 
 Problem:
