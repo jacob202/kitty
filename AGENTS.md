@@ -6,15 +6,20 @@ Purpose: keep Codex and delegated workers aligned with the active control system
 
 1. `CURRENT_FOCUS.md`
 2. `TASKS.md`
-3. `SESSION_SUMMARY.md`
-4. `docs/DECISIONS.md`
-5. `docs/FILE_GOVERNANCE.md`
-6. `docs/PARKED_FEATURES.md`
+3. `docs/AGENT_COORDINATION.md` (active lanes, messages, handoffs — claim a lane before overlapping work)
+4. `SESSION_SUMMARY.md`
+5. `docs/DECISIONS.md`
+6. `docs/FILE_GOVERNANCE.md`
+7. `docs/PARKED_FEATURES.md`
 
 If these conflict with older notes, these files win.
 
 ## Execution Contract
 
+- Before creating new specs, docs, or modules, scan the **legacy checkout**
+  `/Users/jacobbrizinski/Projects/kitty` for existing equivalents (canonical git,
+  full tree). Prefer extending what exists; avoid duplicate control docs or
+  parallel names that drift from migrated copies.
 - Convert request -> one spec -> one build -> one validation -> one completion report.
 - No raw idea goes directly to implementation.
 - Dry-run defaults for intake/builder tools; require explicit write flags.

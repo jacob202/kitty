@@ -38,6 +38,7 @@ Last updated: 2026-04-30
 - Migration lane started with refreshed copy-first sync, preflight `READY`, copied-app gate pass (`92 passed`), and launch validation on port 5004.
 - Phase 4 merge gate rerun completed from migrated runtime path; full suite `348 passed`, focused route suite `22 passed`, and route smoke returned HTTP 200 for `/api/brief`, `/api/command`, and `/api/chat`.
 - Phase 4 merge-gate automation script added and validated: `scripts/run_phase4_merge_gate.sh` (full run passed against `kitty-system/kitty-app` and wrote `docs/PHASE4_MERGE_GATE_RUN_2026-04-30_114555.md`).
+- Phase 4 merge gate re-run **PASS** on migrated app (`kitty-system/kitty-app`, port **5001**): `docs/PHASE4_MERGE_GATE_RUN_2026-04-30_goahead.md` (2026-04-30, cursor).
 
 ## Next Smallest Action
 
@@ -60,72 +61,6 @@ Last updated: 2026-04-30
 
 ---
 
-# Previous Imported Tasks
+## Archive
 
-Last updated: 2026-04-28#
-
-This file is the control-layer task list for the current Kitty stabilization pass.#
-
-## Done##!
-
-- Phase 0 — Structural separation and control files ✅__
-- Phase 1 — Intake and builder contract ✅__
-- Phase 2 — P0 Stabilization and Gates ✅__
-- Phase 3 — Core Runtime Utility ✅__
-  - Morning brief module (10 tests pass)__
-  - Task tracker + done handler (10 tests pass)__
-  - /stuck command (6 tests pass)__
-  - All specs created: morning-brief, task-tracker, stuck-command__
-- Phase 3+4 Wiring ✅__
-  - Morning brief route (brief_bp) — 3/3 tests pass)__
-  - Commands route (commands_bp) — 4/4 tests pass)__
-  - Blueprints registered in `src/api/__init__.py`__
-- Phase 4 — Consolidation and Cleanup ✅__
-  - Chat log consolidation pipeline (15 tests pass)__
-  - Spec: chat-log-consolidation.spec.md__
-  - Report template: docs/CHAT_LOG_CONSOLIDATION_REPORT.md__
-- Phase 5 — Skills and Quality ✅__
-  - Response quality critic (10 tests pass)__
-  - Self-correction skill exists (SKILL.md)__
-  - Spec: quality-critic.spec.md__
-- Phase 6 — Memory and Source-Grounded Specialist ✅__
-  - Vector store (8 tests pass)__
-  - Specialist router (7 tests pass)__
-  - Specialist validator (5 tests pass)__
-  - Memory inspect/forget (5 tests pass)__
-  - KittyCoderSpecialist (4 tests pass)__
-  - Specs: memory-vector-store, memory-inspect, goose-phase6-stack__
-- Phase 6+ — Transparent Evals Dashboard ✅__
-- Phase 6+ — Security Scanning of Builder Output ✅__
-
-## In Progress##!
-
-- None.
-
-## Next Smallest Action##!
-
-1. **Run full test suite** — confirm 204+ tests passing.
-2. **Test wired routes** — use `curl` to verify /api/brief and /api/command work. 
-3. **Chat log consolidation** — run dry-run on `data/sessions/`, review, write report. 
-4. **Delegate to Goose** — fix authentication issue, then delegate Phase 6+ tasks. 
-
-## Blocked Without New Spec##!
-
-- `/stuck` runtime integration (wired, needs testing)__
-- deterministic `/api/brief` route changes (wired, needs testing)__
-- task/done tracking integration (wired, needs testing)__
-- memory migration__
-- physical `kitty-system/kitty-app` repo move__
-- source-tree cleanup under protected paths__
-
-## Delegation Queue##!
-
-- Gemini: canonical chat-log intake using `docs/GEMINI_CHAT_LOG_INTAKE.md`. 
-- Read-only scout: `/stuck` route/dispatch/test surface. 
-- Read-only scout: deterministic brief route/socket/test surface. 
-- Read-only scout: task/done tracking storage/dispatch/test surface. 
-- Cleanup scout: keep `docs/CLEANUP_CANDIDATES.md` current; do not delete files.#
-
-## Related Backlog##!
-
-Older product backlog lives in `docs/TASKS.md`. It does not override `CURRENT_FOCUS.md`. 
+The imported snapshot that previously lived here duplicated **Verified Done** milestones and used broken markdown (`##!`, trailing `__`). It was removed **2026-04-30** to avoid drift and contradictions with **Next smallest action** above. Narrative backlog and infra notes remain in `docs/TASKS.md` (does not override `CURRENT_FOCUS.md`).

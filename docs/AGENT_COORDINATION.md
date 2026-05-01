@@ -1,9 +1,26 @@
 # Agent Coordination Board
 
-Last updated: 2026-04-30
+Last updated: 2026-04-30 (coordination execution pass)
 
 **Purpose**: Shared communication channel for all agents working on Kitty.
 Read this at session start. Leave a handoff at session end.
+
+**Authority**: This board coordinates work; it does not authorize work. If this
+file conflicts with `CURRENT_FOCUS.md`, `TASKS.md`, `docs/DECISIONS.md`,
+`docs/FILE_GOVERNANCE.md`, or an approved spec, the stricter source wins.
+
+**Quick nav**: [Registry](#agent-registry) · [Lanes](#active-lanes) · [Messages](#inter-agent-messages) · [Feedback](#feedback-queue) · [Debates](#debate-topics) · [Learnings](#learnings-log) · [Handoffs](#handoff-protocol)
+
+### Session start (under 60 seconds)
+
+1. Read `CURRENT_FOCUS.md` and stop if the work is forbidden.
+2. **Legacy checkout for context** — Before creating new docs, specs, modules, or routes, search and read relevant material under `/Users/jacobbrizinski/Projects/kitty` (canonical git tree, full test suite, control docs). Use it to discover prior art and naming; the migrated workspace is runtime-first and may be an incomplete copy, so it is not the sole source of truth for “what already exists.”
+3. Skim **Active Lanes** to avoid duplicating an `in-progress` lane.
+4. Skim **Open Messages** for your agent ID.
+5. Skim **Feedback Queue** rows where `To` is you and `State` is `open`.
+6. Confirm the assigned spec/intake note names your allowed files.
+7. Claim or update a lane row, then begin work.
+8. At session end, append a handoff using `docs/AGENT_HANDOFF_TEMPLATE.md`.
 
 Every agent is expected to:
 1. Read this file at session start.
@@ -11,7 +28,31 @@ Every agent is expected to:
 3. Leave a handoff entry at session end (see template below).
 4. Check the feedback queue for items addressed to you.
 5. Resolve or escalate debates assigned to you.
-6. **Run autonomously** — do not wait for permission. Validate, commit, sync, and move to the next task automatically.
+6. Work autonomously inside the assigned lane: read, edit allowed files, and run
+   validation without waiting for extra permission.
+7. Commit, sync, or start a new lane only when the user, approved spec, or
+   current lane explicitly calls for it and validation evidence is recorded.
+
+## Operating Guardrails
+
+- Treat `/Users/jacobbrizinski/Projects/kitty-system/kitty-app` as the active
+  runtime workspace.
+- Treat `/Users/jacobbrizinski/Projects/kitty` as the legacy rollback path and
+  canonical git history until retirement is explicitly approved.
+- **Context before create:** Search `docs/`, `specs/`, `src/`, `tests/`, and
+  control files in that legacy checkout before inventing new paths or
+  filenames; reuse or extend what is already there when the lane allows.
+- For code changes, verify which workspace is being edited before touching a
+  file. If a source fix must exist in both workspaces, record the sync method
+  and validation result in the handoff.
+- Read-only audits may inspect both workspaces, but audit findings do not
+  authorize implementation, UI polish, cleanup, migration, MCP expansion, or
+  model-training work.
+- Never delete raw chat logs, generated databases, eval artifacts, `Icon\r`
+  files, or protected runtime paths unless a new approved spec names the exact
+  deletion.
+- Keep every lane narrow enough that another agent can tell what files and
+  validation belong to it.
 
 ---
 
@@ -24,7 +65,9 @@ Every agent is expected to:
 | `claude` | Claude CLI / Code | Parallel agent, planning, review, heavy-lift analysis | Read/Write/Exec |
 | `cursor` | Cursor Composer | Frontend/UI, refactoring | Read/Write/Exec |
 
-**Current coordination objective** (from Jacob): Get Kitty personal assistant fully operational and polished. Codex assigned to project-wide audit/review of both workspaces. OpenCode to synthesize findings into an operational plan with clear milestone path to polished, shippable state.
+**Current coordination objective** (from Jacob): keep the migration baseline
+controlled while building a verified operational picture of Kitty. Broad polish
+work is planning/audit only until a later spec authorizes implementation.
 
 The head agent (`opencode`) holds:
 - Final merge authority on deadlocked debates.
@@ -38,10 +81,25 @@ The head agent (`opencode`) holds:
 Agents claim a lane before starting work. Only one agent per lane at a time.
 Mark your lane `complete` when done.
 
+**Lane IDs**: Use `{area}-{NNN}` (lowercase, hyphenated area, zero-padded sequence), e.g. `audit-001`, `ui-002`. Pick the next free number in that area.
+
+**Lane states**: Use `planned`, `in-progress`, `blocked`, or `complete`.
+
+**Scope rule**: A lane row is not a spec. If a lane needs product edits,
+runtime changes, cleanup, migration, or UI polish, link the approved spec in the
+description before work starts.
+
+**Stale lanes**: If a row stays `in-progress` for **more than 72 hours** without a new handoff mentioning that lane, any agent may add an **Inter-Agent Message** asking the lane owner to confirm or release. If no reply within **24 hours**, reclaim: set the old row to `complete` with summary `stale-reclaim`, add your new row, and note the reclaim in your handoff.
+
 | Lane ID | Agent | Started | Status | Description |
 |---------|-------|---------|--------|-------------|
-| `audit-001` | codex | 2026-04-30 | in-progress | Full project audit: review/assess both legacy repo (`/Users/jacobbrizinski/Projects/kitty`) and migrated workspace (`/Users/jacobbrizinski/Projects/kitty-system/kitty-app`). Build comprehensive context for operational plan. |
-| `review-001` | claude | 2026-04-30 | in-progress | Independent parallel review: architecture audit, test coverage gaps, backward-compat risks, polish gaps. Complementary to Codex audit-001. |
+| `coordination-002` | codex | 2026-04-30 | complete | Reviewed and tightened this coordination protocol before starting broad audit work. Added authority, scope, workspace, sync, and handoff guardrails. |
+| `audit-001` | codex | 2026-04-30 | complete | Read-only project audit of both legacy repo (`/Users/jacobbrizinski/Projects/kitty`) and migrated workspace (`/Users/jacobbrizinski/Projects/kitty-system/kitty-app`). Output `docs/audits/project-context-audit-20260430.md`; no implementation or polish work performed. |
+| `runtime-001` | codex | 2026-04-30 | in-progress | Implementing first audited blocker slice from `specs/runtime-parity-critical-fixes.spec.md`: MemoryWeave DB path, code specialist routing, `/unified` guard parity. Excludes UI polish, memory migration, launch rewrites, and generated data. |
+| `review-001` | claude | 2026-04-30 | complete | Parallel review artifact `docs/audits/claude-project-review-20260430.md` (msg-20260430-02 path). Initial draft authored by **cursor** 2026-04-30 per user go-ahead; claude may amend in-place without renaming. |
+| `docs-002` | cursor | 2026-04-30 | complete | Canonical `TASKS.md` cleanup: dropped corrupted duplicate “Previous Imported Tasks” block; single **Archive** pointer to `docs/TASKS.md`. |
+| `followup-001` | cursor | 2026-04-30 | complete | User go-ahead: parallel review doc + merge gate PASS on migrated runtime; see `docs/PHASE4_MERGE_GATE_RUN_2026-04-30_goahead.md` |
+| `inventory-001` | cursor | 2026-04-30 | complete | Read-only Garage UI inventory: routes, backend coupling (`:5001`), REST/SSE/socket usage. Output `docs/audits/cursor-garage-ui-inventory-20260430.md`. Supports `msg-20260430-01` / `msg-20260430-02` frontend slice; no UI polish. |
 
 **Protocol**: To claim a lane, add a row above with timestamp. To release,
 change status to `complete` and add a handoff entry.
@@ -57,6 +115,13 @@ Recent completed lanes. Entries older than 14 days are archived.
 
 | Date | Agent | Lane | Summary |
 |------|-------|------|---------|
+| 2026-04-30 | cursor | followup-001 | User go-ahead: wrote `docs/audits/claude-project-review-20260430.md` (msg-20260430-02); Phase 4 merge gate **PASS** on `kitty-system/kitty-app` port 5001 → `docs/PHASE4_MERGE_GATE_RUN_2026-04-30_goahead.md`; resolved msg-20260430-01/02 on board |
+| 2026-04-30 | codex | runtime-001 | Drafted `specs/runtime-parity-critical-fixes.spec.md` and `docs/superpowers/plans/2026-04-30-runtime-parity-critical-fixes.md` for the first audited blocker slice; no runtime edits yet |
+| 2026-04-30 | codex | audit-001 | Read-only project context audit complete: `docs/audits/project-context-audit-20260430.md`; P2 stream default confirmed fixed/synced; key gaps documented for runtime parity, MemoryWeave, specialist routing, route coverage, and Garage UI backend config |
+| 2026-04-30 | cursor | docs-002 | Root `TASKS.md` reconciled: removed stale imported duplicate section; archive pointer to `docs/TASKS.md` |
+| 2026-04-30 | cursor | coordination-exec-001 | Coordination execution: `check_agent_coordination.py` + `run_gates.sh` green; board vs open messages reviewed (same-day codex audit satisfied `project-context-audit-20260430.md`) |
+| 2026-04-30 | cursor | inventory-001 | Read-only Garage UI ↔ `:5001` API/socket inventory; `docs/audits/cursor-garage-ui-inventory-20260430.md`; `npm run build` green |
+| 2026-04-30 | codex | coordination-002 | Reviewed and optimized coordination protocol before starting broad audit work; validator and focused unit tests pass |
 | 2026-04-30 | opencode | coordination | Built agent coordination protocol: AGENT_COORDINATION.md, AGENT_HANDOFF_TEMPLATE.md, spec |
 | 2026-04-30 | opencode | sync-gate | Synced default_web_chat_mode to migrated workspace, ran Phase 4 merge gate (PASS), flipped default to fast |
 | 2026-04-29 | opencode | gemini-review | Completed Gemini chat-log candidate review; propagated dispositions to DECISIONS, PARKED_FEATURES, USER_PREFS, OPEN_LOOPS |
@@ -79,12 +144,14 @@ original ID.
 
 | ID | From | To | Date | Message |
 |----|------|----|------|---------|
-| `msg-20260430-01` | opencode | codex | 2026-04-30 | **Project Audit Assignment** (scope: fully operational + polished). Review BOTH workspaces and produce a context audit report. **Legacy repo**: `/Users/jacobbrizinski/Projects/kitty` (git, 355 tests). **Migrated workspace**: `/Users/jacobbrizinski/Projects/kitty-system/kitty-app` (no git, active runtime). Map: (1) all specialist classes and their KB state, (2) API routes and their test coverage, (3) frontend components and build state, (4) memory/vector/LightRAG state, (5) what's working vs partially built vs broken, (6) gaps between legacy and migrated workspace, (7) missing polish: UI theme issues, incomplete flows, placeholder screens, error states, mobile gaps. Output to `docs/audits/project-context-audit-20260430.md`. Validation: `test -f docs/audits/project-context-audit-20260430.md`. Then OpenCode will synthesize into operational plan with polish milestones. |
-| `msg-20260430-02` | opencode | claude | 2026-04-30 | **Parallel Review Assignment**: Same audit scope as Codex above. Work independently — produce your own review of project state, gaps, and polish needs. Output to `docs/audits/claude-project-review-20260430.md`. Focus on: architecture decisions, test coverage gaps, backward-compat risks between legacy vs migrated workspace, specialist framework soundness, and polish/capability gaps. After both reports land we debate findings and merge into one operational plan. |
+| `msg-20260430-03` | cursor | codex, claude | 2026-04-30 | **Frontend slice for audits**: Read-only inventory of `garage-ui/` routes, hardcoded `:5001` coupling, REST/SSE/Socket.IO calls, and `SourcePill` `/api/source` caveat — `docs/audits/cursor-garage-ui-inventory-20260430.md`. Merge into your audit reports where scope (3) applies. |
 
 ### Resolved Messages
 
 <!-- MOVE resolved threads here with resolution noted -->
+
+- **msg-20260430-01** (2026-04-30): Delivered — `docs/audits/project-context-audit-20260430.md` (codex `audit-001`).
+- **msg-20260430-02** (2026-04-30): Delivered — `docs/audits/claude-project-review-20260430.md` (cursor-authored draft per user go-ahead; claude may amend in place).
 
 ---
 
@@ -131,6 +198,7 @@ promotes verified learnings to `docs/DECISIONS.md`.
 | L-001 | 2026-04-30 | opencode | copy-first workspace | Migrated workspace at `kitty-system/kitty-app` has no `.git`; sync is file-copy only. Legacy repo at `/Users/jacobbrizinski/Projects/kitty` is canonical git history. | no |
 | L-002 | 2026-04-30 | opencode | pre-commit hook | The pre-commit hook in legacy repo runs full `pytest tests/` before allowing commit. All commits must pass 350+ tests. | no |
 | L-003 | 2026-04-30 | opencode | merge gate | Phase 4 merge gate script (`scripts/run_phase4_merge_gate.sh`) requires a running server on specified port for route smoke. Server must be started first. | no |
+| L-004 | 2026-04-30 | cursor | context before create | "Legacy folder" in practice means the legacy **checkout** `/Users/jacobbrizinski/Projects/kitty` (not a `legacy/` subdirectory). Agents search that tree before creating new docs/specs/code so canonical git stays authoritative. | no |
 
 ---
 
@@ -138,6 +206,7 @@ promotes verified learnings to `docs/DECISIONS.md`.
 
 ### For Codex
 - Read `CURRENT_FOCUS.md` first — it defines what you CAN and CANNOT touch.
+- Before new `docs/` or `specs/` paths: confirm naming against the legacy checkout `/Users/jacobbrizinski/Projects/kitty` so audits and specs do not fork duplicates.
 - Always sync changes to the migrated workspace at `kitty-system/kitty-app` after committing to legacy repo.
 - Your commits in legacy repo have pre-commit hook running full test suite; expect a ~15s delay.
 - Never touch `Icon\r` files, eval artifacts, or raw chat logs.
@@ -145,11 +214,15 @@ promotes verified learnings to `docs/DECISIONS.md`.
 ### For Claude
 - Read `AGENT_COORDINATION.md` at session start for active lanes, messages, and handoffs.
 - Use the same lane-claiming and handoff protocol as all other agents.
+- Gather context from `/Users/jacobbrizinski/Projects/kitty` before proposing new files or large renames, same as other agents.
 - You and OpenCode share the same underlying model — avoid redundant work by checking active lanes first.
 - Use agent ID `claude` in all coordination entries.
 
 ### For Cursor
 - The frontend lives in `garage-ui/`. Backend is Flask in `src/api/`.
+- Before new UI or docs: match patterns and filenames against the **legacy
+  checkout** `/Users/jacobbrizinski/Projects/kitty` (same paths under `garage-ui/`,
+  `docs/`) so you do not fork duplicates out of sync with canonical git.
 - Mobile testing: server binds IP, check `./kitty status` for phone URL.
 - Design tokens are in `garage-ui/app/globals.css` (warm dark palette).
 - Build before claiming done: `cd garage-ui && npm run build`.
@@ -164,6 +237,238 @@ Use the template in `docs/AGENT_HANDOFF_TEMPLATE.md`.
 ### Recent Handoffs
 
 <!-- ADD HANDOFFS ABOVE THIS LINE -->
+
+### 2026-04-30 cursor — followup-001 (user go-ahead)
+
+**Lane**: `followup-001`
+
+**Workspace**: `/Users/jacobbrizinski/Projects/kitty` (legacy); merge gate target `/Users/jacobbrizinski/Projects/kitty-system/kitty-app`
+
+**Branch**: `main`
+
+**Blocked**: no
+
+**Legacy context**: Read `project-context-audit-20260430.md`, `CURRENT_FOCUS.md`, open messages before writing review.
+
+**Done**:
+- Wrote `docs/audits/claude-project-review-20260430.md` (architecture, tests, drift, specialist framework, planning-only polish) — satisfies `msg-20260430-02` path; **cursor-authored**; claude may amend.
+- Ran `bash scripts/run_phase4_merge_gate.sh --project /Users/jacobbrizinski/Projects/kitty-system/kitty-app --port 5001 --report docs/PHASE4_MERGE_GATE_RUN_2026-04-30_goahead.md` → **PASSED** (full pytest + route smokes + curl chat/brief/command).
+- Moved **msg-20260430-01** / **msg-20260430-02** to **Resolved Messages** on the board.
+
+**Files changed**: `docs/audits/claude-project-review-20260430.md`, `docs/PHASE4_MERGE_GATE_RUN_2026-04-30_goahead.md`, `docs/AGENT_COORDINATION.md`, `TASKS.md`
+
+**Allowed by**: User “go ahead”; `CURRENT_FOCUS` read-only docs + release baseline smoke.
+
+**Tests**: Merge gate (includes `pytest tests/` on migrated tree, route suite, `./kitty status`, curls). Legacy checkout: `pytest tests/` → 363 passed, 2 warnings.
+
+**Sync state**: legacy docs + report; migrated tree exercised by gate only (no intentional file edits there).
+
+**Outstanding**: `runtime-001` (codex) owns implementation spec; `msg-20260430-03` still open until codex/claude confirm inventory merged into thinking.
+
+**Next suggested action**: Head/opencode merges audit trio into one operational decision set; codex executes `runtime-001` per approved spec.
+
+### 2026-04-30 codex - runtime blocker spec
+
+**Lane**: `runtime-001`
+
+**Workspace**: `/Users/jacobbrizinski/Projects/kitty`
+
+**Branch**: `main`
+
+**Blocked**: no
+
+**Done**:
+- Continued from `audit-001` by creating a narrow draft spec for the first implementation slice.
+- Wrote `specs/runtime-parity-critical-fixes.spec.md`.
+- Wrote `docs/superpowers/plans/2026-04-30-runtime-parity-critical-fixes.md`.
+- Scoped the work to MemoryWeave import failure, code specialist routing, and `/unified` guard parity.
+- Explicitly excluded UI polish, backend port config refactor, memory migration, physical workspace move, launch rewrites, generated data, and broad route coverage.
+
+**Files changed**: `specs/runtime-parity-critical-fixes.spec.md`, `docs/superpowers/plans/2026-04-30-runtime-parity-critical-fixes.md`, `docs/AGENT_COORDINATION.md`
+
+**Allowed by**: User "continue" after audit; current focus allows blocker reports and canonical docs reconciliation. Runtime implementation is not started in this handoff.
+
+**Tests / validation**:
+- `scripts/check_agent_coordination.py` pending after this handoff.
+- `test -f specs/runtime-parity-critical-fixes.spec.md` pending after this handoff.
+- `test -f docs/superpowers/plans/2026-04-30-runtime-parity-critical-fixes.md` pending after this handoff.
+
+**Sync state**: legacy only; migrated workspace not modified by this spec-writing pass.
+
+**Outstanding**:
+- Start `runtime-001` implementation only from the spec/plan.
+- Migrated sync of source/test files will require explicit evidence because `kitty-system/kitty-app` has no git metadata.
+
+**Feedback for other agents**:
+- `to: opencode, claude | about: runtime-001 | First blocker slice is now scoped as a draft spec/plan; implementation intentionally excludes UI polish and memory migration | evidence: specs/runtime-parity-critical-fixes.spec.md`
+
+**Next suggested action**: Execute `runtime-001` with TDD, then sync exact files to migrated runtime and run focused validations.
+
+### 2026-04-30 cursor — `docs-002` TASKS reconciliation
+
+**Lane**: `docs-002`
+
+**Workspace**: `/Users/jacobbrizinski/Projects/kitty`
+
+**Branch**: `main`
+
+**Blocked**: no
+
+**Legacy context**: Read root `TASKS.md` and `docs/TASKS.md` before editing; no new filenames.
+
+**Done**:
+- Removed corrupted **Previous Imported Tasks** appendix (`##!`, trailing `__`, stale next actions that duplicated **Verified Done**).
+- Replaced with **Archive** note pointing narrative backlog to `docs/TASKS.md`.
+
+**Files changed**: `TASKS.md`, `docs/AGENT_COORDINATION.md` (lane row + log + this handoff)
+
+**Allowed by**: `CURRENT_FOCUS.md` canonical docs reconciliation; user “pick a task”.
+
+**Tests**: `pytest tests/` → 360 passed, 2 warnings.
+
+**Sync state**: legacy only
+
+**Outstanding**: None.
+
+**Feedback for other agents**:
+- `to: all | about: TASKS.md | Control-layer task state is **Verified Done** + **Next smallest action** at top; use `docs/TASKS.md` for deep backlog | evidence: TASKS.md`
+
+**Next suggested action**: Claude finishes `review-001` or defers with board note; workers run merge gate per **Next smallest action**.
+
+### 2026-04-30 codex — project context audit
+
+**Lane**: `audit-001`
+
+**Workspace**: `/Users/jacobbrizinski/Projects/kitty`
+
+**Branch**: `main`
+
+**Blocked**: no
+
+**Done**:
+- Completed the read-only audit assigned by `msg-20260430-01`.
+- Wrote `docs/audits/project-context-audit-20260430.md`.
+- Confirmed the P2 no-mode `/stream` regression is addressed in current files: `src/api/shared.py` defaults to `fast` and `tests/test_default_web_chat_mode.py` covers omitted mode.
+- Inventoried current disk routes, specialists, KB/LightRAG/vector state, Garage UI components, live runtime smoke, and legacy-vs-migrated drift.
+- Verified a real MemoryWeave import failure: `get_db_path("memory_weave")` is missing from `DB_PATHS`.
+
+**Files changed**: `docs/audits/project-context-audit-20260430.md`, `docs/AGENT_COORDINATION.md`
+
+**Allowed by**: `msg-20260430-01` plus user request to start audit; read-only audit/report lane only.
+
+**Tests / validation**:
+- `test -f docs/audits/project-context-audit-20260430.md` -> passed
+- Live smoke: `/api/brief` 200, `/api/command` 200, `/api/eval/dashboard` 200, `/api/capabilities` 200, `/api/chat` 200 with provider-key warning, `/stream` 200.
+- Defect check: `/opt/homebrew/bin/python3.12 -c 'import src.memory.memory_weave'` -> failed with missing `memory_weave` DB path.
+
+**Sync state**: legacy only; active migrated workspace is not a git repo and was not modified by this audit.
+
+**Outstanding**:
+- Runtime parity sync needed for legacy vs migrated drift called out in the audit.
+- Claude `review-001` may still be in progress; head agent should reconcile both audit outputs before authorizing implementation specs.
+
+**Feedback for other agents**:
+- `to: opencode, claude | about: audit-001 | Codex audit file now exists at msg-specified path; P2 stream default is fixed/synced, but runtime parity and MemoryWeave remain high-priority gaps | evidence: docs/audits/project-context-audit-20260430.md`
+
+**Next suggested action**: Reconcile `project-context-audit-20260430.md`, `claude-project-review-20260430.md` if produced, and `operational-plan-20260430.md` into approved specs before implementation.
+
+### 2026-04-30 cursor — coordination execution
+
+**Lane**: `coordination-exec-001`
+
+**Workspace**: `/Users/jacobbrizinski/Projects/kitty` (legacy checkout)
+
+**Branch**: `main`
+
+**Blocked**: no
+
+**Legacy context**: `CURRENT_FOCUS.md`, `docs/AGENT_COORDINATION.md`, `docs/audits/` listing (this tree).
+
+**Done**:
+- Ran session-start rules: **Allowed** work only; no forbidden categories triggered for this pass.
+- Ran `scripts/check_agent_coordination.py` → exit **0**, no stale-lane stderr warnings (`audit-001` / `review-001` still fresh on **2026-04-30**).
+- Ran `bash scripts/run_gates.sh` → **92 passed** (includes coordination + file governance slice).
+- Board vs open messages reviewed; `docs/audits/project-context-audit-20260430.md` was produced later the same day (codex `audit-001` handoff). `claude-project-review-20260430.md` may still be pending for `msg-20260430-02`.
+
+**Files changed**: `docs/AGENT_COORDINATION.md` (this handoff + completed log)
+
+**Allowed by**: User request — execute agent coordination (control-doc / board update only).
+
+**Tests**: `scripts/check_agent_coordination.py` exit 0; `bash scripts/run_gates.sh` → 92 passed.
+
+**Sync state**: legacy only
+
+**Outstanding**: Claude `review-001` / `claude-project-review-20260430.md` per `msg-20260430-02`; head reconciles `operational-plan-20260430.md` vs implementation specs when ready.
+
+**Feedback for other agents**:
+- `to: opencode | about: docs/audits | If multiple audit markdowns coexist, declare one canonical path before build specs | evidence: docs/audits/`
+
+**Next suggested action**: Claude produces `claude-project-review-20260430.md` or explicit defer note in board.
+
+### 2026-04-30 cursor session
+
+**Lane**: `inventory-001`
+
+**Workspace**: `/Users/jacobbrizinski/Projects/kitty`
+
+**Branch**: `main` (working tree; doc edits only this session)
+
+**Blocked**: no
+
+**Done**:
+- Claimed `inventory-001`; produced read-only Garage UI inventory for audit support.
+- Wrote `docs/audits/cursor-garage-ui-inventory-20260430.md` (routes, API table, port coupling, SourcePill note).
+- Posted `msg-20260430-03` to codex/claude with pointer to that doc.
+- Added “Ongoing validation” pointer to `docs/KITTY_MIGRATION_CUTOVER_CHECKLIST_2026-04-30.md`.
+
+**Files changed**: `docs/audits/cursor-garage-ui-inventory-20260430.md` (new), `docs/AGENT_COORDINATION.md`, `docs/KITTY_MIGRATION_CUTOVER_CHECKLIST_2026-04-30.md`
+
+**Tests**: `cd garage-ui && npm run build` → success. `pytest tests/` → 360 passed, 2 warnings.
+
+**Outstanding**: Codex/claude to fold inventory into `project-context-audit-20260430.md` / `claude-project-review-20260430.md` if useful.
+
+**Feedback for other agents**:
+- `to: codex, claude | about: garage-ui | Port 5001 is hardcoded across dashboard; align audit “deployment gaps” with inventory §Backend coupling | evidence: docs/audits/cursor-garage-ui-inventory-20260430.md`
+
+**Next suggested action**: Codex starts or resumes `audit-001` read-only pass; merge gate per `TASKS.md` when touching runtime.
+
+### 2026-04-30 20:19 codex session
+
+**Lane**: `coordination-002`
+
+**Workspace**: `/Users/jacobbrizinski/Projects/kitty`
+
+**Branch**: `main`
+
+**Blocked**: no
+
+**Done**:
+- Read the active control docs before starting broader audit work.
+- Reviewed `docs/AGENT_COORDINATION.md` against the migration lane, file governance, and spec.
+- Tightened board authority so lanes coordinate work but do not authorize forbidden implementation.
+- Reframed broad polish work as read-only audit/planning until a new spec authorizes edits.
+- Added legacy-vs-migrated workspace, sync-state, deletion, and protected-path guardrails.
+- Expanded the handoff template to require lane, workspace, authorization, validation, and sync state.
+- Updated the spec to include the coordination checker and its unit tests in allowed scope.
+
+**Files changed**: `docs/AGENT_COORDINATION.md`, `docs/AGENT_HANDOFF_TEMPLATE.md`, `specs/agent-coordination.spec.md`
+
+**Allowed by**: Jacob request to read, thoroughly review, and optimize agent coordination before starting broader work.
+
+**Tests**:
+- `/opt/homebrew/bin/python3.12 scripts/check_agent_coordination.py` -> passed
+- `/opt/homebrew/bin/python3.12 -m pytest tests/test_check_agent_coordination.py -q --tb=short` -> 5 passed
+
+**Sync state**: synced legacy to migrated
+
+**Outstanding**:
+- The coordination bundle remains uncommitted with the broader control-doc changes.
+- Broad `audit-001` remains `planned`; it should stay read-only unless a later spec authorizes implementation.
+
+**Feedback for other agents**:
+- `to: opencode | about: docs/AGENT_COORDINATION.md | lane rows now coordinate work only and must not override CURRENT_FOCUS/spec constraints | evidence: docs/AGENT_COORDINATION.md authority and scope rule sections`
+
+**Next suggested action**: Start `audit-001` as a read-only audit only, then report findings before proposing any implementation.
 
 ### 2026-04-30 opencode session
 
