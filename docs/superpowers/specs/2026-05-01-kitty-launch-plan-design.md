@@ -638,6 +638,7 @@ These features are documented in `docs/PARKED_FEATURES.md`. They are not part of
 | **KnowledgeGetter MCP Server** | MCP expansion is forbidden. Implementation is incomplete, untested, and Phase 6+ work per the master plan. | Phase 0–4 control work stable, Jacob explicitly approves MCP expansion through intake |
 | **MCP Agent Bundle** (KnowledgeGetter, Librarian, VisionGuide, CodeReviewer, Overnighter) | Same as above. Bundle appeared as dirty work that claimed completion before validation. | Jacob explicitly approves MCP expansion after workspace separation preflight is clean |
 | **Physical `kitty-system` Split** | Separation of durable system/control docs from runnable app. Migration closeout not yet complete. | File manifest, migration spec, import/path audit, rollback plan, and verification gates complete |
+| **Full Builder Automation From Intake** | Current control layer only provides deterministic intake classification and explicit builder contract. Full automatic spec generation is parked. | Stable `docs/BUILDER_INTAKE.md`, `docs/BUILDER_DIRECTIVE.md`, and agreement on worker lane ownership |
 | **Tool Runtime + Specialist Runtime** | Post-launch architecture deepening. Separates tool execution from specialist domain logic. | Post-launch, after Layer 1 sub-projects 1–6 ship |
 | **Source-Grounded Specialist Engine** | Specialists currently operate on embedded knowledge without verified source grounding. Risk of hallucination without this. | Post-launch architecture track (see `docs/plans/gemini-architecture-priorities-2026-04-30.md`, tag `GEMINI-ARCH-PRIORITIES`) |
 | **Proactive Idle Nudging** | Kitty prompting the user when idle — potentially valuable but risks feeling invasive if done wrong. Design needed. | Post-launch, after Memory & Continuity is stable |
@@ -667,7 +668,8 @@ These items are NOT decided. They don't block the launch plan from proceeding, b
 **Status:** Strategy needed from Layer 0; full implementation post-launch.  
 **Decision authority:** Claude Sonnet (CTO), informed by storage routing failures observed during Layer 1 work.  
 **Deadline:** End of Layer 0 (week 2), so that sub-projects follow the same strategy.  
-  **Tradeoff:** Single-store consolidation simplifies routing, reduces bug surface, and makes queries faster (one query, not fallback chains). But it risks losing the specialized strengths of each store — LightRAG's graph-based retrieval, ChromaDB's dense vector search, JournalDB's chronological structure. Multiple stores with strict routing preserves those strengths but requires the StorageRouter to be robust. The safe choice for B launch is multi-store-with-enforcement (keep what exists, make it correct). The aggressive choice (consolidate into one store) is more elegant but introduces migration risk right before launch.  
+**Tradeoff:** Single-store consolidation simplifies routing, reduces bug surface, and makes queries faster (one query, not fallback chains). But it risks losing the specialized strengths of each store — LightRAG's graph-based retrieval, ChromaDB's dense vector search, JournalDB's chronological structure. Multiple stores with strict routing preserves those strengths but requires the StorageRouter to be robust. The safe choice for B launch is multi-store-with-enforcement (keep what exists, make it correct). The aggressive choice (consolidate into one store) is more elegant but introduces migration risk right before launch.  
+**Working hypothesis:** Keep multiple stores for B launch. Enforce routing through a single `StorageRouter`. Post-launch, evaluate consolidation based on real usage data about which stores actually provide unique value vs which are redundant.  
 **Decision needed by:** End of week 2 (before Sub-Projects 1 and 2 commit to storage patterns).
 
 ### MCP Agent Bundle — Pull Into Onboarding or Build Fresh?
@@ -684,8 +686,18 @@ These items are NOT decided. They don't block the launch plan from proceeding, b
 **Status:** Needed for parallel agent velocity.  
 **Decision authority:** Claude Sonnet (CTO).  
 **Deadline:** End of week 1 (before parallel builders start committing frequently).  
-  **Tradeoff:** The full test suite takes ~47 seconds. Parallel builders committing multiple times per sub-project would spend significant time waiting. A fast gate (< 10 seconds) with a subset of tests solves this — but which subset? Route smoke tests (check 200 responses) are fast but shallow. Storage routing tests are critical but slower. Component render tests are fast but frontend-only. The gate composition determines what regressions it catches vs what slips through to the full suite.  
+**Tradeoff:** The full test suite takes ~47 seconds. Parallel builders committing multiple times per sub-project would spend significant time waiting. A fast gate (< 10 seconds) with a subset of tests solves this — but which subset? Route smoke tests (check 200 responses) are fast but shallow. Storage routing tests are critical but slower. Component render tests are fast but frontend-only. The gate composition determines what regressions it catches vs what slips through to the full suite.  
+**Recommendation:** Fast gate = route smoke tests + storage routing enforcement tests + component render tests. This catches catastrophic breakage (routes return 500, storage writes to wrong backend, components don't render) in under 10 seconds. The full suite catches everything else before merge.  
 **Decision needed by:** Sub-Project 4 (Test Coverage), or earlier if parallel agents are gated by commit speed.
+
+### Skills Clean Install
+
+**Status:** Pre-launch housekeeping.  
+**Decision authority:** Claude Sonnet (CTO). Can be delegated to a builder agent with a specific scope.  
+**Deadline:** Before Sub-Project 6 (Launch Operations), since the README will reference available skills.  
+**Tradeoff:** The skills directory and Agent Skills block have grown organically. Some skills may be unused, some descriptions may not trigger correctly, and the set in `AGENTS.md` may not match what's in `.claude/skills/`. This is low-risk hygiene — it won't break the launch if skipped, but it adds friction to agent coordination if left messy. A 1-hour clean-pass with a focused builder agent resolves it.  
+**Actions:** Remove unused skills. Verify each skill description triggers on the right inputs. Ensure `AGENTS.md` skills section matches `.claude/skills/` directory. Run the `audit` skill to confirm no broken imports.  
+**Decision needed by:** Before launch (Sub-Project 6).
 
 ---
 
@@ -731,6 +743,7 @@ Beyond the milestone gates, these run continuously:
 | Pre-commit hook | Every `git commit` | Full test suite (399+ tests, ~47s). Blocks commit on failure |
 | Fast dev gate | Every WIP checkpoint commit | Critical route + component tests (< 10s). For parallel agent velocity |
 | Storage routing test | Every commit that touches `src/services/` or storage files | Verifies KB → LightRAG, journal → JournalDB, MCP entities → server-memory |
+| Mission drift check | Weekly, during Jacob demo review | "Does this still serve 'so that no one becomes themselves alone'?" If a feature optimizes for technical elegance at the expense of presence, it's re-scoped |
 
 ### Test Suite Baseline
 
