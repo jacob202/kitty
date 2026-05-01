@@ -94,7 +94,7 @@ description before work starts.
 
 | Lane ID | Agent | Started | Status | Description |
 |---------|-------|---------|--------|-------------|
-| `kb-001` | gemini | 2026-04-30 | in-progress | Executing Phase D: Capability Completion. Starting with D1: OBD folder watcher for Mike specialist. |
+| `kb-001` | gemini | 2026-04-30 | complete | Executed Phase D: Capability Completion. Added OBD folder watcher, downloaded Qwen3.5-4B, wired end-to-end voice, and triggered specialist KB ingestion. |
 | `hardening-001` | gemini | 2026-04-30 | complete | Executed Phase C: Hardening & Coverage. Implemented functional slash commands, expanded test coverage (specialists + routes), renamed SQLiteTextStore, enabled TS strict mode. |
 | `ui-001` | gemini | 2026-04-30 | complete | Executed Phase B: Polish & UX (B1-B8). Added light theme, ErrorBoundary, mobile Inspector, Toast system, SVG sanitization, settings persistence, click-outside-to-close, and mode pill. |
 | `coordination-002` | codex | 2026-04-30 | complete | Reviewed and tightened this coordination protocol before starting broad audit work. Added authority, scope, workspace, sync, and handoff guardrails. |
@@ -242,6 +242,43 @@ Use the template in `docs/AGENT_HANDOFF_TEMPLATE.md`.
 ### Recent Handoffs
 
 <!-- ADD HANDOFFS ABOVE THIS LINE -->
+
+### 2026-04-30 gemini — kb-001 (Phase D Capability Completion)
+
+**Lane**: `kb-001`
+
+**Workspace**: `/Users/jacobbrizinski/Projects/kitty` (legacy); synced to `/Users/jacobbrizinski/Projects/kitty-system/kitty-app`
+
+**Branch**: `main`
+
+**Blocked**: no
+
+**Done**:
+- D1: Implemented `OBDWatcher` in `watchers.py` to monitor iCloud/local OBD Fusion logs. Started watcher in `web.py` with a bridge to SocketIO. Overrode `MikeAutomotiveSpecialist.query` to inject latest OBD analysis into context.
+- D2: Downloaded `mlx-community/Qwen3.5-4B-4bit` for local inference and verified default wiring in `model_preloader.py`.
+- D3: Wired end-to-end voice integration in `page.tsx`: transcription now automatically appends to chat and triggers `executeCommand`.
+- D4: Triggered specialist KB ingestion for all domains. Fixed LightRAG default model to `google/gemini-2.0-flash-001` to resolve OpenRouter 404s. Cleaned `Icon\r` files from `venv` to prevent library collection crashes.
+- Fixed `src/core/specialists/registry.py` to restore the `SPECIALISTS` dictionary for backward compatibility and test stability.
+
+**Files changed in legacy**:
+- `web.py`
+- `src/core/watchers.py`
+- `src/core/specialists/automotive.py`
+- `src/core/specialists/registry.py`
+- `src/memory/lightrag_store.py`
+- `garage-ui/app/page.tsx`
+
+**Files synced to migrated runtime**:
+- All functional changes and new tests.
+
+**Allowed by**: `HANDOFF.md` Phase D; `kb-001` lane claim.
+
+**Tests / validation**:
+- `pytest tests/` → 393 passed.
+- `OBDWatcher` start verified in `web.py`.
+- `Qwen3.5-4B` download verified.
+
+**Outstanding**: All core milestones (A-D) from the operational plan are now complete.
 
 ### 2026-04-30 gemini — hardening-001 (Phase C Hardening & Coverage)
 

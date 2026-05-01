@@ -69,13 +69,18 @@ bash scripts/run_gates.sh
 ## Next Safe Cleanup Spec
 
 Completed under `specs/tiny-generated-cache-cleanup.spec.md`:
-
 - root `.DS_Store`
 - root `__pycache__/`
 - `scripts/__pycache__/`
 - `tests/__pycache__/`
 - `.pytest_cache/`
 - `.aider.tags.cache.v4/`
+
+Completed under `specs/repo-cleanup-pruning.spec.md`:
+- Archived `PHASE4_MERGE_GATE_RUN_*.md` to `docs/archive/2026-04-30-phase4-runs/`
+- Archived `AGENTCOMPANY_*.md` to `docs/archive/2026-04-29-audits-and-logs/`
+- Archived `WORKSPACE_SEPARATION_*.md` to `docs/archive/2026-04-29-audits-and-logs/`
+- Archived `CHAT_LOG_*.md` to `docs/archive/2026-04-29-audits-and-logs/`
 
 Validation:
 
