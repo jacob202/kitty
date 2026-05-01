@@ -71,26 +71,55 @@ Jacob never reads code. His job is vision, gut-feel approval, demo review, and r
 
 Claude Sonnet (with Opus reserved for highest-leverage strategic decisions) is the technical authority. It translates Jacob's vision into architecture, reviews all code output, maintains the design docs, and owns the technical coherence of the whole project. No code merges without Sonnet review.
 
-#### PM Layer: Dorothy MCP — Kanban + Telegram
+#### PM Layer: Dorothy MCP — Kanban + Telegram + Vault
 
-Dorothy is wired into Claude Code through hooks and serves as the project management surface Jacob actually sees. Two components:
+Dorothy is slimmed from 8 MCP servers to the 3 that serve the launch plan:
 
-- **Kanban board:** a visible task board (column-based, status-tracked) that replaces the current `AGENT_COORDINATION.md` as the canonical source of what's in progress, what's blocked, and what's done. Columns: Backlog → Spec Ready → Building → Review → Demo Ready → Done. Each card has: sub-project label, assigned builder agent, file boundaries, current status, and the mission test question for that task. Jacob can glance at it and know the state of the project without parsing markdown diffs. The board is the source of truth — handoff files feed from it, not the other way around.
+- **claude-mgr-kanban:** a visible task board (Backlog → Spec Ready → Building → Review → Demo Ready → Done). Each card has: sub-project label, assigned builder, file boundaries, current status, and the mission test question. Jacob can glance at it and know project state. The board is the source of truth — handoff files feed from it, not vice versa.
 
-- **Telegram notifications:** Dorothy sends progress updates to Jacob's phone at key transitions: when a spec is approved and a builder starts work ("Sub-Project 1: Onboarding domain-selection wizard — Crush starting build"), when a demo is ready for review ("Memory & Continuity ready for demo — session summaries and journal integration built"), when a sub-project passes its validation gate ("Onboarding Pipeline: all tests pass, smoke green, ready for Jacob review"), and when something blocks ("Builder lane conflict: Memory and Commands both touching dispatcher.py — coordinator sequencing work"). The goal is that Jacob never has to check status — status finds him. He opens his phone, sees what moved, and either reviews a demo or continues his day.
+- **claude-mgr-telegram:** push notifications to Jacob's phone at key transitions: spec approved ("Crush starting build"), demo ready ("Onboarding Pipeline ready for review"), gate passed ("all tests pass, smoke green"), blocked ("lane conflict — sequencing work"). Jacob never has to check status — status finds him.
 
-The Kanban board and Telegram notifications together create a PM layer that works for a non-technical founder: visual state awareness (Kanban) plus push notifications at important moments (Telegram). This replaces the manual coordination-doc updates and handoff-file choreography that currently require an agent or a human to actively check project state.
+- **claude-mgr-vault:** durable storage for specs, handoffs, and session context. Agents read/write without polluting the working tree.
 
-**Why Dorothy instead of GitHub Projects or Linear:** Dorothy is already wired into the Claude Code tool ecosystem. It runs locally, needs no external accounts, and can be triggered by agent hooks without webhook configuration. For a single-founder project with AI builders, internal tooling that agents can update programmatically is more valuable than an external SaaS board that requires manual updates.
+**Cut:** orchestrator (replaced by bridge daemon + CrewAI), socialdata, X, world, drawthings (kept separately for mascot visuals).
 
-#### Builder Agents: Crush + Aider on Cheap Models, in Parallel
+**Why Dorothy instead of SaaS:** runs locally, needs no external accounts, agents can update programmatically, already wired into Claude Code hooks. Zero new costs.
 
-Two existing local tools become the execution layer:
+##### Dorothy Bridge Daemon
 
-- **Crush:** a non-interactive agent runner that accepts tasks and returns results without requiring a conversation loop. Runs on cheap API models (DeepSeek Flash, Gemini Flash, Groq paid tier) — programmatic, deterministic, zero-human-waiting.
-- **Aider:** AI pair-programming tool that can work with any local or cloud model. Used for tasks that benefit from a tighter edit-verify loop.
+A ~150-line Python daemon (`scripts/dorothy_bridge.py`) that automates the gap between Kanban and execution:
 
-Both run on cheap models by default. Parallel execution (separate lanes, separate files) collapses serial build time from weeks to days. The `parallel-subagents` skill in `.claude/skills/` operationalizes the pattern of spawning independent lanes.
+- Polls Dorothy's Kanban every 30 seconds for new cards tagged `#build`
+- When a card appears, reads the spec, routes to CrewAI pipeline (for onboarding knowledge ingestion) or Crush/Aider builders (for code)
+- Posts status updates to Telegram via Dorothy's existing Telegram MCP
+- Idempotent — won't double-spawn if it's restarted
+- Logs to `logs/dorothy_bridge.log` for debugging
+- Runs independently of agent sessions (via `launchd` or `tmux`)
+
+This replaces the orchestrator MCP server and the manual "CTO checks Kanban, spawns builder" loop.
+
+#### Builder Agents: CrewAI + Crush + Aider on Cheap Models, in Parallel
+
+Three execution layers, each for a different kind of work:
+
+**CrewAI — Assembly-line pipelines (search → digest → embed → organize):**
+- Used for the Onboarding Pipeline's knowledge ingestion. Four specialized agents work sequentially: one searches the web (via Tavily + Firecrawl, with Exa as complementary backup), one digests/summarizes results, one embeds into LightRAG + ChromaDB, one organizes the knowledge graph.
+- Each agent waits for the previous, passes output forward. No cross-talk. Minimal tokens. Predictable.
+- Runs on cheap API models (see Model Routing below) or falls back to local MLX Qwen3.5-4B when budget is tight.
+
+**Crush — Non-interactive batch builder:**
+- Accepts specs and returns diffs without a conversation loop. Used for code generation, test writing, file edits.
+- Runs on cheap API models (DeepSeek V4 Flash primary, free OpenRouter models as backup).
+- Multiple Crush instances run in parallel on independent lanes — the `parallel-subagents` skill operationalizes this.
+
+**Aider — Interactive pair-programming:**
+- Used for tasks that benefit from a tighter edit-verify loop: small refactors, test debugging, documentation updates.
+- Together with Crush, covers the full spectrum from autonomous batch work to interactive refinement.
+
+**AutoGen / CrewAI hybrid — CTO review pairs:**
+- When Sonnet reviews code, it can spawn a second agent for adversarial review — "find what's wrong with this diff." Two agents discuss, Sonnet makes the final call. This is Pattern B (team huddle) — smarter output at a small token premium, reserved for merge-gate reviews.
+
+All builders run on cheap models by default (DeepSeek V4 Flash at $0.28/Mtok). Parallel execution collapses serial build time from weeks to days. The `parallel-subagents` skill in `.claude/skills/` defines the lane spawning pattern.
 
 #### Memory Unification Strategy
 
@@ -118,25 +147,49 @@ The full unification (single store decision, migration, deduplication) is post-l
 
 The stack stays as-is for B launch: **Flask + Next.js + MLX + LightRAG**. Flask vs FastAPI evaluation is deferred to post-launch. The current stack works; migrating it is a distraction from shipping.
 
-#### Development Workflow
+#### Layer 0 Tooling Pre-Flight — Optimization Pass
+
+Before any Layer 1 work begins, the surrounding infrastructure must be stripped to essentials. Current state: ~35 skills, 9 Claude plugins, 8 MCP servers, and 30+ scripts — many unused, overlapping, or dead-weight. This bloat burns tokens on every agent session and causes agents to load irrelevant context.
+
+**Phase A — Cut MCP servers first (lowest risk):**
+Remove from `.claude/mcp.json`: dorothy-socialdata, dorothy-x, dorothy-world. The orchestrator gets stripped to a simple launcher (if kept at all) since CrewAI replaces its routing. Result: 8 → 4 MCP servers (kanban, telegram, vault, drawthings). Verify `./kitty status` still works after cut.
+
+**Phase B — Cut skills second:**  
+Unlink 18 skills from `.claude/skills/` (symlinks to `~/.agents/skills/`). Keep 18: fix-and-verify, parallel-subagents, overnight-queue, prompt-answer-quality, tdd, caveman, grill-me, spec-to-impl, demo, audit, zoom-out, all firecrawl-* (11), skill-creator, find-skills. Cut: domain-news, grill-with-docs, improve-codebase-architecture, recommend, setup-matt-pocock-skills, to-issues, to-prd, triage, write-a-skill, execution, improve, planning, reasoning, ship, think, world-builder, ast-grep, agent-browser (reactivate if page navigation is needed). Verify superpowers plugin still loads after cuts.
+
+**Phase C — Cut plugins third:**  
+Disable 5 Claude plugins: security-guidance, pr-review-toolkit, agent-sdk-dev, pyright-lsp, frontend-design. Keep 4: commit-commands, code-review, superpowers, feature-dev. Verify Claude.app/OpenCode sessions load correctly.
+
+**Phase D — Clean scripts last:**  
+Keep 7 scripts: clear-and-test.sh, quick-smoke.sh, checkpoint.sh, run_gates.sh, validate.sh, golden_demo.sh, context_pack_generator.py (+ dorothy_bridge.py which is new). Archive remaining 25+ scripts to `scripts/archive/`. Verify full test suite still passes.
+
+**Phase E — Write Dorothy bridge daemon:**  
+The `scripts/dorothy_bridge.py` daemon that polls Kanban, spawns CrewAI/Crush/Aider, and posts Telegram updates. ~150 lines. Test: create a Kanban card with `#build`, verify the bridge detects it and starts the pipeline.
+
+**Phase F — Optimize reference docs:**  
+Trim CLAUDE.md and AGENTS.md to ~80 lines each. Keep critical gotchas (storage routing, port split, Werkzeug flag, TokenCapture leak). Cut narrative prose. Run `context_pack_generator.py` to verify context packs still contain essential reference data.
+
+All phases commit separately. Each phase verifies before proceeding.
+
+#### Development Workflow (Automated)
 
 ```
-Intake → Spec (auto-generated) → Build → Demo → Ship
+Jacob describes need → Dorothy Kanban card created → Bridge daemon detects card
+  → CTO (Sonnet) writes approved spec
+  → Bridge routes to CrewAI pipeline (for knowledge work) OR Crush/Aider (for code)
+  → Builders commit, tests run, Sonnet reviews
+  → Bridge posts Telegram ping: "Ready for demo"
+  → Jacob demos, says yes/no/redirect
 ```
 
-1. **Intake:** a feature request or bug report enters through `docs/BUILDER_INTAKE.md` or Dorothy Kanban. The intake record defines the problem, not the solution.
-2. **Spec:** a lightweight spec is auto-generated defining scope, allowed/forbidden files, acceptance criteria, and the mission test question. The CTO (Sonnet) reviews and approves before execution.
-3. **Build:** Crush or Aider executes the spec on cheap models. Multiple builders run in parallel on independent lanes assigned by the coordinator. Each builder works only within its assigned file boundaries.
-4. **Demo:** Jacob reviews a running feature (not a code diff). Approves the experience or redirects. This is the real approval gate — code can be perfect by technical standards but fail the demo if it doesn't feel like Kitty.
-5. **Ship:** Sonnet reviews the code for correctness, scope discipline, and routing violations. Full test suite runs. Commit lands. Dorothy sends a Telegram ping to Jacob's phone.
+1. **Intake:** Jacob describes what he wants in plain English. Appears as a new Kanban card.
+2. **Spec:** The CTO (Sonnet) auto-generates a lightweight spec defining scope, allowed/forbidden files, acceptance criteria, and the mission test question. Approved specs get tagged `#build` on Kanban.
+3. **Detect:** The bridge daemon (`scripts/dorothy_bridge.py`) polls Kanban every 30 seconds. On detecting a `#build` card, it reads the spec and routes execution.
+4. **Build:** CrewAI pipeline (for knowledge ingestion: search → digest → embed → organize) or Crush/Aider (for code). Parallel lanes assigned by spec boundaries. All run on cheap API models with local fallback.
+5. **Demo:** Feature is running. Jacob reviews the experience (not code). Approves or redirects.
+6. **Ship:** Sonnet review. Full test suite passes. Commit lands. Bridge posts "Done" to Telegram.
 
-The coordinator manages this entire pipeline. Its responsibilities:
-- Read new items from the Kanban board
-- Generate specs for approved items
-- Assign lanes to builder agents (Crush or Aider, depending on task shape)
-- Pass results to Sonnet for review
-- Surface demos to Jacob through Dorothy
-- Write checkpoint HANDOFF files at each completion gate so no state is lost to usage limits
+The bridge daemon handles the manual coordination that currently requires an agent actively checking Kanban — it converts "card created" into "pipeline spawned" automatically. Checkpoint HANDOFF files are written at each completion gate so no state is lost to usage limits.
 
 ### Layer 1 — The Product (6 Sub-Projects, Vision-First Order)
 
@@ -264,18 +317,20 @@ Aider provides AI pair-programming with any local or cloud model. It is the tool
 
 The current test suite passes cleanly at 399 tests. Every commit must continue to pass it. This provides a baseline: any sub-project that introduces failures is immediately caught. The test suite is not yet comprehensive (route coverage is ~28%), but what exists works and the pre-commit hook enforces it.
 
-### 5+ API Providers = Resilience
+### 5+ API Providers + Research Tools = Resilience
 
 Kitty has API keys or access configured for:
-- **Anthropic** (Claude Sonnet, Opus)
-- **DeepSeek** (V4 Flash, R1 reasoning)
-- **OpenRouter** (routing to multiple providers)
-- **Gemini** (Flash models)
+- **Anthropic** (Claude Sonnet, Opus via Cursor subscription)
+- **DeepSeek** (V4 Flash for builders)
+- **OpenRouter** (routing to 200+ models, free tier fallback)
+- **Gemini** (paid subscription, API key)
 - **Groq** (paid and free tiers)
-- **Tavily** (web search)
-- **Honcho** (user state)
+- **Tavily** (web search for onboarding research)
+- **Firecrawl** (web scraping and page extraction for onboarding)
+- **Exa** (complementary web search — API key available, activated as needed for deeper research)
+- **Honcho** (user state persistence)
 
-No single provider going down can block work. If one API has an outage, the model router falls back to the next tier.
+No single provider going down can block work. If one API has an outage, the model router falls back to the next tier. Research tools are layered: Tavily for fast search, Firecrawl for deep page extraction, Exa as complementary backup for broader web coverage.
 
 ### Local Coding Models via Ollama
 
@@ -297,13 +352,15 @@ Every agent in the system routes through this strategy. No agent picks a model o
 
 ### Primary Tier — Cheap and Reliable (Default)
 
-| Model | Provider | Cost | Use Case |
-|-------|----------|------|----------|
-| DeepSeek V4 Flash | DeepSeek / OpenRouter | ~$0.001/1K | Builder agents, code generation, test writing, file edits |
-| Gemini 2.5 Flash | Gemini API | Cheap | Builder agents, summarization, classification |
-| Groq paid tier | Groq | Cheap, fast | When low latency matters (interactive features, demos) |
+| Model | Provider | Cost (/Mtok) | Use Case |
+|-------|----------|-------------|----------|
+| `deepseek/deepseek-v4-flash` | DeepSeek / OpenRouter | $0.28 | Primary builder — code gen, test writing, file edits. Best balance of price and reliability |
+| `qwen/qwen3-235b-a22b-2507` | Qwen / OpenRouter | $0.10 | Budget builder — huge MoE model at absurdly low price. Great for high-volume work |
+| `mistralai/mistral-small-24b-instruct-2501` | Mistral / OpenRouter | $0.08 | Cheapest non-free builder — lightweight tasks, classification |
+| `qwen/qwen3.5-flash-02-23` | Qwen / OpenRouter | $0.26 | Fast fallback, similar tier to DeepSeek Flash |
+| `google/gemini-2.5-flash` | Gemini API | $2.50 | Fast, good for interactive features. Only when latency matters more than cost |
 
-These models are deterministic enough for production-like work. Rate limits are generous or non-existent. Queue wait times are minimal. **This is the daily driver for all builder-agent execution.**
+**Default for builders: `deepseek-v4-flash`.** It's reliable, deterministic, and at $0.28/Mtok a full day of parallel building costs $1-3. When budget is tight, drop to `qwen3-235b-a22b` at $0.10/Mtok.
 
 ### Backup Tier — Free (Accept Rate Limits)
 
@@ -311,11 +368,10 @@ These models are deterministic enough for production-like work. Rate limits are 
 |-------|----------|----------|
 | `qwen/qwen3-coder:free` | OpenRouter | Code generation when primary is down |
 | `meta-llama/llama-3.3-70b-instruct:free` | OpenRouter | General reasoning, fallback |
-| `openai/gpt-oss-120b:free` | OpenRouter | Alternative free route |
-| `llama-3.3-70b-versatile` | Groq free | Fast fallback |
-| `qwen/qwen3-32b` | Groq free | Lightweight tasks |
+| `qwen/qwen3-next-80b-a3b-instruct:free` | OpenRouter | Alternative free route |
+| `google/gemma-3-27b-it:free` | OpenRouter | Lightweight free option |
 
-Free models have rate limits, queues, quality variance, and outage risk. They are not the daily driver — they are the parachute. Use when primary tier is down, daily budget is exhausted, or the task is genuinely trivial.
+Free models have rate limits, queues, quality variance, and outage risk. They are the parachute, not the daily driver.
 
 ### Premium Tier — Reserved
 
@@ -359,19 +415,46 @@ Task arrives → Is this a strategic decision affecting architecture?
 
 | Task | Model | Tier | Why |
 |------|-------|------|-----|
-| "Write the domain-selection wizard component" | DeepSeek V4 Flash | Primary (cheap) | Code generation with clear spec — needs reliability, not reasoning depth |
-| "Write tests for the onboarding pipeline" | Gemini 2.5 Flash | Primary (cheap) | Structured, repetitive work — cheap model is sufficient |
-| "Review all onboarding code before merge" | Claude Sonnet | Premium (reserved) | CTO duty — architectural judgment needed |
-| "Should we adopt FastAPI or stay on Flask?" | Claude Opus | Premium (reserved) | Strategic architectural decision |
-| "Generate 50 test fixtures for edge cases" | Groq paid tier | Primary (cheap) | High volume, low complexity — needs speed |
-| "Personal journal entry — private, offline" | MLX Qwen3.5 | Local | Privacy requirement overrides model quality |
-| Primary API down, building the CommandEngine | OpenRouter qwen3-coder:free | Backup (free) | Accept quality variance, keep work moving |
+| "Write the domain-selection wizard component" | `deepseek-v4-flash` | Primary (cheap) | Code generation with clear spec — needs reliability, not reasoning depth |
+| "Write tests for the onboarding pipeline" | `deepseek-v4-flash` | Primary (cheap) | Structured, repetitive work — cheap model is sufficient |
+| "High-volume batch work — 50 test fixtures" | `qwen3-235b-a22b` | Primary (budget) | Huge volume, low complexity — use the $0.10/M model |
+| "Review all onboarding code before merge" | Claude.app/Sonnet | Premium (reserved) | CTO duty — architectural judgment needed |
+| "Should we adopt FastAPI or stay on Flask?" | Claude.app/Opus | Premium (reserved) | Strategic architectural decision |
+| "Personal journal entry — private, offline" | MLX Qwen3.5-4B | Local | Privacy requirement overrides model quality |
+| Primary API down, building CommandEngine | `qwen3-coder:free` | Backup (free) | Accept quality variance, keep work moving |
+| CrewAI digest stage (summarize search results) | `deepseek-v4-flash` | Primary (cheap) | Needs comprehension — cheap models do this well |
+| CrewAI embed stage (chunk and store) | MLX Qwen3.5-4B | Local | Pure tool chain — no reasoning needed, save the API cost |
+
+### CrewAI Pipeline Routing (Hybrid)
+
+For the onboarding knowledge pipeline, stages are split by what benefits from smarter models:
+
+| Pipeline Stage | Model Tier | Why |
+|---------------|-----------|-----|
+| **Search** (Tavily/Firecrawl/Exa web search) | Primary cheap API | Needs reasoning to evaluate source quality and formulate good queries |
+| **Digest** (summarize search results) | Primary cheap API | Needs comprehension — cheap models do this well |
+| **Embed** (chunk and store in LightRAG/ChromaDB) | Local MLX Qwen3.5-4B | Pure tool chain — chunk text, call embedding API, store. No reasoning needed |
+| **Organize** (update knowledge graph edges) | Local MLX Qwen3.5-4B | Mechanical — extract entities, link relations. Pattern matching, not deep reasoning |
+
+This hybrid saves ~40% on pipeline API costs (the two most expensive stages — embed and organize — run locally for free) while keeping the stages that benefit from smarter models on the cheap API tier. When budget is exhausted, all stages fall back to local MLX — slower but $0.
 
 ### Why Cheap-First, Not Free-First
 
-Free tiers have rate limits, queues, quality variance, and outage risk. They introduce unpredictability into agent workflows. Cheap models like DeepSeek Flash are deterministic and reliable for the kind of structured execution builder agents need. Free is the safety net, not the daily driver. At $0.001/1K tokens, the cost difference between free and cheap is negligible in absolute terms, but the reliability difference is substantial.
+Free tiers have rate limits, queues, quality variance, and outage risk. They introduce unpredictability into agent workflows. Cheap models like DeepSeek Flash are deterministic and reliable for the kind of structured execution builder agents need. Free is the safety net, not the daily driver.
 
-A full day of builder-agent work — generating components, writing tests, editing files across 3 sub-projects — costs roughly $0.50–$2.00 on the primary tier. At that cost, the reliability premium over free models is trivial. The backup tier exists for the day the DeepSeek API has an outage, not as a cost-saving measure.
+**Real cost estimates for the 4-week build phase:**
+
+| Cost Item | Estimate |
+|-----------|----------|
+| DeepSeek V4 Flash as primary ($0.28/Mtok) | $1-3/day for 3 parallel builders |
+| CrewAI pipeline runs (4 agents × 5 domains × 5 friends) | $2-5 total |
+| Full 4-week build phase | $50-100 max |
+| Free fallback (qwen3-coder:free, llama-3.3-70b:free) | $0 |
+| Paid subs (Cursor Claude, Gemini, Codex) | Already paid, reset every 5 hours |
+
+At $0.28/Mtok, the cost difference between free and cheap is negligible, but the reliability difference is substantial. The backup tier exists for the day DeepSeek has an outage, not as a cost-saving measure.
+
+Budget is flexible — no hard cap. Use cheap API when parallel speed matters, fall to local MLX when budget is tight.
 
 ---
 
@@ -382,11 +465,13 @@ A full day of builder-agent work — generating components, writing tests, editi
 | Role | Agent | Responsibilities |
 |------|-------|-----------------|
 | Chief Product Officer | **Jacob** | Vision, gut-feel approvals, demo review, "yes/no/redirect." Never reads code |
-| Chief Technology Officer | **Claude Sonnet** (Opus reserved) | Architecture, code review, design docs, technical coherence. Reviews all code before merge |
-| PM Automation | **Dorothy MCP** | Kanban board (visible task tracking), Telegram notifications (push updates to Jacob's phone) |
-| Builder Agents | **Crush + Aider** (cheap-tier models, parallel) | Code generation, test writing, file edits. Work on independent lanes, report to coordinator |
-| Code Reviewer | **Claude Sonnet** | Quality gate. Every merge gets a Sonnet review. Catches scope drift, routing violations, security issues |
-| Coordinator | **Dorothy Orchestrator** | Routes work between agents. Ensures lanes don't overlap. Manages the parallel execution pattern |
+| Chief Technology Officer | **Claude.app/Sonnet** (Opus reserved for strategic decisions) | Architecture, code review, design docs, technical coherence. Reviews all code before merge |
+| PM Automation | **Dorothy MCP** (kanban, telegram, vault) | Task board, push notifications to Jacob's phone, durable spec/handoff storage |
+| Bridge Daemon | **`dorothy_bridge.py`** | Polls Kanban, spawns CrewAI/Crush/Aider, posts Telegram updates. Runs independently |
+| Pipeline Agents | **CrewAI** (searcher, digester, embedder, organizer) | Sequential knowledge ingestion for onboarding. Runs on cheap API with local fallback |
+| Review Pair | **AutoGen / CrewAI-hybrid** | Adversarial code review — second agent challenges Sonnet's review. Reserved for merge gates |
+| Builder Agents | **Crush + Aider** (cheap-tier models, parallel) | Code generation, test writing, file edits. Work on independent lanes |
+| Code Reviewer | **Claude.app/Sonnet** | Quality gate. Every merge gets Sonnet review. Catches scope drift, routing violations, security issues |
 
 ### Information Flow
 
