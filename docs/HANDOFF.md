@@ -1,10 +1,22 @@
 # Kitty — Handoff to Gemini
 
-Date: 2026-04-30
+Date: 2026-04-30 (updated 2026-05-01 — see **2026-05-01 incident** below)
 From: OpenCode (Claude)
-To: Gemini
-Suite: 363 passed, 2 warnings
+To: Gemini (and any agent picking up `arch-001` / `arch-002` / tool work)
+Suite: **~399 passed**, 2 warnings (legacy checkout; run `pytest tests/` to confirm)
 Repo: `git@github.com:anomalyco/kitty` (not confirmed — verify before pushing)
+
+---
+
+## 2026-05-01 — Shelved WIP (read before restarting tool/specialist runtime)
+
+**Canonical write-up:** `docs/archive/2026-05-01-shelved-wip-tool-specialist-runtime.md` — grep tag **`SHELVED-WIP-2026-05-01`**.
+
+**What happened:** A **partial, uncommitted** experiment added `ToolRuntime`, `SpecialistRuntimeAdapter`, data-driven `definitions`, and rewired `registry.py` / `tool_manager.py`. It was **never in git as blobs** (untracked + local diffs only). Full **`pytest tests/`** failed: **`test_specialists_coverage`** (all twelve specialists) because adapters did not match how those tests patch `BaseSpecialist` internals, plus **`RuntimeError: Runner is closed`** on **`@pytest.mark.anyio`** tool/specialist runtime tests when the **whole** suite ran.
+
+**What we did:** Reverted all dirty **tracked** files to the last good tree, **deleted** the **untracked** WIP files (exact list in the archive doc), kept the **design** by committing **`docs/plans/2026-04-30-unified-tool-runtime.md`** (Candidate A). **No further action required from Jacob** — tree is green; pre-commit runs full pytest again.
+
+**What to do next (agents):** Do **not** resurrect the deleted files from memory alone. Follow **`docs/plans/2026-04-30-unified-tool-runtime.md`** + **`docs/plans/gemini-architecture-priorities-2026-04-30.md`** under an **approved spec**; keep **`SPECIALISTS` as concrete `BaseSpecialist` subclasses** until coverage tests or adapters are reconciled (details in archive §3–§5).
 
 ---
 
