@@ -9,9 +9,11 @@ import EvalDashboard from './components/EvalDashboard';
 import Sidebar from './components/Sidebar';
 import Inspector from './components/Inspector';
 import ChatInterface from './components/ChatInterface';
+import ErrorBoundary from './components/ErrorBoundary';
 import ActiveNodes from './components/ActiveNodes';
 import CollapsiblePanel from './components/CollapsiblePanel';
 import { useDensity } from './components/DensityContext';
+import { useToast } from './components/Toast';
 import { Thought } from './components/ThinkingMonologue';
 
 const RECORDING_MIME_CANDIDATES = [
@@ -38,6 +40,7 @@ function extensionForMimeType(mimeType: string): string {
 
 export default function GarageDashboard() {
   const { density, toggleDensity } = useDensity();
+  const { toast } = useToast();
   const [messages, setMessages] = useState<{role: string, text: string}[]>([]);
   const [input, setInput] = useState('');
   const [uiState, setUiState] = useState('calm'); // 'calm' or 'unhinged'
@@ -61,6 +64,8 @@ export default function GarageDashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
+  const [isLightMode, setIsLightMode] = useState(false);
 
   const socketRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -132,6 +137,14 @@ export default function GarageDashboard() {
     return () => { socket.disconnect(); };
   }, []);
 
+  useEffect(() => {
+    if (isLightMode) {
+      document.body.classList.add('theme-light');
+    } else {
+      document.body.classList.remove('theme-light');
+    }
+  }, [isLightMode]);
+
   const handleSchematicUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -160,6 +173,7 @@ export default function GarageDashboard() {
       }
     } catch (error) {
       console.error("Schematic analysis failed:", error);
+      toast("Schematic analysis failed", "error");
     } finally {
       setIsAnalyzing(false);
     }
@@ -313,14 +327,19 @@ export default function GarageDashboard() {
 
   return (
     <main 
-      className={`h-screen-safe flex flex-col mode-transition overflow-hidden ${uiState === 'unhinged' ? 'theme-unhinged' : `theme-${currentMode}`}`}
+      className={`h-screen-safe flex flex-col mode-transition overflow-hidden ${
+        uiState === 'unhinged' 
+          ? 'theme-unhinged' 
+          : (isLightMode ? 'theme-light' : `theme-${currentMode}`)
+      }`}
       style={{
         '--sidebar-width': sidebarCollapsed ? '48px' : '240px',
         '--inspector-width': inspectorCollapsed ? '48px' : '320px',
       } as React.CSSProperties}
     >
-      {/* TOP HEADER */}
-      <header className="h-12 flex items-center justify-between px-3 md:px-4 border-b border-color bg-panel-bg flex-shrink-0 z-10">
+      <ErrorBoundary>
+        {/* TOP HEADER */}
+        <header className="h-12 flex items-center justify-between px-3 md:px-4 border-b border-color bg-panel-bg flex-shrink-0 z-10">
         <div className="flex items-center gap-2 md:gap-4">
           <div className="flex items-center gap-2">
             <div className={`w-2 h-2 rounded-full flex-shrink-0 ${systemHealth.websocket === 'connected' ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`}></div>
@@ -360,9 +379,20 @@ export default function GarageDashboard() {
         <div className="flex items-center gap-2 md:gap-4">
           <div className="hidden md:flex"><ActiveNodes nodes={activeNodes} /></div>
           <div className="flex items-center gap-2 md:gap-3 text-[10px] font-mono opacity-50">
+            <button onClick={() => setIsLightMode(!isLightMode)} className="hover:text-white uppercase tracking-tighter">
+              {isLightMode ? '🌙 DARK' : '☀️ LIGHT'}
+            </button>
             <button onClick={toggleDensity} className="hidden sm:inline hover:text-white uppercase tracking-tighter">[{density}]</button>
             <button onClick={() => setSettingsModalOpen(true)} className="hover:text-white">⚙ <span className="hidden sm:inline">SETTINGS</span></button>
           </div>
+          {/* Mobile inspector button */}
+          <button
+            className="md:hidden p-1 text-[var(--accent-color)] text-lg leading-none"
+            onClick={() => setMobileInspectorOpen(true)}
+            title="The Optic"
+          >
+            👁️
+          </button>
           {/* Mobile menu button */}
           <button
             className="md:hidden p-1 text-[var(--accent-color)] text-lg leading-none"
@@ -472,6 +502,31 @@ export default function GarageDashboard() {
         </div>
       )}
 
+      {/* Mobile inspector overlay */}
+      {mobileInspectorOpen && (
+        <div className="md:hidden fixed inset-0 z-50 flex">
+          <div className="absolute inset-0 bg-black bg-opacity-60" onClick={() => setMobileInspectorOpen(false)} />
+          <div className="relative ml-auto w-72 max-w-[85vw] h-full bg-[var(--panel-bg)] border-l border-[var(--border-color)] overflow-y-auto z-10">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-color)]">
+              <span className="text-xs font-bold tracking-widest opacity-60 uppercase">The Optic</span>
+              <button onClick={() => setMobileInspectorOpen(false)} className="text-lg opacity-60">✕</button>
+            </div>
+            <div className="p-4">
+              <Inspector
+                schematicData={schematicData}
+                onSchematicUpload={handleSchematicUpload}
+                onClearSchematic={() => {
+                  setSchematicData(null);
+                  setMobileInspectorOpen(false);
+                }}
+                isAnalyzing={isAnalyzing}
+                memoryEntries={memoryEntries}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       <CommandPalette
         isOpen={commandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}
@@ -487,16 +542,18 @@ export default function GarageDashboard() {
         currentMode={currentMode}
       />
 
-      <SettingsModal
-        isOpen={settingsModalOpen}
+      <SettingsModal 
+        isOpen={settingsModalOpen} 
         onClose={() => setSettingsModalOpen(false)}
         currentMode={currentMode}
         onModeChange={(mode) => {
           executeCommand(`/bench ${mode}`);
           setSettingsModalOpen(false);
         }}
-      />
-      
+        isLightMode={isLightMode}
+        onLightModeToggle={() => setIsLightMode(!isLightMode)}
+      />      
+      </ErrorBoundary>
       <style jsx>{`
         .border-color { border-color: var(--border-color); }
         .bg-panel-bg { background-color: var(--panel-bg); }

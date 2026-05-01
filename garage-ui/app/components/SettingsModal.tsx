@@ -1,12 +1,15 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { useToast } from './Toast';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentMode: string;
   onModeChange: (mode: string) => void;
+  isLightMode: boolean;
+  onLightModeToggle: () => void;
 }
 
 interface Settings {
@@ -24,7 +27,8 @@ interface Settings {
   };
 }
 
-export default function SettingsModal({ isOpen, onClose, currentMode, onModeChange }: SettingsModalProps) {
+export default function SettingsModal({ isOpen, onClose, currentMode, onModeChange, isLightMode, onLightModeToggle }: SettingsModalProps) {
+  const { toast } = useToast();
   const [settings, setSettings] = useState<Settings>({
     features: {
       auto_pagination: { enabled: true, description: "Automatically paginate long responses" },
@@ -58,6 +62,7 @@ export default function SettingsModal({ isOpen, onClose, currentMode, onModeChan
       }
     } catch (error) {
       console.error('Failed to load settings:', error);
+      toast('Failed to load settings', 'error');
     }
   };
 
@@ -79,9 +84,13 @@ export default function SettingsModal({ isOpen, onClose, currentMode, onModeChan
             [feature]: { ...prev.features[feature as keyof typeof prev.features], enabled }
           }
         }));
+        toast(`${feature.replace(/_/g, ' ')} updated`, 'success');
+      } else {
+        toast('Failed to update setting', 'error');
       }
     } catch (error) {
       console.error('Failed to update setting:', error);
+      toast('Failed to update setting', 'error');
     } finally {
       setLoading(false);
     }
@@ -142,6 +151,33 @@ export default function SettingsModal({ isOpen, onClose, currentMode, onModeChan
 
           {/* Feature Toggles */}
           <div>
+            <h3 className="text-lg font-semibold mb-4" style={{color: 'var(--accent-color)'}}>
+              Appearance
+            </h3>
+            <div className="space-y-4 mb-8">
+              <div className="flex items-center justify-between p-3 rounded border" style={{borderColor: 'var(--border-color)'}}>
+                <div className="flex-1">
+                  <div className="font-medium">Light Mode</div>
+                  <div className="text-xs opacity-70 mt-1">Use the cream palette</div>
+                </div>
+                <button
+                  onClick={onLightModeToggle}
+                  className={`w-12 h-6 rounded-full transition-all ${
+                    isLightMode ? 'bg-accent-color' : 'bg-gray-600'
+                  }`}
+                  style={{
+                    backgroundColor: isLightMode ? 'var(--accent-color)' : '#666'
+                  }}
+                >
+                  <div
+                    className={`w-5 h-5 bg-white rounded-full transition-transform ${
+                      isLightMode ? 'translate-x-6' : 'translate-x-0.5'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
             <h3 className="text-lg font-semibold mb-4" style={{color: 'var(--accent-color)'}}>
               Features
             </h3>

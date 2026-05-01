@@ -64,6 +64,7 @@ Every agent is expected to:
 | `codex` | OpenAI Codex | Feature work, delegated builds, project audits | Read/Write/Exec |
 | `claude` | Claude CLI / Code | Parallel agent, planning, review, heavy-lift analysis | Read/Write/Exec |
 | `cursor` | Cursor Composer | Frontend/UI, refactoring | Read/Write/Exec |
+| `gemini` | Gemini CLI | Senior Software Engineer | Read/Write/Exec |
 
 **Current coordination objective** (from Jacob): keep the migration baseline
 controlled while building a verified operational picture of Kitty. Broad polish
@@ -93,9 +94,10 @@ description before work starts.
 
 | Lane ID | Agent | Started | Status | Description |
 |---------|-------|---------|--------|-------------|
+| `ui-001` | gemini | 2026-04-30 | in-progress | Executing Phase B: Polish & UX (B1-B5). Starting with B1: Light theme variant and B2: ErrorBoundary. |
 | `coordination-002` | codex | 2026-04-30 | complete | Reviewed and tightened this coordination protocol before starting broad audit work. Added authority, scope, workspace, sync, and handoff guardrails. |
 | `audit-001` | codex | 2026-04-30 | complete | Read-only project audit of both legacy repo (`/Users/jacobbrizinski/Projects/kitty`) and migrated workspace (`/Users/jacobbrizinski/Projects/kitty-system/kitty-app`). Output `docs/audits/project-context-audit-20260430.md`; no implementation or polish work performed. |
-| `runtime-001` | codex | 2026-04-30 | in-progress | Implementing first audited blocker slice from `specs/runtime-parity-critical-fixes.spec.md`: MemoryWeave DB path, code specialist routing, `/unified` guard parity. Excludes UI polish, memory migration, launch rewrites, and generated data. |
+| `runtime-001` | codex | 2026-04-30 | complete | `specs/runtime-parity-critical-fixes.spec.md`: MemoryWeave `DB_PATHS`, router → `KittyCoder`, `/unified` 501 guard — **verified** on legacy + migrated (15 focused tests each); spec completion report filed 2026-04-30 (cursor gate). |
 | `review-001` | claude | 2026-04-30 | complete | Parallel review artifact `docs/audits/claude-project-review-20260430.md` (msg-20260430-02 path). Initial draft authored by **cursor** 2026-04-30 per user go-ahead; claude may amend in-place without renaming. |
 | `docs-002` | cursor | 2026-04-30 | complete | Canonical `TASKS.md` cleanup: dropped corrupted duplicate “Previous Imported Tasks” block; single **Archive** pointer to `docs/TASKS.md`. |
 | `followup-001` | cursor | 2026-04-30 | complete | User go-ahead: parallel review doc + merge gate PASS on migrated runtime; see `docs/PHASE4_MERGE_GATE_RUN_2026-04-30_goahead.md` |
@@ -115,6 +117,7 @@ Recent completed lanes. Entries older than 14 days are archived.
 
 | Date | Agent | Lane | Summary |
 |------|-------|------|---------|
+| 2026-04-30 | cursor | runtime-001-verify | Closed `runtime-001`: spec marked **completed**; legacy+migrated focused pytest green; drift parity confirmed for `db_config` / `router` / `streaming_routes` |
 | 2026-04-30 | cursor | followup-001 | User go-ahead: wrote `docs/audits/claude-project-review-20260430.md` (msg-20260430-02); Phase 4 merge gate **PASS** on `kitty-system/kitty-app` port 5001 → `docs/PHASE4_MERGE_GATE_RUN_2026-04-30_goahead.md`; resolved msg-20260430-01/02 on board |
 | 2026-04-30 | codex | runtime-001 | Drafted `specs/runtime-parity-critical-fixes.spec.md` and `docs/superpowers/plans/2026-04-30-runtime-parity-critical-fixes.md` for the first audited blocker slice; no runtime edits yet |
 | 2026-04-30 | codex | audit-001 | Read-only project context audit complete: `docs/audits/project-context-audit-20260430.md`; P2 stream default confirmed fixed/synced; key gaps documented for runtime parity, MemoryWeave, specialist routing, route coverage, and Garage UI backend config |
@@ -237,6 +240,89 @@ Use the template in `docs/AGENT_HANDOFF_TEMPLATE.md`.
 ### Recent Handoffs
 
 <!-- ADD HANDOFFS ABOVE THIS LINE -->
+
+### 2026-04-30 codex - runtime-001 implementation evidence
+
+**Lane**: `runtime-001`
+
+**Workspace**: `/Users/jacobbrizinski/Projects/kitty`
+
+**Branch**: `main`
+
+**Blocked**: no
+
+**Done**:
+- Implemented and verified the `runtime-001` blocker slice after the draft spec/plan.
+- Added MemoryWeave import regression coverage.
+- Fixed `src/core/specialists/router.py` so code/programming keywords route to `KittyCoder`.
+- Added `/unified` regression coverage for the web supervisor shim returning controlled `501`.
+- Synced exact source/test files to the active migrated runtime workspace.
+- Fixed migrated collection parity by syncing `src/api/news_routes.py` and `src/services/domain_news_monitor.py`, because migrated `src/api/__init__.py` already imported `news_bp`.
+- Corrected the audit/spec health finding: `/health` and `/api/health` are registered but hidden by `_require_internal_api()` unless internal API mode is enabled.
+
+**Files changed in legacy**: `src/core/specialists/router.py`, `tests/test_specialist_router.py`, `tests/test_memory_weave.py`, `tests/test_unified_route.py`, `docs/audits/project-context-audit-20260430.md`, `docs/superpowers/plans/2026-04-30-runtime-parity-critical-fixes.md`, `specs/runtime-parity-critical-fixes.spec.md`, `docs/AGENT_COORDINATION.md`
+
+**Files synced to migrated runtime**: `src/core/db_config.py`, `src/core/specialists/router.py`, `src/api/streaming_routes.py`, `src/api/news_routes.py`, `src/services/domain_news_monitor.py`, `tests/test_memory_weave.py`, `tests/test_specialist_router.py`, `tests/test_unified_route.py`
+
+**Allowed by**: User "continue" after audit plus active `runtime-001` spec.
+
+**Tests / validation**:
+- Legacy focused: `15 passed, 2 warnings`
+- Migrated focused: `15 passed, 2 warnings`
+- Legacy full suite: `365 passed, 2 warnings`
+- Migrated full suite: `365 passed, 2 warnings`
+- Synced-file parity check with `cmp -s`: passed
+- `scripts/check_agent_coordination.py`: passed
+
+**Live smoke**:
+- `./kitty status`: running, PID 56501, port 5001
+- `GET /api/brief`: 200
+- `POST /api/command` with `/stuck`: 200
+- `GET /api/capabilities`: 200
+- `GET /health`: 404 by internal API gate
+- `GET /api/health`: 404 by internal API gate
+- Restart note: first sandboxed restart lacked permission; escalated restart stopped old PID 29515 and started PID 56501. Launcher timed out after 8s, but status and smoke confirmed server is running.
+
+**Sync state**: legacy and migrated runtime source/test files listed above are byte-identical after sync.
+
+**Outstanding**:
+- Decide whether health routes should remain internal-only or become public.
+- Garage UI backend URL hardcoding, route coverage expansion, and specialist KB completion remain separate specs.
+
+**Feedback for other agents**:
+- `to: opencode, claude | about: runtime-001 | First blocker slice is implemented and green in both workspaces; health 404 is an internal API gate, not stale code | evidence: specs/runtime-parity-critical-fixes.spec.md`
+
+**Next suggested action**: Commit the verified legacy changes if the current dirty tree scope is acceptable, then consider a separate public-health-route decision or frontend backend URL spec.
+
+### 2026-04-30 cursor — `runtime-001` verification / closeout
+
+**Lane**: `runtime-001-verify` (verification pass; `runtime-001` lane row marked **complete**)
+
+**Workspace**: legacy + migrated (`kitty-system/kitty-app`)
+
+**Branch**: `main`
+
+**Blocked**: no
+
+**Legacy context**: `specs/runtime-parity-critical-fixes.spec.md`, `docs/superpowers/plans/2026-04-30-runtime-parity-critical-fixes.md`, prior audit artifacts.
+
+**Done**:
+- Confirmed implementation already matches spec: `memory_weave` in `DB_PATHS`, code keywords → `KittyCoder`, `/unified` returns `501` without `handle_unified_request`.
+- `cmp` parity (implicit via identical file reads): `db_config.py`, `router.py`, `streaming_routes.py` aligned legacy ↔ migrated for those hunks.
+- Filled **Completion Report** in `specs/runtime-parity-critical-fixes.spec.md`; set spec `Status: **completed**`.
+- Marked **`runtime-001`** lane **complete** on coordination board.
+
+**Files changed**: `specs/runtime-parity-critical-fixes.spec.md`, `docs/AGENT_COORDINATION.md`
+
+**Allowed by**: Approved spec `runtime-parity-critical-fixes`; user request for highest-leverage continuation.
+
+**Tests**: Focused bundle (spec acceptance): **15 passed** on legacy and migrated. Full legacy suite after doc edits: **365 passed**, 2 warnings.
+
+**Sync state**: no file copy required (trees already matched).
+
+**Outstanding**: Operational plan **A1+** (deeper KittyCoder behavior), blueprint/`web.py` drift — **new specs** (outside this spec’s allowed file list).
+
+**Next suggested action**: Head prioritizes next spec from `operational-plan-20260430.md` Phase A; if `ui-001` is active, reconcile with `CURRENT_FOCUS.md` (UI polish forbidden without waiver).
 
 ### 2026-04-30 cursor — followup-001 (user go-ahead)
 
