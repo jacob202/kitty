@@ -1,131 +1,196 @@
-# Kitty — Handoff (2026-04-27)
+# Kitty — Handoff to Gemini
+
+Date: 2026-04-30
+From: OpenCode (Claude)
+To: Gemini
+Suite: 363 passed, 2 warnings
+Repo: `git@github.com:anomalyco/kitty` (not confirmed — verify before pushing)
+
+---
 
 ## What Kitty Is
+
 Personal AI assistant for Jacob Brizinski (Regina, SK). Three domains: hardware repair
 (Sansui AU-7900 amplifier), automotive (Honda Ridgeline J35A9), and daily life / self-improvement.
 Runs locally on a Mac with Apple Silicon.
 
 ## Stack
+
 | Layer | Tech | Port |
 |-------|------|------|
 | Frontend | Next.js 16 + React 18 + Tailwind | 3000 |
 | Backend | Flask + Flask-SocketIO | 5001 |
-| Local LLM | MLX + Qwen3.5-4B-4bit | — |
-| Fallback | OpenRouter (free tier → DeepSeek-R1) | — |
-| Memory | SQLite-vec + LightRAG + Honcho | — |
+| Local LLM | MLX + Qwen3.5-4B-4bit (not yet downloaded) | — |
+| Fallback | OpenRouter (DeepSeek-R1) | — |
+| Memory | SQLite-vec + LightRAG + Honcho + ChromaDB | — |
 
-Start everything: `./scripts/start.sh`
+Start everything: `./scripts/start.sh` or `./kitty start`
 
-## Repo Layout
-```
-src/
-  api/            Flask routes + SSE streaming
-  core/           specialist_framework, circuit_breaker, silent_enhancer
-  core/specialists/  11 specialist classes (Mike, Kelly, etc.) + registry.py
-  space_kitty/    personality, core_orchestrator, llm_client
-  memory/         KittyMemoryEnhanced, LightRAG store
-  services/       context_service.py (KB query, LightRAG wrapper)
-  autonomy/       safe_patch.py (worktree-based auto-patching)
-  agents/         custom_agents.py, AgentSpec dataclass
-config/specialists/  .md personality files + .json tool configs per specialist
-garage-ui/        Next.js frontend (the actual UI Jacob uses)
-tests/            116 passing
-```
+---
 
-## Current State: Working
-- **Frontend** — warm dark theme, orange tabby mascot, markdown chat bubbles,
-  pill input bar, mobile-responsive (sidebar hidden on small screens, ☰ menu)
-- **LAN / mobile access** — Next.js binds 0.0.0.0, start.sh prints mobile URL,
-  `allowedDevOrigins` configured in `garage-ui/next.config.js`
-- **SOUL.md** — injected into every web chat via `web_orchestrator._get_soul()`
-- **Morning brief** — fires on socket connect via `executeCommand('/brief')`
-- **Thinking tokens** — routed to ThinkingMonologue, not chat
-- **Mike (automotive)** — full J35A9 KB loaded: fuel trim thresholds, Bank 2 gasket,
-  VTC rattle, TC shudder, Regina pricing
-- **mlx-lm 0.31.3** — installed in venv; model not yet downloaded (see below)
-- **Tests** — 116/116 passing
+## Critical: Two Workspaces
 
-## Uncommitted Changes (all safe, tests pass)
-Run this commit to clean up:
+Kitty now lives in TWO places. **The active workspace is NOT a git repo.**
+
+| Path | Purpose | Git? | Tests |
+|------|---------|------|-------|
+| `/Users/jacobbrizinski/Projects/kitty` | Legacy rollback | Yes | 363 pass |
+| `/Users/jacobbrizinski/Projects/kitty-system/kitty-app` | **Active daily runtime** | No | Same code |
+
+**Protocol**: Do all git work in the legacy repo. After committing, `cp` changed files to the migrated workspace. The migrated workspace is where `./kitty start` runs from.
+
 ```bash
-git add garage-ui/app/page.tsx garage-ui/next.config.js \
-  src/api/system_routes.py src/core/specialist_framework.py \
-  src/services/ src/core/specialists/registry.py \
-  src/core/silent_enhancer.py src/core/circuit_breaker.py \
-  src/autonomy/__init__.py src/autonomy/safe_patch.py \
-  config/specialists/*.json scripts/validate.sh autolaunch.sh \
-  tests/test_core_circuit_breaker.py tests/test_silent_enhancer.py \
-  tests/test_safe_patch.py tests/test_eval_loop_logging.py \
-  tests/test_phonetic_scrubber.py src/eval/__init__.py \
-  garage-ui/app/components/ActiveNodes.tsx
-git rm src/graphs/__init__.py src/graphs/hardware_subgraph.py \
-  src/graphs/investigative_subgraph.py src/graphs/main_graph.py \
-  src/modules/__init__.py src/modules/kitty_software_analysis.py \
-  src/modules/persona_engine.py src/modules/prompt_enhancer.py \
-  src/modules/visual_diagram_generator.py src/sensory/__init__.py \
-  src/modules/test_files/pe32.exe
-```
-Also add `evals/artifacts/` to `.gitignore` — 100+ JSON files shouldn't be tracked.
+# Step 1: Edit + test + commit in legacy repo
+cd /Users/jacobbrizinski/Projects/kitty
+# ... edit files ...
+git add <files>
+git commit -m "description"
 
-## Next Steps (ordered)
+# Step 2: Sync changed files to migrated workspace
+cp /Users/jacobbrizinski/Projects/kitty/<file> /Users/jacobbrizinski/Projects/kitty-system/kitty-app/<file>
 
-### 1. Commit the backlog (5 min)
-Use the git commands above. All 116 tests pass. Just needs staging.
-
-### 2. Download the MLX model (one-time, ~2.5 GB)
-```bash
-venv/bin/python3.12 -c "from mlx_lm import load; load('mlx-community/Qwen3.5-4B-4bit')"
-```
-Until this runs, every query falls through to OpenRouter. Set in `.env`:
-```
-KITTY_ENABLE_LOCAL_MLX=1
-MLX_MODEL=mlx-community/Qwen3.5-4B-4bit
+# Step 3: Run server from migrated workspace
+cd /Users/jacobbrizinski/Projects/kitty-system/kitty-app
+./kitty start
 ```
 
-### 3. Wire OBD folder watcher (high value)
-A parallel agent session built a complete OBD Fusion CSV watcher in
-`/Users/jacobbrizinski/Library/Application Support/Claude/local-agent-mode-sessions/beae0a60-*/outputs/app/agents/automotive/data_sources/folder_watch.py`
+---
 
-It watches iCloud OBD paths, debounces 3s, parses CSVs, writes `.context/latest.md`.
-Mike's fuel trim knowledge is useless without real OBD data — this is the highest-value
-unshipped feature. Port to `src/data_sources/obd_watcher.py` and inject via Mike's specialist.
+## What OpenCode Just Did (This Session)
 
-### 4. Test UI on phone
-Restart server → hit `http://172.16.1.161:3000` (or whatever the LAN IP is) → verify:
-- Orange tabby mascot
-- Warm brown/orange theme (not black terminal)
-- Markdown renders in responses
-- ☰ menu opens sidebar on mobile
-- Mic button works (iOS MIME fix is in page.tsx)
+### Built: Agent Coordination Protocol
+Three new files:
+- `docs/AGENT_COORDINATION.md` — shared communication board for all agents. Has active lanes, inter-agent messages, feedback queue, debate topics, learnings log. Agents read this at session start, leave handoff at session end.
+- `docs/AGENT_HANDOFF_TEMPLATE.md` — template for agent handoffs
+- `specs/agent-coordination.spec.md` — spec for the coordination system
 
-### 5. Remaining UI polish
-- Light/warm theme toggle (v2 had `#FAF7F2` cream palette ready to go)
-- Mode indicator pill in header (`● HARDWARE`)
-- Thinking bubble slide-in animation
+Four registered agents: `opencode`, `codex`, `claude`, `cursor`. All use the same coordination board. **Read `docs/AGENT_COORDINATION.md` at session start.**
 
-## Key Files to Know
+### Ran: Full Project Audit (4 parallel explore agents)
+Results synthesized into:
+- `docs/audits/project-context-audit-20260430.md` — complete audit (all 4 domains)
+- `docs/audits/operational-plan-20260430.md` — milestone plan: Phase A (blockers) through Phase D (capability completion)
+
+### Executed: Phase A — Critical Blockers (ALL FIXED)
+
+| # | What | Why |
+|---|------|-----|
+| A2 | `src/core/db_config.py` — added `memory_weave` to `DB_PATHS` | MemoryWeave crashed on import. CorrectionWorker cascade broken. |
+| A6 | `config/SOUL.md` — created with full personality | KittySoulSpecialist fell back to 4-line hardcoded prompt |
+| A3 | Removed `honcho_bp` dead blueprint from `src/api/__init__.py` + `web.py` | Registered but had zero routes |
+| A5 | Guarded `/unified` and `/council` routes in `streaming_routes.py` | Crashed calling missing supervisor methods. Now return 501. |
+| A4 | Added 10 supervisor shim methods in `web.py:_SupervisorShim` | ~8 slash commands called missing methods, crashed. Now return "not available in web mode." |
+| A1 | Rewired `KittyCoderSpecialist` in `src/core/specialists/code.py` | Was a hard stub — canned responses, no LLM, no KB. Now extends `BaseSpecialist` with real LLM + KB. |
+
+### Also done
+- `KITTY_WEB_DEFAULT_MODE` env var: default is `fast` (local-first) — `src/api/shared.py:default_web_chat_mode()`
+- Phase 4 merge gate: automated script at `scripts/run_phase4_merge_gate.sh`
+- SOUL.md injection into web chat via `web_orchestrator._get_soul()`
+
+---
+
+## Pending: Phase B — Polish & UX
+
+**This is what you should work on.** Phase A blockers are cleared. The app is functional but rough.
+
+### B1: Light theme variant (HIGH — ~30m)
+User wants dark/light toggle. v2 had cream `#FAF7F2` palette ready.
+- `garage-ui/app/globals.css` — has 4 dark theme classes but NO light theme
+- Need: `.theme-light` CSS class + toggle in SettingsModal or header
+- Design tokens at `:root` in globals.css
+
+### B2: React ErrorBoundary (HIGH — ~10m)
+No error boundary exists — any component throwing unmounts the entire app.
+- Add `garage-ui/app/components/ErrorBoundary.tsx`
+- Wrap `<main>` in `page.tsx`
+
+### B3: Mobile access to sidebar + inspector (HIGH — ~20m)
+Both are `md:flex` only (hidden on mobile). Mobile users can't access thinking, suggestions, schematic upload, or memory archive.
+- Options: bottom sheet, swipeable drawer, or tab bar at bottom
+
+### B4: Toast notification system (HIGH — ~20m)
+7+ places silently swallow errors (`catch {}` or `catch(() => {})`).
+- Build ToastProvider + useToast hook
+- Wire into settings save, journal save, voice recording, memory fetch
+
+### B5: Inspector SVG sanitization (MEDIUM — ~5m)
+`Inspector.tsx` uses `dangerouslySetInnerHTML` on backend SVG. Needs DOMPurify or sanitization.
+
+Other Phase B items (see `docs/audits/operational-plan-20260430.md`):
+- B6: Settings modal model dropdown persistence
+- B7: Click-outside-to-close on CommandPalette + SettingsModal
+- B8: Mode indicator pill in header
+
+---
+
+## Key Files Map
+
 | File | Purpose |
 |------|---------|
-| `web.py` | Flask app entry point, `create_app()` |
-| `src/api/web_orchestrator.py` | NL chat routing (fast/balanced/max), SOUL injection |
-| `src/space_kitty/core_orchestrator.py` | Slash command routing, specialist dispatch |
-| `src/space_kitty/personality.py` | Loads SOUL.md sections |
-| `config/specialists/SOUL.md` or `src/space_kitty/SOUL.md` | Jacob's profile, communication style |
-| `config/specialists/mike.md` | Mike's automotive personality + J35A9 expertise |
-| `garage-ui/app/page.tsx` | Main dashboard — all state, sockets, SSE |
-| `garage-ui/app/components/ChatInterface.tsx` | Chat UI with markdown rendering |
-| `garage-ui/app/globals.css` | Design tokens (warm dark palette) |
+| `web.py` | Flask entry, `create_app()`, `_SupervisorShim` |
+| `src/api/streaming_routes.py` | 15+ routes including SSE stream, chat, broken ones guarded |
+| `src/api/socket_handlers.py` | Socket.IO handlers — `send_message` dispatches to CoreOrchestrator |
+| `src/core/specialist_framework.py` | `BaseSpecialist` (ABC), `SpecialistResponse`, `SpecialistRegistry` |
+| `src/core/specialists/` | 11 specialist classes + registry |
+| `src/core/specialists/code.py` | Just fixed — now extends BaseSpecialist |
+| `src/core/specialists/soul.py` | `KittySoulSpecialist` — reads `config/SOUL.md` |
+| `config/SOUL.md` | Just created — core personality prompt |
+| `config/specialists/*.md` | Per-specialist soul files (personality + system prompt) |
+| `config/specialists/*.json` | Per-specialist tool configs |
+| `garage-ui/app/page.tsx` | Main dashboard — all state, 18 useState, socket + SSE |
+| `garage-ui/app/components/ChatInterface.tsx` | Chat UI with markdown + mascot |
+| `garage-ui/app/globals.css` | Design tokens (warm dark palette, 4 theme classes) |
+| `docs/AGENT_COORDINATION.md` | **Read this first** — inter-agent comms board |
+| `docs/audits/operational-plan-20260430.md` | Full milestone plan A→D |
+| `docs/DECISIONS.md` | Durable project decisions |
+| `docs/FILE_GOVERNANCE.md` | Edit boundaries, protected files |
+| `CURRENT_FOCUS.md` | What's allowed/forbidden right now |
 
-## Model Routing
-| Tier | Model | When |
-|------|-------|------|
-| Fast (default) | MLX Qwen3.5-4B local | All queries when model is downloaded |
-| Balanced | openrouter/free | MLX fallback |
-| Max | deepseek/deepseek-r1-0528 | Explicit `/max` or reasoning flag |
-| Emergency | claude-haiku-4-5 | All else fails |
+---
 
-## Known Issues / Watch Points
-- `src/core/specialist_framework.py` imports `src.agents.custom_agents.AgentSpec` — that file exists at `src/agents/custom_agents.py`, import resolves fine
-- `evals/artifacts/` accumulates JSON files on every eval run — add to `.gitignore`
-- MLX model is not cached yet — first run will try to download; if offline it will fail and fall through to OpenRouter
-- `garage-ui/next.config.js` must exist for LAN access to work (allowedDevOrigins)
+## Agent Coordination Protocol
+
+You are agent `gemini` — add yourself to the registry in `docs/AGENT_COORDINATION.md`:
+
+1. Read the board at session start
+2. Claim a lane before touching code
+3. Leave a handoff at session end
+4. Run autonomously — no asking for permission
+5. Validate (tests), commit (legacy repo), sync (migrated workspace), move to next task
+
+---
+
+## Validation Minimum
+
+```bash
+# Tests
+/opt/homebrew/bin/python3.12 -m pytest tests/ -q --tb=short
+
+# Server
+cd /Users/jacobbrizinski/Projects/kitty-system/kitty-app && ./kitty status
+
+# Smoke
+curl -sS http://localhost:5001/api/brief
+curl -sS -X POST http://localhost:5001/api/command -H "Content-Type: application/json" -d '{"command":"/stuck"}'
+curl -sS -X POST http://localhost:5001/api/chat -H "Content-Type: application/json" -d '{"message":"smoke test","domain":"chat"}'
+
+# Frontend
+cd garage-ui && npx tsc --noEmit --incremental false && npm run build
+```
+
+---
+
+## Boundaries (DO NOT)
+
+- Delete raw chat logs (`data/sessions/`)
+- Delete eval artifacts (`evals/artifacts/`)
+- Touch `Icon\r` files (protected tree metadata)
+- Move or rename `/Users/jacobbrizinski/Projects/kitty`
+- Expand MCP, QLoRA, or proactive nudging
+- Delete or commit generated databases
+
+---
+
+## Commit Style
+
+Short, descriptive: `"Add thing: what it does"`. No multi-paragraph messages. Pre-commit hook runs full `pytest` before allowing commit (~15s).
