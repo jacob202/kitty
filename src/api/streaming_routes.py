@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import queue
 import tempfile
 import threading
 import time
@@ -11,20 +12,11 @@ from pathlib import Path
 from flask import Blueprint, Response, current_app, jsonify, render_template, request
 
 from src.api.shared import chat_rate_limiter, default_web_chat_mode, token_broadcaster
-
-
-def _get_busy_lock():
-    """Get or create the app-level busy lock, ensuring it's set once."""
-    lock = getattr(current_app, "_busy_lock", None)
-    if lock is None:
-        lock = threading.Lock()
-        current_app._busy_lock = lock
-    return lock
-
-
-def _run_with_app_context(app, func):
-    with app.app_context():
-        func()
+from src.api.streaming_helpers import (
+    get_busy_lock,
+    run_with_app_context,
+    spawn_broadcasting_task,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +90,7 @@ def stream():
 
         app = current_app._get_current_object()
         threading.Thread(
-            target=_run_with_app_context, args=(app, run_cmd), daemon=True
+            target=run_with_app_context, args=(app, run_cmd), daemon=True
         ).start()
     else:
         # Natural language → web orchestrator (direct LLM streaming, no CoreOrchestrator)
@@ -150,7 +142,7 @@ def stream():
                         logger.debug(f"[SSE] Stream completed for {client_id} ({kind})")
                         break
 
-                except __import__("queue").Empty:
+                except queue.Empty:
                     now = time.time()
                     if now - last_activity > heartbeat_interval:
                         status = "processing" if q.qsize() > 0 else "waiting"
@@ -256,7 +248,7 @@ def chat():
             token_broadcaster.broadcast("error", "Request timed out after 120s")
 
     app = current_app._get_current_object()
-    threading.Thread(target=_run_with_app_context, args=(app, run), daemon=True).start()
+    threading.Thread(target=run_with_app_context, args=(app, run), daemon=True).start()
     return jsonify({"ok": True})
 
 
@@ -277,18 +269,10 @@ def unified():
     if not hasattr(sup, "handle_unified_request"):
         return jsonify({"ok": False, "error": "Unified request not yet implemented"}), 501
 
-    def run():
-        lock = _get_busy_lock()
-        with lock:
-            try:
-                sup.handle_unified_request(message)
-            except Exception as e:
-                token_broadcaster.broadcast("error", f"Unified Error: {e}")
-            finally:
-                token_broadcaster.broadcast("done", "")
-
-    app = current_app._get_current_object()
-    threading.Thread(target=_run_with_app_context, args=(app, run), daemon=True).start()
+    spawn_broadcasting_task(
+        lambda: sup.handle_unified_request(message),
+        error_prefix="Unified Error",
+    )
     return jsonify({"ok": True})
 
 
@@ -297,7 +281,7 @@ def council():
     if not chat_rate_limiter.is_allowed(request.remote_addr or "unknown"):
         return jsonify({"error": "Rate limited. Try again later."}), 429
 
-    busy_lock = _get_busy_lock()
+    busy_lock = get_busy_lock()
     if busy_lock.locked():
         return jsonify({"error": "Busy..."}), 429
 
@@ -314,18 +298,10 @@ def council():
     if not hasattr(sup, "assemble_council"):
         return jsonify({"error": "Specialist council not yet implemented"}), 501
 
-    def run_council():
-        lock = busy_lock
-        with lock:
-            try:
-                sup.assemble_council(query)
-            except Exception as e:
-                token_broadcaster.broadcast("error", f"Council Error: {e}")
-            finally:
-                token_broadcaster.broadcast("done", "")
-
-    app = current_app._get_current_object()
-    threading.Thread(target=_run_with_app_context, args=(app, run_council), daemon=True).start()
+    spawn_broadcasting_task(
+        lambda: sup.assemble_council(query),
+        error_prefix="Council Error",
+    )
     return jsonify({"status": "Recruiting experts..."})
 
 
@@ -333,18 +309,10 @@ def council():
 def brief():
     sup = current_app.supervisor
 
-    def run():
-        lock = _get_busy_lock()
-        with lock:
-            try:
-                sup.morning_brief()
-            except Exception as e:
-                token_broadcaster.broadcast("error", f"Brief Error: {e}")
-            finally:
-                token_broadcaster.broadcast("done", "")
-
-    app = current_app._get_current_object()
-    threading.Thread(target=_run_with_app_context, args=(app, run), daemon=True).start()
+    spawn_broadcasting_task(
+        lambda: sup.morning_brief(),
+        error_prefix="Brief Error",
+    )
     return jsonify({"ok": True})
 
 
@@ -352,18 +320,10 @@ def brief():
 def optic():
     sup = current_app.supervisor
 
-    def run():
-        lock = _get_busy_lock()
-        with lock:
-            try:
-                sup.run("/optic")
-            except Exception as e:
-                token_broadcaster.broadcast("error", f"Optic Error: {e}")
-            finally:
-                token_broadcaster.broadcast("done", "")
-
-    app = current_app._get_current_object()
-    threading.Thread(target=_run_with_app_context, args=(app, run), daemon=True).start()
+    spawn_broadcasting_task(
+        lambda: sup.run("/optic"),
+        error_prefix="Optic Error",
+    )
     return jsonify({"ok": True})
 
 
@@ -371,18 +331,10 @@ def optic():
 def horizon():
     sup = current_app.supervisor
 
-    def run():
-        lock = _get_busy_lock()
-        with lock:
-            try:
-                sup.run("/horizon")
-            except Exception as e:
-                token_broadcaster.broadcast("error", f"Horizon Error: {e}")
-            finally:
-                token_broadcaster.broadcast("done", "")
-
-    app = current_app._get_current_object()
-    threading.Thread(target=_run_with_app_context, args=(app, run), daemon=True).start()
+    spawn_broadcasting_task(
+        lambda: sup.run("/horizon"),
+        error_prefix="Horizon Error",
+    )
     return jsonify({"ok": True})
 
 
