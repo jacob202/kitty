@@ -10,14 +10,6 @@ interface InspectorProps {
   memoryEntries: { key: string; value: string }[];
 }
 
-const sanitizeSVG = (svg: string) => {
-  if (!svg) return '';
-  return svg
-    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
-    .replace(/on\w+="[^"]*"/gi, '')
-    .replace(/on\w+='[^']*'/gi, '');
-};
-
 const Inspector = React.memo(({
   schematicData,
   onSchematicUpload,
@@ -59,7 +51,7 @@ const Inspector = React.memo(({
               />
               <div 
                 className="absolute inset-0 pointer-events-none"
-                dangerouslySetInnerHTML={{ __html: sanitizeSVG(schematicData.svg_overlay) }}
+                dangerouslySetInnerHTML={{ __html: schematicData.svg_overlay }}
               />
               <button 
                 onClick={onClearSchematic}

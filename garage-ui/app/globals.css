@@ -54,20 +54,6 @@
   --mode-indicator: "HARDWARE";
 }
 
-/* Light Mode (Cream Palette) */
-.theme-light {
-  --bg-color: #FAF7F2;
-  --panel-bg: #FFFFFF;
-  --border-color: #E6DED4;
-  --text-main: #3D3028;
-  --dim-text: #8A7E75;
-  --accent-color: #E8743C;
-  --accent-hover: #D4622A;
-  --shadow: 0 1px 3px rgba(0,0,0,0.05);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
-  --mode-indicator: "LIGHT";
-}
-
 /* Investigative Mode (Green) */
 .theme-investigative {
   --bg-color: #020a08;

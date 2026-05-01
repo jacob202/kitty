@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { DensityProvider } from './components/DensityContext'
-import { ToastProvider } from './components/Toast'
 
 export const metadata: Metadata = {
   title: 'Orange Lab',
@@ -16,11 +15,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <ToastProvider>
-          <DensityProvider>
-            {children}
-          </DensityProvider>
-        </ToastProvider>
+        <DensityProvider>
+          {children}
+        </DensityProvider>
       </body>
     </html>
   )
