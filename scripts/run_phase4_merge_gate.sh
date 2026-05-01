@@ -89,9 +89,10 @@ fi
 
 mkdir -p "$(dirname "${REPORT_PATH}")"
 
-if [[ -f "${REPORT_PATH}" ]]; then
-  REPORT_PATH="${REPORT_PATH%.md}_$(date +%H%M%S).md"
-fi
+# Always start from a clean report file. (Renaming on collision used to leave a
+# stale path behind while writes went to a suffixed filename — bad for CI and
+# for tests/test_phase4_merge_gate_report_path.py.)
+rm -f "${REPORT_PATH}"
 
 fail_count=0
 

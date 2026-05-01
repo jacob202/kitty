@@ -19,7 +19,7 @@ def test_merge_gate_relative_report_written_under_project_not_cwd(tmp_path: Path
     """From a foreign cwd, a relative --report path must land under --project (see D-0011)."""
     bash = shutil.which("bash")
     assert bash is not None
-    slug = uuid.uuid4().hex[:12]
+    slug = uuid.uuid4().hex
     rel_name = f"docs/_merge_gate_anchor_{slug}.md"
     expected = REPO_ROOT / rel_name
     if expected.exists():
