@@ -344,6 +344,9 @@ export default function GarageDashboard() {
           <div className="flex items-center gap-2">
             <div className={`w-2 h-2 rounded-full flex-shrink-0 ${systemHealth.websocket === 'connected' ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`}></div>
             <span className="hidden sm:inline text-[10px] font-bold tracking-tighter opacity-70">KITTY_CORE v0.4</span>
+            <div className="hidden xs:flex items-center gap-2 px-2 py-0.5 rounded-full border border-[var(--accent-color)] text-[8px] font-bold tracking-widest text-[var(--accent-color)] ml-2">
+              {currentMode.toUpperCase()}
+            </div>
           </div>
           <div className="flex rounded-xl p-0.5" style={{ background: 'var(--panel-bg)', border: '1px solid var(--border-color)' }}>
             <button

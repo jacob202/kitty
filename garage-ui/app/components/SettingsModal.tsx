@@ -45,6 +45,7 @@ export default function SettingsModal({ isOpen, onClose, currentMode, onModeChan
   });
 
   const [loading, setLoading] = useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -66,25 +67,32 @@ export default function SettingsModal({ isOpen, onClose, currentMode, onModeChan
     }
   };
 
-  const updateSetting = async (feature: string, enabled: boolean) => {
+  const updateSetting = async (key: string, value: any, isModel = false) => {
     setLoading(true);
     try {
       const backendHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
       const response = await fetch(`http://${backendHost}:5001/api/settings/update`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [feature]: enabled })
+        body: JSON.stringify({ [key]: value })
       });
       
       if (response.ok) {
-        setSettings(prev => ({
-          ...prev,
-          features: {
-            ...prev.features,
-            [feature]: { ...prev.features[feature as keyof typeof prev.features], enabled }
-          }
-        }));
-        toast(`${feature.replace(/_/g, ' ')} updated`, 'success');
+        if (isModel) {
+          setSettings(prev => ({
+            ...prev,
+            models: { ...prev.models, [key]: value }
+          }));
+        } else {
+          setSettings(prev => ({
+            ...prev,
+            features: {
+              ...prev.features,
+              [key]: { ...prev.features[key as keyof typeof prev.features], enabled: value }
+            }
+          }));
+        }
+        toast(`${key.replace(/_/g, ' ')} updated`, 'success');
       } else {
         toast('Failed to update setting', 'error');
       }
@@ -99,8 +107,15 @@ export default function SettingsModal({ isOpen, onClose, currentMode, onModeChan
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="rounded-lg shadow-2xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto" style={{
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      onClick={(e) => {
+        if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+          onClose();
+        }
+      }}
+    >
+      <div ref={containerRef} className="rounded-lg shadow-2xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto" style={{
         backgroundColor: 'var(--panel-bg)',
         borderColor: 'var(--accent-color)',
         border: '1px solid var(--accent-color)'
@@ -226,10 +241,8 @@ export default function SettingsModal({ isOpen, onClose, currentMode, onModeChan
                   </label>
                   <select
                     value={model}
-                    onChange={(e) => setSettings(prev => ({
-                      ...prev,
-                      models: { ...prev.models, [key]: e.target.value }
-                    }))}
+                    onChange={(e) => updateSetting(key, e.target.value, true)}
+                    disabled={loading}
                     className="w-full bg-transparent border rounded px-3 py-2 text-sm"
                     style={{
                       borderColor: 'var(--border-color)',
@@ -240,6 +253,8 @@ export default function SettingsModal({ isOpen, onClose, currentMode, onModeChan
                     <option value="deepseek-chat">DeepSeek Chat</option>
                     <option value="gemini-pro">Gemini Pro</option>
                     <option value="gpt-4">GPT-4</option>
+                    <option value="openrouter/free">OpenRouter Free</option>
+                    <option value="google/gemini-2.0-flash-001">Gemini 2.0 Flash</option>
                   </select>
                 </div>
               ))}
