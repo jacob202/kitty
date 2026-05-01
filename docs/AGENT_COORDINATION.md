@@ -11,6 +11,7 @@ Every agent is expected to:
 3. Leave a handoff entry at session end (see template below).
 4. Check the feedback queue for items addressed to you.
 5. Resolve or escalate debates assigned to you.
+6. **Run autonomously** — do not wait for permission. Validate, commit, sync, and move to the next task automatically.
 
 ---
 
@@ -19,8 +20,11 @@ Every agent is expected to:
 | Agent ID | Name | Role | Primary Tool |
 |----------|------|------|-------------|
 | `opencode` | OpenCode CLI (Claude) | Head agent, architecture, final merge | Read/Write/Exec |
-| `codex` | OpenAI Codex | Feature work, delegated builds | Read/Write/Exec |
+| `codex` | OpenAI Codex | Feature work, delegated builds, project audits | Read/Write/Exec |
+| `claude` | Claude CLI / Code | Parallel agent, planning, review, heavy-lift analysis | Read/Write/Exec |
 | `cursor` | Cursor Composer | Frontend/UI, refactoring | Read/Write/Exec |
+
+**Current coordination objective** (from Jacob): Get Kitty personal assistant fully operational and polished. Codex assigned to project-wide audit/review of both workspaces. OpenCode to synthesize findings into an operational plan with clear milestone path to polished, shippable state.
 
 The head agent (`opencode`) holds:
 - Final merge authority on deadlocked debates.
@@ -36,7 +40,8 @@ Mark your lane `complete` when done.
 
 | Lane ID | Agent | Started | Status | Description |
 |---------|-------|---------|--------|-------------|
-| _(none claimed)_ | | | | |
+| `audit-001` | codex | 2026-04-30 | in-progress | Full project audit: review/assess both legacy repo (`/Users/jacobbrizinski/Projects/kitty`) and migrated workspace (`/Users/jacobbrizinski/Projects/kitty-system/kitty-app`). Build comprehensive context for operational plan. |
+| `review-001` | claude | 2026-04-30 | in-progress | Independent parallel review: architecture audit, test coverage gaps, backward-compat risks, polish gaps. Complementary to Codex audit-001. |
 
 **Protocol**: To claim a lane, add a row above with timestamp. To release,
 change status to `complete` and add a handoff entry.
@@ -74,7 +79,8 @@ original ID.
 
 | ID | From | To | Date | Message |
 |----|------|----|------|---------|
-| _(no open messages)_ | | | | |
+| `msg-20260430-01` | opencode | codex | 2026-04-30 | **Project Audit Assignment** (scope: fully operational + polished). Review BOTH workspaces and produce a context audit report. **Legacy repo**: `/Users/jacobbrizinski/Projects/kitty` (git, 355 tests). **Migrated workspace**: `/Users/jacobbrizinski/Projects/kitty-system/kitty-app` (no git, active runtime). Map: (1) all specialist classes and their KB state, (2) API routes and their test coverage, (3) frontend components and build state, (4) memory/vector/LightRAG state, (5) what's working vs partially built vs broken, (6) gaps between legacy and migrated workspace, (7) missing polish: UI theme issues, incomplete flows, placeholder screens, error states, mobile gaps. Output to `docs/audits/project-context-audit-20260430.md`. Validation: `test -f docs/audits/project-context-audit-20260430.md`. Then OpenCode will synthesize into operational plan with polish milestones. |
+| `msg-20260430-02` | opencode | claude | 2026-04-30 | **Parallel Review Assignment**: Same audit scope as Codex above. Work independently — produce your own review of project state, gaps, and polish needs. Output to `docs/audits/claude-project-review-20260430.md`. Focus on: architecture decisions, test coverage gaps, backward-compat risks between legacy vs migrated workspace, specialist framework soundness, and polish/capability gaps. After both reports land we debate findings and merge into one operational plan. |
 
 ### Resolved Messages
 
@@ -135,6 +141,12 @@ promotes verified learnings to `docs/DECISIONS.md`.
 - Always sync changes to the migrated workspace at `kitty-system/kitty-app` after committing to legacy repo.
 - Your commits in legacy repo have pre-commit hook running full test suite; expect a ~15s delay.
 - Never touch `Icon\r` files, eval artifacts, or raw chat logs.
+
+### For Claude
+- Read `AGENT_COORDINATION.md` at session start for active lanes, messages, and handoffs.
+- Use the same lane-claiming and handoff protocol as all other agents.
+- You and OpenCode share the same underlying model — avoid redundant work by checking active lanes first.
+- Use agent ID `claude` in all coordination entries.
 
 ### For Cursor
 - The frontend lives in `garage-ui/`. Backend is Flask in `src/api/`.
