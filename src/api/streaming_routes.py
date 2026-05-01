@@ -274,6 +274,9 @@ def unified():
         return jsonify({"ok": False, "error": "No message provided"}), 400
 
     sup = current_app.supervisor
+    if not hasattr(sup, "handle_unified_request"):
+        return jsonify({"ok": False, "error": "Unified request not yet implemented"}), 501
+
     def run():
         lock = _get_busy_lock()
         with lock:
@@ -307,6 +310,9 @@ def council():
         return jsonify({"error": "No query"}), 400
 
     sup = current_app.supervisor
+
+    if not hasattr(sup, "assemble_council"):
+        return jsonify({"error": "Specialist council not yet implemented"}), 501
 
     def run_council():
         lock = busy_lock

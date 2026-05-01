@@ -40,7 +40,6 @@ from src.api import (
     core_bp,
     eval_bp,
     hardware_bp,
-    honcho_bp,
     memory_bp,
     memory_product_bp,
     reasoning_bp,
@@ -127,6 +126,20 @@ class _SupervisorShim:
     def screen_capture(self, q: str = ""): pass
     def ocr_image(self, path: str): pass
 
+    def scrape_webpage(self, url: str): return f"Web scraping not available in web mode ({url})"
+    def repair_image(self, path: str, context: str = ""): return "Image repair not available in web mode"
+    def analyze_image(self, path: str, question: str = ""): return "Image analysis not available in web mode"
+    def deep_search(self, query: str): return f"Deep search not available in web mode"
+    def save_session(self): pass
+
+    @property
+    def session_cost(self): return 0.0
+
+    def screen_watch_stop(self): return "Screen watch stopped"
+    def screen_watch_start(self, interval: int = 5): return f"Screen watch started ({interval}s interval)"
+    def handle_unified_request(self, message: str): return "Unified request handler not available in web mode"
+    def assemble_council(self, context: str = ""): return "Specialist council not available in web mode"
+
 
 # ── App factory ──────────────────────────────────────────────────────────────
 
@@ -155,7 +168,7 @@ def create_app() -> tuple[Flask, SocketIO]:
     register_socket_handlers(socketio)
 
     blueprints = [
-        ai_dev_bp, bom_bp, core_bp, eval_bp, hardware_bp, honcho_bp,
+        ai_dev_bp, bom_bp, core_bp, eval_bp, hardware_bp,
         memory_bp, memory_product_bp, reasoning_bp, settings_bp,
         streaming_bp, system_bp, voice_bp, brief_bp, commands_bp,
     ]

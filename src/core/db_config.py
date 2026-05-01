@@ -23,6 +23,7 @@ DB_PATHS = {
     "hardware_bom": DATA_ROOT / "hardware_bom.db",
     "honcho": DATA_ROOT / "honcho.db",
     "journal": DATA_ROOT / "journal.db",
+    "memory_weave": DATA_ROOT / "memory_weave.db",
 }
 
 

@@ -4,7 +4,6 @@ from .ai_dev_routes import ai_dev_bp
 from .bom_routes import bom_bp
 from .core_routes import core_bp
 from .hardware_routes import hardware_bp
-from .honcho_routes import honcho_bp
 from .memory_product_routes import memory_product_bp
 from .memory_routes import memory_bp
 from .news_routes import news_bp
@@ -23,7 +22,6 @@ __all__ = [
     "bom_bp",
     "core_bp",
     "hardware_bp",
-    "honcho_bp",
     "memory_product_bp",
     "memory_bp",
     "news_bp",

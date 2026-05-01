@@ -1,41 +1,29 @@
-"""
-Alex (Code Specialist).
-"""
-from typing import Dict
+"""Code Specialist."""
+from __future__ import annotations
+
+from src.core.specialist_framework import BaseSpecialist
 
 
-class KittyCoderSpecialist:
-    """Code specialist that cites sources."""
+class KittyCoderSpecialist(BaseSpecialist):
+    """Code specialist that uses LLM + KB for software development questions."""
 
-    def __init__(self, name: str = "KittyCoder", domain: str = "code", knowledge_base_path: str = ""):
-        self.name = name
-        self.domain = domain
-        self.knowledge_base_path = knowledge_base_path
+    def _get_personality(self) -> str:
+        return "pragmatic, readable-code-first, pattern-aware"
 
-    def answer(self, query: str) -> Dict:
-        """Answer code questions with source citation."""
-        if "python" in query.lower():
-            return {
-                "answer": "Use list comprehension for concise loops.",
-                "source": "Python docs: list comprehensions",
-                "confidence": 0.9,
-            }
-        if "javascript" in query.lower() or "js" in query.lower():
-            return {
-                "answer": "Use map() or forEach() for array iteration.",
-                "source": "MDN: Array methods",
-                "confidence": 0.8,
-            }
-        return {
-            "answer": "I don't have a specific code answer for that.",
-            "source": "no source found",
-            "confidence": 0.3,
-        }
+    def _get_system_prompt(self) -> str:
+        return (
+            f"You are Devin, a software engineering expert. "
+            f"Personality: {self.personality}. "
+            f"You write clear, maintainable code with readable variable names and minimal comments. "
+            f"Prefer standard library over dependencies. Test before shipping. "
+            f"Expertise: Python, TypeScript, Rust, SQL, shell scripting, "
+            f"React/Next.js frontend, Flask backend, MLX/LightRAG, ChromaDB, "
+            f"system design, API design, testing (pytest, Jest/Vitest), "
+            f"Linux/macOS, git, CI/CD, Docker. "
+            f"Reference: Clean Code, The Pragmatic Programmer, Unix philosophy. "
+            f"Start with the simplest working solution — no over-engineering. "
+            f"Always include validation: how do we know this works?"
+        )
 
-    def explain(self, code: str) -> Dict:
-        """Explain what code does."""
-        return {
-            "explanation": f"This code: {code[:50]}...",
-            "source": "Direct code analysis",
-            "confidence": 0.7,
-        }
+    def _get_safety_topics(self) -> list[str]:
+        return ["rm -rf", "drop table", "eval(", "sudo", "chmod 777"]

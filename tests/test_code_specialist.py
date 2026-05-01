@@ -1,35 +1,29 @@
-"""
-Tests for Alex (Code Specialist).
-"""
-import sys, os, pytest
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+"""Tests for KittyCoder (Code Specialist)."""
 
 from src.core.specialists.code import KittyCoderSpecialist
 
 
 class TestKittyCoderSpecialist:
-    def test_answer_python(self):
-        alex = KittyCoderSpecialist()
-        result = alex.answer("How to loop in Python?")
-        assert "list comprehension" in result["answer"]
-        assert result["source"] != "no source found"
-        assert result["confidence"] > 0.5
+    def test_instantiation(self):
+        coder = KittyCoderSpecialist("Devin", "code", "data/knowledge_bases/code/")
+        assert coder.name == "Devin"
+        assert coder.domain == "code"
+        assert len(coder.personality) > 0
 
-    def test_answer_javascript(self):
-        alex = KittyCoderSpecialist()
-        result = alex.answer("iterate array javascript")
-        assert "map()" in result["answer"] or "forEach" in result["answer"]
-        assert result["source"] != "no source found"
+    def test_system_prompt_has_dev_personality(self):
+        coder = KittyCoderSpecialist("Devin", "code", "data/knowledge_bases/code/")
+        prompt = coder._get_system_prompt()
+        assert "Devin" in prompt
 
-    def test_answer_unknown(self):
-        alex = KittyCoderSpecialist()
-        result = alex.answer("unknown query about cooking")
-        assert result["confidence"] < 0.5
-        assert result["source"] == "no source found"
+    def test_safety_topics_has_code_risks(self):
+        coder = KittyCoderSpecialist("Devin", "code", "data/knowledge_bases/code/")
+        topics = coder._get_safety_topics()
+        assert "rm -rf" in topics or "eval(" in topics
 
-    def test_explain(self):
-        alex = KittyCoderSpecialist()
-        result = alex.explain("for i in range(10): print(i)")
-        assert "code:" in result["explanation"]
-        assert result["source"] == "Direct code analysis"
+    def test_domain_matches(self):
+        coder = KittyCoderSpecialist("Devin", "code", "data/knowledge_bases/code/")
+        assert coder.domain == "code"
+
+    def test_query_method_exists(self):
+        coder = KittyCoderSpecialist("Devin", "code", "data/knowledge_bases/code/")
+        assert hasattr(coder, "query")
