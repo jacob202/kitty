@@ -171,6 +171,9 @@ The `scripts/dorothy_bridge.py` daemon that polls Kanban, spawns CrewAI/Crush/Ai
 **Phase F — Optimize reference docs:**  
 Trim CLAUDE.md and AGENTS.md to ~80 lines each. Keep critical gotchas (storage routing, port split, Werkzeug flag, TokenCapture leak). Cut narrative prose. Verify with `venv/bin/python scripts/context_pack_generator.py`, then `venv/bin/python -m pytest tests/ -q --tb=short`.
 
+**Phase G — Converge model and CLI configs:**
+No client reinstalls. Clean configs only. Make the model-routing strategy real across every CLI builder before Layer 1 begins. Update config files and reference docs, not product behavior. The goal is one consistent policy: cheap API first for parallel builders, free as backup, local for offline/private, premium reserved for review. Verify with `venv/bin/python -m pytest tests/test_model_router.py -q`, JSON/YAML validation for edited config files, and a dry-run or version check for each CLI tool.
+
 All phases commit separately. Each phase verifies before proceeding.
 
 #### Development Workflow (Automated)
@@ -457,6 +460,54 @@ Free tiers have rate limits, queues, quality variance, and outage risk. They int
 At $0.28/Mtok, the cost difference between free and cheap is negligible, but the reliability difference is substantial. The backup tier exists for the day DeepSeek has an outage, not as a cost-saving measure.
 
 Budget is flexible — no hard cap. Use cheap API when parallel speed matters, fall to local MLX when budget is tight.
+
+### Model and CLI Config Control
+
+The routing strategy above does not matter unless every CLI tool reads the same policy. Layer 0 includes a config convergence pass before any parallel builder work starts. This is launch infrastructure, not product implementation.
+
+#### Config Ownership Table
+
+| Surface | File / location | B-launch responsibility |
+|---------|-----------------|-------------------------|
+| Kitty runtime routing | `src/space_kitty/llm_client.py`, `src/api/web_orchestrator.py`, `tests/test_model_router.py` | Keep the app route policy testable: fast/local when available, cheap OpenRouter/DeepSeek for normal work, DeepSeek R1 or premium only for max/reasoning |
+| Runtime env defaults | `.env.example` or `./kitty setup` output | Document `OPENROUTER_API_KEY`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `KITTY_MODEL`, `KITTY_MAX_MODEL`, `KITTY_ENABLE_LOCAL_MLX`; never require secrets in committed JSON |
+| Kitty app settings | `config/kitty_settings.json`, `config/mlx_optimization.json` | Remove stale model names, align defaults with the launch routing table, and keep MLX settings realistic for M1 8GB |
+| Crush builder | `crush.json` | Remove literal API keys, use env vars, set `large` to cheap API default, set `small` to cheaper/local fallback, trim stale skills paths, keep LSP and MCP only if verified |
+| Aider builder | Project Aider config (`.aider.conf.yml` or `.aider.model.settings.yml`, whichever the installed version reads) | Add a project-level model default instead of relying on global state; route normal edits to cheap API and reserve premium models for explicit review/architecture |
+| Codex seat | `~/.codex/config.toml` plus repo `AGENTS.md` | Keep approval/sandbox policy compatible with this repo and document model expectations in `AGENTS.md`; do not commit personal Codex auth/config |
+| OpenCode seat | OpenCode global/project config if present, plus repo `AGENTS.md` | Verify where OpenCode stores model/provider settings, then document the project default and fallback; do not assume the install directory is the config |
+| Claude Code / Dorothy | `.claude/settings.json`, `.claude/mcp.json`, `.claude/skills/`, `CLAUDE.md` | Keep hooks, MCP servers, and skills aligned with the trimmed Layer 0 plan; no duplicate skills, no dead MCP servers, no hardcoded secrets |
+| Research tools | Firecrawl/Tavily/Exa env vars and docs | Keep search and scrape providers optional but documented; onboarding should degrade gracefully if one provider is unavailable |
+
+#### Required Config Rules
+
+1. **No secrets in repo config.** Any committed config uses `$ENV_VAR` placeholders, never literal API keys. If a current config contains a literal key, the config pass replaces it and rotates the key outside this doc.
+2. **One model policy, many adapters.** The names differ per tool, but the routing tiers stay the same: primary cheap API, backup free, local/offline, premium reserved.
+3. **Project config beats global drift.** Where a tool supports repo-level config, use it so Kitty does not depend on whatever Jacob's global CLI happened to be set to last week.
+4. **Every config change gets a dry-run.** A config is not done because JSON/YAML parses. It is done when the tool can start, read the config, and report the expected model/provider without launching a destructive edit.
+5. **Model routing tests stay canonical for Kitty itself.** CLI configs can vary by tool, but `tests/test_model_router.py` remains the guardrail for the app's own routing behavior.
+
+#### Config Verification Commands
+
+These commands are the expected shape; exact flags may differ by installed CLI version and should be checked with each tool's `--help`.
+
+```bash
+# App/runtime routing
+venv/bin/python -m pytest tests/test_model_router.py -q
+
+# Committed JSON configs
+python3 -m json.tool crush.json >/dev/null
+python3 -m json.tool config/kitty_settings.json >/dev/null
+python3 -m json.tool config/mlx_optimization.json >/dev/null
+
+# CLI tools: verify installed version and config loading before real work
+crush --help >/dev/null
+aider --help >/dev/null
+codex --help >/dev/null
+opencode --help >/dev/null
+```
+
+The Layer 0 deliverable is a short config report: files changed, secrets removed or moved to env vars, selected default model per tool, fallback model per tool, and the command that proved each CLI can read its config.
 
 ---
 
@@ -816,6 +867,7 @@ Before Layer 1 sub-projects begin in parallel — this gate confirms the operati
 2. **Dorothy Telegram delivers a real progress ping:** Jacob's phone buzzes with "Sub-Project 1: Onboarding Pipeline — domain-selection wizard built, ready for demo." Not a test message. Not a screenshot. A real notification from the actual pipeline.
 3. **Checkpoint survival test:** The bridge daemon is mid-task on a builder assignment. The session ends (simulated by killing the process). A fresh session starts, reads the HANDOFF checkpoint, and resumes the task from where it left off. No work is lost. The builder picks up the same spec, in the same lane, with the same allowed files. The only difference is a new session ID in the handoff log.
 4. **Memory routing enforcement:** A test verifies that attempts to write journal entries to LightRAG (wrong store) are caught and blocked at the routing layer. A test verifies that KB content routed to JournalDB is similarly blocked. This isn't a unit test of the routing logic — it's a system test that the enforcement mechanism actually prevents the #1 source of data-loss bugs.
+5. **CLI config convergence:** Crush, Aider, Codex, OpenCode, Claude/Dorothy, and Kitty runtime configs all point at the same model-routing policy. No committed config contains literal API keys. Each CLI can start and report help/version output from the repo without reinstalling the client.
 
 ### Pre-Launch Validation Gate (End of Sub-Project 6)
 

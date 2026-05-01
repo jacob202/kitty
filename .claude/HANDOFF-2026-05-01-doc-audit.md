@@ -103,3 +103,5 @@
 ---
 
 Completion note: 2026-05-01 — audit defects D1-D9 resolved by Codex; doc checks pass (all 13 sections, mission quote intact, 881 lines); `venv/bin/python -m pytest tests/ -q --tb=short` passed with 399 tests and 2 warnings.
+
+Follow-up note: 2026-05-01 — Jacob flagged a missing grilling-session decision: "No reinstalls. Clean configs only" and CLI/model config convergence. Added it to the design doc as a first-class Layer 0 Phase G, Model and CLI Config Control table, and Layer 0 validation gate.
