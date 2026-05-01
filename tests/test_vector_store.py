@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from src.memory.vector_store.base import VectorStore
 from src.memory.vector_store.null_store import NullStore
-from src.memory.vector_store.sqlite_vec_store import SQLiteVecStore
+from src.memory.vector_store.sqlite_vec_store import SQLiteTextStore
 
 
 class TestNullStore:
@@ -43,15 +43,15 @@ class TestNullStore:
         assert "get me" in doc["text"]
 
 
-class TestSQLiteVecStore:
+class TestSQLiteTextStore:
     def test_init_creates_db(self, tmp_path):
         db = tmp_path / "test_vec.db"
-        store = SQLiteVecStore(str(db))
+        store = SQLiteTextStore(str(db))
         assert os.path.exists(db)
 
     def test_add_and_get(self, tmp_path):
         db = tmp_path / "test_vec.db"
-        store = SQLiteVecStore(str(db))
+        store = SQLiteTextStore(str(db))
         doc_id = store.add("test doc", {"type": "fact"})
         assert isinstance(doc_id, str)
         doc = store.get(doc_id)
@@ -61,7 +61,7 @@ class TestSQLiteVecStore:
 
     def test_search(self, tmp_path):
         db = tmp_path / "test_vec.db"
-        store = SQLiteVecStore(str(db))
+        store = SQLiteTextStore(str(db))
         store.add("learn Python programming")
         store.add("build Kitty features")
         results = store.search("Kitty")
@@ -70,7 +70,7 @@ class TestSQLiteVecStore:
 
     def test_delete(self, tmp_path):
         db = tmp_path / "test_vec.db"
-        store = SQLiteVecStore(str(db))
+        store = SQLiteTextStore(str(db))
         doc_id = store.add("to delete")
         result = store.delete(doc_id)
         assert result is True

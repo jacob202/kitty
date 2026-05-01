@@ -2,13 +2,13 @@
 Memory inspect/forget — list and delete memories.
 """
 from typing import List, Dict, Optional
-from .vector_store import SQLiteVecStore, NullStore
+from .vector_store import SQLiteTextStore, NullStore
 
 
 def list_memories(store: object = None, limit: int = 10) -> List[Dict]:
     """List recent memories."""
     if store is None:
-        store = SQLiteVecStore()
+        store = SQLiteTextStore()
     # Simple: return all (no real timestamp yet)
     conn = __import__('sqlite3').connect(store.db_path)
     rows = conn.execute(
@@ -21,7 +21,7 @@ def list_memories(store: object = None, limit: int = 10) -> List[Dict]:
 def forget(store: object = None, doc_id: str = None, query: str = None) -> Dict:
     """Forget a memory by ID or query match."""
     if store is None:
-        store = SQLiteVecStore()
+        store = SQLiteTextStore()
     if doc_id:
         deleted = store.delete(doc_id)
         return {"deleted": deleted, "id": doc_id}

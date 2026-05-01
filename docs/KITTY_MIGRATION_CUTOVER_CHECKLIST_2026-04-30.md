@@ -34,3 +34,13 @@ If cutover causes issues, use legacy checkout immediately:
 cd /Users/jacobbrizinski/Projects/kitty
 ./kitty status
 ```
+
+## Ongoing validation
+
+After any material worker change to the copied app, run the Phase 4 merge gate from the **migrated** tree (see `TASKS.md` — *Next smallest action*). Start the Flask server on the chosen port before route smoke.
+
+Example:
+
+```bash
+scripts/run_phase4_merge_gate.sh --project /Users/jacobbrizinski/Projects/kitty-system/kitty-app --port 5001
+```

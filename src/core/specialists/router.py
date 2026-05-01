@@ -12,7 +12,7 @@ def route_specialist(message: str) -> Optional[str]:
     """
     low = message.lower()
     if any(w in low for w in ["code", "program", "script", "function", "bug", "python", "javascript"]):
-        return "alex"  # code
+        return "KittyCoder"
     if any(w in low for w in ["diagnose", "fix", "repair", "error", "broken", "car", "engine"]):
         return "mike"  # automotive
     if any(w in low for w in ["workout", "exercise", "fitness", "gym", "run", "health"]):

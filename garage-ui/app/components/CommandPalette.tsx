@@ -22,6 +22,7 @@ export default function CommandPalette({ isOpen, onClose, onExecuteCommand, onVi
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const commands: Command[] = [
     // System Commands
@@ -88,8 +89,15 @@ export default function CommandPalette({ isOpen, onClose, onExecuteCommand, onVi
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center pt-32 z-50">
-      <div className="rounded-lg shadow-2xl w-full max-w-2xl mx-4" style={{
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center pt-32 z-50"
+      onClick={(e) => {
+        if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+          onClose();
+        }
+      }}
+    >
+      <div ref={containerRef} className="rounded-lg shadow-2xl w-full max-w-2xl mx-4" style={{
         backgroundColor: 'var(--panel-bg)',
         borderColor: 'var(--accent-color)',
         border: '1px solid var(--accent-color)'

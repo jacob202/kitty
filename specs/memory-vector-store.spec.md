@@ -30,7 +30,7 @@ Kitty needs memory inspect/forget capabilities and a vector store adapter for se
 ### VectorStore (base.py)
 - Abstract base with: add(), search(), delete(), get()
 - NullStore: no-op for testing
-- SQLiteVecStore: sqlite3 backend with substring search
+- SQLiteTextStore: sqlite3 backend with substring search
 
 ### Specialist Router (router.py)
 - route_specialist(message) -> specialist name or None
@@ -42,13 +42,13 @@ Kitty needs memory inspect/forget capabilities and a vector store adapter for se
 
 ## Acceptance Tests
 - TestNullStore: add, search, delete, get work
-- TestSQLiteVecStore: init creates db, add+get, search, delete
+- TestSQLiteTextStore: init creates db, add+get, search, delete
 - TestSpecialistRouter: routes to mike/kelly/alex/research correctly
 - TestSpecialistValidator: validates answers, flags missing source
 
 ## Smoke Test
 ```bash
-python3 -c "from src.memory.vector_store import SQLiteVecStore; s=SQLiteVecStore('/tmp/test.db'); print('OK')"
+python3 -c "from src.memory.vector_store import SQLiteTextStore; s=SQLiteTextStore('/tmp/test.db'); print('OK')"
 ```
 
 ## Validation

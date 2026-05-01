@@ -463,6 +463,6 @@ def test_socket_brief_emits_resume_summary(monkeypatch):
 
     assert any(
         event["name"] == "token"
-        and event["args"][0]["text"].strip() == "You were testing Kitty. Next step: retry /brief."
+        and "Today:" in event["args"][0]["text"]
         for event in received
     ), received

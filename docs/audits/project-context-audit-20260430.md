@@ -23,9 +23,9 @@ Working baseline:
 
 Main gaps:
 
-- The migrated server process is stale relative to current disk code: current `create_app()` registers `/health` and `/api/health`, but live port 5001 returns 404 for both.
-- `src.memory.memory_weave` crashes on import because `memory_weave` is missing from `src/core/db_config.py::DB_PATHS`.
-- Specialist registry lists 12 specialists, but `KittyCoderSpecialist` is a simple stub outside `BaseSpecialist`, and `src/core/specialists/router.py` routes code queries to `alex`.
+- `/health` and `/api/health` are registered but return **404** unless internal API mode is enabled (`ENABLE_INTERNAL_API` / env wiring per `system_routes.py`). This is an intentional gate, not stale server code.
+- **Post–`runtime-001`:** `memory_weave` is present in `DB_PATHS` and `tests/test_memory_weave.py` locks import; remaining risk is runtime behaviour when MemoryWeave is exercised beyond import.
+- **Post–`runtime-001`:** `route_specialist` routes code keywords to `KittyCoder`; deeper KittyCoder behaviour (LLM/KB wiring vs stub answers) is still a follow-up spec, not this audit snapshot.
 - Route surface is broad: 75 non-static routes in current disk app, with only 31 string-matched in tests and 44 lacking obvious direct test references.
 - Garage UI hardcodes Flask/Socket.IO to `http://<hostname>:5001`; changing `KITTY_PORT` breaks the frontend unless the UI is updated or proxied.
 - Frontend polish gaps remain: no error boundary found, many failures are swallowed or console-only, inspector renders backend SVG via `dangerouslySetInnerHTML`, and there is no light theme or reduced-motion support.
@@ -62,8 +62,8 @@ HTTP results:
 | `GET /api/capabilities` | 200 | Working. |
 | `POST /api/chat` | 200 | Responded with provider-key warning, not a real LLM response. |
 | `GET /stream?query=audit%20ping` | 200 | SSE path responds. |
-| `GET /health` | 404 | Current disk app registers this route, so live process appears stale or running older code. |
-| `GET /api/health` | 404 | Same stale-live-process warning. |
+| `GET /health` | 404 | Expected when `ENABLE_INTERNAL_API` is false in app config (internal API gate); set config/env as documented for internal diagnostics — not stale code. |
+| `GET /api/health` | 404 | Same gate as `/health`. |
 
 ## API Route Map
 
@@ -136,12 +136,10 @@ Working/partially working:
 - `data/vector_store/library.json` and `data/vector_store/chroma_db/processed_files.txt` exist.
 - `data/lightrag/ingest_registry.sqlite` exists.
 
-Broken:
+Broken (at audit capture; **MemoryWeave DB key fixed** in `runtime-001` — import now succeeds when `DB_PATHS` includes `memory_weave`):
 
-- Importing `src.memory.memory_weave` fails immediately:
-  `ValueError: Unknown database: memory_weave`.
-- Root cause: `src/memory/memory_weave.py` calls `get_db_path("memory_weave")`, but `src/core/db_config.py::DB_PATHS` does not define that key.
-- Any code path that tries to use MemoryWeave will silently skip it if wrapped in broad `except`, or crash if imported directly.
+- ~~Importing `src.memory.memory_weave` fails immediately~~ **Resolved:** `get_db_path("memory_weave")` is wired; see `tests/test_memory_weave.py`.
+- Remaining risk: runtime paths that *use* MemoryWeave beyond import are not fully exercised here.
 
 Open risk:
 
@@ -216,19 +214,19 @@ Working now:
 Partial:
 
 - `/api/chat` returns HTTP 200 but currently falls back to "No LLM API key configured..." on the live server, so provider/local model readiness is not proven in this smoke.
-- Health routes are present on current disk but not on the running process.
+- Health routes are present on current disk and hidden behind the internal API gate in the default runtime config.
 - Specialist configs and persona files are broader than actual KB ingestion.
-- Memory stack has Chroma fallback but MemoryWeave is broken.
+- Memory stack has Chroma fallback; MemoryWeave import path is fixed (`runtime-001`); deeper MemoryWeave behaviour still needs coverage.
 - Route tests cover important recent stabilization paths, but not the full API surface.
 - Mobile has basic sidebar access but not the full inspector/workbench experience.
 
 Broken or high-risk:
 
-- `src.memory.memory_weave` import failure.
+- ~~`src.memory.memory_weave` import failure.~~ **Resolved** under `runtime-001` (import + `DB_PATHS`).
 - `KittyCoderSpecialist` is a stub compared with other specialists.
-- Specialist router maps code queries to Alex.
-- Migrated `/unified` route lacks the legacy guard for missing supervisor support.
-- Health endpoint mismatch on live server indicates stale runtime or launch/restart inconsistency.
+- ~~Specialist router maps code queries to Alex.~~ **Superseded:** router maps code keywords to `KittyCoder` (`runtime-001`); registry vs stub depth remains a product gap.
+- ~~Migrated `/unified` route lacks the legacy guard for missing supervisor support.~~ **Addressed** in `runtime-001` / `streaming_routes.py` (controlled `501` when shim lacks `handle_unified_request`); confirm parity on migrated deploy.
+- Health endpoint expectations are inconsistent: code hides health behind the internal API gate, while some validation docs treat health as public.
 - Frontend is tightly bound to port 5001 and cannot follow alternate `KITTY_PORT` without code/proxy changes.
 
 ## Recommended Next Specs
@@ -237,7 +235,7 @@ Broken or high-risk:
    Sync the known legacy safety/control/runtime deltas into migrated app or explicitly reject them. Include `web.py`, `src/api/__init__.py`, `src/api/streaming_routes.py`, `scripts/run_gates.sh`, and coordination docs.
 
 2. Critical runtime defects spec:
-   Fix MemoryWeave `DB_PATHS`, specialist router/code specialist parity, and live health route mismatch. Validate with focused tests plus live curl.
+   Fix MemoryWeave `DB_PATHS`, specialist router/code specialist parity, and `/unified` guard parity. Validate with focused tests plus live curl. Separately reconcile whether health should remain internal-only or become public.
 
 3. Route coverage hardening spec:
    Add focused regression tests for high-risk untested route families: hardware/BOM, journal/memory library, reasoning traces, chatbox, `/unified`, `/council`, `/optic`, `/horizon`, `/interrupt`.

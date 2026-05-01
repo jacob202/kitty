@@ -14,7 +14,7 @@ from .news import NewsFeedSpecialist
 SPECIALISTS = {
     "Alex": AlexAudioSpecialist("Alex", "audio", "data/knowledge_bases/audio/"),
     "Mike": MikeAutomotiveSpecialist("Mike", "automotive", "data/knowledge_bases/automotive/"),
-    "KittyCoder": KittyCoderSpecialist("KittyCoder", "code", "data/knowledge_bases/code/"),
+    "Devin": KittyCoderSpecialist("Devin", "code", "data/knowledge_bases/code/"),
     "Avery": AveryCreativeSpecialist("Avery", "creative", "data/knowledge_bases/creative/"),
     "Jonny": JonnyDesignSpecialist("Jonny", "design", "data/knowledge_bases/design/"),
     "Kelly": KellyFitnessSpecialist("Kelly", "fitness", "data/knowledge_bases/fitness/"),

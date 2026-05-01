@@ -40,7 +40,7 @@ class VectorStore(ABC):
         pass
 
 
-class SQLiteVecStore(VectorStore):
+class SQLiteTextStore(VectorStore):
     def __init__(self, db_path: str = "data/vector_store.db"):
         self.db_path = db_path
         self._init_db()

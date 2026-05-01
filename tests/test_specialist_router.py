@@ -11,9 +11,7 @@ from src.core.specialists.router import route_specialist, get_specialist_context
 class TestSpecialistRouter:
     def test_route_code(self):
         result = route_specialist("Fix this Python function")
-        # "fix" matches mike, but "Python" should match alex
-        # Updated: "code" keyword should match alex
-        assert result == "alex"
+        assert result == "KittyCoder"
 
     def test_route_fix_car(self):
         result = route_specialist("Fix my car engine")

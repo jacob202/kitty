@@ -83,53 +83,83 @@ class _SupervisorShim:
             "supervisor_model": os.environ.get("KITTY_MODEL", "deepseek/deepseek-v4-flash"),
             "enable_experimental_swarm": False,
         }
-        self.specialists = []
-        self.tools = []
+        try:
+            from src.core.specialists.registry import list_specialists
+            self.specialists = [{"name": name} for name in list_specialists()]
+        except Exception:
+            self.specialists = []
+        
+        self.tools = {
+            "calendar_list": type('Cal', (), {'list_events': lambda days: "Calendar access not configured in web environment."}),
+        }
         self.history = []
         self.memory = _MemShim()
         self._active_mode = None
         self._web_orchestrator = None
 
     def run(self, inp: str):
+        if not inp: return
         sys.stdout.write(f"{inp}\n")
         sys.stdout.flush()
 
-    # Stubs for routes that call these methods
     def morning_brief(self):
-        summary = None
-        if self._web_orchestrator is not None:
-            try:
-                summary = self._web_orchestrator.get_resume_summary()
-            except Exception:
-                logger.exception("Failed to build resume summary for /brief")
+        try:
+            from src.core.morning_brief import brief_to_text, generate_brief
+            brief = generate_brief()
+            self.run(brief_to_text(brief))
+        except Exception as e:
+            logger.error(f"Brief error: {e}")
+            self.run("Failed to generate morning brief.")
 
-        if not summary:
-            if self._active_mode:
-                summary = (
-                    f"Fresh session. Current work mode: {self._active_mode}. "
-                    "Tell me what feels stuck and I'll give you one next step."
-                )
-            else:
-                summary = (
-                    "Fresh session. No saved resume yet. "
-                    "Tell me what you're working on and I'll help with the next step."
-                )
+    def stuck_recovery(self, what: str = ""):
+        try:
+            from src.core.stuck import get_stuck_action
+            action = get_stuck_action()
+            resp = f"Stuck? Here's your next step: {action['next_action']}"
+            if action.get("do_not"):
+                resp += f"\n\nDo not: {', '.join(action['do_not'])}"
+            self.run(resp)
+        except Exception as e:
+            logger.error(f"Stuck error: {e}")
+            self.run("Rescue protocol failed. Just pick the smallest possible task.")
 
-        self.run(summary)
-
-    def stuck_recovery(self, what: str = ""): pass
     def start_chatbox(self, **kw): return "chatbox unavailable in web mode"
     def chatbox_stop(self): return "stopped"
     def clear_mode(self): self._active_mode = None
     def set_mode(self, mode: str, ctx: str = ""): self._active_mode = mode
-    def prescriber_prep(self): pass
-    def screen_capture(self, q: str = ""): pass
-    def ocr_image(self, path: str): pass
+    def prescriber_prep(self): self.run("Prescriber prep initiated (stub).")
+    def screen_capture(self, q: str = ""): self.run("Screen capture not available in server environment.")
+    def ocr_image(self, path: str): self.run("OCR not available in server environment.")
 
-    def scrape_webpage(self, url: str): return f"Web scraping not available in web mode ({url})"
-    def repair_image(self, path: str, context: str = ""): return "Image repair not available in web mode"
-    def analyze_image(self, path: str, question: str = ""): return "Image analysis not available in web mode"
-    def deep_search(self, query: str): return f"Deep search not available in web mode"
+    def scrape_webpage(self, url: str):
+        try:
+            import httpx
+            from bs4 import BeautifulSoup
+            r = httpx.get(url, timeout=10, follow_redirects=True)
+            soup = BeautifulSoup(r.text, "html.parser")
+            for tag in soup(["script", "style", "nav", "footer"]): tag.decompose()
+            text = " ".join(soup.get_text(" ", strip=True).split())
+            self.run(f"Scraped {url}:\n\n{text[:2000]}...")
+        except Exception as e:
+            self.run(f"Failed to scrape {url}: {e}")
+
+    def repair_image(self, path: str, context: str = ""): self.run("Image repair not available in server environment.")
+    def analyze_image(self, path: str, question: str = ""): self.run("Image analysis not available in server environment.")
+    
+    def deep_search(self, query: str):
+        try:
+            from src.tools.deep_search import deep_search, format_for_llm
+            from tavily import TavilyClient
+            api_key = os.environ.get("TAVILY_API_KEY")
+            if not api_key:
+                self.run("Deep search requires TAVILY_API_KEY.")
+                return
+            client = TavilyClient(api_key=api_key)
+            results = deep_search(query, tavily_client=client)
+            self.run(format_for_llm(results))
+        except Exception as e:
+            self.run(f"Deep search failed: {e}")
+
     def save_session(self): pass
 
     @property
@@ -137,8 +167,8 @@ class _SupervisorShim:
 
     def screen_watch_stop(self): return "Screen watch stopped"
     def screen_watch_start(self, interval: int = 5): return f"Screen watch started ({interval}s interval)"
-    def handle_unified_request(self, message: str): return "Unified request handler not available in web mode"
-    def assemble_council(self, context: str = ""): return "Specialist council not available in web mode"
+    def handle_unified_request(self, message: str): self.run("Unified request handler (stub).")
+    def assemble_council(self, context: str = ""): self.run("Specialist council not available in web mode.")
 
 
 # ── App factory ──────────────────────────────────────────────────────────────
