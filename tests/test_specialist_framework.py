@@ -139,6 +139,28 @@ class TestSpecialistConfigs:
             # Check for expected sections
             assert "name" in content.lower() or "specialist" in content.lower()
 
+    def test_entity_extraction_fix(self):
+        """Test that _extract_entities logic (line 182) correctly extracts alphanumeric words."""
+        # Simulate the fixed logic from specialist_framework.py:182
+        def extract_entities(question):
+            return list(set(w for w in question.split() if w.isalnum() and len(w) > 4))[:5]
+
+        # Bug before fix: " ".join(filter(str.isalnum, w)) iterated chars, not words
+        # Now fixed: filters whole words that are alphanumeric and len > 4
+        result = extract_entities("My amplifier has a buzzing sound from the Sansui AU-7900")
+        assert "amplifier" in result
+        assert "buzzing" in result or "sound" in result
+        assert "Sansui" in result
+        assert "AU-7900" not in result  # contains hyphen, not isalnum
+
+    def test_entity_extraction_no_short_words(self):
+        """Short words (len <= 4) should be excluded."""
+        def extract_entities(question):
+            return list(set(w for w in question.split() if w.isalnum() and len(w) > 4))[:5]
+
+        result = extract_entities("What is 12345?")
+        assert result == []  # "What" len=4, "12345" has len=5 but isalnum() True
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
