@@ -3,24 +3,24 @@ Last updated: 2026-04-30
 
 ## Active Phase
 
-Market-ready baseline checkpoint (post copy-first separation)
+Phase B — Polish & UX (User-Facing Milestone)
 
 ## Current Task
 
-Migration execution lane (post Phase E): run controlled `kitty-system` cutover checklist after preflight and copied-app parity validation.
+Executing Phase B: Polish & UX (B1-B8). Improving stability, mobile access, and visual consistency across the migrated workspace.
 
 ## Allowed Work
 
-- workspace separation move map
-- read-only migration preflight
-- copy-first workspace validation
-- migration start reporting and cutover checklist prep
-- launch-command decision docs
-- file governance updates
-- blocker reports for dirty worker lanes
-- parking unverified future features with enough context to revive later
-- release baseline smoke and checkpointing
-- canonical docs reconciliation from reviewed candidate source of truth
+- Light theme variant (cream palette)
+- React ErrorBoundaries
+- Mobile accessibility (sidebar/inspector overlays)
+- Toast notification system
+- SVG sanitization (The Optic)
+- Settings persistence (model dropdowns)
+- UI/UX consistency (Mode indicator pills, click-outside-to-close)
+- Blocker fixes for Phase A residuals
+- Canonical docs reconciliation
+- Workspace sync to `kitty-system/kitty-app`
 
 ## Forbidden Work
 
@@ -28,7 +28,6 @@ Migration execution lane (post Phase E): run controlled `kitty-system` cutover c
 - QLoRA
 - proactive nudging
 - Kelly bodywork
-- UI polish
 - memory migration
 - deleting raw chat logs
 - deleting or renaming the old repo
