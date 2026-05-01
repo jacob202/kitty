@@ -1,8 +1,14 @@
 {
   "hooks": {
-    "postToolUse": [{
-      "matcher": "Edit|Write",
-      "command": "/opt/homebrew/bin/python3.12 -m py_compile $CLAUDE_FILE_PATH 2>&1 || true"
-    }]
+    "postToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "command": "/opt/homebrew/bin/python3.12 -m py_compile $CLAUDE_FILE_PATH 2>&1 || true"
+      },
+      {
+        "matcher": "Edit|Write",
+        "command": "command -v ruff >/dev/null 2>&1 && ruff check --fix $CLAUDE_FILE_PATH 2>&1 | tail -3 || true"
+      }
+    ]
   }
 }
