@@ -121,6 +121,12 @@ Three execution layers, each for a different kind of work:
 **AutoGen / CrewAI hybrid — CTO review pairs:**
 - When Sonnet reviews code, it can spawn a second agent for adversarial review — "find what's wrong with this diff." Two agents discuss, Sonnet makes the final call. This is Pattern B (team huddle) — smarter output at a small token premium, reserved for merge-gate reviews.
 
+**Why not Dorothy orchestrator or LangGraph as the primary pipeline runner:**
+- Dorothy remains the PM layer because Kanban + Telegram + Vault are already local, free, and good enough. Its old orchestrator is cut from the critical path because it is a dispatcher, not a purpose-built multi-agent workflow engine.
+- CrewAI is the default onboarding runner because the work is an assembly line: search → digest → embed → organize. Predictable handoffs matter more than open-ended debate.
+- AutoGen is reserved for review-pair huddles where debate is useful.
+- LangGraph stays on the watchlist. It becomes worth adopting only if CrewAI cannot express checkpointing, retries, or state transitions cleanly enough for the bridge daemon.
+
 All builders run on cheap models by default (DeepSeek V4 Flash at $0.28/Mtok). Parallel execution collapses serial build time from weeks to days. The `parallel-subagents` skill in `.claude/skills/` defines the lane spawning pattern.
 
 #### Memory Unification Strategy
@@ -153,10 +159,12 @@ The stack stays as-is for B launch: **Flask + Next.js + MLX + LightRAG**. Flask 
 
 Before any Layer 1 work begins, the surrounding infrastructure must be stripped to essentials. Current state: ~35 skills, 9 Claude plugins, 8 MCP servers, and 30+ scripts — many unused, overlapping, or dead-weight. This bloat burns tokens on every agent session and causes agents to load irrelevant context.
 
+This is not "fewer tools at all costs." The rule is: **right tool, proven job, clean config.** If a better MCP server or CLI genuinely improves the launch path, add it. If a current tool only adds startup context, overlapping commands, or unclear triggers, cut it or move it to a reactivation list.
+
 **Phase A — Cut MCP servers first (lowest risk):**
 Remove from `.claude/mcp.json`: orchestrator, dorothy-socialdata, dorothy-x, dorothy-world. The bridge daemon and CrewAI replace orchestrator-style routing. Result: 8 → 4 MCP servers (kanban, telegram, vault, drawthings). Verify with `./kitty status`, then `venv/bin/python -m pytest tests/ -q --tb=short`.
 
-**Phase B — Cut skills second:**  
+**Phase B — Cut skills second:**
 Cut 18 skills from `.claude/skills/` (symlinks to `~/.agents/skills/`). Keep 24: fix-and-verify, parallel-subagents, overnight-queue, prompt-answer-quality, tdd, caveman, grill-me, spec-to-impl, demo, audit, zoom-out, all firecrawl-* (11), skill-creator, find-skills. Cut: domain-news, grill-with-docs, improve-codebase-architecture, recommend, setup-matt-pocock-skills, to-issues, to-prd, triage, write-a-skill, execution, improve, planning, reasoning, ship, think, world-builder, ast-grep, agent-browser (reactivate if page navigation is needed). Verify with `find .claude/skills -maxdepth 2 -name SKILL.md | wc -l`, then run a fresh Claude/OpenCode session smoke check.
 
 **Phase C — Cut plugins third:**  
@@ -169,7 +177,7 @@ Keep 7 scripts: clear-and-test.sh, quick-smoke.sh, checkpoint.sh, run_gates.sh, 
 The `scripts/dorothy_bridge.py` daemon that polls Kanban, spawns CrewAI/Crush/Aider, and posts Telegram updates. ~150 lines. Verify with `venv/bin/python -m py_compile scripts/dorothy_bridge.py`, then create a Kanban card with `#build` and confirm the bridge detects it, starts the pipeline, and posts a Telegram update.
 
 **Phase F — Optimize reference docs:**  
-Trim CLAUDE.md and AGENTS.md to ~80 lines each. Keep critical gotchas (storage routing, port split, Werkzeug flag, TokenCapture leak). Cut narrative prose. Verify with `venv/bin/python scripts/context_pack_generator.py`, then `venv/bin/python -m pytest tests/ -q --tb=short`.
+Trim CLAUDE.md, AGENTS.md, `config/SOUL.md`, and active reference docs to the smallest safe set. Keep critical gotchas (storage routing, port split, Werkzeug flag, TokenCapture leak, model routing, companion voice). Cut narrative prose and stale handoff history. Verify with `venv/bin/python scripts/context_pack_generator.py`, then `venv/bin/python -m pytest tests/ -q --tb=short`.
 
 **Phase G — Converge model and CLI configs:**
 No client reinstalls. Clean configs only. Make the model-routing strategy real across every CLI builder before Layer 1 begins. Update config files and reference docs, not product behavior. The goal is one consistent policy: cheap API first for parallel builders, free as backup, local for offline/private, premium reserved for review. Verify with `venv/bin/python -m pytest tests/test_model_router.py -q`, JSON/YAML validation for edited config files, and a dry-run or version check for each CLI tool.
@@ -459,7 +467,9 @@ Free tiers have rate limits, queues, quality variance, and outage risk. They int
 
 At $0.28/Mtok, the cost difference between free and cheap is negligible, but the reliability difference is substantial. The backup tier exists for the day DeepSeek has an outage, not as a cost-saving measure.
 
-Budget is flexible — no hard cap. Use cheap API when parallel speed matters, fall to local MLX when budget is tight.
+Paid seats are used where the tool interface makes that practical: Claude.app/Sonnet for CTO work, Codex and OpenCode for implementation/review lanes, and Cursor/agent seats where they can consume the subscription directly. They do not replace cheap API routing for CrewAI because CrewAI and the bridge daemon need callable providers, not a human-facing subscription UI.
+
+Budget is flexible — no hard cap. Use cheap API when parallel speed matters, use paid seats when their quota is available through the right tool, and fall to local MLX when budget is tight or privacy/offline mode matters.
 
 ### Model and CLI Config Control
 
@@ -476,6 +486,7 @@ The routing strategy above does not matter unless every CLI tool reads the same 
 | Aider builder | Project Aider config (`.aider.conf.yml` or `.aider.model.settings.yml`, whichever the installed version reads) | Add a project-level model default instead of relying on global state; route normal edits to cheap API and reserve premium models for explicit review/architecture |
 | Codex seat | `~/.codex/config.toml` plus repo `AGENTS.md` | Keep approval/sandbox policy compatible with this repo and document model expectations in `AGENTS.md`; do not commit personal Codex auth/config |
 | OpenCode seat | OpenCode global/project config if present, plus repo `AGENTS.md` | Verify where OpenCode stores model/provider settings, then document the project default and fallback; do not assume the install directory is the config |
+| Other installed clients | Cursor, Goose, Gemini CLI, openclaw | Leave installed, but keep them out of the default launch path until they have a named job, a config owner, and a verification command |
 | Claude Code / Dorothy | `.claude/settings.json`, `.claude/mcp.json`, `.claude/skills/`, `CLAUDE.md` | Keep hooks, MCP servers, and skills aligned with the trimmed Layer 0 plan; no duplicate skills, no dead MCP servers, no hardcoded secrets |
 | Research tools | Firecrawl/Tavily/Exa env vars and docs | Keep search and scrape providers optional but documented; onboarding should degrade gracefully if one provider is unavailable |
 
@@ -486,6 +497,7 @@ The routing strategy above does not matter unless every CLI tool reads the same 
 3. **Project config beats global drift.** Where a tool supports repo-level config, use it so Kitty does not depend on whatever Jacob's global CLI happened to be set to last week.
 4. **Every config change gets a dry-run.** A config is not done because JSON/YAML parses. It is done when the tool can start, read the config, and report the expected model/provider without launching a destructive edit.
 5. **Model routing tests stay canonical for Kitty itself.** CLI configs can vary by tool, but `tests/test_model_router.py` remains the guardrail for the app's own routing behavior.
+6. **Dormant clients are not deleted.** They are removed from the default path unless they have a job. Reinstalls are out of scope unless a client is provably broken after config cleanup.
 
 #### Config Verification Commands
 
@@ -789,6 +801,7 @@ These features are documented in `docs/PARKED_FEATURES.md`. They are not part of
 | **Full Builder Automation From Intake** | Current control layer only provides deterministic intake classification and explicit builder contract. Full automatic spec generation is parked. | Stable `docs/BUILDER_INTAKE.md`, `docs/BUILDER_DIRECTIVE.md`, and agreement on worker lane ownership |
 | **Tool Runtime + Specialist Runtime** | Post-launch architecture deepening. Separates tool execution from specialist domain logic. | Post-launch, after Layer 1 sub-projects 1–6 ship |
 | **Source-Grounded Specialist Engine** | Specialists currently operate on embedded knowledge without verified source grounding. Risk of hallucination without this. | Post-launch architecture track (see `docs/plans/gemini-architecture-priorities-2026-04-30.md`, tag `GEMINI-ARCH-PRIORITIES`) |
+| **Agent-browser Reactivation** | Cut from the default B-launch skill set because Firecrawl + Exa cover normal research/scraping. Interactive browsing adds context and maintenance cost. | Reactivate if onboarding needs login flows, paginated sites, JavaScript-heavy pages, form fills, screenshots, or browser-state inspection |
 | **Proactive Idle Nudging** | Kitty prompting the user when idle — potentially valuable but risks feeling invasive if done wrong. Design needed. | Post-launch, after Memory & Continuity is stable |
 | **Audio Specialist KB Candidate** (Sansui AU-7900 session text) | Specialist knowledge requires source grounding before it becomes canonical. Raw logs are not verified knowledge. | Source-grounding engine is complete |
 | **Budget Leak Finder Skill** | Requires privacy spec, manual-paste-only handling rules, redaction strategy. Sensitive financial data handling not designed. | Approved privacy spec with explicit user opt-in for manual-paste-only analysis |
