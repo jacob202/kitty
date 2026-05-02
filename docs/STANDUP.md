@@ -162,12 +162,10 @@ The mission: "So that no one becomes themselves alone." The first person who mus
 ---
 ## Handoff (replace this whole section when you leave)
 
-**Last agent:** Claude (Cursor), 2026-05-01.
+**Last agent:** Claude (Cursor), 2026-05-02.
 
-**What I did this round:** Clarified **Terminal vs Cursor/OpenCode order** (no order required; hooks are automatic). Added **Rule 14** (Jacob-only steps = single copy-paste block). Added **Voice corpus** subsection (iMessage + Gmail Sent → one text corpus; retrieval not training). Pointed Section 8 at **`docs/COMPANION_VOICE_CHARTER.md`**. **Committed** hooks + standup + charter + `scripts/kitty-standup` for Jacob so git isn’t homework.
+**What I did:** Shipped `scripts/build_voice_corpus.py` — one text file from **outbound iMessage** (`is_from_me` + `text` column) + **Gmail Sent** Takeout `.mbox` (strips `>` quote lines). Documented in Section 2 with copy-paste; ran a local test: **463** iMessage lines included, **22,890** skipped (attributedBody-only — expected on newer macOS). **Committed** `f0549a2`.
 
-**Proof (Rule 11):** `git log -1 --oneline` after commit shows the snapshot; files listed below are in that commit.
+**Next agent:** Optional: parse `attributedBody` or merge `imessage-exporter` output for full iMessage coverage. Wire `data/voice_corpus/jacob_voice.txt` into retrieval when Memory work starts.
 
-**Next agent:** Layer 0 unchanged (Section 6). Voice-export scripting is a grab when Jacob priorities it — prompt is in Section 2 **Voice corpus**.
-
-**One thing I learned (optional):** Jacob remembers workflows better as **one word** (`standup`) + **copy-paste blocks** than long paths or prose instructions.
+**One thing I learned (optional):** One doc (`standup` / hooks) and one script name beat long explanations.
