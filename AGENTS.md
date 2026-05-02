@@ -4,13 +4,14 @@ Purpose: keep Codex and delegated workers aligned with the active control system
 
 ## First Read Order
 
-1. `CURRENT_FOCUS.md`
-2. `TASKS.md`
-3. `docs/AGENT_COORDINATION.md` (active lanes, messages, handoffs — claim a lane before overlapping work)
-4. `SESSION_SUMMARY.md`
-5. `docs/DECISIONS.md`
-6. `docs/FILE_GOVERNANCE.md`
-7. `docs/PARKED_FEATURES.md`
+1. `docs/LAYER0_CONTROL_PLANE.md`
+2. `CURRENT_FOCUS.md`
+3. `TASKS.md`
+4. `docs/AGENT_COORDINATION.md` (active lanes, messages, handoffs — claim a lane before overlapping work)
+5. `SESSION_SUMMARY.md`
+6. `docs/DECISIONS.md`
+7. `docs/FILE_GOVERNANCE.md`
+8. `docs/PARKED_FEATURES.md`
 
 If these conflict with older notes, these files win.
 
@@ -42,7 +43,7 @@ If these conflict with older notes, these files win.
 - Respect `CURRENT_FOCUS.md` forbidden work list.
 - Do not expand MCP, QLoRA, proactive nudging, or unrelated UI polish unless a new approved spec explicitly allows it.
 - Do not delete raw chat logs.
-- Do not delete or rename `/Users/jacobbrizinski/Projects/kitty` while copy-first migration is active.
+- Do not delete or rename `/Users/jacobbrizinski/Projects/kitty`; it is the canonical runnable checkout.
 
 ## Validation Minimum
 

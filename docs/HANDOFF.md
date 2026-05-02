@@ -6,6 +6,8 @@ To: Gemini (and any agent picking up `arch-001` / `arch-002` / tool work)
 Suite: **~399 passed**, 2 warnings (legacy checkout; run `pytest tests/` to confirm)
 Repo: `git@github.com:anomalyco/kitty` (not confirmed — verify before pushing)
 
+> Stale authority warning: this is a historical handoff. For current workspace and Layer 0 rules, read `docs/LAYER0_CONTROL_PLANE.md` first. Any instruction here that says `kitty-system/kitty-app` is the active runtime is superseded by the control plane.
+
 ---
 
 ## 2026-05-01 — Shelved WIP (read before restarting tool/specialist runtime)

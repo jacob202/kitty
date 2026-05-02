@@ -125,7 +125,7 @@ Do not accept the dirty agent bundle as complete, remove the MCP block, or commi
 
 ### Feature: Physical `kitty-system` Split
 
-Status: parked
+Status: retired_after_consolidation
 Source: Phase 0 planning
 Owner: unassigned
 Priority: high
@@ -137,16 +137,16 @@ Proposed shape:
 Create a controlled `kitty-system` boundary for governance, specs, intake, and durable operating context while preserving the runnable app path.
 
 Why parked:
-Phase 0 is complete, but migration closeout and legacy-path retirement are still controlled by the cutover checklist.
+The temporary `kitty-system/kitty-app` workspace was reconciled back into `/Users/jacobbrizinski/Projects/kitty` and removed. Do not revive this split unless Jacob explicitly opens a new migration spec.
 
 Dependencies:
-File manifest, migration spec, import/path audit, rollback plan, and verification gates.
+New approved migration spec, file manifest, import/path audit, rollback plan, and verification gates.
 
 Risks:
 Broken imports, lost local state, stale launch commands, duplicated docs, and workers editing the wrong checkout.
 
 Acceptance sketch:
-Daily migration runtime uses `/Users/jacobbrizinski/Projects/kitty-system/kitty-app`; move map stays current; rollback to `/Users/jacobbrizinski/Projects/kitty` remains available until retirement approval.
+Only a new approved migration spec can recreate a separate runtime path. Until then, `/Users/jacobbrizinski/Projects/kitty` remains canonical.
 
 Allowed future files:
 Future migration spec only, until approved.

@@ -1,20 +1,20 @@
 # Kitty Context
 
-Last updated: 2026-04-28
+Last updated: 2026-05-01
 
-This top-level file is a concise runtime/control pointer. The fuller historical context remains in `docs/KITTY_CONTEXT.md`.
+This top-level file is a concise runtime/control pointer. `docs/LAYER0_CONTROL_PLANE.md` is the current authority map for Layer 0 cleanup.
 
 ## Current Authority
 
 Follow this order when files conflict:
 
-1. `CURRENT_FOCUS.md`
-2. active spec in `specs/`
-3. this file
-4. `docs/DECISIONS.md`
-5. `docs/FILE_GOVERNANCE.md`
-6. `docs/PARKED_FEATURES.md`
-7. `SESSION_SUMMARY.md`
+1. Jacob's latest live instruction
+2. `AGENTS.md`
+3. `CLAUDE.md`
+4. `docs/LAYER0_CONTROL_PLANE.md`
+5. `CURRENT_FOCUS.md`
+6. active spec in `specs/`
+7. `docs/DECISIONS.md`
 8. older docs, chat logs, and raw exports
 
 ## Current Rule
@@ -25,13 +25,13 @@ raw request -> `kittyintake` -> decision / clarification / parked feature / spec
 
 ## Runtime Boundary
 
-The active migration runtime checkout is:
-
-`/Users/jacobbrizinski/Projects/kitty-system/kitty-app`
-
-Legacy rollback checkout:
+The canonical runnable checkout is:
 
 `/Users/jacobbrizinski/Projects/kitty`
+
+Retired/stale unless Jacob explicitly reopens migration work:
+
+`/Users/jacobbrizinski/Projects/kitty-system/kitty-app`
 
 Do not treat `/Users/jacobbrizinski/Documents/Kitty` as the runnable repo for this pass.
 

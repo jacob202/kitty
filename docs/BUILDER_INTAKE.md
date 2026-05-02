@@ -32,7 +32,7 @@ Every intake note must include:
 
 A task is ready for builder/spec work only when:
 
-- The runtime app path is `/Users/jacobbrizinski/Projects/kitty-system/kitty-app` (legacy rollback path: `/Users/jacobbrizinski/Projects/kitty`).
+- The runtime app path is `/Users/jacobbrizinski/Projects/kitty`.
 - No physical repo move is implied unless this is an approved migration spec.
 - Allowed files are narrower than forbidden files.
 - Protected files from `docs/FILE_GOVERNANCE.md` are not touched casually.
@@ -59,8 +59,8 @@ Worker lane:
 
 ## Current App Boundary
 
-Current runtime app: `/Users/jacobbrizinski/Projects/kitty-system/kitty-app`
-Legacy rollback path: `/Users/jacobbrizinski/Projects/kitty`
+Current runtime app: `/Users/jacobbrizinski/Projects/kitty`
+Retired/stale migration path unless explicitly reopened: `/Users/jacobbrizinski/Projects/kitty-system/kitty-app`
 
 Physical migration allowed: no, unless this intake is converted into an approved migration spec.
 

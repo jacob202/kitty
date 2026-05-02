@@ -6,15 +6,16 @@ Last updated: 2026-04-30 (coordination execution pass)
 Read this at session start. Leave a handoff at session end.
 
 **Authority**: This board coordinates work; it does not authorize work. If this
-file conflicts with `CURRENT_FOCUS.md`, `TASKS.md`, `docs/DECISIONS.md`,
-`docs/FILE_GOVERNANCE.md`, or an approved spec, the stricter source wins.
+file conflicts with `docs/LAYER0_CONTROL_PLANE.md`, `CURRENT_FOCUS.md`,
+`TASKS.md`, `docs/DECISIONS.md`, `docs/FILE_GOVERNANCE.md`, or an approved
+spec, the stricter source wins.
 
 **Quick nav**: [Registry](#agent-registry) · [Lanes](#active-lanes) · [Messages](#inter-agent-messages) · [Feedback](#feedback-queue) · [Debates](#debate-topics) · [Learnings](#learnings-log) · [Handoffs](#handoff-protocol)
 
 ### Session start (under 60 seconds)
 
 1. Read `CURRENT_FOCUS.md` and stop if the work is forbidden.
-2. **Legacy checkout for context** — Before creating new docs, specs, modules, or routes, search and read relevant material under `/Users/jacobbrizinski/Projects/kitty` (canonical git tree, full test suite, control docs). Use it to discover prior art and naming; the migrated workspace is runtime-first and may be an incomplete copy, so it is not the sole source of truth for “what already exists.”
+2. **Canonical checkout for context** — Before creating new docs, specs, modules, or routes, search and read relevant material under `/Users/jacobbrizinski/Projects/kitty` (canonical git tree, full test suite, control docs). Use it to discover prior art and naming.
 3. Skim **Active Lanes** to avoid duplicating an `in-progress` lane.
 4. Skim **Open Messages** for your agent ID.
 5. Skim **Feedback Queue** rows where `To` is you and `State` is `open`.
@@ -35,10 +36,10 @@ Every agent is expected to:
 
 ## Operating Guardrails
 
-- Treat `/Users/jacobbrizinski/Projects/kitty-system/kitty-app` as the active
-  runtime workspace.
-- Treat `/Users/jacobbrizinski/Projects/kitty` as the legacy rollback path and
-  canonical git history until retirement is explicitly approved.
+- Treat `/Users/jacobbrizinski/Projects/kitty` as the canonical runnable
+  checkout and git history.
+- Treat `/Users/jacobbrizinski/Projects/kitty-system/kitty-app` references as
+  stale unless Jacob explicitly reopens migration work.
 - **Context before create:** Search `docs/`, `specs/`, `src/`, `tests/`, and
   control files in that legacy checkout before inventing new paths or
   filenames; reuse or extend what is already there when the lane allows.
@@ -218,10 +219,10 @@ promotes verified learnings to `docs/DECISIONS.md`.
 ## Agent-specific Notes
 
 ### For Codex
-- Read `CURRENT_FOCUS.md` first — it defines what you CAN and CANNOT touch.
-- Before new `docs/` or `specs/` paths: confirm naming against the legacy checkout `/Users/jacobbrizinski/Projects/kitty` so audits and specs do not fork duplicates.
-- Always sync changes to the migrated workspace at `kitty-system/kitty-app` after committing to legacy repo.
-- Your commits in legacy repo have pre-commit hook running full test suite; expect a ~15s delay.
+- Read `docs/LAYER0_CONTROL_PLANE.md` first, then `CURRENT_FOCUS.md`.
+- Before new `docs/` or `specs/` paths: confirm naming against `/Users/jacobbrizinski/Projects/kitty` so audits and specs do not fork duplicates.
+- Do not sync to `kitty-system/kitty-app`; that path is stale unless Jacob explicitly reopens migration work.
+- Your commits have a pre-commit hook running the full test suite; expect roughly a minute.
 - Never touch `Icon\r` files, eval artifacts, or raw chat logs.
 
 ### For Claude
