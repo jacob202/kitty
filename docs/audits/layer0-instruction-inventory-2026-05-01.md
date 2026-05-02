@@ -74,6 +74,8 @@ python3 -m json.tool ~/.claude/plugins/installed_plugins.json
 
 From `~/.claude/mcp.json`:
 
+Status after cleanup: active config now has 4 MCP servers. Backup: `~/.claude/mcp.json.bak-2026-05-01-layer0`.
+
 Keep target:
 
 - `claude-mgr-kanban`
@@ -91,6 +93,8 @@ Cut target:
 ## Plugin Inventory
 
 From `~/.claude/plugins/installed_plugins.json`:
+
+Status after cleanup: active config now has 4 installed plugins. Backup: `~/.claude/plugins/installed_plugins.json.bak-2026-05-01-layer0`.
 
 Keep target:
 
@@ -118,4 +122,3 @@ The launch design doc says 43 skills total and 25 kept. Current disk counts do n
 - Codex plugin skills are loaded separately and are not represented by the Claude skill counts.
 
 Do not cut skills by stale total count. Next step is a manifest that lists each skill by root, status, owner, and reactivation trigger.
-
