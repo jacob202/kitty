@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Print docs/STANDUP.md for humans and Claude Code hooks (SessionStart).
+# Usage: kitty-standup | kitty-standup --reminder (stderr banner before session end)
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+STANDUP="$ROOT/docs/STANDUP.md"
+case "${1:-}" in
+  --reminder)
+    printf '%s\n' '' '---' 'STANDUP: Update docs/STANDUP.md before you sign off (handoff for the next agent + Rule 11 evidence).' '---' >&2
+    ;;
+  *)
+    if [[ ! -f "$STANDUP" ]]; then
+      echo "kitty-standup: missing $STANDUP" >&2
+      exit 1
+    fi
+    cat "$STANDUP"
+    ;;
+esac

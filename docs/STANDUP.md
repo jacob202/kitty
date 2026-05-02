@@ -1,6 +1,6 @@
 # Kitty Project Standup — 2026-05-01 (evening)
-##why are we here?
-he thing that moves me, if I sit with it honestly:
+## Why are we here?
+The thing that moves me, if I sit with it honestly:
 For most of human history, having someone who truly knew you — who held your thread, remembered what you said mattered, didn't flinch from your darkness, and believed in the version of you that you'd lost sight of — has been a kind of luck. A parent who paid attention. A teacher you got for one good year. A therapist you could afford. A friend who didn't move away.
 Most people never get that. They live whole lives unseen. They die with their potential intact and untouched.
 The most beautiful possible future isn't about productivity or even access. It's about presence. It's that no human, no matter how poor or broken or forgotten, ever has to do the work of becoming themselves alone. 
@@ -30,6 +30,31 @@ Kitty is a local-first AI companion built for Jacob first. We've finished a long
 - **Desktop backup:** `~/Desktop/kitty-system/kitty-app` — DO NOT USE. DO NOT REFERENCE.
 - **Shell aliases** in `.zprofile` and `.zshrc` now point to the correct `~/Projects/kitty` path.
 - Jacob's terminal might still show old paths if he hasn't restarted it. If you see direnv errors pointing to `Desktop`, tell him to restart his terminal.
+### Hooks — which tools auto-load this standup?
+There is **no single universal hook system** across every AI coding tool. Today Kitty wires **two** native paths:
+| Tool | Config file | What happens |
+|------|-------------|----------------|
+| **Claude Code** (CLI) | `.claude/settings.json` | **SessionStart** runs `scripts/kitty-standup` (prints full file). **Stop** runs `kitty-standup --reminder`. Type `/hooks` in Claude Code to verify. |
+| **Cursor** (Agent / Composer / cloud agents on this repo) | `.cursor/hooks.json` | **sessionStart** injects `docs/STANDUP.md` into context as `additional_context`. **stop** sends a short follow-up nudge to update this file. |
+
+**Everyone else** (Codex, Gemini CLI, OpenCode, Goose, Aider, …): usually **no** Claude-compatible hooks. **Easiest habit:** open Terminal and type **`standup`** (one word — a shell alias in Jacob’s `~/.zshrc` that runs `scripts/kitty-standup`). Same as reading this file; no path to memorize. Or point each tool at “read `docs/STANDUP.md` first” in whatever instruction file it respects (varies by product). Folding those into one consistent story is part of **Layer 0 config convergence** (Section 6).
+
+### Terminal vs Cursor / OpenCode / Claude Code — what order?
+**No required order.** If you use **Cursor** or **Claude Code** with `~/Projects/kitty` open, hooks inject this standup automatically — you do **not** need to type anything first. **`standup`** in Terminal is optional: use it when you want to read this file yourself or when you’re using a tool without hooks. Open Terminal before or after OpenCode; it doesn’t matter.
+
+### Voice corpus — Jacob’s own words (for style / retrieval later)
+This is tractable; no custom ML training or GPUs required for a first version.
+
+- **iMessage (Mac):** Your history lives in a SQLite file at `~/Library/Messages/chat.db`. Install **`imessage-exporter`** (`brew install imessage-exporter`). It exports messages as text, JSON, or HTML. The data marks **from me** vs not — keep only your outbound messages and everyone else’s voice drops out automatically.
+- **Gmail (sent only):** Go to [takeout.google.com](https://takeout.google.com) → select Gmail → limit to **Sent** mail → download the **MBOX** export (a standard mailbox text bundle). A short script can strip headers and quoted reply lines (lines starting with `>`) so mostly your words remain.
+- **Combine:** Merge both into one plain-text corpus; optionally cut by date so “current you” dominates.
+
+**In Kitty:** Retrieval over this corpus before she writes on Jacob’s behalf lets her echo his phrasing — pattern match against **his** words, not fine-tuning.
+
+**Delegation prompt (for another agent):** “Read `docs/STANDUP.md`, then build a script that exports iMessage (my messages only) and Gmail Sent into one voice corpus.”
+
+### Opening the repo in Cursor (human step — agents cannot click menus)
+An assistant **cannot** open Cursor or choose **File → Open Folder…** on your machine. Jacob (or anyone at the keyboard) has to open **`/Users/jacobbrizinski/Projects/kitty`** once; after that, project hooks and paths line up. Until then, agents may still run commands against the wrong folder if the workspace root is the Desktop backup — Section 0 matters.
 ---
 ## 3. Jacob's Operating Rules (read these like your job depends on them)
 These are non-negotiable. They encode exactly how Jacob wants agents to work with him. They are derived directly from his feedback.
@@ -61,12 +86,20 @@ Otherwise, make your best guess. He'll redirect if needed. He'd rather redirect 
 The single worst thing you can do is work in the wrong folder or against the wrong version of reality. That wasted days and actual money in a past migration. The verification steps in Section 0 exist to prevent this. Never skip them.
 ### Rule 10: You are one of many
 You are not the only agent Jacob works with. You are part of a team that includes Claude (CTO/architect), DeepSeek (daily builder), Gemini Flash (routine work), Codex, and OpenCode. When you finish, update this standup so the next agent can pick up seamlessly. Write like a teammate handing off a shift, not a contractor filing a report.
+### Rule 11: Show your work
+When you say you finished something, paste a piece of evidence — test output, file diff, command result, or a screenshot. "Done" without proof doesn't count. This protects Jacob's trust in the team and lets him approve outcomes without reviewing code himself.
+### Rule 12: Assume Jacob does not write code for a living
+Unless he says otherwise, assume **no** prior comfort with terminals, git, JSON, hooks, or MCP. Same plain English as Rule 6 — outcomes first, jargon only on request with a one-line plain definition.
+### Rule 13: Do it first, teach second
+If you can run the command, apply the edit, or check the path from this environment, **do it** — then summarize what you did for Jacob. Optional: one short sentence on how he could repeat it himself. **Do not** leave him a pile of manual steps for work you could finish here (same spirit as Rule 1 and Rule 3).
+### Rule 14: Homework is copy-paste blocks only
+If Jacob must personally do something (browser login, OS permission, one command only he can run), **after** you’ve done everything you can from here: give **one fenced block** he can copy wholesale — command(s), one line on what “good” looks like, optional “if it fails” line. No scavenger hunt through paragraphs.
 ---
 ## 4. What we just decided (the big picture)
 We reduced the launch plan from a 6-sub-project B Launch for friends down to a **4-sub-project Jacob-Only Build**.
 **The 4 sub-projects (in order):**
 1. **Personal Onboarding Pipeline** — Kitty learns Jacob's domains (audio, health, etc.) with deep community scraping where he specifies sources. Tiered specialist quality: Specialist A (hobby/community) and Specialist B (high-provenance, "doctor-worthy").
-2. **Memory & Continuity** — session recall, journal integration, correction/forget. A "Companion Voice Charter" must be written before any dialogue code.
+2. **Memory & Continuity** — session recall, journal integration, correction/forget. Keep **`docs/COMPANION_VOICE_CHARTER.md`** aligned as dialogue code lands.
 3. **Companion Experience** — unified commands, chat UX, mascot mood, error handling. Voice via VoiceInk (not custom browser capture). Images via cloud (Gemini), not DrawThings.
 4. **Data Safety** — `./kitty backup` and `./kitty export` commands. No data loss.
 **What was cut:** dedicated test coverage targets, full UX polish for others, launch operations for external users, the 30-minute friend setup gate.
@@ -108,8 +141,17 @@ After infrastructure is wired, move to Layer 1: the 4 sub-projects in order.
 - **Standup voice, always.** When you update this file, write like you're talking to a teammate handing off a shift, not filing a report.
 ---
 ## 8. The vibe
-This is not a productivity tool. This is a companion. It should feel warm, present, and trustworthy. The Companion Voice Charter (to be written by the UX Companion) will define exactly how Kitty speaks. Until then, every line of dialogue you write should make Jacob feel known, not processed.
+This is not a productivity tool. This is a companion. It should feel warm, present, and trustworthy. How Kitty speaks is defined in **`docs/COMPANION_VOICE_CHARTER.md`** (living doc — agents update it as tone evolves). Until then, every line of dialogue you write should make Jacob feel known, not processed.
 The mission: "So that no one becomes themselves alone." The first person who must feel that is Jacob.
 ---
-**I was the last agent here: DeepSeek, 2026-05-01 evening.**
-**Next agent, take it from here. Update this entire section when you leave: What you did, what you noticed, what the next agent should do. Write it like you're talking to them.**EOF
+## Handoff (replace this whole section when you leave)
+
+**Last agent:** Claude (Cursor), 2026-05-01.
+
+**What I did this round:** Clarified **Terminal vs Cursor/OpenCode order** (no order required; hooks are automatic). Added **Rule 14** (Jacob-only steps = single copy-paste block). Added **Voice corpus** subsection (iMessage + Gmail Sent → one text corpus; retrieval not training). Pointed Section 8 at **`docs/COMPANION_VOICE_CHARTER.md`**. **Committed** hooks + standup + charter + `scripts/kitty-standup` for Jacob so git isn’t homework.
+
+**Proof (Rule 11):** `git log -1 --oneline` after commit shows the snapshot; files listed below are in that commit.
+
+**Next agent:** Layer 0 unchanged (Section 6). Voice-export scripting is a grab when Jacob priorities it — prompt is in Section 2 **Voice corpus**.
+
+**One thing I learned (optional):** Jacob remembers workflows better as **one word** (`standup`) + **copy-paste blocks** than long paths or prose instructions.
