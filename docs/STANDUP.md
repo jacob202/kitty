@@ -40,18 +40,34 @@ There is **no single universal hook system** across every AI coding tool. Today 
 **Everyone else** (Codex, Gemini CLI, OpenCode, Goose, Aider, …): usually **no** Claude-compatible hooks. **Easiest habit:** open Terminal and type **`standup`** (one word — a shell alias in Jacob’s `~/.zshrc` that runs `scripts/kitty-standup`). Same as reading this file; no path to memorize. Or point each tool at “read `docs/STANDUP.md` first” in whatever instruction file it respects (varies by product). Folding those into one consistent story is part of **Layer 0 config convergence** (Section 6).
 
 ### Terminal vs Cursor / OpenCode / Claude Code — what order?
-**No required order.** If you use **Cursor** or **Claude Code** with `~/Projects/kitty` open, hooks inject this standup automatically — you do **not** need to type anything first. **`standup`** in Terminal is optional: use it when you want to read this file yourself or when you’re using a tool without hooks. Open Terminal before or after OpenCode; it doesn’t matter.
+**No required order.** If you use **Cursor** or **Claude Code** with `~/Projects/kitty` open, hooks inject this standup automatically — you do **not** need to type anything first. **`standup`** in Terminal prints the **same** `docs/STANDUP.md` for you to read — it is not a different document; it’s the same source of truth the hooks use.
 
 ### Voice corpus — Jacob’s own words (for style / retrieval later)
-This is tractable; no custom ML training or GPUs required for a first version.
+This is tractable; no custom ML training or GPUs for a first version.
 
-- **iMessage (Mac):** Your history lives in a SQLite file at `~/Library/Messages/chat.db`. Install **`imessage-exporter`** (`brew install imessage-exporter`). It exports messages as text, JSON, or HTML. The data marks **from me** vs not — keep only your outbound messages and everyone else’s voice drops out automatically.
-- **Gmail (sent only):** Go to [takeout.google.com](https://takeout.google.com) → select Gmail → limit to **Sent** mail → download the **MBOX** export (a standard mailbox text bundle). A short script can strip headers and quoted reply lines (lines starting with `>`) so mostly your words remain.
-- **Combine:** Merge both into one plain-text corpus; optionally cut by date so “current you” dominates.
+**Script in-repo (run from `~/Projects/kitty`):** `scripts/build_voice_corpus.py` — combines **outbound iMessage** (rows where `is_from_me` and the `text` column is filled) and one or more **Gmail Takeout `.mbox`** files into a single UTF-8 text file (default `data/voice_corpus/jacob_voice.txt`, under `data/` which is gitignored).
+
+```bash
+cd /Users/jacobbrizinski/Projects/kitty
+python3 scripts/build_voice_corpus.py --out data/voice_corpus/jacob_voice.txt
+```
+
+**Gmail (Sent only) — you run this in a browser once:** [takeout.google.com](https://takeout.google.com) → deselect all → Gmail → **Include all messages** → switch to **Sent only** → export → download → unzip → pass the path to `--mbox` (repeat `--mbox` if Takeout split files):
+
+```bash
+cd /Users/jacobbrizinski/Projects/kitty
+python3 scripts/build_voice_corpus.py \
+  --mbox "$HOME/Downloads/takeout-XXXX/Mail/Sent.mbox" \
+  --out data/voice_corpus/jacob_voice.txt
+```
+
+*(Adjust the `.mbox` path to wherever Takeout put it.)*
+
+**iMessage caveats:** Terminal (or Cursor’s terminal) needs **Full Disk Access** to read `~/Library/Messages/chat.db` — **System Settings → Privacy & Security → Full Disk Access** → add Terminal (and Cursor if you run the script from there). Many newer macOS messages store body only in **`attributedBody`** not `text`; those rows are skipped until we add a richer parser — the script prints how many were skipped.
+
+**Optional:** `brew install imessage-exporter` for full HTML/txt exports if you need messages that skip in SQLite.
 
 **In Kitty:** Retrieval over this corpus before she writes on Jacob’s behalf lets her echo his phrasing — pattern match against **his** words, not fine-tuning.
-
-**Delegation prompt (for another agent):** “Read `docs/STANDUP.md`, then build a script that exports iMessage (my messages only) and Gmail Sent into one voice corpus.”
 
 ### Opening the repo in Cursor (human step — agents cannot click menus)
 An assistant **cannot** open Cursor or choose **File → Open Folder…** on your machine. Jacob (or anyone at the keyboard) has to open **`/Users/jacobbrizinski/Projects/kitty`** once; after that, project hooks and paths line up. Until then, agents may still run commands against the wrong folder if the workspace root is the Desktop backup — Section 0 matters.
