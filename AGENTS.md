@@ -29,6 +29,14 @@ If these conflict with older notes, these files win.
   - tests run
   - outcome and remaining risks
 
+## Handoff Detail Rule
+
+- Jacob's latest live instruction beats older handoff constraints, including "concise," "no narrative," "no new decisions," and "no clarifying questions."
+- If Jacob asks for a detailed, full, complete, or best-possible handoff, preserve more detail than he asked for.
+- Detailed handoffs must include chronology, decisions, rejected options, exact files, commit SHAs, commands, tests, current dirty state, open questions, risks, and next actions.
+- Do not compress grilling sessions into only a decision list. Keep or reference the raw transcript/source context, then add a decision ledger.
+- Concise transfer mode applies only when Jacob has not asked for detail and has not said prior context was missed.
+
 ## Scope Guards
 
 - Respect `CURRENT_FOCUS.md` forbidden work list.

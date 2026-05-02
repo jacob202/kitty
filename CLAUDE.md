@@ -84,6 +84,8 @@ These prevent recurring frictions seen in past sessions.
 - Always check for existing work before creating new code (especially CSS, components, helpers). A previous agent has likely already built it. Search first, then write.
 - After making code changes, run `venv/bin/python -m pytest tests/ -q --tb=short` and report pass/fail counts BEFORE declaring done. Never claim done without a fresh test result.
 - For any design doc, plan, or new markdown file longer than ~100 lines, present an outline first and wait for explicit approval. Do not begin writing the full content until Jacob says go.
+- Jacob's live instruction overrides older project notes, handoff constraints, and generic brevity rules. If he says to override a rule, asks for the best possible product, or asks for full/detailed/complete output, state any conflict briefly and follow Jacob's latest direction.
+- Detailed handoffs must preserve more detail than requested: chronology, raw decisions, rejected options, exact Jacob quotes or close paraphrases, files, commit SHAs, commands, tests, current dirty state, risks, and next actions. Do not compress a grilling session into only a short decision list; keep the source transcript or point to it, then add a decision ledger.
 - When Jacob says a phase or feature is "complete" or "built," treat that as a review gate. Verify against live tree and tests, do not trust status optimism.
 - When Jacob says "you missed a lot," "that doesn't seem like all of it," or "nothing works," stop summarizing from memory. Verify against the live tree and reproduce the issue before responding.
 
@@ -111,7 +113,8 @@ For long autonomous runs and clean handoffs.
 - At session start, read recent entries in `docs/AGENT_COORDINATION.md`, `SESSION_SUMMARY.md`, and `CURRENT_FOCUS.md` before planning.
 - For autonomous work spanning multiple tasks, write a checkpoint to a `HANDOFF-<date>.md` file (in `.claude/` or `docs/handoffs/`) after each task completes. Don't only write at session end — usage limits cut off too early.
 - Always commit work-in-progress before risky operations (renames, large refactors, dependency changes). Commit often; small commits are easier to revert.
-- When Jacob asks for a handoff, switch to concise transfer mode: exact files changed, verified URLs, what's running, what's incomplete. No narrative.
+- For ordinary status or transfer handoffs, keep it concise: exact files changed, verified URLs, what's running, what's incomplete.
+- For detailed/full/complete handoffs, or when Jacob says a handoff missed context, do the opposite of concise mode: include chronology, decisions, rejected options, source references, exact files, commits, verification, incomplete work, risks, and next steps. The "no narrative" rule does not apply in this mode.
 
 ## Cost Discipline
 
