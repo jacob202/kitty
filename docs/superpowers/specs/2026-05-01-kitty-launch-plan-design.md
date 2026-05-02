@@ -71,7 +71,21 @@ Jacob never reads code. His job is vision, gut-feel approval, demo review, and r
 
 Claude Sonnet (with Opus reserved for highest-leverage strategic decisions) is the technical authority. It translates Jacob's vision into architecture, reviews all code output, maintains the design docs, and owns the technical coherence of the whole project. No code merges without Sonnet review.
 
-#### PM Layer: Dorothy MCP — Kanban + Telegram + Vault + DrawThings
+#### PM Layer: KittyBuilder + Dorothy MCP
+
+KittyBuilder is the project-manager workbench Jacob starts with. Its job is to load the control plane, inspect dirty state, summarize where the project really is, prepare CTO handoffs, and keep Jacob from having to manually route every next step. It does not replace the CTO: architecture and merge judgment still belong to Sonnet/Opus. It does not replace Dorothy: Dorothy remains the visible board, vault, and phone-notification layer.
+
+The desired startup flow is:
+
+```
+Jacob starts work
+  -> KittyBuilder reads Layer 0 control plane + dirty tree
+  -> KittyBuilder prepares CTO handoff / next gated action
+  -> CTO decides architecture/review/delegation
+  -> Dorothy records board state and notifies Jacob
+```
+
+#### Dorothy MCP — Kanban + Telegram + Vault + DrawThings
 
 Dorothy is slimmed from 8 MCP servers to the 4 that serve the launch plan:
 
@@ -157,7 +171,7 @@ The stack stays as-is for B launch: **Flask + Next.js + MLX + LightRAG**. Flask 
 
 #### Layer 0 Tooling Pre-Flight — Optimization Pass
 
-Before any Layer 1 work begins, the surrounding infrastructure must be stripped to essentials. Current state: ~35 skills, 9 Claude plugins, 8 MCP servers, and 30+ scripts — many unused, overlapping, or dead-weight. This bloat burns tokens on every agent session and causes agents to load irrelevant context.
+Before any Layer 1 work begins, the surrounding infrastructure must be stripped to essentials. Current state: 43 skills (25 kept + 18 cut), 9 Claude plugins, 8 MCP servers, and 30+ scripts — many unused, overlapping, or dead-weight. This bloat burns tokens on every agent session and causes agents to load irrelevant context.
 
 This is not "fewer tools at all costs." The rule is: **right tool, proven job, clean config.** If a better MCP server or CLI genuinely improves the launch path, add it. If a current tool only adds startup context, overlapping commands, or unclear triggers, cut it or move it to a reactivation list.
 
@@ -165,10 +179,10 @@ This is not "fewer tools at all costs." The rule is: **right tool, proven job, c
 Remove from `.claude/mcp.json`: orchestrator, dorothy-socialdata, dorothy-x, dorothy-world. The bridge daemon and CrewAI replace orchestrator-style routing. Result: 8 → 4 MCP servers (kanban, telegram, vault, drawthings). Verify with `./kitty status`, then `venv/bin/python -m pytest tests/ -q --tb=short`.
 
 **Phase B — Cut skills second:**
-Cut 18 skills from `.claude/skills/` (symlinks to `~/.agents/skills/`). Keep 24: fix-and-verify, parallel-subagents, overnight-queue, prompt-answer-quality, tdd, caveman, grill-me, spec-to-impl, demo, audit, zoom-out, all firecrawl-* (11), skill-creator, find-skills. Cut: domain-news, grill-with-docs, improve-codebase-architecture, recommend, setup-matt-pocock-skills, to-issues, to-prd, triage, write-a-skill, execution, improve, planning, reasoning, ship, think, world-builder, ast-grep, agent-browser (reactivate if page navigation is needed). Verify with `find .claude/skills -maxdepth 2 -name SKILL.md | wc -l`, then run a fresh Claude/OpenCode session smoke check.
+Cut 18 skills from `.claude/skills/` (symlinks to `~/.agents/skills/`). Keep 25: fix-and-verify, parallel-subagents, overnight-queue, prompt-answer-quality, tdd, caveman, grill-me, spec-to-impl, demo, audit, zoom-out, all firecrawl-* (12: firecrawl, firecrawl-agent, firecrawl-build-interact, firecrawl-build-onboarding, firecrawl-build-scrape, firecrawl-build-search, firecrawl-crawl, firecrawl-download, firecrawl-interact, firecrawl-map, firecrawl-scrape, firecrawl-search), skill-creator, find-skills. Cut: domain-news, grill-with-docs, improve-codebase-architecture, recommend, setup-matt-pocock-skills, to-issues, to-prd, triage, write-a-skill, execution, improve, planning, reasoning, ship, think, world-builder, ast-grep, agent-browser (reactivate if page navigation is needed). Verify with `find .claude/skills -maxdepth 2 -name SKILL.md | wc -l` (expect 25), then run a fresh Claude/OpenCode session smoke check.
 
 **Phase C — Cut plugins third:**  
-Disable 5 Claude plugins: security-guidance, pr-review-toolkit, agent-sdk-dev, pyright-lsp, frontend-design. Keep 4: commit-commands, code-review, superpowers, feature-dev. Verify by starting Claude.app/OpenCode in the repo and confirming the kept plugins load without startup errors.
+Disable 5 Claude plugins: security-guidance, pr-review-toolkit, agent-sdk-dev, pyright-lsp, frontend-design. Keep 4: commit-commands, code-review, superpowers, feature-dev. Verify with `grep -c "enabled" .claude/plugins/*.json` (expect 4), then start Claude.app/OpenCode in the repo and confirm no startup errors in session log.
 
 **Phase D — Clean scripts last:**  
 Keep 7 scripts: clear-and-test.sh, quick-smoke.sh, checkpoint.sh, run_gates.sh, validate.sh, golden_demo.sh, context_pack_generator.py (+ dorothy_bridge.py which is new). Archive remaining 25+ scripts to `scripts/archive/`. Verify with `bash -n scripts/*.sh`, then `venv/bin/python -m pytest tests/ -q --tb=short`.
@@ -280,7 +294,7 @@ See `docs/PARKED_FEATURES.md` for full parking documentation.
 
 ### Skills and Plugins Not Optimized
 
-The current `.claude/skills/` directory, Agent Skills block in `AGENTS.md`, and project-level skill infrastructure have grown organically. Skills may overlap or conflict. Before B launch, a clean install pass is needed: remove unused skills, ensure skill descriptions trigger correctly, and verify that the skills loaded in `AGENTS.md` match what's in `.claude/skills/`.
+The current `.claude/skills/` directory, Agent Skills block in `AGENTS.md`, and project-level skill infrastructure have grown organically. Skills may overlap or conflict. This is resolved by the Layer 0 Pre-Flight Optimization Pass (Phases B–C above), which cuts unused skills and plugins, verifies descriptions trigger correctly, and aligns `AGENTS.md` with `.claude/skills/`. The constraint remains: before B launch, a clean install pass must be completed and verified.
 
 ---
 
@@ -531,6 +545,7 @@ The Layer 0 deliverable is a short config report: files changed, secrets removed
 |------|-------|-----------------|
 | Chief Product Officer | **Jacob** | Vision, gut-feel approvals, demo review, "yes/no/redirect." Never reads code |
 | Chief Technology Officer | **Claude.app/Sonnet** (Opus reserved for strategic decisions) | Architecture, code review, design docs, technical coherence. Reviews all code before merge |
+| Project Manager Workbench | **KittyBuilder** | Session start, dirty-tree awareness, control-plane brief, CTO handoff prep, approved-work tracking |
 | PM Automation | **Dorothy MCP** (kanban, telegram, vault) | Task board, push notifications to Jacob's phone, durable spec/handoff storage |
 | Bridge Daemon | **`dorothy_bridge.py`** | Polls Kanban, spawns CrewAI/Crush/Aider, posts Telegram updates. Runs independently |
 | Pipeline Agents | **CrewAI** (searcher, digester, embedder, organizer) | Sequential knowledge ingestion for onboarding. Runs on cheap API with local fallback |

@@ -9,5 +9,5 @@ if [ -d "venv" ]; then
     source venv/bin/activate
 fi
 
-# Launch the builder
-python3 scripts/kitty_builder.py "$@"
+# Launch the builder (PYTHONPATH ensures src/ is importable from project root)
+PYTHONPATH="$(pwd)" python3 scripts/kitty_builder.py "$@"

@@ -32,21 +32,26 @@ Last updated: 2026-05-01
 - MCP agent bundle exists in the dirty tree but is unverified, out of phase, and blocked by current focus; import smoke tests currently fail on missing optional dependencies.
 - Copy-first `kitty-system` workspace created beside the old checkout; migrated path is active and old checkout remains rollback.
 - Copied app gate and basic launch smoke passed from `/Users/jacobbrizinski/Projects/kitty-system/kitty-app` on `KITTY_PORT=5002`.
-- Phase 4 incoming worker changes enforced and cleared via `docs/PHASE4_MERGE_GATE_2026-04-30.md`.
+- Phase 4 incoming worker changes enforced and cleared via `docs/archive/2026-04-30-phase4-runs/PHASE4_MERGE_GATE_2026-04-30.md`.
 - Reviewed MCP-agent lane triage/spec-first reconciliation completed (no MCP expansion adopted).
 - `src/tools/image_gen.py` diff reviewed and adopted.
 - Migration lane started with refreshed copy-first sync, preflight `READY`, copied-app gate pass (`92 passed`), and launch validation on port 5004.
 - Phase 4 merge gate rerun completed from migrated runtime path; full suite `348 passed`, focused route suite `22 passed`, and route smoke returned HTTP 200 for `/api/brief`, `/api/command`, and `/api/chat`.
-- Phase 4 merge-gate automation script added and validated: `scripts/run_phase4_merge_gate.sh` (full run passed against `kitty-system/kitty-app` and wrote `docs/PHASE4_MERGE_GATE_RUN_2026-04-30_114555.md`).
-- Phase 4 merge gate re-run **PASS** on migrated app (`kitty-system/kitty-app`, port **5001**): `docs/PHASE4_MERGE_GATE_RUN_2026-04-30_goahead.md` (2026-04-30, cursor).
+- Phase 4 merge-gate automation script added and validated: `scripts/run_phase4_merge_gate.sh` (full run passed against `kitty-system/kitty-app`; report: `docs/archive/2026-04-30-phase4-runs/PHASE4_MERGE_GATE_RUN_2026-04-30_FINAL.md`).
+- Phase 4 merge gate re-run **PASS** on migrated app (`kitty-system/kitty-app`, port **5001**): `docs/archive/2026-04-30-phase4-runs/PHASE4_MERGE_GATE_RUN_2026-04-30_FINAL.md` (2026-04-30, cursor).
 - `runtime-001` / `specs/runtime-parity-critical-fixes.spec.md` **completed** and verified on legacy + migrated focused tests (2026-04-30, cursor closeout).
 - Streaming supervisor DRY refactor shipped (`f134a2f`); copy-first sync to `kitty-system/kitty-app`, migrated `pytest tests/` **393 passed**, Phase 4 merge gate **PASS** (`docs/PHASE4_MERGE_GATE_RUN_2026-05-01_resume.md`, 2026-04-30).
 - **Phase A** (`docs/audits/operational-plan-20260430.md`): all six blocker items verified in tree; plan doc updated with completion row + build-order note (2026-05-01).
 - D-0011/D-0012 recorded in `docs/DECISIONS.md`; merge gate script anchors relative `--report` to `--project`; regression `tests/test_phase4_merge_gate_report_path.py` (2026-05-01).
+- Two-repo consolidation completed: migrated `kitty-system/kitty-app` reconciled into legacy and deleted. Single canonical checkout at `/Users/jacobbrizinski/Projects/kitty`. Copied `honcho_routes.py` + 3 migrated-only docs. Stale references fixed in TASKS.md, AGENT_COORDINATION.md, CURRENT_FOCUS.md (2026-05-01).
+- Docs bloat cleanup: `2.6M → 680K`. Removed 13 Mac resource forks, 2 orphan anchors, 10 phase4 run dupes. Phase4 archive: 17 → 7 canonical reports (2026-05-01).
+- Utils dead code archiving: 48 files → 17 live. 34 dead (11504 lines) moved to `src/utils/_dead_archive/`. 3 restored after dep discovery (`security_scanner`, `performance_monitor`, `datasheet_intelligence`). Full suite verified: `399 passed` (2026-05-01).
+- Two new skills created: `recommend` (two-mode: NEED SCOUT + MATCHMAKER) and `spec-to-impl` (two-mode: SPEC VALIDATOR + IMPL GENERATOR) in `.claude/skills/` (2026-05-01).
+- Report: `docs/audits/CONSOLIDATION_REPORT_2026-05-01.md`.
 
 ## Next Smallest Action
 
-- For every incoming Phase 4 worker change, run `scripts/run_phase4_merge_gate.sh --project /Users/jacobbrizinski/Projects/kitty-system/kitty-app --port 5001` and only merge/checkpoint on pass.
+- For every incoming Phase 4 worker change, run `scripts/run_phase4_merge_gate.sh --project /Users/jacobbrizinski/Projects/kitty --port 5001` and only merge/checkpoint on pass.
 
 ## Delegation Queue
 
@@ -54,7 +59,6 @@ Last updated: 2026-05-01
 
 ## Blocked Without New Spec
 
-- physical `kitty-system/kitty-app` repo move
 - memory migration beyond current focused modules
 - QLoRA/model training
 - MCP expansion

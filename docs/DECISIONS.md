@@ -167,3 +167,19 @@ Consequences:
 
 Review trigger:
 Repeated coordination confusion from commit metadata; optional automation (prepare-commit-msg hook) if desired.
+
+## D-0013: KittyBuilder Is The Project Manager Workbench
+
+Status: accepted
+
+KittyBuilder owns the start-of-work project-manager surface. It loads the Layer 0 control plane, dirty-tree state, task state, and recent commits before work starts. It prepares CTO handoffs and next gated actions.
+
+KittyBuilder does not replace the CTO role. Sonnet/Opus still own architecture, code review, technical coherence, and merge judgment.
+
+KittyBuilder does not replace Dorothy. Dorothy remains the board, vault, and Telegram notification layer.
+
+Safety boundary:
+Write-capable builder execution still requires an approved spec and explicit `--project` / `--spec` arguments. Read-only PM briefing can run with `python3 scripts/kitty_builder.py --brief`.
+
+Review trigger:
+If `kittybuilder --brief` becomes misleading, slow, or noisy, tighten its context pack rather than bypassing the PM surface.

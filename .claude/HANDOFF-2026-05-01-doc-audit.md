@@ -107,3 +107,5 @@ Completion note: 2026-05-01 — audit defects D1-D9 resolved by Codex; doc check
 Follow-up note: 2026-05-01 — Jacob flagged a missing grilling-session decision: "No reinstalls. Clean configs only" and CLI/model config convergence. Added it to the design doc as a first-class Layer 0 Phase G, Model and CLI Config Control table, and Layer 0 validation gate.
 
 Follow-up note: 2026-05-01 — Jacob pasted fuller grilling context. Added missing details: right-tool-not-fewer-tools rule, SOUL/reference-doc cleanup, CrewAI vs AutoGen vs LangGraph rationale, paid-seat vs cheap-API distinction, dormant-client policy, and agent-browser reactivation trigger.
+
+Follow-up note: 2026-05-01 — Remaining D2-D9 defects re-audited and fixed by GLM-5.1. D4 (coordinator refs), D6 (PM header count), D8 (orchestrator ambiguity), D9 (Codex/OpenCode roster) were already resolved in prior passes. D2 (skills count) fixed: firecrawl-* is 12 not 11, total kept = 25 not 24. D5 (Phase C verification) fixed: added concrete grep command. D7 (constraints cross-ref) fixed: added reference to Pre-Flight Phases B-C. Also fixed skill total from ~35 to 43 (25 kept + 18 cut). 399/399 tests passing.

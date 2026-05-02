@@ -11,6 +11,7 @@ Purpose: one map for the instructions that govern agent work. This file does not
 - Retired/stale path unless explicitly recreated: `/Users/jacobbrizinski/Projects/kitty-system/kitty-app`
 - Current product target: B launch for technical friends running their own local copy.
 - Current system target: Layer 0 cleanup and config convergence before Layer 1 product execution.
+- Project-manager surface: `kittybuilder` owns session start, dirty-tree awareness, and CTO handoff preparation.
 
 ## Authority Order
 
@@ -31,14 +32,23 @@ If an older file says `kitty-system/kitty-app` is active, treat that claim as st
 
 ## Active Layer 0 Sequence
 
-1. Inventory instruction-bearing markdown, MCP servers, plugins, skills, scripts, and model/client configs.
-2. Patch stale instruction sources so agents read one reality.
-3. Cut MCP servers to the launch set: kanban, telegram, vault, drawthings.
-4. Cut or park plugins to the launch set: commit-commands, code-review, superpowers, feature-dev.
-5. Reconcile skills from actual disk inventory, not stale counts in the design doc.
-6. Converge model and CLI configs; no client reinstalls unless a client is proven broken after config cleanup.
-7. Implement `scripts/dorothy_bridge.py` only after Dorothy/Kanban/Telegram config is verified.
-8. Run the Layer 0 validation gate before starting Layer 1 onboarding work.
+1. Start the session through KittyBuilder: `python3 scripts/kitty_builder.py --brief` or `bash scripts/start-session.sh`.
+2. Inventory instruction-bearing markdown, MCP servers, plugins, skills, scripts, and model/client configs.
+3. Patch stale instruction sources so agents read one reality.
+4. Cut MCP servers to the launch set: kanban, telegram, vault, drawthings.
+5. Cut or park plugins to the launch set: commit-commands, code-review, superpowers, feature-dev.
+6. Reconcile skills from actual disk inventory, not stale counts in the design doc.
+7. Converge model and CLI configs; no client reinstalls unless a client is proven broken after config cleanup.
+8. Implement `scripts/dorothy_bridge.py` only after KittyBuilder, CTO, Dorothy/Kanban, and Telegram roles are verified.
+9. Run the Layer 0 validation gate before starting Layer 1 onboarding work.
+
+## Layer 0 Roles
+
+- Jacob: product owner; gives vision, yes/no/redirect, and demo feedback.
+- CTO agent: architecture, review, technical decisions, merge judgment.
+- KittyBuilder: project manager/workbench; starts sessions, reads the control plane, inventories dirty state, prepares CTO handoffs, and tracks approved work.
+- Dorothy: board, vault, and Telegram notification layer.
+- Bridge daemon: later automation that moves approved cards into builder/pipeline execution.
 
 ## Required Inventory Before Deleting Anything
 
@@ -65,4 +75,3 @@ Layer 0 is ready when all are true:
 - Skills are reconciled from actual disk inventory with keep/cut/reactivate lists.
 - Config files contain no literal secrets and each CLI can report help/version from the repo.
 - A real or dry-run Dorothy/Kanban task can move through the intended Layer 0 flow with evidence.
-

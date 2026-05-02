@@ -1,5 +1,5 @@
 # Current Focus
-Last updated: 2026-04-30
+Last updated: 2026-05-01
 
 ## Active Phase
 
@@ -19,7 +19,6 @@ Executing Phase C: Hardening & Coverage. Goal is production-grade reliability, t
 - `prefers-reduced-motion` support
 - TypeScript strict mode fixes
 - Blocker fixes from Phase B feedback
-- Workspace sync to `kitty-system/kitty-app`
 
 ## Forbidden Work
 

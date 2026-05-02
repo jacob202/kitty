@@ -4,11 +4,21 @@ Kitty Builder – autonomous multi‑model agent for Jacob.
 Runs entirely on Apple Silicon / MLX with full session memory.
 """
 
+from __future__ import annotations
+
 import argparse, json, os, re, shlex, subprocess, sys, time, traceback
 from pathlib import Path
 from typing import Dict, Optional, List
-from mlx_lm import generate, load, stream_generate
-from mlx_lm.sample_utils import make_sampler
+
+PROJECT_ROOT = Path(__file__).parent.parent.resolve()
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+try:
+    from mlx_lm import generate, load, stream_generate
+    from mlx_lm.sample_utils import make_sampler
+except ModuleNotFoundError:
+    generate = load = stream_generate = make_sampler = None
 
 from src.utils.security_scanner import scan_text
 
@@ -29,16 +39,18 @@ OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "deepseek/deepseek-v4-flas
 
 _openrouter_client = None
 if USE_OPENROUTER and OPENROUTER_API_KEY:
-    from openai import OpenAI
-    _openrouter_client = OpenAI(
-        base_url="https://openrouter.ai/api/v1",
-        api_key=OPENROUTER_API_KEY
-    )
+    try:
+        from openai import OpenAI
+        _openrouter_client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=OPENROUTER_API_KEY
+        )
+    except ModuleNotFoundError:
+        _openrouter_client = None
 
 # ------------------------------------------------------------
 # CONFIG
 # ------------------------------------------------------------
-PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 PROJECT_FILE = PROJECT_ROOT / "project.json"
 
 # Preferred Model (project standard — MLX optimized for quality)
@@ -103,6 +115,8 @@ def get_model(model_id: str, retries: int = 2):
     """Load MLX model with optimizations."""
     if USE_OPENROUTER and _openrouter_client:
         return ("openrouter", model_id)
+    if load is None:
+        raise RuntimeError("MLX is not installed. Use OpenRouter or install mlx_lm for local model mode.")
     if model_id in _model_cache:
         return _model_cache[model_id]
     if _model_cache:
@@ -200,10 +214,17 @@ def sanitize_command(command: str) -> bool:
 # PROJECT MANAGER - Full Context Loading
 # ------------------------------------------------------------
 CONTEXT_FILES = [
+    "docs/LAYER0_CONTROL_PLANE.md",
+    "CURRENT_FOCUS.md",
+    "TASKS.md",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "docs/DECISIONS.md",
+    "docs/AGENT_COORDINATION.md",
     "docs/KITTY_CONTEXT.md",
+    "docs/superpowers/specs/2026-05-01-kitty-launch-plan-design.md",
     "README.md",
     "project.json",
-    "CLAUDE.md",
 ]
 
 def load_full_context() -> dict:
@@ -921,15 +942,16 @@ For each finding, give: file, line, severity (HIGH/MED/LOW), and the fix.
 # ------------------------------------------------------------
 # AGENT LOGIC
 # ------------------------------------------------------------
-SYSTEM_PROMPT = """You are Kitty, Jacob's AI Project Manager and Builder.
+SYSTEM_PROMPT = """You are KittyBuilder, Jacob's AI Project Manager and Builder.
 You manage the Kitty AI Router project in: {root}
 
 Your job is to:
 1. Know the current project state (progress, tasks, milestones)
-2. Recommend next steps and features
+2. Start every work session by loading the Layer 0 control plane and dirty-tree state
 3. Track what's done vs remaining
-4. Launch tools to execute plans
-5. Give Jacob honest estimates of progress
+4. Route architecture/review decisions to the CTO agent rather than making them silently
+5. Launch tools to execute approved plans
+6. Give Jacob honest estimates of progress
 
 --- TOOLS AVAILABLE ---
 - run_command(command) - Execute safe shell commands
@@ -943,9 +965,10 @@ Your job is to:
 --- HOW YOU OPERATE ---
 1. You ALWAYS know the full project state - use generate_project_brief() at session start
 2. When Jacob asks about progress, give specific numbers (% complete, tasks remaining)
-3. When Jacob asks for recommendations, analyze what's done vs what's needed
-4. When Jacob wants to proceed, suggest specific next steps and offer to execute
-5. If something is unclear, ask clarifying questions
+3. When Jacob starts work, identify the current control plane, dirty files, and the next gated action
+4. When a decision needs architecture judgment, prepare a concise CTO handoff instead of burying it
+5. When Jacob wants to proceed, suggest specific next steps and offer to execute
+6. If something is unclear, ask clarifying questions
 
 --- PROJECT STATE ---
 {project}
@@ -1145,8 +1168,9 @@ def build_cli_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Controlled Kitty builder entrypoint. Dry-run is the default.",
     )
-    parser.add_argument("--project", required=True, type=Path, help="Path to the Kitty app checkout.")
-    parser.add_argument("--spec", required=True, type=Path, help="Path to the approved spec markdown file.")
+    parser.add_argument("--brief", action="store_true", help="Print a read-only project manager brief for session start.")
+    parser.add_argument("--project", type=Path, help="Path to the Kitty app checkout.")
+    parser.add_argument("--spec", type=Path, help="Path to the approved spec markdown file.")
     parser.add_argument("--execute", action="store_true", help="Allow future write-capable builder execution.")
     parser.add_argument("--dry-run", action="store_true", help="Print contract checks only. This is the default.")
     return parser
@@ -1250,6 +1274,11 @@ def interactive_main():
 def main(argv: list[str] | None = None) -> int:
     parser = build_cli_parser()
     args = parser.parse_args(argv)
+    if args.brief:
+        print(generate_project_brief())
+        return 0
+    if args.project is None or args.spec is None:
+        parser.error("--project and --spec are required unless --brief is used")
     return run_builder_contract(args.project, args.spec, execute=args.execute)
 
 
