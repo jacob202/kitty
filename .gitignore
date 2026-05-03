@@ -3,6 +3,7 @@ lightrag/.venv/
 __pycache__/
 *.pyc
 .DS_Store
+Icon\r
 .env
 .env.*
 !.env.example
@@ -23,6 +24,10 @@ src/tools/superpowers/
 
 # Runtime / local-only files
 .kitty.pid
+.kitty_builder_cache.sqlite3
+.kitty_builder_model_stats.jsonl
+.kitty_builder_budget.json
+.kittybuilder_session.json
 .zshrc.aider
 .zshrc.shim
 data/
