@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Print docs/STANDUP.md for humans and Claude Code hooks (SessionStart).
-# Usage: kitty-standup | kitty-standup --reminder (stderr banner before session end)
+# Usage:
+#   kitty-standup           — full file (terminal / humans)
+#   kitty-standup --hook    — compact block for SessionStart (matches Cursor hook)
+#   kitty-standup --reminder — stderr banner before session end
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STANDUP="$ROOT/docs/STANDUP.md"
@@ -8,11 +11,31 @@ case "${1:-}" in
   --reminder)
     printf '%s\n' '' '---' 'STANDUP: Update docs/STANDUP.md before you sign off (handoff for the next agent + Rule 11 evidence).' '---' >&2
     ;;
-  *)
+  --hook)
+    if [[ ! -f "$STANDUP" ]]; then
+      echo "kitty-standup: missing $STANDUP" >&2
+      exit 1
+    fi
+    exec python3 -c "
+import pathlib, re, sys
+p = pathlib.Path(sys.argv[1])
+t = p.read_text(encoding='utf-8')
+m = re.search(r'<!-- HOOK_START -->\\s*(.*?)\\s*<!-- HOOK_END -->', t, re.DOTALL)
+if not m:
+    print('kitty-standup: HOOK_START/HOOK_END missing in STANDUP.md', file=sys.stderr)
+    sys.exit(1)
+print(m.group(1).strip())
+" "$STANDUP"
+    ;;
+  "")
     if [[ ! -f "$STANDUP" ]]; then
       echo "kitty-standup: missing $STANDUP" >&2
       exit 1
     fi
     cat "$STANDUP"
+    ;;
+  *)
+    echo "kitty-standup: unknown option ${1:-}" >&2
+    exit 1
     ;;
 esac

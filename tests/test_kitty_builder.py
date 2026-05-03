@@ -267,6 +267,73 @@ def test_update_project_unknown_action(tmp_path, monkeypatch):
     assert "Error" in result
 
 
+def test_update_project_add_task_rejects_empty_task(tmp_path, monkeypatch):
+    monkeypatch.setattr(kb, "PROJECT_FILE", tmp_path / "project.json")
+    kb.session.project_state = _fresh_proj()
+    assert "non-empty" in kb.update_project("add_task", milestone_id=1, task="   ").lower()
+
+
+def test_update_project_add_task_unknown_milestone(tmp_path, monkeypatch):
+    monkeypatch.setattr(kb, "PROJECT_FILE", tmp_path / "project.json")
+    kb.session.project_state = _fresh_proj()
+    assert "not found" in kb.update_project("add_task", milestone_id=99, task="x").lower()
+
+
+def test_update_project_empty_milestones_safe(tmp_path, monkeypatch):
+    monkeypatch.setattr(kb, "PROJECT_FILE", tmp_path / "project.json")
+    kb.session.project_state = {"project_name": "X", "notes": "", "milestones": [], "backlog": []}
+    assert "not found" in kb.update_project("add_task", milestone_id=1, task="t").lower()
+
+
+def test_get_model_openrouter_sentinel_vs_force_local(monkeypatch):
+    monkeypatch.setattr(kb, "USE_OPENROUTER", True)
+    monkeypatch.setattr(kb, "_openrouter_client", object())
+    assert kb.get_model("mlx-community/Z", force_local=False) == ("openrouter", "mlx-community/Z")
+    kb._model_cache.clear()
+    local = kb.get_model(kb.MODEL_BUILDER, force_local=True)
+    assert isinstance(local, tuple) and len(local) == 2
+    assert local[0] != "openrouter"
+
+
+def test_execute_tool_call_plan_only_blocks_writes(monkeypatch):
+    monkeypatch.setattr(kb, "PLAN_ONLY_MODE", True)
+    ok, msg = kb._execute_tool_call({"tool": "write_file", "args": {"path": "x.py", "content": "1"}})
+    assert ok is False
+    assert "plan-only" in msg.lower()
+    monkeypatch.setattr(kb, "PLAN_ONLY_MODE", False)
+
+
+def test_run_command_truncated_kills_child(monkeypatch):
+    import subprocess as sp
+
+    kill_calls = []
+
+    class LoudProc:
+        returncode = -9
+
+        def __init__(self):
+            self.stdout = (f"{'y' * 80}\n" for _ in range(2000))
+
+        def kill(self):
+            kill_calls.append(True)
+
+        def wait(self, timeout=None):
+            return 0
+
+    monkeypatch.setattr(sp, "Popen", lambda *a, **kw: LoudProc())
+    kb.run_command("ls -la")
+    assert kill_calls, "truncated output should kill the subprocess"
+
+
+def test_apply_history_cap_keeps_system_prefix():
+    hist = [{"role": "system", "content": "sys"}]
+    hist.extend([{"role": "user", "content": str(i)} for i in range(50)])
+    kb._apply_history_cap(hist, max_msgs=10)
+    assert hist[0]["role"] == "system"
+    assert hist[0]["content"] == "sys"
+    assert len(hist) <= 10
+
+
 # ── MODEL consolidation ───────────────────────────────────────────────────────
 
 def test_all_roles_use_same_model():
@@ -307,7 +374,22 @@ def test_show_help_runs(capsys):
 
 # ── build_project_state returns expected structure ──────────────────────────
 
-def test_scan_codebase_structure():
+def test_scan_codebase_structure(monkeypatch, tmp_path):
+    """Must not walk the real repo (too slow); use a minimal synthetic tree."""
+    monkeypatch.setattr(kb, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(kb, "PROJECT_FILE", tmp_path / "project.json")
+    (tmp_path / "toy.py").write_text("# TODO: check widget\n", encoding="utf-8")
+    (tmp_path / "project.json").write_text(
+        json.dumps(
+            {
+                "project_name": "Toy",
+                "milestones": [],
+                "backlog": [],
+                "notes": "",
+            }
+        ),
+        encoding="utf-8",
+    )
     result = kb.build_project_state()
     assert "project_name" in result
     assert "milestones" in result
@@ -533,3 +615,583 @@ def test_builder_contract_execute_is_explicit(tmp_path, capsys):
     assert result == 0
     assert "Mode: execute" in output
     assert "Legacy interactive builder is not auto-launched" in output
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Free-model pool, retry/cooldown, BuilderError — added with optimize+retry refactor.
+# ────────────────────────────────────────────────────────────────────────────
+
+import time as _time
+from types import SimpleNamespace
+
+
+# ── BuilderError + BudgetExhausted ────────────────────────────────────────────
+
+def test_builder_error_carries_code_and_retry_after():
+    err = kb.BuilderError("RATE_LIMITED", "boom", retry_after=5.5, model="x:free")
+    assert err.code == "RATE_LIMITED"
+    assert err.retry_after == 5.5
+    assert err.model == "x:free"
+    assert "boom" in str(err)
+
+
+def test_budget_exhausted_is_builder_error():
+    e = kb.BudgetExhausted("BUDGET_EXHAUSTED", "cap hit")
+    assert isinstance(e, kb.BuilderError)
+
+
+# ── _retry_after_seconds + _classify_openrouter_error ─────────────────────────
+
+def test_retry_after_seconds_from_response_headers():
+    exc = SimpleNamespace(response=SimpleNamespace(headers={"Retry-After": "12"}))
+    assert kb._retry_after_seconds(exc) == 12.0
+    exc2 = SimpleNamespace(response=SimpleNamespace(headers={"retry-after": "3.5"}))
+    assert kb._retry_after_seconds(exc2) == 3.5
+
+
+def test_retry_after_seconds_returns_none_when_missing():
+    assert kb._retry_after_seconds(Exception("no headers")) is None
+    assert kb._retry_after_seconds(SimpleNamespace(response=None)) is None
+    exc = SimpleNamespace(response=SimpleNamespace(headers={}))
+    assert kb._retry_after_seconds(exc) is None
+
+
+def test_classify_openrouter_error_rate_limit():
+    exc = SimpleNamespace(response=SimpleNamespace(status_code=429))
+    kind, status = kb._classify_openrouter_error(exc)
+    assert kind == "rate"
+    assert status == 429
+
+
+def test_classify_openrouter_error_unavailable():
+    for code in (502, 503, 504):
+        exc = SimpleNamespace(response=SimpleNamespace(status_code=code))
+        kind, _ = kb._classify_openrouter_error(exc)
+        assert kind == "unavailable"
+
+
+def test_classify_openrouter_error_request():
+    exc = SimpleNamespace(response=SimpleNamespace(status_code=400))
+    kind, status = kb._classify_openrouter_error(exc)
+    assert kind == "request"
+    assert status == 400
+
+
+def test_classify_openrouter_error_network():
+    kind, _ = kb._classify_openrouter_error(Exception("no response attr"))
+    assert kind == "network"
+
+
+# ── FreeModelPool ────────────────────────────────────────────────────────────
+
+def test_free_pool_next_available_round_robin():
+    pool = kb.FreeModelPool(["a:free", "b:free", "c:free"])
+    seq = [pool.next_available() for _ in range(6)]
+    assert seq == ["a:free", "b:free", "c:free", "a:free", "b:free", "c:free"]
+
+
+def test_free_pool_parks_failing_model():
+    pool = kb.FreeModelPool(["a:free", "b:free"])
+    pool.park("a:free", retry_after=60.0)
+    # a:free is on cooldown; b:free should serve
+    seen = {pool.next_available() for _ in range(4)}
+    assert seen == {"b:free"}
+
+
+def test_free_pool_returns_none_when_all_parked():
+    pool = kb.FreeModelPool(["a:free"])
+    pool.park("a:free", retry_after=60.0)
+    assert pool.next_available() is None
+    assert pool.cooldown_remaining() > 0
+
+
+def test_free_pool_records_success_and_failure():
+    pool = kb.FreeModelPool(["a:free"])
+    pool.record_success("a:free")
+    pool.record_success("a:free")
+    pool.record_failure("a:free")
+    s = pool.stats()
+    assert s["a:free"]["ok"] == 2
+    assert s["a:free"]["fail"] == 1
+
+
+# ── _select_or_model ─────────────────────────────────────────────────────────
+
+def test_select_or_model_prefers_explicit(monkeypatch):
+    monkeypatch.setattr(kb, "OPENROUTER_MODEL_OVERRIDE", "")
+    monkeypatch.setattr(kb, "OPENROUTER_PAID_FALLBACK", "")
+    monkeypatch.setattr(kb, "free_pool", kb.FreeModelPool(["x:free"]))
+    model, from_pool = kb._select_or_model("explicit/model")
+    assert model == "explicit/model"
+    assert from_pool is False
+
+
+def test_select_or_model_uses_pool(monkeypatch):
+    monkeypatch.setattr(kb, "OPENROUTER_MODEL_OVERRIDE", "")
+    monkeypatch.setattr(kb, "OPENROUTER_PAID_FALLBACK", "")
+    pool = kb.FreeModelPool(["a:free", "b:free"])
+    monkeypatch.setattr(kb, "free_pool", pool)
+    # Avoid network call from discover()
+    monkeypatch.setattr(pool, "discover", lambda force=False: None)
+    model, from_pool = kb._select_or_model(None)
+    assert model in ("a:free", "b:free")
+    assert from_pool is True
+
+
+def test_select_or_model_falls_back_to_paid(monkeypatch):
+    monkeypatch.setattr(kb, "OPENROUTER_MODEL_OVERRIDE", "")
+    monkeypatch.setattr(kb, "OPENROUTER_PAID_FALLBACK", "paid/model")
+    pool = kb.FreeModelPool(["a:free"])
+    pool.park("a:free", retry_after=60.0)
+    monkeypatch.setattr(kb, "free_pool", pool)
+    monkeypatch.setattr(pool, "discover", lambda force=False: None)
+    model, from_pool = kb._select_or_model(None)
+    assert model == "paid/model"
+    assert from_pool is False
+
+
+def test_select_or_model_raises_when_pool_exhausted_no_paid(monkeypatch):
+    monkeypatch.setattr(kb, "OPENROUTER_MODEL_OVERRIDE", "")
+    monkeypatch.setattr(kb, "OPENROUTER_PAID_FALLBACK", "")
+    pool = kb.FreeModelPool(["a:free"])
+    pool.park("a:free", retry_after=60.0)
+    monkeypatch.setattr(kb, "free_pool", pool)
+    monkeypatch.setattr(pool, "discover", lambda force=False: None)
+    with pytest.raises(kb.BuilderError) as exc_info:
+        kb._select_or_model(None)
+    assert exc_info.value.code == "FREE_POOL_EXHAUSTED"
+
+
+def test_select_or_model_uses_override_when_set(monkeypatch):
+    monkeypatch.setattr(kb, "OPENROUTER_MODEL_OVERRIDE", "override/model")
+    monkeypatch.setattr(kb, "OPENROUTER_PAID_FALLBACK", "")
+    monkeypatch.setattr(kb, "free_pool", kb.FreeModelPool([]))
+    model, from_pool = kb._select_or_model(None)
+    assert model == "override/model"
+    assert from_pool is False
+
+
+# ── BudgetManager hard-cap ───────────────────────────────────────────────────
+
+def test_budget_assert_can_spend_under_cap(tmp_path, monkeypatch):
+    monkeypatch.setattr(kb, "BUDGET_FILE", tmp_path / "b.json")
+    monkeypatch.setenv("KITTY_BUDGET_OR_USD", "1.00")
+    bm = kb.BudgetManager()
+    bm.or_spend_usd = 0.50
+    bm.assert_can_spend(provider="or", est_usd=0.10)  # 0.60 < 1.00 → OK
+
+
+def test_budget_assert_can_spend_over_cap_raises(tmp_path, monkeypatch):
+    monkeypatch.setattr(kb, "BUDGET_FILE", tmp_path / "b.json")
+    monkeypatch.setenv("KITTY_BUDGET_OR_USD", "1.00")
+    bm = kb.BudgetManager()
+    bm.or_spend_usd = 0.95
+    with pytest.raises(kb.BudgetExhausted) as exc:
+        bm.assert_can_spend(provider="or", est_usd=0.10)
+    assert exc.value.code == "BUDGET_EXHAUSTED"
+
+
+def test_budget_save_is_atomic(tmp_path, monkeypatch):
+    target = tmp_path / "b.json"
+    monkeypatch.setattr(kb, "BUDGET_FILE", target)
+    bm = kb.BudgetManager()
+    bm.or_spend_usd = 0.42
+    bm.save()
+    assert target.exists()
+    data = json.loads(target.read_text())
+    assert data["or_spend_usd"] == 0.42
+    # tmp file should be cleaned up
+    assert not target.with_suffix(target.suffix + ".tmp").exists()
+
+
+def test_budget_record_or_tracks_per_model(tmp_path, monkeypatch):
+    monkeypatch.setattr(kb, "BUDGET_FILE", tmp_path / "b.json")
+    bm = kb.BudgetManager()
+    bm.record_or(0.001, model="qwen/qwen3-coder:free")
+    bm.record_or(0.002, model="qwen/qwen3-coder:free")
+    assert bm.per_model["qwen/qwen3-coder:free"]["calls"] == 2
+    assert abs(bm.per_model["qwen/qwen3-coder:free"]["usd"] - 0.003) < 1e-9
+
+
+def test_get_builder_budget_reflects_ledger(tmp_path, monkeypatch):
+    monkeypatch.setattr(kb, "BUDGET_FILE", tmp_path / "b.json")
+    fresh = kb.BudgetManager()
+    monkeypatch.setattr(kb, "budget", fresh)
+    fresh.record_or(0.042, model="test/model")
+    text = kb.get_builder_budget()
+    assert "0.0420" in text or "0.042" in text
+    assert "test/model" in text
+    assert "Groq:" in text
+    assert "Ledger scope" in text
+
+
+# ── _looks_like_failure tool-output classifier ───────────────────────────────
+
+def test_looks_like_failure_recognizes_error_prefix():
+    assert kb._looks_like_failure("Error: Tool failed.") is True
+    assert kb._looks_like_failure("error: bad syntax") is True
+
+
+def test_looks_like_failure_recognizes_security_block():
+    assert kb._looks_like_failure("Error: Security scan blocked builder action.") is True
+
+
+def test_looks_like_failure_recognizes_nonzero_exit():
+    assert kb._looks_like_failure("Command exited with code 2:\noutput") is True
+
+
+def test_looks_like_failure_passes_normal_output():
+    assert kb._looks_like_failure("File written. Review: A — looks good.") is False
+    assert kb._looks_like_failure("ok\n") is False
+
+
+def test_looks_like_failure_handles_non_string():
+    assert kb._looks_like_failure(None) is False
+    assert kb._looks_like_failure(42) is False
+
+
+# ── PromptCache ──────────────────────────────────────────────────────────────
+
+def test_prompt_cache_disabled_is_noop(tmp_path):
+    pc = kb.PromptCache(tmp_path / "c.sqlite", enabled=False)
+    pc.put("k", "v")
+    assert pc.get("k") is None
+    s = pc.stats()
+    assert s["enabled"] == 0
+
+
+def test_prompt_cache_roundtrip(tmp_path):
+    pc = kb.PromptCache(tmp_path / "c.sqlite", enabled=True)
+    key = kb.PromptCache.make_key("model-a", [{"role": "user", "content": "hi"}], temp=0.1)
+    assert pc.get(key) is None
+    pc.put(key, "the response")
+    assert pc.get(key) == "the response"
+    assert pc.stats()["rows"] == 1
+
+
+def test_prompt_cache_make_key_deterministic():
+    a = kb.PromptCache.make_key("m", [{"role": "user", "content": "x"}], temp=0.1)
+    b = kb.PromptCache.make_key("m", [{"role": "user", "content": "x"}], temp=0.1)
+    assert a == b
+    c = kb.PromptCache.make_key("m", [{"role": "user", "content": "y"}], temp=0.1)
+    assert a != c
+
+
+# ── flush_model_stats ────────────────────────────────────────────────────────
+
+def test_flush_model_stats_writes_jsonl(tmp_path, monkeypatch):
+    target = tmp_path / "stats.jsonl"
+    monkeypatch.setattr(kb, "MODEL_STATS_FILE", target)
+    pool = kb.FreeModelPool(["a:free"])
+    pool.record_success("a:free")
+    pool.record_failure("a:free")
+    monkeypatch.setattr(kb, "free_pool", pool)
+    kb.flush_model_stats()
+    assert target.exists()
+    line = target.read_text().strip().splitlines()[0]
+    row = json.loads(line)
+    assert row["entity_type"] == "openrouter_model"
+    assert row["name"] == "a:free"
+    obs = row["observations"][0]
+    assert obs["ok"] == 1
+    assert obs["fail"] == 1
+    assert obs["success_rate"] == 0.5
+
+
+def test_flush_model_stats_empty_is_noop(tmp_path, monkeypatch):
+    target = tmp_path / "stats.jsonl"
+    monkeypatch.setattr(kb, "MODEL_STATS_FILE", target)
+    monkeypatch.setattr(kb, "free_pool", kb.FreeModelPool(["x:free"]))
+    kb.flush_model_stats()
+    assert not target.exists()
+
+
+# ── kb_query (LightRAG opt-in) ───────────────────────────────────────────────
+
+def test_kb_query_disabled_returns_error(monkeypatch):
+    monkeypatch.setattr(kb, "USE_LIGHTRAG", False)
+    out = kb.kb_query("anything")
+    assert "LightRAG disabled" in out
+
+
+# ── delegate() — real subprocess path (not LLM narrative) ─────────────────────
+
+
+@pytest.fixture
+def delegate_fast_path(monkeypatch):
+    """Avoid scout/web/git during delegate() unit tests."""
+    monkeypatch.setattr(kb, "github_scout", lambda task: "")
+    monkeypatch.setattr(kb, "_worker_context", lambda task: f"CTX:{task}")
+    monkeypatch.setattr(kb, "_git_snapshot", lambda: set())
+    monkeypatch.setattr(kb, "_delegate_git_diff_stat_suffix", lambda: "")
+    # subprocess.run uses Popen internally; patching Popen breaks git invocations.
+    def _fake_run(*args, **kwargs):
+        cmd = kwargs.get("args") or (args[0] if args else [])
+        return kb.subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(kb.subprocess, "run", _fake_run)
+
+
+def test_delegate_unknown_cli_does_not_spawn(delegate_fast_path, monkeypatch):
+    def boom(*args, **kwargs):
+        raise AssertionError("Popen must not run for unknown cli")
+
+    monkeypatch.setattr(kb.subprocess, "Popen", boom)
+    out = kb.delegate("not_a_real_worker", "hello")
+    assert "Unknown worker" in out
+
+
+def test_delegate_missing_binary_does_not_spawn(delegate_fast_path, monkeypatch):
+    monkeypatch.setattr(kb, "_delegate_argv", lambda cli, ctx: None)
+
+    def boom(*args, **kwargs):
+        raise AssertionError("Popen must not run when binary is missing")
+
+    monkeypatch.setattr(kb.subprocess, "Popen", boom)
+    out = kb.delegate("crush", "hello")
+    assert "CLI binary not found" in out
+
+
+def test_delegate_calls_popen_streams_and_logs_banner(delegate_fast_path, monkeypatch, capsys):
+    captured: dict = {}
+
+    class _FakeStdout:
+        __slots__ = ("_lines",)
+
+        def __init__(self, lines: list[str]):
+            self._lines = lines
+
+        def __iter__(self):
+            return iter(self._lines)
+
+        def close(self) -> None:
+            pass
+
+    class FakeProc:
+        returncode = 0
+
+        def __init__(self):
+            self.stdout = _FakeStdout(["worker-line\n"])
+
+        def wait(self, timeout=None):
+            return None
+
+        def kill(self):
+            pass
+
+    def fake_popen(args, **kwargs):
+        captured["args"] = list(args)
+        captured["kwargs"] = kwargs
+        return FakeProc()
+
+    monkeypatch.setattr(kb.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(
+        kb,
+        "_delegate_argv",
+        lambda cli, ctx: ["/fake/bin/crush", "run", ctx],
+    )
+
+    summary = kb.delegate("crush", "sync maps")
+    assert captured["args"] == ["/fake/bin/crush", "run", "CTX:sync maps"]
+    assert captured["kwargs"].get("cwd") == kb.PROJECT_ROOT
+    assert captured["kwargs"].get("shell", False) is False
+    assert "Done (exit 0)" in summary
+
+    err = capsys.readouterr().err
+    assert "[delegate:crush]" in err
+    assert "REAL subprocess" in err
+    assert "executable='/fake/bin/crush'" in err
+    assert "returncode=0" in err
+    assert "stdout_lines=1" in err
+
+
+def test_delegate_nonzero_exit_reports_failure(delegate_fast_path, monkeypatch):
+    class _FakeStdout:
+        __slots__ = ("_lines",)
+
+        def __init__(self, lines: list[str]):
+            self._lines = lines
+
+        def __iter__(self):
+            return iter(self._lines)
+
+        def close(self) -> None:
+            pass
+
+    class FakeProc:
+        returncode = 1
+
+        def __init__(self):
+            self.stdout = _FakeStdout(["err-line\n"])
+
+        def wait(self, timeout=None):
+            return None
+
+        def kill(self):
+            pass
+
+    monkeypatch.setattr(kb.subprocess, "Popen", lambda *a, **k: FakeProc())
+    monkeypatch.setattr(
+        kb,
+        "_delegate_argv",
+        lambda cli, ctx: ["/fake/bin/crush", "run", ctx],
+    )
+    summary = kb.delegate("crush", "sync maps")
+    assert "FAILED" in summary
+    assert "exit code 1" in summary
+
+
+def test_parse_brain_order_defaults(monkeypatch):
+    monkeypatch.delenv("KITTY_BUILDER_BRAIN_ORDER", raising=False)
+    assert kb._parse_brain_order() == ("openrouter", "mlx", "groq")
+
+
+def test_parse_brain_order_custom(monkeypatch):
+    monkeypatch.setenv("KITTY_BUILDER_BRAIN_ORDER", "mlx,openrouter")
+    assert kb._parse_brain_order() == ("mlx", "openrouter")
+
+
+def test_parse_brain_order_filters_unknown_tokens(monkeypatch):
+    monkeypatch.setenv("KITTY_BUILDER_BRAIN_ORDER", "mlx,bogus,nn")
+    assert kb._parse_brain_order() == ("mlx",)
+
+
+def test_parse_brain_order_empty_falls_back(monkeypatch):
+    monkeypatch.setenv("KITTY_BUILDER_BRAIN_ORDER", "bogus,xyz")
+    assert kb._parse_brain_order() == ("openrouter", "mlx", "groq")
+
+
+def test_estimate_openrouter_call_usd_free():
+    assert kb._estimate_openrouter_call_usd("qwen/qwen3-coder:free") == 0.0
+
+
+def test_estimate_openrouter_call_usd_paid_default(monkeypatch):
+    monkeypatch.delenv("KITTY_BUDGET_OR_ESTIMATE_USD", raising=False)
+    assert kb._estimate_openrouter_call_usd("anthropic/claude-3-haiku") == 0.002
+
+
+def test_estimate_openrouter_call_usd_paid_env(monkeypatch):
+    monkeypatch.setenv("KITTY_BUDGET_OR_ESTIMATE_USD", "0.05")
+    assert kb._estimate_openrouter_call_usd("anthropic/claude-3-haiku") == 0.05
+
+
+def test_openrouter_preflight_blocks_paid_when_at_cap(monkeypatch):
+    monkeypatch.setattr(kb, "_openrouter_client", MagicMock())
+    b = kb.BudgetManager()
+    b.or_cap_usd = 0.01
+    b.or_spend_usd = 0.01
+    monkeypatch.setattr(kb, "budget", b)
+    monkeypatch.setattr(
+        kb,
+        "_select_or_model",
+        lambda explicit: ("anthropic/claude-3-haiku", False),
+    )
+    with pytest.raises(kb.BudgetExhausted):
+        kb.call_openrouter([{"role": "user", "content": "x"}], max_attempts=1)
+    kb._openrouter_client.chat.completions.create.assert_not_called()
+
+
+def test_openrouter_preflight_allows_free_when_at_cap(monkeypatch):
+    mock_client = MagicMock()
+    mock_resp = MagicMock()
+    mock_resp.choices = [MagicMock(message=MagicMock(content="ok"))]
+    mock_client.chat.completions.create.return_value = mock_resp
+    monkeypatch.setattr(kb, "_openrouter_client", mock_client)
+    b = kb.BudgetManager()
+    b.or_cap_usd = 0.01
+    b.or_spend_usd = 0.01
+    monkeypatch.setattr(kb, "budget", b)
+    monkeypatch.setattr(
+        kb,
+        "_select_or_model",
+        lambda explicit: ("qwen/qwen3-coder:free", True),
+    )
+    assert kb.call_openrouter([{"role": "user", "content": "x"}], max_attempts=1) == "ok"
+    mock_client.chat.completions.create.assert_called_once()
+
+
+def test_assert_groq_request_allowed_enforces_cap(monkeypatch, tmp_path):
+    monkeypatch.setenv("KITTY_BUDGET_GROQ_MAX_REQUESTS", "2")
+    monkeypatch.setattr(kb, "BUDGET_FILE", tmp_path / "nobudget.json")
+    b = kb.BudgetManager()
+    b.groq_requests = 2
+    with pytest.raises(kb.BudgetExhausted) as excinfo:
+        b.assert_groq_request_allowed()
+    assert excinfo.value.code == "GROQ_DAILY_CAP"
+
+
+# ── Builder session / gates / spec latch ───────────────────────────────────────
+
+
+def test_builder_scope_block():
+    assert kb._builder_scope_block({}) == ""
+    text = kb._builder_scope_block({"builder_spec_path": "docs/nope_missing.md"})
+    assert "SESSION SPEC LATCH" in text
+    assert "docs/nope_missing.md" in text
+
+
+def test_run_project_gates_pass(monkeypatch):
+    monkeypatch.setattr(kb, "run_trusted_bash_script", lambda rel: "tests ok\n")
+    out = kb.run_project_gates()
+    assert "PASS" in out
+
+
+def test_run_project_gates_fail(monkeypatch):
+    monkeypatch.setattr(
+        kb,
+        "run_trusted_bash_script",
+        lambda rel: "Command exited with code 2:\nboom",
+    )
+    out = kb.run_project_gates()
+    assert "FAIL" in out
+    assert "code 2" in out
+
+
+def test_update_project_from_scan_preserves_goal_and_spec(tmp_path, monkeypatch):
+    monkeypatch.setattr(kb, "PROJECT_FILE", tmp_path / "project.json")
+    minimal = {
+        "project_name": "T",
+        "description": "",
+        "milestones": [],
+        "backlog": [],
+        "notes": "",
+        "progress": {
+            "total_tasks": 0,
+            "completed_tasks": 0,
+            "remaining_tasks": 0,
+            "task_completion_pct": 0.0,
+            "total_milestones": 0,
+            "completed_milestones": 0,
+            "milestone_completion_pct": 0.0,
+            "open_todos": 0,
+        },
+        "context_files": [],
+        "git_info": {"status": "", "recent_commits": []},
+        "open_todos": [],
+    }
+    monkeypatch.setattr(kb, "build_project_state", lambda: dict(minimal))
+    kb.session.project_state = {
+        **minimal,
+        "builder_spec_path": "docs/plan.md",
+        "goal_verify": "pytest -q",
+    }
+    kb.update_project_from_scan()
+    assert kb.session.project_state.get("builder_spec_path") == "docs/plan.md"
+    assert kb.session.project_state.get("goal_verify") == "pytest -q"
+    assert kb.session.project_state.get("project_name") == "T"
+
+
+def test_builder_session_start_brief_has_core_sections(monkeypatch):
+    monkeypatch.setattr(kb, "update_project_from_scan", lambda: None)
+    kb.session.project_state = {
+        "milestones": [],
+        "backlog": [],
+        "progress": {},
+        "open_todos": [],
+    }
+    monkeypatch.setattr(kb, "suggest_next_steps", lambda: "## Recommended Next Steps\n\nnoop")
+    text = kb.builder_session_start_brief()
+    assert "Builder session start" in text
+    assert "Budget:" in text
+    assert "CURRENT_FOCUS" in text
+    assert "## Recommended Next Steps" in text

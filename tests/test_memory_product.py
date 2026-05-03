@@ -11,46 +11,30 @@ def client():
         yield c
 
 
-def test_memory_list_returns_200(client):
+def test_memory_list_response_shape(client):
     resp = client.get("/api/memory")
     assert resp.status_code == 200
-
-
-def test_memory_list_has_required_keys(client):
-    data = client.get("/api/memory").get_json()
+    data = resp.get_json()
     assert "corrections" in data
     assert "snapshots" in data
     assert "summary" in data
+    assert "entities" in data
+    assert isinstance(data["entities"], list)
 
+    assert "correction_count" in data["summary"]
+    assert "snapshot_count" in data["summary"]
+    assert "entity_count" in data["summary"]
 
-def test_memory_list_corrections_have_scope_and_why(client):
-    data = client.get("/api/memory").get_json()
     for c in data["corrections"]:
         assert "scope" in c, f"correction missing scope: {c}"
         assert "why" in c, f"correction missing why: {c}"
         assert "id" in c
         assert "text" in c
 
-
-def test_memory_list_snapshots_have_scope_and_why(client):
-    data = client.get("/api/memory").get_json()
     for s in data["snapshots"]:
         assert "scope" in s
         assert "why" in s
         assert "timestamp" in s
-
-
-def test_memory_summary_has_counts(client):
-    data = client.get("/api/memory").get_json()
-    assert "correction_count" in data["summary"]
-    assert "snapshot_count" in data["summary"]
-    assert "entity_count" in data["summary"]
-
-
-def test_memory_list_has_entities_key(client):
-    data = client.get("/api/memory").get_json()
-    assert "entities" in data
-    assert isinstance(data["entities"], list)
 
 
 def test_forget_missing_correction_does_not_500(client):

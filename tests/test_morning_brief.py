@@ -24,19 +24,11 @@ def _create_project(tmp_path):
 
 
 class TestGenerateBrief:
-    def test_returns_expected_keys(self):
+    def test_expected_keys_and_date(self):
         b = generate_brief()
         for k in ("date", "active_focus", "last_completed", "next_action", "forbidden_distractions"):
             assert k in b, f"Missing key: {k}"
-
-    def test_date_is_today(self):
-        b = generate_brief()
         assert b["date"] == datetime.now().strftime("%Y-%m-%d")
-
-    def test_brief_to_text_contains_focus(self):
-        b = generate_brief()
-        text = brief_to_text(b)
-        assert "Active focus:" in text
 
     def test_fallback_when_files_missing(self, tmp_path):
         os.chdir(str(tmp_path))

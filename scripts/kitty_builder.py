@@ -6,13 +6,107 @@ Runs entirely on Apple Silicon / MLX with full session memory.
 
 from __future__ import annotations
 
-import argparse, json, os, re, shlex, subprocess, sys, time, traceback
+import argparse, hashlib, json, logging, os, py_compile, re, shlex, shutil, sqlite3, subprocess, sys, threading, time, traceback
+from concurrent.futures import ThreadPoolExecutor, FIRST_COMPLETED, wait
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, List
+
+log = logging.getLogger("kitty_builder")
+if not log.handlers:
+    _stderr_handler = logging.StreamHandler(sys.stderr)
+    _stderr_handler.setFormatter(logging.Formatter("[%(name)s] %(message)s"))
+    log.addHandler(_stderr_handler)
+    log.setLevel(logging.INFO)
+
+# Plan-only mode blocks mutating / shell tools (set via --plan-only or KITTY_BUILDER_PLAN_ONLY=1).
+PLAN_ONLY_MODE = False
+PLAN_ONLY_BLOCKED_TOOLS = frozenset({
+    "run_command",
+    "write_file",
+    "modify_project_tasks",
+    "launch_kitty",
+    "kitty_self_improve",
+    "delegate",
+})
+
+HISTORY_MAX_MESSAGES = int(os.environ.get("KITTY_BUILDER_HISTORY_MAX", "40"))
+
+DELEGATE_TIMEOUT_SEC = float(os.environ.get("KITTY_BUILDER_DELEGATE_TIMEOUT_SEC", "7200"))
+
+# Brain tier order: comma-separated subset of groq, openrouter, mlx.
+# Default: OpenRouter free pool (multi-model rotation) → local MLX → Groq last.
+# Groq is fast when healthy but free tier / routing errors are common; don't lead with it.
+# Examples: KITTY_BUILDER_BRAIN_ORDER=mlx,openrouter for local-first;
+# KITTY_BUILDER_BRAIN_ORDER=groq,openrouter,mlx to restore old Groq-first behavior.
+_BRAIN_TIER_ALIASES = frozenset({"groq", "openrouter", "mlx"})
+
+_DEFAULT_BRAIN_ORDER: tuple[str, ...] = ("openrouter", "mlx", "groq")
+
+
+def _parse_brain_order() -> tuple[str, ...]:
+    raw = os.environ.get(
+        "KITTY_BUILDER_BRAIN_ORDER", ",".join(_DEFAULT_BRAIN_ORDER)
+    ).strip().lower()
+    parts = [p.strip() for p in raw.replace(" ", "").split(",") if p.strip()]
+    ordered = [p for p in parts if p in _BRAIN_TIER_ALIASES]
+    return tuple(ordered) if ordered else _DEFAULT_BRAIN_ORDER
+
+
+def _estimate_openrouter_call_usd(model_id: str) -> float:
+    """Preflight reservation for paid models; free pool ids ending in :free → 0."""
+    mid = (model_id or "").strip().lower()
+    if mid.endswith(":free") or ":free" in mid:
+        return 0.0
+    return float(os.environ.get("KITTY_BUDGET_OR_ESTIMATE_USD", "0.002"))
+
 
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+
+def _resolve_tool_bin(env_var: str, *default_paths: str) -> Optional[str]:
+    """Resolve a CLI binary: env override, then default absolute paths, then PATH."""
+    override = os.environ.get(env_var, "").strip()
+    if override:
+        p = Path(override).expanduser()
+        if p.is_file():
+            return str(p)
+        which = shutil.which(override)
+        if which:
+            return which
+    for d in default_paths:
+        p = Path(d).expanduser()
+        if p.is_file():
+            return str(p)
+        which = shutil.which(Path(d).name)
+        if which:
+            return which
+    return None
+
+
+def _apply_history_cap(messages: List[Dict[str, str]], max_msgs: int = HISTORY_MAX_MESSAGES) -> None:
+    """Shrink history in-place, always preserving the first system message when present."""
+    if len(messages) <= max_msgs:
+        return
+    system = messages[0] if messages and messages[0].get("role") == "system" else None
+    if system:
+        tail_budget = max_msgs - 2  # system + omission note + recent tail
+        if tail_budget < 4:
+            tail_budget = max(4, max_msgs - 1)
+        omitted = max(0, len(messages) - 1 - tail_budget)
+        tail = messages[-tail_budget:] if tail_budget > 0 else []
+        if omitted > 0:
+            note = {
+                "role": "system",
+                "content": f"[{omitted} older turn(s) omitted to stay within the {max_msgs}-message budget.]",
+            }
+            messages[:] = [system, note] + tail
+        else:
+            messages[:] = [system] + messages[-(max_msgs - 1) :]
+    else:
+        messages[:] = messages[-max_msgs:]
 
 try:
     from mlx_lm import generate, load, stream_generate
@@ -35,7 +129,32 @@ if _env_path.exists():
 
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 USE_OPENROUTER = os.environ.get("USE_OPENROUTER", "true").lower() == "true"
-OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "deepseek/deepseek-v4-flash")
+
+# Curated list of OpenRouter free-tier coding models (override via OPENROUTER_FREE_MODELS).
+DEFAULT_FREE_MODELS = [
+    "qwen/qwen3-coder:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "deepseek/deepseek-r1-distill-llama-70b:free",
+    "google/gemini-2.0-flash-exp:free",
+]
+
+def _parse_free_models() -> list[str]:
+    raw = os.environ.get("OPENROUTER_FREE_MODELS", "").strip()
+    if raw:
+        return [m.strip() for m in raw.split(",") if m.strip()]
+    return list(DEFAULT_FREE_MODELS)
+
+OPENROUTER_FREE_MODELS = _parse_free_models()
+
+# Optional explicit override. If set, exact model is used and free-pool rotation is skipped.
+# Empty default = free pool rotation.
+OPENROUTER_MODEL_OVERRIDE = os.environ.get("OPENROUTER_MODEL", "").strip()
+
+# Optional paid fallback used only after the entire free pool is on cooldown.
+OPENROUTER_PAID_FALLBACK = os.environ.get("OPENROUTER_PAID_FALLBACK", "").strip()
+
+# Back-compat module attribute (referenced by `/models` UI). Empty string means "free pool".
+OPENROUTER_MODEL = OPENROUTER_MODEL_OVERRIDE
 
 _openrouter_client = None
 if USE_OPENROUTER and OPENROUTER_API_KEY:
@@ -43,10 +162,27 @@ if USE_OPENROUTER and OPENROUTER_API_KEY:
         from openai import OpenAI
         _openrouter_client = OpenAI(
             base_url="https://openrouter.ai/api/v1",
-            api_key=OPENROUTER_API_KEY
+            api_key=OPENROUTER_API_KEY,
+            timeout=60.0,
         )
     except ModuleNotFoundError:
         _openrouter_client = None
+
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+# Set KITTY_BUILDER_DISABLE_GROQ=1 to skip Groq entirely (brain + probe) while keeping the key in .env.
+_GROQ_DISABLED = os.environ.get("KITTY_BUILDER_DISABLE_GROQ", "").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+)
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+_groq_client = None
+if GROQ_API_KEY and not _GROQ_DISABLED:
+    try:
+        from openai import OpenAI as _GroqOpenAI
+        _groq_client = _GroqOpenAI(base_url="https://api.groq.com/openai/v1", api_key=GROQ_API_KEY)
+    except ModuleNotFoundError:
+        _groq_client = None
 
 # ------------------------------------------------------------
 # CONFIG
@@ -83,26 +219,39 @@ class Session:
 SESSION_FILE = PROJECT_ROOT / ".kittybuilder_session.json"
 
 def save_session():
+    """Atomic session save. Failure is logged but not raised. Also flushes model stats."""
+    tmp = SESSION_FILE.with_suffix(SESSION_FILE.suffix + ".tmp")
     try:
-        with open(SESSION_FILE, "w") as f:
+        with open(tmp, "w") as f:
             json.dump({
                 "history": session.history,
-                "project_state": session.project_state
+                "project_state": session.project_state,
             }, f)
-    except Exception:
-        pass
+        os.replace(tmp, SESSION_FILE)
+    except (OSError, TypeError) as e:
+        print(f"[Session] save failed: {e}", file=sys.stderr)
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
+    # Best-effort: persist a JSONL row of model health for future MCP ingest.
+    try:
+        flush_model_stats()
+    except Exception as e:
+        print(f"[ModelStats] flush from save_session failed: {e}", file=sys.stderr)
 
 def load_session():
-    if SESSION_FILE.exists():
-        try:
-            with open(SESSION_FILE) as f:
-                data = json.load(f)
-                session.history = data.get("history", [])
-                session.project_state = data.get("project_state", {})
-                return True
-        except Exception:
-            pass
-    return False
+    if not SESSION_FILE.exists():
+        return False
+    try:
+        with open(SESSION_FILE) as f:
+            data = json.load(f)
+        session.history = data.get("history", [])
+        session.project_state = data.get("project_state", {})
+        return True
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"[Session] load failed: {e}", file=sys.stderr)
+        return False
 
 session = Session()
 
@@ -111,9 +260,13 @@ session = Session()
 # ------------------------------------------------------------
 _model_cache = {}
 
-def get_model(model_id: str, retries: int = 2):
-    """Load MLX model with optimizations."""
-    if USE_OPENROUTER and _openrouter_client:
+def get_model(model_id: str, retries: int = 2, *, force_local: bool = False):
+    """Load MLX model weights. When ``force_local`` is False and OpenRouter is
+    configured, returns ``("openrouter", model_id)`` for routing layers that
+    expect that sentinel. Tier-3 Brain and other MLX-only paths must pass
+    ``force_local=True`` so weights actually load.
+    """
+    if not force_local and USE_OPENROUTER and _openrouter_client:
         return ("openrouter", model_id)
     if load is None:
         raise RuntimeError("MLX is not installed. Use OpenRouter or install mlx_lm for local model mode.")
@@ -121,7 +274,7 @@ def get_model(model_id: str, retries: int = 2):
         return _model_cache[model_id]
     if _model_cache:
         _model_cache.clear()
-    print(f"[Loading] {model_id}...")
+    log.info("Loading MLX model: %s", model_id)
     for attempt in range(retries):
         try:
             # MLX load options for optimization
@@ -134,7 +287,7 @@ def get_model(model_id: str, retries: int = 2):
         except Exception as e:
             if attempt == retries - 1:
                 raise
-            print(f"[Retry {attempt + 2}] {e}")
+            log.warning("MLX load retry %s after: %s", attempt + 2, e)
     raise RuntimeError(f"Failed to load {model_id} after {retries} attempts")
 
 # MLX Optimization constants
@@ -144,37 +297,408 @@ MLX_OPTIMIZATIONS = {
     "stream_chunk_size": 512,  # Optimal chunk size for streaming
 }
 
-def generate_openrouter(prompt: str, max_tokens: int = 1500, temp: float = 0.7, retries: int = 3) -> str:
+class BuilderError(Exception):
+    """Structured error raised by the inference layer.
+
+    Attributes:
+        code: short machine-readable label (e.g. RATE_LIMITED, FREE_POOL_EXHAUSTED, NO_CLIENT)
+        retry_after: seconds the caller may wait before retrying, if known
+        model: the model id that failed, if any
+    """
+
+    def __init__(self, code: str, message: str, *, retry_after: Optional[float] = None,
+                 model: Optional[str] = None) -> None:
+        super().__init__(message)
+        self.code = code
+        self.retry_after = retry_after
+        self.model = model
+
+
+class BudgetExhausted(BuilderError):
+    """Raised by BudgetManager when a preflight check would exceed the daily cap."""
+
+
+_FREE_MODELS_DISCOVERY_TTL = 3600  # 1h
+
+
+class FreeModelPool:
+    """Round-robin pool of OpenRouter free models with per-model cooldown.
+
+    On 429/503 we 'park' the failing model for `retry_after` seconds; other
+    models keep serving requests. discover() merges newly-found free models
+    from the OpenRouter /models endpoint at most once per TTL.
+    """
+
+    def __init__(self, models: list[str]) -> None:
+        self._models = list(models)
+        self._index = 0
+        self._cooldowns: Dict[str, float] = {}
+        self._stats: Dict[str, Dict[str, int]] = {}
+        self._last_discovery: float = 0.0
+        self._lock = threading.Lock()
+
+    def all_models(self) -> list[str]:
+        with self._lock:
+            return list(self._models)
+
+    def next_available(self) -> Optional[str]:
+        with self._lock:
+            if not self._models:
+                return None
+            now = time.time()
+            n = len(self._models)
+            for _ in range(n):
+                model = self._models[self._index % n]
+                self._index = (self._index + 1) % n
+                if self._cooldowns.get(model, 0.0) <= now:
+                    return model
+            return None
+
+    def cooldown_remaining(self) -> float:
+        with self._lock:
+            now = time.time()
+            future = [t - now for t in self._cooldowns.values() if t > now]
+            return min(future) if future else 0.0
+
+    def park(self, model: str, retry_after: float) -> None:
+        with self._lock:
+            self._cooldowns[model] = time.time() + max(retry_after, 1.0)
+
+    def record_success(self, model: str) -> None:
+        with self._lock:
+            s = self._stats.setdefault(model, {"ok": 0, "fail": 0})
+            s["ok"] += 1
+
+    def record_failure(self, model: str) -> None:
+        with self._lock:
+            s = self._stats.setdefault(model, {"ok": 0, "fail": 0})
+            s["fail"] += 1
+
+    def stats(self) -> Dict[str, Dict[str, int]]:
+        with self._lock:
+            return {m: dict(v) for m, v in self._stats.items()}
+
+    def discover(self, force: bool = False) -> None:
+        now = time.time()
+        with self._lock:
+            if not force and now - self._last_discovery < _FREE_MODELS_DISCOVERY_TTL:
+                return
+        try:
+            import requests as _req
+            resp = _req.get(
+                "https://openrouter.ai/api/v1/models",
+                headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}"} if OPENROUTER_API_KEY else {},
+                timeout=10,
+            )
+            resp.raise_for_status()
+            data = resp.json().get("data", []) or []
+            discovered: list[str] = []
+            for m in data:
+                mid = (m.get("id") or "").strip()
+                if not mid:
+                    continue
+                pricing = m.get("pricing") or {}
+                p_prompt = str(pricing.get("prompt", "")).strip()
+                p_compl = str(pricing.get("completion", "")).strip()
+                is_free_id = mid.endswith(":free")
+                is_zero_price = p_prompt in ("0", "0.0") and p_compl in ("0", "0.0")
+                if is_free_id or is_zero_price:
+                    discovered.append(mid)
+            with self._lock:
+                seen = set(self._models)
+                for mid in discovered:
+                    if mid not in seen:
+                        self._models.append(mid)
+                        seen.add(mid)
+                self._last_discovery = now
+        except Exception as e:
+            print(f"[FreeModelPool] discover failed: {e}", file=sys.stderr)
+
+
+free_pool = FreeModelPool(OPENROUTER_FREE_MODELS)
+
+
+# OpenRouter provider routing — let upstream try multiple providers per request.
+_OR_PROVIDER_ROUTING = {"allow_fallbacks": True}
+
+
+def _retry_after_seconds(exc: BaseException) -> Optional[float]:
+    """Extract Retry-After header (seconds) from an OpenAI/HTTP exception, if any."""
+    resp = getattr(exc, "response", None)
+    headers = getattr(resp, "headers", None) if resp is not None else None
+    if not headers:
+        return None
+    try:
+        val = headers.get("retry-after") or headers.get("Retry-After")
+    except Exception:
+        return None
+    if not val:
+        return None
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return None
+
+
+def _classify_openrouter_error(exc: BaseException) -> tuple[str, Optional[int]]:
+    """Return (kind, status_code). kind is one of: rate, unavailable, request, network."""
+    status = getattr(getattr(exc, "response", None), "status_code", None)
+    if status is None:
+        status = getattr(exc, "status_code", None)
+    name = type(exc).__name__
+    if status == 429 or "RateLimit" in name:
+        return "rate", status
+    if status in (502, 503, 504):
+        return "unavailable", status
+    if status is not None and 400 <= status < 500:
+        return "request", status
+    return "network", status
+
+
+def _select_or_model(explicit: Optional[str]) -> tuple[str, bool]:
+    """Pick a model: (model_id, is_from_pool). Raises BuilderError if pool exhausted."""
+    if explicit:
+        return explicit, False
+    if OPENROUTER_MODEL_OVERRIDE:
+        return OPENROUTER_MODEL_OVERRIDE, False
+    free_pool.discover()
+    picked = free_pool.next_available()
+    if picked:
+        return picked, True
+    if OPENROUTER_PAID_FALLBACK:
+        return OPENROUTER_PAID_FALLBACK, False
+    wait = free_pool.cooldown_remaining()
+    raise BuilderError(
+        "FREE_POOL_EXHAUSTED",
+        f"All OpenRouter free models on cooldown (next available in {wait:.1f}s)"
+        " and no OPENROUTER_PAID_FALLBACK configured",
+        retry_after=wait or None,
+    )
+
+
+def call_openrouter(
+    messages: list,
+    *,
+    model: Optional[str] = None,
+    max_tokens: int = 1500,
+    temperature: float = 0.7,
+    max_attempts: int = 4,
+):
+    """Non-streaming OpenRouter call with rotation + Retry-After + provider routing.
+
+    Returns the assistant message text. Raises BuilderError on terminal failure.
+    """
     if not _openrouter_client:
-        return "OpenRouter client not initialized. Set OPENROUTER_API_KEY."
-    for attempt in range(retries):
+        raise BuilderError("NO_CLIENT", "OpenRouter client not initialized; set OPENROUTER_API_KEY")
+
+    last_err: Optional[BaseException] = None
+    for attempt in range(1, max_attempts + 1):
+        picked, from_pool = _select_or_model(model)
+        budget.assert_can_spend(provider="or", est_usd=_estimate_openrouter_call_usd(picked))
         try:
             resp = _openrouter_client.chat.completions.create(
-                model=OPENROUTER_MODEL,
-                messages=[{"role": "user", "content": prompt}],
+                model=picked,
+                messages=messages,
                 max_tokens=max_tokens,
-                temperature=temp
+                temperature=temperature,
+                extra_body={"provider": _OR_PROVIDER_ROUTING},
             )
-            return resp.choices[0].message.content
+            content = resp.choices[0].message.content or ""
+            free_pool.record_success(picked)
+            budget.record_or(0.0 if picked.endswith(":free") else 0.001, model=picked)
+            return content
+        except BuilderError:
+            raise
         except Exception as e:
-            if attempt == retries - 1:
-                return f"Error after {retries} attempts: {e}"
-            print(f"[Retry {attempt + 2}] {e}")
-            time.sleep(1)
+            last_err = e
+            kind, status = _classify_openrouter_error(e)
+            retry_after = _retry_after_seconds(e) or 0.0
+            free_pool.record_failure(picked)
+            if kind == "rate" or kind == "unavailable":
+                cooldown = retry_after if retry_after > 0 else min(60.0, 5.0 * (2 ** (attempt - 1)))
+                if from_pool:
+                    free_pool.park(picked, cooldown)
+                    print(
+                        f"[OpenRouter] {picked} {status or kind} → park {cooldown:.1f}s, rotate",
+                        file=sys.stderr,
+                    )
+                    continue
+                # explicit model: backoff in place
+                print(f"[OpenRouter] {picked} {status or kind} → wait {cooldown:.1f}s",
+                      file=sys.stderr)
+                time.sleep(min(cooldown, 30.0))
+                continue
+            if kind == "request":
+                raise BuilderError("REQUEST_ERROR", f"OpenRouter {status}: {e}",
+                                   model=picked) from e
+            # network / unknown
+            print(f"[OpenRouter] {picked} network error: {e} (attempt {attempt})",
+                  file=sys.stderr)
+            time.sleep(min(2.0 * attempt, 8.0))
+
+    raise BuilderError(
+        "MAX_RETRIES",
+        f"OpenRouter exhausted after {max_attempts} attempts. Last: {last_err}",
+    ) from last_err
+
+
+def stream_openrouter(
+    messages: list,
+    *,
+    model: Optional[str] = None,
+    max_tokens: int = 1500,
+    temperature: float = 0.7,
+    max_attempts: int = 4,
+):
+    """Streaming OpenRouter call. Yields (model_id, delta_text) tuples.
+
+    Retries to OPEN the stream are handled here; mid-stream errors propagate
+    to the caller. Raises BuilderError if no attempt opens a stream.
+    """
+    if not _openrouter_client:
+        raise BuilderError("NO_CLIENT", "OpenRouter client not initialized; set OPENROUTER_API_KEY")
+
+    last_err: Optional[BaseException] = None
+    for attempt in range(1, max_attempts + 1):
+        picked, from_pool = _select_or_model(model)
+        budget.assert_can_spend(provider="or", est_usd=_estimate_openrouter_call_usd(picked))
+        try:
+            stream = _openrouter_client.chat.completions.create(
+                model=picked,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                stream=True,
+                extra_body={"provider": _OR_PROVIDER_ROUTING},
+            )
+        except Exception as e:
+            last_err = e
+            kind, status = _classify_openrouter_error(e)
+            retry_after = _retry_after_seconds(e) or 0.0
+            free_pool.record_failure(picked)
+            if kind in ("rate", "unavailable"):
+                cooldown = retry_after if retry_after > 0 else min(60.0, 5.0 * (2 ** (attempt - 1)))
+                if from_pool:
+                    free_pool.park(picked, cooldown)
+                    print(
+                        f"[OpenRouter] {picked} {status or kind} → park {cooldown:.1f}s, rotate",
+                        file=sys.stderr,
+                    )
+                    continue
+                time.sleep(min(cooldown, 30.0))
+                continue
+            if kind == "request":
+                raise BuilderError("REQUEST_ERROR", f"OpenRouter {status}: {e}",
+                                   model=picked) from e
+            print(f"[OpenRouter] {picked} network error: {e} (attempt {attempt})",
+                  file=sys.stderr)
+            time.sleep(min(2.0 * attempt, 8.0))
+            continue
+
+        # Stream opened; iterate
+        try:
+            for chunk in stream:
+                delta = chunk.choices[0].delta.content
+                if delta:
+                    yield (picked, delta)
+            free_pool.record_success(picked)
+            budget.record_or(0.0 if picked.endswith(":free") else 0.001, model=picked)
+            return
+        except Exception as e:
+            # mid-stream failure — record + give up; partial content already sent
+            free_pool.record_failure(picked)
+            raise BuilderError("STREAM_INTERRUPTED",
+                               f"OpenRouter stream interrupted on {picked}: {e}",
+                               model=picked) from e
+
+    raise BuilderError(
+        "MAX_RETRIES",
+        f"OpenRouter exhausted after {max_attempts} attempts. Last: {last_err}",
+    ) from last_err
+
+
+def call_openrouter_race(
+    messages: list,
+    *,
+    n: int = 2,
+    max_tokens: int = 1500,
+    temperature: float = 0.7,
+):
+    """Race up to `n` distinct free models in parallel; return first valid response.
+
+    Falls back to call_openrouter() if fewer than 2 models are available.
+    """
+    pool_models = [m for m in free_pool.all_models()
+                   if free_pool._cooldowns.get(m, 0.0) <= time.time()]
+    pool_models = pool_models[:max(1, n)]
+    if len(pool_models) < 2:
+        return call_openrouter(messages, max_tokens=max_tokens, temperature=temperature)
+
+    def _one(model_id: str) -> str:
+        return call_openrouter(messages, model=model_id,
+                                max_tokens=max_tokens, temperature=temperature,
+                                max_attempts=1)
+
+    with ThreadPoolExecutor(max_workers=len(pool_models)) as pool:
+        futures = {pool.submit(_one, m): m for m in pool_models}
+        done, not_done = wait(futures, timeout=90, return_when=FIRST_COMPLETED)
+        result_text: Optional[str] = None
+        last_err: Optional[BaseException] = None
+        # Drain done first
+        for fut in done:
+            try:
+                result_text = fut.result()
+                break
+            except Exception as e:
+                last_err = e
+        # If the first-done failed, await the rest until one succeeds
+        if result_text is None:
+            for fut in not_done:
+                try:
+                    result_text = fut.result(timeout=120)
+                    break
+                except Exception as e:
+                    last_err = e
+        # Cancel any still-pending futures
+        for fut in futures:
+            if not fut.done():
+                fut.cancel()
+        if result_text is None:
+            raise BuilderError("RACE_ALL_FAILED",
+                               f"All raced models failed. Last: {last_err}") from last_err
+        return result_text
+
+
+# ── Back-compat shims ─────────────────────────────────────────────────────────
+def generate_openrouter(prompt: str, max_tokens: int = 1500, temp: float = 0.7,
+                        retries: int = 4) -> str:
+    """Back-compat wrapper. Returns assistant text or an error string (legacy contract)."""
+    if not _openrouter_client:
+        return "OpenRouter client not initialized. Set OPENROUTER_API_KEY."
+    try:
+        return call_openrouter(
+            [{"role": "user", "content": prompt}],
+            max_tokens=max_tokens,
+            temperature=temp,
+            max_attempts=retries,
+        )
+    except BuilderError as e:
+        return f"[BuilderError {e.code}] {e}"
+
 
 def stream_generate_openrouter(prompt: str, max_tokens: int = 1500, temp: float = 0.7):
+    """Back-compat: yield objects with `.text` attribute (matches MLX stream_generate)."""
     if not _openrouter_client:
         return
-    resp = _openrouter_client.chat.completions.create(
-        model=OPENROUTER_MODEL,
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=max_tokens,
-        temperature=temp,
-        stream=True
-    )
-    for chunk in resp:
-        if chunk.choices[0].delta.content:
-            yield type('obj', (object,), {'text': chunk.choices[0].delta.content})()
+    try:
+        for _model_id, delta in stream_openrouter(
+            [{"role": "user", "content": prompt}],
+            max_tokens=max_tokens,
+            temperature=temp,
+        ):
+            yield type("obj", (object,), {"text": delta})()
+    except BuilderError as e:
+        yield type("obj", (object,), {"text": f"[BuilderError {e.code}] {e}"})()
 
 # ------------------------------------------------------------
 # SAFETY HELPERS
@@ -243,8 +767,8 @@ def load_full_context() -> dict:
                 with open(full_path) as f:
                     context["content"][rel_path] = f.read(5000)
                     context["files_read"].append(rel_path)
-            except Exception:
-                pass
+            except (OSError, UnicodeDecodeError) as e:
+                print(f"[Context] read {rel_path} failed: {e}", file=sys.stderr)
 
     # Get git info
     try:
@@ -253,8 +777,8 @@ def load_full_context() -> dict:
             cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=10
         )
         context["git_info"]["recent_commits"] = proc.stdout.strip().split("\n") if proc.returncode == 0 else []
-    except Exception:
-        pass
+    except (subprocess.SubprocessError, OSError) as e:
+        print(f"[Context] git log failed: {e}", file=sys.stderr)
 
     try:
         proc = subprocess.run(
@@ -262,8 +786,8 @@ def load_full_context() -> dict:
             cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=10
         )
         context["git_info"]["status"] = proc.stdout.strip() if proc.returncode == 0 else ""
-    except Exception:
-        pass
+    except (subprocess.SubprocessError, OSError) as e:
+        print(f"[Context] git status failed: {e}", file=sys.stderr)
 
     return context
 
@@ -278,8 +802,8 @@ def build_project_state() -> dict:
         try:
             with open(PROJECT_FILE) as f:
                 proj = json.load(f)
-        except Exception:
-            pass
+        except (json.JSONDecodeError, OSError) as e:
+            print(f"[Project] {PROJECT_FILE.name} read failed: {e}", file=sys.stderr)
 
     # Scan for TODOs
     todos = []
@@ -380,6 +904,12 @@ def update_project_from_scan():
     """Build comprehensive project state from all sources."""
     state = build_project_state()
 
+    preserved: dict = {}
+    if isinstance(session.project_state, dict):
+        for k in ("goal_verify", "builder_spec_path"):
+            if k in session.project_state:
+                preserved[k] = session.project_state[k]
+
     # Update project.json if needed
     current = {}
     if PROJECT_FILE.exists():
@@ -394,7 +924,38 @@ def update_project_from_scan():
     with open(PROJECT_FILE, "w") as f: json.dump(current, f, indent=2)
 
     session.project_state = state
+    session.project_state.update(preserved)
     return state
+
+def _pipe_output_until_cap(proc: subprocess.Popen, *, max_chars: int, echo: bool) -> tuple[str, bool]:
+    """Drain stdout line-wise until ``max_chars``; returns (text, truncated)."""
+    out: list[str] = []
+    total = 0
+    truncated = False
+    if proc.stdout is None:
+        return "", False
+    for line in proc.stdout:
+        if total + len(line) > max_chars:
+            out.append(f"\n[Output truncated ({max_chars:,} char limit)]")
+            truncated = True
+            break
+        if echo:
+            print(line, end="")
+        out.append(line)
+        total += len(line)
+    return "".join(out), truncated
+
+
+def _finalize_subprocess(proc: subprocess.Popen, *, truncated: bool, wait_timeout: float) -> None:
+    """Ensure child exits; kill aggressively when output was truncated (pipe backpressure)."""
+    if truncated:
+        proc.kill()
+        try:
+            proc.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        return
+    proc.wait(timeout=wait_timeout)
 
 def run_command(command: str) -> str:
     if not sanitize_command(command):
@@ -402,29 +963,70 @@ def run_command(command: str) -> str:
     blocked = _format_security_findings("<command>", command)
     if blocked:
         return blocked
-    print(f"[Executing] {command}")
+    log.info("Executing: %s", command)
+    proc: subprocess.Popen | None = None
     try:
         proc = subprocess.Popen(
             shlex.split(command), shell=False,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=PROJECT_ROOT,
         )
-        output = ""
-        max_chars = 50_000
-        for line in proc.stdout:
-            if len(output) + len(line) > max_chars:
-                output += f"\n[Output truncated ({max_chars:,} char limit)]"
-                break
-            print(line, end="")
-            output += line
-        proc.wait(timeout=60)
+        output, truncated = _pipe_output_until_cap(proc, max_chars=50_000, echo=True)
+        _finalize_subprocess(proc, truncated=truncated, wait_timeout=60)
         if proc.returncode != 0:
             return f"Command exited with code {proc.returncode}:\n{output}"
         return output if output else "Command completed with no output."
     except subprocess.TimeoutExpired:
-        proc.kill()
+        if proc:
+            proc.kill()
+            try:
+                proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                proc.kill()
         return "Error: Command timed out after 60 seconds."
     except Exception as e:
         return f"Execution Error: {str(e)}"
+
+
+def run_trusted_bash_script(script_relative: str) -> str:
+    """Run a repo script with bash using argv list (no shell string).
+
+    Used for known entrypoints like run_gates.sh so we do not need to add
+    ``bash`` to the interactive command whitelist (which would allow ``bash -c``).
+    """
+    script = (PROJECT_ROOT / script_relative).resolve()
+    try:
+        script.relative_to(PROJECT_ROOT)
+    except ValueError:
+        return "Error: Script path must stay inside the project root."
+    if not script.is_file():
+        return f"Error: Script not found: {script_relative}"
+    log.info("Executing bash script: %s", script)
+    proc: subprocess.Popen | None = None
+    try:
+        proc = subprocess.Popen(
+            ["/bin/bash", str(script)],
+            shell=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            cwd=PROJECT_ROOT,
+        )
+        output, truncated = _pipe_output_until_cap(proc, max_chars=50_000, echo=True)
+        _finalize_subprocess(proc, truncated=truncated, wait_timeout=300)
+        if proc.returncode != 0:
+            return f"Command exited with code {proc.returncode}:\n{output}"
+        return output if output else "Command completed with no output."
+    except subprocess.TimeoutExpired:
+        if proc:
+            proc.kill()
+            try:
+                proc.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+        return "Error: Command timed out after 300 seconds."
+    except Exception as e:
+        return f"Execution Error: {str(e)}"
+
 
 def read_file(path: str) -> str:
     if not is_safe_path(path): return "Error: Access denied (outside project root)."
@@ -454,9 +1056,16 @@ def write_file(path: str, content: str) -> str:
         full_path = PROJECT_ROOT / path
         full_path.parent.mkdir(parents=True, exist_ok=True)
         with open(full_path, "w") as f: f.write(content)
+        verify_note = ""
+        if path.endswith(".py"):
+            try:
+                py_compile.compile(str(full_path), doraise=True)
+                verify_note = " py_compile: OK."
+            except py_compile.PyCompileError as e:
+                verify_note = f" py_compile warning: {e.msg} (file saved)."
         # Quality judge
         judge = quality_judge(path)
-        return f"File {path} written. Review: {judge}"
+        return f"File {path} written.{verify_note} Review: {judge}"
     except Exception as e: return str(e)
 
 def quality_judge(path: str) -> str:
@@ -465,7 +1074,7 @@ def quality_judge(path: str) -> str:
         content = f"Review this code briefly. Grade A-F and give one sentence of feedback.\nFile: {path}\nCode:\n```\n{code}\n```"
         if USE_OPENROUTER and OPENROUTER_API_KEY:
             return generate_openrouter(content, max_tokens=80, temp=0.1).strip()
-        model, tok = get_model(MODEL_BUILDER)
+        model, tok = get_model(MODEL_BUILDER, force_local=True)
         messages = [{"role": "user", "content": content}]
         prompt = _build_prompt(tok, messages)
         return generate(model, tok, prompt=prompt, max_tokens=80,
@@ -475,32 +1084,53 @@ def quality_judge(path: str) -> str:
 
 def update_project(action: str, **kwargs) -> str:
     proj = session.project_state
+    milestones = proj.setdefault("milestones", [])
+
     if action == "add_task":
-        for m in proj["milestones"]:
-            if m["id"] == kwargs.get("milestone_id") or m["id"] == kwargs.get("milestone_number"):
-                task_str = kwargs.get("task") or kwargs.get("task_name") or kwargs.get("title")
-                m.setdefault("tasks", []).append(task_str)
-                break
-    elif action == "mark_task_done":
-        mid = kwargs.get("milestone_id") or kwargs.get("milestone_number")
         task_str = kwargs.get("task") or kwargs.get("task_name") or kwargs.get("title")
-        for m in proj["milestones"]:
-            if m["id"] == mid and task_str in m.get("tasks", []):
+        if not task_str or not str(task_str).strip():
+            return "Error: add_task requires a non-empty task/title."
+        task_str = str(task_str).strip()
+        mid = kwargs.get("milestone_id") if kwargs.get("milestone_id") is not None else kwargs.get("milestone_number")
+        found = False
+        for m in milestones:
+            if m.get("id") == mid:
+                m.setdefault("tasks", []).append(task_str)
+                found = True
+                break
+        if not found:
+            return f"Error: milestone id {mid!r} not found."
+    elif action == "mark_task_done":
+        mid = kwargs.get("milestone_id") if kwargs.get("milestone_id") is not None else kwargs.get("milestone_number")
+        task_str = kwargs.get("task") or kwargs.get("task_name") or kwargs.get("title")
+        if not task_str or not str(task_str).strip():
+            return "Error: mark_task_done requires a non-empty task/title."
+        task_str = str(task_str).strip()
+        found = False
+        for m in milestones:
+            if m.get("id") == mid and task_str in m.get("tasks", []):
                 m["tasks"].remove(task_str)
                 m.setdefault("done_tasks", []).append(task_str)
+                found = True
                 break
+        if not found:
+            return f"Error: task not found on milestone {mid!r}."
     elif action == "move_to_backlog":
         task_str = kwargs.get("task") or kwargs.get("task_name") or kwargs.get("title")
-        for m in proj["milestones"]:
+        if not task_str or not str(task_str).strip():
+            return "Error: move_to_backlog requires a non-empty task/title."
+        task_str = str(task_str).strip()
+        for m in milestones:
             if task_str in m.get("tasks", []):
                 m["tasks"].remove(task_str)
         proj.setdefault("backlog", []).append(task_str)
     elif action == "add_note":
-        proj["notes"] = (proj.get("notes", "") + "\n" + kwargs.get("note", "")).strip()
+        note = kwargs.get("note") or ""
+        proj["notes"] = (proj.get("notes", "") + "\n" + str(note)).strip()
     elif action == "add_milestone":
-        new_id = max([m.get("id", 0) for m in proj.get("milestones", [])], default=0) + 1
+        new_id = max([m.get("id", 0) for m in milestones], default=0) + 1
         title = kwargs.get("title") or kwargs.get("name") or f"Milestone {new_id}"
-        proj.setdefault("milestones", []).append({
+        milestones.append({
             "id": new_id,
             "title": title,
             "status": "todo",
@@ -555,7 +1185,7 @@ def run_pattern(pattern_name: str, text: str) -> str:
         if USE_OPENROUTER and OPENROUTER_API_KEY:
             return generate_openrouter(prompt, max_tokens=1000, temp=0.5)
         else:
-            model, tok = get_model(MODEL_BUILDER)
+            model, tok = get_model(MODEL_BUILDER, force_local=True)
             messages = [{"role": "user", "content": prompt}]
             return generate(model, tok, prompt=_build_prompt(tok, messages),
                           max_tokens=1000, sampler=make_sampler(temp=0.5))
@@ -651,6 +1281,129 @@ def suggest_next_steps() -> str:
 
     return "## Recommended Next Steps\n\n" + "\n\n".join(recommendations) if recommendations else "No specific recommendations - project looks good!"
 
+
+def _git_short_status_for_brief(*, max_lines: int = 18) -> tuple[int, str]:
+    """Return (line_count, printable excerpt) for porcelain status."""
+    try:
+        r = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            cwd=PROJECT_ROOT,
+            timeout=8,
+        )
+        lines = [ln for ln in (r.stdout or "").splitlines() if ln.strip()]
+        n = len(lines)
+        body = "\n".join(lines[:max_lines])
+        if n > max_lines:
+            body += f"\n… ({n - max_lines} more lines)"
+        return n, body if body else "(clean working tree)"
+    except (subprocess.SubprocessError, OSError) as e:
+        return -1, f"(git unavailable: {e})"
+
+
+def _current_focus_excerpt() -> str:
+    focus_path = PROJECT_ROOT / "CURRENT_FOCUS.md"
+    if not focus_path.is_file():
+        return "(no CURRENT_FOCUS.md)"
+    try:
+        for line in focus_path.read_text().splitlines():
+            if line.startswith("## Current Task"):
+                return line.strip()
+        head = focus_path.read_text().splitlines()[:5]
+        return "\n".join(head) if head else "(empty CURRENT_FOCUS.md)"
+    except (OSError, UnicodeDecodeError) as e:
+        return f"(CURRENT_FOCUS read error: {e})"
+
+
+def _builder_scope_block(project_state: dict) -> str:
+    """Injected into SYSTEM_PROMPT when /spec has latched a file."""
+    if not isinstance(project_state, dict):
+        return ""
+    sp = project_state.get("builder_spec_path")
+    if not sp:
+        return ""
+    p = PROJECT_ROOT / sp
+    exists = p.is_file()
+    return (
+        "\n--- SESSION SPEC LATCH ---\n"
+        f"Approved spec file (relative to repo): {sp}\n"
+        f"Exists on disk: {exists}\n"
+        "Stay aligned with this spec; do not broaden scope unless Jacob clears `/spec` or explicitly redirects.\n"
+    )
+
+
+def builder_session_start_brief() -> str:
+    """One-screen session opener: git, focus, optional latched spec, budget, next steps."""
+    update_project_from_scan()
+    dirty_n, dirty_body = _git_short_status_for_brief()
+    focus = _current_focus_excerpt()
+    spec_note = ""
+    if isinstance(session.project_state, dict):
+        sp = session.project_state.get("builder_spec_path")
+        if sp:
+            spec_note = f"\n**Latched spec:** `{sp}`  (clear with `/spec clear`)\n"
+
+    nxt = suggest_next_steps()
+
+    lines = [
+        "# Builder session start",
+        "",
+        f"**Budget:** {budget.summary()}",
+        "",
+        f"**CURRENT_FOCUS:** {focus}",
+        spec_note.strip(),
+        "",
+        f"**Git:** {dirty_n} changed path(s) when counted via porcelain.",
+        "```",
+        dirty_body,
+        "```",
+        "",
+        nxt,
+        "",
+        "Tip: run **`run_project_gates`** tool or `/gates` before claiming green.",
+    ]
+    return "\n".join(x for x in lines if x is not None)
+
+
+def run_project_gates() -> str:
+    """Run ``scripts/run_gates.sh`` (trusted bash). Returns PASS/FAIL headline + output tail."""
+    raw = run_trusted_bash_script("scripts/run_gates.sh")
+    m = re.search(r"Command exited with code (\d+):", raw)
+    code = int(m.group(1)) if m else None
+    ok = code == 0 if code is not None else not raw.startswith("Error:")
+    headline = "PASS — project gates completed (exit 0)." if ok else (
+        f"FAIL — gates exited with code {code}." if code is not None else "FAIL — could not run gates."
+    )
+    tail = raw if len(raw) <= 12_000 else raw[-12_000:]
+    return f"{headline}\n\n--- output (tail) ---\n{tail}"
+
+
+def _delegate_git_diff_stat_suffix() -> str:
+    """Append after delegate so Jacob sees tree movement without reading full worker logs."""
+    if os.environ.get("KITTY_BUILDER_DELEGATE_DIFF", "1").strip().lower() in (
+        "0", "false", "no", "off",
+    ):
+        return ""
+    try:
+        r = subprocess.run(
+            ["git", "diff", "--stat"],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=45,
+        )
+        out = (r.stdout or "").strip()
+        if not out:
+            return ""
+        cap = 6000
+        if len(out) > cap:
+            out = out[:cap] + "\n… (truncated)"
+        return f"\n\n--- git diff --stat ---\n{out}"
+    except (subprocess.SubprocessError, OSError) as e:
+        return f"\n\n--- git diff --stat ---\n(unavailable: {e})"
+
+
 def kitty_self_improve() -> str:
     """Run comprehensive self-improvement loop: test, audit, grade, fix, improve."""
     print("\n" + "="*60)
@@ -665,12 +1418,18 @@ def kitty_self_improve() -> str:
         "feedback": [],
     }
 
-    # Step 1: Run tests
+    # Step 1: Run tests (no shell pipe — sanitize_command blocks ``|``)
     print("\n[1/6] Running test suite...")
-    test_output = run_command(f"{sys.executable} -m pytest tests/ -v --tb=short 2>&1 | tail -20")
+    test_output = run_command(f"{sys.executable} -m pytest tests/ -q --tb=short")
     results["test_results"]["output"] = test_output
-    # Check for actual test failures (e.g., "10 failed" or "1 failed")
-    test_passed = " passed" in test_output and "failed)" not in test_output and " failed" not in test_output
+    # Pytest summary uses ``N failed``; substring `` failed`` false-negatives on ``0 failed``.
+    fail_m = re.search(r"(\d+)\s+failed", test_output, re.IGNORECASE)
+    failed_count = int(fail_m.group(1)) if fail_m else 0
+    err_m = re.search(r"(\d+)\s+error", test_output, re.IGNORECASE)
+    error_count = int(err_m.group(1)) if err_m else 0
+    test_passed = failed_count == 0 and error_count == 0 and (
+        "passed" in test_output.lower() or "no tests ran" in test_output.lower()
+    )
     results["test_results"]["passed"] = test_passed
 
     # Step 2: Run self-review
@@ -691,7 +1450,7 @@ def kitty_self_improve() -> str:
     if USE_OPENROUTER and OPENROUTER_API_KEY:
         audit_result = generate_openrouter(prompt, max_tokens=800, temp=0.3)
     else:
-        model, tok = get_model(MODEL_BUILDER)
+        model, tok = get_model(MODEL_BUILDER, force_local=True)
         messages = [{"role": "user", "content": prompt}]
         audit_result = generate(model, tok, prompt=_build_prompt(tok, messages),
                                max_tokens=800, sampler=make_sampler(temp=0.3))
@@ -787,11 +1546,527 @@ TOOLS = {
     "search_web": search_web,
     "launch_kitty": lambda: run_command(f"{sys.executable} -m pytest tests/ -q --tb=short"),
     "generate_project_brief": get_project_brief,
+    "builder_session_start": builder_session_start_brief,
+    "run_project_gates": run_project_gates,
     "run_pattern": run_pattern,
     "scan_project_health": scan_project_health,
     "suggest_next_steps": suggest_next_steps,
     "kitty_self_improve": kitty_self_improve,  # defined above
 }
+
+# ------------------------------------------------------------
+# BUDGET TRACKING
+# ------------------------------------------------------------
+BUDGET_FILE = PROJECT_ROOT / ".kitty_builder_budget.json"
+
+class BudgetManager:
+    """Daily spend ledger with atomic persistence + hard-cap enforcement.
+
+    Caps are read from env at construction time:
+      KITTY_BUDGET_OR_USD       — daily OpenRouter cap (default: 1.00)
+      KITTY_BUDGET_CLAUDE_USD   — daily Claude-CLI cap (default: 5.00)
+    """
+
+    DEFAULT_OR_CAP_USD = float(os.environ.get("KITTY_BUDGET_OR_USD", "1.00"))
+    DEFAULT_CLAUDE_CAP_USD = float(os.environ.get("KITTY_BUDGET_CLAUDE_USD", "5.00"))
+
+    def __init__(self) -> None:
+        self.today = datetime.now().strftime("%Y-%m-%d")
+        self.groq_requests = 0
+        self.or_spend_usd = 0.0
+        self.claude_spend_usd = 0.0
+        self.per_model: Dict[str, Dict[str, float]] = {}
+        self.or_cap_usd = self.DEFAULT_OR_CAP_USD
+        self.claude_cap_usd = self.DEFAULT_CLAUDE_CAP_USD
+        self._lock = threading.Lock()
+        self._load()
+
+    def _load(self) -> None:
+        if not BUDGET_FILE.exists():
+            return
+        try:
+            d = json.loads(BUDGET_FILE.read_text())
+        except (json.JSONDecodeError, OSError) as e:
+            print(f"[Budget] load failed: {e}", file=sys.stderr)
+            return
+        if d.get("date") == self.today:
+            self.groq_requests = d.get("groq_requests", 0)
+            self.or_spend_usd = d.get("or_spend_usd", 0.0)
+            self.claude_spend_usd = d.get("claude_spend_usd", 0.0)
+            self.per_model = d.get("per_model", {}) or {}
+
+    def save(self) -> None:
+        """Atomic write: tmp file + os.replace prevents corruption on crash."""
+        payload = {
+            "date": self.today,
+            "groq_requests": self.groq_requests,
+            "or_spend_usd": self.or_spend_usd,
+            "claude_spend_usd": self.claude_spend_usd,
+            "per_model": self.per_model,
+        }
+        tmp = BUDGET_FILE.with_suffix(BUDGET_FILE.suffix + ".tmp")
+        try:
+            tmp.write_text(json.dumps(payload, indent=2))
+            os.replace(tmp, BUDGET_FILE)
+        except OSError as e:
+            print(f"[Budget] save failed: {e}", file=sys.stderr)
+            try:
+                tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    def assert_can_spend(self, *, provider: str, est_usd: float = 0.0) -> None:
+        """Raise BudgetExhausted if the projected total would exceed the daily cap."""
+        with self._lock:
+            if provider == "or":
+                if self.or_spend_usd + est_usd > self.or_cap_usd:
+                    raise BudgetExhausted(
+                        "BUDGET_EXHAUSTED",
+                        f"OpenRouter daily cap ${self.or_cap_usd:.2f} would be exceeded "
+                        f"(spent ${self.or_spend_usd:.4f}, +${est_usd:.4f}). "
+                        f"Raise KITTY_BUDGET_OR_USD or wait for reset.",
+                    )
+            elif provider == "claude":
+                if self.claude_spend_usd + est_usd > self.claude_cap_usd:
+                    raise BudgetExhausted(
+                        "BUDGET_EXHAUSTED",
+                        f"Claude-CLI daily cap ${self.claude_cap_usd:.2f} would be exceeded "
+                        f"(spent ${self.claude_spend_usd:.4f}, +${est_usd:.4f}). "
+                        f"Raise KITTY_BUDGET_CLAUDE_USD or wait for reset.",
+                    )
+
+    def assert_groq_request_allowed(self) -> None:
+        """Optional daily Groq cap (free tier abuse guard). 0 = unlimited."""
+        cap = int(os.environ.get("KITTY_BUDGET_GROQ_MAX_REQUESTS", "0"))
+        if cap <= 0:
+            return
+        with self._lock:
+            if self.groq_requests >= cap:
+                raise BudgetExhausted(
+                    "GROQ_DAILY_CAP",
+                    f"Groq daily request cap ({cap}) reached "
+                    f"(KITTY_BUDGET_GROQ_MAX_REQUESTS). Wait for ledger reset or raise the cap.",
+                )
+
+    def record_groq(self) -> None:
+        with self._lock:
+            self.groq_requests += 1
+        self.save()
+
+    def record_or(self, cost: float = 0.001, *, model: Optional[str] = None) -> None:
+        with self._lock:
+            self.or_spend_usd += cost
+            if model:
+                m = self.per_model.setdefault(model, {"usd": 0.0, "calls": 0})
+                m["usd"] += cost
+                m["calls"] = m.get("calls", 0) + 1
+        self.save()
+
+    def record_claude(self, cost: float) -> None:
+        with self._lock:
+            self.claude_spend_usd += cost
+        self.save()
+
+    def summary(self) -> str:
+        return (f"Groq: {self.groq_requests} req (free) | "
+                f"OR: ${self.or_spend_usd:.4f}/${self.or_cap_usd:.2f} | "
+                f"Claude CLI: ${self.claude_spend_usd:.4f}/${self.claude_cap_usd:.2f}")
+
+    def per_model_summary(self) -> str:
+        if not self.per_model:
+            return "No per-model spend recorded today."
+        rows = sorted(self.per_model.items(), key=lambda kv: kv[1].get("usd", 0.0), reverse=True)
+        lines = [f"  {m:<55} ${v.get('usd', 0):.4f}  ({v.get('calls', 0)} calls)"
+                 for m, v in rows]
+        return "Per-model spend today:\n" + "\n".join(lines)
+
+budget = BudgetManager()
+
+
+def get_builder_budget() -> str:
+    """Return today's recorded Builder ledger — same data as the ``/budget`` slash command.
+
+    Groq request count, OpenRouter USD (vs cap), Claude CLI USD (vs cap), and per-model OR rows.
+    Does not include subscriptions or external tools; never extrapolate hourly rates from this.
+    """
+    return (
+        f"{budget.summary()}\n\n"
+        f"{budget.per_model_summary()}\n\n"
+        "---\n"
+        "Ledger scope: in-process KittyBuilder counters only (not full Jacob-wide cloud bills)."
+    )
+
+
+TOOLS["get_builder_budget"] = get_builder_budget
+
+# ------------------------------------------------------------
+# BRAIN — configurable tier order (KITTY_BUILDER_BRAIN_ORDER)
+# ------------------------------------------------------------
+
+
+def _brain_tier_groq(messages: list, response_parts: list[str]) -> bool:
+    if not _groq_client:
+        return False
+    try:
+        budget.assert_groq_request_allowed()
+    except BudgetExhausted as e:
+        print(f"\n[Groq cap] {e} → next tier…", file=sys.stderr)
+        return False
+    try:
+        resp = _groq_client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=messages,
+            max_tokens=1500,
+            temperature=0.7,
+            stream=True,
+        )
+        for chunk in resp:
+            delta = chunk.choices[0].delta.content
+            if delta:
+                print(delta, end="", flush=True)
+                response_parts.append(delta)
+        budget.record_groq()
+        print()
+        return True
+    except Exception as e:
+        print(f"\n[Groq failed: {str(e)[:70]}] → next tier…", file=sys.stderr)
+        response_parts.clear()
+        return False
+
+
+def _brain_tier_openrouter(messages: list, response_parts: list[str]) -> bool:
+    if not (USE_OPENROUTER and _openrouter_client):
+        return False
+    try:
+        budget.assert_can_spend(provider="or", est_usd=0.0)
+        current_model: Optional[str] = None
+        for model_id, delta in stream_openrouter(
+            messages, max_tokens=1500, temperature=0.7
+        ):
+            if model_id != current_model:
+                if current_model is not None:
+                    print()
+                print(f"[{model_id}]", flush=True)
+                current_model = model_id
+            print(delta, end="", flush=True)
+            response_parts.append(delta)
+        print()
+        return True
+    except BudgetExhausted as e:
+        print(f"\n[Budget] {e} → next tier…", file=sys.stderr)
+        response_parts.clear()
+        return False
+    except BuilderError as e:
+        print(f"\n[OpenRouter {e.code}] {e} → next tier…", file=sys.stderr)
+        response_parts.clear()
+        return False
+
+
+def _brain_tier_mlx(messages: list, response_parts: list[str]) -> bool:
+    if load is None:
+        return False
+    try:
+        model, tok = get_model(MODEL_BUILDER, force_local=True)
+        prompt = _build_prompt(tok, messages, thinking=False)
+        for r in stream_generate(
+            model,
+            tok,
+            prompt,
+            max_tokens=1500,
+            sampler=make_sampler(temp=0.7),
+        ):
+            print(r.text, end="", flush=True)
+            response_parts.append(r.text)
+        print()
+        return True
+    except Exception as e:
+        print(f"\n[MLX failed: {e}] → next tier…", file=sys.stderr)
+        response_parts.clear()
+        return False
+
+
+def _stream_brain(messages: list) -> str:
+    """Run tiers in ``KITTY_BUILDER_BRAIN_ORDER`` until one completes."""
+    order = _parse_brain_order()
+    runners = {
+        "groq": _brain_tier_groq,
+        "openrouter": _brain_tier_openrouter,
+        "mlx": _brain_tier_mlx,
+    }
+    response_parts: list[str] = []
+    for name in order:
+        fn = runners.get(name)
+        if fn is None:
+            continue
+        if not fn(messages, response_parts):
+            continue
+        text = "".join(response_parts)
+        if name == "mlx":
+            return text.strip()
+        return text
+    return "Error: all brain tiers unavailable."
+
+
+# ------------------------------------------------------------
+# WORKER DISPATCH — stream any CLI to Jacob's terminal
+# ------------------------------------------------------------
+
+_DELEGATE_ORDER = ("claude", "gemini", "opencode", "aider", "crush", "agent", "goose")
+
+
+def _delegate_argv(cli: str, ctx: str) -> Optional[list[str]]:
+    """Build argv for worker CLI; binaries resolved via ``*_BIN`` env then PATH."""
+    bh = str(Path.home() / ".local/bin")
+    rows: dict[str, tuple[str, tuple[str, ...]]] = {
+        "claude": ("KITTY_CLAUDE_BIN", ("/opt/homebrew/bin/claude",)),
+        "gemini": ("KITTY_GEMINI_BIN", ("/opt/homebrew/bin/gemini",)),
+        "opencode": ("KITTY_OPENCODE_BIN", ("/opt/homebrew/bin/opencode",)),
+        "aider": ("KITTY_AIDER_BIN", ("/opt/homebrew/bin/aider",)),
+        "crush": ("KITTY_CRUSH_BIN", ("/opt/homebrew/bin/crush",)),
+        "agent": ("KITTY_AGENT_BIN", (f"{bh}/agent",)),
+        "goose": ("KITTY_GOOSE_BIN", (f"{bh}/goose",)),
+    }
+    if cli not in rows:
+        return None
+    env_key, defaults = rows[cli]
+    exe = _resolve_tool_bin(env_key, *defaults)
+    if not exe:
+        return None
+    if cli == "claude":
+        return [exe, "-p", "--no-session-persistence", ctx]
+    if cli == "gemini":
+        return [exe, "-p", ctx]
+    if cli == "opencode":
+        return [exe, "run", ctx]
+    if cli == "aider":
+        return [exe, "--message", ctx, "--yes-always", "--no-auto-commits"]
+    if cli == "crush":
+        return [exe, "run", ctx]
+    if cli == "agent":
+        return [exe, "-p", ctx]
+    if cli == "goose":
+        return [exe, "run", "-t", ctx]
+    return None
+
+
+def _git_snapshot() -> set:
+    try:
+        r = subprocess.run(["git", "status", "--porcelain"], capture_output=True,
+                           text=True, cwd=PROJECT_ROOT, timeout=5)
+        return {line[3:].strip() for line in r.stdout.splitlines() if line.strip()}
+    except (subprocess.SubprocessError, OSError) as e:
+        print(f"[Worker] git snapshot failed: {e}", file=sys.stderr)
+        return set()
+
+def _worker_context(task: str) -> str:
+    lines = [f"Project: {PROJECT_ROOT}"]
+    focus_path = PROJECT_ROOT / "CURRENT_FOCUS.md"
+    if focus_path.exists():
+        try:
+            for line in focus_path.read_text().splitlines():
+                if line.startswith("## Current Task"):
+                    lines.append(f"Focus: {line}")
+                    break
+        except (OSError, UnicodeDecodeError) as e:
+            print(f"[Worker] focus read failed: {e}", file=sys.stderr)
+    try:
+        r = subprocess.run(["git", "status", "--short"], capture_output=True,
+                           text=True, cwd=PROJECT_ROOT, timeout=5)
+        if r.stdout.strip():
+            n = len(r.stdout.strip().splitlines())
+            lines.append(f"Dirty: {n} files modified")
+    except (subprocess.SubprocessError, OSError) as e:
+        print(f"[Worker] git status failed: {e}", file=sys.stderr)
+    lines.append(f"\nTask: {task}")
+    return "\n".join(lines)
+
+def delegate(cli: str, task: str) -> str:
+    if cli not in _DELEGATE_ORDER:
+        return f"Unknown worker '{cli}'. Available: {', '.join(_DELEGATE_ORDER)}"
+
+    # Scout before build tasks
+    build_kws = ("build", "implement", "create", "write", "add", "make", "develop")
+    if any(kw in task.lower() for kw in build_kws):
+        scout = github_scout(task)
+        if scout:
+            print(f"\n[Scout] Potentially relevant:\n{scout}\n")
+
+    ctx = _worker_context(task)
+    cmd = _delegate_argv(cli, ctx)
+    if cmd is None:
+        return (
+            f"[{cli.upper()}] CLI binary not found. Install it or set the matching "
+            f"KITTY_*_BIN environment variable (see `scripts/kitty_builder.py` probe)."
+        )
+    exe = cmd[0]
+    ctx_blob = cmd[-1] if len(cmd) > 1 else ""
+    preview = ctx_blob[:160].replace("\n", "\\n")
+    if len(ctx_blob) > 160:
+        preview += "…"
+    log.info(
+        "delegate start cli=%s exe=%s argc=%d ctx_chars=%d",
+        cli, exe, len(cmd), len(ctx_blob),
+    )
+    print(
+        f"\n[delegate:{cli}] REAL subprocess — executable={exe!r} argc={len(cmd)} "
+        f"context_chars={len(ctx_blob)}",
+        file=sys.stderr,
+        flush=True,
+    )
+    print(f"[delegate:{cli}] context preview: {preview!r}", file=sys.stderr, flush=True)
+    print(f"\n[{cli.upper()}] Launching worker…")
+    pre = _git_snapshot()
+
+    try:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                text=True, cwd=PROJECT_ROOT)
+        output_lines: list[str] = []
+        try:
+            for line in proc.stdout:
+                print(line, end="", flush=True)
+                output_lines.append(line)
+        except KeyboardInterrupt:
+            proc.terminate()
+            print(f"\n[{cli.upper()}] Interrupted.")
+            return "Worker interrupted." + _delegate_git_diff_stat_suffix()
+        try:
+            proc.wait(timeout=DELEGATE_TIMEOUT_SEC)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            try:
+                proc.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+            log.warning("delegate timeout cli=%s after %ss", cli, DELEGATE_TIMEOUT_SEC)
+            return (
+                f"[{cli.upper()}] Timed out after {DELEGATE_TIMEOUT_SEC:.0f}s — process killed."
+                + _delegate_git_diff_stat_suffix()
+            )
+
+        rc = proc.returncode if proc.returncode is not None else -1
+        log.info(
+            "delegate done cli=%s returncode=%s stdout_lines=%s",
+            cli, rc, len(output_lines),
+        )
+        print(
+            f"[delegate:{cli}] subprocess finished returncode={rc} stdout_lines={len(output_lines)}",
+            file=sys.stderr,
+            flush=True,
+        )
+
+        # Track Claude cost from JSON output
+        if cli == "claude":
+            raw = "".join(output_lines)
+            m = re.search(r'"total_cost_usd":\s*([\d.]+)', raw)
+            if m:
+                budget.record_claude(float(m.group(1)))
+
+        changed = _git_snapshot() - pre
+        if rc != 0:
+            summary = f"[{cli.upper()}] FAILED (exit code {rc})."
+        else:
+            summary = f"[{cli.upper()}] Done (exit {rc})."
+        if changed:
+            summary += f" Changed: {', '.join(sorted(changed)[:5])}"
+        budget.save()
+        return summary + _delegate_git_diff_stat_suffix()
+    except FileNotFoundError:
+        return f"[{cli.upper()}] Not found — check installation."
+    except Exception as e:
+        return f"[{cli.upper()}] Error: {e}"
+
+# ------------------------------------------------------------
+# GITHUB SCOUT — find existing tools before writing from scratch
+# ------------------------------------------------------------
+def github_scout(task: str) -> str:
+    query = f"site:github.com {task[:120]} open source tool"
+    return search_web(query)
+
+# Register new tools after delegate/github_scout are defined
+TOOLS["delegate"] = delegate
+TOOLS["github_scout"] = github_scout
+
+# ------------------------------------------------------------
+# STARTUP PROBE — verify each tier before accepting input
+# ------------------------------------------------------------
+def probe_tools() -> dict:
+    log.info("Probing available tools…")
+    print("[Startup] Probing available tools…")
+    status: dict[str, str] = {}
+
+    if _groq_client:
+        try:
+            budget.assert_groq_request_allowed()
+        except BudgetExhausted as e:
+            status["groq"] = f"⚠️ Groq capped: {e}"
+        else:
+            try:
+                _groq_client.chat.completions.create(
+                    model=GROQ_MODEL, messages=[{"role": "user", "content": "ok"}], max_tokens=3
+                )
+                status["groq"] = f"✅ Groq {GROQ_MODEL}"
+                budget.record_groq()
+            except Exception as e:
+                status["groq"] = f"❌ Groq: {str(e)[:60]}"
+    elif _GROQ_DISABLED and GROQ_API_KEY:
+        status["groq"] = "⚠️ Groq off (KITTY_BUILDER_DISABLE_GROQ=1)"
+    else:
+        status["groq"] = "⚠️ Groq: no GROQ_API_KEY"
+
+    bh = str(Path.home() / ".local/bin")
+    for name, env_key, default in (
+        ("claude", "KITTY_CLAUDE_BIN", "/opt/homebrew/bin/claude"),
+        ("gemini", "KITTY_GEMINI_BIN", "/opt/homebrew/bin/gemini"),
+        ("agent", "KITTY_AGENT_BIN", f"{bh}/agent"),
+    ):
+        exe = _resolve_tool_bin(env_key, default)
+        if not exe:
+            status[name] = f"❌ {name}: not found (set {env_key} or install)"
+            continue
+        try:
+            r = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=5)
+            status[name] = f"✅ {name} ({Path(exe).name}) {r.stdout.strip()[:30]}"
+        except Exception as e:
+            status[name] = f"❌ {name}: {e}"
+
+    if OPENROUTER_API_KEY:
+        try:
+            import requests as _req
+            r = _req.get("https://openrouter.ai/api/v1/key",
+                         headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}"}, timeout=5)
+            if r.status_code == 200:
+                used = r.json().get("data", {}).get("usage", 0)
+                status["openrouter"] = f"✅ OpenRouter (${used:.2f} used today)"
+            else:
+                status["openrouter"] = f"⚠️  OpenRouter: HTTP {r.status_code}"
+        except Exception:
+            status["openrouter"] = "⚠️  OpenRouter: probe failed"
+
+    for v in status.values():
+        print(f"  {v}")
+    print(f"  Budget: {budget.summary()}\n")
+    return status
+
+# ------------------------------------------------------------
+# STANDUP WRITER — appends session entry on exit
+# ------------------------------------------------------------
+def write_standup_entry(summary: str):
+    standup = PROJECT_ROOT / "docs" / "STANDUP.md"
+    if not standup.exists():
+        return
+    try:
+        git_status = subprocess.run(["git", "status", "--short"], capture_output=True,
+                                    text=True, cwd=PROJECT_ROOT, timeout=5).stdout.strip()
+        now = datetime.now().strftime("%Y-%m-%d %H:%M")
+        entry = f"\n\n---\n## KittyBuilder — {now}\n\n{summary}\n"
+        if git_status:
+            entry += f"\n**Dirty tree:**\n```\n{git_status[:400]}\n```\n"
+        entry += f"\n**Budget:** {budget.summary()}\n"
+        with open(standup, "a") as f:
+            f.write(entry)
+        print("[Standup] Entry written to docs/STANDUP.md")
+    except Exception as e:
+        print(f"[Standup] Write failed: {e}")
 
 # ------------------------------------------------------------
 # CORE MODES
@@ -807,43 +2082,49 @@ def council(question: str):
         print(f"[{name}] Thinking...")
         try:
             if USE_OPENROUTER and OPENROUTER_API_KEY:
-                resp = _openrouter_client.chat.completions.create(
-                    model=OPENROUTER_MODEL,
-                    messages=[{"role": "system", "content": framing}, {"role": "user", "content": question}],
-                    max_tokens=200, temperature=0.7
-                ).choices[0].message.content
+                resp = call_openrouter(
+                    [{"role": "system", "content": framing},
+                     {"role": "user", "content": question}],
+                    max_tokens=200, temperature=0.7,
+                )
             else:
-                model, tok = get_model(MODEL_BUILDER)
+                model, tok = get_model(MODEL_BUILDER, force_local=True)
                 sampler = make_sampler(temp=0.7)
                 messages = [{"role": "system", "content": framing}, {"role": "user", "content": question}]
                 resp = generate(model, tok, prompt=_build_prompt(tok, messages),
                                 max_tokens=200, sampler=sampler)
             opinions.append(f"{name}: {resp.strip()}")
+        except BuilderError as e:
+            print(f"[Error in {name}: {e.code} — {e}]")
+            opinions.append(f"{name}: [Error - {e.code}: {e}]")
         except Exception as e:
             print(f"[Error in {name}: {e}]")
             opinions.append(f"{name}: [Error - {e}]")
 
     print("[Chairman] Synthesizing...")
+    synth_text = (
+        f"Synthesize these two perspectives on: {question!r}\n\n"
+        + "\n\n".join(opinions)
+        + "\n\nGive a final recommendation in 2-3 sentences."
+    )
     try:
         if USE_OPENROUTER and OPENROUTER_API_KEY:
-            final = _openrouter_client.chat.completions.create(
-                model=OPENROUTER_MODEL,
-                messages=[{"role": "user", "content":
-                    f"Synthesize these two perspectives on: {question!r}\n\n" +
-                    "\n\n".join(opinions) +
-                    "\n\nGive a final recommendation in 2-3 sentences."}],
-                max_tokens=300, temperature=0.7
-            ).choices[0].message.content
+            final = call_openrouter(
+                [{"role": "user", "content": synth_text}],
+                max_tokens=300, temperature=0.7,
+            )
         else:
-            model, tok = get_model(MODEL_BUILDER)
+            model, tok = get_model(MODEL_BUILDER, force_local=True)
             sampler = make_sampler(temp=0.7)
-            synth_msg = [{"role": "user", "content":
-                f"Synthesize these two perspectives on: {question!r}\n\n" +
-                "\n\n".join(opinions) +
-                "\n\nGive a final recommendation in 2-3 sentences."}]
+            synth_msg = [{"role": "user", "content": synth_text}]
             final = generate(model, tok, prompt=_build_prompt(tok, synth_msg),
                              max_tokens=300, sampler=sampler)
         print(f"\nFinal Verdict:\n{final}\n")
+    except BuilderError as e:
+        print(f"\n[Synthesis Error: {e.code} — {e}]")
+        print("Opinions gathered:")
+        for o in opinions:
+            print(o)
     except Exception as e:
         print(f"\n[Synthesis Error: {e}]")
         print("Opinions gathered:")
@@ -925,7 +2206,7 @@ For each finding, give: file, line, severity (HIGH/MED/LOW), and the fix.
     if USE_OPENROUTER and OPENROUTER_API_KEY:
         report = generate_openrouter(prompt, max_tokens=1000, temp=0.2)
     else:
-        model, tok = get_model(MODEL_CODE)
+        model, tok = get_model(MODEL_CODE, force_local=True)
         messages = [{"role": "user", "content": prompt}]
         report = generate(model, tok, prompt=_build_prompt(tok, messages),
                           max_tokens=1000, sampler=make_sampler(temp=0.2))
@@ -954,13 +2235,18 @@ Your job is to:
 6. Give Jacob honest estimates of progress
 
 --- TOOLS AVAILABLE ---
+- builder_session_start() - Session opener: git snapshot, CURRENT_FOCUS line, budget, recommended next steps (call when Jacob starts work)
+- run_project_gates() - Run scripts/run_gates.sh; returns PASS/FAIL headline plus log tail — use before claiming tests/gates are green
 - run_command(command) - Execute safe shell commands
 - read_file(path) - Read any project file
 - write_file(path, content) - Create/update files
 - modify_project_tasks(action, milestone_id, task, note, title) - Manage tasks
 - search_web(query) - Search the web
-- launch_kitty() - Run the test suite
+- launch_kitty() - Run pytest on tests/
 - generate_project_brief() - Refresh your knowledge of project state
+- get_builder_budget() - **Spend questions:** today's recorded ledger (Groq / OpenRouter / Claude CLI) — call this instead of guessing dollars
+- delegate(cli, task) - Stream a coding task to a CLI worker (cli: claude, gemini, opencode, aider, crush, agent, goose)
+- github_scout(task) - Search GitHub for existing tools before building from scratch
 
 --- HOW YOU OPERATE ---
 1. You ALWAYS know the full project state - use generate_project_brief() at session start
@@ -970,6 +2256,15 @@ Your job is to:
 5. When Jacob wants to proceed, suggest specific next steps and offer to execute
 6. If something is unclear, ask clarifying questions
 
+--- HONESTY — COSTS, DELEGATION, PARALLEL TASKS (NON-NEGOTIABLE) ---
+- Never invent dollar amounts, hourly rates, project budgets, or "total incurred costs." You do not see Jacob's subscriptions or invoices.
+- Recorded spend in *this* app is only what the BudgetManager tracks. When Jacob asks about money, caps, or "what did we spend", **call `get_builder_budget()`** (tool JSON) so the answer is grounded. You may also tell him he can type **`/budget`** in this REPL for the same snapshot.
+- Do not estimate or annualize costs. If the ledger is empty/zero, say so plainly.
+- Never narrate fake CLI outcomes ("Crush accepted…", "Goose will benchmark…") unless you are **quoting verbatim output** from an actual `delegate()` tool result shown in this conversation. If delegation was not executed, say so and offer to call `delegate` with real JSON.
+- Real runs print **`[delegate:<cli>]`** lines to **stderr** when the subprocess starts/finishes — if Jacob does not see those, delegation did not run in this terminal.
+- Do not invent numbered parallel tasks (Task 1–N), fake assignees (claude/gemini/…), or imaginary percent-complete bars unless they match **project state below** or a tool you just ran. Prefer reading `project.json` / brief over storytelling.
+
+{scope}
 --- PROJECT STATE ---
 {project}
 """
@@ -1038,15 +2333,6 @@ def _extract_json(text: str) -> dict | None:
     # Find JSON start
     start = raw.find('{')
     if start == -1:
-        # Pattern 3: Look for key-value patterns in raw text
-        if '"tool"' in text:
-            # Try to extract from raw text
-            match = re.search(r'\{[^}]*"tool"[^}]*\}', text, re.DOTALL)
-            if match:
-                raw = match.group(0)
-                start = 0
-
-    if start == -1:
         return None
 
     try:
@@ -1057,8 +2343,244 @@ def _extract_json(text: str) -> dict | None:
         return None
 
 
-def chat(user_input: str):
-    sys_msg = SYSTEM_PROMPT.format(root=PROJECT_ROOT, project=_format_project(session.project_state))
+# ── Model-stats sink (MCP-ready JSONL) ───────────────────────────────────────
+#
+# Writes per-flush observations of free-pool model health. Each row is shaped
+# as an MCP memory-server "entity observation" so a future ingester can push
+# them into @modelcontextprotocol/server-memory without re-shaping. Per
+# CLAUDE.md storage routing, this is the right home for "lessons learned"
+# about which models work — JournalDB is for journal entries, LightRAG is for
+# KB content; model-performance metadata is MCP entity territory.
+
+MODEL_STATS_FILE = PROJECT_ROOT / ".kitty_builder_model_stats.jsonl"
+
+
+def flush_model_stats() -> None:
+    """Append one observation row per known free-pool model. Best-effort."""
+    stats = free_pool.stats()
+    if not stats:
+        return
+    now_iso = datetime.now().isoformat(timespec="seconds")
+    rows = []
+    cooldowns = dict(free_pool._cooldowns)
+    now = time.time()
+    for model, sv in stats.items():
+        ok = int(sv.get("ok", 0))
+        fail = int(sv.get("fail", 0))
+        total = ok + fail
+        rate = (ok / total) if total else None
+        cooldown_s = max(0.0, cooldowns.get(model, 0.0) - now)
+        rows.append({
+            "ts": now_iso,
+            "entity_type": "openrouter_model",
+            "name": model,
+            "observations": [
+                {"ok": ok, "fail": fail, "success_rate": rate,
+                 "cooldown_remaining_s": round(cooldown_s, 1)},
+            ],
+        })
+    try:
+        with open(MODEL_STATS_FILE, "a") as f:
+            for r in rows:
+                f.write(json.dumps(r) + "\n")
+    except OSError as e:
+        print(f"[ModelStats] write failed: {e}", file=sys.stderr)
+
+
+# ── Optional LightRAG KB query (opt-in) ──────────────────────────────────────
+#
+# Per CLAUDE.md routing, KB queries go to LightRAG. We import lazily so the
+# builder still runs when LightRAG service / deps are absent.
+
+USE_LIGHTRAG = os.environ.get("KITTY_BUILDER_USE_LIGHTRAG", "0").strip() == "1"
+_lightrag_wrapper = None
+
+
+def _get_lightrag():
+    global _lightrag_wrapper
+    if _lightrag_wrapper is not None:
+        return _lightrag_wrapper
+    if not USE_LIGHTRAG:
+        return None
+    try:
+        from src.tools.lightrag_wrapper import LightRAGWrapper
+        _lightrag_wrapper = LightRAGWrapper()
+        return _lightrag_wrapper
+    except Exception as e:
+        print(f"[LightRAG] init failed: {e} — disabling kb_query", file=sys.stderr)
+        return None
+
+
+def kb_query(query: str, top_k: int = 5) -> str:
+    """Query the LightRAG KB. Opt-in via KITTY_BUILDER_USE_LIGHTRAG=1."""
+    if not USE_LIGHTRAG:
+        return "Error: LightRAG disabled (set KITTY_BUILDER_USE_LIGHTRAG=1 to enable)."
+    lr = _get_lightrag()
+    if lr is None:
+        return "Error: LightRAG unavailable (init failed)."
+    try:
+        results = lr.search(query, top_k=top_k)
+    except Exception as e:
+        return f"Error: LightRAG search failed: {e}"
+    if not results:
+        return "No KB results."
+    if isinstance(results, str):
+        return results[:4000]
+    if isinstance(results, list):
+        return "\n".join(str(r)[:500] for r in results[:top_k])
+    return str(results)[:4000]
+
+
+# Register kb_query as a tool the agent can call (no-op call still safe when disabled).
+TOOLS["kb_query"] = kb_query
+
+
+# ── Prompt cache (opt-in, off by default) ────────────────────────────────────
+
+CACHE_FILE = PROJECT_ROOT / ".kitty_builder_cache.sqlite3"
+
+
+class PromptCache:
+    """Tiny SQLite cache keyed by sha256 of (model + messages + kwargs).
+
+    Disabled unless env KITTY_BUILDER_CACHE=1. Only useful for deterministic
+    (low-temp) calls — random sampling poisons the cache for everyone else.
+    """
+
+    def __init__(self, path: Path, enabled: bool) -> None:
+        self.enabled = enabled
+        self._lock = threading.Lock()
+        self._conn: Optional[sqlite3.Connection] = None
+        if not enabled:
+            return
+        try:
+            self._conn = sqlite3.connect(str(path), check_same_thread=False)
+            self._conn.execute(
+                "CREATE TABLE IF NOT EXISTS responses "
+                "(key TEXT PRIMARY KEY, response TEXT, ts REAL)"
+            )
+            self._conn.commit()
+        except sqlite3.Error as e:
+            print(f"[Cache] init failed: {e}", file=sys.stderr)
+            self.enabled = False
+
+    @staticmethod
+    def make_key(model: str, messages: list, **kw) -> str:
+        h = hashlib.sha256()
+        h.update(model.encode("utf-8"))
+        h.update(json.dumps(messages, sort_keys=True).encode("utf-8"))
+        for k in sorted(kw):
+            h.update(f"{k}={kw[k]}".encode("utf-8"))
+        return h.hexdigest()
+
+    def get(self, key: str) -> Optional[str]:
+        if not self.enabled or self._conn is None:
+            return None
+        with self._lock:
+            try:
+                row = self._conn.execute(
+                    "SELECT response FROM responses WHERE key=?", (key,)
+                ).fetchone()
+            except sqlite3.Error as e:
+                print(f"[Cache] get failed: {e}", file=sys.stderr)
+                return None
+        return row[0] if row else None
+
+    def put(self, key: str, response: str) -> None:
+        if not self.enabled or self._conn is None:
+            return
+        with self._lock:
+            try:
+                self._conn.execute(
+                    "INSERT OR REPLACE INTO responses (key, response, ts) VALUES (?, ?, ?)",
+                    (key, response, time.time()),
+                )
+                self._conn.commit()
+            except sqlite3.Error as e:
+                print(f"[Cache] put failed: {e}", file=sys.stderr)
+
+    def stats(self) -> Dict[str, int]:
+        if not self.enabled or self._conn is None:
+            return {"enabled": 0, "rows": 0}
+        with self._lock:
+            try:
+                row = self._conn.execute("SELECT COUNT(*) FROM responses").fetchone()
+            except sqlite3.Error:
+                return {"enabled": 1, "rows": -1}
+        return {"enabled": 1, "rows": int(row[0])}
+
+
+prompt_cache = PromptCache(
+    CACHE_FILE,
+    enabled=os.environ.get("KITTY_BUILDER_CACHE", "0").strip() == "1",
+)
+
+
+# ── Tool execution & optimize loop ───────────────────────────────────────────
+
+_TOOL_ERROR_PATTERNS = (
+    re.compile(r"^\s*Error[: ]", re.IGNORECASE),
+    re.compile(r"\bSecurity scan blocked\b", re.IGNORECASE),
+    re.compile(r"\bCommand exited with code [1-9]", re.IGNORECASE),
+    re.compile(r"\b(failed|traceback)\b", re.IGNORECASE),
+)
+
+
+def _looks_like_failure(result: object) -> bool:
+    if not isinstance(result, str):
+        return False
+    head = result[:300]
+    return any(p.search(head) for p in _TOOL_ERROR_PATTERNS)
+
+
+def _execute_tool_call(data: dict) -> tuple[bool, str]:
+    """Run a tool referenced in extracted JSON. Returns (succeeded, result_text)."""
+    tool = data.get("tool")
+    args = data.get("args", {})
+    if tool not in TOOLS:
+        return False, f"Error: Tool '{tool}' not found."
+    if PLAN_ONLY_MODE and tool in PLAN_ONLY_BLOCKED_TOOLS:
+        return False, (
+            f"Error: Tool '{tool}' is blocked in plan-only mode "
+            f"(restart without --plan-only / KITTY_BUILDER_PLAN_ONLY)."
+        )
+    log.info("Executing tool: %s", tool)
+    try:
+        result = TOOLS[tool](**args) if isinstance(args, dict) else TOOLS[tool](args)
+    except Exception as e:
+        return False, f"Error executing tool {tool}: {e}"
+    text = result if isinstance(result, str) else str(result)
+    return (not _looks_like_failure(text)), text
+
+
+def _check_goal(verify_cmd: str) -> tuple[bool, str]:
+    """Run the goal verification command (e.g. 'pytest tests/test_x.py -q'). Sandboxed."""
+    if not sanitize_command(verify_cmd):
+        return False, f"goal verify command rejected by sanitize_command: {verify_cmd}"
+    try:
+        proc = subprocess.run(
+            shlex.split(verify_cmd),
+            capture_output=True, text=True, cwd=PROJECT_ROOT, timeout=120,
+        )
+    except (subprocess.SubprocessError, OSError) as e:
+        return False, f"goal verify failed to run: {e}"
+    tail = (proc.stdout + proc.stderr)[-400:]
+    return proc.returncode == 0, tail
+
+
+def chat(user_input: str, *, max_iters: int = 1) -> str:
+    """Single-turn chat. With max_iters>1, retries on tool failure (optimize loop).
+
+    The optimize loop appends the failure context to the conversation and asks
+    Kitty to try again, up to max_iters total assistant turns. A goal verifier
+    set via /goal will be run after each successful tool execution and, if it
+    passes, ends the loop early.
+    """
+    sys_msg = SYSTEM_PROMPT.format(
+        root=PROJECT_ROOT,
+        project=_format_project(session.project_state),
+        scope=_builder_scope_block(session.project_state),
+    )
 
     if not session.history:
         session.history.append({"role": "system", "content": sys_msg})
@@ -1066,72 +2588,88 @@ def chat(user_input: str):
         session.history[0]["content"] = sys_msg
 
     session.history.append({"role": "user", "content": user_input})
-    if len(session.history) > 40:
-        session.history = session.history[-40:]
+    _apply_history_cap(session.history, HISTORY_MAX_MESSAGES)
 
-    if USE_OPENROUTER and OPENROUTER_API_KEY:
-        print("[Kitty] ", end="", flush=True)
-        response_parts = []
-        for attempt in range(3):
-            try:
-                resp = _openrouter_client.chat.completions.create(
-                    model=OPENROUTER_MODEL,
-                    messages=session.history,
-                    max_tokens=1500,
-                    temperature=0.7,
-                    stream=True
-                )
-                for chunk in resp:
-                    if chunk.choices[0].delta.content:
-                        print(chunk.choices[0].delta.content, end="", flush=True)
-                        response_parts.append(chunk.choices[0].delta.content)
-                response = "".join(response_parts)
-                break
-            except Exception as e:
-                if attempt == 2:
-                    response = f"Error after 3 attempts: {e}"
-                    print(response)
-                else:
-                    print(f"[Retry {attempt + 2}] {e}")
-                    time.sleep(1)
-    else:
-        model, tok = get_model(MODEL_BUILDER)
-        prompt = _build_prompt(tok, session.history, thinking=False)
-        print("[Kitty] ", end="", flush=True)
-        response_parts = []
-        for resp in stream_generate(model, tok, prompt, max_tokens=1500,
-                                     sampler=make_sampler(temp=0.7)):
-            print(resp.text, end="", flush=True)
-            response_parts.append(resp.text)
-        print()
-        response = "".join(response_parts).strip()
-
-    session.history.append({"role": "assistant", "content": response})
-
-    # Check for tool call — use depth-aware parser to handle nested args
-    data = _extract_json(response)
-    if data is not None and "tool" in data:
+    last_response = ""
+    for iter_no in range(1, max(1, max_iters) + 1):
         try:
-            tool, args = data["tool"], data.get("args", {})
-            if tool not in TOOLS:
-                err = f"Error: Tool '{tool}' not found."
-                print(f"[{err}]")
-                session.history.append({"role": "system", "content": err})
+            if iter_no == 1:
+                print("[Kitty] ", end="", flush=True)
             else:
-                print(f"[Executing Tool: {tool}]...")
-                result = TOOLS[tool](**args) if isinstance(args, dict) else TOOLS[tool](args)
-                print(f"[Tool Result] {result}")
-                session.history.append({"role": "system", "content": f"Tool '{tool}' executed. Result:\n{result}"})
-        except Exception as e:
-            err = f"Error executing tool: {e}"
-            print(f"[{err}]")
-            session.history.append({"role": "system", "content": err})
+                print(f"\n[Kitty iter {iter_no}/{max_iters}] ", end="", flush=True)
+            last_response = _stream_brain(session.history)
+            session.history.append({"role": "assistant", "content": last_response})
+
+            data = _extract_json(last_response)
+            if data is None or "tool" not in data:
+                # No tool call — nothing to retry. Done.
+                break
+
+            ok, result = _execute_tool_call(data)
+            print(f"[Tool Result] {result[:1000]}{'…' if len(result) > 1000 else ''}")
+            session.history.append({
+                "role": "system",
+                "content": f"Tool '{data.get('tool')}' executed (success={ok}). Result:\n{result}",
+            })
+
+            # Goal check after every successful tool execution
+            verify = session.project_state.get("goal_verify") if isinstance(session.project_state, dict) else None
+            if ok and verify:
+                goal_ok, tail = _check_goal(verify)
+                if goal_ok:
+                    msg = f"[Goal achieved via `{verify}`]"
+                    print(msg)
+                    session.history.append({"role": "system", "content": msg})
+                    if isinstance(session.project_state, dict):
+                        session.project_state.pop("goal_verify", None)
+                    break
+                else:
+                    # Tool succeeded but goal still failing — feed the error back as context
+                    msg = (f"Goal verifier `{verify}` still failing.\n"
+                           f"Last 400 chars of output:\n{tail}\n"
+                           f"Try a different approach.")
+                    session.history.append({"role": "system", "content": msg})
+                    # continue iterating
+                    continue
+
+            if ok:
+                # Tool succeeded and no goal set — we're done.
+                break
+            if iter_no >= max_iters:
+                break
+            # Tool failed; nudge Kitty to fix it
+            session.history.append({
+                "role": "system",
+                "content": (
+                    f"The previous tool call failed. Diagnose the failure from the "
+                    f"result above and try a different approach. You have "
+                    f"{max_iters - iter_no} attempt(s) left."
+                ),
+            })
+        finally:
+            _apply_history_cap(session.history, HISTORY_MAX_MESSAGES)
+
+    return last_response
 
 def show_models():
     print("\n--- Active Models ---")
     if USE_OPENROUTER and OPENROUTER_API_KEY:
         print(f"  Provider: OpenRouter")
-        print(f"  Model: {OPENROUTER_MODEL}")
+        if OPENROUTER_MODEL_OVERRIDE:
+            print(f"  Override: {OPENROUTER_MODEL_OVERRIDE}")
+        else:
+            now = time.time()
+            models = free_pool.all_models()
+            cooling = {m: ts for m, ts in free_pool._cooldowns.items() if ts > now}
+            print(f"  Free pool ({len(models)} models, {len(cooling)} cooling):")
+            for m in models:
+                ts = cooling.get(m)
+                tag = f" [cool {ts - now:.0f}s]" if ts else ""
+                stats = free_pool.stats().get(m, {})
+                ok, fail = stats.get("ok", 0), stats.get("fail", 0)
+                print(f"    - {m}{tag}  (ok={ok} fail={fail})")
+            if OPENROUTER_PAID_FALLBACK:
+                print(f"  Paid fallback: {OPENROUTER_PAID_FALLBACK}")
     else:
         print(f"  All roles: {MODEL_BUILDER}")
     loaded = list(_model_cache.keys())
@@ -1143,22 +2681,45 @@ def show_models():
 
 def show_help():
     print(
-        "\n--- Kitty Builder Commands ---\n"
-        "  /help          Show this help\n"
-        "  /health        Scan project health\n"
-        "  /next          Suggest next steps\n"
-        "  /improve       Run self-improvement: test, audit, grade, feedback\n"
-        "  /models        Show model info and VRAM state\n"
-        "  /council <q>   Two-perspective deliberation on a question\n"
-        "  /selfreview    Run code audit over the entire project\n"
-        "  /patterns      List available patterns\n"
-        "  /exit          Quit\n"
-        "\nTools available: run_command, read_file, write_file,\n"
-        "  modify_project_tasks, search_web, launch_kitty,\n"
-        "  generate_project_brief, run_pattern, scan_project_health,\n"
-        "  suggest_next_steps, kitty_self_improve\n"
-        "\nPatterns: summarize, action-items, explain-code, review-code,\n"
-        "  audit, breakdown, compare, brainstorm, test-plan, migrate-plan\n"
+        "\n--- Kitty Builder V3 Commands ---\n"
+        "  /start                   Session opener: git + CURRENT_FOCUS + budget + next steps\n"
+        "  /spec <path>             Latch an approved spec file for this session (stay-in-scope hint)\n"
+        "  /spec show             Show latched spec path\n"
+        "  /spec clear            Clear latched spec\n"
+        "  /help                    Show this help\n"
+        "  /health                  Scan project health\n"
+        "  /next                    Suggest next steps\n"
+        "  /budget / budget        REAL ledger (Groq/OR/Claude CLI caps) — same data as get_builder_budget()\n"
+        "  /probe                   Re-probe all tools / auth status\n"
+        "  /test  /gates            Run scripts/run_gates.sh (tests)\n"
+        "  /delegate <cli> <task>   Stream task to CLI worker\n"
+        "                           cli: claude | gemini | opencode | aider | crush | agent | goose\n"
+        "  /scout <query>           Search GitHub for existing tools first\n"
+        "  /improve                 Self-improvement: test, audit, grade, feedback\n"
+        "  /models                  Show active Brain model and VRAM state\n"
+        "  /council <q>             Two-perspective deliberation on a question\n"
+        "  /selfreview              Code audit across the project\n"
+        "  /patterns                List available text patterns\n"
+        "  /freepool                Show free-model pool + cooldowns + stats\n"
+        "  /goal <verify-cmd>       Set goal verifier (e.g. `/goal pytest tests/test_x.py -q`)\n"
+        "  /goal clear              Clear current goal\n"
+        "  /optimize <prompt>       Multi-iteration chat (retry on tool failure, up to 3)\n"
+        "  /race <prompt>           Race two free models in parallel; first valid wins\n"
+        "  /cache                   Prompt-cache stats (set KITTY_BUILDER_CACHE=1 to enable)\n"
+        "  /stats                   Flush per-model stats to .kitty_builder_model_stats.jsonl\n"
+        "  /kb <query>              Query LightRAG KB (needs KITTY_BUILDER_USE_LIGHTRAG=1)\n"
+        "  /exit                    Quit + write standup entry\n"
+        "\nCLI flags: --plan-only (or KITTY_BUILDER_PLAN_ONLY=1) for read-only interactive sessions.\n"
+        "Env: KITTY_*_BIN for worker paths, KITTY_BUILDER_DELEGATE_TIMEOUT_SEC, KITTY_BUILDER_HISTORY_MAX; "
+        "KITTY_BUILDER_DELEGATE_DIFF=0 disables git diff --stat after delegate.\n"
+        "Brain: KITTY_BUILDER_BRAIN_ORDER=openrouter,mlx,groq (default). Put mlx first for local-first; "
+        "use groq,openrouter,mlx only if Groq is stable for you.\n"
+        "Groq: set KITTY_BUILDER_DISABLE_GROQ=1 to skip Groq (no probe spam) while keeping GROQ_API_KEY.\n"
+        "Budget: KITTY_BUDGET_OR_ESTIMATE_USD (preflight per paid OpenRouter call, default 0.002); "
+        "KITTY_BUDGET_GROQ_MAX_REQUESTS (optional daily Groq cap, 0=unlimited).\n"
+        "\nBrain tiers (default order): OpenRouter → local MLX → Groq (last)\n"
+        "Free pool rotates on 429/503. Set OPENROUTER_FREE_MODELS or OPENROUTER_PAID_FALLBACK to customize.\n"
+        "Workers drain subscriptions first: gemini → agent → claude → opencode → aider → crush → goose\n"
     )
 
 # ------------------------------------------------------------
@@ -1169,6 +2730,9 @@ def build_cli_parser() -> argparse.ArgumentParser:
         description="Controlled Kitty builder entrypoint. Dry-run is the default.",
     )
     parser.add_argument("--brief", action="store_true", help="Print a read-only project manager brief for session start.")
+    parser.add_argument("--plan-only", action="store_true",
+                        help="Interactive mode only: block write/run/delegate/shell tools (read-only planning). "
+                             "Or set KITTY_BUILDER_PLAN_ONLY=1.")
     parser.add_argument("--project", type=Path, help="Path to the Kitty app checkout.")
     parser.add_argument("--spec", type=Path, help="Path to the approved spec markdown file.")
     parser.add_argument("--execute", action="store_true", help="Allow future write-capable builder execution.")
@@ -1229,46 +2793,173 @@ def run_builder_contract(project: Path, spec: Path, *, execute: bool = False) ->
     return 0
 
 
-def interactive_main():
-    print(f"🐾 Kitty Builder V2 (Personalized for Jacob)")
-    if USE_OPENROUTER and OPENROUTER_API_KEY:
-        print(f"[Using OpenRouter: {OPENROUTER_MODEL}]")
-    else:
-        print(f"[Using MLX: {MODEL_BUILDER}]")
+def interactive_main(plan_only: bool = False):
+    global PLAN_ONLY_MODE
+    PLAN_ONLY_MODE = bool(plan_only or os.environ.get("KITTY_BUILDER_PLAN_ONLY", "0").strip() == "1")
+
+    print("🐾 Kitty Builder V3 — Online")
+    if PLAN_ONLY_MODE:
+        print("📋 Plan-only mode: write/run/delegate/launch_kitty/self-improve tools are blocked.\n")
 
     loaded = load_session()
     if loaded:
         print("[Resumed previous session]")
+
+    probe_tools()
     update_project_from_scan()
+
+    session_actions: list[str] = []
 
     while True:
         try:
-            inp = input("\nJacob: ").strip()
-            if not inp: continue
-            if inp.lower() in ["exit", "/exit"]:
+            inp = input("\nJacob > ").strip()
+            if not inp:
+                continue
+
+            if inp.lower() in ("exit", "/exit", "quit", "/quit"):
                 save_session()
+                summary = ("Session actions:\n" +
+                           "\n".join(f"- {a}" for a in session_actions[-15:])) if session_actions else "Session (no actions logged)."
+                write_standup_entry(summary)
                 break
-            elif inp.lower() in ["/help", "help"]: show_help()
-            elif inp.lower() in ["/health", "health"]: print(scan_project_health())
-            elif inp.lower() in ["/next", "next"]: print(suggest_next_steps())
-            elif inp.lower() in ["/improve", "improve"]: print(kitty_self_improve())
-            elif inp.lower() in ["/patterns", "patterns"]:
-                with open(PROJECT_ROOT / "config" / "patterns.json") as f:
-                    patterns = json.load(f)
-                print("\n--- Available Patterns ---\n")
-                for name, info in patterns.items():
-                    print(f"  {name}: {info['description']}")
-            elif inp.startswith("/council "): council(inp[9:])
-            elif inp.startswith("/selfreview"): self_review()
-            elif inp.startswith("/models"): show_models()
-            else: chat(inp)
+
+            elif inp.lower() in ("/help", "help"):
+                show_help()
+            elif inp.lower() in ("/start", "start"):
+                print(builder_session_start_brief())
+                session_actions.append("session start (/start)")
+            elif inp.startswith("/spec"):
+                arg = inp[5:].strip()
+                if not arg or arg.lower() == "show":
+                    cur = (
+                        (session.project_state or {}).get("builder_spec_path")
+                        if isinstance(session.project_state, dict)
+                        else None
+                    )
+                    print(f"Latched spec: {cur or '(none)'}")
+                elif arg.lower() == "clear":
+                    if isinstance(session.project_state, dict):
+                        session.project_state.pop("builder_spec_path", None)
+                    print("Spec latch cleared.")
+                else:
+                    raw = arg
+                    candidate = Path(raw).expanduser()
+                    if candidate.is_absolute():
+                        try:
+                            rel = candidate.resolve().relative_to(PROJECT_ROOT.resolve())
+                            stored = str(rel).replace("\\", "/")
+                        except ValueError:
+                            print("Error: spec path must be inside the project root.")
+                            continue
+                    else:
+                        stored = raw.replace("\\", "/").lstrip("./")
+                    full = PROJECT_ROOT / stored
+                    if not full.is_file():
+                        print(f"Error: not a file: {stored}")
+                        continue
+                    if not isinstance(session.project_state, dict):
+                        session.project_state = {}
+                    session.project_state["builder_spec_path"] = stored
+                    print(f"Latched spec: {stored}")
+                    session_actions.append(f"spec latch: {stored}")
+            elif inp.lower() in ("/health", "health"):
+                print(scan_project_health())
+            elif inp.lower() in ("/next", "next"):
+                print(suggest_next_steps())
+            elif inp.lower() in ("/improve", "improve"):
+                print(kitty_self_improve())
+            elif inp.lower() in ("/test", "/gates"):
+                print("[Running test gate…]")
+                result = run_trusted_bash_script("scripts/run_gates.sh")
+                print(result)
+                session_actions.append("ran test gate")
+            elif inp.lower() in ("/budget", "budget"):
+                print(f"\n{budget.summary()}")
+                print(budget.per_model_summary())
+            elif inp.lower() == "/probe":
+                probe_tools()
+            elif inp.lower() == "/freepool":
+                free_pool.discover()
+                show_models()
+            elif inp.lower() == "/cache":
+                s = prompt_cache.stats()
+                state = "ON" if s.get("enabled") else "OFF (set KITTY_BUILDER_CACHE=1 to enable)"
+                print(f"Prompt cache {state}; rows={s.get('rows', 0)}")
+            elif inp.lower() == "/stats":
+                flush_model_stats()
+                print(f"Flushed model stats to {MODEL_STATS_FILE.name}")
+            elif inp.startswith("/kb "):
+                q = inp[len("/kb "):].strip()
+                print(kb_query(q))
+            elif inp.startswith("/goal"):
+                arg = inp[len("/goal"):].strip()
+                if not arg or arg.lower() == "show":
+                    cur = (session.project_state or {}).get("goal_verify") if isinstance(session.project_state, dict) else None
+                    print(f"Current goal: {cur or '(none)'}")
+                elif arg.lower() == "clear":
+                    if isinstance(session.project_state, dict):
+                        session.project_state.pop("goal_verify", None)
+                    print("Goal cleared.")
+                else:
+                    if not isinstance(session.project_state, dict):
+                        session.project_state = {}
+                    session.project_state["goal_verify"] = arg
+                    print(f"Goal set: `{arg}` (will run after each tool exec)")
+            elif inp.startswith("/optimize "):
+                prompt = inp[len("/optimize "):].strip()
+                chat(prompt, max_iters=3)
+                session_actions.append(f"optimize: {prompt[:60]}")
+            elif inp.startswith("/race "):
+                prompt = inp[len("/race "):].strip()
+                try:
+                    text = call_openrouter_race(
+                        [{"role": "user", "content": prompt}],
+                        n=2, max_tokens=800, temperature=0.5,
+                    )
+                    print(f"\n{text}\n")
+                    session_actions.append(f"race: {prompt[:60]}")
+                except BuilderError as e:
+                    print(f"[Race {e.code}] {e}")
+            elif inp.lower() in ("/patterns", "patterns"):
+                try:
+                    with open(PROJECT_ROOT / "config" / "patterns.json") as f:
+                        patterns = json.load(f)
+                    print("\n--- Available Patterns ---\n")
+                    for name, info in patterns.items():
+                        print(f"  {name}: {info['description']}")
+                except (json.JSONDecodeError, OSError, KeyError) as e:
+                    print(f"patterns.json unavailable: {e}")
+            elif inp.startswith("/delegate "):
+                parts = inp[10:].split(" ", 1)
+                if len(parts) == 2:
+                    cli_name, task = parts[0].strip(), parts[1].strip()
+                    result = delegate(cli_name, task)
+                    session_actions.append(f"delegated to {cli_name}: {task[:60]}")
+                    print(result)
+                else:
+                    print("Usage: /delegate <cli> <task>  (cli: claude, gemini, opencode, aider, crush, agent, goose)")
+            elif inp.startswith("/scout "):
+                query = inp[7:].strip()
+                print(f"\n[Scouting: {query}]")
+                print(github_scout(query))
+            elif inp.startswith("/council "):
+                council(inp[9:])
+            elif inp.startswith("/selfreview"):
+                self_review()
+            elif inp.startswith("/models"):
+                show_models()
+            else:
+                chat(inp)
+                session_actions.append(f"chat: {inp[:70]}")
+
         except (KeyboardInterrupt, EOFError):
             save_session()
-            print("\nSession saved.")
+            print("\nSession saved (interrupted).")
             break
-        except Exception: traceback.print_exc()
+        except Exception:
+            traceback.print_exc()
 
-    print("\nSession saved.")
+    print(f"\nBudget used: {budget.summary()}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1276,6 +2967,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.brief:
         print(generate_project_brief())
+        return 0
+    if args.project is None and args.spec is None:
+        interactive_main(plan_only=args.plan_only)
         return 0
     if args.project is None or args.spec is None:
         parser.error("--project and --spec are required unless --brief is used")
