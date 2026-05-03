@@ -5,11 +5,6 @@
       {
         "command": ".cursor/hooks/cursor-standup-session.sh"
       }
-    ],
-    "stop": [
-      {
-        "command": ".cursor/hooks/cursor-standup-stop.sh"
-      }
     ]
   }
 }

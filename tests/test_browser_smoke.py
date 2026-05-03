@@ -9,8 +9,8 @@ Install requirements (once):
     venv/bin/python -m pip install playwright pytest-playwright
     venv/bin/python -m playwright install chromium
 
-Run just these tests:
-    venv/bin/python -m pytest tests/test_browser_smoke.py -v
+Run just these tests (default `pytest` excludes them via `pytest.ini`):
+    venv/bin/python -m pytest tests/test_browser_smoke.py -m browser -v
 """
 
 from __future__ import annotations
@@ -26,10 +26,13 @@ try:
 except ImportError:
     _PLAYWRIGHT_AVAILABLE = False
 
-pytestmark = pytest.mark.skipif(
+pytestmark = [
+    pytest.mark.browser,
+    pytest.mark.skipif(
     not _PLAYWRIGHT_AVAILABLE,
     reason="playwright not installed — run: pip install playwright pytest-playwright && playwright install chromium",
-)
+    ),
+]
 
 BASE_URL = "http://127.0.0.1:5099"
 
