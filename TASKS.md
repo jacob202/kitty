@@ -1,6 +1,6 @@
 # Tasks
 
-Last updated: 2026-05-01
+Last updated: 2026-05-02
 
 ## Verified Done
 
@@ -48,6 +48,7 @@ Last updated: 2026-05-01
 - Utils dead code archiving: 48 files → 17 live. 34 dead (11504 lines) moved to `src/utils/_dead_archive/`. 3 restored after dep discovery (`security_scanner`, `performance_monitor`, `datasheet_intelligence`). Full suite verified: `399 passed` (2026-05-01).
 - Two new skills created: `recommend` (two-mode: NEED SCOUT + MATCHMAKER) and `spec-to-impl` (two-mode: SPEC VALIDATOR + IMPL GENERATOR) in `.claude/skills/` (2026-05-01).
 - Report: `docs/audits/CONSOLIDATION_REPORT_2026-05-01.md`.
+- Documentation authority pass: `docs/FILE_MANIFEST.md` single-checkout truth, `docs/DECISIONS.md` **D-0014**, `docs/README.md` index, `SESSION_SUMMARY.md` / `docs/OPEN_LOOPS.md` migration stale-path cleanup, `docs/HANDOFF.md` canonical workspace, redirect stubs for consolidated chat-log + workspace-map paths, `docs/archive/README.md`, stray `docs/_merge_gate_anchor_*.md` removed (2026-05-02).
 
 ## Next Smallest Action
 

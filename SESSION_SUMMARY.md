@@ -92,32 +92,25 @@ Verified command:
 - The tree is still dirty with many unrelated untracked/modified/deleted files.
 - Several `src/space_kitty` files remain deleted and were not fully restored; only compatibility shims needed by the current runtime/tests were added.
 - Protected-tree `Icon\r` metadata, `src/` deletions, `skills/` deletions, frontend caches, eval snapshots, and environment directories were not cleaned.
-- Copy-first `kitty-system/kitty-app` migration lane is active; legacy checkout is preserved for rollback.
+- Copy-first `kitty-system/kitty-app` migration was **reconciled into this repo and removed** (2026-05-01); this file’s older “next steps” are superseded by `docs/DECISIONS.md` D-0014 and `docs/README.md`.
 - Raw chat logs and eval artifacts were not deleted.
 
 ## Next Steps
 
-1. Keep daily execution in `/Users/jacobbrizinski/Projects/kitty-system/kitty-app`.
-2. Enforce `docs/PHASE4_MERGE_GATE_2026-04-30.md` for any incoming Phase 4 worker merge.
-3. Keep legacy rollback path available until explicit retirement approval.
+1. **Canonical checkout only:** `/Users/jacobbrizinski/Projects/kitty` (the copy-first `kitty-system/kitty-app` lane was reconciled and removed 2026-05-01).
+2. For incoming risky merges, run `scripts/run_phase4_merge_gate.sh --project /Users/jacobbrizinski/Projects/kitty --port 5001` (see `TASKS.md`).
+3. Prefer `docs/README.md` and `docs/DECISIONS.md` **D-0014** over this file when paths conflict.
 
-## Forward And Rollback Commands
-
-Forward (daily migration path):
-
-```bash
-cd /Users/jacobbrizinski/Projects/kitty-system/kitty-app
-./kitty status
-```
-
-Rollback (legacy fallback path):
+## Status Command (canonical tree)
 
 ```bash
 cd /Users/jacobbrizinski/Projects/kitty
 ./kitty status
 ```
 
-## 2026-04-30 Gate Re-Run (Migrated Runtime Path)
+## 2026-04-30 Gate Re-Run (historical — migrated runtime path)
+
+> Chronology only. The migrated checkout no longer exists as a second runtime.
 
 - Phase 4 merge gate commands were rerun from `/Users/jacobbrizinski/Projects/kitty-system/kitty-app`.
 - Full suite result: `348 passed, 2 warnings`.

@@ -1,6 +1,6 @@
 # Layer 0 Control Plane
 
-Last updated: 2026-05-01
+Last updated: 2026-05-02
 
 Purpose: one map for the instructions that govern agent work. This file does not replace the launch design doc; it tells agents which local instructions are current, which are stale, and what must be inventoried before Layer 0 cleanup starts.
 

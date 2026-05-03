@@ -110,7 +110,7 @@ These have all bitten previous sessions. Read before touching the named area.
 
 For long autonomous runs and clean handoffs.
 
-- At session start, read `docs/LAYER0_CONTROL_PLANE.md`, then recent entries in `docs/AGENT_COORDINATION.md`, `SESSION_SUMMARY.md`, and `CURRENT_FOCUS.md` before planning.
+- At session start, read `docs/LAYER0_CONTROL_PLANE.md` and `CURRENT_FOCUS.md`. Open `docs/AGENT_COORDINATION.md` only when coordinating lanes with other agents; use `SESSION_SUMMARY.md` when resuming long work.
 - For autonomous work spanning multiple tasks, write a checkpoint to a `HANDOFF-<date>.md` file (in `.claude/` or `docs/handoffs/`) after each task completes. Don't only write at session end — usage limits cut off too early.
 - Always commit work-in-progress before risky operations (renames, large refactors, dependency changes). Commit often; small commits are easier to revert.
 - For ordinary status or transfer handoffs, keep it concise: exact files changed, verified URLs, what's running, what's incomplete.

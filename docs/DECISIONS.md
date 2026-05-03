@@ -1,12 +1,12 @@
 # Decisions
 
-Last updated: 2026-05-01
+Last updated: 2026-05-02
 
 This file records durable project decisions. New work should follow these rules unless a later dated decision explicitly supersedes them.
 
 ## D-0001: Current App Stays Put (Phase 0)
 
-Status: superseded by D-0010
+Status: superseded by D-0014
 
 `/Users/jacobbrizinski/Projects/kitty` is the current runnable app. Do not move it, rename it, split it, or physically migrate files during Phase 0.
 
@@ -14,7 +14,7 @@ Rationale: the app is actively changing, and uncontrolled moves would make it ha
 
 ## D-0002: `kitty-system` Separation Is Planned, Not Started (Phase 0)
 
-Status: superseded by D-0010
+Status: superseded by D-0014
 
 The future architecture may separate stable system/control material from the runnable app, using a future `kitty-system` boundary. That separation is pending controlled migration.
 
@@ -116,25 +116,26 @@ This is already a project safety rule and matches the master plan. It prevents a
 
 ## D-0010: Migration Runtime Path Is Active With Rollback Preserved
 
+Status: superseded by D-0014 (2026-05-02)
+
+Daily work previously followed a copy-first second checkout at `kitty-system/kitty-app` with `/Users/jacobbrizinski/Projects/kitty` as git rollback. That two-checkout workflow is **retired**; see D-0014.
+
+## D-0014: Single Canonical Checkout After Copy-First Consolidation
+
 Status: accepted
 
-Daily migration execution path is now:
-
-`/Users/jacobbrizinski/Projects/kitty-system/kitty-app`
-
-Legacy rollback path remains:
+The only authoritative runnable app and git history is:
 
 `/Users/jacobbrizinski/Projects/kitty`
 
-Rationale:
-Copy-first separation has passed preflight, gates, launch smoke, and full copied-app smoke. Runtime source-of-truth docs now point to the migrated app path while preserving a fast rollback.
+The temporary migrated tree at `kitty-system/kitty-app` was reconciled into this repository and removed (2026-05-01; see `docs/audits/CONSOLIDATION_REPORT_2026-05-01.md`).
 
 Consequences:
-- New implementation/testing/checkpoint work should run from `kitty-system/kitty-app`.
-- Legacy checkout must not be deleted or renamed until retirement criteria are met and explicitly approved.
+- New implementation, testing, and documentation work run **only** from the canonical path above unless Jacob explicitly approves a new migration spec.
+- Older docs, coordination-board rows, and merge-gate reports that mention `kitty-system/kitty-app` are **historical chronology**, not current routing.
 
 Review trigger:
-Legacy-path retirement checklist completion and user approval.
+Opening a new physical split or second runnable checkout requires a dated decision here plus `docs/FILE_MANIFEST.md` and `docs/LAYER0_CONTROL_PLANE.md` updates.
 
 ## D-0011: Phase 4 Merge Gate Report Path Is Project-Anchored
 

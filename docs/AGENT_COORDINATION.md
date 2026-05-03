@@ -1,9 +1,11 @@
 # Agent Coordination Board
 
-Last updated: 2026-04-30 (coordination execution pass)
+Last updated: 2026-05-02 (authority banner); body rows retain older coordination dates.
 
 **Purpose**: Shared communication channel for all agents working on Kitty.
 Read this at session start. Leave a handoff at session end.
+
+**Stale routing**: Older lane rows and commands below may still mention `/Users/jacobbrizinski/Projects/kitty-system/kitty-app`. That checkout was **removed after reconciliation into this repo** (2026-05-01). Treat those mentions as **historical** unless the row was explicitly updated after that date. Current routing: `docs/DECISIONS.md` **D-0014**, `docs/README.md`, `docs/LAYER0_CONTROL_PLANE.md`.
 
 **Authority**: This board coordinates work; it does not authorize work. If this
 file conflicts with `docs/LAYER0_CONTROL_PLANE.md`, `CURRENT_FOCUS.md`,
@@ -41,7 +43,7 @@ Every agent is expected to:
 - Treat `/Users/jacobbrizinski/Projects/kitty-system/kitty-app` references as
   stale unless Jacob explicitly reopens migration work.
 - **Context before create:** Search `docs/`, `specs/`, `src/`, `tests/`, and
-  control files in that legacy checkout before inventing new paths or
+  control files in that canonical checkout before inventing new paths or
   filenames; reuse or extend what is already there when the lane allows.
 - For code changes, verify which workspace is being edited before touching a
   file. If a source fix must exist in both workspaces, record the sync method

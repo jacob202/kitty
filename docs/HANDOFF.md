@@ -42,31 +42,19 @@ Start everything: `./scripts/start.sh` or `./kitty start`
 
 ---
 
-## Critical: Two Workspaces
+## Canonical workspace (single checkout)
 
-Kitty now lives in TWO places. **The active workspace is NOT a git repo.**
+Daily work uses **one** git repository:
 
-| Path | Purpose | Git? | Tests |
-|------|---------|------|-------|
-| `/Users/jacobbrizinski/Projects/kitty` | Legacy rollback | Yes | 363 pass |
-| `/Users/jacobbrizinski/Projects/kitty-system/kitty-app` | **Active daily runtime** | No | Same code |
+| Path | Purpose |
+|------|---------|
+| `/Users/jacobbrizinski/Projects/kitty` | **Canonical** runnable app, tests, and history |
 
-**Protocol**: Do all git work in the legacy repo. After committing, `cp` changed files to the migrated workspace. The migrated workspace is where `./kitty start` runs from.
+The copy-first second checkout at `kitty-system/kitty-app` was **reconciled and removed** (2026-05-01). Do not revive a two-tree sync protocol unless `docs/DECISIONS.md` records a new migration decision.
 
-```bash
-# Step 1: Edit + test + commit in legacy repo
-cd /Users/jacobbrizinski/Projects/kitty
-# ... edit files ...
-git add <files>
-git commit -m "description"
+**Protocol:** Edit, test, commit, and run `./kitty start` from `/Users/jacobbrizinski/Projects/kitty` only.
 
-# Step 2: Sync changed files to migrated workspace
-cp /Users/jacobbrizinski/Projects/kitty/<file> /Users/jacobbrizinski/Projects/kitty-system/kitty-app/<file>
-
-# Step 3: Run server from migrated workspace
-cd /Users/jacobbrizinski/Projects/kitty-system/kitty-app
-./kitty start
-```
+Historical detail (retired two-workspace instructions) is preserved in `docs/archive/2026-05-01-claude-handoffs/` and `docs/audits/CONSOLIDATION_REPORT_2026-05-01.md`.
 
 ---
 
@@ -170,7 +158,7 @@ You are agent `gemini` — add yourself to the registry in `docs/AGENT_COORDINAT
 2. Claim a lane before touching code
 3. Leave a handoff at session end
 4. Run autonomously — no asking for permission
-5. Validate (tests), commit (legacy repo), sync (migrated workspace), move to next task
+5. Validate (tests), commit (canonical repo), move to next task
 
 ---
 
@@ -181,7 +169,7 @@ You are agent `gemini` — add yourself to the registry in `docs/AGENT_COORDINAT
 /opt/homebrew/bin/python3.12 -m pytest tests/ -q --tb=short
 
 # Server
-cd /Users/jacobbrizinski/Projects/kitty-system/kitty-app && ./kitty status
+cd /Users/jacobbrizinski/Projects/kitty && ./kitty status
 
 # Smoke
 curl -sS http://localhost:5001/api/brief

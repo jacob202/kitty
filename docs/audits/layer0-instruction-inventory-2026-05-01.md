@@ -7,7 +7,7 @@ Purpose: evidence for the Layer 0 cleanup. This file inventories instruction sou
 ## Snapshot
 
 - Markdown files under repo, excluding common dependency folders: 346.
-- Project `.claude/skills`: 10 `SKILL.md` files.
+- Project `.claude/skills`: 8 `SKILL.md` files.
 - Project `.agents/skills`: 12 `SKILL.md` files.
 - User `~/.claude/skills`: 10 `SKILL.md` files.
 - User `~/.agents/skills`: 17 `SKILL.md` files.
@@ -35,31 +35,31 @@ python3 -m json.tool ~/.claude/plugins/installed_plugins.json
 | `docs/LAYER0_CONTROL_PLANE.md` | Layer 0 authority map | New control-plane manifest for this cleanup. |
 | `CURRENT_FOCUS.md` | Current allowed/forbidden work | Already dirty before this pass; do not patch casually. |
 | `TASKS.md` | Current done/next-action ledger | Already dirty before this pass; do not patch casually. |
-| `docs/DECISIONS.md` | Durable decisions | Contains stale/superseded migration entries; needs a later decision cleanup. |
+| `docs/DECISIONS.md` | Durable decisions | **Cleaned 2026-05-02:** D-0014 single canonical checkout; D-0010 superseded. Older bullets remain for audit trail. |
 
 ## Active Reference
 
 | File | Role | Notes |
 |------|------|-------|
 | `docs/superpowers/specs/2026-05-01-kitty-launch-plan-design.md` | Strategic B-launch design | Accept as blueprint, not exact inventory. Skill/plugin counts must be verified from disk. |
-| `docs/AGENT_COORDINATION.md` | Lane coordination | Coordinates work, does not authorize work. Older workspace text needed patching. |
+| `docs/AGENT_COORDINATION.md` | Lane coordination | Coordinates work, does not authorize work. **2026-05-02:** top banner for retired `kitty-system/kitty-app` path; body rows stay historical. |
 | `docs/FILE_GOVERNANCE.md` | File edit boundaries | Must use canonical checkout path. |
 | `docs/BUILDER_INTAKE.md` | Intake requirements | Must use canonical checkout path. |
 | `docs/BUILDER_DIRECTIVE.md` | Builder invocation contract | Must use canonical checkout path. |
-| `docs/PARKED_FEATURES.md` | Parked/not-current work | Physical split entry needed status update after consolidation. |
+| `docs/PARKED_FEATURES.md` | Parked/not-current work | Physical `kitty-system` split entry marked retired after consolidation. |
 | `docs/GATES.md` | Control-layer gates | Reference for validation commands. |
 
 ## Stale Or Historical
 
 | File | Issue | Treatment |
 |------|-------|-----------|
-| `KITTY_CONTEXT.md` | Claimed `kitty-system/kitty-app` active. | Patch to point at `docs/LAYER0_CONTROL_PLANE.md` and canonical checkout. |
-| `SESSION_SUMMARY.md` | Contains older migration-lane instructions. | Historical only unless refreshed. |
-| `docs/HANDOFF.md` | Contains old Gemini handoff and active migrated workspace instructions. | Add stale banner; do not use for current authority. |
+| `KITTY_CONTEXT.md` | ~~Claimed migrated workspace active~~ | **Resolved 2026-05-02:** runtime boundary is `/Users/jacobbrizinski/Projects/kitty`; retired path called out as stale. |
+| `SESSION_SUMMARY.md` | Contains older migration-lane instructions. | **Partially refreshed 2026-05-02** (`Next Steps`, caveats); older sections remain chronology. |
+| `docs/HANDOFF.md` | Historical Gemini handoff text | **Updated 2026-05-02:** single canonical checkout protocol; banner retained at top. |
 | `docs/TASKS.md` | Older backlog separate from root `TASKS.md`. | Reference only. Root `TASKS.md` wins. |
 | `docs/MARKET_READY_EXECUTION_PLAN_2026-04-30.md` | Pre-consolidation execution framing. | Reference only. |
 | `docs/audits/operational-plan-20260430.md` | Phase A-D historical plan. | Reference only; not current control plane. |
-| `.claude/HANDOFF-2026-05-01-*.md` | Handoff context. | Source evidence, not standing authority. |
+| `docs/archive/2026-05-01-claude-handoffs/HANDOFF-2026-05-01-*.md` | Handoff context (archived). | Source evidence, not standing authority. |
 
 ## Vendor, Tool, Archive, Data
 

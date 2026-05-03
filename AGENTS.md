@@ -2,27 +2,30 @@
 
 Purpose: keep Codex and delegated workers aligned with the active control system in this repository.
 
-## First Read Order
+## First Read Order (minimal)
 
 1. `docs/LAYER0_CONTROL_PLANE.md`
-2. `CURRENT_FOCUS.md`
-3. `TASKS.md`
-4. `docs/AGENT_COORDINATION.md` (active lanes, messages, handoffs — claim a lane before overlapping work)
-5. `SESSION_SUMMARY.md`
-6. `docs/DECISIONS.md`
-7. `docs/FILE_GOVERNANCE.md`
-8. `docs/PARKED_FEATURES.md`
+2. `docs/README.md` (documentation index and stale-doc rule of thumb)
+3. `CURRENT_FOCUS.md`
+4. `TASKS.md`
+
+## Read When Relevant
+
+- `docs/AGENT_COORDINATION.md` — **only** when claiming a lane, posting board messages, or resolving overlap (large file; never paste the whole thing into prompts).
+- `SESSION_SUMMARY.md` — long-session continuity.
+- `docs/DECISIONS.md` — durable decisions touching your task.
+- `docs/FILE_GOVERNANCE.md` — before moves, renames, or archival.
+- `docs/PARKED_FEATURES.md` — scope checks against parked work.
 
 If these conflict with older notes, these files win.
 
 ## Execution Contract
 
-- Before creating new specs, docs, or modules, scan the **legacy checkout**
-  `/Users/jacobbrizinski/Projects/kitty` for existing equivalents (canonical git,
+- Before creating new specs, docs, or modules, scan this **canonical checkout**
+  `/Users/jacobbrizinski/Projects/kitty` for existing equivalents (git,
   full tree). Prefer extending what exists; avoid duplicate control docs or
-  parallel names that drift from migrated copies.
+  parallel names that drift from old copies.
 - Convert request -> one spec -> one build -> one validation -> one completion report.
-- No raw idea goes directly to implementation.
 - Dry-run defaults for intake/builder tools; require explicit write flags.
 - Every meaningful change must include:
   - files changed

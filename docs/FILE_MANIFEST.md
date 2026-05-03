@@ -1,36 +1,25 @@
 # File Manifest
 
-Last updated: 2026-04-30
+Last updated: 2026-05-02
 
-This manifest explains the current app boundary and the migration state.
+This manifest describes the **current** app boundary. Historical migration narrative lives in `docs/archive/` and `docs/audits/CONSOLIDATION_REPORT_2026-05-01.md`.
 
-## Current Runnable App
-
-Path:
-
-`/Users/jacobbrizinski/Projects/kitty-system/kitty-app`
-
-This is now the active runnable Kitty checkout for migration execution.
-
-## Legacy Fallback Checkout
+## Canonical Runnable App
 
 Path:
 
 `/Users/jacobbrizinski/Projects/kitty`
 
-This path remains as rollback/fallback until migration cutover is fully closed. Do not delete or rename it.
+This is the **only** authoritative git checkout and daily implementation surface. Agents must not treat sibling folders (`kitty-system`, Desktop copies, `Documents/Kitty`) as the runnable app unless Jacob explicitly reopens a migration spec.
 
-## Copy-First Workspace
+## Not The Runnable App
 
-Path:
+- `/Users/jacobbrizinski/Documents/Kitty` — manuals, context, or copied notes; not the live codebase for Layer 0 execution.
+- `~/Desktop/kitty-system/kitty-app` or any **backup** tree — do not edit or cite as source of truth (see `docs/STANDUP.md`).
 
-`/Users/jacobbrizinski/Projects/kitty-system`
+## Retired Migration Path
 
-This workspace exists with `kitty-app`, `kitty-workbench`, and `kitty-archives`. Copied-app parity has been revalidated and launch smoke has passed.
-
-## Not The Current Runnable App
-
-`/Users/jacobbrizinski/Documents/Kitty` may contain context, manuals, or copied instructions, but it is not the authoritative runnable app for Phase 0 work.
+Copy-first daily work against `/Users/jacobbrizinski/Projects/kitty-system/kitty-app` was **reconciled into this repo and removed** (2026-05-01). Older docs, merge-gate reports, and coordination board entries may still mention that path for chronology; treat those references as **historical**, not operational.
 
 ## Current App Surface
 
@@ -48,7 +37,7 @@ High-level active areas:
 
 ## Phase 0 Control Surface
 
-The Phase 0 control surface is:
+The Phase 0 control surface includes:
 
 - `CURRENT_FOCUS.md`
 - `TASKS.md`
@@ -57,7 +46,7 @@ The Phase 0 control surface is:
 - `docs/DECISIONS.md`
 - `docs/PARKED_FEATURES.md`
 - `docs/FILE_GOVERNANCE.md`
-- `docs/FILE_MANIFEST.md`
+- `docs/FILE_MANIFEST.md` (this file)
 - `docs/CLEANUP_CANDIDATES.md`
 - `docs/MEMORY_MODEL.md`
 - `docs/PROJECT_FACTS.md`
@@ -65,13 +54,13 @@ The Phase 0 control surface is:
 - `docs/OPEN_LOOPS.md`
 - `docs/SKILL_CANDIDATES.md`
 - `docs/SOUL_LEARNED_RULES.md`
-- `docs/CHAT_LOG_CONSOLIDATION_REPORT.md`
+- `docs/CHAT_LOG_CONSOLIDATION_REPORT.md` (pointer; full export archived)
 - `docs/GEMINI_CHAT_LOG_INTAKE.md`
 - `docs/DELEGATION_BOARD.md`
 - `docs/BUILDER_INTAKE.md`
 - `docs/BUILDER_DIRECTIVE.md`
 - `docs/GATES.md`
-- `docs/WORKSPACE_SEPARATION_MOVE_MAP.md`
+- `docs/WORKSPACE_SEPARATION_MOVE_MAP.md` (pointer; planning artifact archived)
 - `specs/_template.md`
 - `specs/physical-workspace-separation.spec.md`
 - `intake/`
@@ -84,16 +73,6 @@ The Phase 0 control surface is:
 - `scripts/plan_workspace_separation.py`
 - `scripts/run_gates.sh`
 
-## Separation Status
-
-Migration lane is active. Runtime source-of-truth docs now point to `kitty-system/kitty-app`, while legacy checkout is preserved for rollback.
-
-No worker should:
-
-- Rewrite imports.
-- Delete docs because they appear to belong to the future system layer.
-- Delete or rename `/Users/jacobbrizinski/Projects/kitty` until rollback retirement is explicitly approved.
-
 ## Current Control Tools
 
 - `kittyintake`: command wrapper for deterministic builder intake.
@@ -102,18 +81,9 @@ No worker should:
 - `scripts/context_pack_generator.py`: generates `.cache/kitty_context_pack.md` from canonical docs without calling models or modifying runtime source.
 - `scripts/kitty_builder.py`: validates `--project` and `--spec`, defaults to dry-run, and blocks implicit legacy startup.
 - `scripts/check_file_governance.py`: read-only file-governance validator and metadata-candidate reporter.
-- `scripts/plan_workspace_separation.py`: read-only physical split preflight and blocker reporter.
+- `scripts/plan_workspace_separation.py`: read-only physical split preflight and blocker reporter (legacy planning aid).
 - `scripts/run_gates.sh`: narrow control-layer gate for intake and governance tooling.
-
-Future migration must be driven by a spec that includes:
-
-- Source and destination map.
-- Protected files.
-- Import and launch impact.
-- Data preservation plan.
-- Rollback procedure.
-- Verification commands.
 
 ## Manifest Maintenance
 
-Update this manifest when a new top-level area becomes active, archived, protected, or migrated. Do not use this file as permission to perform the migration itself.
+Update this manifest when a top-level area becomes active, archived, protected, or purposefully split. Do not use this file alone as permission to perform path migrations; migrations require an approved spec and `docs/DECISIONS.md` updates.

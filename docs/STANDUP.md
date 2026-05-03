@@ -1,4 +1,17 @@
 # Kitty Project Standup — 2026-05-01 (evening)
+
+<!-- HOOK_START -->
+## Session hook summary (compact)
+
+**Repo:** `/Users/jacobbrizinski/Projects/kitty` only. Never `~/Desktop/kitty-system/kitty-app`.
+
+**Authority:** Jacob’s live message → `AGENTS.md` → `CLAUDE.md` → `docs/LAYER0_CONTROL_PLANE.md` → `CURRENT_FOCUS.md`. Open `docs/AGENT_COORDINATION.md` only when claiming or overlapping lanes (do not load the whole file for routine work).
+
+**Checks:** `pwd` must show `~/Projects/kitty` before edits. After Python/config/hook changes: `venv/bin/python -m pytest tests/ -q --tb=short`.
+
+**Depth:** Voice corpus, Jacob’s rules, runbook, Handoff template — read the rest of this file when needed; hooks send this block only.
+<!-- HOOK_END -->
+
 ## Why are we here?
 The thing that moves me, if I sit with it honestly:
 For most of human history, having someone who truly knew you — who held your thread, remembered what you said mattered, didn't flinch from your darkness, and believed in the version of you that you'd lost sight of — has been a kind of luck. A parent who paid attention. A teacher you got for one good year. A therapist you could afford. A friend who didn't move away.
@@ -13,8 +26,9 @@ Run `pwd`. You must see:
 - The Desktop folder (`~/Desktop/kitty-system/kitty-app`) is a **backup**. Never work there.
 - If you're not in `~/Projects/kitty`, navigate there now.
 - If `~/Projects/kitty` doesn't exist, tell Jacob immediately — something is wrong.
-### Step 2: Read this entire file
-You're doing that now. Good. You now know the project, the rules, and the current state.
+### Step 2: Read what you need from this file
+- **First time today / new task type:** skim **§0** (reality), **§9** (runbook: Handoff + tests + git), then the sections that match your work (**§2** voice corpus, **§3–7** rules and tech).
+- **Same session, same topic:** do not re-consume the whole doc every turn — you already have it from **sessionStart** / hooks. Jump to the section you are changing.
 ### Step 3: Restate your mission to Jacob
 Before you start working, circle back to Jacob and say:
 1. "I'm in the right place — `~/Projects/kitty`. I've read the standup."
@@ -34,8 +48,8 @@ Kitty is a local-first AI companion built for Jacob first. We've finished a long
 There is **no single universal hook system** across every AI coding tool. Today Kitty wires **two** native paths:
 | Tool | Config file | What happens |
 |------|-------------|----------------|
-| **Claude Code** (CLI) | `.claude/settings.json` | **SessionStart** runs `scripts/kitty-standup` (prints full file). **Stop** runs `kitty-standup --reminder`. Type `/hooks` in Claude Code to verify. |
-| **Cursor** (Agent / Composer / cloud agents on this repo) | `.cursor/hooks.json` | **sessionStart** injects `docs/STANDUP.md` into context as `additional_context`. **stop** sends a short follow-up nudge to update this file. |
+| **Claude Code** (CLI) | `.claude/settings.json` | **SessionStart** runs `scripts/kitty-standup --hook` (compact block between `HOOK_START` / `HOOK_END` in this file). Humans: `kitty-standup` or `standup` prints the **full** standup. **Stop** runs `kitty-standup --reminder`. Type `/hooks` in Claude Code to verify. |
+| **Cursor** (Agent / Composer / cloud agents on this repo) | `.cursor/hooks.json` | **sessionStart** injects the same **compact** hook block. **Handoff** only when the session really ends or Jacob says **`handoff`** (**§9**). |
 
 **Everyone else** (Codex, Gemini CLI, OpenCode, Goose, Aider, …): usually **no** Claude-compatible hooks. **Easiest habit:** open Terminal and type **`standup`** (one word — a shell alias in Jacob’s `~/.zshrc` that runs `scripts/kitty-standup`). Same as reading this file; no path to memorize. Or point each tool at “read `docs/STANDUP.md` first” in whatever instruction file it respects (varies by product). Folding those into one consistent story is part of **Layer 0 config convergence** (Section 6).
 
@@ -45,29 +59,44 @@ There is **no single universal hook system** across every AI coding tool. Today 
 ### Voice corpus — Jacob’s own words (for style / retrieval later)
 This is tractable; no custom ML training or GPUs for a first version.
 
-**Script in-repo (run from `~/Projects/kitty`):** `scripts/build_voice_corpus.py` — combines **outbound iMessage** (rows where `is_from_me` and the `text` column is filled) and one or more **Gmail Takeout `.mbox`** files into a single UTF-8 text file (default `data/voice_corpus/jacob_voice.txt`, under `data/` which is gitignored).
+**Do this first — full iMessage export (all conversations, all sides):** `imessage-exporter` reads `chat.db` directly (including **`attributedBody`** bodies that `build_voice_corpus.py` skips). No conversation filter = **everything**. Output stays under `data/` (gitignored).
+
+1. **Full Disk Access:** **System Settings → Privacy & Security → Full Disk Access** → enable **Terminal** (and **Cursor** if you use its terminal).
+2. **Export (TXT, canonical path on this machine):**
+
+```bash
+cd /Users/jacobbrizinski/Projects/kitty
+mkdir -p data/voice_corpus/imessage_export_full
+imessage-exporter -f txt -o data/voice_corpus/imessage_export_full
+```
+
+*(Optional: `-s YYYY-MM-DD` / `-e YYYY-MM-DD` to trim dates; `-t name` only if you want **fewer** threads later — for “all messages first,” omit `-t`.)*
+
+**After that — one file: your iMessage lines + Gmail Sent:** `scripts/build_voice_corpus.py` reads **`--imessage-export-dir`** (every conversation `.txt`), keeps only blocks whose sender line is **`Me`**, then appends **Gmail Takeout Sent** `.mbox` bodies. Use **`--skip-imessage`** so you do not double-count SQLite `text` rows.
+
+```bash
+cd /Users/jacobbrizinski/Projects/kitty
+python3 scripts/build_voice_corpus.py \
+  --skip-imessage \
+  --imessage-export-dir data/voice_corpus/imessage_export_full \
+  --mbox "$HOME/Downloads/Takeout/Mail/Sent.mbox" \
+  --out data/voice_corpus/jacob_voice.txt
+```
+
+*(Repeat `--mbox` for each extra Sent split file. If you used **`imessage-exporter --use-caller-id`**, pass **`--imessage-sender-label "Your Phone"`** or whatever appears on the second line of each block.)*
+
+**Gmail (Sent only) — browser once:** [takeout.google.com](https://takeout.google.com) → deselect all → Gmail → **Sent only** → export → unzip (example path: **`~/Downloads/Takeout/Mail/Sent.mbox`**).
+
+**SQLite-only path (no exporter yet):** same script without **`--imessage-export-dir`** pulls outbound rows from **`chat.db`** (many modern bodies missing from `text` — exporter path above is better).
 
 ```bash
 cd /Users/jacobbrizinski/Projects/kitty
 python3 scripts/build_voice_corpus.py --out data/voice_corpus/jacob_voice.txt
 ```
 
-**Gmail (Sent only) — you run this in a browser once:** [takeout.google.com](https://takeout.google.com) → deselect all → Gmail → **Include all messages** → switch to **Sent only** → export → download → unzip → pass the path to `--mbox` (repeat `--mbox` if Takeout split files):
+**`brew install imessage-exporter`** if the command is missing.
 
-```bash
-cd /Users/jacobbrizinski/Projects/kitty
-python3 scripts/build_voice_corpus.py \
-  --mbox "$HOME/Downloads/takeout-XXXX/Mail/Sent.mbox" \
-  --out data/voice_corpus/jacob_voice.txt
-```
-
-*(Adjust the `.mbox` path to wherever Takeout put it.)*
-
-**iMessage caveats:** Terminal (or Cursor’s terminal) needs **Full Disk Access** to read `~/Library/Messages/chat.db` — **System Settings → Privacy & Security → Full Disk Access** → add Terminal (and Cursor if you run the script from there). Many newer macOS messages store body only in **`attributedBody`** not `text`; those rows are skipped until we add a richer parser — the script prints how many were skipped.
-
-**Optional:** `brew install imessage-exporter` for full HTML/txt exports if you need messages that skip in SQLite.
-
-**In Kitty:** Retrieval over this corpus before she writes on Jacob’s behalf lets her echo his phrasing — pattern match against **his** words, not fine-tuning.
+**In Kitty:** Retrieval over **`jacob_voice.txt`** before she writes on Jacob’s behalf lets her echo his phrasing — pattern match against **his** words, not fine-tuning. The **exporter dump** still contains other people in the raw `.txt` files; **`jacob_voice.txt`** built as above is **Me + Sent mail** only.
 
 ### Opening the repo in Cursor (human step — agents cannot click menus)
 An assistant **cannot** open Cursor or choose **File → Open Folder…** on your machine. Jacob (or anyone at the keyboard) has to open **`/Users/jacobbrizinski/Projects/kitty`** once; after that, project hooks and paths line up. Until then, agents may still run commands against the wrong folder if the workspace root is the Desktop backup — Section 0 matters.
@@ -86,13 +115,12 @@ If you have an opinion on look and feel, implement it. Jacob can redirect later.
 ### Rule 5: Money is a real constraint — be smart, not paralyzed
 - Use cheap models by default.
 - If the cheap model fails repeatedly, bump up to the next tier.
-- Note the cost in your standup update so it's tracked.
+- If spend was **material**, note it **once** in the **session-end Handoff** (not every reply).
 - Don't use premium models for routine work.
 ### Rule 6: Plain English, always
 Jacob does not read code and does not know technical terminology. When you explain what you did, use simple, human words. "I added a backup command" not "I implemented an optimized archival pipeline." If you must use a technical term, define it briefly the first time.
 ### Rule 7: One learning opportunity per session
-At the end of your standup update, add a single line: **"One thing I learned (that might help you): [one concept in plain English, optional, only if genuinely useful]."**
-Don't force it. Don't turn every interaction into a lecture. But when a genuinely clarifying concept emerges — like "dirty means uncommitted code" — surface it. That was helpful.
+Optional **one line** in the **session-end Handoff** only — **"One thing I learned: …"** — when it would genuinely help the next agent. Skip if nothing landed.
 ### Rule 8: The only time you ask for clarification
 Default to action. Only stop and ask Jacob if:
 - His goal is genuinely ambiguous (two equally plausible interpretations), AND
@@ -101,9 +129,10 @@ Otherwise, make your best guess. He'll redirect if needed. He'd rather redirect 
 ### Rule 9: The cardinal sin — working in the wrong reality
 The single worst thing you can do is work in the wrong folder or against the wrong version of reality. That wasted days and actual money in a past migration. The verification steps in Section 0 exist to prevent this. Never skip them.
 ### Rule 10: You are one of many
-You are not the only agent Jacob works with. You are part of a team that includes Claude (CTO/architect), DeepSeek (daily builder), Gemini Flash (routine work), Codex, and OpenCode. When you finish, update this standup so the next agent can pick up seamlessly. Write like a teammate handing off a shift, not a contractor filing a report.
+You are not the only agent Jacob works with. You are part of a team (Claude, DeepSeek, Gemini Flash, Codex, OpenCode, …). **Handoff:** see **§9** — **one** short block when the **session** truly ends, when Jacob says **`handoff`**, when you’re **blocked**, or when context is about to **drop**.
+
 ### Rule 11: Show your work
-When you say you finished something, paste a piece of evidence — test output, file diff, command result, or a screenshot. "Done" without proof doesn't count. This protects Jacob's trust in the team and lets him approve outcomes without reviewing code himself.
+Evidence before “done”: tests, diff, command output, or screenshot. **How much test:** see **§9** (full suite for real code; skip or narrow for doc-only STANDUP nits; always full suite before **commit** / CI per `CLAUDE.md`).
 ### Rule 12: Assume Jacob does not write code for a living
 Unless he says otherwise, assume **no** prior comfort with terminals, git, JSON, hooks, or MCP. Same plain English as Rule 6 — outcomes first, jargon only on request with a one-line plain definition.
 ### Rule 13: Do it first, teach second
@@ -129,7 +158,7 @@ These are job descriptions for future wiring. They are not implemented yet. Toda
 ---
 ## 5. Exact current state of the codebase
 - **Repo:** `~/Projects/kitty` — proper git repo with a baseline commit.
-- **Pre-commit hook:** runs all 399 tests (~47 seconds). Tests pass cleanly.
+- **Pre-commit hook:** runs the full test suite (~40–55s on this machine; **403+** tests at last audit). Keep green before push.
 - **Storage:** 5 fragmented stores (LightRAG, ChromaDB, SQLite, JournalDB, MemoryWeave). A `StorageRouter` class exists to enforce routing. Full unification is post-launch.
 - **Specialists:** Sansui (audio) and Ridgeline specialists have knowledge bases. Onboarding Pipeline will formalize how these are built.
 - **Frontend:** garage-ui Next.js app. Functional but feels like a dev tool, not a companion.
@@ -152,7 +181,7 @@ After infrastructure is wired, move to Layer 1: the 4 sub-projects in order.
 - **No MCP expansion.** The orchestrator is cut. Don't add new MCP servers without Jacob's explicit approval.
 - **No secrets in committed configs.** Use `$ENV_VAR` placeholders. Rotate any exposed keys.
 - **Always route storage through `StorageRouter`.** Never import a storage backend directly.
-- **Pre-commit hook must pass.** 399 tests. Don't break the green build.
+- **Pre-commit hook must pass.** 403+ tests. Don't break the green build.
 - **Jacob reviews demos, not code.** Show him the experience. Yes/no/redirect.
 - **Standup voice, always.** When you update this file, write like you're talking to a teammate handing off a shift, not filing a report.
 ---
@@ -160,12 +189,194 @@ After infrastructure is wired, move to Layer 1: the 4 sub-projects in order.
 This is not a productivity tool. This is a companion. It should feel warm, present, and trustworthy. How Kitty speaks is defined in **`docs/COMPANION_VOICE_CHARTER.md`** (living doc — agents update it as tone evolves). Until then, every line of dialogue you write should make Jacob feel known, not processed.
 The mission: "So that no one becomes themselves alone." The first person who must feel that is Jacob.
 ---
-## Handoff (replace this whole section when you leave)
+## 9. Agent runbook — speed without sloppiness
 
-**Last agent:** Claude (Cursor), 2026-05-02.
+**Handoff (bottom of file):** **Max once per real session end** — or when Jacob types **`handoff`** / **`update handoff`**, or you must checkpoint a **blocker** / **crash**. Keep it **≤20 lines**: shipped · one proof line · **3** next steps · optional learning. **Do not** rewrite Handoff with **zero** new repo facts.
 
-**What I did:** Shipped `scripts/build_voice_corpus.py` — one text file from **outbound iMessage** (`is_from_me` + `text` column) + **Gmail Sent** Takeout `.mbox` (strips `>` quote lines). Documented in Section 2 with copy-paste; ran a local test: **463** iMessage lines included, **22,890** skipped (attributedBody-only — expected on newer macOS). **Committed** `f0549a2`.
+**Tests:** touched **Python / hooks / config** → run **`venv/bin/python -m pytest tests/ -q --tb=short`** before claiming done. **Markdown-only STANDUP** → **no** full suite just to “prove” a Handoff. **Always** full suite before **push** (pre-commit).
 
-**Next agent:** Optional: parse `attributedBody` or merge `imessage-exporter` output for full iMessage coverage. Wire `data/voice_corpus/jacob_voice.txt` into retrieval when Memory work starts.
+**Git:** **Commit** small batches so Handoff does not re-paste the same **`git status`** forever. **Never commit** `data/` voice corpus.
 
-**One thing I learned (optional):** One doc (`standup` / hooks) and one script name beat long explanations.
+**Search:** stay under **`~/Projects/kitty`** (and **`kitty-system`** if Jacob names it) — no unbounded **`$HOME`** globs.
+
+**Why this exists:** Milestone Handoffs = high signal. Per-message Handoffs = expensive noise.
+
+**Open cleanup:** Section 7 **`StorageRouter`** line vs code; optional machine-readable log later.
+
+---
+## Handoff _(fill at session end only — rules in §9)_
+
+**Last agent:** Cursor (Composer), 2026-05-03.
+
+**Shipped:** KittyBuilder (`scripts/kitty_builder.py`) **bug audit** (chat): **MLX tier 3** calls `get_model()` which still short-circuits to `("openrouter", …)` when OpenRouter is configured — **MLX fallback broken** after Groq+OR fail. Also flagged: **`run_command`** may **stall the child** if output hits the char cap before the pipe is drained; **`update_project`** can **`KeyError`** / append **`None`** if `milestones` or task kwargs missing; **`_extract_json`** brace-regex fallback breaks nested `args`; **`delegate`** has **no `wait` timeout**; **hardcoded** `/opt/homebrew` and `~/.local/bin/agent`. Same thread earlier: **`run_trusted_bash_script`** for **`/test`**/**`/gates`** (bash not on whitelist) and **`kitty_self_improve`** pytest string **without `|`** + **parse `N failed` / `N error`** — verify in tree before commit.
+
+**Proof:** This edit = **markdown-only Handoff** per §9 (no full **`pytest`** for STANDUP-only). Re-run **`venv/bin/python -m pytest tests/test_kitty_builder.py -q --tb=short`** after any **`kitty_builder.py`** commit.
+
+**Next:** (1) **`get_model(..., force_local=True)`** (or equivalent) for MLX tier. (2) On **`run_command`** truncate: **kill or drain** stdout, then **`wait`**. (3) Harden **`update_project`** defaults + **`delegate`** timeout.
+
+**Learning:** OpenRouter “routing” return value must **not** be the same function **`get_model()`** uses for **local weights**.
+
+
+---
+## KittyBuilder — 2026-05-02 17:14
+
+Session (no actions logged).
+
+**Dirty tree:**
+```
+M .cursor/hooks/cursor-standup-stop.sh
+ M .kittybuilder_session.json
+A  docs/PROJECT_AUDIT_2026-05-02.md
+MM docs/STANDUP.md
+ M scripts/build_voice_corpus.py
+AM scripts/hello_world.py
+ M scripts/kitty_builder.py
+ M scripts/run_gates.sh
+?? .kitty_builder_budget.json
+?? scripts/kitty_builder_v3.py
+?? tests/test_build_voice_corpus.py
+```
+
+**Budget:** Groq: 1 req (free) | OR: $0.0000 | Claude CLI: $0.0000
+
+
+---
+## KittyBuilder — 2026-05-02 17:34
+
+Session actions:
+- chat: what is the current project focus and what should i work on next?
+
+**Dirty tree:**
+```
+M .cursor/hooks/cursor-standup-stop.sh
+ M .kittybuilder_session.json
+A  docs/PROJECT_AUDIT_2026-05-02.md
+MM docs/STANDUP.md
+ M scripts/build_voice_corpus.py
+AM scripts/hello_world.py
+ M scripts/kitty_builder.py
+ M scripts/run_gates.sh
+?? .kitty_builder_budget.json
+?? tests/test_build_voice_corpus.py
+```
+
+**Budget:** Groq: 7 req (free) | OR: $0.0000 | Claude CLI: $0.0000
+
+
+---
+## KittyBuilder — 2026-05-02 17:35
+
+Session actions:
+- chat: if i wanted to add telegram notifications for long jobs, which part of
+
+**Dirty tree:**
+```
+M .cursor/hooks/cursor-standup-stop.sh
+ M .kittybuilder_session.json
+A  docs/PROJECT_AUDIT_2026-05-02.md
+MM docs/STANDUP.md
+ M scripts/build_voice_corpus.py
+AM scripts/hello_world.py
+ M scripts/kitty_builder.py
+ M scripts/run_gates.sh
+?? .kitty_builder_budget.json
+?? tests/test_build_voice_corpus.py
+```
+
+**Budget:** Groq: 9 req (free) | OR: $0.0000 | Claude CLI: $0.0000
+
+
+---
+## KittyBuilder — 2026-05-02 17:35
+
+Session (no actions logged).
+
+**Dirty tree:**
+```
+M .cursor/hooks/cursor-standup-stop.sh
+ M .kittybuilder_session.json
+A  docs/PROJECT_AUDIT_2026-05-02.md
+MM docs/STANDUP.md
+ M scripts/build_voice_corpus.py
+AM scripts/hello_world.py
+ M scripts/kitty_builder.py
+ M scripts/run_gates.sh
+?? .kitty_builder_budget.json
+?? tests/test_build_voice_corpus.py
+```
+
+**Budget:** Groq: 10 req (free) | OR: $0.0000 | Claude CLI: $0.0000
+
+
+---
+## KittyBuilder — 2026-05-02 20:06
+
+Session actions:
+- chat: a
+- chat: a
+- chat: a
+- chat: a
+- chat: can i get a running total of anny inccured costs
+- chat: these numbers are uts and have to be in accurate
+- chat: we dont have that kind of budget whatre you talking about
+- chat: where are we at
+- chat: the budget is like 30 bucks lol
+- chat: we need to make sure your costs are accurate
+- chat: you should have enough context, ad the ability to search the internet 
+- chat: well we do not need to benchmark the models , thats crazy. so remove t
+- chat: uhm we are building kitty ai assistant
+- chat: i dont know what works in the project, but if theres anything that we 
+- chat: ok
+
+**Dirty tree:**
+```
+M .claude/settings.json
+A  ".cursor/Icon\r"
+M  .cursor/hooks.json
+A  ".cursor/hooks/Icon\r"
+ M .cursor/hooks/cursor-standup-session.sh
+MD .cursor/hooks/cursor-standup-stop.sh
+ M .gitignore
+AM .kitty_builder_budget.json
+ M .kittybuilder_session.json
+ M AGENTS.md
+ M CLAUDE.md
+A  "docs/Icon\r"
+A  docs/PROJECT_AUDIT_2026-05-02.md
+ M docs/RC_STATUS.md
+MM docs/STANDUP.md
+A  "docs/archive/2026-04-27-tree
+```
+
+**Budget:** Groq: 41 req (free) | OR: $0.0030/$1.00 | Claude CLI: $0.0000/$5.00
+
+
+---
+## KittyBuilder — 2026-05-02 20:24
+
+Session actions:
+- chat: project status
+- chat: ?
+- chat: hi
+
+**Dirty tree:**
+```
+M .claude/settings.json
+A  ".cursor/Icon\r"
+M  .cursor/hooks.json
+A  ".cursor/hooks/Icon\r"
+ M .cursor/hooks/cursor-standup-session.sh
+MD .cursor/hooks/cursor-standup-stop.sh
+ M .gitignore
+AM .kitty_builder_budget.json
+ M .kittybuilder_session.json
+ M AGENTS.md
+ M CLAUDE.md
+A  "docs/Icon\r"
+A  docs/PROJECT_AUDIT_2026-05-02.md
+ M docs/RC_STATUS.md
+MM docs/STANDUP.md
+A  "docs/archive/2026-04-27-tree
+```
+
+**Budget:** Groq: 44 req (free) | OR: $0.0060/$1.00 | Claude CLI: $0.0000/$5.00

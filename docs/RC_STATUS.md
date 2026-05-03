@@ -20,7 +20,7 @@
 - `api/eval/dashboard` — eval artifact summary
 - Domain news feed — wired into specialist context
 - Canadian-first assistant persona (permanent)
-- `.claude/skills/` — audit, domain-news, demo, spec
+- `.claude/skills/` — audit, demo, spec, fix-and-verify, overnight-queue, parallel-subagents, prompt-answer-quality, spec-to-impl (project skills; `domain-news` / `recommend` removed 2026-05)
 
 ## Out of scope (parked until RC signoff)
 

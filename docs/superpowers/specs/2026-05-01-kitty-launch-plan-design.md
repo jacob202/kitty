@@ -938,8 +938,8 @@ This design doc synthesizes decisions from:
 - `docs/audits/operational-plan-20260430.md` — Phase A–D milestone history
 - `docs/HANDOFF.md` — current operational handoff
 - `docs/CAPABILITY_INVENTORY.md` — current advertised surface
-- `.claude/HANDOFF-2026-05-01-launch-plan-design.md` — the handoff that produced this doc
-- `.claude/HANDOFF-2026-05-01-implementation.md` — prior batch (workflow conventions, hooks, scripts, process skills)
+- `docs/archive/2026-05-01-claude-handoffs/HANDOFF-2026-05-01-launch-plan-design.md` — the handoff that produced this doc
+- `docs/archive/2026-05-01-claude-handoffs/HANDOFF-2026-05-01-implementation.md` — prior batch (workflow conventions, hooks, scripts, process skills)
 - `/Users/jacobbrizinski/.codex/memories/memory_summary.md` — cross-agent user preferences (harvested into CLAUDE.md)
 
 ---
