@@ -47,7 +47,6 @@ Create a read-only preflight and move map for the future physical split. The pre
 - `docs/DELEGATION_BOARD.md`
 - `.gitignore`
 - `scripts/plan_workspace_separation.py`
-- `tests/test_workspace_separation_plan.py`
 - `scripts/run_gates.sh`
 
 ## Files Forbidden To Change
@@ -90,14 +89,16 @@ Expected:
 
 ## Validation
 
+Automated tests for this preflight were removed when the `kitty-system` copy-first migration was retired; scripts are still syntax-checked via `py_compile` in `scripts/run_gates.sh`. Manual smoke:
+
 ```bash
-/opt/homebrew/bin/python3.12 -m pytest tests/test_workspace_separation_plan.py -q
+/opt/homebrew/bin/python3.12 scripts/plan_workspace_separation.py --project . --allow-dirty-readonly
 bash scripts/run_gates.sh
 ```
 
 ## Rollback Plan
 
-Delete this spec, the preflight script, the move map, and the test file. No runtime or data files are changed by this spec.
+Delete this spec, the preflight script, and the move map. No runtime or data files are changed by this spec.
 
 ## Completion Report Required
 

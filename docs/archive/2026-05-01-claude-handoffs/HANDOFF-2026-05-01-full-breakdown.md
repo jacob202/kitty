@@ -12,8 +12,8 @@
 
 Produced two handoffs:
 
-- **Implementation handoff** (`.claude/HANDOFF-2026-05-01-implementation.md`): 8 infrastructure files — workflow conventions, hooks, scripts, process skills. Pure execution, no design work. Hard rules: no new features, no scope drift, no design docs.
-- **Launch plan design handoff** (`.claude/HANDOFF-2026-05-01-launch-plan-design.md`): Write a comprehensive launch plan design doc. 13 required sections. 800-1500 lines. Hard rules: **no new decisions, no clarifying questions, pure synthesis.**
+- **Implementation handoff** (`HANDOFF-2026-05-01-implementation.md` in this archive): 8 infrastructure files — workflow conventions, hooks, scripts, process skills. Pure execution, no design work. Hard rules: no new features, no scope drift, no design docs.
+- **Launch plan design handoff** (`HANDOFF-2026-05-01-launch-plan-design.md` in this archive): Write a comprehensive launch plan design doc. 13 required sections. 800-1500 lines. Hard rules: **no new decisions, no clarifying questions, pure synthesis.**
 
 ### 1.2 Implementation Handoff Executed
 
@@ -303,9 +303,9 @@ All phases commit separately. Each phase verifies before proceeding.
 | File | Purpose |
 |------|---------|
 | `docs/superpowers/specs/2026-05-01-kitty-launch-plan-design.md` | The design doc (~948 lines) |
-| `.claude/HANDOFF-2026-05-01-doc-audit.md` | Audit handoff with all defects and resolution notes |
-| `.claude/HANDOFF-2026-05-01-launch-plan-design.md` | Original Opus handoff (constraints that Jacob overrode) |
-| `.claude/HANDOFF-2026-05-01-implementation.md` | Prior batch (completed, commit `05ccb9a`) |
+| `HANDOFF-2026-05-01-doc-audit.md` (this archive) | Audit handoff with all defects and resolution notes |
+| `HANDOFF-2026-05-01-launch-plan-design.md` (this archive) | Original Opus handoff (constraints that Jacob overrode) |
+| `HANDOFF-2026-05-01-implementation.md` (this archive) | Prior batch (completed, commit `05ccb9a`) |
 | `.claude/settings.json` | Project hooks (py_compile + ruff postToolUse) |
 | `.claude/mcp.json` (global `~/.claude/mcp.json`) | 8 Dorothy MCP servers — 4 to keep, 4 to cut |
 | `~/.claude/settings.json` (global) | Dorothy hooks on session start/stop/tool use/notification |

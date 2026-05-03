@@ -9,7 +9,7 @@
 
 ## 1. ORIGINAL HANDOFF (Opus 4.7)
 
-> Full version: `.claude/HANDOFF-2026-05-01-launch-plan-design.md`
+> Full version: `HANDOFF-2026-05-01-launch-plan-design.md` (same archive directory)
 > 
 > **Core task:** Write launch plan design doc. Mission: "So that no one becomes themselves alone." Approach B (Vision First). Layer 0 before Layer 1. 13 required sections. 800-1500 lines. No new decisions, pure synthesis.
 > 
