@@ -51,7 +51,7 @@ After writing or editing any code, run this loop before reporting done:
 ```
 1. Run tests:   venv/bin/python -m pytest tests/ -q --tb=short
 2. If failures: read the error, fix the root cause, go back to 1
-3. If passing:  run the full test suite (same command) to check for regressions
+3. If passing:  run the same command again; before a release or when touching merge-gate / browser code, also run: `venv/bin/python -m pytest tests/ -q --tb=short -m ""`
 4. For eval-gated changes: POST /api/eval/run -d '{"suite":"smoke"}' (expect 200, not 422)
 5. Only mark done when: all tests pass + eval smoke returns 200 + no new failures vs baseline
 ```
@@ -66,6 +66,8 @@ Run evals before marking done. ChromaDB changes once silently dropped eval score
 ```bash
 venv/bin/python -m pytest -q
 ```
+
+`pytest.ini` **excludes** slow optional tests by default: Playwright browser smoke and the merge-gate script test (it would run a **nested** pytest inside the shell script). **427** tests run in the default configuration; **432** if you pass **`-m ""`** to opt in to everything.
 
 ## Commit Rules
 - Never commit `.env`, secrets, or credentials

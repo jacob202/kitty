@@ -12,6 +12,8 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MERGE_GATE = REPO_ROOT / "scripts" / "run_phase4_merge_gate.sh"
 
+pytestmark = pytest.mark.merge_gate
+
 
 @pytest.mark.skipif(not MERGE_GATE.is_file(), reason="merge gate script missing")
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash not on PATH")

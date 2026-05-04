@@ -59,6 +59,8 @@ curl -sS http://localhost:5001/api/brief
 curl -sS -X POST http://localhost:5001/api/command -H "Content-Type: application/json" -d '{"command":"/stuck"}'
 ```
 
+Default `pytest` skips browser + merge-gate tests (see `pytest.ini`). All tests: add `-m ""`.
+
 For control-layer/build-tooling work:
 
 ```bash
