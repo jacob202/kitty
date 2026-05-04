@@ -2730,6 +2730,10 @@ def build_cli_parser() -> argparse.ArgumentParser:
         description="Controlled Kitty builder entrypoint. Dry-run is the default.",
     )
     parser.add_argument("--brief", action="store_true", help="Print a read-only project manager brief for session start.")
+    parser.add_argument(
+        "--interactive", "-i", action="store_true",
+        help="Launch the legacy interactive builder (otherwise --project/--spec or --brief is required).",
+    )
     parser.add_argument("--plan-only", action="store_true",
                         help="Interactive mode only: block write/run/delegate/shell tools (read-only planning). "
                              "Or set KITTY_BUILDER_PLAN_ONLY=1.")
@@ -2968,11 +2972,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.brief:
         print(generate_project_brief())
         return 0
-    if args.project is None and args.spec is None:
+    if args.interactive:
         interactive_main(plan_only=args.plan_only)
         return 0
+    if args.project is None and args.spec is None:
+        parser.error(
+            "--project and --spec are required unless you pass --brief or --interactive."
+        )
     if args.project is None or args.spec is None:
-        parser.error("--project and --spec are required unless --brief is used")
+        parser.error("--project and --spec are required unless --brief or --interactive is used")
     return run_builder_contract(args.project, args.spec, execute=args.execute)
 
 
