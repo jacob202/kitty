@@ -43,7 +43,6 @@ from src.api import (
     commands_bp,
     core_bp,
     eval_bp,
-    hardware_bp,
     memory_bp,
     memory_product_bp,
     news_bp,
@@ -203,7 +202,7 @@ def create_app() -> tuple[Flask, SocketIO]:
     register_socket_handlers(socketio)
 
     blueprints = [
-        ai_dev_bp, bom_bp, core_bp, eval_bp, hardware_bp,
+        ai_dev_bp, bom_bp, core_bp, eval_bp,
         memory_bp, memory_product_bp, news_bp, reasoning_bp, settings_bp,
         streaming_bp, system_bp, voice_bp, brief_bp, commands_bp,
     ]

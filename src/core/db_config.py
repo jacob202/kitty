@@ -14,7 +14,6 @@ DATA_ROOT.mkdir(exist_ok=True)
 DB_PATHS = {
     "event_store": DATA_ROOT / "event_store.db",
     "job_queue": DATA_ROOT / "job_queue.db",
-    "circuit_breaker": DATA_ROOT / "circuit_breaker.db",
     "profiler": DATA_ROOT / "db" / "orange_lab_pka.db",
     "ingest_registry": DATA_ROOT / "ingest_registry.db",
     "mem0_checkpoints": DATA_ROOT / "session_checkpoints.db",
