@@ -54,3 +54,5 @@ evals/artifacts/
 .claude/skills/
 skills/
 skills-lock.json
+
+!.agents/skills/kitty-optimizer/

@@ -539,7 +539,7 @@ def call_openrouter(
                 model=picked,
                 operation="chat.completions.create",
                 usage=_extract_usage_dict(getattr(resp, "usage", None)),
-                metadata={"stream": False, "from_pool": from_pool},
+                metadata={"stream": False, "from_pool": from_pool, "completion_chars": len(content)},
             )
             # Store in semantic cache
             if use_cache and _semantic_cache:

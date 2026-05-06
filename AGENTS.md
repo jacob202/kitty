@@ -102,11 +102,12 @@ Applies to all agents: Claude, Gemini, opencode, Codex, Goose.
 5. **Just-In-Time Context** — Load only what's needed for the current task
 
 ### Mandatory
-- **Log token usage** — All LLM calls log to `.kitty_builder_token_usage.jsonl`
+- **Log token usage** — All LLM calls log to `data/kitty_token_log.jsonl` (JSONL: `{"ts","date","provider","model","operation","usage","metadata"}`)
 - **Semantic caching** — Check `SemanticCache` before making repeated queries
 - **Truncation** — File reads limited to 2K lines / 50KB via `truncate_to_token_budget()`
 - **Local routing** — Route simple queries to cheaper models (`--quick` mode)
 - **No broad Firecrawl** — Max 1-2 queries per run, use `scrape()` not `crawl()` for single pages
+- **Use research pipeline** — `src/tools/research_pipeline.py` for web research (map+batch_scrape, not deep crawl)
 
 ### Quick Reference
 | Situation | Action |

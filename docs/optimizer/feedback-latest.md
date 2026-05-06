@@ -1,21 +1,35 @@
-# Kitty Optimizer Report — 2026-05-06 08:25
+# Kitty Optimizer Report — 2026-05-06 09:35
 
 ## Executive Summary
 Automated scan complete. See sections below for details.
 
 ## Project Scope
-- --- STANDUP.md: # Kitty Project Standup — 2026-05-01 (evening)
-- --- CURRENT_FOCUS.md: MISSING
-- --- TASKS.md: # Kitty Task Backlog
+- --- LAYER0_CONTROL_PLANE.md: # Layer 0 Control Plane
+- --- README.md: # Kitty documentation
+- --- CURRENT_FOCUS.md: # Current Focus
+- --- TASKS.md: # Tasks
 - --- AGENTS.md: # Kitty Repo AGENTS
 - --- CLAUDE.md: # Kitty — Claude Code Rules
 
 ## Build Health
-- Status: 452 passed, 5 deselected in 16.05s
+- Status: ........................................................................ [ 92%]
+.................................                                        [100%]
+465 passed, 5 deselected in 14.24s
 
 ## Token Audit
-- **qwen/qwen3-coder:free**: 0 tokens, 4 calls, max 0
-- **Overall**: 0 tokens across 4 calls
+⚠️ **Token counts are ESTIMATED** (model does not report usage data).
+- **Total calls**: 14
+- **Prompt tokens**: 2,200 (est.)
+- **Completion tokens**: 550 (est.)
+- **Cached tokens**: 0
+- **Cache hit rate**: 0.0%
+
+### Per-Model Breakdown
+- **qwen/qwen3-coder:free**:
+  - Calls: 14
+  - Prompt: 2,200
+  - Completion: 550
+  - Cached: 0
 
 ## Actionable Recommendations
 1. [HIGH] Ensure all new code has accompanying tests before merge.
@@ -23,11 +37,6 @@ Automated scan complete. See sections below for details.
 3. [MED]  Archive stale docs (check docs/archive/ for candidates).
 4. [MED]  Keep Firecrawl searches targeted (1-2 queries per run, not broad sweeps).
 5. [LOW]  Consider consolidating small test files into larger suites to reduce pytest overhead.
-
-## Firecrawl Research (Auto-Enabled)
-- For specific optimization topics, the agent can auto-search via:
-  firecrawl search 'Claude 3.5 Haiku token efficiency 2026' --json
-  firecrawl search 'best practices RAG ingestion pipeline' --json
 
 ## Next Steps
 - Run with --full for complete analysis.
