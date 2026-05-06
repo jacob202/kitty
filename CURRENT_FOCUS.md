@@ -6,21 +6,19 @@ Last updated: 2026-05-06
 Phase 4 — Jacob-Only Build (4 sub-projects from Standup §4)
 
 ## Today's Progress (May 6)
-- ✅ /optimize pipeline (Intent Compiler → Evidence Ledger)
-- ✅ /cleanup pipeline (Dead code → Drift → Sandbox)
+- ✅ /optimize slash command wired + working
+- ✅ /cleanup slash command wired + working
+- ✅ /onboarding slash command wired + working
 - ✅ OnboardingPipeline + OnboardingWizard TSX component
-- ✅ Onboarding routes wired (fix import: .routes.onboarding_routes)
-- ✅ Consolidated 8 skills in chain (orient, research, plan, build, ship, optimize, cleanup, handoff)
-- ✅ Tests restored: 514 passed ✓
+- ✅ ./kitty backup + ./kitty export commands working
+- ✅ Debug skill added (.agents/skills/debug/)
+- ✅ Fixed stuck.py regex for Forbidden Work
+- ✅ 514 tests pass
 
-## Sub-Projects Status
-1. **Personal Onboarding Pipeline** - ✅ DONE
-2. **Memory & Continuity** - ✅ DONE
-3. **Companion Experience** - ✅ DONE
-4. **Data Safety** - ✅ DONE
-
-## Forbidden work
-- MCP expansion
-- QLoRA
+## Skills (in .agents/skills/)
+- orient → health → architecture → current state
+- optimize → token audit → compression → report
+- debug → reproduce → analyze → fix → verify (NEW)
+- handoff → capture → accounting → update docs → commit
 
 ## Tests: 514 passed ✓
