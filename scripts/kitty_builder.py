@@ -1647,7 +1647,7 @@ TOOLS = {
 # BUDGET TRACKING
 # ------------------------------------------------------------
 BUDGET_FILE = PROJECT_ROOT / ".kitty_builder_budget.json"
-TOKEN_USAGE_FILE = PROJECT_ROOT / ".kitty_builder_token_usage.jsonl"
+TOKEN_USAGE_FILE = PROJECT_ROOT / "data" / "kitty_token_log.jsonl"
 
 class BudgetManager:
     """Daily spend ledger with atomic persistence + hard-cap enforcement.
@@ -1820,6 +1820,7 @@ def log_token_usage(
     metadata: dict[str, Any] | None = None,
 ) -> None:
     """Append a per-call token usage row to local JSONL telemetry."""
+    TOKEN_USAGE_FILE.parent.mkdir(parents=True, exist_ok=True)
     row = {
         "ts": datetime.now().isoformat(timespec="seconds"),
         "date": datetime.now().strftime("%Y-%m-%d"),
@@ -2951,7 +2952,7 @@ def show_help():
         "  /health                  Scan project health\n"
         "  /next                    Suggest next steps\n"
         "  /budget / budget        REAL ledger (Groq/OR/Claude CLI caps) — same data as get_builder_budget()\n"
-        "  /tokens                 Today's token telemetry summary from .kitty_builder_token_usage.jsonl\n"
+        "  /tokens                 Today's token telemetry summary from data/kitty_token_log.jsonl\n"
         "  /probe                   Re-probe all tools / auth status\n"
         "  /test  /gates            Run scripts/run_gates.sh (tests)\n"
         "  /delegate <cli> <task>   Stream task to CLI worker\n"

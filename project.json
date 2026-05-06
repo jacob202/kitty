@@ -30,7 +30,8 @@
       "done_tasks": [
         "Kitty Builder with /health, /next, /improve, /selfreview",
         "OpenRouter fallback support",
-        "Session persistence and auto-resume"
+        "Session persistence and auto-resume",
+        "Token instrumentation + semantic cache (Phase 2B)"
       ]
     },
     {
@@ -65,7 +66,7 @@
       "status": "completed",
       "tasks": [],
       "done_tasks": [
-        "Browser MediaRecorder \u2192 POST /api/transcribe",
+        "Browser MediaRecorder → POST /api/transcribe",
         "faster-whisper transcription",
         "Flask web server with 12 API blueprints",
         "HTML template with terminal aesthetic"
@@ -74,28 +75,70 @@
     {
       "id": 7,
       "title": "Codebase Audit & Consolidation",
-      "status": "doing",
-      "tasks": [
-        "Sync TASK_MODEL_MAP between model_loader.py and model_preloader.py",
-        "Fix build_project_state() task counting (include done_tasks in total)",
-        "Fix kitty_self_improve() None crash on audit_result",
-        "Remove dead code: model_loader.py is superseded by model_preloader.py",
-        "Add auth middleware to web.py (optional, env-gated)",
-        "DeepSeek V4 Flash vs Qwen3.5-4B benchmark complete"
-      ],
+      "status": "completed",
+      "tasks": [],
       "done_tasks": [
         "Updated OpenRouter model default to deepseek/deepseek-v4-flash",
         "Easy .env auto-loading in kitty_builder.py",
         "Fixed task counting (total = pending + done)",
         "Fixed audit_result NoneType crash",
-        "Ran comprehensive 9-scenario benchmark"
+        "Ran comprehensive 9-scenario benchmark",
+        "Two-repo consolidation (single canonical checkout)",
+        "Docs bloat cleanup: 2.6M → 680K",
+        "Utils dead code archiving: 48 files → 17 live"
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Phase 2A.1 Memory Architecture Foundation",
+      "status": "completed",
+      "tasks": [],
+      "done_tasks": [
+        "Wave 1: SourceLedger + QuarantineQueue",
+        "Wave 2: StorageRouter + retrieval regression fallback",
+        "Wave 3: retrieval adapter contract + swap-safe tests"
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Phase 2B KittyBuilder Token Instrumentation",
+      "status": "completed",
+      "tasks": [],
+      "done_tasks": [
+        "TOKEN_USAGE_FILE + per-call logging",
+        "/tokens command + report script",
+        "106 KittyBuilder tests passing"
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Phase 2C Tool Runtime Alignment",
+      "status": "doing",
+      "tasks": [
+        "Align tool runtime per docs/plans/2026-04-30-unified-tool-runtime.md"
+      ],
+      "done_tasks": []
+    },
+    {
+      "id": 11,
+      "title": "Phase 2D Token Optimization Infrastructure",
+      "status": "completed",
+      "tasks": [],
+      "done_tasks": [
+        "PromptCache + SemanticCache (SQLite)",
+        "truncate_to_token_budget() in read_file()",
+        "Firecrawl token budgeting in knowledge_researcher",
+        "Agent practices in AGENTS.md, CLAUDE.md, CODEX.md",
+        "465 tests passing"
       ]
     }
   ],
   "backlog": [
     "Add memory export/import (LightRAG/JournalDB)",
     "Add Phi-4-mini specialist",
-    "Add Dockerfile for deployment"
+    "Add Dockerfile for deployment",
+    "Wire dorothy_bridge.py (Layer 0)",
+    "Phase 2C tool runtime alignment"
   ],
   "notes": "Active in: /Users/jacobbrizinski/Projects/kitty",
   "project_name": "Kitty AI Router",

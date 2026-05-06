@@ -3,6 +3,7 @@ lightrag/.venv/
 __pycache__/
 *.pyc
 .DS_Store
+Icon*
 Icon\r
 .env
 .env.*

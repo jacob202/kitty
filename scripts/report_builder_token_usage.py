@@ -11,12 +11,12 @@ from pathlib import Path
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Summarize .kitty_builder_token_usage.jsonl telemetry.")
+    parser = argparse.ArgumentParser(description="Summarize data/kitty_token_log.jsonl telemetry.")
     parser.add_argument(
         "--file",
         type=Path,
-        default=Path(".kitty_builder_token_usage.jsonl"),
-        help="Path to token-usage JSONL file (default: .kitty_builder_token_usage.jsonl)",
+        default=Path("data/kitty_token_log.jsonl"),
+        help="Path to token-usage JSONL file (default: data/kitty_token_log.jsonl)",
     )
     parser.add_argument(
         "--date",
