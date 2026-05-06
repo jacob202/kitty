@@ -3,6 +3,8 @@
 import logging
 from typing import Any
 from src.memory.kitty_memory_enhanced import KittyMemoryEnhanced
+from src.memory.retrieval_adapter import CurrentStackRetrievalAdapter
+from src.memory.storage_router import StorageRouter
 
 logger = logging.getLogger(__name__)
 
@@ -11,6 +13,7 @@ _lightrag_stores: dict[str, Any] = {}
 _kb_cache: dict[str, str] = {}
 _KB_CACHE_MAX_SIZE = 500
 _AI_DEV_SUMMARY_CACHE: str = ""
+_storage_router: StorageRouter | None = None
 
 
 def _get_memory():
@@ -18,6 +21,12 @@ def _get_memory():
     if _memory_instance is None:
         _memory_instance = KittyMemoryEnhanced()
     return _memory_instance
+
+def _get_storage_router() -> StorageRouter:
+    global _storage_router
+    if _storage_router is None:
+        _storage_router = StorageRouter()
+    return _storage_router
 
 def _get_lightrag_for_domain(domain: str):
     global _lightrag_stores
@@ -30,40 +39,59 @@ def _get_lightrag_for_domain(domain: str):
             _lightrag_stores[domain] = None
     return _lightrag_stores[domain]
 
-def query_knowledge_base(question: str, domain: str) -> str:
+def query_knowledge_base(question: str, domain: str | None) -> str:
     """Query LightRAG or ChromaDB for domain-relevant context."""
     cache_key = f"{domain}:{question[:100]}"
     if cache_key in _kb_cache:
         return _kb_cache[cache_key]
 
-    store = _get_lightrag_for_domain(domain)
-    try:
-        if store:
-            result = store.search(question)
-            if result and not _is_empty_lightrag_result(result):
-                _kb_cache[cache_key] = result[:3000]
-                if len(_kb_cache) > _KB_CACHE_MAX_SIZE:
-                    oldest_key = next(iter(_kb_cache))
-                    del _kb_cache[oldest_key]
-                return _kb_cache[cache_key]
-    except Exception as e:
-        logger.debug(f"LightRAG unavailable for domain {domain}: {e}")
+    router = _get_storage_router()
 
-    try:
-        mem = _get_memory()
-        context = mem.retrieve_context(question, n_conversations=0, n_facts=0, n_documents=5, domain=domain)
-        docs = context.get("documents", [])
-        if docs:
-            content = "\n---\n".join(docs)[:3000]
-            _kb_cache[cache_key] = content
-            if len(_kb_cache) > _KB_CACHE_MAX_SIZE:
-                oldest_key = next(iter(_kb_cache))
-                del _kb_cache[oldest_key]
-            return content
-    except Exception as e:
-        logger.debug(f"ChromaDB unavailable: {e}")
+    def _lightrag_search(user_question: str) -> str:
+        if domain is None:
+            return ""
+        store = _get_lightrag_for_domain(domain)
+        if not store:
+            return ""
+        try:
+            return store.search(user_question)
+        except Exception as e:
+            logger.debug(f"LightRAG unavailable for domain {domain}: {e}")
+            return ""
 
-    return ""
+    def _memory_search(user_question: str, scoped_domain: str | None) -> str:
+        try:
+            mem = _get_memory()
+            context = mem.retrieve_context(
+                user_question,
+                n_conversations=0,
+                n_facts=0,
+                n_documents=5,
+                domain=scoped_domain,
+            )
+            docs = context.get("documents", [])
+            return "\n---\n".join(docs)[:3000] if docs else ""
+        except Exception as e:
+            logger.debug(f"ChromaDB unavailable: {e}")
+            return ""
+
+    adapter = CurrentStackRetrievalAdapter(
+        lightrag_search=_lightrag_search,
+        memory_search=_memory_search,
+        is_empty_lightrag_result=_is_empty_lightrag_result,
+    )
+
+    content = router.query_knowledge(
+        question=question,
+        domain=domain,
+        adapter=adapter,
+    )
+    if content:
+        _kb_cache[cache_key] = content
+        if len(_kb_cache) > _KB_CACHE_MAX_SIZE:
+            oldest_key = next(iter(_kb_cache))
+            del _kb_cache[oldest_key]
+    return content
 
 def _is_empty_lightrag_result(result: str) -> bool:
     """Return True when LightRAG has no usable context and Chroma should be tried."""

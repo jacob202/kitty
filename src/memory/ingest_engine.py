@@ -1,4 +1,12 @@
-"""Ingest Engine — High-fidelity technical extraction via Ollama."""
+"""Ingest Engine — Canonical SQLite store with idempotent, source-tagged ingestion.
+
+Contract:
+- Raw text + metadata stored in SQLite (data/kitty.db, table `knowledge_sources`)
+- Chunks with content_hash in `knowledge_chunks` (vec0 for vectors)
+- Source tagging: source, source_id, ingested_at, content_hash, metadata_json
+- Idempotent: duplicate hash = skip
+- Evaluation gate: after ingestion, run known queries; mark source trusted only if PASS
+"""
 
 import hashlib
 import json
@@ -16,11 +24,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_INGEST_MODEL", "llama3.1:8b")
+OLLAMA_MODEL = os.getenv("OLLAMA_INGEST_MODEL", "gemini-flash-latest")  # cheaper than llama3.1:8b
 
 try:
     import fitz  # PyMuPDF
-
     HAS_FITZ = True
 except ImportError:
     HAS_FITZ = False
@@ -35,19 +42,57 @@ NOISE_PATTERNS = [
     r"Forum post #\d+",  # forum garbage
 ]
 
-_INVENTORY_PATH = Path("data/knowledge_bases/INVENTORY.md")
+# SQLite canonical store (kitty.db, NOT a separate registry)
+_KITTY_DB = Path("data/kitty.db")
+_SCHEMA_VERSION = 1
+
+# Tables created if not exist:
+#   knowledge_sources(source, source_id, ingested_at, content_hash, metadata_json, trusted)
+#   knowledge_chunks(id, source, source_id, chunk_index, content, content_hash, metadata_json)
 
 
 class IngestEngine:
     def __init__(
         self,
         watch_dir: str = "data/staging",
-        db_path: str = "data/lightrag",
+        db_path: str = "data/kitty.db",
         model: str = "gemini-flash-latest",
     ):
         self.watch_dir = Path(watch_dir)
         self.db_path = Path(db_path)
         self.model_name = model
+        self._seen: set = set()
+        self._emb_cache: dict = {}
+        self.watch_dir.mkdir(parents=True, exist_ok=True)
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._init_tables()
+
+    def _init_tables(self):
+        import sqlite3
+        conn = sqlite3.connect(str(self.db_path))
+        # Canonical source registry
+        conn.execute("""CREATE TABLE IF NOT EXISTS knowledge_sources (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source TEXT NOT NULL,
+            source_id TEXT,
+            ingested_at TEXT NOT NULL DEFAULT (datetime('now')),
+            content_hash TEXT NOT NULL,
+            metadata_json TEXT,
+            trusted BOOLEAN DEFAULT 0,
+            schema_version INTEGER DEFAULT 1
+        )""")
+        # Chunks with embeddings
+        conn.execute("""CREATE TABLE IF NOT EXISTS knowledge_chunks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_id TEXT NOT NULL,
+            chunk_index INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            content_hash TEXT NOT NULL,
+            metadata_json TEXT,
+            PRIMARY KEY (source_id, chunk_index)
+        )""")
+        conn.commit()
+        self._conn = conn
         self._seen: set = set()
         self._emb_cache: dict = {}
 
@@ -79,7 +124,60 @@ class IngestEngine:
         except Exception:
             pass
 
+    def _hash_content(self, text: str) -> str:
+        return hashlib.sha256(text.encode()).hexdigest()
+
+    def _source_id(self, file_path: Path) -> str:
+        return str(file_path.relative_to(self.watch_dir))
+
     def extract_text(self, file_path: Path) -> str:
+        if file_path.suffix == ".md":
+            return file_path.read_text(errors="ignore")
+        if not HAS_FITZ:
+            return ""
+        import fitz  # noqa: PLC0415
+        doc = fitz.open(str(file_path))
+        pages = [page.get_text() for page in doc]
+        doc.close()
+        return "\n".join(pages)
+
+    def chunk_text(self, text: str, max_chars: int = 2000, overlap: int = 200) -> list[str]:
+        chunks = []
+        start = 0
+        while start < len(text):
+            end = min(start + max_chars, len(text))
+            chunks.append(text[start:end])
+            if end >= len(text):
+                break
+            start = end - overlap
+        return chunks
+
+    def store_in_sqlite(self, source: str, source_id: str, text: str, chunks: list[str]) -> bool:
+        try:
+            import sqlite3
+            conn = sqlite3.connect(str(self.db_path))
+            cur = conn.cursor()
+            now = datetime.now().isoformat()
+            h = self._hash_content(text)
+            # Upsert source
+            cur.execute("""INSERT OR IGNORE INTO knowledge_sources
+                (source, source_id, ingested_at, content_hash, metadata_json, trusted, schema_version)
+                VALUES (?, ?, ?, ?, ?, 0, ?)""",
+                (source, source_id, now, h, json.dumps({"chars": len(text)}), _SCHEMA_VERSION))
+            # Chunks
+            for i, chunk in enumerate(chunks):
+                ch = self._hash_content(chunk)
+                cur.execute("""INSERT OR IGNORE INTO knowledge_chunks
+                    (source_id, chunk_index, content, content_hash, metadata_json)
+                    VALUES (?, ?, ?, ?, ?)""",
+                    (source_id, i, chunk, ch, json.dumps({"source": source})))
+            conn.commit()
+            conn.close()
+            logger.info(f"Stored {len(chunks)} chunks for {source_id}")
+            return True
+        except Exception as e:
+            logger.error(f"SQLite store failed: {e}")
+            return False
         if file_path.suffix == ".md":
             return file_path.read_text(errors="ignore")
         if not HAS_FITZ:
@@ -99,44 +197,61 @@ class IngestEngine:
                 clean.append(line.strip())
         return "\n".join(clean)
 
-    def process_file(self, file_path: Path) -> str | None:
-        raw = self.extract_text(file_path)
-        clean = self.strip_noise(raw)
+    def process_file(self, file_path: Path) -> dict | None:
+        """Extract text, chunk, store in SQLite. Returns metadata dict or None."""
+        source = "pdf" if file_path.suffix == ".pdf" else "markdown" if file_path.suffix == ".md" else "web" if "http" in str(file_path) else "general"
+        source_id = str(file_path.relative_to(self.watch_dir))
 
-        h = hashlib.sha256(clean.encode()).hexdigest()
-        if self._hash_seen(h):
+        raw = self.extract_text(file_path)
+        if not raw.strip():
+            logger.warning(f"Empty text for {file_path.name}")
             return None
 
-        logger.info(f"Processing: {file_path.name}")
+        clean = self.strip_noise(raw)
+        h = self._hash_content(clean)
 
-        prompt = f"""Extract the key facts, context, and actionable information from this document.
-Write a dense summary (3-8 sentences) that preserves all specific details: names, numbers, models, diagnoses, decisions, and next steps.
-Do not add commentary. Just compress the document into its essential facts.
+        # Check idempotency
+        try:
+            cur = self._conn.execute("SELECT id FROM knowledge_sources WHERE content_hash = ?", (h,))
+            if cur.fetchone():
+                logger.info(f"Skipping duplicate: {file_path.name}")
+                return None
+        except Exception:
+            pass
 
-DOCUMENT:
-{clean[:5000]}"""
+        chunks = self.chunk_text(clean)
+        if not chunks:
+            return None
+
+        now = datetime.now().isoformat()
+        metadata = json.dumps({
+            "chars": len(clean),
+            "chunks": len(chunks),
+            "parser": "pymupdf" if file_path.suffix == ".pdf" else "markdown",
+            "parser_version": "1.0",
+        })
 
         try:
-            from src.space_kitty.llm_client import call_llm
+            cur = self._conn.cursor()
+            # Upsert source
+            cur.execute("""INSERT OR IGNORE INTO knowledge_sources
+                (source, source_id, ingested_at, content_hash, metadata_json, trusted, schema_version)
+                VALUES (?, ?, ?, ?, ?, 0, ?)""",
+                (source, source_id, now, h, metadata, _SCHEMA_VERSION))
 
-            pearl = call_llm(
-                prompt=prompt,
-                system_prompt="You are a knowledge extraction assistant. Return only the compressed fact summary, no preamble.",
-                max_tokens=512,
-                temperature=0.3,
-                model=self.model_name if self.model_name != "gemini-flash-latest" else None,
-            )
+            # Store chunks
+            for i, chunk in enumerate(chunks):
+                chunk_h = self._hash_content(chunk)
+                cur.execute("""INSERT OR IGNORE INTO knowledge_chunks
+                    (source_id, chunk_index, content, content_hash, metadata_json)
+                    VALUES (?, ?, ?, ?, ?)""",
+                    (source_id, i, chunk, chunk_h, json.dumps({"source": source})))
 
-            # Don't store offline-mode failures in the registry or KB
-            if not pearl or pearl.strip().startswith("[offline mode]"):
-                logger.warning(f"Skipping registry write — LLM returned offline/empty for {file_path.name}")
-                return None
-
-            self._mark_seen(h)
-
-            return pearl
+            self._conn.commit()
+            logger.info(f"Stored {len(chunks)} chunks for {source_id}")
+            return {"source": source, "source_id": source_id, "chunks": len(chunks), "hash": h}
         except Exception as e:
-            logger.error(f"LLM synthesis failed: {e}")
+            logger.error(f"SQLite store failed: {e}")
             return None
 
     def store_in_lightrag(self, content: str, domain: str, source_file: str, summary: str = "") -> bool:

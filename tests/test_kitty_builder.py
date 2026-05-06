@@ -906,6 +906,61 @@ def test_flush_model_stats_empty_is_noop(tmp_path, monkeypatch):
     assert not target.exists()
 
 
+# ── token usage telemetry ────────────────────────────────────────────────────
+
+def test_log_token_usage_writes_jsonl(tmp_path, monkeypatch):
+    target = tmp_path / "token_usage.jsonl"
+    monkeypatch.setattr(kb, "TOKEN_USAGE_FILE", target)
+
+    kb.log_token_usage(
+        provider="openrouter",
+        model="qwen/qwen3-coder:free",
+        operation="chat.completions.create",
+        usage={"prompt_tokens": 11, "completion_tokens": 7, "total_tokens": 18},
+        metadata={"stream": False},
+    )
+
+    assert target.exists()
+    row = json.loads(target.read_text().strip().splitlines()[0])
+    assert row["provider"] == "openrouter"
+    assert row["model"] == "qwen/qwen3-coder:free"
+    assert row["usage"]["total_tokens"] == 18
+
+
+def test_get_builder_token_usage_aggregates_today(tmp_path, monkeypatch):
+    target = tmp_path / "token_usage.jsonl"
+    monkeypatch.setattr(kb, "TOKEN_USAGE_FILE", target)
+    today = kb.datetime.now().strftime("%Y-%m-%d")
+    rows = [
+        {
+            "ts": kb.datetime.now().isoformat(timespec="seconds"),
+            "date": today,
+            "provider": "openrouter",
+            "model": "model-a",
+            "operation": "chat.completions.create",
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+            "metadata": {"completion_chars": 20},
+        },
+        {
+            "ts": kb.datetime.now().isoformat(timespec="seconds"),
+            "date": today,
+            "provider": "mlx",
+            "model": "model-b",
+            "operation": "stream_generate",
+            "usage": {"prompt_tokens": 3, "completion_tokens": 2, "total_tokens": 5},
+            "metadata": {"completion_chars": 12},
+        },
+    ]
+    target.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+
+    text = kb.get_builder_token_usage()
+
+    assert "calls: 2" in text
+    assert "total_tokens: 20" in text
+    assert "completion_chars: 32" in text
+    assert "model-a" in text
+
+
 # ── kb_query (LightRAG opt-in) ───────────────────────────────────────────────
 
 def test_kb_query_disabled_returns_error(monkeypatch):

@@ -1,6 +1,6 @@
 # Decisions
 
-Last updated: 2026-05-02
+Last updated: 2026-05-06
 
 This file records durable project decisions. New work should follow these rules unless a later dated decision explicitly supersedes them.
 
@@ -184,3 +184,33 @@ Write-capable builder execution still requires an approved spec and explicit `--
 
 Review trigger:
 If `kittybuilder --brief` becomes misleading, slow, or noisy, tighten its context pack rather than bypassing the PM surface.
+
+## D-0015: Run-End Continuity Checkpoint Is Mandatory
+
+Status: accepted
+
+After any meaningful run, update the canonical continuity surfaces so another model can resume without replaying the whole session.
+
+Required files:
+- `TASKS.md`
+- `docs/TASKS.md`
+- `SESSION_SUMMARY.md`
+- `docs/OPEN_LOOPS.md`
+- `docs/handoffs/HANDOFF-YYYY-MM-DD.md` (dated handoff for the run)
+
+Durable policy changes also require:
+- `docs/DECISIONS.md`
+
+Delegated runs must include actual token telemetry:
+- per-lane `delta total_tokens`
+- estimated uncached prompt (`input_tokens - cached_input_tokens`)
+- parent-orchestrator delta for the same window
+
+Rationale:
+Takeover speed and quality degraded when status lived only in chat text. The checkpoint contract reduces restart cost and makes delegated usage auditable.
+
+Reference:
+`docs/CONTINUITY_STANDARD.md`
+
+Review trigger:
+If this protocol creates excessive overhead, adjust template strictness, not evidence requirements.

@@ -2,6 +2,44 @@
 
 ---
 
+## Current Build Plan (Phase 2 Track)
+
+- [x] Phase 2A memory architecture decision + mini bake-off executed.
+  - Decision draft: `docs/plans/memory-architecture-decision-2026-05-06.md`
+  - Scored bake-off: `docs/audits/memory-architecture-bakeoff-2026-05-06.md`
+  - Deferred cognitive features parking: `docs/plans/memory-architecture-deferred-cognitive-features-2026-05-06.md`
+- [x] Phase 2A.1 foundation implementation plan created:
+  - `docs/superpowers/plans/2026-05-memory-architecture.md`
+- [x] Phase 2 orchestration workflow v2 documented:
+  - `docs/plans/phase2-orchestration-workflow-2026-05-06.md`
+- [x] Phase 2 orchestration workflow token audit completed with session telemetry:
+  - `docs/plans/phase2-orchestration-workflow-2026-05-06.md` (actual token deltas + budget controls)
+- [x] Continuity tracking standard established for takeover safety:
+  - `docs/CONTINUITY_STANDARD.md`
+  - `docs/DECISIONS.md` (D-0015)
+  - `docs/handoffs/HANDOFF-2026-05-06.md`
+- [x] Phase 2A.1 Wave 2 completed:
+  - `src/memory/storage_router.py`
+  - `src/services/context_service.py` (retrieval routing + `general -> None` fallback)
+  - `tests/memory/test_storage_router.py`
+  - `tests/services/test_context_service_retrieval_domain_filter.py`
+  - focused verification: `16 passed` (`--noconftest`)
+- [x] Phase 2A.1 Wave 3 completed:
+  - `src/memory/retrieval_adapter.py`
+  - `src/memory/storage_router.py` (adapter-aware query path)
+  - `src/services/context_service.py` (uses `CurrentStackRetrievalAdapter`)
+  - `tests/memory/test_retrieval_adapter_contract.py`
+  - focused verification: `20 passed` (`--noconftest`)
+- [x] Phase 2B KittyBuilder token instrumentation completed:
+  - `scripts/kitty_builder.py` (`TOKEN_USAGE_FILE`, per-call logging, `/tokens`, tool `get_builder_token_usage`)
+  - `scripts/report_builder_token_usage.py`
+  - tests: `tests/test_kitty_builder.py` (`106 passed` in focused run)
+- [x] Phase 2 plan hardening for low-capability execution completed:
+  - meta-analysis: `docs/plans/phase2-build-plan-meta-analysis-2026-05-06.md`
+  - deterministic execution packet: `docs/superpowers/plans/2026-05-phase2-low-capability-execution.md`
+  - workflow integration: `docs/plans/phase2-orchestration-workflow-2026-05-06.md`
+- [ ] Phase 2C tool runtime alignment.
+
 ## Dev Infrastructure
 <!-- Things wired in, things still needing verification, and how to actually use them -->
 

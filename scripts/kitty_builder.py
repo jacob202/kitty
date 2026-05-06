@@ -10,7 +10,7 @@ import argparse, hashlib, json, logging, os, py_compile, re, shlex, shutil, sqli
 from concurrent.futures import ThreadPoolExecutor, FIRST_COMPLETED, wait
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional, List
+from typing import Any, Dict, Optional, List
 
 log = logging.getLogger("kitty_builder")
 if not log.handlers:
@@ -506,6 +506,13 @@ def call_openrouter(
             content = resp.choices[0].message.content or ""
             free_pool.record_success(picked)
             budget.record_or(0.0 if picked.endswith(":free") else 0.001, model=picked)
+            log_token_usage(
+                provider="openrouter",
+                model=picked,
+                operation="chat.completions.create",
+                usage=_extract_usage_dict(getattr(resp, "usage", None)),
+                metadata={"stream": False, "from_pool": from_pool},
+            )
             return content
         except BuilderError:
             raise
@@ -596,13 +603,30 @@ def stream_openrouter(
             continue
 
         # Stream opened; iterate
+        completion_chars = 0
+        usage_snapshot: dict[str, int] = {}
         try:
             for chunk in stream:
                 delta = chunk.choices[0].delta.content
                 if delta:
+                    completion_chars += len(delta)
                     yield (picked, delta)
+                maybe_usage = _extract_usage_dict(getattr(chunk, "usage", None))
+                if maybe_usage:
+                    usage_snapshot = maybe_usage
             free_pool.record_success(picked)
             budget.record_or(0.0 if picked.endswith(":free") else 0.001, model=picked)
+            log_token_usage(
+                provider="openrouter",
+                model=picked,
+                operation="chat.completions.create",
+                usage=usage_snapshot,
+                metadata={
+                    "stream": True,
+                    "from_pool": from_pool,
+                    "completion_chars": completion_chars,
+                },
+            )
             return
         except Exception as e:
             # mid-stream failure — record + give up; partial content already sent
@@ -1558,6 +1582,7 @@ TOOLS = {
 # BUDGET TRACKING
 # ------------------------------------------------------------
 BUDGET_FILE = PROJECT_ROOT / ".kitty_builder_budget.json"
+TOKEN_USAGE_FILE = PROJECT_ROOT / ".kitty_builder_token_usage.jsonl"
 
 class BudgetManager:
     """Daily spend ledger with atomic persistence + hard-cap enforcement.
@@ -1683,6 +1708,162 @@ class BudgetManager:
 budget = BudgetManager()
 
 
+def _extract_usage_dict(usage_obj: Any) -> dict[str, int]:
+    """Best-effort usage extraction from OpenAI/Groq SDK response objects."""
+    if usage_obj is None:
+        return {}
+    if isinstance(usage_obj, dict):
+        raw = usage_obj
+    else:
+        raw = {}
+        for key in (
+            "prompt_tokens",
+            "completion_tokens",
+            "total_tokens",
+            "reasoning_tokens",
+            "cached_tokens",
+        ):
+            value = getattr(usage_obj, key, None)
+            if isinstance(value, int):
+                raw[key] = value
+    out: dict[str, int] = {}
+    for key in (
+        "prompt_tokens",
+        "completion_tokens",
+        "total_tokens",
+        "reasoning_tokens",
+        "cached_tokens",
+    ):
+        value = raw.get(key)
+        if isinstance(value, int):
+            out[key] = value
+    # OpenAI-style nested prompt token details.
+    details = raw.get("prompt_tokens_details") if isinstance(raw, dict) else None
+    if isinstance(details, dict):
+        cached = details.get("cached_tokens")
+        if isinstance(cached, int):
+            out.setdefault("cached_tokens", cached)
+    return out
+
+
+def log_token_usage(
+    *,
+    provider: str,
+    model: str,
+    operation: str,
+    usage: dict[str, int] | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    """Append a per-call token usage row to local JSONL telemetry."""
+    row = {
+        "ts": datetime.now().isoformat(timespec="seconds"),
+        "date": datetime.now().strftime("%Y-%m-%d"),
+        "provider": provider,
+        "model": model,
+        "operation": operation,
+        "usage": usage or {},
+        "metadata": metadata or {},
+    }
+    try:
+        with open(TOKEN_USAGE_FILE, "a") as f:
+            f.write(json.dumps(row) + "\n")
+    except OSError as e:
+        print(f"[TokenUsage] write failed: {e}", file=sys.stderr)
+
+
+def _today_token_usage_summary() -> dict[str, Any]:
+    today = datetime.now().strftime("%Y-%m-%d")
+    totals = {
+        "calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "reasoning_tokens": 0,
+        "cached_tokens": 0,
+        "completion_chars": 0,
+    }
+    per_model: dict[str, dict[str, int]] = {}
+    if not TOKEN_USAGE_FILE.exists():
+        return {"totals": totals, "per_model": per_model}
+    try:
+        with open(TOKEN_USAGE_FILE) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if row.get("date") != today:
+                    continue
+                totals["calls"] += 1
+                usage = row.get("usage") if isinstance(row.get("usage"), dict) else {}
+                md = row.get("metadata") if isinstance(row.get("metadata"), dict) else {}
+                for key in (
+                    "prompt_tokens",
+                    "completion_tokens",
+                    "total_tokens",
+                    "reasoning_tokens",
+                    "cached_tokens",
+                ):
+                    val = usage.get(key, 0)
+                    if isinstance(val, int):
+                        totals[key] += val
+                comp_chars = md.get("completion_chars", 0)
+                if isinstance(comp_chars, int):
+                    totals["completion_chars"] += comp_chars
+
+                model = row.get("model", "unknown")
+                slot = per_model.setdefault(
+                    model,
+                    {
+                        "calls": 0,
+                        "prompt_tokens": 0,
+                        "completion_tokens": 0,
+                        "total_tokens": 0,
+                    },
+                )
+                slot["calls"] += 1
+                for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
+                    val = usage.get(key, 0)
+                    if isinstance(val, int):
+                        slot[key] += val
+    except OSError as e:
+        print(f"[TokenUsage] read failed: {e}", file=sys.stderr)
+    return {"totals": totals, "per_model": per_model}
+
+
+def get_builder_token_usage() -> str:
+    """Return today's per-call token usage summary from local JSONL telemetry."""
+    summary = _today_token_usage_summary()
+    totals = summary["totals"]
+    if totals["calls"] == 0:
+        return "No token telemetry rows recorded today."
+    lines = [
+        "Token usage today:",
+        f"  calls: {totals['calls']}",
+        f"  prompt_tokens: {totals['prompt_tokens']}",
+        f"  completion_tokens: {totals['completion_tokens']}",
+        f"  total_tokens: {totals['total_tokens']}",
+        f"  reasoning_tokens: {totals['reasoning_tokens']}",
+        f"  cached_tokens: {totals['cached_tokens']}",
+        f"  completion_chars: {totals['completion_chars']}",
+    ]
+    per_model = summary["per_model"]
+    if per_model:
+        lines.append("")
+        lines.append("Per-model token usage:")
+        rows = sorted(per_model.items(), key=lambda kv: kv[1].get("total_tokens", 0), reverse=True)
+        for model, stats in rows:
+            lines.append(
+                f"  {model:<55} total={stats['total_tokens']} "
+                f"prompt={stats['prompt_tokens']} completion={stats['completion_tokens']} "
+                f"calls={stats['calls']}"
+            )
+    return "\n".join(lines)
+
+
 def get_builder_budget() -> str:
     """Return today's recorded Builder ledger — same data as the ``/budget`` slash command.
 
@@ -1698,6 +1879,7 @@ def get_builder_budget() -> str:
 
 
 TOOLS["get_builder_budget"] = get_builder_budget
+TOOLS["get_builder_token_usage"] = get_builder_token_usage
 
 # ------------------------------------------------------------
 # BRAIN — configurable tier order (KITTY_BUILDER_BRAIN_ORDER)
@@ -1726,6 +1908,13 @@ def _brain_tier_groq(messages: list, response_parts: list[str]) -> bool:
                 print(delta, end="", flush=True)
                 response_parts.append(delta)
         budget.record_groq()
+        log_token_usage(
+            provider="groq",
+            model=GROQ_MODEL,
+            operation="chat.completions.create",
+            usage={},
+            metadata={"stream": True, "completion_chars": len("".join(response_parts))},
+        )
         print()
         return True
     except Exception as e:
@@ -1777,6 +1966,13 @@ def _brain_tier_mlx(messages: list, response_parts: list[str]) -> bool:
         ):
             print(r.text, end="", flush=True)
             response_parts.append(r.text)
+        log_token_usage(
+            provider="mlx",
+            model=MODEL_BUILDER,
+            operation="stream_generate",
+            usage={},
+            metadata={"stream": True, "completion_chars": len("".join(response_parts))},
+        )
         print()
         return True
     except Exception as e:
@@ -2690,6 +2886,7 @@ def show_help():
         "  /health                  Scan project health\n"
         "  /next                    Suggest next steps\n"
         "  /budget / budget        REAL ledger (Groq/OR/Claude CLI caps) — same data as get_builder_budget()\n"
+        "  /tokens                 Today's token telemetry summary from .kitty_builder_token_usage.jsonl\n"
         "  /probe                   Re-probe all tools / auth status\n"
         "  /test  /gates            Run scripts/run_gates.sh (tests)\n"
         "  /delegate <cli> <task>   Stream task to CLI worker\n"
@@ -2880,6 +3077,8 @@ def interactive_main(plan_only: bool = False):
             elif inp.lower() in ("/budget", "budget"):
                 print(f"\n{budget.summary()}")
                 print(budget.per_model_summary())
+            elif inp.lower() == "/tokens":
+                print(get_builder_token_usage())
             elif inp.lower() == "/probe":
                 probe_tools()
             elif inp.lower() == "/freepool":

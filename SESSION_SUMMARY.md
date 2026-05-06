@@ -1,6 +1,75 @@
 # Session Summary
 
-Last updated: 2026-04-30
+Last updated: 2026-05-06
+
+## 2026-05-06 Continuity Checkpoint
+
+### What Was Completed
+
+- Phase `2A` memory architecture decision + bake-off docs were produced and tracked:
+  - `docs/plans/memory-architecture-decision-2026-05-06.md`
+  - `docs/audits/memory-architecture-bakeoff-2026-05-06.md`
+  - `docs/plans/memory-architecture-deferred-cognitive-features-2026-05-06.md`
+- Phase `2A.1` foundation wave started and implemented:
+  - `src/memory/source_ledger.py`
+  - `src/memory/quarantine_queue.py`
+  - `src/core/db_config.py` (`DB_PATHS["source_ledger"]`)
+  - tests: `tests/memory/test_source_ledger.py`, `tests/memory/test_quarantine_queue.py`
+- Phase `2A.1` Wave 2 implemented and verified:
+  - `src/memory/storage_router.py`
+  - `src/services/context_service.py` (routered retrieval + `general -> None` fallback)
+  - tests: `tests/memory/test_storage_router.py`, `tests/services/test_context_service_retrieval_domain_filter.py`
+- Phase `2A.1` Wave 3 implemented and verified:
+  - `src/memory/retrieval_adapter.py`
+  - `src/memory/storage_router.py` (adapter-aware query)
+  - `src/services/context_service.py` (current-stack adapter wiring)
+  - test: `tests/memory/test_retrieval_adapter_contract.py`
+- Phase `2B` token instrumentation implemented and verified:
+  - `scripts/kitty_builder.py` token JSONL telemetry + `/tokens` command
+  - `scripts/report_builder_token_usage.py` analytics helper
+  - `tests/test_kitty_builder.py` focused run: `106 passed`
+- Phase 2 plan hardening for low-capability execution implemented:
+  - `docs/plans/phase2-build-plan-meta-analysis-2026-05-06.md`
+  - `docs/superpowers/plans/2026-05-phase2-low-capability-execution.md`
+  - `docs/plans/phase2-orchestration-workflow-2026-05-06.md` updated with deterministic low-cap mode
+- Delegated execution was completed in disjoint lanes, then agents were closed.
+- Real token telemetry audit was run from Codex session JSONL logs and recorded in:
+  - `docs/plans/phase2-orchestration-workflow-2026-05-06.md`
+
+### Why These Changes Were Made
+
+- Keep memory architecture rollout modular and reversible.
+- Reduce hallucinated status by requiring hard evidence in docs and tests.
+- Enforce token discipline after measuring unexpectedly high usage on delegated waves.
+- Reduce reasoning burden for weaker models without lowering quality gates.
+
+### Evidence Snapshot
+
+- Focused verification command:
+  - `venv/bin/python -m pytest tests/memory/test_source_ledger.py tests/memory/test_quarantine_queue.py -q --tb=short --noconftest`
+  - result: `10 passed`
+- Strict pytest gate remained blocked by unrelated metadata guard files:
+  - `tests/memory/Icon`
+  - `tests/memory/__pycache__/Icon`
+- Delegated code-wave token usage (actual telemetry):
+  - Worker A delta: `466,643` total tokens
+  - Worker B delta: `824,267` total tokens
+  - Combined: `1,290,910` total tokens
+  - Parent orchestrator (same window): `3,296,533` total tokens
+
+### Immediate Next Plan
+
+1. Phase `2C`: align tool runtime contract.
+   - execute from deterministic task cards in `docs/superpowers/plans/2026-05-phase2-low-capability-execution.md`
+
+### Resume-First Files
+
+- `TASKS.md`
+- `docs/TASKS.md`
+- `docs/plans/phase2-orchestration-workflow-2026-05-06.md`
+- `docs/superpowers/plans/2026-05-memory-architecture.md`
+- `docs/handoffs/HANDOFF-2026-05-06.md`
+- `docs/handoffs/HANDOFF-2026-05-03.md` (historical + rolling chronology)
 
 ## Verified Current State
 

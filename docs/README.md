@@ -28,10 +28,13 @@ Older docs may mention `kitty-system/kitty-app` or a “migrated” workspace. T
 |------|---------|
 | Repo root (`CURRENT_FOCUS.md`, `TASKS.md`, `KITTY_CONTEXT.md`) | Session focus and quick pointers |
 | `docs/DECISIONS.md` | Durable decisions |
+| `docs/CONTINUITY_STANDARD.md` | Required run-end checkpoint protocol for takeover safety |
 | `docs/PARKED_FEATURES.md` | Intentionally deferred work |
 | `docs/archive/` | Historical handoffs, merge-gate runs, retired audits |
 | `docs/audits/` | Reports and inventories |
 | `docs/plans/`, `docs/superpowers/plans/` | Planning drafts (verify against decisions before implementing) |
+| `docs/plans/phase2-build-plan-meta-analysis-2026-05-06.md` | Phase 2 quality/token analysis and hardening rationale |
+| `docs/superpowers/plans/2026-05-phase2-low-capability-execution.md` | Deterministic low-capability execution packet for `2C` |
 | `specs/` | Approved work specs |
 
 ## Stale-doc rule of thumb

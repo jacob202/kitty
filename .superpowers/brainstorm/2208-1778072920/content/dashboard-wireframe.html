@@ -1,0 +1,71 @@
+<h2>Trust Dashboard & Quarantine Queue: Wireframe</h2>
+<p class="subtitle">This is a structural wireframe of the "Control Room" dashboard we discussed.</p>
+
+<div class="mockup" style="max-width: 900px; margin: 0 auto;">
+  <div class="mockup-header" style="display: flex; justify-content: space-between; background: var(--bg-card); padding: 10px 15px; border-bottom: 1px solid var(--border);">
+    <span style="font-weight: 600;">Kitty Trust & Autonomy Dashboard</span>
+    <span style="color: var(--text-muted); font-size: 0.9em;">System Health: Healthy | Active Port: 5001</span>
+  </div>
+  
+  <div class="mockup-body" style="display: flex; height: 500px; padding: 0;">
+    
+    <!-- Sidebar -->
+    <div style="width: 200px; border-right: 1px solid var(--border); padding: 15px; background: var(--bg-main);">
+      <div style="margin-bottom: 20px; font-weight: 600; color: var(--accent);">Queue (3)</div>
+      <div style="margin-bottom: 10px; color: var(--text-muted);">Action Audit</div>
+      <div style="margin-bottom: 10px; color: var(--text-muted);">Confidence Rules</div>
+      <div style="margin-bottom: 10px; color: var(--text-muted);">API Spend</div>
+    </div>
+
+    <!-- Main Content -->
+    <div style="flex-grow: 1; padding: 20px; overflow-y: auto;">
+      <h3 style="margin-top: 0;">Pending Approvals</h3>
+      <p style="color: var(--text-muted); font-size: 0.9em; margin-bottom: 20px;">Review quarantined memory and blocked autonomous actions.</p>
+
+      <!-- Item 1: Memory Extraction -->
+      <div style="border: 1px solid var(--border); border-radius: 6px; padding: 15px; margin-bottom: 15px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+          <span class="label" style="background: var(--bg-hover); padding: 3px 8px; border-radius: 4px;">Memory Extraction</span>
+          <span style="color: #eab308; font-weight: bold; font-size: 0.9em;">Confidence: 0.65 (Hybrid)</span>
+        </div>
+        <p style="margin: 0 0 10px 0;"><strong>Candidate:</strong> "Prefers Go for CLI tools over Python."</p>
+        <p style="font-size: 0.85em; color: var(--text-muted); margin: 0 0 15px 0;"><strong>Source:</strong> Chat session from 2026-05-05. "Let's use Go for this script, I'm tired of dealing with venvs for small tools."</p>
+        <div style="display: flex; gap: 10px;">
+          <button class="mock-button" style="background: var(--accent); color: white; border: none; padding: 5px 15px;">Approve</button>
+          <button class="mock-button" style="padding: 5px 15px;">Reject</button>
+          <button class="mock-button" style="padding: 5px 15px;">Edit</button>
+        </div>
+      </div>
+
+      <!-- Item 2: Contradiction -->
+      <div style="border: 1px solid var(--border); border-radius: 6px; padding: 15px; margin-bottom: 15px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+          <span class="label" style="background: #fee2e2; color: #854d0e; padding: 3px 8px; border-radius: 4px;">Contradiction Detected</span>
+          <span style="color: #ef4444; font-weight: bold; font-size: 0.9em;">High Priority</span>
+        </div>
+        <p style="margin: 0 0 10px 0;"><strong>Conflict:</strong> "Prefer Vanilla CSS" vs. "Use Tailwind for Garage UI"</p>
+        <p style="font-size: 0.85em; color: var(--text-muted); margin: 0 0 15px 0;">System has quarantined incoming preference "Use Tailwind" due to conflict with existing durable rule.</p>
+        <div style="display: flex; gap: 10px;">
+          <button class="mock-button" style="background: var(--accent); color: white; border: none; padding: 5px 15px;">Keep Vanilla CSS</button>
+          <button class="mock-button" style="padding: 5px 15px;">Adopt Tailwind</button>
+          <button class="mock-button" style="padding: 5px 15px;">Keep Both (Contextual)</button>
+        </div>
+      </div>
+
+      <!-- Item 3: Autonomous Action -->
+      <div style="border: 1px solid var(--border); border-radius: 6px; padding: 15px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+          <span class="label" style="background: #e0e7ff; color: #991b1b; padding: 3px 8px; border-radius: 4px;">Action Blocked</span>
+          <span style="color: #ef4444; font-weight: bold; font-size: 0.9em;">Confidence: 0.4 (Capped by Tool)</span>
+        </div>
+        <p style="margin: 0 0 10px 0;"><strong>Proposed Action:</strong> Execute `git push origin main`</p>
+        <p style="font-size: 0.85em; color: var(--text-muted); margin: 0 0 15px 0;"><strong>Reason:</strong> User said "ship it". Tool 'git_push' has heuristic cap of 0.4 without explicit terminal confirmation.</p>
+        <div style="display: flex; gap: 10px;">
+          <button class="mock-button" style="background: var(--accent); color: white; border: none; padding: 5px 15px;">Execute</button>
+          <button class="mock-button" style="padding: 5px 15px;">Cancel</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
