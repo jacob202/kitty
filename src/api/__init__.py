@@ -12,6 +12,7 @@ from .streaming_routes import streaming_bp
 from .swarm_routes import swarm_bp
 from .system_routes import system_bp
 from .voice_routes import voice_bp
+from .quarantine_routes import quarantine_bp
 from .brief import brief_bp
 from .commands import commands_bp
 
@@ -31,4 +32,5 @@ __all__ = [
     "voice_bp",
     "brief_bp",
     "commands_bp",
+    "quarantine_bp",
 ]
