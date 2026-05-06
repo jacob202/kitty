@@ -1,9 +1,10 @@
 # Kitty Optimizer TODO
 
-Generated: 2026-05-06 09:35
+Generated: 2026-05-06 12:38
 
 ## Token Optimization Opportunities
-- [ ] Enable prompt caching for qwen/qwen3-coder:free (0 cached tokens, 2200 prompt tokens)
+- [ ] Batch requests for qwen/qwen3-coder:free (59 calls)
+- [ ] Enable prompt caching for deepseek/deepseek-v4-flash (0 cached tokens, 1581 prompt tokens)
 ## General Recommendations
 - [ ] Use jq/awk for data processing (not LLM calls)
 - [ ] Keep Firecrawl searches to 1-2 queries per run

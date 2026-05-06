@@ -50,7 +50,7 @@ export default function GarageDashboard() {
   const [activeNodes, setActiveNodes] = useState<Record<string, any>>({});
   const [thoughts, setThoughts] = useState<Thought[]>([]);
   const [currentMode, setCurrentMode] = useState('hardware');
-  const [activeView, setActiveView] = useState<'chat' | 'journal' | 'evals'>('chat');
+  const [activeView, setActiveView] = useState<'chat' | 'journal' | 'evals' | 'trust'>('chat');
   const [systemHealth, setSystemHealth] = useState({
     mlx_engine: 'active',
     memory_engine: 'active',
@@ -385,6 +385,15 @@ export default function GarageDashboard() {
             >
               Evals
             </button>
+            <button
+              onClick={() => setActiveView('trust')}
+              className="px-4 py-1.5 rounded-xl text-xs font-semibold transition-all"
+              style={activeView === 'trust'
+                ? { background: 'var(--accent-color)', color: '#fff' }
+                : { color: 'var(--dim-text)' }}
+            >
+              Trust
+            </button>
           </div>
         </div>
 
@@ -567,16 +576,6 @@ export default function GarageDashboard() {
         }}
         isLightMode={isLightMode}
         onLightModeToggle={() => setIsLightMode(!isLightMode)}
-      />      
-      </ErrorBoundary>
-      <style jsx>{`
-        .border-color { border-color: var(--border-color); }
-        .bg-panel-bg { background-color: var(--panel-bg); }
-      `}</style>
-    </main>
-  );
-}
- setIsLightMode(!isLightMode)}
       />      
       </ErrorBoundary>
       <style jsx>{`

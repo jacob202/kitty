@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, is_dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Type
+
+import httpx
+
+from src.tools.base import ToolResult as BaseToolResult
 
 
 # ---------------------------------------------------------------------------
@@ -69,34 +73,45 @@ class FunctionExecutor(BaseExecutor):
             result = tool.handler(**args)
             if asyncio.iscoroutine(result):
                 result = await result
+            if isinstance(result, BaseToolResult) or (
+                is_dataclass(result) and all(hasattr(result, attr) for attr in ("ok", "tool", "args"))
+            ):
+                return ToolResult(
+                    ok=result.ok,
+                    tool=result.tool,
+                    args=result.args,
+                    result=result.result,
+                    error=result.error,
+                    denied=result.denied,
+                )
             return ToolResult(ok=True, tool=tool.name, args=args, result=result)
         except Exception as e:
             return ToolResult(ok=False, tool=tool.name, args=args, error=str(e))
 
 
 class HTTPExecutor(BaseExecutor):
-    """Execute HTTP-based tools using requests."""
+    """Execute HTTP-based tools using httpx."""
 
     async def execute(self, tool: ToolDefinition, args: Dict[str, Any], context: ToolContext) -> ToolResult:
         if not tool.http_endpoint:
             return ToolResult(ok=False, tool=tool.name, args=args, error="No HTTP endpoint defined")
         try:
-            import requests
             method = args.get("method", "GET").upper()
             url = tool.http_endpoint
             params = args.get("params", {})
             headers = args.get("headers", {})
             timeout = args.get("timeout", 30)
-            
-            if method == "GET":
-                resp = requests.get(url, params=params, headers=headers, timeout=timeout)
-            elif method == "POST":
-                data = args.get("data")
-                json_data = args.get("json")
-                resp = requests.post(url, data=data, json=json_data, headers=headers, timeout=timeout)
-            else:
-                return ToolResult(ok=False, tool=tool.name, args=args, error=f"Unsupported method: {method}")
-            
+
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                if method == "GET":
+                    resp = await client.get(url, params=params, headers=headers)
+                elif method == "POST":
+                    data = args.get("data")
+                    json_data = args.get("json")
+                    resp = await client.post(url, params=params, data=data, json=json_data, headers=headers)
+                else:
+                    return ToolResult(ok=False, tool=tool.name, args=args, error=f"Unsupported method: {method}")
+
             resp.raise_for_status()
             return ToolResult(
                 ok=True, tool=tool.name, args=args,
@@ -198,7 +213,7 @@ def _base_tool_handler_factory(cls: Type[Any]):
     """Create a handler that instantiates and executes a BaseTool subclass."""
     def handler(**kwargs):
         inst = cls()
-        return inst.execute(**kwargs).to_dict() if hasattr(inst.execute(**kwargs), "to_dict") else inst.execute(**kwargs)
+        return inst.execute(**kwargs)
     return handler
 
 

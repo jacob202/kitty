@@ -214,3 +214,25 @@ Reference:
 
 Review trigger:
 If this protocol creates excessive overhead, adjust template strictness, not evidence requirements.
+
+## D-0016: Optimize KittyBuilder For Effectiveness Per Token
+
+Status: accepted
+
+KittyBuilder routing must optimize for lowest expected verified cost, not cheapest-first output. Verified cost includes model tokens, retries, failed tests, human re-explanation, cleanup from low-quality code, and misalignment with the approved request.
+
+Consequences:
+- Do not default to multi-agent swarms for coding tasks.
+- Use parallel agents only for independent lanes with explicit ownership, output format, validation command, and stop conditions.
+- Add an Intent Compiler before execution so messy brain dumps become scoped, testable Builder Briefs.
+- Add a Context Compiler so workers receive the smallest high-signal context pack that can satisfy the task.
+- Add a Worker Health Preflight before routing to external CLIs/providers.
+- Add an append-only Evidence Ledger for run outcomes, verification, tokens, risks, and next action.
+
+Reference:
+- `docs/plans/kittybuilder-effectiveness-meta-analysis-2026-05-06.md`
+- `docs/plans/kittybuilder-effectiveness-research-sources-2026-05-06.md`
+- `docs/superpowers/plans/2026-05-06-kittybuilder-intent-compiler.md`
+
+Review trigger:
+If future run evidence shows this control layer adds more overhead than quality gain, revise the routing policy and compiler schema rather than returning to blanket cheap-first delegation.

@@ -21,7 +21,7 @@
     "deepseek": {
       "type": "openai-compat",
       "base_url": "https://api.deepseek.com/v1",
-      "api_key": "sk-b0ca63f18dc7467fa5cd22219c41a20a",
+      "api_key": "$DEEPSEEK_API_KEY",
       "models": [
         {
           "id": "deepseek-chat",
@@ -90,7 +90,7 @@
     }
   },
   "options": {
-    "skills_paths": ["./src/tools/superpowers/skills", "./skills/consolidated-skills", "./skills/legacy-skills", "./skills"],
+    "skills_paths": ["./.agents/skills", "./src/tools/superpowers/skills"],
     "auto_lsp": true
   }
 }

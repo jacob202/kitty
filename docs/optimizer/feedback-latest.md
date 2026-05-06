@@ -1,4 +1,4 @@
-# Kitty Optimizer Report — 2026-05-06 09:35
+# Kitty Optimizer Report — 2026-05-06 12:38
 
 ## Executive Summary
 Automated scan complete. See sections below for details.
@@ -12,23 +12,28 @@ Automated scan complete. See sections below for details.
 - --- CLAUDE.md: # Kitty — Claude Code Rules
 
 ## Build Health
-- Status: ........................................................................ [ 92%]
-.................................                                        [100%]
-465 passed, 5 deselected in 14.24s
+- Status: ........................................................................ [ 89%]
+...................................................                      [100%]
+483 passed, 5 deselected in 7.49s
 
 ## Token Audit
 ⚠️ **Token counts are ESTIMATED** (model does not report usage data).
-- **Total calls**: 14
-- **Prompt tokens**: 2,200 (est.)
-- **Completion tokens**: 550 (est.)
+- **Total calls**: 60
+- **Prompt tokens**: 1,581 (est.)
+- **Completion tokens**: 337 (est.)
 - **Cached tokens**: 0
 - **Cache hit rate**: 0.0%
 
 ### Per-Model Breakdown
 - **qwen/qwen3-coder:free**:
-  - Calls: 14
-  - Prompt: 2,200
-  - Completion: 550
+  - Calls: 59
+  - Prompt: 0
+  - Completion: 0
+  - Cached: 0
+- **deepseek/deepseek-v4-flash**:
+  - Calls: 1
+  - Prompt: 1,581
+  - Completion: 337
   - Cached: 0
 
 ## Actionable Recommendations

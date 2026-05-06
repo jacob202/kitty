@@ -16,11 +16,13 @@ Last updated: 2026-05-06
 - Phase `2B` token instrumentation implemented and verified
 - Phase `2C` Tool Runtime Alignment ✅ COMPLETED:
   - `src/tools/runtime.py` — ToolRuntime, ToolDefinition, ToolContext, executors
-  - `tests/test_tool_runtime.py` — 15 tests all passing
+  - `tests/test_tool_runtime.py` — 18 tests all passing
   - `src/tools/tool_manager.py` — ToolManager wraps ToolRuntime (backward compat)
   - `docs/plans/2026-04-30-unified-tool-runtime.md` — updated with completion
-  - 480 tests passing (15 new + 465 existing)
+  - 483 tests passing (18 runtime + 465 existing)
 - Phase 2 plan hardening for low-capability execution implemented
+- KittyBuilder session brief bug fixed: removed dangling `quarantine_status` reference from `builder_session_start_brief()`
+- Focused verification passed for ToolRuntime, prompt cache, and KittyBuilder: `135 passed`
 - Token logging aligned to `data/kitty_token_log.jsonl` (AGENTS.md spec)
 - Icon* added to .gitignore, project.json updated with Phase 2 milestones
 
@@ -45,18 +47,17 @@ Last updated: 2026-05-06
   - Combined: `1,290,910` total tokens
   - Parent orchestrator (same window): `3,296,533` total tokens
 
-### Immediate Next Plan
+### Immediate State
 
-1. ✅ Phase `2C`: COMPLETE — Tool Runtime aligned.
-   - `src/tools/runtime.py`, `tests/test_tool_runtime.py`, `src/tools/tool_manager.py`
-   - 16 tests in test_tool_runtime.py, 480 total passing
-   - Permission bridge integrated (ToolRegistry → ToolRuntime)
-   - 2C-4 integration gate: strict blocked by Icon, fallback passed (122 tests)
-2. ✅ All Phase 2 items COMPLETE:
+1. ✅ All Phase 2 items COMPLETE:
    - 2A.1: Memory architecture (waves 1-3)
    - 2B: Token instrumentation
    - 2C: Tool runtime alignment
    - 2D: Token optimization infrastructure
+2. Current follow-up work lives in `CURRENT_FOCUS.md` and the handoff:
+   - strict pytest metadata-guard cleanup
+   - Unified Command System / Candidate C carryover
+   - keep the new optimizer/cache path stable
 
 ### Resume-First Files
 
@@ -102,12 +103,12 @@ Another worker added Phase 3 through Phase 6 feature files, but route wiring and
 
 Latest full result:
 
-`480 passed, 5 deselected, 2 warnings`
+`483 passed, 5 deselected, 2 warnings`
 
 Focused checks also passing:
 - control gates: `148 passed`
 - route/runtime utility checks: `26 passed`
-- Phase 2C ToolRuntime: `15 passed`
+- Phase 2C ToolRuntime: `18 passed`
 - memory product + specialist framework checks: `24 passed`
 - security scanner: `8 passed`
 - eval dashboard/reliability focused checks: `29 passed`

@@ -4,12 +4,17 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 
 CLASS_DESTINATIONS = {
@@ -368,6 +373,13 @@ def classify(project: str | Path, text: str) -> dict[str, object]:
     return classify_request(project, text).to_dict()
 
 
+def compile_builder_brief(project: str | Path, text: str) -> dict[str, object]:
+    """Compile unstructured request text into a structured BuilderBrief dict."""
+    from src.builder.intent_compiler import compile_intent
+
+    return compile_intent(project, text).to_dict()
+
+
 def output_dir_for(project: Path, classification: str) -> Path:
     return project / "intake" / CLASS_DESTINATIONS[classification]
 
@@ -405,6 +417,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--text", required=True, help="Raw request text to classify.")
     parser.add_argument("--write", action="store_true", help="Write the intake result to the project intake folder.")
     parser.add_argument("--dry-run", action="store_true", help="Print only. This is the default.")
+    parser.add_argument(
+        "--compile-brief",
+        action="store_true",
+        help="Return the structured BuilderBrief JSON instead of intake classification.",
+    )
     return parser
 
 
@@ -413,6 +430,15 @@ def run(argv: Iterable[str] | None = None) -> dict[str, object]:
     args = parser.parse_args(argv)
     if args.write and args.dry_run:
         parser.error("--write and --dry-run cannot be combined")
+    if args.write and args.compile_brief:
+        parser.error("--write and --compile-brief cannot be combined")
+    if args.dry_run and args.compile_brief:
+        parser.error("--dry-run and --compile-brief cannot be combined")
+    if args.compile_brief:
+        data = compile_builder_brief(args.project, args.text)
+        data["mode"] = "compile-brief"
+        print(json.dumps(data))
+        return data
     result = run_intake(args.project, args.text, write=args.write)
     data = result.to_dict()
     data["mode"] = "write" if args.write else "dry-run"

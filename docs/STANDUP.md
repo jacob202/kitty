@@ -215,7 +215,7 @@ The mission: "So that no one becomes themselves alone." The first person who mus
   * `src/tools/runtime.py` — ToolRuntime, ToolDefinition, ToolContext, executors
   * `tests/test_tool_runtime.py` — 18 tests all passing
   * `src/tools/tool_manager.py` — ToolManager wraps ToolRuntime (backward compat)
-  * HTTPExecutor wired to `requests` (GET/POST support)
+  * HTTPExecutor wired to `httpx` (GET/POST support)
   * Permission bridge integrated (ToolRegistry → ToolRuntime)
   * Bugs fixed: double execution, enum vs string comparison
 - 2D Token optimization infrastructure ✅
@@ -226,7 +226,7 @@ The mission: "So that no one becomes themselves alone." The first person who mus
 
 **Next:** Phase 2 complete. Per `CURRENT_FOCUS.md`, forbidden work blocks MCP expansion / QLoRA / proactive nudging. Ready for Phase 3 (runtime utilities, eval dashboard) or your next instruction.
 
-**Learning:** ToolRuntime adapter pattern (`register_base_tool()`) allows gradual migration from BaseTool without breaking existing callers. HTTPExecutor now functional with `requests`. Free research router (`src/tools/research/free_router.py`) implements multi-layer fallback without new infrastructure.
+**Learning:** ToolRuntime adapter pattern (`register_base_tool()`) allows gradual migration from BaseTool without breaking existing callers. HTTPExecutor now functional with `httpx`. Free research router (`src/tools/research/free_router.py`) implements multi-layer fallback without new infrastructure.
 
 
 ---
@@ -392,3 +392,178 @@ A  "docs/archive/2026-04-27-tree
 ```
 
 **Budget:** Groq: 44 req (free) | OR: $0.0060/$1.00 | Claude CLI: $0.0000/$5.00
+
+
+---
+## KittyBuilder — 2026-05-06 11:45
+
+Session (no actions logged).
+
+**Dirty tree:**
+```
+M .kittybuilder_session.json
+ M CURRENT_FOCUS.md
+ M SESSION_SUMMARY.md
+ M TASKS.md
+ M docs/OPEN_LOOPS.md
+ M docs/STANDUP.md
+ M docs/TASKS.md
+ M docs/handoffs/HANDOFF-2026-05-06.md
+ M project.json
+ M requirements.txt
+ M scripts/kitty_builder.py
+ M src/tools/runtime.py
+ M tests/test_tool_runtime.py
+```
+
+**Budget:** Groq: 0 req (free) | OR: $0.0100/$1.00 | Claude CLI: $0.0000/$5.00
+
+
+---
+## KittyBuilder — 2026-05-06 11:52
+
+Session actions:
+- spec latch: specs/unified-command-system-candidate-c.spec.md
+
+**Dirty tree:**
+```
+M .kittybuilder_session.json
+ M CURRENT_FOCUS.md
+ M SESSION_SUMMARY.md
+ M TASKS.md
+ M docs/OPEN_LOOPS.md
+ M docs/STANDUP.md
+ M docs/TASKS.md
+ M docs/handoffs/HANDOFF-2026-05-06.md
+ M garage-ui/app/components/CommandPalette.tsx
+ M garage-ui/app/page.tsx
+ M project.json
+ M requirements.txt
+ M scripts/kitty_builder.py
+ M src/tools/runtime.py
+ M tests/conftest.py
+ M tests/test_tool_runtime.py
+?? specs
+```
+
+**Budget:** Groq: 0 req (free) | OR: $0.0100/$1.00 | Claude CLI: $0.0000/$5.00
+
+
+---
+## KittyBuilder — 2026-05-06 11:53
+
+Session actions:
+- spec latch: specs/unified-command-system-candidate-c.spec.md
+
+**Dirty tree:**
+```
+M .kittybuilder_session.json
+ M CURRENT_FOCUS.md
+ M SESSION_SUMMARY.md
+ M TASKS.md
+ D docs/KITTY_CONTEXT.md
+ M docs/OPEN_LOOPS.md
+ M docs/STANDUP.md
+ D docs/TASKS.md
+ M docs/handoffs/HANDOFF-2026-05-06.md
+ M garage-ui/app/components/CommandPalette.tsx
+ M garage-ui/app/page.tsx
+ M project.json
+ M requirements.txt
+ M scripts/kitty_builder.py
+ M src/tools/runtime.py
+ M tests/conftest.py
+ M tests/test
+```
+
+**Budget:** Groq: 0 req (free) | OR: $0.0100/$1.00 | Claude CLI: $0.0000/$5.00
+
+
+---
+## KittyBuilder — 2026-05-06 11:54
+
+Session actions:
+- spec latch: specs/unified-command-system-candidate-c.spec.md
+
+**Dirty tree:**
+```
+M .kittybuilder_session.json
+ M CURRENT_FOCUS.md
+ M SESSION_SUMMARY.md
+ M TASKS.md
+ D docs/KITTY_CONTEXT.md
+ M docs/OPEN_LOOPS.md
+ M docs/STANDUP.md
+ D docs/TASKS.md
+ M docs/handoffs/HANDOFF-2026-05-06.md
+ M garage-ui/app/components/CommandPalette.tsx
+ M garage-ui/app/page.tsx
+ M project.json
+ M requirements.txt
+ M scripts/kitty_builder.py
+ M src/tools/runtime.py
+ M tests/conftest.py
+ M tests/test
+```
+
+**Budget:** Groq: 0 req (free) | OR: $0.0100/$1.00 | Claude CLI: $0.0000/$5.00
+
+
+---
+## KittyBuilder — 2026-05-06 11:55
+
+Session actions:
+- spec latch: specs/unified-command-system-candidate-c.spec.md
+
+**Dirty tree:**
+```
+M .kittybuilder_session.json
+ M CURRENT_FOCUS.md
+ M SESSION_SUMMARY.md
+ M TASKS.md
+ D docs/KITTY_CONTEXT.md
+ M docs/OPEN_LOOPS.md
+ M docs/STANDUP.md
+ D docs/TASKS.md
+ M docs/handoffs/HANDOFF-2026-05-06.md
+ M garage-ui/app/components/CommandPalette.tsx
+ M garage-ui/app/page.tsx
+ M project.json
+ M requirements.txt
+ M scripts/kitty_builder.py
+ M src/tools/runtime.py
+ M tests/conftest.py
+ M tests/test
+```
+
+**Budget:** Groq: 0 req (free) | OR: $0.0100/$1.00 | Claude CLI: $0.0000/$5.00
+
+
+---
+## KittyBuilder — 2026-05-06 12:10
+
+Session actions:
+- session start (/start)
+
+**Dirty tree:**
+```
+M .claude/skills/audit/SKILL.md
+ M .kittybuilder_session.json
+ M CURRENT_FOCUS.md
+ M SESSION_SUMMARY.md
+ M TASKS.md
+ M config/kitty_settings.json
+ M crush.json
+ D docs/KITTY_CONTEXT.md
+ M docs/OPEN_LOOPS.md
+ M docs/STANDUP.md
+ D docs/TASKS.md
+ M docs/handoffs/HANDOFF-2026-05-06.md
+ M garage-ui/app/components/CommandPalette.tsx
+ M garage-ui/app/page.tsx
+ M project.json
+ M requirements.txt
+ M script
+```
+
+**Budget:** Groq: 0 req (free) | OR: $0.0100/$1.00 | Claude CLI: $0.0000/$5.00

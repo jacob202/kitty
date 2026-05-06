@@ -13,14 +13,20 @@ set -euo pipefail
 
 STRICT_CHAT="${GOLDEN_DEMO_STRICT_CHAT:-0}"
 BASE_URL="${KITTY_BASE_URL:-http://localhost:5001}"
+SKIP_TESTS="${GOLDEN_DEMO_SKIP_TESTS:-0}"
 
 echo "=== Kitty Golden Demo ==="
 echo "Base URL: ${BASE_URL}"
 echo "Strict chat mode: ${STRICT_CHAT}"
+echo "Skip tests: ${SKIP_TESTS}"
 
 echo "[1/4] Pytest suite..."
-venv/bin/python -m pytest tests/ -q --tb=short
-echo "✅ Tests passed"
+if [[ "${SKIP_TESTS}" == "1" ]]; then
+  echo "⏭️  Skipping pytest (GOLDEN_DEMO_SKIP_TESTS=1)"
+else
+  venv/bin/python -m pytest tests/ -q --tb=short
+  echo "✅ Tests passed"
+fi
 
 echo "[2/4] Route smoke..."
 if ./kitty status 2>&1 | grep -q "running"; then

@@ -15,8 +15,10 @@ from src.tools.runtime import (
     ToolContext,
     ToolResult,
     FunctionExecutor,
+    HTTPExecutor,
     SpecialistExecutor,
     ToolRuntime,
+    register_base_tool,
     get_runtime,
 )
 
@@ -116,6 +118,57 @@ class TestSpecialistExecutor:
 
 
 # ---------------------------------------------------------------------------
+# HTTPExecutor
+# ---------------------------------------------------------------------------
+
+class TestHTTPExecutor:
+    def test_get_uses_httpx_without_blocking_contract(self, monkeypatch):
+        captured = {}
+
+        class DummyResponse:
+            status_code = 200
+            text = '{"ok": true}'
+
+            def raise_for_status(self):
+                return None
+
+        class DummyClient:
+            def __init__(self, timeout=None):
+                captured["timeout"] = timeout
+
+            async def __aenter__(self):
+                captured["entered"] = True
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                captured["exited"] = True
+                return False
+
+            async def get(self, url, params=None, headers=None):
+                captured["method"] = "GET"
+                captured["url"] = url
+                captured["params"] = params
+                captured["headers"] = headers
+                return DummyResponse()
+
+        monkeypatch.setattr("httpx.AsyncClient", DummyClient)
+
+        td = ToolDefinition(name="http", description="", kind=ToolKind.HTTP, http_endpoint="https://example.com/api")
+        ctx = _make_context()
+        result = asyncio.run(HTTPExecutor().execute(td, {"method": "GET", "params": {"q": "x"}, "headers": {"X-Test": "1"}, "timeout": 5}, ctx))
+
+        assert result.ok is True
+        assert result.result == {"status_code": 200, "body": '{"ok": true}'}
+        assert captured["entered"] is True
+        assert captured["exited"] is True
+        assert captured["method"] == "GET"
+        assert captured["url"] == "https://example.com/api"
+        assert captured["params"] == {"q": "x"}
+        assert captured["headers"] == {"X-Test": "1"}
+        assert captured["timeout"] == 5
+
+
+# ---------------------------------------------------------------------------
 # ToolRuntime
 # ---------------------------------------------------------------------------
 
@@ -211,6 +264,26 @@ class TestToolRuntime:
         results = asyncio.run(self.rt.execute_batch(calls, ctx))
         assert len(results) == 2
         assert all(r.ok for r in results)
+
+    def test_register_base_tool_invokes_execute_once(self):
+        calls = {"count": 0}
+
+        class DummyTool:
+            name = "dummy_tool"
+            description = "Dummy tool"
+            command = "/dummy"
+
+            def execute(self, **kwargs):
+                calls["count"] += 1
+                return ToolResult(ok=True, tool=self.name, args=kwargs, result={"ok": True})
+
+        register_base_tool(self.rt, DummyTool)
+        ctx = _make_context()
+        result = asyncio.run(self.rt.execute("dummy_tool", {"value": 1}, ctx))
+
+        assert result.ok is True
+        assert result.result == {"ok": True}
+        assert calls["count"] == 1
 
 
 # ---------------------------------------------------------------------------

@@ -977,8 +977,10 @@ def delegate_fast_path(monkeypatch):
     """Avoid scout/web/git during delegate() unit tests."""
     monkeypatch.setattr(kb, "github_scout", lambda task: "")
     monkeypatch.setattr(kb, "_worker_context", lambda task: f"CTX:{task}")
+    monkeypatch.setattr(kb, "_delegate_packet_for_task", lambda task: {})
     monkeypatch.setattr(kb, "_git_snapshot", lambda: set())
     monkeypatch.setattr(kb, "_delegate_git_diff_stat_suffix", lambda: "")
+    monkeypatch.setattr(kb, "record_builder_recommendation", lambda **kwargs: None)
     # subprocess.run uses Popen internally; patching Popen breaks git invocations.
     def _fake_run(*args, **kwargs):
         cmd = kwargs.get("args") or (args[0] if args else [])
@@ -1094,6 +1096,53 @@ def test_delegate_nonzero_exit_reports_failure(delegate_fast_path, monkeypatch):
     summary = kb.delegate("crush", "sync maps")
     assert "FAILED" in summary
     assert "exit code 1" in summary
+
+
+def test_delegate_includes_next_agent_packet_context(monkeypatch):
+    captured: dict = {}
+    monkeypatch.setattr(kb, "github_scout", lambda task: "")
+    monkeypatch.setattr(kb, "_worker_context", lambda task: f"CTX:{task}")
+    monkeypatch.setattr(
+        kb,
+        "_delegate_packet_for_task",
+        lambda task: {"schema_version": "builder_handoff.v1", "objective": "Ship thing"},
+    )
+    monkeypatch.setattr(kb, "_git_snapshot", lambda: set())
+    monkeypatch.setattr(kb, "_delegate_git_diff_stat_suffix", lambda: "")
+    monkeypatch.setattr(kb, "record_builder_recommendation", lambda **kwargs: None)
+
+    class _FakeStdout:
+        __slots__ = ("_lines",)
+
+        def __init__(self, lines: list[str]):
+            self._lines = lines
+
+        def __iter__(self):
+            return iter(self._lines)
+
+    class FakeProc:
+        returncode = 0
+
+        def __init__(self):
+            self.stdout = _FakeStdout(["worker-line\n"])
+
+        def wait(self, timeout=None):
+            return None
+
+        def kill(self):
+            pass
+
+    def fake_popen(args, **kwargs):
+        captured["args"] = list(args)
+        return FakeProc()
+
+    monkeypatch.setattr(kb.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(kb, "_delegate_argv", lambda cli, ctx: ["/fake/bin/crush", "run", ctx])
+
+    summary = kb.delegate("crush", "sync maps")
+    assert "Done (exit 0)" in summary
+    assert "NEXT_AGENT_PACKET_JSON" in captured["args"][-1]
+    assert "schema_version" in captured["args"][-1]
 
 
 def test_parse_brain_order_defaults(monkeypatch):
@@ -1250,3 +1299,37 @@ def test_builder_session_start_brief_has_core_sections(monkeypatch):
     assert "Budget:" in text
     assert "CURRENT_FOCUS" in text
     assert "## Recommended Next Steps" in text
+
+
+def test_compile_builder_request_returns_brief(tmp_path, monkeypatch):
+    monkeypatch.setattr(kb, "PROJECT_ROOT", tmp_path)
+    (tmp_path / "CURRENT_FOCUS.md").write_text("# Current Focus\n", encoding="utf-8")
+    text = kb.compile_builder_request("continue command system and verify")
+    assert "recommended_execution_mode" in text
+    assert "normalized_goal" in text
+    assert "next_agent_packet" in text
+
+
+def test_worker_health_summary_marks_missing(monkeypatch):
+    monkeypatch.setattr(kb, "_DELEGATE_ORDER", ("definitely-missing-worker",))
+    text = kb.worker_health_summary()
+    assert "definitely-missing-worker" in text
+    assert "missing" in text.lower()
+
+
+def test_record_builder_recommendation_writes_ledger(tmp_path, monkeypatch):
+    target = tmp_path / "builder_evidence.jsonl"
+    monkeypatch.setattr(kb, "BUILDER_EVIDENCE_FILE", target)
+    kb.record_builder_recommendation(
+        raw_input="continue command work",
+        outcome="compiled",
+        workers=["single_worker"],
+        commands_run=["bash scripts/run_gates.sh"],
+        risks=[],
+        next_agent_packet={"schema_version": "builder_handoff.v1", "objective": "x"},
+    )
+    assert target.exists()
+    content = target.read_text(encoding="utf-8")
+    assert "continue command work" not in content
+    assert "compiled" in content
+    assert "next_agent_packet" in content

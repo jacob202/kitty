@@ -34,6 +34,9 @@ Older docs may mention `kitty-system/kitty-app` or a “migrated” workspace. T
 | `docs/audits/` | Reports and inventories |
 | `docs/plans/`, `docs/superpowers/plans/` | Planning drafts (verify against decisions before implementing) |
 | `docs/plans/phase2-build-plan-meta-analysis-2026-05-06.md` | Phase 2 quality/token analysis and hardening rationale |
+| `docs/plans/kittybuilder-effectiveness-meta-analysis-2026-05-06.md` | Approved KittyBuilder effectiveness/context-engineering meta-analysis |
+| `docs/plans/kittybuilder-effectiveness-research-sources-2026-05-06.md` | Source links and takeaways for KittyBuilder agent/orchestration research |
+| `docs/superpowers/plans/2026-05-06-kittybuilder-intent-compiler.md` | Implementation plan for Intent Compiler, Context Compiler, health preflight, and Evidence Ledger |
 | `docs/superpowers/plans/2026-05-phase2-low-capability-execution.md` | Deterministic low-capability execution packet for `2C` |
 | `specs/` | Approved work specs |
 

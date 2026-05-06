@@ -27,6 +27,7 @@ tavily-python>=0.5
 # Utils
 python-dotenv>=1.0
 httpx>=0.28
+requests>=2.31
 huggingface_hub>=0.20
 json_repair>=0.59
 

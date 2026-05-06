@@ -38,7 +38,7 @@ Last updated: 2026-05-06
   - meta-analysis: `docs/plans/phase2-build-plan-meta-analysis-2026-05-06.md`
   - deterministic execution packet: `docs/superpowers/plans/2026-05-phase2-low-capability-execution.md`
   - workflow integration: `docs/plans/phase2-orchestration-workflow-2026-05-06.md`
-- [x] Phase 2C tool runtime alignment.
+- [x] Phase 2C tool runtime alignment (18 tests, 483 total passing).
 - [x] Phase 2D token optimization infrastructure:
   - `src/core/prompt_cache.py` — PromptCache + SemanticCache (SQLite), `truncate_to_token_budget()`
   - `tests/test_prompt_cache.py` — 11 tests
@@ -50,7 +50,7 @@ Last updated: 2026-05-06
   - Research report: `docs/optimizer/token-optimization-research-2026-05-06.md`
   - Optimizer upgraded: fixed token log parsing, self-review → TODO.md, research pipeline integration
   - Optimizer path fix: `~/.agents/skills/kitty-optimizer/` symlinked into project `.agents/skills/`
-  - Verified: 465 tests pass
+  - Verified: 483 tests pass
 
 ## Verified Done
 

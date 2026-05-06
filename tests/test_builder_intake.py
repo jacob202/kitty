@@ -217,3 +217,49 @@ def test_cli_rejects_write_and_dry_run_together(tmp_path: Path):
     assert result.returncode == 2
     assert "cannot be combined" in result.stderr
     assert not (project / "intake").exists()
+
+
+def test_cli_compile_brief_returns_json(tmp_path: Path):
+    project = write_project(tmp_path)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "builder_intake.py"),
+            "--project",
+            str(project),
+            "--text",
+            "continue unified command system through kittybuilder and verify it works",
+            "--compile-brief",
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0
+    assert "\"recommended_execution_mode\": \"single_worker\"" in result.stdout
+    assert "Classification:" not in result.stdout
+
+
+def test_cli_rejects_compile_brief_with_write(tmp_path: Path):
+    project = write_project(tmp_path)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "builder_intake.py"),
+            "--project",
+            str(project),
+            "--text",
+            "continue unified command system through kittybuilder and verify it works",
+            "--compile-brief",
+            "--write",
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 2
+    assert "cannot be combined" in result.stderr

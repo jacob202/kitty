@@ -32,9 +32,9 @@
     }
   },
   "models": {
-    "primary": "claude-3-5-sonnet",
+    "primary": "anthropic/claude-3.7-sonnet",
     "fallback": "deepseek-chat",
-    "vision": "claude-3-5-sonnet"
+    "vision": "anthropic/claude-3.7-sonnet"
   },
   "ui": {
     "default_theme": "hardware",

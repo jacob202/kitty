@@ -74,6 +74,66 @@ PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+POLICY_FILE = PROJECT_ROOT / "config" / "kittybuilder_orchestrator_policy.json"
+
+_DEFAULT_ORCHESTRATOR_POLICY: dict[str, Any] = {
+    "brain_tier_order": ["openrouter", "mlx", "groq"],
+    "delegate_order": ["gemini", "agent", "claude", "opencode", "aider", "crush", "goose"],
+    "routing": {
+        "max_retries_per_tier": {
+            "openrouter": 4,
+            "groq": 1,
+            "mlx": 1,
+        },
+        "context_budgets": {
+            "history_max_messages": 40,
+            "file_read_max_tokens": 2000,
+        },
+    },
+}
+
+
+def _merge_policy(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    out = dict(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(out.get(key), dict):
+            out[key] = _merge_policy(out[key], value)
+        else:
+            out[key] = value
+    return out
+
+
+def _load_orchestrator_policy() -> dict[str, Any]:
+    if not POLICY_FILE.is_file():
+        return dict(_DEFAULT_ORCHESTRATOR_POLICY)
+    try:
+        raw = json.loads(POLICY_FILE.read_text())
+        if not isinstance(raw, dict):
+            raise ValueError("policy root must be an object")
+        return _merge_policy(_DEFAULT_ORCHESTRATOR_POLICY, raw)
+    except (OSError, json.JSONDecodeError, ValueError) as e:
+        print(f"[KittyBuilder] policy load failed ({POLICY_FILE}): {e}", file=sys.stderr)
+        return dict(_DEFAULT_ORCHESTRATOR_POLICY)
+
+
+ORCHESTRATOR_POLICY = _load_orchestrator_policy()
+
+_policy_brain_order = tuple(
+    t for t in ORCHESTRATOR_POLICY.get("brain_tier_order", []) if t in _BRAIN_TIER_ALIASES
+)
+if _policy_brain_order:
+    _DEFAULT_BRAIN_ORDER = _policy_brain_order
+
+if "KITTY_BUILDER_HISTORY_MAX" not in os.environ:
+    try:
+        HISTORY_MAX_MESSAGES = int(
+            ORCHESTRATOR_POLICY.get("routing", {})
+            .get("context_budgets", {})
+            .get("history_max_messages", HISTORY_MAX_MESSAGES)
+        )
+    except (TypeError, ValueError):
+        pass
+
 
 def _resolve_tool_bin(env_var: str, *default_paths: str) -> Optional[str]:
     """Resolve a CLI binary: env override, then default absolute paths, then PATH."""
@@ -117,11 +177,22 @@ def _apply_history_cap(messages: List[Dict[str, str]], max_msgs: int = HISTORY_M
     else:
         messages[:] = messages[-max_msgs:]
 
-try:
-    from mlx_lm import generate, load, stream_generate
-    from mlx_lm.sample_utils import make_sampler
-except ModuleNotFoundError:
-    generate = load = stream_generate = make_sampler = None
+generate = load = stream_generate = make_sampler = None
+def _try_import_mlx() -> None:
+    """Best-effort MLX import. Keeps startup safe in headless/sandboxed sessions."""
+    global generate, load, stream_generate, make_sampler
+    if load is not None:
+        return
+    try:
+        from mlx_lm import generate as _g, load as _l, stream_generate as _sg
+        from mlx_lm.sample_utils import make_sampler as _ms
+        generate, load, stream_generate, make_sampler = _g, _l, _sg, _ms
+    except Exception:
+        generate = load = stream_generate = make_sampler = None
+
+
+if os.environ.get("KITTY_ENABLE_LOCAL_MLX", "").strip().lower() in ("1", "true", "yes"):
+    _try_import_mlx()
 
 from src.utils.security_scanner import scan_text
 
@@ -277,6 +348,8 @@ def get_model(model_id: str, retries: int = 2, *, force_local: bool = False):
     """
     if not force_local and USE_OPENROUTER and _openrouter_client:
         return ("openrouter", model_id)
+    if load is None:
+        _try_import_mlx()
     if load is None:
         raise RuntimeError("MLX is not installed. Use OpenRouter or install mlx_lm for local model mode.")
     if model_id in _model_cache:
@@ -1349,26 +1422,72 @@ def scan_project_health() -> str:
 def suggest_next_steps() -> str:
     """Suggest the best next steps based on current state."""
     state = session.project_state
-    p = state.get("progress", {})
+    recommendations: list[str] = []
 
-    recommendations = []
+    latched_spec = state.get("builder_spec_path") if isinstance(state, dict) else None
+    goal = state.get("goal_verify") if isinstance(state, dict) else None
+
+    stop = {
+        "spec", "specs", "with", "from", "over", "this", "that", "goal",
+        "verify", "quality", "output", "prioritize", "candidate",
+    }
+    keywords: set[str] = set()
+    if latched_spec:
+        for word in re.findall(r"[a-z]{4,}", Path(str(latched_spec)).stem.lower()):
+            if word not in stop:
+                keywords.add(word)
+    if goal:
+        for word in re.findall(r"[a-z]{4,}", goal.lower()):
+            if word not in stop:
+                keywords.add(word)
+
+    if latched_spec:
+        recommendations.append(f"Start with latched spec: `{latched_spec}`")
+    if goal:
+        recommendations.append(f"Keep this verification goal active: {goal}")
 
     # Find incomplete milestones
     for m in state.get("milestones", []):
         if m.get("status") == "doing" and m.get("tasks"):
             task = m["tasks"][0]
-            recommendations.append(f"1. Finish: {task} (Milestone: {m['title']})")
+            recommendations.append(f"Finish active milestone task: {task} (Milestone: {m['title']})")
+            break
 
-    # Check backlog
-    if state.get("backlog"):
-        recommendations.append(f"2. Pick from backlog: {state['backlog'][0]}")
+    # Check backlog, preferring entries that match latched spec/goal keywords.
+    backlog = state.get("backlog") or []
+    if backlog:
+        picked = None
+        if keywords:
+            for item in backlog:
+                low = str(item).lower()
+                if any(k in low for k in keywords):
+                    picked = item
+                    break
+        if picked is None and not latched_spec:
+            picked = backlog[0]
+        if picked is not None:
+            recommendations.append(f"Pick backlog item: {picked}")
 
-    # Open TODOs
+    # Open TODOs, preferring entries related to current spec/goal.
     todos = state.get("open_todos", [])
     if todos:
-        recommendations.append(f"3. Address TODO: {todos[0]['text'][:50]}")
+        picked_todo = None
+        if keywords:
+            for t in todos:
+                txt = str(t.get("text", "")).lower()
+                if any(k in txt for k in keywords):
+                    picked_todo = t
+                    break
+        if picked_todo is None and not latched_spec:
+            picked_todo = todos[0]
+        if picked_todo is not None:
+            recommendations.append(f"Address TODO: {picked_todo.get('text', '')[:80]}")
 
-    return "## Recommended Next Steps\n\n" + "\n\n".join(recommendations) if recommendations else "No specific recommendations - project looks good!"
+    if not recommendations:
+        return "No specific recommendations - project looks good!"
+
+    lines = [f"{idx}. {item}" for idx, item in enumerate(recommendations, start=1)]
+    return "## Recommended Next Steps\n\n" + "\n\n".join(lines)
 
 
 def _git_short_status_for_brief(*, max_lines: int = 18) -> tuple[int, str]:
@@ -1648,6 +1767,7 @@ TOOLS = {
 # ------------------------------------------------------------
 BUDGET_FILE = PROJECT_ROOT / ".kitty_builder_budget.json"
 TOKEN_USAGE_FILE = PROJECT_ROOT / "data" / "kitty_token_log.jsonl"
+BUILDER_EVIDENCE_FILE = PROJECT_ROOT / "data" / "builder_evidence.jsonl"
 
 class BudgetManager:
     """Daily spend ledger with atomic persistence + hard-cap enforcement.
@@ -1944,8 +2064,56 @@ def get_builder_budget() -> str:
     )
 
 
+def compile_builder_request(text: str) -> str:
+    """Compile a raw request into a structured brief without writing files."""
+    from src.builder.intent_compiler import compile_intent
+
+    brief = compile_intent(PROJECT_ROOT, text)
+    return json.dumps(brief.to_dict(), indent=2)
+
+
+def worker_health_summary() -> str:
+    """Return a read-only health summary for configured delegate workers."""
+    from src.builder.worker_health import check_worker_health
+
+    lines = ["Worker health:"]
+    for name in _DELEGATE_ORDER:
+        result = check_worker_health(name)
+        state = "available" if result.available else "missing"
+        detail = result.path or result.reason or "unknown"
+        lines.append(f"- {result.name}: {state} ({detail})")
+    return "\n".join(lines)
+
+
+def record_builder_recommendation(
+    *,
+    raw_input: str,
+    outcome: str,
+    workers: list[str],
+    commands_run: list[str],
+    risks: list[str],
+    next_agent_packet: dict[str, object] | None = None,
+) -> None:
+    """Append a minimal recommendation row to the builder evidence ledger."""
+    from src.builder.evidence_ledger import append_evidence
+
+    append_evidence(
+        BUILDER_EVIDENCE_FILE,
+        run_id=datetime.now().strftime("builder-%Y%m%dT%H%M%S"),
+        raw_input_hash=hashlib.sha256(raw_input.encode("utf-8")).hexdigest(),
+        outcome=outcome,
+        workers=workers,
+        files_changed=[],
+        commands_run=commands_run,
+        risks=risks,
+        next_agent_packet=next_agent_packet or {},
+    )
+
+
 TOOLS["get_builder_budget"] = get_builder_budget
 TOOLS["get_builder_token_usage"] = get_builder_token_usage
+TOOLS["compile_builder_request"] = compile_builder_request
+TOOLS["worker_health_summary"] = worker_health_summary
 
 # ------------------------------------------------------------
 # BRAIN — configurable tier order (KITTY_BUILDER_BRAIN_ORDER)
@@ -2073,7 +2241,11 @@ def _stream_brain(messages: list) -> str:
 # WORKER DISPATCH — stream any CLI to Jacob's terminal
 # ------------------------------------------------------------
 
-_DELEGATE_ORDER = ("claude", "gemini", "opencode", "aider", "crush", "agent", "goose")
+_DELEGATE_ALIASES = ("claude", "gemini", "opencode", "aider", "crush", "agent", "goose")
+_policy_delegate_order = tuple(
+    c for c in ORCHESTRATOR_POLICY.get("delegate_order", []) if c in _DELEGATE_ALIASES
+)
+_DELEGATE_ORDER = _policy_delegate_order or _DELEGATE_ALIASES
 
 
 def _delegate_argv(cli: str, ctx: str) -> Optional[list[str]]:
@@ -2142,6 +2314,51 @@ def _worker_context(task: str) -> str:
     lines.append(f"\nTask: {task}")
     return "\n".join(lines)
 
+
+def _delegate_packet_enabled() -> bool:
+    raw = os.environ.get("KITTY_BUILDER_DELEGATE_PACKET", "1").strip().lower()
+    return raw not in ("0", "false", "no")
+
+
+def _delegate_packet_for_task(task: str) -> dict[str, object]:
+    if not _delegate_packet_enabled():
+        return {}
+    try:
+        from src.builder.intent_compiler import compile_intent
+
+        brief = compile_intent(PROJECT_ROOT, task)
+        packet = brief.next_agent_packet if isinstance(brief.next_agent_packet, dict) else {}
+        return packet
+    except Exception as e:
+        print(f"[Worker] delegate packet compile failed: {e}", file=sys.stderr)
+        return {}
+
+
+def _delegate_context_with_packet(base_ctx: str, packet: dict[str, object]) -> str:
+    if not packet:
+        return base_ctx
+    # Keep packet compact and deterministic for downstream workers.
+    slim: dict[str, object] = {
+        "schema_version": packet.get("schema_version", "builder_handoff.v1"),
+        "stage": packet.get("stage", "intent_compiled"),
+        "objective": packet.get("objective", ""),
+        "recommended_mode": packet.get("recommended_mode", ""),
+        "must_do": packet.get("must_do", []),
+        "must_not_do": packet.get("must_not_do", []),
+        "context_targets": packet.get("context_targets", []),
+        "validation_commands": packet.get("validation_commands", []),
+        "blocking_question": packet.get("blocking_question", ""),
+        "output_contract": packet.get("output_contract", []),
+        "next_prompt": packet.get("next_prompt", ""),
+    }
+    blob = json.dumps(slim, sort_keys=True)
+    return (
+        f"{base_ctx}\n\n"
+        "---\n"
+        "NEXT_AGENT_PACKET_JSON:\n"
+        f"{blob}\n"
+    )
+
 def delegate(cli: str, task: str) -> str:
     if cli not in _DELEGATE_ORDER:
         return f"Unknown worker '{cli}'. Available: {', '.join(_DELEGATE_ORDER)}"
@@ -2153,9 +2370,18 @@ def delegate(cli: str, task: str) -> str:
         if scout:
             print(f"\n[Scout] Potentially relevant:\n{scout}\n")
 
-    ctx = _worker_context(task)
+    packet = _delegate_packet_for_task(task)
+    ctx = _delegate_context_with_packet(_worker_context(task), packet)
     cmd = _delegate_argv(cli, ctx)
     if cmd is None:
+        record_builder_recommendation(
+            raw_input=task,
+            outcome="delegate_missing_binary",
+            workers=[cli],
+            commands_run=[],
+            risks=["worker binary missing"],
+            next_agent_packet=packet,
+        )
         return (
             f"[{cli.upper()}] CLI binary not found. Install it or set the matching "
             f"KITTY_*_BIN environment variable (see `scripts/kitty_builder.py` probe)."
@@ -2190,6 +2416,14 @@ def delegate(cli: str, task: str) -> str:
         except KeyboardInterrupt:
             proc.terminate()
             print(f"\n[{cli.upper()}] Interrupted.")
+            record_builder_recommendation(
+                raw_input=task,
+                outcome="delegate_interrupted",
+                workers=[cli],
+                commands_run=[cmd[0]],
+                risks=["worker interrupted"],
+                next_agent_packet=packet,
+            )
             return "Worker interrupted." + _delegate_git_diff_stat_suffix()
         try:
             proc.wait(timeout=DELEGATE_TIMEOUT_SEC)
@@ -2200,6 +2434,14 @@ def delegate(cli: str, task: str) -> str:
             except subprocess.TimeoutExpired:
                 proc.kill()
             log.warning("delegate timeout cli=%s after %ss", cli, DELEGATE_TIMEOUT_SEC)
+            record_builder_recommendation(
+                raw_input=task,
+                outcome="delegate_timeout",
+                workers=[cli],
+                commands_run=[cmd[0]],
+                risks=[f"worker timed out after {DELEGATE_TIMEOUT_SEC:.0f}s"],
+                next_agent_packet=packet,
+            )
             return (
                 f"[{cli.upper()}] Timed out after {DELEGATE_TIMEOUT_SEC:.0f}s — process killed."
                 + _delegate_git_diff_stat_suffix()
@@ -2230,11 +2472,35 @@ def delegate(cli: str, task: str) -> str:
             summary = f"[{cli.upper()}] Done (exit {rc})."
         if changed:
             summary += f" Changed: {', '.join(sorted(changed)[:5])}"
+        record_builder_recommendation(
+            raw_input=task,
+            outcome="delegate_success" if rc == 0 else "delegate_failed",
+            workers=[cli],
+            commands_run=[" ".join(cmd[:2]) if len(cmd) >= 2 else cmd[0]],
+            risks=[] if rc == 0 else [f"worker exit code {rc}"],
+            next_agent_packet=packet,
+        )
         budget.save()
         return summary + _delegate_git_diff_stat_suffix()
     except FileNotFoundError:
+        record_builder_recommendation(
+            raw_input=task,
+            outcome="delegate_not_found",
+            workers=[cli],
+            commands_run=[],
+            risks=["worker executable not found"],
+            next_agent_packet=packet,
+        )
         return f"[{cli.upper()}] Not found — check installation."
     except Exception as e:
+        record_builder_recommendation(
+            raw_input=task,
+            outcome="delegate_error",
+            workers=[cli],
+            commands_run=[],
+            risks=[str(e)],
+            next_agent_packet=packet,
+        )
         return f"[{cli.upper()}] Error: {e}"
 
 # ------------------------------------------------------------
@@ -2942,21 +3208,26 @@ def show_models():
 
 
 def show_help():
+    delegate_list = " | ".join(_DELEGATE_ORDER)
+    brain_default = ",".join(_DEFAULT_BRAIN_ORDER)
     print(
         "\n--- Kitty Builder V3 Commands ---\n"
         "  /start                   Session opener: git + CURRENT_FOCUS + budget + next steps\n"
         "  /spec <path>             Latch an approved spec file for this session (stay-in-scope hint)\n"
         "  /spec show             Show latched spec path\n"
         "  /spec clear            Clear latched spec\n"
+        "  /policy                 Show active orchestrator policy (tiers, delegate order, budgets)\n"
         "  /help                    Show this help\n"
         "  /health                  Scan project health\n"
         "  /next                    Suggest next steps\n"
         "  /budget / budget        REAL ledger (Groq/OR/Claude CLI caps) — same data as get_builder_budget()\n"
         "  /tokens                 Today's token telemetry summary from data/kitty_token_log.jsonl\n"
+        "  /compile <request>      Compile raw request into a structured BuilderBrief (read-only)\n"
+        "  /workers                Check delegate worker binary health (read-only)\n"
         "  /probe                   Re-probe all tools / auth status\n"
         "  /test  /gates            Run scripts/run_gates.sh (tests)\n"
         "  /delegate <cli> <task>   Stream task to CLI worker\n"
-        "                           cli: claude | gemini | opencode | aider | crush | agent | goose\n"
+        f"                           cli: {delegate_list}\n"
         "  /scout <query>           Search GitHub for existing tools first\n"
         "  /improve                 Self-improvement: test, audit, grade, feedback\n"
         "  /models                  Show active Brain model and VRAM state\n"
@@ -2975,14 +3246,15 @@ def show_help():
         "\nCLI flags: --plan-only (or KITTY_BUILDER_PLAN_ONLY=1) for read-only interactive sessions.\n"
         "Env: KITTY_*_BIN for worker paths, KITTY_BUILDER_DELEGATE_TIMEOUT_SEC, KITTY_BUILDER_HISTORY_MAX; "
         "KITTY_BUILDER_DELEGATE_DIFF=0 disables git diff --stat after delegate.\n"
-        "Brain: KITTY_BUILDER_BRAIN_ORDER=openrouter,mlx,groq (default). Put mlx first for local-first; "
+        f"Brain: KITTY_BUILDER_BRAIN_ORDER={brain_default} (default/policy). Put mlx first for local-first; "
         "use groq,openrouter,mlx only if Groq is stable for you.\n"
         "Groq: set KITTY_BUILDER_DISABLE_GROQ=1 to skip Groq (no probe spam) while keeping GROQ_API_KEY.\n"
         "Budget: KITTY_BUDGET_OR_ESTIMATE_USD (preflight per paid OpenRouter call, default 0.002); "
         "KITTY_BUDGET_GROQ_MAX_REQUESTS (optional daily Groq cap, 0=unlimited).\n"
         "\nBrain tiers (default order): OpenRouter → local MLX → Groq (last)\n"
         "Free pool rotates on 429/503. Set OPENROUTER_FREE_MODELS or OPENROUTER_PAID_FALLBACK to customize.\n"
-        "Workers drain subscriptions first: gemini → agent → claude → opencode → aider → crush → goose\n"
+        f"Workers priority order: {' → '.join(_DELEGATE_ORDER)}\n"
+        f"Policy file: {POLICY_FILE}\n"
     )
 
 # ------------------------------------------------------------
@@ -3145,6 +3417,10 @@ def interactive_main(plan_only: bool = False):
                 print(budget.per_model_summary())
             elif inp.lower() == "/tokens":
                 print(get_builder_token_usage())
+            elif inp.startswith("/compile "):
+                print(compile_builder_request(inp.removeprefix("/compile ").strip()))
+            elif inp.lower() in ("/workers", "workers"):
+                print(worker_health_summary())
             elif inp.lower() == "/probe":
                 probe_tools()
             elif inp.lower() == "/freepool":

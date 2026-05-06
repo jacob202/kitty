@@ -1,0 +1,4 @@
+{"input":"clean up everything and make it better","expected_mode":"human_question"}
+{"input":"continue unified command system through kittybuilder and verify it works","expected_mode":"single_worker"}
+{"input":"research context engineering and summarize only","expected_mode":"scout"}
+
