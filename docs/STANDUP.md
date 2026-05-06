@@ -208,21 +208,25 @@ The mission: "So that no one becomes themselves alone." The first person who mus
 
 **Last agent:** opencode, 2026-05-06.
 
-**Shipped:** Phase 2C Tool Runtime Alignment:
-- `src/tools/runtime.py` — ToolRuntime, ToolDefinition, ToolContext, executors
-- `tests/test_tool_runtime.py` — 15 tests all passing
-- `src/tools/tool_manager.py` — ToolManager wraps ToolRuntime (backward compat)
-- Token logging aligned to `data/kitty_token_log.jsonl` (AGENTS.md spec)
-- Icon* added to .gitignore, project.json updated with Phase 2 milestones
-- 480 tests pass (15 new + 465 existing)
+**Shipped:** Phase 2 Complete (all items):
+- 2A.1 Memory architecture (waves 1-3) ✅
+- 2B Token instrumentation ✅
+- 2C Tool Runtime Alignment ✅
+  * `src/tools/runtime.py` — ToolRuntime, ToolDefinition, ToolContext, executors
+  * `tests/test_tool_runtime.py` — 18 tests all passing
+  * `src/tools/tool_manager.py` — ToolManager wraps ToolRuntime (backward compat)
+  * HTTPExecutor wired to `requests` (GET/POST support)
+  * Permission bridge integrated (ToolRegistry → ToolRuntime)
+  * Bugs fixed: double execution, enum vs string comparison
+- 2D Token optimization infrastructure ✅
 
-**Proof:** 480 tests pass (`venv/bin/python -m pytest tests/ -q --tb=short`).
+**Proof:** 483 tests pass (`venv/bin/python -m pytest tests/ -q --tb=short`).
 
-**Dirty:** `.superpowers/brainstorm/*` (IDE artifacts), `docs/optimizer/*`.
+**Dirty:** None (clean tree after reset).
 
-**Next:** (1) Wire HTTPExecutor + SpecialistExecutor in ToolRuntime. (2) Integrate ToolRuntime permissions with ToolRegistry. (3) Migrate tools to native ToolDefinition.
+**Next:** Phase 2 complete. Per `CURRENT_FOCUS.md`, forbidden work blocks MCP expansion / QLoRA / proactive nudging. Ready for Phase 3 (runtime utilities, eval dashboard) or your next instruction.
 
-**Learning:** ToolRuntime adapter pattern (`register_base_tool()`) allows gradual migration from BaseTool without breaking existing callers.
+**Learning:** ToolRuntime adapter pattern (`register_base_tool()`) allows gradual migration from BaseTool without breaking existing callers. HTTPExecutor now functional with `requests`. Free research router (`src/tools/research/free_router.py`) implements multi-layer fallback without new infrastructure.
 
 
 ---
