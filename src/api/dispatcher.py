@@ -328,13 +328,18 @@ def _ensure_commands_registered(sup):
             "plan       ideate → design → grill → zoom-out",
             "build      find → test → implement → review → verify",
             "ship       demo → checklist → gate → go/no-go",
-            "optimize   token audit → compression → report",
+            "optimize   token audit → compression → report (Intent Compiler)",
+            "cleanup    dead code → drift → sandbox (Evidence Ledger)",
             "handoff    capture → accounting → update docs → commit",
             "",
             "── CLI Tools ──",
             "firecrawl       web search + scrape",
             "agent-browser   browser automation",
             "ast-grep        code search",
+            "",
+            "── Commands ──",
+            "/optimize       Run optimize pipeline (src → evidence)",
+            "/cleanup        Run cleanup pipeline (dead code + drift)",
             "",
             f"Use /skill <name> to load one into context. {len(_loaded_skills)}/{_MAX_LOADED_SKILLS} loaded.",
         ]
@@ -387,6 +392,83 @@ def _ensure_commands_registered(sup):
             lines.append(f"  · {name}")
         return CommandResult(success=True, message="\n".join(lines))
 
+    def handle_optimize(args: str, **ctx):
+        """Run Kittybuilder optimize pipeline."""
+        import subprocess
+        target = args.strip() or "src/"
+        result = subprocess.run(
+            ["python3", "scripts/kittybuilder_optimize.py", target, "--scope", "standard"],
+            capture_output=True,
+            text=True,
+            cwd=PROJECT,
+            timeout=180,
+        )
+        output = (result.stdout + result.stderr).strip()
+        if result.returncode == 0:
+            return CommandResult(success=True, message=f"✅ Optimize complete for {target}\n\n{output[-2000:]}")
+        return CommandResult(success=False, error=f"Optimize failed: {output[-500:]}")
+
+    def handle_cleanup(args: str, **ctx):
+        """Run Kittybuilder cleanup pipeline."""
+        import subprocess
+        scope = args.strip() or "dead:all,drift:api"
+        result = subprocess.run(
+            ["python3", "scripts/kittybuilder_cleanup.py", "--scope", scope, "--sandbox"],
+            capture_output=True,
+            text=True,
+            cwd=PROJECT,
+            timeout=180,
+        )
+        output = (result.stdout + result.stderr).strip()
+        if result.returncode == 0:
+            return CommandResult(success=True, message=f"✅ Cleanup complete\n\n{output[-2000:]}")
+        return CommandResult(success=False, error=f"Cleanup failed: {output[-500:]}")
+
+    def handle_onboarding(args: str, **ctx):
+        """Personal Onboarding Pipeline."""
+        from src.services.onboarding_pipeline import OnboardingPipeline
+        
+        pipeline = OnboardingPipeline()
+        parts = args.strip().split() if args.strip() else []
+        
+        if not parts:
+            status = pipeline.get_status()
+            msg = f"""## Onboarding Pipeline
+
+### Status: {status['state']}
+### Selected domains: {', '.join(status['domains']) or '(none)'}
+### Depth: {status['depth']}
+
+**Usage:**
+/onboarding select audio health automotive
+/onboarding start
+/onboarding status
+/onboarding sources custom_source1 custom_source2
+"""
+            return CommandResult(success=True, message=msg)
+        
+        cmd = parts[0]
+        
+        if cmd == "select":
+            domains = parts[1:]
+            pipeline.select_domains(domains)
+            return CommandResult(success=True, message=f"✅ Domains selected: {', '.join(domains)}")
+        
+        elif cmd == "sources":
+            sources = parts[1:]
+            pipeline.select_sources(sources)
+            return CommandResult(success=True, message=f"✅ Sources set: {', '.join(sources)}")
+        
+        elif cmd == "start":
+            result = pipeline.start()
+            return CommandResult(success=True, message=f"🚀 {result}")
+        
+        elif cmd == "status":
+            status = pipeline.get_status()
+            return CommandResult(success=True, message=f"State: {status['state']}")
+        
+        return CommandResult(success=False, error=f"Unknown: {cmd}. Use select/sources/start/status")
+
     engine.register("help", handle_help, description="Show available commands", category="core")
     engine.register("brief", handle_brief, description="Morning brief — where you left off", category="core")
     engine.register("stuck", handle_stuck, description="ADHD rescue: one concrete next step", category="core")
@@ -400,18 +482,21 @@ def _ensure_commands_registered(sup):
     engine.register("status", handle_status, description="Model, tools, session cost", category="core")
     engine.register("clear", handle_clear, description="Clear conversation history", category="core")
     engine.register("council", handle_council, description="Dynamic expert panel debate", category="core")
-    engine.register("prep", handle_prep, description="Prescriber prep session", category="core", visible=False)
-    engine.register("optic", handle_optic, description="Screenshot + vision/OCR analysis", category="tools", visible=False)
-    engine.register("ocr", handle_ocr, description="OCR from screenshot or image path", category="tools", visible=False)
-    engine.register("repair", handle_repair, description="Hardware repair image analysis", category="tools", visible=False)
-    engine.register("image", handle_image, description="Image analysis with optional question", category="tools", visible=False)
-    engine.register("cal", handle_cal, description="Calendar events list", category="tools", visible=False)
-    engine.register("watch", handle_watch, description="Screen watch start/stop", category="tools", visible=False)
+    engine.register("prep", handle_prep, description="Prescriber prep session", category="core")
+    engine.register("optic", handle_optic, description="Screenshot + vision/OCR analysis", category="tools")
+    engine.register("ocr", handle_ocr, description="OCR from screenshot or image path", category="tools")
+    engine.register("repair", handle_repair, description="Hardware repair image analysis", category="tools")
+    engine.register("image", handle_image, description="Image analysis with optional question", category="tools")
+    engine.register("cal", handle_cal, description="Calendar events list", category="tools")
+    engine.register("watch", handle_watch, description="Screen watch start/stop", category="tools")
     engine.register("skills", handle_skills, description="Show consolidated skill chains", category="core")
     engine.register("skill", handle_skill, description="Load a skill into context", category="core", visible=False)
     engine.register("skill-unload", handle_skill_unload, description="Remove a loaded skill", category="core", visible=False)
     engine.register("skill-clear", handle_skill_clear, description="Clear all loaded skills", category="core", visible=False)
     engine.register("skill-loaded", handle_skill_loaded, description="Show currently loaded skills", category="core", visible=False)
+    engine.register("optimize", handle_optimize, description="Intent Compiler → Build Contract → Multi-agent optimization", category="builder")
+    engine.register("cleanup", handle_cleanup, description="Dead code → drift normalization → sandbox verify", category="builder")
+    engine.register("onboarding", handle_onboarding, description="Personal Onboarding Pipeline - learn user's domains", category="core")
 
 
 def dispatch(

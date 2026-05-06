@@ -74,9 +74,9 @@ def get_stuck_action(root: str | Path | None = None) -> Dict[str, Union[str, Lis
 
     do_not: List[str] = []
     forbidden_match = re.search(
-        r'#+\s*Forbidden work\s*\n(.*?)(?=\n#+|$)',
+        r'(?:#+ )?[Ff]orbidden\s+[Ww]ork:?\s*\n(.*?)(?=\n#+|\Z)',
         focus_content,
-        re.DOTALL | re.IGNORECASE
+        re.DOTALL
     )
     if forbidden_match:
         forbidden_lines = forbidden_match.group(1).strip().split('\n')

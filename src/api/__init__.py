@@ -6,6 +6,7 @@ from .core_routes import core_bp
 from .memory_product_routes import memory_product_bp
 from .memory_routes import memory_bp
 from .news_routes import news_bp
+from .routes.onboarding_routes import onboarding_bp
 from .reasoning_routes import reasoning_bp
 from .settings_routes import settings_bp
 from .streaming_routes import streaming_bp
@@ -24,6 +25,7 @@ __all__ = [
     "memory_product_bp",
     "memory_bp",
     "news_bp",
+    "onboarding_bp",
     "reasoning_bp",
     "settings_bp",
     "streaming_bp",

@@ -12,9 +12,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, List
 
-# Ensure the repository root is in the Python path so that `src` can be imported
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
 # Token optimization: semantic caching
 try:
     sys.path.insert(0, str(Path(__file__).parent.parent))

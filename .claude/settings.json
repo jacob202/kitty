@@ -1,4 +1,22 @@
 {
+  "slashCommands": [
+    {
+      "name": "/optimize",
+      "description": "Intent Compiler → Build Contract → Multi-agent optimization",
+      "command": "python3 scripts/kittybuilder_optimize.py src/ --scope standard 2>&1 | tail -20"
+    },
+    {
+      "name": "/cleanup",
+      "description": "Dead code → drift normalization → sandbox verify",
+      "command": "python3 scripts/kittybuilder_cleanup.py --scope 'dead:all,drift:api' --sandbox 2>&1 | tail -15"
+    },
+{
+  "slashCommands": [
+    {"name": "/optimize", "command": "python3 scripts/kittybuilder_optimize.py src/"},
+    {"name": "/cleanup", "command": "python3 scripts/kittybuilder_cleanup.py"},
+    {"name": "/token-audit", "command": "bash scripts/kitty_token_analytics.sh 2>/dev/null || wc -l data/kitty_token_log.jsonl"},
+    {"name": "/onboarding", "command": "echo 'Use /onboarding select <domains> then /onboarding start from the CLI'"}
+  ],
   "hooks": {
     "postToolUse": [
       {

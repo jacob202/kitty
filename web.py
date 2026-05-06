@@ -46,6 +46,7 @@ from src.api import (
     memory_bp,
     memory_product_bp,
     news_bp,
+    onboarding_bp,
     reasoning_bp,
     settings_bp,
     streaming_bp,
@@ -204,7 +205,7 @@ def create_app() -> tuple[Flask, SocketIO]:
 
     blueprints = [
         ai_dev_bp, bom_bp, core_bp, eval_bp,
-        memory_bp, memory_product_bp, news_bp, reasoning_bp, settings_bp,
+        memory_bp, memory_product_bp, news_bp, onboarding_bp, reasoning_bp, settings_bp,
         streaming_bp, system_bp, voice_bp, brief_bp, commands_bp, quarantine_bp,
     ]
     if enable_experimental_swarm:

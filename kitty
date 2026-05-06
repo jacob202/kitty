@@ -7,6 +7,8 @@
 #   ./kitty status   show if running + URL
 #   ./kitty logs     tail the log file
 #   ./kitty ref      show terminal quick reference
+#   ./kitty backup   create backup of all data stores
+#   ./kitty export   export session as markdown
 
 PYTHON=venv/bin/python
 SCRIPT_DIR="${0:A:h}"
@@ -130,7 +132,7 @@ _status() {
     echo "  local    http://localhost:$PORT"
     echo "  phone    http://$ip:$PORT"
   else
-    if _pid_alive "$file_pid"; then
+    if _pid_alive "$file_pid" ]; then
       echo "  stopped  stale PID $file_pid is alive but not listening on port $PORT"
     fi
     rm -f "$PIDFILE"
@@ -138,12 +140,51 @@ _status() {
   fi
 }
 
+_backup() {
+  local backup_dir="$SCRIPT_DIR/data/backups"
+  mkdir -p "$backup_dir"
+  local timestamp=$(date +"%Y%m%d_%H%M%S")
+  local backup_file="$backup_dir/kitty_backup_$timestamp.tar.gz"
+
+  echo "Creating backup…"
+
+  # Backup all data stores
+  local data_dir="$SCRIPT_DIR/data"
+  if [[ -d "$data_dir" ]]; then
+    tar -czf "$backup_file" -C "$SCRIPT_DIR" data 2>/dev/null
+    echo "✓ Backup created: $backup_file"
+  else
+    echo "No data directory found"
+    return 1
+  fi
+}
+
+_export() {
+  local export_dir="$SCRIPT_DIR/data/exports"
+  mkdir -p "$export_dir"
+  local timestamp=$(date +"%Y%m%d_%H%M%S")
+  local export_file="$export_dir/session_$timestamp.md"
+
+  echo "Exporting session…"
+
+  # Call the API to export
+  if "$CURL" -sf "http://localhost:$PORT/api/brief" > "$export_file" 2>/dev/null; then
+    echo "✓ Exported: $export_file"
+  else
+    echo "✗ Export failed (server not running?)"
+    rm -f "$export_file"
+    return 1
+  fi
+}
+
 case "${1:-start}" in
-  start)   _start ;;
-  stop)    _stop ;;
-  restart) _stop; sleep 1; _start ;;
-  status)  _status ;;
+  start)    _start ;;
+  stop)     _stop ;;
+  restart)  _stop; sleep 1; _start ;;
+  status)   _status ;;
   logs)    tail -f "$LOGFILE" ;;
   ref)     cd "$SCRIPT_DIR" && "$PYTHON" "$SCRIPT_DIR/src/cli/reference.py" "$2" ;;
-  *)       echo "Usage: kitty [start|stop|restart|status|logs|ref]"; exit 1 ;;
+  backup)  _backup ;;
+  export)  _export ;;
+  *)       echo "Usage: kitty [start|stop|restart|status|logs|ref|backup|export]"; exit 1 ;;
 esac

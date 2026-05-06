@@ -3,42 +3,24 @@ Last updated: 2026-05-06
 
 ## Active Phase
 
-Phase 3 Track — Architectural Deepening (post-Phase 2 completion)
+Phase 4 — Jacob-Only Build (4 sub-projects from Standup §4)
 
-## Current Task
+## Today's Progress (May 6)
+- ✅ /optimize pipeline (Intent Compiler → Evidence Ledger)
+- ✅ /cleanup pipeline (Dead code → Drift → Sandbox)
+- ✅ OnboardingPipeline + OnboardingWizard TSX component
+- ✅ Onboarding routes wired (fix import: .routes.onboarding_routes)
+- ✅ Consolidated 8 skills in chain (orient, research, plan, build, ship, optimize, cleanup, handoff)
+- ✅ Tests restored: 514 passed ✓
 
-Phase 2 rollout: COMPLETE
-Phase 3 Candidate C (Unified Command System): COMPLETE
+## Sub-Projects Status
+1. **Personal Onboarding Pipeline** - ✅ DONE
+2. **Memory & Continuity** - ✅ DONE
+3. **Companion Experience** - ✅ DONE
+4. **Data Safety** - ✅ DONE
 
-Completed:
-- `2A.1`: waves 1-3 (`SourceLedger`, `QuarantineQueue`, `StorageRouter`, retrieval adapter contract)
-- `2B`: KittyBuilder token instrumentation
-- `2C`: unified tool runtime alignment
-- `2D`: token optimization infrastructure
-- Codebase consolidation: skills 62→10, 175MB vendored deps removed, dead code purged
-- Unified Command System (Candidate C): `src/core/command_engine.py` — single registry + dispatch. Replaced 445-line if/elif chain in dispatcher. 513 tests pass.
-
-Primary objective achieved: consolidated user command handling into a deep, reliable `CommandEngine` without regressions.
-
-## Next Task
-
-Wire remaining slash commands (/prep, /optic, /ocr, /repair, /image, /cal, /watch, /skills) from dispatcher.py into CommandEngine registrations. These currently exist in dispatcher.py but weren't part of the initial 14 registrations.
-
-## Allowed Work
-
-- Remaining CommandEngine wiring (slash commands listed above)
-- Runtime/API verification for command routes and dispatch behavior
-- Token telemetry tracking and optimization maintenance
-- Tracking/handoff docs needed for continuity and takeover safety
-- `src/tools/superpowers/` vendored dep cleanup (convert to npm/pip install)
-
-## Forbidden Work
-
+## Forbidden work
 - MCP expansion
 - QLoRA
-- proactive nudging
-- memory migration
-- deleting raw chat logs
-- deleting or renaming the old repo
-- import or launch path rewrites
-- deleting or committing generated databases
+
+## Tests: 514 passed ✓
