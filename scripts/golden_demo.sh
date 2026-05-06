@@ -14,6 +14,11 @@ set -euo pipefail
 STRICT_CHAT="${GOLDEN_DEMO_STRICT_CHAT:-0}"
 BASE_URL="${KITTY_BASE_URL:-http://localhost:5001}"
 SKIP_TESTS="${GOLDEN_DEMO_SKIP_TESTS:-0}"
+if [[ -x "venv/bin/python" ]]; then
+  PY="venv/bin/python"
+else
+  PY="python3"
+fi
 
 echo "=== Kitty Golden Demo ==="
 echo "Base URL: ${BASE_URL}"
@@ -24,7 +29,7 @@ echo "[1/4] Pytest suite..."
 if [[ "${SKIP_TESTS}" == "1" ]]; then
   echo "⏭️  Skipping pytest (GOLDEN_DEMO_SKIP_TESTS=1)"
 else
-  venv/bin/python -m pytest tests/ -q --tb=short
+  "$PY" -m pytest tests/ -q --tb=short
   echo "✅ Tests passed"
 fi
 
@@ -52,7 +57,7 @@ fi
 
 echo "[3/4] Normal chat..."
 CHAT_JSON="$(curl -sS -X POST "${BASE_URL}/api/chat" -H "Content-Type: application/json" -d '{"message":"Hello, can you give me a brief response?"}')"
-CHAT_TEXT="$(printf '%s' "$CHAT_JSON" | venv/bin/python -c 'import json,sys; print(json.load(sys.stdin).get("response",""))' 2>/dev/null || true)"
+CHAT_TEXT="$(printf '%s' "$CHAT_JSON" | "$PY" -c 'import json,sys; print(json.load(sys.stdin).get("response",""))' 2>/dev/null || true)"
 
 if [[ -z "${CHAT_TEXT}" ]]; then
   echo "❌ /api/chat returned empty response"
@@ -72,7 +77,7 @@ fi
 
 echo "[4/4] Specialist example..."
 CHAT_JSON_2="$(curl -sS -X POST "${BASE_URL}/api/chat" -H "Content-Type: application/json" -d '{"message":"My 2019 Ridgeline has a P0420 code, what should I check first?"}')"
-CHAT_TEXT_2="$(printf '%s' "$CHAT_JSON_2" | venv/bin/python -c 'import json,sys; print(json.load(sys.stdin).get("response",""))' 2>/dev/null || true)"
+CHAT_TEXT_2="$(printf '%s' "$CHAT_JSON_2" | "$PY" -c 'import json,sys; print(json.load(sys.stdin).get("response",""))' 2>/dev/null || true)"
 
 if [[ -z "${CHAT_TEXT_2}" ]]; then
   echo "❌ Specialist chat response empty"

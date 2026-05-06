@@ -33,7 +33,13 @@ if [[ "$MODE" == "--full" ]]; then
   "$PY" -m pytest tests/ -q --tb=short 2>&1 | tail -1
 else
   echo "[3/5] Quick baseline check..."
-  "$PY" -m pytest tests/test_builder_intake.py -q --tb=short 2>&1 | tail -1 || true
+  if QUICK_OUT="$("$PY" -m pytest tests/test_builder_intake.py -q --tb=short 2>&1)"; then
+    printf "%s\n" "$QUICK_OUT" | tail -1
+    echo "✅ Quick baseline passed"
+  else
+    printf "%s\n" "$QUICK_OUT" | tail -3
+    echo "⚠️  Quick baseline failed (quick mode continues). Investigate before risky work."
+  fi
 fi
 echo ""
 

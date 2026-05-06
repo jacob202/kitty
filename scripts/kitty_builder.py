@@ -297,6 +297,12 @@ class Session:
             self.history = self.history[-40:]
 
 SESSION_FILE = PROJECT_ROOT / ".kittybuilder_session.json"
+KITTYBUILDER_SESSION_LOG = PROJECT_ROOT / "docs" / "handoffs" / "kittybuilder-session-log.md"
+APPEND_STANDUP = os.environ.get("KITTY_BUILDER_APPEND_STANDUP", "").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
 def save_session():
     """Atomic session save. Failure is logged but not raised. Also flushes model stats."""
@@ -2580,19 +2586,30 @@ def probe_tools() -> dict:
 # ------------------------------------------------------------
 def write_standup_entry(summary: str):
     standup = PROJECT_ROOT / "docs" / "STANDUP.md"
-    if not standup.exists():
-        return
     try:
         git_status = subprocess.run(["git", "status", "--short"], capture_output=True,
                                     text=True, cwd=PROJECT_ROOT, timeout=5).stdout.strip()
+        if summary.strip() == "Session (no actions logged)." and not git_status:
+            return
         now = datetime.now().strftime("%Y-%m-%d %H:%M")
         entry = f"\n\n---\n## KittyBuilder — {now}\n\n{summary}\n"
         if git_status:
             entry += f"\n**Dirty tree:**\n```\n{git_status[:400]}\n```\n"
         entry += f"\n**Budget:** {budget.summary()}\n"
-        with open(standup, "a") as f:
+        KITTYBUILDER_SESSION_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with open(KITTYBUILDER_SESSION_LOG, "a") as f:
             f.write(entry)
-        print("[Standup] Entry written to docs/STANDUP.md")
+        if APPEND_STANDUP and standup.exists():
+            thin = (
+                f"\n\n---\n## KittyBuilder — {now}\n\n{summary}\n"
+                f"\n**Budget:** {budget.summary()}\n"
+                f"\n**Session log:** `docs/handoffs/kittybuilder-session-log.md`\n"
+            )
+            with open(standup, "a") as f:
+                f.write(thin)
+            print("[Standup] Entry written to docs/STANDUP.md (append enabled)")
+        else:
+            print("[Standup] Session log written to docs/handoffs/kittybuilder-session-log.md")
     except Exception as e:
         print(f"[Standup] Write failed: {e}")
 

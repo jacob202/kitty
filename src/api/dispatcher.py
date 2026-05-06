@@ -17,11 +17,11 @@ from src.core.capabilities import (
     command_names,
     visible_help_commands,
 )
+from src.core.command_engine import CommandResult, get_command_engine
 from src.tools.skill_commands import get_skill, list_skills
 
 
 def _screencapture(suffix: str = ".png") -> Path | None:
-    """Take a screenshot with screencapture, return path or None on failure."""
     tmp = Path(tempfile.mktemp(suffix=suffix))
     subprocess.run(["screencapture", "-x", str(tmp)], capture_output=True)
     return tmp if tmp.exists() else None
@@ -29,13 +29,9 @@ def _screencapture(suffix: str = ".png") -> Path | None:
 
 logger = logging.getLogger(__name__)
 
-# Thread safety lock for memory operations — must be module-level
-# to be shared across threads. A local lock in dispatch() would be
-# recreated on every call, defeating thread safety entirely.
 _MEMORY_LOCK = threading.Lock()
 
-# Loaded skills state — token-conscious: max 3 skills, injected via context dict
-_loaded_skills: dict[str, str] = {}  # skill_name -> skill_content
+_loaded_skills: dict[str, str] = {}
 _MAX_LOADED_SKILLS = 3
 
 _MODE_CTX = {
@@ -60,7 +56,6 @@ _AVAILABLE_COMMANDS = command_names()
 
 
 def _validate_image_path(path: str) -> str | None:
-    """Validate and resolve image path, returning sanitized path or None."""
     if not path:
         return None
     try:
@@ -70,6 +65,178 @@ def _validate_image_path(path: str) -> str | None:
     except (OSError, ValueError):
         pass
     return None
+
+
+def _ensure_commands_registered(sup):
+    """Register all slash commands with the engine. Idempotent — skips if already registered."""
+    engine = get_command_engine()
+    if engine.visible_count() > 2:
+        return
+
+    def handle_help(args: str, **ctx):
+        lines = ["**Commands**"]
+        for info in visible_help_commands():
+            lines.append(f"- `{info.command}` — {info.description}")
+        lines.append("- `!!` — re-run last query escalated to next model tier")
+        lines.append("")
+        lines.append(f"Registered skills: {len(list_skills())}")
+        lines.append("Advanced commands are intentionally hidden from this list until they are production-safe.")
+        return CommandResult(success=True, message="\n".join(lines))
+
+    def handle_brief(args: str, **ctx):
+        sup = ctx["sup"]
+        sup.morning_brief()
+        return CommandResult(success=True)
+
+    def handle_stuck(args: str, **ctx):
+        sup = ctx["sup"]
+        emit_theme_change("self-improvement")
+        sup.stuck_recovery(args if args else "")
+        return CommandResult(success=True)
+
+    def handle_bench(args: str, **ctx):
+        sup = ctx["sup"]
+        arg = args.strip()
+        if not arg or arg.lower() in ("off", "clear"):
+            sup.clear_mode()
+            emit_theme_change("hardware")
+            return CommandResult(success=True, message="Work mode cleared.")
+        ctx_desc = _MODE_CTX.get(arg.lower(), f"Working on: {arg}")
+        sup.set_mode(arg, ctx_desc)
+        theme = _THEME_MAP.get(arg.lower(), "hardware")
+        emit_theme_change(theme)
+        return CommandResult(success=True, message=f"Work mode set: {arg}")
+
+    def handle_screen(args: str, **ctx):
+        sup = ctx["sup"]
+        question = args
+        sup.screen_capture(question)
+        return CommandResult(success=True)
+
+    def handle_scrape(args: str, **ctx):
+        sup = ctx["sup"]
+        url = args.strip().strip("'\"")
+        if not url:
+            return CommandResult(success=False, error="Please provide a URL: /scrape <url>")
+        try:
+            parsed = urlparse(url)
+            if parsed.scheme not in ("http", "https"):
+                return CommandResult(success=False, error="Only http/https URLs are allowed.")
+            host = parsed.hostname or ""
+            if host in ("localhost", "127.0.0.1", "::1", "0.0.0.0") or host.endswith(".local"):
+                return CommandResult(success=False, error="Local network URLs are not allowed.")
+            if re.match(r"^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|^192\.168\.", host):
+                return CommandResult(success=False, error="Private IP ranges are not allowed.")
+        except Exception:
+            return CommandResult(success=False, error="Invalid URL provided.")
+        sup.scrape_webpage(url)
+        return CommandResult(success=True)
+
+    def handle_capture(args: str, **ctx):
+        sup = ctx["sup"]
+        thought = args
+        if thought:
+            ts = _dt.now().strftime("%Y-%m-%d %H:%M")
+            key = f"capture_{_dt.now().strftime('%m%d_%H%M%S')}"
+            with _MEMORY_LOCK:
+                sup.memory.remember_fact(key, f"[{ts}] {thought}")
+            return CommandResult(success=True, message=f"Captured: {thought}")
+        return CommandResult(success=False)
+
+    def handle_remember(args: str, **ctx):
+        sup = ctx["sup"]
+        fact = args
+        if fact:
+            key = "_".join(fact.lower().split()[:3]).rstrip(".,")
+            with _MEMORY_LOCK:
+                sup.memory.remember_fact(key, fact)
+            return CommandResult(success=True, message=f"Remembered: {fact}")
+        return CommandResult(success=False)
+
+    def handle_review(args: str, **ctx):
+        sup = ctx["sup"]
+        facts = sup.memory.get_facts()
+        caps = {k: v for k, v in facts.items() if k.startswith("capture_")}
+        other = {k: v for k, v in facts.items() if not k.startswith("capture_")}
+        lines = []
+        if caps:
+            lines.append("Your captures:")
+            for v in caps.values():
+                lines.append(f"  · {v}")
+        if other:
+            lines.append("\nSaved facts:")
+            for k, v in other.items():
+                lines.append(f"  · {v}")
+        obd = sup.memory.data.get("obd_health", "")
+        if obd:
+            lines.append(f"\nOBD health: {obd}")
+        if not caps and not other and not obd:
+            return CommandResult(success=True, message="Nothing saved yet. Type /capture to save a thought.")
+        return CommandResult(success=True, message="\n".join(lines))
+
+    def handle_deepsearch(args: str, **ctx):
+        sup = ctx["sup"]
+        if args:
+            emit_theme_change("investigative")
+            sup.deep_search(args)
+        return CommandResult(success=True)
+
+    def handle_status(args: str, **ctx):
+        sup = ctx["sup"]
+        snapshot = capability_snapshot(
+            enable_experimental_swarm=bool(getattr(sup, "config", {}).get("enable_experimental_swarm", False)),
+            enable_internal_api=False,
+        )
+        lines = [
+            f"Specialists: {', '.join(s['name'] for s in sup.specialists)}",
+            f"Tools: {', '.join(sup.tools)}",
+            f"Session cost: ${sup.session_cost:.4f}",
+        ]
+        mode = sup._active_mode
+        mode_name = mode.get("name") if isinstance(mode, dict) else (mode or "none")
+        lines.append(f"Work mode: {mode_name}")
+        lines.append(
+            f"Capabilities: "
+            f"{snapshot['commands']['visible_help_count']} visible, "
+            f"{snapshot['commands']['beta_count']} beta, "
+            f"{snapshot['commands']['internal_count']} internal"
+        )
+        mcp_summary = ", ".join(
+            f"{name}={details['status']}"
+            for name, details in snapshot["mcp"].items()
+            if details["configured"]
+        ) or "none"
+        lines.append(f"Repo MCP: {mcp_summary}")
+        swarm_state = "enabled" if snapshot["api"]["swarm"]["enabled"] else "hidden"
+        lines.append(f"Experimental swarm API: {swarm_state}")
+        return CommandResult(success=True, message="\n".join(lines))
+
+    def handle_clear(args: str, **ctx):
+        sup = ctx["sup"]
+        sup.history = []
+        sup.save_session()
+        return CommandResult(success=True, message="Conversation cleared.")
+
+    def handle_council(args: str, **ctx):
+        sup = ctx["sup"]
+        if args:
+            sup.assemble_council(args)
+            return CommandResult(success=True)
+        return CommandResult(success=False, error="Please provide a topic for the Council: /council <topic>")
+
+    engine.register("help", handle_help, description="Show available commands", category="core")
+    engine.register("brief", handle_brief, description="Morning brief — where you left off", category="core")
+    engine.register("stuck", handle_stuck, description="ADHD rescue: one concrete next step", category="core")
+    engine.register("bench", handle_bench, description="Set work mode (sansui, ridgeline, heathkit, or custom)", category="core")
+    engine.register("screen", handle_screen, description="Screenshot + vision analysis", category="tools")
+    engine.register("scrape", handle_scrape, description="Scrape a webpage for content", category="tools")
+    engine.register("capture", handle_capture, description="Quick brain dump (persisted)", category="memory")
+    engine.register("remember", handle_remember, description="Save a persistent fact", category="memory")
+    engine.register("review", handle_review, description="Show all captures + saved facts", category="memory")
+    engine.register("deepsearch", handle_deepsearch, description="Web search + synthesis", category="tools")
+    engine.register("status", handle_status, description="Model, tools, session cost", category="core")
+    engine.register("clear", handle_clear, description="Clear conversation history", category="core")
+    engine.register("council", handle_council, description="Dynamic expert panel debate", category="core")
 
 
 def dispatch(
@@ -89,7 +256,6 @@ def dispatch(
     if not inp.startswith("/") or inp == "!!":
         if orch:
             try:
-                # Inject loaded skills into context so they persist across NL queries
                 context = {}
                 if _loaded_skills:
                     context["active_skills"] = "\n\n".join(_loaded_skills.values())
@@ -105,7 +271,6 @@ def dispatch(
                     logger.warning("Orchestrator returned blank content; using web fallback")
                     return fallback_chat(inp, domain=domain, stream=fallback_stream)
                 logger.debug("Orchestrator response: %s", response.content[:200])
-                # In web mode, we need to print to stdout so TokenCapture picks it up
                 sys.stdout.write(response.content + "\n")
                 sys.stdout.flush()
                 if response.safety_warnings:
@@ -120,326 +285,28 @@ def dispatch(
             sup.run(inp)
         return None
 
-    cmd = inp.split()[0].lower()
+    _ensure_commands_registered(sup)
+    engine = get_command_engine()
+    result = engine.execute(inp, output_mode="stdout", sup=sup, orch=orch)
 
-    if cmd == "/brief":
-        sup.morning_brief()
+    if result.success:
+        return None
 
-    elif cmd == "/stuck":
-        parts = inp.split(maxsplit=1)
-        emit_theme_change("self-improvement")
-        sup.stuck_recovery(parts[1] if len(parts) > 1 else "")
+    if result.data.get("similar"):
+        return None
 
-    elif cmd == "/bench":
-        parts = inp.split(maxsplit=1)
-        arg = parts[1].strip() if len(parts) > 1 else ""
-        if not arg or arg.lower() in ("off", "clear"):
-            sup.clear_mode()
-            emit_theme_change("hardware")
-            sys.stdout.write("Work mode cleared.\n")
-        else:
-            ctx = _MODE_CTX.get(arg.lower(), f"Working on: {arg}")
-            sup.set_mode(arg, ctx)
-            theme = _THEME_MAP.get(arg.lower(), "hardware")
-            emit_theme_change(theme)
-            sys.stdout.write(f"Work mode set: {arg}\n")
-
-    elif cmd == "/prep":
-        sup.prescriber_prep()
-
-    elif cmd == "/optic":
-        parts = inp.split(maxsplit=1)
-        question = parts[1] if len(parts) > 1 else ""
-        q_lower = question.lower()
-        if any(w in q_lower for w in ["read", "text", "ocr", "transcribe", "words"]):
-            tmp = _screencapture()
-            if tmp:
-                sup.ocr_image(str(tmp))
-                tmp.unlink(missing_ok=True)
+    try:
+        if inp.startswith("/") and len(inp) > 1:
+            similar = difflib.get_close_matches(inp.split()[0], _AVAILABLE_COMMANDS, n=3, cutoff=0.6)
+            if similar:
+                sys.stdout.write(f"Unknown command: {inp.split()[0]}. Did you mean: {', '.join(similar)}?\n")
             else:
-                sys.stdout.write("Screenshot failed.\n")
-        else:
-            sup.screen_capture(question)
+                sys.stdout.write(f"Unknown command: {inp.split()[0]}. Type /help for available commands.\n")
+            return None
 
-    elif cmd == "/screen":
-        parts = inp.split(maxsplit=1)
-        question = parts[1] if len(parts) > 1 else ""
-        sup.screen_capture(question)
+        sup.run(inp)
+    except Exception as e:
+        logger.error("Dispatch error: %s", e)
+        sys.stdout.write("Error processing request. Try: Use /help for commands, or rephrase your request.\n")
 
-    elif cmd == "/ocr":
-        parts = inp.split(maxsplit=1)
-        img = parts[1].strip("'\"") if len(parts) > 1 else ""
-        if not img:
-            tmp = _screencapture()
-            if tmp:
-                sup.ocr_image(str(tmp))
-                tmp.unlink(missing_ok=True)
-            else:
-                sys.stdout.write("Screenshot failed — grant Screen Recording permission.\n")
-        else:
-            safe_path = _validate_image_path(img)
-            if safe_path:
-                sup.ocr_image(safe_path)
-            else:
-                sys.stdout.write(f"Invalid or inaccessible image path: {img}\n")
-
-    elif cmd == "/scrape":
-        parts = inp.split(maxsplit=1)
-        url = parts[1].strip().strip("'\"") if len(parts) > 1 else ""
-        if url:
-            try:
-                parsed = urlparse(url)
-                if parsed.scheme not in ("http", "https"):
-                    sys.stdout.write("Only http/https URLs are allowed.\n")
-                    return
-                # Block requests to private/reserved IP ranges
-                host = parsed.hostname or ""
-                if host in ("localhost", "127.0.0.1", "::1", "0.0.0.0") or host.endswith(".local"):
-                    sys.stdout.write("Local network URLs are not allowed.\n")
-                    return
-                if re.match(r"^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|^192\.168\.", host):
-                    sys.stdout.write("Private IP ranges are not allowed.\n")
-                    return
-            except Exception:
-                sys.stdout.write("Invalid URL provided.\n")
-                return
-            sup.scrape_webpage(url)
-        else:
-            sys.stdout.write("Please provide a URL: /scrape <url>\n")
-
-    elif cmd == "/repair":
-        parts = inp.split(maxsplit=2)
-        img = parts[1].strip("'\"") if len(parts) > 1 else ""
-        context = parts[2] if len(parts) > 2 else ""
-        if not img:
-            tmp = _screencapture()
-            if tmp:
-                sup.repair_image(str(tmp), context)
-                tmp.unlink(missing_ok=True)
-            else:
-                sys.stdout.write("Screenshot failed — grant Screen Recording permission.\n")
-        else:
-            safe_path = _validate_image_path(img)
-            if safe_path:
-                sup.repair_image(safe_path, context)
-            else:
-                sys.stdout.write(f"Invalid or inaccessible image path: {img}\n")
-
-    elif cmd == "/image":
-        parts = inp.split(maxsplit=2)
-        img = parts[1].strip("'\"") if len(parts) > 1 else ""
-        question = parts[2] if len(parts) > 2 else ""
-        if not img:
-            tmp = _screencapture()
-            if tmp:
-                sup.analyze_image(str(tmp), question)
-                tmp.unlink(missing_ok=True)
-        else:
-            safe_path = _validate_image_path(img)
-            if safe_path:
-                sup.analyze_image(safe_path, question)
-            else:
-                sys.stdout.write(f"Invalid or inaccessible image path: {img}\n")
-
-    elif cmd == "/capture":
-        parts = inp.split(maxsplit=1)
-        thought = parts[1] if len(parts) > 1 else ""
-        if thought:
-            ts = _dt.now().strftime("%Y-%m-%d %H:%M")
-            key = f"capture_{_dt.now().strftime('%m%d_%H%M%S')}"
-            with _MEMORY_LOCK:
-                sup.memory.remember_fact(key, f"[{ts}] {thought}")
-            sys.stdout.write(f"Captured: {thought}\n")
-
-    elif cmd == "/remember":
-        parts = inp.split(maxsplit=1)
-        fact = parts[1] if len(parts) > 1 else ""
-        if fact:
-            key = "_".join(fact.lower().split()[:3]).rstrip(".,")
-            with _MEMORY_LOCK:
-                sup.memory.remember_fact(key, fact)
-            sys.stdout.write(f"Remembered: {fact}\n")
-
-    elif cmd == "/review":
-        facts = sup.memory.get_facts()
-        caps = {k: v for k, v in facts.items() if k.startswith("capture_")}
-        other = {k: v for k, v in facts.items() if not k.startswith("capture_")}
-        if caps:
-            sys.stdout.write("Your captures:\n")
-            for v in caps.values():
-                sys.stdout.write(f"  · {v}\n")
-        if other:
-            sys.stdout.write("\nSaved facts:\n")
-            for k, v in other.items():
-                sys.stdout.write(f"  · {v}\n")
-        obd = sup.memory.data.get("obd_health", "")
-        if obd:
-            sys.stdout.write(f"\nOBD health: {obd}\n")
-        if not caps and not other and not obd:
-            sys.stdout.write("Nothing saved yet. Type /capture to save a thought.\n")
-
-    elif cmd == "/cal":
-        parts = inp.split(maxsplit=1)
-        arg = (parts[1] if len(parts) > 1 else "").strip()
-        try:
-            days = int(arg) if arg and arg.isdigit() else 7
-        except ValueError:
-            days = 7
-        result = sup.tools["calendar_list"].list_events(days)
-        sys.stdout.write(result + "\n")
-
-    elif cmd == "/deepsearch":
-        parts = inp.split(maxsplit=1)
-        if len(parts) > 1:
-            emit_theme_change("investigative")
-            sup.deep_search(parts[1].strip())
-
-    elif cmd == "/status":
-        snapshot = capability_snapshot(
-            enable_experimental_swarm=bool(getattr(sup, "config", {}).get("enable_experimental_swarm", False)),
-            enable_internal_api=False,
-        )
-        sys.stdout.write(
-            f"Specialists: {', '.join(s['name'] for s in sup.specialists)}\n"
-        )
-        sys.stdout.write(f"Tools: {', '.join(sup.tools)}\n")
-        sys.stdout.write(f"Session cost: ${sup.session_cost:.4f}\n")
-        mode = sup._active_mode
-        mode_name = mode.get("name") if isinstance(mode, dict) else (mode or "none")
-        sys.stdout.write(f"Work mode: {mode_name}\n")
-        sys.stdout.write(
-            "Capabilities: "
-            f"{snapshot['commands']['visible_help_count']} visible, "
-            f"{snapshot['commands']['beta_count']} beta, "
-            f"{snapshot['commands']['internal_count']} internal\n"
-        )
-        mcp_summary = ", ".join(
-            f"{name}={details['status']}"
-            for name, details in snapshot["mcp"].items()
-            if details["configured"]
-        ) or "none"
-        sys.stdout.write(f"Repo MCP: {mcp_summary}\n")
-        swarm_state = "enabled" if snapshot["api"]["swarm"]["enabled"] else "hidden"
-        sys.stdout.write(f"Experimental swarm API: {swarm_state}\n")
-
-    elif cmd == "/clear":
-        sup.history = []
-        sup.save_session()
-        sys.stdout.write("Conversation cleared.\n")
-
-    elif cmd == "/watch":
-        parts = inp.split(maxsplit=1)
-        arg = parts[1].strip() if len(parts) > 1 else "on"
-        if arg == "off":
-            sys.stdout.write(sup.screen_watch_stop() + "\n")
-        else:
-            try:
-                interval = int(arg)
-            except ValueError:
-                interval = 30
-            sys.stdout.write(sup.screen_watch_start(interval=interval) + "\n")
-
-    elif cmd == "/council":
-        parts = inp.split(maxsplit=1)
-        context = parts[1].strip() if len(parts) > 1 else ""
-        if context:
-            sup.assemble_council(context)
-        else:
-            sys.stdout.write("Please provide a topic for the Council: /council <topic>\n")
-
-    elif cmd == "/skills":
-        all_skills = list_skills()
-        for name, info in all_skills.items():
-            archived = " [archived]" if info.get("archived") else ""
-            sys.stdout.write(f"  /skill {name:30s} {info['description']}{archived}\n")
-        sys.stdout.write(f"\n{len(all_skills)} skills registered. Use /skill <name> to view details.\n")
-
-    elif cmd == "/skill":
-        parts = inp.split(maxsplit=1)
-        skill_name = parts[1].strip() if len(parts) > 1 else ""
-        if not skill_name:
-            sys.stdout.write("Usage: /skill <name> — load a skill into context. Try /skills for the full list.\n")
-        else:
-            skill = get_skill(skill_name)
-            if skill:
-                if skill_name in _loaded_skills:
-                    sys.stdout.write(f"Skill '{skill_name}' is already loaded.\n")
-                elif len(_loaded_skills) >= _MAX_LOADED_SKILLS:
-                    sys.stdout.write(
-                        f"Cannot load '{skill_name}': max {_MAX_LOADED_SKILLS} skills loaded. "
-                        f"Use /skill-unload <name> or /skill-clear first.\n"
-                    )
-                else:
-                    _loaded_skills[skill_name] = skill["content"]
-                    sys.stdout.write(
-                        f"✅ Loaded skill: {skill['name']}\n"
-                        f"   {skill['description']}\n"
-                        f"   ({len(_loaded_skills)}/{_MAX_LOADED_SKILLS} slots used — "
-                        f"will be injected into subsequent queries)\n"
-                    )
-            else:
-                all_names = list(list_skills().keys())
-                similar = difflib.get_close_matches(skill_name, all_names, n=3, cutoff=0.4)
-                if similar:
-                    sys.stdout.write(
-                        f"Unknown skill: {skill_name}. Did you mean: {', '.join(similar)}?\n"
-                    )
-                else:
-                    sys.stdout.write(f"Unknown skill: {skill_name}. Try /skills for the full list.\n")
-
-    elif cmd == "/skill-unload":
-        parts = inp.split(maxsplit=1)
-        skill_name = parts[1].strip() if len(parts) > 1 else ""
-        if not skill_name:
-            sys.stdout.write("Usage: /skill-unload <name> — remove a loaded skill from context.\n")
-        elif skill_name not in _loaded_skills:
-            loaded = ", ".join(_loaded_skills) if _loaded_skills else "(none)"
-            sys.stdout.write(f"Skill '{skill_name}' is not loaded. Currently loaded: {loaded}\n")
-        else:
-            del _loaded_skills[skill_name]
-            sys.stdout.write(f"Unloaded skill: {skill_name}\n")
-
-    elif cmd == "/skill-clear":
-        count = len(_loaded_skills)
-        _loaded_skills.clear()
-        sys.stdout.write(f"Cleared {count} loaded skills.\n")
-
-    elif cmd == "/skill-loaded":
-        if not _loaded_skills:
-            sys.stdout.write("No skills currently loaded. Use /skill <name> to load one.\n")
-        else:
-            sys.stdout.write(f"Loaded skills ({len(_loaded_skills)}/{_MAX_LOADED_SKILLS}):\n")
-            for name in _loaded_skills:
-                sys.stdout.write(f"  · {name}\n")
-
-    elif cmd == "/help":
-        lines = ["**Commands**"]
-        for info in visible_help_commands():
-            lines.append(f"- `{info.command}` — {info.description}")
-        lines.append("- `!!` — re-run last query escalated to next model tier")
-        lines.append("")
-        lines.append(f"Registered skills: {len(list_skills())}")
-        lines.append("Advanced commands are intentionally hidden from this list until they are production-safe.")
-        sys.stdout.write("\n".join(lines) + "\n")
-
-    else:
-        try:
-            if inp.startswith("/") and len(inp) > 1:
-                similar = difflib.get_close_matches(
-                    inp.split()[0], _AVAILABLE_COMMANDS, n=3, cutoff=0.6
-                )
-                if similar:
-                    sys.stdout.write(
-                        f"Unknown command: {inp.split()[0]}. Did you mean: {', '.join(similar)}?\n"
-                    )
-                else:
-                    sys.stdout.write(
-                        f"Unknown command: {inp.split()[0]}. Type /help for available commands.\n"
-                    )
-                return
-
-            sup.run(inp)
-
-        except Exception as e:
-            logger.error("Dispatch error: %s", e)
-            sys.stdout.write("Error processing request. Try: Use /help for commands, or rephrase your request.\n")
+    return None
