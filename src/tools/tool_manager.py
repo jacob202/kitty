@@ -1,10 +1,11 @@
-"""ToolManager central lookup for all tool execution."""
+"""ToolManager — thin wrapper around ToolRuntime for backward compatibility."""
 
 from __future__ import annotations
 
 from typing import Any
 
 from src.tools.base import BaseTool, ToolResult
+from src.tools.runtime import get_runtime, ToolRuntime, ToolContext
 
 
 class ToolManager:
@@ -13,18 +14,31 @@ class ToolManager:
     def __init__(self) -> None:
         # Import implementations to trigger _register_all()
         import src.tools.implementations  # noqa: F401
+        self._rt = get_runtime()
 
     def get_tool_by_name(self, name: str) -> type[BaseTool] | None:
+        # Check ToolRuntime first, fall back to BaseTool registry
+        if self._rt.get(name):
+            return BaseTool.get_tool(name)  # stil returns type for backward compat
         return BaseTool.get_tool(name)
 
     def get_tool_by_command(self, command: str) -> type[BaseTool] | None:
         return BaseTool.get_tool_by_command(command)
 
     def execute(self, name: str, **kwargs: Any) -> ToolResult:
-        cls = self.get_tool_by_name(name)
-        if cls is None:
-            return ToolResult(ok=False, tool=name, args=kwargs, error=f"Unknown tool: {name}")
-        return cls().execute(**kwargs)
+        # Delegate to ToolRuntime
+        ctx = ToolContext(permissions=set())
+        import asyncio
+        result = asyncio.run(self._rt.execute(name, kwargs, ctx))
+        # Convert ToolRuntime's ToolResult to BaseTool's ToolResult for compatibility
+        return ToolResult(
+            ok=result.ok,
+            tool=result.tool,
+            args=result.args,
+            result=result.result,
+            error=result.error,
+            denied=result.denied,
+        )
 
     def execute_command(self, query: str) -> ToolResult | None:
         parts = query.strip().split(maxsplit=1)
@@ -39,6 +53,11 @@ class ToolManager:
 
     def list_tools(self) -> dict[str, str]:
         return BaseTool.list_tools()
+
+    @property
+    def runtime(self) -> ToolRuntime:
+        """Direct access to underlying ToolRuntime (for new code)."""
+        return self._rt
 
 
 def get_tool_manager() -> ToolManager:

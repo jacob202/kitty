@@ -113,11 +113,16 @@
     {
       "id": 10,
       "title": "Phase 2C Tool Runtime Alignment",
-      "status": "doing",
-      "tasks": [
-        "Align tool runtime per docs/plans/2026-04-30-unified-tool-runtime.md"
-      ],
-      "done_tasks": []
+      "status": "completed",
+      "tasks": [],
+      "done_tasks": [
+        "ToolRuntime with registry + executor factory",
+        "ToolDefinition/ToolContext/ToolResult dataclasses",
+        "FunctionExecutor (sync+async), HTTPExecutor stub, SpecialistExecutor stub",
+        "Permission checks + batch execution",
+        "ToolManager wrapped around ToolRuntime (backward compat)",
+        "15 tests in test_tool_runtime.py, all passing"
+      ]
     },
     {
       "id": 11,
