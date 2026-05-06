@@ -1,0 +1,61 @@
+# Gemini Project Rules
+
+Token optimization and project practices for Google Gemini agent.
+
+## Token Optimization Practices
+
+Applies to all Gemini operations in this repository.
+
+### Core Rules
+1. **Token Efficiency First** — Every LLM call must justify its token cost
+2. **Prevention Over Compression** — Filter context before it becomes a problem
+3. **Deterministic > Probabilistic** — Use jq/awk/scripts for deterministic tasks
+4. **Cache Everything Static** — System prompts, tool schemas, repeated queries use `src/core/prompt_cache.py`
+5. **Just-In-Time Context** — Load only what's needed for the current task
+
+### Mandatory
+- **Log token usage** — All LLM calls log to `.kitty_builder_token_usage.jsonl`
+- **Semantic caching** — Check `SemanticCache` before making repeated queries
+- **Truncation** — File reads limited to 2K lines / 50KB via `truncate_to_token_budget()`
+- **Local routing** — Route simple queries to cheaper models (`--quick` mode)
+- **No broad Firecrawl** — Max 1-2 queries per run, use `scrape()` not `crawl()` for single pages
+
+### Quick Reference
+| Situation | Action |
+|-----------|--------|
+| Simple status check | Use `./kitty status` (deterministic) |
+| Count lines in file | Use `wc -l file` not LLM |
+| Parse JSON | Use `jq` not LLM |
+| Repeated query | Check `SemanticCache` first |
+| Long system prompt | Use `PromptCache.prepare_system_prompt()` |
+| File > 50KB | Truncate with `truncate_to_token_budget()` |
+| Web scrape (1 page) | Use `firecrawl scrape` not `crawl` |
+
+## Project Structure
+
+- Source code → `src/`
+- Tests → `tests/`
+- Docs and plans → `docs/`
+- Config → `config/`
+- Scripts → `scripts/`
+
+## Validation (REQUIRED after every code change)
+```bash
+/opt/homebrew/bin/python3.12 -m pytest tests/ -q --tb=short
+./kitty status
+```
+
+## Git Rules
+- Never commit without explicit user request
+- Never force push or use destructive git commands unless explicitly requested
+- Preserve dirty changes — never revert unrelated dirty changes
+
+## Gemini-Specific Notes
+- Automatic prompt caching enabled (1M token context window)
+- Use `google/gemini-2.0-flash-001` for fast, cheap calls
+- Still apply token efficiency even with large context window
+
+## Monitoring
+- Token log: `data/kitty_token_log.jsonl` (symlink to `.kitty_builder_token_usage.jsonl`)
+- Optimizer report: `docs/optimizer/feedback-latest.md`
+- Run optimizer: `python .agents/skills/kitty-optimizer/scripts/optimizer.py --full`

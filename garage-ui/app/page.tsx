@@ -6,6 +6,7 @@ import CommandPalette from './components/CommandPalette';
 import SettingsModal from './components/SettingsModal';
 import JournalDashboard from './components/JournalDashboard';
 import EvalDashboard from './components/EvalDashboard';
+import TrustDashboard from './components/TrustDashboard';
 import Sidebar from './components/Sidebar';
 import Inspector from './components/Inspector';
 import ChatInterface from './components/ChatInterface';
@@ -465,6 +466,9 @@ export default function GarageDashboard() {
           <div className={`flex-1 ${activeView === 'evals' ? 'block' : 'hidden'}`}>
             <EvalDashboard />
           </div>
+          <div className={`flex-1 ${activeView === 'trust' ? 'block' : 'hidden'}`}>
+            <TrustDashboard />
+          </div>
         </section>
 
         {/* Inspector — desktop only */}
@@ -563,6 +567,16 @@ export default function GarageDashboard() {
         }}
         isLightMode={isLightMode}
         onLightModeToggle={() => setIsLightMode(!isLightMode)}
+      />      
+      </ErrorBoundary>
+      <style jsx>{`
+        .border-color { border-color: var(--border-color); }
+        .bg-panel-bg { background-color: var(--panel-bg); }
+      `}</style>
+    </main>
+  );
+}
+ setIsLightMode(!isLightMode)}
       />      
       </ErrorBoundary>
       <style jsx>{`

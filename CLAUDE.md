@@ -143,3 +143,32 @@ Jacob's working preferences, harvested from cross-agent session history.
 - When recovering after a crash or losing context, reconstruct from repo artifacts and local history. Don't ask him to restate project state.
 - He prefers narrow, surgical fixes on dirty trees over broad cleanup churn. When in doubt, do less.
 - For voice/companion features, mascot presence and mood are first-class product requirements, not decoration.
+
+## Token Optimization Practices
+
+Applies to all Claude operations in this repository.
+
+### Core Rules
+1. **Token Efficiency First** — Every LLM call must justify its token cost
+2. **Prevention Over Compression** — Filter context before it becomes a problem
+3. **Deterministic > Probabilistic** — Use jq/awk/scripts for deterministic tasks
+4. **Cache Everything Static** — System prompts, tool schemas, repeated queries use `src/core/prompt_cache.py`
+5. **Just-In-Time Context** — Load only what's needed for the current task
+
+### Mandatory
+- **Log token usage** — All LLM calls log to `.kitty_builder_token_usage.jsonl`
+- **Semantic caching** — Check `SemanticCache` before making repeated queries
+- **Truncation** — File reads limited to 2K lines / 50KB via `truncate_to_token_budget()`
+- **Local routing** — Route simple queries to cheaper models (`--quick` mode)
+- **No broad Firecrawl** — Max 1-2 queries per run, use `scrape()` not `crawl()` for single pages
+
+### Quick Reference
+| Situation | Action |
+|-----------|--------|
+| Simple status check | Use `./kitty status` (deterministic) |
+| Count lines in file | Use `wc -l file` not LLM |
+| Parse JSON | Use `jq` not LLM |
+| Repeated query | Check `SemanticCache` first |
+| Long system prompt | Use `PromptCache.prepare_system_prompt()` |
+| File > 50KB | Truncate with `truncate_to_token_budget()` |
+| Web scrape (1 page) | Use `firecrawl scrape` not `crawl` |

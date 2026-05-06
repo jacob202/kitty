@@ -252,10 +252,40 @@ def _exa_research(query: str) -> str | None:
         return None
 
 
-def _firecrawl_scrape(url: str) -> str | None:
-    """Use Firecrawl to scrape a URL and return clean content."""
+def _firecrawl_scrape(url: str, max_tokens: int = 2000) -> str | None:
+    """Use Firecrawl to scrape a URL and return clean content.
+
+    Args:
+        max_tokens: Maximum tokens to return (default 2000 ≈ 8KB).
+    """
     fc = _get_firecrawl()
     if not fc:
+        return None
+    try:
+        # Firecrawl returns markdown by default - use scrape (not crawl) for single pages
+        result = fc.scrape_url(url, params={
+            "formats": ["markdown"],
+            "maxDiscoveryDepth": 1,  # Prevent deep crawls
+            "limit": 1,  # Single page only
+        })
+        content = result.get("markdown") or result.get("content") or ""
+
+        # Apply token budgeting
+        if content:
+            try:
+                from src.core.prompt_cache import truncate_to_token_budget
+                content = truncate_to_token_budget(content, max_tokens=max_tokens)
+            except ImportError:
+                # Fallback: simple char-based truncation (~4 chars per token)
+                max_chars = max_tokens * 4
+                if len(content) > max_chars:
+                    content = content[:max_chars] + "\n[...truncated]"
+
+            logger.debug(f"Firecrawl scraped {len(content)} chars from '{url}'")
+
+        return content or None
+    except Exception as e:
+        logger.debug(f"Firecrawl scrape failed for '{url}': {e}")
         return None
 
     try:

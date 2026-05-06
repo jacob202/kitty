@@ -12,6 +12,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, List
 
+# Token optimization: semantic caching
+try:
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from src.core.prompt_cache import SemanticCache
+    _semantic_cache = SemanticCache()
+except ImportError:
+    _semantic_cache = None
+    print("[KittyBuilder] SemanticCache not available", file=sys.stderr)
+
 log = logging.getLogger("kitty_builder")
 if not log.handlers:
     _stderr_handler = logging.StreamHandler(sys.stderr)
@@ -483,13 +492,32 @@ def call_openrouter(
     max_tokens: int = 1500,
     temperature: float = 0.7,
     max_attempts: int = 4,
+    use_cache: bool = True,
 ):
     """Non-streaming OpenRouter call with rotation + Retry-After + provider routing.
 
     Returns the assistant message text. Raises BuilderError on terminal failure.
+
+    Args:
+        use_cache: If True, check semantic cache before calling LLM.
     """
     if not _openrouter_client:
         raise BuilderError("NO_CLIENT", "OpenRouter client not initialized; set OPENROUTER_API_KEY")
+
+    # Extract system prompt and user prompt for cache key
+    system_prompt = ""
+    user_prompt = ""
+    for msg in messages:
+        if msg.get("role") == "system":
+            system_prompt = msg.get("content", "")
+        elif msg.get("role") == "user":
+            user_prompt = msg.get("content", "")
+
+    # Check semantic cache
+    if use_cache and _semantic_cache:
+        cached = _semantic_cache.get("openrouter", model or "default", system_prompt, user_prompt)
+        if cached is not None:
+            return cached
 
     last_err: Optional[BaseException] = None
     for attempt in range(1, max_attempts + 1):
@@ -513,6 +541,9 @@ def call_openrouter(
                 usage=_extract_usage_dict(getattr(resp, "usage", None)),
                 metadata={"stream": False, "from_pool": from_pool},
             )
+            # Store in semantic cache
+            if use_cache and _semantic_cache:
+                _semantic_cache.put("openrouter", picked, system_prompt, user_prompt, content)
             return content
         except BuilderError:
             raise
@@ -556,14 +587,34 @@ def stream_openrouter(
     max_tokens: int = 1500,
     temperature: float = 0.7,
     max_attempts: int = 4,
+    use_cache: bool = True,
 ):
     """Streaming OpenRouter call. Yields (model_id, delta_text) tuples.
 
     Retries to OPEN the stream are handled here; mid-stream errors propagate
     to the caller. Raises BuilderError if no attempt opens a stream.
+
+    Args:
+        use_cache: If True, check semantic cache before calling LLM.
     """
     if not _openrouter_client:
         raise BuilderError("NO_CLIENT", "OpenRouter client not initialized; set OPENROUTER_API_KEY")
+
+    # Extract system prompt and user prompt for cache key
+    system_prompt = ""
+    user_prompt = ""
+    for msg in messages:
+        if msg.get("role") == "system":
+            system_prompt = msg.get("content", "")
+        elif msg.get("role") == "user":
+            user_prompt = msg.get("content", "")
+
+    # Check semantic cache (return as single chunk to simulate streaming)
+    if use_cache and _semantic_cache:
+        cached = _semantic_cache.get("openrouter", model or "default", system_prompt, user_prompt)
+        if cached is not None:
+            yield (model or "cached", cached)
+            return
 
     last_err: Optional[BaseException] = None
     for attempt in range(1, max_attempts + 1):
@@ -605,11 +656,13 @@ def stream_openrouter(
         # Stream opened; iterate
         completion_chars = 0
         usage_snapshot: dict[str, int] = {}
+        full_response = []
         try:
             for chunk in stream:
                 delta = chunk.choices[0].delta.content
                 if delta:
                     completion_chars += len(delta)
+                    full_response.append(delta)
                     yield (picked, delta)
                 maybe_usage = _extract_usage_dict(getattr(chunk, "usage", None))
                 if maybe_usage:
@@ -627,6 +680,9 @@ def stream_openrouter(
                     "completion_chars": completion_chars,
                 },
             )
+            # Store in semantic cache
+            if use_cache and _semantic_cache and full_response:
+                _semantic_cache.put("openrouter", picked, system_prompt, user_prompt, "".join(full_response))
             return
         except Exception as e:
             # mid-stream failure — record + give up; partial content already sent
@@ -1052,10 +1108,19 @@ def run_trusted_bash_script(script_relative: str) -> str:
         return f"Execution Error: {str(e)}"
 
 
-def read_file(path: str) -> str:
+def read_file(path: str, max_tokens: int = 2000) -> str:
+    """
+    Read file with token-aware truncation.
+
+    Args:
+        max_tokens: Maximum tokens to read (default 2000 ≈ 8KB text).
+    """
     if not is_safe_path(path): return "Error: Access denied (outside project root)."
     try:
-        with open(PROJECT_ROOT / path) as f: return f.read(8000)
+        from src.core.prompt_cache import truncate_to_token_budget
+        with open(PROJECT_ROOT / path) as f:
+            content = f.read(50000)  # Read up to ~50KB
+        return truncate_to_token_budget(content, max_tokens=max_tokens)
     except Exception as e: return str(e)
 
 def _format_security_findings(path: str, content: str) -> str:
