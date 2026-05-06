@@ -13,11 +13,12 @@ from pathlib import Path
 from typing import Any, Dict, Optional, List
 
 # Ensure the repository root is in the Python path so that `src` can be imported
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 # Token optimization: semantic caching
 try:
-    sys.path.insert(0, str(Path(__file__).parent.parent))
     from src.core.prompt_cache import SemanticCache
     _semantic_cache = SemanticCache()
 except ImportError:
@@ -72,10 +73,6 @@ def _estimate_openrouter_call_usd(model_id: str) -> float:
         return 0.0
     return float(os.environ.get("KITTY_BUDGET_OR_ESTIMATE_USD", "0.002"))
 
-
-PROJECT_ROOT = Path(__file__).parent.parent.resolve()
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
 POLICY_FILE = PROJECT_ROOT / "config" / "kittybuilder_orchestrator_policy.json"
 
@@ -200,7 +197,7 @@ if os.environ.get("KITTY_ENABLE_LOCAL_MLX", "").strip().lower() in ("1", "true",
 from src.utils.security_scanner import scan_text
 
 _env_loaded = False
-_env_path = Path(__file__).parent.parent / ".env"
+_env_path = PROJECT_ROOT / ".env"
 if _env_path.exists():
     with open(_env_path) as _f:
         for _line in _f:

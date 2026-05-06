@@ -70,7 +70,7 @@ def _validate_image_path(path: str) -> str | None:
 def _ensure_commands_registered(sup):
     """Register all slash commands with the engine. Idempotent — skips if already registered."""
     engine = get_command_engine()
-    if engine.visible_count() > 2:
+    if engine.visible_count() > 30:
         return
 
     def handle_help(args: str, **ctx):
@@ -395,12 +395,14 @@ def _ensure_commands_registered(sup):
     def handle_optimize(args: str, **ctx):
         """Run Kittybuilder optimize pipeline."""
         import subprocess
+        from pathlib import Path
         target = args.strip() or "src/"
+        project_root = Path(__file__).parent.parent.parent
         result = subprocess.run(
             ["python3", "scripts/kittybuilder_optimize.py", target, "--scope", "standard"],
             capture_output=True,
             text=True,
-            cwd=PROJECT,
+            cwd=project_root,
             timeout=180,
         )
         output = (result.stdout + result.stderr).strip()
@@ -411,12 +413,14 @@ def _ensure_commands_registered(sup):
     def handle_cleanup(args: str, **ctx):
         """Run Kittybuilder cleanup pipeline."""
         import subprocess
+        from pathlib import Path
+        project_root = Path(__file__).parent.parent.parent
         scope = args.strip() or "dead:all,drift:api"
         result = subprocess.run(
-            ["python3", "scripts/kittybuilder_cleanup.py", "--scope", scope, "--sandbox"],
+            ["python3", "scripts/kittybuilder_cleanup.py", "--scope", scope],
             capture_output=True,
             text=True,
-            cwd=PROJECT,
+            cwd=project_root,
             timeout=180,
         )
         output = (result.stdout + result.stderr).strip()

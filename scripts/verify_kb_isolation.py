@@ -4,7 +4,7 @@ from pathlib import Path
 import logging
 
 # Ensure project root is on path
-_root = Path(__file__).parent.parent.resolve()
+_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_root))
 
 from src.core.specialist_framework import SpecialistRegistry, ingest_domain_documents

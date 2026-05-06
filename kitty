@@ -186,5 +186,6 @@ case "${1:-start}" in
   ref)     cd "$SCRIPT_DIR" && "$PYTHON" "$SCRIPT_DIR/src/cli/reference.py" "$2" ;;
   backup)  _backup ;;
   export)  _export ;;
-  *)       echo "Usage: kitty [start|stop|restart|status|logs|ref|backup|export]"; exit 1 ;;
+  builder) shift; exec ./kittybuilder "$@" ;;
+  *)       echo "Usage: kitty [start|stop|restart|status|logs|ref|backup|export|builder]"; exit 1 ;;
 esac

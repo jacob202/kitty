@@ -10,6 +10,9 @@ commands_bp = Blueprint('commands', __name__)
 def _bootstrap_commands():
     engine = get_command_engine()
 
+    if engine.visible_count() < 30:
+        from src.api import dispatcher as _disp  # noqa: F401
+
     def handle_stuck(args: str, **ctx):
         action = get_stuck_action()
         return CommandResult(
