@@ -39,6 +39,18 @@ Last updated: 2026-05-06
   - deterministic execution packet: `docs/superpowers/plans/2026-05-phase2-low-capability-execution.md`
   - workflow integration: `docs/plans/phase2-orchestration-workflow-2026-05-06.md`
 - [ ] Phase 2C tool runtime alignment.
+- [x] Phase 2D token optimization infrastructure:
+  - `src/core/prompt_cache.py` — PromptCache + SemanticCache (SQLite), `truncate_to_token_budget()`
+  - `tests/test_prompt_cache.py` — 11 tests
+  - `scripts/kitty_builder.py` — SemanticCache integration in `call_openrouter()` / `stream_openrouter()`
+  - `scripts/kitty_builder.py` — token-aware `read_file()` truncation (2K tokens default)
+  - `src/core/specialists/knowledge_researcher.py` — Firecrawl `_firecrawl_scrape()` token budgeting
+  - `src/tools/research_pipeline.py` — agentic research pipeline (map+batch_scrape, caching, MCP-aware)
+  - Agent practices in `AGENTS.md`, `CLAUDE.md`, `CODEX.md`, `.gemini`
+  - Research report: `docs/optimizer/token-optimization-research-2026-05-06.md`
+  - Optimizer upgraded: fixed token log parsing, self-review → TODO.md, research pipeline integration
+  - Optimizer path fix: `~/.agents/skills/kitty-optimizer/` symlinked into project `.agents/skills/`
+  - Verified: 465 tests pass
 
 ## Verified Done
 
@@ -87,6 +99,7 @@ Last updated: 2026-05-06
 - Two new skills created: `recommend` (two-mode: NEED SCOUT + MATCHMAKER) and `spec-to-impl` (two-mode: SPEC VALIDATOR + IMPL GENERATOR) in `.claude/skills/` (2026-05-01).
 - Report: `docs/audits/CONSOLIDATION_REPORT_2026-05-01.md`.
 - Documentation authority pass: `docs/FILE_MANIFEST.md` single-checkout truth, `docs/DECISIONS.md` **D-0014**, `docs/README.md` index, `SESSION_SUMMARY.md` / `docs/OPEN_LOOPS.md` migration stale-path cleanup, `docs/HANDOFF.md` canonical workspace, redirect stubs for consolidated chat-log + workspace-map paths, `docs/archive/README.md`, stray `docs/_merge_gate_anchor_*.md` removed (2026-05-02).
+- Trust Dashboard (Control Room) UI and SQLite-backed Quarantine Queue implemented, integrating `garage-ui` with backend REST API `src/api/quarantine_routes.py` and `kitty.db` (2026-05-06).
 
 ## Next Smallest Action
 

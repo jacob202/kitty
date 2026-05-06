@@ -206,15 +206,24 @@ The mission: "So that no one becomes themselves alone." The first person who mus
 ---
 ## Handoff _(fill at session end only — rules in §9)_
 
-**Last agent:** Cursor (Composer), 2026-05-03.
+**Last agent:** opencode, 2026-05-06.
 
-**Shipped:** KittyBuilder (`scripts/kitty_builder.py`) **bug audit** (chat): **MLX tier 3** calls `get_model()` which still short-circuits to `("openrouter", …)` when OpenRouter is configured — **MLX fallback broken** after Groq+OR fail. Also flagged: **`run_command`** may **stall the child** if output hits the char cap before the pipe is drained; **`update_project`** can **`KeyError`** / append **`None`** if `milestones` or task kwargs missing; **`_extract_json`** brace-regex fallback breaks nested `args`; **`delegate`** has **no `wait` timeout**; **hardcoded** `/opt/homebrew` and `~/.local/bin/agent`. Same thread earlier: **`run_trusted_bash_script`** for **`/test`**/**`/gates`** (bash not on whitelist) and **`kitty_self_improve`** pytest string **without `|`** + **parse `N failed` / `N error`** — verify in tree before commit.
+**Shipped:** Token optimization infrastructure (Phase 2D):
+- `src/core/prompt_cache.py` — PromptCache + SemanticCache (SQLite caching, 50-90% savings)
+- `src/tools/research_pipeline.py` — agentic research (map+batch_scrape, caching, MCP-ready)
+- Semantic cache integrated into `kitty_builder.py` LLM calls
+- Token-aware truncation in `read_file()` + Firecrawl `_firecrawl_scrape()`
+- Agent practices: `AGENTS.md`, `CLAUDE.md`, `CODEX.md`, `.gemini`
+- Optimizer upgraded: fixed token log parsing, self-review → TODO.md
+- Optimizer path fixed: `~/.agents/skills/kitty-optimizer/` → project symlink `.agents/skills/`
 
-**Proof:** This edit = **markdown-only Handoff** per §9 (no full **`pytest`** for STANDUP-only). Re-run **`venv/bin/python -m pytest tests/test_kitty_builder.py -q --tb=short`** after any **`kitty_builder.py`** commit.
+**Proof:** 465 tests pass (`venv/bin/python -m pytest tests/ -q --tb=short`).
 
-**Next:** (1) **`get_model(..., force_local=True)`** (or equivalent) for MLX tier. (2) On **`run_command`** truncate: **kill or drain** stdout, then **`wait`**. (3) Harden **`update_project`** defaults + **`delegate`** timeout.
+**Dirty:** `src/tools/research_pipeline.py`, `.superpowers/brainstorm/*` (IDE artifacts).
 
-**Learning:** OpenRouter “routing” return value must **not** be the same function **`get_model()`** uses for **local weights**.
+**Next:** (1) Phase 2C tool runtime alignment (`docs/plans/2026-04-30-unified-tool-runtime.md`). (2) Remove Icon\r files from git (Finder contamination). (3) Wire optimizer launchd properly.
+
+**Learning:** Token log format uses `usage.prompt_tokens` / `usage.completion_tokens` — optimizer was looking for `tokens` field, fixed parser.
 
 
 ---
