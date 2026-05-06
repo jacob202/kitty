@@ -75,13 +75,35 @@ class FunctionExecutor(BaseExecutor):
 
 
 class HTTPExecutor(BaseExecutor):
-    """Stub for HTTP-based tool execution."""
+    """Execute HTTP-based tools using requests."""
 
     async def execute(self, tool: ToolDefinition, args: Dict[str, Any], context: ToolContext) -> ToolResult:
-        return ToolResult(
-            ok=False, tool=tool.name, args=args,
-            error="HTTPExecutor not yet implemented",
-        )
+        if not tool.http_endpoint:
+            return ToolResult(ok=False, tool=tool.name, args=args, error="No HTTP endpoint defined")
+        try:
+            import requests
+            method = args.get("method", "GET").upper()
+            url = tool.http_endpoint
+            params = args.get("params", {})
+            headers = args.get("headers", {})
+            timeout = args.get("timeout", 30)
+            
+            if method == "GET":
+                resp = requests.get(url, params=params, headers=headers, timeout=timeout)
+            elif method == "POST":
+                data = args.get("data")
+                json_data = args.get("json")
+                resp = requests.post(url, data=data, json=json_data, headers=headers, timeout=timeout)
+            else:
+                return ToolResult(ok=False, tool=tool.name, args=args, error=f"Unsupported method: {method}")
+            
+            resp.raise_for_status()
+            return ToolResult(
+                ok=True, tool=tool.name, args=args,
+                result={"status_code": resp.status_code, "body": resp.text[:2000]}
+            )
+        except Exception as e:
+            return ToolResult(ok=False, tool=tool.name, args=args, error=f"HTTP request failed: {e}")
 
 
 class SpecialistExecutor(BaseExecutor):
