@@ -224,6 +224,169 @@ def _ensure_commands_registered(sup):
             return CommandResult(success=True)
         return CommandResult(success=False, error="Please provide a topic for the Council: /council <topic>")
 
+    def handle_prep(args: str, **ctx):
+        ctx["sup"].prescriber_prep()
+        return CommandResult(success=True)
+
+    def handle_optic(args: str, **ctx):
+        sup = ctx["sup"]
+        question = args
+        q_lower = question.lower()
+        if any(w in q_lower for w in ["read", "text", "ocr", "transcribe", "words"]):
+            tmp = _screencapture()
+            if tmp:
+                sup.ocr_image(str(tmp))
+                tmp.unlink(missing_ok=True)
+            else:
+                sys.stdout.write("Screenshot failed.\n")
+        else:
+            sup.screen_capture(question)
+        return CommandResult(success=True)
+
+    def handle_ocr(args: str, **ctx):
+        sup = ctx["sup"]
+        img = args.strip().strip("'\"")
+        if not img:
+            tmp = _screencapture()
+            if tmp:
+                sup.ocr_image(str(tmp))
+                tmp.unlink(missing_ok=True)
+            else:
+                sys.stdout.write("Screenshot failed — grant Screen Recording permission.\n")
+        else:
+            safe_path = _validate_image_path(img)
+            if safe_path:
+                sup.ocr_image(safe_path)
+            else:
+                sys.stdout.write(f"Invalid or inaccessible image path: {img}\n")
+        return CommandResult(success=True)
+
+    def handle_repair(args: str, **ctx):
+        sup = ctx["sup"]
+        parts = args.split(maxsplit=1)
+        img = parts[0].strip().strip("'\"") if parts else ""
+        context = parts[1] if len(parts) > 1 else ""
+        if not img:
+            tmp = _screencapture()
+            if tmp:
+                sup.repair_image(str(tmp), context)
+                tmp.unlink(missing_ok=True)
+            else:
+                sys.stdout.write("Screenshot failed — grant Screen Recording permission.\n")
+        else:
+            safe_path = _validate_image_path(img)
+            if safe_path:
+                sup.repair_image(safe_path, context)
+            else:
+                sys.stdout.write(f"Invalid or inaccessible image path: {img}\n")
+        return CommandResult(success=True)
+
+    def handle_image(args: str, **ctx):
+        sup = ctx["sup"]
+        parts = args.split(maxsplit=1)
+        img = parts[0].strip().strip("'\"") if parts else ""
+        question = parts[1] if len(parts) > 1 else ""
+        if not img:
+            tmp = _screencapture()
+            if tmp:
+                sup.analyze_image(str(tmp), question)
+                tmp.unlink(missing_ok=True)
+        else:
+            safe_path = _validate_image_path(img)
+            if safe_path:
+                sup.analyze_image(safe_path, question)
+            else:
+                sys.stdout.write(f"Invalid or inaccessible image path: {img}\n")
+        return CommandResult(success=True)
+
+    def handle_cal(args: str, **ctx):
+        sup = ctx["sup"]
+        arg = args.strip()
+        try:
+            days = int(arg) if arg and arg.isdigit() else 7
+        except ValueError:
+            days = 7
+        result = sup.tools["calendar_list"].list_events(days)
+        return CommandResult(success=True, message=result)
+
+    def handle_watch(args: str, **ctx):
+        sup = ctx["sup"]
+        arg = args.strip() or "on"
+        if arg == "off":
+            return CommandResult(success=True, message=sup.screen_watch_stop())
+        try:
+            interval = int(arg)
+        except ValueError:
+            interval = 30
+        return CommandResult(success=True, message=sup.screen_watch_start(interval=interval))
+
+    def handle_skills(args: str, **ctx):
+        lines = [
+            "\n── Chained Skills ──",
+            "orient     health → architecture → current state",
+            "research   search → scrape → interaction → synthesis",
+            "plan       ideate → design → grill → zoom-out",
+            "build      find → test → implement → review → verify",
+            "ship       demo → checklist → gate → go/no-go",
+            "optimize   token audit → compression → report",
+            "handoff    capture → accounting → update docs → commit",
+            "",
+            "── CLI Tools ──",
+            "firecrawl       web search + scrape",
+            "agent-browser   browser automation",
+            "ast-grep        code search",
+            "",
+            f"Use /skill <name> to load one into context. {len(_loaded_skills)}/{_MAX_LOADED_SKILLS} loaded.",
+        ]
+        if _loaded_skills:
+            lines.append("\n── Loaded ──")
+            for name in _loaded_skills:
+                lines.append(f"  · {name}")
+        return CommandResult(success=True, message="\n".join(lines))
+
+    def handle_skill(args: str, **ctx):
+        skill_name = args.strip()
+        if not skill_name:
+            return CommandResult(success=False, error="Usage: /skill <name> — load a skill into context. Try /skills for the full list.")
+        skill = get_skill(skill_name)
+        if skill:
+            if skill_name in _loaded_skills:
+                return CommandResult(success=True, message=f"Skill '{skill_name}' is already loaded.")
+            elif len(_loaded_skills) >= _MAX_LOADED_SKILLS:
+                return CommandResult(success=False, error=f"Cannot load '{skill_name}': max {_MAX_LOADED_SKILLS} skills loaded. Use /skill-unload <name> or /skill-clear first.")
+            else:
+                _loaded_skills[skill_name] = skill["content"]
+                return CommandResult(success=True, message=f"✅ Loaded skill: {skill['name']}\n   {skill['description']}\n   ({len(_loaded_skills)}/{_MAX_LOADED_SKILLS} slots used)")
+        else:
+            all_names = list(list_skills().keys())
+            similar = difflib.get_close_matches(skill_name, all_names, n=3, cutoff=0.4)
+            if similar:
+                return CommandResult(success=False, error=f"Unknown skill: {skill_name}. Did you mean: {', '.join(similar)}?")
+            return CommandResult(success=False, error=f"Unknown skill: {skill_name}. Try /skills for the full list.")
+
+    def handle_skill_unload(args: str, **ctx):
+        skill_name = args.strip()
+        if not skill_name:
+            return CommandResult(success=False, error="Usage: /skill-unload <name> — remove a loaded skill from context.")
+        if skill_name not in _loaded_skills:
+            loaded = ", ".join(_loaded_skills) if _loaded_skills else "(none)"
+            return CommandResult(success=False, error=f"Skill '{skill_name}' is not loaded. Currently loaded: {loaded}")
+        del _loaded_skills[skill_name]
+        return CommandResult(success=True, message=f"Unloaded skill: {skill_name}")
+
+    def handle_skill_clear(args: str, **ctx):
+        count = len(_loaded_skills)
+        _loaded_skills.clear()
+        return CommandResult(success=True, message=f"Cleared {count} loaded skills.")
+
+    def handle_skill_loaded(args: str, **ctx):
+        if not _loaded_skills:
+            return CommandResult(success=True, message="No skills currently loaded. Use /skill <name> to load one.")
+        lines = [f"Loaded skills ({len(_loaded_skills)}/{_MAX_LOADED_SKILLS}):"]
+        for name in _loaded_skills:
+            lines.append(f"  · {name}")
+        return CommandResult(success=True, message="\n".join(lines))
+
     engine.register("help", handle_help, description="Show available commands", category="core")
     engine.register("brief", handle_brief, description="Morning brief — where you left off", category="core")
     engine.register("stuck", handle_stuck, description="ADHD rescue: one concrete next step", category="core")
@@ -237,6 +400,18 @@ def _ensure_commands_registered(sup):
     engine.register("status", handle_status, description="Model, tools, session cost", category="core")
     engine.register("clear", handle_clear, description="Clear conversation history", category="core")
     engine.register("council", handle_council, description="Dynamic expert panel debate", category="core")
+    engine.register("prep", handle_prep, description="Prescriber prep session", category="core", visible=False)
+    engine.register("optic", handle_optic, description="Screenshot + vision/OCR analysis", category="tools", visible=False)
+    engine.register("ocr", handle_ocr, description="OCR from screenshot or image path", category="tools", visible=False)
+    engine.register("repair", handle_repair, description="Hardware repair image analysis", category="tools", visible=False)
+    engine.register("image", handle_image, description="Image analysis with optional question", category="tools", visible=False)
+    engine.register("cal", handle_cal, description="Calendar events list", category="tools", visible=False)
+    engine.register("watch", handle_watch, description="Screen watch start/stop", category="tools", visible=False)
+    engine.register("skills", handle_skills, description="Show consolidated skill chains", category="core")
+    engine.register("skill", handle_skill, description="Load a skill into context", category="core", visible=False)
+    engine.register("skill-unload", handle_skill_unload, description="Remove a loaded skill", category="core", visible=False)
+    engine.register("skill-clear", handle_skill_clear, description="Clear all loaded skills", category="core", visible=False)
+    engine.register("skill-loaded", handle_skill_loaded, description="Show currently loaded skills", category="core", visible=False)
 
 
 def dispatch(
