@@ -950,6 +950,34 @@ def load_full_context() -> dict:
 
     return context
 
+def parse_tasks_md() -> dict:
+    """Parse TASKS.md checkbox counts (source of truth for task completion)."""
+    tasks_file = PROJECT_ROOT / "TASKS.md"
+    if not tasks_file.exists():
+        return {"completed": 0, "pending": 0, "total": 0, "completion_pct": 0.0}
+
+    completed = 0
+    pending = 0
+    pattern = re.compile(r'^\s*-\s*\[(x| )\]', re.I)
+
+    with open(tasks_file) as f:
+        for line in f:
+            m = pattern.match(line)
+            if m:
+                if m.group(1).lower() == 'x':
+                    completed += 1
+                else:
+                    pending += 1
+
+    total = completed + pending
+    return {
+        "completed": completed,
+        "pending": pending,
+        "total": total,
+        "completion_pct": round((completed / total * 100), 1) if total > 0 else 0.0
+    }
+
+
 def build_project_state() -> dict:
     """Build comprehensive current project state with progress estimates."""
     full_context = load_full_context()
@@ -1002,6 +1030,24 @@ def build_project_state() -> dict:
         "milestone_completion_pct": round((completed_milestones / total_milestones * 100), 1) if total_milestones > 0 else 0,
         "open_todos": len(todos),
     }
+
+    # Drift check: compare project.json progress with TASKS.md (source of truth)
+    tasks_md = parse_tasks_md()
+    if tasks_md["total"] > 0:
+        progress_diff = abs(progress["completed_tasks"] - tasks_md["completed"])
+        progress_pct_diff = abs(progress["task_completion_pct"] - tasks_md["completion_pct"])
+        # Warn if counts differ significantly AND completion % differs (both 100% is not drift)
+        if (progress_diff > 3 or progress_pct_diff > 10) and not (
+            progress["task_completion_pct"] == 100.0 and tasks_md["completion_pct"] == 100.0
+        ):
+            print(
+                f"[Project] WARNING: project.json progress may drift from TASKS.md. "
+                f"project.json: {progress['completed_tasks']}/{progress['total_tasks']} "
+                f"({progress['task_completion_pct']}%), "
+                f"TASKS.md: {tasks_md['completed']}/{tasks_md['total']} "
+                f"({tasks_md['completion_pct']}%)",
+                file=sys.stderr
+            )
 
     return {
         "project_name": proj.get("project_name", name),
