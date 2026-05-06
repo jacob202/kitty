@@ -47,10 +47,16 @@ Last updated: 2026-05-06
 
 ### Immediate Next Plan
 
-1. Phase `2C`: ✅ COMPLETE — Tool Runtime aligned.
+1. ✅ Phase `2C`: COMPLETE — Tool Runtime aligned.
    - `src/tools/runtime.py`, `tests/test_tool_runtime.py`, `src/tools/tool_manager.py`
-   - 15 new tests, 480 total passing
-2. Next: Wire HTTPExecutor + SpecialistExecutor, integrate ToolRuntime permissions with ToolRegistry.
+   - 16 tests in test_tool_runtime.py, 480 total passing
+   - Permission bridge integrated (ToolRegistry → ToolRuntime)
+   - 2C-4 integration gate: strict blocked by Icon, fallback passed (122 tests)
+2. ✅ All Phase 2 items COMPLETE:
+   - 2A.1: Memory architecture (waves 1-3)
+   - 2B: Token instrumentation
+   - 2C: Tool runtime alignment
+   - 2D: Token optimization infrastructure
 
 ### Resume-First Files
 

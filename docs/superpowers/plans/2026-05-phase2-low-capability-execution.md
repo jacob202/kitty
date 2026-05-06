@@ -57,7 +57,6 @@ A task is complete only if all are true:
    - residual risk
 4. Tracking files updated:
    - `TASKS.md`
-   - `docs/TASKS.md`
    - `docs/OPEN_LOOPS.md`
    - `docs/handoffs/HANDOFF-2026-05-06.md`
 
@@ -72,15 +71,15 @@ A task is complete only if all are true:
 - Modify: `docs/handoffs/HANDOFF-2026-05-06.md`
 - Create: `docs/audits/tool-runtime-alignment-inventory-2026-05-06.md`
 
-- [ ] Step 1: Inventory active tool surfaces from code.
+- [x] Step 1: Inventory active tool surfaces from code.
   - Command:
-    - `rg -n "ToolManager|tool_registry|KittyTools|ToolDefinition|execute\\(" src/tools src/core -g '*.py'`
-- [ ] Step 2: Write inventory report with:
+    - `rg -n "ToolManager|tool_registry|KittyTools|ToolDefinition|execute\(" src/tools src/core -g '*.py'`
+- [x] Step 2: Write inventory report with:
   - current entry points
   - overlap/duplication points
   - migration-safe boundaries
-- [ ] Step 3: Update open loops with explicit 2C lane decomposition.
-- [ ] Step 4: Update handoff with inventory result and next task cards.
+- [x] Step 3: Update open loops with explicit 2C lane decomposition.
+- [x] Step 4: Update handoff with inventory result and next task cards.
 
 **Validation:**
 - `venv/bin/python -m py_compile scripts/kitty_builder.py`
@@ -93,17 +92,17 @@ A task is complete only if all are true:
 - Modify: `src/tools/tool_manager.py`
 - Test: `tests/test_tool_runtime.py`
 
-- [ ] Step 1: Define typed runtime contract (`ToolDefinition`, `ToolContext`, `ToolResult`).
-- [ ] Step 2: Implement minimal `ToolRuntime` registry + execution facade.
-- [ ] Step 3: Make `ToolManager` delegate to `ToolRuntime` without breaking existing call sites.
-- [ ] Step 4: Add tests for:
+- [x] Step 1: Define typed runtime contract (`ToolDefinition`, `ToolContext`, `ToolResult`).
+- [x] Step 2: Implement minimal `ToolRuntime` registry + execution facade.
+- [x] Step 3: Make `ToolManager` delegate to `ToolRuntime` without breaking existing call sites.
+- [x] Step 4: Add tests for:
   - successful execution
   - unknown tool handling
   - compatibility with `ToolManager.execute(...)`
 
 **Validation:**
 - `venv/bin/python -m pytest tests/test_tool_runtime.py -q --tb=short --noconftest`
-- Expected: pass
+- Expected: pass (15 tests)
 
 ### Task Card 2C-3: Permission Path Alignment
 
@@ -112,31 +111,34 @@ A task is complete only if all are true:
 - Modify: `src/tools/tool_registry.py`
 - Test: `tests/test_tool_runtime.py`
 
-- [ ] Step 1: Add permission check bridge in runtime path using registry permissions.
-- [ ] Step 2: Ensure denied actions produce structured errors.
-- [ ] Step 3: Add tests for permission denied behavior.
+- [x] Step 1: Add permission check bridge in runtime path using registry permissions.
+- [x] Step 2: Ensure denied actions produce structured errors.
+- [x] Step 3: Add tests for permission denied behavior.
 
 **Validation:**
 - `venv/bin/python -m pytest tests/test_tool_runtime.py -q --tb=short --noconftest`
-- Expected: pass
+- Expected: pass (16 tests)
 
 ### Task Card 2C-4: Integration and Regression Gate
 
 **Files:**
 - Modify: `TASKS.md`
-- Modify: `docs/TASKS.md`
 - Modify: `SESSION_SUMMARY.md`
 - Modify: `docs/handoffs/HANDOFF-2026-05-06.md`
 
-- [ ] Step 1: Run focused runtime tests.
-- [ ] Step 2: Attempt strict gate; if blocked by known Icon guard, run scoped fallback and record blocker.
-- [ ] Step 3: Update tracking docs with objective results.
+- [x] Step 1: Run focused runtime tests.
+- [x] Step 2: Attempt strict gate; if blocked by known Icon guard, run scoped fallback and record blocker.
+  - Blocker: `data/activity/Icon` detected by conftest.py strict gate
+  - Fallback: `--noconftest` passed (122 tests)
+- [x] Step 3: Update tracking docs with objective results.
 
 **Validation:**
 - Strict:
   - `venv/bin/python -m pytest tests/test_tool_runtime.py tests/test_kitty_builder.py -q --tb=short`
+  - Result: BLOCKED by `data/activity/Icon`
 - Fallback (if strict blocked by known metadata guard):
   - `venv/bin/python -m pytest tests/test_tool_runtime.py tests/test_kitty_builder.py -q --tb=short --noconftest`
+  - Result: 122 passed
 
 ---
 

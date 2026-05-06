@@ -173,6 +173,23 @@ class TestToolRuntime:
         assert result.ok is True
         assert result.result == {"echo": {"x": 1}}
 
+    def test_execute_permission_denied_registry_bridge(self):
+        """Test that ToolRegistry permissions are checked via bridge."""
+        # Register a tool with name matching tool_registry.py's TOOL_PERMISSIONS
+        td = ToolDefinition(
+            name="read_file",
+            description="Read file tool",
+            kind=ToolKind.FUNCTION,
+            handler=_simple_handler,
+        )
+        self.rt.register(td)
+        # Context without the required registry permission
+        ctx = _make_context(permissions=set())
+        result = asyncio.run(self.rt.execute("read_file", {"path": "/tmp/test"}, ctx))
+        # Should be denied due to ToolRegistry bridge check
+        assert result.ok is False
+        assert result.denied is True
+
     def test_execute_no_executor(self):
         td = ToolDefinition(name="weird", description="", kind="weird_kind")  # type: ignore
         self.rt.register(td)

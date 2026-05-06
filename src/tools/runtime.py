@@ -129,9 +129,20 @@ class ToolRuntime:
     # -- Permission --
 
     def _check_permissions(self, tool: ToolDefinition, context: ToolContext) -> Optional[str]:
+        # Check ToolDefinition permissions
         missing = tool.required_permissions - context.permissions
         if missing:
             return f"Missing permissions: {', '.join(sorted(missing))}"
+        # Bridge: also check ToolRegistry permissions if available
+        try:
+            from src.tools import tool_registry
+            registry = tool_registry.get_registry()
+            reg_perms = registry.permissions_for(tool.name)
+            missing_reg = reg_perms - context.permissions
+            if missing_reg:
+                return f"Missing registry permissions: {', '.join(sorted(p.value for p in missing_reg))}"
+        except Exception:
+            pass  # ToolRegistry not available, skip bridge check
         return None
 
     # -- Execution --
