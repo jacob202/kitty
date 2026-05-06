@@ -1,5 +1,7 @@
 # Session Summary
 
+> **For recent session continuity only. For full task tracking, see TASKS.md.**
+
 Last updated: 2026-05-06
 
 ## 2026-05-06 Continuity Checkpoint
@@ -10,31 +12,17 @@ Last updated: 2026-05-06
   - `docs/plans/memory-architecture-decision-2026-05-06.md`
   - `docs/audits/memory-architecture-bakeoff-2026-05-06.md`
   - `docs/plans/memory-architecture-deferred-cognitive-features-2026-05-06.md`
-- Phase `2A.1` foundation wave started and implemented:
-  - `src/memory/source_ledger.py`
-  - `src/memory/quarantine_queue.py`
-  - `src/core/db_config.py` (`DB_PATHS["source_ledger"]`)
-  - tests: `tests/memory/test_source_ledger.py`, `tests/memory/test_quarantine_queue.py`
-- Phase `2A.1` Wave 2 implemented and verified:
-  - `src/memory/storage_router.py`
-  - `src/services/context_service.py` (routered retrieval + `general -> None` fallback)
-  - tests: `tests/memory/test_storage_router.py`, `tests/services/test_context_service_retrieval_domain_filter.py`
-- Phase `2A.1` Wave 3 implemented and verified:
-  - `src/memory/retrieval_adapter.py`
-  - `src/memory/storage_router.py` (adapter-aware query)
-  - `src/services/context_service.py` (current-stack adapter wiring)
-  - test: `tests/memory/test_retrieval_adapter_contract.py`
-- Phase `2B` token instrumentation implemented and verified:
-  - `scripts/kitty_builder.py` token JSONL telemetry + `/tokens` command
-  - `scripts/report_builder_token_usage.py` analytics helper
-  - `tests/test_kitty_builder.py` focused run: `106 passed`
-- Phase 2 plan hardening for low-capability execution implemented:
-  - `docs/plans/phase2-build-plan-meta-analysis-2026-05-06.md`
-  - `docs/superpowers/plans/2026-05-phase2-low-capability-execution.md`
-  - `docs/plans/phase2-orchestration-workflow-2026-05-06.md` updated with deterministic low-cap mode
-- Delegated execution was completed in disjoint lanes, then agents were closed.
-- Real token telemetry audit was run from Codex session JSONL logs and recorded in:
-  - `docs/plans/phase2-orchestration-workflow-2026-05-06.md`
+- Phase `2A.1` foundation waves 1-3 implemented and verified
+- Phase `2B` token instrumentation implemented and verified
+- Phase `2C` Tool Runtime Alignment ✅ COMPLETED:
+  - `src/tools/runtime.py` — ToolRuntime, ToolDefinition, ToolContext, executors
+  - `tests/test_tool_runtime.py` — 15 tests all passing
+  - `src/tools/tool_manager.py` — ToolManager wraps ToolRuntime (backward compat)
+  - `docs/plans/2026-04-30-unified-tool-runtime.md` — updated with completion
+  - 480 tests passing (15 new + 465 existing)
+- Phase 2 plan hardening for low-capability execution implemented
+- Token logging aligned to `data/kitty_token_log.jsonl` (AGENTS.md spec)
+- Icon* added to .gitignore, project.json updated with Phase 2 milestones
 
 ### Why These Changes Were Made
 
@@ -59,13 +47,14 @@ Last updated: 2026-05-06
 
 ### Immediate Next Plan
 
-1. Phase `2C`: align tool runtime contract.
-   - execute from deterministic task cards in `docs/superpowers/plans/2026-05-phase2-low-capability-execution.md`
+1. Phase `2C`: ✅ COMPLETE — Tool Runtime aligned.
+   - `src/tools/runtime.py`, `tests/test_tool_runtime.py`, `src/tools/tool_manager.py`
+   - 15 new tests, 480 total passing
+2. Next: Wire HTTPExecutor + SpecialistExecutor, integrate ToolRuntime permissions with ToolRegistry.
 
 ### Resume-First Files
 
 - `TASKS.md`
-- `docs/TASKS.md`
 - `docs/plans/phase2-orchestration-workflow-2026-05-06.md`
 - `docs/superpowers/plans/2026-05-memory-architecture.md`
 - `docs/handoffs/HANDOFF-2026-05-06.md`
@@ -107,21 +96,16 @@ Another worker added Phase 3 through Phase 6 feature files, but route wiring and
 
 Latest full result:
 
-`333 passed, 2 warnings`
+`480 passed, 5 deselected, 2 warnings`
 
-Focused checks also passed:
-
+Focused checks also passing:
+- control gates: `148 passed`
 - route/runtime utility checks: `26 passed`
-- Phase 4/5/6 focused checks: `65 passed`
-- model router + web chat phase checks: `31 passed`
+- Phase 2C ToolRuntime: `15 passed`
 - memory product + specialist framework checks: `24 passed`
 - security scanner: `8 passed`
 - eval dashboard/reliability focused checks: `29 passed`
-- web chat/model routing focused checks after `/api/chat` fix: `34 passed`
-- chat-log consolidation CLI checks: `20 passed`
 - builder security enforcement checks: `53 passed`
-- control gates after consolidation CLI/docs update: `78 passed`
-- control gates after tiny generated-cache cleanup: `78 passed`
 - control gates after builder security enforcement: `83 passed`
 - eval dashboard backend check: `5 passed`
 - Garage UI typecheck: passed

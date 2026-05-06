@@ -208,22 +208,21 @@ The mission: "So that no one becomes themselves alone." The first person who mus
 
 **Last agent:** opencode, 2026-05-06.
 
-**Shipped:** Token optimization infrastructure (Phase 2D):
-- `src/core/prompt_cache.py` — PromptCache + SemanticCache (SQLite caching, 50-90% savings)
-- `src/tools/research_pipeline.py` — agentic research (map+batch_scrape, caching, MCP-ready)
-- Semantic cache integrated into `kitty_builder.py` LLM calls
-- Token-aware truncation in `read_file()` + Firecrawl `_firecrawl_scrape()`
-- Agent practices: `AGENTS.md`, `CLAUDE.md`, `CODEX.md`, `.gemini`
-- Optimizer upgraded: fixed token log parsing, self-review → TODO.md
-- Optimizer path fixed: `~/.agents/skills/kitty-optimizer/` → project symlink `.agents/skills/`
+**Shipped:** Phase 2C Tool Runtime Alignment:
+- `src/tools/runtime.py` — ToolRuntime, ToolDefinition, ToolContext, executors
+- `tests/test_tool_runtime.py` — 15 tests all passing
+- `src/tools/tool_manager.py` — ToolManager wraps ToolRuntime (backward compat)
+- Token logging aligned to `data/kitty_token_log.jsonl` (AGENTS.md spec)
+- Icon* added to .gitignore, project.json updated with Phase 2 milestones
+- 480 tests pass (15 new + 465 existing)
 
-**Proof:** 465 tests pass (`venv/bin/python -m pytest tests/ -q --tb=short`).
+**Proof:** 480 tests pass (`venv/bin/python -m pytest tests/ -q --tb=short`).
 
-**Dirty:** `src/tools/research_pipeline.py`, `.superpowers/brainstorm/*` (IDE artifacts).
+**Dirty:** `.superpowers/brainstorm/*` (IDE artifacts), `docs/optimizer/*`.
 
-**Next:** (1) Phase 2C tool runtime alignment (`docs/plans/2026-04-30-unified-tool-runtime.md`). (2) Remove Icon\r files from git (Finder contamination). (3) Wire optimizer launchd properly.
+**Next:** (1) Wire HTTPExecutor + SpecialistExecutor in ToolRuntime. (2) Integrate ToolRuntime permissions with ToolRegistry. (3) Migrate tools to native ToolDefinition.
 
-**Learning:** Token log format uses `usage.prompt_tokens` / `usage.completion_tokens` — optimizer was looking for `tokens` field, fixed parser.
+**Learning:** ToolRuntime adapter pattern (`register_base_tool()`) allows gradual migration from BaseTool without breaking existing callers.
 
 
 ---

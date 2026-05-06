@@ -4,7 +4,7 @@ Last updated: 2026-05-06
 
 ## Active
 
-- **Phase `2C` tool runtime alignment:** align interfaces and wrappers after `2A.1` memory foundation is stable.
+- ~~**Phase `2C` tool runtime alignment:** align interfaces and wrappers after `2A.1` memory foundation is stable.~~ ✅ COMPLETED 2026-05-06
   - execution packet: `docs/superpowers/plans/2026-05-phase2-low-capability-execution.md` (Task Cards `2C-1..2C-4`)
 - **Strict pytest gate blocker cleanup:** resolve unrelated metadata guard files (`tests/memory/Icon*`) so strict gates can run without fallback.
 - **Unified Command System (Candidate C):** Consolidate slash commands (`/stuck`, `/brief`, `/scrape`, etc.) from `web.py` and `dispatcher.py` into a deep `CommandEngine`. This was attempted but shelved due to subagent failure and time constraints. Must be picked up to complete the architectural deepening roadmap.
