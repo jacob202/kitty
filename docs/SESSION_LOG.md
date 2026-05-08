@@ -155,7 +155,28 @@ Format:
 
 ---
 
-<!-- Add new entries above this line, newest at top after the separator -->
+---
+
+## 2026-05-08 — Loop Stabilization, Passive Chronicle & Engine Upgrades
+
+**Done:**
+- **Fixed Symlink Bug:** Resolved `PROJECT_ROOT` calculation error in `kitty_builder.py`; builder now works via symlinks and absolute paths.
+- **Restored `kittybuilder` alias:** Re-created root symlink and added absolute path alias to `~/.zshrc`.
+- **Icon File Purge:** Deleted 400+ problematic macOS `Icon` files and added an auto-purge step to `scripts/verify_setup.sh`.
+- **Thinking Visibility:** Upgraded `stream_openrouter` to display `reasoning_content` in dimmed text for real-time visibility.
+- **Passive Chronicle:** Updated `save_session()` to automatically capture a 2-sentence vision/vibe summary to this log on exit.
+- **Format-Agnostic Parser:** Hardened `_extract_json` to handle multiple XML and JSON formats simultaneously.
+- **Batch execution:** Enabled the builder to run multiple tools in a single turn, reducing stalling.
+- **Autonomous Evaluator:** Created `scripts/overnight_retry.py` for headless task execution and grading.
+
+**Open:**
+- Fine-tune "Stall Guard" to prevent infinite nudges after task completion (heuristic-based).
+- Validation of `deepseek-r1` as the primary autonomous implementation model.
+
+**Corrections:**
+- Fixed a `NameError` in `probe_tools` introduced during Groq disabling.
+- Resolved a `SyntaxError` caused by a non-ASCII em-dash character.
+- Fixed `ImportError` in `test_overnight_retry.py` by aligning with the latest script exports.
 
 ## Chronicle Entry — 2026-05-07 19:45
 **Context:** Provider fallback failed. Anthropic: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CapFpEwY7EY3y9Luyfiyh'}

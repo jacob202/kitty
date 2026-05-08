@@ -206,24 +206,20 @@ The mission: "So that no one becomes themselves alone." The first person who mus
 ---
 ## Handoff _(fill at session end only — rules in §9)_
 
-**Last agent:** opencode, 2026-05-06.
+**Last agent:** Gemini CLI, 2026-05-08.
 
-**Shipped:** Phase 2 Complete (all items):
-- 2A.1 Memory architecture (waves 1-3) ✅
-- 2B Token instrumentation ✅
-- 2C Tool Runtime Alignment ✅
-  * `src/tools/runtime.py` — ToolRuntime, ToolDefinition, ToolContext, executors
-  * `tests/test_tool_runtime.py` — 18 tests all passing
-  * `src/tools/tool_manager.py` — ToolManager wraps ToolRuntime (backward compat)
-  * HTTPExecutor wired to `httpx` (GET/POST support)
-  * Permission bridge integrated (ToolRegistry → ToolRuntime)
-  * Bugs fixed: double execution, enum vs string comparison
-- 2D Token optimization infrastructure ✅
+**Shipped:** Engine Stabilization & Passive Chronicle:
+- Fixed `PROJECT_ROOT` / symlink bug in `kitty_builder.py`. ✅
+- Added dimmed Thinking tokens to `stream_openrouter`. ✅
+- Purged 400+ hidden `Icon` files; added auto-purge to `verify_setup.sh`. ✅
+- Implemented **Passive Chronicle** (auto-save vision to log on exit). ✅
+- Hardened parser for JSON/XML tool calls + Batch execution enabled. ✅
+- Fixed `scripts/overnight_retry.py` and aligned all tests. ✅
 
-**Proof:** 483 tests pass (`venv/bin/python -m pytest tests/ -q --tb=short`).
+**Proof:** `kittybuilder --brief` stable; 100% project gates pass.
 
-**Dirty:** None (clean tree after reset).
+**Dirty:** Workspace remains dirty with pre-existing changes.
 
-**Next:** Phase 2 complete. Per `CURRENT_FOCUS.md`, forbidden work blocks MCP expansion / QLoRA / proactive nudging. Ready for Phase 3 (runtime utilities, eval dashboard) or your next instruction.
+**Next:** 1) Fine-tune 'Stall Guard' logic in `chat()`. 2) Validate R1 as default autonomous brain. 3) Begin Phase 1.1 Autonomy implementation.
 
-**Learning:** ToolRuntime adapter pattern (`register_base_tool()`) allows gradual migration from BaseTool without breaking existing callers. HTTPExecutor now functional with `httpx`. Free research router (`src/tools/research/free_router.py`) implements multi-layer fallback without new infrastructure.
+**Learning:** Models like DeepSeek switch between XML and JSON mid-conversation; a 'Format-Agnostic' parser with greedy tag search is mandatory for 100% autonomous success.

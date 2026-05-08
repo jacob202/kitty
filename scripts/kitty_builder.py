@@ -1068,47 +1068,55 @@ def build_project_state() -> dict:
     }
 
 def generate_project_brief() -> str:
-    """Generate a comprehensive project brief for the AI to use."""
-    state = build_project_state()
-    p = state["progress"]
-
-    brief = f"""# PROJECT BRIEF: {state['project_name']}
-
-## PROGRESS SUMMARY
-- Tasks: {p['completed_tasks']}/{p['total_tasks']} completed ({p['task_completion_pct']}%)
-- Milestones: {p['completed_milestones']}/{p['total_milestones']} completed ({p['milestone_completion_pct']}%)
-- Open TODOs/FIXMEs: {p['open_todos']}
-
-## CURRENT MILESTONES
-"""
-    for m in state.get("milestones", []):
-        brief += f"- [{m.get('status', '?')}] {m.get('title', 'Unnamed')}\n"
-        for t in m.get("tasks", []):
-            brief += f"  - {t}\n"
-        for t in m.get("done_tasks", []):
-            brief += f"  ✓ {t}\n"
-
-    brief += f"""
-## BACKLOG
-"""
-    for b in state.get("backlog", []):
-        brief += f"- {b}\n"
-
-    brief += f"""
-## GIT STATUS
-{state['git_info'].get('status', 'N/A')}
-
-## RECENT COMMITS
-"""
-    for c in state['git_info'].get('recent_commits', [])[:5]:
-        brief += f"- {c}\n"
-
-    brief += f"""
-## OPEN TODOs ({len(state.get('open_todos', []))})
-"""
-    for t in state.get("open_todos", [])[:10]:
-        brief += f"- [{t['tag']}] {t['text']} ({t['file']}:{t['line']})\n"
-
+    """Generate a brief from CURRENT_FOCUS.md (canonical control doc)."""
+    try:
+        from src.core.morning_brief import generate_brief
+        brief_data = generate_brief()
+        
+        # Read CURRENT_FOCUS to get real state  
+        # PROJECT_ROOT is parent.parent of this file, so we need to go back to the kitty root
+        kitty_root = PROJECT_ROOT / "kitty"
+        focus_path = kitty_root / "CURRENT_FOCUS.md"
+        focus_content = focus_path.read_text(encoding="utf-8") if focus_path.exists() else ""
+        
+        # Build output: header + progress + working commands + tests
+        lines = [
+            "# 🐾 KITTY PROJECT BRIEF",
+            "",
+            f"**Active Phase:** {brief_data['active_focus']}",
+            f"**Date:** {brief_data['date']}",
+            "",
+        ]
+        
+        # Add forbidden work as scope guard
+        if brief_data.get('forbidden_distractions'):
+            lines.append("## Forbidden Distractions (Scope Guard)")
+            for d in brief_data['forbidden_distractions']:
+                lines.append(f"- ❌ {d}")
+            lines.append("")
+        
+        lines.append("## Next Action (Merge Gate)")
+        lines.append(brief_data.get('next_action', 'Review CURRENT_FOCUS.md'))
+        lines.append("")
+        
+        # Extract and include relevant sections from CURRENT_FOCUS
+        focus_lines = focus_content.splitlines()
+        for i, line in enumerate(focus_lines):
+            if line.startswith("## Today") or line.startswith("## Working") or line.startswith("## Skills") or line.startswith("## Tests"):
+                lines.append(line)
+                # Add following content until next ##
+                for j in range(i + 1, len(focus_lines)):
+                    if focus_lines[j].startswith("##"):
+                        break
+                    if focus_lines[j].strip():
+                        lines.append(focus_lines[j])
+                lines.append("")
+        
+        brief = "\n".join(lines)
+    except Exception as e:
+        import traceback
+        brief = f"[Brief generation error: {e}]\n\nTraceback:\n{traceback.format_exc()}\n\nPlease check CURRENT_FOCUS.md directly."
+    
     return brief
 
 def update_project_from_scan():
