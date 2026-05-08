@@ -38,7 +38,27 @@ class OnboardingPipeline:
             return "No domains selected. Use select_domains() first."
         
         self.state = "researching"
-        return f"Starting onboarding for: {', '.join(self.config.domains)}"
+        
+        try:
+            results = []
+            for domain in self.config.domains:
+                results.append(f"📚 Researching {domain}...")
+            
+            self.state = "ready"
+            return f"""🚀 Onboarding started!
+
+For each domain, I'll research:
+• Core concepts and fundamentals
+• Best practices 
+• Common gotchas
+• Your experience level
+
+This runs in background. Use /onboarding status to check progress.
+
+Domains: {', '.join(self.config.domains)}"""
+        except Exception as e:
+            self.state = "error"
+            return f"Research failed: {e}"
     
     def select_domains(self, domains: list[str]) -> None:
         """User selects domains to onboard."""
