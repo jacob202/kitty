@@ -1,52 +1,5 @@
 {
-  "slashCommands": [
-    {
-      "name": "/optimize",
-      "description": "Intent Compiler → Build Contract → Multi-agent optimization",
-      "command": "python3 scripts/kittybuilder_optimize.py src/ --scope standard 2>&1 | tail -20"
-    },
-    {
-      "name": "/cleanup",
-      "description": "Dead code → drift normalization → sandbox verify",
-      "command": "python3 scripts/kittybuilder_cleanup.py --scope 'dead:all,drift:api' --sandbox 2>&1 | tail -15"
-    },
-{
-  "slashCommands": [
-    {"name": "/optimize", "command": "python3 scripts/kittybuilder_optimize.py src/"},
-    {"name": "/cleanup", "command": "python3 scripts/kittybuilder_cleanup.py"},
-    {"name": "/token-audit", "command": "bash scripts/kitty_token_analytics.sh 2>/dev/null || wc -l data/kitty_token_log.jsonl"},
-    {"name": "/onboarding", "command": "echo 'Use /onboarding select <domains> then /onboarding start from the CLI'"}
-  ],
-  "hooks": {
-    "postToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "command": "/opt/homebrew/bin/python3.12 -m py_compile $CLAUDE_FILE_PATH 2>&1 || true"
-      },
-      {
-        "matcher": "Edit|Write",
-        "command": "command -v ruff >/dev/null 2>&1 && ruff check --fix $CLAUDE_FILE_PATH 2>&1 | tail -3 || true"
-      }
-    ],
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/kitty-standup"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/kitty-standup --reminder"
-          }
-        ]
-      }
-    ]
-  }
+  "sessionStart": "cd /Users/jacobbrizinski/Projects/kitty && pwd && echo '' && python3 scripts/agent-context-brief.py && echo '' && echo 'Type your task. I will restate it and wait for you to say go.'",
+  "autoSave": true,
+  "terminalIntegration": true
 }

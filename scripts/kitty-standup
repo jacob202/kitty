@@ -39,3 +39,9 @@ print(m.group(1).strip())
     exit 1
     ;;
 esac
+
+# ADDED: Auto-generate context brief for agents
+if [[ "$1" == "--brief" ]] || [[ "$1" == "" ]]; then
+    echo ""
+    python3 "$(dirname "$0")/agent-context-brief.py"
+fi
