@@ -1068,56 +1068,22 @@ def build_project_state() -> dict:
     }
 
 def generate_project_brief() -> str:
-    """Generate a brief from CURRENT_FOCUS.md (canonical control doc)."""
+    """Generate a brief from CURRENT_FOCUS.md (canonical control doc) using unified reader."""
     try:
-        from src.core.morning_brief import generate_brief
-        brief_data = generate_brief()
+        from src.core.project_state_reader import format_control_docs_brief, get_project_root
         
-        # Read CURRENT_FOCUS to get real state  
-        # PROJECT_ROOT is parent.parent of this file, so we need to go back to the kitty root
-        kitty_root = PROJECT_ROOT / "kitty"
-        focus_path = kitty_root / "CURRENT_FOCUS.md"
-        focus_content = focus_path.read_text(encoding="utf-8") if focus_path.exists() else ""
+        # Use unified project state reader
+        root = get_project_root()
+        brief = format_control_docs_brief(root)
         
-        # Build output: header + progress + working commands + tests
-        lines = [
-            "# 🐾 KITTY PROJECT BRIEF",
-            "",
-            f"**Active Phase:** {brief_data['active_focus']}",
-            f"**Date:** {brief_data['date']}",
-            "",
-        ]
+        if not brief or brief.strip() == "# 🐾 PROJECT STATE\n":
+            # Fallback if no data
+            brief = "No project state available - check CURRENT_FOCUS.md"
         
-        # Add forbidden work as scope guard
-        if brief_data.get('forbidden_distractions'):
-            lines.append("## Forbidden Distractions (Scope Guard)")
-            for d in brief_data['forbidden_distractions']:
-                lines.append(f"- ❌ {d}")
-            lines.append("")
-        
-        lines.append("## Next Action (Merge Gate)")
-        lines.append(brief_data.get('next_action', 'Review CURRENT_FOCUS.md'))
-        lines.append("")
-        
-        # Extract and include relevant sections from CURRENT_FOCUS
-        focus_lines = focus_content.splitlines()
-        for i, line in enumerate(focus_lines):
-            if line.startswith("## Today") or line.startswith("## Working") or line.startswith("## Skills") or line.startswith("## Tests"):
-                lines.append(line)
-                # Add following content until next ##
-                for j in range(i + 1, len(focus_lines)):
-                    if focus_lines[j].startswith("##"):
-                        break
-                    if focus_lines[j].strip():
-                        lines.append(focus_lines[j])
-                lines.append("")
-        
-        brief = "\n".join(lines)
+        return brief
     except Exception as e:
         import traceback
-        brief = f"[Brief generation error: {e}]\n\nTraceback:\n{traceback.format_exc()}\n\nPlease check CURRENT_FOCUS.md directly."
-    
-    return brief
+        return f"[Brief generation error: {e}]\n\nTraceback:\n{traceback.format_exc()}\n\nPlease check CURRENT_FOCUS.md directly."
 
 def update_project_from_scan():
     """Build comprehensive project state from all sources."""

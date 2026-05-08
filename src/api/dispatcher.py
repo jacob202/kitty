@@ -503,6 +503,47 @@ def _ensure_commands_registered(sup):
     engine.register("optimize", handle_optimize, description="Intent Compiler → Build Contract → Multi-agent optimization", category="builder")
     engine.register("cleanup", handle_cleanup, description="Dead code → drift normalization → sandbox verify", category="builder")
     engine.register("onboarding", handle_onboarding, description="Personal Onboarding Pipeline - learn user's domains", category="core")
+    
+    # New PM tools for project state
+    def handle_phase(args: str, **ctx):
+        """Show current phase details from CURRENT_FOCUS.md"""
+        from src.core.project_state_reader import get_current_phase_details
+        output = get_current_phase_details()
+        return CommandResult(success=True, message=output)
+    
+    def handle_next(args: str, **ctx):
+        """Show next recommended action from TASKS.md"""
+        from src.core.project_state_reader import read_tasks_md, read_current_focus
+        tasks = read_tasks_md()
+        focus = read_current_focus()
+        
+        lines = ["## Next Steps\n"]
+        
+        # Show next action from TASKS
+        if tasks.get("next_action"):
+            lines.append(f"**Immediate:** {tasks['next_action']}\n")
+        
+        # Show open tasks count
+        open_count = len(tasks.get("open_tasks", []))
+        if open_count > 0:
+            lines.append(f"**Open tasks:** {open_count}")
+            for i, task in enumerate(tasks.get("open_tasks", [])[:3], 1):
+                lines.append(f"  {i}. {task}")
+            if open_count > 3:
+                lines.append(f"  ... and {open_count - 3} more")
+            lines.append("")
+        
+        # Show working commands
+        commands = focus.get("working_commands", [])
+        if commands:
+            lines.append(f"**Available commands:** {', '.join(commands[:5])}")
+            if len(commands) > 5:
+                lines.append(f"  (and {len(commands) - 5} more - type /help)")
+        
+        return CommandResult(success=True, message="\n".join(lines))
+    
+    engine.register("phase", handle_phase, description="Show current phase and date", category="core")
+    engine.register("next", handle_next, description="Show next recommended action and open tasks", category="core")
 
 
 def dispatch(
