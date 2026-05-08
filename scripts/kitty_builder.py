@@ -2882,24 +2882,46 @@ def _format_project(proj: dict) -> str:
 
 
 def _extract_json(text: str) -> dict | None:
-    """Extract first JSON object from LLM response.
+    """Extract tool call from LLM response, supporting JSON and multiple XML styles."""
+    if not text:
+        return None
 
-    Uses json.JSONDecoder to track nesting depth correctly — closing braces
-    inside quoted strings are handled automatically by the JSON parser.
+    # Clean special model tokens and thought blocks
+    clean_text = re.sub(r'<(thought|reasoning_content)>.*?</\1>', '', text, flags=re.DOTALL)
+    clean_text = clean_text.replace("<｜｜DSML｜｜>", "").strip()
 
-    Tries multiple patterns:
-    1. ```json ... ``` block
-    2. ``` ... ``` any code block
-    3. Raw JSON-like text starting with {
-    """
-    # Pattern 1: JSON code block
-    block = re.search(r'```json\s*(.*?)\s*```', text, re.DOTALL)
-    if block:
-        raw = block.group(1)
-    else:
-        # Pattern 2: Any code block
-        block = re.search(r'```\s*(.*?)\s*```', text, re.DOTALL)
-        raw = block.group(1) if block else text
+    # Style 1: XML <invoke name="tool"><parameter name="arg">val</parameter></invoke>
+    invoke_match = re.search(r'<invoke\s+name=["\'](.*?)["\']\s*>(.*?)</invoke>', clean_text, re.DOTALL)
+    if invoke_match:
+        tool_name = invoke_match.group(1)
+        args_text = invoke_match.group(2)
+        args = {}
+        param_matches = re.finditer(r'<parameter\s+name=["\'](.*?)["\']\s*.*?>(.*?)</parameter>', args_text, re.DOTALL)
+        for pm in param_matches:
+            args[pm.group(1)] = pm.group(2).strip()
+        return {"tool": tool_name, "args": args}
+
+    # Style 2: XML <tool_name path="..." /> or <tool_name>val</tool_name>
+    for tool_name in TOOLS.keys():
+        tag_attr_pat = rf'<{tool_name}\s+(.*?)\s*/>'
+        m = re.search(tag_attr_pat, clean_text, re.DOTALL)
+        if m:
+            attrs = m.group(1)
+            args = {}
+            attr_matches = re.finditer(r'(\w+)=["\'](.*?)["\']', attrs)
+            for am in attr_matches:
+                args[am.group(1)] = am.group(2)
+            return {"tool": tool_name, "args": args}
+        
+        tag_cont_pat = rf'<{tool_name}>(.*?)</{tool_name}>'
+        m = re.search(tag_cont_pat, clean_text, re.DOTALL)
+        if m:
+            content = m.group(1).strip()
+            return {"tool": tool_name, "args": content}
+
+    # Style 3: Standard JSON handling
+    block = re.search(r'```(?:json)?\s*({.*?})\s*```', clean_text, re.DOTALL)
+    raw = block.group(1) if block else clean_text
 
     # Find JSON start
     start = raw.find('{')
@@ -2909,7 +2931,11 @@ def _extract_json(text: str) -> dict | None:
     try:
         decoder = json.JSONDecoder()
         obj, end = decoder.raw_decode(raw[start:])
-        return obj
+        if isinstance(obj, dict) and ("tool" in obj or "action" in obj):
+            if "action" in obj and "tool" not in obj:
+                obj["tool"] = obj.pop("action")
+            return obj
+        return None
     except json.JSONDecodeError:
         return None
 

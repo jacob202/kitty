@@ -17,6 +17,8 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 _SKILL_DIRS = [
     "src/tools/superpowers/skills",
     "consolidated-skills",
+    ".claude/skills",  # Agent-created skills
+    ".agents/skills",  # OpenCode/Gemini/Codex skill placement
 ]
 
 # Optional legacy archive (not in active config, but available by request)
