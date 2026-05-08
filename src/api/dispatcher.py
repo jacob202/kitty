@@ -18,6 +18,9 @@ from src.core.capabilities import (
     visible_help_commands,
 )
 from src.core.command_engine import CommandResult, get_command_engine
+from src.services.onboarding_pipeline import OnboardingPipeline
+
+_onboarding_pipeline = OnboardingPipeline()
 from src.tools.skill_commands import get_skill, list_skills
 
 
@@ -430,9 +433,8 @@ def _ensure_commands_registered(sup):
 
     def handle_onboarding(args: str, **ctx):
         """Personal Onboarding Pipeline."""
-        from src.services.onboarding_pipeline import OnboardingPipeline
-        
-        pipeline = OnboardingPipeline()
+        global _onboarding_pipeline
+        pipeline = _onboarding_pipeline
         parts = args.strip().split() if args.strip() else []
         
         if not parts:
