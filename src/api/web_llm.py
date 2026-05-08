@@ -47,19 +47,6 @@ class WebLLMClient:
                 logger.exception("OpenRouter web fallback failed")
                 errors.append(f"OpenRouter: {str(e)}")
 
-        if anthropic_key:
-            try:
-                text = self._chat_anthropic(
-                    prompt,
-                    system_prompt=system_prompt,
-                    api_key=anthropic_key,
-                    stream=stream,
-                )
-                return self._success_response(text, provider="anthropic", model=DEFAULT_ANTHROPIC_MODEL)
-            except Exception as e:
-                logger.exception("Anthropic web fallback failed")
-                errors.append(f"Anthropic: {str(e)}")
-
         if errors:
             return self._error_response(
                 "Provider fallback failed. " + " | ".join(errors),

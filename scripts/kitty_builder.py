@@ -902,7 +902,19 @@ def sanitize_command(command: str) -> bool:
     Accepts both exact names (pytest) and path-based executables
     (venv/bin/python3.12) by comparing the basename against the whitelist.
     Blocks -c flag on interpreters to prevent inline code injection.
+    
+    Set KITTY_BUILDER_UNSAFE=1 to relax (for autonomous mode).
     """
+    # Relaxed mode for autonomous PM
+    if os.environ.get("KITTY_BUILDER_UNSAFE", "").strip() in ("1", "true"):
+        parts = command.split()
+        if not parts:
+            return False
+        base = Path(parts[0]).name
+        if base in {"python3", "python", "bash", "sh"}:
+            return True
+        return bool(parts[0])
+    
     forbidden = [";", "&&", "||", "|", ">", "<", "`", "$("]
     parts = command.split()
     if not parts:
@@ -2905,6 +2917,9 @@ def _extract_all_tool_calls(text: str) -> list[dict]:
     clean_text = re.sub(r'<reasoning_content>.*?</reasoning_content>', '', clean_text, flags=re.DOTALL)
     clean_text = clean_text.replace("<｜｜DSML｜｜>", "").strip()
 
+    # Normalize: collapse newlines inside XML tags so regex can match
+    clean_text = re.sub(r'>\s+<', '><', clean_text)
+
     calls = []
 
     # Style 1: XML <invoke name="tool"><parameter name="arg">val</parameter></invoke>
@@ -2913,6 +2928,8 @@ def _extract_all_tool_calls(text: str) -> list[dict]:
         tool_name = m.group(1)
         args_text = m.group(2)
         args = {}
+        # Handle both multiline and single-line parameters
+        args_text_clean = args_text.replace("\n", " ")
         param_matches = re.finditer(r'<parameter\s+name=["\'](.*?)["\']\s*.*?>(.*?)</parameter>', args_text, re.DOTALL)
         for pm in param_matches:
             args[pm.group(1)] = pm.group(2).strip()
