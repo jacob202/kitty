@@ -755,7 +755,15 @@ def stream_openrouter(
         full_response = []
         try:
             for chunk in stream:
-                delta = chunk.choices[0].delta.content
+                delta_obj = chunk.choices[0].delta
+                
+                # Phase 1.1: Display reasoning/thinking content in dimmed text
+                thinking = getattr(delta_obj, "reasoning_content", None) or getattr(delta_obj, "thinking", None)
+                if thinking:
+                    sys.stderr.write(f"\033[2m{thinking}\033[0m")
+                    sys.stderr.flush()
+
+                delta = delta_obj.content
                 if delta:
                     completion_chars += len(delta)
                     full_response.append(delta)
@@ -3041,6 +3049,37 @@ def count_lines(path: str) -> int:
     return int(result.stdout.strip().split()[0])
 
 
+def judge_quality(result: str, goal: str) -> tuple[int, str]:
+    """Judge if result achieves goal. Returns (score 0-100, reasoning)."""
+    goal_lower = goal.lower()
+    result_lower = result.lower()
+    
+    success_signals = [
+        ("file created", "file created"),
+        ("written", "file written"),
+        ("ok", "success"),
+        ("passed", "tests passed"),
+        ("done", "task done"),
+    ]
+    
+    # Check for success signals
+    matched = []
+    for sig, label in success_signals:
+        if sig in result_lower:
+            matched.append(label)
+    
+    if matched:
+        score = 80
+        return score, f"Found success signals: {matched}"
+    
+    # Check for failure
+    if "error" in result_lower or "failed" in result_lower:
+        return 30, "Errors found in result"
+    
+    # Ambiguous
+    return 50, "No clear success or failure signal"
+
+
 # ── Optional LightRAG KB query (opt-in) ──────────────────────────────────────
 #
 # Per CLAUDE.md routing, KB queries go to LightRAG. We import lazily so the
@@ -3336,6 +3375,14 @@ def chat(
                     continue
 
             if all_ok:
+                # Batch succeeded. Judge quality, exit if >= 80.
+                goal = session.project_state.get("goal") if isinstance(session.project_state, dict) else None
+                if goal:
+                    score, reasoning = judge_quality(last_response, goal)
+                    print(f"[Quality] Score: {score}/100 - {reasoning}")
+                    if score >= 80:
+                        print(f"[Done] Quality threshold met, exiting")
+                        break
                 # Batch succeeded. Keep going in autonomous mode.
                 if auto_continue_on_success and iter_no < max_iters:
                     continue
@@ -3728,6 +3775,7 @@ TOOLS = {
     "github_scout": github_scout,
     "flush_stats": flush_model_stats,
     "count_lines": count_lines,
+    "judge_quality": judge_quality,
 }
 
 
