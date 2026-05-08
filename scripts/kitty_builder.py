@@ -305,7 +305,8 @@ APPEND_STANDUP = os.environ.get("KITTY_BUILDER_APPEND_STANDUP", "").strip().lowe
 )
 
 def save_session():
-    """Atomic session save. Failure is logged but not raised. Also flushes model stats."""
+    """Atomic session save. Failure is logged but not raised. Also flushes model stats.
+    Includes Passive Chronicle context capture."""
     tmp = SESSION_FILE.with_suffix(SESSION_FILE.suffix + ".tmp")
     try:
         with open(tmp, "w") as f:
@@ -320,11 +321,27 @@ def save_session():
             tmp.unlink(missing_ok=True)
         except OSError:
             pass
+    
     # Best-effort: persist a JSONL row of model health for future MCP ingest.
     try:
         flush_model_stats()
     except Exception as e:
         print(f"[ModelStats] flush from save_session failed: {e}", file=sys.stderr)
+    
+    # --- Passive Chronicle ---
+    try:
+        if session.history and len(session.history) > 1:
+            from src.space_kitty.llm_client import call_llm
+            history_text = "\n".join(f"{m.get('role')}: {m.get('content')}" for m in session.history[-10:])
+            sys_prompt = "You are an automated session summarizer. Read the chat history and output exactly two sentences capturing the high-level intent, vision, or 'vibe shift' of the session. Do not list code changes. Focus on the human's strategic direction."
+            summary = call_llm(history_text, system_prompt=sys_prompt)
+            if summary:
+                log_file = PROJECT_ROOT / "docs" / "SESSION_LOG.md"
+                with open(log_file, "a") as lf:
+                    lf.write(f"\n## Chronicle Entry — {datetime.now().strftime('%Y-%m-%d %H:%M')}\n**Context:** {summary.strip()}\n")
+                print(f"[Chronicle] Session context captured to {log_file.name}")
+    except Exception as e:
+        print(f"[Chronicle] capture failed: {e}", file=sys.stderr)
 
 def load_session():
     if not SESSION_FILE.exists():
@@ -1593,7 +1610,7 @@ def _builder_scope_block(project_state: dict) -> str:
     )
 
 
-def builder_session_start_brief() -> str:
+def builder_session_start_brief(**kwargs) -> str:
     """One-screen session opener: git, focus, optional latched spec, budget, next steps."""
     update_project_from_scan()
     dirty_n, dirty_body = _git_short_status_for_brief()
@@ -1797,22 +1814,6 @@ def kitty_self_improve() -> str:
 
 Run this function periodically to track Kitty's health.
 """
-
-TOOLS = {
-    "run_command": run_command,
-    "read_file": read_file,
-    "write_file": write_file,
-    "modify_project_tasks": update_project,
-    "search_web": search_web,
-    "launch_kitty": lambda: run_command(f"{sys.executable} -m pytest tests/ -q --tb=short"),
-    "generate_project_brief": get_project_brief,
-    "builder_session_start": builder_session_start_brief,
-    "run_project_gates": run_project_gates,
-    "run_pattern": run_pattern,
-    "scan_project_health": scan_project_health,
-    "suggest_next_steps": suggest_next_steps,
-    "kitty_self_improve": kitty_self_improve,  # defined above
-}
 
 # ------------------------------------------------------------
 # BUDGET TRACKING
@@ -2161,15 +2162,6 @@ def record_builder_recommendation(
         next_agent_packet=next_agent_packet or {},
     )
 
-
-TOOLS["get_builder_budget"] = get_builder_budget
-TOOLS["get_builder_token_usage"] = get_builder_token_usage
-TOOLS["compile_builder_request"] = compile_builder_request
-TOOLS["worker_health_summary"] = worker_health_summary
-
-# ------------------------------------------------------------
-# BRAIN — configurable tier order (KITTY_BUILDER_BRAIN_ORDER)
-# ------------------------------------------------------------
 
 
 def _brain_tier_groq(messages: list, response_parts: list[str]) -> bool:
@@ -2562,18 +2554,13 @@ def github_scout(task: str) -> str:
     query = f"site:github.com {task[:120]} open source tool"
     return search_web(query)
 
-# Register new tools after delegate/github_scout are defined
-TOOLS["delegate"] = delegate
-TOOLS["github_scout"] = github_scout
-
 # ------------------------------------------------------------
 # STARTUP PROBE — verify each tier before accepting input
 # ------------------------------------------------------------
 def probe_tools() -> dict:
     log.info("Probing available tools…")
     print("[Startup] Probing available tools…")
-    status: dict[str, str] = {}
-
+    status = {}
     if _groq_client:
         try:
             budget.assert_groq_request_allowed()
@@ -2838,7 +2825,6 @@ Your job is to:
 - get_builder_budget() - **Spend questions:** today's recorded ledger (Groq / OpenRouter / Claude CLI) — call this instead of guessing dollars
 - delegate(cli, task) - Stream a coding task to a CLI worker (cli: claude, gemini, opencode, aider, crush, agent, goose)
 - github_scout(task) - Search GitHub for existing tools before building from scratch
-
 --- HOW YOU OPERATE ---
 1. You ALWAYS know the full project state - use generate_project_brief() at session start
 2. When Jacob asks about progress, give specific numbers (% complete, tasks remaining)
@@ -2902,24 +2888,82 @@ def _format_project(proj: dict) -> str:
 
 
 def _extract_json(text: str) -> dict | None:
-    """Extract first JSON object from LLM response.
+    """Extract tool call from LLM response, supporting JSON and multiple XML styles."""
+    if not text:
+        return None
 
-    Uses json.JSONDecoder to track nesting depth correctly — closing braces
-    inside quoted strings are handled automatically by the JSON parser.
+    # Clean special model tokens and thought blocks
+    clean_text = re.sub(r'<thought>.*?</thought>', '', text, flags=re.DOTALL)
+    clean_text = re.sub(r'<reasoning_content>.*?</reasoning_content>', '', clean_text, flags=re.DOTALL)
+    clean_text = clean_text.replace("<｜｜DSML｜｜>", "").strip()
 
-    Tries multiple patterns:
-    1. ```json ... ``` block
-    2. ``` ... ``` any code block
-    3. Raw JSON-like text starting with {
-    """
-    # Pattern 1: JSON code block
-    block = re.search(r'```json\s*(.*?)\s*```', text, re.DOTALL)
-    if block:
-        raw = block.group(1)
-    else:
-        # Pattern 2: Any code block
-        block = re.search(r'```\s*(.*?)\s*```', text, re.DOTALL)
-        raw = block.group(1) if block else text
+    # Style 1: XML <invoke name="tool"><parameter name="arg">val</parameter></invoke>
+    invoke_match = re.search(r'<invoke\s+name=["\'](.*?)["\']\s*>(.*?)</invoke>', clean_text, re.DOTALL)
+    if invoke_match:
+        tool_name = invoke_match.group(1)
+        args_text = invoke_match.group(2)
+        args = {}
+        param_matches = re.finditer(r'<parameter\s+name=["\'](.*?)["\']\s*.*?>(.*?)</parameter>', args_text, re.DOTALL)
+        for pm in param_matches:
+            args[pm.group(1)] = pm.group(2).strip()
+        log.debug(f"Extracted Style 1 tool: {tool_name}")
+        return {"tool": tool_name, "args": args}
+
+    # Style 2: XML <tool_name path="..." /> or <tool_name>val</tool_name>
+    for tool_name in TOOLS.keys():
+        # Tag with attributes: <read_file path="foo.py"/>
+        tag_attr_pat = rf'<{tool_name}\s+(.*?)\s*/>'
+        m = re.search(tag_attr_pat, clean_text, re.DOTALL)
+        if m:
+            attrs = m.group(1)
+            args = {}
+            attr_matches = re.finditer(r'(\w+)=["\'](.*?)["\']', attrs)
+            for am in attr_matches:
+                args[am.group(1)] = am.group(2)
+            log.debug(f"Extracted Style 2 tool (attr): {tool_name}")
+            return {"tool": tool_name, "args": args}
+        
+        # Tag with content: <read_file>foo.py</read_file>
+        tag_cont_pat = rf'<{tool_name}>(.*?)</{tool_name}>'
+        m = re.search(tag_cont_pat, clean_text, re.DOTALL)
+        if m:
+            content = m.group(1).strip()
+            log.debug(f"Extracted Style 2 tool (content): {tool_name}")
+            return {"tool": tool_name, "args": content}
+
+    # Style 5: Greedy Tag Search: <tool_name>...</tool_name>
+    for tool_name in TOOLS.keys():
+        pat = rf'<{tool_name}>(.*?)</{tool_name}>'
+        m = re.search(pat, clean_text, re.DOTALL)
+        if m:
+            content = m.group(1).strip()
+            log.debug(f"Extracted Style 5 tool: {tool_name}")
+            return {"tool": tool_name, "args": content}
+
+    # Style 4: Simple function call in code block: tool_name(args)
+    # Pattern: ```[tool/python/...] tool_name(...) ```
+    code_match = re.search(r'```(?:[\w+-]+)?\s*([\w_]+)\s*\((.*?)\)\s*```', clean_text, re.DOTALL)
+    if code_match:
+        tool_name = code_match.group(1)
+        args_raw = code_match.group(2).strip()
+        if tool_name in TOOLS:
+            args = {}
+            if args_raw:
+                # Try to parse as JSON if it looks like it
+                if args_raw.startswith('{') and args_raw.endswith('}'):
+                    try:
+                        args = json.loads(args_raw)
+                    except:
+                        args = {"args": args_raw}
+                else:
+                    # Treat as a single positional argument or a string
+                    args = {"task": args_raw} if "task" in str(TOOLS[tool_name].__code__.co_varnames) else {"args": args_raw}
+            log.debug(f"Extracted Style 4 tool: {tool_name}")
+            return {"tool": tool_name, "args": args}
+
+    # Style 3: Standard JSON handling
+    block = re.search(r'```(?:json)?\s*({.*?})\s*```', clean_text, re.DOTALL)
+    raw = block.group(1) if block else clean_text
 
     # Find JSON start
     start = raw.find('{')
@@ -2929,7 +2973,12 @@ def _extract_json(text: str) -> dict | None:
     try:
         decoder = json.JSONDecoder()
         obj, end = decoder.raw_decode(raw[start:])
-        return obj
+        if isinstance(obj, dict) and ("tool" in obj or "action" in obj):
+            if "action" in obj and "tool" not in obj:
+                obj["tool"] = obj.pop("action")
+            log.debug(f"Extracted Style 3 tool: {obj.get('tool')}")
+            return obj
+        return None
     except json.JSONDecodeError:
         return None
 
@@ -3022,10 +3071,6 @@ def kb_query(query: str, top_k: int = 5) -> str:
     return str(results)[:4000]
 
 
-# Register kb_query as a tool the agent can call (no-op call still safe when disabled).
-TOOLS["kb_query"] = kb_query
-
-
 # ── Prompt cache (opt-in, off by default) ────────────────────────────────────
 
 CACHE_FILE = PROJECT_ROOT / ".kitty_builder_cache.sqlite3"
@@ -3034,7 +3079,6 @@ CACHE_FILE = PROJECT_ROOT / ".kitty_builder_cache.sqlite3"
 class PromptCache:
     """Tiny SQLite cache keyed by sha256 of (model + messages + kwargs).
 
-    Disabled unless env KITTY_BUILDER_CACHE=1. Only useful for deterministic
     (low-temp) calls — random sampling poisons the cache for everyone else.
     """
 
@@ -3116,12 +3160,30 @@ _TOOL_ERROR_PATTERNS = (
     re.compile(r"\b(failed|traceback)\b", re.IGNORECASE),
 )
 
+_INCOMPLETE_RESPONSE_PATTERNS = (
+    re.compile(r"\blet me\b", re.IGNORECASE),
+    re.compile(r"\bi(?:'|’)ll\b", re.IGNORECASE),
+    re.compile(r"\bi will\b", re.IGNORECASE),
+    re.compile(r"\b(start|begin|first)\b", re.IGNORECASE),
+    re.compile(r"\b(step\s*1|explor(?:e|ing)|checking)\b", re.IGNORECASE),
+)
+
 
 def _looks_like_failure(result: object) -> bool:
     if not isinstance(result, str):
         return False
     head = result[:300]
     return any(p.search(head) for p in _TOOL_ERROR_PATTERNS)
+
+
+def _looks_incomplete_response(text: object) -> bool:
+    """Heuristic: assistant sounds like it is about to work, not done yet."""
+    if not isinstance(text, str):
+        return False
+    head = text.strip()[:300]
+    if not head:
+        return False
+    return any(p.search(head) for p in _INCOMPLETE_RESPONSE_PATTERNS)
 
 
 def _execute_tool_call(data: dict) -> tuple[bool, str]:
@@ -3159,7 +3221,12 @@ def _check_goal(verify_cmd: str) -> tuple[bool, str]:
     return proc.returncode == 0, tail
 
 
-def chat(user_input: str, *, max_iters: int = 1) -> str:
+def chat(
+    user_input: str,
+    *,
+    max_iters: int = 8,
+    auto_continue_on_success: bool = True,
+) -> str:
     """Single-turn chat. With max_iters>1, retries on tool failure (optimize loop).
 
     The optimize loop appends the failure context to the conversation and asks
@@ -3193,14 +3260,33 @@ def chat(user_input: str, *, max_iters: int = 1) -> str:
 
             data = _extract_json(last_response)
             if data is None or "tool" not in data:
-                # No tool call — nothing to retry. Done.
+                # No tool call. Optionally nudge once more if reply looks like
+                # a preamble ("let me check...") rather than a completed answer.
+                if (
+                    auto_continue_on_success
+                    and iter_no < max_iters
+                    and _looks_incomplete_response(last_response)
+                ):
+                    session.history.append({
+                        "role": "system",
+                        "content": (
+                            "Continue autonomously. If work remains, emit the next tool JSON now. "
+                            "Only stop when the task is complete or a concrete blocker exists."
+                        ),
+                    })
+                    continue
+                # No tool call and no continuation signal — done.
                 break
 
+            tool_name = data.get("tool")
+            tool_args = data.get("args", {})
+            print(f"\n[Tool Call] {tool_name}({json.dumps(tool_args)})")
+
             ok, result = _execute_tool_call(data)
-            print(f"[Tool Result] {result[:1000]}{'…' if len(result) > 1000 else ''}")
+            print(f"[Tool Result] {result[:500]}{'...' if len(result) > 500 else ''}")
             session.history.append({
                 "role": "system",
-                "content": f"Tool '{data.get('tool')}' executed (success={ok}). Result:\n{result}",
+                "content": f"TOOL_RESULT ({tool_name}):\n{result}",
             })
 
             # Goal check after every successful tool execution
@@ -3215,16 +3301,16 @@ def chat(user_input: str, *, max_iters: int = 1) -> str:
                         session.project_state.pop("goal_verify", None)
                     break
                 else:
-                    # Tool succeeded but goal still failing — feed the error back as context
-                    msg = (f"Goal verifier `{verify}` still failing.\n"
-                           f"Last 400 chars of output:\n{tail}\n"
-                           f"Try a different approach.")
+                    # Tool succeeded but goal still failing
+                    msg = (f"Goal verifier `{verify}` still failing. Result tail:\n{tail}")
                     session.history.append({"role": "system", "content": msg})
-                    # continue iterating
                     continue
 
             if ok:
-                # Tool succeeded and no goal set — we're done.
+                # Tool succeeded. In autonomous mode, keep going until no tool
+                # call is needed or the loop budget is exhausted.
+                if auto_continue_on_success and iter_no < max_iters:
+                    continue
                 break
             if iter_no >= max_iters:
                 break
@@ -3275,6 +3361,7 @@ def show_help():
     brain_default = ",".join(_DEFAULT_BRAIN_ORDER)
     print(
         "\n--- Kitty Builder V3 Commands ---\n"
+        "  /guide                   Show beginner-friendly guided workflow\n"
         "  /start                   Session opener: git + CURRENT_FOCUS + budget + next steps\n"
         "  /spec <path>             Latch an approved spec file for this session (stay-in-scope hint)\n"
         "  /spec show             Show latched spec path\n"
@@ -3308,7 +3395,8 @@ def show_help():
         "  /exit                    Quit + write standup entry\n"
         "\nCLI flags: --plan-only (or KITTY_BUILDER_PLAN_ONLY=1) for read-only interactive sessions.\n"
         "Env: KITTY_*_BIN for worker paths, KITTY_BUILDER_DELEGATE_TIMEOUT_SEC, KITTY_BUILDER_HISTORY_MAX; "
-        "KITTY_BUILDER_DELEGATE_DIFF=0 disables git diff --stat after delegate.\n"
+        "KITTY_BUILDER_DELEGATE_DIFF=0 disables git diff --stat after delegate; "
+        "KITTY_BUILDER_AUTO_ITERS controls default autonomous turns (1-20, default 8).\n"
         f"Brain: KITTY_BUILDER_BRAIN_ORDER={brain_default} (default/policy). Put mlx first for local-first; "
         "use groq,openrouter,mlx only if Groq is stable for you.\n"
         "Groq: set KITTY_BUILDER_DISABLE_GROQ=1 to skip Groq (no probe spam) while keeping GROQ_API_KEY.\n"
@@ -3318,6 +3406,17 @@ def show_help():
         "Free pool rotates on 429/503. Set OPENROUTER_FREE_MODELS or OPENROUTER_PAID_FALLBACK to customize.\n"
         f"Workers priority order: {' → '.join(_DELEGATE_ORDER)}\n"
         f"Policy file: {POLICY_FILE}\n"
+    )
+
+
+def _guided_quickstart_text() -> str:
+    return (
+        "\n--- Guided Quickstart ---\n"
+        "1) /start           -> confirm current state + next gated step\n"
+        "2) /compile <ask>   -> turn your idea into a structured brief\n"
+        "3) /goal <command>  -> set a concrete success check (usually pytest)\n"
+        "4) Describe what you want in plain English and I will execute end-to-end\n"
+        "5) /gates           -> verify before claiming done\n"
     )
 
 # ------------------------------------------------------------
@@ -3409,6 +3508,7 @@ def interactive_main(plan_only: bool = False):
 
     probe_tools()
     update_project_from_scan()
+    print(_guided_quickstart_text())
 
     session_actions: list[str] = []
 
@@ -3427,6 +3527,8 @@ def interactive_main(plan_only: bool = False):
 
             elif inp.lower() in ("/help", "help"):
                 show_help()
+            elif inp.lower() in ("/guide", "guide"):
+                print(_guided_quickstart_text())
             elif inp.lower() in ("/start", "start"):
                 print(builder_session_start_brief())
                 session_actions.append("session start (/start)")
@@ -3515,7 +3617,7 @@ def interactive_main(plan_only: bool = False):
                     print(f"Goal set: `{arg}` (will run after each tool exec)")
             elif inp.startswith("/optimize "):
                 prompt = inp[len("/optimize "):].strip()
-                chat(prompt, max_iters=3)
+                chat(prompt, max_iters=3, auto_continue_on_success=True)
                 session_actions.append(f"optimize: {prompt[:60]}")
             elif inp.startswith("/race "):
                 prompt = inp[len("/race "):].strip()
@@ -3557,7 +3659,12 @@ def interactive_main(plan_only: bool = False):
             elif inp.startswith("/models"):
                 show_models()
             else:
-                chat(inp)
+                auto_iters_raw = os.environ.get("KITTY_BUILDER_AUTO_ITERS", "8").strip()
+                try:
+                    auto_iters = max(1, min(20, int(auto_iters_raw)))
+                except ValueError:
+                    auto_iters = 8
+                chat(inp, max_iters=auto_iters, auto_continue_on_success=True)
                 session_actions.append(f"chat: {inp[:70]}")
 
         except (KeyboardInterrupt, EOFError):
@@ -3570,6 +3677,31 @@ def interactive_main(plan_only: bool = False):
     print(f"\nBudget used: {budget.summary()}")
 
 
+TOOLS = {
+    "run_command": run_command,
+    "read_file": read_file,
+    "write_file": write_file,
+    "modify_project_tasks": update_project,
+    "search_web": search_web,
+    "launch_kitty": lambda: run_command(f"{sys.executable} -m pytest tests/ -q --tb=short"),
+    "generate_project_brief": get_project_brief,
+    "builder_session_start": builder_session_start_brief,
+    "run_project_gates": run_project_gates,
+    "run_pattern": run_pattern,
+    "scan_project_health": scan_project_health,
+    "suggest_next_steps": suggest_next_steps,
+    "kitty_self_improve": kitty_self_improve,
+    "compile_builder_request": compile_builder_request,
+    "get_builder_budget": lambda: budget.summary(),
+    "get_builder_token_usage": get_builder_token_usage,
+    "kb_query": kb_query,
+    "worker_health_summary": worker_health_summary,
+    "delegate": delegate,
+    "github_scout": github_scout,
+    "flush_stats": flush_model_stats,
+}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_cli_parser()
     args = parser.parse_args(argv)
@@ -3580,9 +3712,19 @@ def main(argv: list[str] | None = None) -> int:
         interactive_main(plan_only=args.plan_only)
         return 0
     if args.project is None and args.spec is None:
-        parser.error(
-            "--project and --spec are required unless you pass --brief or --interactive."
+        # Builder-first workflow: no-arg launches should be beginner-friendly.
+        # In a real terminal, enter guided interactive mode. In non-interactive
+        # contexts (CI/tests), print a one-screen brief and exit cleanly.
+        if sys.stdin.isatty() and sys.stdout.isatty():
+            print("No args provided — starting guided interactive mode.")
+            interactive_main(plan_only=args.plan_only)
+            return 0
+        print(generate_project_brief())
+        print(
+            "\nTip: run `./kittybuilder --interactive` for guided mode, or "
+            "use `--project` + `--spec` for contract-gated execution."
         )
+        return 0
     if args.project is None or args.spec is None:
         parser.error("--project and --spec are required unless --brief or --interactive is used")
     return run_builder_contract(args.project, args.spec, execute=args.execute)
