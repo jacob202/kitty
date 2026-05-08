@@ -71,7 +71,7 @@ def test_extract_json_raw_brace_in_string():
 
 def test_extract_json_trailing_text():
     text = '{"tool": "run_command"} and more text after'
-    assert kb._extract_json(text) == {"tool": "run_command"}
+    assert kb._extract_json(text) == {"tool": "run_command", "args": {}}
 
 
 def test_extract_json_inline_no_fences():

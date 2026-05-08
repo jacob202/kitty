@@ -1394,7 +1394,7 @@ def search_web(query: str) -> str:
                 return f"Search error after retries: {e}"
     return "Search error: unknown"
 
-def get_project_brief() -> str:
+def get_project_brief(**kwargs) -> str:
     return generate_project_brief()
 
 def run_pattern(pattern_name: str, text: str) -> str:
@@ -1423,7 +1423,7 @@ def run_pattern(pattern_name: str, text: str) -> str:
     except Exception as e:
         return f"Error running pattern: {e}"
 
-def scan_project_health() -> str:
+def scan_project_health(**kwargs) -> str:
     """Thorough project health scan with codebase analysis."""
     state = build_project_state()
     p = state["progress"]
@@ -1488,7 +1488,7 @@ def scan_project_health() -> str:
 """
     return report
 
-def suggest_next_steps() -> str:
+def suggest_next_steps(**kwargs) -> str:
     """Suggest the best next steps based on current state."""
     state = session.project_state
     recommendations: list[str] = []
@@ -1643,7 +1643,7 @@ def builder_session_start_brief(**kwargs) -> str:
     return "\n".join(x for x in lines if x is not None)
 
 
-def run_project_gates() -> str:
+def run_project_gates(**kwargs) -> str:
     """Run ``scripts/run_gates.sh`` (trusted bash). Returns PASS/FAIL headline + output tail."""
     raw = run_trusted_bash_script("scripts/run_gates.sh")
     m = re.search(r"Command exited with code (\d+):", raw)
@@ -1681,7 +1681,7 @@ def _delegate_git_diff_stat_suffix() -> str:
         return f"\n\n--- git diff --stat ---\n(unavailable: {e})"
 
 
-def kitty_self_improve() -> str:
+def kitty_self_improve(**kwargs) -> str:
     """Run comprehensive self-improvement loop: test, audit, grade, fix, improve."""
     print("\n" + "="*60)
     print("🐱 KITTY SELF-IMPROVEMENT LOOP")
@@ -2887,100 +2887,107 @@ def _format_project(proj: dict) -> str:
     return "\n".join(lines)
 
 
-def _extract_json(text: str) -> dict | None:
-    """Extract tool call from LLM response, supporting JSON and multiple XML styles."""
+def _extract_all_tool_calls(text: str) -> list[dict]:
+    """Extract all tool calls from LLM response, supporting JSON and multiple XML styles."""
     if not text:
-        return None
+        return []
 
     # Clean special model tokens and thought blocks
     clean_text = re.sub(r'<thought>.*?</thought>', '', text, flags=re.DOTALL)
     clean_text = re.sub(r'<reasoning_content>.*?</reasoning_content>', '', clean_text, flags=re.DOTALL)
     clean_text = clean_text.replace("<｜｜DSML｜｜>", "").strip()
 
+    calls = []
+
     # Style 1: XML <invoke name="tool"><parameter name="arg">val</parameter></invoke>
-    invoke_match = re.search(r'<invoke\s+name=["\'](.*?)["\']\s*>(.*?)</invoke>', clean_text, re.DOTALL)
-    if invoke_match:
-        tool_name = invoke_match.group(1)
-        args_text = invoke_match.group(2)
+    invoke_matches = re.finditer(r'<invoke\s+name=["\'](.*?)["\']\s*>(.*?)</invoke>', clean_text, re.DOTALL)
+    for m in invoke_matches:
+        tool_name = m.group(1)
+        args_text = m.group(2)
         args = {}
         param_matches = re.finditer(r'<parameter\s+name=["\'](.*?)["\']\s*.*?>(.*?)</parameter>', args_text, re.DOTALL)
         for pm in param_matches:
             args[pm.group(1)] = pm.group(2).strip()
-        log.debug(f"Extracted Style 1 tool: {tool_name}")
-        return {"tool": tool_name, "args": args}
+        calls.append({"tool": tool_name, "args": args})
 
     # Style 2: XML <tool_name path="..." /> or <tool_name>val</tool_name>
     for tool_name in TOOLS.keys():
-        # Tag with attributes: <read_file path="foo.py"/>
+        # Tag with attributes
         tag_attr_pat = rf'<{tool_name}\s+(.*?)\s*/>'
-        m = re.search(tag_attr_pat, clean_text, re.DOTALL)
-        if m:
+        for m in re.finditer(tag_attr_pat, clean_text, re.DOTALL):
             attrs = m.group(1)
             args = {}
             attr_matches = re.finditer(r'(\w+)=["\'](.*?)["\']', attrs)
             for am in attr_matches:
                 args[am.group(1)] = am.group(2)
-            log.debug(f"Extracted Style 2 tool (attr): {tool_name}")
-            return {"tool": tool_name, "args": args}
+            calls.append({"tool": tool_name, "args": args})
         
-        # Tag with content: <read_file>foo.py</read_file>
+        # Tag with content
         tag_cont_pat = rf'<{tool_name}>(.*?)</{tool_name}>'
-        m = re.search(tag_cont_pat, clean_text, re.DOTALL)
-        if m:
+        for m in re.finditer(tag_cont_pat, clean_text, re.DOTALL):
             content = m.group(1).strip()
-            log.debug(f"Extracted Style 2 tool (content): {tool_name}")
-            return {"tool": tool_name, "args": content}
-
-    # Style 5: Greedy Tag Search: <tool_name>...</tool_name>
-    for tool_name in TOOLS.keys():
-        pat = rf'<{tool_name}>(.*?)</{tool_name}>'
-        m = re.search(pat, clean_text, re.DOTALL)
-        if m:
-            content = m.group(1).strip()
-            log.debug(f"Extracted Style 5 tool: {tool_name}")
-            return {"tool": tool_name, "args": content}
+            # Avoid re-parsing the same content if it was already caught by invoke/attr
+            if not any(c["tool"] == tool_name and str(c["args"]) == content for c in calls):
+                calls.append({"tool": tool_name, "args": content})
 
     # Style 4: Simple function call in code block: tool_name(args)
-    # Pattern: ```[tool/python/...] tool_name(...) ```
-    code_match = re.search(r'```(?:[\w+-]+)?\s*([\w_]+)\s*\((.*?)\)\s*```', clean_text, re.DOTALL)
-    if code_match:
-        tool_name = code_match.group(1)
-        args_raw = code_match.group(2).strip()
+    code_matches = re.finditer(r'```(?:[\w+-]+)?\s*([\w_]+)\s*\((.*?)\)\s*```', clean_text, re.DOTALL)
+    for m in code_matches:
+        tool_name = m.group(1)
+        args_raw = m.group(2).strip()
         if tool_name in TOOLS:
             args = {}
             if args_raw:
-                # Try to parse as JSON if it looks like it
                 if args_raw.startswith('{') and args_raw.endswith('}'):
                     try:
                         args = json.loads(args_raw)
                     except:
                         args = {"args": args_raw}
                 else:
-                    # Treat as a single positional argument or a string
                     args = {"task": args_raw} if "task" in str(TOOLS[tool_name].__code__.co_varnames) else {"args": args_raw}
-            log.debug(f"Extracted Style 4 tool: {tool_name}")
-            return {"tool": tool_name, "args": args}
+            calls.append({"tool": tool_name, "args": args})
 
-    # Style 3: Standard JSON handling
-    block = re.search(r'```(?:json)?\s*({.*?})\s*```', clean_text, re.DOTALL)
-    raw = block.group(1) if block else clean_text
+    # Style 3: Standard JSON handling (if no XML found)
+    if not calls:
+        # Pattern 1: JSON code block
+        block_match = re.search(r'```(?:json)?\s*({.*?})\s*```', clean_text, re.DOTALL)
+        raw = block_match.group(1) if block_match else clean_text
+        start = raw.find('{')
+        if start != -1:
+            try:
+                decoder = json.JSONDecoder()
+                obj, end = decoder.raw_decode(raw[start:])
+                if isinstance(obj, dict) and ("tool" in obj or "action" in obj):
+                    if "action" in obj and "tool" not in obj:
+                        obj["tool"] = obj.pop("action")
+                    calls.append(obj)
+            except json.JSONDecodeError:
+                pass
 
-    # Find JSON start
-    start = raw.find('{')
-    if start == -1:
-        return None
+    # Deduplicate and return
+    unique_calls = []
+    seen = set()
+    for c in calls:
+        tool = c.get("tool")
+        if not tool:
+            continue
+        # Ensure args exists and is normalized
+        args = c.get("args")
+        if args is None:
+            args = {}
+        c["args"] = args
+        
+        key = (tool, str(args))
+        if key not in seen:
+            unique_calls.append(c)
+            seen.add(key)
+    return unique_calls
 
-    try:
-        decoder = json.JSONDecoder()
-        obj, end = decoder.raw_decode(raw[start:])
-        if isinstance(obj, dict) and ("tool" in obj or "action" in obj):
-            if "action" in obj and "tool" not in obj:
-                obj["tool"] = obj.pop("action")
-            log.debug(f"Extracted Style 3 tool: {obj.get('tool')}")
-            return obj
-        return None
-    except json.JSONDecodeError:
-        return None
+
+def _extract_json(text: str) -> dict | None:
+    """Compatibility wrapper: return the first tool call found."""
+    calls = _extract_all_tool_calls(text)
+    return calls[0] if calls else None
 
 
 # ── Model-stats sink (MCP-ready JSONL) ───────────────────────────────────────
@@ -3025,6 +3032,13 @@ def flush_model_stats() -> None:
                 f.write(json.dumps(r) + "\n")
     except OSError as e:
         print(f"[ModelStats] write failed: {e}", file=sys.stderr)
+
+
+def count_lines(path: str) -> int:
+    """Count lines in file using wc -l (token-free, deterministic)."""
+    import subprocess
+    result = subprocess.run(["wc", "-l", path], capture_output=True, text=True)
+    return int(result.stdout.strip().split()[0])
 
 
 # ── Optional LightRAG KB query (opt-in) ──────────────────────────────────────
@@ -3256,10 +3270,18 @@ def chat(
             else:
                 print(f"\n[Kitty iter {iter_no}/{max_iters}] ", end="", flush=True)
             last_response = _stream_brain(session.history)
+            
+            # Stall Guard: nudge model if it returns nothing
+            if not last_response.strip() and iter_no < max_iters:
+                nudge = "Action required. Please call a tool or provide a final answer to continue."
+                session.history.append({"role": "system", "content": nudge})
+                print(f"\n[Stall Guard] Nudging model (iter {iter_no})")
+                continue
+                
             session.history.append({"role": "assistant", "content": last_response})
 
-            data = _extract_json(last_response)
-            if data is None or "tool" not in data:
+            tool_calls = _extract_all_tool_calls(last_response)
+            if not tool_calls:
                 # No tool call. Optionally nudge once more if reply looks like
                 # a preamble ("let me check...") rather than a completed answer.
                 if (
@@ -3270,7 +3292,7 @@ def chat(
                     session.history.append({
                         "role": "system",
                         "content": (
-                            "Continue autonomously. If work remains, emit the next tool JSON now. "
+                            "Continue autonomously. If work remains, emit the next tool call now. "
                             "Only stop when the task is complete or a concrete blocker exists."
                         ),
                     })
@@ -3278,20 +3300,27 @@ def chat(
                 # No tool call and no continuation signal — done.
                 break
 
-            tool_name = data.get("tool")
-            tool_args = data.get("args", {})
-            print(f"\n[Tool Call] {tool_name}({json.dumps(tool_args)})")
+            results_batch = []
+            all_ok = True
+            for call in tool_calls:
+                tool_name = call.get("tool")
+                tool_args = call.get("args", {})
+                print(f"\n[Tool Call] {tool_name}({json.dumps(tool_args)})")
 
-            ok, result = _execute_tool_call(data)
-            print(f"[Tool Result] {result[:500]}{'...' if len(result) > 500 else ''}")
+                ok, result = _execute_tool_call(call)
+                all_ok = all_ok and ok
+                print(f"[Tool Result] {result[:500]}{'...' if len(result) > 500 else ''}")
+                results_batch.append(f"TOOL_RESULT ({tool_name}):\n{result}")
+
+            # Combined result for history
             session.history.append({
                 "role": "system",
-                "content": f"TOOL_RESULT ({tool_name}):\n{result}",
+                "content": "\n\n".join(results_batch),
             })
 
-            # Goal check after every successful tool execution
+            # Goal check after the batch
             verify = session.project_state.get("goal_verify") if isinstance(session.project_state, dict) else None
-            if ok and verify:
+            if all_ok and verify:
                 goal_ok, tail = _check_goal(verify)
                 if goal_ok:
                     msg = f"[Goal achieved via `{verify}`]"
@@ -3301,14 +3330,13 @@ def chat(
                         session.project_state.pop("goal_verify", None)
                     break
                 else:
-                    # Tool succeeded but goal still failing
+                    # Batch succeeded but goal still failing
                     msg = (f"Goal verifier `{verify}` still failing. Result tail:\n{tail}")
                     session.history.append({"role": "system", "content": msg})
                     continue
 
-            if ok:
-                # Tool succeeded. In autonomous mode, keep going until no tool
-                # call is needed or the loop budget is exhausted.
+            if all_ok:
+                # Batch succeeded. Keep going in autonomous mode.
                 if auto_continue_on_success and iter_no < max_iters:
                     continue
                 break
@@ -3699,6 +3727,7 @@ TOOLS = {
     "delegate": delegate,
     "github_scout": github_scout,
     "flush_stats": flush_model_stats,
+    "count_lines": count_lines,
 }
 
 
