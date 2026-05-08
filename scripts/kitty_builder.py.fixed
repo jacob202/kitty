@@ -12,13 +12,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, List
 
-# Ensure the repository root is in the Python path so that `src` can be imported
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
 # Token optimization: semantic caching
 try:
+    sys.path.insert(0, str(Path(__file__).parent.parent))
     from src.core.prompt_cache import SemanticCache
     _semantic_cache = SemanticCache()
 except ImportError:
@@ -283,7 +279,7 @@ WEB_SEARCH_API_KEY = os.environ.get("TAVILY_API_KEY", "")   # Tavily API key
 WHITELISTED_COMMANDS = {
     "git", "python3", "python3.12", "python3.11", "python3.10", "python", "pip", "pip3",
     "ls", "echo", "mkdir", "touch", "cat", "head", "tail", "wc", "grep", "find", "pwd",
-    "pytest", "unittest", "mypy", "ruff", "black", "npm", "npx", "bash", "sh",
+    "pytest", "unittest", "mypy", "ruff", "black", "npm", "npx",
 }
 
 # ------------------------------------------------------------
@@ -873,7 +869,7 @@ def is_safe_path(path: str) -> bool:
     except (ValueError, RuntimeError):
         return False
 
-_INTERPRETERS = {"python3", "python3.12", "python3.11", "python3.10", "python", "bash", "sh"}
+_INTERPRETERS = {"python3", "python3.12", "python3.11", "python3.10", "python"}
 
 def sanitize_command(command: str) -> bool:
     """Return True if the command is safe to run.
@@ -881,8 +877,6 @@ def sanitize_command(command: str) -> bool:
     Accepts both exact names (pytest) and path-based executables
     (venv/bin/python3.12) by comparing the basename against the whitelist.
     Blocks -c flag on interpreters to prevent inline code injection.
-    
-    Set KITTY_BUILDER_UNSAFE=1 to relax (for autonomous mode only).
     """
     forbidden = [";", "&&", "||", "|", ">", "<", "`", "$("]
     parts = command.split()

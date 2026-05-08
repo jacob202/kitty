@@ -156,3 +156,51 @@ Format:
 ---
 
 <!-- Add new entries above this line, newest at top after the separator -->
+
+## Chronicle Entry — 2026-05-07 19:45
+**Context:** Provider fallback failed. Anthropic: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CapFpEwY7EY3y9Luyfiyh'}
+
+## Chronicle Entry — 2026-05-07 19:46
+**Context:** Provider fallback failed. Anthropic: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CapFu3NQMuXvHWGQGnGKB'}
+
+## Chronicle Entry — 2026-05-07 19:48
+**Context:** Provider fallback failed. Anthropic: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CapG3wNzQi7yLMTV8iBbB'}
+
+## Chronicle Entry — 2026-05-07 19:49
+**Context:** Provider fallback failed. Anthropic: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CapG79tQAhncpSrhwZZ3f'}
+
+## Chronicle Entry — 2026-05-07 19:52
+**Context:** Provider fallback failed. Anthropic: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CapGQ9TaZefMqQS7jCSsB'}
+
+## Chronicle Entry — 2026-05-07 19:53
+**Context:** Provider fallback failed. Anthropic: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CapGRDJY6sse5XitLdRtJ'}
+
+## Chronicle Entry — 2026-05-07 19:53
+**Context:** Provider fallback failed. Anthropic: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CapGS7mBnNvxjkAjWMCRB'}
+
+## Chronicle Entry — 2026-05-07 19:53
+**Context:** Provider fallback failed. Anthropic: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CapGUBD7T5hmVVqm9SFkV'}
+
+## Chronicle Entry — 2026-05-07 19:56
+**Context:** Provider fallback failed. Anthropic: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CapGff9Bo4jKu1SUokW2i'}
+
+## Chronicle Entry — 2026-05-07 19:58
+**Context:** Provider fallback failed. Anthropic: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CapGqQHzsaJUCrNhXFbLh'}
+
+## Chronicle Entry — 2026-05-07 20:00
+**Context:** Provider fallback failed. Anthropic: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CapGz1y5Vos4oLwH1YHzH'}
+
+## Chronicle Entry — 2026-05-07 20:01
+**Context:** Provider fallback failed. Anthropic: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CapH35aCmyGJ16EwZbkGi'}
+
+## Chronicle Entry — 2026-05-07 20:02
+**Context:** No LLM API key configured for web chat. Set OPENROUTER_API_KEY or ANTHROPIC_API_KEY.
+
+## Chronicle Entry — 2026-05-07 20:02
+**Context:** No LLM API key configured for web chat. Set OPENROUTER_API_KEY or ANTHROPIC_API_KEY.
+
+## Chronicle Entry — 2026-05-07 20:03
+**Context:** No LLM API key configured for web chat. Set OPENROUTER_API_KEY or ANTHROPIC_API_KEY.
+
+## Chronicle Entry — 2026-05-07 20:03
+**Context:** No LLM API key configured for web chat. Set OPENROUTER_API_KEY or ANTHROPIC_API_KEY.
