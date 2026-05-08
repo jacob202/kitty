@@ -1,24 +1,28 @@
 # Current Focus
-Last updated: 2026-05-06
+Last updated: 2026-05-08
 
 ## Active Phase
 
 Phase 4 — Jacob-Only Build (4 sub-projects from Standup §4)
 
-## Today's Progress (May 6)
-- ✅ /optimize slash command wired + working
-- ✅ /cleanup slash command wired + working
-- ✅ /onboarding slash command wired + working
-- ✅ OnboardingPipeline + OnboardingWizard TSX component
-- ✅ ./kitty backup + ./kitty export commands working
-- ✅ Debug skill added (.agents/skills/debug/)
-- ✅ Fixed stuck.py regex for Forbidden Work
-- ✅ 514 tests pass
+## Today's Progress (May 7-8)
+- ✅ Fixed Icon\r in venv causing test failures (540 tests now)
+- ✅ Fixed /onboarding singleton - state persists across commands
+- ✅ /onboarding select audio -> /onboarding start = working
+- ✅ ./kitty backup/./kitty export commands
+- ✅ Debug skill added
+- ✅ /optimize and /cleanup commands working
+- ✅ Stuck test fixed (regex for Forbidden Work)
 
-## Skills (in .agents/skills/)
-- orient → health → architecture → current state
-- optimize → token audit → compression → report
-- debug → reproduce → analyze → fix → verify (NEW)
-- handoff → capture → accounting → update docs → commit
+## Working Commands
+- /optimize, /cleanup, /onboarding, /skills, /help, /brief, /stuck
+- ./kitty backup, ./kitty status, ./kitty export
 
-## Tests: 514 passed ✓
+## Skills
+- orient, optimize, debug, handoff, research, plan, build, ship, cleanup
+
+## Forbidden work
+- MCP expansion
+- QLoRA
+
+## Tests: 540 passed ✓
