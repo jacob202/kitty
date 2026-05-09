@@ -55,8 +55,18 @@ async def chat_completions(request: Request):
     except Exception:
         pass  # Memory unavailable — degrade gracefully
 
-    if memory_context:
-        system_prompt = system_prompt + "\n\n" + memory_context
+    # Pull relevant knowledge chunks
+    from gateway.knowledge import get_knowledge_block
+    knowledge_context = ""
+    try:
+        knowledge_context = get_knowledge_block(user_text, limit=3)
+    except Exception:
+        pass  # Knowledge unavailable — degrade gracefully
+
+    # Combine memory + knowledge into system prompt
+    extra = "\n\n".join(filter(None, [memory_context, knowledge_context]))
+    if extra:
+        system_prompt = system_prompt + "\n\n" + extra
 
     # Health queries always route to private model
     if domain == "health":
