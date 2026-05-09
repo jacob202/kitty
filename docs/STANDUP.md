@@ -9,6 +9,18 @@
 
 **Checks:** `pwd` must show `~/Projects/kitty` before edits. After Python/config/hook changes: `venv/bin/python -m pytest tests/ -q --tb=short`.
 
+**Quick commands (no LLM needed):**
+- `./kitty quick status` — server check
+- `./kitty quick test` — run tests
+- `./kitty quick index <pattern>` — file search
+- `./kitty quick health` — API check
+
+**Key docs (start here):**
+- `docs/IMPROVEMENT_AUDIT.md` — Full audit with scores
+- `docs/DATA_ROUTING.md` — Which store for what data (CRITICAL)
+- `config/README.md` — Config index with validation
+- `docs/PROCESS_UPGRADES.md` — All commands and workflows
+
 **Depth:** Voice corpus, Jacob’s rules, runbook, Handoff template — read the rest of this file when needed; hooks send this block only.
 <!-- HOOK_END -->
 
@@ -214,12 +226,12 @@ The mission: "So that no one becomes themselves alone." The first person who mus
 - Purged 400+ hidden `Icon` files; added auto-purge to `verify_setup.sh`. ✅
 - Implemented **Passive Chronicle** (auto-save vision to log on exit). ✅
 - Hardened parser for JSON/XML tool calls + Batch execution enabled. ✅
-- Fixed `scripts/overnight_retry.py` and aligned all tests. ✅
+- Fixed `scripts/overnight_retry.py` environment key loading for evaluation. ✅
 
-**Proof:** `kittybuilder --brief` stable; 100% project gates pass.
+**Proof:** The autonomous loop successfully created files, wrote tests, and ran project gates (`math_helper` stress test).
 
-**Dirty:** Workspace remains dirty with pre-existing changes.
+**Dirty:** `src/utils/math_helper.py` and `tests/test_math_helper.py` remain as test artifacts.
 
-**Next:** 1) Fine-tune 'Stall Guard' logic in `chat()`. 2) Validate R1 as default autonomous brain. 3) Begin Phase 1.1 Autonomy implementation.
+**Next:** 1) Verify the final `overnight_retry.py` grading step works. 2) Clean up the `math_helper` test files. 3) Begin Phase 1.1 Autonomy implementation.
 
-**Learning:** Models like DeepSeek switch between XML and JSON mid-conversation; a 'Format-Agnostic' parser with greedy tag search is mandatory for 100% autonomous success.
+**Learning:** Manual parsing of `.env` files strips quotes incorrectly or misses `export` prefixes, causing downstream `WebLLMClient` to fail authentication checks. Always use `dotenv`.

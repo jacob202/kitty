@@ -1,15 +1,19 @@
 # Kitty Repo AGENTS
 
-Purpose: keep Codex and delegated workers aligned with the active control system in this repository.
+Canonical agent rules for **all agents** (Claude, Codex, opencode, Gemini, Goose).
+Agent-specific stubs (CLAUDE.md, CODEX.md) reference this file.
+
+---
 
 ## First Read Order (minimal)
 
-1. `docs/LAYER0_CONTROL_PLANE.md`
-2. `docs/README.md` (documentation index and stale-doc rule of thumb)
-3. `CURRENT_FOCUS.md`
-4. `TASKS.md`
-5. `docs/IMPROVEMENT_AUDIT.md` (2026-05-09 - start here for new work)
-6. `docs/PROCESS_UPGRADES.md` (quick reference for workflows)
+1. `docs/STANDUP.md` (read first — has quick commands + key doc references)
+2. `docs/LAYER0_CONTROL_PLANE.md`
+3. `docs/README.md` (documentation index and stale-doc rule of thumb)
+4. `CURRENT_FOCUS.md`
+5. `TASKS.md`
+6. `docs/IMPROVEMENT_AUDIT.md` (2026-05-09 - start here for new work)
+7. `docs/PROCESS_UPGRADES.md` (quick reference for workflows)
 
 ## Read When Relevant
 
@@ -20,6 +24,57 @@ Purpose: keep Codex and delegated workers aligned with the active control system
 - `docs/PARKED_FEATURES.md` — scope checks against parked work.
 
 If these conflict with older notes, these files win.
+
+---
+
+## Project Structure
+
+- Source code → `src/`
+- Tests → `tests/`
+- Docs and plans → `docs/`
+- Config → `config/`
+- Scripts → `scripts/`
+- **NEVER save new source files to project root**
+
+## Storage Targets
+
+| Data | Store | NEVER use |
+|------|-------|-----------|
+| KB / knowledge ingestion | LightRAG | JournalDB |
+| Journal entries | JournalDB | LightRAG |
+| Semantic search | ChromaDB | — |
+| MCP entities/relations | @modelcontextprotocol/server-memory | — |
+| Corrections, various | SQLite | — |
+
+Violating this routing is the #1 source of data-loss bugs.
+
+## Model Routing
+
+| Need | Model | Notes |
+|------|-------|-------|
+| Default + fallback | MLX Qwen3.5-4B (local) | Free, private, no API key needed |
+| Reasoning | deepseek/deepseek-r1-0528 | Paid — use sparingly |
+| Premium | anthropic/claude-sonnet-4-6 | Expensive — explicit requests only |
+
+Local models are free. Use them first.
+
+## Specialist Framework
+
+- Base class: `src/core/specialist_framework.py`
+- Configs: `config/specialists/*.md`
+- Python: `src/core/specialists/*.py`
+- Specialists are Python classes, not agents (unless explicitly wired as agents)
+
+## Voice Pipeline
+
+`Browser MediaRecorder → POST /api/transcribe → src/api/transcription_service.py → faster-whisper → text`
+
+## Skills
+
+- Consolidated (reasoning/execution/planning): `consolidated-skills/`
+- Project-level: `src/tools/superpowers/skills/`
+
+---
 
 ## Execution Contract
 
@@ -50,24 +105,52 @@ If these conflict with older notes, these files win.
 - Do not delete raw chat logs.
 - Do not delete or rename `/Users/jacobbrizinski/Projects/kitty`; it is the canonical runnable checkout.
 
+---
+
+## Before Touching Frontend
+
+1. Search for the CSS class, DOM element ID, or JS function name before adding it
+2. Previous agents left complete implementations — check first, always
+3. Duplicate mic button CSS was introduced twice by not checking; don't do it again
+
+## Workflow Conventions
+
+These prevent recurring frictions.
+
+- Always check for existing work before creating new code (especially CSS, components, helpers). A previous agent has likely already built it. Search first, then write.
+- After making code changes, run the validation loop and report pass/fail counts BEFORE declaring done. Never claim done without a fresh test result.
+- For any design doc, plan, or new markdown file longer than ~100 lines, present an outline first and wait for explicit approval.
+- Jacob's live instruction overrides older project notes, handoff constraints, and generic brevity rules. If he says to override a rule, ask for the best possible product, or ask for full/detailed/complete output, state any conflict briefly and follow Jacob's latest direction.
+- When Jacob says a phase or feature is "complete" or "built," treat that as a review gate. Verify against live tree and tests, do not trust status optimism.
+- When Jacob says "you missed a lot," "that doesn't seem like all of it," or "nothing works," stop summarizing from memory. Verify against the live tree and reproduce the issue before responding.
+
+---
+
 ## Validation Minimum
 
-For runtime/API work:
+Run this after EVERY code change:
 
-```bash
-/opt/homebrew/bin/python3.12 -m pytest tests/ -q --tb=short
-./kitty status
-curl -sS http://localhost:5001/api/brief
-curl -sS -X POST http://localhost:5001/api/command -H "Content-Type: application/json" -d '{"command":"/stuck"}'
-```
+1. Run tests: `/opt/homebrew/bin/python3.12 -m pytest tests/ -q --tb=short`
+2. If failures: read the error, fix the root cause, go back to 1
+3. If passing: run the same command again. Before a release or when touching merge-gate / browser code, also run: `python3.12 -m pytest tests/ -q --tb=short -m ""`
+4. For control-layer/build-tooling work: `bash scripts/run_gates.sh`
+5. For runtime/API work, also verify:
+   ```bash
+   ./kitty status
+   curl -sS http://localhost:5001/api/brief
+   curl -sS -X POST http://localhost:5001/api/command -H "Content-Type: application/json" -d '{"command":"/stuck"}'
+   ```
+6. For eval-gated changes: `POST /api/eval/run -d '{"suite":"smoke"}'` (expect 200, not 422)
 
-Default `pytest` skips browser + merge-gate tests (see `pytest.ini`). All tests: add `-m ""`.
+Default `pytest` skips browser + merge-gate tests (see `pytest.ini`).
 
-For control-layer/build-tooling work:
+Never skip this. The reasoning route bug and ChromaDB regression both slipped through because code was marked done before the loop ran.
 
-```bash
-bash scripts/run_gates.sh
-```
+## After Structural Changes
+
+Run evals before marking done. ChromaDB changes once silently dropped eval scores — always verify.
+
+---
 
 ## OpenAI/Codex Docs Rule
 
@@ -88,15 +171,29 @@ When answering OpenAI API/Codex usage questions:
 - Close idle agents after results are captured.
 
 ## Git Rule
-- Never revert unrelated dirty changes.
-- Never use destructive git commands unless explicitly requested.
-- Checkpoint verified green states before starting the next risky feature.
+
+- Never commit without explicit user request
+- Never commit `.env`, secrets, or credentials
+- Never revert unrelated dirty changes
+- Never use destructive git commands (force push, hard reset) unless explicitly requested
+- Checkpoint verified green states before starting the next risky feature
+- Run tests before committing
+- Staged files must be exactly what should be committed
+
+## Security
+
+- Validate user input at system boundaries
+- Sanitize file paths from user input
+- No API keys in source files — ever
+
+---
 
 ## Token Optimization Practices
 
 Applies to all agents: Claude, Gemini, opencode, Codex, Goose.
 
 ### Core Rules
+
 1. **Token Efficiency First** — Every LLM call must justify its token cost
 2. **Prevention Over Compression** — Filter context before it becomes a problem
 3. **Deterministic > Probabilistic** — Use jq/awk/scripts for deterministic tasks
@@ -104,6 +201,7 @@ Applies to all agents: Claude, Gemini, opencode, Codex, Goose.
 5. **Just-In-Time Context** — Load only what's needed for the current task
 
 ### Mandatory
+
 - **Log token usage** — All LLM calls log to `data/kitty_token_log.jsonl` (JSONL: `{"ts","date","provider","model","operation","usage","metadata"}`)
 - **Semantic caching** — Check `SemanticCache` before making repeated queries
 - **Truncation** — File reads limited to 2K lines / 50KB via `truncate_to_token_budget()`
@@ -112,6 +210,7 @@ Applies to all agents: Claude, Gemini, opencode, Codex, Goose.
 - **Use research pipeline** — `src/tools/research_pipeline.py` for web research (map+batch_scrape, not deep crawl)
 
 ### Quick Reference
+
 | Situation | Action |
 |-----------|--------|
 | Simple status check | Use `./kitty status` (deterministic) |
@@ -128,5 +227,50 @@ Applies to all agents: Claude, Gemini, opencode, Codex, Goose.
 | Quick tokens | `./kitty quick tokens` — recent token usage |
 | Quick index | `./kitty quick index <pattern>` — search file index |
 | Quick count | `./kitty quick count <path>` — count lines |
-| Scaffold | `python scripts/scaffold.py <tool|route|test|module> <name>` |
+| Scaffold | `python scripts/scaffold.py <tool\|route\|test\|module> <name>` |
 | File index | `python scripts/build_file_index.py --search <pattern>` |
+
+### Monitoring
+
+- Token log: `data/kitty_token_log.jsonl`
+- Optimizer report: `docs/optimizer/feedback-latest.md`
+- Run optimizer: `python .agents/skills/kitty-optimizer/scripts/optimizer.py --full`
+
+---
+
+## Project Context (Known Gotchas)
+
+These have all bitten previous sessions. Read before touching the named area.
+
+- **Stack:** Python 3.12 + Flask + Flask-SocketIO + Next.js (`garage-ui/`). Local inference: MLX + Qwen3.5-4B. Memory: LightRAG + ChromaDB + SQLite-vec.
+- **Storage routing — strict:** KB content → LightRAG (NOT JournalDB). Journal entries → JournalDB (NOT LightRAG). MCP entities → `@modelcontextprotocol/server-memory`. Wrong routing is the #1 source of data-loss bugs in this project.
+- **Werkzeug flag required:** local SocketIO launch needs `socketio.run(..., allow_unsafe_werkzeug=True)` or Flask-SocketIO refuses to start.
+- **TokenCapture leaks stdout to chat:** never use `print(...)` in backend code — it forwards into the user-visible SSE stream. Use `logging` instead.
+- **Single server:** `localhost:5001` serves both Flask API and garage-ui frontend (static export from `garage-ui/out/`).
+- **Live orchestrator path:** `current_app.orchestrator` (not `current_app.reasoning_layer` or supervisor wiring). Reasoning routes that check the wrong path will look broken in web mode.
+- **Pre-commit hook flags certain dynamic-execution function calls** (builtins like `eval` and similar). Rename related functions to `evaluate_` or `run_eval_` prefixes.
+- **Linters auto-revert model constants:** clear `.pyc` cache after model routing fixes — `find . -name __pycache__ -exec rm -rf {} +`.
+- **LightRAG empty results need fallback:** `query_knowledge_base()` should treat `[no-context]`, `no relevant document chunks`, and `LightRAG search error` as fallback signals and continue to ChromaDB.
+- **Voice MIME types:** Safari/iOS records `audio/mp4`, Chrome records `audio/webm`. Both must be handled in `MediaRecorder` setup.
+- **Launcher false negatives:** the 8-second readiness probe times out before app is fully up. Follow timeout with `./kitty status`, logs, and `curl http://localhost:5001/` before concluding the app is dead.
+- **Workspaces (legacy reference only):** `/Users/jacobbrizinski/Documents/Kitty` is manuals/context, NOT runnable. The runnable repo is `/Users/jacobbrizinski/Projects/kitty`.
+
+## Session Management
+
+- At session start, read `docs/LAYER0_CONTROL_PLANE.md` and `CURRENT_FOCUS.md`. Open `docs/AGENT_COORDINATION.md` only when coordinating lanes with other agents; use `SESSION_SUMMARY.md` when resuming long work.
+- For autonomous work spanning multiple tasks, write a checkpoint to a `HANDOFF-<date>.md` file (in `docs/handoffs/`) after each task completes. Don't only write at session end — usage limits cut off too early.
+- Always commit work-in-progress before risky operations (renames, large refactors, dependency changes).
+- For ordinary status or transfer handoffs, keep it concise: exact files changed, verified URLs, what's running, what's incomplete.
+- For detailed/full/complete handoffs, or when Jacob says a handoff missed context, do the opposite of concise mode: include chronology, decisions, rejected options, source references, exact files, commits, verification, incomplete work, risks, and next steps.
+
+## User Profile
+
+Jacob's working preferences, harvested from cross-agent session history.
+
+- He has explicitly said "NO experience" and "never have any idea what to do." Default to beginner-friendly explanations. No power-user jargon unless he asks.
+- He cares about honest verification. If you say something is done, it must actually be done with test evidence. He reacts strongly to status optimism.
+- For UX/UI work, Kitty should feel like a warm companion — mascot motion, mood-based visuals, morning brief that catches him up. Not a sterile operator console.
+- Treat "nothing works," "nothing clicks," "it's not navigable" as functional bug reports, never cosmetic complaints.
+- When recovering after a crash or losing context, reconstruct from repo artifacts and local history. Don't ask him to restate project state.
+- He prefers narrow, surgical fixes on dirty trees over broad cleanup churn. When in doubt, do less.
+- For voice/companion features, mascot presence and mood are first-class product requirements, not decoration.
