@@ -127,6 +127,28 @@ if [ "$PHASE" = "6" ]; then
         "test -d $HOME/.claude/projects/-Users-jacobbrizinski-Projects-kitty"
 fi
 
+if [ "$PHASE" = "9" ]; then
+    echo "[ PDF Pipeline + Schematic Vision ]"
+    check "gateway/pdf_pipeline.py exists" \
+        "test -f /Users/jacobbrizinski/Projects/kitty/.worktrees/phase-9-pdf/gateway/pdf_pipeline.py"
+    check "gateway/vision.py exists" \
+        "test -f /Users/jacobbrizinski/Projects/kitty/.worktrees/phase-9-pdf/gateway/vision.py"
+    check "contracts/pdf_chunk.py exists" \
+        "test -f /Users/jacobbrizinski/Projects/kitty/.worktrees/phase-9-pdf/contracts/pdf_chunk.py"
+    check "scripts/ingest_pdf.py exists" \
+        "test -f /Users/jacobbrizinski/Projects/kitty/.worktrees/phase-9-pdf/scripts/ingest_pdf.py"
+    check "llama-cloud installed" \
+        "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/python -c 'import llama_cloud'"
+    check "_extract_pdf calls pdf_pipeline in knowledge.py" \
+        "grep -q 'pdf_pipeline' /Users/jacobbrizinski/Projects/kitty/.worktrees/phase-9-pdf/gateway/knowledge.py"
+    check "pdf_pipeline tests pass" \
+        "cd /Users/jacobbrizinski/Projects/kitty/.worktrees/phase-9-pdf && /Users/jacobbrizinski/Projects/kitty/venv/bin/pytest tests/test_pdf_pipeline.py -q --tb=no 2>/dev/null | grep -q 'passed'"
+    check "vision tests pass" \
+        "cd /Users/jacobbrizinski/Projects/kitty/.worktrees/phase-9-pdf && /Users/jacobbrizinski/Projects/kitty/venv/bin/pytest tests/test_vision.py -q --tb=no 2>/dev/null | grep -q 'passed'"
+    check "full test suite passes (no regressions)" \
+        "cd /Users/jacobbrizinski/Projects/kitty/.worktrees/phase-9-pdf && /Users/jacobbrizinski/Projects/kitty/venv/bin/pytest tests/ -q --tb=no 2>/dev/null | grep -q 'passed'"
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 if [ "$FAIL" -gt 0 ]; then
