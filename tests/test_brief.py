@@ -85,7 +85,8 @@ def test_generate_brief_structure():
     with patch.object(b, "fetch_news", return_value=[]):
         with patch.object(b, "_fetch_memory_snippet", return_value=""):
             with patch.object(b, "get_tasks_summary", return_value="Ship Phase 7."):
-                result = b.generate_brief()
+                with patch("gateway.llm_client.chat", return_value="Ship Phase 7."):
+                    result = b.generate_brief()
     assert "date" in result
     assert "headlines" in result
     assert "intention" in result

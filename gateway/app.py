@@ -106,6 +106,14 @@ async def tasks_sync(action: str):
     return {"success": success}
 
 
+@app.post("/research/deep")
+async def deep_research(topic: str):
+    from gateway.researcher import deep_dive
+    # Deep dive performs ingestion automatically
+    result = await asyncio.to_thread(deep_dive, topic)
+    return {"result": result}
+
+
 @app.get("/weekly")
 async def weekly_mirror():
     from gateway.honcho import get_weekly_mirror
