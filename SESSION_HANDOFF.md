@@ -64,13 +64,29 @@ python scripts/ingest.py /path/to/your/pdfs/    # any folder of PDFs/txt/md
 | Phase | Plan file | What it builds |
 |---|---|---|
 | **6** | `2026-05-09-kitty-phase-6-ingestion.md` | ✅ DONE — ChatGPT (1538 chunks), Claude Code sessions, Claude.ai extractor ready |
-| **7** | needs writing | Morning brief + news via n8n + Pushover phone notification |
+| **7** | `2026-05-09-kitty-phase-7-brief.md` | ✅ DONE — RSS feeds (HN/BBC/arXiv/Verge) + Mem0 + Pushover + launchd 7am |
 | **8** | needs writing | Voice input (faster-whisper already built) + Kokoro TTS — wire to Gateway |
 | **9** | needs writing | PDF pipeline + schematic vision (LlamaParse for image-heavy docs) |
 | **10** | needs writing | Honcho weekly pattern mirror + historical seeding |
 | **11** | needs writing | restic backup (external drive + Backblaze B2) + Tailscale mobile access |
 
-**Start next session from Phase 7.**
+**Start next session from Phase 8.**
+
+### Pushover setup (to get phone notifications)
+1. Create account at pushover.net (free, one-time $5 client app)
+2. Create an Application → get APP_TOKEN
+3. Add to `.env`:
+   ```
+   PUSHOVER_USER_KEY=your_user_key
+   PUSHOVER_API_TOKEN=your_app_token
+   ```
+4. Test: `python scripts/brief.py --notify`
+
+### Install launchd agent for daily 7am brief
+```bash
+cp kitty_gateway/com.kitty.morning-brief.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.kitty.morning-brief.plist
+```
 
 ### Claude.ai export — pending ingest
 When Claude.ai export zip is accessible, run:
