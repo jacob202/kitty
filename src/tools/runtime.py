@@ -178,8 +178,8 @@ class ToolRuntime:
             missing_reg = reg_perms - context.permissions
             if missing_reg:
                 return f"Missing registry permissions: {', '.join(sorted(p.value for p in missing_reg))}"
-        except Exception:
-            pass  # ToolRegistry not available, skip bridge check
+        except Exception as e:  # ToolRegistry not available, skip bridge check
+                logging.getLogger(__name__).warning(f"Tool registry check failed: {e}")
         return None
 
     # -- Execution --

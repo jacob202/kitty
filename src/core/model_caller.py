@@ -25,8 +25,8 @@ class ModelCaller:
         if _PERF_HOOKS_AVAILABLE:
             try:
                 patch_model_caller(self)
-            except Exception:
-                pass  # Non-fatal
+            except Exception as e:
+                logging.getLogger(__name__).warning(f"Error: {e}")  # Non-fatal
 
     def call_with_fallback(
         self,

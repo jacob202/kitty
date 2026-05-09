@@ -177,15 +177,149 @@ _export() {
   fi
 }
 
+_problems() {
+  local found=0
+
+  echo "🐱 Kitty Health Check"
+  echo ""
+
+  # Server status
+  local running=$(_port_pid)
+  if [[ -n "$running" ]]; then
+    echo "  ✓  Server is running (PID $running)"
+  else
+    echo "  ✗  Server is stopped"
+    ((found++))
+  fi
+
+  # API key
+  if [[ -n "$OPENROUTER_API_KEY" ]] || grep -q "OPENROUTER_API_KEY=" "$SCRIPT_DIR/.env" 2>/dev/null; then
+    echo "  ✓  OpenRouter API key is set"
+  else
+    echo "  ✗  OpenRouter API key is not set — LLM calls will fail"
+    ((found++))
+  fi
+
+  # Stale backup files
+  local stale=$(find "$SCRIPT_DIR" -maxdepth 2 \( -name "*.bak" -o -name "*.fixed" -o -name "*.backup2" \) 2>/dev/null)
+  if [[ -z "$stale" ]]; then
+    echo "  ✓  No stale backup files found"
+  else
+    echo "  ✗  Stale backup files found:"
+    echo "$stale" | while read f; do echo "      $f"; done
+    ((found++))
+  fi
+
+  # Test pass count (quick: run last line of pytest summary)
+  local test_out
+  test_out=$(cd "$SCRIPT_DIR" && "$PYTHON" -m pytest tests/ -q --tb=short 2>/dev/null | tail -1)
+  if [[ "$test_out" == *passed* ]]; then
+    echo "  ✓  Tests: $test_out"
+  elif [[ -n "$test_out" ]]; then
+    echo "  ✗  Tests: $test_out"
+    ((found++))
+  else
+    echo "  ?  Could not run tests"
+  fi
+
+  echo ""
+  if (( found > 0 )); then
+    echo "  $found problem(s) found. Say \"fix the problems\" to an agent."
+  else
+    echo "  All clear ✓"
+  fi
+}
+
+_briefing() {
+  echo "🐱 Kitty Briefing"
+  echo ""
+
+  # Current focus
+  if [[ -f "$SCRIPT_DIR/CURRENT_FOCUS.md" ]]; then
+    head -10 "$SCRIPT_DIR/CURRENT_FOCUS.md" | grep -v "^# " | grep -v "^Last updated" | grep -v "^$" | head -5
+    echo ""
+  fi
+
+  # Recent commits
+  echo "  Recent changes:"
+  cd "$SCRIPT_DIR" && git log --oneline --format="  • %s" -5 2>/dev/null
+  echo ""
+
+  # Test count
+  local test_out
+  test_out=$(cd "$SCRIPT_DIR" && "$PYTHON" -m pytest tests/ -q --tb=short 2>/dev/null | tail -1)
+  if [[ -n "$test_out" ]]; then
+    echo "  Tests: $test_out"
+  fi
+
+  # Server status
+  local running=$(_port_pid)
+  if [[ -n "$running" ]]; then
+    echo "  Kitty server: running (http://localhost:$PORT)"
+  else
+    echo "  Kitty server: stopped (run ./kitty start)"
+  fi
+}
+
+_quick() {
+  local cmd="${2:-}"
+  case "$cmd" in
+    status)
+      _status
+      ;;
+    count|lines)
+      local target="${3:-.}"
+      if [[ -d "$target" ]]; then
+        find "$target" -name "*.py" -type f | xargs wc -l 2>/dev/null | tail -1
+      elif [[ -f "$target" ]]; then
+        wc -l "$target"
+      else
+        echo "Usage: ./kitty quick count <file-or-dir>"
+      fi
+      ;;
+    test)
+      cd "$SCRIPT_DIR"
+      "$PYTHON" -m pytest tests/ -q --tb=short -x "${3:-}" 2>/dev/null || echo "pytest not available"
+      ;;
+    health)
+      "$CURL" -sf "http://localhost:$PORT/api/brief" >/dev/null 2>&1 && echo "✓ API responding" || echo "✗ API not responding"
+      ;;
+    tokens)
+      tail -5 "$SCRIPT_DIR/data/kitty_token_log.jsonl" 2>/dev/null | while read line; do
+        echo "$line" | python3 -c "import json,sys; d=json.load(sys.stdin); print(f&quot;{d.get('date','')} {d.get('model','')} {d.get('usage',{}).get('total_tokens',0)}&quot;)" 2>/dev/null
+      done
+      ;;
+    index)
+      cd "$SCRIPT_DIR"
+      shift 2
+      "$PYTHON" scripts/build_file_index.py --search "${3:-}" 2>/dev/null || echo "Usage: ./kitty quick index <pattern>"
+      ;;
+    *)
+      echo "Quick deterministic commands (no LLM):"
+      echo "  ./kitty quick status      — server status"
+      echo "  ./kitty quick count <path>  — count lines in file/dir"
+      echo "  ./kitty quick test       — run pytest"
+      echo "  ./kitty quick health  — check API"
+      echo "  ./kitty quick tokens  — show recent tokens"
+      echo "  ./kitty quick index <pattern>  — search file index"
+      ;;
+  esac
+}
+
 case "${1:-start}" in
   start)    _start ;;
   stop)     _stop ;;
   restart)  _stop; sleep 1; _start ;;
   status)   _status ;;
+  problems) _problems ;;
+  briefing) _briefing ;;
   logs)    tail -f "$LOGFILE" ;;
   ref)     cd "$SCRIPT_DIR" && "$PYTHON" "$SCRIPT_DIR/src/cli/reference.py" "$2" ;;
+  build-ui) cd "$SCRIPT_DIR/garage-ui" && npm run build 2>&1;;
+  rebuild-ui) cd "$SCRIPT_DIR/garage-ui" && rm -rf out node_modules/.cache && npm run build 2>&1;;
   backup)  _backup ;;
   export)  _export ;;
+  quick)   _quick "$@" ;;
   builder) shift; exec ./kittybuilder "$@" ;;
-  *)       echo "Usage: kitty [start|stop|restart|status|logs|ref|backup|export|builder]"; exit 1 ;;
+  *)       echo "Usage: kitty [start|stop|restart|status|problems|briefing|build-ui|rebuild-ui|logs|ref|backup|export|quick|builder]"; exit 1 ;;
 esac

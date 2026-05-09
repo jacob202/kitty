@@ -1,37 +1,50 @@
 """Search files tool."""
 
+import json
+from pathlib import Path
 from typing import Any
 
 from src.tools import tool_registry
 from src.tools.base import BaseTool, ToolResult
 
+INDEX_FILE = Path("data/cache/file_index.json")
 
-class SearchFilesTool(BaseTool):
-    """Tool for searching file content."""
+
+class IndexSearchTool(BaseTool):
+    """Tool for searching file index (fast, pre-built)."""
 
     @property
     def name(self) -> str:
-        return "search_files"
-
-    @property
-    def command(self) -> str:
-        return "/search"
+        return "index_search"
 
     @property
     def description(self) -> str:
-        return "Search for a pattern within files in a directory."
+        return "Search pre-built file index (much faster than glob)."
 
     def execute(self, **kwargs: Any) -> ToolResult:
-        query = kwargs.get("query", "")
-        path = kwargs.get("path", ".")
-        registry = tool_registry.get_registry()
-        registry_result = registry.search_files(query=query, path=path)
+        pattern = kwargs.get("pattern", "")
+        if not pattern:
+            return ToolResult(ok=False, tool=self.name, result="", error="Missing pattern")
 
-        return ToolResult(
-            ok=registry_result.ok,
-            tool=self.name,
-            args=registry_result.args,
-            result=registry_result.result,
-            error=registry_result.error,
-            denied=registry_result.denied,
-        )
+        try:
+            if INDEX_FILE.exists():
+                with open(INDEX_FILE) as f:
+                    data = json.load(f)
+            else:
+                return ToolResult(ok=False, tool=self.name, result="", error="No index. Run: python scripts/build_file_index.py")
+
+            matches = []
+            for ext, files in data.items():
+                for f in files:
+                    if "evals/" in f or "garage-ui/" in f:
+                        continue
+                    if pattern.lower() in f.lower():
+                        matches.append(f)
+                        if len(matches) >= 50:
+                            break
+                if len(matches) >= 50:
+                    break
+
+            return ToolResult(ok=True, tool=self.name, result=f"Found {len(matches)} matches:\n" + "\n".join(matches[:20]))
+        except Exception as e:
+            return ToolResult(ok=False, tool=self.name, result="", error=str(e))

@@ -8,6 +8,8 @@ Purpose: keep Codex and delegated workers aligned with the active control system
 2. `docs/README.md` (documentation index and stale-doc rule of thumb)
 3. `CURRENT_FOCUS.md`
 4. `TASKS.md`
+5. `docs/IMPROVEMENT_AUDIT.md` (2026-05-09 - start here for new work)
+6. `docs/PROCESS_UPGRADES.md` (quick reference for workflows)
 
 ## Read When Relevant
 
@@ -119,3 +121,12 @@ Applies to all agents: Claude, Gemini, opencode, Codex, Goose.
 | Long system prompt | Use `PromptCache.prepare_system_prompt()` |
 | File > 50KB | Truncate with `truncate_to_token_budget()` |
 | Web scrape (1 page) | Use `firecrawl scrape` not `crawl` |
+| Session start | Use `./kitty quick` for deterministic commands |
+| Quick status | `./kitty quick status` — server status |
+| Quick test | `./kitty quick test` — run pytest |
+| Quick health | `./kitty quick health` — API check |
+| Quick tokens | `./kitty quick tokens` — recent token usage |
+| Quick index | `./kitty quick index <pattern>` — search file index |
+| Quick count | `./kitty quick count <path>` — count lines |
+| Scaffold | `python scripts/scaffold.py <tool|route|test|module> <name>` |
+| File index | `python scripts/build_file_index.py --search <pattern>` |

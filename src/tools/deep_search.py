@@ -241,8 +241,8 @@ def deep_search_with_crawl(
             try:
                 vector_stats = vector_store.get_stats()
                 search_result["vector_store_stats"] = vector_stats
-            except Exception:
-                pass
+            except Exception as e:
+                logging.getLogger(__name__).warning(f"Failed to get vector stats: {e}")
 
     except Exception as e:
         search_result["crawl_error"] = str(e)

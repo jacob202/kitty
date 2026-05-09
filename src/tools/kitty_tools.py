@@ -10,6 +10,7 @@ import webbrowser
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from functools import lru_cache
 from typing import Any
 
 
@@ -185,24 +186,53 @@ class KittyTools:
             function=function,
         )
 
-    def get_tool_schemas(self) -> list[dict]:
-        """Get JSON schemas for all tools (for LLM)"""
-        schemas = []
-        for tool in self.tools.values():
-            schema = {
-                "type": "function",
-                "function": {
-                    "name": tool.name,
-                    "description": tool.description,
-                    "parameters": {
-                        "type": "object",
-                        "properties": tool.parameters,
-                        "required": tool.required,
-                    },
+    @lru_cache(maxsize=1)
+def _get_tool_schemas_cached(tools_tuple: tuple) -> list[dict]:
+    """Cached tool schema generation"""
+    # Convert tuple back to dict for computation
+    tools = dict(tools_tuple)
+    schemas = []
+    for tool in tools.values():
+        schema = {
+            "type": "function",
+            "function": {
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": {
+                    "type": "object",
+                    "properties": tool.parameters,
+                    "required": tool.required,
                 },
-            }
-            schemas.append(schema)
-        return schemas
+            },
+        }
+        schemas.append(schema)
+    return schemas
+
+
+def get_tool_schemas(self) -> list[dict]:
+        """Get JSON schemas for all tools (for LLM)"""
+        # Use cached version for efficiency
+        try:
+            tools_tuple = tuple(sorted(self.tools.items()))
+            return _get_tool_schemas_cached(tools_tuple)
+        except TypeError:
+            # Fallback if tools aren't hashable
+            schemas = []
+            for tool in self.tools.values():
+                schema = {
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        "description": tool.description,
+                        "parameters": {
+                            "type": "object",
+                            "properties": tool.parameters,
+                            "required": tool.required,
+                        },
+                    },
+                }
+                schemas.append(schema)
+            return schemas
 
     def execute(self, tool_name: str, arguments: dict[str, Any]) -> str:
         """

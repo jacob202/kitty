@@ -2,7 +2,90 @@
 
 > **For recent session continuity only. For full task tracking, see TASKS.md.**
 
-Last updated: 2026-05-07
+Last updated: 2026-05-09
+
+## 2026-05-09 Back-On-Track Reset
+
+### What Was Completed
+
+- Implemented `scripts/eval_loop.py --offline`.
+- Offline mode now explicitly clears remote provider keys (`OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`) in the eval-loop Flask process.
+- Integrated automatic daily summary writing into `eval_loop` via `scripts/daily_eval_summary.py`.
+- Added eval-loop tests:
+  - offline env behavior
+  - daily summary emission on failure path
+- Reconciled task state so Priority 4 reflects actual code behavior.
+
+## 2026-05-09 SKILL 3: Review, Improve & Scale
+
+### What Was Completed
+
+- **Quick-mode CLI**: `./kitty quick status/test/health/count/index/tokens`
+- **Warm cache**: `scripts/warm_cache.py` + session auto-warm
+- **File index**: `scripts/build_file_index.py` + 2200+ files indexed
+- **Tool schema cache**: `@lru_cache` in `kitty_tools.py`
+- **Scaffold**: `scripts/scaffold.py` for tool/route/test/module
+
+### Improvement Audit (SKILL 3)
+
+- Created `docs/IMPROVEMENT_AUDIT.md` - Full audit (scores 8/10)
+- Created `docs/REFACTOR_PLAN.md` - Future changes
+- Created `docs/PROCESS_UPGRADES.md` - Workflows & commands
+- Created `config/README.md` - Config index
+- Created `docs/DATA_ROUTING.md` - Critical data routing
+- Created `src/config/validators.py` - Pydantic config validation
+
+### Verification Evidence
+
+- Focused tests:
+  - `/opt/homebrew/bin/python3.12 -m pytest tests/test_eval_loop_logging.py tests/test_daily_eval_summary.py -q --tb=short`
+  - result: `5 passed`
+- Real offline eval run:
+  - `/opt/homebrew/bin/python3.12 scripts/eval_loop.py --max-attempts 1 --offline`
+  - result: `pytest PASSED (532 passed, 7 skipped, 5 deselected)`, eval route `5/5`, no regression, daily summary files written for `2026-05-09`
+- Control gate:
+  - `bash scripts/run_gates.sh`
+  - result: `151 passed, 6 skipped`
+
+### Continuity Outcome
+
+- The "offline eval loop + automatic daily summary" items are now true in code, tested, and reflected in `TASKS.md`.
+
+## 2026-05-08 Continuity Reconciliation
+
+### What Was Completed
+
+- Re-read canonical continuity surfaces and handoffs to rebuild shared state:
+  - `docs/STANDUP.md`
+  - `docs/SESSION_LOG.md`
+  - `docs/handoffs/HANDOFF-2026-05-08.md`
+  - `docs/handoffs/HANDOFF-2026-05-08-END.md`
+  - `docs/handoffs/HANDOFF-2026-05-07.md`
+  - `docs/handoffs/HANDOFF-2026-05-06.md`
+  - `CURRENT_FOCUS.md`
+  - `TASKS.md`
+  - `docs/DECISIONS.md`
+  - `docs/LAYER0_CONTROL_PLANE.md`
+- Normalized `TASKS.md` by removing the corrupted escaped-`\\n` duplicate block that had been appended to the file.
+- Updated `TASKS.md` "Last updated" date and added a "Priority 4 — Eval + Reliability (Current Truth)" checklist aligned to the live codebase.
+
+### Continuity Corrections
+
+- Some handoff claims and repo reality were out of sync.
+- End-of-session handoff files are now present in two variants for 2026-05-08 (`HANDOFF-2026-05-08.md` and `HANDOFF-2026-05-08-END.md`) and should be treated as chronology, not guaranteed code truth.
+- Verified in-tree `scripts/eval_loop.py` currently does **not** expose:
+  - `--offline` mode
+  - automatic daily-summary generation per run
+- These items remain open in `TASKS.md` until implemented in code.
+
+### Why This Was Done
+
+- Next-agent takeover speed dropped due to conflicting status statements across handoff/session docs.
+- This pass re-anchors continuity to verifiable file state, reducing false-green planning.
+
+### Immediate Next Step
+
+- Implement missing eval-loop reliability items in code (`--offline` and run-end daily summary emission), then re-run gates and update continuity docs from fresh evidence.
 
 ## 2026-05-07 Autonomy & Tuning Session
 

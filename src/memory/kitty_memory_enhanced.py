@@ -466,8 +466,8 @@ class KittyMemoryEnhanced:
                 with open(file_path, encoding="utf-8", errors="ignore") as f:
                     data = json.load(f)
                 return json.dumps(data, ensure_ascii=False, indent=2)
-            except Exception:
-                pass
+            except Exception as e:
+                logging.getLogger(__name__).warning(f"Error: {e}")
 
         with open(file_path, encoding="utf-8", errors="ignore") as f:
             return f.read()
