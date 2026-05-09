@@ -1,6 +1,6 @@
 # Session Handoff — 2026-05-09
 
-## What was built this session (Phases 1–5 complete)
+## What was built this session (Phases 1–6 complete)
 
 | Phase | Commit | What it does |
 |---|---|---|
@@ -10,8 +10,10 @@
 | 4 | f0b076d | ChromaDB knowledge base + LlamaIndex ingestion pipeline |
 | 4b | 1ecd5cc | Doc-type-aware chunking (service_manual/book/health/session_log) + JSONL parser |
 | 5 | 4daa8cd | Guided onboarding interview — 8 domains, facts → Mem0 + ChromaDB |
+| 6 | 1e9fda5 | Full ingestion sweep — ChatGPT export + Claude.ai extractor + journal.db extractor |
 
-**Test suite: 571 passing, 0 failures**
+**Test suite: 575 passing, 0 failures**
+**ChromaDB: 1,580 chunks** (63 Claude Code sessions + 7 ChatGPT archives ingested)
 
 ---
 
@@ -61,14 +63,22 @@ python scripts/ingest.py /path/to/your/pdfs/    # any folder of PDFs/txt/md
 
 | Phase | Plan file | What it builds |
 |---|---|---|
-| **6** | needs writing | Full ingestion sweep: 25 Claude session .jsonl files, data/sessions/, data/exports/, journal.db |
+| **6** | `2026-05-09-kitty-phase-6-ingestion.md` | ✅ DONE — ChatGPT (1538 chunks), Claude Code sessions, Claude.ai extractor ready |
 | **7** | needs writing | Morning brief + news via n8n + Pushover phone notification |
 | **8** | needs writing | Voice input (faster-whisper already built) + Kokoro TTS — wire to Gateway |
 | **9** | needs writing | PDF pipeline + schematic vision (LlamaParse for image-heavy docs) |
 | **10** | needs writing | Honcho weekly pattern mirror + historical seeding |
 | **11** | needs writing | restic backup (external drive + Backblaze B2) + Tailscale mobile access |
 
-**Start next session from Phase 6.**
+**Start next session from Phase 7.**
+
+### Claude.ai export — pending ingest
+When Claude.ai export zip is accessible, run:
+```bash
+# Unzip export into:  data/imports/claude/
+# (needs: conversations.json, memories.json, projects/, design_chats/)
+python scripts/ingest_phase6.py   # will pick it up automatically
+```
 
 ---
 
