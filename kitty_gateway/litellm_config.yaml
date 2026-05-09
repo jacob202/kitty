@@ -1,0 +1,62 @@
+# LiteLLM Proxy Config — Kitty Model Router
+# Verify current model IDs at openrouter.ai/models before running
+
+model_list:
+  # Default: cheap, fast, non-sensitive queries (DeepSeek with Gemini Flash fallback)
+  - model_name: kitty-default
+    litellm_params:
+      model: openrouter/deepseek/deepseek-chat-v3-0324
+      api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 4096
+
+  # Fallback default: Gemini Flash (auto-used if DeepSeek is down)
+  - model_name: kitty-default
+    litellm_params:
+      model: gemini/gemini-2.0-flash
+      api_key: os.environ/GEMINI_API_KEY
+      max_tokens: 4096
+
+  # Agent tasks: structured output, tool calls, routing decisions
+  - model_name: kitty-agent
+    litellm_params:
+      model: openrouter/nousresearch/hermes-3-llama-3.1-70b
+      api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 4096
+
+  # Complex reasoning: architecture, synthesis, code review
+  # Routed via OpenRouter to avoid needing a separate Anthropic API key
+  - model_name: kitty-smart
+    litellm_params:
+      model: openrouter/anthropic/claude-sonnet-4-6
+      api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 8192
+
+  # Private/sensitive: medical, financial — MLX local model, never leaves Mac
+  # Requires: mlx_lm.server --model mlx-community/Qwen3.5-4B-4bit --port 8010
+  - model_name: kitty-private
+    litellm_params:
+      model: openai/mlx-community/Qwen3.5-4B-4bit
+      api_base: http://localhost:8010/v1
+      api_key: "none"
+      max_tokens: 2048
+
+  # Embeddings (for ChromaDB ingestion — Phase 4)
+  - model_name: kitty-embed
+    litellm_params:
+      model: ollama/nomic-embed-text
+      api_base: http://localhost:11434
+
+router_settings:
+  routing_strategy: simple-shuffle
+  num_retries: 2
+  timeout: 30
+
+litellm_settings:
+  drop_params: true
+  set_verbose: false
+
+general_settings:
+  # Daily spend cap — auto-downgrade to cheaper model at 80% of cap
+  max_budget: 2.00
+  budget_duration: 1d
+  master_key: "kitty-local-key-change-me"
