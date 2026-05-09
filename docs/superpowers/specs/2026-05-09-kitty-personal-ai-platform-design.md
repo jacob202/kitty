@@ -1,5 +1,5 @@
 # Kitty — Personal AI Platform Design
-_Spec date: 2026-05-09 · Revised after multi-model review (v3)_
+_Spec date: 2026-05-09 · Revised after multi-model review (v4 — Antigravity design review)_
 
 ---
 
@@ -16,7 +16,7 @@ Jacob's Mac has 8GB unified memory. This changes the local model strategy:
 | Always-on services | ~1.5GB |
 |---|---|
 | Open WebUI + Kitty Gateway | ~300MB |
-| Graphiti (local memory graph) | ~400MB |
+| Mem0 (local memory graph) | ~400MB |
 | ChromaDB | ~200MB |
 | n8n | ~200MB |
 | Remaining headroom | ~6.5GB |
@@ -40,24 +40,24 @@ Hermes Agent is a separate application by Nous Research — a self-improving age
 | Piece | Tool | Plain English |
 |---|---|---|
 | Face / Interface | Open WebUI | The app Jacob opens and talks to. Mobile-friendly, voice-ready, customizable with Kitty's name and personality. |
-| Kitty's brainstem | Kitty Gateway (thin Flask app) | Custom Python service that sits between Open WebUI and everything else. Injects soul, pulls memory, routes domain, calls Honcho. Open WebUI talks to this via OpenAI-compatible API. |
+| Kitty's brainstem | Kitty Gateway (FastAPI, not Flask) | Custom Python service that sits between Open WebUI and everything else. Injects soul, pulls memory, routes domain, calls Honcho. FastAPI used (not Flask) — async by default, handles LLM streaming without blocking, native Pydantic integration. |
 | Kitty's soul | SOUL.md → system prompt | Who she is — personality, values, communication style. Loaded by Kitty Gateway on every request. |
 | Agent brain | Hermes 4 (via OpenRouter, cloud) | Current gen. Hybrid reasoning, best-in-class JSON schema adherence. Used for agent tasks, routing decisions, structured extraction. No local RAM cost. |
-| Private local brain | Qwen 2.5 4B (Ollama, local, ~2.5GB) | On-demand only for medical/financial queries. Never leaves Mac. Unloaded from RAM after use. |
+| Private local brain | Qwen 2.5 4B-Instruct (Ollama, local, ~2.5GB) | On-demand only for medical/financial queries. Must use -Instruct variant — base model won't follow medical instructions reliably. Never leaves Mac. Unloaded from RAM after use. |
 | Cheap fast brain | DeepSeek Flash (cloud) | Default for non-sensitive queries. ~$0.001/msg. |
 | Smart brain | Claude Sonnet (API) | Complex reasoning, synthesis, code review. Reserved. |
 | Model routing | LiteLLM | Picks the right model, tracks cost, enforces spend cap, falls back automatically. |
-| Long-term memory | Graphiti (local, open source) | Replaces Zep CE (deprecated). Graph-based memory that distinguishes facts vs patterns. Runs fully locally. |
+| Long-term memory | Mem0 (self-hosted, SQLite backend) | Replaces Mem0. Mem0 requires Neo4j/FalkorDB via Docker — too heavy for 8GB Mac (600-800MB before Kitty answers a message). Mem0 self-hosted uses SQLite, runs in-process, ~100MB. Same fact extraction and user memory. Migrate to Mem0 later if graph traversal is actually needed. |
 | Knowledge base | ChromaDB + LlamaIndex | Stores everything Kitty knows — docs, PDFs, session logs. LlamaIndex reads files in; ChromaDB stores and searches them. |
-| Psychology layer | Honcho (already built) | Watches every conversation for behavioral patterns. Feeds Graphiti's inference namespace. Reports weekly. |
+| Psychology layer | Honcho (already built) | Watches every conversation for behavioral patterns. Feeds Mem0's inference namespace. Reports weekly. |
 | Automation | n8n (self-hosted) | Runs scheduled tasks: morning brief, news digest, weekly pattern mirror. Sends push notifications via Pushover/NTFY to Jacob's phone. |
 | Voice input | faster-whisper (already built) | Wrapped in a FastAPI app exposing OpenAI-compatible `/v1/audio/transcriptions`. Open WebUI plugs in natively. |
 | Voice output | Kokoro TTS (local) | Wrapped in a FastAPI app exposing OpenAI-compatible `/v1/audio/speech`. Open WebUI plugs in natively. On-demand only. |
-| Document parser | LlamaIndex + PyMuPDF (free) | Default parser for text-based PDFs. Free, no cost per page. |
+| Document parser | LlamaIndex + PyMuPDF + pdfplumber | PyMuPDF is the primary free parser. pdfplumber is the secondary (handles complex tables better). Both free, no cost per page. LlamaIndex supports both. |
 | Complex doc parser | LlamaParse (optional, $0.003/page) | Only used for image-heavy documents: schematics, circuit boards, scanned records. Never for regular PDFs. |
 | Image/schematic analysis | Claude Sonnet vision | Describes circuit boards and schematics in detail. Combined with OCR. Online image search augments results. |
 | Coding guidance | Claude Code (already have it) | Jacob's vibe coding tool. Kitty generates a PLAN.md artifact; Jacob runs `claude "implement PLAN.md"` manually. |
-| Backup | restic (nightly) | Encrypts and backs up all data directories to external drive nightly. Non-negotiable given medical/personal data. |
+| Backup | restic (nightly, dual target) | Encrypts and backs up to external drive (primary) AND Backblaze B2 cloud bucket (secondary, ~$0.005/GB/month). Both targets protect against simultaneous Mac + drive failure. |
 | Remote access | Tailscale (free) | Zero-trust VPN. Jacob accesses Kitty from phone at `http://kitty-mac:3000` without exposing anything to the internet. |
 
 ---
@@ -72,8 +72,8 @@ Jacob (phone or Mac)
   Kitty Gateway  (port 8000, thin Flask app — Kitty's real brain)
   ├── Load SOUL.md → build system prompt
   ├── Classify domain → pick 1-2 context modes
-  ├── Pull facts from Graphiti  [Jacob stated: "owns 2010 Honda"]
-  ├── Pull patterns from Graphiti  [Honcho inferred: "in research loop"]
+  ├── Pull facts from Mem0  [Jacob stated: "owns 2010 Honda"]
+  ├── Pull patterns from Mem0  [Honcho inferred: "in research loop"]
   ├── Pull relevant docs from ChromaDB
   └── Call Honcho to log this conversation's signal
       ↓
@@ -103,7 +103,7 @@ Before any service writes data, the schemas live in `/contracts/` as Pydantic mo
 
 ```
 contracts/
-  memory_event.py      # fact or pattern written to Graphiti
+  memory_event.py      # fact or pattern written to Mem0
   knowledge_chunk.py   # document chunk written to ChromaDB
   honcho_signal.py     # psychological signal from a conversation
   brief_item.py        # one item in the morning brief
@@ -156,9 +156,9 @@ Tail-sampled to a rotating log file. Used for debugging latency spikes, weird re
 
 ## Graceful Degradation
 
-If Graphiti or ChromaDB is unavailable, Kitty Gateway falls back to an ephemeral in-memory store for that session only — with a visible warning. Jacob gets a degraded but working Kitty, not a crash.
+If Mem0 or ChromaDB is unavailable, Kitty Gateway falls back to an ephemeral in-memory store for that session only — with a visible warning. Jacob gets a degraded but working Kitty, not a crash.
 
-Session closure hook: when a chat session ends, short-term memory moves to Graphiti (long-term) and transient ChromaDB chunks are pruned. Prevents unbounded database growth.
+Session closure hook: when a chat session ends, short-term memory moves to Mem0 (long-term) and transient ChromaDB chunks are pruned. Prevents unbounded database growth.
 
 ---
 
@@ -188,7 +188,7 @@ human_confirmed: true/false
 namespace:       facts | patterns | knowledge | brief
 ```
 
-**Strict separation in Graphiti:**
+**Strict separation in Mem0:**
 - `facts` namespace — things Jacob stated directly. "Jacob owns a 2010 Honda Civic." Confidence 1.0 when confirmed.
 - `patterns` namespace — things Honcho inferred. "Jacob tends to research heavily before acting." Confidence 0.5–0.8, never presented as fact.
 
@@ -202,7 +202,7 @@ Five modes active from day one of Kitty Gateway. Classification uses a cheap LLM
 
 | Mode | Activates when | What changes | Fallback |
 |---|---|---|---|
-| Soul / default | General, personal, life | Full Kitty personality, psychological context from Graphiti | Always available |
+| Soul / default | General, personal, life | Full Kitty personality, psychological context from Mem0 | Always available |
 | Repair & Technical | Car, electronics, schematics, "how do I fix" | Pulls vehicle history, service manuals, repair context | Soul if no repair docs found |
 | Health & Medical | Symptoms, blood results, meds, fitness | Pulls medical profile — **local model only**, framed as research + questions for doctor | Soul |
 | Research | "Look this up," deep dives | Firecrawl pipeline, cites all sources, never synthesizes without grounding | Soul |
@@ -218,7 +218,7 @@ Runs once. Idempotent — safe to rerun without creating duplicate memories. Thr
 
 ### Phase 1 — Guided Interview (Kitty asks Jacob)
 
-Conversational, one domain per sitting. No forms. Jacob answers in his own words. All answers stored in Graphiti (`facts` namespace, `human_confirmed: true`) and ChromaDB.
+Conversational, one domain per sitting. No forms. Jacob answers in his own words. All answers stored in Mem0 (`facts` namespace, `human_confirmed: true`) and ChromaDB.
 
 **Domain 1 — Identity & Values**
 - Who are you, what are you trying to build in your life?
@@ -286,7 +286,7 @@ After phases 1 and 2, Honcho replays the historical data using **Hermes 3 3B (lo
 ## Morning Brief
 
 n8n fires at 7am:
-1. Calls Kitty Gateway → generates brief based on calendar, Graphiti patterns, open projects
+1. Calls Kitty Gateway → generates brief based on calendar, Mem0 patterns, open projects
 2. Pulls news digest (RSS, no scraping): tech/AI, Canadian news, Jacob's domain topics
 3. Creates new Open WebUI chat session via API
 4. Pushes Pushover/NTFY notification to Jacob's phone with a link to the chat
@@ -340,14 +340,14 @@ Heavy eval infrastructure archived. Small smoke suite kept with 5 gates. Run aft
 | Component | Action | Why |
 |---|---|---|
 | Custom model routing (4+ files) | Archive | Replaced by LiteLLM |
-| 6 of 8 memory files | Archive | Replaced by Graphiti + single ChromaDB interface |
+| 6 of 8 memory files | Archive | Replaced by Mem0 + single ChromaDB interface |
 | Heavy eval infrastructure | Archive | Replaced by 5-gate smoke suite |
 | Swarm executor | Archive | Premature |
 | Observability/metrics dashboard | Archive | Not needed for personal use |
 | Duplicate orchestrators | Archive all but CoreOrchestrator | Consolidate |
 | garage-ui | Freeze (don't delete) | Replaced by Open WebUI as primary interface |
 | KittyBuilder (most of it) | Archive | Claude Code replaces it |
-| Zep CE | Never install | Deprecated — replaced by Graphiti |
+| Zep CE | Never install | Deprecated — replaced by Mem0 |
 
 ---
 
@@ -363,8 +363,8 @@ _Gate: Open WebUI loads. Sending a message gets a Claude response._
 Build the thin Flask Gateway. Load SOUL.md as system prompt. Wire 5 domain modes with basic classification. Open WebUI points to Gateway instead of LiteLLM directly.
 _Gate: Ask "who am I?" → responds as Kitty, not generic AI. Ask about a car → domain switches to Repair mode._
 
-**Phase 3 — Graphiti memory**
-Install Graphiti locally. Wire into Gateway. Every conversation starts populating Jacob's memory graph. Separate facts and patterns namespaces from day one with privacy labels.
+**Phase 3 — Mem0 memory**
+Install Mem0 locally. Wire into Gateway. Every conversation starts populating Jacob's memory graph. Separate facts and patterns namespaces from day one with privacy labels.
 _Gate: Tell Kitty a new fact. Close chat. Open new chat. Ask about it. She remembers._
 
 **Phase 4 — ChromaDB + small ingestion test**
@@ -372,7 +372,7 @@ Set up LlamaIndex ingestion pipeline. Run it on a small test folder (5-10 docs) 
 _Gate: Upload one PDF. Ask a specific question about it. Kitty answers with a citation._
 
 **Phase 5 — Onboarding: guided interview**
-Build 8-domain interview inside Kitty. Jacob completes one domain per sitting. All answers flow into Graphiti + ChromaDB with privacy labels.
+Build 8-domain interview inside Kitty. Jacob completes one domain per sitting. All answers flow into Mem0 + ChromaDB with privacy labels.
 _Gate: Complete Domain 1. Ask Kitty "what do you know about me?" — she summarizes accurately._
 
 **Phase 6 — Onboarding: file ingestion**
@@ -421,7 +421,7 @@ No period without a working assistant.
 - **Hermes 3 3B** — free AI model, runs locally via Ollama. Check `ollama.com/library/hermes3` for latest version (may be Hermes 4 by the time you read this).
 - **Ollama** — the app that runs local models on your Mac.
 - **LiteLLM** — one library that talks to all AI providers. Handles routing, cost tracking, spend caps, fallbacks.
-- **Graphiti** — replaces Zep CE (which is deprecated). Local-first graph memory. Stores facts and inferred patterns separately.
+- **Mem0** — replaces Zep CE (which is deprecated). Local-first graph memory. Stores facts and inferred patterns separately.
 - **ChromaDB** — the document/knowledge database. Already in Kitty.
 - **LlamaIndex** — reads files into ChromaDB. The ingestion pipeline.
 - **LlamaParse** — optional, $0.003/page. Only for image-heavy docs.

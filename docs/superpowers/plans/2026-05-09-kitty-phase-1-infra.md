@@ -32,12 +32,12 @@
 
 ### Task 1: Pull the private local model
 
-The existing `qwen2.5-coder:7b` (4.7GB) is too large for 8GB Mac alongside all services. Pull the smaller `qwen2.5:3b` (~2GB) for private/medical queries.
+The existing `qwen2.5-coder:7b` (4.7GB) is too large for 8GB Mac alongside all services. Pull the smaller `qwen2.5:4b-instruct` (~2GB) for private/medical queries.
 
-- [ ] **Step 1: Pull qwen2.5:3b**
+- [ ] **Step 1: Pull qwen2.5:4b-instruct**
 
 ```bash
-ollama pull qwen2.5:3b
+ollama pull qwen2.5:4b-instruct
 ```
 
 Expected output ends with: `success`
@@ -48,12 +48,12 @@ Expected output ends with: `success`
 ollama list
 ```
 
-Expected: `qwen2.5:3b` appears in the list with size ~2GB.
+Expected: `qwen2.5:4b-instruct` appears in the list with size ~2GB.
 
 - [ ] **Step 3: Quick smoke test**
 
 ```bash
-ollama run qwen2.5:3b "Say hello in one sentence" --nowordwrap
+ollama run qwen2.5:4b-instruct "Say hello in one sentence" --nowordwrap
 ```
 
 Expected: a short English sentence. Type `/bye` to exit.
@@ -116,11 +116,18 @@ Create `/Users/jacobbrizinski/Projects/kitty/kitty_gateway/litellm_config.yaml` 
 # Verify current model IDs at openrouter.ai/models before running
 
 model_list:
-  # Default: cheap, fast, non-sensitive queries
+  # Default: cheap, fast, non-sensitive queries (DeepSeek with Gemini Flash fallback)
   - model_name: kitty-default
     litellm_params:
       model: openrouter/deepseek/deepseek-chat-v3-5
       api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 4096
+
+  # Fallback default: Gemini Flash (auto-used if DeepSeek is down)
+  - model_name: kitty-default
+    litellm_params:
+      model: gemini/gemini-2.0-flash
+      api_key: os.environ/GEMINI_API_KEY
       max_tokens: 4096
 
   # Agent tasks: structured output, tool calls, routing decisions
@@ -141,7 +148,7 @@ model_list:
   # Private/sensitive: medical, financial — never leaves Mac
   - model_name: kitty-private
     litellm_params:
-      model: ollama/qwen2.5:3b
+      model: ollama/qwen2.5:4b-instruct
       api_base: http://localhost:11434
       max_tokens: 2048
 
@@ -585,8 +592,8 @@ if [ "$PHASE" = "1" ]; then
         "curl -sf http://localhost:3000"
     check "Ollama running" \
         "curl -sf http://localhost:11434/api/tags"
-    check "qwen2.5:3b model available" \
-        "curl -sf http://localhost:11434/api/tags | grep -q qwen2.5:3b"
+    check "qwen2.5:4b-instruct model available" \
+        "curl -sf http://localhost:11434/api/tags | grep -q qwen2.5:4b-instruct"
     check "kitty_gateway/litellm_config.yaml exists" \
         "test -f /Users/jacobbrizinski/Projects/kitty/kitty_gateway/litellm_config.yaml"
     check "contracts/routing_decision.py exists" \
