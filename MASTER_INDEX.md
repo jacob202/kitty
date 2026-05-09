@@ -12,6 +12,9 @@
 # docs/PROCESS_UPGRADES.md - commands workflow
 # docs/REFACTOR_PLAN.md - future changes
 
+# WORKFLOW
+# ENGINEERING_LOOP.md - diagnose → audit → improve → ship chain
+
 # CONFIG
 # config/README.md - all configs indexed
 # src/config/validators.py - Pydantic validate
@@ -29,3 +32,5 @@
 # DATA_ROUTING.md#Storage-Routing
 # DATA_ROUTING.md#Code-References
 # PROCESS_UPGRADES.md#Quick-Commands
+# ENGINEERING_LOOP.md#STEP-1-DIAGNOSE
+# ENGINEERING_LOOP.md#STEP-2-AUDIT
