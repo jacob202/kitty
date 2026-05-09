@@ -33,6 +33,13 @@ async def morning_brief():
     return generate_brief()
 
 
+@app.get("/weekly")
+async def weekly_mirror():
+    """Return this week's behavioral pattern mirror."""
+    from gateway.honcho import get_weekly_mirror
+    return get_weekly_mirror()
+
+
 @app.post("/v1/audio/transcriptions")
 async def audio_transcriptions(file: UploadFile = File(...), model: str = Form("whisper-1")):
     """OpenAI-compatible STT endpoint. Accepts audio file, returns {text}."""
