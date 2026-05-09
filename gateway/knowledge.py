@@ -183,7 +183,15 @@ def _extract_text(path: Path) -> str:
     suffix = path.suffix.lower()
     if suffix == ".pdf":
         return _extract_pdf(path)
-    elif suffix in {".jsonl", ".json"}:
+    elif suffix == ".jsonl":
+        return _extract_jsonl_session(path)
+    elif suffix == ".json":
+        try:
+            first_char = path.read_text(errors="ignore").lstrip()[:1]
+        except Exception:
+            first_char = ""
+        if first_char == "[":
+            return _extract_chatgpt_json(path)
         return _extract_jsonl_session(path)
     elif suffix in {".txt", ".md", ".rst"}:
         return path.read_text(errors="ignore")
@@ -234,6 +242,58 @@ def _extract_jsonl_session(path: Path) -> str:
     except Exception as e:
         logger.warning("JSONL parse failed for %s: %s", path.name, e)
     return "\n\n".join(lines)
+
+
+def _extract_chatgpt_json(path: Path) -> str:
+    """Extract text from OpenAI ChatGPT export JSON (list of conversations)."""
+    try:
+        data = json.loads(path.read_text(errors="ignore"))
+    except Exception as e:
+        logger.warning("ChatGPT JSON parse failed for %s: %s", path.name, e)
+        return ""
+    if not isinstance(data, list):
+        return ""
+    blocks = []
+    for conv in data:
+        title = conv.get("title", "Untitled")
+        mapping = conv.get("mapping", {})
+        messages = []
+        for node in mapping.values():
+            msg = node.get("message")
+            if not msg:
+                continue
+            role = msg.get("author", {}).get("role", "")
+            if role not in {"user", "assistant"}:
+                continue
+            content = msg.get("content", {})
+            parts = content.get("parts", []) if isinstance(content, dict) else []
+            text = " ".join(str(p) for p in parts if isinstance(p, str) and p.strip())
+            if not text:
+                continue
+            create_time = msg.get("create_time") or 0
+            messages.append((create_time, role.upper(), text[:600]))
+        messages.sort(key=lambda x: x[0])
+        if messages:
+            lines = [f"CONVERSATION: {title}"]
+            lines += [f"{role}: {text}" for _, role, text in messages]
+            blocks.append("\n".join(lines))
+    return "\n\n---\n\n".join(blocks)
+
+
+def _extract_sqlite_journal(path: Path) -> str:
+    """Extract role/content pairs from a SQLite journal table."""
+    import sqlite3
+    try:
+        conn = sqlite3.connect(str(path))
+        rows = conn.execute(
+            "SELECT role, content FROM journal ORDER BY timestamp, id"
+        ).fetchall()
+        conn.close()
+        lines = [f"{role.upper()}: {content[:600]}" for role, content in rows if content]
+        return "\n\n".join(lines)
+    except Exception as e:
+        logger.warning("SQLite journal extract failed for %s: %s", path.name, e)
+        return ""
 
 
 def _chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:

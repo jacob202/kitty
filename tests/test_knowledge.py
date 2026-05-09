@@ -115,6 +115,81 @@ def test_get_knowledge_block_formats_with_source():
     assert "Honda Civic" in result
 
 
+def test_extract_chatgpt_json_returns_text(tmp_path):
+    import json
+    from gateway.knowledge import _extract_chatgpt_json
+    conv = {
+        "title": "Test Chat",
+        "id": "abc",
+        "mapping": {
+            "node1": {"id": "node1", "parent": None, "children": ["node2"],
+                      "message": {"author": {"role": "user"}, "create_time": 1.0,
+                                  "content": {"content_type": "text", "parts": ["Hello Kitty"]}}},
+            "node2": {"id": "node2", "parent": "node1", "children": [],
+                      "message": {"author": {"role": "assistant"}, "create_time": 2.0,
+                                  "content": {"content_type": "text", "parts": ["Hi Jacob!"]}}}
+        }
+    }
+    f = tmp_path / "conversations-000.json"
+    f.write_text(json.dumps([conv]))
+    text = _extract_chatgpt_json(f)
+    assert "Hello Kitty" in text
+    assert "Hi Jacob!" in text
+    assert "USER:" in text
+    assert "ASSISTANT:" in text
+
+
+def test_extract_chatgpt_json_skips_empty_parts(tmp_path):
+    import json
+    from gateway.knowledge import _extract_chatgpt_json
+    conv = {
+        "title": "Empty",
+        "id": "xyz",
+        "mapping": {
+            "n1": {"id": "n1", "parent": None, "children": [],
+                   "message": {"author": {"role": "user"}, "create_time": 1.0,
+                               "content": {"content_type": "text", "parts": [""]}}}
+        }
+    }
+    f = tmp_path / "conversations-001.json"
+    f.write_text(json.dumps([conv]))
+    text = _extract_chatgpt_json(f)
+    assert text == ""
+
+
+def test_extract_sqlite_journal_returns_text(tmp_path):
+    import sqlite3
+    from gateway.knowledge import _extract_sqlite_journal
+    db_path = tmp_path / "journal.db"
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("CREATE TABLE journal (id INTEGER PRIMARY KEY, timestamp TEXT, role TEXT, content TEXT, content_hash TEXT)")
+    conn.execute("INSERT INTO journal VALUES (1,'2026-01-01','user','What is up?','hash1')")
+    conn.execute("INSERT INTO journal VALUES (2,'2026-01-01','assistant','Not much.','hash2')")
+    conn.commit()
+    conn.close()
+    text = _extract_sqlite_journal(db_path)
+    assert "USER: What is up?" in text
+    assert "ASSISTANT: Not much." in text
+
+
+def test_extract_text_dispatches_chatgpt_json(tmp_path):
+    import json
+    from gateway.knowledge import _extract_text
+    conv = {
+        "title": "Dispatch test",
+        "id": "d1",
+        "mapping": {
+            "n1": {"id": "n1", "parent": None, "children": [],
+                   "message": {"author": {"role": "user"}, "create_time": 1.0,
+                               "content": {"content_type": "text", "parts": ["dispatch works"]}}}
+        }
+    }
+    f = tmp_path / "conversations-002.json"
+    f.write_text(json.dumps([conv]))
+    text = _extract_text(f)
+    assert "dispatch works" in text
+
+
 @pytest.mark.integration
 def test_ingest_and_search_roundtrip(tmp_path):
     """Write a text file, ingest it, search for it. Requires Ollama."""

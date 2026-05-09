@@ -25,7 +25,7 @@ echo ""
 if [ "$PHASE" = "1" ]; then
     echo "[ Infrastructure ]"
     check "LiteLLM proxy reachable on port 8001" \
-        "curl -sf http://localhost:8001/health"
+        "curl -sf -H 'Authorization: Bearer kitty-local-key-change-me' http://localhost:8001/v1/models"
     check "Open WebUI reachable on port 3000" \
         "curl -sf http://localhost:3000"
     check "MLX server reachable on port 8010" \
@@ -57,6 +57,20 @@ if [ "$PHASE" = "2" ]; then
         "test -f /Users/jacobbrizinski/Projects/kitty/prompts/soul_v1.md"
     check "gateway/app.py exists" \
         "test -f /Users/jacobbrizinski/Projects/kitty/gateway/app.py"
+fi
+
+if [ "$PHASE" = "6" ]; then
+    echo "[ Full Ingestion Sweep ]"
+    check "ingest_phase6.py exists" \
+        "test -f /Users/jacobbrizinski/Projects/kitty/scripts/ingest_phase6.py"
+    check "ChatGPT extractor in knowledge.py" \
+        "grep -q '_extract_chatgpt_json' /Users/jacobbrizinski/Projects/kitty/gateway/knowledge.py"
+    check "journal extractor in knowledge.py" \
+        "grep -q '_extract_sqlite_journal' /Users/jacobbrizinski/Projects/kitty/gateway/knowledge.py"
+    check "knowledge tests pass" \
+        "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/pytest tests/test_knowledge.py -q --tb=no 2>/dev/null | grep -q 'passed'"
+    check "Claude Code sessions dir exists" \
+        "test -d $HOME/.claude/projects/-Users-jacobbrizinski-Projects-kitty"
 fi
 
 echo ""
