@@ -65,12 +65,17 @@ python scripts/ingest.py /path/to/your/pdfs/    # any folder of PDFs/txt/md
 |---|---|---|
 | **6** | `2026-05-09-kitty-phase-6-ingestion.md` | ✅ DONE — ChatGPT (1538 chunks), Claude Code sessions, Claude.ai extractor ready |
 | **7** | `2026-05-09-kitty-phase-7-brief.md` | ✅ DONE — RSS feeds (HN/BBC/arXiv/Verge) + Mem0 + Pushover + launchd 7am |
-| **8** | needs writing | Voice input (faster-whisper already built) + Kokoro TTS — wire to Gateway |
+| **8** | `2026-05-09-kitty-phase-8-voice.md` | ✅ DONE — /v1/audio/transcriptions (whisper) + /v1/audio/speech (edge-tts Aria) |
 | **9** | needs writing | PDF pipeline + schematic vision (LlamaParse for image-heavy docs) |
 | **10** | needs writing | Honcho weekly pattern mirror + historical seeding |
 | **11** | needs writing | restic backup (external drive + Backblaze B2) + Tailscale mobile access |
 
-**Start next session from Phase 8.**
+**Start next session from Phase 9.**
+
+### Wire Open WebUI to voice endpoints
+Admin Panel → Settings → Audio:
+- STT provider: OpenAI → URL: `http://localhost:8000/v1` → Key: `kitty-local-key-change-me`
+- TTS provider: OpenAI → URL: `http://localhost:8000/v1` → Key: `kitty-local-key-change-me` → Voice: `alloy` or `kitty`
 
 ### Pushover setup (to get phone notifications)
 1. Create account at pushover.net (free, one-time $5 client app)
