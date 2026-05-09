@@ -5,8 +5,11 @@
 # QUICK (no LLM)
 # ./kitty quick status|test|health|index <pattern>|tokens
 
-# DOCS
+# PROJECT START (SKILL 1)
+# PROJECT_REALITY_CHECK.md - run this FIRST before coding
 # docs/STANDUP.md - startup + hooks (READ FIRST)
+
+# DOCS
 # docs/IMPROVEMENT_AUDIT.md - audit scores, start here
 # docs/DATA_ROUTING.md - storage routing (CRITICAL)
 # docs/PROCESS_UPGRADES.md - commands workflow

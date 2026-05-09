@@ -2,6 +2,9 @@
 # Chained workflow: diagnose → audit → improve → ship
 # Usage: grep "# STEP" this file
 
+# START FIRST (SKILL 1)
+# PROJECT_REALITY_CHECK.md - run BEFORE any large work
+
 # QUICK COMMANDS (no LLM)
 ./kitty quick status|test|health|index <pattern>
 venv/bin/python -m pytest tests/ -q --tb=short
