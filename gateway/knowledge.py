@@ -203,19 +203,10 @@ def _extract_text(path: Path) -> str:
 
 
 def _extract_pdf(path: Path) -> str:
-    """PyMuPDF primary, pdfplumber fallback."""
-    try:
-        import fitz
-        doc = fitz.open(str(path))
-        return "\n".join(page.get_text() for page in doc)
-    except Exception:
-        pass
-    try:
-        import pdfplumber
-        with pdfplumber.open(str(path)) as pdf:
-            return "\n".join(p.extract_text() or "" for p in pdf.pages)
-    except Exception:
-        return ""
+    """PDF extraction via Phase 9 pipeline (LlamaParse → PyMuPDF → pdfplumber + vision)."""
+    from gateway.pdf_pipeline import extract_pdf_enhanced
+    chunks = extract_pdf_enhanced(path)
+    return "\n\n".join(chunk.combined_text() for chunk in chunks)
 
 
 def _extract_jsonl_session(path: Path) -> str:
