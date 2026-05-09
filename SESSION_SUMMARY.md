@@ -4,6 +4,35 @@
 
 Last updated: 2026-05-09
 
+## 2026-05-09 Browser-Gated Eval Loop
+
+### What Was Completed
+
+- Integrated browser-flow smoke into the default `scripts/eval_loop.py` execution path.
+- Added `--skip-browser-flow` override for backend-only emergency runs.
+- Added browser-flow regression check (`suite=browser_flow`) to eval-loop reporting.
+- Added eval-loop tests for browser-flow failure handling.
+- Restored legacy compatibility shim in `src/core/specialist_framework.py`:
+  - `_lightrag_stores`
+  - `_get_lightrag_for_domain(domain)`
+  This unblocked `tests/test_web_launch.py::test_missing_lightrag_degrades_specialist_kb_instead_of_raising`.
+
+### Verification Evidence
+
+- Focused tests:
+  - `/opt/homebrew/bin/python3.12 -m pytest tests/test_web_launch.py::test_missing_lightrag_degrades_specialist_kb_instead_of_raising tests/test_eval_loop_logging.py tests/test_browser_smoke_flows.py tests/test_daily_eval_summary.py -q --tb=short`
+  - result: `10 passed`
+- Full offline eval loop:
+  - `/opt/homebrew/bin/python3.12 scripts/eval_loop.py --max-attempts 1 --offline`
+  - result: `516 passed, 7 skipped, 5 deselected`; eval route `5/5`; browser flow `100%`; no regression; daily summary written.
+- Control gate:
+  - `bash scripts/run_gates.sh`
+  - result: `151 passed, 6 skipped`
+
+### Continuity Outcome
+
+- Reliability gate now runs backend smoke + browser flow in one path with offline-safe operation and summary artifacts.
+
 ## 2026-05-09 Back-On-Track Reset
 
 ### What Was Completed

@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from src.core.domain_router import DomainRouter
+from src.core.query_router import QueryRouter
 from src.core.specialist_framework import SpecialistResponse
 
 try:
@@ -62,7 +62,7 @@ class CoreOrchestrator:
         self.socketio = socketio
         self.enable_voice_components = enable_voice_components and VOICE_AVAILABLE
         self.context_manager = ContextManager()
-        self.domain_router = DomainRouter()
+        self.router = QueryRouter()
         self.specialists = SpecialistRegistry()
         self.checkpoint_manager = CheckpointManager()
         self.personality = KittyPersonality()
@@ -96,7 +96,7 @@ class CoreOrchestrator:
     ) -> SpecialistResponse:
         try:
             # 1. Route to domain
-            routed = self.domain_router.route(query)
+            routed = self.router.route(query)
             specialist_name = routed.specialist
 
             # 2. Get specialist

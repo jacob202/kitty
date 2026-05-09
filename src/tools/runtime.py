@@ -1,8 +1,7 @@
 """Unified Tool Runtime — consolidated tool execution with permissions."""
 
-from __future__ import annotations
-
 import asyncio
+import logging
 from dataclasses import dataclass, field, is_dataclass
 from datetime import datetime, timezone
 from enum import Enum

@@ -33,6 +33,5 @@ __all__ = [
     "system_bp",
     "voice_bp",
     "brief_bp",
-    "commands_bp",
     "quarantine_bp",
 ]

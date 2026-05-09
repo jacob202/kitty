@@ -3,19 +3,19 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import CommandPalette from './components/CommandPalette';
-import SettingsModal from './components/SettingsModal';
 import JournalDashboard from './components/JournalDashboard';
 import EvalDashboard from './components/EvalDashboard';
 import TrustDashboard from './components/TrustDashboard';
 import Sidebar from './components/Sidebar';
 import Inspector from './components/Inspector';
-import ChatInterface from './components/ChatInterface';
 import ErrorBoundary from './components/ErrorBoundary';
 import ActiveNodes from './components/ActiveNodes';
 import CollapsiblePanel from './components/CollapsiblePanel';
 import { useDensity } from './components/DensityContext';
 import { useToast } from './components/Toast';
 import { Thought } from './components/ThinkingMonologue';
+import ChatPanel from './components/ChatPanel';
+import SettingsPanel from './components/SettingsPanel';
 
 const RECORDING_MIME_CANDIDATES = [
   'audio/webm;codecs=opus',
@@ -397,15 +397,16 @@ export default function GarageDashboard() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 md:gap-4">
-          <div className="hidden md:flex"><ActiveNodes nodes={activeNodes} /></div>
-          <div className="flex items-center gap-2 md:gap-3 text-[10px] font-mono opacity-50">
-            <button onClick={() => setIsLightMode(!isLightMode)} className="hover:text-white uppercase tracking-tighter">
-              {isLightMode ? '🌙 DARK' : '☀️ LIGHT'}
-            </button>
-            <button onClick={toggleDensity} className="hidden sm:inline hover:text-white uppercase tracking-tighter">[{density}]</button>
-            <button onClick={() => setSettingsModalOpen(true)} className="hover:text-white">⚙ <span className="hidden sm:inline">SETTINGS</span></button>
-          </div>
+         <div className="flex items-center gap-2 md:gap-4">
+           <div className="hidden md:flex"><ActiveNodes nodes={activeNodes} /></div>
+           <SettingsPanel
+             settingsModalOpen={settingsModalOpen}
+             setSettingsModalOpen={setSettingsModalOpen}
+             toggleDensity={toggleDensity}
+             density={density}
+             isLightMode={isLightMode}
+             setIsLightMode={setIsLightMode}
+           />
           {/* Mobile inspector button */}
           <button
             className="md:hidden p-1 text-[var(--accent-color)] text-lg leading-none"
@@ -452,23 +453,27 @@ export default function GarageDashboard() {
         </div>
 
         <section className="flex-1 flex flex-col min-w-0 relative">
-          {/* Main workspace with persistent views */}
-          <div className={`flex-1 ${activeView === 'chat' ? 'block' : 'hidden'}`}>
-            <ChatInterface
-              messages={messages}
-              input={input}
-              setInput={setInput}
-              onSubmit={handleSubmit}
-              onVoiceToggle={handleVoiceToggle}
-              isRecording={isRecording}
-              isStreaming={isStreaming}
-              uiState={uiState}
-              currentMode={currentMode}
-              systemHealth={systemHealth}
-              isAnalyzing={isAnalyzing}
-              activeNodes={activeNodes}
-            />
-          </div>
+           {/* Main workspace with persistent views */}
+           <div className={`flex-1 ${activeView === 'chat' ? 'block' : 'hidden'}`}>
+             <ChatPanel
+               messages={messages}
+               input={input}
+               setInput={setInput}
+               isRecording={isRecording}
+               isStreaming={isStreaming}
+               uiState={uiState}
+               currentMode={currentMode}
+               systemHealth={systemHealth}
+               isAnalyzing={isAnalyzing}
+               activeNodes={activeNodes}
+               executeCommand={executeCommand}
+               handleVoiceToggle={handleVoiceToggle}
+               handleSubmit={handleSubmit}
+               handleSchematicUpload={handleSchematicUpload}
+               toggleDensity={toggleDensity}
+               density={density}
+             />
+           </div>
           <div className={`flex-1 ${activeView === 'journal' ? 'block' : 'hidden'}`}>
             <JournalDashboard />
           </div>

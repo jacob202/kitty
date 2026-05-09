@@ -114,7 +114,7 @@ def _response(text: str, specialist: str = "Kitty") -> SpecialistResponse:
 
 def test_core_orchestrator_process_handles_missing_council_enum(monkeypatch):
     monkeypatch.setattr(core_module, "ContextManager", _DummyContextManager)
-    monkeypatch.setattr(core_module, "DomainRouter", _DummyRouter)
+    monkeypatch.setattr(core_module, "QueryRouter", _DummyRouter)
     monkeypatch.setattr(core_module, "SpecialistRegistry", _DummySpecialists)
     monkeypatch.setattr(core_module, "CheckpointManager", _DummyCheckpoint)
     monkeypatch.setattr(core_module, "KittyPersonality", _DummyPersonality)
@@ -135,7 +135,7 @@ def test_core_orchestrator_process_handles_missing_council_enum(monkeypatch):
 
 def test_core_orchestrator_falls_back_when_specialist_returns_empty(monkeypatch):
     monkeypatch.setattr(core_module, "ContextManager", _DummyContextManager)
-    monkeypatch.setattr(core_module, "DomainRouter", _DummyRouter)
+    monkeypatch.setattr(core_module, "QueryRouter", _DummyRouter)
     monkeypatch.setattr(core_module, "CheckpointManager", _DummyCheckpoint)
     monkeypatch.setattr(core_module, "KittyPersonality", _DummyPersonality)
     monkeypatch.setattr(core_module, "ReasoningLayer", _DummyReasoningLayer)
@@ -174,7 +174,7 @@ def test_core_orchestrator_general_response_can_be_empty(monkeypatch):
 
 def test_core_orchestrator_select_model_honors_web_preferences(monkeypatch):
     monkeypatch.setattr(core_module, "ContextManager", _DummyContextManager)
-    monkeypatch.setattr(core_module, "DomainRouter", _DummyRouter)
+    monkeypatch.setattr(core_module, "QueryRouter", _DummyRouter)
     monkeypatch.setattr(core_module, "SpecialistRegistry", _DummySpecialists)
     monkeypatch.setattr(core_module, "CheckpointManager", _DummyCheckpoint)
     monkeypatch.setattr(core_module, "KittyPersonality", _DummyPersonality)

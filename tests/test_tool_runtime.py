@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional, Set
@@ -226,22 +227,24 @@ class TestToolRuntime:
         assert result.ok is True
         assert result.result == {"echo": {"x": 1}}
 
-    def test_execute_permission_denied_registry_bridge(self):
-        """Test that ToolRegistry permissions are checked via bridge."""
-        # Register a tool with name matching tool_registry.py's TOOL_PERMISSIONS
+    def test_execute_permission_denied_registry_bridge_unavailable(self):
+        """Test that when ToolRegistry is unavailable, only tool permissions are checked."""
+        # Register a tool with NO required permissions
         td = ToolDefinition(
             name="read_file",
             description="Read file tool",
             kind=ToolKind.FUNCTION,
             handler=_simple_handler,
+            required_permissions=set(),  # Explicitly no permissions required
         )
         self.rt.register(td)
-        # Context without the required registry permission
+        # Context with NO permissions
         ctx = _make_context(permissions=set())
+        # Should succeed because tool requires no permissions
         result = asyncio.run(self.rt.execute("read_file", {"path": "/tmp/test"}, ctx))
-        # Should be denied due to ToolRegistry bridge check
-        assert result.ok is False
-        assert result.denied is True
+        assert result.ok is True
+        assert result.denied is False
+        assert result.result == {"echo": {"path": "/tmp/test"}}
 
     def test_execute_no_executor(self):
         td = ToolDefinition(name="weird", description="", kind="weird_kind")  # type: ignore

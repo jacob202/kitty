@@ -37,10 +37,7 @@ _FREE_ROUTER = "deepseek/deepseek-v4-flash"
 _OR_BAL    = os.environ.get("KITTY_MODEL",          "deepseek/deepseek-v4-flash")
 _OR_MAX    = os.environ.get("KITTY_MAX_MODEL",      "deepseek/deepseek-r1-0528")
 _OR_BAL_R  = os.environ.get("KITTY_BALANCED_REASON","deepseek/deepseek-r1-distill-qwen-7b")
-_ANTH_MDL  = os.environ.get("KITTY_ANTHROPIC_MODEL","claude-haiku-4-5-20251001")
-
-_OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-_ANTHROPIC_URL  = "https://api.anthropic.com/v1/messages"
+_OPENROUTER_URL = os.getenv("OPENROUTER_URL", "https://openrouter.ai/api/v1/chat/completions")
 
 _soul_context: str | None = None
 
@@ -270,43 +267,6 @@ def _stream_openrouter(messages: list[dict], client_id: str, model: str,
     return full_reply
 
 
-# ── Anthropic fallback ────────────────────────────────────────────────────────
-
-def _stream_anthropic(messages: list[dict], client_id: str) -> str:
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    anth_msgs = [m for m in messages if m["role"] != "system"]
-    headers = {
-        "x-api-key": api_key,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-    }
-    body = {
-        "model": _ANTH_MDL,
-        "system": _SYSTEM,
-        "messages": anth_msgs,
-        "max_tokens": 2048,
-        "stream": True,
-    }
-    full = ""
-    with httpx.Client(timeout=120.0) as client:
-        with client.stream("POST", _ANTHROPIC_URL,
-                           headers=headers, json=body) as resp:
-            resp.raise_for_status()
-            for line in resp.iter_lines():
-                if not line.startswith("data: "):
-                    continue
-                try:
-                    data = json.loads(line[6:])
-                    if data.get("type") == "content_block_delta":
-                        delta = data["delta"].get("text", "")
-                        if delta:
-                            full += delta
-                            token_broadcaster.put_for(client_id, "token", delta)
-                except (json.JSONDecodeError, KeyError):
-                    pass
-    return full
-
-
 # ── Public interface ──────────────────────────────────────────────────────────
 
 def stream_response(
@@ -382,16 +342,9 @@ def stream_response(
             except Exception as exc:
                 logger.warning("OpenRouter max failed: %s", exc)
 
-    # Anthropic last resort (any mode)
-    if not full and os.environ.get("ANTHROPIC_API_KEY"):
-        try:
-            full = _stream_anthropic(messages, client_id)
-        except Exception as exc:
-            logger.warning("Anthropic fallback failed: %s", exc)
-
     if not full:
         full = (
-            "No response — check that OPENROUTER_API_KEY or ANTHROPIC_API_KEY "
+            "No response — check that OPENROUTER_API_KEY "
             "is set in .env and restart the server."
         )
         token_broadcaster.put_for(client_id, "token", full)

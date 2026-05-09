@@ -177,6 +177,7 @@ Format:
 - Fixed a `NameError` in `probe_tools` introduced during Groq disabling.
 - Resolved a `SyntaxError` caused by a non-ASCII em-dash character.
 - Fixed `ImportError` in `test_overnight_retry.py` by aligning with the latest script exports.
+- Fixed API Key failure in `overnight_retry.py` evaluation step by utilizing `python-dotenv` instead of flawed manual parsing.
 
 ## Chronicle Entry — 2026-05-07 19:45
 **Context:** Provider fallback failed. Anthropic: Error code: 401 - {'type': 'error', 'error': {'type': 'authentication_error', 'message': 'invalid x-api-key'}, 'request_id': 'req_011CapFpEwY7EY3y9Luyfiyh'}

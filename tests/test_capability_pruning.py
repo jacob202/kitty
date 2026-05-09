@@ -33,6 +33,7 @@ def test_create_app_hides_swarm_routes_by_default(monkeypatch):
         def __init__(self, *args, **kwargs):
             pass
 
+    monkeypatch.delenv("KITTY_ENABLE_EXPERIMENTAL_SWARM", raising=False)
     monkeypatch.setattr("src.space_kitty.core_orchestrator.CoreOrchestrator", DummyOrchestrator)
 
     app, _ = web_module.create_app()
@@ -50,6 +51,7 @@ def test_capabilities_api_reports_repo_mcp_and_swarm_status(monkeypatch):
         def __init__(self, *args, **kwargs):
             pass
 
+    monkeypatch.delenv("KITTY_ENABLE_EXPERIMENTAL_SWARM", raising=False)
     monkeypatch.setattr("src.space_kitty.core_orchestrator.CoreOrchestrator", DummyOrchestrator)
 
     app, _ = web_module.create_app()
@@ -77,6 +79,8 @@ def test_internal_routes_are_hidden_by_default(monkeypatch):
         def __init__(self, *args, **kwargs):
             pass
 
+    monkeypatch.delenv("KITTY_ENABLE_EXPERIMENTAL_SWARM", raising=False)
+    monkeypatch.delenv("KITTY_ENABLE_INTERNAL_API", raising=False)
     monkeypatch.setattr("src.space_kitty.core_orchestrator.CoreOrchestrator", DummyOrchestrator)
 
     app, _ = web_module.create_app()

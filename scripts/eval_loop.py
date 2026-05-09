@@ -5,7 +5,7 @@ Runs pytest, hits /api/eval/run, checks for regressions, and logs
 results to docs/iteration_log.md and eval_snapshots/.
 
 Usage:
-    python3.12 scripts/eval_loop.py [--max-attempts N]
+    python3.12 scripts/eval_loop.py [--max-attempts N] [--offline]
 """
 
 from __future__ import annotations
@@ -30,6 +30,9 @@ PYTEST_CMD = [
     "venv/bin/python", "-m", "pytest",
     "tests/", "-q", "--tb=short",
 ]
+_OFFLINE_NOISE_SUBSTRINGS = (
+    "No LLM API key configured for web chat.",
+)
 
 
 def _now_ts() -> str:
@@ -45,18 +48,36 @@ def _step(label: str, value: str = "") -> None:
     print(f"  [{label}] {value}" if value else f"  [{label}]")
 
 
-def run_pytest() -> tuple[bool, str]:
+def _suppress_offline_noise(text: str) -> str:
+    lines = text.splitlines()
+    kept = [line for line in lines if not any(token in line for token in _OFFLINE_NOISE_SUBSTRINGS)]
+    return "\n".join(kept) + ("\n" if text.endswith("\n") and kept else "")
+
+
+def run_pytest(*, offline: bool = False) -> tuple[bool, str]:
     _header("Step 1: pytest")
     result = subprocess.run(PYTEST_CMD, capture_output=True, text=True, cwd=str(ROOT))
-    print(result.stdout + result.stderr)
+    output = result.stdout + result.stderr
+    if offline:
+        output = _suppress_offline_noise(output)
+    print(output)
     passed = result.returncode == 0
     _step("pytest", "PASSED" if passed else "FAILED")
-    return passed, result.stdout + result.stderr
+    return passed, output
 
 
-def start_flask() -> subprocess.Popen:
+def _flask_env(offline: bool) -> dict[str, str]:
     import os
     env = {**os.environ, "KITTY_PORT": str(FLASK_PORT), "KITTY_HOST": "127.0.0.1", "FLASK_DEBUG": "0"}
+    if offline:
+        # Explicitly disable remote chat providers for deterministic offline eval runs.
+        env["OPENROUTER_API_KEY"] = ""
+        env["ANTHROPIC_API_KEY"] = ""
+    return env
+
+
+def start_flask(*, offline: bool = False) -> subprocess.Popen:
+    env = _flask_env(offline=offline)
     proc = subprocess.Popen(
         ["venv/bin/python", "web.py"],
         cwd=str(ROOT), env=env,
@@ -106,9 +127,9 @@ def save_snapshot(attempt: int, ts: str, data: dict) -> Path:
     return path
 
 
-def check_regression(current_scores: dict[str, float]) -> dict:
+def check_regression(current_scores: dict[str, float], *, suite: str = "smoke") -> dict:
     from evals.compare_runs import detect_regression
-    return detect_regression(ARTIFACT_DIR, current_scores)
+    return detect_regression(ARTIFACT_DIR, current_scores, suite=suite)
 
 
 def append_log(attempt: int, score: str, status: str, change: str = "eval loop verification") -> None:
@@ -126,22 +147,49 @@ def append_log(attempt: int, score: str, status: str, change: str = "eval loop v
         ITERATION_LOG.write_text(header + row)
 
 
-def run_loop(max_attempts: int) -> int:
+def _write_daily_summary() -> tuple[Path, Path] | None:
+    try:
+        from scripts.daily_eval_summary import summarize_day, write_summary
+
+        summary_date = datetime.now(tz=timezone.utc).date()
+        summary = summarize_day(artifact_dir=ARTIFACT_DIR, summary_date=summary_date)
+        json_path, md_path = write_summary(summary, output_dir=ROOT / "evals" / "summaries")
+        _step("daily_summary", f"{json_path.name}, {md_path.name}")
+        return json_path, md_path
+    except Exception as exc:
+        _step("daily_summary", f"SKIPPED ({exc})")
+        return None
+
+
+def run_browser_flow_smoke() -> tuple[bool, float, Path | None]:
+    """Run deterministic browser flow smoke checks and persist an artifact."""
+    from scripts.browser_smoke_flows import make_smoke_app, run_browser_smoke, write_artifact
+
+    checks, rate = run_browser_smoke(make_smoke_app())
+    artifact_path = write_artifact(checks, rate, output_dir=ARTIFACT_DIR)
+    passed = all(check.passed for check in checks)
+    return passed, rate, artifact_path
+
+
+def run_loop(max_attempts: int, *, offline: bool = False, browser_flow: bool = True) -> int:
     for attempt in range(1, max_attempts + 1):
         ts = _now_ts()
         _header(f"Iteration {attempt}/{max_attempts}  [{ts}]")
 
         # Step 1: pytest
-        passed, _ = run_pytest()
+        passed, _ = run_pytest(offline=offline)
         if not passed:
             save_snapshot(attempt, ts, {"pytest": "FAILED"})
             append_log(attempt, "—", "FAILED (pytest)")
+            _write_daily_summary()
             print("\nFAIL: pytest failed — not pushing broken code")
             return 1
 
         # Step 2: start Flask + hit eval route
         _header("Step 2: eval route")
-        flask_proc = start_flask()
+        if offline:
+            _step("mode", "OFFLINE (remote chat providers disabled)")
+        flask_proc = start_flask(offline=offline)
         eval_data: dict = {}
         score_rate: float | None = None
 
@@ -152,6 +200,7 @@ def run_loop(max_attempts: int) -> int:
             if eval_data.get("__http_status") == 422:
                 save_snapshot(attempt, ts, {"pytest": "PASSED", "eval": eval_data})
                 append_log(attempt, "baseline fail", "FAILED (422)")
+                _write_daily_summary()
                 print(f"\nFAIL: eval baseline failed: {eval_data.get('error')}")
                 return 1
 
@@ -163,6 +212,7 @@ def run_loop(max_attempts: int) -> int:
             _step("ERROR", f"eval route unreachable: {exc}")
             save_snapshot(attempt, ts, {"pytest": "PASSED", "eval": {"error": str(exc)}})
             append_log(attempt, "—", "FAILED (unreachable)")
+            _write_daily_summary()
             return 1
         finally:
             flask_proc.terminate()
@@ -172,13 +222,47 @@ def run_loop(max_attempts: int) -> int:
                 flask_proc.kill()
             _step("Flask", "stopped")
 
-        # Step 3: regression check
-        _header("Step 3: regression detection")
-        curr = {"smoke": score_rate if score_rate is not None else 0.0}
-        reg = check_regression(curr)
-        _step("result", json.dumps(reg))
+        # Step 3: browser-flow smoke
+        browser_rate: float | None = None
+        if browser_flow:
+            _header("Step 3: browser flow smoke")
+            try:
+                browser_ok, browser_rate, browser_artifact = run_browser_flow_smoke()
+                _step("browser_score", f"{browser_rate:.2%}")
+                if browser_artifact:
+                    _step("browser_artifact", str(browser_artifact))
+                if not browser_ok:
+                    save_snapshot(
+                        attempt,
+                        ts,
+                        {"pytest": "PASSED", "eval": eval_data, "browser_flow": {"rate": browser_rate, "passed": False}},
+                    )
+                    append_log(attempt, f"{browser_rate:.2%}", "FAILED (browser_flow)")
+                    _write_daily_summary()
+                    print("\nFAIL: browser-flow smoke failed")
+                    return 1
+            except Exception as exc:
+                _step("ERROR", f"browser flow failed: {exc}")
+                save_snapshot(attempt, ts, {"pytest": "PASSED", "eval": eval_data, "browser_flow": {"error": str(exc)}})
+                append_log(attempt, "—", "FAILED (browser_flow error)")
+                _write_daily_summary()
+                return 1
 
-        snap = save_snapshot(attempt, ts, {"pytest": "PASSED", "eval": eval_data, "regression": reg})
+        # Step 4: regression check
+        _header("Step 4: regression detection")
+        curr = {"smoke": score_rate if score_rate is not None else 0.0}
+        reg = check_regression(curr, suite="smoke")
+        _step("smoke_result", json.dumps(reg))
+
+        browser_reg: dict | None = None
+        if browser_flow and browser_rate is not None:
+            browser_reg = check_regression({"browser_flow": browser_rate}, suite="browser_flow")
+            _step("browser_result", json.dumps(browser_reg))
+
+        snap_payload = {"pytest": "PASSED", "eval": eval_data, "regression": reg}
+        if browser_reg is not None:
+            snap_payload["browser_regression"] = browser_reg
+        snap = save_snapshot(attempt, ts, snap_payload)
         _step("snapshot", str(snap))
 
         score_str = f"{score_rate:.2%}" if score_rate is not None else "—"
@@ -188,11 +272,23 @@ def run_loop(max_attempts: int) -> int:
             print(f"\nWARNING: REGRESSION — score dropped {abs(delta):.2%} "
                   f"(prev={reg.get('prev_rate')}, curr={score_rate})")
             append_log(attempt, score_str, "REGRESSION")
+            _write_daily_summary()
+            return 1
+
+        if browser_reg and browser_reg.get("is_regression"):
+            delta = browser_reg.get("delta", 0.0)
+            print(
+                f"\nWARNING: BROWSER REGRESSION — score dropped {abs(delta):.2%} "
+                f"(prev={browser_reg.get('prev_rate')}, curr={browser_rate})"
+            )
+            append_log(attempt, f"{browser_rate:.2%}", "REGRESSION (browser_flow)")
+            _write_daily_summary()
             return 1
 
         reason = reg.get("reason", "")
         print(f"\nPASS: no regression{f' ({reason})' if reason else ''} — score={score_str}")
         append_log(attempt, score_str, "PASS")
+        _write_daily_summary()
 
     return 0
 
@@ -200,8 +296,14 @@ def run_loop(max_attempts: int) -> int:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Kitty self-improving eval loop")
     parser.add_argument("--max-attempts", type=int, default=1, metavar="N")
+    parser.add_argument("--offline", action="store_true", help="Disable remote chat provider keys during eval run.")
+    parser.add_argument(
+        "--skip-browser-flow",
+        action="store_true",
+        help="Skip browser-flow smoke checks for faster backend-only runs.",
+    )
     args = parser.parse_args()
-    sys.exit(run_loop(args.max_attempts))
+    sys.exit(run_loop(args.max_attempts, offline=args.offline, browser_flow=not args.skip_browser_flow))
 
 
 if __name__ == "__main__":

@@ -2945,7 +2945,7 @@ def _extract_json(text: str) -> dict | None:
 # Writes per-flush observations of free-pool model health. Each row is shaped
 # as an MCP memory-server "entity observation" so a future ingester can push
 # them into @modelcontextprotocol/server-memory without re-shaping. Per
-# CLAUDE.md storage routing, this is the right home for "lessons learned"
+# AGENTS.md storage routing, this is the right home for "lessons learned"
 # about which models work — JournalDB is for journal entries, LightRAG is for
 # KB content; model-performance metadata is MCP entity territory.
 
@@ -2986,7 +2986,7 @@ def flush_model_stats() -> None:
 
 # ── Optional LightRAG KB query (opt-in) ──────────────────────────────────────
 #
-# Per CLAUDE.md routing, KB queries go to LightRAG. We import lazily so the
+# Per AGENTS.md routing, KB queries go to LightRAG. We import lazily so the
 # builder still runs when LightRAG service / deps are absent.
 
 USE_LIGHTRAG = os.environ.get("KITTY_BUILDER_USE_LIGHTRAG", "0").strip() == "1"

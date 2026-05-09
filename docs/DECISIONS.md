@@ -1,6 +1,6 @@
 # Decisions
 
-Last updated: 2026-05-06
+Last updated: 2026-05-09
 
 This file records durable project decisions. New work should follow these rules unless a later dated decision explicitly supersedes them.
 
@@ -236,3 +236,205 @@ Reference:
 
 Review trigger:
 If future run evidence shows this control layer adds more overhead than quality gain, revise the routing policy and compiler schema rather than returning to blanket cheap-first delegation.
+
+## D-0017: Cost Discipline — Cheap-First Routing
+
+Status: accepted
+
+Jacob has explicitly said "always conserve your usage" multiple times. Model routing follows a strict tier order:
+
+- **Default (cheap-and-reliable):** DeepSeek V4 Flash, Gemini 2.5 Flash, Groq paid tier — under $0.01/1K. Use for execution work, code generation, file edits, test writing.
+- **Backup (free):** OpenRouter free models (`qwen/qwen3-coder:free`, `meta-llama/llama-3.3-70b-instruct:free`), Groq free tier. Use when daily budget is hit or task is genuinely simple. Accept rate-limit risk.
+- **Premium (reserved):** Claude Sonnet for architecture, code review, multi-file synthesis, Jacob-facing summaries. Claude Opus only for highest-leverage strategic decisions.
+- **Local (offline/private):** MLX Qwen3.5-4B-4bit, Ollama qwen2.5-coder:7b. Free, private, no cloud dependency.
+
+Rationale: free-first sounds cheapest but has rate limits, queues, quality variance, and outage risk. Cheap-and-reliable models are deterministic. Free is the safety net, not the default.
+
+Source: CLAUDE.md
+
+Review trigger: Jacob explicitly changes cost posture or a new default-tier model becomes available at comparable price.
+
+## D-0018: Named-Tool Fidelity
+
+Status: accepted
+
+When Jacob explicitly names a tool (`coderabbit review`, `aider`, `crush run`), use that exact tool. Do not silently substitute with a generic equivalent even if the substitute seems capable.
+
+Source: CLAUDE.md
+
+Review trigger: Jacob explicitly delegates a substitution policy.
+
+## D-0019: Cut Parallel Agents When Not Producing Evidence
+
+Status: accepted
+
+Parallel agents must be terminated the moment they stop producing evidence. Do not keep agents alive "just in case." Token cost scales linearly with idle agents.
+
+Source: CLAUDE.md
+
+Review trigger: evidence that early cutoff causes more harm than cost savings.
+
+## D-0020: Approved MCP Server Launch Set
+
+Status: accepted
+
+The active MCP server set is exactly: **kanban, telegram, vault, drawthings** (all Dorothy.app except drawthings which is npx-based on port 7859). All other MCP servers must be cut or parked.
+
+Consequences:
+- Dorothy.app also ships mcp-orchestrator, mcp-socialdata, mcp-world, mcp-x — these must remain un-wired until MCP expansion is explicitly approved (see D-0029).
+
+Source: LAYER0_CONTROL_PLANE.md (2026-05-02), ~/.claude/mcp.json audit (2026-05-09)
+
+Review trigger: Jacob explicitly expands or contracts the MCP launch set.
+
+## D-0021: Instruction Authority Order
+
+Status: accepted
+
+When agent instructions conflict, apply this priority (highest to lowest):
+
+1. Jacob's live instruction in the current session
+2. AGENTS.md
+3. CLAUDE.md
+4. LAYER0_CONTROL_PLANE.md
+5. CURRENT_FOCUS.md
+6. TASKS.md
+7. docs/DECISIONS.md
+8. Approved active spec
+9. docs/AGENT_COORDINATION.md (lane coordination only)
+10. Older files, stale handoffs, archived docs
+
+Source: LAYER0_CONTROL_PLANE.md
+
+Review trigger: new persistent-instruction surface is added to the project.
+
+## D-0022: Storage Routing Is Strict
+
+Status: accepted
+
+Wrong routing is explicitly cited as the #1 source of data-loss bugs in this project. The canonical routing is:
+
+- **Knowledge base ingestion** → LightRAG ONLY (never JournalDB)
+- **Journal entries** → JournalDB ONLY (never LightRAG)
+- **Semantic search** → ChromaDB
+- **MCP entities/relations** → `@modelcontextprotocol/server-memory`
+- **Corrections and other structured data** → SQLite
+
+Never cross-route these stores.
+
+Source: AGENTS.md
+
+Review trigger: storage backend replacement or new data type introduced.
+
+## D-0023: Validation Loop Is Mandatory After Code Changes
+
+Status: accepted
+
+After every code change, the following must pass before claiming work is done:
+
+1. `pytest tests/ -q --tb=short` — fix failures, rerun until passing, then rerun once more clean.
+2. For control-layer work: `bash scripts/run_gates.sh`
+3. For runtime/API work: verify `/status` and `/health` curl checks
+4. For eval-gated changes: verify `POST /api/eval/run`
+
+Never skip this loop. The reasoning-route bug and ChromaDB regression both slipped through because code was marked done before the loop ran.
+
+Source: AGENTS.md
+
+Review trigger: test infrastructure is reorganized or gates are renamed.
+
+## D-0024: Test Evidence Required Before Claiming Work Complete
+
+Status: accepted
+
+Any claim that something is "done," "fixed," or "passing" requires fresh test output as evidence pasted inline. Status optimism without verification is rejected. Jacob reacts strongly to claims without proof.
+
+Source: AGENTS.md
+
+Review trigger: Jacob explicitly changes verification expectations.
+
+## D-0025: No Source Files In Project Root
+
+Status: accepted
+
+New files must go to their canonical location:
+
+- Source code → `src/`
+- Tests → `tests/`
+- Documentation and plans → `docs/`
+- Config → `config/`
+- Scripts → `scripts/`
+
+Never create source files directly in the project root (`/Users/jacobbrizinski/Projects/kitty/`).
+
+Source: AGENTS.md
+
+Review trigger: new top-level directory is formally established.
+
+## D-0026: Firecrawl Query Limits Per Run
+
+Status: accepted
+
+- Max 1–2 Firecrawl queries per run.
+- Use `scrape()` not `crawl()` for single pages.
+- For multi-page web research, use `src/tools/research_pipeline.py` (map + batch_scrape) — not deep crawl.
+
+Rationale: uncapped Firecrawl usage burns budget and creates noisy context.
+
+Source: AGENTS.md
+
+Review trigger: research pipeline is redesigned or Firecrawl pricing changes.
+
+## D-0027: Learned Rules Require Explicit Review Before Adoption
+
+Status: accepted
+
+User corrections may surface candidate learned rules. No automated process may blindly append them to SOUL files or agent instruction sources. All candidates must pass explicit human review before becoming canon.
+
+Source: SOUL_LEARNED_RULES.md
+
+Review trigger: a formal review workflow for learned rules is implemented.
+
+## D-0028: Parked Features Require Template Format
+
+Status: accepted
+
+Every entry in `docs/PARKED_FEATURES.md` must use the standard template with all required sections: Status, Source, Owner, Priority, Problem, Proposed Shape, Why Parked, Dependencies, Risks, Acceptance Sketch, Revival Trigger, Minimum Safe Version, Allowed Future Files, Forbidden During Unrelated Work.
+
+Rationale: parking preserves ideas without hijacking focused work; incomplete entries defeat the purpose.
+
+Source: PARKED_FEATURES.md
+
+Review trigger: template sections are formally revised.
+
+## D-0029: MCP Expansion Is Forbidden In Current Phase
+
+Status: accepted
+
+No new MCP servers may be registered, no un-wired Dorothy.app servers may be activated, and no MCP agent bundle work (KnowledgeGetter, Librarian, VisionGuide, CodeReviewer, Overnighter) may proceed.
+
+This extends D-0020: the approved set is fixed at four servers.
+
+Revival trigger: Jacob explicitly approves MCP expansion after workspace separation preflight is clean.
+
+Source: PARKED_FEATURES.md, CURRENT_FOCUS.md (2026-05-09)
+
+## D-0030: All Agents Must Start With MASTER_INDEX.md
+
+Status: accepted
+
+All agent sessions must begin by reading `MASTER_INDEX.md` for fast-parse orientation — project structure, key commands, and current-phase boundaries. It is the canonical starting point and supersedes ad-hoc codebase exploration as a first step.
+
+Source: HANDOFF-2026-05-09.md (2026-05-09)
+
+Review trigger: MASTER_INDEX.md is renamed or replaced by a different orientation document.
+
+## D-0031: web_llm Uses OpenRouter Exclusively As Provider Fallback
+
+Status: accepted
+
+`src/api/web_llm.py` uses OpenRouter free tier as its only fallback provider. Anthropic, Gemini, and all other direct-provider cascading has been removed. No provider waterfalling outside the OpenRouter ecosystem.
+
+Source: SESSION_SUMMARY.md (2026-05-07)
+
+Review trigger: a new provider tier is deliberately added with Jacob's approval.

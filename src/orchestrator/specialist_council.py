@@ -4,8 +4,10 @@ Allows CoreOrchestrator to consult multiple domain experts and synthesize their 
 """
 
 import logging
+from typing import List, Optional
 
 from src.core.specialist_framework import BaseSpecialist, SpecialistResponse
+from src.orchestrator.synthesizer import ResponseSynthesizer, LLMSynthesizer
 
 logger = logging.getLogger(__name__)
 
@@ -15,14 +17,18 @@ class SpecialistCouncil:
     Orchestrates collaboration between multiple domain specialists.
     """
 
-    def __init__(self, specialists: list[BaseSpecialist], synthesizer_model: str | None = None):
+    def __init__(
+        self, 
+        specialists: List[BaseSpecialist], 
+        synthesizer: Optional[ResponseSynthesizer] = None
+    ):
         """
         Args:
             specialists: List of specialists to consult
-            synthesizer_model: Model ID to use for synthesis (None = use default)
+            synthesizer: Synthesizer to use for combining responses (None = use default LLM synthesizer)
         """
         self.specialists = specialists
-        self.synthesizer_model = synthesizer_model
+        self.synthesizer = synthesizer or LLMSynthesizer()
 
     def consult(self, query: str, context: dict | None = None, **kwargs) -> SpecialistResponse:
         """
@@ -39,7 +45,7 @@ class SpecialistCouncil:
 
         responses = []
         import concurrent.futures
-        
+         
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(self.specialists)) as executor:
             future_to_spec = {
                 executor.submit(specialist.query, query, context or {}, **kwargs): specialist
@@ -65,7 +71,7 @@ class SpecialistCouncil:
         if len(responses) == 1:
             return responses[0]
 
-        return self._synthesize(query, responses)
+        return self.synthesizer.synthesize(query, responses)
 
     def _synthesize(self, query: str, responses: list[SpecialistResponse]) -> SpecialistResponse:
         """Synthesize multiple specialist responses into one using the LLM."""

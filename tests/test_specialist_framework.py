@@ -70,18 +70,6 @@ class TestSpecialistFramework:
         assert response.diagnostics["token_count"] == 150
         assert response.diagnostics["model"] == "llama3.2"
 
-    @patch('src.core.specialist_framework._get_lightrag_for_domain')
-    def test_get_lightrag_for_domain(self, mock_get_lr):
-        """Test getting LightRAG instance for a domain."""
-        from src.core.specialist_framework import _get_lightrag_for_domain
-        
-        mock_lr = MagicMock()
-        mock_get_lr.return_value = mock_lr
-        
-        result = _get_lightrag_for_domain("code")
-        
-        assert result is mock_lr
-
     def test_specialist_response_defaults(self):
         """Test SpecialistResponse with default values."""
         from src.core.specialist_framework import SpecialistResponse

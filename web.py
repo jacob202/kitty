@@ -40,7 +40,6 @@ from src.api import (
     ai_dev_bp,
     brief_bp,
     bom_bp,
-    commands_bp,
     core_bp,
     eval_bp,
     memory_bp,
@@ -206,7 +205,7 @@ def create_app() -> tuple[Flask, SocketIO]:
     blueprints = [
         ai_dev_bp, bom_bp, core_bp, eval_bp,
         memory_bp, memory_product_bp, news_bp, onboarding_bp, reasoning_bp, settings_bp,
-        streaming_bp, system_bp, voice_bp, brief_bp, commands_bp, quarantine_bp,
+        streaming_bp, system_bp, voice_bp, brief_bp, quarantine_bp,
     ]
     if enable_experimental_swarm:
         blueprints.append(swarm_bp)
@@ -247,6 +246,29 @@ def create_app() -> tuple[Flask, SocketIO]:
     except Exception:
         logger.exception("CoreOrchestrator unavailable during app startup")
         app.orchestrator = None
+
+    # Serve built garage-ui frontend if available (single-server mode)
+    import os as _os
+    _garage_out = _os.path.join(_os.path.dirname(__file__), 'garage-ui', 'out')
+    if _os.path.isdir(_garage_out):
+        from flask import send_from_directory as _send, abort as _abort
+        _frontend_static = _os.path.join(_garage_out, '_next', 'static')
+        @app.route('/')
+        def _serve_index():
+            return _send(_garage_out, 'index.html')
+        @app.route('/_next/static/<path:path>')
+        def _serve_next_static(path):
+            return _send(_frontend_static, path)
+        # Serve any other real file that exists in the build output
+        @app.route('/<path:path>')
+        def _serve_static(path):
+            full = _os.path.join(_garage_out, path)
+            if _os.path.isfile(full):
+                return _send(_garage_out, path)
+            _abort(404)
+        _serve_index.__name__ = '_serve_index'
+        _serve_next_static.__name__ = '_serve_next_static'
+        _serve_static.__name__ = '_serve_static'
 
     # Pipe stdout through SSE broadcaster so tokens stream to the browser
     sys.stdout = TokenCapture(sys.stdout)

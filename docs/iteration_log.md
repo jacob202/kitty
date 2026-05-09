@@ -7,3 +7,14 @@
 | 20260427A | Handoff code improvements verification | 100% (5/5) | SUCCESS |
 | 1 | eval loop verification | 100.00% | PASS |
 | 1 | eval loop verification | 100.00% | PASS |
+| 1 | eval loop verification | — | FAILED (unreachable) |
+| 1 | eval loop verification | 100.00% | PASS |
+| 1 | eval loop verification | — | FAILED (pytest) |
+| 1 | eval loop verification | — | FAILED (pytest) |
+| 1 | eval loop verification | 100.00% | PASS |
+| 1 | eval loop verification | 100.00% | PASS |
+| 1 | eval loop verification | 100.00% | PASS |
+| 1 | eval loop verification | — | FAILED (pytest) |
+| 1 | eval loop verification | — | FAILED (unreachable) |
+| 1 | eval loop verification | — | FAILED (pytest) |
+| 1 | eval loop verification | 100.00% | PASS |

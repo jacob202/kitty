@@ -9,19 +9,40 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from src.services.context_service import query_knowledge_base, query_ai_dev_context, _get_lightrag_for_domain, _lightrag_stores
+from src.services.context_service import query_knowledge_base, query_ai_dev_context
 from src.agents.custom_agents import AgentSpec
 
 _memory_instance = None
 logger = logging.getLogger(__name__)
+_lightrag_stores: dict[str, Any | None] = {}
+
 
 def _get_memory():
     global _memory_instance
     if _memory_instance is None:
-        from src.memory.kitty_memory_enhanced import KittyMemoryEnhanced
-
-        _memory_instance = KittyMemoryEnhanced()
+        from src.memory.orchestrator import get_memory
+        _memory_instance = get_memory()
     return _memory_instance
+
+
+def _get_lightrag_for_domain(domain: str):
+    """Compatibility shim for legacy tests and callers.
+
+    Returns a cached LightRAGStore for *domain*, or None when LightRAG is
+    unavailable. Unavailable domains are memoized as None to avoid repeated
+    failing imports/initialization.
+    """
+    if domain in _lightrag_stores:
+        return _lightrag_stores[domain]
+    try:
+        from src.memory.lightrag_store import LightRAGStore
+
+        store = LightRAGStore(domain=domain)
+        _lightrag_stores[domain] = store
+        return store
+    except Exception:
+        _lightrag_stores[domain] = None
+        return None
 
 @dataclass
 class SpecialistResponse:

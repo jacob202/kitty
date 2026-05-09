@@ -14,6 +14,7 @@
 # docs/DATA_ROUTING.md - storage routing (CRITICAL)
 # docs/PROCESS_UPGRADES.md - commands workflow
 # docs/REFACTOR_PLAN.md - future changes
+# consolidated-skills/iterative-self-review-meta-optimization/SKILL.md - iterative self-review + meta-optimization skill
 
 # WORKFLOW
 # ENGINEERING_LOOP.md - diagnose → audit → improve → ship chain

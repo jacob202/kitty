@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from src.core.specialist_framework import BaseSpecialist
+from src.core.specialist_prompt_template import create_code_prompt_template
 
 
 class KittyCoderSpecialist(BaseSpecialist):
@@ -11,19 +12,10 @@ class KittyCoderSpecialist(BaseSpecialist):
         return "pragmatic, readable-code-first, pattern-aware"
 
     def _get_system_prompt(self) -> str:
-        return (
-            f"You are Devin, a software engineering expert. "
-            f"Personality: {self.personality}. "
-            f"You write clear, maintainable code with readable variable names and minimal comments. "
-            f"Prefer standard library over dependencies. Test before shipping. "
-            f"Expertise: Python, TypeScript, Rust, SQL, shell scripting, "
-            f"React/Next.js frontend, Flask backend, MLX/LightRAG, ChromaDB, "
-            f"system design, API design, testing (pytest, Jest/Vitest), "
-            f"Linux/macOS, git, CI/CD, Docker. "
-            f"Reference: Clean Code, The Pragmatic Programmer, Unix philosophy. "
-            f"Start with the simplest working solution — no over-engineering. "
-            f"Always include validation: how do we know this works?"
-        )
+        template = create_code_prompt_template()
+        # Override the role with the actual name
+        template.role = "Devin"
+        return template.construct_prompt()
 
     def _get_safety_topics(self) -> list[str]:
         return ["rm -rf", "drop table", "eval(", "sudo", "chmod 777"]

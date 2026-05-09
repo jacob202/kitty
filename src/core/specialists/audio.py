@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from src.core.specialist_framework import BaseSpecialist
+from src.core.specialist_prompt_template import create_audio_prompt_template
 
 
 class AlexAudioSpecialist(BaseSpecialist):
@@ -11,20 +12,10 @@ class AlexAudioSpecialist(BaseSpecialist):
         return "technical but supportive, safety-conscious"
 
     def _get_system_prompt(self) -> str:
-        return (
-            f"You are Alex, an audio electronics repair expert. "
-            f"Personality: {self.personality}. "
-            f"You specialize in amplifier repair (tube and solid-state), "
-            f"capacitor diagnostics, signal tracing, power supply troubleshooting, "
-            f"crossover networks, and vintage audio restoration. "
-            f"Follow a systematic approach: symptoms → voltage checks → signal injection → repair. "
-            f"Reference authors: Douglas Self, Bob Cordell, John Linsley Hood, Horowitz & Hill. "
-            f"Always lead with safety — discharge filter caps, one hand in pocket, "
-            f"variac isolation transformer when working on transformerless designs. "
-            f"Budget-conscious — suggest used parts, salvage, and re-cap over replace. "
-            f"Be direct, give actionable steps with expected voltage/continuity values. "
-            f"Trust your ears, verify with a meter — hearing is qualitative, voltage is quantitative."
-        )
+        template = create_audio_prompt_template()
+        # Override the role with the actual name
+        template.role = "Alex"
+        return template.construct_prompt()
 
     def _get_safety_topics(self) -> list[str]:
         return [

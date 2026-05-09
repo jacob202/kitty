@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 DEFAULT_OPENROUTER_MODEL = os.getenv("KITTY_MODEL", "deepseek/deepseek-v4-flash")
-DEFAULT_ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5")
 
 
 class WebLLMClient:
@@ -31,7 +30,6 @@ class WebLLMClient:
 
         system_prompt = self._system_prompt(domain)
         openrouter_key = os.getenv("OPENROUTER_API_KEY")
-        anthropic_key = os.getenv("ANTHROPIC_API_KEY")
         errors: list[str] = []
 
         if openrouter_key:
@@ -54,11 +52,12 @@ class WebLLMClient:
             )
 
         return self._error_response(
-            "No LLM API key configured for web chat. Set OPENROUTER_API_KEY or ANTHROPIC_API_KEY.",
+            "No LLM API key configured for web chat. Set OPENROUTER_API_KEY in .env and restart.",
             stream,
         )
 
     def _chat_openrouter(self, prompt: str, system_prompt: str, api_key: str, stream: bool) -> str:
+        model_to_use = os.getenv("OPENROUTER_MODEL") or DEFAULT_OPENROUTER_MODEL
         response = self._session.post(
             OPENROUTER_URL,
             headers={
@@ -67,7 +66,7 @@ class WebLLMClient:
                 "HTTP-Referer": "https://github.com/kitty",
             },
             json={
-                "model": DEFAULT_OPENROUTER_MODEL,
+                "model": model_to_use,
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt},
@@ -96,34 +95,6 @@ class WebLLMClient:
                 chunks.append(delta)
                 token_broadcaster.broadcast("token", delta)
         return "".join(chunks)
-
-    def _chat_anthropic(self, prompt: str, system_prompt: str, api_key: str, stream: bool) -> str:
-        import anthropic
-
-        client = anthropic.Anthropic(api_key=api_key)
-        if not stream:
-            response = client.messages.create(
-                model=DEFAULT_ANTHROPIC_MODEL,
-                max_tokens=1024,
-                system=system_prompt,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return "".join(
-                block.text for block in response.content if getattr(block, "type", "") == "text"
-            )
-
-        chunks: list[str] = []
-        with client.messages.stream(
-            model=DEFAULT_ANTHROPIC_MODEL,
-            max_tokens=1024,
-            system=system_prompt,
-            messages=[{"role": "user", "content": prompt}],
-        ) as response:
-            for text in response.text_stream:
-                chunks.append(text)
-                token_broadcaster.broadcast("token", text)
-        return "".join(chunks)
-
     def _system_prompt(self, domain: str | None) -> str:
         if domain == "code":
             return "You are Kitty. Be concise, practical, and helpful about code."

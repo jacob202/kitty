@@ -33,7 +33,7 @@ except ImportError:
 
 # Import domain router
 try:
-    from src.core.domain_router import Domain, DomainRouter, RoutingDecision
+    from src.core.query_router import Domain, QueryRouter, RoutingDecision
 
     DOMAIN_ROUTER_AVAILABLE = True
 except ImportError:
@@ -152,24 +152,18 @@ def patch_domain_router():
     if not DOMAIN_ROUTER_AVAILABLE or not SPECIALIST_METRICS_AVAILABLE:
         return False
 
-    original_route = DomainRouter.route
+    original_route = QueryRouter.route
 
     @functools.wraps(original_route)
     def tracked_route(self, query: str) -> RoutingDecision:
-        # Call original routing
         result = original_route(self, query)
-
-        # Get specialist info
         specialist = result.specialist
         domain = result.domain.value if hasattr(result.domain, "value") else str(result.domain)
-
-        # Record routing decision
         tracker = get_specialist_tracker()
         tracker.set_current_query(specialist, domain, query)
-
         return result
 
-    DomainRouter.route = tracked_route
+    QueryRouter.route = tracked_route
     return True
 
 
