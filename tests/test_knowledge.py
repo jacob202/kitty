@@ -38,6 +38,51 @@ def test_extract_text_reads_txt(tmp_path):
     assert "Hello Kitty world" in result
 
 
+def test_detect_doc_type_service_manual(tmp_path):
+    from gateway.knowledge import detect_doc_type
+    f = tmp_path / "haynes_honda_civic_repair_manual.pdf"
+    assert detect_doc_type(f) == "service_manual"
+
+
+def test_detect_doc_type_health(tmp_path):
+    from gateway.knowledge import detect_doc_type
+    f = tmp_path / "blood_results_2025.pdf"
+    assert detect_doc_type(f) == "health_record"
+
+
+def test_detect_doc_type_session_log(tmp_path):
+    from gateway.knowledge import detect_doc_type
+    f = tmp_path / "session_2025.jsonl"
+    assert detect_doc_type(f) == "session_log"
+
+
+def test_detect_doc_type_content_signals(tmp_path):
+    from gateway.knowledge import detect_doc_type
+    f = tmp_path / "document.pdf"
+    content = "Step 1: Remove the oil drain plug. Torque to 22 ft-lb. Part No: 12345."
+    assert detect_doc_type(f, content) == "service_manual"
+
+
+def test_detect_doc_type_general_fallback(tmp_path):
+    from gateway.knowledge import detect_doc_type
+    f = tmp_path / "notes.txt"
+    assert detect_doc_type(f) == "general"
+
+
+def test_extract_jsonl_session(tmp_path):
+    from gateway.knowledge import _extract_jsonl_session
+    import json
+    f = tmp_path / "session.jsonl"
+    lines = [
+        json.dumps({"role": "user", "content": "How do I fix my car?"}),
+        json.dumps({"role": "assistant", "content": "Check the brake pads first."}),
+    ]
+    f.write_text("\n".join(lines))
+    result = _extract_jsonl_session(f)
+    assert "How do I fix my car?" in result
+    assert "brake pads" in result
+
+
 def test_get_knowledge_block_empty_on_no_results():
     with patch("gateway.knowledge._get_collection") as mock_coll:
         mock_instance = MagicMock()
