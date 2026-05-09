@@ -59,6 +59,24 @@ if [ "$PHASE" = "2" ]; then
         "test -f /Users/jacobbrizinski/Projects/kitty/gateway/app.py"
 fi
 
+if [ "$PHASE" = "8" ]; then
+    echo "[ Voice — STT + TTS ]"
+    check "gateway/stt.py exists" \
+        "test -f /Users/jacobbrizinski/Projects/kitty/gateway/stt.py"
+    check "gateway/tts.py exists" \
+        "test -f /Users/jacobbrizinski/Projects/kitty/gateway/tts.py"
+    check "/v1/audio/transcriptions in app.py" \
+        "grep -q 'audio/transcriptions' /Users/jacobbrizinski/Projects/kitty/gateway/app.py"
+    check "/v1/audio/speech in app.py" \
+        "grep -q 'audio/speech' /Users/jacobbrizinski/Projects/kitty/gateway/app.py"
+    check "voice gateway tests pass" \
+        "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/pytest tests/test_voice_gateway.py -q --tb=no 2>/dev/null | grep -q 'passed'"
+    check "edge-tts installed" \
+        "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/python -c 'import edge_tts'"
+    check "faster-whisper installed" \
+        "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/python -c 'import faster_whisper'"
+fi
+
 if [ "$PHASE" = "7" ]; then
     echo "[ Morning Brief + Pushover ]"
     check "gateway/brief.py exists" \

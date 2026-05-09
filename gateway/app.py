@@ -6,8 +6,8 @@ import uuid
 from pathlib import Path
 
 import httpx
-from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, File, Form, Request, UploadFile
+from fastapi.responses import Response, StreamingResponse
 
 from gateway.domain_router import classify_domain
 from gateway.prompt_loader import load_prompt
@@ -31,6 +31,29 @@ async def morning_brief():
     """Generate and return today's morning brief."""
     from gateway.brief import generate_brief
     return generate_brief()
+
+
+@app.post("/v1/audio/transcriptions")
+async def audio_transcriptions(file: UploadFile = File(...), model: str = Form("whisper-1")):
+    """OpenAI-compatible STT endpoint. Accepts audio file, returns {text}."""
+    from gateway.stt import transcribe_bytes
+    audio = await file.read()
+    result = transcribe_bytes(audio, filename=file.filename or "audio.webm")
+    return {"text": result["text"]}
+
+
+@app.post("/v1/audio/speech")
+async def audio_speech(request: Request):
+    """OpenAI-compatible TTS endpoint. Returns MP3 audio bytes."""
+    from gateway.tts import synthesize_async
+    body = await request.json()
+    text = body.get("input", "")
+    voice = body.get("voice", "alloy")
+    speed = float(body.get("speed", 1.0))
+    if not text:
+        return Response(content=b"", media_type="audio/mpeg")
+    audio_bytes = await synthesize_async(text, voice=voice, speed=speed)
+    return Response(content=audio_bytes, media_type="audio/mpeg")
 
 
 @app.post("/v1/chat/completions")
