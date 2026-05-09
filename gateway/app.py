@@ -47,6 +47,17 @@ async def chat_completions(request: Request):
     domain = classify_domain(user_text)
     system_prompt = load_prompt(domain)
 
+    # Pull relevant memories and inject into system prompt
+    from gateway.memory import get_context_block
+    memory_context = ""
+    try:
+        memory_context = get_context_block(user_text, limit=5)
+    except Exception:
+        pass  # Memory unavailable — degrade gracefully
+
+    if memory_context:
+        system_prompt = system_prompt + "\n\n" + memory_context
+
     # Health queries always route to private model
     if domain == "health":
         model = "kitty-private"

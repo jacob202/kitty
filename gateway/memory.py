@@ -1,0 +1,82 @@
+"""Mem0 memory wrapper for Kitty Gateway."""
+from __future__ import annotations
+import os
+import logging
+from functools import lru_cache
+from pathlib import Path
+from typing import Optional
+
+logger = logging.getLogger("kitty.memory")
+
+MEM0_DATA_DIR = Path("/Users/jacobbrizinski/Projects/kitty/data/mem0")
+USER_ID = "jacob"
+
+MEM0_CONFIG = {
+    "llm": {
+        "provider": "litellm",
+        "config": {
+            "model": "openrouter/deepseek/deepseek-chat-v3-0324",
+            "api_key": os.environ.get("OPENROUTER_API_KEY", ""),
+        },
+    },
+    "embedder": {
+        "provider": "ollama",
+        "config": {
+            "model": "nomic-embed-text",
+            "ollama_base_url": "http://localhost:11434",
+        },
+    },
+    "vector_store": {
+        "provider": "chroma",
+        "config": {
+            "collection_name": "kitty_memory",
+            "path": str(MEM0_DATA_DIR),
+        },
+    },
+}
+
+
+@lru_cache(maxsize=1)
+def _get_memory():
+    """Lazy-init Mem0 — only loaded when first needed."""
+    from mem0 import Memory
+    MEM0_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    return Memory.from_config(MEM0_CONFIG)
+
+
+def add_memory(text: str, namespace: str = "facts", metadata: Optional[dict] = None) -> None:
+    """Store a memory for Jacob. namespace: facts | patterns"""
+    try:
+        mem = _get_memory()
+        meta = {"namespace": namespace, **(metadata or {})}
+        mem.add(text, user_id=USER_ID, metadata=meta)
+        logger.info("Memory stored [%s]: %s", namespace, text[:80])
+    except Exception as e:
+        logger.warning("Memory add failed (non-fatal): %s", e)
+
+
+def search_memory(query: str, limit: int = 5, namespace: Optional[str] = None) -> list[dict]:
+    """Search memories relevant to query. Returns list of {memory, score} dicts."""
+    try:
+        mem = _get_memory()
+        results = mem.search(query, user_id=USER_ID, limit=limit)
+        memories = results.get("results", []) if isinstance(results, dict) else results
+        if namespace:
+            memories = [m for m in memories if m.get("metadata", {}).get("namespace") == namespace]
+        return memories
+    except Exception as e:
+        logger.warning("Memory search failed (non-fatal): %s", e)
+        return []
+
+
+def get_context_block(query: str, limit: int = 5) -> str:
+    """Return a formatted context block to inject into the system prompt."""
+    memories = search_memory(query, limit=limit)
+    if not memories:
+        return ""
+    lines = ["## What Kitty knows about Jacob (from memory):"]
+    for m in memories:
+        text = m.get("memory", m.get("text", ""))
+        if text:
+            lines.append(f"- {text}")
+    return "\n".join(lines)
