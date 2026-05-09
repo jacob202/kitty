@@ -1,4 +1,5 @@
 """Keyword-based domain classifier — pure function, no LLM call."""
+from functools import lru_cache
 
 DOMAIN_KEYWORDS = {
     "repair": [
@@ -30,6 +31,7 @@ DOMAIN_KEYWORDS = {
 }
 
 
+@lru_cache(maxsize=256)
 def classify_domain(user_message: str) -> str:
     """Return soul|repair|health|research|code. Defaults to soul."""
     text = user_message.lower()

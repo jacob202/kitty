@@ -22,20 +22,21 @@ _FALLBACK_ERROR = "Kitty couldn't quite find the words this week — but she's w
 
 
 def get_recent_traces(days: int = 7) -> list[dict]:
-    """Read gateway_trace.jsonl and return entries from the last N days."""
+    """Read gateway_trace.jsonl line-by-line and return entries from the last N days."""
     if not GATEWAY_LOG.exists():
         return []
     cutoff = time.time() - days * 86400
     traces = []
-    for line in GATEWAY_LOG.read_text(errors="ignore").splitlines():
-        if not line.strip():
-            continue
-        try:
-            entry = json.loads(line)
-            if entry.get("timestamp", 0) >= cutoff:
-                traces.append(entry)
-        except json.JSONDecodeError:
-            continue
+    with GATEWAY_LOG.open("r", errors="ignore") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                entry = json.loads(line)
+                if entry.get("timestamp", 0) >= cutoff:
+                    traces.append(entry)
+            except json.JSONDecodeError:
+                continue
     return traces
 
 
@@ -74,7 +75,7 @@ Write only the 3 sentences. No preamble, no labels."""
             f"{LITELLM_BASE}/v1/chat/completions",
             headers={"Authorization": f"Bearer {LITELLM_KEY}"},
             json={
-                "model": "deepseek/deepseek-chat",
+                "model": "kitty-default",
                 "messages": [{"role": "user", "content": prompt}],
                 "max_tokens": 200,
                 "temperature": 0.7,

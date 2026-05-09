@@ -1,8 +1,8 @@
-import os
 import feedparser
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
-from typing import List, Dict
+from typing import List
 from contracts.brief_item import NewsHeadline
 
 logger = logging.getLogger("kitty.brief")
@@ -16,24 +16,36 @@ DEFAULT_FEEDS = {
     "world": "https://feeds.bbci.co.uk/news/world/rss.xml"
 }
 
+
+def _fetch_single_feed(category: str, url: str, limit: int) -> List[NewsHeadline]:
+    """Fetch headlines from a single RSS feed."""
+    headlines = []
+    logger.info("Fetching %s news from %s...", category, url)
+    try:
+        feed = feedparser.parse(url)
+        for entry in feed.entries[:limit]:
+            headlines.append(NewsHeadline(
+                title=entry.title,
+                url=entry.link,
+                snippet=entry.get("summary", entry.get("description", ""))[:200]
+            ))
+    except Exception as e:
+        logger.error("Failed to fetch %s news: %s", category, e)
+    return headlines
+
+
 def fetch_news(limit_per_feed: int = 3) -> List[NewsHeadline]:
-    """Fetch headlines from a set of default RSS feeds."""
+    """Fetch headlines from all feeds in parallel."""
     all_headlines = []
-    
-    for category, url in DEFAULT_FEEDS.items():
-        logger.info(f"Fetching {category} news from {url}...")
-        try:
-            feed = feedparser.parse(url)
-            for entry in feed.entries[:limit_per_feed]:
-                all_headlines.append(NewsHeadline(
-                    title=entry.title,
-                    url=entry.link,
-                    snippet=entry.get("summary", entry.get("description", ""))[:200]
-                ))
-        except Exception as e:
-            logger.error(f"Failed to fetch {category} news: {e}")
-            
+    with ThreadPoolExecutor(max_workers=len(DEFAULT_FEEDS)) as pool:
+        futures = {
+            pool.submit(_fetch_single_feed, cat, url, limit_per_feed): cat
+            for cat, url in DEFAULT_FEEDS.items()
+        }
+        for future in as_completed(futures):
+            all_headlines.extend(future.result())
     return all_headlines
+
 
 def get_tasks_summary() -> str:
     """Read the 'Next Smallest Action' from TASKS.md."""
@@ -41,43 +53,64 @@ def get_tasks_summary() -> str:
     try:
         with open(tasks_path, "r") as f:
             content = f.read()
-            # Look for the section after ## Next Smallest Action
             if "## Next Smallest Action" in content:
                 summary = content.split("## Next Smallest Action")[1].strip().split("\n\n")[0]
                 return summary
     except Exception as e:
-        logger.warning(f"Could not read TASKS.md: {e}")
+        logger.warning("Could not read TASKS.md: %s", e)
     return "No next action found. Check TASKS.md."
 
-def generate_brief_text(headlines: List[NewsHeadline], task_summary: str) -> str:
-    """
-    Generate a concise morning brief text.
-    In the future, this will be passed to an LLM for 'soul' injection.
-    """
-    date_str = datetime.now().strftime("%A, %B %d, %Y")
 
-    lines = [f"Good morning, Jacob. It's {date_str}.\n"]
+def synthesize_brief_with_llm(headlines: List[NewsHeadline], task_summary: str, memory_snippet: str) -> str:
+    """Use LLM via LiteLLM to turn raw data into a warm, character-driven morning brief."""
+    from gateway.llm_client import chat
+    from gateway.prompt_loader import load_prompt
 
-    lines.append("## Your Next Action")
-    lines.append(f"{task_summary}\n")
+    soul_context = load_prompt("soul")
+    news_text = "\n".join([f"- {h.title}" for h in headlines[:6]])
 
-    lines.append("## Recent News")
-    for h in headlines[:5]:
-        lines.append(f"- {h.title}")
+    prompt = f"""{soul_context}
 
-    lines.append("\nResume, don't restart.")
+GATHERED DATA FOR TODAY:
+- News Headlines:
+{news_text}
+- Current Top Task: {task_summary}
+- Recent Memories: {memory_snippet}
 
-    return "\n".join(lines)
+TASK:
+Write a short, warm, and proactive morning greeting for Jacob (3 paragraphs max).
+1. Acknowledge the start of the day and maybe one interesting news item.
+2. Mention the next action/task with a focus on 'Resume, don't restart'.
+3. End with a supportive, 'friend who is paying attention' vibe.
 
+Rules: Use contractions. No corporate filler. Be dry-funny if appropriate. Speak Canadian."""
 
-def _fetch_memory_snippet(limit: int = 3) -> str:
-    """Pull recent Mem0 memories as a short text block."""
     try:
-        from gateway.memory import get_context_block
-        return get_context_block("morning daily context recent", limit=limit)
+        return chat(
+            model="kitty-default",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=500,
+            temperature=0.7,
+        )
     except Exception as e:
-        logger.warning("Memory fetch failed: %s", e)
+        logger.error("LLM Brief Synthesis failed: %s", e)
+        return generate_brief_text(headlines, task_summary)
+
+
+def _fetch_memory_snippet() -> str:
+    """Fetch a short memory snippet for context."""
+    try:
+        from gateway.memory import search_memory
+        results = search_memory("morning brief context", limit=2)
+        return "\n".join([m.get("memory", "") for m in results])
+    except Exception:
         return ""
+
+
+def generate_brief_text(headlines: List[NewsHeadline], task_summary: str) -> str:
+    """Fallback brief text when LLM is unavailable."""
+    news_summary = "\n".join([f"- {h.title}" for h in headlines[:4]])
+    return f"Good morning, Jacob. Here's what's happening today:\n\n{news_summary}\n\nYour next action: {task_summary}"
 
 
 def generate_brief() -> dict:
@@ -88,7 +121,8 @@ def generate_brief() -> dict:
     headlines = fetch_news()
     task_summary = get_tasks_summary()
     memory = _fetch_memory_snippet()
-    brief_text = generate_brief_text(headlines, task_summary)
+
+    brief_text = synthesize_brief_with_llm(headlines, task_summary, memory)
 
     item = BriefItem(
         date=today,

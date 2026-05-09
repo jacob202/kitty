@@ -80,3 +80,81 @@ def get_context_block(query: str, limit: int = 5) -> str:
         if text:
             lines.append(f"- {text}")
     return "\n".join(lines)
+
+
+def list_memories(namespace: Optional[str] = None, limit: int = 50) -> list[dict]:
+    """List all stored memories. Optionally filter by namespace."""
+    try:
+        mem = _get_memory()
+        results = mem.get(user_id=USER_ID)
+        memories = results.get("results", []) if isinstance(results, dict) else results
+        if namespace:
+            memories = [m for m in memories if m.get("metadata", {}).get("namespace") == namespace]
+        return memories[:limit]
+    except Exception as e:
+        logger.warning("Memory list failed (non-fatal): %s", e)
+        return []
+
+
+def delete_memory(memory_id: str) -> bool:
+    """Delete a specific memory by ID."""
+    try:
+        mem = _get_memory()
+        mem.delete(memory_id=memory_id)
+        logger.info("Memory deleted: %s", memory_id)
+        return True
+    except Exception as e:
+        logger.warning("Memory delete failed (non-fatal): %s", e)
+        return False
+
+
+def list_memories(namespace: Optional[str] = None, limit: int = 50) -> list[dict]:
+    """List all stored memories. Optionally filter by namespace."""
+    try:
+        mem = _get_memory()
+        results = mem.get(user_id=USER_ID)
+        memories = results.get("results", []) if isinstance(results, dict) else results
+        if namespace:
+            memories = [m for m in memories if m.get("metadata", {}).get("namespace") == namespace]
+        return memories[:limit]
+    except Exception as e:
+        logger.warning("Memory list failed (non-fatal): %s", e)
+        return []
+
+
+def delete_memory(memory_id: str) -> bool:
+    """Delete a specific memory by ID."""
+    try:
+        mem = _get_memory()
+        mem.delete(memory_id=memory_id)
+        logger.info("Memory deleted: %s", memory_id)
+        return True
+    except Exception as e:
+        logger.warning("Memory delete failed (non-fatal): %s", e)
+        return False
+
+
+def list_memories(namespace: Optional[str] = None, limit: int = 50) -> list[dict]:
+    """List all stored memories. Optionally filter by namespace."""
+    try:
+        mem = _get_memory()
+        results = mem.get(user_id=USER_ID)
+        memories = results.get("results", []) if isinstance(results, dict) else results
+        if namespace:
+            memories = [m for m in memories if m.get("metadata", {}).get("namespace") == namespace]
+        return memories[:limit]
+    except Exception as e:
+        logger.warning("Memory list failed (non-fatal): %s", e)
+        return []
+
+
+def delete_memory(memory_id: str) -> bool:
+    """Delete a specific memory by ID."""
+    try:
+        mem = _get_memory()
+        mem.delete(memory_id=memory_id)
+        logger.info("Memory deleted: %s", memory_id)
+        return True
+    except Exception as e:
+        logger.warning("Memory delete failed (non-fatal): %s", e)
+        return False

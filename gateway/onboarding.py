@@ -10,8 +10,6 @@ from typing import Optional
 logger = logging.getLogger("kitty.onboarding")
 
 STATE_FILE = Path("/Users/jacobbrizinski/Projects/kitty/data/onboarding_state.json")
-LITELLM_BASE = "https://openrouter.ai/api"
-LITELLM_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 
 DOMAINS = {
     "identity": {
@@ -108,9 +106,8 @@ def save_state(state: dict) -> None:
 
 
 def extract_facts(domain: str, question: str, answer: str, sensitivity: str) -> list[str]:
-    """Call DeepSeek Flash to extract key facts from a question/answer pair.
-    Returns a list of short factual statements about Jacob."""
-    import requests
+    """Call LLM to extract key facts from a question/answer pair via LiteLLM."""
+    from gateway.llm_client import chat
 
     prompt = f"""Extract 1-5 key facts about Jacob from this onboarding answer.
 Return ONLY a JSON array of short factual statements. No explanation, no preamble.
@@ -124,31 +121,18 @@ Example output: ["Jacob owns a 2010 Honda Civic.", "Jacob is comfortable doing o
 
 Facts:"""
     try:
-        resp = requests.post(
-            f"{LITELLM_BASE}/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {LITELLM_KEY}",
-                "HTTP-Referer": "https://github.com/jacobbrizinski/kitty", # OpenRouter requirement
-                "X-Title": "Kitty Onboarding",
-            },
-            json={
-                "model": "google/gemini-2.0-flash-exp:free" if not LITELLM_KEY else "deepseek/deepseek-chat",
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 300,
-                "temperature": 0.1,
-            },
-            timeout=30,
+        content = chat(
+            model="kitty-default",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=300,
+            temperature=0.1,
         )
-        resp.raise_for_status()
-        content = resp.json()["choices"][0]["message"]["content"].strip()
-        # Parse JSON array from response
         start = content.find("[")
         end = content.rfind("]") + 1
         if start >= 0 and end > start:
             return json.loads(content[start:end])
     except Exception as e:
         logger.warning("Fact extraction failed: %s", e)
-    # Fallback: store raw answer as one fact
     return [f"Jacob said about {domain}: {answer[:200]}"]
 
 

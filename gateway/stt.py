@@ -2,9 +2,7 @@
 from __future__ import annotations
 import io
 import logging
-import tempfile
 from functools import lru_cache
-from pathlib import Path
 
 logger = logging.getLogger("kitty.stt")
 
@@ -29,16 +27,10 @@ def _get_model():
 
 def transcribe_bytes(audio_bytes: bytes, filename: str = "audio.webm") -> dict:
     """Transcribe raw audio bytes. Returns OpenAI-compatible dict: {text, language, duration}."""
-    suffix = Path(filename).suffix.lower() or ".webm"
     try:
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-            tmp.write(audio_bytes)
-            tmp_path = tmp.name
-
         model = _get_model()
-        segments, info = model.transcribe(tmp_path, beam_size=5)
+        segments, info = model.transcribe(io.BytesIO(audio_bytes), beam_size=5)
         text = " ".join(seg.text.strip() for seg in segments).strip()
-        Path(tmp_path).unlink(missing_ok=True)
 
         return {
             "text": text,
