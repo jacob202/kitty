@@ -95,6 +95,24 @@ if [ "$PHASE" = "7" ]; then
         "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/pytest tests/test_brief.py -q --tb=no 2>/dev/null | grep -q 'passed'"
 fi
 
+if [ "$PHASE" = "11" ]; then
+    echo "[ Backup + Tailscale ]"
+    check "scripts/backup.py exists" \
+        "test -f /Users/jacobbrizinski/Projects/kitty/scripts/backup.py"
+    check "backup plist exists" \
+        "test -f /Users/jacobbrizinski/Projects/kitty/kitty_gateway/com.kitty.backup.plist"
+    check "tailscale-access.md exists" \
+        "test -f /Users/jacobbrizinski/Projects/kitty/docs/tailscale-access.md"
+    check "restic installed" \
+        "test -x /opt/homebrew/bin/restic"
+    check "backup launchd agent loaded" \
+        "launchctl list | grep -q com.kitty.backup"
+    check "RESTIC_PASSWORD set in .env" \
+        "grep -q 'RESTIC_PASSWORD=.' /Users/jacobbrizinski/Projects/kitty/.env"
+    check "backup tests pass" \
+        "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/pytest tests/test_backup.py -q --tb=no 2>/dev/null | grep -q 'passed'"
+fi
+
 if [ "$PHASE" = "6" ]; then
     echo "[ Full Ingestion Sweep ]"
     check "ingest_phase6.py exists" \
