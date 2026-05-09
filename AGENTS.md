@@ -180,6 +180,18 @@ When answering OpenAI API/Codex usage questions:
 - Run tests before committing
 - Staged files must be exactly what should be committed
 
+## Git Guardrails (Pocock-style)
+
+**CONFIRM before running:**
+- `git push --force` — overwrites remote history
+- `git reset --hard` — discards local changes
+- `git clean -f` — deletes untracked files
+
+**Safe to run without confirmation:**
+- `git add .` — staging
+- `git commit -m` — creates commit
+- `git push` — normal push
+
 ## Security
 
 - Validate user input at system boundaries

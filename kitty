@@ -294,6 +294,18 @@ _quick() {
       shift 2
       "$PYTHON" scripts/build_file_index.py --search "${3:-}" 2>/dev/null || echo "Usage: ./kitty quick index <pattern>"
       ;;
+    spec)
+      cat "$SCRIPT_DIR/PROJECT_REALITY_CHECK.md"
+      ;;
+    plan)
+      cat "$SCRIPT_DIR/docs/REFACTOR_PLAN.md" 2>/dev/null || cat "$SCRIPT_DIR/TASKS.md"
+      ;;
+    audit)
+      cat "$SCRIPT_DIR/docs/IMPROVEMENT_AUDIT.md"
+      ;;
+    loop)
+      cat "$SCRIPT_DIR/ENGINEERING_LOOP.md"
+      ;;
     *)
       echo "Quick deterministic commands (no LLM):"
       echo "  ./kitty quick status      — server status"
@@ -302,6 +314,12 @@ _quick() {
       echo "  ./kitty quick health  — check API"
       echo "  ./kitty quick tokens  — show recent tokens"
       echo "  ./kitty quick index <pattern>  — search file index"
+      echo ""
+      echo "Workflow commands:"
+      echo "  ./kitty quick spec    — project reality check"
+      echo "  ./kitty quick plan    — refactor plan"
+      echo "  ./kitty quick audit   — improvement audit"
+      echo "  ./kitty quick loop    — engineering loop"
       ;;
   esac
 }
