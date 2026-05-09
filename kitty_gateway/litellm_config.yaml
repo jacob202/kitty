@@ -2,18 +2,13 @@
 # Verify current model IDs at openrouter.ai/models before running
 
 model_list:
-  # Default: cheap, fast, non-sensitive queries (DeepSeek with Gemini Flash fallback)
+  # Default: cheap, fast, non-sensitive queries.
+  # Gemini is intentionally not listed as a duplicate kitty-default fallback
+  # because the current key is quota-limited and would make routing flaky.
   - model_name: kitty-default
     litellm_params:
       model: openrouter/deepseek/deepseek-chat-v3-0324
       api_key: os.environ/OPENROUTER_API_KEY
-      max_tokens: 4096
-
-  # Fallback default: Gemini Flash (auto-used if DeepSeek is down)
-  - model_name: kitty-default
-    litellm_params:
-      model: gemini/gemini-2.0-flash
-      api_key: os.environ/GEMINI_API_KEY
       max_tokens: 4096
 
   # Agent tasks: structured output, tool calls, routing decisions
@@ -40,23 +35,23 @@ model_list:
       api_key: "none"
       max_tokens: 2048
 
-  # Embeddings (for ChromaDB ingestion — Phase 4)
-  - model_name: kitty-embed
-    litellm_params:
-      model: ollama/nomic-embed-text
-      api_base: http://localhost:11434
+  # Embeddings are wired in the ingestion phase, not through the Phase 1
+  # chat proxy. Keeping embedding-only models out of model_list prevents
+  # LiteLLM health checks from probing them as chat models.
 
 router_settings:
   routing_strategy: simple-shuffle
-  num_retries: 2
-  timeout: 30
+  num_retries: 1
+  timeout: 20
 
 litellm_settings:
   drop_params: true
   set_verbose: false
 
 general_settings:
-  # Daily spend cap — auto-downgrade to cheaper model at 80% of cap
-  max_budget: 2.00
+  # Daily spend cap (USD). Set in env for quick tuning without code changes.
+  # Example: export LITELLM_MAX_BUDGET_USD=1.50
+  max_budget: os.environ/LITELLM_MAX_BUDGET_USD
   budget_duration: 1d
-  master_key: "kitty-local-key-change-me"
+  # Master key used by OpenWebUI and other local clients for this proxy.
+  master_key: os.environ/LITELLM_MASTER_KEY

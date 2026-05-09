@@ -1,13 +1,67 @@
 #!/bin/bash
-set -e
-source ~/kitty-services/venv/bin/activate
+set -euo pipefail
 
-export OPENAI_API_BASE_URL="http://localhost:8001/v1"
-export OPENAI_API_KEY="kitty-local-key-change-me"
-export WEBUI_SECRET_KEY="kitty-webui-secret-change-me"
-export DEFAULT_MODELS="kitty-default"
-export PORT=3000
+OPENWEBUI_VENV="${OPENWEBUI_VENV:-${HOME}/kitty-services/venv}"
+source "${OPENWEBUI_VENV}/bin/activate"
+
+if [[ -f ".env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source ".env"
+  set +a
+fi
+
+if [[ -f "kitty_gateway/openwebui.env" ]]; then
+  # Optional local overrides (not committed secrets)
+  # shellcheck disable=SC1091
+  source "kitty_gateway/openwebui.env"
+fi
+
+if [[ -n "${OPENWEBUI_DATA_DIR_OVERRIDE:-}" ]]; then
+  OPENWEBUI_DATA_DIR="${OPENWEBUI_DATA_DIR_OVERRIDE}"
+fi
+if [[ -n "${OPENWEBUI_SECRET_FILE_OVERRIDE:-}" ]]; then
+  OPENWEBUI_SECRET_FILE="${OPENWEBUI_SECRET_FILE_OVERRIDE}"
+fi
+
+OPENWEBUI_DATA_DIR="${OPENWEBUI_DATA_DIR:-${HOME}/kitty-services/open-webui-data}"
+mkdir -p "${OPENWEBUI_DATA_DIR}"
+
+SECRET_FILE="${OPENWEBUI_SECRET_FILE:-${OPENWEBUI_DATA_DIR}/.webui_secret}"
+if [[ -z "${WEBUI_SECRET_KEY:-}" ]]; then
+  if [[ -f "${SECRET_FILE}" ]]; then
+    WEBUI_SECRET_KEY="$(cat "${SECRET_FILE}")"
+  else
+    WEBUI_SECRET_KEY="$(/opt/homebrew/bin/python3.12 -c 'import secrets; print(secrets.token_urlsafe(48))')"
+    printf "%s" "${WEBUI_SECRET_KEY}" > "${SECRET_FILE}"
+    chmod 600 "${SECRET_FILE}"
+  fi
+fi
+
+export DATA_DIR="${OPENWEBUI_DATA_DIR}"
+export OPENAI_API_BASE_URL="${OPENAI_API_BASE_URL:-http://127.0.0.1:8001/v1}"
+export OPENAI_API_KEY="${OPENAI_API_KEY:-kitty-local-key-change-me}"
+export WEBUI_SECRET_KEY
+export DEFAULT_MODELS="${DEFAULT_MODELS:-kitty-default}"
+export WEBUI_NAME="${WEBUI_NAME:-Kitty WebUI}"
+export OFFLINE_MODE="${OFFLINE_MODE:-true}"
+export ENABLE_VERSION_UPDATE_CHECK="${ENABLE_VERSION_UPDATE_CHECK:-false}"
+export GLOBAL_LOG_LEVEL="${GLOBAL_LOG_LEVEL:-WARNING}"
+export ENABLE_PROFILE_IMAGE_URL_FORWARDING="${ENABLE_PROFILE_IMAGE_URL_FORWARDING:-false}"
 
 echo "Starting Open WebUI on port 3000..."
-echo "Interface will be at: http://localhost:3000"
-open-webui serve
+echo "Interface: http://127.0.0.1:3000"
+echo "Data dir: ${DATA_DIR}"
+echo "Model endpoint: ${OPENAI_API_BASE_URL}"
+
+if ! curl -fsS --max-time 2 "${OPENAI_API_BASE_URL%/v1}/health" >/dev/null 2>&1; then
+  echo "Warning: LiteLLM endpoint is not healthy yet (${OPENAI_API_BASE_URL})."
+  echo "OpenWebUI will still start, but model list may be empty until LiteLLM is up."
+fi
+
+if [[ "${OPENWEBUI_SMOKE:-0}" == "1" ]]; then
+  echo "OPENWEBUI_SMOKE=1 set; exiting before server start."
+  exit 0
+fi
+
+open-webui serve --host 127.0.0.1 --port 3000

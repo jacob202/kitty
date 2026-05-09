@@ -10,8 +10,8 @@ from typing import Optional
 logger = logging.getLogger("kitty.onboarding")
 
 STATE_FILE = Path("/Users/jacobbrizinski/Projects/kitty/data/onboarding_state.json")
-LITELLM_BASE = "http://localhost:8001"
-LITELLM_KEY = "kitty-local-key-change-me"
+LITELLM_BASE = "https://openrouter.ai/api"
+LITELLM_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 
 DOMAINS = {
     "identity": {
@@ -126,9 +126,13 @@ Facts:"""
     try:
         resp = requests.post(
             f"{LITELLM_BASE}/v1/chat/completions",
-            headers={"Authorization": f"Bearer {LITELLM_KEY}"},
+            headers={
+                "Authorization": f"Bearer {LITELLM_KEY}",
+                "HTTP-Referer": "https://github.com/jacobbrizinski/kitty", # OpenRouter requirement
+                "X-Title": "Kitty Onboarding",
+            },
             json={
-                "model": "kitty-default",
+                "model": "google/gemini-2.0-flash-exp:free" if not LITELLM_KEY else "deepseek/deepseek-chat",
                 "messages": [{"role": "user", "content": prompt}],
                 "max_tokens": 300,
                 "temperature": 0.1,
