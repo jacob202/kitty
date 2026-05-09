@@ -59,7 +59,7 @@ def search_memory(query: str, limit: int = 5, namespace: Optional[str] = None) -
     """Search memories relevant to query. Returns list of {memory, score} dicts."""
     try:
         mem = _get_memory()
-        results = mem.search(query, user_id=USER_ID, limit=limit)
+        results = mem.search(query, filters={"user_id": USER_ID}, limit=limit)
         memories = results.get("results", []) if isinstance(results, dict) else results
         if namespace:
             memories = [m for m in memories if m.get("metadata", {}).get("namespace") == namespace]

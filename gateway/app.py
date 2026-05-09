@@ -26,6 +26,13 @@ async def health():
     return {"status": "ok", "service": "kitty-gateway"}
 
 
+@app.get("/brief")
+async def morning_brief():
+    """Generate and return today's morning brief."""
+    from gateway.brief import generate_brief
+    return generate_brief()
+
+
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request):
     body = await request.json()

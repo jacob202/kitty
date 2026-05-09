@@ -59,6 +59,24 @@ if [ "$PHASE" = "2" ]; then
         "test -f /Users/jacobbrizinski/Projects/kitty/gateway/app.py"
 fi
 
+if [ "$PHASE" = "7" ]; then
+    echo "[ Morning Brief + Pushover ]"
+    check "gateway/brief.py exists" \
+        "test -f /Users/jacobbrizinski/Projects/kitty/gateway/brief.py"
+    check "gateway/notify.py exists" \
+        "test -f /Users/jacobbrizinski/Projects/kitty/gateway/notify.py"
+    check "scripts/brief.py exists" \
+        "test -f /Users/jacobbrizinski/Projects/kitty/scripts/brief.py"
+    check "contracts/brief_item.py exists" \
+        "test -f /Users/jacobbrizinski/Projects/kitty/contracts/brief_item.py"
+    check "launchd plist exists" \
+        "test -f /Users/jacobbrizinski/Projects/kitty/kitty_gateway/com.kitty.morning-brief.plist"
+    check "/brief endpoint in app.py" \
+        "grep -q '/brief' /Users/jacobbrizinski/Projects/kitty/gateway/app.py"
+    check "brief tests pass" \
+        "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/pytest tests/test_brief.py -q --tb=no 2>/dev/null | grep -q 'passed'"
+fi
+
 if [ "$PHASE" = "6" ]; then
     echo "[ Full Ingestion Sweep ]"
     check "ingest_phase6.py exists" \

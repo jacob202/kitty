@@ -23,6 +23,7 @@ faster-whisper>=1.0
 firecrawl-py>=4.0
 duckduckgo_search>=8.0
 tavily-python>=0.5
+feedparser>=6.0
 
 # Utils
 python-dotenv>=1.0

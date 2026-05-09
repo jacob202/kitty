@@ -1,0 +1,92 @@
+"""Tests for gateway.brief and gateway.notify."""
+import os
+from unittest.mock import patch, MagicMock
+
+
+def test_brief_item_contract():
+    from contracts.brief_item import BriefItem, NewsHeadline
+    from datetime import datetime
+    item = BriefItem(
+        date="2026-05-09",
+        headlines=[NewsHeadline(title="AI news", url="http://example.com", snippet="test")],
+        memory_snippet="Jacob likes cars",
+        intention="Today focus on shipping Phase 7.",
+    )
+    assert item.date == "2026-05-09"
+    assert item.headlines[0].title == "AI news"
+    assert item.notification_sent is False
+    assert isinstance(item.generated_at, datetime)
+
+
+def test_fetch_news_returns_headlines_on_success():
+    import gateway.brief as b
+    entry = MagicMock()
+    entry.title = "Big AI news"
+    entry.link = "http://t.co/1"
+    entry.get.side_effect = lambda key, default="": {"summary": "Something happened", "description": ""}.get(key, default)
+    mock_feed = MagicMock()
+    mock_feed.entries = [entry]
+    with patch.object(b.feedparser, "parse", return_value=mock_feed):
+        result = b.fetch_news(limit_per_feed=1)
+    assert len(result) >= 1
+    assert result[0].title == "Big AI news"
+
+
+def test_fetch_news_handles_feed_error():
+    import gateway.brief as b
+    with patch.object(b.feedparser, "parse", side_effect=Exception("network error")):
+        result = b.fetch_news()
+    assert result == []
+
+
+def test_send_pushover_skips_when_no_keys():
+    with patch.dict(os.environ, {"PUSHOVER_USER_KEY": "", "PUSHOVER_API_TOKEN": ""}):
+        from gateway.notify import send_pushover
+        result = send_pushover("Hello", title="Test")
+    assert result is False
+
+
+def test_send_pushover_returns_true_on_success():
+    import gateway.notify as n
+    mock_resp = MagicMock()
+    mock_resp.raise_for_status.return_value = None
+    with patch.dict(os.environ, {"PUSHOVER_USER_KEY": "ukey", "PUSHOVER_API_TOKEN": "tok"}):
+        with patch.object(n.requests, "post", return_value=mock_resp):
+            result = n.send_pushover("Msg", title="Title")
+    assert result is True
+
+
+def test_send_pushover_returns_false_on_error():
+    import gateway.notify as n
+    with patch.dict(os.environ, {"PUSHOVER_USER_KEY": "ukey", "PUSHOVER_API_TOKEN": "tok"}):
+        with patch.object(n.requests, "post", side_effect=Exception("timeout")):
+            result = n.send_pushover("Msg", title="Title")
+    assert result is False
+
+
+def test_format_brief_notification():
+    from gateway.notify import format_brief_notification
+    brief = {
+        "date": "2026-05-09",
+        "intention": "Focus on what matters.",
+        "headlines": [
+            {"title": "AI breakthrough", "url": "http://x.com", "snippet": ""},
+        ],
+    }
+    title, message = format_brief_notification(brief)
+    assert "2026-05-09" in title
+    assert "Focus on what matters." in message
+    assert "AI breakthrough" in message
+
+
+def test_generate_brief_structure():
+    """generate_brief returns a dict matching BriefItem schema."""
+    import gateway.brief as b
+    with patch.object(b, "fetch_news", return_value=[]):
+        with patch.object(b, "_fetch_memory_snippet", return_value=""):
+            with patch.object(b, "get_tasks_summary", return_value="Ship Phase 7."):
+                result = b.generate_brief()
+    assert "date" in result
+    assert "headlines" in result
+    assert "intention" in result
+    assert "Ship Phase 7." in result["intention"]
