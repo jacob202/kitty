@@ -16,10 +16,8 @@
 - `./kitty quick health` — API check
 
 **Key docs (start here):**
-- `docs/IMPROVEMENT_AUDIT.md` — Full audit with scores
-- `docs/DATA_ROUTING.md` — Which store for what data (CRITICAL)
-- `config/README.md` — Config index with validation
-- `docs/PROCESS_UPGRADES.md` — All commands and workflows
+- `MASTER_INDEX.md` — fast-parse paths + anchors
+- Or individual: docs/DATA_ROUTING.md (critical), config/README.md
 
 **Depth:** Voice corpus, Jacob’s rules, runbook, Handoff template — read the rest of this file when needed; hooks send this block only.
 <!-- HOOK_END -->
