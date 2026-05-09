@@ -52,19 +52,19 @@ def test_extract_pdf_enhanced_fallback_no_api_key(tmp_path, monkeypatch):
 
 
 def test_extract_pdf_enhanced_with_llamaparse(tmp_path, monkeypatch):
-    """Uses LlamaParse when LLAMA_CLOUD_API_KEY is set."""
+    """Uses LlamaCloud parsing when LLAMA_CLOUD_API_KEY is set."""
     monkeypatch.setenv("LLAMA_CLOUD_API_KEY", "test-llama-key")
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
     pdf_path = tmp_path / "schematic.pdf"
     pdf_path.write_bytes(b"fake-pdf")
 
-    mock_doc = MagicMock()
-    mock_doc.text = "# Page 1\n\nVoltage regulator with LM7805."
-    mock_parser = MagicMock()
-    mock_parser.load_data.return_value = [mock_doc]
+    mock_result = MagicMock()
+    mock_result.markdown_full = "# Page 1\n\nVoltage regulator with LM7805."
+    mock_client = MagicMock()
+    mock_client.parsing.parse.return_value = mock_result
 
-    with patch("gateway.pdf_pipeline.LlamaParse", return_value=mock_parser), \
+    with patch("gateway.pdf_pipeline.LlamaCloud", return_value=mock_client), \
          patch("gateway.pdf_pipeline._extract_images_with_vision", return_value=[]):
         from gateway.pdf_pipeline import extract_pdf_enhanced
         chunks = extract_pdf_enhanced(pdf_path)

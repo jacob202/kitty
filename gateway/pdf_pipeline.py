@@ -1,4 +1,4 @@
-"""Phase 9 PDF pipeline — LlamaParse primary, PyMuPDF fallback, vision for images."""
+"""Phase 9 PDF pipeline — LlamaCloud primary, PyMuPDF fallback, vision for images."""
 from __future__ import annotations
 import logging
 import os
@@ -12,16 +12,16 @@ logger = logging.getLogger("kitty.pdf_pipeline")
 MIN_IMAGE_BYTES = 1024  # skip tiny images (icons, logos)
 
 try:
-    from llama_parse import LlamaParse
+    from llama_cloud import LlamaCloud
 except ImportError:
-    LlamaParse = None  # type: ignore
+    LlamaCloud = None  # type: ignore
 
 
 def extract_pdf_enhanced(path: Path) -> list[PdfChunk]:
     """Extract text and images from a PDF. Returns one PdfChunk per logical page/section.
 
     Strategy:
-    1. Try LlamaParse (if LLAMA_CLOUD_API_KEY set) — structured markdown, handles tables/headers
+    1. Try LlamaCloud parsing (if LLAMA_CLOUD_API_KEY set) — structured markdown output
     2. Fall back to PyMuPDF → pdfplumber for plain text
     3. Always extract embedded images and run vision on them (if ANTHROPIC_API_KEY set)
     """
@@ -29,9 +29,9 @@ def extract_pdf_enhanced(path: Path) -> list[PdfChunk]:
     has_images = bool(image_descriptions)
 
     api_key = os.environ.get("LLAMA_CLOUD_API_KEY")
-    if api_key and LlamaParse is not None:
+    if api_key and LlamaCloud is not None:
         try:
-            text = _extract_text_llamaparse(path, api_key)
+            text = _extract_text_llamacloud(path, api_key)
             return [
                 PdfChunk(
                     page_num=0,
@@ -43,7 +43,7 @@ def extract_pdf_enhanced(path: Path) -> list[PdfChunk]:
                 )
             ]
         except Exception as exc:
-            logger.warning("LlamaParse failed for %s: %s — falling back", path.name, exc)
+            logger.warning("LlamaCloud parsing failed for %s: %s — falling back", path.name, exc)
 
     text = _extract_text_fallback(path)
     return [
@@ -58,11 +58,20 @@ def extract_pdf_enhanced(path: Path) -> list[PdfChunk]:
     ]
 
 
-def _extract_text_llamaparse(path: Path, api_key: str) -> str:
-    """Extract text via LlamaParse (returns structured markdown)."""
-    parser = LlamaParse(api_key=api_key, result_type="markdown")
-    documents = parser.load_data(str(path))
-    return "\n\n".join(doc.text for doc in documents)
+def _extract_text_llamacloud(path: Path, api_key: str) -> str:
+    """Extract text via LlamaCloud parsing API (returns structured markdown)."""
+    client = LlamaCloud(token=api_key)
+    with open(str(path), "rb") as f:
+        result = client.parsing.parse(
+            upload_file=(path.name, f, "application/pdf"),
+            tier="fast",
+            version="latest",
+        )
+    if result.markdown_full:
+        return result.markdown_full
+    if result.markdown and result.markdown.pages:
+        return "\n\n".join(page.markdown for page in result.markdown.pages)
+    return ""
 
 
 def _extract_text_fallback(path: Path) -> str:
