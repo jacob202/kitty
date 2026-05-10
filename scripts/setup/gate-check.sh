@@ -213,6 +213,22 @@ if [ "$PHASE" = "14" ]; then
         "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/pytest tests/ -q --tb=no 2>/dev/null | grep -q 'passed'"
 fi
 
+if [ "$PHASE" = "16" ]; then
+    echo "[ AI Model Digest ]"
+    check "gateway/model_digest.py exists" \
+        "test -f /Users/jacobbrizinski/Projects/kitty/gateway/model_digest.py"
+    check "model digest tests pass" \
+        "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/pytest tests/test_model_digest.py -q --tb=no 2>/dev/null | grep -q 'passed'"
+    check "model_digest imported in brief.py" \
+        "grep -q 'model_digest' /Users/jacobbrizinski/Projects/kitty/gateway/brief.py"
+    check "launchd plist exists" \
+        "test -f /Users/jacobbrizinski/Projects/kitty/kitty_gateway/com.kitty.model-digest.plist"
+    check "DB_PATH is relative (not hardcoded)" \
+        "grep -q '__file__' /Users/jacobbrizinski/Projects/kitty/gateway/model_digest.py"
+    check "full test suite passes" \
+        "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/pytest tests/ -q --tb=no 2>/dev/null | grep -q 'passed'"
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 if [ "$FAIL" -gt 0 ]; then
