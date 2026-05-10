@@ -1,6 +1,6 @@
 # Decisions
 
-Last updated: 2026-05-09
+Last updated: 2026-05-10
 
 This file records durable project decisions. New work should follow these rules unless a later dated decision explicitly supersedes them.
 
@@ -436,5 +436,68 @@ Status: accepted
 `src/api/web_llm.py` uses OpenRouter free tier as its only fallback provider. Anthropic, Gemini, and all other direct-provider cascading has been removed. No provider waterfalling outside the OpenRouter ecosystem.
 
 Source: SESSION_SUMMARY.md (2026-05-07)
+
+Review trigger: a new provider tier is deliberately added with Jacob's approval.
+
+## D-0032: FastAPI Middleware Must Be Added In Reverse Execution Order
+
+Status: accepted
+
+In Starlette/FastAPI, the **last** `app.add_middleware()` call is the **outermost** wrapper (runs first on every request). CORS middleware must always be added last so it wraps everything — including auth — and can respond to browser preflight OPTIONS requests before auth ever runs. Adding CORS before auth causes 401/503 on OPTIONS and breaks Open WebUI.
+
+Correct order in `gateway/app.py`:
+```python
+app.add_middleware(BearerAuthMiddleware)   # inner — runs second
+app.add_middleware(CORSMiddleware, ...)    # outer — runs first
+```
+
+Source: HANDOFF-2026-05-10.md (2026-05-10) — caught in Phase 17 code review
+
+Review trigger: FastAPI changes its middleware stack semantics.
+
+## D-0033: Parallel Async Fetches Must Use return_exceptions=True
+
+Status: accepted
+
+Any `asyncio.gather()` call where partial success is acceptable (e.g. memory fetch + knowledge fetch in `context_builder.py`) must use `return_exceptions=True` and check each result individually. Without it, a single exception in any coroutine propagates immediately and cancels the entire gather — the caller gets nothing instead of partial results.
+
+```python
+results = await asyncio.gather(fetch_a(), fetch_b(), return_exceptions=True)
+if isinstance(results[0], Exception):
+    logger.warning("fetch_a failed: %s", results[0])
+```
+
+Source: HANDOFF-2026-05-10.md (2026-05-10) — gateway/context_builder.py pattern
+
+Review trigger: switch to a structured concurrency library (e.g. anyio TaskGroup) that has different cancellation semantics.
+
+## D-0034: Context Chunk Selection Is Filter → Sort → Truncate
+
+Status: accepted
+
+When assembling retrieved chunks for an LLM call under a token budget, the order must be: (1) filter by relevance threshold, (2) sort by recency/score, (3) truncate to budget. Never truncate before filtering — doing so drops high-relevance chunks that happen to rank late in the raw list.
+
+This pattern lives in `gateway/context_builder.py` (`RELEVANCE_THRESHOLD = 0.7`). All gateway workers must call `build_worker_context` rather than assembling context inline.
+
+Source: HANDOFF-2026-05-10.md (2026-05-10) — Phase 17 context engineering spec
+
+Review trigger: retrieval architecture changes to a reranker that already enforces budget constraints.
+
+## D-0035: pytest Must Set KITTY_ENV=test via conftest.py
+
+Status: accepted
+
+`gateway/auth.py` is fail-closed: when `GATEWAY_SECRET` is unset it returns 503 on all non-`/health` routes unless `KITTY_ENV == "test"`. `tests/conftest.py` must set this:
+
+```python
+import os
+os.environ.setdefault("KITTY_ENV", "test")
+```
+
+Any test file that runs standalone outside conftest.py must set this env var explicitly. Failure to do so causes all protected-route tests to 503 silently in CI.
+
+Source: HANDOFF-2026-05-10.md (2026-05-10) — Phase 17 auth hardening
+
+Review trigger: auth middleware is replaced or test isolation strategy changes.
 
 Review trigger: a new provider tier is deliberately added with Jacob's approval.
