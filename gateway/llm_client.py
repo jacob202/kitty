@@ -90,15 +90,30 @@ _BEST_MODEL = "claude-sonnet-4-6"
 _LOCAL_MODEL = "mlx-local"
 
 
-def _is_offline() -> bool:
-    """Return True when OpenRouter is unreachable."""
-    import socket
+import time
+import threading
 
+_offline_cache: tuple[bool, float] | None = None
+_offline_lock = threading.Lock()
+
+def _check_connectivity() -> bool:
+    import socket
     try:
         with socket.create_connection(("openrouter.ai", 443), timeout=2):
             return False
     except OSError:
         return True
+
+def _is_offline() -> bool:
+    """Return True when OpenRouter is unreachable."""
+    global _offline_cache
+    with _offline_lock:
+        now = time.monotonic()
+        if _offline_cache and now - _offline_cache[1] < 30:
+            return _offline_cache[0]
+        result = _check_connectivity()
+        _offline_cache = (result, now)
+        return result
 
 
 def route_model(message: str) -> str:

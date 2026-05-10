@@ -6,8 +6,9 @@ from gateway.app import app
 
 
 def test_ask_returns_reply():
-    with patch("gateway.memory.get_context_block", return_value=""), patch(
-        "gateway.knowledge.get_knowledge_block", return_value=""
+    with patch(
+        "gateway.app.build_user_context",
+        new=AsyncMock(return_value=("SOUL", "CTX")),
     ), patch(
         "gateway.app._non_stream_response",
         new=AsyncMock(
@@ -20,10 +21,10 @@ def test_ask_returns_reply():
     assert response.json()["reply"] == "I am Kitty, your personal AI."
 
 
-def test_ask_empty_message_returns_400():
+def test_ask_empty_message_returns_422():
     client = TestClient(app)
     response = client.post("/ask", json={"message": ""})
-    assert response.status_code == 400
+    assert response.status_code == 422
 
 
 def test_ask_missing_message_returns_422():

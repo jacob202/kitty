@@ -33,9 +33,16 @@ def test_protected_with_correct_token_passes_auth():
     assert resp.status_code != 401
 
 
-def test_no_secret_allows_protected_routes():
-    with patch.dict(os.environ, {"GATEWAY_SECRET": ""}):
+def test_no_secret_blocks_protected_routes_with_503():
+    with patch.dict(os.environ, {"GATEWAY_SECRET": "", "KITTY_ENV": "prod"}):
         client = TestClient(app)
-        # With no secret set, protected routes pass through auth (may still fail for other reasons)
         resp = client.get("/weekly")
-    assert resp.status_code != 401
+    assert resp.status_code == 503
+    assert resp.json()["error"] == "Gateway not configured"
+
+
+def test_no_secret_allows_when_kitty_env_test():
+    with patch.dict(os.environ, {"GATEWAY_SECRET": "", "KITTY_ENV": "test"}):
+        client = TestClient(app)
+        resp = client.get("/weekly")
+    assert resp.status_code != 503

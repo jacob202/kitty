@@ -229,6 +229,22 @@ if [ "$PHASE" = "16" ]; then
         "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/pytest tests/ -q --tb=no 2>/dev/null | grep -q 'passed'"
 fi
 
+if [ "$PHASE" = "17" ]; then
+    echo "[ Context Engineering ]"
+    check "gateway/paths.py exists" \
+        "test -f /Users/jacobbrizinski/Projects/kitty/gateway/paths.py"
+    check "gateway/context_builder.py exists" \
+        "test -f /Users/jacobbrizinski/Projects/kitty/gateway/context_builder.py"
+    check "No hardcoded Jacob paths in gateway" \
+        "! grep -q '/Users/jacobbrizinski' /Users/jacobbrizinski/Projects/kitty/gateway/*.py"
+    check "test_context_builder.py passes" \
+        "cd /Users/jacobbrizinski/Projects/kitty && KITTY_ENV=test PYTHONPATH=. venv/bin/pytest tests/test_context_builder.py -q --tb=no 2>/dev/null | grep -q 'passed'"
+    check "test_domain_router.py passes" \
+        "cd /Users/jacobbrizinski/Projects/kitty && KITTY_ENV=test PYTHONPATH=. venv/bin/pytest tests/test_domain_router.py -q --tb=no 2>/dev/null | grep -q 'passed'"
+    check "full test suite passes" \
+        "cd /Users/jacobbrizinski/Projects/kitty && KITTY_ENV=test PYTHONPATH=. venv/bin/pytest tests/ -q --tb=no 2>/dev/null | grep -q 'passed'"
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 if [ "$FAIL" -gt 0 ]; then

@@ -123,34 +123,37 @@ def diff_models(previous: dict[str, dict], current: dict[str, dict]) -> list[dic
             new_price = curr.get(price_key, 0) or 0
             if old_price == 0:
                 if new_price > 0:
-                    events.append({
-                        "event_type": "price_increase",
-                        "model_id": model_id,
-                        "details": f"{curr['name']} {label}: was free → ${round(new_price * 1_000_000, 4)}/M",
-                    })
+                    model_changes.append((float('inf'), 1.0, 0, new_price, label, True))
                 continue
             change = (new_price - old_price) / old_price
             if abs(change) > PRICE_CHANGE_THRESHOLD:
-                model_changes.append((abs(change), change, old_price, new_price, label))
+                model_changes.append((abs(change), change, old_price, new_price, label, False))
 
         if model_changes:
             # Pick the field with the largest absolute change as the representative
             model_changes.sort(reverse=True)
-            _, change, old_price, new_price, label = model_changes[0]
-            per_m_old = round(old_price * 1_000_000, 4)
-            per_m_new = round(new_price * 1_000_000, 4)
-            if change < 0:
-                events.append({
-                    "event_type": "price_drop",
-                    "model_id": model_id,
-                    "details": f"{curr['name']} {label}: ${per_m_old} → ${per_m_new}/M ({round(change*100)}%)",
-                })
-            else:
+            _, change, old_price, new_price, label, is_free_to_paid = model_changes[0]
+            if is_free_to_paid:
                 events.append({
                     "event_type": "price_increase",
                     "model_id": model_id,
-                    "details": f"{curr['name']} {label}: ${per_m_old} → ${per_m_new}/M (+{round(change*100)}%)",
+                    "details": f"{curr['name']} {label}: was free → ${round(new_price * 1_000_000, 4)}/M",
                 })
+            else:
+                per_m_old = round(old_price * 1_000_000, 4)
+                per_m_new = round(new_price * 1_000_000, 4)
+                if change < 0:
+                    events.append({
+                        "event_type": "price_drop",
+                        "model_id": model_id,
+                        "details": f"{curr['name']} {label}: ${per_m_old} → ${per_m_new}/M ({round(change*100)}%)",
+                    })
+                else:
+                    events.append({
+                        "event_type": "price_increase",
+                        "model_id": model_id,
+                        "details": f"{curr['name']} {label}: ${per_m_old} → ${per_m_new}/M (+{round(change*100)}%)",
+                    })
 
     return events
 

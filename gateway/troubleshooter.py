@@ -23,16 +23,11 @@ def initiate_troubleshooting(device: str, symptom: str) -> str:
     # Combine context
     context = "\n\n".join([c["text"] for c in chunks])
     
-    from gateway.paths import PROMPTS_DIR
+    from gateway.context_builder import build_worker_context
     # 2. Use LLM to formulate the "Partner" response
     api_key = os.environ.get("OPENROUTER_API_KEY")
-    soul_path = PROMPTS_DIR / "soul_v1.md"
-    soul_context = soul_path.read_text() if soul_path.exists() else ""
 
-    prompt = f"""{soul_context}
-
-CONTEXT:
-Jacob is reporting a symptom: "{symptom}" on device: "{device}".
+    task_desc = f"""Jacob is reporting a symptom: "{symptom}" on device: "{device}".
 Here is what the service manual or our notes say about this:
 {context}
 
@@ -44,6 +39,8 @@ Act as a Socratic repair partner.
 3. Ask him if he has his tools ready to check that specific thing. 
 End with a question to prompt his action.
 Keep it under 4 sentences. Speak Canadian."""
+
+    prompt = build_worker_context("troubleshooter", task_desc=task_desc)
 
     try:
         resp = requests.post(

@@ -50,7 +50,7 @@ def fetch_news(limit_per_feed: int = 3) -> List[NewsHeadline]:
 
 def get_tasks_summary() -> str:
     """Read the 'Next Smallest Action' from TASKS.md."""
-    tasks_path = "/Users/jacobbrizinski/Projects/kitty/TASKS.md"
+    tasks_path = str(PROJECT_ROOT / "TASKS.md")
     try:
         with open(tasks_path, "r") as f:
             content = f.read()
@@ -65,18 +65,20 @@ def get_tasks_summary() -> str:
 def synthesize_brief_with_llm(headlines: List[NewsHeadline], task_summary: str, memory_snippet: str) -> str:
     """Use LLM via LiteLLM to turn raw data into a warm, character-driven morning brief."""
     from gateway.llm_client import chat
-    from gateway.prompt_loader import load_prompt
+    from gateway.context_builder import build_worker_context
 
-    soul_context = load_prompt("soul")
     news_text = "\n".join([f"- {h.title}" for h in headlines[:6]])
+    context_data = build_worker_context(
+        "brief",
+        top_task=f"Current Top Task: {task_summary}",
+        memory=f"Recent Memories: {memory_snippet}",
+        tz="America/Regina"
+    )
 
-    prompt = f"""{soul_context}
-
-GATHERED DATA FOR TODAY:
+    prompt = f"""GATHERED DATA FOR TODAY:
 - News Headlines:
 {news_text}
-- Current Top Task: {task_summary}
-- Recent Memories: {memory_snippet}
+{context_data}
 
 TASK:
 Write a short, warm, and proactive morning greeting for Jacob (3 paragraphs max).

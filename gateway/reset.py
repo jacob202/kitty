@@ -15,15 +15,9 @@ def generate_reset_prompt() -> str:
     api_key = os.environ.get("OPENROUTER_API_KEY")
     task_summary = get_tasks_summary()
     
-    from gateway.paths import PROMPTS_DIR
-    # Load Kitty Soul for context
-    soul_path = PROMPTS_DIR / "soul_v1.md"
-    soul_context = soul_path.read_text() if soul_path.exists() else "You are Kitty, a warm tabby cat partner."
+    from gateway.context_builder import build_worker_context
 
-    prompt = f"""{soul_context}
-
-CONTEXT:
-It is 9:00 PM. The day is winding down. 
+    task_desc = f"""It is 9:00 PM. The day is winding down. 
 The main task we were looking at was: {task_summary}
 
 TASK:
@@ -32,6 +26,8 @@ Write a very short, warm evening check-in for Jacob (2 sentences max).
 2. Ask if anything stopped him, or what the first move for tomorrow is.
 
 Rules: Use contractions. No fluff. Focus on 'Resume, don't restart'. Speak Canadian."""
+
+    prompt = build_worker_context("reset", task_desc=task_desc)
 
     try:
         resp = requests.post(

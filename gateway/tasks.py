@@ -5,7 +5,8 @@ from pathlib import Path
 
 logger = logging.getLogger("kitty.tasks")
 
-TASKS_PATH = Path("/Users/jacobbrizinski/Projects/kitty/TASKS.md")
+from gateway.paths import PROJECT_ROOT
+TASKS_PATH = PROJECT_ROOT / "TASKS.md"
 
 def sync_next_action(action_description: str) -> bool:
     """

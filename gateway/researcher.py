@@ -104,14 +104,9 @@ class DeepResearcher:
 
     def _synthesize_findings(self, topic: str, findings: str) -> str:
         """Uses LLM to summarize findings in Kitty's voice."""
-        from gateway.paths import PROMPTS_DIR
-        soul_path = PROMPTS_DIR / "soul_v1.md"
-        soul_context = soul_path.read_text() if soul_path.exists() else ""
+        from gateway.context_builder import build_worker_context
 
-        prompt = f"""{soul_context}
-
-CONTEXT:
-Jacob needs deep technical info on: "{topic}"
+        task_desc = f"""Jacob needs deep technical info on: "{topic}"
 I have scraped these external sources:
 {findings}
 
@@ -123,6 +118,8 @@ Synthesize this into a technical brief for Jacob.
 4. End with 'I've added this to our permanent knowledge base.'
 
 Rules: Short sentences. Use contractions. Speak Canadian."""
+        
+        prompt = build_worker_context("researcher", topic=topic, chunks=task_desc)
 
         try:
             resp = requests.post(

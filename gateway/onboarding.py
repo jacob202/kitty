@@ -109,8 +109,9 @@ def save_state(state: dict) -> None:
 def extract_facts(domain: str, question: str, answer: str, sensitivity: str) -> list[str]:
     """Call LLM to extract key facts from a question/answer pair via LiteLLM."""
     from gateway.llm_client import chat
+    from gateway.context_builder import build_worker_context
 
-    prompt = f"""Extract 1-5 key facts about Jacob from this onboarding answer.
+    task_desc = f"""Extract 1-5 key facts about Jacob from this onboarding answer.
 Return ONLY a JSON array of short factual statements. No explanation, no preamble.
 Each fact should be a complete sentence starting with "Jacob".
 Sensitivity: {sensitivity} — extract only what's appropriate to store.
@@ -121,6 +122,7 @@ Answer: {answer}
 Example output: ["Jacob owns a 2010 Honda Civic.", "Jacob is comfortable doing oil changes himself."]
 
 Facts:"""
+    prompt = build_worker_context("onboarding", user_text=task_desc)
     try:
         content = chat(
             model="kitty-default",

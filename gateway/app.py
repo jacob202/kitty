@@ -12,7 +12,7 @@ import httpx
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 
 MAX_BODY_BYTES = 10 * 1024 * 1024  # 10MB
@@ -20,31 +20,87 @@ MAX_BODY_BYTES = 10 * 1024 * 1024  # 10MB
 from gateway.domain_router import classify_domain
 from gateway.llm_client import route_model
 from gateway.prompt_loader import load_prompt
-from gateway.paths import PROJECT_ROOT, LOGS_DIR
+from gateway.context_builder import build_user_context
+from gateway.paths import PROJECT_ROOT, LOGS_DIR, validate_dirs
 
 LITELLM_BASE = "http://localhost:8001"
-LITELLM_KEY = "kitty-local-key-change-me"
+LITELLM_KEY = os.environ.get("LITELLM_API_KEY", "kitty-local-key-change-me")
 LOG_FILE = LOGS_DIR / "gateway_trace.jsonl"
+
+validate_dirs()
 
 app = FastAPI(title="Kitty Gateway")
 logger = logging.getLogger("kitty.gateway")
 logging.basicConfig(level=logging.INFO)
 
+
+def _validate_env() -> None:
+    """Warn on missing or unsafe default environment configuration."""
+    required = ("OPENROUTER_API_KEY", "GATEWAY_SECRET")
+    for key in required:
+        value = os.environ.get(key, "").strip()
+        if not value:
+            logger.warning("Missing required env var: %s", key)
+
+    defaults = {
+        "LITELLM_API_KEY": "kitty-local-key-change-me",
+        "GATEWAY_SECRET": "kitty-local-key-change-me",
+    }
+    for key, default in defaults.items():
+        value = os.environ.get(key, "").strip()
+        if value and value == default:
+            logger.warning("Unsafe default value detected for %s", key)
+
+
+_validate_env()
+
 from gateway.auth import BearerAuthMiddleware
 app.add_middleware(BearerAuthMiddleware)
+_webui_origin = os.environ.get("KITTY_WEBUI_ORIGIN")
+allow_origins = [o for o in [
+    "http://localhost:3000",
+    "http://localhost:8000",
+    _webui_origin,
+] if o]  # filter None
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 _http_client: httpx.AsyncClient | None = None
 
 
 class AskRequest(BaseModel):
-    message: str
+    message: str = Field(..., min_length=1, max_length=32000)
+
+
+class TroubleshootRequest(BaseModel):
+    device: str = Field(..., min_length=1, max_length=1000)
+    symptom: str = Field(..., min_length=1, max_length=1000)
+
+
+class LearnRequest(BaseModel):
+    topic: str = Field(..., min_length=1, max_length=1000)
+
+
+class TasksSyncRequest(BaseModel):
+    action: str = Field(..., min_length=1, max_length=1000)
+
+
+class DeepResearchRequest(BaseModel):
+    topic: str = Field(..., min_length=1, max_length=1000)
 
 
 async def get_http_client() -> httpx.AsyncClient:
@@ -59,6 +115,18 @@ async def shutdown():
     global _http_client
     if _http_client and not _http_client.is_closed:
         await _http_client.aclose()
+
+
+@app.middleware("http")
+async def enforce_max_body_size(request: Request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > MAX_BODY_BYTES:
+                return Response(status_code=413, content="Request body too large")
+        except ValueError:
+            return Response(status_code=400, content="Invalid content-length")
+    return await call_next(request)
 
 
 @app.get("/health")
@@ -125,24 +193,9 @@ async def ask(payload: AskRequest):
         raise HTTPException(status_code=400, detail="message is required")
 
     domain = classify_domain(message)
-    system_prompt = load_prompt(domain)
-
-    memory_context = ""
-    knowledge_context = ""
-    try:
-        from gateway.memory import get_context_block
-        memory_context = get_context_block(message, limit=5)
-    except Exception:
-        pass
-    try:
-        from gateway.knowledge import get_knowledge_block
-        knowledge_context = get_knowledge_block(message, limit=3)
-    except Exception:
-        pass
-
-    extra = "\n\n".join(filter(None, [memory_context, knowledge_context]))
-    if extra:
-        system_prompt = system_prompt + "\n\n" + extra
+    domain_prompt = load_prompt(domain)
+    cached_prefix, dynamic_suffix = await build_user_context(message, domain)
+    system_prompt = "\n\n".join(part for part in [domain_prompt, cached_prefix, dynamic_suffix] if part)
 
     model = "kitty-private" if domain == "health" else route_model(message)
     llm_payload = {
@@ -172,15 +225,16 @@ async def nightly_reset():
 
 
 @app.post("/troubleshoot")
-async def troubleshoot(device: str, symptom: str):
+async def troubleshoot(payload: TroubleshootRequest):
     from gateway.troubleshooter import initiate_troubleshooting
-    return {"response": initiate_troubleshooting(device, symptom)}
+    return {"response": initiate_troubleshooting(payload.device, payload.symptom)}
 
 
 @app.post("/learn")
-async def learn(topic: str):
+@limiter.limit("10/minute")
+async def learn(request: Request, payload: LearnRequest):
     from gateway.learning import generate_micro_lesson
-    return {"lesson": generate_micro_lesson(topic)}
+    return {"lesson": generate_micro_lesson(payload.topic)}
 
 
 @app.post("/inventory/photo")
@@ -198,17 +252,18 @@ async def inventory_photo(file: UploadFile = File(...)):
 
 
 @app.post("/tasks/sync")
-async def tasks_sync(action: str):
+async def tasks_sync(payload: TasksSyncRequest):
     from gateway.tasks import sync_next_action
-    success = sync_next_action(action)
+    success = sync_next_action(payload.action)
     return {"success": success}
 
 
 @app.post("/research/deep")
-async def deep_research(topic: str):
+@limiter.limit("10/minute")
+async def deep_research(request: Request, payload: DeepResearchRequest):
     from gateway.researcher import deep_dive
     # Deep dive performs ingestion automatically
-    result = await asyncio.to_thread(deep_dive, topic)
+    result = await asyncio.to_thread(deep_dive, payload.topic)
     return {"result": result}
 
 
@@ -273,40 +328,26 @@ async def chat_completions(request: Request):
     correlation_id = str(uuid.uuid4())[:8]
     t_start = time.monotonic()
 
+    from gateway.context_builder import build_user_context
     domain = classify_domain(user_text)
-    system_prompt = load_prompt(domain)
     if domain == "health":
         model = "kitty-private"
     else:
         model = route_model(user_text)
-
-    memory_context = ""
-    knowledge_context = ""
-
-    async def _fetch_memory():
-        nonlocal memory_context
-        try:
-            from gateway.memory import get_context_block
-            memory_context = get_context_block(user_text, limit=5)
-        except Exception:
-            pass
-
-    async def _fetch_knowledge():
-        nonlocal knowledge_context
-        try:
-            from gateway.knowledge import get_knowledge_block
-            knowledge_context = get_knowledge_block(user_text, limit=3)
-        except Exception:
-            pass
-
-    await asyncio.gather(_fetch_memory(), _fetch_knowledge())
-
-    extra = "\n\n".join(filter(None, [memory_context, knowledge_context]))
-    if extra:
-        system_prompt = system_prompt + "\n\n" + extra
+        
+    cached_prefix, dynamic_suffix = await build_user_context(user_text, domain)
+    
+    if "claude" in model.lower():
+        sys_msgs = [
+            {"role": "system", "content": cached_prefix, "cache_control": {"type": "ephemeral"}},
+            {"role": "system", "content": dynamic_suffix}
+        ] if dynamic_suffix else [{"role": "system", "content": cached_prefix}]
+    else:
+        system_prompt = "\n\n".join(part for part in [cached_prefix, dynamic_suffix] if part)
+        sys_msgs = [{"role": "system", "content": system_prompt}]
 
     enriched = [m for m in messages if m.get("role") != "system"]
-    enriched = [{"role": "system", "content": system_prompt}] + enriched
+    enriched = sys_msgs + enriched
 
     payload = {**body, "messages": enriched, "model": model, "stream": stream}
 
@@ -357,31 +398,3 @@ def _log_trace(correlation_id: str, user_text: str, domain: str, model: str, t_s
     }
     with LOG_FILE.open("a") as f:
         f.write(json.dumps(entry) + "\n")
-
-
-@app.post("/sessions/close")
-async def close_session(request: Request):
-    """End a chat session — consolidate short-term memory to long-term."""
-    body = await request.json()
-    messages = body.get("messages", [])
-    session_id = body.get("session_id", "")
-
-    from gateway.memory import consolidate_session
-    consolidate_session(session_id, messages)
-
-    return {"status": "ok", "session_id": session_id}
-
-
-@app.get("/memories")
-async def list_memories(namespace: Optional[str] = None, limit: int = 50):
-    """List stored memories. Optional namespace filter: facts|patterns."""
-    from gateway.memory import list_memories
-    return {"memories": list_memories(namespace=namespace, limit=limit)}
-
-
-@app.delete("/memories/{memory_id}")
-async def delete_memory(memory_id: str):
-    """Delete a specific memory by ID."""
-    from gateway.memory import delete_memory
-    success = delete_memory(memory_id)
-    return {"deleted": success, "memory_id": memory_id}

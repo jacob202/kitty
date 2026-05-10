@@ -27,15 +27,10 @@ def generate_micro_lesson(topic: str) -> str:
 
     context = "\n\n".join([c["text"] for c in textbook_chunks[:3]])
 
-    from gateway.paths import PROMPTS_DIR
+    from gateway.context_builder import build_worker_context
     api_key = os.environ.get("OPENROUTER_API_KEY")
-    soul_path = PROMPTS_DIR / "soul_v1.md"
-    soul_context = soul_path.read_text() if soul_path.exists() else ""
 
-    prompt = f"""{soul_context}
-
-CONTEXT:
-Jacob wants to learn about: "{topic}".
+    task_desc = f"""Jacob wants to learn about: "{topic}".
 Here is the core material extracted from our ingested textbooks:
 {context}
 
@@ -49,6 +44,8 @@ Structure the response:
 3. **The 10-Minute Proof**: Give him ONE physical or mental action to prove he understands it right now. (e.g., "Go look at the schematic for the AU-7900 and find...")
 
 Keep it punchy. No filler."""
+
+    prompt = build_worker_context("learning", task_desc=task_desc)
 
     try:
         resp = requests.post(

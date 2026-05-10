@@ -31,6 +31,11 @@ DOMAIN_KEYWORDS = {
 }
 
 
+HEALTH_MULTIPLIERS = {
+    "blood", "symptom", "medication", "diagnosis", "pain", 
+    "doctor", "nurse", "hospital", "prescription"
+}
+
 @lru_cache(maxsize=256)
 def classify_domain(user_message: str) -> str:
     """Return soul|repair|health|research|code. Defaults to soul."""
@@ -39,6 +44,14 @@ def classify_domain(user_message: str) -> str:
     for domain, keywords in DOMAIN_KEYWORDS.items():
         for kw in keywords:
             if kw in text:
-                scores[domain] += 1
-    best = max(scores, key=scores.get)
-    return best if scores[best] > 0 else "soul"
+                multiplier = 3 if domain == "health" and kw in HEALTH_MULTIPLIERS else 1
+                scores[domain] += multiplier
+                
+    max_score = max(scores.values())
+    if max_score == 0:
+        return "soul"
+        
+    best_domains = [d for d, s in scores.items() if s == max_score]
+    if "health" in best_domains:
+        return "health"
+    return best_domains[0]
