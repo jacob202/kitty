@@ -233,3 +233,12 @@ The mission: "So that no one becomes themselves alone." The first person who mus
 **Next:** 1) Proceed to Phase 17 Soul rewrite (`config/SOUL.md`). 2) Implement Internal Parts System (Skeptic, Champion, Pragmatist). 3) Begin Journal System feature integration.
 
 **Learning:** Concurrent file replacements using LLM-agent tooling can race-condition each other; always sequence edits or combine replacements for the same file in a single turn.
+
+**Last agent:** Codex, 2026-05-10.
+**Shipped:** Final merge reconciliation + closeout artifacts.
+- Stabilized `tests/test_llm_routing.py` to current router outputs and explicit offline behavior.
+- Updated `gateway/knowledge.py` visual analyzer env loading.
+- Verified focused gateway bundles: context/domain/ask/auth/validation + knowledge tests.
+- Updated continuity docs: `SESSION_SUMMARY.md`, `docs/SESSION_LOG.md`, and dated handoff.
+**Proof:** `34 passed` (gateway integration bundle) and `15 passed` (knowledge tests).
+**Next:** 1) Decide whether to migrate `@app.on_event("shutdown")` to FastAPI lifespan API. 2) Start Phase 18 implementation (SOUL rewrite + parts/journal scaffolding). 3) Run `bash scripts/run_gates.sh` before broad feature edits.

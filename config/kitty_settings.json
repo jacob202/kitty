@@ -6,7 +6,7 @@
       "impact": "Prevents 'cut off' responses on huge deep-dives."
     },
     "chat_history_profiling": {
-      "enabled": false,
+      "enabled": true,
       "description": "Learn from conversation patterns for personalization",
       "impact": "Kitty will automatically adapt her persona to your preferences over time."
     },

@@ -42,5 +42,9 @@
   "architect": {
     "description": "Architecture decision record",
     "prompt": "Create an architecture decision record. Cover: problem, options considered, decision, and consequences.\n\n{text}"
+  },
+  "canadian-check": {
+    "description": "Translate concepts to Canadian context",
+    "prompt": "Rewrite this explanation or advice using strict Canadian context. Convert temperatures to Celsius, distances to kilometres, and use analogies involving Canadian Tire, winter driving, or hockey if applicable. Keep it dry and practical.\n\n{text}"
   }
 }

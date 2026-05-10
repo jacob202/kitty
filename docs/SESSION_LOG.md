@@ -224,5 +224,22 @@ Format:
 ## Chronicle Entry — 2026-05-07 20:03
 **Context:** No LLM API key configured for web chat. Set OPENROUTER_API_KEY or ANTHROPIC_API_KEY.
 
+---
+
+## 2026-05-10 — Gateway merge reconciliation + session closeout
+
+**Done:**
+- Verified integrated gateway merge lane (context builder + auth/env + validation + rate limit) on current `main`.
+- Fixed `tests/test_llm_routing.py` drift so tests align with current router model IDs and explicitly test offline routing.
+- Updated `gateway/knowledge.py` visual analyzer to load env before API-key lookup.
+- Ran focused integration test bundles and knowledge tests successfully.
+- Updated continuity artifacts (`SESSION_SUMMARY.md`, `docs/STANDUP.md`, dated handoff file).
+
+**Open:**
+- Lifespan deprecation warnings remain in FastAPI shutdown hook (`@app.on_event("shutdown")`).
+
+**Corrections:**
+- Resolved repeated false failures from routing tests caused by stale alias expectations (`kitty-default`/`kitty-agent`/`kitty-smart`) and unmocked offline behavior.
+
 ## Chronicle Entry — 2026-05-07 20:03
 **Context:** No LLM API key configured for web chat. Set OPENROUTER_API_KEY or ANTHROPIC_API_KEY.

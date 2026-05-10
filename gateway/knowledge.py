@@ -133,21 +133,35 @@ def _embed_cached(text: str) -> tuple[float, ...]:
     return tuple(result)
 
 
-def _analyze_image_with_claude(base64_image: str, prompt: str) -> str:
-    """Send an image to Claude 3.5 Sonnet for visual analysis."""
+def _call_openrouter(payload: dict, timeout: int = 60) -> str:
+    """Centralized helper for OpenRouter API calls with resilient auth loading."""
     import requests
+    from dotenv import load_dotenv
+    load_dotenv()
+    
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
-        logger.warning("No OPENROUTER_API_KEY found. Skipping visual analysis.")
+        logger.warning("No OPENROUTER_API_KEY found for OpenRouter call.")
         return ""
 
     headers = {
         "Authorization": f"Bearer {api_key}",
         "HTTP-Referer": "https://github.com/jacobbrizinski/kitty",
-        "X-Title": "Kitty Hardware Analysis",
+        "X-Title": "Kitty Knowledge Gateway",
         "Content-Type": "application/json",
     }
     
+    try:
+        resp = requests.post(f"{OPENROUTER_BASE}/chat/completions", headers=headers, json=payload, timeout=timeout)
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"]
+    except Exception as e:
+        logger.error("OpenRouter call failed: %s", e)
+        return ""
+
+
+def _analyze_image_with_claude(base64_image: str, prompt: str) -> str:
+    """Send an image to Claude 3.7 Sonnet for visual analysis."""
     payload = {
         "model": "anthropic/claude-3.7-sonnet",
         "messages": [
@@ -163,14 +177,7 @@ def _analyze_image_with_claude(base64_image: str, prompt: str) -> str:
             }
         ],
     }
-    
-    try:
-        resp = requests.post(f"{OPENROUTER_BASE}/chat/completions", headers=headers, json=payload, timeout=60)
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"]
-    except Exception as e:
-        logger.error("Claude visual analysis failed: %s", e)
-        return ""
+    return _call_openrouter(payload, timeout=60)
 
 
 def _extract_visual_descriptions(path: Path) -> list[dict]:
@@ -295,11 +302,6 @@ def is_high_quality(text: str) -> bool:
 
 def generate_source_summary(source_name: str, text_preview: str, doc_type: str) -> str:
     """Use an LLM to generate a high-level summary of a source during ingestion."""
-    import requests
-    api_key = os.environ.get("OPENROUTER_API_KEY")
-    if not api_key:
-        return f"A {doc_type} titled {source_name}."
-
     prompt = f"""Summarize this source for a personal knowledge base.
     
     SOURCE NAME: {source_name}
@@ -313,27 +315,15 @@ def generate_source_summary(source_name: str, text_preview: str, doc_type: str) 
     
     Rules: Be concise. No fluff. Focus on utility."""
 
-    try:
-        resp = requests.post(
-            f"{OPENROUTER_BASE}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "HTTP-Referer": "https://github.com/jacobbrizinski/kitty",
-                "X-Title": "Kitty Source Summary",
-            },
-            json={
-                "model": "google/gemini-2.0-flash-exp:free" if not api_key else "deepseek/deepseek-chat",
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 200,
-                "temperature": 0.3,
-            },
-            timeout=20,
-        )
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"].strip()
-    except Exception as e:
-        logger.warning("Source summary generation failed: %s", e)
-        return f"A {doc_type} document containing technical information."
+    payload = {
+        "model": "anthropic/claude-3.7-sonnet",
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 200,
+        "temperature": 0.3,
+    }
+    
+    summary = _call_openrouter(payload, timeout=30)
+    return summary if summary else f"A {doc_type} titled {source_name}."
 
 
 def ingest_file(

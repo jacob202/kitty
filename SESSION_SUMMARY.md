@@ -2,7 +2,32 @@
 
 > **For recent session continuity only. For full task tracking, see TASKS.md.**
 
-Last updated: 2026-05-09
+Last updated: 2026-05-10
+
+## 2026-05-10 Gateway Merge + Closeout
+
+### What Was Completed
+
+- Reconciled the Phase 17 gateway merge state and verified the integrated routing/context/auth/validation lane.
+- Confirmed merged checkpoint exists in history (`64436ae`) and validated focused integration tests.
+- Added env loading inside visual analysis path for `gateway/knowledge.py` so OpenRouter key lookup is resilient during image analysis.
+- Stabilized routing unit tests to match current router behavior and avoid connectivity flake:
+  - expectations now assert real model IDs
+  - offline branch is explicitly tested via `_is_offline` patching
+
+### Verification Evidence
+
+- `KITTY_ENV=test /opt/homebrew/bin/python3.12 -m pytest tests/test_context_builder.py tests/test_domain_router.py tests/test_ask_endpoint.py tests/test_auth.py tests/test_app_input_validation.py -q --tb=short`
+  - result: `34 passed`
+- `/opt/homebrew/bin/python3.12 -m py_compile gateway/knowledge.py`
+  - result: pass
+- `KITTY_ENV=test /opt/homebrew/bin/python3.12 -m pytest tests/test_knowledge.py -q --tb=short`
+  - result: `15 passed, 1 deselected`
+
+### Continuity Outcome
+
+- Merge is stable on the gateway lane with deterministic routing tests and green focused verification.
+- Remaining work should proceed from current `main` without reopening the prior context-builder merge conflict loop.
 
 ## 2026-05-09 Browser-Gated Eval Loop
 
