@@ -7,6 +7,8 @@ from gateway.context_builder import (
     MEMORY_TOKEN_CAP,
     KNOWLEDGE_TOKEN_CAP,
     MEMORY_SIMILARITY_THRESHOLD,
+    MEMORY_LIMIT,
+    KNOWLEDGE_LIMIT,
     _build_dynamic,
     _truncate,
     assemble_system_prompt,
@@ -67,6 +69,8 @@ def test_constants_exist_and_sane():
     assert 0 < MEMORY_SIMILARITY_THRESHOLD <= 1.0
     assert MEMORY_TOKEN_CAP > 0
     assert KNOWLEDGE_TOKEN_CAP > 0
+    assert MEMORY_LIMIT > 0
+    assert KNOWLEDGE_LIMIT > 0
 
 
 # ---------------------------------------------------------------------------

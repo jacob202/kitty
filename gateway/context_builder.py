@@ -24,7 +24,6 @@ logger = logging.getLogger("kitty.context_builder")
 MEMORY_SIMILARITY_THRESHOLD: float = 0.7
 MEMORY_TOKEN_CAP: int = 500
 KNOWLEDGE_TOKEN_CAP: int = 700
-SOUL_TOKEN_CAP: int = 300
 
 MEMORY_LIMIT: int = 5
 KNOWLEDGE_LIMIT: int = 3

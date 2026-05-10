@@ -1,5 +1,7 @@
 """Tests for the journal interviewer and prompt generator."""
+import json
 import pytest
+from pathlib import Path
 from gateway.journal import (
     INTERVIEW_SYSTEM_PROMPT,
     SYNTHESIS_PROMPT,
@@ -9,6 +11,7 @@ from gateway.journal import (
     get_opener,
     get_random_prompt,
     is_journal_trigger,
+    save_journal_entry,
 )
 
 
@@ -89,3 +92,33 @@ def test_is_journal_trigger_ignores_unrelated():
     assert not is_journal_trigger("what's the weather")
     assert not is_journal_trigger("help me debug this code")
     assert not is_journal_trigger("order a pizza")
+
+
+def test_save_journal_entry_writes_to_file(tmp_path, monkeypatch):
+    import gateway.journal as jmod
+    monkeypatch.setattr(jmod, "JOURNAL_LOG", tmp_path / "journal_entries.jsonl")
+    record = save_journal_entry("Today was good.", theme="mood")
+    assert record["entry"] == "Today was good."
+    assert record["theme"] == "mood"
+    assert "ts" in record
+    lines = (tmp_path / "journal_entries.jsonl").read_text().strip().splitlines()
+    assert len(lines) == 1
+    saved = json.loads(lines[0])
+    assert saved["entry"] == "Today was good."
+
+
+def test_save_journal_entry_appends():
+    from gateway.paths import DATA_DIR
+    import gateway.journal as jmod
+    import tempfile, os
+    tmp = Path(tempfile.mktemp(suffix=".jsonl"))
+    original = jmod.JOURNAL_LOG
+    jmod.JOURNAL_LOG = tmp
+    try:
+        save_journal_entry("Entry one.")
+        save_journal_entry("Entry two.")
+        lines = tmp.read_text().strip().splitlines()
+        assert len(lines) == 2
+    finally:
+        jmod.JOURNAL_LOG = original
+        tmp.unlink(missing_ok=True)

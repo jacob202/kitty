@@ -93,6 +93,10 @@ async def ask(payload: AskRequest):
     _, dynamic_context = await build_user_context(message, system_prompt)
     system_prompt = assemble_system_prompt(system_prompt, dynamic_context)
 
+    from gateway.journal import is_journal_trigger, build_interview_system_prompt
+    if is_journal_trigger(message):
+        system_prompt = build_interview_system_prompt(system_prompt)
+
     from gateway.parts import build_parts_system_prompt, should_surface_parts
     if payload.parts_mode or should_surface_parts(message):
         system_prompt = build_parts_system_prompt(system_prompt)
@@ -145,8 +149,9 @@ async def journal_synthesize(request: Request):
     if not messages:
         raise HTTPException(status_code=400, detail="messages required")
 
-    from gateway.journal import build_synthesis_prompt
+    from gateway.journal import build_synthesis_prompt, save_journal_entry
     synthesis_system = build_synthesis_prompt()
+    theme = body.get("theme")
 
     model = route_model("")
     payload = {
@@ -161,6 +166,8 @@ async def journal_synthesize(request: Request):
         msg = choices[0].get("message", {})
         if isinstance(msg, dict):
             entry = msg.get("content", "")
+    if entry:
+        save_journal_entry(entry, theme=theme)
     return {"entry": entry}
 
 

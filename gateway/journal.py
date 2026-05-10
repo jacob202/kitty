@@ -6,8 +6,23 @@ Two modes:
 """
 from __future__ import annotations
 
+import json
 import random
+import time
+from pathlib import Path
 from typing import Optional
+
+from gateway.paths import DATA_DIR
+
+JOURNAL_LOG = DATA_DIR / "journal_entries.jsonl"
+
+
+def save_journal_entry(entry: str, theme: str | None = None) -> dict:
+    record = {"ts": time.time(), "theme": theme, "entry": entry}
+    JOURNAL_LOG.parent.mkdir(parents=True, exist_ok=True)
+    with JOURNAL_LOG.open("a") as f:
+        f.write(json.dumps(record) + "\n")
+    return record
 
 THEMES = ["recovery", "work", "mood", "relationships", "body", "creative", "reflection"]
 

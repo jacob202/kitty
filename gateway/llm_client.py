@@ -98,7 +98,10 @@ _BEST_TRIGGERS = frozenset(
     }
 )
 
-_DEFAULT_MODEL = "qwen/qwen3-235b-a22b-2507"
+# This ID routes through OpenRouter directly (Python backend).
+# litellm_config.yaml uses openrouter/qwen/qwen3-235b-a22b:free for the same model
+# via the LiteLLM proxy — different prefix format, same underlying model.
+_DEFAULT_MODEL = "qwen/qwen3-235b-a22b:free"
 _REASONING_MODEL = "deepseek/deepseek-r1-0528"
 _BEST_MODEL = "claude-sonnet-4-6"
 _LOCAL_MODEL = "mlx-local"
