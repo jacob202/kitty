@@ -5,7 +5,6 @@ import logging
 import os
 import time
 import uuid
-from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -22,7 +21,8 @@ from gateway.prompt_loader import load_prompt
 
 LITELLM_BASE = "http://localhost:8001"
 LITELLM_KEY = "kitty-local-key-change-me"
-LOG_FILE = Path("/Users/jacobbrizinski/Projects/kitty/logs/gateway_trace.jsonl")
+
+from gateway.paths import LOG_FILE, validate_dirs
 
 app = FastAPI(title="Kitty Gateway")
 logger = logging.getLogger("kitty.gateway")
@@ -52,6 +52,11 @@ async def get_http_client() -> httpx.AsyncClient:
     if _http_client is None or _http_client.is_closed:
         _http_client = httpx.AsyncClient(timeout=60, limits=httpx.Limits(max_connections=100))
     return _http_client
+
+
+@app.on_event("startup")
+async def startup():
+    validate_dirs()
 
 
 @app.on_event("shutdown")
