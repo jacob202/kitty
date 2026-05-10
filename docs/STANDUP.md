@@ -216,20 +216,19 @@ The mission: "So that no one becomes themselves alone." The first person who mus
 ---
 ## Handoff _(fill at session end only — rules in §9)_
 
-**Last agent:** Gemini CLI, 2026-05-08.
+**Last agent:** Claude / Gemini CLI, 2026-05-10.
 
-**Shipped:** Engine Stabilization & Passive Chronicle:
-- Fixed `PROJECT_ROOT` / symlink bug in `kitty_builder.py`. ✅
-- Added dimmed Thinking tokens to `stream_openrouter`. ✅
-- Purged 400+ hidden `Icon` files; added auto-purge to `verify_setup.sh`. ✅
-- Implemented **Passive Chronicle** (auto-save vision to log on exit). ✅
-- Hardened parser for JSON/XML tool calls + Batch execution enabled. ✅
-- Fixed `scripts/overnight_retry.py` environment key loading for evaluation. ✅
+**Shipped:** Phase 18 Soul, Parts, Self-Review & Journal (T17-T20):
+- Rewrote `config/SOUL.md` as behavioral system prompt and created `config/SOUL_SCRATCHPAD.md`. ✅
+- Implemented Internal Parts System (Skeptic, Champion, Pragmatist, Observer) in `gateway/parts.py` with external toggles. ✅
+- Added Self-Review tracking (`gateway/self_review.py`) for Kitty drift, reaction quality, and session arc to feed the scratchpad. ✅
+- Implemented Journal Interviewer mode (`gateway/journal.py`). ✅
+- Fixed model routing bugs and OpenWebUI config misalignment. ✅
 
-**Proof:** The autonomous loop successfully created files, wrote tests, and ran project gates (`math_helper` stress test).
+**Proof:** Pre-commit tests successfully ran (101 tests passed) during the last commit on `feature/phase-17`.
 
-**Dirty:** `src/utils/math_helper.py` and `tests/test_math_helper.py` remain as test artifacts.
+**Dirty:** Clean. All work is committed to `feature/phase-17`.
 
-**Next:** 1) Verify the final `overnight_retry.py` grading step works. 2) Clean up the `math_helper` test files. 3) Begin Phase 1.1 Autonomy implementation.
+**Next:** 1) Merge `feature/phase-17` into `main` and resolve any merge conflicts. 2) Implement Journal Editor routing + prompt generator (T21). 3) Proceed with Codebase Cleanup (Legacy archive).
 
-**Learning:** Manual parsing of `.env` files strips quotes incorrectly or misses `export` prefixes, causing downstream `WebLLMClient` to fail authentication checks. Always use `dotenv`.
+**Learning:** Git worktrees isolate state completely. If multiple agents are running concurrently (e.g. Gemini in root, Claude in a worktree), check `git worktree list` and branch logs carefully before assuming tasks are incomplete or duplicated.

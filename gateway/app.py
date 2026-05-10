@@ -133,6 +133,50 @@ async def ask(payload: AskRequest):
     return {"reply": reply}
 
 
+@app.get("/journal/prompt")
+async def journal_prompt(theme: Optional[str] = None):
+    """Return a random journal writing prompt. Optional ?theme= filter."""
+    from gateway.journal import get_random_prompt
+    return get_random_prompt(theme)
+
+
+@app.post("/journal/start")
+async def journal_start(theme: Optional[str] = None):
+    """Begin a journal interview session. Returns Kitty's opening question."""
+    from gateway.journal import get_opener, build_interview_system_prompt
+    from gateway.prompt_loader import load_prompt
+    opener = get_opener(theme)
+    system_prompt = build_interview_system_prompt(load_prompt("general"), theme)
+    return {"opener": opener, "system_prompt": system_prompt, "theme": theme}
+
+
+@app.post("/journal/synthesize")
+async def journal_synthesize(request: Request):
+    """Synthesize a completed journal interview into a first-person entry."""
+    body = await request.json()
+    messages = body.get("messages", [])
+    if not messages:
+        raise HTTPException(status_code=400, detail="messages required")
+
+    from gateway.journal import build_synthesis_prompt
+    synthesis_system = build_synthesis_prompt()
+
+    model = route_model("")
+    payload = {
+        "model": model,
+        "stream": False,
+        "messages": [{"role": "system", "content": synthesis_system}] + messages,
+    }
+    data = await _non_stream_response(payload)
+    choices = data.get("choices", []) if isinstance(data, dict) else []
+    entry = ""
+    if choices and isinstance(choices[0], dict):
+        msg = choices[0].get("message", {})
+        if isinstance(msg, dict):
+            entry = msg.get("content", "")
+    return {"entry": entry}
+
+
 @app.get("/reset")
 async def nightly_reset():
     from gateway.reset import send_nightly_reset
