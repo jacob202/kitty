@@ -3,147 +3,195 @@
 @tailwind utilities;
 
 :root {
-  /* Warm dark — from v2 design tokens */
-  --bg-color: #1A1614;
-  --panel-bg: #241E1A;
-  --border-color: #3D3028;
+  /* Warm dark — Premium Hardware UI */
+  --bg-color: #12100E;
+  --panel-bg: rgba(26, 22, 20, 0.65);
+  --border-color: rgba(61, 48, 40, 0.4);
   --accent-color: #E8743C;
-  --accent-hover: #D4622A;
-  --accent-light: rgba(232, 116, 60, 0.12);
-  --text-main: #F5EFE8;
-  --dim-text: #9C8A7E;
+  --accent-hover: #F28C5A;
+  --accent-light: rgba(232, 116, 60, 0.15);
+  --text-main: #FDFBF9;
+  --dim-text: #A6968C;
+  --text-muted: #6B5B52;
+  --error-color: #FF453A;
+  --success-color: #30D158;
   --mascot-filter: none;
   --mode-indicator: "HARDWARE";
 
   /* Grid */
-  --sidebar-width: 240px;
+  --sidebar-width: 260px;
   --inspector-width: 320px;
 
   /* Density Defaults */
   --font-size-base: 14px;
   --font-size-small: 12px;
   --padding-base: 1rem;
-  --bubble-padding: 0.75rem 1rem;
+  --bubble-padding: 0.875rem 1.25rem;
   --item-gap: 1rem;
 
   /* Radii + shadow */
-  --radius: 8px;
-  --radius-lg: 14px;
-  --shadow: 0 1px 3px rgba(0,0,0,0.3);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  --radius: 12px;
+  --radius-lg: 20px;
+  --shadow: 0 4px 24px -4px rgba(0,0,0,0.5);
+  --shadow-md: 0 8px 32px -8px rgba(0,0,0,0.6);
 }
 
 /* Compact Density Overrides */
 [data-density="compact"] {
   --font-size-base: 13px;
   --font-size-small: 11px;
-  --padding-base: 0.5rem;
-  --bubble-padding: 0.4rem 0.75rem;
-  --item-gap: 0.5rem;
+  --padding-base: 0.625rem;
+  --bubble-padding: 0.5rem 0.875rem;
+  --item-gap: 0.625rem;
+  --radius: 8px;
+  --radius-lg: 12px;
 }
 
 /* Hardware Mode (Default - Warm Orange) */
 .theme-hardware {
+  --bg-color: #12100E;
+  --panel-bg: rgba(26, 22, 20, 0.65);
+  --border-color: rgba(61, 48, 40, 0.4);
   --accent-color: #E8743C;
-  --accent-hover: #D4622A;
-  --bg-color: #1A1614;
-  --panel-bg: #241E1A;
-  --border-color: #3D3028;
-  --text-main: #F5EFE8;
-  --dim-text: #9C8A7E;
+  --accent-hover: #F28C5A;
+  --accent-light: rgba(232, 116, 60, 0.15);
+  --text-main: #FDFBF9;
+  --dim-text: #A6968C;
+  --text-muted: #6B5B52;
   --mode-indicator: "HARDWARE";
 }
 
 /* Light Mode (Cream Palette) */
 .theme-light {
-  --bg-color: #FAF7F2;
-  --panel-bg: #FFFFFF;
-  --border-color: #E6DED4;
-  --text-main: #3D3028;
-  --dim-text: #8A7E75;
-  --accent-color: #E8743C;
-  --accent-hover: #D4622A;
-  --shadow: 0 1px 3px rgba(0,0,0,0.05);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  --bg-color: #F7F5F0;
+  --panel-bg: rgba(255, 255, 255, 0.7);
+  --border-color: rgba(230, 222, 212, 0.8);
+  --text-main: #2A2420;
+  --dim-text: #73675F;
+  --text-muted: #A6968C;
+  --accent-color: #D45B24;
+  --accent-hover: #BA4E1E;
+  --accent-light: rgba(212, 91, 36, 0.08);
+  --shadow: 0 4px 24px -4px rgba(0,0,0,0.06);
+  --shadow-md: 0 8px 32px -8px rgba(0,0,0,0.08);
   --mode-indicator: "LIGHT";
 }
 
-/* Investigative Mode (Green) */
+/* Investigative Mode (Cyber Green) */
 .theme-investigative {
-  --bg-color: #020a08;
-  --panel-bg: #051a11;
-  --border-color: #1a2e1a;
-  --accent-color: #00ff88;
-  --text-main: #e0ffe0;
-  --dim-text: #4d8866;
+  --bg-color: #050A08;
+  --panel-bg: rgba(8, 22, 16, 0.65);
+  --border-color: rgba(26, 60, 42, 0.4);
+  --accent-color: #00E676;
+  --accent-hover: #33FFA3;
+  --accent-light: rgba(0, 230, 118, 0.15);
+  --text-main: #F0FFF7;
+  --dim-text: #7DBA9B;
+  --text-muted: #3D6B52;
   --mode-indicator: "INVESTIGATIVE";
 }
 
-/* Self-Improvement Mode (Purple) */
+/* Self-Improvement Mode (Deep Amethyst) */
 .theme-self-improvement {
-  --bg-color: #0a0214;
-  --panel-bg: #1a0534;
-  --border-color: #2e1a4d;
-  --accent-color: #8338ec;
-  --text-main: #f0e0ff;
-  --dim-text: #8866cc;
+  --bg-color: #0B0512;
+  --panel-bg: rgba(18, 10, 32, 0.65);
+  --border-color: rgba(56, 30, 94, 0.4);
+  --accent-color: #9D4EDD;
+  --accent-hover: #B575EC;
+  --accent-light: rgba(157, 78, 221, 0.15);
+  --text-main: #F8F4FF;
+  --dim-text: #A68CCB;
+  --text-muted: #5B447A;
   --mode-indicator: "SELF-IMPROVEMENT";
 }
 
 /* Unhinged State Overlay */
 .theme-unhinged {
-  --bg-color: #0d0200;
-  --panel-bg: #1a0500;
-  --text-main: #ff4d00;
-  --accent-color: #ff0000;
-  --mascot-filter: drop-shadow(0 0 12px rgba(255, 0, 0, 0.9)) contrast(1.5);
+  --bg-color: #0A0000;
+  --panel-bg: rgba(20, 0, 0, 0.8);
+  --border-color: rgba(100, 0, 0, 0.5);
+  --text-main: #FF3333;
+  --accent-color: #FF0000;
+  --accent-hover: #FF4D4D;
+  --accent-light: rgba(255, 0, 0, 0.2);
+  --dim-text: #990000;
+  --mascot-filter: drop-shadow(0 0 16px rgba(255, 0, 0, 0.9)) contrast(1.8) saturate(1.2);
   position: relative;
 }
 
-/* Error State (Red) */
-.theme-error {
-  --accent-color: #ff3333;
-  --text-main: #ffcccc;
-  --panel-bg: #2a0a0a;
+/* Base Body Styles */
+html, body {
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  overscroll-behavior: none;
+  /* Smooth transition between modes */
+  transition: background-color 0.6s cubic-bezier(0.22, 1, 0.36, 1), color 0.6s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* The Scanline Overlay */
+/* Hide Next.js dev overlay on mobile */
+nextjs-portal {
+  display: none;
+}
+
+/* Premium Panel Styling with Glassmorphism */
+.panel {
+  background-color: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--shadow);
+  border-radius: var(--radius);
+  /* Inner subtle glow for depth */
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05), 0 4px 24px -4px rgba(0,0,0,0.5);
+}
+
+/* Custom Premium Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 10px;
+  border: 2px solid var(--bg-color);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--dim-text);
+}
+
+/* Fix iOS Safari viewport height */
+.h-screen-safe {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* Subtle Animated Background Grain (Hardware feels physical) */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 9998;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+/* The Scanline Overlay (Unhinged Mode) */
 .theme-unhinged::after {
   content: " ";
   display: block;
   position: fixed;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  right: 0;
-  background: linear-gradient(
-      rgba(18, 16, 16, 0) 50%, 
-      rgba(0, 0, 0, 0.25) 50%
-    ), 
-    linear-gradient(
-      90deg, 
-      rgba(255, 0, 0, 0.06), 
-      rgba(0, 255, 0, 0.02), 
-      rgba(0, 0, 255, 0.06)
-    );
+  top: 0; left: 0; bottom: 0; right: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+              linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
   z-index: 9999;
   background-size: 100% 4px, 3px 100%;
-  pointer-events: none;
-}
-
-/* The Moving Scanning Line */
-.theme-unhinged::before {
-  content: " ";
-  display: block;
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 2px;
-  background: rgba(255, 0, 0, 0.1);
-  opacity: 0.75;
-  z-index: 10000;
-  animation: scanline 6s linear infinite;
   pointer-events: none;
 }
 
@@ -152,33 +200,16 @@
   100% { top: 100%; }
 }
 
-.theme-unhinged .panel {
-  box-shadow: 0 0 15px rgba(255, 0, 0, 0.2);
-  border: 1px solid rgba(255, 0, 0, 0.5);
-  text-shadow: 2px 0px 1px rgba(0, 30, 255, 0.5), -2px 0px 1px rgba(255, 0, 80, 0.5);
-}
-
-html, body {
-  background-color: var(--bg-color);
-  color: var(--text-main);
-  /* Prevent iOS bounce scroll */
-  overscroll-behavior: none;
-}
-
-/* Fix iOS Safari viewport height (100vh includes browser chrome) */
-.h-screen-safe {
-  height: 100vh;
-  height: 100dvh;
-}
-
-/* Hide Next.js dev overlay on mobile */
-nextjs-portal {
-  display: none;
-}
-
-.panel {
-  background-color: var(--panel-bg);
-  border: 1px solid var(--border-color);
+.theme-unhinged::before {
+  content: " ";
+  display: block;
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 2px;
+  background: rgba(255, 0, 0, 0.1);
+  opacity: 0.75;
+  z-index: 10000;
+  animation: scanline 6s linear infinite;
+  pointer-events: none;
 }
 
 @keyframes glitch {
@@ -190,56 +221,46 @@ nextjs-portal {
   100% { transform: translate(0); }
 }
 
-/* Enhanced Glitch Effects */
 .unhinged-glitch {
-  animation: glitch 0.3s infinite;
+  animation: glitch 0.2s infinite;
+  text-shadow: 2px 0px 1px rgba(0, 30, 255, 0.5), -2px 0px 1px rgba(255, 0, 80, 0.5);
 }
 
 .mode-transition {
-  transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.6s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Investigative Mode Specific Effects */
-.theme-investigative .panel {
-  box-shadow: 0 0 20px rgba(0, 255, 136, 0.1);
-  border: 1px solid rgba(0, 255, 136, 0.3);
-}
-
+/* Investigative Mode Ambient Glow */
 .theme-investigative::after {
   content: "";
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: radial-gradient(circle at 50% 50%, rgba(0, 255, 136, 0.02) 0%, transparent 70%);
+  background: radial-gradient(circle at 50% 50%, rgba(0, 230, 118, 0.03) 0%, transparent 60%);
   pointer-events: none;
   z-index: 1;
 }
 
-/* Self-Improvement Mode Effects */
-.theme-self-improvement .panel {
-  box-shadow: 0 0 20px rgba(131, 56, 236, 0.1);
-  border: 1px solid rgba(131, 56, 236, 0.3);
-}
-
 /* Active Node Pulse Animation */
 @keyframes node-pulse {
-  0%, 100% { opacity: 0.6; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.05); }
+  0%, 100% { opacity: 0.7; transform: scale(1); box-shadow: 0 0 0 rgba(var(--accent-color), 0); }
+  50% { opacity: 1; transform: scale(1.02); box-shadow: 0 0 12px var(--accent-light); }
 }
 
 .active-node {
-  animation: node-pulse 2s ease-in-out infinite;
+  animation: node-pulse 2.5s ease-in-out infinite;
 }
 
 /* Thinking Bubble Animation */
 @keyframes thinking-fade {
-  0% { opacity: 0; transform: translateY(10px); }
-  100% { opacity: 1; transform: translateY(0); }
+  0% { opacity: 0; transform: translateY(8px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .thinking-bubble {
-  animation: thinking-fade 0.5s ease-out;
+  animation: thinking-fade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Reduced Motion */
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after {
     animation-delay: -1ms !important;
@@ -250,16 +271,7 @@ nextjs-portal {
     transition-duration: 0s !important;
     transition-delay: 0s !important;
   }
-  
-  .mode-transition {
-    transition: none !important;
-  }
-  
-  .theme-unhinged::before {
-    display: none !important;
-  }
-  
-  .unhinged-glitch {
-    animation: none !important;
-  }
+  .mode-transition { transition: none !important; }
+  .theme-unhinged::before { display: none !important; }
+  .unhinged-glitch { animation: none !important; text-shadow: none !important; }
 }

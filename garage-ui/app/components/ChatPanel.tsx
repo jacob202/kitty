@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useCallback } from 'react';
-import ChatInterface from './components/ChatInterface';
-import { useToast } from './components/Toast';
+import ChatInterface from './ChatInterface';
+import { useToast } from './Toast';
 
 interface ChatPanelProps {
   messages: { role: string; text: string }[];

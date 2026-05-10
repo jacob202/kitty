@@ -14,8 +14,8 @@ import CollapsiblePanel from './components/CollapsiblePanel';
 import { useDensity } from './components/DensityContext';
 import { useToast } from './components/Toast';
 import { Thought } from './components/ThinkingMonologue';
-import ChatPanel from './components/ChatPanel';
-import SettingsPanel from './components/SettingsPanel';
+import { ChatPanel } from './components/ChatPanel';
+import { SettingsPanel } from './components/SettingsPanel';
 
 const RECORDING_MIME_CANDIDATES = [
   'audio/webm;codecs=opus',
@@ -406,6 +406,8 @@ export default function GarageDashboard() {
              density={density}
              isLightMode={isLightMode}
              setIsLightMode={setIsLightMode}
+             currentMode={currentMode}
+             setCurrentMode={setCurrentMode}
            />
           {/* Mobile inspector button */}
           <button
@@ -570,18 +572,7 @@ export default function GarageDashboard() {
         }}
         currentMode={currentMode}
       />
-
-      <SettingsModal 
-        isOpen={settingsModalOpen} 
-        onClose={() => setSettingsModalOpen(false)}
-        currentMode={currentMode}
-        onModeChange={(mode) => {
-          executeCommand(`/bench ${mode}`);
-          setSettingsModalOpen(false);
-        }}
-        isLightMode={isLightMode}
-        onLightModeToggle={() => setIsLightMode(!isLightMode)}
-      />      
+      
       </ErrorBoundary>
       <style jsx>{`
         .border-color { border-color: var(--border-color); }
