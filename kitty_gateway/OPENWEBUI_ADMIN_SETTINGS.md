@@ -112,5 +112,8 @@ This maps your `kitty_gateway/openwebui.env` values to Admin panel sections so y
 - Logs:
   - `logs/kitty_gateway/doctor_checks.jsonl` (all runs)
   - `logs/kitty_gateway/doctor_alerts.log` (degraded alerts only)
+- Alert policy:
+  - default alerts on `fail > 0`
+  - set `DOCTOR_ALERT_ON_WARN=1` to alert on warnings too
 - Endpoint for UI/automation:
   - `GET /ops/doctor` (optional `?fail_on_warn=true`)

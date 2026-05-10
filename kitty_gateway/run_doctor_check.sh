@@ -23,7 +23,7 @@ fi
 tmp_json="$(mktemp)"
 printf "%s" "${json_out}" > "${tmp_json}"
 
-python3 - <<'PY' "${tmp_json}" "${CHECKS_LOG}" "${ALERT_LOG}" "${FLAG_FILE}"
+python3 - <<'PY' "${tmp_json}" "${CHECKS_LOG}" "${ALERT_LOG}" "${FLAG_FILE}" "${DOCTOR_ALERT_ON_WARN:-0}"
 import datetime as dt
 import json
 import pathlib
@@ -33,6 +33,7 @@ src = pathlib.Path(sys.argv[1])
 checks_log = pathlib.Path(sys.argv[2])
 alert_log = pathlib.Path(sys.argv[3])
 flag_file = pathlib.Path(sys.argv[4])
+alert_on_warn = str(sys.argv[5]).strip() == "1"
 
 ts = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -51,13 +52,14 @@ summary = payload.get("summary", {}) if isinstance(payload, dict) else {}
 warn = int(summary.get("warn", 0))
 fail = int(summary.get("fail", 0))
 degraded = (warn > 0) or (fail > 0)
+alert = (fail > 0) or (alert_on_warn and warn > 0)
 
 entry = {"ts": ts, "status": "degraded" if degraded else "ok", "summary": summary}
 checks_log.parent.mkdir(parents=True, exist_ok=True)
 with checks_log.open("a", encoding="utf-8") as f:
     f.write(json.dumps(entry) + "\n")
 
-if degraded:
+if alert:
     with alert_log.open("a", encoding="utf-8") as f:
         f.write(f"[{ts}] ALERT doctor degraded: warn={warn} fail={fail}\n")
     flag_file.touch(exist_ok=True)
