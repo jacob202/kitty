@@ -89,22 +89,9 @@ async def ask(payload: AskRequest):
     domain = classify_domain(message)
     system_prompt = load_prompt(domain)
 
-    memory_context = ""
-    knowledge_context = ""
-    try:
-        from gateway.memory import get_context_block
-        memory_context = get_context_block(message, limit=5)
-    except Exception:
-        pass
-    try:
-        from gateway.knowledge import get_knowledge_block
-        knowledge_context = get_knowledge_block(message, limit=3)
-    except Exception:
-        pass
-
-    extra = "\n\n".join(filter(None, [memory_context, knowledge_context]))
-    if extra:
-        system_prompt = system_prompt + "\n\n" + extra
+    from gateway.context_builder import build_user_context, assemble_system_prompt
+    _, dynamic_context = await build_user_context(message, system_prompt)
+    system_prompt = assemble_system_prompt(system_prompt, dynamic_context)
 
     from gateway.parts import build_parts_system_prompt, should_surface_parts
     if payload.parts_mode or should_surface_parts(message):
@@ -293,30 +280,9 @@ async def chat_completions(request: Request):
     else:
         model = route_model(user_text)
 
-    memory_context = ""
-    knowledge_context = ""
-
-    async def _fetch_memory():
-        nonlocal memory_context
-        try:
-            from gateway.memory import get_context_block
-            memory_context = get_context_block(user_text, limit=5)
-        except Exception:
-            pass
-
-    async def _fetch_knowledge():
-        nonlocal knowledge_context
-        try:
-            from gateway.knowledge import get_knowledge_block
-            knowledge_context = get_knowledge_block(user_text, limit=3)
-        except Exception:
-            pass
-
-    await asyncio.gather(_fetch_memory(), _fetch_knowledge())
-
-    extra = "\n\n".join(filter(None, [memory_context, knowledge_context]))
-    if extra:
-        system_prompt = system_prompt + "\n\n" + extra
+    from gateway.context_builder import build_user_context, assemble_system_prompt
+    _, dynamic_context = await build_user_context(user_text, system_prompt)
+    system_prompt = assemble_system_prompt(system_prompt, dynamic_context)
 
     enriched = [m for m in messages if m.get("role") != "system"]
     enriched = [{"role": "system", "content": system_prompt}] + enriched
@@ -383,18 +349,3 @@ async def close_session(request: Request):
     consolidate_session(session_id, messages)
 
     return {"status": "ok", "session_id": session_id}
-
-
-@app.get("/memories")
-async def list_memories(namespace: Optional[str] = None, limit: int = 50):
-    """List stored memories. Optional namespace filter: facts|patterns."""
-    from gateway.memory import list_memories
-    return {"memories": list_memories(namespace=namespace, limit=limit)}
-
-
-@app.delete("/memories/{memory_id}")
-async def delete_memory(memory_id: str):
-    """Delete a specific memory by ID."""
-    from gateway.memory import delete_memory
-    success = delete_memory(memory_id)
-    return {"deleted": success, "memory_id": memory_id}
