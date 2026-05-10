@@ -7,7 +7,7 @@ model_list:
   # because the current key is quota-limited and would make routing flaky.
   - model_name: kitty-default
     litellm_params:
-      model: openrouter/deepseek/deepseek-chat-v3-0324
+      model: openrouter/qwen/qwen3-235b-a22b:free
       api_key: os.environ/OPENROUTER_API_KEY
       max_tokens: 4096
 
