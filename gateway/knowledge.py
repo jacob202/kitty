@@ -300,30 +300,63 @@ def is_high_quality(text: str) -> bool:
     return True
 
 
-def generate_source_summary(source_name: str, text_preview: str, doc_type: str) -> str:
-    """Use an LLM to generate a high-level summary of a source during ingestion."""
-    prompt = f"""Summarize this source for a personal knowledge base.
+def generate_source_summary(source_name: str, text_preview: str, doc_type: str) -> tuple[str, bool]:
+    """Use an LLM to generate a high-level summary and decide if vision analysis is needed."""
+    prompt = f"""Analyze this source preview for a personal knowledge base.
     
     SOURCE NAME: {source_name}
     TYPE: {doc_type}
     CONTENT PREVIEW:
-    {text_preview[:2000]}
+    {text_preview[:3000]}
     
-    TASK:
+    TASK 1:
     Write a 2-3 sentence 'Source Brief' explaining what this document is, its primary purpose, and its level of authority (e.g., 'Primary Service Manual' vs 'Informal forum notes').
-    This summary will help an AI understand the context of this information in the future.
     
-    Rules: Be concise. No fluff. Focus on utility."""
+    TASK 2:
+    Does this document likely contain critical technical diagrams, schematics, engineering drawings, or complex charts that require visual analysis to be fully understood? 
+    (Engineering textbooks, service manuals, and datasheets usually DO. Novels and text-heavy books usually DO NOT).
+    
+    Respond in JSON format:
+    {{
+      "summary": "The brief summary text...",
+      "needs_vision": true/false
+    }}
+    """
 
     payload = {
         "model": "anthropic/claude-3.7-sonnet",
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 200,
-        "temperature": 0.3,
+        "response_format": {"type": "json_object"},
+        "max_tokens": 500,
+        "temperature": 0.1,
     }
     
-    summary = _call_openrouter(payload, timeout=30)
-    return summary if summary else f"A {doc_type} titled {source_name}."
+    response_text = _call_openrouter(payload, timeout=30)
+    if not response_text:
+        return f"A {doc_type} titled {source_name}.", (doc_type in ("service_manual", "textbook"))
+
+    try:
+        data = json.loads(response_text)
+        return data.get("summary", ""), data.get("needs_vision", False)
+    except Exception:
+        # Fallback to simple summary if JSON fails
+        return response_text[:300], (doc_type in ("service_manual", "textbook"))
+
+
+def _extract_pdf_pages(path: Path) -> list[tuple[int, str]]:
+    """Extract text from PDF page by page using PyMuPDF."""
+    pages = []
+    try:
+        import fitz
+        doc = fitz.open(str(path))
+        for i, page in enumerate(doc):
+            text = page.get_text()
+            if text.strip():
+                pages.append((i + 1, text))
+        doc.close()
+    except Exception as e:
+        logger.warning("PDF page extraction failed for %s: %s", path.name, e)
+    return pages
 
 
 def ingest_file(
@@ -333,69 +366,90 @@ def ingest_file(
     doc_type: Optional[str] = None,
     force_refresh: bool = False,
 ) -> int:
-    """Ingest a file into ChromaDB. Returns number of chunks stored."""
+    """Ingest a file into ChromaDB with intelligent judgment and rich metadata."""
     path = Path(file_path)
     if not path.exists():
         raise FileNotFoundError(f"File not found: {path}")
 
+    # Initial text extraction for summary
     raw_text = _extract_text(path)
-    # We allow ingestion if text is empty but it's a manual (we might get visual chunks)
-    text = preprocess_text(raw_text) if raw_text else ""
-    content_hash = _get_content_hash(text) if text else _get_content_hash(str(path))
     source = source_label or path.name
-
-    collection = _get_collection()
     
-    # 1. Redundancy Check: Check if this exact content already exists anywhere
+    # 1. Deduplication Check
+    content_hash = _get_content_hash(raw_text) if raw_text else _get_content_hash(str(path))
+    collection = _get_collection()
     existing_hash = collection.get(where={"content_hash": content_hash})
     if existing_hash["ids"] and not force_refresh:
         logger.info("Content from %s already ingested (hash match), skipping", source)
         return 0
 
-    # 2. Update Check: If hash changed but source name exists, delete old chunks first
+    # 2. Update Check
     existing_source = collection.get(where={"source": source})
     if existing_source["ids"]:
         logger.info("New content detected for %s, pruning old chunks...", source)
         delete_source_chunks(source)
 
-    resolved_type = doc_type or detect_doc_type(path, text[:1000] if text else "")
-    profile = _CHUNK_PROFILES.get(resolved_type, _CHUNK_PROFILES["general"])
+    # 3. Source Summary & Vision Judgment
+    resolved_type = doc_type or detect_doc_type(path, raw_text[:1000] if raw_text else "")
+    source_brief, needs_vision = generate_source_summary(source, raw_text[:4000], resolved_type)
     
+    profile = _CHUNK_PROFILES.get(resolved_type, _CHUNK_PROFILES["general"])
     chunks = []
     chunk_metadatas = []
     
-    # --- SOURCE BRIEF GENERATION ---
-    if text:
-        source_brief = generate_source_summary(source, text[:4000], resolved_type)
-        chunks.append(f"SOURCE BRIEF: {source_brief}")
-        chunk_metadatas.append({"chunk_index": -1, "is_visual": False, "doc_type": "source_summary"})
+    # --- SOURCE BRIEF ---
+    chunks.append(f"SOURCE BRIEF: {source_brief}")
+    chunk_metadatas.append({"chunk_index": -1, "is_visual": False, "doc_type": "source_summary"})
 
-    # 1. Text Chunks
-    if text:
-        candidate_chunks = _chunk_text(text, profile["size"], profile["overlap"])
-        for i, chunk in enumerate(candidate_chunks):
-            # Quality Gate: Filter out junk text
-            if is_high_quality(chunk):
-                chunks.append(chunk)
-                chunk_metadatas.append({"chunk_index": i, "is_visual": False})
-            else:
-                logger.debug("Skipped low-quality chunk %d from %s", i, source)
+    # 4. Content Extraction with Page Tagging
+    if path.suffix.lower() == ".pdf":
+        pages = _extract_pdf_pages(path)
+        for page_num, page_text in pages:
+            clean_text = preprocess_text(page_text)
+            if not clean_text: continue
             
-    # 2. Visual Chunks (for manuals)
-    if resolved_type == "service_manual":
+            page_chunks = _chunk_text(clean_text, profile["size"], profile["overlap"])
+            for i, chunk in enumerate(page_chunks):
+                if is_high_quality(chunk):
+                    chunks.append(chunk)
+                    chunk_metadatas.append({
+                        "chunk_index": len(chunks),
+                        "is_visual": False,
+                        "page_num": page_num
+                    })
+    else:
+        # Non-PDF files (Markdown, Text, CSV)
+        clean_text = preprocess_text(raw_text)
+        if clean_text:
+            text_chunks = _chunk_text(clean_text, profile["size"], profile["overlap"])
+            for i, chunk in enumerate(text_chunks):
+                if is_high_quality(chunk):
+                    chunks.append(chunk)
+                    chunk_metadatas.append({
+                        "chunk_index": i,
+                        "is_visual": False
+                    })
+            
+    # 5. Visual Chunks (Conditional based on judgment)
+    if needs_vision or resolved_type == "service_manual":
+        logger.info("Intelligent Vision triggered for %s (judgment: %s)", source, needs_vision)
         visual_info = _extract_visual_descriptions(path)
         for info in visual_info:
             chunks.append(info["text"])
-            chunk_metadatas.append({**info["metadata"], "chunk_index": len(chunks) + 1000})
+            chunk_metadatas.append({
+                **info["metadata"],
+                "chunk_index": len(chunks) + 1000,
+                "is_visual": True
+            })
 
     if not chunks:
         logger.warning("No high-quality content found to ingest from %s", path)
         return 0
 
+    # 6. Storage
     embeddings = _embed(chunks)
     ids = [f"{source}__chunk_{i}_{int(time.time())}" for i in range(len(chunks))]
     
-    # Gather file metadata
     try:
         stat = path.stat()
         mtime = int(stat.st_mtime)
@@ -418,8 +472,8 @@ def ingest_file(
         })
         
     collection.add(documents=chunks, embeddings=embeddings, ids=ids, metadatas=final_metadatas)
-    logger.info("Ingested %d high-quality chunks from %s (type=%s, visual=%s)", 
-                len(chunks), source, resolved_type, any(m["is_visual"] for m in chunk_metadatas))
+    logger.info("Ingested %d high-quality chunks from %s (type=%s, vision=%s)", 
+                len(chunks), source, resolved_type, any(m.get("is_visual") for m in chunk_metadatas))
     return len(chunks)
 
 
