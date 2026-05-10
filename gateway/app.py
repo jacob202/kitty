@@ -127,6 +127,9 @@ async def ask(payload: AskRequest):
         if isinstance(message_obj, dict):
             reply = message_obj.get("content", "")
 
+    from gateway.self_review import record_interaction
+    record_interaction(message, reply)
+
     return {"reply": reply}
 
 
