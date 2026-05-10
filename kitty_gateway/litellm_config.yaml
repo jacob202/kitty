@@ -26,14 +26,6 @@ model_list:
       api_key: os.environ/OPENROUTER_API_KEY
       max_tokens: 8192
 
-  # Private/sensitive: medical, financial — MLX local model, never leaves Mac
-  # Requires: mlx_lm.server --model mlx-community/Qwen3.5-4B-4bit --port 8010
-  - model_name: kitty-private
-    litellm_params:
-      model: openai/mlx-community/Qwen3.5-4B-4bit
-      api_base: http://localhost:8010/v1
-      api_key: "none"
-      max_tokens: 2048
 
   # Embeddings are wired in the ingestion phase, not through the Phase 1
   # chat proxy. Keeping embedding-only models out of model_list prevents
