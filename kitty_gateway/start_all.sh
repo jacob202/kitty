@@ -6,6 +6,7 @@ RUN_DIR="${ROOT_DIR}/kitty_gateway/.run"
 LOG_DIR="${ROOT_DIR}/logs/kitty_gateway"
 ENABLE_MLX="${ENABLE_MLX:-0}"
 ENABLE_LITELLM="${ENABLE_LITELLM:-1}"
+ENABLE_GATEWAY="${ENABLE_GATEWAY:-1}"
 ENABLE_OPENWEBUI="${ENABLE_OPENWEBUI:-1}"
 ENABLE_JUPYTER="${ENABLE_JUPYTER:-1}"
 ENABLE_OPEN_TERMINAL="${ENABLE_OPEN_TERMINAL:-1}"
@@ -13,6 +14,8 @@ ENABLE_COMMUNITY_TOOL_SERVERS="${ENABLE_COMMUNITY_TOOL_SERVERS:-1}"
 ENABLE_CLOUDFLARE_HTTPS="${ENABLE_CLOUDFLARE_HTTPS:-0}"
 AUTO_SYNC_OPENWEBUI_INTEGRATIONS="${AUTO_SYNC_OPENWEBUI_INTEGRATIONS:-1}"
 AUTO_IMPORT_OPENWEBUI_FUNCTIONS="${AUTO_IMPORT_OPENWEBUI_FUNCTIONS:-1}"
+ASSERT_BASELINE_ON_BOOT="${ASSERT_BASELINE_ON_BOOT:-1}"
+ASSERT_FAIL_ON_WARN="${ASSERT_FAIL_ON_WARN:-0}"
 START_ALL_SMOKE="${START_ALL_SMOKE:-0}"
 
 mkdir -p "${RUN_DIR}" "${LOG_DIR}"
@@ -36,6 +39,7 @@ service_pattern() {
   case "${name}" in
     mlx) echo "mlx_lm.server" ;;
     litellm) echo "venv-litellm/bin/litellm --config kitty_gateway/litellm_config.yaml" ;;
+    gateway) echo "venv/bin/uvicorn gateway.app:app --host 127.0.0.1 --port 8000" ;;
     openwebui) echo "venv/bin/open-webui serve" ;;
     jupyter) echo "venv/bin/jupyter.*lab.*--ip=127.0.0.1.*--port=8888" ;;
     cloudflare) echo "cloudflared tunnel" ;;
@@ -87,15 +91,16 @@ wait_http() {
   local auth_header="${3:-}"
   local retries="${4:-30}"
   local delay="${5:-1}"
+  local max_time="${6:-2}"
   local i
 
   for ((i=1; i<=retries; i++)); do
     if [[ -n "${auth_header}" ]]; then
-      if curl -fsS --max-time 2 -H "${auth_header}" "${url}" >/dev/null 2>&1; then
+      if curl -fsS --max-time "${max_time}" -H "${auth_header}" "${url}" >/dev/null 2>&1; then
         echo "${name}: healthy (${url})"
         return 0
       fi
-    elif curl -fsS --max-time 2 "${url}" >/dev/null 2>&1; then
+    elif curl -fsS --max-time "${max_time}" "${url}" >/dev/null 2>&1; then
       echo "${name}: healthy (${url})"
       return 0
     fi
@@ -113,6 +118,7 @@ fi
 if [[ "${START_ALL_SMOKE}" == "1" ]]; then
   [[ "${ENABLE_MLX}" == "1" ]] && MLX_SMOKE=1 bash kitty_gateway/start_mlx.sh
   [[ "${ENABLE_LITELLM}" == "1" ]] && LITELLM_SMOKE=1 bash kitty_gateway/start_litellm.sh
+  [[ "${ENABLE_GATEWAY}" == "1" ]] && echo "Gateway smoke skipped (launcher is runtime-only)."
   [[ "${ENABLE_OPENWEBUI}" == "1" ]] && OPENWEBUI_SMOKE=1 bash kitty_gateway/start_openwebui.sh
   [[ "${ENABLE_JUPYTER}" == "1" ]] && echo "Jupyter smoke skipped (launcher is runtime-only)."
   [[ "${ENABLE_OPEN_TERMINAL}" == "1" ]] && echo "Open Terminal smoke skipped (launcher is runtime-only)."
@@ -128,6 +134,9 @@ fi
 if [[ "${ENABLE_LITELLM}" == "1" ]]; then
   start_service "litellm" "cd '${ROOT_DIR}' && bash kitty_gateway/start_litellm.sh"
 fi
+if [[ "${ENABLE_GATEWAY}" == "1" ]]; then
+  start_service "gateway" "cd '${ROOT_DIR}' && bash kitty_gateway/start_gateway.sh"
+fi
 if [[ "${ENABLE_OPENWEBUI}" == "1" ]]; then
   start_service "openwebui" "cd '${ROOT_DIR}' && bash kitty_gateway/start_openwebui.sh"
 fi
@@ -138,16 +147,14 @@ if [[ "${ENABLE_OPEN_TERMINAL}" == "1" ]]; then
   start_service "openterminal" "cd '${ROOT_DIR}' && bash kitty_gateway/start_open_terminal.sh"
 fi
 if [[ "${ENABLE_COMMUNITY_TOOL_SERVERS}" == "1" ]]; then
-  start_service "tool-filesystem" "cd '${ROOT_DIR}' && bash kitty_gateway/start_tool_servers.sh"
-  start_service "tool-memory" "cd '${ROOT_DIR}' && bash kitty_gateway/start_tool_servers.sh"
-  start_service "tool-time" "cd '${ROOT_DIR}' && bash kitty_gateway/start_tool_servers.sh"
-  start_service "tool-weather" "cd '${ROOT_DIR}' && bash kitty_gateway/start_tool_servers.sh"
+  bash kitty_gateway/start_tool_servers.sh
 fi
 if [[ "${ENABLE_CLOUDFLARE_HTTPS}" == "1" ]]; then
   start_service "cloudflare" "cd '${ROOT_DIR}' && bash kitty_gateway/start_cloudflare_https.sh"
 fi
 
-[[ "${ENABLE_LITELLM}" == "1" ]] && wait_http "litellm" "http://127.0.0.1:8001/health" "Authorization: Bearer ${LITELLM_MASTER_KEY:-kitty-local-key-change-me}" || true
+[[ "${ENABLE_LITELLM}" == "1" ]] && wait_http "litellm" "http://127.0.0.1:8001/health" "Authorization: Bearer ${LITELLM_MASTER_KEY:-kitty-local-key-change-me}" 30 1 8 || true
+[[ "${ENABLE_GATEWAY}" == "1" ]] && wait_http "gateway" "http://127.0.0.1:8000/health" || true
 [[ "${ENABLE_OPENWEBUI}" == "1" ]] && wait_http "openwebui" "http://127.0.0.1:3000/health" || true
 [[ "${ENABLE_JUPYTER}" == "1" ]] && wait_http "jupyter" "http://127.0.0.1:8888/api" "Authorization: token ${CODE_EXECUTION_JUPYTER_AUTH_TOKEN:-}" || true
 [[ "${ENABLE_OPEN_TERMINAL}" == "1" ]] && wait_http "openterminal" "${OPEN_TERMINAL_URL:-http://127.0.0.1:9614}/health" || true
@@ -162,10 +169,24 @@ fi
 if [[ "${ENABLE_OPENWEBUI}" == "1" && "${AUTO_IMPORT_OPENWEBUI_FUNCTIONS}" == "1" ]]; then
   bash kitty_gateway/import_openwebui_functions.sh || true
 fi
+if [[ "${ENABLE_OPENWEBUI}" == "1" && "${ASSERT_BASELINE_ON_BOOT}" == "1" ]]; then
+  if [[ "${ASSERT_FAIL_ON_WARN}" == "1" ]]; then
+    bash kitty_gateway/doctor.sh --fail-on-warn || {
+      echo "Baseline assertion failed (fail-on-warn enabled)."
+      exit 1
+    }
+  else
+    bash kitty_gateway/doctor.sh || {
+      echo "Baseline assertion failed (hard failures present)."
+      exit 1
+    }
+  fi
+fi
 
 echo
 echo "Stack launch complete."
 echo "UI:      http://127.0.0.1:3000"
+echo "Gateway: http://127.0.0.1:8000"
 echo "LiteLLM: http://127.0.0.1:8001"
 echo "MLX:     http://127.0.0.1:8010"
 echo

@@ -50,14 +50,13 @@ import uvicorn
 import pytz
 import dateutil
 import requests
-import reverse_geocoder
 PY
   then
     return 0
   fi
 
-  echo "Installing community server dependencies..."
-  "${PIP_BIN}" install -q -r "${OPENAPI_ROOT}/weather/requirements.txt"
+  echo "Installing base community server dependencies..."
+  "${PIP_BIN}" install -q fastapi "uvicorn[standard]" pydantic python-multipart pytz python-dateutil requests
 }
 
 start_one() {

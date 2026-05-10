@@ -16,4 +16,10 @@ bash kitty_gateway/import_openwebui_functions.sh
 echo "Creating DB backup checkpoint..."
 bash kitty_gateway/backup_openwebui_state.sh
 
+echo "Running restore smoke..."
+bash kitty_gateway/verify_openwebui_backup_restore.sh
+
+echo "Running doctor check..."
+bash kitty_gateway/doctor.sh
+
 echo "Baseline bootstrap complete."

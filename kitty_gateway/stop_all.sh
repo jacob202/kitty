@@ -9,6 +9,7 @@ service_pattern() {
   case "${name}" in
     mlx) echo "mlx_lm.server" ;;
     litellm) echo "venv-litellm/bin/litellm --config kitty_gateway/litellm_config.yaml" ;;
+    gateway) echo "venv/bin/uvicorn gateway.app:app --host 127.0.0.1 --port 8000" ;;
     openwebui) echo "venv/bin/open-webui serve" ;;
     jupyter) echo "venv/bin/jupyter.*lab.*--ip=127.0.0.1.*--port=8888" ;;
     cloudflare) echo "cloudflared tunnel" ;;
@@ -67,6 +68,7 @@ stop_service() {
 stop_service "cloudflare"
 stop_service "openwebui"
 stop_service "litellm"
+stop_service "gateway"
 stop_service "jupyter"
 stop_service "openterminal"
 stop_service "tool-filesystem"

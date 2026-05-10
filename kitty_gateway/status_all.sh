@@ -22,6 +22,7 @@ service_pattern() {
   case "${name}" in
     mlx) echo "mlx_lm.server" ;;
     litellm) echo "venv-litellm/bin/litellm --config kitty_gateway/litellm_config.yaml" ;;
+    gateway) echo "venv/bin/uvicorn gateway.app:app --host 127.0.0.1 --port 8000" ;;
     openwebui) echo "venv/bin/open-webui serve" ;;
     jupyter) echo "venv/bin/jupyter.*lab.*--ip=127.0.0.1.*--port=8888" ;;
     cloudflare) echo "cloudflared tunnel" ;;
@@ -54,13 +55,14 @@ check_http() {
   local name="$1"
   local url="$2"
   local auth_header="${3:-}"
+  local max_time="${4:-2}"
   local ok_status=0
   if [[ -n "${auth_header}" ]]; then
-    if curl -fsS --max-time 2 -H "${auth_header}" "${url}" >/dev/null 2>&1; then
+    if curl -fsS --max-time "${max_time}" -H "${auth_header}" "${url}" >/dev/null 2>&1; then
       echo "${name} endpoint: healthy (${url})"
       ok_status=1
     fi
-  elif curl -fsS --max-time 2 "${url}" >/dev/null 2>&1; then
+  elif curl -fsS --max-time "${max_time}" "${url}" >/dev/null 2>&1; then
     echo "${name} endpoint: healthy (${url})"
     ok_status=1
   fi
@@ -72,6 +74,7 @@ check_http() {
 
 check_pid "mlx"
 check_pid "litellm"
+check_pid "gateway"
 check_pid "openwebui"
 check_pid "jupyter"
 check_pid "openterminal"
@@ -81,7 +84,8 @@ check_pid "tool-time"
 check_pid "tool-weather"
 check_pid "cloudflare"
 echo
-check_http "litellm" "http://127.0.0.1:8001/health" "Authorization: Bearer ${LITELLM_MASTER_KEY:-kitty-local-key-change-me}"
+check_http "litellm" "http://127.0.0.1:8001/health" "Authorization: Bearer ${LITELLM_MASTER_KEY:-kitty-local-key-change-me}" 8
+check_http "gateway" "http://127.0.0.1:8000/health"
 check_http "openwebui" "http://127.0.0.1:3000/health"
 check_http "jupyter" "http://127.0.0.1:8888/api" "Authorization: token ${CODE_EXECUTION_JUPYTER_AUTH_TOKEN:-}"
 check_http "openterminal" "${OPEN_TERMINAL_URL:-http://127.0.0.1:9614}/health"

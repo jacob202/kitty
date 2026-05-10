@@ -70,3 +70,47 @@ This maps your `kitty_gateway/openwebui.env` values to Admin panel sections so y
 - `AIOHTTP_CLIENT_TIMEOUT_TOOL_SERVER`
 - `AIOHTTP_CLIENT_TIMEOUT_TOOL_SERVER_DATA`
 - `AIOHTTP_CLIENT_SESSION_TOOL_SERVER_SSL`
+
+## 10) Community Tool Baseline (Installed)
+- Filesystem server: `http://127.0.0.1:9721/openapi.json`
+- Memory server: `http://127.0.0.1:9722/openapi.json`
+- Time server: `http://127.0.0.1:9723/openapi.json`
+- Weather server: `http://127.0.0.1:9724/openapi.json`
+- Runtime toggle: `ENABLE_COMMUNITY_TOOL_SERVERS=1`
+
+## 11) Auto-Bootstrap + Recovery Scripts
+- Full baseline bootstrap:
+  - `bash kitty_gateway/bootstrap_openwebui_baseline.sh`
+- Runtime doctor report:
+  - `bash kitty_gateway/doctor.sh`
+  - JSON mode: `bash kitty_gateway/doctor.sh --json`
+- Sync OpenWebUI integrations only:
+  - `bash kitty_gateway/sync_openwebui_integrations.sh`
+- Import curated function filters only:
+  - `bash kitty_gateway/import_openwebui_functions.sh`
+- Backup current OpenWebUI DB snapshot:
+  - `bash kitty_gateway/backup_openwebui_state.sh`
+- Restore smoke from latest backup:
+  - `bash kitty_gateway/verify_openwebui_backup_restore.sh`
+
+## 12) Assertions / Manifest
+- Canonical runtime manifest:
+  - `kitty_gateway/runtime_manifest.json`
+- Post-boot baseline assertion toggles (`openwebui.env`):
+  - `ASSERT_BASELINE_ON_BOOT=1` (default)
+  - `ASSERT_FAIL_ON_WARN=0` (set `1` for stricter gating)
+
+## 13) Continuous Doctor Monitor (launchd)
+- Run one check now:
+  - `bash kitty_gateway/run_doctor_check.sh`
+- launchd plist:
+  - `kitty_gateway/com.kitty.doctor.plist`
+- Install:
+  - `cp kitty_gateway/com.kitty.doctor.plist ~/Library/LaunchAgents/`
+  - `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.kitty.doctor.plist`
+  - `launchctl enable gui/$(id -u)/com.kitty.doctor`
+- Logs:
+  - `logs/kitty_gateway/doctor_checks.jsonl` (all runs)
+  - `logs/kitty_gateway/doctor_alerts.log` (degraded alerts only)
+- Endpoint for UI/automation:
+  - `GET /ops/doctor` (optional `?fail_on_warn=true`)

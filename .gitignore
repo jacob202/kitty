@@ -60,4 +60,5 @@ skills-lock.json
 !.agents/skills/kitty-optimizer/
 kitty_gateway/openwebui.env
 kitty_gateway/.run/
+kitty_gateway/openapi-servers/
 logs/

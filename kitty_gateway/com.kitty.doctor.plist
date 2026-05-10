@@ -4,13 +4,13 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.kitty.backup</string>
+    <string>com.kitty.doctor</string>
 
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
         <string>-lc</string>
-        <string>/Users/jacobbrizinski/Projects/kitty/kitty_gateway/backup_openwebui_state.sh &amp;&amp; /Users/jacobbrizinski/Projects/kitty/kitty_gateway/verify_openwebui_backup_restore.sh</string>
+        <string>/Users/jacobbrizinski/Projects/kitty/kitty_gateway/run_doctor_check.sh</string>
     </array>
 
     <key>EnvironmentVariables</key>
@@ -19,21 +19,16 @@
         <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
     </dict>
 
-    <key>StartCalendarInterval</key>
-    <dict>
-        <key>Hour</key>
-        <integer>2</integer>
-        <key>Minute</key>
-        <integer>0</integer>
-    </dict>
+    <key>StartInterval</key>
+    <integer>900</integer>
 
     <key>StandardOutPath</key>
-    <string>/Users/jacobbrizinski/Projects/kitty/logs/backup.log</string>
+    <string>/Users/jacobbrizinski/Projects/kitty/logs/kitty_gateway/doctor_launchd.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/jacobbrizinski/Projects/kitty/logs/backup.log</string>
+    <string>/Users/jacobbrizinski/Projects/kitty/logs/kitty_gateway/doctor_launchd.log</string>
 
     <key>RunAtLoad</key>
-    <false/>
+    <true/>
 </dict>
 </plist>

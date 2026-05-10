@@ -35,6 +35,7 @@ fi
 import sys
 import requests
 import os
+import re
 
 base = os.environ["WEBUI_URL"].rstrip("/")
 email = os.environ["WEBUI_ADMIN_EMAIL"]
@@ -55,6 +56,16 @@ token = (r.json() or {}).get("token")
 if token:
     s.headers.update({"Authorization": f"Bearer {token}"})
 
+def normalize_id(name: str) -> str:
+    cleaned = re.sub(r"[^a-zA-Z0-9_]+", "_", name.strip().lower())
+    cleaned = re.sub(r"_+", "_", cleaned).strip("_")
+    if not cleaned:
+        cleaned = "function"
+    if cleaned[0].isdigit():
+        cleaned = f"f_{cleaned}"
+    return cleaned
+
+
 ok = 0
 skipped = 0
 failed = 0
@@ -67,19 +78,56 @@ for url in function_urls:
         failed += 1
         continue
 
-    if rr.status_code < 300:
-        print(f"OK   {url}")
-        ok += 1
+    if rr.status_code >= 300:
+        print(f"FAIL {url} -> {rr.status_code} {rr.text[:300]}")
+        failed += 1
         continue
 
-    body = (rr.text or "")[:400].lower()
-    if rr.status_code in (400, 409) and ("already" in body or "exists" in body):
-        print(f"SKIP {url} (already present)")
+    loaded = rr.json() if rr.content else {}
+    name = loaded.get("name", "function")
+    content = loaded.get("content", "")
+    if not content:
+        print(f"FAIL {url} -> no content returned by load/url")
+        failed += 1
+        continue
+
+    function_id = normalize_id(name)
+    payload = {
+        "id": function_id,
+        "name": name,
+        "content": content,
+        "meta": {
+            "description": f"Imported from {url}",
+            "manifest": {},
+        },
+    }
+
+    created = s.post(f"{base}/api/v1/functions/create", json=payload, timeout=45)
+    if created.status_code < 300:
+        pass
+    elif created.status_code in (400, 409) and ("taken" in (created.text or "").lower() or "already" in (created.text or "").lower()):
+        updated = s.post(f"{base}/api/v1/functions/id/{function_id}/update", json=payload, timeout=45)
+        if updated.status_code >= 300:
+            print(f"FAIL {url} -> update failed ({updated.status_code}) {updated.text[:300]}")
+            failed += 1
+            continue
         skipped += 1
+    else:
+        print(f"FAIL {url} -> create failed ({created.status_code}) {created.text[:300]}")
+        failed += 1
         continue
 
-    print(f"FAIL {url} -> {rr.status_code} {rr.text[:300]}")
-    failed += 1
+    # Ensure imported filters are enabled and globally available.
+    current = s.get(f"{base}/api/v1/functions/id/{function_id}", timeout=20)
+    if current.status_code < 300:
+        state = current.json() if current.content else {}
+        if not state.get("is_active", False):
+            s.post(f"{base}/api/v1/functions/id/{function_id}/toggle", timeout=20)
+        if not state.get("is_global", False):
+            s.post(f"{base}/api/v1/functions/id/{function_id}/toggle/global", timeout=20)
+
+    print(f"OK   {url} -> {function_id}")
+    ok += 1
 
 print(f"Function import summary: ok={ok} skipped={skipped} failed={failed}")
 if failed > 0:
