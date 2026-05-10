@@ -1,4 +1,16 @@
-"""Unified LLM client — all LLM calls go through LiteLLM for cost tracking and fallbacks."""
+"""Unified LLM client — all LLM calls go through LiteLLM for cost tracking and fallbacks.
+
+ROUTING OWNERSHIP: This module owns model routing for the Python backend (API calls
+from gateway workers, brief generation, specialists, etc.). It uses a 3-decision router:
+  offline → mlx-local
+  reasoning keywords → deepseek-r1
+  "best"/"claude" trigger → claude-sonnet
+  default → qwen3-235b-a22b:free
+
+Open WebUI routing is owned separately by kitty_gateway/litellm_config.yaml — it uses
+named virtual models (kitty-default, kitty-agent, kitty-smart). Both layers must reference
+the same canonical model IDs to stay consistent.
+"""
 import os
 import logging
 import threading

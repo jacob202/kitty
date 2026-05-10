@@ -1,5 +1,9 @@
 # LiteLLM Proxy Config — Kitty Model Router
 # Verify current model IDs at openrouter.ai/models before running
+#
+# ROUTING OWNERSHIP: This file owns model routing for Open WebUI chat sessions.
+# Named virtual models (kitty-default, kitty-agent, kitty-smart) are resolved here.
+# Python backend routing is owned by gateway/llm_client.py — keep model IDs in sync.
 
 model_list:
   # Default: cheap, fast, non-sensitive queries.

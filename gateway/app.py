@@ -22,7 +22,7 @@ from gateway.prompt_loader import load_prompt
 LITELLM_BASE = "http://localhost:8001"
 LITELLM_KEY = "kitty-local-key-change-me"
 
-from gateway.paths import LOG_FILE, validate_dirs
+from gateway.paths import LOG_FILE, validate_dirs, validate_env
 
 app = FastAPI(title="Kitty Gateway")
 logger = logging.getLogger("kitty.gateway")
@@ -57,6 +57,7 @@ async def get_http_client() -> httpx.AsyncClient:
 @app.on_event("startup")
 async def startup():
     validate_dirs()
+    validate_env()
 
 
 @app.on_event("shutdown")

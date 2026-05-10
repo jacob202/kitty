@@ -20,6 +20,17 @@ LOG_FILE = LOGS_DIR / "gateway_trace.jsonl"
 ESSENTIAL_DIRS = [DATA_DIR, LOGS_DIR, PROMPTS_DIR]
 
 
+def validate_env() -> None:
+    """Warn at startup if security-critical env vars are missing."""
+    import os, logging
+    log = logging.getLogger("kitty.startup")
+    if not os.environ.get("GATEWAY_SECRET"):
+        log.warning(
+            "GATEWAY_SECRET is not set — auth middleware is DISABLED. "
+            "This is fine for local dev but must never reach production."
+        )
+
+
 def validate_dirs() -> None:
     """Fail fast at startup if any essential directory is missing."""
     missing = [str(p) for p in ESSENTIAL_DIRS if not p.exists()]
