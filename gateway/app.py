@@ -40,6 +40,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from gateway.auth import BearerAuthMiddleware
+app.add_middleware(BearerAuthMiddleware)
+
 _http_client: httpx.AsyncClient | None = None
 
 
