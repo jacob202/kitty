@@ -11,14 +11,14 @@ import requests
 
 logger = logging.getLogger("kitty.model_digest")
 
-DB_PATH = Path("/Users/jacobbrizinski/Projects/kitty/data/model_digest.db")
+DB_PATH = Path(__file__).parent.parent / "data" / "model_digest.db"
 OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
 PRICE_CHANGE_THRESHOLD = 0.10  # 10% change triggers an event
 
 
 def _get_conn() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("""
         CREATE TABLE IF NOT EXISTS model_snapshots (
@@ -122,6 +122,12 @@ def diff_models(previous: dict[str, dict], current: dict[str, dict]) -> list[dic
             old_price = prev.get(price_key, 0) or 0
             new_price = curr.get(price_key, 0) or 0
             if old_price == 0:
+                if new_price > 0:
+                    events.append({
+                        "event_type": "price_increase",
+                        "model_id": model_id,
+                        "details": f"{curr['name']} {label}: was free → ${round(new_price * 1_000_000, 4)}/M",
+                    })
                 continue
             change = (new_price - old_price) / old_price
             if abs(change) > PRICE_CHANGE_THRESHOLD:
