@@ -69,20 +69,36 @@ class DeepResearcher:
             return []
 
     def _scrape_sources(self, urls: List[str]) -> str:
-        """Uses Firecrawl-py to scrape technical markdown from URLs."""
-        from firecrawl import FirecrawlApp
-        app = FirecrawlApp(api_key=os.environ.get("FIRECRAWL_API_KEY"))
-        
+        """Uses Tavily to extract technical context from URLs."""
+        if not self.tavily_key:
+            return ""
+            
         results = []
         for url in urls[:3]:
             try:
-                logger.info(f"Scraping: {url}")
-                scrape_result = app.scrape_url(url, params={'formats': ['markdown']})
-                markdown = scrape_result.get("markdown")
-                if markdown:
-                    results.append(f"### SOURCE: {url}\n{markdown[:5000]}")
+                logger.info(f"Extracting context via Tavily: {url}")
+                # Use Tavily's search but for a specific URL with high detail
+                resp = requests.post(
+                    "https://api.tavily.com/search",
+                    json={
+                        "api_key": self.tavily_key,
+                        "query": f"detailed technical content from {url}",
+                        "search_depth": "advanced",
+                        "include_raw_content": True,
+                        "max_results": 1
+                    },
+                    timeout=20
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                
+                # Get the first result's content (which should be our target URL)
+                if data.get("results"):
+                    content = data["results"][0].get("raw_content") or data["results"][0].get("content")
+                    if content:
+                        results.append(f"### SOURCE: {url}\n{content[:6000]}")
             except Exception as e:
-                logger.warning(f"Scrape failed for {url}: {e}")
+                logger.warning(f"Tavily extraction failed for {url}: {e}")
                 
         return "\n\n---\n\n".join(results)
 
