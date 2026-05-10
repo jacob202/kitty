@@ -148,7 +148,7 @@ def _analyze_image_with_claude(base64_image: str, prompt: str) -> str:
     }
     
     payload = {
-        "model": "anthropic/claude-3.5-sonnet",
+        "model": "anthropic/claude-3.7-sonnet",
         "messages": [
             {
                 "role": "user",
