@@ -131,6 +131,36 @@ if [ "$PHASE" = "12" ]; then
         "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/python scripts/run_evals.py >/dev/null"
 fi
 
+if [ "$PHASE" = "13" ]; then
+    echo "[ Siri Shortcut — /ask endpoint ]"
+    check "/ask endpoint in app.py" \
+        "grep -q 'def ask' /Users/jacobbrizinski/Projects/kitty/gateway/app.py"
+    check "/ask endpoint tests pass" \
+        "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/pytest tests/test_ask_endpoint.py -q --tb=no 2>/dev/null | grep -q 'passed'"
+    check "SIRI_SHORTCUT.md exists" \
+        "test -f /Users/jacobbrizinski/Projects/kitty/docs/SIRI_SHORTCUT.md"
+    check "/ask returns 400 on empty message" \
+        "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/pytest tests/test_ask_endpoint.py::test_ask_empty_message_returns_400 -q --tb=no 2>/dev/null | grep -q 'passed'"
+fi
+
+if [ "$PHASE" = "15" ]; then
+    echo "[ LLM 3-Decision Router ]"
+    check "route_model() in llm_client.py" \
+        "grep -q 'def route_model' /Users/jacobbrizinski/Projects/kitty/gateway/llm_client.py"
+    check "_is_offline() in llm_client.py" \
+        "grep -q 'def _is_offline' /Users/jacobbrizinski/Projects/kitty/gateway/llm_client.py"
+    check "route_model imported in app.py" \
+        "grep -q 'route_model' /Users/jacobbrizinski/Projects/kitty/gateway/app.py"
+    check "routing tests pass" \
+        "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/pytest tests/test_llm_routing.py -q --tb=no 2>/dev/null | grep -q 'passed'"
+    check "full test suite passes" \
+        "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/pytest tests/ -q --tb=no 2>/dev/null | grep -q 'passed'"
+    check "qwen3-235b in router default" \
+        "grep -q 'qwen3-235b' /Users/jacobbrizinski/Projects/kitty/gateway/llm_client.py"
+    check "deepseek-r1 in router" \
+        "grep -q 'deepseek-r1' /Users/jacobbrizinski/Projects/kitty/gateway/llm_client.py"
+fi
+
 if [ "$PHASE" = "6" ]; then
     echo "[ Full Ingestion Sweep ]"
     check "ingest_phase6.py exists" \

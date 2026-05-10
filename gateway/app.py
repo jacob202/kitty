@@ -7,9 +7,10 @@ import uuid
 from pathlib import Path
 
 import httpx
-from fastapi import FastAPI, File, Form, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
+from pydantic import BaseModel
 from typing import Optional
 from typing import Optional
 from typing import Optional
@@ -20,6 +21,7 @@ MAX_BODY_BYTES = 10 * 1024 * 1024  # 10MB
 MAX_BODY_BYTES = 10 * 1024 * 1024  # 10MB
 
 from gateway.domain_router import classify_domain
+from gateway.llm_client import route_model
 from gateway.prompt_loader import load_prompt
 
 LITELLM_BASE = "http://localhost:8001"
@@ -39,6 +41,10 @@ app.add_middleware(
 )
 
 _http_client: httpx.AsyncClient | None = None
+
+
+class AskRequest(BaseModel):
+    message: str
 
 
 async def get_http_client() -> httpx.AsyncClient:
@@ -64,6 +70,53 @@ async def health():
 async def morning_brief():
     from gateway.brief import generate_brief
     return generate_brief()
+
+
+@app.post("/ask")
+async def ask(payload: AskRequest):
+    """Plain JSON chat endpoint for Siri Shortcuts and scripts."""
+    message = payload.message.strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="message is required")
+
+    domain = classify_domain(message)
+    system_prompt = load_prompt(domain)
+
+    memory_context = ""
+    knowledge_context = ""
+    try:
+        from gateway.memory import get_context_block
+        memory_context = get_context_block(message, limit=5)
+    except Exception:
+        pass
+    try:
+        from gateway.knowledge import get_knowledge_block
+        knowledge_context = get_knowledge_block(message, limit=3)
+    except Exception:
+        pass
+
+    extra = "\n\n".join(filter(None, [memory_context, knowledge_context]))
+    if extra:
+        system_prompt = system_prompt + "\n\n" + extra
+
+    model = "kitty-private" if domain == "health" else route_model(message)
+    llm_payload = {
+        "model": model,
+        "stream": False,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": message},
+        ],
+    }
+    data = await _non_stream_response(llm_payload)
+    choices = data.get("choices", []) if isinstance(data, dict) else []
+    reply = ""
+    if choices and isinstance(choices[0], dict):
+        message_obj = choices[0].get("message", {})
+        if isinstance(message_obj, dict):
+            reply = message_obj.get("content", "")
+
+    return {"reply": reply}
 
 
 @app.get("/reset")
@@ -177,6 +230,10 @@ async def chat_completions(request: Request):
 
     domain = classify_domain(user_text)
     system_prompt = load_prompt(domain)
+    if domain == "health":
+        model = "kitty-private"
+    else:
+        model = route_model(user_text)
 
     memory_context = ""
     knowledge_context = ""
@@ -209,14 +266,17 @@ async def chat_completions(request: Request):
     payload = {**body, "messages": enriched, "model": model, "stream": stream}
 
     if stream:
-        return StreamingResponse(_stream_response(payload, correlation_id, user_text, domain, t_start), media_type="text/event-stream")
+        return StreamingResponse(
+            _stream_response(payload, correlation_id, user_text, domain, model, t_start),
+            media_type="text/event-stream",
+        )
     else:
         result = await _non_stream_response(payload)
-        _log_trace(correlation_id, user_text, domain, t_start)
+        _log_trace(correlation_id, user_text, domain, model, t_start)
         return result
 
 
-async def _stream_response(payload, correlation_id, user_text, domain, t_start):
+async def _stream_response(payload, correlation_id, user_text, domain, model, t_start):
     client = await get_http_client()
     async with client.stream(
         "POST",
@@ -226,7 +286,7 @@ async def _stream_response(payload, correlation_id, user_text, domain, t_start):
     ) as resp:
         async for chunk in resp.aiter_bytes():
             yield chunk
-    _log_trace(correlation_id, user_text, domain, t_start)
+    _log_trace(correlation_id, user_text, domain, model, t_start)
 
 
 async def _non_stream_response(payload):
@@ -239,13 +299,14 @@ async def _non_stream_response(payload):
     return resp.json()
 
 
-def _log_trace(correlation_id: str, user_text: str, domain: str, t_start: float):
+def _log_trace(correlation_id: str, user_text: str, domain: str, model: str, t_start: float):
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     elapsed_ms = round((time.monotonic() - t_start) * 1000, 1)
     entry = {
         "correlation_id": correlation_id,
         "user_request": user_text[:120],
         "domain_classified": domain,
+        "model_selected": model,
         "timestamp": time.time(),
         "elapsed_ms": elapsed_ms,
     }

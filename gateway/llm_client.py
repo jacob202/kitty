@@ -52,3 +52,70 @@ def _fallback_openrouter(model: str, messages: list[dict], max_tokens: int, temp
     )
     resp.raise_for_status()
     return resp.json()["choices"][0]["message"]["content"].strip()
+
+
+_REASONING_KEYWORDS = frozenset(
+    {
+        "explain",
+        "why",
+        "analyze",
+        "analyse",
+        "reason",
+        "think through",
+        "break down",
+        "compare",
+        "pros and cons",
+        "pros cons",
+        "step by step",
+        "walk me through",
+        "how does",
+        "what causes",
+    }
+)
+
+_BEST_TRIGGERS = frozenset(
+    {
+        "best model",
+        "use claude",
+        "use sonnet",
+        "use your best",
+        "most capable",
+        "smartest model",
+    }
+)
+
+_DEFAULT_MODEL = "qwen/qwen3-235b-a22b-2507"
+_REASONING_MODEL = "deepseek/deepseek-r1-0528"
+_BEST_MODEL = "claude-sonnet-4-6"
+_LOCAL_MODEL = "mlx-local"
+
+
+def _is_offline() -> bool:
+    """Return True when OpenRouter is unreachable."""
+    import socket
+
+    try:
+        with socket.create_connection(("openrouter.ai", 443), timeout=2):
+            return False
+    except OSError:
+        return True
+
+
+def route_model(message: str) -> str:
+    """3-decision router for non-health model selection."""
+    if _is_offline():
+        logger.debug("routing: offline -> %s", _LOCAL_MODEL)
+        return _LOCAL_MODEL
+
+    msg_lower = message.lower()
+
+    if any(trigger in msg_lower for trigger in _BEST_TRIGGERS):
+        logger.debug("routing: best trigger -> %s", _BEST_MODEL)
+        return _BEST_MODEL
+
+    if any(keyword in msg_lower for keyword in _REASONING_KEYWORDS):
+        logger.debug("routing: reasoning keyword -> %s", _REASONING_MODEL)
+        return _REASONING_MODEL
+
+    logger.debug("routing: default -> %s", _DEFAULT_MODEL)
+    return _DEFAULT_MODEL
