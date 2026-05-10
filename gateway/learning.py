@@ -27,8 +27,9 @@ def generate_micro_lesson(topic: str) -> str:
 
     context = "\n\n".join([c["text"] for c in textbook_chunks[:3]])
 
+    from gateway.paths import PROMPTS_DIR
     api_key = os.environ.get("OPENROUTER_API_KEY")
-    soul_path = Path("/Users/jacobbrizinski/Projects/kitty/prompts/soul_v1.md")
+    soul_path = PROMPTS_DIR / "soul_v1.md"
     soul_context = soul_path.read_text() if soul_path.exists() else ""
 
     prompt = f"""{soul_context}

@@ -15,8 +15,9 @@ def generate_reset_prompt() -> str:
     api_key = os.environ.get("OPENROUTER_API_KEY")
     task_summary = get_tasks_summary()
     
+    from gateway.paths import PROMPTS_DIR
     # Load Kitty Soul for context
-    soul_path = Path("/Users/jacobbrizinski/Projects/kitty/prompts/soul_v1.md")
+    soul_path = PROMPTS_DIR / "soul_v1.md"
     soul_context = soul_path.read_text() if soul_path.exists() else "You are Kitty, a warm tabby cat partner."
 
     prompt = f"""{soul_context}

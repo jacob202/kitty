@@ -104,7 +104,8 @@ class DeepResearcher:
 
     def _synthesize_findings(self, topic: str, findings: str) -> str:
         """Uses LLM to summarize findings in Kitty's voice."""
-        soul_path = Path("/Users/jacobbrizinski/Projects/kitty/prompts/soul_v1.md")
+        from gateway.paths import PROMPTS_DIR
+        soul_path = PROMPTS_DIR / "soul_v1.md"
         soul_context = soul_path.read_text() if soul_path.exists() else ""
 
         prompt = f"""{soul_context}

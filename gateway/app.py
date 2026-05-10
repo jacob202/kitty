@@ -2,6 +2,8 @@
 import asyncio
 import json
 import logging
+import os
+import subprocess
 import time
 import uuid
 from pathlib import Path
@@ -18,10 +20,11 @@ MAX_BODY_BYTES = 10 * 1024 * 1024  # 10MB
 from gateway.domain_router import classify_domain
 from gateway.llm_client import route_model
 from gateway.prompt_loader import load_prompt
+from gateway.paths import PROJECT_ROOT, LOGS_DIR
 
 LITELLM_BASE = "http://localhost:8001"
 LITELLM_KEY = "kitty-local-key-change-me"
-LOG_FILE = Path("/Users/jacobbrizinski/Projects/kitty/logs/gateway_trace.jsonl")
+LOG_FILE = LOGS_DIR / "gateway_trace.jsonl"
 
 app = FastAPI(title="Kitty Gateway")
 logger = logging.getLogger("kitty.gateway")
@@ -61,6 +64,51 @@ async def shutdown():
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "kitty-gateway"}
+
+
+@app.get("/ops/doctor")
+async def ops_doctor(fail_on_warn: bool = False):
+    """Return kitty_gateway doctor report as JSON for UI/automation."""
+    root_dir = Path(__file__).resolve().parent.parent
+    doctor_script = root_dir / "kitty_gateway" / "doctor.sh"
+    if not doctor_script.exists():
+        raise HTTPException(status_code=500, detail=f"doctor script missing: {doctor_script}")
+
+    cmd = [str(doctor_script), "--json"]
+    if fail_on_warn:
+        cmd.append("--fail-on-warn")
+
+    try:
+        proc = await asyncio.to_thread(
+            subprocess.run,
+            cmd,
+            cwd=str(root_dir),
+            env={**os.environ},
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="doctor check timed out")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"doctor exec failed: {exc}")
+
+    payload = {}
+    if proc.stdout.strip():
+        try:
+            payload = json.loads(proc.stdout)
+        except json.JSONDecodeError:
+            payload = {"raw_stdout": proc.stdout}
+
+    response = {
+        "ok": proc.returncode == 0,
+        "exit_code": proc.returncode,
+        "doctor": payload,
+        "stderr": proc.stderr[-2000:] if proc.stderr else "",
+        "fail_on_warn": fail_on_warn,
+    }
+    return response
 
 
 @app.get("/brief")

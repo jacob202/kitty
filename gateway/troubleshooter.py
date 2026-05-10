@@ -23,9 +23,10 @@ def initiate_troubleshooting(device: str, symptom: str) -> str:
     # Combine context
     context = "\n\n".join([c["text"] for c in chunks])
     
+    from gateway.paths import PROMPTS_DIR
     # 2. Use LLM to formulate the "Partner" response
     api_key = os.environ.get("OPENROUTER_API_KEY")
-    soul_path = Path("/Users/jacobbrizinski/Projects/kitty/prompts/soul_v1.md")
+    soul_path = PROMPTS_DIR / "soul_v1.md"
     soul_context = soul_path.read_text() if soul_path.exists() else ""
 
     prompt = f"""{soul_context}
