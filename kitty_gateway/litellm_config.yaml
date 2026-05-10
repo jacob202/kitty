@@ -12,6 +12,7 @@ model_list:
       max_tokens: 4096
 
   # Agent tasks: structured output, tool calls, routing decisions
+  # TODO: upgrade to Hermes 4 when available on OpenRouter (not confirmed available as of 2026-05-10)
   - model_name: kitty-agent
     litellm_params:
       model: openrouter/nousresearch/hermes-3-llama-3.1-70b

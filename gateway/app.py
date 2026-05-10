@@ -2,6 +2,7 @@
 import asyncio
 import json
 import logging
+import os
 import time
 import uuid
 from pathlib import Path
@@ -29,9 +30,11 @@ logging.basicConfig(level=logging.INFO)
 
 from gateway.auth import BearerAuthMiddleware
 app.add_middleware(BearerAuthMiddleware)
+_webui_origin = os.environ.get("KITTY_WEBUI_ORIGIN")
+_cors_origins = [o for o in ["http://localhost:3000", "http://localhost:8000", _webui_origin] if o]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
