@@ -12,11 +12,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
-from typing import Optional
-from typing import Optional
-from typing import Optional
-
-MAX_BODY_BYTES = 10 * 1024 * 1024  # 10MB
 
 MAX_BODY_BYTES = 10 * 1024 * 1024  # 10MB
 
@@ -32,6 +27,8 @@ app = FastAPI(title="Kitty Gateway")
 logger = logging.getLogger("kitty.gateway")
 logging.basicConfig(level=logging.INFO)
 
+from gateway.auth import BearerAuthMiddleware
+app.add_middleware(BearerAuthMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -39,9 +36,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-from gateway.auth import BearerAuthMiddleware
-app.add_middleware(BearerAuthMiddleware)
 
 _http_client: httpx.AsyncClient | None = None
 
@@ -328,34 +322,6 @@ async def close_session(request: Request):
     consolidate_session(session_id, messages)
 
     return {"status": "ok", "session_id": session_id}
-
-
-@app.post("/sessions/close")
-async def close_session(request: Request):
-    """End a chat session — consolidate short-term memory to long-term."""
-    body = await request.json()
-    messages = body.get("messages", [])
-    session_id = body.get("session_id", "")
-
-    from gateway.memory import consolidate_session
-    consolidate_session(session_id, messages)
-
-    return {"status": "ok", "session_id": session_id}
-
-
-@app.get("/memories")
-async def list_memories(namespace: Optional[str] = None, limit: int = 50):
-    """List stored memories. Optional namespace filter: facts|patterns."""
-    from gateway.memory import list_memories
-    return {"memories": list_memories(namespace=namespace, limit=limit)}
-
-
-@app.delete("/memories/{memory_id}")
-async def delete_memory(memory_id: str):
-    """Delete a specific memory by ID."""
-    from gateway.memory import delete_memory
-    success = delete_memory(memory_id)
-    return {"deleted": success, "memory_id": memory_id}
 
 
 @app.get("/memories")
