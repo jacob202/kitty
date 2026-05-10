@@ -197,6 +197,22 @@ if [ "$PHASE" = "9" ]; then
         "cd /Users/jacobbrizinski/Projects/kitty/.worktrees/phase-9-pdf && /Users/jacobbrizinski/Projects/kitty/venv/bin/pytest tests/ -q --tb=no 2>/dev/null | grep -q 'passed'"
 fi
 
+if [ "$PHASE" = "14" ]; then
+    echo "[ Auth + Housekeeping ]"
+    check "gateway/auth.py exists" \
+        "test -f /Users/jacobbrizinski/Projects/kitty/gateway/auth.py"
+    check "BearerAuthMiddleware in app.py" \
+        "grep -q 'BearerAuthMiddleware' /Users/jacobbrizinski/Projects/kitty/gateway/app.py"
+    check "auth tests pass" \
+        "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/pytest tests/test_auth.py -q --tb=no 2>/dev/null | grep -q 'passed'"
+    check "src/ is archived" \
+        "test -d /Users/jacobbrizinski/Projects/kitty/archive/legacy_src && ! test -d /Users/jacobbrizinski/Projects/kitty/src"
+    check "./kitty probes port 8000" \
+        "grep -q 'KITTY_PORT:-8000' /Users/jacobbrizinski/Projects/kitty/kitty"
+    check "full test suite still passes" \
+        "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/pytest tests/ -q --tb=no 2>/dev/null | grep -q 'passed'"
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 if [ "$FAIL" -gt 0 ]; then
