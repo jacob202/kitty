@@ -14,7 +14,7 @@ PYTHON=venv/bin/python
 SCRIPT_DIR="${0:A:h}"
 PIDFILE="$SCRIPT_DIR/.kitty.pid"
 LOGFILE="$SCRIPT_DIR/.kitty.log"
-PORT="${KITTY_PORT:-5001}"
+PORT="${KITTY_PORT:-8000}"
 CURL="${CURL:-/usr/bin/curl}"
 [[ -x "$CURL" ]] || CURL="curl"
 
@@ -37,64 +37,30 @@ _pid_alive() {
 _start() {
   local port_pid=$(_port_pid)
   if [[ -n "$port_pid" ]]; then
-    echo "$port_pid" > "$PIDFILE"
     echo "Kitty is already running (PID $port_pid) — http://localhost:$PORT"
     return 0
   fi
 
-  local file_pid=$(_pidfile_pid)
-  if _pid_alive "$file_pid"; then
-    echo "Ignoring stale Kitty PID $file_pid; it is not listening on port $PORT"
-  fi
-  rm -f "$PIDFILE"
-
   echo "Starting Kitty…"
-  local pid
-  pid=$(SCRIPT_DIR="$SCRIPT_DIR" LOGFILE="$LOGFILE" PYTHON="$PYTHON" "$PYTHON" - <<'PY'
-import os
-import subprocess
+  bash "$SCRIPT_DIR/kitty_gateway/start_all.sh" &
 
-script_dir = os.environ["SCRIPT_DIR"]
-logfile = os.environ["LOGFILE"]
-python = os.environ["PYTHON"]
-
-log = open(logfile, "ab", buffering=0)
-process = subprocess.Popen(
-    [python, "web.py"],
-    cwd=script_dir,
-    stdin=subprocess.DEVNULL,
-    stdout=log,
-    stderr=subprocess.STDOUT,
-    close_fds=True,
-    start_new_session=True,
-)
-print(process.pid)
-PY
-  )
-  echo "$pid" > "$PIDFILE"
-
-  # Wait for server to be ready (max 30s)
   local waited=0
-  until "$CURL" -sf "http://localhost:$PORT/" > /dev/null 2>&1; do
+  until "$CURL" -sf "http://localhost:$PORT/health" > /dev/null 2>&1; do
     sleep 0.5
     (( waited++ ))
-    [[ $waited -ge 60 ]] && { echo "Server didn't respond after 30s — check .kitty.log"; return 1; }
+    [[ $waited -ge 60 ]] && { echo "Gateway didn't respond after 30s — check logs/"; return 1; }
   done
 
   local ip=$(_ip)
   echo ""
-  echo "  ┌────────────────────────────────────────┐"
-  echo "  │  🐱  Kitty is live                     │"
-  echo "  │                                        │"
-  printf "  │  Local  →  http://localhost:%s        │\n" "$PORT"
-  printf "  │  Phone  →  http://%s:%s  │\n" "$ip" "$PORT"
-  echo "  └────────────────────────────────────────┘"
+  echo "  ┌────────────────────────────────────────────┐"
+  echo "  │  🐱  Kitty is live                         │"
+  echo "  │                                            │"
+  printf "  │  Gateway  →  http://localhost:%s         │\n" "$PORT"
+  printf "  │  WebUI    →  http://localhost:3000        │\n"
+  printf "  │  Phone    →  http://%s:%s    │\n" "$ip" "$PORT"
+  echo "  └────────────────────────────────────────────┘"
   echo ""
-
-  # Open browser on macOS
-  if [[ "$OSTYPE" == darwin* ]]; then
-    open "http://localhost:$PORT" 2>/dev/null
-  fi
 }
 
 _stop() {
@@ -132,7 +98,7 @@ _status() {
     echo "  local    http://localhost:$PORT"
     echo "  phone    http://$ip:$PORT"
   else
-    if _pid_alive "$file_pid" ]; then
+    if _pid_alive "$file_pid"; then
       echo "  stopped  stale PID $file_pid is alive but not listening on port $PORT"
     fi
     rm -f "$PIDFILE"
