@@ -216,20 +216,20 @@ The mission: "So that no one becomes themselves alone." The first person who mus
 ---
 ## Handoff _(fill at session end only — rules in §9)_
 
-**Last agent:** Gemini CLI, 2026-05-08.
+**Last agent:** Gemini CLI, 2026-05-10.
 
-**Shipped:** Engine Stabilization & Passive Chronicle:
-- Fixed `PROJECT_ROOT` / symlink bug in `kitty_builder.py`. ✅
-- Added dimmed Thinking tokens to `stream_openrouter`. ✅
-- Purged 400+ hidden `Icon` files; added auto-purge to `verify_setup.sh`. ✅
-- Implemented **Passive Chronicle** (auto-save vision to log on exit). ✅
-- Hardened parser for JSON/XML tool calls + Batch execution enabled. ✅
-- Fixed `scripts/overnight_retry.py` environment key loading for evaluation. ✅
+**Shipped:** Phase 17 Context Engineering & Code Review Fixes:
+- Centralized 14 absolute paths into `gateway/paths.py`. ✅
+- Created `gateway/context_builder.py` for dynamic LLM context truncation & routing. ✅
+- Wired `build_worker_context` into all 6 internal worker scripts without inline assembly. ✅
+- Fixed code review blockers: deduplicated `list_memories`, locked offline cache, filtered CORS origins, auth fail-open, and `model_digest` deduplication. ✅
+- Added `slowapi` rate limits and `Pydantic` constraints to `/learn`, `/troubleshoot`, `/ask`, etc. ✅
+- Health domain tie-breaking and 3x multipliers added to `domain_router.py`. ✅
 
-**Proof:** The autonomous loop successfully created files, wrote tests, and ran project gates (`math_helper` stress test).
+**Proof:** Executed `bash scripts/setup/gate-check.sh 17` and all 6 infrastructure checks passed. Full test suite (90 tests) passes with 100% success.
 
-**Dirty:** `src/utils/math_helper.py` and `tests/test_math_helper.py` remain as test artifacts.
+**Dirty:** Working tree contains newly created and modified gateway and test files.
 
-**Next:** 1) Verify the final `overnight_retry.py` grading step works. 2) Clean up the `math_helper` test files. 3) Begin Phase 1.1 Autonomy implementation.
+**Next:** 1) Proceed to Phase 17 Soul rewrite (`config/SOUL.md`). 2) Implement Internal Parts System (Skeptic, Champion, Pragmatist). 3) Begin Journal System feature integration.
 
-**Learning:** Manual parsing of `.env` files strips quotes incorrectly or misses `export` prefixes, causing downstream `WebLLMClient` to fail authentication checks. Always use `dotenv`.
+**Learning:** Concurrent file replacements using LLM-agent tooling can race-condition each other; always sequence edits or combine replacements for the same file in a single turn.

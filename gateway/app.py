@@ -225,7 +225,8 @@ async def nightly_reset():
 
 
 @app.post("/troubleshoot")
-async def troubleshoot(payload: TroubleshootRequest):
+@limiter.limit("10/minute")
+async def troubleshoot(request: Request, payload: TroubleshootRequest):
     from gateway.troubleshooter import initiate_troubleshooting
     return {"response": initiate_troubleshooting(payload.device, payload.symptom)}
 

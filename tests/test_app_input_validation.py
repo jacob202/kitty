@@ -24,6 +24,16 @@ def test_troubleshoot_rejects_empty_fields():
     assert response.status_code == 422
 
 
+def test_troubleshoot_accepts_valid_payload():
+    with patch.dict(os.environ, {"KITTY_ENV": "test", "GATEWAY_SECRET": ""}), patch(
+        "gateway.troubleshooter.initiate_troubleshooting", return_value="step 1"
+    ):
+        client = _client()
+        response = client.post("/troubleshoot", json={"device": "sansui", "symptom": "hiss"})
+    assert response.status_code == 200
+    assert response.json()["response"] == "step 1"
+
+
 def test_tasks_sync_accepts_valid_payload():
     with patch.dict(os.environ, {"KITTY_ENV": "test", "GATEWAY_SECRET": ""}), patch(
         "gateway.tasks.sync_next_action", return_value=True
