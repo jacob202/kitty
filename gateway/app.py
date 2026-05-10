@@ -19,14 +19,26 @@ from gateway.domain_router import classify_domain
 from gateway.llm_client import route_model
 from gateway.prompt_loader import load_prompt
 
-LITELLM_BASE = "http://localhost:8001"
-LITELLM_KEY = "kitty-local-key-change-me"
+from contextlib import asynccontextmanager
+from gateway.paths import LOG_FILE, LITELLM_BASE, LITELLM_KEY, validate_dirs, validate_env
 
-from gateway.paths import LOG_FILE, validate_dirs, validate_env
+_http_client: httpx.AsyncClient | None = None
 
-app = FastAPI(title="Kitty Gateway")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    validate_dirs()
+    validate_env()
+    yield
+    global _http_client
+    if _http_client and not _http_client.is_closed:
+        await _http_client.aclose()
+
+
 logger = logging.getLogger("kitty.gateway")
 logging.basicConfig(level=logging.INFO)
+
+app = FastAPI(title="Kitty Gateway", lifespan=lifespan)
 
 from gateway.auth import BearerAuthMiddleware
 app.add_middleware(BearerAuthMiddleware)
@@ -40,8 +52,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-_http_client: httpx.AsyncClient | None = None
-
 
 class AskRequest(BaseModel):
     message: str
@@ -53,19 +63,6 @@ async def get_http_client() -> httpx.AsyncClient:
     if _http_client is None or _http_client.is_closed:
         _http_client = httpx.AsyncClient(timeout=60, limits=httpx.Limits(max_connections=100))
     return _http_client
-
-
-@app.on_event("startup")
-async def startup():
-    validate_dirs()
-    validate_env()
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    global _http_client
-    if _http_client and not _http_client.is_closed:
-        await _http_client.aclose()
 
 
 @app.get("/health")

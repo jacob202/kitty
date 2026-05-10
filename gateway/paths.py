@@ -20,6 +20,11 @@ LOG_FILE = LOGS_DIR / "gateway_trace.jsonl"
 ESSENTIAL_DIRS = [DATA_DIR, LOGS_DIR, PROMPTS_DIR]
 
 
+import os as _os
+LITELLM_BASE = _os.environ.get("LITELLM_BASE", "http://localhost:8001")
+LITELLM_KEY = _os.environ.get("LITELLM_KEY", "kitty-local-key-change-me")
+
+
 def validate_env() -> None:
     """Warn at startup if security-critical env vars are missing."""
     import os, logging

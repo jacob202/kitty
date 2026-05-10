@@ -19,8 +19,7 @@ import requests
 
 logger = logging.getLogger("kitty.llm_client")
 
-LITELLM_BASE = "http://localhost:8001"
-LITELLM_KEY = "kitty-local-key-change-me"
+from gateway.paths import LITELLM_BASE, LITELLM_KEY
 
 
 def chat(model: str, messages: list[dict], max_tokens: int = 500, temperature: float = 0.7) -> str:

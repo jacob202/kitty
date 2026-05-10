@@ -15,11 +15,12 @@ import time
 
 logger = logging.getLogger("kitty.self_review")
 
-from gateway.paths import DATA_DIR as _GATEWAY_DATA_DIR
+from gateway.paths import DATA_DIR as _GATEWAY_DATA_DIR, CONFIG_DIR
 DATA_DIR = _GATEWAY_DATA_DIR / "kitty"
 DRIFT_LOG = DATA_DIR / "drift_log.jsonl"
 REACTION_LOG = DATA_DIR / "reaction_log.jsonl"
 SESSION_ARC_LOG = DATA_DIR / "session_arc.jsonl"
+SOUL_SCRATCHPAD = CONFIG_DIR / "SOUL_SCRATCHPAD.md"
 
 # Session gap: 30 minutes of silence = new session
 SESSION_TIMEOUT_SECONDS = 1800
@@ -171,14 +172,24 @@ def log_session_arc(jacob_message: str, kitty_response: str) -> None:
         _append(SESSION_ARC_LOG, record)
 
 
+def _append_scratchpad(note: str) -> None:
+    """Append a timestamped note to SOUL_SCRATCHPAD.md."""
+    import datetime
+    ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    SOUL_SCRATCHPAD.parent.mkdir(parents=True, exist_ok=True)
+    with SOUL_SCRATCHPAD.open("a") as f:
+        f.write(f"\n---\n*{ts}*\n{note}\n")
+
+
 def record_interaction(
     jacob_message: str,
     kitty_response: str,
     prev_kitty_length: int | None = None,
 ) -> None:
     """Single call to log all three signals after an interaction. Fire and forget."""
+    drift_record = None
     try:
-        log_drift(kitty_response)
+        drift_record = log_drift(kitty_response)
     except Exception:
         logger.warning("drift log failed", exc_info=True)
     try:
@@ -189,3 +200,12 @@ def record_interaction(
         log_session_arc(jacob_message, kitty_response)
     except Exception:
         logger.warning("session arc log failed", exc_info=True)
+    try:
+        if drift_record and not drift_record["pass"]:
+            violations = ", ".join(drift_record["violations"])
+            _append_scratchpad(
+                f"Soul drift detected — {violations}. "
+                f"Response was {drift_record['response_length']} chars."
+            )
+    except Exception:
+        logger.warning("scratchpad write failed", exc_info=True)
