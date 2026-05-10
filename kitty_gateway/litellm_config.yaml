@@ -23,6 +23,15 @@ model_list:
       api_key: os.environ/OPENROUTER_API_KEY
       max_tokens: 4096
 
+  # Parts mode: same model as kitty-default, Open WebUI selects this to activate
+  # the internal council debate format (Skeptic/Champion/Pragmatist/Observer).
+  # System prompt injection handled at gateway level via gateway/parts.py.
+  - model_name: kitty-parts
+    litellm_params:
+      model: openrouter/qwen/qwen3-235b-a22b:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 4096
+
   # Complex reasoning: architecture, synthesis, code review
   # Routed via OpenRouter to avoid needing a separate Anthropic API key
   - model_name: kitty-smart

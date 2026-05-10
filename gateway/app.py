@@ -45,6 +45,7 @@ _http_client: httpx.AsyncClient | None = None
 
 class AskRequest(BaseModel):
     message: str
+    parts_mode: bool = False
 
 
 async def get_http_client() -> httpx.AsyncClient:
@@ -105,7 +106,11 @@ async def ask(payload: AskRequest):
     if extra:
         system_prompt = system_prompt + "\n\n" + extra
 
-    model = "kitty-private" if domain == "health" else route_model(message)
+    from gateway.parts import build_parts_system_prompt, should_surface_parts
+    if payload.parts_mode or should_surface_parts(message):
+        system_prompt = build_parts_system_prompt(system_prompt)
+
+    model = route_model(message)
     llm_payload = {
         "model": model,
         "stream": False,
