@@ -1,6 +1,8 @@
 """Unified LLM client — all LLM calls go through LiteLLM for cost tracking and fallbacks."""
 import os
 import logging
+import threading
+import time
 import requests
 
 logger = logging.getLogger("kitty.llm_client")
@@ -90,15 +92,27 @@ _BEST_MODEL = "claude-sonnet-4-6"
 _LOCAL_MODEL = "mlx-local"
 
 
+_offline_cache: tuple[bool, float] | None = None
+_offline_lock = threading.Lock()
+_OFFLINE_CACHE_TTL = 30.0
+
+
 def _is_offline() -> bool:
-    """Return True when OpenRouter is unreachable."""
+    """Return True when OpenRouter is unreachable. Result cached for 30s."""
     import socket
 
-    try:
-        with socket.create_connection(("openrouter.ai", 443), timeout=2):
-            return False
-    except OSError:
-        return True
+    global _offline_cache
+    with _offline_lock:
+        now = time.monotonic()
+        if _offline_cache is not None and now - _offline_cache[1] < _OFFLINE_CACHE_TTL:
+            return _offline_cache[0]
+        try:
+            with socket.create_connection(("openrouter.ai", 443), timeout=2):
+                result = False
+        except OSError:
+            result = True
+        _offline_cache = (result, now)
+        return result
 
 
 def route_model(message: str) -> str:
