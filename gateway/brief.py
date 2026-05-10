@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import List
 from contracts.brief_item import NewsHeadline
+from gateway.model_digest import get_model_digest_section
 
 logger = logging.getLogger("kitty.brief")
 
@@ -130,4 +131,8 @@ def generate_brief() -> dict:
         memory_snippet=memory[:500] if memory else "",
         intention=brief_text,
     )
-    return item.model_dump(mode="json")
+    result = item.model_dump(mode="json")
+    model_news = get_model_digest_section(limit=3)
+    if model_news:
+        result["model_news"] = model_news
+    return result
