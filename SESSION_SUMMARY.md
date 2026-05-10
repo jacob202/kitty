@@ -29,6 +29,12 @@ Last updated: 2026-05-10
 - Merge is stable on the gateway lane with deterministic routing tests and green focused verification.
 - Remaining work should proceed from current `main` without reopening the prior context-builder merge conflict loop.
 
+### Session Learnings
+
+- Patch network-dependent branches in tests (`_is_offline`) so assertions stay deterministic across environments.
+- Keep a single active editor on `gateway/app.py` during merge-heavy sessions to avoid repeated conflict churn.
+- Update continuity artifacts before final commit so session context is preserved even when pre-commit gates fail.
+
 ## 2026-05-09 Browser-Gated Eval Loop
 
 ### What Was Completed
