@@ -14,7 +14,8 @@ from typing import Optional
 
 logger = logging.getLogger("kitty.knowledge")
 
-KNOWLEDGE_DB_PATH = Path("/Users/jacobbrizinski/Projects/kitty/data/knowledge_db")
+from gateway.paths import DATA_DIR
+KNOWLEDGE_DB_PATH = DATA_DIR / "knowledge_db"
 COLLECTION_NAME = "kitty_knowledge"
 EMBED_MODEL = "nomic-embed-text"
 OLLAMA_BASE = "http://localhost:11434"

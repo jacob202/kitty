@@ -9,7 +9,8 @@ from typing import Optional
 
 logger = logging.getLogger("kitty.onboarding")
 
-STATE_FILE = Path("/Users/jacobbrizinski/Projects/kitty/data/onboarding_state.json")
+from gateway.paths import DATA_DIR
+STATE_FILE = DATA_DIR / "onboarding_state.json"
 
 DOMAINS = {
     "identity": {

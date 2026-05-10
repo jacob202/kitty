@@ -8,7 +8,8 @@ from typing import List, Dict
 
 logger = logging.getLogger("kitty.inventory")
 
-INVENTORY_CSV = Path("/Users/jacobbrizinski/Projects/kitty/data/inventory.csv")
+from gateway.paths import DATA_DIR
+INVENTORY_CSV = DATA_DIR / "inventory.csv"
 
 def extract_parts_from_image(image_path: str | Path) -> List[Dict]:
     """Uses Claude 3.5 Sonnet to extract electronic components from a photo."""

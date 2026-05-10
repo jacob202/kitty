@@ -10,8 +10,9 @@ import requests
 
 logger = logging.getLogger("kitty.honcho")
 
-GATEWAY_LOG = Path("/Users/jacobbrizinski/Projects/kitty/logs/gateway_trace.jsonl")
-SIGNAL_CACHE = Path("/Users/jacobbrizinski/Projects/kitty/data/honcho_weekly.json")
+from gateway.paths import DATA_DIR, LOGS_DIR
+GATEWAY_LOG = LOGS_DIR / "gateway_trace.jsonl"
+SIGNAL_CACHE = DATA_DIR / "honcho_weekly.json"
 LITELLM_BASE = "http://localhost:8001"
 LITELLM_KEY = "kitty-local-key-change-me"
 

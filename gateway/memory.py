@@ -8,7 +8,8 @@ from typing import Optional
 
 logger = logging.getLogger("kitty.memory")
 
-MEM0_DATA_DIR = Path("/Users/jacobbrizinski/Projects/kitty/data/mem0")
+from gateway.paths import DATA_DIR
+MEM0_DATA_DIR = DATA_DIR / "mem0"
 USER_ID = "jacob"
 
 MEM0_CONFIG = {
