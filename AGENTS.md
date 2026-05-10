@@ -267,6 +267,25 @@ These have all bitten previous sessions. Read before touching the named area.
 - **Launcher false negatives:** the 8-second readiness probe times out before app is fully up. Follow timeout with `./kitty status`, logs, and `curl http://localhost:5001/` before concluding the app is dead.
 - **Workspaces (legacy reference only):** `/Users/jacobbrizinski/Documents/Kitty` is manuals/context, NOT runnable. The runnable repo is `/Users/jacobbrizinski/Projects/kitty`.
 
+## Multi-Agent Coordination (learned from Phase 17)
+
+When two agents (e.g. Claude and Gemini) are active simultaneously on the same repo:
+
+- **Check `git log --oneline -10` before starting any task.** The most common wasted-work pattern is implementing something that was committed 30 minutes ago by the other agent.
+- **Claim files before editing.** Drop a note in `docs/AGENT_COORDINATION.md` with: agent name, branch, files being touched, ETA. The other agent checks this before starting a task.
+- **Never work on `main` directly.** Always use a worktree + feature branch. Gemini working on main + Claude on a feature branch creates merge confusion.
+- **Divide by file, not by feature.** Features span files. Two agents editing `gateway/app.py` simultaneously = conflict. Assign each agent a file boundary they own for the session.
+- **If you discover you duplicated work:** don't delete blindly. Read both versions, keep whichever is better or merge. Log the collision in AGENT_COORDINATION.md so the pattern is visible.
+
+## Code Patterns (learned from Phase 17)
+
+- **Use `gateway/paths.py` for all file paths.** Never hardcode absolute paths like `/Users/jacobbrizinski/...` in module code. Import `DATA_DIR`, `LOGS_DIR`, etc. from `paths.py`. Violating this immediately after writing `paths.py` is the easiest regression.
+- **`LITELLM_BASE` and `LITELLM_KEY` are duplicated** in `app.py` and `llm_client.py` — known tech debt. Don't add a third copy. Next phase: move them to `paths.py` or env-driven `config.py`.
+- **Define constants only if they're actually used.** Dead constants (`SOUL_TOKEN_CAP`) add confusion without value. Either use it or don't define it.
+- **Model IDs between `llm_client.py` (direct OpenRouter) and `litellm_config.yaml` (LiteLLM proxy) use different formats** — `qwen/model-id:free` vs `openrouter/qwen/model-id:free`. Both routes hit the same model. Don't try to "fix" this by making them identical — the prefix difference is intentional routing.
+- **Wire trigger functions.** Defining `is_journal_trigger()` or similar in a module is not enough — something in the request path must call it. Check: every new detection function should appear in `app.py` or equivalent entry point.
+- **Journal synthesis must persist.** Any synthesized artifact (journal entry, summary, report) that is generated from a user session must be written to disk. Returning it only in the HTTP response loses it.
+
 ## Session Management
 
 - At session start, read `docs/LAYER0_CONTROL_PLANE.md` and `CURRENT_FOCUS.md`. Open `docs/AGENT_COORDINATION.md` only when coordinating lanes with other agents; use `SESSION_SUMMARY.md` when resuming long work.
