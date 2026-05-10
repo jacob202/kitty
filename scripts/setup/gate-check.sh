@@ -113,6 +113,24 @@ if [ "$PHASE" = "11" ]; then
         "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/pytest tests/test_backup.py -q --tb=no 2>/dev/null | grep -q 'passed'"
 fi
 
+if [ "$PHASE" = "12" ]; then
+    echo "[ Eval Framework ]"
+    check "contracts/eval_result.py exists" \
+        "test -f /Users/jacobbrizinski/Projects/kitty/contracts/eval_result.py"
+    check "evals/ directory exists" \
+        "test -d /Users/jacobbrizinski/Projects/kitty/evals"
+    check "eval contract tests pass" \
+        "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/pytest tests/test_eval_contracts.py -q --tb=no 2>/dev/null | grep -q 'passed'"
+    check "memory recall evals pass" \
+        "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/pytest evals/test_memory_recall.py -q --tb=no 2>/dev/null | grep -q 'passed'"
+    check "knowledge recall evals pass" \
+        "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/pytest evals/test_knowledge_recall.py -q --tb=no 2>/dev/null | grep -q 'passed'"
+    check "context injection evals pass" \
+        "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/pytest evals/test_context_injection.py -q --tb=no 2>/dev/null | grep -q 'passed'"
+    check "run_evals.py exits 0" \
+        "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/python scripts/run_evals.py >/dev/null"
+fi
+
 if [ "$PHASE" = "6" ]; then
     echo "[ Full Ingestion Sweep ]"
     check "ingest_phase6.py exists" \
