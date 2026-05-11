@@ -52,13 +52,13 @@ def record_interaction(was_educational: bool = False, tool_used: bool = False):
         return True
     return False
 
-def generate_knowledge_gate_question(topic: str = "general") -> str:
+async def generate_knowledge_gate_question(topic: str = "general") -> str:
     """Generate a quiz question based on recently ingested technical data."""
-    from gateway.knowledge import search_knowledge
+    from gateway.knowledge import search
     from gateway.llm_client import call_llm
-    
+
     # Fetch high-authority chunks for the topic
-    chunks = search_knowledge(f"core principles of {topic}", limit=5)
+    chunks = await search(f"core principles of {topic}", limit=5)
     context = "\n\n".join([c["text"] for c in chunks])
     
     prompt = f"""You are the Socratic Librarian. Jacob has reached a 'Knowledge Gate.'

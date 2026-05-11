@@ -253,7 +253,7 @@ def _stitch_neighbor_context(collection: Any, meta: dict, doc: str) -> str:
 
 # Backward compatibility aliases
 async def ingest_file(*args, **kwargs): return await ingest(*args, **kwargs)
-def search_knowledge(*args, **kwargs): return search(*args, **kwargs)
+async def search_knowledge(*args, **kwargs): return await search(*args, **kwargs)
 
 # Backwards-compat re-exports so existing tests can import/patch these names directly
 # on the knowledge module rather than on the sub-modules.

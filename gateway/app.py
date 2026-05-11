@@ -201,13 +201,13 @@ async def nightly_reset():
 @app.post("/troubleshoot")
 async def troubleshoot(payload: TroubleshootRequest):
     from gateway.troubleshooter import initiate_troubleshooting
-    return {"response": initiate_troubleshooting(payload.device, payload.symptom)}
+    return {"response": await initiate_troubleshooting(payload.device, payload.symptom)}
 
 
 @app.post("/learn")
 async def learn(payload: LearnRequest):
     from gateway.learning import generate_knowledge_gate_question
-    return {"lesson": generate_knowledge_gate_question(payload.topic)}
+    return {"lesson": await generate_knowledge_gate_question(payload.topic)}
 
 
 @app.post("/inventory/photo")

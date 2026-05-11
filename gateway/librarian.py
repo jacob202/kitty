@@ -61,11 +61,28 @@ def detect_doc_type(path: Path, text_preview: str = "") -> str:
     return "general"
 
 
-def generate_source_summary(source_name: str, text_preview: str, doc_type: str) -> dict:
+from contracts.knowledge_pipeline import LibrarianReport
+
+_FAST_PATH_TYPES = {"session_log", "data_table"}
+
+
+def generate_source_summary(source_name: str, text_preview: str, doc_type: str) -> LibrarianReport:
+    """Assess the quality and authority of a document before ingestion.
+
+    Fast-paths session logs and data tables — no LLM needed for those.
     """
-    Path: Taste (Knowledge Curation)
-    Assess the quality, recency, and authority of a document before ingestion.
-    """
+    default_data = {
+        "summary": f"A {doc_type} titled {source_name}.",
+        "authority_score": 3,
+        "relevance_period": "unknown",
+        "pollution_warning": None,
+        "needs_vision": (doc_type in ("service_manual", "textbook")),
+        "primary_topic": "general",
+    }
+
+    if doc_type in _FAST_PATH_TYPES:
+        return LibrarianReport(**default_data)
+
     prompt = f"""Analyze this source preview for a high-leverage personal knowledge base.
     
     SOURCE NAME: {source_name}
@@ -103,22 +120,13 @@ def generate_source_summary(source_name: str, text_preview: str, doc_type: str) 
     }
     
     response_text = call_llm(model="google/gemini-2.0-flash-001", **payload, timeout=45)
-    
-    default_data = {
-        "summary": f"A {doc_type} titled {source_name}.",
-        "authority_score": 3,
-        "relevance_period": "unknown",
-        "pollution_warning": None,
-        "needs_vision": (doc_type in ("service_manual", "textbook")),
-        "primary_topic": "general"
-    }
 
     if not response_text:
-        return default_data
+        return LibrarianReport(**default_data)
 
     try:
         data = json.loads(response_text)
         # Ensure all keys exist
-        return {**default_data, **data}
+        return LibrarianReport(**{**default_data, **data})
     except Exception:
-        return default_data
+        return LibrarianReport(**default_data)

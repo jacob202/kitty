@@ -9,15 +9,14 @@ from typing import Optional
 logger = logging.getLogger("kitty.troubleshooter")
 
 
-def initiate_troubleshooting(device: str, symptom: str) -> str:
-    from gateway.knowledge import search_knowledge
+async def initiate_troubleshooting(device: str, symptom: str) -> str:
+    from gateway.knowledge import search
     from gateway.context_builder import build_worker_context
     from gateway.llm_client import chat
-    from pathlib import Path
 
     # 1. Find the technical truth in the DB
     query = f"troubleshooting diagnostic {device} {symptom}"
-    chunks = search_knowledge(query, limit=3)
+    chunks = await search(query, limit=3)
 
     if not chunks:
         return f"I don't have the manual or notes for {device} relating to '{symptom}' in my knowledge base yet. Want to look for the service manual together?"

@@ -26,8 +26,8 @@ OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 
 # --- Models ---
 _DEFAULT_MODEL = "qwen/qwen3-235b-a22b:free"
-_REASONING_MODEL = "anthropic/claude-3.7-sonnet"
-_BEST_MODEL = "anthropic/claude-3.7-sonnet"
+_REASONING_MODEL = "deepseek/deepseek-r1-0528"
+_BEST_MODEL = "claude-sonnet-4-6"
 _LOCAL_MODEL = "mlx-local"
 
 
@@ -108,7 +108,9 @@ def _call_openrouter_direct(
 
     try:
         resp = requests.post(f"{OPENROUTER_BASE}/chat/completions", headers=headers, json=payload, timeout=timeout)
-        resp.raise_for_status()
+        if resp.status_code != 200:
+            logger.error("Direct OpenRouter call failed (%d): %s", resp.status_code, resp.text)
+            return ""
         return resp.json()["choices"][0]["message"]["content"].strip()
     except Exception as e:
         logger.error("Direct OpenRouter call failed: %s", e)
@@ -150,13 +152,7 @@ _BEST_TRIGGERS = frozenset(
     }
 )
 
-# This ID routes through OpenRouter directly (Python backend).
-# litellm_config.yaml uses openrouter/qwen/qwen3-235b-a22b:free for the same model
-# via the LiteLLM proxy — different prefix format, same underlying model.
-_DEFAULT_MODEL = "qwen/qwen3-235b-a22b:free"
-_REASONING_MODEL = "deepseek/deepseek-r1-0528"
-_BEST_MODEL = "claude-sonnet-4-6"
-_LOCAL_MODEL = "mlx-local"
+# --- Models are defined at the top of the file ---
 
 
 _offline_cache: tuple[bool, float] | None = None
