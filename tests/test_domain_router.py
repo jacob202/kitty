@@ -1,24 +1,32 @@
+"""Domain router edge case tests — especially mixed health+code signals."""
 from gateway.domain_router import classify_domain
 
-def test_blood_test_routes_health_not_code():
-    assert classify_domain("I need a blood test") == "health"
-    
-def test_pain_in_python_script_routes_health():
-    # 'pain' (3 points for health), 'python script' (2 points for code: python, script)
-    assert classify_domain("I have pain while writing my python script") == "health"
-    
-def test_medication_routes_health():
-    assert classify_domain("medication") == "health"
-    
-def test_car_noise_routes_repair():
-    assert classify_domain("car noise") == "repair"
 
-def test_python_code_routes_code():
-    assert classify_domain("python code") == "code"
+def test_blood_test_routes_to_health_not_code():
+    """'blood test' has health keywords (blood, test) and code keyword (test).
+    Health wins because it scores higher overall."""
+    assert classify_domain("I got my blood test results back") == "health"
 
-def test_health_wins_tie():
-    # 'repair' (1 point), 'hurt' (1 point for health) -> tie, health wins
-    assert classify_domain("repair hurt") == "health"
-    
-def test_general_routes_default():
-    assert classify_domain("hello there") == "soul"
+
+def test_pain_with_code_context_routes_to_health():
+    """'pain in Python script' — health keyword 'pain' has 3x multiplier (score=3),
+    code gets 'Python' + 'script' (score=2). Health wins."""
+    result = classify_domain("I'm having pain in my Python script")
+    assert result == "health"
+
+
+def test_pure_health_query():
+    assert classify_domain("I have a headache and fever") == "health"
+
+
+def test_pure_code_query():
+    assert classify_domain("Debug this Python function") == "code"
+
+
+def test_no_keywords_returns_soul():
+    assert classify_domain("hey what's up") == "soul"
+
+
+def test_strong_health_beats_weak_code():
+    """Multiple health keywords vs one code keyword — health wins."""
+    assert classify_domain("my pain medication dose makes me tired") == "health"

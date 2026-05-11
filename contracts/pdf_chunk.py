@@ -1,5 +1,6 @@
 """Schema for a single parsed page extracted from a PDF."""
 from __future__ import annotations
+from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 
 
@@ -16,6 +17,7 @@ class PdfChunk(BaseModel):
         description="llamaparse|pymupdf|pdfplumber",
     )
     has_images: bool = Field(default=False)
+    ingested_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     def combined_text(self) -> str:
         """Merge page text with image descriptions for ChromaDB ingestion."""

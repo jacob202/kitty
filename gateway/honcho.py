@@ -10,11 +10,9 @@ import requests
 
 logger = logging.getLogger("kitty.honcho")
 
-from gateway.paths import DATA_DIR, LOGS_DIR
+from gateway.paths import DATA_DIR, LOGS_DIR, LITELLM_BASE, LITELLM_KEY
 GATEWAY_LOG = LOGS_DIR / "gateway_trace.jsonl"
 SIGNAL_CACHE = DATA_DIR / "honcho_weekly.json"
-LITELLM_BASE = "http://localhost:8001"
-LITELLM_KEY = "kitty-local-key-change-me"
 
 _FALLBACK_EMPTY = (
     "Not enough data yet — keep chatting with Kitty and check back next week."

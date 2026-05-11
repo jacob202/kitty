@@ -1,69 +1,128 @@
+"""Socratic Layer for Kitty.
+
+Tracks user absorption and triggers 'Knowledge Gates' to ensure 
+Jacob is actually learning from the technical materials.
+"""
+from __future__ import annotations
+import json
 import logging
-import os
 from pathlib import Path
+from typing import Optional, Dict, List
+
+from gateway.paths import DATA_DIR
 
 logger = logging.getLogger("kitty.learning")
+STATS_FILE = DATA_DIR / "user_learning_stats.json"
 
-def generate_micro_lesson(topic: str) -> str:
-    """
-    Queries the knowledge base for textbook information on a topic
-    and synthesizes a 10-minute action-oriented micro-lesson.
-    """
-    import requests
-    from gateway.knowledge import search_knowledge
+def init_stats():
+    """Initialize or load user learning stats."""
+    if not STATS_FILE.exists():
+        default_stats = {
+            "user_level": 1,
+            "absorption_score": 0, # 0-100
+            "tool_calls_since_gate": 0,
+            "gates_passed": 0,
+            "topics_mastered": [],
+            "last_gate_at": None
+        }
+        STATS_FILE.write_text(json.dumps(default_stats, indent=2))
+        return default_stats
+    return json.loads(STATS_FILE.read_text())
 
-    # Force the search to look specifically at textbook chunks
-    query = f"concept fundamental theory {topic}"
-    chunks = search_knowledge(query, limit=5)
+def update_stats(updates: Dict):
+    """Update user stats atomically."""
+    stats = init_stats()
+    stats.update(updates)
+    STATS_FILE.write_text(json.dumps(stats, indent=2))
+
+def record_interaction(was_educational: bool = False, tool_used: bool = False):
+    """Record an interaction and check if a Knowledge Gate should be triggered."""
+    stats = init_stats()
     
-    # Filter chunks to favor books if possible, though search_knowledge handles relevance
-    textbook_chunks = [c for c in chunks if c.get("doc_type") in ("book", "textbook")]
-    if not textbook_chunks:
-        # Fallback to whatever we found
-        textbook_chunks = chunks
+    if tool_used:
+        stats["tool_calls_since_gate"] += 1
+    
+    if was_educational:
+        stats["absorption_score"] = min(100, stats["absorption_score"] + 2)
+        
+    update_stats(stats)
+    
+    # Trigger gate every 5 tool calls
+    if stats["tool_calls_since_gate"] >= 5:
+        return True
+    return False
 
-    if not textbook_chunks:
-        return f"I don't have any textbooks ingested covering '{topic}' right now."
+def generate_knowledge_gate_question(topic: str = "general") -> str:
+    """Generate a quiz question based on recently ingested technical data."""
+    from gateway.knowledge import search_knowledge
+    from gateway.llm_client import call_llm
+    
+    # Fetch high-authority chunks for the topic
+    chunks = search_knowledge(f"core principles of {topic}", limit=5)
+    context = "\n\n".join([c["text"] for c in chunks])
+    
+    prompt = f"""You are the Socratic Librarian. Jacob has reached a 'Knowledge Gate.'
+    
+    CONTEXT FROM RECENTLY INGESTED MATERIALS:
+    {context}
+    
+    TASK:
+    Based on the context, ask Jacob ONE technical question that helps build intuition about how things work.
+    
+    Rules for Jacob's level (Curious Generalist):
+    - Do not assume professional expertise in Software, Hardware, or Cars. 
+    - He knows "a tiny bit about a lot of things," so connect new concepts to basic physical or logical principles.
+    - Avoid jargon. If you must use a technical term, explain it briefly in context.
+    - Focus on the "Why" (e.g., 'If we didn't have this component, what would happen?').
+    - Speak like a helpful partner exploring a new hobby together.
+    """
+    
+    payload = {
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 300,
+        "temperature": 0.7
+    }
+    
+    return call_llm(model="anthropic/claude-3.7-sonnet", **payload)
 
-    context = "\n\n".join([c["text"] for c in textbook_chunks[:3]])
-
-    from gateway.context_builder import build_worker_context
-    api_key = os.environ.get("OPENROUTER_API_KEY")
-
-    task_desc = f"""Jacob wants to learn about: "{topic}".
-Here is the core material extracted from our ingested textbooks:
-{context}
-
-TASK:
-Turn this raw textbook data into a 10-Minute Micro-Lesson.
-Remember, Jacob learns best by doing, breaking things down, and cause-and-effect reasoning. No generic theory without application.
-
-Structure the response:
-1. **The Core Concept**: Explain it in plain English, 2 sentences max. Use an analogy to cars or audio repair if it fits.
-2. **The Mechanism**: How does it actually work under the hood? (Brief).
-3. **The 10-Minute Proof**: Give him ONE physical or mental action to prove he understands it right now. (e.g., "Go look at the schematic for the AU-7900 and find...")
-
-Keep it punchy. No filler."""
-
-    prompt = build_worker_context("learning", task_desc=task_desc)
-
+def process_gate_answer(answer: str, question: str) -> bool:
+    """Assess Jacob's answer to a knowledge gate question."""
+    from gateway.llm_client import call_llm
+    
+    prompt = f"""Jacob is answering a Knowledge Gate question.
+    
+    QUESTION: {question}
+    JACOB'S ANSWER: {answer}
+    
+    TASK:
+    Is this answer technically correct? 
+    Respond in JSON format:
+    {{
+      "correct": true/false,
+      "feedback": "...",
+      "level_up": true/false
+    }}
+    """
+    
+    payload = {
+        "messages": [{"role": "user", "content": prompt}],
+        "response_format": {"type": "json_object"},
+        "max_tokens": 300,
+        "temperature": 0.1
+    }
+    
     try:
-        resp = requests.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "HTTP-Referer": "https://github.com/jacobbrizinski/kitty",
-            },
-            json={
-                "model": "google/gemini-2.0-flash-exp:free" if not api_key else "deepseek/deepseek-chat",
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 400,
-                "temperature": 0.5,
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"].strip()
-    except Exception as e:
-        logger.error(f"Lesson planner synthesis failed: {e}")
-        return "I hit a snag trying to build that lesson. Let's try again in a minute."
+        response = call_llm(model="anthropic/claude-3.7-sonnet", **payload)
+        data = json.loads(response)
+        
+        if data.get("correct"):
+            stats = init_stats()
+            stats["gates_passed"] += 1
+            stats["tool_calls_since_gate"] = 0
+            if data.get("level_up"):
+                stats["user_level"] += 1
+            update_stats(stats)
+            
+        return data
+    except Exception:
+        return {"correct": True, "feedback": "System error. Gate passed by default.", "level_up": False}

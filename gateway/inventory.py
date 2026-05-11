@@ -9,19 +9,15 @@ from typing import List, Dict
 logger = logging.getLogger("kitty.inventory")
 
 from gateway.paths import DATA_DIR
+from gateway.llm_client import call_llm
+
 INVENTORY_CSV = DATA_DIR / "inventory.csv"
 
 def extract_parts_from_image(image_path: str | Path) -> List[Dict]:
-    """Uses Claude 3.5 Sonnet to extract electronic components from a photo."""
-    import requests
+    """Uses Claude 3.7 Sonnet to extract electronic components from a photo."""
     path = Path(image_path)
     if not path.exists():
         logger.error(f"Image not found: {path}")
-        return []
-
-    api_key = os.environ.get("OPENROUTER_API_KEY")
-    if not api_key:
-        logger.error("No OPENROUTER_API_KEY available for vision analysis.")
         return []
 
     try:
@@ -40,14 +36,7 @@ def extract_parts_from_image(image_path: str | Path) -> List[Dict]:
         
         Do not wrap the output in markdown blocks. Return only the JSON."""
 
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "HTTP-Referer": "https://github.com/jacobbrizinski/kitty",
-            "X-Title": "Kitty Visual Inventory",
-            "Content-Type": "application/json",
-        }
         payload = {
-            "model": "anthropic/claude-3.5-sonnet",
             "messages": [
                 {
                     "role": "user",
@@ -60,10 +49,10 @@ def extract_parts_from_image(image_path: str | Path) -> List[Dict]:
             "temperature": 0.1,
         }
 
-        resp = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=45)
-        resp.raise_for_status()
-        
-        content = resp.json()["choices"][0]["message"]["content"].strip()
+        content = call_llm(model="anthropic/claude-3.7-sonnet", **payload, timeout=45)
+        if not content:
+            return []
+            
         # Clean up if the model wrapped it in markdown anyway
         if content.startswith("```json"):
             content = content.replace("```json", "").replace("```", "").strip()

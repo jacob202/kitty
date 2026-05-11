@@ -221,9 +221,8 @@ The mission: "So that no one becomes themselves alone." The first person who mus
 
 ---
 ## Handoff _(fill at session end only — rules in §9)_
-**Last agent:** Codex, 2026-05-10.
-**Shipped:** Continuity reconciliation + deterministic routing test stabilization + knowledge env-load fix.
-**Proof:** `55 passed, 1 deselected` on focused gateway/context/knowledge/routing test bundle.
-**Next:** 1) Run `bash scripts/run_gates.sh`. 2) Migrate FastAPI shutdown hook to lifespan API. 3) Start Phase 18 implementation lane (SOUL rewrite + parts + journal flow).
-**Learning:** Keep one active owner for `gateway/app.py`; patch `_is_offline` in routing tests to avoid environment-dependent failures.
-**History:** Detailed prior handoffs for 2026-05-10 live in `docs/handoffs/HANDOFF-2026-05-10.md`.
+**Last agent:** Claude Sonnet 4.6, 2026-05-10.
+**Shipped:** Phase 17 complete — Soul rewrite, Parts system, Self-review signals, Journal interviewer, context_builder, LITELLM env-driven, FastAPI lifespan, 116 tests passing.
+**Proof:** `116 passed, 2 deselected` — pre-commit hook clean, no deprecation warnings.
+**Next:** Branch merged to main. Worktree `feature/phase-17` can be removed. Consider Phase 18 (model digest, specialist KB).
+**Learning:** Multi-agent coordination protocol added to AGENTS.md. Two agents editing main simultaneously causes conflicts — always use worktrees. Check `git log --oneline -10` before starting any task.

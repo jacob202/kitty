@@ -32,9 +32,15 @@ DOMAIN_KEYWORDS = {
 
 
 HEALTH_MULTIPLIERS = {
-    "blood", "symptom", "medication", "diagnosis", "pain", 
-    "doctor", "nurse", "hospital", "prescription"
+     "blood", "symptom", "medication", "diagnosis", "pain",
+     "doctor", "nurse", "hospital", "prescription"
 }
+
+# Validate that all health multipliers are present in DOMAIN_KEYWORDS["health"]
+# This ensures the scoring logic is consistent.
+for _hm in HEALTH_MULTIPLIERS:
+    if _hm not in DOMAIN_KEYWORDS["health"]:
+        DOMAIN_KEYWORDS["health"].append(_hm)
 
 @lru_cache(maxsize=256)
 def classify_domain(user_message: str) -> str:

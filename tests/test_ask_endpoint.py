@@ -7,7 +7,7 @@ from gateway.app import app
 
 def test_ask_returns_reply():
     with patch(
-        "gateway.app.build_user_context",
+        "gateway.context_builder.build_user_context",
         new=AsyncMock(return_value=("SOUL", "CTX")),
     ), patch(
         "gateway.app._non_stream_response",
@@ -21,10 +21,10 @@ def test_ask_returns_reply():
     assert response.json()["reply"] == "I am Kitty, your personal AI."
 
 
-def test_ask_empty_message_returns_422():
+def test_ask_empty_message_returns_400():
     client = TestClient(app)
     response = client.post("/ask", json={"message": ""})
-    assert response.status_code == 422
+    assert response.status_code == 400
 
 
 def test_ask_missing_message_returns_422():

@@ -1,6 +1,6 @@
 """Schema for every model routing decision Kitty makes."""
 from __future__ import annotations
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pydantic import BaseModel, Field
 
@@ -14,7 +14,7 @@ class ModelTier(str, Enum):
 
 class RoutingDecision(BaseModel):
     correlation_id: str = Field(description="Unique ID tying together one full request/response cycle")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     domain: str = Field(description="Classified domain: soul|repair|health|research|code")
     sensitivity: str = Field(description="low|medium|high|medical|financial")
     model_tier: ModelTier

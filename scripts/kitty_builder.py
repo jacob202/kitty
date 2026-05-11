@@ -293,6 +293,7 @@ class Session:
     def __init__(self):
         self.history: List[Dict[str, str]] = []
         self.project_state: Dict = {}
+        self.autonomy_state: Optional[Any] = None # Will be initialized in chat()
 
     def add_message(self, role: str, content: str):
         self.history.append({"role": role, "content": content})
@@ -696,7 +697,7 @@ def stream_openrouter(
     if use_cache and _semantic_cache:
         cached = _semantic_cache.get("openrouter", model or "default", system_prompt, user_prompt)
         if cached is not None:
-            yield (model or "cached", cached)
+            yield (model or "cached", cached, None)
             return
 
     last_err: Optional[BaseException] = None
@@ -742,11 +743,18 @@ def stream_openrouter(
         full_response = []
         try:
             for chunk in stream:
-                delta = chunk.choices[0].delta.content
+                delta = getattr(chunk.choices[0].delta, "content", None)
+                reasoning = getattr(chunk.choices[0].delta, "reasoning_content", None)
+                # OpenRouter sometimes uses 'thinking' or 'reasoning'
+                if not reasoning:
+                    reasoning = getattr(chunk.choices[0].delta, "thinking", None)
+                
+                if reasoning:
+                    yield (picked, None, reasoning)
                 if delta:
                     completion_chars += len(delta)
                     full_response.append(delta)
-                    yield (picked, delta)
+                    yield (picked, delta, None)
                 maybe_usage = _extract_usage_dict(getattr(chunk, "usage", None))
                 if maybe_usage:
                     usage_snapshot = maybe_usage
@@ -2195,7 +2203,8 @@ def _brain_tier_openrouter(messages: list, response_parts: list[str]) -> bool:
     try:
         budget.assert_can_spend(provider="or", est_usd=0.0)
         current_model: Optional[str] = None
-        for model_id, delta in stream_openrouter(
+        thinking_mode = False
+        for model_id, delta, reasoning in stream_openrouter(
             messages, max_tokens=1500, temperature=0.7
         ):
             if model_id != current_model:
@@ -2203,8 +2212,18 @@ def _brain_tier_openrouter(messages: list, response_parts: list[str]) -> bool:
                     print()
                 print(f"[{model_id}]", flush=True)
                 current_model = model_id
-            print(delta, end="", flush=True)
-            response_parts.append(delta)
+            
+            if reasoning:
+                if not thinking_mode:
+                    print("\n[Thinking] ", end="", flush=True)
+                    thinking_mode = True
+                print(reasoning, end="", flush=True)
+            elif delta:
+                if thinking_mode:
+                    print("\n[Response] ", end="", flush=True)
+                    thinking_mode = False
+                print(delta, end="", flush=True)
+                response_parts.append(delta)
         print()
         return True
     except BudgetExhausted as e:
@@ -2222,7 +2241,9 @@ def _brain_tier_mlx(messages: list, response_parts: list[str]) -> bool:
         return False
     try:
         model, tok = get_model(MODEL_BUILDER, force_local=True)
-        prompt = _build_prompt(tok, messages, thinking=False)
+        # Enable thinking if requested or default for reasoning models
+        prompt = _build_prompt(tok, messages, thinking=True)
+        thinking_mode = False
         for r in stream_generate(
             model,
             tok,
@@ -2230,8 +2251,11 @@ def _brain_tier_mlx(messages: list, response_parts: list[str]) -> bool:
             max_tokens=1500,
             sampler=make_sampler(temp=0.7),
         ):
-            print(r.text, end="", flush=True)
-            response_parts.append(r.text)
+            # Check for MLX thinking token patterns if applicable
+            # Standard MLX generate usually just gives .text
+            if r.text:
+                print(r.text, end="", flush=True)
+                response_parts.append(r.text)
         log_token_usage(
             provider="mlx",
             model=MODEL_BUILDER,
@@ -3165,14 +3189,10 @@ def _check_goal(verify_cmd: str) -> tuple[bool, str]:
     return proc.returncode == 0, tail
 
 
-def chat(user_input: str, *, max_iters: int = 1) -> str:
-    """Single-turn chat. With max_iters>1, retries on tool failure (optimize loop).
-
-    The optimize loop appends the failure context to the conversation and asks
-    Kitty to try again, up to max_iters total assistant turns. A goal verifier
-    set via /goal will be run after each successful tool execution and, if it
-    passes, ends the loop early.
-    """
+def chat(user_input: str, *, max_iters: int = 10) -> str:
+    """Single-turn chat with persistent autonomy state tracking."""
+    from gateway.autonomy_state import AutonomyState
+    
     sys_msg = SYSTEM_PROMPT.format(
         root=PROJECT_ROOT,
         project=_format_project(session.project_state),
@@ -3186,6 +3206,12 @@ def chat(user_input: str, *, max_iters: int = 1) -> str:
 
     session.history.append({"role": "user", "content": user_input})
     _apply_history_cap(session.history, HISTORY_MAX_MESSAGES)
+    
+    # Start or resume autonomy state
+    if not session.autonomy_state:
+        session.autonomy_state = AutonomyState.start_new(user_input[:200])
+    
+    session.autonomy_state.record_step("user", content=user_input)
 
     last_response = ""
     for iter_no in range(1, max(1, max_iters) + 1):
@@ -3194,16 +3220,45 @@ def chat(user_input: str, *, max_iters: int = 1) -> str:
                 print("[Kitty] ", end="", flush=True)
             else:
                 print(f"\n[Kitty iter {iter_no}/{max_iters}] ", end="", flush=True)
+            
             last_response = _stream_brain(session.history)
             session.history.append({"role": "assistant", "content": last_response})
 
             data = _extract_json(last_response)
+            
+            # Record assistant response (including thinking if we can parse it from logs)
+            session.autonomy_state.record_step("assistant", content=last_response)
+
             if data is None or "tool" not in data:
                 # No tool call — nothing to retry. Done.
                 break
 
+            # ── APPROVAL GATE (Chunk 1.2) ──────────────────────────────────
+            safe_tools = {"generate_project_brief", "get_builder_budget", "read_file", "search_web", "github_scout", "compile_builder_request", "worker_health_summary"}
+            if data.get("tool") not in safe_tools:
+                print(f"\n[GATE] Kitty wants to run: {data.get('tool')}({data.get('args', '')})")
+                confirm = input("Confirm execution? (Go/Approved/No/Skip): ").strip().lower()
+                if confirm not in ("go", "approved", "y", "yes"):
+                    print("[GATE] Execution aborted by user.")
+                    session.history.append({
+                        "role": "system",
+                        "content": "User denied tool execution. Do not attempt this tool again without modification.",
+                    })
+                    session.autonomy_state.record_step("system", content="User denied tool execution.")
+                    break
+            # ───────────────────────────────────────────────────────────────
+
             ok, result = _execute_tool_call(data)
             print(f"[Tool Result] {result[:1000]}{'…' if len(result) > 1000 else ''}")
+            
+            # Record tool execution
+            session.autonomy_state.record_step(
+                "tool", 
+                tool_name=data.get("tool"), 
+                tool_args=data.get("args"), 
+                tool_result=result[:2000] # Cap for DB
+            )
+
             session.history.append({
                 "role": "system",
                 "content": f"Tool '{data.get('tool')}' executed (success={ok}). Result:\n{result}",
@@ -3217,35 +3272,54 @@ def chat(user_input: str, *, max_iters: int = 1) -> str:
                     msg = f"[Goal achieved via `{verify}`]"
                     print(msg)
                     session.history.append({"role": "system", "content": msg})
+                    session.autonomy_state.record_step("system", content=msg)
                     if isinstance(session.project_state, dict):
                         session.project_state.pop("goal_verify", None)
                     break
                 else:
-                    # Tool succeeded but goal still failing — feed the error back as context
                     msg = (f"Goal verifier `{verify}` still failing.\n"
                            f"Last 400 chars of output:\n{tail}\n"
                            f"Try a different approach.")
                     session.history.append({"role": "system", "content": msg})
-                    # continue iterating
+                    session.autonomy_state.record_step("system", content=f"Goal `{verify}` failed.")
                     continue
 
             if ok:
-                # Tool succeeded and no goal set — we're done.
                 break
             if iter_no >= max_iters:
                 break
+                
             # Tool failed; nudge Kitty to fix it
-            session.history.append({
-                "role": "system",
-                "content": (
-                    f"The previous tool call failed. Diagnose the failure from the "
-                    f"result above and try a different approach. You have "
-                    f"{max_iters - iter_no} attempt(s) left."
-                ),
-            })
+            error_msg = (
+                f"The previous tool call failed. Diagnose the failure from the "
+                f"result above and try a different approach. You have "
+                f"{max_iters - iter_no} attempt(s) left."
+            )
+            session.history.append({"role": "system", "content": error_msg})
+            session.autonomy_state.record_step("system", content=error_msg)
+            
         finally:
             _apply_history_cap(session.history, HISTORY_MAX_MESSAGES)
 
+    # ── SOCRATIC LAYER (Chunk 1.3) ──────────────────────────────────
+    from gateway.learning import record_interaction, generate_knowledge_gate_question, process_gate_answer
+    
+    # Check for gate trigger
+    if record_interaction(tool_used=(iter_no > 1)):
+        print("\n[KNOWLEDGE GATE] Jacob, we've done some heavy lifting. Let's verify a core concept.")
+        question = generate_knowledge_gate_question()
+        print(f"\n{question}")
+        answer = input("\nYour answer: ").strip()
+        
+        gate_result = process_gate_answer(answer, question)
+        print(f"\n[GATE] {gate_result.get('feedback')}")
+        if gate_result.get('correct'):
+            print("Knowledge Gate: PASSED ✓")
+        else:
+            print("Knowledge Gate: FAILED (Review suggested)")
+    # ───────────────────────────────────────────────────────────────
+
+    session.autonomy_state.finish()
     return last_response
 
 def show_models():
@@ -3521,7 +3595,7 @@ def interactive_main(plan_only: bool = False):
                     print(f"Goal set: `{arg}` (will run after each tool exec)")
             elif inp.startswith("/optimize "):
                 prompt = inp[len("/optimize "):].strip()
-                chat(prompt, max_iters=3)
+                chat(prompt, max_iters=10)
                 session_actions.append(f"optimize: {prompt[:60]}")
             elif inp.startswith("/race "):
                 prompt = inp[len("/race "):].strip()
@@ -3591,6 +3665,12 @@ def main(argv: list[str] | None = None) -> int:
         )
     if args.project is None or args.spec is None:
         parser.error("--project and --spec are required unless --brief or --interactive is used")
+    return run_builder_contract(args.project, args.spec, execute=args.execute)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+r --interactive is used")
     return run_builder_contract(args.project, args.spec, execute=args.execute)
 
 

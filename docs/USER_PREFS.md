@@ -10,8 +10,10 @@ Preferences extracted from future chat-log consolidation should land here only a
 - Prefer verified claims over optimistic status.
 - Prefer one concrete next step when overwhelmed.
 - Prefer local-first and usage-conscious workflows.
-- Prefer delegation when independent work can run in parallel.
-- Preserve raw logs until reviewed extraction exists. (confidence: high)
+- User Knowledge Level: Curious Generalist. Knows "a tiny little bit about a lot of different things." Not an expert in software engineering, cars, or audio repair.
+- Prefer foundational, first-principles explanations that build intuition from scratch.
+- Avoid all "expert-to-expert" jargon across all domains (Software, Hardware, Mechanical).
+- Interaction Style: Supportive "Fellow Explorer." Explain the 'Why' behind technical decisions in plain language.
 
 ## Pending Extraction
 

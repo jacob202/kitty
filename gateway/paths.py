@@ -1,13 +1,49 @@
-from pathlib import Path
-import os
+"""Central path definitions for the Kitty gateway.
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR     = PROJECT_ROOT / "data"
-PROMPTS_DIR  = PROJECT_ROOT / "prompts"
-LOGS_DIR     = PROJECT_ROOT / "logs"
+All directory paths live here. Callers import from this module rather than
+constructing paths inline. Call validate_dirs() once at startup to fail fast
+if any essential directory is missing.
+"""
+import os as _os
+from pathlib import Path
+
+# Project root — two levels up from this file (gateway/paths.py → gateway/ → kitty/)
+ROOT = Path(__file__).parent.parent
+
+PROJECT_ROOT = ROOT  # Alias for backward compatibility
+
+DATA_DIR = ROOT / "data"
+LOGS_DIR = ROOT / "logs"
+PROMPTS_DIR = ROOT / "prompts"
+KNOWLEDGE_DIR = DATA_DIR / "knowledge"
+CONFIG_DIR = ROOT / "config"
+
+LOG_FILE = LOGS_DIR / "gateway_trace.jsonl"
+
+ESSENTIAL_DIRS = [DATA_DIR, LOGS_DIR, PROMPTS_DIR]
+
+# LiteLLM proxy settings — single source of truth for the gateway
+LITELLM_BASE = _os.environ.get("LITELLM_BASE", "http://localhost:8001")
+LITELLM_KEY = _os.environ.get("LITELLM_KEY", "kitty-local-key-change-me")
+
+
+def validate_env() -> None:
+    """Warn at startup if security-critical env vars are missing."""
+    import os
+    import logging
+    log = logging.getLogger("kitty.startup")
+    if not os.environ.get("GATEWAY_SECRET"):
+        log.warning(
+            "GATEWAY_SECRET is not set — auth middleware is DISABLED. "
+            "This is fine for local dev but must never reach production."
+        )
+
 
 def validate_dirs() -> None:
-    """Assert essential directories exist. Call once at startup."""
-    for d in (DATA_DIR, PROMPTS_DIR, LOGS_DIR):
-        if not d.exists():
-            raise RuntimeError(f"Required directory missing: {d}")
+    """Fail fast at startup if any essential directory is missing."""
+    missing = [str(p) for p in ESSENTIAL_DIRS if not p.exists()]
+    if missing:
+        raise RuntimeError(
+            f"Kitty gateway cannot start — missing required directories: {missing}\n"
+            "Run scripts/setup.sh or create them manually."
+        )

@@ -1,7 +1,9 @@
+from gateway.paths import PROJECT_ROOT
+
 import feedparser
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 from contracts.brief_item import NewsHeadline
 from gateway.model_digest import get_model_digest_section
@@ -50,13 +52,13 @@ def fetch_news(limit_per_feed: int = 3) -> List[NewsHeadline]:
 
 def get_tasks_summary() -> str:
     """Read the 'Next Smallest Action' from TASKS.md."""
-    tasks_path = str(PROJECT_ROOT / "TASKS.md")
+    from gateway.paths import PROJECT_ROOT
+    tasks_path = PROJECT_ROOT / "TASKS.md"
     try:
-        with open(tasks_path, "r") as f:
-            content = f.read()
-            if "## Next Smallest Action" in content:
-                summary = content.split("## Next Smallest Action")[1].strip().split("\n\n")[0]
-                return summary
+        content = tasks_path.read_text()
+        if "## Next Smallest Action" in content:
+            summary = content.split("## Next Smallest Action")[1].strip().split("\n\n")[0]
+            return summary
     except Exception as e:
         logger.warning("Could not read TASKS.md: %s", e)
     return "No next action found. Check TASKS.md."
@@ -81,19 +83,20 @@ def synthesize_brief_with_llm(headlines: List[NewsHeadline], task_summary: str, 
 {context_data}
 
 TASK:
-Write a short, warm, and proactive morning greeting for Jacob (3 paragraphs max).
+Write a short, warm, and proactive morning greeting for Jacob (3-4 paragraphs).
 1. Acknowledge the start of the day and maybe one interesting news item.
 2. Mention the next action/task with a focus on 'Resume, don't restart'.
-3. End with a supportive, 'friend who is paying attention' vibe.
+3. MANDATORY: Include a 'Boring Path' recommendation. This must be the most conservative, low-risk, and surgical way to handle the current top task, prioritizing reliability over speed.
+4. End with a supportive, 'friend who is paying attention' vibe.
 
 Rules: Use contractions. No corporate filler. Be dry-funny if appropriate. Speak Canadian."""
 
     try:
         return chat(
-            model="kitty-default",
+            model="anthropic/claude-3.7-sonnet",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=500,
-            temperature=0.7,
+            max_tokens=800,
+            temperature=0.4,
         )
     except Exception as e:
         logger.error("LLM Brief Synthesis failed: %s", e)
@@ -120,7 +123,7 @@ def generate_brief() -> dict:
     """Generate a morning brief. Returns a dict matching BriefItem schema."""
     from contracts.brief_item import BriefItem
 
-    today = datetime.now().date().isoformat()
+    today = datetime.now(timezone.utc).date().isoformat()
     headlines = fetch_news()
     task_summary = get_tasks_summary()
     memory = _fetch_memory_snippet()

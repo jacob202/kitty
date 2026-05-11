@@ -1,117 +1,148 @@
+"""Context builder — assembles the two-part system prompt for every request.
+
+Returns a (soul_prompt, dynamic_context) tuple so callers can pin the soul
+prefix to a cache slot and only re-fetch the dynamic suffix on each turn.
+
+Section headers in dynamic_context:
+  [MEMORY]    — retrieved episodic memory
+  [KNOWLEDGE] — retrieved knowledge base chunks
+
+Empty sections are omitted entirely (no orphaned headers).
+
+Both fetches run concurrently via asyncio.gather(return_exceptions=True).
+A failed fetch logs a warning and returns an empty section — never a 500.
+"""
+from __future__ import annotations
+
 import asyncio
 import logging
-from gateway.prompt_loader import load_prompt
-from gateway.memory import search_memory
-from gateway.knowledge import search_knowledge
+from typing import Optional
 
-logger = logging.getLogger("kitty.context")
+logger = logging.getLogger("kitty.context_builder")
 
-MEMORY_BUDGET_TOKENS    = 500
-KNOWLEDGE_BUDGET_TOKENS = 700
-RELEVANCE_THRESHOLD     = 0.7
-WORKER_BUDGET_TOKENS    = 300
+# Retrieval constants — change here, not scattered through call sites
+MEMORY_SIMILARITY_THRESHOLD: float = 0.7
+MEMORY_TOKEN_CAP: int = 500
+KNOWLEDGE_TOKEN_CAP: int = 700
 
-WORKER_TEMPLATES = {
-    "brief": "{top_task}\n{memory}\nJacob's timezone: {tz}",
-    "researcher": "Topic: {topic}\n{chunks}",
-    "onboarding": "{user_text}",
-    "learning": "{task_desc}",
-    "reset": "{task_desc}",
-    "troubleshooter": "{task_desc}"
-}
+MEMORY_LIMIT: int = 5
+KNOWLEDGE_LIMIT: int = 3
 
 
-def _count_tokens(text: str) -> int:
-    return int(len(text.split()) * 1.3)
+def _rough_token_count(text: str) -> int:
+    return len(text) // 4
 
 
-async def _fetch_memory(query: str) -> list[dict]:
-    return await asyncio.to_thread(search_memory, query, limit=10)
+def _truncate(text: str, cap: int) -> str:
+    if _rough_token_count(text) <= cap:
+        return text
+    char_cap = cap * 4
+    return text[:char_cap] + "…"
 
 
-async def _fetch_knowledge(query: str) -> list[dict]:
-    return await asyncio.to_thread(search_knowledge, query, limit=10)
+def _fetch_memory(query: str) -> str:
+    try:
+        from gateway.memory import get_context_block
+        raw = get_context_block(query, limit=MEMORY_LIMIT)
+        return _truncate(raw, MEMORY_TOKEN_CAP) if raw else ""
+    except Exception:
+        logger.warning("memory fetch failed", exc_info=True)
+        return ""
 
 
-async def build_user_context(query: str, domain: str) -> tuple[str, str]:
-    """Returns (cached_prefix, dynamic_suffix)"""
-    cached_prefix = load_prompt(domain)
+def _fetch_knowledge(query: str) -> str:
+    try:
+        from gateway.knowledge import get_knowledge_block
+        raw = get_knowledge_block(query, limit=KNOWLEDGE_LIMIT)
+        return _truncate(raw, KNOWLEDGE_TOKEN_CAP) if raw else ""
+    except Exception:
+        logger.warning("knowledge fetch failed", exc_info=True)
+        return ""
 
+
+def _build_dynamic(memory: str, knowledge: str) -> str:
+    parts = []
+    if memory:
+        parts.append(f"[MEMORY]\n{memory}")
+    if knowledge:
+        parts.append(f"[KNOWLEDGE]\n{knowledge}")
+    return "\n\n".join(parts)
+
+
+async def build_user_context(
+    query: str,
+    soul_prompt: str,
+) -> tuple[str, str]:
+    """Return (soul_prompt, dynamic_context).
+
+    Both fetches run concurrently. Either or both may be empty strings on
+    failure — the soul_prompt is always returned unchanged.
+    """
     results = await asyncio.gather(
-        _fetch_memory(query),
-        _fetch_knowledge(query),
-        return_exceptions=True
+        asyncio.to_thread(_fetch_memory, query),
+        asyncio.to_thread(_fetch_knowledge, query),
+        return_exceptions=True,
     )
 
-    mem_results = []
-    know_results = []
+    memory = results[0] if isinstance(results[0], str) else ""
+    knowledge = results[1] if isinstance(results[1], str) else ""
 
     if isinstance(results[0], Exception):
-        logger.warning("memory fetch failed: %s", results[0])
-    else:
-        mem_results = results[0]
-
+        logger.warning("memory fetch raised: %s", results[0])
     if isinstance(results[1], Exception):
-        logger.warning("knowledge fetch failed: %s", results[1])
-    else:
-        know_results = results[1]
+        logger.warning("knowledge fetch raised: %s", results[1])
 
-    mem_filtered = [m for m in mem_results if m.get("score", 1.0) >= RELEVANCE_THRESHOLD]
-    know_filtered = [k for k in know_results if k.get("score", 1.0) >= RELEVANCE_THRESHOLD]
+    if not memory and not knowledge:
+        logger.warning("both context fetches failed for query=%r", query[:60])
 
-    mem_filtered.sort(key=lambda x: x.get("created_at", ""), reverse=True)
-    know_filtered.sort(key=lambda x: x.get("score", 0), reverse=True)
-
-    mem_kept = []
-    mem_tokens = 0
-    for m in mem_filtered:
-        text = m.get("memory", m.get("text", ""))
-        tokens = _count_tokens(text)
-        if mem_tokens + tokens <= MEMORY_BUDGET_TOKENS:
-            mem_kept.append(text)
-            mem_tokens += tokens
-
-    know_kept = []
-    know_tokens = 0
-    for k in know_filtered:
-        text = k.get("text", "")
-        tokens = _count_tokens(text)
-        if know_tokens + tokens <= KNOWLEDGE_BUDGET_TOKENS:
-            know_kept.append(text)
-            know_tokens += tokens
-
-    sections = []
-    if mem_kept:
-        sections.append("### About Jacob\n" + "\n".join(f"- {m}" for m in mem_kept))
-    if know_kept:
-        sections.append("### Relevant context\n" + "\n".join(know_kept))
-
-    dynamic_suffix = "\n\n".join(sections)
-    return cached_prefix, dynamic_suffix
+    dynamic = _build_dynamic(memory, knowledge)
+    return soul_prompt, dynamic
 
 
-def build_worker_context(task_type: str, **kwargs) -> str:
-    template = WORKER_TEMPLATES.get(task_type, "")
+def build_worker_context(
+    context_type: str,
+    **kwargs,
+) -> str:
+    """Build a plain-text context block for synchronous worker tasks.
 
-    memory = kwargs.get("memory")
-    if memory is not None:
-        tokens = _count_tokens(memory)
-        if tokens > 100:
-            words = memory.split()
-            memory = " ".join(words[:int(100 / 1.3)]) + "..."
-        kwargs["memory"] = memory
-    else:
-        kwargs["memory"] = ""
+    This is the synchronous sibling of build_user_context().  Instead of
+    fetching memory/knowledge it assembles a task prompt string from the
+    keyword arguments the caller passes.
 
-    format_args = {k: v for k, v in kwargs.items()}
-    for key in ["top_task", "tz", "topic", "chunks", "user_text", "task_desc", "memory"]:
-        if key not in format_args:
-            format_args[key] = ""
+    Supported context types:
+        brief       – kwargs: top_task, memory, tz
+        learning    – kwargs: task_desc
+        reset       – kwargs: task_desc
+        troubleshooter – kwargs: task_desc
+        researcher  – kwargs: topic, chunks
+    """
+    if context_type == "brief":
+        top_task = kwargs.get("top_task", "")
+        memory = kwargs.get("memory", "")
+        tz = kwargs.get("tz", "")
+        parts = []
+        if top_task:
+            parts.append(f"Current Top Task: {top_task}")
+        if memory:
+            parts.append(f"Recent Memories: {memory}")
+        if tz:
+            parts.append(f"Timezone: {tz}")
+        return "\n".join(parts)
 
-    text = template.format(**format_args).strip()
+    if context_type in ("learning", "reset", "troubleshooter"):
+        return kwargs.get("task_desc", "")
 
-    if _count_tokens(text) > WORKER_BUDGET_TOKENS:
-        words = text.split()
-        text = " ".join(words[:int(WORKER_BUDGET_TOKENS / 1.3)]) + "..."
+    if context_type == "researcher":
+        topic = kwargs.get("topic", "")
+        chunks = kwargs.get("chunks", "")
+        header = f"Research topic: {topic}" if topic else ""
+        body = chunks or ""
+        return f"{header}\n\n{body}".strip()
 
-    return text
+    return ""
+
+
+def assemble_system_prompt(soul_prompt: str, dynamic_context: str) -> str:
+    if not dynamic_context:
+        return soul_prompt
+    return f"{soul_prompt}\n\n{dynamic_context}"

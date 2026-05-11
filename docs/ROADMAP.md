@@ -5,8 +5,9 @@
 | **1. Workbench** | Autonomous "Plan-Test-Fix" loop (D-0017) | 10+ turn autonomy without "continue" | 🏗️ Implementation |
 | **2. Mentorship** | Socratic Knowledge Gates & analogy training | Jacob passes 1st Knowledge Gate | 📅 Queued |
 | **3. Memory** | Semantic JournalDB (Pure MLX, no Ollama) | Zero-Ollama embedding latency | 📅 Queued |
-| **4. Hands** | MCP Integration (System Control) | Kitty can read/edit local Mac files | 📅 Queued |
-| **5. Value** | First "External Tool" built autonomously | Validated solution for non-Jacob user | 📅 Queued |
+| **4. Taste** | Knowledge Curation (Superseded theory detection) | 0% pollution from outdated data | 🏗️ Implementation |
+| **5. Hands** | MCP Integration (System Control) | Kitty can read/edit local Mac files | 📅 Queued |
+| **6. Value** | First "External Tool" built autonomously | Validated solution for non-Jacob user | 📅 Queued |
 
 ## Immediate Executable Chunks (Phase 1)
 

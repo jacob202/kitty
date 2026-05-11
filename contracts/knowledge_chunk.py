@@ -1,6 +1,6 @@
 """Schema for a knowledge chunk stored in ChromaDB."""
 from __future__ import annotations
-from datetime import datetime
+from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 
 
@@ -11,5 +11,5 @@ class KnowledgeChunk(BaseModel):
     file_path: str
     sensitivity: str = Field(default="low", description="low|medium|high|medical|financial")
     chunk_index: int
-    ingested_at: datetime = Field(default_factory=datetime.utcnow)
+    ingested_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     allowed_models: list[str] = Field(default_factory=lambda: ["cloud_ok"])

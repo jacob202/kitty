@@ -50,6 +50,15 @@ def test_global_body_size_guard_blocks_large_requests():
         response = client.post(
             "/learn",
             json={"topic": "ok"},
+        )
+    # The body_size_guard middleware checks content-length; TestClient
+    # computes it automatically, so we just verify the 413 path via a
+    # direct header override
+    with patch.dict(os.environ, {"KITTY_ENV": "test", "GATEWAY_SECRET": ""}):
+        client = _client()
+        response = client.post(
+            "/learn",
+            json={"topic": "ok"},
             headers={"content-length": str(MAX_BODY_BYTES + 1)},
         )
     assert response.status_code == 413

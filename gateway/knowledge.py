@@ -15,17 +15,18 @@ from typing import Optional
 logger = logging.getLogger("kitty.knowledge")
 
 from gateway.paths import DATA_DIR
+from gateway.llm_client import call_llm
+
 KNOWLEDGE_DB_PATH = DATA_DIR / "knowledge_db"
 COLLECTION_NAME = "kitty_knowledge"
 EMBED_MODEL = "nomic-embed-text"
 OLLAMA_BASE = "http://localhost:11434"
-OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 
 # Chunk sizes tuned per document type
 _CHUNK_PROFILES = {
     "service_manual":  {"size": 256,  "overlap": 32},   # small — preserve numbered steps
-    "book":            {"size": 768,  "overlap": 128},  # large — prose flows across paragraphs
-    "textbook":        {"size": 512,  "overlap": 64},   # medium — focus on technical concepts
+    "textbook":        {"size": 768,  "overlap": 128},  # large — prose flows across paragraphs
+    "textbook-chapter":{"size": 768,  "overlap": 128},  # alias for textbook
     "session_log":     {"size": 384,  "overlap": 48},   # medium — conversation turns
     "health_record":   {"size": 256,  "overlap": 32},   # small — clinical data is dense
     "data_table":      {"size": 128,  "overlap": 0},    # row-based, no overlap needed
@@ -133,37 +134,9 @@ def _embed_cached(text: str) -> tuple[float, ...]:
     return tuple(result)
 
 
-def _call_openrouter(payload: dict, timeout: int = 60) -> str:
-    """Centralized helper for OpenRouter API calls with resilient auth loading."""
-    import requests
-    from dotenv import load_dotenv
-    load_dotenv()
-    
-    api_key = os.environ.get("OPENROUTER_API_KEY")
-    if not api_key:
-        logger.warning("No OPENROUTER_API_KEY found for OpenRouter call.")
-        return ""
-
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "HTTP-Referer": "https://github.com/jacobbrizinski/kitty",
-        "X-Title": "Kitty Knowledge Gateway",
-        "Content-Type": "application/json",
-    }
-    
-    try:
-        resp = requests.post(f"{OPENROUTER_BASE}/chat/completions", headers=headers, json=payload, timeout=timeout)
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"]
-    except Exception as e:
-        logger.error("OpenRouter call failed: %s", e)
-        return ""
-
-
 def _analyze_image_with_claude(base64_image: str, prompt: str) -> str:
     """Send an image to Claude 3.7 Sonnet for visual analysis."""
     payload = {
-        "model": "anthropic/claude-3.7-sonnet",
         "messages": [
             {
                 "role": "user",
@@ -177,7 +150,7 @@ def _analyze_image_with_claude(base64_image: str, prompt: str) -> str:
             }
         ],
     }
-    return _call_openrouter(payload, timeout=60)
+    return call_llm(model="anthropic/claude-3.7-sonnet", **payload, timeout=60)
 
 
 def _extract_visual_descriptions(path: Path) -> list[dict]:
@@ -300,47 +273,67 @@ def is_high_quality(text: str) -> bool:
     return True
 
 
-def generate_source_summary(source_name: str, text_preview: str, doc_type: str) -> tuple[str, bool]:
-    """Use an LLM to generate a high-level summary and decide if vision analysis is needed."""
-    prompt = f"""Analyze this source preview for a personal knowledge base.
+def generate_source_summary(source_name: str, text_preview: str, doc_type: str) -> dict:
+    """
+    Path: Taste (Knowledge Curation)
+    Assess the quality, recency, and authority of a document before ingestion.
+    """
+    prompt = f"""Analyze this source preview for a high-leverage personal knowledge base.
     
     SOURCE NAME: {source_name}
     TYPE: {doc_type}
     CONTENT PREVIEW:
-    {text_preview[:3000]}
+    {text_preview[:4000]}
     
-    TASK 1:
-    Write a 2-3 sentence 'Source Brief' explaining what this document is, its primary purpose, and its level of authority (e.g., 'Primary Service Manual' vs 'Informal forum notes').
+    TASK 1: SUMMARY
+    Write a 2-3 sentence 'Source Brief' explaining what this is and its primary purpose.
     
-    TASK 2:
-    Does this document likely contain critical technical diagrams, schematics, engineering drawings, or complex charts that require visual analysis to be fully understood? 
-    (Engineering textbooks, service manuals, and datasheets usually DO. Novels and text-heavy books usually DO NOT).
+    TASK 2: TASTE CHECK (Knowledge Quality & Safety)
+    Assess the content against modern engineering and safety standards:
+    1. AUTHORITY: Is this a gold-standard reference (e.g. factory service manual, academic textbook), or secondary/informal? (Score 1-5)
+    2. RECENCY: Is the knowledge likely outdated or superseded?
+    3. SAFETY CRITICAL: Does this document contain high-voltage warnings, hazardous material handling, or safety-critical procedures?
+    4. POLLUTION RISK: Does this contain outdated theories that could lead to incorrect or dangerous repair actions today?
     
     Respond in JSON format:
     {{
-      "summary": "The brief summary text...",
-      "needs_vision": true/false
+      "summary": "...",
+      "authority_score": 1-5,
+      "relevance_period": "...",
+      "safety_level": "high/medium/low",
+      "pollution_warning": "...",
+      "needs_vision": true/false,
+      "primary_topic": "..."
     }}
     """
 
     payload = {
-        "model": "anthropic/claude-3.7-sonnet",
         "messages": [{"role": "user", "content": prompt}],
         "response_format": {"type": "json_object"},
-        "max_tokens": 500,
+        "max_tokens": 800,
         "temperature": 0.1,
     }
     
-    response_text = _call_openrouter(payload, timeout=30)
+    response_text = call_llm(model="anthropic/claude-3.7-sonnet", **payload, timeout=45)
+    
+    default_data = {
+        "summary": f"A {doc_type} titled {source_name}.",
+        "authority_score": 3,
+        "relevance_period": "unknown",
+        "pollution_warning": None,
+        "needs_vision": (doc_type in ("service_manual", "textbook")),
+        "primary_topic": "general"
+    }
+
     if not response_text:
-        return f"A {doc_type} titled {source_name}.", (doc_type in ("service_manual", "textbook"))
+        return default_data
 
     try:
         data = json.loads(response_text)
-        return data.get("summary", ""), data.get("needs_vision", False)
+        # Ensure all keys exist
+        return {**default_data, **data}
     except Exception:
-        # Fallback to simple summary if JSON fails
-        return response_text[:300], (doc_type in ("service_manual", "textbook"))
+        return default_data
 
 
 def _extract_pdf_pages(path: Path) -> list[tuple[int, str]]:
@@ -389,9 +382,12 @@ def ingest_file(
         logger.info("New content detected for %s, pruning old chunks...", source)
         delete_source_chunks(source)
 
-    # 3. Source Summary & Vision Judgment
+    # 3. Source Summary & Vision Judgment (Path: Taste)
     resolved_type = doc_type or detect_doc_type(path, raw_text[:1000] if raw_text else "")
-    source_brief, needs_vision = generate_source_summary(source, raw_text[:4000], resolved_type)
+    taste_data = generate_source_summary(source, raw_text[:4000], resolved_type)
+    
+    source_brief = taste_data.get("summary", "")
+    needs_vision = taste_data.get("needs_vision", False)
     
     profile = _CHUNK_PROFILES.get(resolved_type, _CHUNK_PROFILES["general"])
     chunks = []
@@ -399,7 +395,15 @@ def ingest_file(
     
     # --- SOURCE BRIEF ---
     chunks.append(f"SOURCE BRIEF: {source_brief}")
-    chunk_metadatas.append({"chunk_index": -1, "is_visual": False, "doc_type": "source_summary"})
+    chunk_metadatas.append({
+        "chunk_index": -1, 
+        "is_visual": False, 
+        "doc_type": "source_summary",
+        "authority_score": taste_data.get("authority_score"),
+        "relevance_period": taste_data.get("relevance_period"),
+        "primary_topic": taste_data.get("primary_topic"),
+        "pollution_warning": taste_data.get("pollution_warning")
+    })
 
     # 4. Content Extraction with Page Tagging
     if path.suffix.lower() == ".pdf":
@@ -457,19 +461,32 @@ def ingest_file(
     except Exception:
         mtime = ctime = int(time.time())
 
+    def _safe_meta(val):
+        """Ensure metadata value is a ChromaDB-compatible primitive."""
+        if val is None: return ""
+        if isinstance(val, (str, int, float, bool)): return val
+        return str(val)
+
     final_metadatas = []
     for i, meta in enumerate(chunk_metadatas):
-        final_metadatas.append({
-            "source": source,
-            "file_path": str(path),
-            "sensitivity": sensitivity,
-            "doc_type": resolved_type if "doc_type" not in meta else meta["doc_type"],
-            "content_hash": content_hash,
+        m = {
+            "source": _safe_meta(source),
+            "file_path": _safe_meta(str(path)),
+            "sensitivity": _safe_meta(sensitivity),
+            "doc_type": _safe_meta(resolved_type if "doc_type" not in meta else meta["doc_type"]),
+            "content_hash": _safe_meta(content_hash),
             "modified_at": mtime,
             "created_at": ctime,
             "ingested_at": int(time.time()),
-            **meta
-        })
+            "authority_score": _safe_meta(taste_data.get("authority_score")),
+            "relevance_period": _safe_meta(taste_data.get("relevance_period")),
+            "primary_topic": _safe_meta(taste_data.get("primary_topic")),
+        }
+        # Merge remaining meta from chunking logic
+        for k, v in meta.items():
+            if k not in m:
+                m[k] = _safe_meta(v)
+        final_metadatas.append(m)
         
     collection.add(documents=chunks, embeddings=embeddings, ids=ids, metadatas=final_metadatas)
     logger.info("Ingested %d high-quality chunks from %s (type=%s, vision=%s)", 

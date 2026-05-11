@@ -1,6 +1,5 @@
 import logging
 import os
-import subprocess
 import json
 import requests
 from pathlib import Path
@@ -8,12 +7,13 @@ from typing import List, Dict, Optional
 
 logger = logging.getLogger("kitty.researcher")
 
+
 class DeepResearcher:
     """
     Advanced technical research wrapper.
     Combines web search, scraping, and automatic ingestion.
     """
-    
+
     def __init__(self):
         self.api_key = os.environ.get("OPENROUTER_API_KEY")
         self.tavily_key = os.environ.get("TAVILY_API_KEY")
@@ -105,6 +105,7 @@ class DeepResearcher:
     def _synthesize_findings(self, topic: str, findings: str) -> str:
         """Uses LLM to summarize findings in Kitty's voice."""
         from gateway.context_builder import build_worker_context
+        from gateway.llm_client import chat
 
         task_desc = f"""Jacob needs deep technical info on: "{topic}"
 I have scraped these external sources:
@@ -114,27 +115,20 @@ TASK:
 Synthesize this into a technical brief for Jacob.
 1. Highlight the specific technical values, part numbers, or adjustment steps found.
 2. If there are conflicting values, note them.
-3. Be direct and technical. 
+3. Be direct and technical.
 4. End with 'I've added this to our permanent knowledge base.'
 
 Rules: Short sentences. Use contractions. Speak Canadian."""
-        
+
         prompt = build_worker_context("researcher", topic=topic, chunks=task_desc)
 
         try:
-            resp = requests.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={"Authorization": f"Bearer {self.api_key}"},
-                json={
-                    "model": "google/gemini-2.0-flash-exp:free" if not self.api_key else "deepseek/deepseek-chat",
-                    "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": 1000,
-                    "temperature": 0.3
-                },
-                timeout=45
+            return chat(
+                model="deepseek/deepseek-chat",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=1000,
+                temperature=0.3,
             )
-            resp.raise_for_status()
-            return resp.json()["choices"][0]["message"]["content"].strip()
         except Exception as e:
             logger.error(f"Synthesis failed: {e}")
             return "I found the data, but couldn't synthesize it properly. Check the logs."

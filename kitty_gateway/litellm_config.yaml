@@ -1,5 +1,9 @@
 # LiteLLM Proxy Config — Kitty Model Router
 # Verify current model IDs at openrouter.ai/models before running
+#
+# ROUTING OWNERSHIP: This file owns model routing for Open WebUI chat sessions.
+# Named virtual models (kitty-default, kitty-agent, kitty-smart) are resolved here.
+# Python backend routing is owned by gateway/llm_client.py — keep model IDs in sync.
 
 model_list:
   # Default: cheap, fast, non-sensitive queries.
@@ -7,14 +11,24 @@ model_list:
   # because the current key is quota-limited and would make routing flaky.
   - model_name: kitty-default
     litellm_params:
-      model: openrouter/deepseek/deepseek-chat-v3-0324
+      model: openrouter/qwen/qwen3-235b-a22b:free
       api_key: os.environ/OPENROUTER_API_KEY
       max_tokens: 4096
 
   # Agent tasks: structured output, tool calls, routing decisions
+  # TODO: upgrade to Hermes 4 when available on OpenRouter (not confirmed available as of 2026-05-10)
   - model_name: kitty-agent
     litellm_params:
       model: openrouter/nousresearch/hermes-3-llama-3.1-70b
+      api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 4096
+
+  # Parts mode: same model as kitty-default, Open WebUI selects this to activate
+  # the internal council debate format (Skeptic/Champion/Pragmatist/Observer).
+  # System prompt injection handled at gateway level via gateway/parts.py.
+  - model_name: kitty-parts
+    litellm_params:
+      model: openrouter/qwen/qwen3-235b-a22b:free
       api_key: os.environ/OPENROUTER_API_KEY
       max_tokens: 4096
 
@@ -26,14 +40,6 @@ model_list:
       api_key: os.environ/OPENROUTER_API_KEY
       max_tokens: 8192
 
-  # Private/sensitive: medical, financial — MLX local model, never leaves Mac
-  # Requires: mlx_lm.server --model mlx-community/Qwen3.5-4B-4bit --port 8010
-  - model_name: kitty-private
-    litellm_params:
-      model: openai/mlx-community/Qwen3.5-4B-4bit
-      api_base: http://localhost:8010/v1
-      api_key: "none"
-      max_tokens: 2048
 
   # Embeddings are wired in the ingestion phase, not through the Phase 1
   # chat proxy. Keeping embedding-only models out of model_list prevents

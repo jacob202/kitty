@@ -12,6 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from gateway.knowledge import ingest_file, search_knowledge
+from gateway.ingestion_queue import enqueue_file, process_queue, init_db
 
 SUPPORTED = {".txt", ".md", ".pdf", ".rst", ".csv", ".jpg", ".jpeg", ".png", ".epub", ".mobi", ".azw3"}
 
@@ -46,12 +47,22 @@ def verify_latest(source_name: str):
 
 def main():
     parser = argparse.ArgumentParser(description="Ingest files into Kitty's knowledge base")
-    parser.add_argument("folder", help="Folder to ingest")
+    parser.add_argument("folder", nargs="?", help="Folder to ingest")
     parser.add_argument("--sensitivity", default="low", choices=["low", "medium", "high", "medical", "financial"])
     parser.add_argument("--doc-type", help="Force a specific doc type (e.g. 'textbook', 'service_manual', 'general')")
     parser.add_argument("--force-refresh", action="store_true", help="Re-ingest even if content hash matches")
     parser.add_argument("--verify", action="store_true", help="Print sample chunks after each file to verify quality")
+    parser.add_argument("--queue", action="store_true", help="Add files to background queue instead of processing now")
+    parser.add_argument("--worker", action="store_true", help="Run the background ingestion worker")
     args = parser.parse_args()
+
+    if args.worker:
+        process_queue()
+        return
+
+    if not args.folder:
+        parser.print_help()
+        sys.exit(1)
 
     folder = Path(args.folder)
     if not folder.exists():
@@ -62,6 +73,13 @@ def main():
     if not files:
         print(f"No supported files found in {folder}")
         sys.exit(0)
+
+    if args.queue:
+        init_db()
+        for f in files:
+            enqueue_file(f, doc_type=args.doc_type, sensitivity=args.sensitivity)
+        print(f"Added {len(files)} files to the ingestion queue.")
+        return
 
     total = 0
     skipped = 0

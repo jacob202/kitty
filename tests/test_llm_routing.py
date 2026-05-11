@@ -6,7 +6,7 @@ from gateway.llm_client import route_model
 
 def test_default_routes_to_qwen():
     with patch("gateway.llm_client._is_offline", return_value=False):
-        assert route_model("What should I have for breakfast?") == "qwen/qwen3-235b-a22b-2507"
+        assert route_model("What should I have for breakfast?") == "qwen/qwen3-235b-a22b:free"
 
 
 def test_reasoning_keyword_routes_to_deepseek():
