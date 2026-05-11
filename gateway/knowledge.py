@@ -266,21 +266,28 @@ from gateway.clerk import (  # noqa: E402
 from gateway.librarian import detect_doc_type  # noqa: E402
 from gateway.archivist import _chunk_text, _get_collection, _embed  # noqa: E402
 def get_knowledge_block(query: str, limit: int = 5) -> str:
-    """Return a formatted context block to inject into the system prompt."""
+    """Format a knowledge context block for **synchronous** callers (scripts, tests).
+
+    **Do not** call this from inside an async request handler or running event loop:
+    use ``await knowledge.search(...)`` or ``await context_builder.get_system_prompt(...)``
+    instead. Inside a loop, this function returns an empty string to avoid nest-async bugs.
+
+    For new code, prefer ``await search()`` and assemble prompts in ``context_builder``.
+    """
     import asyncio
-    # search is now async but this legacy helper is sync
+
     try:
-        # Note: This is risky in a pure async loop, but this helper is only used by legacy sync callers
-        # In Phase 3 (Context Control Plane), this will be replaced.
         chunks = asyncio.run(search(query, limit=limit))
     except RuntimeError:
-        # If already in an event loop (e.g. FastAPI), we need another approach
-        # For now, just return empty to avoid blocking
         return ""
 
-    if not chunks: return ""
+    if not chunks:
+        return ""
     lines = ["## Relevant knowledge from Kitty's knowledge base:"]
     for chunk in chunks:
-        label = f"[Source: {chunk['source']} | type: {chunk['doc_type']}]"
-        lines.append(f"\n{label}\n{chunk['text'][:400]}")
+        src = chunk.get("source", "unknown")
+        dtype = chunk.get("doc_type", "general")
+        text = (chunk.get("text") or "")[:400]
+        label = f"[Source: {src} | type: {dtype}]"
+        lines.append(f"\n{label}\n{text}")
     return "\n".join(lines)

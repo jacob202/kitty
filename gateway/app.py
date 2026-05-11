@@ -106,20 +106,12 @@ async def ask(payload: AskRequest):
     if not message:
         raise HTTPException(status_code=400, detail="message is required")
 
+    from gateway.context_builder import get_system_prompt
+
     domain = classify_domain(message)
-    system_prompt = load_prompt(domain)
-
-    from gateway.context_builder import build_user_context, assemble_system_prompt
-    _, dynamic_context = await build_user_context(message, system_prompt)
-    system_prompt = assemble_system_prompt(system_prompt, dynamic_context)
-
-    from gateway.journal import is_journal_trigger, build_interview_system_prompt
-    if is_journal_trigger(message):
-        system_prompt = build_interview_system_prompt(system_prompt)
-
-    from gateway.parts import build_parts_system_prompt, should_surface_parts
-    if payload.parts_mode or should_surface_parts(message):
-        system_prompt = build_parts_system_prompt(system_prompt)
+    system_prompt = await get_system_prompt(
+        message, parts_mode=payload.parts_mode, domain=domain
+    )
 
     model = route_model(message)
     llm_payload = {
@@ -301,15 +293,14 @@ async def chat_completions(request: Request):
     t_start = time.monotonic()
 
     domain = classify_domain(user_text)
-    system_prompt = load_prompt(domain)
     if domain == "health":
         model = "kitty-private"
     else:
         model = route_model(user_text)
 
-    from gateway.context_builder import build_user_context, assemble_system_prompt
-    _, dynamic_context = await build_user_context(user_text, system_prompt)
-    system_prompt = assemble_system_prompt(system_prompt, dynamic_context)
+    from gateway.context_builder import get_system_prompt
+
+    system_prompt = await get_system_prompt(user_text, parts_mode=False, domain=domain)
 
     enriched = [m for m in messages if m.get("role") != "system"]
     enriched = [{"role": "system", "content": system_prompt}] + enriched

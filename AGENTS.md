@@ -8,12 +8,13 @@ Agent-specific stubs (CLAUDE.md, CODEX.md) reference this file.
 ## First Read Order (minimal)
 
 1. `docs/STANDUP.md` (read first — has quick commands + key doc references)
-2. `docs/LAYER0_CONTROL_PLANE.md`
-3. `docs/README.md` (documentation index and stale-doc rule of thumb)
-4. `CURRENT_FOCUS.md`
-5. `TASKS.md`
-6. `docs/IMPROVEMENT_AUDIT.md` (2026-05-09 - start here for new work)
-7. `docs/PROCESS_UPGRADES.md` (quick reference for workflows)
+2. `docs/ARCHITECTURE.md` (canonical live stack: gateway, Open WebUI, LiteLLM, ports, verification, KB rebuild — values taken from `kitty_gateway/*.sh`)
+3. `docs/LAYER0_CONTROL_PLANE.md`
+4. `docs/README.md` (documentation index and stale-doc rule of thumb)
+5. `CURRENT_FOCUS.md`
+6. `TASKS.md`
+7. `docs/IMPROVEMENT_AUDIT.md` (2026-05-09 - start here for new work)
+8. `docs/PROCESS_UPGRADES.md` (quick reference for workflows)
 
 ## Read When Relevant
 

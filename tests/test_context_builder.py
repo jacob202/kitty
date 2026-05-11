@@ -1,7 +1,6 @@
 """Tests for context_builder — tuple return, partial failures, section headers."""
-import asyncio
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 
 from gateway.context_builder import (
     MEMORY_TOKEN_CAP,
@@ -80,7 +79,10 @@ def test_constants_exist_and_sane():
 @pytest.mark.asyncio
 async def test_build_user_context_returns_tuple():
     with patch("gateway.context_builder._fetch_memory", return_value="mem"), \
-         patch("gateway.context_builder._fetch_knowledge", return_value="know"):
+         patch(
+             "gateway.context_builder._fetch_knowledge_for_context",
+             new=AsyncMock(return_value="know"),
+         ):
         soul, dynamic = await build_user_context("test query", "SOUL")
     assert soul == "SOUL"
     assert "[MEMORY]" in dynamic
@@ -90,7 +92,10 @@ async def test_build_user_context_returns_tuple():
 @pytest.mark.asyncio
 async def test_build_user_context_soul_unchanged_on_both_fail():
     with patch("gateway.context_builder._fetch_memory", return_value=""), \
-         patch("gateway.context_builder._fetch_knowledge", return_value=""):
+         patch(
+             "gateway.context_builder._fetch_knowledge_for_context",
+             new=AsyncMock(return_value=""),
+         ):
         soul, dynamic = await build_user_context("test query", "SOUL")
     assert soul == "SOUL"
     assert dynamic == ""
@@ -99,7 +104,10 @@ async def test_build_user_context_soul_unchanged_on_both_fail():
 @pytest.mark.asyncio
 async def test_build_user_context_partial_failure_memory():
     with patch("gateway.context_builder._fetch_memory", return_value=""), \
-         patch("gateway.context_builder._fetch_knowledge", return_value="know"):
+         patch(
+             "gateway.context_builder._fetch_knowledge_for_context",
+             new=AsyncMock(return_value="know"),
+         ):
         soul, dynamic = await build_user_context("test query", "SOUL")
     assert "[MEMORY]" not in dynamic
     assert "[KNOWLEDGE]\nknow" in dynamic
@@ -111,6 +119,9 @@ async def test_build_user_context_exception_does_not_raise():
         raise RuntimeError("db down")
 
     with patch("gateway.context_builder._fetch_memory", side_effect=_raise), \
-         patch("gateway.context_builder._fetch_knowledge", return_value="know"):
+         patch(
+             "gateway.context_builder._fetch_knowledge_for_context",
+             new=AsyncMock(return_value="know"),
+         ):
         soul, dynamic = await build_user_context("test query", "SOUL")
     assert soul == "SOUL"

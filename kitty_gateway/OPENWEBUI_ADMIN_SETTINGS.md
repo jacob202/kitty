@@ -88,6 +88,8 @@ This maps your `kitty_gateway/openwebui.env` values to Admin panel sections so y
   - `bash kitty_gateway/sync_openwebui_integrations.sh`
 - Import curated function filters only:
   - `bash kitty_gateway/import_openwebui_functions.sh`
+- Import Kitty slash-command prompt library (from `kitty_prompt_library.json`):
+  - `./venv/bin/python kitty_gateway/import_openwebui_prompts.py` (see `kitty_gateway/PROMPT_LIBRARY.md`)
 - Backup current OpenWebUI DB snapshot:
   - `bash kitty_gateway/backup_openwebui_state.sh`
 - Restore smoke from latest backup:

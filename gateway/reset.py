@@ -12,7 +12,7 @@ def generate_reset_prompt() -> str:
     Generate a character-driven prompt for the 9 PM Nightly Reset.
     """
     from gateway.brief import get_tasks_summary
-    from gateway.context_builder import build_user_context
+    from gateway.context_builder import build_worker_context
 
     api_key = os.environ.get("OPENROUTER_API_KEY")
     task_summary = get_tasks_summary()
@@ -27,7 +27,7 @@ Write a very short, warm evening check-in for Jacob (2 sentences max).
 
 Rules: Use contractions. No fluff. Focus on 'Resume, don't restart'. Speak Canadian."""
 
-    prompt = build_user_context("reset", task_desc=task_desc)
+    prompt = build_worker_context("reset", task_desc=task_desc)
 
     try:
         resp = requests.post(

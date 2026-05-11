@@ -7,8 +7,8 @@ from gateway.app import app
 
 def test_ask_returns_reply():
     with patch(
-        "gateway.context_builder.build_user_context",
-        new=AsyncMock(return_value=("SOUL", "CTX")),
+        "gateway.context_builder.get_system_prompt",
+        new=AsyncMock(return_value="FULL_SYSTEM"),
     ), patch(
         "gateway.app._non_stream_response",
         new=AsyncMock(

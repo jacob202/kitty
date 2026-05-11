@@ -1,0 +1,110 @@
+[
+  {
+    "command": "kitty_architecture",
+    "name": "docs/ARCHITECTURE.md — live stack",
+    "tags": ["kitty", "ops", "gateway"],
+    "content": "Context: I'm working on Kitty (personal AI on my Mac). Canonical runtime is gateway + Open WebUI + LiteLLM per docs/ARCHITECTURE.md.\n\nTask: Answer using only the Kitty repo layout. List default ports (gateway, LiteLLM, Open WebUI), where prompts are assembled (gateway/context_builder get_system_prompt), and one command to rebuild the KB index. If something is ambiguous, say what's ambiguous and what file I'd open to verify."
+  },
+  {
+    "command": "kitty_soul",
+    "name": "config/SOUL.md — voice and line",
+    "tags": ["kitty", "persona"],
+    "content": "Adopt Kitty's voice from config/SOUL.md on this machine: warm, direct, Canadian-tinged, skeptical-but-kind, no corporate filler. Challenge assumptions before agreeing. Smallest real next step under ~30 minutes. If I seem stuck, name one concrete move. Do not say \"Certainly!\" or \"Great question!\""
+  },
+  {
+    "command": "kitty_context_builder",
+    "name": "gateway/context_builder.py — control plane",
+    "tags": ["kitty", "code"],
+    "content": "Explain gateway/context_builder.py like I'm debugging chat behavior: What is get_system_prompt's job? In what order do domain base prompt, journal mode, parts mode, memory, and knowledge get applied? When would I use build_worker_context instead?"
+  },
+  {
+    "command": "kitty_knowledge",
+    "name": "gateway/knowledge.py — KB pipeline",
+    "tags": ["kitty", "rag"],
+    "content": "I'm ingesting or searching Kitty's knowledge base (gateway/knowledge.py, clerk/librarian/archivist). Explain the ingest vs search path in plain English. What's safe to delete vs rebuild (Chroma index vs source files)? Point me to scripts/kitty_manage.py for CLI actions."
+  },
+  {
+    "command": "kitty_memory",
+    "name": "gateway/memory.py — personal memory",
+    "tags": ["kitty", "memory"],
+    "content": "Distinguish Kitty **memory** (gateway/memory.py, journal-ish facts about Jacob) from **knowledge base** chunks (RAG). When should retrieved context be labeled [MEMORY] vs [KNOWLEDGE]? If I describe a life update, where should it persist and what should not be mixed in?"
+  },
+  {
+    "command": "kitty_journal",
+    "name": "gateway/journal.py — interview mode",
+    "tags": ["kitty", "journal"],
+    "content": "Jacob wants a journal-oriented conversation (gateway/journal patterns). Lead with one focused question, listen, avoid therapy clichés, short sentences. When we're done, offer to synthesize a first-person entry (no fabricating events he didn't mention)."
+  },
+  {
+    "command": "kitty_parts",
+    "name": "gateway/parts.py — internal council",
+    "tags": ["kitty", "reasoning"],
+    "content": "Surface Kitty's internal parts (Skeptic, Champion, Pragmatist, Observer) for this decision. Use the visible format from config/SOUL.md. End with \"Where I land:\" and a crisp recommendation Jacob can act on."
+  },
+  {
+    "command": "kitty_brief",
+    "name": "gateway/brief.py — morning brief",
+    "tags": ["kitty", "daily"],
+    "content": "Give a tight morning brief: what matters today, one risky assumption to check, three next actions sized small enough to start before coffee ends. Tone: teammate, not dashboard. If I paste TASKS or git status, ground the brief in that."
+  },
+  {
+    "command": "kitty_llm_routing",
+    "name": "gateway/llm_client.py — cheap-first",
+    "tags": ["kitty", "models"],
+    "content": "Summarize Kitty's model routing philosophy from gateway/llm_client.py and AGENTS.md: local/offline first when appropriate, cheap reliable models for grunt work, premium only when justified. Suggest a model tier for my **current** task and why."
+  },
+  {
+    "command": "kitty_decisions",
+    "name": "docs/DECISIONS.md — durable rules",
+    "tags": ["kitty", "governance"],
+    "content": "I'm about to change behavior that might conflict with project decisions. Read docs/DECISIONS.md (conceptually): call out any decision that could forbid what I'm proposing, or say \"no conflict spotted\" and list what you'd still verify in git before shipping."
+  },
+  {
+    "command": "kitty_data_routing",
+    "name": "docs/DATA_ROUTING.md — storage map",
+    "tags": ["kitty", "data"],
+    "content": "Remind me where Kitty stores **KB** vs **journal** vs **MCP memory** vs **SQLite misc** per docs/DATA_ROUTING.md and AGENTS.md. One paragraph: what goes where, and the one mistake that causes data-loss bugs."
+  },
+  {
+    "command": "kitty_layer0",
+    "name": "docs/LAYER0_CONTROL_PLANE.md",
+    "tags": ["kitty", "workflow"],
+    "content": "I'm starting a work session on Kitty. Using docs/LAYER0_CONTROL_PLANE.md as the mental model: what do I verify first (environment, canonical repo path, tests), and what's forbidden scope unless a spec says otherwise?"
+  },
+  {
+    "command": "kitty_standup",
+    "name": "docs/STANDUP.md — session hook",
+    "tags": ["kitty", "workflow"],
+    "content": "From docs/STANDUP.md framing: what should this session optimize for, what's the validation loop after edits, and where do I log continuity (SESSION_LOG, handoff) without spamming new docs?"
+  },
+  {
+    "command": "kitty_manage_cli",
+    "name": "scripts/kitty_manage.py — KB CLI",
+    "tags": ["kitty", "ingest"],
+    "content": "I need shell commands for Kitty KB maintenance using scripts/kitty_manage.py. Give examples: ingest a folder, show status, prune a source (dry-run mindset — warn before destructive). Mention Makefile target rebuild-index if present."
+  },
+  {
+    "command": "kitty_verify",
+    "name": "tests/ — prove it",
+    "tags": ["kitty", "quality"],
+    "content": "I changed Python in Kitty. Lay out the verification ladder: pytest command from AGENTS.md, when to hit gateway /health, and what I'd curl on LiteLLM. Don't claim green until we name the exact command I'd run."
+  },
+  {
+    "command": "kitty_app_routes",
+    "name": "gateway/app.py — HTTP surface",
+    "tags": ["kitty", "api"],
+    "content": "Map gateway/app.py routes I care about as an Open WebUI user: /v1/chat/completions (WebUI), /ask (shortcuts), /brief, /health. Where does model pick kitty-private for health domain? One short paragraph."
+  },
+  {
+    "command": "kitty_stuck",
+    "name": "TASKS.md / stuck pattern",
+    "tags": ["kitty", "debug"],
+    "content": "I'm stuck on Kitty (build won't start, tests fail, or WebUI won't chat). Walk me through triage: check ./kitty status, ports from ARCHITECTURE, LiteLLM logs, gateway logs, last git change. Ask one narrowing question after each hypothesis."
+  },
+  {
+    "command": "kitty_openwebui_setup",
+    "name": "kitty_gateway/* — WebUI alignment",
+    "tags": ["kitty", "openwebui"],
+    "content": "Help me align Open WebUI with Kitty: OPENAI_API_BASE_URL to LiteLLM, models kitty-default / kitty-parts, and that the gateway enriches system prompts when traffic goes through the right LiteLLM route. If I'm off-base, correct me and point to kitty_gateway/litellm_config.yaml concepts only."
+  }
+]

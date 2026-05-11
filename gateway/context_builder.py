@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List, Dict, Any
 
 from gateway import domain_router, prompt_loader, journal, parts, knowledge, memory
 
@@ -24,16 +24,19 @@ KNOWLEDGE_TOKEN_CAP: int = 700
 MEMORY_SIMILARITY_THRESHOLD: float = 0.7
 
 
-async def get_system_prompt(message: str, parts_mode: bool = False) -> str:
+async def get_system_prompt(
+    message: str, parts_mode: bool = False, domain: Optional[str] = None
+) -> str:
     """The deep entry point for Kitty's reasoning setup.
     
-    1. Classifies the domain of the message.
+    1. Classifies the domain of the message (unless ``domain`` is provided).
     2. Loads the appropriate base prompt.
     3. Detects and applies specialized modes (Journal, Parts).
     4. Fetches and appends dynamic context (Memory, Knowledge).
     """
     # 1. Classification & Base Prompt
-    domain = domain_router.classify_domain(message)
+    if domain is None:
+        domain = domain_router.classify_domain(message)
     system_prompt = prompt_loader.load_prompt(domain)
 
     # 2. Specialized Mode: Journal
@@ -77,11 +80,31 @@ def build_worker_context(context_type: str, **kwargs) -> str:
 
 # --- Private Implementation Details ---
 
+async def _fetch_knowledge_for_context(query: str) -> str:
+    """Load knowledge chunks for injection; must run on the event loop (search is async)."""
+    try:
+        chunks: List[Dict[str, Any]] = await knowledge.search(query, limit=KNOWLEDGE_LIMIT)
+        if not chunks:
+            return ""
+        lines = []
+        for c in chunks:
+            src = c.get("source", "unknown")
+            dtype = c.get("doc_type", "general")
+            text = (c.get("text") or "")[:400]
+            label = f"[Source: {src} | type: {dtype}]"
+            lines.append(f"{label}\n{text}")
+        raw = "\n".join(lines)
+        return _truncate(raw, KNOWLEDGE_TOKEN_CAP)
+    except Exception:
+        logger.warning("Knowledge fetch failed", exc_info=True)
+        return ""
+
+
 async def _fetch_all_context(query: str) -> Tuple[str, str]:
     """Fetch memory and knowledge concurrently."""
     results = await asyncio.gather(
         asyncio.to_thread(_fetch_memory, query),
-        asyncio.to_thread(_fetch_knowledge, query),
+        _fetch_knowledge_for_context(query),
         return_exceptions=True,
     )
 
@@ -100,30 +123,6 @@ def _fetch_memory(query: str) -> str:
         return _truncate(raw, MEMORY_TOKEN_CAP) if raw else ""
     except Exception:
         logger.warning("Memory fetch failed", exc_info=True)
-        return ""
-
-
-def _fetch_knowledge(query: str) -> str:
-    try:
-        # Use search_knowledge directly to avoid circular dependency in aliases
-        from gateway.knowledge import search
-        # Note: knowledge.search is async, but this is called in a thread.
-        # This is a temporary bridge during refactoring.
-        loop = asyncio.new_event_loop()
-        try:
-            chunks = loop.run_until_complete(search(query, limit=KNOWLEDGE_LIMIT))
-        finally:
-            loop.close()
-            
-        if not chunks: return ""
-        lines = []
-        for c in chunks:
-            label = f"[Source: {c['source']} | type: {c['doc_type']}]"
-            lines.append(f"{label}\n{c['text'][:400]}")
-        raw = "\n".join(lines)
-        return _truncate(raw, KNOWLEDGE_TOKEN_CAP)
-    except Exception:
-        logger.warning("Knowledge fetch failed", exc_info=True)
         return ""
 
 
