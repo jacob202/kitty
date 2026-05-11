@@ -222,7 +222,16 @@ The mission: "So that no one becomes themselves alone." The first person who mus
 ---
 ## Handoff _(fill at session end only — rules in §9)_
 **Last agent:** Claude Sonnet 4.6, 2026-05-10.
-**Shipped:** Phase 17 complete — Soul rewrite, Parts system, Self-review signals, Journal interviewer, context_builder, LITELLM env-driven, FastAPI lifespan, 116 tests passing.
-**Proof:** `116 passed, 2 deselected` — pre-commit hook clean, no deprecation warnings.
-**Next:** Branch merged to main. Worktree `feature/phase-17` can be removed. Consider Phase 18 (model digest, specialist KB).
-**Learning:** Multi-agent coordination protocol added to AGENTS.md. Two agents editing main simultaneously causes conflicts — always use worktrees. Check `git log --oneline -10` before starting any task.
+**Shipped:** Phase 17 full — merged to main at `61855b4`. 121 tests passing.
+- `gateway/parts.py` — Skeptic/Champion/Pragmatist/Observer, external toggle + auto-trigger
+- `gateway/self_review.py` — drift/reaction/session arc logs → `data/kitty/*.jsonl`; auto-writes `config/SOUL_SCRATCHPAD.md` on drift
+- `gateway/journal.py` — themed interview openers, prompt generator, synthesis persisted to `data/journal_entries.jsonl`; ambient trigger wired into `/ask`
+- `gateway/context_builder.py` — concurrent memory+knowledge fetch, `(soul_prompt, dynamic_context)` tuple, `return_exceptions=True`, `build_worker_context` sync alias for brief.py
+- `gateway/paths.py` — LITELLM_BASE/KEY now env-driven, no hardcoded values
+- `gateway/app.py` — FastAPI lifespan (no deprecation warnings), body-size middleware, Pydantic models for troubleshoot/tasks/learn endpoints, duplicate routes removed
+- `config/SOUL.md` — full behavioral rewrite; `config/SOUL_SCRATCHPAD.md` — two-layer evolution
+- `AGENTS.md` — multi-agent coordination protocol + Phase 17 code patterns added
+**Proof:** `121 passed, 2 deselected` on main at `61855b4`.
+**Dirty:** Clean. Worktree `.worktrees/phase-17` can be removed: `git worktree remove .worktrees/phase-17`
+**Next:** 1) Remove worktree (command above). 2) Phase 18 candidates: model digest feed, specialist KB training, Honcho weekly mirror. 3) Wire journal into Open WebUI as a named model or shortcut.
+**Learning:** Hooks rewrite files mid-session — always re-read before editing. Multi-agent conflict resolved by worktree isolation + AGENTS.md protocol. `brief.py` uses `chat()` not `call_llm()` — patch `gateway.llm_client.chat` in tests.
