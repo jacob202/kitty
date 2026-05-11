@@ -1,133 +1,67 @@
-"""Context builder — assembles the two-part system prompt for every request.
+"""Context Control Plane — orchestrates prompt assembly and context retrieval.
 
-Returns a (soul_prompt, dynamic_context) tuple so callers can pin the soul
-prefix to a cache slot and only re-fetch the dynamic suffix on each turn.
+This is a DEEP module. Callers (like app.py) should only use:
+- get_system_prompt(): The high-leverage entry point for chat sessions.
+- build_worker_context(): For specialized non-chat tasks.
 
-Section headers in dynamic_context:
-  [MEMORY]    — retrieved episodic memory
-  [KNOWLEDGE] — retrieved knowledge base chunks
-
-Empty sections are omitted entirely (no orphaned headers).
-
-Both fetches run concurrently via asyncio.gather(return_exceptions=True).
-A failed fetch logs a warning and returns an empty section — never a 500.
+Implementation details (domain routing, prompt loading, dynamic context) are private.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Optional
+from typing import Optional, Tuple
+
+from gateway import domain_router, prompt_loader, journal, parts, knowledge, memory
 
 logger = logging.getLogger("kitty.context_builder")
 
-# Retrieval constants — change here, not scattered through call sites
-MEMORY_SIMILARITY_THRESHOLD: float = 0.7
-MEMORY_TOKEN_CAP: int = 500
-KNOWLEDGE_TOKEN_CAP: int = 700
-
+# Retrieval constants
 MEMORY_LIMIT: int = 5
 KNOWLEDGE_LIMIT: int = 3
+MEMORY_TOKEN_CAP: int = 500
+KNOWLEDGE_TOKEN_CAP: int = 700
+MEMORY_SIMILARITY_THRESHOLD: float = 0.7
 
 
-def _rough_token_count(text: str) -> int:
-    return len(text) // 4
-
-
-def _truncate(text: str, cap: int) -> str:
-    if _rough_token_count(text) <= cap:
-        return text
-    char_cap = cap * 4
-    return text[:char_cap] + "…"
-
-
-def _fetch_memory(query: str) -> str:
-    try:
-        from gateway.memory import get_context_block
-        raw = get_context_block(query, limit=MEMORY_LIMIT)
-        return _truncate(raw, MEMORY_TOKEN_CAP) if raw else ""
-    except Exception:
-        logger.warning("memory fetch failed", exc_info=True)
-        return ""
-
-
-def _fetch_knowledge(query: str) -> str:
-    try:
-        from gateway.knowledge import get_knowledge_block
-        raw = get_knowledge_block(query, limit=KNOWLEDGE_LIMIT)
-        return _truncate(raw, KNOWLEDGE_TOKEN_CAP) if raw else ""
-    except Exception:
-        logger.warning("knowledge fetch failed", exc_info=True)
-        return ""
-
-
-def _build_dynamic(memory: str, knowledge: str) -> str:
-    parts = []
-    if memory:
-        parts.append(f"[MEMORY]\n{memory}")
-    if knowledge:
-        parts.append(f"[KNOWLEDGE]\n{knowledge}")
-    return "\n\n".join(parts)
-
-
-async def build_user_context(
-    query: str,
-    soul_prompt: str,
-) -> tuple[str, str]:
-    """Return (soul_prompt, dynamic_context).
-
-    Both fetches run concurrently. Either or both may be empty strings on
-    failure — the soul_prompt is always returned unchanged.
+async def get_system_prompt(message: str, parts_mode: bool = False) -> str:
+    """The deep entry point for Kitty's reasoning setup.
+    
+    1. Classifies the domain of the message.
+    2. Loads the appropriate base prompt.
+    3. Detects and applies specialized modes (Journal, Parts).
+    4. Fetches and appends dynamic context (Memory, Knowledge).
     """
-    results = await asyncio.gather(
-        asyncio.to_thread(_fetch_memory, query),
-        asyncio.to_thread(_fetch_knowledge, query),
-        return_exceptions=True,
-    )
+    # 1. Classification & Base Prompt
+    domain = domain_router.classify_domain(message)
+    system_prompt = prompt_loader.load_prompt(domain)
 
-    memory = results[0] if isinstance(results[0], str) else ""
-    knowledge = results[1] if isinstance(results[1], str) else ""
+    # 2. Specialized Mode: Journal
+    if journal.is_journal_trigger(message):
+        system_prompt = journal.build_interview_system_prompt(system_prompt)
 
-    if isinstance(results[0], Exception):
-        logger.warning("memory fetch raised: %s", results[0])
-    if isinstance(results[1], Exception):
-        logger.warning("knowledge fetch raised: %s", results[1])
+    # 3. Specialized Mode: Parts (Internal Council)
+    if parts_mode or parts.should_surface_parts(message):
+        system_prompt = parts.build_parts_system_prompt(system_prompt)
 
-    if not memory and not knowledge:
-        logger.warning("both context fetches failed for query=%r", query[:60])
-
-    dynamic = _build_dynamic(memory, knowledge)
-    return soul_prompt, dynamic
+    # 4. Dynamic Context Retrieval
+    memory_block, knowledge_block = await _fetch_all_context(message)
+    
+    # 5. Assembly
+    return _assemble(system_prompt, memory_block, knowledge_block)
 
 
-def build_worker_context(
-    context_type: str,
-    **kwargs,
-) -> str:
-    """Build a plain-text context block for synchronous worker tasks.
-
-    This is the synchronous sibling of build_user_context().  Instead of
-    fetching memory/knowledge it assembles a task prompt string from the
-    keyword arguments the caller passes.
-
-    Supported context types:
-        brief       – kwargs: top_task, memory, tz
-        learning    – kwargs: task_desc
-        reset       – kwargs: task_desc
-        troubleshooter – kwargs: task_desc
-        researcher  – kwargs: topic, chunks
-    """
+def build_worker_context(context_type: str, **kwargs) -> str:
+    """Build a plain-text context block for synchronous worker tasks."""
     if context_type == "brief":
         top_task = kwargs.get("top_task", "")
-        memory = kwargs.get("memory", "")
+        m = kwargs.get("memory", "")
         tz = kwargs.get("tz", "")
-        parts = []
-        if top_task:
-            parts.append(f"Current Top Task: {top_task}")
-        if memory:
-            parts.append(f"Recent Memories: {memory}")
-        if tz:
-            parts.append(f"Timezone: {tz}")
-        return "\n".join(parts)
+        parts_list = []
+        if top_task: parts_list.append(f"Current Top Task: {top_task}")
+        if m: parts_list.append(f"Recent Memories: {m}")
+        if tz: parts_list.append(f"Timezone: {tz}")
+        return "\n".join(parts_list)
 
     if context_type in ("learning", "reset", "troubleshooter"):
         return kwargs.get("task_desc", "")
@@ -136,13 +70,92 @@ def build_worker_context(
         topic = kwargs.get("topic", "")
         chunks = kwargs.get("chunks", "")
         header = f"Research topic: {topic}" if topic else ""
-        body = chunks or ""
-        return f"{header}\n\n{body}".strip()
+        return f"{header}\n\n{chunks or ''}".strip()
 
     return ""
 
 
-def assemble_system_prompt(soul_prompt: str, dynamic_context: str) -> str:
-    if not dynamic_context:
-        return soul_prompt
-    return f"{soul_prompt}\n\n{dynamic_context}"
+# --- Private Implementation Details ---
+
+async def _fetch_all_context(query: str) -> Tuple[str, str]:
+    """Fetch memory and knowledge concurrently."""
+    results = await asyncio.gather(
+        asyncio.to_thread(_fetch_memory, query),
+        asyncio.to_thread(_fetch_knowledge, query),
+        return_exceptions=True,
+    )
+
+    mem = results[0] if isinstance(results[0], str) else ""
+    kn = results[1] if isinstance(results[1], str) else ""
+
+    if isinstance(results[0], Exception): logger.warning("Memory fetch raised: %s", results[0])
+    if isinstance(results[1], Exception): logger.warning("Knowledge fetch raised: %s", results[1])
+    
+    return mem, kn
+
+
+def _fetch_memory(query: str) -> str:
+    try:
+        raw = memory.get_context_block(query, limit=MEMORY_LIMIT)
+        return _truncate(raw, MEMORY_TOKEN_CAP) if raw else ""
+    except Exception:
+        logger.warning("Memory fetch failed", exc_info=True)
+        return ""
+
+
+def _fetch_knowledge(query: str) -> str:
+    try:
+        # Use search_knowledge directly to avoid circular dependency in aliases
+        from gateway.knowledge import search
+        # Note: knowledge.search is async, but this is called in a thread.
+        # This is a temporary bridge during refactoring.
+        loop = asyncio.new_event_loop()
+        try:
+            chunks = loop.run_until_complete(search(query, limit=KNOWLEDGE_LIMIT))
+        finally:
+            loop.close()
+            
+        if not chunks: return ""
+        lines = []
+        for c in chunks:
+            label = f"[Source: {c['source']} | type: {c['doc_type']}]"
+            lines.append(f"{label}\n{c['text'][:400]}")
+        raw = "\n".join(lines)
+        return _truncate(raw, KNOWLEDGE_TOKEN_CAP)
+    except Exception:
+        logger.warning("Knowledge fetch failed", exc_info=True)
+        return ""
+
+
+def _build_dynamic(mem: str, kn: str) -> str:
+    """Build the dynamic context block from memory and knowledge strings."""
+    sections = []
+    if mem: sections.append(f"[MEMORY]\n{mem}")
+    if kn: sections.append(f"[KNOWLEDGE]\n{kn}")
+    return "\n\n".join(sections)
+
+
+def _assemble(base: str, mem: str, kn: str) -> str:
+    dynamic = _build_dynamic(mem, kn)
+    if dynamic:
+        return f"{base}\n\n{dynamic}"
+    return base
+
+
+def _truncate(text: str, cap: int) -> str:
+    if (len(text) // 4) <= cap:
+        return text
+    return text[:cap * 4] + "…"
+
+
+# Legacy compatibility aliases
+async def build_user_context(query: str, soul_prompt: str) -> Tuple[str, str]:
+    """Shim for legacy callers who expect (soul, dynamic) split."""
+    mem, kn = await _fetch_all_context(query)
+    dynamic = []
+    if mem: dynamic.append(f"[MEMORY]\n{mem}")
+    if kn: dynamic.append(f"[KNOWLEDGE]\n{kn}")
+    return soul_prompt, "\n\n".join(dynamic)
+
+def assemble_system_prompt(soul: str, dynamic: str) -> str:
+    return f"{soul}\n\n{dynamic}".strip()

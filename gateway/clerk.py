@@ -28,114 +28,12 @@ def _get_content_hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8", errors="ignore")).hexdigest()
 
 
-def _analyze_image_with_claude(base64_image: str, prompt: str) -> str:
-    """Send an image to Claude 3.7 Sonnet for visual analysis."""
-    payload = {
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
-                    },
-                ],
-            }
-        ],
-    }
-    return call_llm(model="anthropic/claude-3.7-sonnet", **payload, timeout=60)
+from gateway import vision
+from contracts.knowledge_pipeline import VisualExtraction
 
-
-def _extract_visual_descriptions(path: Path) -> list[dict]:
+def _extract_visual_descriptions(path: Path) -> list[VisualExtraction]:
     """Render PDF pages or process image files to get LLM technical descriptions."""
-    visual_chunks = []
-    suffix = path.suffix.lower()
-    
-    # Handle Image Files directly
-    if suffix in [".jpg", ".jpeg", ".png"]:
-        try:
-            with open(path, "rb") as f:
-                img_data = f.read()
-            base64_img = base64.b64encode(img_data).decode("utf-8")
-            
-            prompt = """Analyze this technical photo or board layout. 
-            1. **Identity**: What is this a photo of? (e.g., 'Bottom side of Sansui AU-7900 Main Board').
-            2. **Visual Audit**: List all visible components, connectors, and labels. Note any signs of wear, heat, or previous repair.
-            3. **Linkage**: Identify which circuit stage this likely belongs to based on the components visible.
-            Keep the description technical and dense."""
-            
-            logger.info("Requesting Visual Analysis for image: %s", path.name)
-            description = _analyze_image_with_claude(base64_img, prompt)
-            if description:
-                visual_chunks.append({
-                    "text": f"IMAGE ANALYSIS: {description}",
-                    "metadata": {"is_visual": True, "analysis_type": "physical_audit"}
-                })
-            return visual_chunks
-        except Exception as e:
-            logger.warning("Image analysis failed for %s: %s", path.name, e)
-            return []
-
-    # Handle PDF rendering
-    if suffix != ".pdf":
-        return []
-        
-    try:
-        import fitz
-        doc = fitz.open(str(path))
-        
-        # Intelligent page selection
-        pages_to_check = set()
-        for i in range(len(doc)):
-            page_text = doc[i].get_text().lower()
-            if any(k in page_text for k in ["schematic", "diagram", "circuit", "layout", "wiring", "troubleshooting", "voltage"]):
-                pages_to_check.add(i)
-                if len(pages_to_check) >= 12: break
-        
-        if not pages_to_check:
-            pages_to_check.update(range(min(5, len(doc))))
-            
-        for page_num in sorted(list(pages_to_check))[:15]:
-            page = doc.load_page(page_num)
-            pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
-            img_data = pix.tobytes("jpeg")
-            base64_img = base64.b64encode(img_data).decode("utf-8")
-            
-            prompt = """Analyze this technical diagram or schematic. 
-            
-            1. **Circuit Identification**: What specific section of the device is this? (e.g., 'Main Amplifier Board', 'Power Supply Stage').
-            2. **Power Flow**: Trace the primary power rails. Identify voltages, regulators, and rectification points. 
-            3. **Signal Flow**: Trace the audio or data signal path from input to output. Identify key coupling caps, gain stages, or buffers.
-            4. **Diagnostic Heuristics**: 
-               - **Test Points (TP)**: List all test points and their expected voltages/waveforms.
-               - **Troubleshooting Logic**: Extract any symptom-to-cause tables or diagnostic flowcharts.
-               - **Service Notes**: Capture any production changes, mods, or caution boxes.
-            5. **Exhaustive Component Reference**: List all critical components:
-               - **Active**: ICs, Transistors, Diodes.
-               - **Passive**: Resistors (values/watt), Capacitors (values/volt), Inductors.
-               - **Electromechanical**: Relays, Switches, Connectors, Fuses.
-               - **Adjustments**: Trimmer pots (VRs).
-            
-            Capture specific part numbers and values whenever legible. Keep it dense and highly searchable."""
-            
-            logger.info("Requesting Deep Schematic Analysis for %s [Page %d]", path.name, page_num + 1)
-            description = _analyze_image_with_claude(base64_img, prompt)
-            
-            if description:
-                visual_chunks.append({
-                    "text": f"DEEP VISUAL ANALYSIS [Page {page_num + 1}]:\n{description}",
-                    "metadata": {
-                        "page_num": page_num + 1,
-                        "is_visual": True,
-                        "analysis_type": "schematic_trace"
-                    }
-                })
-        doc.close()
-    except Exception as e:
-        logger.warning("Visual extraction failed for %s: %s", path.name, e)
-        
-    return visual_chunks
+    return vision.analyze_file(path)
 
 
 def _extract_pdf_pages(path: Path) -> list[tuple[int, str]]:

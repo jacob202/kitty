@@ -232,6 +232,7 @@ The mission: "So that no one becomes themselves alone." The first person who mus
 - `config/SOUL.md` — full behavioral rewrite; `config/SOUL_SCRATCHPAD.md` — two-layer evolution
 - `AGENTS.md` — multi-agent coordination protocol + Phase 17 code patterns added
 **Proof:** `121 passed, 2 deselected` on main at `61855b4`.
-**Dirty:** Clean. Worktree `.worktrees/phase-17` can be removed: `git worktree remove .worktrees/phase-17`
-**Next:** 1) Remove worktree (command above). 2) Phase 18 candidates: model digest feed, specialist KB training, Honcho weekly mirror. 3) Wire journal into Open WebUI as a named model or shortcut.
+**Cleanup:** Removed all worktrees (phase-17, phase-11-backup, phase-9-pdf) and all stale branches (feature/phase-17, phase-11-backup, phase-9-pdf, parked/mcp-agent-bundle-20260429). Repo is clean — one branch, `main`.
+**Dirty:** Clean.
+**Next:** 1) Phase 18 candidates: model digest feed, specialist KB training, Honcho weekly mirror. 2) Wire journal into Open WebUI as a named model or shortcut.
 **Learning:** Hooks rewrite files mid-session — always re-read before editing. Multi-agent conflict resolved by worktree isolation + AGENTS.md protocol. `brief.py` uses `chat()` not `call_llm()` — patch `gateway.llm_client.chat` in tests.
