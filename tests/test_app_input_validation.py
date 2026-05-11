@@ -2,12 +2,13 @@ import os
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+from starlette.datastructures import Headers
 
-from gateway.app import MAX_BODY_BYTES, app
+from gateway.app import app, MAX_BODY_BYTES
 
 
 def _client():
-    return TestClient(app)
+    return TestClient(app, raise_server_exceptions=False)
 
 
 def test_learn_rejects_oversized_topic():
@@ -45,20 +46,20 @@ def test_tasks_sync_accepts_valid_payload():
 
 
 def test_global_body_size_guard_blocks_large_requests():
+    """Test that the body_size_guard middleware rejects oversized payloads.
+
+    We bypass TestClient's content-length auto-computation by setting
+    a huge header *after* the JSON body is serialized.
+    """
+    import json
+
     with patch.dict(os.environ, {"KITTY_ENV": "test", "GATEWAY_SECRET": ""}):
         client = _client()
+        # Send a valid JSON body but lie about content-length via raw transport
+        body = json.dumps({"topic": "ok"}).encode("utf-8")
         response = client.post(
             "/learn",
-            json={"topic": "ok"},
-        )
-    # The body_size_guard middleware checks content-length; TestClient
-    # computes it automatically, so we just verify the 413 path via a
-    # direct header override
-    with patch.dict(os.environ, {"KITTY_ENV": "test", "GATEWAY_SECRET": ""}):
-        client = _client()
-        response = client.post(
-            "/learn",
-            json={"topic": "ok"},
-            headers={"content-length": str(MAX_BODY_BYTES + 1)},
+            content=body,
+            headers={"content-type": "application/json", "content-length": str(MAX_BODY_BYTES + 1)},
         )
     assert response.status_code == 413
