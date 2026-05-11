@@ -84,15 +84,13 @@ def test_extract_jsonl_session(tmp_path):
 
 
 def test_get_knowledge_block_empty_on_no_results():
-    with patch("gateway.knowledge._get_collection") as mock_coll:
-        mock_instance = MagicMock()
-        mock_instance.count.return_value = 0
-        mock_instance.query.return_value = {"documents": [[]], "metadatas": [[]], "distances": [[]]}
-        mock_coll.return_value = mock_instance
-        from gateway import knowledge as kb
-        with patch.object(kb, "_get_collection", return_value=mock_instance):
-            with patch.object(kb, "_embed", return_value=[[0.1] * 768]):
-                result = kb.get_knowledge_block("anything")
+    mock_instance = MagicMock()
+    mock_instance.count.return_value = 0
+    mock_instance.query.return_value = {"documents": [[]], "metadatas": [[]], "distances": [[]]}
+    from gateway import knowledge as kb
+    with patch("gateway.archivist._get_collection", return_value=mock_instance), \
+         patch("gateway.archivist._embed_cached", return_value=tuple([0.1] * 768)):
+        result = kb.get_knowledge_block("anything")
     assert result == ""
 
 
@@ -102,15 +100,13 @@ def test_get_knowledge_block_formats_with_source():
         "metadatas": [[{"source": "car_history.txt", "sensitivity": "low", "chunk_index": 0}]],
         "distances": [[0.1]],
     }
-    with patch("gateway.knowledge._get_collection") as mock_coll:
-        mock_instance = MagicMock()
-        mock_instance.count.return_value = 1
-        mock_instance.query.return_value = mock_results
-        mock_coll.return_value = mock_instance
-        from gateway import knowledge as kb
-        with patch.object(kb, "_get_collection", return_value=mock_instance):
-            with patch.object(kb, "_embed", return_value=[[0.1] * 768]):
-                result = kb.get_knowledge_block("Honda")
+    mock_instance = MagicMock()
+    mock_instance.count.return_value = 1
+    mock_instance.query.return_value = mock_results
+    from gateway import knowledge as kb
+    with patch("gateway.archivist._get_collection", return_value=mock_instance), \
+         patch("gateway.archivist._embed_cached", return_value=tuple([0.1] * 768)):
+        result = kb.get_knowledge_block("Honda")
     assert "car_history.txt" in result
     assert "Honda Civic" in result
 
