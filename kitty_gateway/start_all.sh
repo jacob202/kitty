@@ -188,10 +188,11 @@ fi
 
 echo
 echo "Stack launch complete."
-echo "Open WebUI: ${WEBUI_URL:-http://127.0.0.1:${OPENWEBUI_PORT}}"
-echo "Gateway: http://127.0.0.1:8000"
-echo "LiteLLM: http://127.0.0.1:8001"
-echo "MLX:     http://127.0.0.1:8010"
+echo "Kitty chat UI (Open WebUI): ${WEBUI_URL:-http://127.0.0.1:${OPENWEBUI_PORT}}"
+echo "  — use virtual models kitty-default, kitty-agent, kitty-smart, … (LiteLLM proxies at :8001)"
+echo "Kitty Gateway (FastAPI):     http://127.0.0.1:8000"
+echo "LiteLLM proxy:               http://127.0.0.1:8001"
+echo "MLX:                         http://127.0.0.1:8010"
 echo
 echo "Logs:"
 echo "  ${LOG_DIR}/mlx.log"

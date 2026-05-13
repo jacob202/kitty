@@ -11,10 +11,14 @@ if [[ -f ".env" ]]; then
   set +a
 fi
 
+# Export every assignment from openwebui.env — Open WebUI only sees **exported**
+# vars. Without `set -a`, DISABLE_OLLAMA / DEFAULT_MODELS / multi-endpoint keys stay
+# shell-local and WebUI falls back to wrong backends (looks like “GPT direct” chaos).
 if [[ -f "kitty_gateway/openwebui.env" ]]; then
-  # Optional local overrides (not committed secrets)
+  set -a
   # shellcheck disable=SC1091
   source "kitty_gateway/openwebui.env"
+  set +a
 fi
 
 if [[ -n "${OPENWEBUI_DATA_DIR_OVERRIDE:-}" ]]; then
