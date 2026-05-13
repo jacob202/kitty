@@ -22,6 +22,7 @@ from gateway.prompt_loader import load_prompt
 
 from contextlib import asynccontextmanager
 from gateway.paths import LOG_FILE, LITELLM_BASE, LITELLM_KEY, validate_dirs, validate_env
+from gateway.token_usage_log import log_llm_usage, normalize_usage_payload
 
 _http_client: httpx.AsyncClient | None = None
 
@@ -391,7 +392,20 @@ async def _non_stream_response(payload):
         json=payload,
         headers={"Authorization": f"Bearer {LITELLM_KEY}"},
     )
-    return resp.json()
+    data = resp.json()
+    usage = normalize_usage_payload(data.get("usage") if isinstance(data, dict) else None)
+    if usage:
+        log_llm_usage(
+            "litellm",
+            str(data.get("model") or payload.get("model") or "unknown"),
+            "chat.completions.create",
+            usage,
+            {
+                "route": "gateway_chat_nonstream",
+                "request_model": payload.get("model"),
+            },
+        )
+    return data
 
 
 def _filter_chat_response(result: dict) -> None:
@@ -506,6 +520,44 @@ async def mcp_servers():
 async def mcp_tools():
     from gateway.mcp_tool_bridge import get_tool_schema_for_llm
     return {"tools": get_tool_schema_for_llm()}
+
+
+# --- Sync endpoints ---
+
+@app.get("/sync/export")
+async def sync_export():
+    from gateway.sync import export_snapshot
+    return export_snapshot()
+
+
+@app.post("/sync/import")
+async def sync_import(request: Request):
+    from gateway.sync import import_snapshot
+    body = await request.json()
+    merged = import_snapshot(body)
+    return {"merged": merged}
+
+
+# --- Search endpoint ---
+
+@app.get("/search")
+async def search_all(q: str = "", limit: int = 5):
+    from gateway.search import search
+    return search(q, limit=limit)
+
+
+# --- Deploy endpoint ---
+
+class DeployRequest(BaseModel):
+    target_dir: str = Field(min_length=1, max_length=1000)
+    platform: str = "docker"
+    config: Optional[dict] = None
+
+
+@app.post("/deploy")
+async def deploy_project(payload: DeployRequest):
+    from gateway.deploy import deploy
+    return await deploy(payload.target_dir, payload.platform, payload.config)
 
 
 # --- Nudge endpoints ---
