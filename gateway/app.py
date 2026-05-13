@@ -468,6 +468,84 @@ async def telegram_status():
     return {"configured": is_configured()}
 
 
+# --- Plugin endpoints ---
+
+@app.get("/plugins")
+async def plugins_list():
+    from gateway.plugin_registry import list_plugins
+    return {"plugins": list_plugins()}
+
+
+@app.post("/plugin/{name}/enable")
+async def plugin_enable(name: str):
+    from gateway.plugin_registry import enable
+    ok = enable(name)
+    if not ok:
+        raise HTTPException(status_code=404, detail=f"Plugin not found: {name}")
+    return {"plugin": name, "enabled": True}
+
+
+@app.post("/plugin/{name}/disable")
+async def plugin_disable(name: str):
+    from gateway.plugin_registry import disable
+    ok = disable(name)
+    if not ok:
+        raise HTTPException(status_code=404, detail=f"Plugin not found: {name}")
+    return {"plugin": name, "enabled": False}
+
+
+# --- MCP endpoints ---
+
+@app.get("/mcp/servers")
+async def mcp_servers():
+    from gateway.mcp_tool_bridge import list_servers
+    return {"servers": list_servers()}
+
+
+@app.get("/mcp/tools")
+async def mcp_tools():
+    from gateway.mcp_tool_bridge import get_tool_schema_for_llm
+    return {"tools": get_tool_schema_for_llm()}
+
+
+# --- Cron endpoints ---
+
+class CronScheduleRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    action: str = Field(min_length=1, max_length=200)
+    schedule_type: str = "daily"
+    schedule_value: str = "07:00"
+    metadata: Optional[dict] = None
+
+
+@app.post("/cron/schedule")
+async def cron_schedule(payload: CronScheduleRequest):
+    from gateway.cron import schedule
+    sid = schedule(
+        name=payload.name,
+        action=payload.action,
+        schedule_type=payload.schedule_type,
+        schedule_value=payload.schedule_value,
+        metadata=payload.metadata,
+    )
+    return {"schedule_id": sid}
+
+
+@app.get("/cron/schedules")
+async def cron_list():
+    from gateway.cron import list_schedules
+    return {"schedules": list_schedules()}
+
+
+@app.delete("/cron/{schedule_id}")
+async def cron_delete(schedule_id: str):
+    from gateway.cron import remove
+    ok = remove(schedule_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    return {"deleted": True}
+
+
 # --- Build endpoints ---
 
 class BuildStartRequest(BaseModel):
