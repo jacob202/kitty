@@ -508,6 +508,21 @@ async def mcp_tools():
     return {"tools": get_tool_schema_for_llm()}
 
 
+# --- Nudge endpoints ---
+
+@app.get("/nudges")
+async def nudge_list():
+    from gateway.nudge import get_pending
+    return {"nudges": get_pending()}
+
+
+@app.post("/nudge/{nudge_id}/dismiss")
+async def nudge_dismiss(nudge_id: str):
+    from gateway.nudge import dismiss
+    dismiss(nudge_id)
+    return {"dismissed": True}
+
+
 # --- Health & Patterns endpoints ---
 
 @app.get("/health/weekly")
