@@ -671,7 +671,7 @@ def _is_offline() -> bool:
 
 def route_model(message: str) -> str:
     """3-decision router for non-health model selection."""
-    if _is_offline():
+    if os.environ.get("KITTY_DISABLE_LOCAL") != "1" and _is_offline():
         logger.debug("routing: offline -> %s", _LOCAL_MODEL)
         return _LOCAL_MODEL
 

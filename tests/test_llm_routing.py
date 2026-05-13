@@ -1,4 +1,5 @@
 """Unit tests for the model router (LiteLLM virtual ids sent to the local proxy)."""
+import os
 from unittest.mock import patch
 
 import requests
@@ -36,8 +37,16 @@ def test_use_claude_routes_to_kitty_smart():
 
 
 def test_offline_routes_to_local_model():
-    with patch("gateway.llm_client._is_offline", return_value=True):
+    with patch("gateway.llm_client._is_offline", return_value=True), \
+         patch.dict(os.environ, {"KITTY_DISABLE_LOCAL": ""}, clear=False):
         assert route_model("Use your best model for this important decision") == "mlx-local"
+
+
+def test_disable_local_skips_offline_routing():
+    with patch("gateway.llm_client._is_offline", return_value=True), \
+         patch.dict(os.environ, {"KITTY_DISABLE_LOCAL": "1"}):
+        result = route_model("Use your best model for this important decision")
+        assert result == "kitty-smart"
 
 
 def test_litellm_fallback_prefers_agentrouter_before_openrouter():
