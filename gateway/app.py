@@ -423,6 +423,32 @@ async def close_session(request: Request):
     return {"status": "ok", "session_id": session_id}
 
 
+# --- Todo endpoints ---
+
+class TodoUpdateRequest(BaseModel):
+    items: list[dict] = Field(default_factory=list)
+
+
+@app.post("/todos")
+async def todos_update(payload: TodoUpdateRequest):
+    """Replace the entire todo list. Model-invokable structured task tracking."""
+    from gateway.todo_store import update
+    return {"todos": update(payload.items)}
+
+
+@app.get("/todos")
+async def todos_get():
+    from gateway.todo_store import get
+    return {"todos": get()}
+
+
+@app.post("/todos/clear")
+async def todos_clear():
+    from gateway.todo_store import clear
+    clear()
+    return {"todos": []}
+
+
 # --- Agent endpoints ---
 
 class AgentSpawnRequest(BaseModel):
