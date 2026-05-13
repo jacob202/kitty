@@ -140,4 +140,13 @@ def generate_brief() -> dict:
     model_news = get_model_digest_section(limit=3)
     if model_news:
         result["model_news"] = model_news
+
+    # Push to phone if notify is configured
+    try:
+        from gateway.notify import send_brief, is_configured
+        if is_configured():
+            send_brief(brief_text)
+    except Exception:
+        pass
+
     return result

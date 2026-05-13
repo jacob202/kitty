@@ -423,6 +423,30 @@ async def close_session(request: Request):
     return {"status": "ok", "session_id": session_id}
 
 
+# --- Notification endpoints ---
+
+class NotifyRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+    title: str = "Kitty"
+    url: Optional[str] = None
+
+
+@app.post("/notify")
+async def notify_send(payload: NotifyRequest):
+    from gateway.notify import send
+    success = send(payload.message, title=payload.title, url=payload.url)
+    return {"sent": success}
+
+
+@app.get("/notify/test")
+async def notify_test():
+    from gateway.notify import send, is_configured
+    if not is_configured():
+        return {"configured": False, "message": "Set PUSHOVER_USER_KEY and PUSHOVER_API_TOKEN in .env"}
+    success = send("Kitty notification system is working.", title="Kitty Test")
+    return {"configured": True, "sent": success}
+
+
 # --- Skill endpoints ---
 
 @app.get("/skills")
