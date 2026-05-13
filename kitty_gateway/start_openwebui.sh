@@ -67,4 +67,4 @@ if [[ "${OPENWEBUI_SMOKE:-0}" == "1" ]]; then
   exit 0
 fi
 
-open-webui serve --host "${OPENWEBUI_HOST}" --port "${OPENWEBUI_PORT}"
+exec open-webui serve --host "${OPENWEBUI_HOST}" --port "${OPENWEBUI_PORT}"

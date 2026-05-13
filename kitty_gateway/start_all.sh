@@ -5,6 +5,7 @@ ROOT_DIR="/Users/jacobbrizinski/Projects/kitty"
 RUN_DIR="${ROOT_DIR}/kitty_gateway/.run"
 LOG_DIR="${ROOT_DIR}/logs/kitty_gateway"
 source "${ROOT_DIR}/kitty_gateway/lib/load_env_safe.sh"
+TMUX_BIN="${TMUX_BIN:-$(command -v tmux || true)}"
 ENABLE_MLX="${ENABLE_MLX:-0}"
 ENABLE_LITELLM="${ENABLE_LITELLM:-1}"
 ENABLE_GATEWAY="${ENABLE_GATEWAY:-1}"
@@ -31,8 +32,9 @@ if [[ -f "${ROOT_DIR}/kitty_gateway/openwebui.env" ]]; then
   load_env_assignments "${ROOT_DIR}/kitty_gateway/openwebui.env"
 fi
 
+source "${ROOT_DIR}/kitty_gateway/lib/openwebui_probe.sh"
+OPENWEBUI_HOST="${OPENWEBUI_HOST:-127.0.0.1}"
 OPENWEBUI_PORT="${OPENWEBUI_PORT:-3000}"
-OPENWEBUI_HEALTH_URL="$(echo "${WEBUI_URL:-http://127.0.0.1:${OPENWEBUI_PORT}}" | sed 's!/*$!!')/health"
 
 service_pattern() {
   local name="$1"
@@ -69,16 +71,39 @@ start_service() {
   fi
 
   echo "Starting ${name}..."
-  nohup bash -lc "${cmd}" >"${log_file}" 2>&1 &
-  local launcher_pid=$!
+  local launcher_pid=""
+  local startup_retries=2
+  if [[ "${name}" == "openwebui" && -n "${TMUX_BIN}" ]]; then
+    local session_name="kitty-openwebui"
+    startup_retries=30
+    "${TMUX_BIN}" kill-session -t "${session_name}" >/dev/null 2>&1 || true
+    "${TMUX_BIN}" new-session -d -s "${session_name}" "cd '${ROOT_DIR}' && bash kitty_gateway/start_openwebui.sh >'${log_file}' 2>&1"
+  else
+    nohup bash -lc "${cmd}" >"${log_file}" 2>&1 &
+    launcher_pid=$!
+  fi
   local pid="${launcher_pid}"
   echo "${pid}" > "${pid_file}"
-  sleep 2
 
-  if pgrep -f "${pattern}" >/dev/null 2>&1; then
-    pid="$(pgrep -f "${pattern}" | head -n1)"
-    echo "${pid}" > "${pid_file}"
-  elif ! kill -0 "${launcher_pid}" 2>/dev/null; then
+  local attempt
+  for ((attempt=1; attempt<=startup_retries; attempt++)); do
+    if pgrep -f "${pattern}" >/dev/null 2>&1; then
+      pid="$(pgrep -f "${pattern}" | head -n1)"
+      echo "${pid}" > "${pid_file}"
+      break
+    fi
+    if [[ -n "${launcher_pid}" ]] && ! kill -0 "${launcher_pid}" 2>/dev/null; then
+      echo "${name}: failed to start. See ${log_file}"
+      return 1
+    fi
+    if [[ "${name}" == "openwebui" && -n "${TMUX_BIN}" ]] && ! "${TMUX_BIN}" has-session -t "kitty-openwebui" 2>/dev/null; then
+      echo "${name}: failed to start. See ${log_file}"
+      return 1
+    fi
+    sleep 1
+  done
+
+  if ! pgrep -f "${pattern}" >/dev/null 2>&1; then
     echo "${name}: failed to start. See ${log_file}"
     return 1
   fi
@@ -107,6 +132,23 @@ wait_http() {
     sleep "${delay}"
   done
   echo "${name}: not healthy yet (${url})"
+  return 1
+}
+
+wait_openwebui_http() {
+  local base out
+  base="$(canonical_openwebui_base_url)"
+  webui_warn_url_mismatch >/dev/null || true
+  local retries=45 delay=2 max_each=12
+  local i
+  for ((i=1; i<=retries; i++)); do
+    if out="$(probe_openwebui_http_once "${base}" "${max_each}")"; then
+      echo "openwebui: healthy (${out%%|*}) HTTP ${out##*|}"
+      return 0
+    fi
+    sleep "${delay}"
+  done
+  echo "openwebui: not healthy yet (${base} — tried /health /api/health /)"
   return 1
 }
 
@@ -155,7 +197,7 @@ fi
 
 [[ "${ENABLE_LITELLM}" == "1" ]] && wait_http "litellm" "http://127.0.0.1:8001/health" "Authorization: Bearer ${LITELLM_MASTER_KEY:-kitty-local-key-change-me}" 30 1 8 || true
 [[ "${ENABLE_GATEWAY}" == "1" ]] && wait_http "gateway" "http://127.0.0.1:8000/health" || true
-[[ "${ENABLE_OPENWEBUI}" == "1" ]] && wait_http "openwebui" "${OPENWEBUI_HEALTH_URL}" || true
+[[ "${ENABLE_OPENWEBUI}" == "1" ]] && wait_http "openwebui" "${OPENWEBUI_HEALTH_URL}" "" 120 1 5 || true
 [[ "${ENABLE_JUPYTER}" == "1" ]] && wait_http "jupyter" "http://127.0.0.1:8888/api" "Authorization: token ${CODE_EXECUTION_JUPYTER_AUTH_TOKEN:-}" || true
 [[ "${ENABLE_OPEN_TERMINAL}" == "1" ]] && wait_http "openterminal" "${OPEN_TERMINAL_URL:-http://127.0.0.1:9614}/health" || true
 [[ "${ENABLE_COMMUNITY_TOOL_SERVERS}" == "1" ]] && wait_http "tool-filesystem" "http://127.0.0.1:9721/openapi.json" || true
@@ -185,7 +227,7 @@ fi
 
 echo
 echo "Stack launch complete."
-echo "Kitty chat UI (Open WebUI): ${WEBUI_URL:-http://127.0.0.1:${OPENWEBUI_PORT}}"
+echo "Kitty chat UI (Open WebUI): $(canonical_openwebui_base_url)"
 echo "  — use virtual models kitty-default, kitty-agent, kitty-smart, … (LiteLLM proxies at :8001)"
 echo "Kitty Gateway (FastAPI):     http://127.0.0.1:8000"
 echo "LiteLLM proxy:               http://127.0.0.1:8001"

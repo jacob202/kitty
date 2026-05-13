@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="/Users/jacobbrizinski/Projects/kitty"
 RUN_DIR="${ROOT_DIR}/kitty_gateway/.run"
+TMUX_BIN="${TMUX_BIN:-$(command -v tmux || true)}"
 
 service_pattern() {
   local name="$1"
@@ -27,6 +28,10 @@ stop_service() {
   local pid_file="${RUN_DIR}/${name}.pid"
   local pattern
   pattern="$(service_pattern "${name}")"
+
+  if [[ "${name}" == "openwebui" && -n "${TMUX_BIN}" ]]; then
+    "${TMUX_BIN}" kill-session -t "kitty-openwebui" >/dev/null 2>&1 || true
+  fi
 
   if pgrep -f "${pattern}" >/dev/null 2>&1; then
     while read -r pid; do
