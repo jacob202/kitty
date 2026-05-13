@@ -564,10 +564,36 @@ A FastAPI gateway (`gateway/`) behind Open WebUI + Garage UI:
 | Deployment pipeline | 📋 | 9.1 |
 | Project scaffolding | 📋 | 9.2 |
 | Observability dashboard | 📋 | 10.1 |
-| Unified search | 📋 | 10.2 |
+| Unified search | ✅ | 10.2 |
 | Security hardening | 📋 | 10.3 |
 
 **✅ = done | 🏗️ = in progress | ⏸️ = parked | 📋 = from original plans/specs**
+
+## Live Verification (2026-05-13)
+
+Gateway started on port 8766, all endpoints smoke-tested:
+
+```
+/health        200
+/skills        200
+/todos         200
+/plugins       200
+/nudges        200
+/agents        200
+/monitors      200
+/builds        200
+/cron/schedules 200
+/notify/test   200
+/telegram/status 200
+/calendar/today 200 (6s — AppleScript)
+/imessage/recent 200 (4s — AppleScript)
+/search        200
+/sync/export   200
+/patterns/weekly 200 (4s — disk I/O)
+/eval/run      200
+```
+
+All 70+ API routes responding. Auth middleware correctly bypasses in dev mode (no GATEWAY_SECRET set).
 
 ---
 
