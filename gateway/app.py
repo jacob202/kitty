@@ -132,6 +132,10 @@ async def ask(payload: AskRequest):
         if isinstance(message_obj, dict):
             reply = message_obj.get("content", "")
 
+    from gateway.voice_gate import filter_response
+    gate = filter_response(reply)
+    reply = gate.cleaned
+
     from gateway.self_review import record_interaction
     record_interaction(message, reply)
 
@@ -369,6 +373,20 @@ async def _non_stream_response(payload):
         headers={"Authorization": f"Bearer {LITELLM_KEY}"},
     )
     return resp.json()
+
+
+def _filter_chat_response(result: dict) -> None:
+    """Run voice_gate on the assistant content in a chat completions response."""
+    try:
+        choices = result.get("choices", [])
+        if choices and isinstance(choices[0], dict):
+            msg = choices[0].get("message", {})
+            if isinstance(msg, dict) and msg.get("content"):
+                from gateway.voice_gate import filter_response
+                gate = filter_response(msg["content"])
+                msg["content"] = gate.cleaned
+    except Exception:
+        pass
 
 
 def _log_trace(correlation_id: str, user_text: str, domain: str, model: str, t_start: float):

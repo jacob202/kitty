@@ -12,7 +12,7 @@ import asyncio
 import logging
 from typing import Optional, Tuple, List, Dict, Any
 
-from gateway import domain_router, prompt_loader, journal, parts, memory_graph
+from gateway import domain_router, prompt_loader, journal, parts, memory_graph, voice_gate
 
 logger = logging.getLogger("kitty.context_builder")
 
@@ -50,7 +50,12 @@ async def get_system_prompt(
     # 4. Dynamic Context Retrieval (unified across all stores)
     dynamic_context = await memory_graph.unified_context(message)
     
-    # 5. Assembly
+    # 5. Drift correction nudge (if Kitty has been off-voice this session)
+    nudge = voice_gate.get_drift_nudge()
+    if nudge:
+        dynamic_context = (dynamic_context + nudge) if dynamic_context else nudge
+    
+    # 6. Assembly
     return _assemble(system_prompt, dynamic_context)
 
 
