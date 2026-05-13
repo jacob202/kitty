@@ -1,0 +1,12 @@
+---
+description: Before Cursor Compact chat, persist session state to disk
+alwaysApply: true
+---
+
+## Session handoff (all tools) + Cursor compact
+
+**Universal pattern** (Cursor, Claude, Gemini, Codex, …): update **`SESSION_HANDOFF.md`**, then drop ephemeral chat context. Full write-up: **`docs/SESSION_COMPACT_WORKFLOW.md`**.
+
+**Cursor-only:** after the handoff, use **Compact chat**; next thread @-mention **`SESSION_HANDOFF.md`**. Shortcut: **`docs/CURSOR_COMPACT.md`**.
+
+Canonical rules: **`AGENTS.md`**.

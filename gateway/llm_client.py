@@ -9,9 +9,16 @@ from gateway workers, brief generation, specialists, etc.). It uses a 3-decision
 
 OpenRouter direct fallbacks map kitty-* → real provider IDs (see _LITELLM_TO_OPENROUTER).
 
-After LiteLLM, fallbacks are: OpenRouter direct (cheap/free slugs) → Gemini → AgentRouter →
-NVIDIA NIM (when the corresponding env keys are set). OpenRouter is tried first so local ingest
-works when the proxy is down but OPENROUTER_API_KEY is set.
+After LiteLLM errors, ``call_llm`` tries **AgentRouter first** (when a key is set), then OpenRouter
+direct → Gemini → NVIDIA. Built-in AgentRouter ids (short OpenAI-style slugs):
+
+- **kitty-default** / bulk chat → ``gpt-5.4-mini`` (cheap companion + tools)
+- **kitty-agent** / **kitty-parts** → ``gpt-5.1-codex-mini`` (cheap coding); set
+  ``KITTY_AGENTROUTER_CODING_MODEL`` to e.g. ``gpt-5.3-codex`` when you need max coding quality
+- **kitty-smart** → ``gpt-5.5`` (upgrade path when user explicitly asks for “best” tier)
+
+Overrides: ``KITTY_AGENTROUTER_MODEL_*``, ``KITTY_AGENTROUTER_CHAT_MODEL`` / ``AGENTROUTER_MODEL``,
+``KITTY_AGENTROUTER_CODING_MODEL``.
 
 Successful completions append one row to data/kitty_token_log.jsonl via gateway.token_usage_log
 when the API returns a ``usage`` object (OpenAI-compatible).
@@ -19,9 +26,14 @@ when the API returns a ``usage`` object (OpenAI-compatible).
 Open WebUI routing is owned separately by kitty_gateway/litellm_config.yaml — it uses
 named virtual models (kitty-default, kitty-agent, kitty-smart). Both layers must reference
 the same canonical model IDs to stay consistent.
+
+AgentRouter **direct** fallbacks honor ``AGENTROUTER_API_KEY`` or ``AGENT_ROUTER_TOKEN``,
+normalize ``AGENTROUTER_API_BASE`` to end in ``/v1``, and can map each kitty-* route to its
+own upstream model via ``KITTY_AGENTROUTER_MODEL_DEFAULT|AGENT|SMART|PARTS``.
 """
 from __future__ import annotations
 
+import json
 import os
 import logging
 import threading
@@ -72,6 +84,111 @@ _LITELLM_TO_OPENROUTER: dict[str, str] = {
     _LOCAL_MODEL: "qwen/qwen3-235b-a22b:free",
 }
 
+# LiteLLM virtual ids sent to call_llm — map each to its own AgentRouter model if you want.
+_KITTY_VIRTUAL_FOR_AGENTROUTER: frozenset[str] = frozenset(
+    {
+        _LITELLM_DEFAULT,
+        _LITELLM_AGENT,
+        _LITELLM_SMART,
+        "kitty-parts",
+        "kitty-fallback-or",
+        _LOCAL_MODEL,
+    }
+)
+
+
+def normalize_agentrouter_api_base(raw: str | None) -> str:
+    """Return base URL with ``/v1`` suffix, no trailing slash (OpenAI-compatible)."""
+    base = (raw or "https://agentrouter.org/v1").strip().rstrip("/")
+    if base.endswith("/v1"):
+        return base
+    return f"{base}/v1"
+
+
+def resolve_agentrouter_api_key() -> str:
+    """Read API key from env; supports AgentRouter doc names. Strips quotes and first line only."""
+    load_dotenv(override=True)
+    for env_name in ("AGENTROUTER_API_KEY", "AGENT_ROUTER_TOKEN"):
+        v = os.environ.get(env_name, "")
+        if not isinstance(v, str):
+            continue
+        v = v.strip().strip('"').strip("'")
+        if "\n" in v or "\r" in v:
+            logger.warning(
+                "AgentRouter env %s had multiple lines — using first line only. Fix your .env.",
+                env_name,
+            )
+            v = v.splitlines()[0].strip()
+        if v:
+            return v
+    return ""
+
+
+def _sanitize_agentrouter_model_id(raw: str) -> str:
+    """Strip wrappers; detect accidental ``model + api_key`` on one .env line."""
+    s = raw.strip().strip('"').strip("'")
+    parts = s.split()
+    if len(parts) >= 2 and parts[1].startswith("sk-"):
+        logger.warning(
+            "AGENTROUTER_MODEL/KITTY_AGENTROUTER_CHAT_MODEL looks concatenated with a second token; "
+            "using %r only.",
+            parts[0],
+        )
+        return parts[0]
+    return s
+
+
+def agentrouter_model_for_request(request_model: str | None) -> str:
+    """Pick AgentRouter upstream model id from kitty-* virtual route or explicit id.
+
+    Per-route overrides (optional):
+
+    - ``KITTY_AGENTROUTER_MODEL_DEFAULT``, ``KITTY_AGENTROUTER_MODEL_AGENT``,
+      ``KITTY_AGENTROUTER_MODEL_SMART``, ``KITTY_AGENTROUTER_MODEL_PARTS``
+
+    Built-in routing when those are unset:
+
+    - **kitty-default**, ``kitty-fallback-or``, ``mlx-local`` → ``gpt-5.4-mini`` (budget chat)
+      unless ``KITTY_AGENTROUTER_CHAT_MODEL`` / ``AGENTROUTER_MODEL`` override.
+    - **kitty-smart** → ``gpt-5.5`` (strong chat; ignores generic chat-env so ``KITTY_AGENTROUTER_CHAT_MODEL``
+      alone does not down-tier smart routing).
+    - **kitty-agent**, **kitty-parts** → ``gpt-5.1-codex-mini`` (budget coding); use
+      ``KITTY_AGENTROUTER_CODING_MODEL=gpt-5.3-codex`` when you want flagship coding instead.
+    """
+    load_dotenv()
+    rm = (request_model or "").strip()
+    if rm and rm not in _KITTY_VIRTUAL_FOR_AGENTROUTER:
+        return _sanitize_agentrouter_model_id(rm)
+
+    tier_explicit = {
+        _LITELLM_DEFAULT: os.environ.get("KITTY_AGENTROUTER_MODEL_DEFAULT", "").strip(),
+        _LITELLM_AGENT: os.environ.get("KITTY_AGENTROUTER_MODEL_AGENT", "").strip(),
+        _LITELLM_SMART: os.environ.get("KITTY_AGENTROUTER_MODEL_SMART", "").strip(),
+        "kitty-parts": os.environ.get("KITTY_AGENTROUTER_MODEL_PARTS", "").strip(),
+    }
+    if tier_explicit.get(rm, "").strip():
+        return _sanitize_agentrouter_model_id(tier_explicit[rm])
+
+    g_chat = (
+        os.environ.get("KITTY_AGENTROUTER_CHAT_MODEL", "").strip()
+        or os.environ.get("AGENTROUTER_MODEL", "").strip()
+    )
+    g_code = os.environ.get("KITTY_AGENTROUTER_CODING_MODEL", "").strip()
+
+    _CHAT_CHEAP = "gpt-5.4-mini"
+    _CHAT_STRONG = "gpt-5.5"
+    _CODE_CHEAP = "gpt-5.1-codex-mini"
+
+    if rm == _LITELLM_DEFAULT:
+        return _sanitize_agentrouter_model_id(g_chat or _CHAT_CHEAP)
+    if rm == _LITELLM_AGENT:
+        return _sanitize_agentrouter_model_id(g_code or _CODE_CHEAP)
+    if rm == _LITELLM_SMART:
+        return _sanitize_agentrouter_model_id(_CHAT_STRONG)
+    if rm == "kitty-parts":
+        return _sanitize_agentrouter_model_id(g_code or _CODE_CHEAP)
+    return _sanitize_agentrouter_model_id(g_chat or _CHAT_CHEAP)
+
 
 def _openrouter_fallback_model(litellm_model: str) -> str:
     """Map LiteLLM-only model ids to OpenRouter-compatible ids."""
@@ -79,15 +196,6 @@ def _openrouter_fallback_model(litellm_model: str) -> str:
     if direct:
         return direct
     return _LITELLM_TO_OPENROUTER.get(litellm_model, litellm_model)
-
-
-def _agentrouter_model_id() -> str:
-    """OpenAI-style id for AgentRouter direct calls (not OpenRouter-style slugs)."""
-    return (
-        os.environ.get("KITTY_AGENTROUTER_CHAT_MODEL")
-        or os.environ.get("AGENTROUTER_MODEL")
-        or "gpt-4o-mini"
-    )
 
 
 def _finalize_openai_shape_response(
@@ -127,7 +235,7 @@ def call_llm(
 ) -> str:
     """
     Centralized hub for all LLM calls.
-    Tries LiteLLM proxy first, then OpenRouter direct (cheap/free), then AgentRouter, then NVIDIA.
+    Tries LiteLLM proxy first; on failure → AgentRouter → OpenRouter direct → Gemini → NVIDIA.
     """
     if model is None:
         user_msg = ""
@@ -168,7 +276,21 @@ def call_llm(
     except Exception as e:
         logger.warning("LLM call failed via LiteLLM (%s), trying fallbacks: %s", model, e)
 
-        # 1. Try OpenRouter direct before higher-friction fallbacks.
+        # 1. AgentRouter first (single key, tiered models via env).
+        out = _call_agentrouter_direct(
+            messages,
+            max_tokens,
+            temperature,
+            timeout,
+            response_format,
+            operation=operation,
+            metadata=metadata,
+            request_model=model,
+        )
+        if out:
+            return out
+
+        # 2. OpenRouter direct (cheap/free slugs when key set).
         or_model = _openrouter_fallback_model(model)
         out = _call_openrouter_direct(
             messages,
@@ -184,7 +306,7 @@ def call_llm(
         if out:
             return out
 
-        # 2. Try Gemini (cheap and reliable when present).
+        # 3. Gemini.
         out = _call_gemini_direct(
             messages,
             max_tokens,
@@ -198,21 +320,7 @@ def call_llm(
         if out:
             return out
 
-        # 3. Try AgentRouter.
-        out = _call_agentrouter_direct(
-            messages,
-            max_tokens,
-            temperature,
-            timeout,
-            response_format,
-            operation=operation,
-            metadata=metadata,
-            request_model=model,
-        )
-        if out:
-            return out
-
-        # 4. Try NVIDIA NIM.
+        # 4. NVIDIA NIM.
         out = _call_nvidia_direct(
             messages,
             max_tokens,
@@ -335,6 +443,20 @@ def _call_openrouter_direct(
         logger.error("OpenRouter direct call failed: %s", e)
         return ""
 
+# Browser-like UA used only if AgentRouter rejects the primary client fingerprint (401 unauthorized_client).
+_AGENTROUTER_ALT_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+)
+
+
+def _agentrouter_client_rejected(resp: requests.Response | None) -> bool:
+    if resp is None or resp.status_code != 401:
+        return False
+    body = (resp.text or "").lower()
+    return "unauthorized client" in body
+
+
 @retry_with_backoff
 def _call_agentrouter_direct(
     messages: list[dict],
@@ -347,23 +469,41 @@ def _call_agentrouter_direct(
     request_model: str | None = None,
 ) -> str:
     load_dotenv(override=True)
-    api_key = os.environ.get("AGENTROUTER_API_KEY")
-    base = os.environ.get("AGENTROUTER_API_BASE", "https://agentrouter.org/v1").rstrip("/")
-    
-    # If request_model is provided and isn't a LiteLLM virtual name, use it. Otherwise use env fallback.
-    if request_model and request_model not in ("kitty-default", "kitty-agent", "kitty-smart", "kitty-parts", "mlx-local"):
-        ar_model = request_model
-    else:
-        ar_model = _agentrouter_model_id()
-        
+    api_key = resolve_agentrouter_api_key()
+    base_raw = os.environ.get("AGENTROUTER_API_BASE", "https://agentrouter.org/v1")
+    base = normalize_agentrouter_api_base(base_raw)
+
+    ar_model = agentrouter_model_for_request(request_model)
+
     if not api_key:
-        logger.debug("AgentRouter skipped: AGENTROUTER_API_KEY not set")
+        logger.debug("AgentRouter skipped: set AGENTROUTER_API_KEY or AGENT_ROUTER_TOKEN")
         return ""
 
-    headers = {
+    ua = os.environ.get("KITTY_AGENTROUTER_USER_AGENT", "").strip()
+
+    base_headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
+        "Accept": "application/json",
     }
+
+    raw_extras = os.environ.get("KITTY_AGENTROUTER_EXTRA_HEADERS_JSON", "").strip()
+    if raw_extras:
+        try:
+            blob = json.loads(raw_extras)
+            if isinstance(blob, dict):
+                for k, v in blob.items():
+                    if isinstance(k, str) and isinstance(v, str):
+                        base_headers[str(k)] = str(v)
+        except json.JSONDecodeError:
+            logger.warning("KITTY_AGENTROUTER_EXTRA_HEADERS_JSON must be JSON object — ignoring.")
+
+    def build_headers(user_agent: str) -> dict[str, str]:
+        h = {**base_headers, "User-Agent": user_agent}
+        return h
+
+    # Primary: optional custom UA, else OpenAI-style user agent (short, common for OpenAI-compat proxies).
+    primary_ua = ua or "OpenAI-API-Client-Python/2.0 KittyGateway"
     payload = {
         "model": ar_model,
         "messages": messages,
@@ -374,8 +514,36 @@ def _call_agentrouter_direct(
         payload["response_format"] = response_format
 
     try:
-        resp = requests.post(f"{base}/chat/completions", headers=headers, json=payload, timeout=timeout)
-        resp.raise_for_status()
+        url = f"{base}/chat/completions"
+        headers = build_headers(primary_ua)
+        resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
+
+        if (
+            not resp.ok
+            and _agentrouter_client_rejected(resp)
+            and os.environ.get("KITTY_AGENTROUTER_NO_ALT_UA_RETRY", "").strip().lower()
+            not in ("1", "true", "yes")
+        ):
+            logger.warning(
+                "AgentRouter rejected client fingerprint — retrying once with alternate User-Agent"
+            )
+            resp = requests.post(
+                url,
+                headers=build_headers(_AGENTROUTER_ALT_USER_AGENT),
+                json=payload,
+                timeout=timeout,
+            )
+
+        if not resp.ok:
+            snippet = (resp.text or "")[:900]
+            logger.error(
+                "AgentRouter HTTP %s on POST %s (model=%r): %s",
+                resp.status_code,
+                url,
+                ar_model,
+                snippet,
+            )
+            return ""
         data = resp.json()
         mlog = data.get("model") or ar_model
         return _finalize_openai_shape_response(

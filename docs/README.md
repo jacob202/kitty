@@ -39,6 +39,7 @@ Older docs may mention `kitty-system/kitty-app` or a “migrated” workspace. T
 | `docs/superpowers/plans/2026-05-06-kittybuilder-intent-compiler.md` | Implementation plan for Intent Compiler, Context Compiler, health preflight, and Evidence Ledger |
 | `docs/superpowers/plans/2026-05-phase2-low-capability-execution.md` | Deterministic low-capability execution packet for `2C` |
 | `specs/` | Approved work specs |
+| `docs/CURSOR_COMPACT.md` | Cursor **Compact chat**: update `SESSION_HANDOFF.md` first; next chat @ mentions handoff |
 
 ## Stale-doc rule of thumb
 

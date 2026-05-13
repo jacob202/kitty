@@ -1,63 +1,132 @@
-# LiteLLM Proxy Config — Kitty Model Router
-# Verify current model IDs at openrouter.ai/models before running
+# LiteLLM — Open WebUI + gateway virtual models
 #
-# ROUTING OWNERSHIP: This file owns model routing for Open WebUI chat sessions.
-# Named virtual models (kitty-default, kitty-agent, kitty-smart) are resolved here.
-# Python backend routing is owned by gateway/llm_client.py — keep model IDs in sync.
+# FALLBACK PRIORITY (see also gateway/llm_client.py — AgentRouter-first after LiteLLM proxy errors):
+#   1) AgentRouter — gpt-5.4-mini bulk chat / gpt-5.5 “smart” / gpt-5.1-codex-mini coding (+ env overrides).
+#   2) OpenRouter DeepSeek V4 Flash — under ~$0.01/1K when billed.
+#   3) OpenRouter Qwen3 235B free tier — $0 when rate limits allow.
+#   4) Gemini 2.5 Flash — cheap with AI Studio key.
+#   5) Local MLX — free/private (:8010, kitty-local).
+#   AgentRouter model ids must match catalog names from console (adjust if Alias differs).
+#
+# Run the proxy:  bash kitty_gateway/start_litellm.sh
+#
+# Env: OPENROUTER_API_KEY, GEMINI_API_KEY, ANTHROPIC_API_KEY, AGENTROUTER_API_KEY,
+#      OPENAI_API_KEY, LITELLM_MASTER_KEY, LITELLM_MAX_BUDGET_USD
 
 model_list:
-  # Default: cheap, fast, non-sensitive queries.
-  # Gemini is intentionally not listed as a duplicate kitty-default fallback
-  # because the current key is quota-limited and would make routing flaky.
+  # --- Cheap routing (default chat, tools, librarian / ingestion via kitty-default) ---
   - model_name: kitty-default
+    litellm_params:
+      model: openrouter/deepseek/deepseek-v4-flash
+      api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 8192
+
+  - model_name: kitty-agent
+    litellm_params:
+      model: openrouter/deepseek/deepseek-v4-flash
+      api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 8192
+
+  - model_name: kitty-parts
+    litellm_params:
+      model: openrouter/deepseek/deepseek-v4-flash
+      api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 8192
+
+  - model_name: kitty-fallback-or
     litellm_params:
       model: openrouter/qwen/qwen3-235b-a22b:free
       api_key: os.environ/OPENROUTER_API_KEY
       max_tokens: 4096
 
-  # Agent tasks: structured output, tool calls, routing decisions
-  # TODO: upgrade to Hermes 4 when available on OpenRouter (not confirmed available as of 2026-05-10)
-  - model_name: kitty-agent
+  - model_name: kitty-default-gemini
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+      api_key: os.environ/GEMINI_API_KEY
+      max_tokens: 8192
+
+  - model_name: kitty-agent-gemini
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+      api_key: os.environ/GEMINI_API_KEY
+      max_tokens: 8192
+
+  - model_name: kitty-parts-gemini
+    litellm_params:
+      model: gemini/gemini-2.5-flash
+      api_key: os.environ/GEMINI_API_KEY
+      max_tokens: 8192
+
+  - model_name: kitty-agent-or
     litellm_params:
       model: openrouter/nousresearch/hermes-3-llama-3.1-70b
       api_key: os.environ/OPENROUTER_API_KEY
       max_tokens: 4096
 
-  # Parts mode: same model as kitty-default, Open WebUI selects this to activate
-  # the internal council debate format (Skeptic/Champion/Pragmatist/Observer).
-  # System prompt injection handled at gateway level via gateway/parts.py.
-  - model_name: kitty-parts
+  # --- AgentRouter (OpenAI-compatible at agentrouter.org) ---
+  # Short OpenAI-style IDs; confirm exact spellings in AgentRouter console (/v1/models).
+  - model_name: kitty-agentrouter
     litellm_params:
-      model: openrouter/qwen/qwen3-235b-a22b:free
-      api_key: os.environ/OPENROUTER_API_KEY
-      max_tokens: 4096
+      model: openai/gpt-5.4-mini
+      api_base: https://agentrouter.org/v1
+      api_key: os.environ/AGENTROUTER_API_KEY
+      max_tokens: 8192
 
-  # Complex reasoning: architecture, synthesis, code review
-  # Routed via OpenRouter to avoid needing a separate Anthropic API key
+  - model_name: kitty-agentrouter-strong
+    litellm_params:
+      model: openai/gpt-5.5
+      api_base: https://agentrouter.org/v1
+      api_key: os.environ/AGENTROUTER_API_KEY
+      max_tokens: 8192
+
+  - model_name: kitty-agentrouter-coding
+    litellm_params:
+      model: openai/gpt-5.1-codex-mini
+      api_base: https://agentrouter.org/v1
+      api_key: os.environ/AGENTROUTER_API_KEY
+      max_tokens: 8192
+
+  - model_name: kitty-local
+    litellm_params:
+      model: openai/mlx-community/Qwen3.5-4B-4bit
+      api_base: http://127.0.0.1:8010/v1
+      api_key: "not-needed"
+
+  # --- Premium (explicit routes only) ---
   - model_name: kitty-smart
+    litellm_params:
+      model: anthropic/claude-sonnet-4-5-20250929
+      api_key: os.environ/ANTHROPIC_API_KEY
+      max_tokens: 8192
+
+  - model_name: kitty-smart-or
     litellm_params:
       model: openrouter/anthropic/claude-sonnet-4-6
       api_key: os.environ/OPENROUTER_API_KEY
       max_tokens: 8192
 
-
-  # Embeddings are wired in the ingestion phase, not through the Phase 1
-  # chat proxy. Keeping embedding-only models out of model_list prevents
-  # LiteLLM health checks from probing them as chat models.
+  - model_name: kitty-openai-direct
+    litellm_params:
+      model: openai/gpt-4o
+      api_key: os.environ/OPENAI_API_KEY
+      max_tokens: 4096
 
 router_settings:
   routing_strategy: simple-shuffle
   num_retries: 1
-  timeout: 20
+  timeout: 120
 
 litellm_settings:
   drop_params: true
   set_verbose: false
+  num_retries: 2
+  fallbacks:
+    - kitty-default: [kitty-agentrouter, kitty-fallback-or, kitty-default-gemini, kitty-local]
+    - kitty-parts: [kitty-agentrouter-coding, kitty-fallback-or, kitty-parts-gemini, kitty-agentrouter, kitty-local]
+    - kitty-agent: [kitty-agentrouter-coding, kitty-agent-or, kitty-agent-gemini, kitty-agentrouter, kitty-local]
+    - kitty-smart: [kitty-agentrouter-strong, kitty-agentrouter, kitty-smart-or]
 
 general_settings:
-  # Daily spend cap (USD). Set in env for quick tuning without code changes.
-  # Example: export LITELLM_MAX_BUDGET_USD=1.50
   max_budget: os.environ/LITELLM_MAX_BUDGET_USD
   budget_duration: 1d
-  # Master key used by OpenWebUI and other local clients for this proxy.
   master_key: os.environ/LITELLM_MASTER_KEY

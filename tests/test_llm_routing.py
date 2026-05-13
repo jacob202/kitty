@@ -40,13 +40,13 @@ def test_offline_routes_to_local_model():
         assert route_model("Use your best model for this important decision") == "mlx-local"
 
 
-def test_litellm_fallback_prefers_openrouter_before_agentrouter():
-    """When LiteLLM is down, OpenRouter should be tried before AgentRouter."""
+def test_litellm_fallback_prefers_agentrouter_before_openrouter():
+    """When LiteLLM is down, AgentRouter should be tried before OpenRouter."""
     with patch("gateway.llm_client.requests.post", side_effect=requests.RequestException("down")), \
+         patch("gateway.llm_client._call_agentrouter_direct", return_value="agentrouter"), \
          patch("gateway.llm_client._call_openrouter_direct", return_value="openrouter"), \
          patch("gateway.llm_client._call_gemini_direct", return_value="gemini"), \
-         patch("gateway.llm_client._call_agentrouter_direct", return_value="agentrouter"), \
          patch("gateway.llm_client._call_nvidia_direct", return_value="nvidia"):
         result = call_llm([{"role": "user", "content": "hello"}], model="kitty-default")
 
-    assert result == "openrouter"
+    assert result == "agentrouter"
