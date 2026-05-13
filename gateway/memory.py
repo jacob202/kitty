@@ -12,29 +12,34 @@ from gateway.paths import DATA_DIR
 MEM0_DATA_DIR = DATA_DIR / "mem0"
 USER_ID = "jacob"
 
-MEM0_CONFIG = {
-    "llm": {
-        "provider": "litellm",
-        "config": {
-            "model": "openrouter/deepseek/deepseek-chat-v3-0324",
-            "api_key": os.environ.get("OPENROUTER_API_KEY", ""),
+
+def _build_mem0_config() -> dict:
+    """Build Mem0 config at runtime using the routing system."""
+    from gateway.llm_client import route_model
+    model = os.environ.get("KITTY_MEMORY_MODEL") or route_model("memory context building")
+    return {
+        "llm": {
+            "provider": "litellm",
+            "config": {
+                "model": model,
+                "api_key": os.environ.get("OPENROUTER_API_KEY", ""),
+            },
         },
-    },
-    "embedder": {
-        "provider": "ollama",
-        "config": {
-            "model": "nomic-embed-text",
-            "ollama_base_url": "http://localhost:11434",
+        "embedder": {
+            "provider": "ollama",
+            "config": {
+                "model": "nomic-embed-text",
+                "ollama_base_url": "http://localhost:11434",
+            },
         },
-    },
-    "vector_store": {
-        "provider": "chroma",
-        "config": {
-            "collection_name": "kitty_memory",
-            "path": str(MEM0_DATA_DIR),
+        "vector_store": {
+            "provider": "chroma",
+            "config": {
+                "collection_name": "kitty_memory",
+                "path": str(MEM0_DATA_DIR),
+            },
         },
-    },
-}
+    }
 
 
 @lru_cache(maxsize=1)
@@ -42,7 +47,8 @@ def _get_memory():
     """Lazy-init Mem0 — only loaded when first needed."""
     from mem0 import Memory
     MEM0_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    return Memory.from_config(MEM0_CONFIG)
+    config = _build_mem0_config()
+    return Memory.from_config(config)
 
 
 def add_memory(text: str, namespace: str = "facts", metadata: Optional[dict] = None) -> None:

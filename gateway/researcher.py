@@ -1,7 +1,7 @@
 import logging
 import os
 import json
-import requests
+import httpx
 from pathlib import Path
 from typing import List, Dict, Optional
 
@@ -17,40 +17,46 @@ class DeepResearcher:
     def __init__(self):
         self.api_key = os.environ.get("OPENROUTER_API_KEY")
         self.tavily_key = os.environ.get("TAVILY_API_KEY")
-        
-    def technical_deep_dive(self, topic: str, ingest: bool = True) -> str:
+        self._client: httpx.AsyncClient | None = None
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=20)
+        return self._client
+
+    async def technical_deep_dive(self, topic: str, ingest: bool = True) -> str:
         """
         Conducts deep technical research and optionally ingests the findings.
         """
         logger.info(f"Starting deep technical dive: {topic}")
-        
+
         # 1. Search for high-authority sources
-        urls = self._find_sources(topic)
+        urls = await self._find_sources(topic)
         if not urls:
             return "I couldn't find any external sources for that topic."
-            
+
         # 2. Scrape the top technical results
-        findings = self._scrape_sources(urls)
+        findings = await self._scrape_sources(urls)
         if not findings:
             return "I found sources but couldn't extract any meaningful technical data."
-            
+
         # 3. Synthesize and Ingest
         summary = self._synthesize_findings(topic, findings)
-        
+
         if ingest:
             self._ingest_findings(topic, findings, summary)
-            
+
         return summary
 
-    def _find_sources(self, topic: str) -> List[str]:
+    async def _find_sources(self, topic: str) -> List[str]:
         """Uses Tavily to find technical documentation and forum threads."""
         if not self.tavily_key:
             logger.warning("No TAVILY_API_KEY. Falling back to basic search.")
             return []
-            
+
         try:
-            # Tavily specialized search for tech data
-            resp = requests.post(
+            client = await self._get_client()
+            resp = await client.post(
                 "https://api.tavily.com/search",
                 json={
                     "api_key": self.tavily_key,
@@ -59,7 +65,6 @@ class DeepResearcher:
                     "include_domains": ["arxiv.org", "hifiengine.com", "audiokarma.org", "diyaudio.com", "allaboutcircuits.com"],
                     "max_results": 5
                 },
-                timeout=15
             )
             resp.raise_for_status()
             data = resp.json()
@@ -68,17 +73,17 @@ class DeepResearcher:
             logger.error(f"Tavily search failed: {e}")
             return []
 
-    def _scrape_sources(self, urls: List[str]) -> str:
+    async def _scrape_sources(self, urls: List[str]) -> str:
         """Uses Tavily to extract technical context from URLs."""
         if not self.tavily_key:
             return ""
-            
+
         results = []
+        client = await self._get_client()
         for url in urls[:3]:
             try:
                 logger.info(f"Extracting context via Tavily: {url}")
-                # Use Tavily's search but for a specific URL with high detail
-                resp = requests.post(
+                resp = await client.post(
                     "https://api.tavily.com/search",
                     json={
                         "api_key": self.tavily_key,
@@ -87,19 +92,17 @@ class DeepResearcher:
                         "include_raw_content": True,
                         "max_results": 1
                     },
-                    timeout=20
                 )
                 resp.raise_for_status()
                 data = resp.json()
-                
-                # Get the first result's content (which should be our target URL)
+
                 if data.get("results"):
                     content = data["results"][0].get("raw_content") or data["results"][0].get("content")
                     if content:
                         results.append(f"### SOURCE: {url}\n{content[:6000]}")
             except Exception as e:
                 logger.warning(f"Tavily extraction failed for {url}: {e}")
-                
+
         return "\n\n---\n\n".join(results)
 
     def _synthesize_findings(self, topic: str, findings: str) -> str:
@@ -153,7 +156,7 @@ Rules: Short sentences. Use contractions. Speak Canadian."""
         except Exception as e:
             logger.error(f"Ingestion of research failed: {e}")
 
-def deep_dive(topic: str) -> str:
+async def deep_dive(topic: str) -> str:
     """Convenience function for Gateway calling."""
     researcher = DeepResearcher()
-    return researcher.technical_deep_dive(topic)
+    return await researcher.technical_deep_dive(topic)

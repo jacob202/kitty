@@ -1,6 +1,7 @@
 """High-reasoning judgment for Kitty's knowledge base curation."""
 import json
 import logging
+import os
 import re
 from pathlib import Path
 
@@ -118,8 +119,21 @@ def generate_source_summary(source_name: str, text_preview: str, doc_type: str) 
         "max_tokens": 800,
         "temperature": 0.1,
     }
-    
-    response_text = call_llm(model="google/gemini-2.0-flash-001", **payload, timeout=45)
+
+    # Fixed LiteLLM route (cheap stack in litellm_config.yaml) — do not use keyword routing,
+    # or prompts containing "Analyze" would select kitty-agent unnecessarily.
+    ingest_model = os.environ.get("KITTY_INGEST_LLM_MODEL", "kitty-default")
+
+    response_text = call_llm(
+        messages=payload["messages"],
+        response_format=payload["response_format"],
+        max_tokens=800,
+        temperature=0.1,
+        timeout=45,
+        model=ingest_model,
+        operation="knowledge.librarian",
+        metadata={"doc_type": doc_type, "source": source_name[:240]},
+    )
 
     if not response_text:
         return LibrarianReport(**default_data)

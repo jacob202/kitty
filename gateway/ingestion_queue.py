@@ -92,6 +92,11 @@ def init_db() -> None:
                 updated_at REAL
             )
         """)
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(ingestion_queue)")}
+        if "authority_score" not in columns:
+            conn.execute("ALTER TABLE ingestion_queue ADD COLUMN authority_score INTEGER DEFAULT 0")
+        if "source_brief" not in columns:
+            conn.execute("ALTER TABLE ingestion_queue ADD COLUMN source_brief TEXT")
         conn.commit()
 
 
@@ -139,7 +144,8 @@ def get_next_task() -> Optional[Dict]:
             """
             SELECT * FROM ingestion_queue
             WHERE status IN ('pending', 'failed') AND attempts < ?
-            ORDER BY created_at ASC LIMIT 1
+            ORDER BY COALESCE(authority_score, 0) DESC, created_at ASC
+            LIMIT 1
             """,
             (MAX_ATTEMPTS,),
         ).fetchone()

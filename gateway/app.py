@@ -229,8 +229,7 @@ async def tasks_sync(payload: TasksSyncRequest):
 @app.post("/research/deep")
 async def deep_research(topic: str):
     from gateway.researcher import deep_dive
-    # Deep dive performs ingestion automatically
-    result = await asyncio.to_thread(deep_dive, topic)
+    result = await deep_dive(topic)
     return {"result": result}
 
 

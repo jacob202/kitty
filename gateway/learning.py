@@ -83,7 +83,7 @@ async def generate_knowledge_gate_question(topic: str = "general") -> str:
         "temperature": 0.7
     }
     
-    return call_llm(model="anthropic/claude-3.7-sonnet", **payload)
+    return call_llm(**payload)
 
 def process_gate_answer(answer: str, question: str) -> bool:
     """Assess Jacob's answer to a knowledge gate question."""
@@ -112,7 +112,7 @@ def process_gate_answer(answer: str, question: str) -> bool:
     }
     
     try:
-        response = call_llm(model="anthropic/claude-3.7-sonnet", **payload)
+        response = call_llm(**payload)
         data = json.loads(response)
         
         if data.get("correct"):

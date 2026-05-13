@@ -68,6 +68,7 @@ def _env_slug(name: str, default: str) -> str:
 _OPENROUTER_DEFAULT = _env_slug("KITTY_OPENROUTER_CHEAP", "deepseek/deepseek-v4-flash")
 _OPENROUTER_REASONING = _env_slug("KITTY_OPENROUTER_REASONING", "deepseek/deepseek-v4-flash")
 _OPENROUTER_BEST = _env_slug("KITTY_OPENROUTER_BEST", "claude-sonnet-4-6")
+_GEMINI_MODEL = _env_slug("KITTY_GEMINI_MODEL", "gemini-2.5-flash-image")
 
 # route_model() picks LiteLLM names first so a healthy proxy gets virtual models + fallbacks config.
 _DEFAULT_MODEL = _LITELLM_DEFAULT
@@ -348,13 +349,13 @@ def _call_gemini_direct(
     metadata: dict[str, Any] | None = None,
     request_model: str | None = None,
 ) -> str:
-    """Direct call to Google Gemini 1.5 Flash."""
+    """Direct call to Google Gemini using the configured flash model."""
     load_dotenv()
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return ""
 
-    model = "gemini-1.5-flash-latest"
+    model = _GEMINI_MODEL
     base = "https://generativelanguage.googleapis.com/v1beta/openai"
     headers = {
         "Authorization": f"Bearer {api_key}",
