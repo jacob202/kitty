@@ -12,7 +12,7 @@ Agent-specific stubs (CLAUDE.md, CODEX.md) reference this file.
 3. `docs/LAYER0_CONTROL_PLANE.md`
 4. `docs/README.md` (documentation index and stale-doc rule of thumb)
 5. `CURRENT_FOCUS.md`
-6. `TASKS.md`
+6. `TASKS.md` (checklist; authoritative roadmap: `docs/UNIFIED_IMPLEMENTATION_PLAN.md`)
 7. `docs/IMPROVEMENT_AUDIT.md` (2026-05-09 - start here for new work)
 8. `docs/PROCESS_UPGRADES.md` (quick reference for workflows)
 

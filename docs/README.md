@@ -1,6 +1,6 @@
 # Kitty documentation
 
-Last updated: 2026-05-02
+Last updated: **2026-05-13**
 
 ## Read first (authority)
 
@@ -26,14 +26,14 @@ Older docs may mention `kitty-system/kitty-app` or a “migrated” workspace. T
 
 | Area | Purpose |
 |------|---------|
-| Repo root (`CURRENT_FOCUS.md`, `TASKS.md`, `KITTY_CONTEXT.md`) | Session focus and quick pointers |
+| Repo root (`CURRENT_FOCUS.md`, `TASKS.md`) + `docs/UNIFIED_IMPLEMENTATION_PLAN.md` | Session focus, checklist, and phased roadmap |
 | `docs/DECISIONS.md` | Durable decisions |
 | `docs/CONTINUITY_STANDARD.md` | Required run-end checkpoint protocol for takeover safety |
 | `docs/PARKED_FEATURES.md` | Intentionally deferred work |
 | `docs/archive/` | Historical handoffs, merge-gate runs, retired audits |
 | `docs/audits/` | Reports and inventories |
 | `docs/plans/`, `docs/superpowers/plans/` | Planning drafts (verify against decisions before implementing) |
-| `docs/plans/phase2-build-plan-meta-analysis-2026-05-06.md` | Phase 2 quality/token analysis and hardening rationale |
+| `docs/UNIFIED_IMPLEMENTATION_PLAN.md` | Phased product roadmap (Tasks checklist points here) |
 | `docs/plans/kittybuilder-effectiveness-meta-analysis-2026-05-06.md` | Approved KittyBuilder effectiveness/context-engineering meta-analysis |
 | `docs/plans/kittybuilder-effectiveness-research-sources-2026-05-06.md` | Source links and takeaways for KittyBuilder agent/orchestration research |
 | `docs/superpowers/plans/2026-05-06-kittybuilder-intent-compiler.md` | Implementation plan for Intent Compiler, Context Compiler, health preflight, and Evidence Ledger |

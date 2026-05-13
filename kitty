@@ -9,6 +9,7 @@
 #   ./kitty ref      show terminal quick reference
 #   ./kitty backup   create backup of all data stores
 #   ./kitty export   export session as markdown
+#   ./kitty spending check daily token budget
 
 PYTHON=venv/bin/python
 SCRIPT_DIR="${0:A:h}"
@@ -262,7 +263,11 @@ _quick() {
       "$PYTHON" scripts/build_file_index.py --search "${3:-}" 2>/dev/null || echo "Usage: ./kitty quick index <pattern>"
       ;;
     spec)
-      cat "$SCRIPT_DIR/PROJECT_REALITY_CHECK.md"
+      if [[ -f "$SCRIPT_DIR/docs/UNIFIED_IMPLEMENTATION_PLAN.md" ]]; then
+        head -n 90 "$SCRIPT_DIR/docs/UNIFIED_IMPLEMENTATION_PLAN.md"
+      else
+        sed -n '1,120p' "$SCRIPT_DIR/docs/STANDUP.md"
+      fi
       ;;
     plan)
       cat "$SCRIPT_DIR/docs/REFACTOR_PLAN.md" 2>/dev/null || cat "$SCRIPT_DIR/TASKS.md"
@@ -283,7 +288,7 @@ _quick() {
       echo "  ./kitty quick index <pattern>  — search file index"
       echo ""
       echo "Workflow commands:"
-      echo "  ./kitty quick spec    — project reality check"
+      echo "  ./kitty quick spec    — phased roadmap excerpt (UNIFIED_IMPLEMENTATION_PLAN)"
       echo "  ./kitty quick plan    — refactor plan"
       echo "  ./kitty quick audit   — improvement audit"
       echo "  ./kitty quick loop    — engineering loop"
@@ -304,7 +309,8 @@ case "${1:-start}" in
   rebuild-ui) cd "$SCRIPT_DIR/garage-ui" && rm -rf out node_modules/.cache && npm run build 2>&1;;
   backup)  _backup ;;
   export)  _export ;;
+  spending) cd "$SCRIPT_DIR" && "$PYTHON" scripts/check_token_budget.py ;;
   quick)   _quick "$@" ;;
   builder) shift; exec ./kittybuilder "$@" ;;
-  *)       echo "Usage: kitty [start|stop|restart|status|problems|briefing|build-ui|rebuild-ui|logs|ref|backup|export|quick|builder]"; exit 1 ;;
+  *)       echo "Usage: kitty [start|stop|restart|status|problems|briefing|build-ui|rebuild-ui|logs|ref|backup|export|spending|quick|builder]"; exit 1 ;;
 esac

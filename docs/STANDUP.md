@@ -16,8 +16,11 @@
 - `./kitty quick health` — API check
 
 **Key docs (start here):**
-- `MASTER_INDEX.md` — fast-parse paths + anchors
-- Or individual: docs/DATA_ROUTING.md (critical), config/README.md
+- `docs/UNIFIED_IMPLEMENTATION_PLAN.md` — phased feature roadmap (Phases 1–10)
+- `docs/ARCHITECTURE.md` — live stack, ports, gateways, scripts
+- `docs/README.md` — doc index / authority order
+- Root: `CURRENT_FOCUS.md`, `TASKS.md`, `SESSION_HANDOFF.md` — session state
+- Storage & data flow: `docs/DATA_ROUTING.md` (when touching KB/journal/routing)
 
 **Depth:** Voice corpus, Jacob’s rules, runbook, Handoff template — read the rest of this file when needed; hooks send this block only.
 <!-- HOOK_END -->
@@ -174,7 +177,7 @@ These are job descriptions for future wiring. They are not implemented yet. Toda
 ---
 ## 5. Exact current state of the codebase
 - **Repo:** `~/Projects/kitty` — proper git repo with a baseline commit.
-- **Pre-commit hook:** runs the full test suite (~40–55s on this machine; **403+** tests at last audit). Keep green before push.
+- **Pre-commit hook:** runs the full test suite (~40–55s on this machine; **240+** tests at last audit). Keep green before push.
 - **Storage:** 5 fragmented stores (LightRAG, ChromaDB, SQLite, JournalDB, MemoryWeave). A `StorageRouter` class exists to enforce routing. Full unification is post-launch.
 - **Specialists:** Sansui (audio) and Ridgeline specialists have knowledge bases. Onboarding Pipeline will formalize how these are built.
 - **Frontend:** garage-ui Next.js app. Functional but feels like a dev tool, not a companion.
@@ -188,7 +191,7 @@ These are job descriptions for future wiring. They are not implemented yet. Toda
 1. **Config convergence pass:** Audit all CLI tool configs (Claude, Codex, OpenCode, Crush, Aider, Kitty runtime). Align model routing policies. Remove any hardcoded API keys or secrets from committed files.
 2. **Wire the bridge daemon:** Finish `scripts/dorothy_bridge.py` so it polls Dorothy Kanban, spawns builders, and posts Telegram updates.
 3. **Dorothy Kanban functional:** Confirm Kanban board is working, Telegram pings deliver, and a card with `#build` tag triggers the bridge.
-4. **Clean up competing context files:** The sprawl of `CURRENT_FOCUS.md`, `TASKS.md`, `KITTY_CONTEXT.md`, `HANDOFF.md`, and `AGENT_COORDINATION.md` confuses everyone. Consolidate any remaining unique information into this `STANDUP.md`, then archive the old files.
+4. **Orientation is intentional:** roadmap → `docs/UNIFIED_IMPLEMENTATION_PLAN.md`; session execution → root `TASKS.md` + `CURRENT_FOCUS.md`; compact handoffs → `SESSION_HANDOFF.md` + `docs/CURSOR_COMPACT.md`. Coordinating overlapping agents → `docs/AGENT_COORDINATION.md` only when needed (keep entries short).
 5. **Collapse Firecrawl skills:** Reduce 12 Firecrawl skills into one `firecrawl-orchestrator` skill.
 After infrastructure is wired, move to Layer 1: the 4 sub-projects in order.
 ---
@@ -197,7 +200,7 @@ After infrastructure is wired, move to Layer 1: the 4 sub-projects in order.
 - **No MCP expansion.** The orchestrator is cut. Don't add new MCP servers without Jacob's explicit approval.
 - **No secrets in committed configs.** Use `$ENV_VAR` placeholders. Rotate any exposed keys.
 - **Always route storage through `StorageRouter`.** Never import a storage backend directly.
-- **Pre-commit hook must pass.** 403+ tests. Don't break the green build.
+- **Pre-commit hook must pass.** Full `pytest`; don’t ship on red.
 - **Jacob reviews demos, not code.** Show him the experience. Yes/no/redirect.
 - **Standup voice, always.** When you update this file, write like you're talking to a teammate handing off a shift, not filing a report.
 ---

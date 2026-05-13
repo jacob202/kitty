@@ -419,15 +419,24 @@ Revival trigger: Jacob explicitly approves MCP expansion after workspace separat
 
 Source: PARKED_FEATURES.md, CURRENT_FOCUS.md (2026-05-09)
 
-## D-0030: All Agents Must Start With MASTER_INDEX.md
+## D-0030: Agent Orientation Stack (Replaces Root Index Files)
 
 Status: accepted
 
-All agent sessions must begin by reading `MASTER_INDEX.md` for fast-parse orientation — project structure, key commands, and current-phase boundaries. It is the canonical starting point and supersedes ad-hoc codebase exploration as a first step.
+Root **`MASTER_INDEX.md`**, **`KITTY_CONTEXT.md`**, and **`PROJECT_REALITY_CHECK.md`** were retired as **stale** (2026-05-13).
 
-Source: HANDOFF-2026-05-09.md (2026-05-09)
+All agent sessions must begin with this **orientation stack** (in order):
 
-Review trigger: MASTER_INDEX.md is renamed or replaced by a different orientation document.
+1. `docs/STANDUP.md` (operating reality + hook block)
+2. `docs/ARCHITECTURE.md` (live ports / stack)
+3. `docs/UNIFIED_IMPLEMENTATION_PLAN.md` (phased roadmap)
+4. Root `CURRENT_FOCUS.md` + `TASKS.md` (session checklist)
+
+Ad-hoc codebase exploration only after the above.
+
+Source: CURRENT_FOCUS + repo cleanup (2026-05-13)
+
+Review trigger: Orientation stack is condensed or replaced — update this decision and `docs/STANDUP.md` together.
 
 ## D-0031: web_llm Uses OpenRouter Exclusively As Provider Fallback
 

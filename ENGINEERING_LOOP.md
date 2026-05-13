@@ -3,7 +3,7 @@
 # Usage: grep "# STEP" this file
 
 # START FIRST (SKILL 1)
-# PROJECT_REALITY_CHECK.md - run BEFORE any large work
+# Orientation: docs/STANDUP.md + docs/UNIFIED_IMPLEMENTATION_PLAN.md + TASKS.md
 
 # QUICK COMMANDS (no LLM)
 ./kitty quick status|test|health|index <pattern>
@@ -44,13 +44,13 @@ venv/bin/python -m pytest tests/ -q --tb=short
 # diagnose (error) → audit (why broken) → improve (fix root cause) → ship (commit)
 
 # DOCS TO CHECK
-# MASTER_INDEX.md - fast paths
+# docs/UNIFIED_IMPLEMENTATION_PLAN.md — roadmap phases
 # docs/IMPROVEMENT_AUDIT.md - scores
 # docs/DATA_ROUTING.md - storage
 
 # NEW AGENT START
-# 1. Read STANDUP.md
-# 2. Read MASTER_INDEX.md  
+# 1. Read docs/STANDUP.md
+# 2. Read docs/UNIFIED_IMPLEMENTATION_PLAN.md + TASKS.md
 # 3. ./kitty quick test (verify baseline)
 # 4. Do work
 # 5. Test

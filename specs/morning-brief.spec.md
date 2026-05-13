@@ -24,7 +24,7 @@ Kitty needs a deterministic (no LLM) way to show the user "where am I?" on start
 ## Required Behaviour
 - `generate_brief(root=None) -> dict` returns: date, active_focus, last_completed, next_action, forbidden_distractions
 - `brief_to_text(brief) -> str` formats as plain text
-- Reads CURRENT_FOCUS.md, TASKS.md, SESSION_SUMMARY.md, KITTY_CONTEXT.md
+- Reads `CURRENT_FOCUS.md`, `TASKS.md`, `SESSION_SUMMARY.md`, `docs/STANDUP.md`, and roadmap context from `docs/UNIFIED_IMPLEMENTATION_PLAN.md` when assembling context.
 - Falls back gracefully when files missing ("unknown", "nothing yet", empty lists)
 
 ## Acceptance Tests

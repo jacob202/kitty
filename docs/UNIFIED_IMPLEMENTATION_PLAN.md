@@ -24,7 +24,7 @@ A FastAPI gateway (`gateway/`) behind Open WebUI + Garage UI:
 - Onboarding (8-domain interview, partially implemented)
 - Garage UI (Next.js dashboard: Chat/Journal/Evals/Trust views)
 
-**540 tests passing. No specialists in use (archived). No external world connection. No agent system. No plugin system.**
+**Test count moves with CI — verify with `/opt/homebrew/bin/python3.12 -m pytest tests/ -q` (see root `TASKS.md`). Specialists tree removed from this checkout. External world agents/plugins are roadmap phases, not all live yet.**
 
 ---
 
