@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Optional
+from pathlib import Path
 
 MAX_BODY_BYTES = 10 * 1024 * 1024  # 10MB
 
@@ -94,6 +95,7 @@ async def health():
 
 
 @app.get("/brief")
+@app.get("/api/brief")
 async def morning_brief():
     from gateway.brief import generate_brief
     return generate_brief()
@@ -164,6 +166,7 @@ async def journal_synthesize(request: Request):
     from gateway.journal import build_synthesis_prompt, save_journal_entry
     synthesis_system = build_synthesis_prompt()
     theme = body.get("theme")
+    session_id = body.get("session_id")
 
     model = route_model("")
     payload = {
@@ -179,7 +182,7 @@ async def journal_synthesize(request: Request):
         if isinstance(msg, dict):
             entry = msg.get("content", "")
     if entry:
-        save_journal_entry(entry, theme=theme)
+        save_journal_entry(entry, theme=theme, session_id=session_id)
     return {"entry": entry}
 
 
@@ -250,6 +253,16 @@ async def delete_memory(memory_id: str):
     from gateway.memory import delete_memory
     success = delete_memory(memory_id)
     return {"deleted": success, "memory_id": memory_id}
+
+
+@app.delete("/sessions/{session_id}/messages/{message_id}")
+async def delete_message(session_id: str, message_id: str):
+    """Delete a specific message from a session's journal by message_id (timestamp)."""
+    from gateway.journal import delete_journal_message
+    success = delete_journal_message(session_id, message_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Message not found")
+    return {"deleted": success, "session_id": session_id, "message_id": message_id}
 
 
 @app.post("/v1/audio/transcriptions")

@@ -7,18 +7,24 @@ Two modes:
 from __future__ import annotations
 
 import json
+import logging
 import random
 import time
+import tempfile
 from pathlib import Path
 from typing import Optional
 
 from gateway.paths import DATA_DIR
 
+logger = logging.getLogger("kitty.journal")
+
 JOURNAL_LOG = DATA_DIR / "journal_entries.jsonl"
 
 
-def save_journal_entry(entry: str, theme: str | None = None) -> dict:
+def save_journal_entry(entry: str, theme: str | None = None, session_id: str | None = None) -> dict:
     record = {"ts": time.time(), "theme": theme, "entry": entry}
+    if session_id:
+        record["session_id"] = session_id
     JOURNAL_LOG.parent.mkdir(parents=True, exist_ok=True)
     with JOURNAL_LOG.open("a") as f:
         f.write(json.dumps(record) + "\n")
@@ -159,3 +165,64 @@ def build_interview_system_prompt(base_soul_prompt: str, theme: Optional[str] = 
 
 def build_synthesis_prompt() -> str:
     return SYNTHESIS_PROMPT
+
+
+def delete_journal_message(session_id: str, message_id: str) -> bool:
+    """Delete a specific message from the journal by session_id and message_id.
+
+    Journal entries are stored as JSONL lines with fields: ts, theme, entry.
+    Since JSONL has no native delete, we rewrite the file excluding the target entry.
+    The message_id is compared against the 'ts' field (stored as the message timestamp).
+    """
+    if not JOURNAL_LOG.exists():
+        return False
+
+    target_ts = None
+    try:
+        target_ts = float(message_id)
+    except (ValueError, TypeError):
+        logger.warning("Invalid message_id for journal delete: %s", message_id)
+        return False
+
+    tmp_path = None
+    try:
+        tmp_fd, tmp_path = tempfile.mkstemp(dir=JOURNAL_LOG.parent, suffix=".jsonl.tmp")
+        found = False
+        with open(JOURNAL_LOG, "r") as src, open(tmp_fd, "w") as dst:
+            for line in src:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    dst.write(line + "\n")
+                    continue
+                record_session_id = record.get("session_id")
+                if record_session_id and str(record_session_id) != session_id:
+                    dst.write(line + "\n")
+                    continue
+
+                if float(record.get("ts", 0)) == target_ts:
+                    found = True
+                    continue
+                dst.write(line + "\n")
+
+        if not found:
+            return False
+
+        # Atomic replace
+        with open(tmp_path, "r") as tmp_src:
+            content = tmp_src.read()
+        with open(JOURNAL_LOG, "w") as final_dst:
+            final_dst.write(content)
+
+        logger.info("Journal message deleted: session=%s ts=%s", session_id, message_id)
+        return True
+
+    except Exception as e:
+        logger.warning("Journal delete failed (non-fatal): %s", e)
+        return False
+    finally:
+        if tmp_path and Path(tmp_path).exists():
+            Path(tmp_path).unlink(missing_ok=True)
