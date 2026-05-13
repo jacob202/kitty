@@ -59,7 +59,7 @@ Input:
 - raw chat exports
 - `docs/GEMINI_CHAT_LOG_INTAKE.md`
 - `CURRENT_FOCUS.md`
-- `KITTY_CONTEXT.md`
+- `docs/README.md` (orientation; **`KITTY_CONTEXT.md`** retired)
 - `docs/DECISIONS.md`
 - `docs/PARKED_FEATURES.md`
 

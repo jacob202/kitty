@@ -8,6 +8,7 @@ Last updated: **2026-05-13**
 - **Runtime:** Python in **`gateway/`** (Flask + SocketIO API on **:5001**). Open WebUI / LiteLLM / stack details: **`docs/ARCHITECTURE.md`**, launcher scripts under **`kitty_gateway/*.sh`**.
 - **LLM hub:** `gateway/llm_client.py` — LiteLLM first, then AgentRouter → OpenRouter → Gemini → NVIDIA. Short AgentRouter slugs + env overrides documented in **`.env.example`** and **`SESSION_HANDOFF.md`**.
 - **Orientation:** **`docs/STANDUP.md`**, **`docs/UNIFIED_IMPLEMENTATION_PLAN.md`**, root **`TASKS.md`**, **`CURRENT_FOCUS.md`**.
+- **Doc hub (canonical index):** **`docs/README.md`**. Compact + handoff ritual: **`docs/HANDOFF_AND_COMPACT.md`**. Storage map: **`docs/DATA_ROUTING.md`**.
 
 ## Recent repo changes (committed)
 
@@ -18,7 +19,7 @@ Last updated: **2026-05-13**
 
 ## Verification
 
-- Last full run: **`244 passed`**, 2 skipped, 2 deselected  
+- Last full run: **`272 passed`**, 2 skipped, 2 deselected  
   `/opt/homebrew/bin/python3.12 -m pytest tests/ -q --tb=short`
 - One known warning in **`tests/test_researcher.py`** (async mock not awaited) — non-blocking.
 

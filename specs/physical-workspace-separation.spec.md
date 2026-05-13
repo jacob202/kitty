@@ -41,7 +41,7 @@ Create a read-only preflight and move map for the future physical split. The pre
 - `docs/WORKSPACE_SEPARATION_MOVE_MAP.md`
 - `docs/OPEN_LOOPS.md`
 - `docs/PARKED_FEATURES.md`
-- `docs/FILE_MANIFEST.md`
+- `docs/README.md` (canonical documentation index)
 - `CURRENT_FOCUS.md`
 - `TASKS.md`
 - `docs/DELEGATION_BOARD.md`

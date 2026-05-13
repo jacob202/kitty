@@ -421,3 +421,54 @@ async def close_session(request: Request):
     consolidate_session(session_id, messages)
 
     return {"status": "ok", "session_id": session_id}
+
+
+# --- Agent endpoints ---
+
+class AgentSpawnRequest(BaseModel):
+    goal: str = Field(min_length=1, max_length=2000)
+    agent_type: str = "explorer"
+    model: Optional[str] = None
+    max_iterations: Optional[int] = None
+    temperature: Optional[float] = None
+    extra_context: Optional[str] = None
+
+
+@app.post("/agent/spawn")
+async def agent_spawn(payload: AgentSpawnRequest):
+    from gateway.agent_runner import spawn
+    session_id = await spawn(
+        goal=payload.goal,
+        agent_type=payload.agent_type,
+        model=payload.model,
+        max_iterations=payload.max_iterations,
+        temperature=payload.temperature,
+        extra_context=payload.extra_context,
+    )
+    return {"session_id": session_id, "status": "spawned"}
+
+
+@app.get("/agent/{session_id}")
+async def agent_status(session_id: int):
+    from gateway.agent_runner import get_status, get_output
+    status = get_status(session_id)
+    if status.get("status") == "not_found":
+        raise HTTPException(status_code=404, detail="Agent not found")
+    if status.get("status") in ("completed", "failed", "cancelled"):
+        status["output"] = get_output(session_id)
+    return status
+
+
+@app.get("/agents")
+async def agent_list(limit: int = 20):
+    from gateway.agent_runner import list_agents
+    return {"agents": list_agents(limit=limit)}
+
+
+@app.post("/agent/{session_id}/stop")
+async def agent_stop(session_id: int):
+    from gateway.agent_runner import stop
+    stopped = stop(session_id)
+    if not stopped:
+        raise HTTPException(status_code=404, detail="Agent not running")
+    return {"session_id": session_id, "status": "cancelled"}

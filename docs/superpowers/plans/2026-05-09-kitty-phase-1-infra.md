@@ -674,7 +674,7 @@ git add \
     scripts/setup/gate-check.sh \
     tests/test_litellm_routing.py \
     tests/test_contracts.py \
-    docs/superpowers/plans/2026-05-09-kitty-master-plan.md \
+    docs/archive/planning-retired/2026-05-09-kitty-master-plan.md \
     docs/superpowers/plans/2026-05-09-kitty-phase-1-infra.md
 ```
 

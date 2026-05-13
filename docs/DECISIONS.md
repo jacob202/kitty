@@ -1,6 +1,6 @@
 # Decisions
 
-Last updated: 2026-05-10
+Last updated: **2026-05-13**
 
 This file records durable project decisions. New work should follow these rules unless a later dated decision explicitly supersedes them.
 
@@ -55,7 +55,7 @@ Control-doc changes may update:
 - `docs/DECISIONS.md`
 - `docs/PARKED_FEATURES.md`
 - `docs/FILE_GOVERNANCE.md`
-- `docs/FILE_MANIFEST.md`
+- `docs/README.md` (canonical documentation index / map)
 - `docs/BUILDER_INTAKE.md`
 - `specs/_template.md`
 - `intake/`
@@ -135,7 +135,7 @@ Consequences:
 - Older docs, coordination-board rows, and merge-gate reports that mention `kitty-system/kitty-app` are **historical chronology**, not current routing.
 
 Review trigger:
-Opening a new physical split or second runnable checkout requires a dated decision here plus `docs/FILE_MANIFEST.md` and `docs/LAYER0_CONTROL_PLANE.md` updates.
+Opening a new physical split or second runnable checkout requires a dated decision here plus `docs/README.md` (index) and `docs/LAYER0_CONTROL_PLANE.md` updates.
 
 ## D-0011: Phase 4 Merge Gate Report Path Is Project-Anchored
 

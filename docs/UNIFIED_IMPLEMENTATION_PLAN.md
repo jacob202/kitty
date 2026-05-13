@@ -1,7 +1,13 @@
 # Kitty — Unified Implementation Plan
 
-*Synthesized from: VISION.md, superpowers platform design, free-code feature audit, current live tree, PARKED_FEATURES.md, OPEN_LOOPS.md, and all prior specs.*
+*Synthesized from: prior VISION/roadmap drafts (now retired into this doc), superpowers platform notes, free-code feature audit, live `gateway/` tree, PARKED_FEATURES.md, OPEN_LOOPS.md, and specs.*
 *Date: 2026-05-13*
+
+---
+
+## North star (condensed)
+
+Kitty is **leverage** for a non-coder who still steers product: a **companion** that can critique, teach in small bites, and eventually run multi-step work without “type continue forever.” Long-form teaching / tone lives in **`docs/COMPANION_VOICE_CHARTER.md`** and **`docs/DECISIONS.md`** (e.g. partner-not-servant framing). This plan is the **execution spine**; sentiment without tasks is not enough.
 
 ---
 
@@ -149,7 +155,7 @@ A FastAPI gateway (`gateway/`) behind Open WebUI + Garage UI:
 
 ## Phase 3: The Hands — External World Connection
 
-*Weeks 5-6. Give Kitty real-world capabilities. This is Phase 3 from VISION.md: "Give Kitty hands to interact with the Mac."*
+*Weeks 5-6. Give Kitty real-world capabilities. This is Phase 3 from the North star: hands to interact with calendar, files, and messaging.*
 
 ### 3.1 Push Notifications (from Phase 7 brief plan)
 
@@ -164,7 +170,7 @@ A FastAPI gateway (`gateway/`) behind Open WebUI + Garage UI:
 
 ### 3.2 Calendar Integration
 
-**Problem:** No calendar awareness. VISION.md Phase 3 explicitly calls for Calendar integration. Platform design spec includes Google Calendar ingestion.
+**Problem:** No calendar awareness — required for the external-world phase above.
 
 **Changes:**
 - `gateway/calendar.py` — read/write macOS Calendar via AppleScript (local) or Google Calendar API (cloud)
@@ -178,7 +184,7 @@ A FastAPI gateway (`gateway/`) behind Open WebUI + Garage UI:
 
 ### 3.3 iMessage Bridge
 
-**Problem:** No messaging integration. VISION.md Phase 3 calls for "interact with Mac (Files, Brave)." iMessage is the primary text channel.
+**Problem:** No messaging integration — part of "hands on the Mac" scope (files, browser, iMessage).
 
 **Changes:**
 - `gateway/imessage.py` — send/receive iMessages via AppleScript bridge
@@ -219,7 +225,7 @@ A FastAPI gateway (`gateway/`) behind Open WebUI + Garage UI:
 
 ## Phase 4: Autonomous Building & Value Generation
 
-*Weeks 7-8. The Phase 1/4 goal from VISION.md: "100% autonomous execution of a multi-step task with zero human input after approval."*
+*Weeks 7-8. Autonomous execution: multi-step tasks with approval gates, minimal human babysitting (see Phase 1 autonomy + agent work).*
 
 ### 4.1 Full Build Pipeline
 
@@ -527,11 +533,11 @@ A FastAPI gateway (`gateway/`) behind Open WebUI + Garage UI:
 
 | Capability | Status | Phase |
 |---|---|---|
-| Unified memory+knowledge+journal query | 🆕 | 1.1 |
-| SOUL.md enforcement in responses | 🆕 | 1.2 |
-| Persistent voice channel | 🆕 | 1.3 |
-| Pokémon-style companion mascot | 🆕 | 1.4 |
-| Autonomous sub-agents | 🆕 | 2.1 |
+| Unified memory+knowledge+journal query | ✅ | 1.1 |
+| SOUL.md enforcement in responses | ✅ | 1.2 |
+| Persistent voice channel | ✅ | 1.3 |
+| Pokémon-style companion mascot | ⏸️ parked | 1.4 |
+| Autonomous sub-agents | 🏗️ active | 2.1 |
 | Background task execution | 🆕 | 2.2 |
 | Structured todo tracking | 🆕 | 2.3 |
 | Runtime skill invocation | 🆕 | 2.4 |
@@ -561,7 +567,7 @@ A FastAPI gateway (`gateway/`) behind Open WebUI + Garage UI:
 | Unified search | 📋 | 10.2 |
 | Security hardening | 📋 | 10.3 |
 
-**📋 = from original plans/specs | 🆕 = new or ported from free-code**
+**✅ = done | 🏗️ = in progress | ⏸️ = parked | 📋 = from original plans/specs**
 
 ---
 
