@@ -508,6 +508,26 @@ async def mcp_tools():
     return {"tools": get_tool_schema_for_llm()}
 
 
+# --- Health & Patterns endpoints ---
+
+@app.get("/health/weekly")
+async def health_weekly():
+    from gateway.health_parser import get_weekly_summary
+    return get_weekly_summary()
+
+
+@app.get("/patterns/weekly")
+async def patterns_weekly():
+    from gateway.patterns import weekly
+    return weekly()
+
+
+@app.get("/patterns/annual")
+async def patterns_annual():
+    from gateway.patterns import annual_review
+    return annual_review()
+
+
 # --- Cron endpoints ---
 
 class CronScheduleRequest(BaseModel):
