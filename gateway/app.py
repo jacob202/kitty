@@ -30,10 +30,23 @@ _http_client: httpx.AsyncClient | None = None
 async def lifespan(app: FastAPI):
     validate_dirs()
     validate_env()
+    # Start Telegram bot if configured
+    try:
+        from gateway.telegram_bot import start_polling, is_configured as tg_configured
+        if tg_configured():
+            start_polling()
+    except Exception:
+        pass
     yield
     global _http_client
     if _http_client and not _http_client.is_closed:
         await _http_client.aclose()
+    # Stop Telegram bot
+    try:
+        from gateway.telegram_bot import stop as tg_stop
+        await tg_stop()
+    except Exception:
+        pass
 
 
 logger = logging.getLogger("kitty.gateway")
@@ -445,6 +458,14 @@ async def imessage_recent(limit: int = 10):
     if not is_available():
         return {"available": False, "messages": []}
     return {"available": True, "messages": read_recent(limit)}
+
+
+# --- Telegram endpoints ---
+
+@app.get("/telegram/status")
+async def telegram_status():
+    from gateway.telegram_bot import is_configured
+    return {"configured": is_configured()}
 
 
 # --- Calendar endpoints ---
