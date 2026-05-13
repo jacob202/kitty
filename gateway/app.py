@@ -423,6 +423,30 @@ async def close_session(request: Request):
     return {"status": "ok", "session_id": session_id}
 
 
+# --- iMessage endpoints ---
+
+class iMessageSendRequest(BaseModel):
+    recipient: str = Field(min_length=1, max_length=100)
+    message: str = Field(min_length=1, max_length=2000)
+
+
+@app.post("/imessage/send")
+async def imessage_send(payload: iMessageSendRequest):
+    from gateway.imessage import send, is_available
+    if not is_available():
+        raise HTTPException(status_code=400, detail="iMessage not available (macOS only)")
+    success = send(payload.recipient, payload.message)
+    return {"sent": success}
+
+
+@app.get("/imessage/recent")
+async def imessage_recent(limit: int = 10):
+    from gateway.imessage import read_recent, is_available
+    if not is_available():
+        return {"available": False, "messages": []}
+    return {"available": True, "messages": read_recent(limit)}
+
+
 # --- Calendar endpoints ---
 
 @app.get("/calendar/today")
