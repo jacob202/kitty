@@ -3,12 +3,10 @@ set -euo pipefail
 
 ROOT_DIR="/Users/jacobbrizinski/Projects/kitty"
 cd "${ROOT_DIR}"
+source "${ROOT_DIR}/kitty_gateway/lib/load_env_safe.sh"
 
 if [[ -f "${ROOT_DIR}/.env" ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  source "${ROOT_DIR}/.env"
-  set +a
+  load_env_assignments "${ROOT_DIR}/.env"
 fi
 
 source "${ROOT_DIR}/venv/bin/activate"

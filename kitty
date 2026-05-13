@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Kitty launcher — run from anywhere: ./kitty or add to PATH
 # Usage:
-#   ./kitty          start web server (default port 5001)
+#   ./kitty          start full stack (Gateway :8000, LiteLLM :8001, WebUI :3000 via start_all)
 #   ./kitty stop     kill running server
 #   ./kitty restart  stop + start
 #   ./kitty status   show if running + URL
@@ -18,6 +18,19 @@ LOGFILE="$SCRIPT_DIR/.kitty.log"
 PORT="${KITTY_PORT:-8000}"
 CURL="${CURL:-/usr/bin/curl}"
 [[ -x "$CURL" ]] || CURL="curl"
+OPENWEBUI_ENVFILE="$SCRIPT_DIR/kitty_gateway/openwebui.env"
+
+if [[ -f "$OPENWEBUI_ENVFILE" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$OPENWEBUI_ENVFILE"
+  set +a
+fi
+
+WEBUI_HOST="${OPENWEBUI_HOST:-127.0.0.1}"
+WEBUI_PORT="${OPENWEBUI_PORT:-3000}"
+WEBUI_URL="${WEBUI_URL:-http://${WEBUI_HOST}:${WEBUI_PORT}}"
+WEBUI_HEALTH_URL="${WEBUI_URL%/}/health"
 
 _ip() {
   python3 -c "import socket; s=socket.socket(); s.settimeout(1); s.connect(('8.8.8.8',80)); print(s.getsockname()[0]); s.close()" 2>/dev/null || echo "127.0.0.1"
@@ -53,14 +66,17 @@ _start() {
   done
 
   local ip=$(_ip)
+  local webui_state="not responding yet"
+  if "$CURL" -sf "$WEBUI_HEALTH_URL" > /dev/null 2>&1; then
+    webui_state="healthy"
+  fi
+
   echo ""
-  echo "  ┌────────────────────────────────────────────┐"
-  echo "  │  🐱  Kitty is live                         │"
-  echo "  │                                            │"
-  printf "  │  Gateway  →  http://localhost:%s         │\n" "$PORT"
-  printf "  │  WebUI    →  http://localhost:3000        │\n"
-  printf "  │  Phone    →  http://%s:%s    │\n" "$ip" "$PORT"
-  echo "  └────────────────────────────────────────────┘"
+  echo "  Kitty is live"
+  echo "  Gateway  →  http://localhost:$PORT"
+  echo "  WebUI    →  $WEBUI_URL"
+  echo "  WebUI    →  $webui_state"
+  echo "  Phone    →  http://$ip:$PORT"
   echo ""
 }
 
@@ -96,7 +112,13 @@ _status() {
     fi
     local ip=$(_ip)
     echo "  running  PID $running_pid"
-    echo "  local    http://localhost:$PORT"
+    echo "  gateway  http://localhost:$PORT"
+    echo "  webui    $WEBUI_URL"
+    if "$CURL" -sf "$WEBUI_HEALTH_URL" > /dev/null 2>&1; then
+      echo "  webui    healthy"
+    else
+      echo "  webui    down"
+    fi
     echo "  phone    http://$ip:$PORT"
   else
     if _pid_alive "$file_pid"; then

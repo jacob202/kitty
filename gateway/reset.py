@@ -1,8 +1,4 @@
-import os
-import requests
 import logging
-from datetime import datetime, timezone
-from pathlib import Path
 
 logger = logging.getLogger("kitty.reset")
 
@@ -13,8 +9,8 @@ def generate_reset_prompt() -> str:
     """
     from gateway.brief import get_tasks_summary
     from gateway.context_builder import build_worker_context
+    from gateway.llm_client import call_llm
 
-    api_key = os.environ.get("OPENROUTER_API_KEY")
     task_summary = get_tasks_summary()
 
     task_desc = f"""It is 9:00 PM. The day is winding down.
@@ -30,23 +26,15 @@ Rules: Use contractions. No fluff. Focus on 'Resume, don't restart'. Speak Canad
     prompt = build_worker_context("reset", task_desc=task_desc)
 
     try:
-        resp = requests.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "HTTP-Referer": "https://github.com/jacobbrizinski/kitty",
-                "X-Title": "Kitty Nightly Reset",
-            },
-            json={
-                "model": "google/gemini-2.0-flash-exp:free" if not api_key else "deepseek/deepseek-chat",
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 150,
-                "temperature": 0.7,
-            },
+        model = "kitty-fallback-or"
+        return call_llm(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=150,
+            temperature=0.7,
             timeout=20,
+            operation="nightly.reset",
         )
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"].strip()
     except Exception as e:
         logger.error(f"Nightly Reset Prompt generation failed: {e}")
         return "Hey Jacob. What was the proof we built today? What's the one move for tomorrow?"

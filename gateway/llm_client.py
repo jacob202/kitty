@@ -97,6 +97,26 @@ _KITTY_VIRTUAL_FOR_AGENTROUTER: frozenset[str] = frozenset(
     }
 )
 
+_LEGACY_MODEL_ALIASES: dict[str, str] = {
+    "claude-sonnet-4-6": _LITELLM_SMART,
+    "anthropic/claude-sonnet-4.6": _LITELLM_SMART,
+    "anthropic/claude-3.7-sonnet": _LITELLM_SMART,
+    "deepseek/deepseek-chat": _LITELLM_DEFAULT,
+    "deepseek/deepseek-v4-flash": _LITELLM_DEFAULT,
+    "google/gemini-2.0-flash-001": "kitty-fallback-or",
+    "google/gemini-2.0-flash-exp:free": "kitty-fallback-or",
+}
+
+
+def normalize_litellm_request_model(request_model: str | None) -> str | None:
+    """Map stale provider IDs onto the current LiteLLM virtual routes."""
+    if request_model is None:
+        return None
+    model = request_model.strip()
+    if not model:
+        return model
+    return _LEGACY_MODEL_ALIASES.get(model, model)
+
 
 def normalize_agentrouter_api_base(raw: str | None) -> str:
     """Return base URL with ``/v1`` suffix, no trailing slash (OpenAI-compatible)."""
@@ -245,6 +265,8 @@ def call_llm(
                 user_msg = m.get("content", "")
                 break
         model = route_model(user_msg)
+
+    model = normalize_litellm_request_model(model)
 
     try:
         payload = {

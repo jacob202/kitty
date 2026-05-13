@@ -120,11 +120,14 @@ litellm_settings:
   drop_params: true
   set_verbose: false
   num_retries: 2
+  # Fallback order matters for Open WebUI: if AgentRouter / codex-mini entries are *first*,
+  # LiteLLM jumps to GPT‑5.x + “codex” labels as soon as DeepSeek hiccups — feels like the
+  # stack “launched Codex” instead of Kitty. Prefer OpenRouter / Gemini / MLX, then AgentRouter.
   fallbacks:
-    - kitty-default: [kitty-agentrouter, kitty-fallback-or, kitty-default-gemini, kitty-local]
-    - kitty-parts: [kitty-agentrouter-coding, kitty-fallback-or, kitty-parts-gemini, kitty-agentrouter, kitty-local]
-    - kitty-agent: [kitty-agentrouter-coding, kitty-agent-or, kitty-agent-gemini, kitty-agentrouter, kitty-local]
-    - kitty-smart: [kitty-agentrouter-strong, kitty-agentrouter, kitty-smart-or]
+    - kitty-default: [kitty-fallback-or, kitty-default-gemini, kitty-local, kitty-agentrouter]
+    - kitty-parts: [kitty-fallback-or, kitty-parts-gemini, kitty-local, kitty-agentrouter, kitty-agentrouter-coding]
+    - kitty-agent: [kitty-agent-or, kitty-fallback-or, kitty-agent-gemini, kitty-local, kitty-agentrouter-coding, kitty-agentrouter]
+    - kitty-smart: [kitty-smart-or, kitty-agentrouter-strong, kitty-agentrouter]
 
 general_settings:
   max_budget: os.environ/LITELLM_MAX_BUDGET_USD

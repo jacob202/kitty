@@ -4,12 +4,15 @@ set -euo pipefail
 ROOT_DIR="/Users/jacobbrizinski/Projects/kitty"
 RUN_DIR="${ROOT_DIR}/kitty_gateway/.run"
 LOG_DIR="${ROOT_DIR}/logs/kitty_gateway"
+source "${ROOT_DIR}/kitty_gateway/lib/load_env_safe.sh"
 ENABLE_MLX="${ENABLE_MLX:-0}"
 ENABLE_LITELLM="${ENABLE_LITELLM:-1}"
 ENABLE_GATEWAY="${ENABLE_GATEWAY:-1}"
 ENABLE_OPENWEBUI="${ENABLE_OPENWEBUI:-1}"
 ENABLE_JUPYTER="${ENABLE_JUPYTER:-1}"
-ENABLE_OPEN_TERMINAL="${ENABLE_OPEN_TERMINAL:-1}"
+# Open Terminal (pip `open-terminal`) is for WebUI tool/terminal integrations — not required
+# for Kitty chat. Leave off by default so `start_all` does not spawn extra services.
+ENABLE_OPEN_TERMINAL="${ENABLE_OPEN_TERMINAL:-0}"
 ENABLE_COMMUNITY_TOOL_SERVERS="${ENABLE_COMMUNITY_TOOL_SERVERS:-1}"
 ENABLE_CLOUDFLARE_HTTPS="${ENABLE_CLOUDFLARE_HTTPS:-0}"
 AUTO_SYNC_OPENWEBUI_INTEGRATIONS="${AUTO_SYNC_OPENWEBUI_INTEGRATIONS:-1}"
@@ -22,16 +25,10 @@ mkdir -p "${RUN_DIR}" "${LOG_DIR}"
 cd "${ROOT_DIR}"
 
 if [[ -f "${ROOT_DIR}/.env" ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  source "${ROOT_DIR}/.env"
-  set +a
+  load_env_assignments "${ROOT_DIR}/.env"
 fi
 if [[ -f "${ROOT_DIR}/kitty_gateway/openwebui.env" ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  source "${ROOT_DIR}/kitty_gateway/openwebui.env"
-  set +a
+  load_env_assignments "${ROOT_DIR}/kitty_gateway/openwebui.env"
 fi
 
 OPENWEBUI_PORT="${OPENWEBUI_PORT:-3000}"

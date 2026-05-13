@@ -51,3 +51,32 @@ def test_chat_completions_non_stream_non_health_uses_route_model():
     assert mock_gsp.await_args.kwargs["domain"] == "soul"
     payload = mock_llm.call_args[0][0]
     assert payload["model"] == "openrouter/test-model"
+
+
+def test_non_stream_response_logs_usage():
+    from gateway import app as gateway_app
+
+    class FakeResponse:
+        def json(self):
+            return {
+                "model": "kitty-default",
+                "choices": [{"message": {"role": "assistant", "content": "hi"}}],
+                "usage": {"prompt_tokens": 3, "completion_tokens": 2, "total_tokens": 5},
+            }
+
+    class FakeClient:
+        async def post(self, *args, **kwargs):
+            return FakeResponse()
+
+    async def run_test():
+        with patch("gateway.app.get_http_client", return_value=FakeClient()), \
+             patch("gateway.app.log_llm_usage") as mock_log:
+            result = await gateway_app._non_stream_response({"model": "kitty-default"})
+        assert result["usage"]["total_tokens"] == 5
+        assert mock_log.call_args.args[0] == "litellm"
+        assert mock_log.call_args.args[2] == "chat.completions.create"
+        assert mock_log.call_args.kwargs == {}
+        assert mock_log.call_args.args[4]["route"] == "gateway_chat_nonstream"
+
+    import asyncio
+    asyncio.run(run_test())

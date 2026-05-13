@@ -4,13 +4,10 @@ import json
 import logging
 import time
 from collections import Counter
-from pathlib import Path
-
-import requests
 
 logger = logging.getLogger("kitty.honcho")
 
-from gateway.paths import DATA_DIR, LOGS_DIR, LITELLM_BASE, LITELLM_KEY
+from gateway.paths import DATA_DIR, LOGS_DIR
 GATEWAY_LOG = LOGS_DIR / "gateway_trace.jsonl"
 SIGNAL_CACHE = DATA_DIR / "honcho_weekly.json"
 
@@ -43,6 +40,7 @@ def summarize_patterns(traces: list[dict]) -> str:
     """Call DeepSeek Flash to synthesize behavioral patterns from trace data."""
     if not traces:
         return _FALLBACK_EMPTY
+    from gateway.llm_client import call_llm
 
     domain_counts = Counter(t.get("domain_classified", "unknown") for t in traces)
     domain_summary = "\n".join(
@@ -70,19 +68,14 @@ Write a 3-sentence weekly observation in Kitty's warm, tabby-cat voice.
 Write only the 3 sentences. No preamble, no labels."""
 
     try:
-        resp = requests.post(
-            f"{LITELLM_BASE}/v1/chat/completions",
-            headers={"Authorization": f"Bearer {LITELLM_KEY}"},
-            json={
-                "model": "kitty-default",
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 200,
-                "temperature": 0.7,
-            },
+        return call_llm(
+            model="kitty-default",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=200,
+            temperature=0.7,
             timeout=30,
+            operation="honcho.weekly_mirror",
         )
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"].strip()
     except Exception as e:
         logger.warning("Pattern synthesis failed: %s", e)
         return _FALLBACK_ERROR

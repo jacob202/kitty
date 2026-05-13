@@ -3,22 +3,17 @@ set -euo pipefail
 
 OPENWEBUI_VENV="${OPENWEBUI_VENV:-${HOME}/kitty-services/venv}"
 source "${OPENWEBUI_VENV}/bin/activate"
+source "kitty_gateway/lib/load_env_safe.sh"
 
 if [[ -f ".env" ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  source ".env"
-  set +a
+  load_env_assignments ".env"
 fi
 
 # Export every assignment from openwebui.env — Open WebUI only sees **exported**
 # vars. Without `set -a`, DISABLE_OLLAMA / DEFAULT_MODELS / multi-endpoint keys stay
 # shell-local and WebUI falls back to wrong backends (looks like “GPT direct” chaos).
 if [[ -f "kitty_gateway/openwebui.env" ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  source "kitty_gateway/openwebui.env"
-  set +a
+  load_env_assignments "kitty_gateway/openwebui.env"
 fi
 
 if [[ -n "${OPENWEBUI_DATA_DIR_OVERRIDE:-}" ]]; then

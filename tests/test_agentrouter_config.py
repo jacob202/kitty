@@ -78,3 +78,15 @@ def test_resolve_agentrouter_key_order_and_strip(monkeypatch: pytest.MonkeyPatch
     monkeypatch.delenv("AGENTROUTER_API_KEY", raising=False)
     monkeypatch.setenv("AGENT_ROUTER_TOKEN", "sk-token")
     assert lc.resolve_agentrouter_api_key() == "sk-token"
+
+
+def test_normalize_litellm_request_model_maps_legacy_premium_ids() -> None:
+    assert lc.normalize_litellm_request_model("claude-sonnet-4-6") == "kitty-smart"
+    assert lc.normalize_litellm_request_model("anthropic/claude-sonnet-4.6") == "kitty-smart"
+    assert lc.normalize_litellm_request_model("anthropic/claude-3.7-sonnet") == "kitty-smart"
+
+
+def test_normalize_litellm_request_model_maps_legacy_default_ids() -> None:
+    assert lc.normalize_litellm_request_model("deepseek/deepseek-chat") == "kitty-default"
+    assert lc.normalize_litellm_request_model("deepseek/deepseek-v4-flash") == "kitty-default"
+    assert lc.normalize_litellm_request_model("google/gemini-2.0-flash-001") == "kitty-fallback-or"

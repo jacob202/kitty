@@ -7,21 +7,16 @@ LOG_DIR="${ROOT_DIR}/logs/kitty_gateway"
 ENV_FILE="${ROOT_DIR}/kitty_gateway/openwebui.env"
 OPENAPI_ROOT="${ROOT_DIR}/kitty_gateway/openapi-servers/servers"
 OPENWEBUI_VENV_DEFAULT="${HOME}/kitty-services/venv"
+source "${ROOT_DIR}/kitty_gateway/lib/load_env_safe.sh"
 
 mkdir -p "${RUN_DIR}" "${LOG_DIR}"
 
 if [[ -f "${ROOT_DIR}/.env" ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  source "${ROOT_DIR}/.env"
-  set +a
+  load_env_assignments "${ROOT_DIR}/.env"
 fi
 
 if [[ -f "${ENV_FILE}" ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  source "${ENV_FILE}"
-  set +a
+  load_env_assignments "${ENV_FILE}"
 fi
 
 OPENWEBUI_VENV="${OPENWEBUI_VENV:-${OPENWEBUI_VENV_DEFAULT}}"

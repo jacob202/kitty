@@ -73,3 +73,26 @@ def test_disable_agentrouter_env_skips_agentrouter_fallback(monkeypatch):
     assert result == "openrouter"
     mock_agent.assert_not_called()
     mock_openrouter.assert_called_once()
+
+
+def test_call_llm_normalizes_legacy_model_before_proxy_call():
+    mock_response = type(
+        "Resp",
+        (),
+        {
+            "raise_for_status": lambda self: None,
+            "json": lambda self: {
+                "choices": [{"message": {"content": "ok"}}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+                "model": "kitty-smart",
+            },
+        },
+    )()
+    with patch("gateway.llm_client.requests.post", return_value=mock_response) as mock_post:
+        result = call_llm(
+            [{"role": "user", "content": "hello"}],
+            model="anthropic/claude-3.7-sonnet",
+        )
+
+    assert result == "ok"
+    assert mock_post.call_args.kwargs["json"]["model"] == "kitty-smart"

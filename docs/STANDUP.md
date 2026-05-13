@@ -14,6 +14,9 @@
 - `./kitty quick test` — run tests
 - `./kitty quick index <pattern>` — file search
 - `./kitty quick health` — API check
+- `bash kitty_gateway/status_all.sh` — Gateway `:8000` + LiteLLM `:8001` + WebUI health (same triangle as `docs/ARCHITECTURE.md`)
+
+**Stack triangle (one line):** Browser **WebUI `:3000`** talks to **LiteLLM `:8001`** (`kitty-*` models); **Gateway `:8000`** is Kitty’s FastAPI app—not the same process as WebUI, same product when `openwebui.env` points chat at LiteLLM.
 
 **Key docs (start here):**
 - `docs/UNIFIED_IMPLEMENTATION_PLAN.md` — phased feature roadmap (Phases 1–10)
