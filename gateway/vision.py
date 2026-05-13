@@ -1,14 +1,20 @@
-"""Claude Sonnet vision — describes schematics and technical images."""
 from __future__ import annotations
 import base64
 import logging
 import os
-
-import anthropic
+from pathlib import Path
 
 logger = logging.getLogger("kitty.vision")
 
-_VISION_MODEL = "claude-sonnet-4-5"
+from gateway.llm_client import call_llm
+
+
+def analyze_file(path: Path) -> str:
+    """Wrapper for backward compatibility in clerk.py."""
+    with open(path, "rb") as f:
+        return describe_schematic(f.read())
+
+_VISION_MODEL = "kitty-smart"
 _VISION_PROMPT = (
     "Describe this technical image in detail. "
     "List all visible components, labels, connections, values, and specifications. "
@@ -17,39 +23,30 @@ _VISION_PROMPT = (
 
 
 def describe_schematic(image_bytes: bytes, media_type: str = "image/png") -> str:
-    """Return a detailed description of a technical image using Claude Sonnet vision.
-
-    Returns empty string (with a warning) when ANTHROPIC_API_KEY is not set or API fails.
+    """Return a detailed description of a technical image using unified LLM client.
     """
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        logger.warning("ANTHROPIC_API_KEY not set — skipping vision description")
-        return ""
-
     try:
-        client = anthropic.Anthropic(api_key=api_key)
         b64 = base64.standard_b64encode(image_bytes).decode()
-        response = client.messages.create(
-            model=_VISION_MODEL,
-            max_tokens=1024,
-            messages=[
+
+        payload = {
+            "messages": [
                 {
                     "role": "user",
                     "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": media_type,
-                                "data": b64,
-                            },
-                        },
                         {"type": "text", "text": _VISION_PROMPT},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{media_type};base64,{b64}"},
+                        },
                     ],
                 }
             ],
-        )
-        return response.content[0].text
+            "max_tokens": 1024,
+            "temperature": 0.1,
+            "timeout": 60,
+        }
+
+        return call_llm(model=_VISION_MODEL, **payload)
     except Exception as exc:
         logger.warning("Vision description failed: %s", exc)
         return ""
