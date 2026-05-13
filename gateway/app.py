@@ -423,6 +423,38 @@ async def close_session(request: Request):
     return {"status": "ok", "session_id": session_id}
 
 
+# --- Skill endpoints ---
+
+@app.get("/skills")
+async def skills_list(q: Optional[str] = None):
+    from gateway.skill_registry import discover, search
+    if q:
+        return {"skills": search(q)}
+    return {"skills": discover()}
+
+
+@app.get("/skill/{name}")
+async def skill_get(name: str):
+    from gateway.skill_registry import get
+    skill = get(name)
+    if not skill:
+        raise HTTPException(status_code=404, detail=f"Skill not found: {name}")
+    return skill
+
+
+class SkillInvokeRequest(BaseModel):
+    context: Optional[str] = None
+
+
+@app.post("/skill/{name}/invoke")
+async def skill_invoke(name: str, payload: SkillInvokeRequest = SkillInvokeRequest()):
+    from gateway.skill_registry import invoke
+    result = invoke(name, context=payload.context)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+
 # --- Todo endpoints ---
 
 class TodoUpdateRequest(BaseModel):
