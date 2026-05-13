@@ -277,19 +277,21 @@ def call_llm(
     except Exception as e:
         logger.warning("LLM call failed via LiteLLM (%s), trying fallbacks: %s", model, e)
 
-        # 1. AgentRouter first (single key, tiered models via env).
-        out = _call_agentrouter_direct(
-            messages,
-            max_tokens,
-            temperature,
-            timeout,
-            response_format,
-            operation=operation,
-            metadata=metadata,
-            request_model=model,
-        )
-        if out:
-            return out
+        disable_agentrouter = os.environ.get("KITTY_DISABLE_AGENTROUTER", "").strip().lower()
+        if disable_agentrouter not in ("1", "true", "yes"):
+            # 1. AgentRouter first (single key, tiered models via env).
+            out = _call_agentrouter_direct(
+                messages,
+                max_tokens,
+                temperature,
+                timeout,
+                response_format,
+                operation=operation,
+                metadata=metadata,
+                request_model=model,
+            )
+            if out:
+                return out
 
         # 2. OpenRouter direct (cheap/free slugs when key set).
         or_model = _openrouter_fallback_model(model)

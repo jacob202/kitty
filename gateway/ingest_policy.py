@@ -1,11 +1,24 @@
 """Shared ingest curation rules for books and queue pruning."""
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 CORE_EXTS = {".md", ".txt", ".rst", ".json", ".jsonl"}
 SECONDARY_EXTS = {".pdf", ".epub", ".mobi", ".azw3"}
 EXCLUDED_EXTS = {".csv", ".jpg", ".jpeg", ".png", ".gif", ".webp"}
+
+BOOK_VARIANT_EXT_PRIORITY = {
+    ".md": 5,
+    ".txt": 5,
+    ".rst": 5,
+    ".json": 4,
+    ".jsonl": 4,
+    ".epub": 3,
+    ".pdf": 2,
+    ".mobi": 1,
+    ".azw3": 1,
+}
 
 CORE_MARKERS = (
     "manual",
@@ -47,6 +60,26 @@ EXCLUDED_MARKERS = (
 
 def _norm(path: str | Path) -> str:
     return str(path).replace("\\", "/").lower()
+
+
+def _normalize_variant_stem(stem: str) -> str:
+    """Collapse obvious duplicate suffixes so format variants can be grouped."""
+    low = stem.lower()
+    low = re.sub(r"[\s._-]*(copy|\d+)$", "", low)
+    low = re.sub(r"\s*\((copy|\d+)\)$", "", low)
+    low = re.sub(r"[\s._-]*v\d+$", "", low)
+    return low.strip(" ._-")
+
+
+def book_variant_key(path: str | Path) -> tuple[str, str]:
+    """Return a coarse key for grouping duplicate book variants."""
+    p = Path(path)
+    return (_norm(p.parent), _normalize_variant_stem(p.stem))
+
+
+def book_variant_priority(path: str | Path) -> int:
+    """Rank variants so higher-quality formats win when we prune duplicates."""
+    return BOOK_VARIANT_EXT_PRIORITY.get(Path(path).suffix.lower(), 0)
 
 
 def score_ingest_candidate(path: str | Path, preview: str = "") -> tuple[int, list[str]]:

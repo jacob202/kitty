@@ -50,3 +50,17 @@ def test_litellm_fallback_prefers_agentrouter_before_openrouter():
         result = call_llm([{"role": "user", "content": "hello"}], model="kitty-default")
 
     assert result == "agentrouter"
+
+
+def test_disable_agentrouter_env_skips_agentrouter_fallback(monkeypatch):
+    monkeypatch.setenv("KITTY_DISABLE_AGENTROUTER", "1")
+    with patch("gateway.llm_client.requests.post", side_effect=requests.RequestException("down")), \
+         patch("gateway.llm_client._call_agentrouter_direct", return_value="agentrouter") as mock_agent, \
+         patch("gateway.llm_client._call_openrouter_direct", return_value="openrouter") as mock_openrouter, \
+         patch("gateway.llm_client._call_gemini_direct", return_value="gemini"), \
+         patch("gateway.llm_client._call_nvidia_direct", return_value="nvidia"):
+        result = call_llm([{"role": "user", "content": "hello"}], model="kitty-default")
+
+    assert result == "openrouter"
+    mock_agent.assert_not_called()
+    mock_openrouter.assert_called_once()

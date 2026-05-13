@@ -1,4 +1,8 @@
-"""Phase 9 PDF pipeline — LlamaCloud primary, PyMuPDF fallback, vision for images."""
+"""Phase 9 PDF pipeline — LlamaCloud primary, PyMuPDF fallback.
+
+Inline image vision is opt-in because the main knowledge pipeline already has a
+separate vision-enrichment stage for manuals and other high-value PDFs.
+"""
 from __future__ import annotations
 import logging
 import os
@@ -23,7 +27,8 @@ def extract_pdf_enhanced(path: Path) -> list[PdfChunk]:
     Strategy:
     1. Try LlamaCloud parsing (if LLAMA_CLOUD_API_KEY set) — structured markdown output
     2. Fall back to PyMuPDF → pdfplumber for plain text
-    3. Always extract embedded images and run vision on them (if ANTHROPIC_API_KEY set)
+    3. Inline image vision is off by default; use the knowledge pipeline's
+       separate vision enrichment stage for manuals / high-value scans.
     """
     image_descriptions = _extract_images_with_vision(path)
     has_images = bool(image_descriptions)
@@ -112,7 +117,12 @@ def _get_pdf_images(path: Path) -> list[tuple[bytes, str]]:
 
 
 def _extract_images_with_vision(path: Path) -> list[str]:
-    """Describe each embedded image using Claude Sonnet vision. Skips tiny images."""
+    """Describe each embedded image using Claude Sonnet vision. Skips tiny images.
+
+    This is opt-in because bulk ingest should stay text-first by default.
+    """
+    if os.environ.get("KITTY_ENABLE_INLINE_PDF_VISION") != "1":
+        return []
     if not os.environ.get("ANTHROPIC_API_KEY"):
         return []
 

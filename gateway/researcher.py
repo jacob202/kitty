@@ -44,7 +44,7 @@ class DeepResearcher:
         summary = self._synthesize_findings(topic, findings)
 
         if ingest:
-            self._ingest_findings(topic, findings, summary)
+            await self._ingest_findings(topic, findings, summary)
 
         return summary
 
@@ -136,7 +136,7 @@ Rules: Short sentences. Use contractions. Speak Canadian."""
             logger.error(f"Synthesis failed: {e}")
             return "I found the data, but couldn't synthesize it properly. Check the logs."
 
-    def _ingest_findings(self, topic: str, findings: str, summary: str):
+    async def _ingest_findings(self, topic: str, findings: str, summary: str):
         """Saves findings to a temp file and triggers the ingestion pipeline."""
         from gateway.knowledge import ingest_file
         import tempfile
@@ -146,7 +146,7 @@ Rules: Short sentences. Use contractions. Speak Canadian."""
                 f.write(f"# Deep Research: {topic}\n\n## Summary\n{summary}\n\n## Raw Findings\n{findings}")
                 tmp_path = f.name
                 
-            ingest_file(
+            await ingest_file(
                 tmp_path, 
                 source_label=f"research_{topic.replace(' ', '_')}",
                 doc_type="technical_research"

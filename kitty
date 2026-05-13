@@ -270,13 +270,13 @@ _quick() {
       fi
       ;;
     plan)
-      cat "$SCRIPT_DIR/docs/REFACTOR_PLAN.md" 2>/dev/null || cat "$SCRIPT_DIR/TASKS.md"
+      cat "$SCRIPT_DIR/TASKS.md"
       ;;
     audit)
       cat "$SCRIPT_DIR/docs/IMPROVEMENT_AUDIT.md"
       ;;
     loop)
-      cat "$SCRIPT_DIR/ENGINEERING_LOOP.md"
+      head -n 120 "$SCRIPT_DIR/docs/PROCESS_UPGRADES.md"
       ;;
     *)
       echo "Quick deterministic commands (no LLM):"
@@ -291,7 +291,7 @@ _quick() {
       echo "  ./kitty quick spec    — phased roadmap excerpt (UNIFIED_IMPLEMENTATION_PLAN)"
       echo "  ./kitty quick plan    — refactor plan"
       echo "  ./kitty quick audit   — improvement audit"
-      echo "  ./kitty quick loop    — engineering loop"
+      echo "  ./kitty quick loop    — workflows (PROCESS_UPGRADES)"
       ;;
   esac
 }

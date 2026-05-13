@@ -163,8 +163,8 @@ fi
 
 if [ "$PHASE" = "6" ]; then
     echo "[ Full Ingestion Sweep ]"
-    check "ingest_phase6.py exists" \
-        "test -f /Users/jacobbrizinski/Projects/kitty/scripts/ingest_phase6.py"
+    check "ingest.py exists" \
+        "test -f /Users/jacobbrizinski/Projects/kitty/scripts/ingest.py"
     check "ChatGPT extractor in knowledge.py" \
         "grep -q '_extract_chatgpt_json' /Users/jacobbrizinski/Projects/kitty/gateway/knowledge.py"
     check "journal extractor in knowledge.py" \

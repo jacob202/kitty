@@ -12,7 +12,7 @@ from gateway.paths import DATA_DIR
 
 KNOWLEDGE_DB_PATH = DATA_DIR / "knowledge_db"
 COLLECTION_NAME = "kitty_knowledge"
-EMBED_MODEL = "nomic-embed-text"
+EMBED_MODEL = "nomic-embed-text:latest"
 OLLAMA_BASE = "http://localhost:11434"
 
 @lru_cache(maxsize=1)
