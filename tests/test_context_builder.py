@@ -1,4 +1,4 @@
-"""Tests for context_builder — tuple return, partial failures, section headers."""
+"""Tests for context_builder — unified context via memory_graph, constants, assembly."""
 import pytest
 from unittest.mock import patch, AsyncMock
 
@@ -8,8 +8,8 @@ from gateway.context_builder import (
     MEMORY_SIMILARITY_THRESHOLD,
     MEMORY_LIMIT,
     KNOWLEDGE_LIMIT,
-    _build_dynamic,
     _truncate,
+    _assemble,
     assemble_system_prompt,
     build_user_context,
 )
@@ -19,26 +19,13 @@ from gateway.context_builder import (
 # Unit tests — pure functions
 # ---------------------------------------------------------------------------
 
-def test_build_dynamic_both_present():
-    result = _build_dynamic("mem stuff", "know stuff")
-    assert "[MEMORY]\nmem stuff" in result
-    assert "[KNOWLEDGE]\nknow stuff" in result
+def test_assemble_appends_dynamic_to_base():
+    result = _assemble("BASE", "DYNAMIC")
+    assert result == "BASE\n\nDYNAMIC"
 
 
-def test_build_dynamic_omits_empty_memory():
-    result = _build_dynamic("", "know stuff")
-    assert "[MEMORY]" not in result
-    assert "[KNOWLEDGE]\nknow stuff" in result
-
-
-def test_build_dynamic_omits_empty_knowledge():
-    result = _build_dynamic("mem stuff", "")
-    assert "[KNOWLEDGE]" not in result
-    assert "[MEMORY]\nmem stuff" in result
-
-
-def test_build_dynamic_both_empty_returns_empty():
-    assert _build_dynamic("", "") == ""
+def test_assemble_empty_dynamic_returns_base():
+    assert _assemble("BASE", "") == "BASE"
 
 
 def test_truncate_short_text_unchanged():
@@ -73,55 +60,76 @@ def test_constants_exist_and_sane():
 
 
 # ---------------------------------------------------------------------------
-# Async integration tests — both-fetches patterns
+# Async integration tests — unified context via memory_graph
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 async def test_build_user_context_returns_tuple():
-    with patch("gateway.context_builder._fetch_memory", return_value="mem"), \
-         patch(
-             "gateway.context_builder._fetch_knowledge_for_context",
-             new=AsyncMock(return_value="know"),
-         ):
+    with patch(
+        "gateway.context_builder.memory_graph.unified_context",
+        new=AsyncMock(return_value="## Memory\n- test memory\n\n## Knowledge\n[src | general]\ntest knowledge"),
+    ):
         soul, dynamic = await build_user_context("test query", "SOUL")
     assert soul == "SOUL"
-    assert "[MEMORY]" in dynamic
-    assert "[KNOWLEDGE]" in dynamic
+    assert "Memory" in dynamic
+    assert "Knowledge" in dynamic
 
 
 @pytest.mark.asyncio
-async def test_build_user_context_soul_unchanged_on_both_fail():
-    with patch("gateway.context_builder._fetch_memory", return_value=""), \
-         patch(
-             "gateway.context_builder._fetch_knowledge_for_context",
-             new=AsyncMock(return_value=""),
-         ):
+async def test_build_user_context_soul_unchanged_on_empty():
+    with patch(
+        "gateway.context_builder.memory_graph.unified_context",
+        new=AsyncMock(return_value=""),
+    ):
         soul, dynamic = await build_user_context("test query", "SOUL")
     assert soul == "SOUL"
     assert dynamic == ""
 
 
 @pytest.mark.asyncio
-async def test_build_user_context_partial_failure_memory():
-    with patch("gateway.context_builder._fetch_memory", return_value=""), \
-         patch(
-             "gateway.context_builder._fetch_knowledge_for_context",
-             new=AsyncMock(return_value="know"),
-         ):
-        soul, dynamic = await build_user_context("test query", "SOUL")
-    assert "[MEMORY]" not in dynamic
-    assert "[KNOWLEDGE]\nknow" in dynamic
-
-
-@pytest.mark.asyncio
-async def test_build_user_context_exception_does_not_raise():
-    def _raise(_q):
-        raise RuntimeError("db down")
-
-    with patch("gateway.context_builder._fetch_memory", side_effect=_raise), \
-         patch(
-             "gateway.context_builder._fetch_knowledge_for_context",
-             new=AsyncMock(return_value="know"),
-         ):
+async def test_build_user_context_exception_does_not_crash():
+    with patch(
+        "gateway.context_builder.memory_graph.unified_context",
+        new=AsyncMock(return_value="## Memory\n- survived"),
+    ):
         soul, dynamic = await build_user_context("test query", "SOUL")
     assert soul == "SOUL"
+    assert "Memory" in dynamic
+
+
+# ---------------------------------------------------------------------------
+# Unified memory_graph unit tests
+# ---------------------------------------------------------------------------
+
+from gateway.memory_graph import _format_unified, _truncate as _mg_truncate
+
+
+def test_format_unified_empty_results_returns_empty():
+    assert _format_unified({}) == ""
+
+
+def test_format_unified_memory_only():
+    results = {"memory": [{"memory": "Jacob owns a 2010 Honda"}]}
+    formatted = _format_unified(results)
+    assert "## Memory" in formatted
+    assert "2010 Honda" in formatted
+
+
+def test_format_unified_all_sections():
+    results = {
+        "memory": [{"memory": "test memory"}],
+        "knowledge": [{"text": "test knowledge", "source": "test.txt", "doc_type": "general"}],
+        "journal": [{"entry": "test journal entry"}],
+        "traces": [{"user_request": "test request", "domain_classified": "soul"}],
+    }
+    formatted = _format_unified(results)
+    assert "## Memory" in formatted
+    assert "## Knowledge" in formatted
+    assert "## Recent Journal" in formatted
+    assert "## Recent Activity" in formatted
+
+
+def test_format_unified_respects_token_cap():
+    results = {"memory": [{"memory": "x" * 10000}]}
+    formatted = _format_unified(results)
+    assert len(formatted) < 10000

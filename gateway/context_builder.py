@@ -12,7 +12,7 @@ import asyncio
 import logging
 from typing import Optional, Tuple, List, Dict, Any
 
-from gateway import domain_router, prompt_loader, journal, parts, knowledge, memory
+from gateway import domain_router, prompt_loader, journal, parts, memory_graph
 
 logger = logging.getLogger("kitty.context_builder")
 
@@ -47,11 +47,11 @@ async def get_system_prompt(
     if parts_mode or parts.should_surface_parts(message):
         system_prompt = parts.build_parts_system_prompt(system_prompt)
 
-    # 4. Dynamic Context Retrieval
-    memory_block, knowledge_block = await _fetch_all_context(message)
+    # 4. Dynamic Context Retrieval (unified across all stores)
+    dynamic_context = await memory_graph.unified_context(message)
     
     # 5. Assembly
-    return _assemble(system_prompt, memory_block, knowledge_block)
+    return _assemble(system_prompt, dynamic_context)
 
 
 def build_worker_context(context_type: str, **kwargs) -> str:
@@ -80,64 +80,9 @@ def build_worker_context(context_type: str, **kwargs) -> str:
 
 # --- Private Implementation Details ---
 
-async def _fetch_knowledge_for_context(query: str) -> str:
-    """Load knowledge chunks for injection; must run on the event loop (search is async)."""
-    try:
-        chunks: List[Dict[str, Any]] = await knowledge.search(query, limit=KNOWLEDGE_LIMIT)
-        if not chunks:
-            return ""
-        lines = []
-        for c in chunks:
-            src = c.get("source", "unknown")
-            dtype = c.get("doc_type", "general")
-            text = (c.get("text") or "")[:400]
-            label = f"[Source: {src} | type: {dtype}]"
-            lines.append(f"{label}\n{text}")
-        raw = "\n".join(lines)
-        return _truncate(raw, KNOWLEDGE_TOKEN_CAP)
-    except Exception:
-        logger.warning("Knowledge fetch failed", exc_info=True)
-        return ""
-
-
-async def _fetch_all_context(query: str) -> Tuple[str, str]:
-    """Fetch memory and knowledge concurrently."""
-    results = await asyncio.gather(
-        asyncio.to_thread(_fetch_memory, query),
-        _fetch_knowledge_for_context(query),
-        return_exceptions=True,
-    )
-
-    mem = results[0] if isinstance(results[0], str) else ""
-    kn = results[1] if isinstance(results[1], str) else ""
-
-    if isinstance(results[0], Exception): logger.warning("Memory fetch raised: %s", results[0])
-    if isinstance(results[1], Exception): logger.warning("Knowledge fetch raised: %s", results[1])
-    
-    return mem, kn
-
-
-def _fetch_memory(query: str) -> str:
-    try:
-        raw = memory.get_context_block(query, limit=MEMORY_LIMIT)
-        return _truncate(raw, MEMORY_TOKEN_CAP) if raw else ""
-    except Exception:
-        logger.warning("Memory fetch failed", exc_info=True)
-        return ""
-
-
-def _build_dynamic(mem: str, kn: str) -> str:
-    """Build the dynamic context block from memory and knowledge strings."""
-    sections = []
-    if mem: sections.append(f"[MEMORY]\n{mem}")
-    if kn: sections.append(f"[KNOWLEDGE]\n{kn}")
-    return "\n\n".join(sections)
-
-
-def _assemble(base: str, mem: str, kn: str) -> str:
-    dynamic = _build_dynamic(mem, kn)
-    if dynamic:
-        return f"{base}\n\n{dynamic}"
+def _assemble(base: str, dynamic_context: str) -> str:
+    if dynamic_context:
+        return f"{base}\n\n{dynamic_context}"
     return base
 
 
@@ -150,11 +95,13 @@ def _truncate(text: str, cap: int) -> str:
 # Legacy compatibility aliases
 async def build_user_context(query: str, soul_prompt: str) -> Tuple[str, str]:
     """Shim for legacy callers who expect (soul, dynamic) split."""
-    mem, kn = await _fetch_all_context(query)
-    dynamic = []
-    if mem: dynamic.append(f"[MEMORY]\n{mem}")
-    if kn: dynamic.append(f"[KNOWLEDGE]\n{kn}")
-    return soul_prompt, "\n\n".join(dynamic)
+    dynamic = await memory_graph.unified_context(query)
+    return soul_prompt, dynamic
 
 def assemble_system_prompt(soul: str, dynamic: str) -> str:
     return f"{soul}\n\n{dynamic}".strip()
+
+
+# Backward-compat: keep old function names available for any caller that patches them
+from gateway.memory import get_context_block as _fetch_memory  # noqa: E402, F401
+from gateway.knowledge import get_knowledge_block as _fetch_knowledge_block  # noqa: E402, F401
