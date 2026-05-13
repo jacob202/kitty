@@ -1,0 +1,3 @@
+# Repo metadata — keep out of Cursor indexing/context where supported
+.git/
+
