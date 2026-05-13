@@ -423,6 +423,40 @@ async def close_session(request: Request):
     return {"status": "ok", "session_id": session_id}
 
 
+# --- Calendar endpoints ---
+
+@app.get("/calendar/today")
+async def calendar_today():
+    from gateway.calendar import get_today, is_available
+    if not is_available():
+        return {"available": False, "events": []}
+    return {"available": True, "events": get_today()}
+
+
+@app.get("/calendar/upcoming")
+async def calendar_upcoming(days: int = 7):
+    from gateway.calendar import get_upcoming, is_available
+    if not is_available():
+        return {"available": False, "events": []}
+    return {"available": True, "events": get_upcoming(days)}
+
+
+class CalendarCreateRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=500)
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    notes: str = ""
+
+
+@app.post("/calendar/create")
+async def calendar_create(payload: CalendarCreateRequest):
+    from gateway.calendar import create, is_available
+    if not is_available():
+        raise HTTPException(status_code=400, detail="Calendar not available (macOS only)")
+    success = create(payload.title, payload.start_time, payload.end_time, payload.notes)
+    return {"created": success}
+
+
 # --- Notification endpoints ---
 
 class NotifyRequest(BaseModel):
