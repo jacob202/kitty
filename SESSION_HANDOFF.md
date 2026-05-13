@@ -62,18 +62,6 @@ Detailed steps live in **`docs/CURSOR_COMPACT.md`** (update this handoff → com
 
 ---
 
-## Prometheus (cloned 2026-05-13)
-
-- **Location**: `Prometheus/` (cloned from https://github.com/EuniAI/Prometheus)
-- **Status**: Running on `http://localhost:9002` (API docs at `/docs`)
-- **Containers**: `prometheus` (FastAPI), `prometheus_neo4j_container`, `prometheus_postgres_container`
-- **Neo4j memory**: Reduced from 6-12GB to 1GB in `docker-compose.yml`
-- **API keys**: Copied from kitty `.env` (Anthropic, Gemini, OpenAI, Tavily)
-- **JWT**: Generated and set in `Prometheus/.env`
-- **Athena**: Disabled (commented out `PROMETHEUS_ATHENA_BASE_URL` — private service)
-- **Start**: `cd Prometheus && docker compose up -d`
-- **Stop**: `cd Prometheus && docker compose down`
-
 ## Kitty fixes (2026-05-13)
 
 - **Fixed `.env` line 18**: `AGENTROUTER_MODEL` value had unquoted space → wrapped in quotes

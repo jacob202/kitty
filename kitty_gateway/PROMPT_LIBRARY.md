@@ -1,33 +1,51 @@
-# Kitty ↔ Open WebUI prompt library
+# Portable prompt / skill / tool bundle
 
-Saved prompts (slash commands) are defined in **`kitty_prompt_library.json`**. Titles and intent are tied to **repo file names** you already use (`docs/ARCHITECTURE.md`, `gateway/context_builder.py`, `config/SOUL.md`, …) so prompts stay aligned with the codebase.
+**`kitty_openwebui_library.json`** holds **model-agnostic** prompts, skills, and tools (conversation steering, formats, research, handovers, etc.). It is **not** tied to Kitty internals or to a specific chat vendor—only the **import script filename** lives under `kitty_gateway/` because this repo uses it with Open WebUI’s API.
 
-## Import (automated)
+## What’s inside
 
-1. Ensure Open WebUI is up and `kitty_gateway/openwebui.env` has `WEBUI_URL`, `WEBUI_ADMIN_EMAIL`, `WEBUI_ADMIN_PASSWORD` (same as `import_openwebui_functions.sh`).
+- **`prompts`** — Short instructions you can inject mid-chat (ported under **CC BY 4.0** from [danielrosehill/OpenWebUI-Prompt-Library](https://github.com/danielrosehill/OpenWebUI-Prompt-Library); names here are generic).
+- **`skills`** — Short markdown playbooks (structured reasoning, code review, research synthesis).
+- **`tools`** — Python modules with **`class Tools`**: Wikipedia lookup (**MIT**, from [Haervwe/open-webui-tools](https://github.com/Haervwe/open-webui-tools)) and a tiny **stdlib** date/time helper.
+
+`upstream` and per-prompt **Source** footers preserve license attribution.
+
+## Local SQLite index (optional)
+
+Rebuild a queryable copy under **`data/llm_library_index.db`** (schema: **`data/llm_library_index.schema.sql`**):
+
+```bash
+python3.12 scripts/build_llm_library_index.py
+```
+
+Tables: `prompts`, `skills`, `tools`, plus FTS5 `library_fts` (`kind`, `entry_key`, `title`, `body`). Example: `SELECT * FROM library_fts WHERE library_fts MATCH 'summary';`
+
+## Import into Open WebUI (automated)
+
+1. Open WebUI running; **`kitty_gateway/openwebui.env`** has `WEBUI_URL`, `WEBUI_ADMIN_EMAIL`, `WEBUI_ADMIN_PASSWORD`.
 2. From the **kitty repo root**:
 
    ```bash
    ./venv/bin/python kitty_gateway/import_openwebui_prompts.py
    ```
 
-3. Dry run (no POST):
+3. Dry run (no auth):
 
    ```bash
    ./venv/bin/python kitty_gateway/import_openwebui_prompts.py --dry-run
    ```
 
-If a **command** already exists, the API returns “command taken” and the script **skips** that row (safe to re-run).
+Re-running is safe: existing **command** / **skill id** / **tool id** values are usually skipped.
 
-## Import (manual)
+## Legacy JSON
 
-Open WebUI → **Workspace** → **Prompts** → **Import** (if your build supports JSON import), or create prompts by hand using the `command`, `name`, and `content` fields from `kitty_prompt_library.json`.
+A file that is only a **list** of prompts still works: pass `--library` and only prompts are imported.
 
-## Starter cards (`DEFAULT_PROMPT_SUGGESTIONS`)
+## Editing
 
-Home-screen suggestion chips are separate from the prompt library list; they live in **`kitty_gateway/openwebui.env`** as `DEFAULT_PROMPT_SUGGESTIONS`. You can add Kitty-oriented starters there (JSON array) without duplicating every slash command.
+- Edit **`kitty_openwebui_library.json`** and matching files under **`openwebui_library_tools/`**.
+- Wikipedia tool needs packages from its frontmatter (`wikipedia-api`, plus `aiohttp` and `beautifulsoup4` as in upstream).
 
-## Editing the library
+## Starter chips
 
-- Add or change entries in **`kitty_prompt_library.json`** (valid JSON list).
-- Re-run the import script; existing commands are skipped until you rename `command` or delete the old prompt in the WebUI.
+Home-screen suggestions are separate: **`DEFAULT_PROMPT_SUGGESTIONS`** in **`kitty_gateway/openwebui.env`**.

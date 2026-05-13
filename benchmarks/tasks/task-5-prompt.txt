@@ -1,1 +1,0 @@
-Find and fix the bug in src/core/domain_router.py. There is a type error where `self.domain_patterns[best_domain]["specialist"]` is being passed to a parameter that requires `str`, but the type checker flags it because the values of `domain_patterns` are dicts with mixed types (lists, strings). Fix this so the type checker is satisfied without changing any runtime behavior.

@@ -49,8 +49,12 @@ export ENABLE_VERSION_UPDATE_CHECK="${ENABLE_VERSION_UPDATE_CHECK:-false}"
 export GLOBAL_LOG_LEVEL="${GLOBAL_LOG_LEVEL:-WARNING}"
 export ENABLE_PROFILE_IMAGE_URL_FORWARDING="${ENABLE_PROFILE_IMAGE_URL_FORWARDING:-false}"
 
-echo "Starting Open WebUI on port 3000..."
-echo "Interface: http://127.0.0.1:3000"
+OPENWEBUI_PORT="${OPENWEBUI_PORT:-3000}"
+OPENWEBUI_HOST="${OPENWEBUI_HOST:-127.0.0.1}"
+export WEBUI_URL="http://${OPENWEBUI_HOST}:${OPENWEBUI_PORT}"
+
+echo "Starting Open WebUI on port ${OPENWEBUI_PORT}..."
+echo "Interface: ${WEBUI_URL}"
 echo "Data dir: ${DATA_DIR}"
 echo "Model endpoint: ${OPENAI_API_BASE_URL}"
 
@@ -64,4 +68,4 @@ if [[ "${OPENWEBUI_SMOKE:-0}" == "1" ]]; then
   exit 0
 fi
 
-open-webui serve --host 127.0.0.1 --port 3000
+open-webui serve --host "${OPENWEBUI_HOST}" --port "${OPENWEBUI_PORT}"

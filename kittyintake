@@ -1,2 +1,0 @@
-#!/usr/bin/env sh
-exec venv/bin/python "$(dirname "$0")/scripts/builder_intake.py" "$@"

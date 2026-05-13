@@ -15,7 +15,7 @@
 Each phase has its own plan file. Every plan is self-contained — a subagent or fresh session can execute any single phase with zero prior context.
 
 | Phase | Plan file | What it ships | Gate |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **1** | `2026-05-09-kitty-phase-1-infra.md` | Open WebUI + LiteLLM + models working | Chat with Kitty on Day 1 |
 | **2** | `2026-05-09-kitty-phase-2-gateway.md` | Kitty Gateway + 5 domain modes + soul prompt | Kitty responds in character, domain switches work |
 | **3** | `2026-05-09-kitty-phase-3-memory.md` | Graphiti local memory, facts vs patterns separated | Tell Kitty a fact, close chat, reopen — she remembers |
@@ -40,6 +40,7 @@ Each phase has its own plan file. Every plan is self-contained — a subagent or
 **Available local models:** `qwen2.5-coder:7b` (4.7GB), `nomic-embed-text` (274MB)
 
 **API keys already set in `.env`:**
+
 - `OPENROUTER_API_KEY` ✓
 - `ANTHROPIC_API_KEY` ✓
 - `DEEPSEEK_API_KEY` ✓
@@ -48,6 +49,7 @@ Each phase has its own plan file. Every plan is self-contained — a subagent or
 - `HONCHO_API_KEY` ✓
 
 **Ports:**
+
 - Open WebUI: 3000
 - LiteLLM proxy: 8001
 - Kitty Gateway: 8000
@@ -57,7 +59,7 @@ Each phase has its own plan file. Every plan is self-contained — a subagent or
 
 ## Directory structure created across all phases
 
-```
+```text
 /Users/jacobbrizinski/Projects/kitty/
 ├── contracts/              # Pydantic schemas — created Phase 1
 │   ├── routing_decision.py
@@ -101,6 +103,7 @@ Each phase has its own plan file. Every plan is self-contained — a subagent or
 ## Handoff format for session limits
 
 If a session ends mid-phase, the next session needs:
+
 1. The spec: `docs/superpowers/specs/2026-05-09-kitty-personal-ai-platform-design.md`
 2. This master plan: `docs/superpowers/plans/2026-05-09-kitty-master-plan.md`
 3. The current phase plan file (check which tasks are checked off)

@@ -183,8 +183,8 @@ if [ "$PHASE" = "9" ]; then
         "test -f /Users/jacobbrizinski/Projects/kitty/.worktrees/phase-9-pdf/gateway/vision.py"
     check "contracts/pdf_chunk.py exists" \
         "test -f /Users/jacobbrizinski/Projects/kitty/.worktrees/phase-9-pdf/contracts/pdf_chunk.py"
-    check "scripts/ingest_pdf.py exists" \
-        "test -f /Users/jacobbrizinski/Projects/kitty/.worktrees/phase-9-pdf/scripts/ingest_pdf.py"
+    check "scripts/ingest.py exists (folder + PDF ingest via gateway.knowledge)" \
+        "test -f /Users/jacobbrizinski/Projects/kitty/scripts/ingest.py"
     check "llama-cloud installed" \
         "cd /Users/jacobbrizinski/Projects/kitty && venv/bin/python -c 'import llama_cloud'"
     check "_extract_pdf calls pdf_pipeline in knowledge.py" \

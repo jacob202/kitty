@@ -17,6 +17,9 @@ if [[ -f "${ROOT_DIR}/kitty_gateway/openwebui.env" ]]; then
   set +a
 fi
 
+OPENWEBUI_PORT="${OPENWEBUI_PORT:-3000}"
+OPENWEBUI_HEALTH_URL="$(echo "${WEBUI_URL:-http://127.0.0.1:${OPENWEBUI_PORT}}" | sed 's!/*$!!')/health"
+
 service_pattern() {
   local name="$1"
   case "${name}" in
@@ -86,7 +89,7 @@ check_pid "cloudflare"
 echo
 check_http "litellm" "http://127.0.0.1:8001/health" "Authorization: Bearer ${LITELLM_MASTER_KEY:-kitty-local-key-change-me}" 8
 check_http "gateway" "http://127.0.0.1:8000/health"
-check_http "openwebui" "http://127.0.0.1:3000/health"
+check_http "openwebui" "${OPENWEBUI_HEALTH_URL}"
 check_http "jupyter" "http://127.0.0.1:8888/api" "Authorization: token ${CODE_EXECUTION_JUPYTER_AUTH_TOKEN:-}"
 check_http "openterminal" "${OPEN_TERMINAL_URL:-http://127.0.0.1:9614}/health"
 check_http "tool-filesystem" "http://127.0.0.1:9721/openapi.json"

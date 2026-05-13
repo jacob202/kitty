@@ -62,3 +62,5 @@ kitty_gateway/openwebui.env
 kitty_gateway/.run/
 kitty_gateway/openapi-servers/
 logs/
+# Added by code-review-graph
+.code-review-graph/

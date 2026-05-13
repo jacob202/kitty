@@ -1,5 +1,6 @@
 """Tests for ingestion queue error break loop and circuit breaker."""
 import json
+import sqlite3
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -108,6 +109,21 @@ class TestQueueDB:
         assert task["file_path"].endswith("tmp/test.txt")
         assert task["status"] == "pending"
         assert task["attempts"] == 0
+
+    def test_get_next_prefers_higher_authority(self):
+        import gateway.ingestion_queue as qmod
+        qmod.init_db()
+        qmod.enqueue_file("/tmp/low.txt")
+        qmod.enqueue_file("/tmp/high.txt")
+
+        with sqlite3.connect(str(self.tmp_db)) as conn:
+            conn.execute("UPDATE ingestion_queue SET authority_score = 3 WHERE file_path LIKE '%low.txt'")
+            conn.execute("UPDATE ingestion_queue SET authority_score = 5 WHERE file_path LIKE '%high.txt'")
+            conn.commit()
+
+        task = qmod.get_next_task()
+        assert task is not None
+        assert task["file_path"].endswith("high.txt")
 
     def test_dedup_on_re_enqueue(self):
         """Re-enqueuing the same file updates the row, doesn't create a duplicate."""

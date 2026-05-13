@@ -1,1 +1,0 @@
-Add type annotations to all function signatures in src/utils/fuzzy_matcher.py. The file has 6 functions with no type hints currently. Add proper type annotations for parameters and return values. Also fix the unused variable `score` on line 93 (either use it or prefix with underscore). Do not change any runtime behavior.

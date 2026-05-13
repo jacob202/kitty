@@ -34,6 +34,9 @@ if [[ -f "${ROOT_DIR}/kitty_gateway/openwebui.env" ]]; then
   set +a
 fi
 
+OPENWEBUI_PORT="${OPENWEBUI_PORT:-3000}"
+OPENWEBUI_HEALTH_URL="$(echo "${WEBUI_URL:-http://127.0.0.1:${OPENWEBUI_PORT}}" | sed 's!/*$!!')/health"
+
 service_pattern() {
   local name="$1"
   case "${name}" in
@@ -155,7 +158,7 @@ fi
 
 [[ "${ENABLE_LITELLM}" == "1" ]] && wait_http "litellm" "http://127.0.0.1:8001/health" "Authorization: Bearer ${LITELLM_MASTER_KEY:-kitty-local-key-change-me}" 30 1 8 || true
 [[ "${ENABLE_GATEWAY}" == "1" ]] && wait_http "gateway" "http://127.0.0.1:8000/health" || true
-[[ "${ENABLE_OPENWEBUI}" == "1" ]] && wait_http "openwebui" "http://127.0.0.1:3000/health" || true
+[[ "${ENABLE_OPENWEBUI}" == "1" ]] && wait_http "openwebui" "${OPENWEBUI_HEALTH_URL}" || true
 [[ "${ENABLE_JUPYTER}" == "1" ]] && wait_http "jupyter" "http://127.0.0.1:8888/api" "Authorization: token ${CODE_EXECUTION_JUPYTER_AUTH_TOKEN:-}" || true
 [[ "${ENABLE_OPEN_TERMINAL}" == "1" ]] && wait_http "openterminal" "${OPEN_TERMINAL_URL:-http://127.0.0.1:9614}/health" || true
 [[ "${ENABLE_COMMUNITY_TOOL_SERVERS}" == "1" ]] && wait_http "tool-filesystem" "http://127.0.0.1:9721/openapi.json" || true
@@ -185,7 +188,7 @@ fi
 
 echo
 echo "Stack launch complete."
-echo "UI:      http://127.0.0.1:3000"
+echo "Open WebUI: ${WEBUI_URL:-http://127.0.0.1:${OPENWEBUI_PORT}}"
 echo "Gateway: http://127.0.0.1:8000"
 echo "LiteLLM: http://127.0.0.1:8001"
 echo "MLX:     http://127.0.0.1:8010"

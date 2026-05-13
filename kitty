@@ -248,7 +248,8 @@ _quick() {
       "$PYTHON" -m pytest tests/ -q --tb=short -x "${3:-}" 2>/dev/null || echo "pytest not available"
       ;;
     health)
-      "$CURL" -sf "http://localhost:$PORT/api/brief" >/dev/null 2>&1 && echo "✓ API responding" || echo "✗ API not responding"
+      # Use /health only — /api/brief can take minutes (RSS + LLM). See /api/brief for full brief.
+      "$CURL" -sf --max-time 5 "http://localhost:$PORT/health" >/dev/null 2>&1 && echo "✓ Gateway up (http://localhost:$PORT/health)" || echo "✗ Gateway not responding on http://localhost:$PORT/health"
       ;;
     tokens)
       tail -5 "$SCRIPT_DIR/data/kitty_token_log.jsonl" 2>/dev/null | while read line; do
