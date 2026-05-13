@@ -6,6 +6,7 @@ description: Continuously improve answers, plans, code, architecture, prompts, a
 # SKILL: ITERATIVE SELF-REVIEW & META-OPTIMIZATION
 
 ## Purpose
+
 Continuously improve AI-generated answers, plans, code, architecture, prompts, analyses, or session work through structured multi-pass critique, implementation, and meta-analysis.
 
 ## Use When

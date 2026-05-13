@@ -1,128 +1,111 @@
 # PROCESS_UPGRADES.md
 
-**Date**: 2026-05-09  
-**Purpose**: Improve developer and AI workflow
+Last updated: **2026-05-13**  
+Purpose: **Canonical** workflows for humans + AI agents — paired with **`docs/STANDUP.md`** (narrative, hooks, morale).
+
+Former root **`ENGINEERING_LOOP.md`** is folded into § *Engineering loop* below.
 
 ---
 
-## Developer Workflow
+## Developer workflow
 
-### Quick Commands (Run These)
+### Quick commands (current tree)
 
 | Task | Command |
 |------|--------|
-| Start server | `./kitty` |
-| Run tests | `venv/bin/python -m pytest tests/ -q --tb=short` |
-| Quick status | `./kitty quick status` |
-| Quick test | `./kitty quick test` |
-| File index | `./kitty quick index <pattern>` |
-| Build file index | `python scripts/build_file_index.py` |
-| Scaffold | `python scripts/scaffold.py <type> <name>` |
-| Warm cache | `python scripts/warm_cache.py` |
-| Session start | `bash scripts/start-session.sh` |
+| Start gateway | `./kitty` |
+| Full tests | `/opt/homebrew/bin/python3.12 -m pytest tests/ -q --tb=short` or `venv/bin/python -m pytest tests/ -q --tb=short` |
+| Quick status / test / health | `./kitty quick status`, `./kitty quick test`, `./kitty quick health` |
+| Phased roadmap excerpt | `./kitty quick spec` → `docs/UNIFIED_IMPLEMENTATION_PLAN.md` |
+| Improvement audit | `./kitty quick audit` → `docs/IMPROVEMENT_AUDIT.md` |
+| Workflow + this file | `./kitty quick plan` → `TASKS.md` |
 
-### Entry Points
+**Legacy** helpers (`build_file_index.py`, `scaffold.py`, `warm_cache.py`, `start-session.sh`, `run_gates.sh`) lived in scripts that were **pruned**. If you need one, check **`scripts/archive/`** before reinventing.
 
-1. `./kitty` - Main CLI (kitty shell script)
-2. `./kittybuilder` - Builder entry (symlink to scripts/kitty_builder.py)
-3. `python web.py` - Server directly
+### Entry points (today)
+
+1. **`./kitty`** — launcher CLI  
+2. **Gateway** — `gateway/app.py` (FastAPI); run via `./kitty` / project conventions in **`docs/ARCHITECTURE.md`**  
+3. **Books / ingest** — **`scripts/ingest.py`**, **`scripts/enqueue_books.py`**, etc. (`ls scripts/*.py`)
 
 ---
 
-## AI Agent Workflow
+## AI agent workflow
 
-### First Read Order
+### First read order
 
-1. `docs/LAYER0_CONTROL_PLANE.md`
-2. `docs/README.md`
-3. `CURRENT_FOCUS.md`
-4. `TASKS.md`
-5. `AGENTS.md`
+1. `docs/STANDUP.md` — operating reality & hook summary  
+2. `docs/ARCHITECTURE.md` — stack / ports  
+3. `docs/LAYER0_CONTROL_PLANE.md` — control-plane authority  
+4. `docs/README.md` — documentation index  
+5. `CURRENT_FOCUS.md` · `TASKS.md` · `docs/UNIFIED_IMPLEMENTATION_PLAN.md` · `docs/DATA_ROUTING.md`  
+6. `AGENTS.md` — mandatory rules  
 
-### Prompt Templates
+### Prompt templates
 
-**Debug issue**:
+**Debug**
 ```
-inspect files: <paths>
-run tests: venv/bin/python -m pytest tests/ -q --tb=short
-check logs: tail -20 .kitty.log
-```
-
-**Add feature**:
-```
-1. Check existing: glob pattern='**/<name>*.py'
-2. Write spec: docs/superpowers/plans/<name>.md
-3. Scaffold: python scripts/scaffold.py <type> <name>
-4. Test: venv/bin/python -m pytest tests/ -q --tb=short
+inspect: <paths>
+pytest: python3.12 -m pytest tests/ -q --tb=short
+logs: tail -40 .kitty.log
 ```
 
-**Run build gate**:
+**Add feature**
 ```
-bash scripts/run_gates.sh
+1. Grep/search for existing code
+2. Spec under specs/ OR note in TASKS referencing UNIFIED plan section
+3. Implement in gateway/ (no new stray roots)
+4. pytest until green
 ```
 
 ---
 
-## Session Management
+## Session management
 
-### Start Session
+Before **compact** or context drop: **`SESSION_HANDOFF.md`** — pattern in **`docs/HANDOFF_AND_COMPACT.md`**.
+
+Validation after substantive Python/config changes:
 ```bash
-bash scripts/start-session.sh           # quick mode (default)
-bash scripts/start-session.sh --full  # full tests
-```
-
-### Validation
-
-Always run after changes:
-```bash
-venv/bin/python -m pytest tests/ -q --tb=short
+/opt/homebrew/bin/python3.12 -m pytest tests/ -q --tb=short
 ./kitty quick health
 ```
 
 ---
 
-## Token Optimization
+## Engineering loop (diagnose → audit → improve → ship)
 
-### Quick Actions (No LLM)
-- `./kitty quick status` - server check
-- `./kitty quick count <path>` - line count
-- `./kitty quick index <pattern>` - file search
-
-### Cached
-- SemanticCache: runs automatically
-- File index: `python scripts/build_file_index.py`
-- Tool schemas: cached in tools module
+1. **Diagnose:** reproduce → minimize → hypothesis → instrument → fix → regression test  
+2. **Audit:** inspect → architecture pass → **`docs/IMPROVEMENT_AUDIT.md`** for scored backlog  
+3. **Improve:** implement against **`TASKS.md`** / **`docs/UNIFIED_IMPLEMENTATION_PLAN.md`**  
+4. **Ship:** pytest green → small commit → refresh **`SESSION_HANDOFF.md`**
 
 ---
 
-## Common Patterns
+## Repo hygiene quick wins
 
-### Create new test
-```bash
-python scripts/scaffold.py test my_feature
-```
-
-### Create new tool
-```bash
-python scripts/scaffold.py tool my_tool
-```
-
-### Create new route
-```bash
-python scripts/scaffold.py route my_endpoint
-```
+- Delete **`.DS_Store`** / **`Icon`** + carriage-return junk folders if they appear under **`.git/`**, **`venv/`**, or `site-packages/` (they break tools and git refs).  
+- Never hardcode `~/Projects/...` paths in Python — use **`gateway/paths.py`**.
 
 ---
 
-## What NOT to Do
+## Token optimization (reminders)
 
-- ❌ Run full test suite for every change (use targeted)
-- ❌ Modify configs without checking existing
-- ❌ Add dependencies without updating requirements.txt
-- ❌ Ignore test failures
+- Prefer **`./kitty quick *`** over LLM for status / counts  
+- Repeated identical completions → dedupe when a cache exists  
+- Don’t broaden Firecrawl / crawlers without a scoped spec  
+
+See **`AGENTS.md`** “Token Optimization” for full discipline.
 
 ---
 
-## Known Issues to Avoid
+## What NOT to do
 
-See `docs/DECISIONS.md` and `docs/OPEN_LOOPS.md`
+- ❌ Trust docs that cite removed **`src/`** layouts as active code paths  
+- ❌ Add deps without pinning / requirements update  
+- ❌ Ignore red **`pytest`** before claiming done  
+
+---
+
+## See also
+
+- `docs/DECISIONS.md` · `docs/OPEN_LOOPS.md`  

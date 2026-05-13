@@ -52,7 +52,7 @@ Format:
 - direnv setup for auto-venv activation
 - Post-edit hook: py_compile on every Python save
 - Configured Goose with Ollama + qwen2.5-coder:7b
-- Memory bootstrap files (this file + KITTY_CONTEXT.md, MEMORY_INDEX.md, EVALS.md)
+- Memory bootstrap files (this file + ~~KITTY_CONTEXT.md, MEMORY_INDEX.md~~ — retired 2026-05; see `docs/README.md` + `docs/DATA_ROUTING.md` + EVALS.md)
 
 **Open:**
 
@@ -93,7 +93,7 @@ Format:
 **Done:**
 
 - Changed all model fallback defaults to `openrouter/free` (was `anthropic/claude-sonnet-4-5`, `deepseek-chat`, `gemini-2.0-flash`): `web.py`, `middleware.py`, `system_routes.py`
-- Created 4 memory bootstrap docs: `docs/KITTY_CONTEXT.md`, `docs/SESSION_LOG.md`, `docs/MEMORY_INDEX.md`, `docs/EVALS.md`
+- Created bootstrap docs (later consolidated): session log + routing notes — see current **`docs/README.md`** / **`docs/DATA_ROUTING.md`**.
 - Fixed `scripts/eval_loop.py` Flask startup: replaced fixed 3s sleep with port polling (was failing with Connection refused)
 - Full validation loop: **92 tests passed**, eval smoke **100% (5/5)**, no regression vs baseline
 - Snapshot: `eval_snapshots/attempt_20260424T154304Z.json`, run_id `d4d8016d`

@@ -127,4 +127,4 @@ config/
 
 ## Next Phase
 
-See REFACTOR_PLAN.md for specific changes.
+See `docs/PROCESS_UPGRADES.md` and **`TASKS.md`** / **`docs/UNIFIED_IMPLEMENTATION_PLAN.md`** for queued execution work.

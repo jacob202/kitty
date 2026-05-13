@@ -1,66 +1,53 @@
-# Data Routing
+# Data routing (canonical)
 
-**CRITICAL**: This document maps data types to their storage backends. Incorrect routing is the #1 source of data-loss bugs.
+**CRITICAL:** Wrong store for a data type is the #1 source of data-loss bugs. This file is the single source of truth for **where data lives**. For **how the gateway is laid out**, see **`docs/ARCHITECTURE.md`** and **`gateway/paths.py`**.
 
-## Storage Routing
-
-| Data Type | Store | NEVER use |
-|----------|-------|----------|
-| KB / knowledge | LightRAG | JournalDB |
-| Journal entries | JournalDB | LightRAG |
-| Semantic search | ChromaDB | - |
-| Corrections | SQLite (corrections.db) | - |
-| Hardware BOM | SQLite (hardware_bom.db) | - |
-| Eval artifacts | SQLite (kitty.db) | - |
-| Chat logs | data/sessions/ | - |
-
-## Store Details
-
-### LightRAG (`src/memory/lightrag_store.py`)
-- Used for: Knowledge base, embeddings, semantic search over documents
-- Location: `data/chroma/`
-- Use when: Building KB, RAG queries
-
-### JournalDB (`src/memory/journal_db.py`)
-- Used for: User journal entries, personal notes
-- Location: `data/journal.db`
-- Use when: Storing user reflections, daily logs
-
-### ChromaDB (`src/memory/chroma_manager.py`)
-- Used for: Legacy semantic search
-- Location: `data/chroma/`
-- Use when: Deprecated, prefer LightRAG
-
-### SQLite (corrections.db)
-- Used for: Correction memory, mistake tracking
-- Location: `data/corrections.db`
-- Use when: Tracking AI mistakes/corrections
-
-## Code References
-
-```python
-#正确:
-from src.memory.lightrag_store import LightRAGStore
-kb = LightRAGStore()  # knowledge
-
-from src.memory.journal_db import JournalDB
-journal = JournalDB()  # personal entries
-
-#错误 (will cause data loss):
-journal = LightRAGStore()  # for personal entries
-kb = JournalDB()  # for knowledge
-```
+**Last updated:** 2026-05-13
 
 ---
 
-## CLAUDE.md Reference
+## Doc index (memory / storage pointers)
 
-This routing is documented in CLAUDE.md under "Storage Targets". Check there first.
+| Topic | Canonical doc / code |
+|-------|----------------------|
+| Ports, Open WebUI, LiteLLM | `docs/ARCHITECTURE.md` |
+| Append-only session narrative | `docs/SESSION_LOG.md` |
+| Improvement backlog | `docs/IMPROVEMENT_AUDIT.md` |
+| Deferred product ideas | `docs/PARKED_FEATURES.md` |
+| Open questions | `docs/OPEN_LOOPS.md` |
+| Runtime path helper | `gateway/paths.py` (`DATA_DIR`, `LOGS_DIR`, …) |
 
-## Related Docs
+---
 
-- `config/README.md` - Config index
-- `docs/IMPROVEMENT_AUDIT.md` - Full audit
-- `docs/REFACTOR_PLAN.md` - Future improvements
+## Storage routing (do not cross the streams)
 
-**Last updated**: 2026-05-09
+| Data type | Store | NEVER use for this |
+|-----------|--------|---------------------|
+| KB / knowledge ingestion | LightRAG | JournalDB |
+| Journal entries | JournalDB (SQLite / journal pipeline) | LightRAG |
+| Semantic search | ChromaDB (as configured) | ad-hoc duplicate stores |
+| MCP entities / relations | `@modelcontextprotocol/server-memory` | random SQLite |
+| Corrections, misc | Dedicated SQLite (e.g. `corrections.db`) | KB store |
+| Raw chat logs | `data/sessions/` (or configured path) | — |
+
+Same table is mirrored in **`AGENTS.md`** (“Storage Targets”) for agent rules.
+
+---
+
+## Implementation surface (gateway-era)
+
+Legacy references to `src/memory/*` are obsolete in this checkout.
+
+- **Knowledge / RAG / search:** Wire through **`gateway/knowledge.py`** and related gateway modules (see repo).
+- **Journal:** **`gateway/journal.py`** (routes in **`gateway/app.py`**).
+- **Cross-store context:** **`gateway/memory_graph.py`** (unified-ish fetch; evolving per `docs/UNIFIED_IMPLEMENTATION_PLAN.md` Phase 1).
+
+When adding a **new** persistence type: update **this file**, **`AGENTS.md`**, and **`docs/DECISIONS.md`** if behaviour is contract-level.
+
+---
+
+## Related
+
+- `docs/IMPROVEMENT_AUDIT.md` — scores and backlog  
+- `docs/PROCESS_UPGRADES.md` — workflows and engineering loop  
+- `config/README.md` — config touchpoints (when present)

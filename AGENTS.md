@@ -16,12 +16,12 @@ Agent-specific stubs (CLAUDE.md, CODEX.md) reference this file.
 7. `docs/IMPROVEMENT_AUDIT.md` (2026-05-09 - start here for new work)
 8. `docs/PROCESS_UPGRADES.md` (quick reference for workflows)
 
-**Cursor:** Before **Compact chat**, refresh `SESSION_HANDOFF.md`, then read `docs/CURSOR_COMPACT.md`.
+**Cursor:** Before **Compact chat**, refresh `SESSION_HANDOFF.md`, then read `docs/HANDOFF_AND_COMPACT.md`.
 
 ## Read When Relevant
 
 - `docs/AGENT_COORDINATION.md` — **only** when claiming a lane, posting board messages, or resolving overlap (large file; never paste the whole thing into prompts).
-- `SESSION_SUMMARY.md` — long-session continuity; pair with `SESSION_HANDOFF.md` using `docs/CURSOR_COMPACT.md` before Cursor **Compact chat**.
+- `SESSION_SUMMARY.md` — long-session continuity; pair with `SESSION_HANDOFF.md` using `docs/HANDOFF_AND_COMPACT.md` before Cursor **Compact chat**.
 - `docs/DECISIONS.md` — durable decisions touching your task.
 - `docs/FILE_GOVERNANCE.md` — before moves, renames, or archival.
 - `docs/PARKED_FEATURES.md` — scope checks against parked work.

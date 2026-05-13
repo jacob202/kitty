@@ -12,14 +12,10 @@ Workers may edit only the files explicitly assigned by their task. Dirty files o
 
 The following are protected unless a spec explicitly names them as allowed:
 
-- `web.py`
-- `src/`
+- `gateway/`
 - `tests/`
 - `scripts/`
 - `data/`
-- `garage-ui/`
-- `src/static/`
-- `src/templates/`
 - `evals/artifacts/`
 - `logs/`
 - Databases, model files, generated caches, and local runtime state.
@@ -62,7 +58,7 @@ Control files coordinate work and may be edited only by assigned documentation/c
 - `docs/DECISIONS.md`
 - `docs/PARKED_FEATURES.md`
 - `docs/FILE_GOVERNANCE.md`
-- `docs/FILE_MANIFEST.md`
+- `docs/README.md`
 - `docs/BUILDER_INTAKE.md`
 - `docs/AGENT_COORDINATION.md`
 - `docs/AGENT_HANDOFF_TEMPLATE.md`

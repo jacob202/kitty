@@ -191,7 +191,7 @@ These are job descriptions for future wiring. They are not implemented yet. Toda
 1. **Config convergence pass:** Audit all CLI tool configs (Claude, Codex, OpenCode, Crush, Aider, Kitty runtime). Align model routing policies. Remove any hardcoded API keys or secrets from committed files.
 2. **Wire the bridge daemon:** Finish `scripts/dorothy_bridge.py` so it polls Dorothy Kanban, spawns builders, and posts Telegram updates.
 3. **Dorothy Kanban functional:** Confirm Kanban board is working, Telegram pings deliver, and a card with `#build` tag triggers the bridge.
-4. **Orientation is intentional:** roadmap → `docs/UNIFIED_IMPLEMENTATION_PLAN.md`; session execution → root `TASKS.md` + `CURRENT_FOCUS.md`; compact handoffs → `SESSION_HANDOFF.md` + `docs/CURSOR_COMPACT.md`. Coordinating overlapping agents → `docs/AGENT_COORDINATION.md` only when needed (keep entries short).
+4. **Orientation is intentional:** roadmap → `docs/UNIFIED_IMPLEMENTATION_PLAN.md`; session execution → root `TASKS.md` + `CURRENT_FOCUS.md`; compact handoffs → `SESSION_HANDOFF.md` + `docs/HANDOFF_AND_COMPACT.md`. Coordinating overlapping agents → `docs/AGENT_COORDINATION.md` only when needed (keep entries short).
 5. **Collapse Firecrawl skills:** Reduce 12 Firecrawl skills into one `firecrawl-orchestrator` skill.
 After infrastructure is wired, move to Layer 1: the 4 sub-projects in order.
 ---
