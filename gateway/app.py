@@ -7,7 +7,7 @@ import time
 import uuid
 
 import httpx
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
@@ -287,6 +287,12 @@ async def audio_speech(request: Request):
         return Response(content=b"", media_type="audio/mpeg")
     audio_bytes = await synthesize_async(text, voice=voice, speed=speed)
     return Response(content=audio_bytes, media_type="audio/mpeg")
+
+
+@app.websocket("/voice")
+async def voice_session(ws: WebSocket):
+    from gateway.voice_session import handle_voice_session
+    await handle_voice_session(ws)
 
 
 @app.post("/v1/chat/completions")
