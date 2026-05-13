@@ -537,16 +537,16 @@ A FastAPI gateway (`gateway/`) behind Open WebUI + Garage UI:
 | SOUL.md enforcement in responses | ✅ | 1.2 |
 | Persistent voice channel | ✅ | 1.3 |
 | Pokémon-style companion mascot | ⏸️ parked | 1.4 |
-| Autonomous sub-agents | 🏗️ active | 2.1 |
-| Background task execution | 🆕 | 2.2 |
-| Structured todo tracking | 🆕 | 2.3 |
-| Runtime skill invocation | 🆕 | 2.4 |
-| Push notifications (Pushover) | 📋 | 3.1 |
-| Calendar read/write | 📋 | 3.2 |
-| iMessage send/read | 📋 | 3.3 |
-| Telegram bot bridge | 📋 | 3.4 |
-| Web monitoring (Craigslist, forums) | 📋 | 3.5 |
-| Full build pipeline (spec→deploy) | 📋 | 4.1 |
+| Autonomous sub-agents | ✅ | 2.1 |
+| Background task execution | ✅ | 2.2 |
+| Structured todo tracking | ✅ | 2.3 |
+| Runtime skill invocation | ✅ | 2.4 |
+| Push notifications (Pushover) | ✅ | 3.1 |
+| Calendar read/write | ✅ | 3.2 |
+| iMessage send/read | ✅ | 3.3 |
+| Telegram bot bridge | ✅ | 3.4 |
+| Web monitoring (Craigslist, forums) | ✅ | 3.5 |
+| Full build pipeline (spec→deploy) | 🏗️ next | 4.1 |
 | Verification agent | 📋 | 4.2 |
 | Eval-gated development | 📋 | 4.3 |
 | Plugin system | 📋 | 5.1 |
