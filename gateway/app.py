@@ -468,6 +468,77 @@ async def telegram_status():
     return {"configured": is_configured()}
 
 
+# --- Build endpoints ---
+
+class BuildStartRequest(BaseModel):
+    goal: str = Field(min_length=1, max_length=3000)
+    target_dir: str = ""
+    auto_approve: bool = False
+
+
+@app.post("/build/start")
+async def build_start(payload: BuildStartRequest):
+    from gateway.builder import start
+    build_id = start(
+        goal=payload.goal,
+        target_dir=payload.target_dir,
+        auto_approve=payload.auto_approve,
+    )
+    return {"build_id": build_id, "status": "started"}
+
+
+@app.get("/build/{build_id}")
+async def build_status(build_id: str):
+    from gateway.builder import status
+    s = status(build_id)
+    if s.get("status") == "not_found":
+        raise HTTPException(status_code=404, detail="Build not found")
+    return s
+
+
+@app.post("/build/{build_id}/approve/{stage}")
+async def build_approve(build_id: str, stage: str):
+    from gateway.builder import approve_stage
+    approved = approve_stage(build_id, stage)
+    if not approved:
+        raise HTTPException(status_code=400, detail="Stage not awaiting approval")
+    return {"build_id": build_id, "stage": stage, "approved": True}
+
+
+@app.get("/builds")
+async def build_list(limit: int = 10):
+    from gateway.builder import list_builds
+    return {"builds": list_builds(limit=limit)}
+
+
+# --- Verifier endpoints ---
+
+class VerifyRequest(BaseModel):
+    target_dir: str = Field(min_length=1, max_length=1000)
+    test_path: Optional[str] = None
+
+
+@app.post("/verify")
+async def verify_run(payload: VerifyRequest):
+    from gateway.verifier import verify
+    result = await verify(payload.target_dir, payload.test_path)
+    return result
+
+
+# --- Eval endpoints ---
+
+@app.post("/eval/run")
+async def eval_run():
+    from gateway.eval_runner import run_smoke
+    return await run_smoke()
+
+
+@app.get("/eval/compare")
+async def eval_compare():
+    from gateway.eval_runner import run_and_compare
+    return await run_and_compare()
+
+
 # --- Web monitor endpoints ---
 
 class WatchCreateRequest(BaseModel):
