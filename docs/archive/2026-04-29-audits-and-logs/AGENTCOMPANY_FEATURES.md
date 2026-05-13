@@ -26,7 +26,7 @@
 
 3. **ADR-003: Unified Startup Scripts** ✅
    - `start.sh`: Activates venv + execs cli.py
-   - `dev.sh`: Launches web.py + garage-ui dev server with graceful Ctrl+C
+   - `dev.sh`: Launches web.py + kitty-chat dev server with graceful Ctrl+C
    - Files: `/Users/jacobbrizinski/AgentCompany/start.sh`, `/Users/jacobbrizinski/AgentCompany/dev.sh`
 
 ### Tiered Model Architecture
@@ -169,16 +169,16 @@
   - Shared PKAMemoryDB instance with CLI
   - Endpoints: `/api/journal`, `/api/components`, `/tool/analyze_schematic`
 
-#### Next.js Frontend (garage-ui)
+#### Next.js Frontend (kitty-chat)
 - **CommandPalette.tsx** ✅
-  - File: `/Users/jacobbrizinski/AgentCompany/garage-ui/app/components/CommandPalette.tsx`
+  - File: `/Users/jacobbrizinski/AgentCompany/kitty-chat/app/components/CommandPalette.tsx`
   - Dynamic CSS grid: auto-fill with minmax(220px, 1fr)
   - Responsive modal width (mobile to xl screens)
   - 5 color-coded categories: SYSTEM, MODE, ACTION, MEMORY, VIEW
   - Commands: `/ingest`, `/search`, `/vibe`, `/stuck`, etc.
 
-- **garage-ui/.env.local** ✅
-  - File: `/Users/jacobbrizinski/AgentCompany/garage-ui/.env.local`
+- **kitty-chat/.env.local** ✅
+  - File: `/Users/jacobbrizinski/AgentCompany/kitty-chat/.env.local`
   - Points backend to localhost:5001
 
 ### 2.5 Data Processing & Analysis
@@ -240,7 +240,7 @@
 
 - **dev.sh** ✅ (ADR-003)
   - File: `/Users/jacobbrizinski/AgentCompany/dev.sh`
-  - Launches web.py + garage-ui with graceful Ctrl+C
+  - Launches web.py + kitty-chat with graceful Ctrl+C
 
 - **dev_setup.sh** ✅
   - File: `/Users/jacobbrizinski/AgentCompany/scripts/dev_setup.sh`

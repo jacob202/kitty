@@ -297,7 +297,7 @@ Format:
 - **Architectural Deepening:** Refactored shallow modules into deep ones with high-leverage interfaces (`gateway/vision.py`, `gateway/knowledge.py`, `gateway/context_builder.py`).
 - **Async Pipeline:** Upgraded the entire Librarian ingestion pipeline to use `asyncio`, parallelizing LLM judgment and vision tasks.
 - **Type Safety:** Established Pydantic contracts in `contracts/knowledge_pipeline.py` for all cross-module data flow.
-- **Root Cleanup:** Archived ~70 legacy scripts and divergent directories (`src/`, `garage-ui/`, etc.) into `archive/legacy_roots/`.
+- **Root Cleanup:** Archived ~70 legacy scripts and divergent directories (`src/`, `kitty-chat/`, etc.) into `archive/legacy_roots/`.
 - **Unified CLI:** Created `scripts/kitty_manage.py` for database inventory and maintenance.
 - **Gateway Simplification:** Lean `app.py` that delegates reasoning setup to the Context Control Plane.
 

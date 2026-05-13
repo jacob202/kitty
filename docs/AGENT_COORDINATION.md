@@ -107,7 +107,7 @@ description before work starts.
 | `review-001` | claude | 2026-04-30 | complete | Parallel review artifact `docs/audits/claude-project-review-20260430.md` (msg-20260430-02 path). Initial draft authored by **cursor** 2026-04-30 per user go-ahead; claude may amend in-place without renaming. |
 | `docs-002` | cursor | 2026-04-30 | complete | Canonical `TASKS.md` cleanup: dropped corrupted duplicate “Previous Imported Tasks” block; single **Archive** pointer to `docs/TASKS.md`. |
 | `followup-001` | cursor | 2026-04-30 | complete | User go-ahead: parallel review doc + merge gate PASS on migrated runtime; see `docs/PHASE4_MERGE_GATE_RUN_2026-04-30_goahead.md` |
-| `inventory-001` | cursor | 2026-04-30 | complete | Read-only Garage UI inventory: routes, backend coupling (`:5001`), REST/SSE/socket usage. Output `docs/audits/cursor-garage-ui-inventory-20260430.md`. Supports `msg-20260430-01` / `msg-20260430-02` frontend slice; no UI polish. |
+| `inventory-001` | cursor | 2026-04-30 | complete | Read-only Garage UI inventory: routes, backend coupling (`:5001`), REST/SSE/socket usage. Output `docs/audits/cursor-kitty-chat-inventory-20260430.md`. Supports `msg-20260430-01` / `msg-20260430-02` frontend slice; no UI polish. |
 
 **Protocol**: To claim a lane, add a row above with timestamp. To release,
 change status to `complete` and add a handoff entry.
@@ -129,7 +129,7 @@ Recent completed lanes. Entries older than 14 days are archived.
 | 2026-04-30 | codex | audit-001 | Read-only project context audit complete: `docs/audits/project-context-audit-20260430.md`; P2 stream default confirmed fixed/synced; key gaps documented for runtime parity, MemoryWeave, specialist routing, route coverage, and Garage UI backend config |
 | 2026-04-30 | cursor | docs-002 | Root `TASKS.md` reconciled: removed stale imported duplicate section; archive pointer to `docs/TASKS.md` |
 | 2026-04-30 | cursor | coordination-exec-001 | Coordination execution: `check_agent_coordination.py` + `run_gates.sh` green; board vs open messages reviewed (same-day codex audit satisfied `project-context-audit-20260430.md`) |
-| 2026-04-30 | cursor | inventory-001 | Read-only Garage UI ↔ `:5001` API/socket inventory; `docs/audits/cursor-garage-ui-inventory-20260430.md`; `npm run build` green |
+| 2026-04-30 | cursor | inventory-001 | Read-only Garage UI ↔ `:5001` API/socket inventory; `docs/audits/cursor-kitty-chat-inventory-20260430.md`; `npm run build` green |
 | 2026-04-30 | codex | coordination-002 | Reviewed and optimized coordination protocol before starting broad audit work; validator and focused unit tests pass |
 | 2026-04-30 | opencode | coordination | Built agent coordination protocol: AGENT_COORDINATION.md, AGENT_HANDOFF_TEMPLATE.md, spec |
 | 2026-04-30 | opencode | sync-gate | Synced default_web_chat_mode to migrated workspace, ran Phase 4 merge gate (PASS), flipped default to fast |
@@ -153,7 +153,7 @@ original ID.
 
 | ID | From | To | Date | Message |
 |----|------|----|------|---------|
-| `msg-20260430-03` | cursor | codex, claude | 2026-04-30 | **Frontend slice for audits**: Read-only inventory of `garage-ui/` routes, hardcoded `:5001` coupling, REST/SSE/Socket.IO calls, and `SourcePill` `/api/source` caveat — `docs/audits/cursor-garage-ui-inventory-20260430.md`. Merge into your audit reports where scope (3) applies. |
+| `msg-20260430-03` | cursor | codex, claude | 2026-04-30 | **Frontend slice for audits**: Read-only inventory of `kitty-chat/` routes, hardcoded `:5001` coupling, REST/SSE/Socket.IO calls, and `SourcePill` `/api/source` caveat — `docs/audits/cursor-kitty-chat-inventory-20260430.md`. Merge into your audit reports where scope (3) applies. |
 
 ### Resolved Messages
 
@@ -235,13 +235,13 @@ promotes verified learnings to `docs/DECISIONS.md`.
 - Use agent ID `claude` in all coordination entries.
 
 ### For Cursor
-- The frontend lives in `garage-ui/`. Backend is Flask in `src/api/`.
+- The frontend lives in `kitty-chat/`. Backend is Flask in `src/api/`.
 - Before new UI or docs: match patterns and filenames against the **legacy
-  checkout** `/Users/jacobbrizinski/Projects/kitty` (same paths under `garage-ui/`,
+  checkout** `/Users/jacobbrizinski/Projects/kitty` (same paths under `kitty-chat/`,
   `docs/`) so you do not fork duplicates out of sync with canonical git.
 - Mobile testing: server binds IP, check `./kitty status` for phone URL.
-- Design tokens are in `garage-ui/app/globals.css` (warm dark palette).
-- Build before claiming done: `cd garage-ui && npm run build`.
+- Design tokens are in `kitty-chat/app/globals.css` (warm dark palette).
+- Build before claiming done: `cd kitty-chat && npm run build`.
 
 ---
 
@@ -310,7 +310,7 @@ Use the template in `docs/AGENT_HANDOFF_TEMPLATE.md`.
 - `src/core/specialists/automotive.py`
 - `src/core/specialists/registry.py`
 - `src/memory/lightrag_store.py`
-- `garage-ui/app/page.tsx`
+- `kitty-chat/app/page.tsx`
 
 **Files synced to migrated runtime**:
 - All functional changes and new tests.
@@ -338,10 +338,10 @@ Use the template in `docs/AGENT_HANDOFF_TEMPLATE.md`.
 - C1: Implemented functional slash commands in `web.py` (`/brief`, `/stuck`, `/scrape`, `/deepsearch`, `/status`). Replaced stubs with core logic integrations.
 - C2: Added `tests/test_specialists_coverage.py` covering all 12 specialists via parametrized unit tests.
 - C3: Added `tests/test_critical_routes.py` covering POST `/brief`, POST `/chat`, POST `/api/chatbox/start`, and GET `/stream` smoke test.
-- C4: Added `garage-ui/tests/SettingsModal.test.tsx` for Vitest component testing.
+- C4: Added `kitty-chat/tests/SettingsModal.test.tsx` for Vitest component testing.
 - C5: Renamed `SQLiteVecStore` to `SQLiteTextStore` across the codebase (class, imports, references, specs) to accurately reflect substring-search implementation.
 - C6: Added `prefers-reduced-motion` support to `globals.css` to disable heavy animations and glitch effects for accessibility.
-- C7: Enabled and verified TypeScript `strict` mode in `garage-ui/tsconfig.json`.
+- C7: Enabled and verified TypeScript `strict` mode in `kitty-chat/tsconfig.json`.
 
 **Files changed in legacy**:
 - `web.py`
@@ -350,12 +350,12 @@ Use the template in `docs/AGENT_HANDOFF_TEMPLATE.md`.
 - `src/memory/vector_store/sqlite_vec_store.py`
 - `src/memory/vector_store/__init__.py`
 - `src/memory/inspect.py`
-- `garage-ui/app/globals.css`
-- `garage-ui/tsconfig.json`
+- `kitty-chat/app/globals.css`
+- `kitty-chat/tsconfig.json`
 - `tests/test_critical_routes.py` (new)
 - `tests/test_specialists_coverage.py` (new)
 - `tests/test_web_chat_phase1.py` (fix)
-- `garage-ui/tests/SettingsModal.test.tsx` (new)
+- `kitty-chat/tests/SettingsModal.test.tsx` (new)
 
 **Files synced to migrated runtime**:
 - All implemented logic and tests.
@@ -364,8 +364,8 @@ Use the template in `docs/AGENT_HANDOFF_TEMPLATE.md`.
 
 **Tests / validation**:
 - `pytest tests/` → 393 passed (legacy repo).
-- `npm run build` → success (garage-ui).
-- `npm run test` → 6 passed (garage-ui).
+- `npm run build` → success (kitty-chat).
+- `npm run test` → 6 passed (kitty-chat).
 
 **Outstanding**: Phase D (Specialist KB expansion) is next.
 
@@ -393,7 +393,7 @@ Use the template in `docs/AGENT_HANDOFF_TEMPLATE.md`.
 
 **Tests / validation**:
 - `pytest tests/` → 365 passed (legacy repo).
-- `npm run build` → success (garage-ui).
+- `npm run build` → success (kitty-chat).
 - Manual sync and validation of API health (`/api/brief`).
 
 **Sync state**: Synced all 8 changed files to migrated workspace.
@@ -662,18 +662,18 @@ Use the template in `docs/AGENT_HANDOFF_TEMPLATE.md`.
 
 **Done**:
 - Claimed `inventory-001`; produced read-only Garage UI inventory for audit support.
-- Wrote `docs/audits/cursor-garage-ui-inventory-20260430.md` (routes, API table, port coupling, SourcePill note).
+- Wrote `docs/audits/cursor-kitty-chat-inventory-20260430.md` (routes, API table, port coupling, SourcePill note).
 - Posted `msg-20260430-03` to codex/claude with pointer to that doc.
 - Added “Ongoing validation” pointer to `docs/KITTY_MIGRATION_CUTOVER_CHECKLIST_2026-04-30.md`.
 
-**Files changed**: `docs/audits/cursor-garage-ui-inventory-20260430.md` (new), `docs/AGENT_COORDINATION.md`, `docs/KITTY_MIGRATION_CUTOVER_CHECKLIST_2026-04-30.md`
+**Files changed**: `docs/audits/cursor-kitty-chat-inventory-20260430.md` (new), `docs/AGENT_COORDINATION.md`, `docs/KITTY_MIGRATION_CUTOVER_CHECKLIST_2026-04-30.md`
 
-**Tests**: `cd garage-ui && npm run build` → success. `pytest tests/` → 360 passed, 2 warnings.
+**Tests**: `cd kitty-chat && npm run build` → success. `pytest tests/` → 360 passed, 2 warnings.
 
 **Outstanding**: Codex/claude to fold inventory into `project-context-audit-20260430.md` / `claude-project-review-20260430.md` if useful.
 
 **Feedback for other agents**:
-- `to: codex, claude | about: garage-ui | Port 5001 is hardcoded across dashboard; align audit “deployment gaps” with inventory §Backend coupling | evidence: docs/audits/cursor-garage-ui-inventory-20260430.md`
+- `to: codex, claude | about: kitty-chat | Port 5001 is hardcoded across dashboard; align audit “deployment gaps” with inventory §Backend coupling | evidence: docs/audits/cursor-kitty-chat-inventory-20260430.md`
 
 **Next suggested action**: Codex starts or resumes `audit-001` read-only pass; merge gate per `TASKS.md` when touching runtime.
 

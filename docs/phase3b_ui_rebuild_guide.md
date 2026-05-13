@@ -46,14 +46,14 @@ socket_handlers.py  ────►  dispatch()  ────►  LLM writes to 
   └────────────────────────────────┘
 ```
 
-**Two transport paths coexist**: SSE still works server-side (`/chat` and `/stream` routes in `streaming_routes.py`). The legacy `src/templates/index.html` client uses SocketIO for chat tokens, while the active `garage-ui/app/page.tsx` client currently uses `EventSource` against `/stream` for chat tokens. Tokens can flow through both paths depending on which UI surface is running.
+**Two transport paths coexist**: SSE still works server-side (`/chat` and `/stream` routes in `streaming_routes.py`). The legacy `src/templates/index.html` client uses SocketIO for chat tokens, while the active `kitty-chat/app/page.tsx` client currently uses `EventSource` against `/stream` for chat tokens. Tokens can flow through both paths depending on which UI surface is running.
 
-**Current garage-ui status (2026-04-27)**: this guide describes the legacy `src/templates/index.html`
-Phase 3B migration. The active `garage-ui/app/page.tsx` surface still uses `EventSource` against
+**Current kitty-chat status (2026-04-27)**: this guide describes the legacy `src/templates/index.html`
+Phase 3B migration. The active `kitty-chat/app/page.tsx` surface still uses `EventSource` against
 `/stream` for chat tokens while SocketIO remains active for telemetry, node status, thinking bubbles,
 theme changes, and health updates. Treat that as intentional current-state drift until the garage UI
 is explicitly migrated to SocketIO chat end-to-end. Do not remove `/stream` or `fallback_stream` while
-`garage-ui` still depends on them.
+`kitty-chat` still depends on them.
 
 ---
 
@@ -259,7 +259,7 @@ For `src/templates/index.html` legacy SocketIO surface:
 - [ ] `loadJournal()` preserved and called after `done` event
 - [ ] `showSuccess()` and `SUCCESS_MESSAGES` preserved
 
-For active `garage-ui/app/page.tsx` surface:
+For active `kitty-chat/app/page.tsx` surface:
 
 - [ ] `executeCommand()` SSE `/stream` usage is preserved unless intentionally migrated.
 - [ ] SocketIO telemetry remains connected for node status, thinking bubbles, theme changes, and health updates.

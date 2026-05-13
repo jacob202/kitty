@@ -9,7 +9,7 @@
 
 ## Executive summary
 
-Kitty is a **local-first Flask + Socket.IO backend** with a **Next.js (`garage-ui`)** companion UI, **MLX/local + cloud LLM** routing, and **multiple persistence layers** (LightRAG, ChromaDB, SQLite/journal, MemoryWeave, etc.). The **test suite is green** (**399 passed** on 2026-05-02). **Layer 0** work (single source of truth for agents, config convergence, Dorothy bridge) is **partially documented** but **not fully implemented** — notably **`scripts/dorothy_bridge.py` is absent** and **`StorageRouter` is referenced in `docs/STANDUP.md` but does not exist in Python source** (verified by repo-wide search). A **sibling workbench** at `~/Projects/kitty-system/kitty-workbench` **diverges** from canonical `scripts/kitty_builder.py`, creating **fork risk**.
+Kitty is a **local-first Flask + Socket.IO backend** with a **Next.js (`kitty-chat`)** companion UI, **MLX/local + cloud LLM** routing, and **multiple persistence layers** (LightRAG, ChromaDB, SQLite/journal, MemoryWeave, etc.). The **test suite is green** (**399 passed** on 2026-05-02). **Layer 0** work (single source of truth for agents, config convergence, Dorothy bridge) is **partially documented** but **not fully implemented** — notably **`scripts/dorothy_bridge.py` is absent** and **`StorageRouter` is referenced in `docs/STANDUP.md` but does not exist in Python source** (verified by repo-wide search). A **sibling workbench** at `~/Projects/kitty-system/kitty-workbench` **diverges** from canonical `scripts/kitty_builder.py`, creating **fork risk**.
 
 **Top risks:** (1) storage routing is **conventional**, not **centrally enforced**; (2) **instruction drift** between STANDUP, LAYER0, CURRENT_FOCUS, and TASKS; (3) **parallel trees** (`kitty-system`) and a **446MB tarball** duplicate migration surface; (4) **8GB RAM** reality vs local-model docs.
 
@@ -49,7 +49,7 @@ Kitty is a **local-first Flask + Socket.IO backend** with a **Next.js (`garage-u
 
 - **`src/`** — Flask API blueprints, core (specialists, domain router, morning brief), memory (LightRAG store, journal DB, MemoryWeave, vector), voice, tools, agents, observability.
 - **`tests/`** — **51** tracked test modules (count via `git ls-files`).
-- **`garage-ui/`** — Next **16.x**, React 18, Socket.IO client, Vitest; **26** tracked TS/TSX/JS files under `garage-ui` (git count).
+- **`kitty-chat/`** — Next **16.x**, React 18, Socket.IO client, Vitest; **26** tracked TS/TSX/JS files under `kitty-chat` (git count).
 - **`config/`** — including `config/specialists/*.md` and `config/kitty_settings.json`.
 - **`scripts/`** — standup, builder, gates, voice corpus, intake, merge gates, etc.
 - **`docs/`** — control plane, audits, plans, archives, superpowers specs.
@@ -84,7 +84,7 @@ Blueprints span (non-exhaustive): **`core_routes`** (`/api/chat`, `/api/route`, 
 
 ### 4.4 Frontend
 
-`garage-ui`: Next 16, Tailwind, Socket.IO client, Vitest + Testing Library. Product direction (per control docs): move from “dev console” to **warm companion** UX — **ongoing** design debt, not a absence of code.
+`kitty-chat`: Next 16, Tailwind, Socket.IO client, Vitest + Testing Library. Product direction (per control docs): move from “dev console” to **warm companion** UX — **ongoing** design debt, not a absence of code.
 
 ### 4.5 Voice
 

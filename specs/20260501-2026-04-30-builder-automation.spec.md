@@ -11,7 +11,7 @@ Automate the transition from raw intake classification (via `scripts/builder_int
 
 ### Forbidden Files
 - `src/` (core logic)
-- `garage-ui/` (frontend)
+- `kitty-chat/` (frontend)
 - Any file not explicitly mentioned in the spec.
 
 ## Implementation Plan

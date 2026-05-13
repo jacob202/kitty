@@ -32,7 +32,7 @@ Command behavior is currently split across multiple surfaces (route handlers and
 ## Files Forbidden To Change
 - `web.py` (unless a follow-up spec explicitly allows app-factory rewiring)
 - `src/memory/`
-- `garage-ui/`
+- `kitty-chat/`
 - `scripts/kitty_builder.py` (except emergency blocker fixes under separate waiver)
 
 ## Required Behavior

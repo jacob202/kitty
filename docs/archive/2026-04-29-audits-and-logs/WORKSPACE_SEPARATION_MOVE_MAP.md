@@ -45,7 +45,7 @@ Runtime app files that should remain together:
 - `config/`
 - `tests/`
 - `evals/` code and fixtures, excluding generated artifacts
-- `garage-ui/` source, excluding `.next/` and `node_modules/`
+- `kitty-chat/` source, excluding `.next/` and `node_modules/`
 - `requirements.txt`
 - `pyproject.toml` if present
 - `package.json` / lockfiles where they belong to the active app
@@ -102,8 +102,8 @@ These are local, generated, bulky, or sensitive:
 - `**/__pycache__/`
 - `**/*.pyc`
 - `**/.DS_Store`
-- `garage-ui/.next/`
-- `garage-ui/node_modules/`
+- `kitty-chat/.next/`
+- `kitty-chat/node_modules/`
 - `venv/`
 - `data/`
 - `knowledge_db/`

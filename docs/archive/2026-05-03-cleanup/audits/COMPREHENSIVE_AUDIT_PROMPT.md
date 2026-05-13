@@ -235,7 +235,7 @@ These are all over the 500-word guideline. Are they providing unique value or ju
 ### 6a. Empty directories
 
 - `kitty-desktop/` — contains only `.DS_Store`. What was this supposed to be? Is it dead?
-- `garage-ui/` — contains only `.DS_Store` and empty `node_modules/`. Dead?
+- `kitty-chat/` — contains only `.DS_Store` and empty `node_modules/`. Dead?
 - `.worktrees/personal-ai-assistant/` — empty worktree? Was it cleaned up?
 - `src/data/db/` — contains `orange_lab_pka.db` — what is this?
 - `src/config/` — profile files exist but are they actually used?
@@ -322,7 +322,7 @@ The audit was executed against the live codebase at `/Users/jacobbrizinski/Proje
 | 3. Optimization Audit | ✅ Complete | Single provider (deepseek) — single point of failure; same model for `large`/`small`; 3 skills with broken frontmatter; 5 skills with name mismatches; 3 broken imports fixed this session |
 | 4. Feature Completeness | ✅ Complete | All 28 features mapped; most `src/core/` features unreachable from active code paths; web chat, voice, SocketIO pipelines verified end-to-end |
 | 5. Skills Audit | ✅ Complete | 22 skills inventoried; 11 legacy skills validated (0 broken); 3 overlay skills over 500-word guideline; 3 broken frontmatter skills identified |
-| 6. Dead/Wasted Analysis | ✅ Complete | Empty dirs: `kitty-desktop/`, `garage-ui/`, `.worktrees/`; DB files: `event_store.db` (1.8MB), `honcho.db` (10MB), `job_queue.db` (small); 2 virtual envs (venv + lightrag venv) |
+| 6. Dead/Wasted Analysis | ✅ Complete | Empty dirs: `kitty-desktop/`, `kitty-chat/`, `.worktrees/`; DB files: `event_store.db` (1.8MB), `honcho.db` (10MB), `job_queue.db` (small); 2 virtual envs (venv + lightrag venv) |
 | 7. Prioritized Action Plan | ✅ Complete | See AUDIT_REPORT.md for full prioritized list |
 
 ### Actions Taken This Session

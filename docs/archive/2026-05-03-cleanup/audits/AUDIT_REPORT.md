@@ -183,7 +183,7 @@ Both `large` and `small` set to `deepseek-chat` — defeats cost/quality tiering
 |-----------|-------|
 | `config/specialists/` | Empty |
 | `skills-archive/` | Empty |
-| `garage-ui/` | Empty |
+| `kitty-chat/` | Empty |
 | `src/assets/branding/` | Empty |
 | `archive/agents/` | Empty |
 | `archive/tools/` | Empty |

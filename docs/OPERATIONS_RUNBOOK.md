@@ -89,7 +89,7 @@ GOLDEN_DEMO_STRICT_CHAT=1 bash scripts/golden_demo.sh
 The Garage UI contains its own regression test suite using Vitest.
 
 ```bash
-cd garage-ui
+cd kitty-chat
 npm run test -- --run
 ```
 

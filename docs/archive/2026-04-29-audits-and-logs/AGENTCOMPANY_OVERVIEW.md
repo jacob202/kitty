@@ -12,7 +12,7 @@ Instead of doing all tasks sequentially and directly, the goal is for the Kitty 
 1. Receives complex user intents.
 2. Breaks them down into sub-tasks.
 3. Automatically dispatches those sub-tasks to specialized, parallel background workers (Aider for code, AutoGPT for research, Jules for refactoring, Swarms for parallel execution).
-4. Monitors their progress, maintains a persistent memory of all actions, and seamlessly integrates the results back into a unified Next.js dashboard (`garage-ui`) and Flask backend (`web.py`).
+4. Monitors their progress, maintains a persistent memory of all actions, and seamlessly integrates the results back into a unified Next.js dashboard (`kitty-chat`) and Flask backend (`web.py`).
 
 ## 2. What We Have Accomplished (Session Summary)
 At the start of this session, the project state was fragmented across multiple competing handoff documents created by different agents. We executed a "stop and consolidate" maneuver to unify the project.

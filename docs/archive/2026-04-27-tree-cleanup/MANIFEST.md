@@ -36,8 +36,8 @@ This cleanup pass did not delete source files. It moved standalone benchmark scr
 - `data/`: runtime state and local databases. Never clean with a broad delete.
 - `src/services/context_service.py`: imported by `src/core/specialist_framework.py`.
 - `src/core/specialists/registry.py`: imported by `src/core/specialist_framework.py`.
-- `garage-ui/app/components/ActiveNodes.tsx`: imported by `garage-ui/app/page.tsx`.
-- `garage-ui/next.config.js`: active frontend configuration.
+- `kitty-chat/app/components/ActiveNodes.tsx`: imported by `kitty-chat/app/page.tsx`.
+- `kitty-chat/next.config.js`: active frontend configuration.
 
 ## Legacy Candidates For A Later Pass
 

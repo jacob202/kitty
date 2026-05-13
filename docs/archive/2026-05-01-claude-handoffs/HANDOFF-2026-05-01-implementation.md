@@ -95,11 +95,11 @@ These prevent recurring frictions seen in past sessions.
 
 These have all bitten previous sessions. Read before touching the named area.
 
-- **Stack:** Python 3.12 + Flask + Flask-SocketIO + Next.js (`garage-ui/`). Local inference: MLX + Qwen3.5-4B. Memory: LightRAG + ChromaDB + SQLite-vec.
+- **Stack:** Python 3.12 + Flask + Flask-SocketIO + Next.js (`kitty-chat/`). Local inference: MLX + Qwen3.5-4B. Memory: LightRAG + ChromaDB + SQLite-vec.
 - **Storage routing — strict:** KB content → LightRAG (NOT JournalDB). Journal entries → JournalDB (NOT LightRAG). MCP entities → `@modelcontextprotocol/server-memory`. Wrong routing is the #1 source of data-loss bugs in this project.
 - **Werkzeug flag required:** local SocketIO launch needs `socketio.run(..., allow_unsafe_werkzeug=True)` or Flask-SocketIO refuses to start.
 - **TokenCapture leaks stdout to chat:** never use `print(...)` in backend code — it forwards into the user-visible SSE stream. Use `logging` instead.
-- **Port split:** `localhost:5001` is the Flask backend/API. `localhost:3000` is the `garage-ui` frontend. Launcher confusion has happened before — always verify which surface is being tested.
+- **Port split:** `localhost:5001` is the Flask backend/API. `localhost:3000` is the `kitty-chat` frontend. Launcher confusion has happened before — always verify which surface is being tested.
 - **Live orchestrator path:** `current_app.orchestrator` (not `current_app.reasoning_layer` or supervisor wiring). Reasoning routes that check the wrong path will look broken in web mode.
 - **Pre-commit hook flags certain dynamic-execution function calls** (the e‑v‑a‑l builtin and similar). Rename related functions to `evaluate_` or `run_eval_` prefixes.
 - **Linters auto-revert model constants:** clear `.pyc` cache after model routing fixes — `find . -name __pycache__ -exec rm -rf {} +`.
@@ -433,7 +433,7 @@ STOP CONDITION: <when to abort>
 For the larger launch plan (Layer 1, Sub-Project 1: Personal Onboarding Pipeline), this would look like:
 
 - **Lane A** (`backend-pipeline`): build the `OnboardingPipeline` class in `src/services/`, allowed files: `src/services/onboarding_pipeline.py`, `tests/test_onboarding_pipeline.py`. Forbidden: anything else.
-- **Lane B** (`frontend-wizard`): build the first-run wizard UI in `garage-ui/app/components/onboarding/`. Allowed: that directory only.
+- **Lane B** (`frontend-wizard`): build the first-run wizard UI in `kitty-chat/app/components/onboarding/`. Allowed: that directory only.
 - **Lane C** (`agent-roles`): wire KnowledgeGetter / Librarian / Embedder agent stubs in `src/agents/onboarding/`. Allowed: that directory only.
 - **Coordinator** (Sonnet/Opus): receives all three diffs, resolves any shared-config issues, runs full test suite, commits in 3 separate commits.
 ```

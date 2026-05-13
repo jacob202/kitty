@@ -69,7 +69,7 @@ test -d /Users/jacobbrizinski/Projects/kitty-system/kitty-archives
 test -f /Users/jacobbrizinski/Projects/kitty-system/kitty-app/web.py
 test -f /Users/jacobbrizinski/Projects/kitty-system/kitty-workbench/kittyintake
 test ! -d /Users/jacobbrizinski/Projects/kitty-system/kitty-app/venv
-test ! -d /Users/jacobbrizinski/Projects/kitty-system/kitty-app/garage-ui/node_modules
+test ! -d /Users/jacobbrizinski/Projects/kitty-system/kitty-app/kitty-chat/node_modules
 ```
 
 ## Rollback Plan

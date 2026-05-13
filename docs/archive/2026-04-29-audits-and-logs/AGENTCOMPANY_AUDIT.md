@@ -68,7 +68,7 @@ The AgentCompany/Kitty project successfully consolidated three parallel developm
 #### CLI & Web
 - `cli.py` (54 KB) — Interactive terminal interface with rich formatting
 - `web.py` (59 KB) — Flask backend + WebSocket/SSE streaming
-- `garage-ui/` — Next.js frontend (CommandPalette redesigned April 9)
+- `kitty-chat/` — Next.js frontend (CommandPalette redesigned April 9)
 
 #### Scripts (13 executable files)
 - `start.sh`, `dev.sh` — ADR-003 startup entrypoints
@@ -77,7 +77,7 @@ The AgentCompany/Kitty project successfully consolidated three parallel developm
 
 #### Configuration (7 files)
 - `docker-compose.yml` — Docker services (ChromaDB, Flask, Next.js)
-- `garage-ui/.env.local` — Frontend config
+- `kitty-chat/.env.local` — Frontend config
 - `config/config.json` — Model routing defaults
 - Agent definitions: `data/agents/*.json` (8 specialists)
 
@@ -277,7 +277,7 @@ From PROJECT_OVERVIEW_AND_AUDIT.md:
 ⚠️ **Configuration Consistency**
 - `~/.claude/settings.json` hardcoded API key removed (good), but rotation not completed
 - `~/.gemini/settings.json` exists, recent updates documented
-- `garage-ui/.env.local` points to `localhost:5001` correctly
+- `kitty-chat/.env.local` points to `localhost:5001` correctly
 
 ### 4.2 What Could Be Lost if Not Preserved
 

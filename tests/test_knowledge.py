@@ -186,6 +186,25 @@ def test_extract_text_dispatches_chatgpt_json(tmp_path):
     assert "dispatch works" in text
 
 
+def test_librarian_defaults_to_free_ingest_lane(monkeypatch):
+    from gateway.librarian import generate_source_summary
+
+    monkeypatch.delenv("KITTY_INGEST_LLM_MODEL", raising=False)
+
+    fake_report = (
+        '{"summary":"manual","authority_score":0.9,"relevance_period":"persistent",'
+        '"needs_vision":true,"primary_topic":"service_manual"}'
+    )
+    with patch("gateway.librarian.call_llm", return_value=fake_report) as mock_call:
+        generate_source_summary(
+            source_name="manual.pdf",
+            text_preview="Torque specs and disassembly steps.",
+            doc_type="service_manual",
+        )
+
+    assert mock_call.call_args.kwargs["model"] == "kitty-fallback-or"
+
+
 @pytest.mark.integration
 def test_ingest_and_search_roundtrip(tmp_path):
     """Write a text file, ingest it, search for it. Requires Ollama."""

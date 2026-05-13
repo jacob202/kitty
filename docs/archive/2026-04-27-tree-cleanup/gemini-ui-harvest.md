@@ -24,8 +24,8 @@ The Gemini share link `https://gemini.google.com/app/81b5438e3f428df4` was also 
 | `src/voice/gemini_voice.py` | Archive/hold | Placeholder for Gemini TTS; explicitly notes Gemini native TTS was not available when written. Do not build around it as a current source of truth without verification. |
 | `src/tools/superpowers/GEMINI.md` | Ignore for runtime | Just tool instruction includes; not Kitty app logic. |
 | `docs/phase3b_ui_rebuild_guide.md` | Use | High-value UI streaming notes: SocketIO/SSE coexistence, circular import pitfalls, busy-lock edge, TokenCapture behavior, verification checklist. |
-| `garage-ui/app/page.tsx` | Review streaming decision next | Live UI currently streams via `EventSource` in `executeCommand()` while also maintaining SocketIO telemetry. `docs/phase3b_ui_rebuild_guide.md` now documents this as current-state drift from the legacy SocketIO template. Voice recording MIME fallback is already present here. |
-| `garage-ui/app/components/ChatInterface.tsx` | Keep | Clean chat surface with mascot state, markdown rendering, source pills, empty states, and voice button wiring. |
+| `kitty-chat/app/page.tsx` | Review streaming decision next | Live UI currently streams via `EventSource` in `executeCommand()` while also maintaining SocketIO telemetry. `docs/phase3b_ui_rebuild_guide.md` now documents this as current-state drift from the legacy SocketIO template. Voice recording MIME fallback is already present here. |
+| `kitty-chat/app/components/ChatInterface.tsx` | Keep | Clean chat surface with mascot state, markdown rendering, source pills, empty states, and voice button wiring. |
 
 ## Harvested Decisions
 
@@ -39,7 +39,7 @@ The Gemini share link `https://gemini.google.com/app/81b5438e3f428df4` was also 
 
 ### 1. Frontend streaming architecture drift
 
-`docs/phase3b_ui_rebuild_guide.md` says the client should use SocketIO for chat tokens and that SSE remains server-side fallback only. The live `garage-ui/app/page.tsx` still uses:
+`docs/phase3b_ui_rebuild_guide.md` says the client should use SocketIO for chat tokens and that SSE remains server-side fallback only. The live `kitty-chat/app/page.tsx` still uses:
 
 ```ts
 const eventSource = new EventSource(`http://${backendHost}:5001/stream?query=${encodeURIComponent(command)}`);
@@ -56,7 +56,7 @@ Self-review correction: the first harvest pass over-recommended a voice patch. T
 
 Verified current support:
 
-- `garage-ui/app/page.tsx` defines `RECORDING_MIME_CANDIDATES` with `audio/webm`, `audio/mp4`, and codec variants, then chooses via `MediaRecorder.isTypeSupported`.
+- `kitty-chat/app/page.tsx` defines `RECORDING_MIME_CANDIDATES` with `audio/webm`, `audio/mp4`, and codec variants, then chooses via `MediaRecorder.isTypeSupported`.
 - `src/templates/index.html` has the same browser-side MIME candidate pattern.
 - `src/api/voice_routes.py` maps `audio/mp4` uploads to `.mp4`.
 - `tests/test_voice_routes.py` covers `audio/mp4`.
@@ -81,7 +81,7 @@ The useful consolidation direction is:
 
 Smallest high-value patch after self-review:
 
-1. Decide whether `garage-ui/app/page.tsx` should keep SSE for chat streaming or move chat tokens to SocketIO.
+1. Decide whether `kitty-chat/app/page.tsx` should keep SSE for chat streaming or move chat tokens to SocketIO.
 2. If chat streaming is migrated to SocketIO later, update both `docs/phase3b_ui_rebuild_guide.md` and this harvest note in the same patch.
 3. Import the actual Gemini conversation text into `docs/imports/gemini-kitty-ui.md` when available, then mine it before archiving or deleting related UI notes.
 

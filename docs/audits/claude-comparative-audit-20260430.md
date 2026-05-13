@@ -16,7 +16,7 @@
 | **Source** | Identical (`src/api/`, `src/core/`) | Identical (post fix-specialist-framework sync) |
 | **Docs** | Identical | Identical |
 | **`Icon\r` files** | Present (Finder metadata) | Absent (clean) |
-| **`node_modules/`** | Present in `garage-ui/` | Absent |
+| **`node_modules/`** | Present in `kitty-chat/` | Absent |
 
 **Verdict**: Copy-first migration is intact. `kitty-app` is a clean copy of `kitty` excluding `node_modules` and `Icon\r` files.
 
@@ -46,7 +46,7 @@
 | **API Keys not in app env** | 🔴 High | `os.getenv('OPENROUTER_API_KEY')` returns `False` in running app — keys only available via legacy `.env` external call |
 | **OpenRouter spend over cap** | 🟡 Medium | $15.76 total (cap was $15.00) — `/api/usage/openrouter` works but spend is high |
 | **`web_orchestrator.py` untested** | 🟡 Medium | 401 lines of routing logic, MLX/OR/Anthropic fallback — zero unit tests |
-| **Frontend tests minimal** | 🟡 Medium | `garage-ui/tests/` only has `setup.ts` — no component/integration tests |
+| **Frontend tests minimal** | 🟡 Medium | `kitty-chat/tests/` only has `setup.ts` — no component/integration tests |
 | **Error fallback pollutes history** | 🟡 Medium | `web_orchestrator.py:397` — `_append()` adds error text to chat history |
 | **`dataclasses` false alarm** | ✅ Fixed | My `review-001` claimed a typo — verified import works, was wrong |
 | **Entity extraction bug** | ✅ Fixed | `specialist_framework.py:182` fixed this session in `fix-specialist-framework` lane |
@@ -92,7 +92,7 @@
 | **Framework** | Next.js (`next.config.js`) |
 | **Styling** | Tailwind CSS (`tailwind.config.js`) |
 | **Tests** | Minimal — only `tests/setup.ts` |
-| **Build** | `cd garage-ui && npm run build` |
+| **Build** | `cd kitty-chat && npm run build` |
 | **Mobile** | Server binds IP, phone URL via `./kitty status` |
 | **Components** | `app/` directory (Next.js app router) |
 | **Gaps** | No component tests, no e2e tests, no visual regression |
@@ -122,7 +122,7 @@
 | 2 | Add `tests/test_openrouter_usage.py` for new endpoint | Medium | `test-openrouter-usage` |
 | 3 | Fix error fallback not polluting chat history | Medium | `fix-chat-error-pollution` |
 | 4 | Load API keys into app env (not just legacy `.env`) | High | `fix-api-key-loading` |
-| 5 | Add garbage-ui component tests (Vitest + React Testing Library) | Medium | `test-garage-ui` |
+| 5 | Add garbage-ui component tests (Vitest + React Testing Library) | Medium | `test-kitty-chat` |
 | 6 | Add specialist-specific tests for each domain | Low | `test-specialists-full` |
 | 7 | Align `FILE_GOVERNANCE.md` workspace path with D-0002 | Medium | `fix-file-governance-workspace` |
 

@@ -53,7 +53,7 @@ def test_builder_brief_round_trips_to_dict():
         success_criteria=["/api/command handles /stuck."],
         validation_commands=["venv/bin/python -m pytest tests/test_command_engine.py -q"],
         allowed_files=["src/core/command_engine.py"],
-        forbidden_files=["garage-ui/"],
+        forbidden_files=["kitty-chat/"],
         assumptions=["Use existing Flask route contracts."],
         ambiguities=[],
         blocking_question="",
@@ -175,7 +175,7 @@ def test_compile_intent_turns_brain_dump_into_contract(tmp_path):
     )
 
     assert "command" in brief.normalized_goal.lower()
-    assert "garage-ui/" in brief.forbidden_files
+    assert "kitty-chat/" in brief.forbidden_files
     assert "specs/unified-command-system-candidate-c.spec.md" in brief.context_targets
     assert brief.recommended_execution_mode in {"single_worker", "review_gate"}
     assert brief.blocking_question == ""
@@ -227,7 +227,7 @@ def compile_intent(project_root: str | Path, raw_input: str) -> BuilderBrief:
     context_targets = _context_targets(root, lower)
 
     if "do not do ui" in lower or "do not touch ui" in lower or "no ui" in lower or "ui polish" in lower:
-        forbidden_files.append("garage-ui/")
+        forbidden_files.append("kitty-chat/")
         non_goals.append("Do not change UI styling or polish.")
 
     if any(pattern in lower for pattern in VAGUE_PATTERNS):

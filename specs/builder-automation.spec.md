@@ -10,7 +10,7 @@ Implement a script `scripts/automate_builder.py` that processes intake records (
 
 ### Forbidden Files
 - `src/`
-- `garage-ui/`
+- `kitty-chat/`
 - `web.py`
 
 ## Requirements

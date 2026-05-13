@@ -25,10 +25,10 @@ The backend for the evals dashboard has been implemented and tested (`specs/eval
 
 ## Allowed Files
 
-- `garage-ui/app/components/EvalDashboard.tsx` (new)
-- `garage-ui/app/page.tsx`
-- `garage-ui/app/components/Sidebar.tsx` (if adding a navigation link/view toggle)
-- `garage-ui/app/components/CommandPalette.tsx` (if adding a view toggle)
+- `kitty-chat/app/components/EvalDashboard.tsx` (new)
+- `kitty-chat/app/page.tsx`
+- `kitty-chat/app/components/Sidebar.tsx` (if adding a navigation link/view toggle)
+- `kitty-chat/app/components/CommandPalette.tsx` (if adding a view toggle)
 - `specs/evals-dashboard-ui.spec.md`
 
 ## Forbidden Files
@@ -45,12 +45,12 @@ The backend for the evals dashboard has been implemented and tested (`specs/eval
 
 ## Implementation Plan
 
-1. Create a new `EvalDashboard` React component in `garage-ui/app/components/EvalDashboard.tsx` that fetches from `http://${window.location.hostname}:5001/api/eval/dashboard`.
+1. Create a new `EvalDashboard` React component in `kitty-chat/app/components/EvalDashboard.tsx` that fetches from `http://${window.location.hostname}:5001/api/eval/dashboard`.
 2. Design the component to display:
    - Total artifacts count.
    - Latest run summary (pass rate, failed checks).
    - Trend indicator.
-3. Integrate the `EvalDashboard` component into the main layout in `garage-ui/app/page.tsx`. This could be a new persistent view (like 'chat' and 'journal') or a panel in the Sidebar/Inspector. For visibility, creating a dedicated 'Evals' view toggled via the header or command palette is recommended.
+3. Integrate the `EvalDashboard` component into the main layout in `kitty-chat/app/page.tsx`. This could be a new persistent view (like 'chat' and 'journal') or a panel in the Sidebar/Inspector. For visibility, creating a dedicated 'Evals' view toggled via the header or command palette is recommended.
 4. Add a view toggle button for the Evals dashboard.
 
 ## Acceptance Tests
@@ -71,7 +71,7 @@ Expected result: The dashboard appears and shows valid eval metrics.
 ## Validation Commands
 
 ```bash
-cd garage-ui && npm run build
+cd kitty-chat && npm run build
 ```
 
 Expected:
@@ -83,9 +83,9 @@ Expected:
 
 Rollback steps:
 
-1. Delete `garage-ui/app/components/EvalDashboard.tsx`.
-2. Revert modifications in `garage-ui/app/page.tsx` and related navigation components.
-3. Re-run `cd garage-ui && npm run build`.
+1. Delete `kitty-chat/app/components/EvalDashboard.tsx`.
+2. Revert modifications in `kitty-chat/app/page.tsx` and related navigation components.
+3. Re-run `cd kitty-chat && npm run build`.
 
 ## Risk Notes
 

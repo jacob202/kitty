@@ -36,7 +36,7 @@ Read-only or audit-only commands used:
 
 - `git status --short` and `git log --oneline -5` in legacy checkout.
 - `git status --short` and `git log --oneline -5` in migrated workspace, which confirmed it is not a git repo.
-- `rg`/`find` inventory over `src/api`, `src/core/specialists`, `tests`, `garage-ui/app`, `config/specialists`, `data/lightrag`, and `data/vector_store`.
+- `rg`/`find` inventory over `src/api`, `src/core/specialists`, `tests`, `kitty-chat/app`, `config/specialists`, `data/lightrag`, and `data/vector_store`.
 - `cmp -s` and targeted `diff -u` for drift between key legacy and migrated files.
 - `/opt/homebrew/bin/python3.12 -c 'from web import create_app; ...'` to list current disk routes.
 - `/opt/homebrew/bin/python3.12 -c 'import src.memory.memory_weave'` to verify the MemoryWeave import failure.
@@ -147,20 +147,20 @@ Open risk:
 
 ## Frontend State
 
-Cursor's read-only Garage UI inventory is incorporated here from `docs/audits/cursor-garage-ui-inventory-20260430.md`.
+Cursor's read-only Garage UI inventory is incorporated here from `docs/audits/cursor-kitty-chat-inventory-20260430.md`.
 
 Frontend facts:
 
 - Framework: Next.js 16.2.3 App Router with Turbopack.
 - Main route: `/`.
-- Entry: `garage-ui/app/page.tsx`.
+- Entry: `kitty-chat/app/page.tsx`.
 - Components: `ActiveNodes`, `ChatInterface`, `CollapsiblePanel`, `CommandPalette`, `DensityContext`, `EvalDashboard`, `Inspector`, `JournalDashboard`, `Mascot`, `SettingsModal`, `Sidebar`, `SourcePill`, `SuggestionSidebar`, `ThinkingMonologue`.
-- Frontend test found: `garage-ui/app/components/__tests__/EvalDashboard.test.tsx`.
+- Frontend test found: `kitty-chat/app/components/__tests__/EvalDashboard.test.tsx`.
 - Cursor reported `npm run build` passed on 2026-04-30. I did not rerun build in this audit.
 
 Backend coupling:
 
-- `garage-ui/app/page.tsx` opens Socket.IO at `http://{window.location.hostname}:5001`.
+- `kitty-chat/app/page.tsx` opens Socket.IO at `http://{window.location.hostname}:5001`.
 - Chat and `/brief` stream through `EventSource('http://{host}:5001/stream?query=...')`.
 - Schematic upload, memory library, voice transcription, settings, journal, and eval dashboard all target port 5001 directly.
 - `SourcePill.tsx` uses relative `/api/source/{entityId}`, which resolves against the Next origin unless a proxy handles it.
@@ -186,8 +186,8 @@ Key comparisons:
 | `src/api/shared.py` | Same in both workspaces. P2 stream default fix is synced. |
 | `src/api/core_routes.py` | Same. |
 | `src/api/web_orchestrator.py` | Same. |
-| `garage-ui/app/page.tsx` | Same. |
-| `garage-ui/app/components/EvalDashboard.tsx` | Same. |
+| `kitty-chat/app/page.tsx` | Same. |
+| `kitty-chat/app/components/EvalDashboard.tsx` | Same. |
 | `web.py` | Different. Legacy removes `honcho_bp` and uses `#!/usr/bin/env python3`; migrated still imports/registers `honcho_bp`. |
 | `src/api/__init__.py` | Different. Legacy removes `honcho_bp` and adds `news_bp`; migrated still exports `honcho_bp` and lacks `news_bp`. |
 | `src/api/streaming_routes.py` | Different. Legacy guards `/unified` with a 501 if the supervisor lacks `handle_unified_request`; migrated lacks this guard. |

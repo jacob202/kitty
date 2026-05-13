@@ -12,7 +12,7 @@ To clean up the repository root and `docs/` folder by identifying, archiving, or
 - `docs/WORKSPACE_SEPARATION_*.md` (to be reviewed for archiving)
 
 ### Forbidden Files
-- `src/`, `tests/`, `scripts/`, `garage-ui/`
+- `src/`, `tests/`, `scripts/`, `kitty-chat/`
 - Any active routing, config, or execution file.
 - Raw chat logs in `data/` unless explicitly approved.
 

@@ -17,7 +17,7 @@ Purpose: evidence for the Layer 0 cleanup. This file inventories instruction sou
 Commands used:
 
 ```bash
-find . -path './.git' -prune -o -path './node_modules' -prune -o -path './garage-ui/node_modules' -prune -o -path './venv' -prune -o -name '*.md' -print | wc -l
+find . -path './.git' -prune -o -path './node_modules' -prune -o -path './kitty-chat/node_modules' -prune -o -path './venv' -prune -o -name '*.md' -print | wc -l
 find .claude/skills -maxdepth 2 -name SKILL.md | wc -l
 find .agents/skills -maxdepth 2 -name SKILL.md | wc -l
 find ~/.claude/skills -maxdepth 2 -name SKILL.md | wc -l

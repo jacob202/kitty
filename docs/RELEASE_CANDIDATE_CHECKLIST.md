@@ -10,7 +10,7 @@ This checklist validates the completion of the `MARKET_READY_EXECUTION_PLAN_2026
 - [x] Full Python test suite passes (`pytest tests/`).
 - [x] Preflight control gates pass (`bash scripts/run_gates.sh`).
 - [x] Golden demo release smoke script runs (`bash scripts/golden_demo.sh`).
-- [x] Frontend test suite passes (`npm run test` in `garage-ui`).
+- [x] Frontend test suite passes (`npm run test` in `kitty-chat`).
 - [x] Frontend production build compiles without errors (`npm run build`).
 
 ## Routing & Communication

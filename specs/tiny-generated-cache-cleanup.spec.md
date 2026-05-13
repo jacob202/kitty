@@ -17,7 +17,7 @@ The tree contains safe generated cache artifacts mixed with risky tracked deleti
 ## Non-goals
 
 - Do not delete or restore tracked files.
-- Do not clean `src/`, `data/`, `skills/`, `config/`, `evals/`, `garage-ui/`, `venv/`, `eval_snapshots/`, or `refactor_reports/`.
+- Do not clean `src/`, `data/`, `skills/`, `config/`, `evals/`, `kitty-chat/`, `venv/`, `eval_snapshots/`, or `refactor_reports/`.
 - Do not remove `Icon\r` files outside the approved cache directories.
 - Do not delete raw chat logs, eval artifacts, histories, or benchmark records.
 
@@ -40,7 +40,7 @@ The tree contains safe generated cache artifacts mixed with risky tracked deleti
 - `skills/**`
 - `config/**`
 - `evals/**`
-- `garage-ui/**`
+- `kitty-chat/**`
 - `venv/**`
 - `eval_snapshots/**`
 - `refactor_reports/**`

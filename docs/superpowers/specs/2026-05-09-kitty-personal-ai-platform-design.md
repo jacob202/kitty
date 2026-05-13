@@ -345,7 +345,7 @@ Heavy eval infrastructure archived. Small smoke suite kept with 5 gates. Run aft
 | Swarm executor | Archive | Premature |
 | Observability/metrics dashboard | Archive | Not needed for personal use |
 | Duplicate orchestrators | Archive all but CoreOrchestrator | Consolidate |
-| garage-ui | Freeze (don't delete) | Replaced by Open WebUI as primary interface |
+| kitty-chat | Freeze (don't delete) | Replaced by Open WebUI as primary interface |
 | KittyBuilder (most of it) | Archive | Claude Code replaces it |
 | Zep CE | Never install | Deprecated — replaced by Mem0 |
 

@@ -182,7 +182,7 @@ These are job descriptions for future wiring. They are not implemented yet. Toda
 - **Pre-commit hook:** runs the full test suite (~40–55s on this machine; **240+** tests at last audit). Keep green before push.
 - **Storage:** 5 fragmented stores (LightRAG, ChromaDB, SQLite, JournalDB, MemoryWeave). A `StorageRouter` class exists to enforce routing. Full unification is post-launch.
 - **Specialists:** Sansui (audio) and Ridgeline specialists have knowledge bases. Onboarding Pipeline will formalize how these are built.
-- **Frontend:** garage-ui Next.js app. Functional but feels like a dev tool, not a companion.
+- **Frontend:** kitty-chat Next.js app. Functional but feels like a dev tool, not a companion.
 - **Voice:** VoiceInk handles transcription locally. No custom browser audio capture.
 - **MCP servers:** Dorothy (Kanban, Telegram, Vault, DrawThings). The orchestrator was cut. Bridge daemon (`scripts/dorothy_bridge.py`) is planned but not built.
 - **Skills:** 43 skills exist, many unused. Firecrawl skills (12) should be collapsed into one `firecrawl-orchestrator`. `grill-me` and `zoom-out` are valued and stay.

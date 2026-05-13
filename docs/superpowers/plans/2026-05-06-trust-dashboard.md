@@ -4,7 +4,7 @@
 
 **Goal:** Establish the Trust Dashboard (Control Room) UI and the SQLite-backed Quarantine Queue for reviewing memory candidates, contradictions, and autonomous actions based on hybrid confidence scores.
 
-**Architecture:** We will create a `quarantine_repo.py` to persist quarantine items in `kitty.db`, matching the pattern in `task_repo.py`. We will create REST endpoints in `src/api/quarantine_routes.py` to expose this queue to the frontend. On the frontend, we will build a `TrustDashboard` React component within `garage-ui` and hook it into the main `page.tsx` navigation.
+**Architecture:** We will create a `quarantine_repo.py` to persist quarantine items in `kitty.db`, matching the pattern in `task_repo.py`. We will create REST endpoints in `src/api/quarantine_routes.py` to expose this queue to the frontend. On the frontend, we will build a `TrustDashboard` React component within `kitty-chat` and hook it into the main `page.tsx` navigation.
 
 **Tech Stack:** SQLite, Python (Flask), React, Tailwind CSS.
 
@@ -258,12 +258,12 @@ git commit -m "feat: add quarantine API routes"
 ### Task 3: Trust Dashboard Frontend Component
 
 **Files:**
-- Create: `garage-ui/app/components/TrustDashboard.tsx`
+- Create: `kitty-chat/app/components/TrustDashboard.tsx`
 
 - [ ] **Step 1: Write component implementation**
 
 ```tsx
-// garage-ui/app/components/TrustDashboard.tsx
+// kitty-chat/app/components/TrustDashboard.tsx
 import React, { useEffect, useState } from 'react';
 
 interface QuarantineItem {
@@ -343,14 +343,14 @@ export default function TrustDashboard() {
 - [ ] **Step 2: Commit**
 
 ```bash
-git add garage-ui/app/components/TrustDashboard.tsx
+git add kitty-chat/app/components/TrustDashboard.tsx
 git commit -m "feat: add TrustDashboard React component"
 ```
 
 ### Task 4: Integrate Trust Dashboard into Garage UI
 
 **Files:**
-- Modify: `garage-ui/app/page.tsx`
+- Modify: `kitty-chat/app/page.tsx`
 
 - [ ] **Step 1: Update page.tsx navigation and view**
 
@@ -389,6 +389,6 @@ Add the view container in the main workspace section:
 - [ ] **Step 2: Commit**
 
 ```bash
-git add garage-ui/app/page.tsx
+git add kitty-chat/app/page.tsx
 git commit -m "feat: integrate Trust Dashboard into main navigation"
 ```

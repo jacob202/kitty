@@ -196,13 +196,13 @@ Required first step:
 - backend service added: `src/observability/evals_dashboard.py`
 - route added: `GET /api/eval/dashboard`
 - tests added: `tests/test_evals_dashboard.py`
-- UI panel built: `garage-ui/app/components/EvalDashboard.tsx`
+- UI panel built: `kitty-chat/app/components/EvalDashboard.tsx`
 
 Validation target:
 
 ```bash
 /opt/homebrew/bin/python3.12 -m pytest tests/test_eval_loop_logging.py tests/test_browser_smoke.py -q --tb=short
-cd garage-ui && npm run build
+cd kitty-chat && npm run build
 ```
 
 Latest result:
@@ -211,8 +211,8 @@ Latest result:
 - app-factory smoke: `GET /api/eval/dashboard` returned HTTP 200 and summarized 156 artifacts
 - Garage UI typecheck passed: `npx tsc --noEmit --incremental false`
 - Garage UI production build passed: `npm run build`
-- failed-check object rendering fixed in `garage-ui/app/components/EvalDashboard.tsx`
-- `cd garage-ui && npm run build`: Next.js UI compiled successfully
+- failed-check object rendering fixed in `kitty-chat/app/components/EvalDashboard.tsx`
+- `cd kitty-chat && npm run build`: Next.js UI compiled successfully
 
 ### Worker: Builder Output Security Scanning
 

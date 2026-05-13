@@ -2,7 +2,7 @@
 
 **Assignment**: `msg-20260430-02` (OpenCode → claude)  
 **Author**: Cursor (Composer) — draft filed to unblock synthesis; a future `claude` pass may amend or supersede this file while keeping the same path.  
-**Inputs**: `docs/audits/project-context-audit-20260430.md` (Codex), `docs/audits/cursor-garage-ui-inventory-20260430.md`, `docs/audits/operational-plan-20260430.md`, legacy checkout `src/`, `tests/`, `CURRENT_FOCUS.md`.
+**Inputs**: `docs/audits/project-context-audit-20260430.md` (Codex), `docs/audits/cursor-kitty-chat-inventory-20260430.md`, `docs/audits/operational-plan-20260430.md`, legacy checkout `src/`, `tests/`, `CURRENT_FOCUS.md`.
 
 ## 1. Executive take
 
@@ -14,7 +14,7 @@ Kitty’s **control layer and stabilization tests are ahead of the “product po
 
 **Strengths**
 
-- Clear separation between Flask API (`src/api/`), orchestration (`src/orchestrator/`, `web.py`), specialists (`src/core/specialists/`), memory (`src/memory/`), and the Next app (`garage-ui/`).
+- Clear separation between Flask API (`src/api/`), orchestration (`src/orchestrator/`, `web.py`), specialists (`src/core/specialists/`), memory (`src/memory/`), and the Next app (`kitty-chat/`).
 - Specialist framework centers on `BaseSpecialist` + registry + router; most specialists align with that model.
 - Storage routing is documented (LightRAG vs JournalDB vs MCP memory); the risk is **runtime enforcement** across many optional subsystems, not the diagram.
 
@@ -58,7 +58,7 @@ Aligned with `CURRENT_FOCUS` (no implementation here):
 | Artifact | Role |
 |----------|------|
 | `project-context-audit-20260430.md` | Ground truth for workspaces, routes, drift, smoke evidence |
-| `cursor-garage-ui-inventory-20260430.md` | Exact UI ↔ HTTP/SSE/socket matrix |
+| `cursor-kitty-chat-inventory-20260430.md` | Exact UI ↔ HTTP/SSE/socket matrix |
 | `operational-plan-20260430.md` | Phased fix backlog — must be reconciled to **approved specs** before execution under `CURRENT_FOCUS` |
 
 **Recommendation to head agent**: declare one canonical “pre-spec backlog” (either operational plan only or merged DECISIONS entries) to avoid three parallel truth documents.

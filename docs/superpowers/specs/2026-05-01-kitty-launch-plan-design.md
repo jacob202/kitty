@@ -332,7 +332,7 @@ Because Dorothy can send Telegram messages, Jacob gets push notifications on his
 
 Crush accepts tasks and returns results without a conversation loop. This is the critical property for parallel execution. Interactive agents (where the human or Sonnet has to respond to each output) can only run one at a time. Non-interactive agents can run N at a time — the bridge daemon sends a task, the agent returns a result, and Sonnet reviews all results in a batch.
 
-In practice: Sonnet writes a spec for the Onboarding Pipeline's domain-selection wizard. It spawns a Crush instance with the spec, assigns it the `garage-ui/app/components/onboarding/` directory as its lane boundary, and moves on. Crush works autonomously — generating components, writing tests, handling import structure — and returns a diff plus a test result. Sonnet reviews it later in a batch with results from the parallel builder working on the backend ingestion pipeline. No interactive back-and-forth. No waiting for "what should I do next?" prompts.
+In practice: Sonnet writes a spec for the Onboarding Pipeline's domain-selection wizard. It spawns a Crush instance with the spec, assigns it the `kitty-chat/app/components/onboarding/` directory as its lane boundary, and moves on. Crush works autonomously — generating components, writing tests, handling import structure — and returns a diff plus a test result. Sonnet reviews it later in a batch with results from the parallel builder working on the backend ingestion pipeline. No interactive back-and-forth. No waiting for "what should I do next?" prompts.
 
 This is the engine that makes the 3–4 week parallel timeline possible. Without non-interactive agents, parallel execution degenerates into serial execution with context-switching overhead.
 
@@ -596,7 +596,7 @@ These recovery patterns mean that a builder failure does not become a Jacob-inte
 
 Builders never work on the same files at the same time. Sonnet assigns explicit file boundaries before the bridge daemon spawns parallel agents. No builder commits directly — Sonnet owns all merges. This prevents the most common failure mode of parallel agent execution: merge conflicts from overlapping edits.
 
-When a spec defines allowed files as a directory (e.g., `garage-ui/app/components/onboarding/`), the bridge daemon checks that no other active lane has files inside that directory before spawning. If a potential conflict is detected, Sonnet either widens the lane boundary (if the tasks are truly independent within the directory) or sequences the work (if they would touch the same files).
+When a spec defines allowed files as a directory (e.g., `kitty-chat/app/components/onboarding/`), the bridge daemon checks that no other active lane has files inside that directory before spawning. If a potential conflict is detected, Sonnet either widens the lane boundary (if the tasks are truly independent within the directory) or sequences the work (if they would touch the same files).
 
 Sonnet also enforces a rule: no two builders may touch the same import structure simultaneously. If Sub-Project 1 adds a new import to `src/api/__init__.py` and Sub-Project 3 also needs to modify that file, Sonnet sequences them — Sub-Project 1 commits first, Sub-Project 3 rebases on top.
 
@@ -671,13 +671,13 @@ The pipeline has four stages:
 3. **Ingestion and embedding:** raw research is chunked, embedded, and stored in LightRAG under strict routing. A domain index maps each domain to its knowledge graph subset so queries hit the right context.
 4. **First conversation:** onboarding completes with a conversation, not a status screen. Kitty demonstrates knowledge: "I found that Sansui AU-7900 you mentioned — that's the 1970s integrated amplifier, right? What drew you to it?" The user feels known, not set up.
 
-The wizard runs in `garage-ui` as a guided flow. It explains what's happening in plain English at every step. It handles failures gracefully — if a domain search returns nothing, Kitty tells the user honestly and asks if they want to try different terms or skip that domain. If the user walks away mid-onboarding, progress is checkpointed and resumes where they left off.
+The wizard runs in `kitty-chat` as a guided flow. It explains what's happening in plain English at every step. It handles failures gracefully — if a domain search returns nothing, Kitty tells the user honestly and asks if they want to try different terms or skip that domain. If the user walks away mid-onboarding, progress is checkpointed and resumes where they left off.
 
 **Done looks like:** A technical friend completes onboarding in < 15 minutes, picks 3 domains, and Kitty can hold a coherent conversation about each one — referencing specific facts, projects, and relationships the user described.
 
-**Files likely touched:** `garage-ui/app/components/onboarding/`, `src/services/onboarding_pipeline.py`, `src/agents/`, onboarding configs, knowledge ingestion pipeline.
+**Files likely touched:** `kitty-chat/app/components/onboarding/`, `src/services/onboarding_pipeline.py`, `src/agents/`, onboarding configs, knowledge ingestion pipeline.
 
-**Dependencies:** Layer 0 bridge daemon must be functional (to dispatch research agents). Knowledge ingestion pipeline must route correctly to LightRAG. Frontend wizard must exist in `garage-ui`.
+**Dependencies:** Layer 0 bridge daemon must be functional (to dispatch research agents). Knowledge ingestion pipeline must route correctly to LightRAG. Frontend wizard must exist in `kitty-chat`.
 
 ---
 
@@ -740,7 +740,7 @@ This is architectural deepening, not scope expansion. The existing commands (`/s
 
 1. **Route coverage (28% → 80%+):** Write tests for every API route in `src/api/`. Each route gets a test for the happy path (200 with valid input), the error path (4xx with invalid input), and the edge case (empty body, missing fields, unexpected content types). Prioritize routes that touch user data — write routes (journal, knowledge queries, onboarding) get tested first because silent data corruption is the highest-severity bug class in this project. Read routes (briefs, status) are tested second.
 
-2. **Frontend component tests (0 → 10+):** Basic render and interaction tests for core `garage-ui` components. Each test verifies that the component renders without crashing and responds correctly to the primary user action (click, type, submit). Components tested: ChatInput, MessageBubble, BriefCard, OnboardingWizard, CommandBar, MascotDisplay, ErrorBoundary, SettingsPanel, DomainSelector, JournalEntry. These are smoke tests, not exhaustive UI tests — they catch the "component doesn't render at all" class of regression, which is the most common frontend failure mode in rapid parallel development.
+2. **Frontend component tests (0 → 10+):** Basic render and interaction tests for core `kitty-chat` components. Each test verifies that the component renders without crashing and responds correctly to the primary user action (click, type, submit). Components tested: ChatInput, MessageBubble, BriefCard, OnboardingWizard, CommandBar, MascotDisplay, ErrorBoundary, SettingsPanel, DomainSelector, JournalEntry. These are smoke tests, not exhaustive UI tests — they catch the "component doesn't render at all" class of regression, which is the most common frontend failure mode in rapid parallel development.
 
 3. **Integration tests (0 → 3+):** Three end-to-end flows that cross subsystem boundaries: (a) Onboarding → knowledge query — user completes domain selection, agents ingest content, user asks a domain question and gets a correct, sourced answer. (b) Journal → morning brief — user writes a journal entry, next session the morning brief references it. (c) Voice → transcription → response — user records audio, transcription succeeds, Kitty responds appropriately. These integration tests are the safety net for the most user-visible flows.
 
@@ -748,7 +748,7 @@ This is architectural deepening, not scope expansion. The existing commands (`/s
 
 **Done looks like:** 80%+ route test coverage. Core frontend components have tests. At least 3 integration tests pass. The fast dev gate exists and catches regressions in critical paths in under 10 seconds. No existing tests are broken.
 
-**Files likely touched:** `tests/` (new and expanded), `garage-ui/__tests__/`, `scripts/fast-gate.sh`, test fixtures, test configuration.
+**Files likely touched:** `tests/` (new and expanded), `kitty-chat/__tests__/`, `scripts/fast-gate.sh`, test fixtures, test configuration.
 
 **Dependencies:** Sub-Projects 1–3 must be stable enough that their interfaces are testable. Fast dev gate design must be decided (see Open Questions).
 
@@ -761,7 +761,7 @@ This is architectural deepening, not scope expansion. The existing commands (`/s
 **Mission anchor:** Presence is felt, not documented. If the interface is cold, technical, or confusing, the mission fails even if the backend is perfect. Mascot motion, mood-based visuals, warm error messages, and a smooth mobile experience are first-class product requirements — not decoration.
 
 **Shape:**
-- **Mobile responsive:** `garage-ui` works on a phone screen (375px width minimum). Chat, morning brief, and onboarding are the priority flows — they must be usable one-handed. Layout switches from sidebar+main to single-column. The chat input stays fixed at the bottom of the screen like a messaging app. Font sizes are readable without zooming.
+- **Mobile responsive:** `kitty-chat` works on a phone screen (375px width minimum). Chat, morning brief, and onboarding are the priority flows — they must be usable one-handed. Layout switches from sidebar+main to single-column. The chat input stays fixed at the bottom of the screen like a messaging app. Font sizes are readable without zooming.
 - **Mascot and mood:** The Kitty mascot appears in the interface and reflects state — idle (gentle breathing animation), listening (ears forward, attentive), thinking (eyes moving, slight tilt), responding (warm expression), concerned (when the user expresses distress), celebrating (when the user reports a win). These are presence cues, not gamification. The mascot doesn't distract — it belongs. Mood transitions are smooth, not jarring.
 - **Error states:** Every error is explained in plain English with clear next steps. No "500 Internal Server Error." No "An unexpected error occurred." The user always knows: what went wrong, why (in non-technical terms), and what to do next. "I couldn't reach the knowledge base — this usually means the server needs a restart. Here's how to do that: `./kitty restart`. Or want me to try again?"
 - **Accessibility:** Keyboard navigation for chat (Tab to input, Enter to send), screen reader support for core flows (ARIA labels on message bubbles, brief cards, command output), sufficient color contrast (WCAG AA minimum for all text), focus indicators visible on all interactive elements.
@@ -771,7 +771,7 @@ This is architectural deepening, not scope expansion. The existing commands (`/s
 
 **Done looks like:** A user on their phone can open Kitty, read the morning brief, and have a conversation. The mascot shows expression changes that reflect context. Errors are human-readable and actionable. A screen reader can navigate the chat and brief flows.
 
-**Files likely touched:** `garage-ui/app/` (CSS, components, layout), mascot assets, mobile breakpoints, accessibility attributes, error component.
+**Files likely touched:** `kitty-chat/app/` (CSS, components, layout), mascot assets, mobile breakpoints, accessibility attributes, error component.
 
 **Dependencies:** All functional sub-projects (1–3) must be complete — UX Polish layers on top of working features, not stubs.
 

@@ -17,7 +17,7 @@ The following features have partial concepts or code in the repository but **mus
 
 - **Optional Dependency Constraints:** Certain advanced components (e.g., Exa search, Firecrawl scraping, MCP packages) are not actively loaded into the standard execution environment. Attempting to invoke them directly will currently result in `ModuleNotFoundError`.
 - **Local Inference Constraints:** The `mlx_lm` package is verified as present, but local inference performance depends strictly on your hardware. If Kitty is run on a machine without enough Apple Silicon memory, local inference tasks may OOM or fail abruptly.
-- **`garage-ui` Frontend:** The UI is primarily a diagnostic and developer interface. It lacks deep mobile responsiveness and comprehensive accessibility features. Polishing the UI is currently out of scope.
+- **`kitty-chat` Frontend:** The UI is primarily a diagnostic and developer interface. It lacks deep mobile responsiveness and comprehensive accessibility features. Polishing the UI is currently out of scope.
 - **Subprocess Security Enforcement:** The `security_scanner.py` restricts `kittybuilder` from executing high-risk system commands. Some advanced auto-refactoring might fail if it triggers these static regex boundaries.
 
 ## 3. Documentation Limits

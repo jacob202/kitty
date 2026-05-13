@@ -20,7 +20,7 @@
 - Create `tests/test_unified_route.py`: verify `/unified` returns controlled `501` in web-shim mode.
 - Sync `src/api/news_routes.py` and `src/services/domain_news_monitor.py` if migrated test collection requires the legacy news blueprint files already referenced by `src/api/__init__.py`.
 
-Do not edit `web.py`, launch scripts, `garage-ui/`, or generated data files in this plan.
+Do not edit `web.py`, launch scripts, `kitty-chat/`, or generated data files in this plan.
 
 ### Task 1: MemoryWeave Import Regression
 

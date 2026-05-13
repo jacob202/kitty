@@ -7,25 +7,25 @@ Status: draft
 
 ## Goal
 
-Add a basic frontend testing harness (Vitest + React Testing Library) to the `garage-ui` Next.js application, and write a regression test for the Eval Dashboard component to ensure it correctly renders failed-check objects.
+Add a basic frontend testing harness (Vitest + React Testing Library) to the `kitty-chat` Next.js application, and write a regression test for the Eval Dashboard component to ensure it correctly renders failed-check objects.
 
 ## Current App Boundary
 
 Current runnable app:
 
-`/Users/jacobbrizinski/Projects/kitty/garage-ui`
+`/Users/jacobbrizinski/Projects/kitty/kitty-chat`
 
 ## Background
 
-Currently, the `garage-ui` frontend lacks an automated testing framework. To safely iterate on components like the `EvalDashboard`, we need a baseline testing environment.
+Currently, the `kitty-chat` frontend lacks an automated testing framework. To safely iterate on components like the `EvalDashboard`, we need a baseline testing environment.
 
 ## Allowed Files
 
-- `garage-ui/package.json`
-- `garage-ui/vitest.config.ts`
-- `garage-ui/tests/setup.ts`
-- `garage-ui/app/components/__tests__/EvalDashboard.test.tsx`
-- `garage-ui/app/components/EvalDashboard.tsx`
+- `kitty-chat/package.json`
+- `kitty-chat/vitest.config.ts`
+- `kitty-chat/tests/setup.ts`
+- `kitty-chat/app/components/__tests__/EvalDashboard.test.tsx`
+- `kitty-chat/app/components/EvalDashboard.tsx`
 - `specs/frontend-test-setup.spec.md`
 
 ## Forbidden Files
@@ -41,15 +41,15 @@ Currently, the `garage-ui` frontend lacks an automated testing framework. To saf
 
 ## Implementation Plan
 
-1. Install `vitest`, `@testing-library/react`, `@testing-library/dom`, `@vitejs/plugin-react`, and `jsdom` as dev dependencies in `garage-ui`.
+1. Install `vitest`, `@testing-library/react`, `@testing-library/dom`, `@vitejs/plugin-react`, and `jsdom` as dev dependencies in `kitty-chat`.
 2. Configure `vitest.config.ts` for a React/jsdom environment.
-3. Write a setup file `garage-ui/tests/setup.ts` with custom fetch mocking.
+3. Write a setup file `kitty-chat/tests/setup.ts` with custom fetch mocking.
 4. Write `EvalDashboard.test.tsx` to mount the component, mock the `/api/eval/dashboard` response (including a `failed_checks` array), and assert that the failed checks are rendered correctly.
 5. Add a `test` script to `package.json`.
 
 ## Acceptance Tests
 
-- Test: Run `npm run test` in `garage-ui`.
+- Test: Run `npm run test` in `kitty-chat`.
 - Expected result: The `EvalDashboard` test passes, verifying that the component renders the "Failed Checks" section when `failed_checks` has items.
 
 ## Smoke Test
@@ -57,7 +57,7 @@ Currently, the `garage-ui` frontend lacks an automated testing framework. To saf
 Command:
 
 ```bash
-cd garage-ui && npm run test -- --run
+cd kitty-chat && npm run test -- --run
 ```
 
 Expected result:
@@ -67,7 +67,7 @@ All tests pass.
 ## Validation Commands
 
 ```bash
-cd garage-ui
+cd kitty-chat
 npm run build
 npm run test -- --run
 ```

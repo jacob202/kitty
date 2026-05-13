@@ -16,7 +16,7 @@ The previous pass implemented useful fixes and verified them, but it did not lea
 | --- | --- | --- |
 | Review prior code dumps | Partially satisfied through current thread context and local archive artifacts | Keep this ledger so the review is durable |
 | Manifest review | Implemented | Restored `src/eval/rlhf_collection.py` because live routes imported it |
-| Gemini UI harvest review | Implemented | Fixed `garage-ui` voice MIME detection and documented current SSE/SocketIO drift |
+| Gemini UI harvest review | Implemented | Fixed `kitty-chat` voice MIME detection and documented current SSE/SocketIO drift |
 | Useful code now | Implemented | Landed only fixes that matched current live app paths |
 | Useful code later | Partially satisfied | Deferred LLM-client consolidation and full SocketIO chat migration because they are larger architecture decisions |
 | Verification | Implemented | Full Python suite and frontend production build passed |
@@ -25,12 +25,12 @@ The previous pass implemented useful fixes and verified them, but it did not lea
 
 1. Added Safari/iOS `audio/mp4` route coverage so the browser MIME fix is not just a frontend assumption.
 2. Added route tests for `/api/rlhf/options` and `/api/rlhf/preference` so the restored collector remains protected.
-3. Added the current `garage-ui` transport note to `docs/phase3b_ui_rebuild_guide.md` so `/stream` is not removed while the active UI still uses it.
+3. Added the current `kitty-chat` transport note to `docs/phase3b_ui_rebuild_guide.md` so `/stream` is not removed while the active UI still uses it.
 4. Added a launcher regression test to prevent future scaffolding scripts from creating a root-level `kitty/` package over the existing executable launcher.
 
 ## Deferred
 
-- Full `garage-ui` chat migration from SSE to SocketIO. This should be a dedicated patch because it touches live chat transport, backend events, and room/request scoping.
+- Full `kitty-chat` chat migration from SSE to SocketIO. This should be a dedicated patch because it touches live chat transport, backend events, and room/request scoping.
 - LLM-client consolidation across `src/api/web_llm.py`, `src/space_kitty/llm_client.py`, and `src/utils/resilient_llm_client.py`. The harvest correctly identifies this as future architecture work, not a safe drive-by cleanup.
 - Real Safari/iOS device verification for MediaRecorder. Backend and build tests pass, but device recording should still be checked on the actual target browser.
 

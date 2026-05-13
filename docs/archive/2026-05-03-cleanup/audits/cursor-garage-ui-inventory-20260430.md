@@ -3,14 +3,14 @@
 **Agent**: cursor (Cursor Composer)  
 **Lane**: `inventory-001`  
 **Date**: 2026-04-30  
-**Scope**: `garage-ui/` only — factual map for broader audits (`msg-20260430-01`, `msg-20260430-02`). No UI changes.
+**Scope**: `kitty-chat/` only — factual map for broader audits (`msg-20260430-01`, `msg-20260430-02`). No UI changes.
 
 ## Build and framework
 
 | Item | Value |
 |------|--------|
 | Framework | Next.js **16.2.3** (App Router, Turbopack build) |
-| Entry | `garage-ui/app/page.tsx` — single dashboard surface |
+| Entry | `kitty-chat/app/page.tsx` — single dashboard surface |
 | Routes | `/` (static), `/_not-found` |
 | `npm run build` | **Pass** (2026-04-30, this repo) |
 
@@ -42,7 +42,7 @@ No `fetch`/`/api/` usage found in `ChatInterface.tsx`, `CommandPalette.tsx`, `Si
 
 ## Tests
 
-- `garage-ui/app/components/__tests__/EvalDashboard.test.tsx` (Vitest + RTL).
+- `kitty-chat/app/components/__tests__/EvalDashboard.test.tsx` (Vitest + RTL).
 
 ## Observations for downstream audits (not prescriptions)
 
@@ -53,7 +53,7 @@ No `fetch`/`/api/` usage found in `ChatInterface.tsx`, `CommandPalette.tsx`, `Si
 ## Validation run for this document
 
 ```bash
-cd garage-ui && npm run build
+cd kitty-chat && npm run build
 ```
 
 Result: success (see Build and framework).

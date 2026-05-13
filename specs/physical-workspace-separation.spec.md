@@ -57,7 +57,7 @@ Create a read-only preflight and move map for the future physical split. The pre
 - `src/services/`
 - `data/`
 - `knowledge_db/`
-- `garage-ui/`
+- `kitty-chat/`
 - `requirements.txt`
 - `src/agents/knowledge_getter.py`
 - `src/agents/knowledge_getter_config.json`

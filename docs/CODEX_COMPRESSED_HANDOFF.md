@@ -51,7 +51,7 @@ Last updated: 2026-04-29
 - `docs/CHAT_LOG_CONSOLIDATION_REPORT.md`
 - `docs/imports/gemini_intake_20260428.md`
 - `docs/CHAT_LOG_CANDIDATE_REVIEW_2026-04-29.md`
-- `garage-ui/app/components/EvalDashboard.tsx`
+- `kitty-chat/app/components/EvalDashboard.tsx`
 - `SESSION_SUMMARY.md`
 - `TASKS.md`
 - `.cache/kitty_context_pack.md`
@@ -62,8 +62,8 @@ Last updated: 2026-04-29
 /opt/homebrew/bin/python3.12 -m pytest tests/test_consolidate_chat_logs.py -q --tb=short
 /opt/homebrew/bin/python3.12 -m pytest tests/test_kitty_builder.py tests/test_security_scanner.py -q --tb=short
 /opt/homebrew/bin/python3.12 -m pytest tests/test_evals_dashboard.py -q --tb=short
-cd garage-ui && npx tsc --noEmit --incremental false
-cd garage-ui && npm run build
+cd kitty-chat && npx tsc --noEmit --incremental false
+cd kitty-chat && npm run build
 bash scripts/run_gates.sh
 /opt/homebrew/bin/python3.12 -m pytest tests/ -q --tb=short
 ```
@@ -72,7 +72,7 @@ bash scripts/run_gates.sh
 
 - Do not delete raw chat logs.
 - Do not delete eval artifacts.
-- Do not clean `src/`, `data/`, `skills/`, `garage-ui/`, `venv/`, `eval_snapshots/`, or `refactor_reports/` without a new spec.
+- Do not clean `src/`, `data/`, `skills/`, `kitty-chat/`, `venv/`, `eval_snapshots/`, or `refactor_reports/` without a new spec.
 - Do not treat tracked deletions as cleanup.
 - Do not remove `Icon\r` under protected trees without a metadata-only waiver spec.
 - Do not physically move into `kitty-system/kitty-app` yet.

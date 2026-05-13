@@ -34,7 +34,7 @@ launch-command rewrites in this spec.
 Source audit:
 
 - `docs/audits/project-context-audit-20260430.md`
-- `docs/audits/cursor-garage-ui-inventory-20260430.md`
+- `docs/audits/cursor-kitty-chat-inventory-20260430.md`
 - `docs/audits/operational-plan-20260430.md`
 
 The audit found the P2 no-mode `/stream` default is already addressed and
@@ -87,7 +87,7 @@ Migrated runtime sync targets after legacy validation:
 ## Forbidden Files
 
 - `web.py`
-- `garage-ui/`
+- `kitty-chat/`
 - `data/`
 - `data/lightrag/`
 - `data/vector_store/`
@@ -266,7 +266,7 @@ missing, causing migrated test collection to fail.
 
 - `web.py`
 - `src/api/__init__.py`
-- `garage-ui/`
+- `kitty-chat/`
 - launch scripts
 - generated DBs and raw data
 

@@ -97,13 +97,13 @@ Results synthesized into:
 
 ### B1: Light theme variant (HIGH — ~30m)
 User wants dark/light toggle. v2 had cream `#FAF7F2` palette ready.
-- `garage-ui/app/globals.css` — has 4 dark theme classes but NO light theme
+- `kitty-chat/app/globals.css` — has 4 dark theme classes but NO light theme
 - Need: `.theme-light` CSS class + toggle in SettingsModal or header
 - Design tokens at `:root` in globals.css
 
 ### B2: React ErrorBoundary (HIGH — ~10m)
 No error boundary exists — any component throwing unmounts the entire app.
-- Add `garage-ui/app/components/ErrorBoundary.tsx`
+- Add `kitty-chat/app/components/ErrorBoundary.tsx`
 - Wrap `<main>` in `page.tsx`
 
 ### B3: Mobile access to sidebar + inspector (HIGH — ~20m)
@@ -139,9 +139,9 @@ Other Phase B items (see `docs/audits/operational-plan-20260430.md`):
 | `config/SOUL.md` | Just created — core personality prompt |
 | `config/specialists/*.md` | Per-specialist soul files (personality + system prompt) |
 | `config/specialists/*.json` | Per-specialist tool configs |
-| `garage-ui/app/page.tsx` | Main dashboard — all state, 18 useState, socket + SSE |
-| `garage-ui/app/components/ChatInterface.tsx` | Chat UI with markdown + mascot |
-| `garage-ui/app/globals.css` | Design tokens (warm dark palette, 4 theme classes) |
+| `kitty-chat/app/page.tsx` | Main dashboard — all state, 18 useState, socket + SSE |
+| `kitty-chat/app/components/ChatInterface.tsx` | Chat UI with markdown + mascot |
+| `kitty-chat/app/globals.css` | Design tokens (warm dark palette, 4 theme classes) |
 | `docs/AGENT_COORDINATION.md` | **Read this first** — inter-agent comms board |
 | `docs/audits/operational-plan-20260430.md` | Full milestone plan A→D |
 | `docs/DECISIONS.md` | Durable project decisions |
@@ -177,7 +177,7 @@ curl -sS -X POST http://localhost:5001/api/command -H "Content-Type: application
 curl -sS -X POST http://localhost:5001/api/chat -H "Content-Type: application/json" -d '{"message":"smoke test","domain":"chat"}'
 
 # Frontend
-cd garage-ui && npx tsc --noEmit --incremental false && npm run build
+cd kitty-chat && npx tsc --noEmit --incremental false && npm run build
 ```
 
 ---
