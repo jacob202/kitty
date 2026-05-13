@@ -62,21 +62,17 @@ Violating this routing is the #1 source of data-loss bugs.
 
 Local models are free. Use them first.
 
-## Specialist Framework
+## Specialist framework (legacy retired)
 
-- Base class: `src/core/specialist_framework.py`
-- Configs: `config/specialists/*.md`
-- Python: `src/core/specialists/*.py`
-- Specialists are Python classes, not agents (unless explicitly wired as agents)
+The old **src/core specialists** tree and **config/specialists/*.json** configs were **removed** from this checkout (2026-05) in favor of a **gateway-centric** runtime. Do not recreate that layout without an approved spec—new domain logic belongs in **`gateway/`** (or clearly named modules under `contracts/`).
 
-## Voice Pipeline
+## Voice pipeline
 
-`Browser MediaRecorder → POST /api/transcribe → src/api/transcription_service.py → faster-whisper → text`
+`Browser MediaRecorder → POST /api/transcribe → gateway/stt.py → faster-whisper → text`
 
 ## Skills
 
-- Consolidated (reasoning/execution/planning): `consolidated-skills/`
-- Project-level: `src/tools/superpowers/skills/`
+- When present: `consolidated-skills/`, `.agents/skills/` (paths vary by checkout; verify before referencing).
 
 ---
 
@@ -213,17 +209,17 @@ Applies to all agents: Claude, Gemini, opencode, Codex, Goose.
 1. **Token Efficiency First** — Every LLM call must justify its token cost
 2. **Prevention Over Compression** — Filter context before it becomes a problem
 3. **Deterministic > Probabilistic** — Use jq/awk/scripts for deterministic tasks
-4. **Cache Everything Static** — System prompts, tool schemas, repeated queries use `src/core/prompt_cache.py`
+4. **Cache Everything Static** — Reuse deterministic caching for system prompts / repeated completions (prior `prompt_cache.py` retired with `src/`; extend `gateway/` if you reintroduce it).
 5. **Just-In-Time Context** — Load only what's needed for the current task
 
 ### Mandatory
 
 - **Log token usage** — All LLM calls log to `data/kitty_token_log.jsonl` (JSONL: `{"ts","date","provider","model","operation","usage","metadata"}`)
-- **Semantic caching** — Check `SemanticCache` before making repeated queries
-- **Truncation** — File reads limited to 2K lines / 50KB via `truncate_to_token_budget()`
+- **Semantic caching** — Dedupe identical or near-identical completions when you have a cache layer wired
+- **Truncation** — Prefer bounded reads (roughly 2K lines / ~50KB caps) before stuffing files into prompts
 - **Local routing** — Route simple queries to cheaper models (`--quick` mode)
 - **No broad Firecrawl** — Max 1-2 queries per run, use `scrape()` not `crawl()` for single pages
-- **Use research pipeline** — `src/tools/research_pipeline.py` for web research (map+batch_scrape, not deep crawl)
+- **Use research tooling** — Firecrawl / Tavily / browser skills per task; avoid deep unmanaged crawls
 
 ### Quick Reference
 
@@ -232,9 +228,9 @@ Applies to all agents: Claude, Gemini, opencode, Codex, Goose.
 | Simple status check | Use `./kitty status` (deterministic) |
 | Count lines in file | Use `wc -l file` not LLM |
 | Parse JSON | Use `jq` not LLM |
-| Repeated query | Check `SemanticCache` first |
-| Long system prompt | Use `PromptCache.prepare_system_prompt()` |
-| File > 50KB | Truncate with `truncate_to_token_budget()` |
+| Repeated query | Dedupe or cache when a cache exists; otherwise keep prompts stable |
+| Long system prompt | Truncate or externalize prompts; avoid resending verbatim mega-blocks |
+| File > 50KB | Trim or chunk reads before sending to the model |
 | Web scrape (1 page) | Use `firecrawl scrape` not `crawl` |
 | Session start | Use `./kitty quick` for deterministic commands |
 | Quick status | `./kitty quick status` — server status |
@@ -243,8 +239,7 @@ Applies to all agents: Claude, Gemini, opencode, Codex, Goose.
 | Quick tokens | `./kitty quick tokens` — recent token usage |
 | Quick index | `./kitty quick index <pattern>` — search file index |
 | Quick count | `./kitty quick count <path>` — count lines |
-| Scaffold | `python scripts/scaffold.py <tool\|route\|test\|module> <name>` |
-| File index | `python scripts/build_file_index.py --search <pattern>` |
+| Ingest / books queue | `scripts/ingest.py`, `scripts/enqueue_books.py`, `scripts/scout_queue.py` (verify with `ls scripts/`) |
 
 ### Monitoring
 
@@ -258,11 +253,11 @@ Applies to all agents: Claude, Gemini, opencode, Codex, Goose.
 
 These have all bitten previous sessions. Read before touching the named area.
 
-- **Stack:** Python 3.12 + Flask + Flask-SocketIO + Next.js (`garage-ui/`). Local inference: MLX + Qwen3.5-4B. Memory: LightRAG + ChromaDB + SQLite-vec.
+- **Stack:** Python 3.12 + Flask + Flask-SocketIO gateway on **`localhost:5001`**. Separate Open WebUI / LiteLLM per `docs/ARCHITECTURE.md` and `kitty_gateway/*.sh`. Local inference: MLX + Qwen3.5-4B optional. Memory: LightRAG + ChromaDB + SQLite-vec.
 - **Storage routing — strict:** KB content → LightRAG (NOT JournalDB). Journal entries → JournalDB (NOT LightRAG). MCP entities → `@modelcontextprotocol/server-memory`. Wrong routing is the #1 source of data-loss bugs in this project.
 - **Werkzeug flag required:** local SocketIO launch needs `socketio.run(..., allow_unsafe_werkzeug=True)` or Flask-SocketIO refuses to start.
 - **TokenCapture leaks stdout to chat:** never use `print(...)` in backend code — it forwards into the user-visible SSE stream. Use `logging` instead.
-- **Single server:** `localhost:5001` serves both Flask API and garage-ui frontend (static export from `garage-ui/out/`).
+- **Gateway:** treat **`localhost:5001`** as the Kitty API/control surface unless `docs/ARCHITECTURE.md` says otherwise for your stack tier.
 - **Live orchestrator path:** `current_app.orchestrator` (not `current_app.reasoning_layer` or supervisor wiring). Reasoning routes that check the wrong path will look broken in web mode.
 - **Pre-commit hook flags certain dynamic-execution function calls** (builtins like `eval` and similar). Rename related functions to `evaluate_` or `run_eval_` prefixes.
 - **Linters auto-revert model constants:** clear `.pyc` cache after model routing fixes — `find . -name __pycache__ -exec rm -rf {} +`.

@@ -1,35 +1,32 @@
-# Current Focus
-Last updated: 2026-05-08
+# Current focus
 
-## Active Phase
+Last updated: **2026-05-13**
 
-Phase 4 — Jacob-Only Build (4 sub-projects from Standup §4)
+## Operating reality
 
-## Today's Progress (May 10)
-- ✅ Fixed 100% Disk Full crisis (Freed 29GB)
-- ✅ Wiped and rebuilt corrupted venv (Segfaults resolved)
-- ✅ Unified LLM Stack in `llm_client.py` (No more 401 errors)
-- ✅ Implemented Ingestion Queue for 1,100+ book library
-- ✅ Implemented Autonomy State Layer (Persistent thinking/tool history)
-- ✅ Implemented Path: Taste (Knowledge curation & safety judgment)
-- ✅ Chunk 1.1 & 1.2 Complete: 10-turn autonomy + Approval Gate
+- **Canonical repo:** `/Users/jacobbrizinski/Projects/kitty` (never the Desktop copy).
+- **Runtime:** Python in **`gateway/`** (Flask + SocketIO API on **:5001**). Open WebUI / LiteLLM / stack details: **`docs/ARCHITECTURE.md`**, launcher scripts under **`kitty_gateway/*.sh`**.
+- **LLM hub:** `gateway/llm_client.py` — LiteLLM first, then AgentRouter → OpenRouter → Gemini → NVIDIA. Short AgentRouter slugs + env overrides documented in **`.env.example`** and **`SESSION_HANDOFF.md`**.
+- **Orientation:** **`docs/STANDUP.md`**, root **`MASTER_INDEX.md`**, **`KITTY_CONTEXT.md`**, **`PROJECT_REALITY_CHECK.md`**.
 
-## Active State
-- **Ingestion:** Worker active in background (data/ingestion_queue.db)
-- **Engine:** Claude 3.7 + Unified Client + Safe Judgment
-- **Gated:** Mandatory user approval for all code/file changes
+## Recent repo changes (committed)
 
-## Tests: 540 passed ✓
+- **Gateway:** ingest path scoring via **`gateway/ingest_policy.py`**, **`tests/test_ingest_policy.py`**, plus routing / librarian / memory / researcher / queue updates; **`gateway/eval_domain.py`**, **`gateway/smoke_eval.py`** scaffold.
+- **Prune:** removed legacy **`src/`** (core + builder), old **`evals/`** harness, **`benchmarks/`**, most **`scripts/*.py` shims**, and **`config/specialists/`** JSON. Remaining scripts are mainly **books / ingest / queue** helpers — see **`scripts/`**.
+- Tooling hygiene: **`.cursorignore`** excludes **`.git/`**; duplicate **`scripts/setup/gate-check (N).sh`** Finder copies deleted locally.
 
-## Working Commands
-- /optimize, /cleanup, /onboarding, /skills, /help, /brief, /stuck
-- ./kitty backup, ./kitty status, ./kitty export
+## Verification
 
-## Skills
-- orient, optimize, debug, handoff, research, plan, build, ship, cleanup
+- Last full run: **`242 passed`**, 2 skipped, 2 deselected  
+  `/opt/homebrew/bin/python3.12 -m pytest tests/ -q --tb=short`
+- One known warning in **`tests/test_researcher.py`** (async mock not awaited) — non-blocking.
+
+## Working tree backlog (still untracked / local)
+
+Roughly **~70 untracked** paths: IDE configs (`.vscode/`, `.mcp.json`, …), **`free-code/`**, **`config/swarm/`**, **`scripts/archive/`**, extra **`tests/*`**, Open WebUI tool stubs under **`kitty_gateway/openwebui_library_tools/`**, etc. Treat as optional; **`git add`** only intentional slices.
+
+Dirty: **`.claude/settings.json`** (local; do not commit secrets).
 
 ## Forbidden work
-- MCP expansion
-- QLoRA
 
-## Tests: 540 passed ✓
+- MCP expansion beyond current scope · QLoRA · deleting raw chat logs · renaming/removing canonical checkout root.
