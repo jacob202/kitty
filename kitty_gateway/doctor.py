@@ -7,6 +7,8 @@ import argparse
 import json
 import os
 import pathlib
+import shlex
+import subprocess
 import ssl
 import sys
 import urllib.error
@@ -16,7 +18,7 @@ from dataclasses import dataclass
 from typing import Any
 
 
-ROOT_DIR = pathlib.Path("/Users/jacobbrizinski/Projects/kitty")
+ROOT_DIR = pathlib.Path(__file__).resolve().parent.parent
 ENV_FILE = ROOT_DIR / "kitty_gateway" / "openwebui.env"
 MANIFEST_FILE = ROOT_DIR / "kitty_gateway" / "runtime_manifest.json"
 
@@ -32,19 +34,45 @@ def parse_env(path: pathlib.Path) -> dict[str, str]:
     data: dict[str, str] = {}
     if not path.exists():
         return data
+    keys: list[str] = []
     for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip()
-        if (value.startswith('"') and value.endswith('"')) or (
-            value.startswith("'") and value.endswith("'")
-        ):
-            value = value[1:-1]
-        data[key] = os.path.expandvars(value)
+        key = line.split("=", 1)[0].strip()
+        if key:
+            keys.append(key)
+
+    proc = subprocess.run(
+        [
+            "bash",
+            "-lc",
+            f"set -a; source {shlex.quote(str(path))}; env -0",
+        ],
+        capture_output=True,
+        check=True,
+        text=False,
+    )
+    raw_env = {}
+    for item in proc.stdout.split(b"\0"):
+        if b"=" not in item:
+            continue
+        key, value = item.split(b"=", 1)
+        raw_env[key.decode("utf-8", errors="ignore")] = value.decode("utf-8", errors="ignore")
+    for key in keys:
+        if key in raw_env:
+            data[key] = raw_env[key]
     return data
+
+
+def webui_base_url(env: dict[str, str]) -> str:
+    """Base URL for Open WebUI API and health — matches start_openwebui / openwebui.env."""
+    raw = (env.get("WEBUI_URL") or "").strip().rstrip("/")
+    if raw:
+        return raw
+    host = (env.get("OPENWEBUI_HOST") or "127.0.0.1").strip() or "127.0.0.1"
+    port = (env.get("OPENWEBUI_PORT") or "3000").strip() or "3000"
+    return f"http://{host}:{port}"
 
 
 def http_json(
@@ -144,6 +172,8 @@ def main() -> int:
     for svc in manifest.get("services", []):
         svc_id = svc.get("id", "unknown")
         url = svc.get("url", "")
+        if svc_id == "openwebui":
+            url = f"{webui_base_url(env)}/health"
         required = bool(svc.get("required", False))
         headers = None
         timeout = 3.0
@@ -157,7 +187,7 @@ def main() -> int:
             lvl = "FAIL" if required else "WARN"
             results.append(CheckResult(lvl, f"service:{svc_id}", f"unreachable: {url}"))
 
-    webui_url = env.get("WEBUI_URL", "http://127.0.0.1:3000").rstrip("/")
+    webui_url = webui_base_url(env)
     email = env.get("WEBUI_ADMIN_EMAIL", "")
     password = env.get("WEBUI_ADMIN_PASSWORD", "")
     token = ""
