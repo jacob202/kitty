@@ -68,7 +68,9 @@ There is **no single universal hook system** across every AI coding tool. Today 
 | Tool | Config file | What happens |
 |------|-------------|----------------|
 | **Claude Code** (CLI) | `.claude/settings.json` | **SessionStart** runs `scripts/kitty-standup --hook` (compact block between `HOOK_START` / `HOOK_END` in this file). Humans: `kitty-standup` or `standup` prints the **full** standup. **Stop** runs `kitty-standup --reminder`. Type `/hooks` in Claude Code to verify. |
-| **Cursor** (Agent / Composer / cloud agents on this repo) | `.cursor/hooks.json` | **sessionStart** injects the same **compact** hook block. **Handoff** only when the session really ends or Jacob says **`handoff`** (**§9**). |
+| **Cursor** (Agent / Composer / cloud agents on this repo) | `.cursor/hooks.json` | **`sessionStart` only:** injects the **compact** block from `docs/STANDUP.md` (`<!-- HOOK_START -->` … `<!-- HOOK_END -->`). **`stop` is intentionally not wired** (avoids repeating “§9 Handoff?” after every agent turn). Use **`handoff`** / a **real session end** for §9. |
+
+**Cursor — nag still repeating?** Check **user/global** hooks too: `~/.cursor/hooks.json` sometimes defines a **`stop`** entry. Remove **`stop`** there if you want silence between turns; this repo’s `.cursor/hooks.json` only registers **`sessionStart`**.
 
 **Everyone else** (Codex, Gemini CLI, OpenCode, Goose, Aider, …): usually **no** Claude-compatible hooks. **Easiest habit:** open Terminal and type **`standup`** (one word — a shell alias in Jacob’s `~/.zshrc` that runs `scripts/kitty-standup`). Same as reading this file; no path to memorize. Or point each tool at “read `docs/STANDUP.md` first” in whatever instruction file it respects (varies by product). Folding those into one consistent story is part of **Layer 0 config convergence** (Section 6).
 
@@ -148,7 +150,7 @@ Otherwise, make your best guess. He'll redirect if needed. He'd rather redirect 
 ### Rule 9: The cardinal sin — working in the wrong reality
 The single worst thing you can do is work in the wrong folder or against the wrong version of reality. That wasted days and actual money in a past migration. The verification steps in Section 0 exist to prevent this. Never skip them.
 ### Rule 10: You are one of many
-You are not the only agent Jacob works with. You are part of a team (Claude, DeepSeek, Gemini Flash, Codex, OpenCode, …). **Handoff:** see **§9** — **one** short block when the **session** truly ends, when Jacob says **`handoff`**, when you’re **blocked**, or when context is about to **drop**.
+You are not the only agent Jacob works with. You are part of a team (Claude, DeepSeek, Gemini Flash, Codex, OpenCode, …). **Handoff:** see **§9** — **one** short block when the **session** truly ends, when Jacob says **`handoff`**, when you’re **blocked**, or when context is about to **drop**. **Cursor** has **no stop hook**: nothing auto-reminds §9 between turns — that’s intentional (no spam).
 
 ### Rule 11: Show your work
 Evidence before “done”: tests, diff, command output, or screenshot. **How much test:** see **§9** (full suite for real code; skip or narrow for doc-only STANDUP nits; always full suite before **commit** / CI per `CLAUDE.md`).
