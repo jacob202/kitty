@@ -468,6 +468,49 @@ async def telegram_status():
     return {"configured": is_configured()}
 
 
+# --- Web monitor endpoints ---
+
+class WatchCreateRequest(BaseModel):
+    url: str = Field(min_length=1, max_length=2000)
+    label: str = ""
+    keywords: Optional[list[str]] = None
+    interval_minutes: int = 30
+
+
+@app.post("/monitor/create")
+async def monitor_create(payload: WatchCreateRequest):
+    from gateway.web_monitor import add_watch
+    watch_id = add_watch(
+        url=payload.url,
+        label=payload.label,
+        keywords=payload.keywords,
+        interval_minutes=payload.interval_minutes,
+    )
+    return {"watch_id": watch_id}
+
+
+@app.get("/monitors")
+async def monitor_list():
+    from gateway.web_monitor import list_watches
+    return {"watches": list_watches()}
+
+
+@app.post("/monitor/{watch_id}/check")
+async def monitor_check(watch_id: str):
+    from gateway.web_monitor import check_now
+    result = await check_now(watch_id)
+    return result
+
+
+@app.delete("/monitor/{watch_id}")
+async def monitor_delete(watch_id: str):
+    from gateway.web_monitor import remove_watch
+    removed = remove_watch(watch_id)
+    if not removed:
+        raise HTTPException(status_code=404, detail="Watch not found")
+    return {"deleted": True}
+
+
 # --- Calendar endpoints ---
 
 @app.get("/calendar/today")
