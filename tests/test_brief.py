@@ -49,6 +49,7 @@ def test_send_pushover_skips_when_no_keys():
 def test_send_pushover_returns_true_on_success():
     import gateway.notify as n
     mock_resp = MagicMock()
+    mock_resp.status_code = 200
     mock_resp.raise_for_status.return_value = None
     with patch.dict(os.environ, {"PUSHOVER_USER_KEY": "ukey", "PUSHOVER_API_TOKEN": "tok"}):
         with patch.object(n.requests, "post", return_value=mock_resp):

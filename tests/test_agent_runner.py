@@ -13,6 +13,10 @@ from gateway.agent_runner import (
 )
 
 
+async def _noop_agent_loop(*args, **kwargs) -> None:
+    """Substitute real LLM loop so create_task schedules an awaited coroutine."""
+
+
 class TestPresets:
     def test_all_presets_defined(self):
         assert len(AGENT_PRESETS) == 5
@@ -77,7 +81,7 @@ class TestSpawnAndRun:
         from unittest.mock import AsyncMock, patch
 
         # Mock the background task so it doesn't actually call LLMs
-        with patch("gateway.agent_runner.asyncio.create_task"):
+        with patch("gateway.agent_runner._run_agent_loop", new=_noop_agent_loop):
             session_id = await agent_spawn(
                 "test goal",
                 agent_type="explorer",
@@ -90,7 +94,7 @@ class TestSpawnAndRun:
         from gateway.agent_runner import spawn as agent_spawn
         from unittest.mock import patch
 
-        with patch("gateway.agent_runner.asyncio.create_task"):
+        with patch("gateway.agent_runner._run_agent_loop", new=_noop_agent_loop):
             session_id = await agent_spawn(
                 "research cats",
                 agent_type="researcher",
@@ -103,7 +107,7 @@ class TestSpawnAndRun:
         from gateway.agent_runner import spawn as agent_spawn
         from unittest.mock import patch
 
-        with patch("gateway.agent_runner.asyncio.create_task"):
+        with patch("gateway.agent_runner._run_agent_loop", new=_noop_agent_loop):
             for agent_type in AGENT_PRESETS:
                 session_id = await agent_spawn(
                     f"test {agent_type}",

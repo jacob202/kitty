@@ -1,6 +1,6 @@
 """Tests for task_runner — create, get, list, cancel, output."""
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from gateway.task_runner import (
     create,
@@ -13,15 +13,23 @@ from gateway.task_runner import (
 )
 
 
+def _discard_background_task(coro):
+    """Stand in for asyncio.create_task in sync tests — no loop, no orphan coroutines."""
+    close = getattr(coro, "close", None)
+    if callable(close):
+        close()
+    return MagicMock(name="fake_task", cancelled=False, cancel=MagicMock())
+
+
 class TestCreate:
     def test_creates_task_and_returns_id(self):
-        with patch("gateway.task_runner.asyncio.create_task"):
+        with patch("gateway.task_runner.asyncio.create_task", side_effect=_discard_background_task):
             task_id = create("test research goal", task_type="research")
         assert isinstance(task_id, str)
         assert len(task_id) == 8
 
     def test_creates_all_valid_types(self):
-        with patch("gateway.task_runner.asyncio.create_task"):
+        with patch("gateway.task_runner.asyncio.create_task", side_effect=_discard_background_task):
             for t in VALID_TYPES:
                 task_id = create(f"test {t}", task_type=t, run_immediately=False)
                 assert isinstance(task_id, str)
@@ -36,7 +44,7 @@ class TestCreate:
         assert task["status"] == "queued"
 
     def test_metadata_stored(self):
-        with patch("gateway.task_runner.asyncio.create_task"):
+        with patch("gateway.task_runner.asyncio.create_task", side_effect=_discard_background_task):
             task_id = create("test", task_type="cleanup", metadata={"priority": "low"})
         task = get(task_id)
         assert task["metadata"] == {"priority": "low"}
@@ -44,7 +52,7 @@ class TestCreate:
 
 class TestGet:
     def test_get_existing_task(self):
-        with patch("gateway.task_runner.asyncio.create_task"):
+        with patch("gateway.task_runner.asyncio.create_task", side_effect=_discard_background_task):
             task_id = create("test", task_type="dream")
         task = get(task_id)
         assert task["id"] == task_id

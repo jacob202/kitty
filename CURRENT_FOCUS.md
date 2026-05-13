@@ -19,7 +19,7 @@ Last updated: **2026-05-13**
 
 ## Verification
 
-- Last full run: **`326 passed`**, 2 skipped, 2 deselected  
+- Last full run: **`335 passed`**, 2 skipped, 2 deselected  
   `/opt/homebrew/bin/python3.12 -m pytest tests/ -q --tb=short`
 - One known warning in **`tests/test_researcher.py`** (async mock not awaited) — non-blocking.
 
