@@ -472,3 +472,57 @@ async def agent_stop(session_id: int):
     if not stopped:
         raise HTTPException(status_code=404, detail="Agent not running")
     return {"session_id": session_id, "status": "cancelled"}
+
+
+# --- Task endpoints ---
+
+class TaskCreateRequest(BaseModel):
+    goal: str = Field(min_length=1, max_length=2000)
+    task_type: str = "research"
+    model: Optional[str] = None
+    metadata: Optional[dict] = None
+    run_immediately: bool = True
+
+
+@app.post("/task/create")
+async def task_create(payload: TaskCreateRequest):
+    from gateway.task_runner import create
+    task_id = create(
+        goal=payload.goal,
+        task_type=payload.task_type,
+        model=payload.model,
+        metadata=payload.metadata,
+        run_immediately=payload.run_immediately,
+    )
+    return {"task_id": task_id, "status": "queued"}
+
+
+@app.get("/tasks")
+async def task_list(status: Optional[str] = None, limit: int = 20):
+    from gateway.task_runner import list_tasks
+    return {"tasks": list_tasks(status=status, limit=limit)}
+
+
+@app.get("/task/{task_id}")
+async def task_get(task_id: str):
+    from gateway.task_runner import get
+    task = get(task_id)
+    if task.get("status") == "not_found":
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task
+
+
+@app.get("/task/{task_id}/output")
+async def task_output(task_id: str):
+    from gateway.task_runner import get_output
+    output = get_output(task_id)
+    return {"task_id": task_id, "output": output}
+
+
+@app.post("/task/{task_id}/cancel")
+async def task_cancel(task_id: str):
+    from gateway.task_runner import cancel
+    cancelled = cancel(task_id)
+    if not cancelled:
+        raise HTTPException(status_code=404, detail="Task not found or already finished")
+    return {"task_id": task_id, "status": "cancelled"}
