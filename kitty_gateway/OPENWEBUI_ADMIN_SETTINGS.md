@@ -64,7 +64,7 @@ This maps your `kitty_gateway/openwebui.env` values to Admin panel sections so y
 
 ## 9) Extensibility (Plugins / MCP / Tool Servers / Pipelines)
 - `OPENAI_API_BASE_URLS`, `OPENAI_API_KEYS` (semicolon-delimited provider list)
-- `TOOL_SERVER_CONNECTIONS` (OpenAPI + MCP streamable-http server connections)
+- `TOOL_SERVER_CONNECTIONS` — must include the four community entries (`community-filesystem-local`, `-memory-local`, `-time-local`, `-weather-local`); an empty `[]` wipes all registrations when sync runs
 - `TERMINAL_SERVER_CONNECTIONS` (OpenTerminal server connections)
 - `OPEN_TERMINAL_URL`, `OPEN_TERMINAL_API_KEY`
 - `AIOHTTP_CLIENT_TIMEOUT_TOOL_SERVER`
