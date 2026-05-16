@@ -1,0 +1,15 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "anthropic/claude-sonnet-4-6",
+  "instructions": "AGENTS.md",
+  "provider": {
+    "anthropic": {
+      "name": "anthropic"
+    },
+    "openai": {
+      "name": "openai",
+      "baseURL": "http://localhost:8001/v1",
+      "apiKey": "kitty-local-key-change-me"
+    }
+  }
+}
