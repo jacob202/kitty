@@ -28,7 +28,6 @@ logger = logging.getLogger("kitty.skill_registry")
 
 SKILL_ROOTS: list[Path] = [
     PROJECT_ROOT / ".agents" / "skills",
-    PROJECT_ROOT / "consolidated-skills",
 ]
 
 # In-memory cache after first scan

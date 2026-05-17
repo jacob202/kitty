@@ -1,2 +1,0 @@
-litellm[proxy]==1.83.14
-openai==2.24.0

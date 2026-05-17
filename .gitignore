@@ -1,66 +1,45 @@
-venv/
-lightrag/.venv/
-.worktrees/
-__pycache__/
-*.pyc
-.DS_Store
-Icon*
-Icon\r
+# Secrets — never commit
 .env
-.env.*
-!.env.example
+.env.local
+.env.*.local
+
+# Personal data (keep structure, ignore contents)
+data/*
+!data/.gitkeep
+chroma_db/
+logs/*
+!logs/.gitkeep
+*.log
+*.jsonl
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
 *.egg-info/
 dist/
 build/
-.sass-cache/
+venv/
+.venv/
+
+# macOS
+.DS_Store
+Icon?
+._*
+
+# Frontend (gateway/kitty-chat)
 node_modules/
-*.log
+.next/
+out/
+*.tsbuildinfo
 
-# Ephemeral merge-gate anchor files from tests/test_phase4_merge_gate_report_path.py
-docs/_merge_gate_anchor_*.md
+# IDE
+.vscode/
+.cursor/
+.mcp.json
+.aura/
 
-# Embedded git repos (external tools with their own repos)
-src/tools/lightrag/
-src/tools/superpowers/
-.aider*
-
-# Runtime / local-only files
-.kitty.pid
-.kitty_builder_cache.sqlite3
-.kitty_builder_model_stats.jsonl
-.kitty_builder_budget.json
-.kittybuilder_session.json
-.zshrc.aider
-.zshrc.shim
-data/
-knowledge_db/
-librarian_db/
-eval_snapshots/
-evals/artifacts/
-
-# Local agent/tool installations and symlink fan-out, not Kitty source
-.adal/
-.agents/
-.codebuddy/
-.commandcode/
-.factory/
-.goose/
-.iflow/
-.kilocode/
-.kiro/
-.kode/
-.pi/
-.qwen/
-.vibe/
-.zencoder/
-.claude/skills/
-skills/
-skills-lock.json
-
-!.agents/skills/kitty-optimizer/
-kitty_gateway/openwebui.env
-kitty_gateway/.run/
-kitty_gateway/openapi-servers/
-logs/
-# Added by code-review-graph
-.code-review-graph/
+# Misc
+*.sqlite
+*.db
