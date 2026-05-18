@@ -44,3 +44,14 @@ out/
 # Misc
 *.sqlite
 *.db
+
+# Ephemeral runtime state
+.kitty.pid
+.kittybuilder_session.json
+
+# IDE
+.kiro/
+
+# Stale pre-restructure paths (canonical: gateway/kitty-chat/, gateway/)
+kitty-chat/
+kitty_gateway/

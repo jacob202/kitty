@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+# Terminal Pane - Small command terminal for Orca IDE
+# This runs in the left pane (30% width) for commands
+# 
+# Features:
+# - Quick commands (yazi, git, agent spawning)
+# - Agent selector
+# - Task board viewer
+# - System monitoring
+
+set -euo pipefail
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+# Logo
+logo() {
+    echo -e "${CYAN}"
+    echo "  ┌─┐┬ ┬┌─┐┌┬┐┌─┐┌┬┐"
+    echo "  ├┘ │ │├─┘ │ │ │││"
+    echo  "  ┴  └─┘┴   ┴ └─┘o┴─┘"
+    echo -e "${NC}"
+}
+
+# Quick menu
+menu() {
+    echo -e "${YELLOW}Quick Commands:${NC}"
+    echo "  y          - Yazi file browser"
+    echo "  a [agent]  - Select agent (claude/gemini/codex/opencode/qwen)"
+    echo "  t [task]   - Create task"
+    echo "  b          - Show task board"
+    echo "  s          - Status (agents, services)"
+    echo "  c          - Clear terminal"
+    echo "  h          - This help"
+    echo ""
+    echo -e "${YELLOW}Agents:${NC}"
+    echo "  claude     - Code specialist (Sonnet 4)"
+    echo "  gemini     - Research specialist"
+    echo "  codex      - Code generalist (OpenAI)"
+    echo "  opencode   - Code generalist (NVIDIA)"
+    echo "  qwen       - Reasoning specialist (480B)"
+    echo ""
+}
+
+# Status check
+check_status() {
+    echo -e "${CYAN}=== System Status ===${NC}"
+    
+    # Agents
+    echo -n "Active Agent: "
+    if [[ -f "$HOME/.kitty_active_agent" ]]; then
+        echo -e "${GREEN}$(cat $HOME/.kitty_active_agent)${NC}"
+    else
+        echo "claude (default)"
+    fi
+    
+    # Services
+    echo -n "Ghostty: "
+    if command -v ghostty &> /dev/null; then
+        echo -e "${GREEN}✓${NC}"
+    else
+        echo -e "${RED}✗${NC}"
+    fi
+    
+    echo -n "Yazi: "
+    if command -v yazi &> /dev/null; then
+        echo -e "${GREEN}✓${NC}"
+    else
+        echo -e "${RED}✗${NC}"
+    fi
+    
+    # Kitty services (if running)
+    echo -n "Kitty Gateway: "
+    if curl -s http://localhost:8000/health &> /dev/null; then
+        echo -e "${GREEN}✓${NC}"
+    else
+        echo -e "${YELLOW}not running${NC}"
+    fi
+}
+
+# Main interactive loop
+main() {
+    logo
+    menu
+    check_status
+    echo ""
+    echo -e "${CYAN}Type command (or 'q' to quit):${NC}"
+    
+    while true; do
+        echo -n "> "
+        read -r cmd args
+        
+        case $cmd in
+            y|yazi)
+                yazi
+                ;;
+            a|agent)
+                if [[ -n "$args" ]]; then
+                    agent-selector "$args"
+                else
+                    agent-selector
+                fi
+                ;;
+            t|task)
+                if [[ -n "$args" ]]; then
+                    coordinator "$args" --plan
+                else
+                    echo "Usage: t [task description]"
+                fi
+                ;;
+            b|board)
+                kt
+                ;;
+            s|status)
+                check_status
+                ;;
+            c|clear)
+                clear
+                logo
+                menu
+                ;;
+            h|help)
+                menu
+                ;;
+            q|quit|exit)
+                echo "Closing terminal pane..."
+                exit 0
+                ;;
+            "")
+                continue
+                ;;
+            *)
+                # Try as shell command
+                eval "$cmd $args" 2>/dev/null || echo "Command not found: $cmd"
+                ;;
+        esac
+    done
+}
+
+main

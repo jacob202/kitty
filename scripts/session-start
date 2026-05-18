@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Universal session starter for all agents
+# Usage: session-start [--full] [--handoff]
+# 
+# This script injects the correct context based on the agent type.
+# Called by agent-specific hooks (Claude, Cursor, OpenCode, Codex, Gemini).
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/.."
+STANDUP_FILE="$ROOT_DIR/docs/STANDUP.md"
+HANDOFF_FILE="$ROOT_DIR/SESSION_HANDOFF.md"
+CURRENT_FOCUS="$ROOT_DIR/CURRENT_FOCUS.md"
+
+MARK_START="<!-- HOOK_START -->"
+MARK_END="<!-- HOOK_END -->"
+
+# Extract compact block from STANDUP.md
+extract_compact() {
+    if [[ ! -f "$STANDUP_FILE" ]]; then
+        return
+    fi
+    
+    local content
+    content=$(cat "$STANDUP_FILE")
+    
+    if [[ "$content" == *"$MARK_START"* ]] && [[ "$content" == *"$MARK_END"* ]]; then
+        echo "$content" | sed -n "/$MARK_START/,/$MARK_END/p" | sed "1d;\$d"
+    fi
+}
+
+# Full standup (for manual invocation)
+full_standup() {
+    if [[ -f "$STANDUP_FILE" ]]; then
+        cat "$STANDUP_FILE"
+    else
+        echo "STANDUP.md not found at $STANDUP_FILE"
+        exit 1
+    fi
+}
+
+# Handoff summary
+handoff() {
+    if [[ -f "$HANDOFF_FILE" ]]; then
+        cat "$HANDOFF_FILE"
+    else
+        echo "No SESSION_HANDOFF.md found"
+    fi
+}
+
+# Main logic
+case "${1:-}" in
+    --full)
+        full_standup
+        ;;
+    --handoff)
+        handoff
+        ;;
+    --compact)
+        extract_compact
+        ;;
+    *)
+        # Default: output compact block for session start
+        extract_compact
+        ;;
+esac

@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# Agent Selector - Switch between AI agents
+# Usage: agent-selector [agent_name]
+# 
+# Agents: claude, gemini, codex, opencode, qwen
+
+set -euo pipefail
+
+ACTIVE_FILE="$HOME/.kitty_active_agent"
+AVAILABLE_AGENTS=("claude" "gemini" "codex" "opencode" "qwen")
+
+# Get current agent
+get_current() {
+    if [[ -f "$ACTIVE_FILE" ]]; then
+        cat "$ACTIVE_FILE"
+    else
+        echo "claude"
+    fi
+}
+
+# Set agent
+set_agent() {
+    local agent="$1"
+    
+    # Validate
+    if [[ ! " ${AVAILABLE_AGENTS[@]} " =~ " ${agent} " ]]; then
+        echo "Unknown agent: $agent"
+        echo "Available: ${AVAILABLE_AGENTS[*]}"
+        exit 1
+    fi
+    
+    echo "$agent" > "$ACTIVE_FILE"
+    echo "✓ Active agent: $agent"
+    
+    # Show agent info
+    echo ""
+    echo "Agent Profile:"
+    case $agent in
+        claude)
+            echo "  Type: Code specialist"
+            echo "  Model: Claude Sonnet 4"
+            echo "  Mode: Plan by default"
+            echo "  Context: AGENTS.md, STANDUP.md"
+            ;;
+        gemini)
+            echo "  Type: Research specialist"
+            echo "  Model: Gemini 2.5 Pro"
+            echo "  Mode: Plan by default"
+            echo "  Context: AGENTS.md"
+            ;;
+        codex)
+            echo "  Type: Code generalist"
+            echo "  Model: Codex (OpenAI)"
+            echo "  Mode: Plan by default"
+            echo "  Context: AGENTS.md"
+            ;;
+        opencode)
+            echo "  Type: Code generalist"
+            echo "  Model: Configurable (NVIDIA NIM)"
+            echo "  Mode: Plan by default"
+            echo "  Context: AGENTS.md"
+            ;;
+        qwen)
+            echo "  Type: Reasoning specialist"
+            echo "  Model: Qwen3.5-480B"
+            echo "  Mode: Plan by default"
+            echo "  Context: AGENTS.md"
+            ;;
+    esac
+}
+
+# Show status
+show_status() {
+    local current
+    current=$(get_current)
+    
+    echo "=== Agent Selector ==="
+    echo "Current: $current"
+    echo ""
+    echo "Available agents:"
+    for agent in "${AVAILABLE_AGENTS[@]}"; do
+        if [[ "$agent" == "$current" ]]; then
+            echo "  ✓ $agent"
+        else
+            echo "    $agent"
+        fi
+    done
+    echo ""
+    echo "Usage: agent-selector <agent>"
+}
+
+# Main
+case "${1:-status}" in
+    status|"")
+        show_status
+        ;;
+    *)
+        set_agent "$1"
+        ;;
+esac
