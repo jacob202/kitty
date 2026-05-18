@@ -17,4 +17,4 @@ if [[ ! -x "${PYTHON_BIN}" ]]; then
   PYTHON_BIN="$(command -v python3)"
 fi
 
-exec "${PYTHON_BIN}" "${ROOT_DIR}/kitty_gateway/doctor.py" "$@"
+exec "${PYTHON_BIN}" "${ROOT_DIR}/gateway/doctor.py" "$@"

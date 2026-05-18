@@ -39,6 +39,7 @@ def test_summarize_usage_groups_paid_and_recent_activity():
     assert report["paid"]["tokens"] == 9100
     assert report["estimated_cost"]["usd"] >= 0
     assert report["estimated_cost"]["cad"] >= report["estimated_cost"]["usd"]
+    assert report["providers"][0]["provider"] == "openrouter"
     assert report["operations"][0]["operation"] == "agent.99"
     assert report["operations"][0]["tokens"] == 7000
     assert report["recent_dates"][0]["date"] == "2026-05-13"
@@ -71,8 +72,49 @@ def test_format_report_mentions_librarian_and_agent_spend():
     text = format_report(summarize_usage(entries))
 
     assert "Paid traffic" in text
+    assert "Providers" in text
     assert "Estimated spend" in text
     assert "CAD" in text
     assert "knowledge.librarian" in text
     assert "agent.99" in text
     assert "openrouter_direct" in text
+
+
+def test_agentrouter_deepseek_pro_cost_and_credit_balance():
+    from gateway.token_spend_report import summarize_usage
+
+    report = summarize_usage(
+        [
+            {
+                "date": "2026-05-18",
+                "provider": "agentrouter",
+                "model": "deepseek-v4-pro",
+                "operation": "llm.call",
+                "usage": {
+                    "prompt_tokens": 1000,
+                    "completion_tokens": 1000,
+                    "cached_tokens": 500,
+                    "total_tokens": 2000,
+                },
+                "metadata": {"route": "agentrouter_direct"},
+            }
+        ],
+        credit_balance=150.0,
+    )
+
+    assert report["estimated_cost"]["usd"] > 0
+    assert report["estimated_credits"]["balance"] == 150.0
+    assert report["estimated_credits"]["remaining"] < 150.0
+
+
+def test_filter_entries_by_provider_and_since():
+    from gateway.token_spend_report import filter_entries
+
+    entries = [
+        {"date": "2026-05-17", "provider": "openrouter"},
+        {"date": "2026-05-18", "provider": "agentrouter"},
+    ]
+
+    filtered = filter_entries(entries, since="2026-05-18", provider="agentrouter")
+
+    assert filtered == [{"date": "2026-05-18", "provider": "agentrouter"}]

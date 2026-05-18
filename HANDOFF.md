@@ -1,4 +1,43 @@
 # Kitty Project — Handoff
+**Date:** 2026-05-18
+**Session:** Codex + Cursor follow-up (commit pending)
+**Project:** ~/Projects/kitty (personal AI stack)
+**Focus:** Gateway reliability, single model route, AgentRouter, KittyChat live data
+
+---
+
+## Current state
+
+- **`/brief` is non-blocking:** timeouts + cache + fast fallback so the Next UI stays within a short client budget.
+- **Routing is flattened:** public surface is `kitty-default` (no `kitty-smart` / `kitty-agent` tiering); AgentRouter model uses `AGENTROUTER_MODEL` / defaults, not `KITTY_MODEL`.
+- **Spend estimate:** `scripts/spend_report.py` + `gateway/token_spend_report.py` read `data/kitty_token_log.jsonl`; optional `--credits` for rough “remaining” math (estimate only, not a live provider balance API).
+- **AgentRouter:** requires a current token from the console; wrong/stale token → `unauthorized_client` / `invalid token`; pick a model ID your account lists (e.g. `deepseek-v4-pro`).
+- **OpenCode (this machine):** `~/.config/opencode/opencode.json` should use `{env:NVIDIA_API_KEY}` for NVIDIA NIM, not an inline secret.
+
+See **`SESSION_HANDOFF.md`** for a compact resume block and commands.
+
+## What changed recently (high level)
+
+1. Gateway: `brief.py`, `app.py` morning brief route, `llm_client.py` routing, `litellm_config.yaml`, launcher scripts, token spend report.
+2. Frontend: `kitty-chat` page/components — live models, brief, layout polish (verify with `npm test` + browser).
+3. Tests: routing, brief, token spend, vision, knowledge, agentrouter config.
+4. Docs/examples: `.env.example`, `hermes.env.example`, `OPENWEBUI_ADMIN_SETTINGS.md`.
+5. Skills: `.agents/skills/image-gen` frontmatter; new `.agents/skills/provider-credit-debugging`.
+
+## Still open
+
+1. Run full **`npm test`** in `gateway/kitty-chat` and fix any regressions.
+2. Confirm live **search/right panel** wiring if anything still mock-only.
+3. **Commit** the pending tree (exclude `.env`, exclude `.superpowers/brainstorm/`).
+4. If API keys were pasted into chats, **rotate** them in provider consoles.
+
+## Good resume point
+
+1. `/opt/homebrew/bin/python3.12 -m pytest tests/ -q --tb=short`
+2. `cd gateway/kitty-chat && npm test`
+3. Commit in one or a few logical chunks; push when ready.
+
+---
 **Date:** 2026-05-15
 **Session ended due to:** Claude usage limits / token budget
 **Project:** ~/Projects/kitty (personal AI stack)

@@ -3,11 +3,14 @@ set -euo pipefail
 
 OPENWEBUI_VENV="${OPENWEBUI_VENV:-${HOME}/kitty-services/venv}"
 source "${OPENWEBUI_VENV}/bin/activate"
-source "kitty_gateway/lib/load_env_safe.sh"
+source "gateway/lib/load_env_safe.sh"
 
 if [[ -f ".env" ]]; then
   load_env_assignments ".env"
 fi
+
+# AgentRouter credits live on the hosted API. Point to local 9router only by explicit override.
+export AGENTROUTER_API_BASE="${AGENTROUTER_API_BASE:-https://agentrouter.org/v1}"
 
 # Export every assignment from openwebui.env — Open WebUI only sees **exported**
 # vars. Without `set -a`, DISABLE_OLLAMA / DEFAULT_MODELS / multi-endpoint keys stay
@@ -38,8 +41,8 @@ if [[ -z "${WEBUI_SECRET_KEY:-}" ]]; then
 fi
 
 export DATA_DIR="${OPENWEBUI_DATA_DIR}"
-export OPENAI_API_BASE_URL="${OPENAI_API_BASE_URL:-http://127.0.0.1:8001/v1}"
-export OPENAI_API_KEY="${OPENAI_API_KEY:-kitty-local-key-change-me}"
+export OPENAI_API_BASE_URL="${OPENAI_API_BASE_URL:-${LITELLM_BASE:-http://127.0.0.1:8001}/v1}"
+export OPENAI_API_KEY="${OPENAI_API_KEY:-${LITELLM_KEY:-kitty-local-key-change-me}}"
 export WEBUI_SECRET_KEY
 export DEFAULT_MODELS="${DEFAULT_MODELS:-kitty-default}"
 export WEBUI_NAME="${WEBUI_NAME:-Kitty WebUI}"

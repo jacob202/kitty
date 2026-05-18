@@ -3,11 +3,14 @@ set -euo pipefail
 
 ROOT_DIR="/Users/jacobbrizinski/Projects/kitty"
 cd "${ROOT_DIR}"
-source "${ROOT_DIR}/kitty_gateway/lib/load_env_safe.sh"
+source "${ROOT_DIR}/gateway/lib/load_env_safe.sh"
 
 if [[ -f "${ROOT_DIR}/.env" ]]; then
   load_env_assignments "${ROOT_DIR}/.env"
 fi
+
+# AgentRouter credits live on the hosted API. Point to local 9router only by explicit override.
+export AGENTROUTER_API_BASE="${AGENTROUTER_API_BASE:-https://agentrouter.org/v1}"
 
 source "${ROOT_DIR}/venv/bin/activate"
 

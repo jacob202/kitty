@@ -26,7 +26,7 @@ Rules: Use contractions. No fluff. Focus on 'Resume, don't restart'. Speak Canad
     prompt = build_worker_context("reset", task_desc=task_desc)
 
     try:
-        model = "kitty-fallback-or"
+        model = "kitty-default"
         return call_llm(
             model=model,
             messages=[{"role": "user", "content": prompt}],

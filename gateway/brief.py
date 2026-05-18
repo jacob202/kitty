@@ -2,13 +2,19 @@ from gateway.paths import PROJECT_ROOT
 
 import feedparser
 import logging
+import threading
+import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 from contracts.brief_item import NewsHeadline
 from gateway.model_digest import get_model_digest_section
 
 logger = logging.getLogger("kitty.brief")
+FEED_TIMEOUT_SECONDS = 1.25
+BRIEF_CACHE_TTL_SECONDS = 900
+_brief_cache_lock = threading.Lock()
+_brief_cache: Optional[dict] = None
 
 DEFAULT_FEEDS = {
     "regina": "https://www.cbc.ca/cmlink/rss-canada-saskatchewan",
@@ -25,7 +31,13 @@ def _fetch_single_feed(category: str, url: str, limit: int) -> List[NewsHeadline
     headlines = []
     logger.info("Fetching %s news from %s...", category, url)
     try:
-        feed = feedparser.parse(url)
+        response = requests.get(
+            url,
+            timeout=FEED_TIMEOUT_SECONDS,
+            headers={"User-Agent": "KittyBrief/1.0"},
+        )
+        response.raise_for_status()
+        feed = feedparser.parse(response.content)
         for entry in feed.entries[:limit]:
             headlines.append(NewsHeadline(
                 title=entry.title,
@@ -119,10 +131,65 @@ def generate_brief_text(headlines: List[NewsHeadline], task_summary: str) -> str
     return f"Good morning, Jacob. Here's what's happening today:\n\n{news_summary}\n\nYour next action: {task_summary}"
 
 
-def generate_brief() -> dict:
-    """Generate a morning brief. Returns a dict matching BriefItem schema."""
+def _build_brief_result(
+    *,
+    today: str,
+    headlines: List[NewsHeadline],
+    memory: str,
+    intention: str,
+) -> dict:
     from contracts.brief_item import BriefItem
 
+    item = BriefItem(
+        date=today,
+        headlines=headlines,
+        memory_snippet=memory[:500] if memory else "",
+        intention=intention,
+    )
+    result = item.model_dump(mode="json")
+    model_news = get_model_digest_section(limit=3)
+    if model_news:
+        result["model_news"] = model_news
+    return result
+
+
+def _store_cached_brief(result: dict) -> dict:
+    global _brief_cache
+    cached = dict(result)
+    cached["_cached_at"] = datetime.now(timezone.utc).timestamp()
+    with _brief_cache_lock:
+        _brief_cache = cached
+    return result
+
+
+def get_cached_brief(max_age_seconds: Optional[int] = BRIEF_CACHE_TTL_SECONDS) -> Optional[dict]:
+    with _brief_cache_lock:
+        cached = dict(_brief_cache) if _brief_cache else None
+    if not cached:
+        return None
+    cached_at = cached.pop("_cached_at", None)
+    if max_age_seconds is not None and cached_at is not None:
+        age_seconds = datetime.now(timezone.utc).timestamp() - cached_at
+        if age_seconds > max_age_seconds:
+            return None
+    return cached
+
+
+def generate_fast_brief() -> dict:
+    today = datetime.now(timezone.utc).date().isoformat()
+    task_summary = get_tasks_summary()
+    memory = _fetch_memory_snippet()
+    intention = generate_brief_text([], task_summary)
+    return _build_brief_result(
+        today=today,
+        headlines=[],
+        memory=memory,
+        intention=intention,
+    )
+
+
+def generate_brief() -> dict:
+    """Generate a morning brief. Returns a dict matching BriefItem schema."""
     today = datetime.now(timezone.utc).date().isoformat()
     headlines = fetch_news()
     task_summary = get_tasks_summary()
@@ -130,16 +197,12 @@ def generate_brief() -> dict:
 
     brief_text = synthesize_brief_with_llm(headlines, task_summary, memory)
 
-    item = BriefItem(
-        date=today,
+    result = _build_brief_result(
+        today=today,
         headlines=headlines,
-        memory_snippet=memory[:500] if memory else "",
+        memory=memory,
         intention=brief_text,
     )
-    result = item.model_dump(mode="json")
-    model_news = get_model_digest_section(limit=3)
-    if model_news:
-        result["model_news"] = model_news
 
     # Push to phone if notify is configured
     try:
@@ -149,4 +212,4 @@ def generate_brief() -> dict:
     except Exception:
         pass
 
-    return result
+    return _store_cached_brief(result)

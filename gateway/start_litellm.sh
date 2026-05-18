@@ -3,11 +3,14 @@ set -euo pipefail
 
 ROOT_DIR="/Users/jacobbrizinski/Projects/kitty"
 cd "${ROOT_DIR}"
-source "${ROOT_DIR}/kitty_gateway/lib/load_env_safe.sh"
+source "${ROOT_DIR}/gateway/lib/load_env_safe.sh"
 
 if [[ -f "${ROOT_DIR}/.env" ]]; then
   load_env_assignments "${ROOT_DIR}/.env"
 fi
+
+# AgentRouter credits live on the hosted API. Point to local 9router only by explicit override.
+export AGENTROUTER_API_BASE="${AGENTROUTER_API_BASE:-https://agentrouter.org/v1}"
 
 if [[ -f "${ROOT_DIR}/kitty_gateway/openwebui.env" ]]; then
   load_env_assignments "${ROOT_DIR}/kitty_gateway/openwebui.env"
@@ -18,8 +21,8 @@ source "${LITELLM_VENV}/bin/activate"
 
 LITELLM_HOST="${LITELLM_HOST:-127.0.0.1}"
 LITELLM_PORT="${LITELLM_PORT:-8001}"
-LITELLM_CONFIG="${LITELLM_CONFIG:-kitty_gateway/litellm_config.yaml}"
-LITELLM_REQUIREMENTS_FILE="${LITELLM_REQUIREMENTS_FILE:-kitty_gateway/requirements.litellm.txt}"
+LITELLM_CONFIG="${LITELLM_CONFIG:-gateway/litellm_config.yaml}"
+LITELLM_REQUIREMENTS_FILE="${LITELLM_REQUIREMENTS_FILE:-gateway/requirements.litellm.txt}"
 LITELLM_AUTO_REPAIR="${LITELLM_AUTO_REPAIR:-0}"
 export LITELLM_MASTER_KEY="${LITELLM_MASTER_KEY:-kitty-local-key-change-me}"
 export LITELLM_MAX_BUDGET_USD="${LITELLM_MAX_BUDGET_USD:-2.00}"
@@ -45,7 +48,7 @@ then
     echo "  source ${LITELLM_VENV}/bin/activate"
     echo "  pip install --upgrade -r ${LITELLM_REQUIREMENTS_FILE}"
     echo "Or run auto-repair:"
-    echo "  LITELLM_AUTO_REPAIR=1 bash kitty_gateway/start_litellm.sh"
+    echo "  LITELLM_AUTO_REPAIR=1 bash gateway/start_litellm.sh"
     exit 1
   fi
 fi

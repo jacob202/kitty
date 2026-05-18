@@ -7,7 +7,7 @@ LOG_DIR="${ROOT_DIR}/logs/kitty_gateway"
 ENV_FILE="${ROOT_DIR}/kitty_gateway/openwebui.env"
 OPENAPI_ROOT="${ROOT_DIR}/kitty_gateway/openapi-servers/servers"
 OPENWEBUI_VENV_DEFAULT="${HOME}/kitty-services/venv"
-source "${ROOT_DIR}/kitty_gateway/lib/load_env_safe.sh"
+source "${ROOT_DIR}/gateway/lib/load_env_safe.sh"
 
 mkdir -p "${RUN_DIR}" "${LOG_DIR}"
 

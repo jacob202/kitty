@@ -91,28 +91,16 @@ fi
 
 echo
 echo "== Alias Diagnosis =="
-for alias in kitty-default kitty-agent kitty-smart kitty-private; do
-  case "${alias}" in
-    kitty-private)
-      if [[ "${mlx_up}" == "1" ]]; then
-        ok "${alias}: should work (MLX endpoint reachable)"
-      else
-        fail "${alias}: unavailable because MLX endpoint is down"
-      fi
-      ;;
-    *)
-      if [[ "${litellm_up}" != "1" ]]; then
-        fail "${alias}: unavailable because LiteLLM is down"
-      elif [[ -z "${OPENROUTER_API_KEY:-}" ]]; then
-        fail "${alias}: unavailable because OPENROUTER_API_KEY is missing"
-      elif echo "${model_names}" | grep -qx "${alias}"; then
-        ok "${alias}: available in /v1/models"
-      else
-        warn "${alias}: LiteLLM is up but alias not listed in /v1/models"
-      fi
-      ;;
-  esac
-done
+alias="kitty-default"
+if [[ "${litellm_up}" != "1" ]]; then
+  fail "${alias}: unavailable because LiteLLM is down"
+elif [[ -z "${OPENROUTER_API_KEY:-}" ]]; then
+  fail "${alias}: unavailable because OPENROUTER_API_KEY is missing"
+elif echo "${model_names}" | grep -qx "${alias}"; then
+  ok "${alias}: available in /v1/models"
+else
+  warn "${alias}: LiteLLM is up but alias not listed in /v1/models"
+fi
 
 echo
 echo "== Feature Config Checks (Admin) =="

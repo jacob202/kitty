@@ -18,8 +18,8 @@ This maps your `kitty_gateway/openwebui.env` values to Admin panel sections so y
 - `DEFAULT_MODEL_PARAMS`
 
 ## 3) Models / Providers
-- `OPENAI_API_BASE_URL=http://127.0.0.1:8001/v1`
-- `OPENAI_API_KEY` (LiteLLM master key)
+- `OPENAI_API_BASE_URL=http://127.0.0.1:20128/v1`
+- `OPENAI_API_KEY` (9Router key or local placeholder when the router does not enforce auth)
 - `ENABLE_BASE_MODELS_CACHE=true`
 - `MODELS_CACHE_TTL=3`
 
@@ -36,8 +36,8 @@ This maps your `kitty_gateway/openwebui.env` values to Admin panel sections so y
 - `ENABLE_IMAGE_PROMPT_GENERATION=true`
 - `IMAGE_GENERATION_ENGINE=openai`
 - `IMAGE_GENERATION_MODEL=openrouter/google/gemini-2.5-flash-image`
-- `IMAGES_OPENAI_API_BASE_URL=http://127.0.0.1:8001/v1`
-- `IMAGES_OPENAI_API_KEY` (LiteLLM master key)
+- `IMAGES_OPENAI_API_BASE_URL=http://127.0.0.1:20128/v1`
+- `IMAGES_OPENAI_API_KEY` (9Router key or local placeholder when the router does not enforce auth)
 
 ## 6) Code Execution / Interpreter
 - `ENABLE_CODE_EXECUTION=true`

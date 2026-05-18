@@ -1,3 +1,8 @@
+---
+name: image-gen
+description: Generate images via the local ComfyUI-backed image endpoint. Use when the user asks Kitty to generate, draw, create, or make an image or picture.
+---
+
 # Skill: image-gen
 
 Generate images via ComfyUI running locally at port 8188.

@@ -202,7 +202,7 @@ def test_librarian_defaults_to_free_ingest_lane(monkeypatch):
             doc_type="service_manual",
         )
 
-    assert mock_call.call_args.kwargs["model"] == "kitty-fallback-or"
+    assert mock_call.call_args.kwargs["model"] == "kitty-default"
 
 
 @pytest.mark.integration

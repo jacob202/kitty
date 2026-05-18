@@ -23,8 +23,8 @@
   },
   "required_files": [
     "kitty_gateway/openwebui.env",
-    "kitty_gateway/start_all.sh",
-    "kitty_gateway/sync_openwebui_integrations.sh",
-    "kitty_gateway/import_openwebui_functions.sh"
+    "gateway/start_all.sh",
+    "gateway/sync_openwebui_integrations.sh",
+    "gateway/import_openwebui_functions.sh"
   ]
 }

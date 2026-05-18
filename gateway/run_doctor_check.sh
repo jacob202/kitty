@@ -11,7 +11,7 @@ FLAG_FILE="${RUN_DIR}/doctor_degraded"
 mkdir -p "${LOG_DIR}" "${RUN_DIR}"
 cd "${ROOT_DIR}"
 
-json_out="$(bash kitty_gateway/doctor.sh --json 2>/dev/null || true)"
+json_out="$(bash gateway/doctor.sh --json 2>/dev/null || true)"
 if [[ -z "${json_out}" ]]; then
   ts="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   echo "{\"ts\":\"${ts}\",\"status\":\"error\",\"reason\":\"doctor produced no json\"}" >> "${CHECKS_LOG}"

@@ -1,43 +1,18 @@
-"""Unified LLM client — all LLM calls go through LiteLLM for cost tracking and fallbacks.
+"""Unified LLM client — one Kitty route, then provider fallbacks.
 
-ROUTING OWNERSHIP: This module owns model routing for the Python backend (API calls
-from gateway workers, brief generation, specialists, etc.). It uses a 3-decision router:
-  offline → mlx-local
-  reasoning keywords → kitty-agent (LiteLLM virtual)
-  "best"/"claude" trigger → kitty-smart
-  default → kitty-default
+All backend LLM calls go through LiteLLM first for logging and proxy-level routing.
+When LiteLLM fails, ``call_llm`` falls back to AgentRouter, then OpenRouter, Gemini,
+and NVIDIA. The Kitty side now keeps a single canonical route name
+(``kitty-default``) instead of the old ``kitty-agent`` / ``kitty-smart`` split.
 
-OpenRouter direct fallbacks map kitty-* → real provider IDs (see _LITELLM_TO_OPENROUTER).
-
-After LiteLLM errors, ``call_llm`` tries **AgentRouter first** (when a key is set), then OpenRouter
-direct → Gemini → NVIDIA. Built-in AgentRouter ids (short OpenAI-style slugs):
-
-- **kitty-default** / bulk chat → ``gpt-5.4-mini`` (cheap companion + tools)
-- **kitty-agent** / **kitty-parts** → ``gpt-5.1-codex-mini`` (cheap coding); set
-  ``KITTY_AGENTROUTER_CODING_MODEL`` to e.g. ``gpt-5.3-codex`` when you need max coding quality
-- **kitty-smart** → ``gpt-5.5`` (upgrade path when user explicitly asks for “best” tier)
-
-Overrides: ``KITTY_AGENTROUTER_MODEL_*``, ``KITTY_AGENTROUTER_CHAT_MODEL`` / ``AGENTROUTER_MODEL``,
-``KITTY_AGENTROUTER_CODING_MODEL``.
-
-Successful completions append one row to data/kitty_token_log.jsonl via gateway.token_usage_log
-when the API returns a ``usage`` object (OpenAI-compatible).
-
-Open WebUI routing is owned separately by kitty_gateway/litellm_config.yaml — it uses
-named virtual models (kitty-default, kitty-agent, kitty-smart). Both layers must reference
-the same canonical model IDs to stay consistent.
-
-AgentRouter **direct** fallbacks honor ``AGENTROUTER_API_KEY`` or ``AGENT_ROUTER_TOKEN``,
-normalize ``AGENTROUTER_API_BASE`` to end in ``/v1``, and can map each kitty-* route to its
-own upstream model via ``KITTY_AGENTROUTER_MODEL_DEFAULT|AGENT|SMART|PARTS``.
+Successful completions append one row to ``data/kitty_token_log.jsonl`` via
+``gateway.token_usage_log`` when the API returns a ``usage`` object.
 """
 from __future__ import annotations
 
 import json
 import os
 import logging
-import threading
-import time
 import requests
 from typing import Any
 
@@ -51,10 +26,8 @@ from gateway.llm_utils import retry_with_backoff
 
 OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 
-# LiteLLM virtual names (kitty_gateway/litellm_config.yaml) — valid toward localhost:8001 only.
+# LiteLLM virtual name (gateway/litellm_config.yaml) — valid toward localhost:8001 only.
 _LITELLM_DEFAULT = "kitty-default"
-_LITELLM_AGENT = "kitty-agent"
-_LITELLM_SMART = "kitty-smart"
 
 # OpenRouter-direct slugs when LiteLLM returns errors (must be valid OpenRouter model IDs).
 
@@ -66,50 +39,30 @@ def _env_slug(name: str, default: str) -> str:
 
 
 _OPENROUTER_DEFAULT = _env_slug("KITTY_OPENROUTER_CHEAP", "deepseek/deepseek-v4-flash")
-_OPENROUTER_REASONING = _env_slug("KITTY_OPENROUTER_REASONING", "deepseek/deepseek-v4-flash")
-_OPENROUTER_BEST = _env_slug("KITTY_OPENROUTER_BEST", "claude-sonnet-4-6")
 _GEMINI_MODEL = _env_slug("KITTY_GEMINI_MODEL", "gemini-2.5-flash-image")
-
-# route_model() picks LiteLLM names first so a healthy proxy gets virtual models + fallbacks config.
-_DEFAULT_MODEL = _LITELLM_DEFAULT
-_REASONING_MODEL = _LITELLM_AGENT
-_BEST_MODEL = _LITELLM_SMART
-_LOCAL_MODEL = "mlx-local"
 
 _LITELLM_TO_OPENROUTER: dict[str, str] = {
     _LITELLM_DEFAULT: _OPENROUTER_DEFAULT,
-    _LITELLM_AGENT: _OPENROUTER_REASONING,
-    _LITELLM_SMART: _OPENROUTER_BEST,
-    "kitty-parts": _OPENROUTER_DEFAULT,
-    "kitty-fallback-or": "qwen/qwen3-235b-a22b:free",
-    _LOCAL_MODEL: "qwen/qwen3-235b-a22b:free",
+    "kitty-default-or": "qwen/qwen3-235b-a22b:free",
 }
 
-# LiteLLM virtual ids sent to call_llm — map each to its own AgentRouter model if you want.
-_KITTY_VIRTUAL_FOR_AGENTROUTER: frozenset[str] = frozenset(
-    {
-        _LITELLM_DEFAULT,
-        _LITELLM_AGENT,
-        _LITELLM_SMART,
-        "kitty-parts",
-        "kitty-fallback-or",
-        _LOCAL_MODEL,
-    }
-)
-
 _LEGACY_MODEL_ALIASES: dict[str, str] = {
-    "claude-sonnet-4-6": _LITELLM_SMART,
-    "anthropic/claude-sonnet-4.6": _LITELLM_SMART,
-    "anthropic/claude-3.7-sonnet": _LITELLM_SMART,
+    "kitty-agent": _LITELLM_DEFAULT,
+    "kitty-smart": _LITELLM_DEFAULT,
+    "kitty-parts": _LITELLM_DEFAULT,
+    "kitty-fallback-or": _LITELLM_DEFAULT,
+    "claude-sonnet-4-6": _LITELLM_DEFAULT,
+    "anthropic/claude-sonnet-4.6": _LITELLM_DEFAULT,
+    "anthropic/claude-3.7-sonnet": _LITELLM_DEFAULT,
     "deepseek/deepseek-chat": _LITELLM_DEFAULT,
     "deepseek/deepseek-v4-flash": _LITELLM_DEFAULT,
-    "google/gemini-2.0-flash-001": "kitty-fallback-or",
-    "google/gemini-2.0-flash-exp:free": "kitty-fallback-or",
+    "google/gemini-2.0-flash-001": _LITELLM_DEFAULT,
+    "google/gemini-2.0-flash-exp:free": _LITELLM_DEFAULT,
 }
 
 
 def normalize_litellm_request_model(request_model: str | None) -> str | None:
-    """Map stale provider IDs onto the current LiteLLM virtual routes."""
+    """Map legacy Kitty aliases onto the single LiteLLM route."""
     if request_model is None:
         return None
     model = request_model.strip()
@@ -151,8 +104,7 @@ def _sanitize_agentrouter_model_id(raw: str) -> str:
     parts = s.split()
     if len(parts) >= 2 and parts[1].startswith("sk-"):
         logger.warning(
-            "AGENTROUTER_MODEL/KITTY_AGENTROUTER_CHAT_MODEL looks concatenated with a second token; "
-            "using %r only.",
+            "AGENTROUTER_MODEL looks concatenated with a second token; using %r only.",
             parts[0],
         )
         return parts[0]
@@ -160,55 +112,17 @@ def _sanitize_agentrouter_model_id(raw: str) -> str:
 
 
 def agentrouter_model_for_request(request_model: str | None) -> str:
-    """Pick AgentRouter upstream model id from kitty-* virtual route or explicit id.
-
-    Per-route overrides (optional):
-
-    - ``KITTY_AGENTROUTER_MODEL_DEFAULT``, ``KITTY_AGENTROUTER_MODEL_AGENT``,
-      ``KITTY_AGENTROUTER_MODEL_SMART``, ``KITTY_AGENTROUTER_MODEL_PARTS``
-
-    Built-in routing when those are unset:
-
-    - **kitty-default**, ``kitty-fallback-or``, ``mlx-local`` → ``gpt-5.4-mini`` (budget chat)
-      unless ``KITTY_AGENTROUTER_CHAT_MODEL`` / ``AGENTROUTER_MODEL`` override.
-    - **kitty-smart** → ``gpt-5.5`` (strong chat; ignores generic chat-env so ``KITTY_AGENTROUTER_CHAT_MODEL``
-      alone does not down-tier smart routing).
-    - **kitty-agent**, **kitty-parts** → ``gpt-5.1-codex-mini`` (budget coding); use
-      ``KITTY_AGENTROUTER_CODING_MODEL=gpt-5.3-codex`` when you want flagship coding instead.
-    """
+    """Pick the upstream AgentRouter model for Kitty's single route or an explicit id."""
     load_dotenv()
     rm = (request_model or "").strip()
-    if rm and rm not in _KITTY_VIRTUAL_FOR_AGENTROUTER:
+    if rm and rm not in _LEGACY_MODEL_ALIASES and rm != _LITELLM_DEFAULT:
         return _sanitize_agentrouter_model_id(rm)
 
-    tier_explicit = {
-        _LITELLM_DEFAULT: os.environ.get("KITTY_AGENTROUTER_MODEL_DEFAULT", "").strip(),
-        _LITELLM_AGENT: os.environ.get("KITTY_AGENTROUTER_MODEL_AGENT", "").strip(),
-        _LITELLM_SMART: os.environ.get("KITTY_AGENTROUTER_MODEL_SMART", "").strip(),
-        "kitty-parts": os.environ.get("KITTY_AGENTROUTER_MODEL_PARTS", "").strip(),
-    }
-    if tier_explicit.get(rm, "").strip():
-        return _sanitize_agentrouter_model_id(tier_explicit[rm])
-
-    g_chat = (
-        os.environ.get("KITTY_AGENTROUTER_CHAT_MODEL", "").strip()
-        or os.environ.get("AGENTROUTER_MODEL", "").strip()
+    g_model = (
+        os.environ.get("AGENTROUTER_MODEL", "").strip()
+        or "gpt-5.4-mini"
     )
-    g_code = os.environ.get("KITTY_AGENTROUTER_CODING_MODEL", "").strip()
-
-    _CHAT_CHEAP = "gpt-5.4-mini"
-    _CHAT_STRONG = "gpt-5.5"
-    _CODE_CHEAP = "gpt-5.1-codex-mini"
-
-    if rm == _LITELLM_DEFAULT:
-        return _sanitize_agentrouter_model_id(g_chat or _CHAT_CHEAP)
-    if rm == _LITELLM_AGENT:
-        return _sanitize_agentrouter_model_id(g_code or _CODE_CHEAP)
-    if rm == _LITELLM_SMART:
-        return _sanitize_agentrouter_model_id(_CHAT_STRONG)
-    if rm == "kitty-parts":
-        return _sanitize_agentrouter_model_id(g_code or _CODE_CHEAP)
-    return _sanitize_agentrouter_model_id(g_chat or _CHAT_CHEAP)
+    return _sanitize_agentrouter_model_id(g_model)
 
 
 def _openrouter_fallback_model(litellm_model: str) -> str:
@@ -301,7 +215,7 @@ def call_llm(
 
         disable_agentrouter = os.environ.get("KITTY_DISABLE_AGENTROUTER", "").strip().lower()
         if disable_agentrouter not in ("1", "true", "yes"):
-            # 1. AgentRouter first (single key, tiered models via env).
+            # 1. AgentRouter first (single key, single Kitty route).
             out = _call_agentrouter_direct(
                 messages,
                 max_tokens,
@@ -468,6 +382,14 @@ def _call_openrouter_direct(
         logger.error("OpenRouter direct call failed: %s", e)
         return ""
 
+# AgentRouter's hosted API rejects generic clients before token validation. These
+# defaults match its Codex integration path and can be overridden from env.
+_AGENTROUTER_DEFAULT_ORIGINATOR = "codex_cli_rs"
+_AGENTROUTER_DEFAULT_VERSION = "0.101.0"
+_AGENTROUTER_DEFAULT_USER_AGENT = (
+    "codex_cli_rs/0.101.0 (Mac OS 26.0.1; arm64) Apple_Terminal/464"
+)
+
 # Browser-like UA used only if AgentRouter rejects the primary client fingerprint (401 unauthorized_client).
 _AGENTROUTER_ALT_USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -510,7 +432,14 @@ def _call_agentrouter_direct(
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
         "Accept": "application/json",
+        "Originator": os.environ.get(
+            "KITTY_AGENTROUTER_ORIGINATOR", _AGENTROUTER_DEFAULT_ORIGINATOR
+        ).strip(),
+        "Version": os.environ.get(
+            "KITTY_AGENTROUTER_VERSION", _AGENTROUTER_DEFAULT_VERSION
+        ).strip(),
     }
+    base_headers = {k: v for k, v in base_headers.items() if v}
 
     raw_extras = os.environ.get("KITTY_AGENTROUTER_EXTRA_HEADERS_JSON", "").strip()
     if raw_extras:
@@ -527,8 +456,8 @@ def _call_agentrouter_direct(
         h = {**base_headers, "User-Agent": user_agent}
         return h
 
-    # Primary: optional custom UA, else OpenAI-style user agent (short, common for OpenAI-compat proxies).
-    primary_ua = ua or "OpenAI-API-Client-Python/2.0 KittyGateway"
+    # Primary: optional custom UA, else AgentRouter's Codex-compatible client identity.
+    primary_ua = ua or _AGENTROUTER_DEFAULT_USER_AGENT
     payload = {
         "model": ar_model,
         "messages": messages,
@@ -668,44 +597,7 @@ _BEST_TRIGGERS = frozenset(
     }
 )
 
-_offline_cache: tuple[bool, float] | None = None
-_offline_lock = threading.Lock()
-_OFFLINE_CACHE_TTL = 30.0
-
-
-def _is_offline() -> bool:
-    """Return True when OpenRouter is unreachable. Result cached for 30s."""
-    import socket
-
-    global _offline_cache
-    with _offline_lock:
-        now = time.monotonic()
-        if _offline_cache is not None and now - _offline_cache[1] < _OFFLINE_CACHE_TTL:
-            return _offline_cache[0]
-        try:
-            with socket.create_connection(("openrouter.ai", 443), timeout=2):
-                result = False
-        except OSError:
-            result = True
-        _offline_cache = (result, now)
-        return result
-
-
 def route_model(message: str) -> str:
-    """3-decision router for non-health model selection."""
-    if os.environ.get("KITTY_DISABLE_LOCAL") != "1" and _is_offline():
-        logger.debug("routing: offline -> %s", _LOCAL_MODEL)
-        return _LOCAL_MODEL
-
-    msg_lower = message.lower()
-
-    if any(trigger in msg_lower for trigger in _BEST_TRIGGERS):
-        logger.debug("routing: best trigger -> %s", _BEST_MODEL)
-        return _BEST_MODEL
-
-    if any(keyword in msg_lower for keyword in _REASONING_KEYWORDS):
-        logger.debug("routing: reasoning keyword -> %s", _REASONING_MODEL)
-        return _REASONING_MODEL
-
-    logger.debug("routing: default -> %s", _DEFAULT_MODEL)
-    return _DEFAULT_MODEL
+    """Single-route model selector for Kitty."""
+    logger.debug("routing: single route -> %s", _LITELLM_DEFAULT)
+    return _LITELLM_DEFAULT

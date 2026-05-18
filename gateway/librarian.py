@@ -120,10 +120,8 @@ def generate_source_summary(source_name: str, text_preview: str, doc_type: str) 
         "temperature": 0.1,
     }
 
-    # Fixed LiteLLM route (cheap stack in litellm_config.yaml) — do not use keyword routing,
-    # or prompts containing "Analyze" would select kitty-agent unnecessarily.
-    # Keep ingestion on the free lane unless Jacob explicitly overrides it.
-    ingest_model = os.environ.get("KITTY_INGEST_LLM_MODEL", "kitty-fallback-or")
+    # Fixed LiteLLM route — keep ingestion on the single Kitty lane unless Jacob overrides it.
+    ingest_model = os.environ.get("KITTY_INGEST_LLM_MODEL", "kitty-default")
 
     response_text = call_llm(
         messages=payload["messages"],

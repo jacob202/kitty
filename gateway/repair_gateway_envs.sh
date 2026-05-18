@@ -16,7 +16,7 @@ echo "Creating/updating LiteLLM venv: ${LITELLM_VENV}"
 /opt/homebrew/bin/python3.12 -m venv "${LITELLM_VENV}"
 source "${LITELLM_VENV}/bin/activate"
 pip install --upgrade pip
-pip install --upgrade -r "${ROOT_DIR}/kitty_gateway/requirements.litellm.txt"
+pip install --upgrade -r "${ROOT_DIR}/gateway/requirements.litellm.txt"
 deactivate
 
 echo "Done."

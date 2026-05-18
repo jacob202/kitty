@@ -92,3 +92,27 @@ def test_generate_brief_structure():
     assert "headlines" in result
     assert "intention" in result
     assert "Ship Phase 7." in result["intention"]
+
+
+def test_generate_fast_brief_returns_contract_without_news():
+    import gateway.brief as b
+    with patch.object(b, "_fetch_memory_snippet", return_value="Remember the boring path."):
+        with patch.object(b, "get_tasks_summary", return_value="Ship Phase 7."):
+            result = b.generate_fast_brief()
+    assert result["headlines"] == []
+    assert "Ship Phase 7." in result["intention"]
+    assert "memory_snippet" in result
+
+
+def test_cached_brief_round_trip():
+    import gateway.brief as b
+    sample = {
+        "date": "2026-05-18",
+        "headlines": [],
+        "memory_snippet": "",
+        "intention": "Cached brief",
+    }
+    b._store_cached_brief(sample)
+    cached = b.get_cached_brief()
+    assert cached is not None
+    assert cached["intention"] == "Cached brief"

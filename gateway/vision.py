@@ -14,7 +14,7 @@ def analyze_file(path: Path) -> str:
     with open(path, "rb") as f:
         return describe_schematic(f.read())
 
-_VISION_MODEL = "kitty-smart"
+_VISION_MODEL = "kitty-default"
 _VISION_PROMPT = (
     "Describe this technical image in detail. "
     "List all visible components, labels, connections, values, and specifications. "
