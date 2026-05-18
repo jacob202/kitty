@@ -1,0 +1,8 @@
+model: openrouter/openai/gpt-5.4-mini
+weak-model: openrouter/openai/gpt-5.4-nano
+model-metadata-file: .aider.model.metadata.json
+auto-commits: false
+check-update: false
+analytics: false
+reasoning-effort: low
+yes-always: true

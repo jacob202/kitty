@@ -17,7 +17,7 @@ def test_safe_env_loader_ignores_stray_commands_and_expands_env_vars(tmp_path):
     )
 
     script = """
-source /Users/jacobbrizinski/Projects/kitty/kitty_gateway/lib/load_env_safe.sh
+source /Users/jacobbrizinski/Projects/kitty/gateway/lib/load_env_safe.sh
 load_env_assignments "$1"
 printf '%s\n' "$OPENROUTER_API_KEY|$LITELLM_MASTER_KEY|$OPENWEBUI_DATA_DIR"
 """
