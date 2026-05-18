@@ -1,0 +1,73 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* surfaces — warm ink, not pure black */
+  --bg:         #1a1410;
+  --bg-raised:  #251c17;
+  --bg-card:    #1e1713;
+  --bg-deep:    #0e0a08;
+  --border:     #3a2e25;
+  --border-dim: #2b2118;
+
+  /* text — cream palette */
+  --text:       #f5ead3;
+  --text-dim:   #ebdfc4;
+  --text-muted: #bdb19a;
+  --text-faint: #7a7160;
+  --text-ghost: #3a3028;
+
+  /* brand */
+  --orange:     #ff7a1a;
+  --orange-2:   #ffb066;
+  --orange-deep: #cc4f00;
+
+  /* co-stars */
+  --teal:       #21bdd9;
+  --teal-dim:   #0a2229;
+  --purple:     #a884ff;
+  --purple-2:   #c4a8ff;
+  --purple-dim: #1e1430;
+  --purple-glow: #a884ff44;
+  --mint:       #9be86b;
+  --mint-dim:   #162210;
+  --blue:       #4d9fff;
+  --maple:      #ff5577;
+  --lemon:      #f4c542;
+
+  --font-ui:    'Space Grotesk', sans-serif;
+  --font-mono:  'Space Mono', ui-monospace, monospace;
+  --background: #1a1410;
+  --foreground: #f5ead3;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  -webkit-font-smoothing: antialiased;
+  background-image:
+    radial-gradient(circle at 0% 0%, rgba(255,122,26,0.06) 0%, transparent 40%),
+    radial-gradient(circle at 100% 100%, rgba(168,132,255,0.05) 0%, transparent 45%);
+  background-attachment: fixed;
+}
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: var(--bg-deep); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--orange-deep); }
+::selection { background: var(--orange); color: var(--bg-deep); }
+* { caret-color: var(--orange); }
+
+@keyframes bounce {
+  0%, 80%, 100% { opacity: 0.2; transform: scale(0.7); }
+  40% { opacity: 1; transform: scale(1); }
+}
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

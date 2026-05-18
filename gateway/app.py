@@ -329,8 +329,10 @@ async def chat_completions(request: Request):
     t_start = time.monotonic()
 
     domain = classify_domain(user_text)
-    if domain == "health":
-        model = "kitty-private"
+    model_from_request = body.get("model", "kitty-default")
+    # Respect an explicit model choice from the UI; fall back to routing otherwise
+    if model_from_request and not model_from_request.startswith("kitty-"):
+        model = model_from_request
     else:
         model = route_model(user_text)
 
@@ -354,6 +356,35 @@ async def chat_completions(request: Request):
         return result
 
 
+@app.post("/api/chat/completions")
+async def api_chat_completions(request: Request):
+    """Open WebUI-compatible alias so kitty-chat can target the gateway directly."""
+    return await chat_completions(request)
+
+
+@app.get("/api/models")
+async def api_models():
+    """Return available models in OpenAI list format, sourced from LiteLLM."""
+    client = await get_http_client()
+    try:
+        resp = await client.get(
+            f"{LITELLM_BASE}/v1/models",
+            headers={"Authorization": f"Bearer {LITELLM_KEY}"},
+        )
+        if resp.status_code == 200:
+            return Response(content=resp.content, media_type="application/json")
+    except Exception as e:
+        logger.warning("Failed to fetch models from LiteLLM: %s", e)
+    return {
+        "object": "list",
+        "data": [
+            {"id": "kitty-default", "object": "model", "owned_by": "kitty"},
+            {"id": "kitty-smart",   "object": "model", "owned_by": "kitty"},
+            {"id": "kitty-agent",   "object": "model", "owned_by": "kitty"},
+        ],
+    }
+
+
 async def _stream_response(payload, correlation_id, user_text, domain, model, t_start):
     client = await get_http_client()
     async with client.stream(
@@ -368,7 +399,7 @@ async def _stream_response(payload, correlation_id, user_text, domain, model, t_
 
             raw_data = chunk[6:].strip()
             if raw_data == "[DONE]":
-                yield chunk + b"\n\n"
+                yield chunk.encode("utf-8") + b"\n\n"
                 break
 
             try:
@@ -966,3 +997,28 @@ async def task_cancel(task_id: str):
     if not cancelled:
         raise HTTPException(status_code=404, detail="Task not found or already finished")
     return {"task_id": task_id, "status": "cancelled"}
+
+
+# --- Image generation ---
+
+class ImageGenRequest(BaseModel):
+    prompt: str
+
+@app.get("/image/status")
+async def image_status():
+    from gateway.image_gen import is_available
+    available = await is_available()
+    return {"available": available, "backend": "comfyui"}
+
+@app.post("/image/generate")
+async def image_generate(req: ImageGenRequest):
+    from gateway.image_gen import generate, is_available
+    if not await is_available():
+        raise HTTPException(status_code=503, detail="ComfyUI is not running")
+    try:
+        result = await generate(req.prompt)
+        return result
+    except TimeoutError as e:
+        raise HTTPException(status_code=504, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

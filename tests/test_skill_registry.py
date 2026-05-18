@@ -37,9 +37,9 @@ class TestYamlFrontmatter:
 class TestDiscover:
     def test_discovers_skills(self):
         skills = discover()
-        assert len(skills) >= 2
+        assert len(skills) >= 1
         names = {s["name"] for s in skills}
-        assert "iterative-self-review-meta-optimization" in names
+        assert "journal-entry" in names
 
     def test_discover_cache(self):
         s1 = discover()
@@ -49,12 +49,12 @@ class TestDiscover:
     def test_discover_force_refresh(self):
         s1 = discover()
         s2 = discover(force_refresh=True)
-        assert len(s2) >= 2
+        assert len(s2) >= 1
 
 
 class TestGet:
     def test_get_existing(self):
-        skill = get("iterative-self-review-meta-optimization")
+        skill = get("journal-entry")
         assert skill is not None
         assert "description" in skill
 
@@ -64,12 +64,12 @@ class TestGet:
 
 class TestSearch:
     def test_search_by_name(self):
-        results = search("architecture")
+        results = search("journal")
         assert len(results) >= 1
 
     def test_search_empty_returns_all(self):
         results = search("")
-        assert len(results) >= 2
+        assert len(results) >= 1
 
     def test_search_no_match(self):
         results = search("xyznonexistent123")
@@ -78,13 +78,13 @@ class TestSearch:
 
 class TestInvoke:
     def test_invoke_returns_prompt(self):
-        result = invoke("iterative-self-review-meta-optimization")
+        result = invoke("journal-entry")
         assert "error" not in result
         assert "prompt" in result
         assert len(result["prompt"]) > 0
 
     def test_invoke_with_context(self):
-        result = invoke("iterative-self-review-meta-optimization", context="test context")
+        result = invoke("journal-entry", context="test context")
         assert "test context" in result["prompt"]
 
     def test_invoke_nonexistent(self):

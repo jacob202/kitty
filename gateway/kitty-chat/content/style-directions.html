@@ -1,0 +1,58 @@
+<h2>What vibe are you going for?</h2>
+<p class="subtitle">Pick the aesthetic direction that feels right for your custom chat UI</p>
+
+<div class="cards">
+  <div class="card" data-choice="dark-terminal" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0d0d0d;padding:16px;font-family:monospace;min-height:120px;border-radius:6px;border:1px solid #333;">
+      <div style="color:#00ff88;font-size:11px;margin-bottom:8px;">● kitty · model: sonnet-4</div>
+      <div style="color:#888;font-size:11px;">You: explain embeddings</div>
+      <div style="color:#ddd;font-size:11px;margin-top:6px;">Kitty: Embeddings are dense vector representations...</div>
+      <div style="margin-top:12px;border-top:1px solid #222;padding-top:8px;">
+        <div style="background:#111;border:1px solid #333;border-radius:4px;color:#666;font-size:10px;padding:6px;">→ ask anything_</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Dark Terminal</h3>
+      <p>Hacker aesthetic — dark background, monospace font, green/amber accents. Feels like a pro tool, not a consumer app.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="clean-glass" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:linear-gradient(135deg,#1a1a2e,#16213e);padding:16px;min-height:120px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <div style="width:28px;height:28px;background:linear-gradient(135deg,#667eea,#764ba2);border-radius:50%;"></div>
+        <span style="color:#fff;font-size:12px;font-weight:500;">Kitty</span>
+      </div>
+      <div style="background:rgba(255,255,255,0.07);border-radius:8px;padding:8px;color:#ccc;font-size:11px;">Embeddings map text into high-dimensional space where semantically similar concepts cluster together...</div>
+      <div style="margin-top:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#666;font-size:10px;padding:6px;">Message Kitty...</div>
+    </div>
+    <div class="card-body">
+      <h3>Dark Glass / Frosted</h3>
+      <p>Sleek and modern — glassmorphism panels, subtle gradients, soft glows. Feels premium, like a polished product.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="minimal-light" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#fafafa;padding:16px;min-height:120px;border-radius:6px;border:1px solid #e5e5e5;">
+      <div style="font-size:11px;color:#999;margin-bottom:8px;font-family:sans-serif;">kitty · 2:34 pm</div>
+      <div style="background:#fff;border:1px solid #eee;border-radius:8px;padding:8px;color:#333;font-size:11px;font-family:sans-serif;">Embeddings are dense vector representations of text that capture semantic meaning...</div>
+      <div style="margin-top:10px;border:1px solid #ddd;border-radius:8px;background:#fff;color:#bbb;font-size:10px;padding:6px;font-family:sans-serif;">Type a message...</div>
+    </div>
+    <div class="card-body">
+      <h3>Clean Minimal Light</h3>
+      <p>Focused and distraction-free — white background, tight typography, subtle borders. Feels like a focused writing tool.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="cyberpunk" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0a0012;padding:16px;min-height:120px;border-radius:6px;border:1px solid #ff00ff44;">
+      <div style="color:#ff00ff;font-size:10px;font-family:monospace;margin-bottom:6px;text-transform:uppercase;letter-spacing:2px;">KITTY_AI ▸ ACTIVE</div>
+      <div style="border-left:2px solid #ff00ff;padding-left:8px;color:#cc99ff;font-size:11px;font-family:monospace;">Embeddings project tokens into latent space. Cosine similarity reveals semantic proximity...</div>
+      <div style="margin-top:10px;border:1px solid #ff00ff44;border-radius:2px;background:#110020;color:#ff00ff66;font-size:10px;padding:6px;font-family:monospace;">QUERY ▸ _</div>
+    </div>
+    <div class="card-body">
+      <h3>Cyberpunk / Neon</h3>
+      <p>Bold and distinctive — deep purple/black, magenta/cyan neons, sharp angles. Unmistakably custom, high personality.</p>
+    </div>
+  </div>
+</div>

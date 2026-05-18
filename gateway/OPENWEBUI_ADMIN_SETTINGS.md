@@ -1,0 +1,121 @@
+# OpenWebUI Admin Settings Map (Kitty)
+
+This maps your `kitty_gateway/openwebui.env` values to Admin panel sections so you can audit quickly.
+
+## 1) Account + Security
+- `WEBUI_AUTH=true`
+- `ENABLE_SIGNUP=false`
+- `ENABLE_LOGIN_FORM=true`
+- `ENABLE_API_KEYS=true`
+- `ENABLE_SIGNUP_PASSWORD_CONFIRMATION=true`
+- `WEBUI_ADMIN_NAME`, `WEBUI_ADMIN_EMAIL`, `WEBUI_ADMIN_PASSWORD`
+
+## 2) Interface
+- `WEBUI_NAME`
+- `DEFAULT_MODELS`
+- `DEFAULT_PINNED_MODELS`
+- `DEFAULT_PROMPT_SUGGESTIONS` (task/prompt starter cards)
+- `DEFAULT_MODEL_PARAMS`
+
+## 3) Models / Providers
+- `OPENAI_API_BASE_URL=http://127.0.0.1:8001/v1`
+- `OPENAI_API_KEY` (LiteLLM master key)
+- `ENABLE_BASE_MODELS_CACHE=true`
+- `MODELS_CACHE_TTL=3`
+
+## 4) Web Search
+- `ENABLE_WEB_SEARCH=true`
+- `WEB_SEARCH_ENGINE=tavily`
+- `ENABLE_SEARCH_QUERY_GENERATION=true`
+- `WEB_SEARCH_RESULT_COUNT=5`
+- `WEB_SEARCH_CONCURRENT_REQUESTS=2`
+- Provider key(s): `BRAVE_SEARCH_API_KEY` and/or `TAVILY_API_KEY`
+
+## 5) Image Generation
+- `ENABLE_IMAGE_GENERATION=true`
+- `ENABLE_IMAGE_PROMPT_GENERATION=true`
+- `IMAGE_GENERATION_ENGINE=openai`
+- `IMAGE_GENERATION_MODEL=openrouter/google/gemini-2.5-flash-image`
+- `IMAGES_OPENAI_API_BASE_URL=http://127.0.0.1:8001/v1`
+- `IMAGES_OPENAI_API_KEY` (LiteLLM master key)
+
+## 6) Code Execution / Interpreter
+- `ENABLE_CODE_EXECUTION=true`
+- `CODE_EXECUTION_ENGINE=jupyter`
+- `CODE_EXECUTION_JUPYTER_URL=http://127.0.0.1:8888`
+- `CODE_EXECUTION_JUPYTER_AUTH=token`
+- `CODE_EXECUTION_JUPYTER_AUTH_TOKEN=...`
+- Same set for `ENABLE_CODE_INTERPRETER` and `CODE_INTERPRETER_*`
+
+## 7) Privacy + Ops
+- `OFFLINE_MODE=true`
+- `ENABLE_VERSION_UPDATE_CHECK=false`
+- `GLOBAL_LOG_LEVEL=WARNING`
+- `ENABLE_PROFILE_IMAGE_URL_FORWARDING=false`
+- `ENABLE_FORWARD_USER_INFO_HEADERS=false`
+- `ENABLE_OPENAI_API_PASSTHROUGH=false`
+- `ENABLE_OLLAMA_API=false`
+- `ENABLE_DIRECT_CONNECTIONS=false`
+- `ENABLE_USER_WEBHOOKS=false`
+
+## 8) Gateway Budget Control
+- `LITELLM_MASTER_KEY`
+- `LITELLM_MAX_BUDGET_USD`
+
+## 9) Extensibility (Plugins / MCP / Tool Servers / Pipelines)
+- `OPENAI_API_BASE_URLS`, `OPENAI_API_KEYS` (semicolon-delimited provider list)
+- `TOOL_SERVER_CONNECTIONS` (OpenAPI + MCP streamable-http server connections)
+- `TERMINAL_SERVER_CONNECTIONS` (OpenTerminal server connections)
+- `OPEN_TERMINAL_URL`, `OPEN_TERMINAL_API_KEY`
+- `AIOHTTP_CLIENT_TIMEOUT_TOOL_SERVER`
+- `AIOHTTP_CLIENT_TIMEOUT_TOOL_SERVER_DATA`
+- `AIOHTTP_CLIENT_SESSION_TOOL_SERVER_SSL`
+
+## 10) Community Tool Baseline (Installed)
+- Filesystem server: `http://127.0.0.1:9721/openapi.json`
+- Memory server: `http://127.0.0.1:9722/openapi.json`
+- Time server: `http://127.0.0.1:9723/openapi.json`
+- Weather server: `http://127.0.0.1:9724/openapi.json`
+- Runtime toggle: `ENABLE_COMMUNITY_TOOL_SERVERS=1`
+
+## 11) Auto-Bootstrap + Recovery Scripts
+- Full baseline bootstrap:
+  - `bash kitty_gateway/bootstrap_openwebui_baseline.sh`
+- Runtime doctor report:
+  - `bash kitty_gateway/doctor.sh`
+  - JSON mode: `bash kitty_gateway/doctor.sh --json`
+- Sync OpenWebUI integrations only:
+  - `bash kitty_gateway/sync_openwebui_integrations.sh`
+- Import curated function filters only:
+  - `bash kitty_gateway/import_openwebui_functions.sh`
+- Import Kitty Open WebUI library — **prompts, skills, tools** (from `kitty_openwebui_library.json`):
+  - `./venv/bin/python kitty_gateway/import_openwebui_prompts.py` (see `kitty_gateway/PROMPT_LIBRARY.md`)
+- Backup current OpenWebUI DB snapshot:
+  - `bash kitty_gateway/backup_openwebui_state.sh`
+- Restore smoke from latest backup:
+  - `bash kitty_gateway/verify_openwebui_backup_restore.sh`
+
+## 12) Assertions / Manifest
+- Canonical runtime manifest:
+  - `kitty_gateway/runtime_manifest.json`
+- Post-boot baseline assertion toggles (`openwebui.env`):
+  - `ASSERT_BASELINE_ON_BOOT=1` (default)
+  - `ASSERT_FAIL_ON_WARN=0` (set `1` for stricter gating)
+
+## 13) Continuous Doctor Monitor (launchd)
+- Run one check now:
+  - `bash kitty_gateway/run_doctor_check.sh`
+- launchd plist:
+  - `kitty_gateway/com.kitty.doctor.plist`
+- Install:
+  - `cp kitty_gateway/com.kitty.doctor.plist ~/Library/LaunchAgents/`
+  - `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.kitty.doctor.plist`
+  - `launchctl enable gui/$(id -u)/com.kitty.doctor`
+- Logs:
+  - `logs/kitty_gateway/doctor_checks.jsonl` (all runs)
+  - `logs/kitty_gateway/doctor_alerts.log` (degraded alerts only)
+- Alert policy:
+  - default alerts on `fail > 0`
+  - set `DOCTOR_ALERT_ON_WARN=1` to alert on warnings too
+- Endpoint for UI/automation:
+  - `GET /ops/doctor` (optional `?fail_on_warn=true`)

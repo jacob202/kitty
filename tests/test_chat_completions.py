@@ -6,12 +6,13 @@ from fastapi.testclient import TestClient
 from gateway.app import app
 
 
-def test_chat_completions_non_stream_health_uses_kitty_private_and_passes_domain():
-    """Health domain forces kitty-private model and forwards domain into get_system_prompt."""
+def test_chat_completions_non_stream_health_uses_route_model_and_passes_domain():
+    """Health domain goes through route_model (no longer hardcoded kitty-private)."""
     mock_gsp = AsyncMock(return_value="FULL_SYSTEM")
     fake = {"choices": [{"message": {"role": "assistant", "content": "stay hydrated"}}]}
     mock_llm = AsyncMock(return_value=fake)
     with patch("gateway.app.classify_domain", return_value="health"), \
+         patch("gateway.app.route_model", return_value="kitty-default"), \
          patch("gateway.context_builder.get_system_prompt", mock_gsp), \
          patch("gateway.app._non_stream_response", mock_llm):
         client = TestClient(app)
@@ -28,7 +29,7 @@ def test_chat_completions_non_stream_health_uses_kitty_private_and_passes_domain
     assert mock_gsp.await_args.kwargs["domain"] == "health"
     assert mock_gsp.await_args.kwargs["parts_mode"] is False
     payload = mock_llm.call_args[0][0]
-    assert payload["model"] == "kitty-private"
+    assert payload["model"] == "kitty-default"
     assert payload["messages"][0]["role"] == "system"
     assert payload["messages"][0]["content"] == "FULL_SYSTEM"
 

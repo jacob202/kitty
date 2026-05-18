@@ -1,0 +1,124 @@
+<h2>Which chat layout feels right?</h2>
+<p class="subtitle">This is the shell everything lives inside — pick the structure, then we design the details</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex;height:180px;background:#0d0d0d;border-radius:8px;overflow:hidden;border:1px solid #222;font-family:monospace;font-size:11px;">
+        <!-- Left sidebar -->
+        <div style="width:200px;background:#111;border-right:1px solid #222;padding:12px 10px;display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+            <span style="color:#a884ff;font-weight:700;font-size:12px;">KITTY</span>
+            <span style="color:#444;font-size:16px;">+</span>
+          </div>
+          <div style="background:#1a1a1a;border-radius:5px;padding:5px 8px;color:#ff7a1a;border-left:2px solid #ff7a1a;font-size:10px;">my car is making a noise</div>
+          <div style="padding:5px 8px;color:#555;font-size:10px;">vitamin protocol</div>
+          <div style="padding:5px 8px;color:#555;font-size:10px;">desk setup research</div>
+          <div style="padding:5px 8px;color:#555;font-size:10px;">python script help</div>
+          <div style="margin-top:auto;padding:5px 8px;color:#333;font-size:10px;border-top:1px solid #1a1a1a;">yesterday</div>
+          <div style="padding:5px 8px;color:#444;font-size:10px;">dentist appointment</div>
+        </div>
+        <!-- Chat area -->
+        <div style="flex:1;display:flex;flex-direction:column;">
+          <div style="padding:8px 14px;border-bottom:1px solid #1a1a1a;display:flex;align-items:center;gap:8px;">
+            <span style="color:#777;font-size:10px;">kitty-smart</span>
+            <span style="color:#a884ff;font-size:8px;">●</span>
+          </div>
+          <div style="flex:1;padding:10px 14px;display:flex;flex-direction:column;gap:8px;overflow:hidden;">
+            <div style="display:flex;gap:8px;align-items:flex-start;">
+              <div style="width:22px;height:22px;background:#1a1a1a;border-radius:5px;border:1px solid #2a1a3a;flex-shrink:0;"></div>
+              <div style="background:#141414;border-radius:6px;padding:5px 8px;color:#888;font-size:9px;border-left:2px solid #3a2a5a;max-width:200px;">I hear a grinding noise when I brake. Let me help you diagnose this.</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:flex-start;flex-direction:row-reverse;">
+              <div style="width:22px;height:22px;background:#1a0800;border-radius:5px;border:1px solid #3a1a00;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#ff7a1a;font-size:8px;font-weight:700;">JB</div>
+              <div style="background:#141414;border-radius:6px;padding:5px 8px;color:#888;font-size:9px;border-left:2px solid #2a1a00;max-width:200px;">its mostly when slowing down from high speed</div>
+            </div>
+          </div>
+          <div style="padding:6px 10px;border-top:1px solid #1a1a1a;">
+            <div style="background:#1a1a1a;border-radius:6px;padding:5px 10px;color:#444;font-size:9px;">ask kitty...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Left Sidebar (LobeChat-style)</h3>
+      <p>Persistent conversation history on the left, always visible. Clean, professional, easy to jump between chats.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex;flex-direction:column;height:180px;background:#0d0d0d;border-radius:8px;overflow:hidden;border:1px solid #222;font-family:monospace;font-size:11px;">
+        <!-- Top bar with tabs -->
+        <div style="background:#111;border-bottom:1px solid #222;padding:0 12px;display:flex;align-items:center;gap:2px;height:36px;overflow:hidden;">
+          <span style="color:#a884ff;font-weight:700;font-size:11px;margin-right:10px;">KITTY</span>
+          <div style="background:#1a1a1a;border-radius:5px 5px 0 0;padding:5px 10px;color:#ff7a1a;border:1px solid #2a2a2a;border-bottom:none;font-size:9px;">car noise</div>
+          <div style="padding:5px 10px;color:#444;font-size:9px;">vitamins</div>
+          <div style="padding:5px 10px;color:#444;font-size:9px;">desk setup</div>
+          <div style="color:#444;margin-left:4px;font-size:14px;">+</div>
+        </div>
+        <!-- Chat area -->
+        <div style="flex:1;display:flex;flex-direction:column;">
+          <div style="flex:1;padding:10px 14px;display:flex;flex-direction:column;gap:8px;overflow:hidden;">
+            <div style="display:flex;gap:8px;align-items:flex-start;">
+              <div style="width:22px;height:22px;background:#1a1a1a;border-radius:5px;border:1px solid #2a1a3a;flex-shrink:0;"></div>
+              <div style="background:#141414;border-radius:6px;padding:5px 8px;color:#888;font-size:9px;border-left:2px solid #3a2a5a;max-width:220px;">I hear a grinding noise when I brake. Let me help you diagnose this.</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:flex-start;flex-direction:row-reverse;">
+              <div style="width:22px;height:22px;background:#1a0800;border-radius:5px;border:1px solid #3a1a00;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#ff7a1a;font-size:8px;font-weight:700;">JB</div>
+              <div style="background:#141414;border-radius:6px;padding:5px 8px;color:#888;font-size:9px;border-left:2px solid #2a1a00;max-width:220px;">its mostly when slowing down from high speed</div>
+            </div>
+          </div>
+          <div style="padding:6px 10px;border-top:1px solid #1a1a1a;">
+            <div style="background:#1a1a1a;border-radius:6px;padding:5px 10px;color:#444;font-size:9px;">ask kitty...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Top Tabs (current Nautilus approach)</h3>
+      <p>Horizontal tabs across the top. Familiar, browser-like. Works great when you have 3–5 chats open at once.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex;height:180px;background:#0d0d0d;border-radius:8px;overflow:hidden;border:1px solid #222;font-family:monospace;font-size:11px;">
+        <!-- Icon rail -->
+        <div style="width:44px;background:#111;border-right:1px solid #222;padding:8px 0;display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;">
+          <div style="color:#a884ff;font-size:14px;margin-bottom:4px;">✦</div>
+          <div style="width:28px;height:28px;background:#1a1a1a;border-radius:6px;border:1px solid #ff7a1a;display:flex;align-items:center;justify-content:center;color:#ff7a1a;font-size:9px;">💬</div>
+          <div style="width:28px;height:28px;background:#1a1a1a;border-radius:6px;border:1px solid #222;display:flex;align-items:center;justify-content:center;color:#444;font-size:9px;">🧠</div>
+          <div style="width:28px;height:28px;background:#1a1a1a;border-radius:6px;border:1px solid #222;display:flex;align-items:center;justify-content:center;color:#444;font-size:9px;">⚡</div>
+          <div style="margin-top:auto;width:28px;height:28px;background:#1a1a1a;border-radius:6px;border:1px solid #222;display:flex;align-items:center;justify-content:center;color:#444;font-size:9px;">⚙</div>
+        </div>
+        <!-- Chat area -->
+        <div style="flex:1;display:flex;flex-direction:column;">
+          <div style="padding:8px 14px;border-bottom:1px solid #1a1a1a;display:flex;align-items:center;justify-content:space-between;">
+            <span style="color:#ff7a1a;font-size:10px;">my car is making a noise</span>
+            <span style="color:#777;font-size:9px;">kitty-smart ●</span>
+          </div>
+          <div style="flex:1;padding:10px 14px;display:flex;flex-direction:column;gap:8px;overflow:hidden;">
+            <div style="display:flex;gap:8px;align-items:flex-start;">
+              <div style="width:22px;height:22px;background:#1a1a1a;border-radius:5px;border:1px solid #2a1a3a;flex-shrink:0;"></div>
+              <div style="background:#141414;border-radius:6px;padding:5px 8px;color:#888;font-size:9px;border-left:2px solid #3a2a5a;max-width:180px;">I hear a grinding noise when I brake. Let me help you diagnose this.</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:flex-start;flex-direction:row-reverse;">
+              <div style="width:22px;height:22px;background:#1a0800;border-radius:5px;border:1px solid #3a1a00;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#ff7a1a;font-size:8px;font-weight:700;">JB</div>
+              <div style="background:#141414;border-radius:6px;padding:5px 8px;color:#888;font-size:9px;border-left:2px solid #2a1a00;max-width:180px;">its mostly when slowing down from high speed</div>
+            </div>
+          </div>
+          <div style="padding:6px 10px;border-top:1px solid #1a1a1a;">
+            <div style="background:#1a1a1a;border-radius:6px;padding:5px 10px;color:#444;font-size:9px;">ask kitty...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Icon Rail + Slides Out</h3>
+      <p>Narrow icon bar on the left. Click chat icon → sidebar slides out with history, click memory icon → memory panel slides out. Max screen real estate for the chat itself.</p>
+    </div>
+  </div>
+
+</div>

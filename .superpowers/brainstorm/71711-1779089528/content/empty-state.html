@@ -1,0 +1,76 @@
+<h2>New chat — what do you see before you type?</h2>
+<p class="subtitle">The landing experience. Sets the whole vibe.</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:180px;background:#0d0d0d;border-radius:8px;border:1px solid #222;font-family:monospace;gap:10px;">
+        <!-- MoodAvatar placeholder -->
+        <div style="width:52px;height:52px;background:#1a1a2e;border-radius:12px;border:1.5px solid #a884ff55;box-shadow:0 0 14px #a884ff33;display:flex;align-items:center;justify-content:center;font-size:20px;">🐱</div>
+        <div style="color:#a884ff;font-size:13px;font-weight:700;letter-spacing:1px;">KITTY</div>
+        <div style="color:#555;font-size:10px;text-align:center;max-width:180px;">hey jacob. what's on your mind?</div>
+        <!-- Input -->
+        <div style="background:#1a1a1a;border-radius:8px;padding:6px 14px;color:#444;font-size:9px;width:200px;border:1px solid #2a2a2a;">ask kitty...</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Kitty greeting</h3>
+      <p>Avatar centered, personal greeting, big input. Feels like talking to someone, not using a tool.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex;flex-direction:column;height:180px;background:#0d0d0d;border-radius:8px;border:1px solid #222;font-family:monospace;overflow:hidden;">
+        <!-- Brief header -->
+        <div style="padding:8px 12px;border-bottom:1px solid #1a1a1a;display:flex;align-items:center;gap:8px;">
+          <span style="color:#f0a500;font-size:9px;">☀ SUNDAY MAY 18</span>
+          <span style="color:#333;font-size:9px;">—</span>
+          <span style="color:#555;font-size:9px;">2 tasks · 1 event</span>
+        </div>
+        <!-- Brief content -->
+        <div style="flex:1;padding:8px 12px;display:flex;flex-direction:column;gap:6px;overflow:hidden;">
+          <div style="color:#888;font-size:9px;line-height:1.5;">Good morning. Your Honda appointment is at 2pm. You've been researching standing desks — I found 3 new reviews overnight.</div>
+          <!-- Suggested prompts -->
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">
+            <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;padding:3px 8px;color:#666;font-size:8px;">what did you find on desks?</div>
+            <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;padding:3px 8px;color:#666;font-size:8px;">remind me about today</div>
+            <div style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;padding:3px 8px;color:#666;font-size:8px;">what are you working on?</div>
+          </div>
+        </div>
+        <!-- Input -->
+        <div style="padding:5px 10px;border-top:1px solid #1a1a1a;">
+          <div style="background:#1a1a1a;border-radius:6px;padding:4px 10px;color:#444;font-size:8px;">ask kitty...</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Morning brief + suggestions</h3>
+      <p>Kitty shows today's digest and offers prompt suggestions. Proactive. You already have this built in BriefPanel.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="display:flex;flex-direction:column;height:180px;background:#0d0d0d;border-radius:8px;border:1px solid #222;font-family:monospace;">
+        <!-- Minimal centered -->
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px;">
+          <div style="color:#1e1e1e;font-size:32px;font-weight:900;letter-spacing:-1px;text-align:center;line-height:1;">KITTY</div>
+          <!-- Big input -->
+          <div style="background:#141414;border:1px solid #2a2a2a;border-radius:10px;padding:10px 16px;color:#444;font-size:10px;width:220px;text-align:left;">ask kitty anything...</div>
+          <!-- Model pill -->
+          <div style="display:flex;align-items:center;gap:4px;">
+            <div style="width:5px;height:5px;border-radius:50%;background:#a884ff;box-shadow:0 0 4px #a884ff;"></div>
+            <span style="color:#555;font-size:8px;">kitty-smart</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Just the input (Claude.ai style)</h3>
+      <p>Almost nothing. Big centered input, model indicator, logo. Zero noise. You focus, you type.</p>
+    </div>
+  </div>
+
+</div>
