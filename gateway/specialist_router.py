@@ -2,12 +2,10 @@
 Specialist MCP Router
 The central routing and execution hub for domain-specific knowledge agents.
 """
-import os
 import json
 import logging
 from pathlib import Path
 from gateway.llm_client import call_llm
-from gateway.knowledge import query_knowledge_base # Assuming this can be targeted to a folder
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

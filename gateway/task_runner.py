@@ -22,8 +22,7 @@ import logging
 import sqlite3
 import time
 import uuid
-from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Any
 
 from gateway.paths import DATA_DIR
 

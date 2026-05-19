@@ -1,23 +1,140 @@
-"""Unified Search — query across all Kitty stores.
+"""Unified Search — normalized query results across Kitty stores.
 
 Public API:
-  search(query) -> dict    Search memory, knowledge, journal, todos, and traces
+  async_search(query) -> dict  Async search with grouped, normalized hits
+  search(query) -> dict        Sync wrapper for offline scripts/tests only
 """
 from __future__ import annotations
 
-import json
+import asyncio
 import logging
-import time
-from pathlib import Path
+from typing import Any
 
-from gateway.paths import DATA_DIR, LOGS_DIR
+from gateway import memory_graph
 
 logger = logging.getLogger("kitty.search")
 
+SECTION_TO_KIND = {
+    "memories": "memory",
+    "knowledge": "knowledge",
+    "journal": "journal",
+    "todos": "todo",
+}
 
-def search(query: str, limit: int = 5) -> dict:
-    """Unified search across all stores. Returns results grouped by source."""
-    results: dict[str, list] = {
+RAW_TO_SECTION = {
+    "memory": "memories",
+    "memories": "memories",
+    "knowledge": "knowledge",
+    "journal": "journal",
+    "todos": "todos",
+}
+
+
+def _compact(value: Any, default: str = "") -> str:
+    if value is None:
+        return default
+    text = str(value).strip()
+    return text if text else default
+
+
+def _first_text(item: dict[str, Any], keys: tuple[str, ...]) -> str:
+    for key in keys:
+        text = _compact(item.get(key))
+        if text:
+            return text
+    return ""
+
+
+def _score(item: dict[str, Any]) -> float | int | None:
+    for key in ("score", "_score", "similarity", "relevance"):
+        value = item.get(key)
+        if isinstance(value, (int, float)):
+            return value
+    return None
+
+
+def _short_title(text: str, fallback: str) -> str:
+    title = " ".join(text.split())
+    if not title:
+        return fallback
+    return title[:80]
+
+
+def _metadata(item: dict[str, Any]) -> dict[str, Any]:
+    hidden = {
+        "memory",
+        "text",
+        "content",
+        "entry",
+        "title",
+        "source",
+        "score",
+        "_score",
+        "similarity",
+        "relevance",
+    }
+    return {k: v for k, v in item.items() if k not in hidden}
+
+
+def normalize_hit(kind: str, item: dict[str, Any]) -> dict[str, Any]:
+    """Return one stable hit shape for display and LLM context callers."""
+    if kind == "memory":
+        text = _first_text(item, ("text", "memory", "content"))
+        source = _compact(item.get("source"), "memory")
+        title = _compact(item.get("title")) or source or "Memory"
+    elif kind == "knowledge":
+        text = _first_text(item, ("text", "content", "chunk"))
+        source = _compact(item.get("source"), "knowledge")
+        title = _compact(item.get("title")) or source or "Knowledge"
+    elif kind == "journal":
+        text = _first_text(item, ("text", "entry", "content"))
+        source = _compact(item.get("source"), "journal")
+        title = _compact(item.get("title")) or _compact(item.get("ts")) or "Journal entry"
+    elif kind == "todo":
+        text = _first_text(item, ("text", "content", "title", "task"))
+        source = _compact(item.get("source"), "todo")
+        title = _compact(item.get("title")) or _short_title(text, "Todo")
+    else:
+        text = _first_text(item, ("text", "content", "entry", "memory"))
+        source = _compact(item.get("source"), kind)
+        title = _compact(item.get("title")) or source or kind
+
+    return {
+        "kind": kind,
+        "source": source,
+        "title": title,
+        "text": text,
+        "score": _score(item),
+        "metadata": _metadata(item),
+    }
+
+
+async def _fetch_todos(query: str, limit: int) -> list[dict[str, Any]]:
+    try:
+        from gateway.todo_store import get
+
+        terms = [term for term in query.lower().split() if term]
+        todos = await asyncio.to_thread(get)
+        if not terms:
+            return todos[:limit]
+        matches = [
+            todo
+            for todo in todos
+            if any(term in _compact(todo.get("content")).lower() for term in terms)
+        ]
+        return matches[:limit]
+    except Exception as e:
+        logger.warning("Todo search failed: %s", e)
+        return []
+
+
+async def async_search(query: str, limit: int = 5) -> dict[str, Any]:
+    """Unified async search with stable grouped hit shapes."""
+    raw = await memory_graph.search_all(query)
+    if "todos" not in raw:
+        raw["todos"] = await _fetch_todos(query, limit)
+
+    results: dict[str, Any] = {
         "memories": [],
         "knowledge": [],
         "journal": [],
@@ -25,52 +142,23 @@ def search(query: str, limit: int = 5) -> dict:
         "query": query,
     }
 
-    # Memory
-    try:
-        from gateway.memory import search_memory
-        results["memories"] = search_memory(query, limit=limit)
-    except Exception:
-        pass
-
-    # Knowledge
-    try:
-        import asyncio
-        from gateway.knowledge import search as kn_search
-        results["knowledge"] = asyncio.run(kn_search(query, limit=limit))
-    except RuntimeError:
-        pass  # event loop conflict
-    except Exception:
-        pass
-
-    # Journal
-    try:
-        from gateway.journal import JOURNAL_LOG
-        if JOURNAL_LOG.exists():
-            terms = query.lower().split()
-            matches = []
-            with JOURNAL_LOG.open("r") as f:
-                for line in f:
-                    try:
-                        entry = json.loads(line.strip())
-                        text = entry.get("entry", "").lower()
-                        score = sum(1 for t in terms if t in text)
-                        if score > 0:
-                            matches.append({"entry": entry.get("entry", "")[:300], "score": score, "ts": entry.get("ts")})
-                    except json.JSONDecodeError:
-                        continue
-            matches.sort(key=lambda x: x["score"], reverse=True)
-            results["journal"] = matches[:limit]
-    except Exception:
-        pass
-
-    # Todos
-    try:
-        from gateway.todo_store import get
-        todos = get()
-        terms = query.lower().split()
-        matches = [t for t in todos if any(term in t.get("content", "").lower() for term in terms)]
-        results["todos"] = matches[:limit]
-    except Exception:
-        pass
-
+    for raw_key, items in raw.items():
+        section = RAW_TO_SECTION.get(raw_key)
+        if not section or not isinstance(items, list):
+            continue
+        kind = SECTION_TO_KIND[section]
+        results[section] = [
+            normalize_hit(kind, item)
+            for item in items[:limit]
+            if isinstance(item, dict)
+        ]
     return results
+
+
+def search(query: str, limit: int = 5) -> dict[str, Any]:
+    """Sync wrapper for offline scripts. Async routes should call async_search()."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(async_search(query, limit=limit))
+    raise RuntimeError("search() cannot run inside an event loop; await async_search()")

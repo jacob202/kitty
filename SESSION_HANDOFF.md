@@ -2,7 +2,9 @@
 
 **Updated:** 2026-05-18  
 **Branch:** `main` (uncommitted work in tree)  
-**Tests last run:** 296 passed, 2 deselected (`pytest tests/ -q --tb=short`, 2026-05-18).
+**Tests last run:** 296 passed, 2 deselected (`pytest tests/ -q --tb=short`, 2026-05-18 cleanup pass).
+
+**Cleanup (2026-05-18):** Calendar routes use `asyncio.to_thread`; `council_graph` uses `PROJECT_ROOT` for env path + logging; MCP council caches compiled graph; ruff F401 sweep on `gateway/` (kept `knowledge.py` test re-exports); `.gitignore` for `duplicate_analysis_report.txt` and `.superpowers/`. **Pass 2:** F841 fixes; `gateway/app.py` slimmed (~90 lines) with routes in `gateway/routes/`; scripts split into `scripts/curation/` and `scripts/ops/` with root shims for `spend_report` / `assign_kb_files`.
 
 ## What landed (Codex + Cursor follow-up)
 

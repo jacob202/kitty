@@ -1,7 +1,8 @@
 """Tests for calendar — AppleScript bridge (mock-safe)."""
+
 import pytest
 from unittest.mock import patch, MagicMock
-from gateway.calendar import (
+from gateway.calendar_integration import (
     _parse_event_lines,
     _run_applescript,
     get_today,
@@ -51,26 +52,30 @@ class TestApplescriptRunner:
 
 class TestCalendarAPI:
     def test_get_today_mocked(self):
-        with patch("gateway.calendar._run_applescript") as mock_run:
+        with patch("gateway.calendar_integration._run_applescript") as mock_run:
             mock_run.return_value = (True, "Event\n2026-05-13 09:00\n2026-05-13 10:00")
             events = get_today()
             assert len(events) == 1
 
     def test_get_upcoming_mocked(self):
-        with patch("gateway.calendar._run_applescript") as mock_run:
+        with patch("gateway.calendar_integration._run_applescript") as mock_run:
             mock_run.return_value = (True, "Event\n2026-05-13 09:00\n2026-05-13 10:00")
             events = get_upcoming(3)
             assert len(events) == 1
 
     def test_create_mocked(self):
-        with patch("gateway.calendar._run_applescript") as mock_run:
+        with patch("gateway.calendar_integration._run_applescript") as mock_run:
             mock_run.return_value = (True, "")
             assert create("Test Event") is True
 
     def test_get_upcoming_text(self):
-        with patch("gateway.calendar.get_upcoming") as mock_get:
+        with patch("gateway.calendar_integration.get_upcoming") as mock_get:
             mock_get.return_value = [
-                {"title": "Meeting", "start": "2026-05-13 10:00", "end": "2026-05-13 11:00"}
+                {
+                    "title": "Meeting",
+                    "start": "2026-05-13 10:00",
+                    "end": "2026-05-13 11:00",
+                }
             ]
             text = get_upcoming_text()
             assert "Meeting" in text

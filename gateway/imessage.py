@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import logging
 import subprocess
-from typing import Optional
 
 logger = logging.getLogger("kitty.imessage")
 

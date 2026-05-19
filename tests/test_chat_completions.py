@@ -11,10 +11,10 @@ def test_chat_completions_non_stream_health_uses_route_model_and_passes_domain()
     mock_gsp = AsyncMock(return_value="FULL_SYSTEM")
     fake = {"choices": [{"message": {"role": "assistant", "content": "stay hydrated"}}]}
     mock_llm = AsyncMock(return_value=fake)
-    with patch("gateway.app.classify_domain", return_value="health"), \
-         patch("gateway.app.route_model", return_value="kitty-default"), \
+    with patch("gateway.routes.chat.classify_domain", return_value="health"), \
+         patch("gateway.routes.chat.route_model", return_value="kitty-default"), \
          patch("gateway.context_builder.get_system_prompt", mock_gsp), \
-         patch("gateway.app._non_stream_response", mock_llm):
+         patch("gateway.routes.chat._non_stream_response", mock_llm):
         client = TestClient(app)
         response = client.post(
             "/v1/chat/completions",
@@ -38,10 +38,10 @@ def test_chat_completions_non_stream_non_health_uses_route_model():
     mock_gsp = AsyncMock(return_value="SYS")
     fake = {"choices": [{"message": {"role": "assistant", "content": "hey"}}]}
     mock_llm = AsyncMock(return_value=fake)
-    with patch("gateway.app.classify_domain", return_value="soul"), \
-         patch("gateway.app.route_model", return_value="openrouter/test-model"), \
+    with patch("gateway.routes.chat.classify_domain", return_value="soul"), \
+         patch("gateway.routes.chat.route_model", return_value="openrouter/test-model"), \
          patch("gateway.context_builder.get_system_prompt", mock_gsp), \
-         patch("gateway.app._non_stream_response", mock_llm):
+         patch("gateway.routes.chat._non_stream_response", mock_llm):
         client = TestClient(app)
         response = client.post(
             "/v1/chat/completions",
@@ -55,7 +55,7 @@ def test_chat_completions_non_stream_non_health_uses_route_model():
 
 
 def test_non_stream_response_logs_usage():
-    from gateway import app as gateway_app
+    from gateway.routes import chat as chat_routes
 
     class FakeResponse:
         def json(self):
@@ -70,9 +70,9 @@ def test_non_stream_response_logs_usage():
             return FakeResponse()
 
     async def run_test():
-        with patch("gateway.app.get_http_client", return_value=FakeClient()), \
-             patch("gateway.app.log_llm_usage") as mock_log:
-            result = await gateway_app._non_stream_response({"model": "kitty-default"})
+        with patch("gateway.routes.chat.get_http_client", return_value=FakeClient()), \
+             patch("gateway.routes.chat.log_llm_usage") as mock_log:
+            result = await chat_routes._non_stream_response({"model": "kitty-default"})
         assert result["usage"]["total_tokens"] == 5
         assert mock_log.call_args.args[0] == "litellm"
         assert mock_log.call_args.args[2] == "chat.completions.create"

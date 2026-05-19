@@ -1,31 +1,13 @@
 #!/usr/bin/env python3
-"""Print Kitty's token and estimated credit usage report."""
+"""Compatibility entrypoint — implementation lives in scripts/ops/spend_report.py."""
+
 from __future__ import annotations
 
-import argparse
-
-from gateway.token_spend_report import (
-    filter_entries,
-    format_report,
-    load_entries,
-    summarize_usage,
-)
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--since", help="Only include entries on or after YYYY-MM-DD.")
-    parser.add_argument("--provider", help="Only include one provider, e.g. agentrouter.")
-    parser.add_argument(
-        "--credits",
-        type=float,
-        help="Known current credit balance to compare against estimated spend.",
-    )
-    args = parser.parse_args()
-
-    entries = filter_entries(load_entries(), since=args.since, provider=args.provider)
-    print(format_report(summarize_usage(entries, credit_balance=args.credits)))
-
+import runpy
+from pathlib import Path
 
 if __name__ == "__main__":
-    main()
+    runpy.run_path(
+        str(Path(__file__).resolve().parent / "ops" / "spend_report.py"),
+        run_name="__main__",
+    )

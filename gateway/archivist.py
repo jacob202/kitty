@@ -2,9 +2,7 @@
 import hashlib
 import logging
 import re
-import time
 from functools import lru_cache
-from pathlib import Path
 
 logger = logging.getLogger("kitty.knowledge.archivist")
 

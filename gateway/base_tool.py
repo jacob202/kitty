@@ -5,11 +5,10 @@ Includes risk classification and permission system integration.
 """
 
 import abc
-import json
 import logging
 from enum import Enum
 from typing import Any, Dict, Optional, Type
-from pydantic import BaseModel, Field, create_model
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger("kitty.base_tool")
 

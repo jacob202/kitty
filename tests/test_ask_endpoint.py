@@ -10,7 +10,7 @@ def test_ask_returns_reply():
         "gateway.context_builder.get_system_prompt",
         new=AsyncMock(return_value="FULL_SYSTEM"),
     ), patch(
-        "gateway.app._non_stream_response",
+        "gateway.routes.chat._non_stream_response",
         new=AsyncMock(
             return_value={"choices": [{"message": {"role": "assistant", "content": "I am Kitty, your personal AI."}}]}
         ),

@@ -21,7 +21,7 @@ def test_memory_and_knowledge_injected_into_system_prompt() -> None:
             return_value="## Memory\n- Jacob lives in Regina\n\n## Knowledge\nRegina weather context"
         ),
     ), patch(
-        "gateway.app._non_stream_response",
+        "gateway.routes.chat._non_stream_response",
         new=AsyncMock(side_effect=_fake_non_stream_response),
     ):
         with TestClient(app) as client:

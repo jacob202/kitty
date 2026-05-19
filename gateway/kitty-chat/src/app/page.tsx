@@ -10,7 +10,13 @@ import { BriefPanel } from '@/components/BriefPanel'
 import { Rail } from '@/components/Rail'
 import { SessionSidebar } from '@/components/SessionSidebar'
 import { RightBar } from '@/components/RightBar'
-import { fetchGatewayBrief, fetchGatewayModels, fetchGatewaySearch, type GatewayBrief, type GatewaySearchSnapshot } from '@/lib/gateway'
+import {
+  fetchGatewayBrief,
+  fetchGatewayModels,
+  fetchGatewaySearch,
+  type GatewayBrief,
+  type GatewaySearchSnapshot,
+} from '@/lib/gateway'
 
 let chatCounter = 0
 function newChatId() { return `chat-${++chatCounter}-${Date.now()}` }
@@ -55,6 +61,21 @@ export default function KittyChat() {
   const [tokenCount, setTokenCount] = useState(0)
   const [brief, setBrief] = useState<GatewayBrief | null>(null)
   const [searchSnapshot, setSearchSnapshot] = useState<GatewaySearchSnapshot | null>(null)
+  const [modelGateway, setModelGateway] = useState<{
+    loaded: boolean
+    live: boolean
+    error: string | null
+  }>({ loaded: false, live: true, error: null })
+  const [briefGateway, setBriefGateway] = useState<{
+    loaded: boolean
+    live: boolean
+    error: string | null
+  }>({ loaded: false, live: true, error: null })
+  const [searchGateway, setSearchGateway] = useState<{
+    live: boolean
+    error: string | null
+  }>({ live: true, error: null })
+  const [gwReload, setGwReload] = useState(0)
 
   const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -77,25 +98,37 @@ export default function KittyChat() {
     let cancelled = false
 
     void (async () => {
-      const models = await fetchGatewayModels()
+      const modelsPayload = await fetchGatewayModels()
       if (cancelled) return
 
       startTransition(() => {
-        setAvailableModels(models)
-        setActiveModel(current => models.find(model => model.id === current.id) ?? models[0] ?? current)
+        setModelGateway({
+          loaded: true,
+          live: modelsPayload.fromLiveGateway,
+          error: modelsPayload.error,
+        })
+        setAvailableModels(modelsPayload.models)
+        setActiveModel(current =>
+          modelsPayload.models.find(model => model.id === current.id) ?? modelsPayload.models[0] ?? current,
+        )
       })
 
-      const liveBrief = await fetchGatewayBrief()
+      const briefPayload = await fetchGatewayBrief()
       if (cancelled) return
       startTransition(() => {
-        setBrief(liveBrief)
+        setBriefGateway({
+          loaded: true,
+          live: briefPayload.fromLiveGateway,
+          error: briefPayload.error,
+        })
+        setBrief(briefPayload.brief)
       })
     })()
 
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [gwReload])
 
   useEffect(() => {
     let cancelled = false
@@ -103,16 +136,21 @@ export default function KittyChat() {
 
     if (!query) {
       setSearchSnapshot(null)
+      setSearchGateway({ live: true, error: null })
       return () => {
         cancelled = true
       }
     }
 
     void (async () => {
-      const nextSnapshot = await fetchGatewaySearch(query, 3)
+      const searchPayload = await fetchGatewaySearch(query, 3)
       if (cancelled) return
       startTransition(() => {
-        setSearchSnapshot(nextSnapshot)
+        setSearchSnapshot(searchPayload.snapshot)
+        setSearchGateway({
+          live: searchPayload.fromLiveGateway,
+          error: searchPayload.error,
+        })
       })
     })()
 
@@ -245,6 +283,12 @@ export default function KittyChat() {
     }
   }, [input, isStreaming, activeChat, activeModel, updateChat])
 
+  const retryGatewayBootstrap = useCallback(() => {
+    setModelGateway({ loaded: false, live: true, error: null })
+    setBriefGateway({ loaded: false, live: true, error: null })
+    setGwReload(n => n + 1)
+  }, [])
+
   const handlePrompt = useCallback((text: string) => {
     setInput(text)
     setTimeout(() => {
@@ -287,6 +331,64 @@ export default function KittyChat() {
           isStreaming={isStreaming}
           activeChat={activeChat}
         />
+
+        {modelGateway.loaded && !modelGateway.live && (
+          <div
+            role="status"
+            style={{
+              padding: '8px 16px',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 12,
+              color: 'var(--warning, #f5a623)',
+              background: 'rgba(245, 166, 35, 0.08)',
+              borderBottom: '1px solid var(--border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              flexShrink: 0,
+            }}
+          >
+            <span>
+              Offline: using built-in model list — {modelGateway.error ?? 'gateway unreachable.'}
+            </span>
+            <button
+              type="button"
+              onClick={retryGatewayBootstrap}
+              style={{
+                border: '1px solid var(--border)',
+                borderRadius: 6,
+                padding: '4px 10px',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: 'var(--panel-2)',
+                color: 'var(--text)',
+                flexShrink: 0,
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {modelGateway.loaded && modelGateway.live && briefGateway.loaded && !briefGateway.live && (
+          <div
+            role="status"
+            style={{
+              padding: '6px 16px',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              color: 'var(--text-dim)',
+              background: 'rgba(16, 20, 29, 0.5)',
+              borderBottom: '1px solid var(--border)',
+              flexShrink: 0,
+            }}
+          >
+            Brief unavailable ({briefGateway.error ?? 'unknown'}). Chat still works.
+          </div>
+        )}
 
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
           {!activeChat || activeChat.messages.length === 0 ? (
@@ -334,6 +436,7 @@ export default function KittyChat() {
         isStreaming={isStreaming}
         brief={brief}
         search={searchSnapshot}
+        searchGatewayError={searchGateway.live ? null : searchGateway.error}
         activeModelName={activeModel.name}
       />
     </div>

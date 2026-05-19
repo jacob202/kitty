@@ -8,7 +8,7 @@ from __future__ import annotations
 import hashlib
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from gateway.paths import DATA_DIR
 

@@ -11,7 +11,6 @@ import asyncio
 import json
 import logging
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger("kitty.chat_import")
 

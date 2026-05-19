@@ -17,7 +17,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from typing import Optional
 
 import httpx
 
@@ -109,7 +108,7 @@ async def _process_message(chat_id: int, text: str) -> None:
         except Exception:
             pass
 
-    except Exception as e:
+    except Exception:
         logger.exception("Telegram message processing failed")
         await send_message(chat_id, "Sorry, brain fog — try again?")
 

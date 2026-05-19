@@ -17,14 +17,13 @@ Public API:
   list_agents() -> list[dict]
   stop(session_id) -> bool
 """
+
 from __future__ import annotations
 
 import asyncio
 import logging
 import time
-from typing import Optional, Dict, Any
-
-from gateway.paths import DATA_DIR
+from typing import Optional, Any
 
 logger = logging.getLogger("kitty.agent_runner")
 
@@ -98,6 +97,7 @@ AGENT_PRESETS: dict[str, dict[str, Any]] = {
 
 # --- Agent Runner ---
 
+
 async def spawn(
     goal: str,
     agent_type: str = "explorer",
@@ -115,7 +115,9 @@ async def spawn(
     """
     preset = AGENT_PRESETS.get(agent_type)
     if not preset:
-        raise ValueError(f"Unknown agent type: {agent_type}. Available: {list(AGENT_PRESETS)}")
+        raise ValueError(
+            f"Unknown agent type: {agent_type}. Available: {list(AGENT_PRESETS)}"
+        )
 
     model = model or preset["model"]
     max_iterations = max_iterations or preset["max_iterations"]
@@ -127,26 +129,34 @@ async def spawn(
 
     # Create session in autonomy_state
     from gateway.autonomy_state import AutonomyState
-    state = AutonomyState.start_new(
-        f"[agent:{agent_type}] {goal}"
-    )
+
+    state = AutonomyState.start_new(f"[agent:{agent_type}] {goal}")
     session_id = state.session_id
 
     # Record metadata
-    state.record_step("system", content=json.dumps({
-        "agent_type": agent_type,
-        "model": model,
-        "max_iterations": max_iterations,
-        "temperature": temperature,
-        "metadata": metadata or {},
-    }))
+    state.record_step(
+        "system",
+        content=json.dumps(
+            {
+                "agent_type": agent_type,
+                "model": model,
+                "max_iterations": max_iterations,
+                "temperature": temperature,
+                "metadata": metadata or {},
+            }
+        ),
+    )
 
     # Launch background task
-    asyncio.create_task(_run_agent_loop(
-        session_id, goal, system_prompt, model, max_iterations, temperature
-    ))
+    asyncio.create_task(
+        _run_agent_loop(
+            session_id, goal, system_prompt, model, max_iterations, temperature
+        )
+    )
 
-    logger.info("Agent spawned: type=%s session=%d goal=%s", agent_type, session_id, goal[:80])
+    logger.info(
+        "Agent spawned: type=%s session=%d goal=%s", agent_type, session_id, goal[:80]
+    )
     return session_id
 
 
@@ -165,11 +175,13 @@ async def _run_agent_loop(
     state = AutonomyState(session_id=session_id)
     messages: list[dict] = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": f"Goal: {goal}\n\nWork through this step by step. When you're done, give your final answer."},
+        {
+            "role": "user",
+            "content": f"Goal: {goal}\n\nWork through this step by step. When you're done, give your final answer.",
+        },
     ]
 
     model = model or route_model(goal)
-    final_output = ""
 
     try:
         for iteration in range(max_iterations):
@@ -185,7 +197,9 @@ async def _run_agent_loop(
                     operation=f"agent.{session_id}",
                 )
             except Exception as e:
-                logger.error("Agent %d iteration %d failed: %s", session_id, iteration, e)
+                logger.error(
+                    "Agent %d iteration %d failed: %s", session_id, iteration, e
+                )
                 state.record_step(
                     "error",
                     content=f"LLM call failed: {e}",
@@ -201,11 +215,12 @@ async def _run_agent_loop(
             )
 
             messages.append({"role": "assistant", "content": response})
-            final_output = response
 
             # Check if the agent signals completion
             if _is_finished(response):
-                logger.info("Agent %d finished after %d iterations", session_id, iteration + 1)
+                logger.info(
+                    "Agent %d finished after %d iterations", session_id, iteration + 1
+                )
                 break
 
         state.finish("completed")
@@ -222,17 +237,22 @@ def _is_finished(response: str) -> bool:
     """Heuristic: does the response look like a final answer?"""
     lower = response.lower().strip()
     finish_markers = [
-        "final answer:", "in conclusion", "to summarize",
-        "here is my final", "this completes the",
+        "final answer:",
+        "in conclusion",
+        "to summarize",
+        "here is my final",
+        "this completes the",
     ]
     return any(m in lower for m in finish_markers)
 
 
 # --- Query API ---
 
+
 def get_status(session_id: int) -> dict[str, Any]:
     """Get the current status of an agent by session_id."""
     from gateway.autonomy_state import AutonomyState
+
     state = AutonomyState(session_id=session_id)
     history = state.get_history()
 
@@ -242,6 +262,7 @@ def get_status(session_id: int) -> dict[str, Any]:
     # Find session row
     import sqlite3
     from gateway.autonomy_state import STATE_DB
+
     with sqlite3.connect(STATE_DB) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute(
@@ -271,6 +292,7 @@ def get_status(session_id: int) -> dict[str, Any]:
 def get_output(session_id: int) -> str:
     """Get the full output from a completed or running agent."""
     from gateway.autonomy_state import AutonomyState
+
     state = AutonomyState(session_id=session_id)
     history = state.get_history()
 
@@ -285,26 +307,28 @@ def list_agents(limit: int = 20) -> list[dict[str, Any]]:
     """List recent agents, newest first."""
     import sqlite3
     from gateway.autonomy_state import STATE_DB, init_db
+
     init_db()
 
     with sqlite3.connect(STATE_DB) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
-            "SELECT * FROM autonomy_sessions ORDER BY created_at DESC LIMIT ?",
-            (limit,)
+            "SELECT * FROM autonomy_sessions ORDER BY created_at DESC LIMIT ?", (limit,)
         ).fetchall()
 
     agents = []
     for row in rows:
         sid = row["id"]
         goal = row["goal"] or ""
-        agents.append({
-            "session_id": sid,
-            "goal": goal,
-            "status": row["status"],
-            "created_at": row["created_at"],
-            "updated_at": row["updated_at"],
-        })
+        agents.append(
+            {
+                "session_id": sid,
+                "goal": goal,
+                "status": row["status"],
+                "created_at": row["created_at"],
+                "updated_at": row["updated_at"],
+            }
+        )
     return agents
 
 
@@ -312,6 +336,7 @@ def stop(session_id: int) -> bool:
     """Request an agent to stop. Returns True if it was running."""
     import sqlite3
     from gateway.autonomy_state import STATE_DB
+
     with sqlite3.connect(STATE_DB) as conn:
         row = conn.execute(
             "SELECT status FROM autonomy_sessions WHERE id = ?", (session_id,)

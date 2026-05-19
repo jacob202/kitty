@@ -44,6 +44,9 @@ out/
 # Misc
 *.sqlite
 *.db
+duplicate_analysis_report.txt
+*_analysis_report.txt
+.superpowers/
 
 # Ephemeral runtime state
 .kitty.pid

@@ -8,6 +8,7 @@ and NVIDIA. The Kitty side now keeps a single canonical route name
 Successful completions append one row to ``data/kitty_token_log.jsonl`` via
 ``gateway.token_usage_log`` when the API returns a ``usage`` object.
 """
+
 from __future__ import annotations
 
 import json
@@ -20,11 +21,12 @@ from dotenv import load_dotenv
 
 logger = logging.getLogger("kitty.llm_client")
 
-from gateway.paths import LITELLM_BASE, LITELLM_KEY
+from gateway.config import LITELLM_BASE_URL
 from gateway.token_usage_log import log_llm_usage, normalize_usage_payload
 from gateway.llm_utils import retry_with_backoff
 
 OPENROUTER_BASE = "https://openrouter.ai/api/v1"
+LITELLM_KEY = os.environ.get("LITELLM_KEY", "kitty-local-key-change-me")
 
 # LiteLLM virtual name (gateway/litellm_config.yaml) — valid toward localhost:8001 only.
 _LITELLM_DEFAULT = "kitty-default"
@@ -39,7 +41,9 @@ def _env_slug(name: str, default: str) -> str:
 
 
 _OPENROUTER_DEFAULT = _env_slug("KITTY_OPENROUTER_CHEAP", "deepseek/deepseek-v4-flash")
-_GEMINI_MODEL = _env_slug("KITTY_GEMINI_MODEL", "gemini-2.5-flash-image")
+# Gemini OpenAI-compat ``/chat/completions`` expects a **text** model slug.
+# The old default ``gemini-2.5-flash-image`` breaks JSON / ingestion-style calls.
+_GEMINI_MODEL = _env_slug("KITTY_GEMINI_MODEL", "gemini-2.5-flash")
 
 _LITELLM_TO_OPENROUTER: dict[str, str] = {
     _LITELLM_DEFAULT: _OPENROUTER_DEFAULT,
@@ -118,10 +122,7 @@ def agentrouter_model_for_request(request_model: str | None) -> str:
     if rm and rm not in _LEGACY_MODEL_ALIASES and rm != _LITELLM_DEFAULT:
         return _sanitize_agentrouter_model_id(rm)
 
-    g_model = (
-        os.environ.get("AGENTROUTER_MODEL", "").strip()
-        or "gpt-5.4-mini"
-    )
+    g_model = os.environ.get("AGENTROUTER_MODEL", "").strip() or "gpt-5.4-mini"
     return _sanitize_agentrouter_model_id(g_model)
 
 
@@ -150,8 +151,14 @@ def _finalize_openai_shape_response(
         logger.error("Malformed response from %s: %s", provider, data)
         return ""
 
-    usage = normalize_usage_payload(data.get("usage") if isinstance(data.get("usage"), dict) else None)
-    meta: dict[str, Any] = {**(metadata or {}), "route": route, "completion_chars": len(text)}
+    usage = normalize_usage_payload(
+        data.get("usage") if isinstance(data.get("usage"), dict) else None
+    )
+    meta: dict[str, Any] = {
+        **(metadata or {}),
+        "route": route,
+        "completion_chars": len(text),
+    }
     if request_model:
         meta["request_model"] = request_model
     log_llm_usage(provider, model_logged, operation, usage, meta)
@@ -193,7 +200,7 @@ def call_llm(
             payload["response_format"] = response_format
 
         resp = requests.post(
-            f"{LITELLM_BASE}/v1/chat/completions",
+            f"{LITELLM_BASE_URL}/v1/chat/completions",
             headers={"Authorization": f"Bearer {LITELLM_KEY}"},
             json=payload,
             timeout=timeout,
@@ -211,9 +218,13 @@ def call_llm(
             metadata=metadata,
         )
     except Exception as e:
-        logger.warning("LLM call failed via LiteLLM (%s), trying fallbacks: %s", model, e)
+        logger.warning(
+            "LLM call failed via LiteLLM (%s), trying fallbacks: %s", model, e
+        )
 
-        disable_agentrouter = os.environ.get("KITTY_DISABLE_AGENTROUTER", "").strip().lower()
+        disable_agentrouter = (
+            os.environ.get("KITTY_DISABLE_AGENTROUTER", "").strip().lower()
+        )
         if disable_agentrouter not in ("1", "true", "yes"):
             # 1. AgentRouter first (single key, single Kitty route).
             out = _call_agentrouter_direct(
@@ -309,9 +320,13 @@ def _call_gemini_direct(
         payload["response_format"] = response_format
 
     try:
-        resp = requests.post(f"{base}/chat/completions", headers=headers, json=payload, timeout=timeout)
+        resp = requests.post(
+            f"{base}/chat/completions", headers=headers, json=payload, timeout=timeout
+        )
         if resp.status_code != 200:
-            logger.error("Gemini call failed (%d): %s", resp.status_code, resp.text[:500])
+            logger.error(
+                "Gemini call failed (%d): %s", resp.status_code, resp.text[:500]
+            )
             return ""
         data = resp.json()
         mlog = data.get("model") or model
@@ -365,7 +380,12 @@ def _call_openrouter_direct(
         payload["response_format"] = response_format
 
     try:
-        resp = requests.post(f"{OPENROUTER_BASE}/chat/completions", headers=headers, json=payload, timeout=timeout)
+        resp = requests.post(
+            f"{OPENROUTER_BASE}/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=timeout,
+        )
         resp.raise_for_status()
         data = resp.json()
         mlog = data.get("model") or model
@@ -381,6 +401,7 @@ def _call_openrouter_direct(
     except Exception as e:
         logger.error("OpenRouter direct call failed: %s", e)
         return ""
+
 
 # AgentRouter's hosted API rejects generic clients before token validation. These
 # defaults match its Codex integration path and can be overridden from env.
@@ -423,7 +444,9 @@ def _call_agentrouter_direct(
     ar_model = agentrouter_model_for_request(request_model)
 
     if not api_key:
-        logger.debug("AgentRouter skipped: set AGENTROUTER_API_KEY or AGENT_ROUTER_TOKEN")
+        logger.debug(
+            "AgentRouter skipped: set AGENTROUTER_API_KEY or AGENT_ROUTER_TOKEN"
+        )
         return ""
 
     ua = os.environ.get("KITTY_AGENTROUTER_USER_AGENT", "").strip()
@@ -450,7 +473,9 @@ def _call_agentrouter_direct(
                     if isinstance(k, str) and isinstance(v, str):
                         base_headers[str(k)] = str(v)
         except json.JSONDecodeError:
-            logger.warning("KITTY_AGENTROUTER_EXTRA_HEADERS_JSON must be JSON object — ignoring.")
+            logger.warning(
+                "KITTY_AGENTROUTER_EXTRA_HEADERS_JSON must be JSON object — ignoring."
+            )
 
     def build_headers(user_agent: str) -> dict[str, str]:
         h = {**base_headers, "User-Agent": user_agent}
@@ -513,6 +538,7 @@ def _call_agentrouter_direct(
         logger.error("AgentRouter direct call failed: %s", e)
         return ""
 
+
 @retry_with_backoff
 def _call_nvidia_direct(
     messages: list[dict],
@@ -529,7 +555,9 @@ def _call_nvidia_direct(
     if not api_key:
         return ""
 
-    base = os.environ.get("NVIDIA_API_BASE", "https://integrate.api.nvidia.com/v1").rstrip("/")
+    base = os.environ.get(
+        "NVIDIA_API_BASE", "https://integrate.api.nvidia.com/v1"
+    ).rstrip("/")
     nv_model = os.environ.get("NVIDIA_CHAT_MODEL", "deepseek-ai/deepseek-v4-pro")
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -545,7 +573,9 @@ def _call_nvidia_direct(
         payload["response_format"] = response_format
 
     try:
-        resp = requests.post(f"{base}/chat/completions", headers=headers, json=payload, timeout=timeout)
+        resp = requests.post(
+            f"{base}/chat/completions", headers=headers, json=payload, timeout=timeout
+        )
         resp.raise_for_status()
         data = resp.json()
         mlog = data.get("model") or nv_model
@@ -563,8 +593,12 @@ def _call_nvidia_direct(
         return ""
 
 
-def chat(model: str, messages: list[dict], max_tokens: int = 500, temperature: float = 0.7) -> str:
-    return call_llm(messages, model=model, max_tokens=max_tokens, temperature=temperature)
+def chat(
+    model: str, messages: list[dict], max_tokens: int = 500, temperature: float = 0.7
+) -> str:
+    return call_llm(
+        messages, model=model, max_tokens=max_tokens, temperature=temperature
+    )
 
 
 _REASONING_KEYWORDS = frozenset(
@@ -596,6 +630,7 @@ _BEST_TRIGGERS = frozenset(
         "smartest model",
     }
 )
+
 
 def route_model(message: str) -> str:
     """Single-route model selector for Kitty."""

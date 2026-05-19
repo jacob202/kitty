@@ -6,10 +6,9 @@ synthesize recent learning into durable, organized memories.
 
 import asyncio
 import logging
-import os
 import time
 from typing import Optional, Callable, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 logger = logging.getLogger("kitty.memory_consolidation")

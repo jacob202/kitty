@@ -10,12 +10,12 @@ Public API:
   suggest_domain() -> str | None      Suggest domain based on active app
   preload_context() -> dict           Context to preload based on activity
 """
+
 from __future__ import annotations
 
 import logging
 import os
 import subprocess
-from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger("kitty.ambient")
@@ -42,7 +42,11 @@ APP_DOMAIN_MAP: dict[str, str] = {
 
 
 def is_enabled() -> bool:
-    return os.environ.get("KITTY_AMBIENT_ENABLED", "").strip().lower() in ("1", "true", "yes")
+    return os.environ.get("KITTY_AMBIENT_ENABLED", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
 
 
 def get_active_app() -> Optional[str]:
@@ -51,9 +55,14 @@ def get_active_app() -> Optional[str]:
         return None
     try:
         result = subprocess.run(
-            ["osascript", "-e",
-             'tell application "System Events" to get name of first application process whose frontmost is true'],
-            capture_output=True, text=True, timeout=5,
+            [
+                "osascript",
+                "-e",
+                'tell application "System Events" to get name of first application process whose frontmost is true',
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         if result.returncode == 0:
             return result.stdout.strip().lower()
@@ -101,22 +110,34 @@ def get_ambient_text() -> str:
         return ""
 
     lines = [f"[AMBIENT: Jacob is in {app}"]
+    if domain:
+        lines[0] += f", focus: {domain}"
 
     # Try to get current URL/file
     try:
         if app in ("safari", "chrome", "brave"):
             result = subprocess.run(
-                ["osascript", "-e",
-                 f'tell application "{app.title()}" to get URL of active tab of front window'],
-                capture_output=True, text=True, timeout=3,
+                [
+                    "osascript",
+                    "-e",
+                    f'tell application "{app.title()}" to get URL of active tab of front window',
+                ],
+                capture_output=True,
+                text=True,
+                timeout=3,
             )
             if result.returncode == 0 and result.stdout.strip():
                 lines.append(f" — viewing {result.stdout.strip()[:100]}")
         elif app in ("cursor", "vscode"):
             result = subprocess.run(
-                ["osascript", "-e",
-                 f'tell application "{app.title()}" to get name of front window'],
-                capture_output=True, text=True, timeout=3,
+                [
+                    "osascript",
+                    "-e",
+                    f'tell application "{app.title()}" to get name of front window',
+                ],
+                capture_output=True,
+                text=True,
+                timeout=3,
             )
             if result.returncode == 0:
                 lines.append(f" — {result.stdout.strip()[:100]}")

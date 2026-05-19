@@ -10,7 +10,6 @@ import pathlib
 import shlex
 import subprocess
 import ssl
-import sys
 import urllib.error
 import urllib.parse
 import urllib.request

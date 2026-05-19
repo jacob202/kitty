@@ -51,9 +51,9 @@ export function ChatMessage({ message, isStreaming, initials }: Props) {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 7 }}>
           <span style={{
-            fontFamily: 'var(--font-ui)', fontSize: 22, lineHeight: 1, letterSpacing: '0.5px',
+            fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
+            letterSpacing: '0.08em', textTransform: 'uppercase',
             color: isAI ? 'var(--purple-2)' : '#ff7a52',
-            textShadow: isAI ? '0 0 10px #9b59ff66' : '0 0 8px #e8572a44',
           }}>
             {isAI ? 'KITTY' : 'YOU'}
           </span>
@@ -106,7 +106,7 @@ export function ChatMessage({ message, isStreaming, initials }: Props) {
 function MessageContent({ content }: { content: string }) {
   const parts = content.split(/(```[\s\S]*?```)/g)
   return (
-    <div style={{ fontSize: 14, lineHeight: 1.8, color: 'var(--text-dim)' }}>
+    <div style={{ fontSize: 14, lineHeight: 1.7, fontFamily: 'var(--font-ui)', color: 'var(--text-dim)' }}>
       {parts.map((part, i) => {
         if (part.startsWith('```') && part.endsWith('```')) {
           const lines = part.slice(3, -3).split('\n')

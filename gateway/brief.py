@@ -22,7 +22,7 @@ DEFAULT_FEEDS = {
     "ai_research": "https://arxiv.org/rss/cs.AI",
     "ai_news": "https://www.theverge.com/ai-artificial-intelligence/rss/index.xml",
     "high_signal": "https://news.ycombinator.com/rss",
-    "world": "https://feeds.bbci.co.uk/news/world/rss.xml"
+    "world": "https://feeds.bbci.co.uk/news/world/rss.xml",
 }
 
 
@@ -39,11 +39,13 @@ def _fetch_single_feed(category: str, url: str, limit: int) -> List[NewsHeadline
         response.raise_for_status()
         feed = feedparser.parse(response.content)
         for entry in feed.entries[:limit]:
-            headlines.append(NewsHeadline(
-                title=entry.title,
-                url=entry.link,
-                snippet=entry.get("summary", entry.get("description", ""))[:200]
-            ))
+            headlines.append(
+                NewsHeadline(
+                    title=entry.title,
+                    url=entry.link,
+                    snippet=entry.get("summary", entry.get("description", ""))[:200],
+                )
+            )
     except Exception as e:
         logger.error("Failed to fetch %s news: %s", category, e)
     return headlines
@@ -64,19 +66,22 @@ def fetch_news(limit_per_feed: int = 3) -> List[NewsHeadline]:
 
 def get_tasks_summary() -> str:
     """Read the 'Next Smallest Action' from TASKS.md."""
-    from gateway.paths import PROJECT_ROOT
     tasks_path = PROJECT_ROOT / "TASKS.md"
     try:
         content = tasks_path.read_text()
         if "## Next Smallest Action" in content:
-            summary = content.split("## Next Smallest Action")[1].strip().split("\n\n")[0]
+            summary = (
+                content.split("## Next Smallest Action")[1].strip().split("\n\n")[0]
+            )
             return summary
     except Exception as e:
         logger.warning("Could not read TASKS.md: %s", e)
     return "No next action found. Check TASKS.md."
 
 
-def synthesize_brief_with_llm(headlines: List[NewsHeadline], task_summary: str, memory_snippet: str) -> str:
+def synthesize_brief_with_llm(
+    headlines: List[NewsHeadline], task_summary: str, memory_snippet: str
+) -> str:
     """Use LLM via LiteLLM to turn raw data into a warm, character-driven morning brief."""
     from gateway.llm_client import chat
     from gateway.context_builder import build_worker_context
@@ -86,7 +91,7 @@ def synthesize_brief_with_llm(headlines: List[NewsHeadline], task_summary: str, 
         "brief",
         top_task=f"Current Top Task: {task_summary}",
         memory=f"Recent Memories: {memory_snippet}",
-        tz="America/Regina"
+        tz="America/Regina",
     )
 
     prompt = f"""GATHERED DATA FOR TODAY:
@@ -119,6 +124,7 @@ def _fetch_memory_snippet() -> str:
     """Fetch a short memory snippet for context."""
     try:
         from gateway.memory import search_memory
+
         results = search_memory("morning brief context", limit=2)
         return "\n".join([m.get("memory", "") for m in results])
     except Exception:
@@ -162,7 +168,9 @@ def _store_cached_brief(result: dict) -> dict:
     return result
 
 
-def get_cached_brief(max_age_seconds: Optional[int] = BRIEF_CACHE_TTL_SECONDS) -> Optional[dict]:
+def get_cached_brief(
+    max_age_seconds: Optional[int] = BRIEF_CACHE_TTL_SECONDS,
+) -> Optional[dict]:
     with _brief_cache_lock:
         cached = dict(_brief_cache) if _brief_cache else None
     if not cached:
@@ -207,6 +215,7 @@ def generate_brief() -> dict:
     # Push to phone if notify is configured
     try:
         from gateway.notify import send_brief, is_configured
+
         if is_configured():
             send_brief(brief_text)
     except Exception:

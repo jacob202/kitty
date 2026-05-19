@@ -6,8 +6,7 @@ Jacob is actually learning from the technical materials.
 from __future__ import annotations
 import json
 import logging
-from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Dict
 
 from gateway.paths import DATA_DIR
 

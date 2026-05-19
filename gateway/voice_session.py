@@ -20,11 +20,9 @@ Binary frames: client → server = audio bytes (webm/mp4)
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import time
-from typing import Optional
 
 from fastapi import WebSocket, WebSocketDisconnect
 
@@ -161,7 +159,7 @@ async def _handle_audio_bytes(session: VoiceSession, audio: bytes) -> None:
         gate = filter_response(reply)
         reply = gate.cleaned
 
-    except Exception as e:
+    except Exception:
         logger.exception("Voice LLM call failed")
         await session.ws.send_json({"type": "error", "message": "Brain fog — say that again?"})
         return

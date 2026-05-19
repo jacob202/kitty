@@ -14,9 +14,7 @@ import json
 import logging
 import time
 from collections import Counter
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Optional
+from datetime import datetime
 
 from gateway.paths import DATA_DIR, LOGS_DIR
 
