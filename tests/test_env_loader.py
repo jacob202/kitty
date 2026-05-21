@@ -1,4 +1,7 @@
 import subprocess
+from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_safe_env_loader_ignores_stray_commands_and_expands_env_vars(tmp_path):
@@ -16,8 +19,9 @@ def test_safe_env_loader_ignores_stray_commands_and_expands_env_vars(tmp_path):
         )
     )
 
-    script = """
-source /Users/jacobbrizinski/Projects/kitty/gateway/lib/load_env_safe.sh
+    load_env_safe = _REPO_ROOT / "gateway" / "lib" / "load_env_safe.sh"
+    script = f"""
+source {load_env_safe}
 load_env_assignments "$1"
 printf '%s\n' "$OPENROUTER_API_KEY|$LITELLM_MASTER_KEY|$OPENWEBUI_DATA_DIR"
 """

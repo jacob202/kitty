@@ -19,7 +19,10 @@ def test_brief_item_contract():
 
 
 def test_fetch_news_returns_headlines_on_success():
+    import pytest
     import gateway.brief as b
+    if b.feedparser is None:
+        pytest.skip("feedparser not installed")
     entry = MagicMock()
     entry.title = "Big AI news"
     entry.link = "http://t.co/1"
@@ -33,7 +36,10 @@ def test_fetch_news_returns_headlines_on_success():
 
 
 def test_fetch_news_handles_feed_error():
+    import pytest
     import gateway.brief as b
+    if b.feedparser is None:
+        pytest.skip("feedparser not installed")
     with patch.object(b.feedparser, "parse", side_effect=Exception("network error")):
         result = b.fetch_news()
     assert result == []

@@ -1,6 +1,9 @@
 from gateway.paths import PROJECT_ROOT
 
-import feedparser
+try:
+    import feedparser
+except ImportError:  # optional dependency — TTS/brief features degrade gracefully
+    feedparser = None  # type: ignore[assignment]
 import logging
 import threading
 import requests
