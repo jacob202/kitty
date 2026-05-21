@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react'
 import { Chat } from '@/lib/types'
 import { commandZones, contextFound, continueItems, realityCheck, signals, type DashboardTone } from '@/lib/dashboardMock'
 import type { GatewayBrief } from '@/lib/gateway'
+import { TaskPanel } from './TaskPanel'
 
 interface Props {
   chats: Chat[]
@@ -159,6 +160,13 @@ export function BriefPanel({ chats, onSelectChat, onPrompt, brief }: Props) {
                   <span style={miniValueStyle}>{item.value}</span>
                 </div>
               ))}
+            </div>
+          </div>
+
+          <div style={panelCardStyle}>
+            <SectionHeader title="Background tasks" meta="queue" compact />
+            <div style={{ marginTop: 10 }}>
+              <TaskPanel />
             </div>
           </div>
         </aside>

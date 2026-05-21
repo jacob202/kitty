@@ -93,6 +93,54 @@ export async function fetchGatewayMood(): Promise<GatewayMoodState | null> {
   }
 }
 
+// ── Task runner ─────────────────────────────────────────────────────────────
+
+export type TaskStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+export type TaskType   = 'research' | 'ingest' | 'build' | 'cleanup' | 'dream'
+
+export interface GatewayTask {
+  id: string
+  goal: string
+  task_type: TaskType
+  status: TaskStatus
+  created_at: number
+  started_at?: number
+  completed_at?: number
+  progress: string
+  error: string
+}
+
+export async function createGatewayTask(goal: string, taskType: TaskType = 'research'): Promise<string | null> {
+  try {
+    const json = await gfetch('/task/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ goal, task_type: taskType }),
+    })
+    return json.task_id ?? null
+  } catch {
+    return null
+  }
+}
+
+export async function fetchGatewayTasks(limit = 8): Promise<GatewayTask[]> {
+  try {
+    const json = await gfetch(`/tasks?limit=${limit}`)
+    return json.tasks ?? []
+  } catch {
+    return []
+  }
+}
+
+export async function cancelGatewayTask(id: string): Promise<boolean> {
+  try {
+    await gfetch(`/task/${id}/cancel`, { method: 'POST' })
+    return true
+  } catch {
+    return false
+  }
+}
+
 // ── Chat persistence ─────────────────────────────────────────────────────────
 
 function serializeChat(chat: Chat) {
