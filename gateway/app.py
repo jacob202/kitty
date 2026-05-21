@@ -108,6 +108,13 @@ async def health():
     return {"status": "ok", "service": "kitty-gateway"}
 
 
+@app.get("/mood")
+async def get_mood():
+    """Return Kitty's current mood and session stats for the UI."""
+    from gateway.buddy import get_state
+    return get_state()
+
+
 @app.get("/brief")
 @app.get("/api/brief")
 async def morning_brief():
@@ -134,38 +141,49 @@ async def ask(payload: AskRequest):
     if not message:
         raise HTTPException(status_code=400, detail="message is required")
 
+    from gateway.buddy import on_request_start, on_request_success, on_request_error, on_context_fetch
     from gateway.context_builder import get_system_prompt
 
-    domain = classify_domain(message)
-    system_prompt = await get_system_prompt(
-        message, parts_mode=payload.parts_mode, domain=domain
-    )
+    on_request_start()
+    try:
+        domain = classify_domain(message)
+        on_context_fetch()
+        system_prompt = await get_system_prompt(
+            message, parts_mode=payload.parts_mode, domain=domain
+        )
 
-    model = route_model(message)
-    llm_payload = {
-        "model": model,
-        "stream": False,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": message},
-        ],
-    }
-    data = await _non_stream_response(llm_payload)
-    choices = data.get("choices", []) if isinstance(data, dict) else []
-    reply = ""
-    if choices and isinstance(choices[0], dict):
-        message_obj = choices[0].get("message", {})
-        if isinstance(message_obj, dict):
-            reply = message_obj.get("content", "")
+        model = route_model(message)
+        llm_payload = {
+            "model": model,
+            "stream": False,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": message},
+            ],
+        }
+        data = await _non_stream_response(llm_payload)
+        choices = data.get("choices", []) if isinstance(data, dict) else []
+        reply = ""
+        if choices and isinstance(choices[0], dict):
+            message_obj = choices[0].get("message", {})
+            if isinstance(message_obj, dict):
+                reply = message_obj.get("content", "")
 
-    from gateway.voice_gate import filter_response
-    gate = filter_response(reply)
-    reply = gate.cleaned
+        from gateway.voice_gate import filter_response
+        gate = filter_response(reply)
+        reply = gate.cleaned
+        if gate.violations:
+            on_request_error()
+        else:
+            on_request_success()
 
-    from gateway.self_review import record_interaction
-    record_interaction(message, reply)
+        from gateway.self_review import record_interaction
+        record_interaction(message, reply)
 
-    return {"reply": reply}
+        return {"reply": reply}
+    except Exception:
+        on_request_error()
+        raise
 
 
 @app.get("/journal/prompt")

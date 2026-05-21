@@ -10,7 +10,7 @@ import { BriefPanel } from '@/components/BriefPanel'
 import { Rail } from '@/components/Rail'
 import { SessionSidebar } from '@/components/SessionSidebar'
 import { RightBar } from '@/components/RightBar'
-import { fetchGatewayBrief, fetchGatewayModels, fetchGatewaySearch, type GatewayBrief, type GatewaySearchSnapshot } from '@/lib/gateway'
+import { fetchGatewayBrief, fetchGatewayModels, fetchGatewaySearch, fetchGatewayMood, type GatewayBrief, type GatewaySearchSnapshot } from '@/lib/gateway'
 
 let chatCounter = 0
 function newChatId() { return `chat-${++chatCounter}-${Date.now()}` }
@@ -55,6 +55,7 @@ export default function KittyChat() {
   const [tokenCount, setTokenCount] = useState(0)
   const [brief, setBrief] = useState<GatewayBrief | null>(null)
   const [searchSnapshot, setSearchSnapshot] = useState<GatewaySearchSnapshot | null>(null)
+  const [kittyMood, setKittyMood] = useState<import('@/lib/types').KittyMood>('idle')
 
   const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -127,6 +128,18 @@ export default function KittyChat() {
     const chars = activeChat.messages.reduce((sum, m) => sum + m.content.length, 0)
     setTokenCount(Math.round(chars / 4))
   }, [activeChat?.messages])
+
+  // Poll gateway mood every 3s so the avatar reflects backend state
+  useEffect(() => {
+    let alive = true
+    const poll = async () => {
+      const state = await fetchGatewayMood()
+      if (alive && state) setKittyMood(state.mood)
+    }
+    void poll()
+    const id = setInterval(() => { void poll() }, 3000)
+    return () => { alive = false; clearInterval(id) }
+  }, [])
 
   const handleNewChat = useCallback(() => {
     const color = COLOR_CYCLE[colorIndexRef.current % COLOR_CYCLE.length]
@@ -286,6 +299,7 @@ export default function KittyChat() {
           setShowModelMenu={setShowModelMenu}
           isStreaming={isStreaming}
           activeChat={activeChat}
+          kittyMood={kittyMood}
         />
 
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>

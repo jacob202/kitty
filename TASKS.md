@@ -14,10 +14,10 @@ This file is a **thin checklist**. For file lists, rationale, and “what done l
 
 Companion architecture foundation (**Phase 1** in `docs/UNIFIED_IMPLEMENTATION_PLAN.md`). Track progress there; indicative checkboxes:
 
-- [ ] **1.1 Collapse context layers** — unified query across memory / knowledge / journal / traces (`memory_graph.py`, `context_builder.py`).
-- [ ] **1.2 Companion voice wired** — `voice_gate.py`, drift from `self_review.py` → context / prompts.
-- [ ] **1.3 Persistent voice channel** — WebSocket-style session (`voice_session.py`), Garage UI non–one-shot voice.
-- [ ] **1.4 Buddy / mascot** — port buddy system from free-code into UI + `gateway/buddy.py` hatch/mood hooks.
+- [x] **1.1 Collapse context layers** — `memory_graph.unified_context()` queries all 4 stores concurrently; wired into every LLM call via `context_builder.py`.
+- [x] **1.2 Companion voice wired** — `voice_gate.py` filters banned phrases; `self_review.py` drift injected into system prompt when threshold exceeded.
+- [x] **1.3 Persistent voice channel** — `voice_session.py` WebSocket handler with 20-turn history; route `/voice` live in `app.py`.
+- [ ] **1.4 Buddy / mascot** — `gateway/buddy.py` exists with persistent mood state + `/mood` endpoint; UI polls gateway instead of inferring from text.
 
 ---
 

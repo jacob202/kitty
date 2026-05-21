@@ -1,5 +1,6 @@
 'use client'
-import { Chat, Model } from '@/lib/types'
+import { Chat, KittyMood, Model } from '@/lib/types'
+import { MoodAvatar } from './MoodAvatar'
 
 interface Props {
   activeModel: Model
@@ -9,6 +10,7 @@ interface Props {
   setShowModelMenu: (v: boolean) => void
   isStreaming: boolean
   activeChat: Chat | null
+  kittyMood?: KittyMood
 }
 
 function greeting() {
@@ -22,9 +24,9 @@ function greeting() {
 
 export function TopBar({
   activeModel, models, onSelectModel, showModelMenu, setShowModelMenu,
-  isStreaming, activeChat,
+  isStreaming, activeChat, kittyMood,
 }: Props) {
-  const face = isStreaming ? '=^._.^=' : '=^•ﻌ•^='
+  const liveMood: KittyMood = isStreaming ? 'thinking' : (kittyMood ?? 'idle')
   const title = activeChat?.messages.length ? activeChat.title : greeting() + '.'
 
   return (
@@ -37,11 +39,7 @@ export function TopBar({
       position: 'relative', zIndex: 10,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-        <span style={{
-          fontFamily: 'var(--font-ui)', fontSize: 20, flexShrink: 0,
-          color: isStreaming ? 'var(--purple)' : 'var(--orange)',
-          transition: 'color 0.3s ease',
-        }}>{face}</span>
+        <MoodAvatar mood={liveMood} size={34} />
         <div style={{ minWidth: 0 }}>
           <div style={{
             fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700,
