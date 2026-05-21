@@ -1,6 +1,10 @@
 'use client'
 
-export function Rail() {
+interface Props {
+  sessionCount?: number
+}
+
+export function Rail({ sessionCount }: Props) {
   return (
     <nav style={{
       width: 'var(--rail)',
@@ -19,6 +23,16 @@ export function Rail() {
         style={{ width: 36, height: 36, borderRadius: 8, marginBottom: 8 }}
         aria-label="Kitty"
       />
+      {sessionCount != null && sessionCount > 0 && (
+        <span style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 9,
+          color: 'var(--text-muted)',
+          lineHeight: 1,
+        }}>
+          {sessionCount}
+        </span>
+      )}
     </nav>
   )
 }

@@ -11,7 +11,7 @@ interface Props {
   activeModelName: string
 }
 
-export function RightBar({ activeChat, isStreaming, brief, search, activeModelName }: Props) {
+export function RightBar({ chats, activeChat, isStreaming, brief, search, activeModelName }: Props) {
   const tokenEstimate = activeChat
     ? Math.round(activeChat.messages.reduce((s, m) => s + m.content.length, 0) / 4)
     : 0
@@ -41,7 +41,7 @@ export function RightBar({ activeChat, isStreaming, brief, search, activeModelNa
 
       {/* Context / search results */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {search && search.results.length > 0 && (
+        {search && search.results.length > 0 ? (
           <section>
             <Label>context</Label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
@@ -57,6 +57,13 @@ export function RightBar({ activeChat, isStreaming, brief, search, activeModelNa
               ))}
             </div>
           </section>
+        ) : (
+          <section>
+            <Label>context</Label>
+            <p style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 6, fontFamily: 'var(--font-mono)' }}>
+              send a message to load context
+            </p>
+          </section>
         )}
 
         {/* Brief snippet */}
@@ -64,7 +71,7 @@ export function RightBar({ activeChat, isStreaming, brief, search, activeModelNa
           <section>
             <Label>today's intention</Label>
             <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 6, lineHeight: 1.6 }}>
-              {brief.intention}
+              {brief.intention.slice(0, 280)}{brief.intention.length > 280 ? '…' : ''}
             </p>
           </section>
         )}
@@ -76,6 +83,7 @@ export function RightBar({ activeChat, isStreaming, brief, search, activeModelNa
             <StatRow label="messages" value={String(activeChat?.messages.length ?? 0)} />
             <StatRow label="~tokens" value={tokenEstimate > 0 ? String(tokenEstimate) : '—'} />
             <StatRow label="streaming" value={isStreaming ? 'yes' : 'no'} highlight={isStreaming} />
+            <StatRow label="chats" value={String(chats.length)} />
           </div>
         </section>
       </div>

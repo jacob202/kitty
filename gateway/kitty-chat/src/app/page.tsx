@@ -275,7 +275,7 @@ export default function KittyChat() {
     }}
       onClick={() => showModelMenu && setShowModelMenu(false)}
     >
-      <Rail />
+      <Rail sessionCount={chats.length} />
 
       <SessionSidebar
         chats={chats}

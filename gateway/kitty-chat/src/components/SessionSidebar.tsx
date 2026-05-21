@@ -90,7 +90,9 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                   }}>
-                    {chat.title}
+                    {chat.title === 'new chat'
+                      ? (chat.messages[0]?.content.slice(0, 28) || 'new chat')
+                      : chat.title}
                   </div>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, fontFamily: 'var(--font-mono)' }}>
                     {chat.messages.length} msg{chat.messages.length !== 1 ? 's' : ''}

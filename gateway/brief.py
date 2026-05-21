@@ -87,7 +87,7 @@ def synthesize_brief_with_llm(headlines: List[NewsHeadline], task_summary: str, 
     news_text = "\n".join([f"- {h.title}" for h in headlines[:6]])
     context_data = build_worker_context(
         "brief",
-        top_task=f"Current Top Task: {task_summary}",
+        top_task=task_summary,
         memory=f"Recent Memories: {memory_snippet}",
         tz="America/Regina"
     )
@@ -108,7 +108,7 @@ Rules: Use contractions. No corporate filler. Be dry-funny if appropriate. Speak
 
     try:
         return chat(
-            model="anthropic/claude-3.7-sonnet",
+            model="kitty-sonnet",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=800,
             temperature=0.4,

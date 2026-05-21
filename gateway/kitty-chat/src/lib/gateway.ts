@@ -14,6 +14,8 @@ export interface GatewayBrief {
   headlines: { title: string; url: string; snippet: string }[]
   memory_snippet: string
   intention: string
+  generated_at?: string
+  error?: string
 }
 
 export interface GatewaySearchSnapshot {

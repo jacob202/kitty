@@ -38,8 +38,8 @@ export function BriefPanel({ chats, onSelectChat, onPrompt, brief }: Props) {
         </div>
 
         <div style={statusStripStyle}>
-          <span>gateway: 8000</span>
-          <span>{brief?.notification_sent ? 'brief sent' : 'brief live'}</span>
+          <span>gateway: 5001</span>
+          <span>{brief ? 'brief live' : 'awaiting brief'}</span>
           <span>{brief?.date ?? 'backend next'}</span>
         </div>
       </section>
@@ -52,7 +52,7 @@ export function BriefPanel({ chats, onSelectChat, onPrompt, brief }: Props) {
           <div style={liveBriefGridStyle}>
             <div>
               <div style={liveBriefLabelStyle}>Headline</div>
-              <p style={liveBriefHeadlineStyle}>{brief.headlines[0] ?? 'No headline yet.'}</p>
+              <p style={liveBriefHeadlineStyle}>{brief.headlines[0]?.title ?? 'No headline yet.'}</p>
             </div>
             <div>
               <div style={liveBriefLabelStyle}>Intention</div>
@@ -84,9 +84,23 @@ export function BriefPanel({ chats, onSelectChat, onPrompt, brief }: Props) {
         <div style={activityStyle}>
           <SectionHeader title="Activity feed" meta="current lane" />
           <div style={feedStyle}>
-            <FeedRow speaker="You" text="the mascot idea and dashboard are right; the implementation needs better craft." />
-            <FeedRow speaker="Kitty" text="Understood. Keep the identity, rebuild the surface with less noise and stronger hierarchy." highlighted />
-            <FeedRow speaker="Next" text="Use the design-system references: tabby orange, muted cards, right-side context, quiet glow." />
+            {recentChats.length === 0 ? (
+              <p style={bodyStyle}>No recent activity. Start a chat below.</p>
+            ) : recentChats.map((chat, i) => {
+              const lastMsg = chat.messages.filter(m => m.role === 'assistant').at(-1)
+                ?? chat.messages.at(-1)
+              const preview = (lastMsg?.content ?? '')
+                .replace(/```[\s\S]*?```/g, '[code]')
+                .slice(0, 160)
+              return (
+                <FeedRow
+                  key={chat.id}
+                  speaker={chat.title}
+                  text={preview || 'No messages yet.'}
+                  highlighted={i === 0}
+                />
+              )
+            })}
           </div>
 
           <div style={lastSessionBoxStyle}>
@@ -366,6 +380,10 @@ const continueButtonStyle: CSSProperties = {
   display: 'grid',
   gap: 6,
   marginTop: 10,
+  background: 'transparent',
+  border: 'none',
+  cursor: 'pointer',
+  padding: 0,
 }
 
 const continueTitleStyle: CSSProperties = {
@@ -424,6 +442,7 @@ const commandStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 12,
   color: 'var(--text-dim)',
+  cursor: 'pointer',
 }
 
 const miniListStyle: CSSProperties = {
