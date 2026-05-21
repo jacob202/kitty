@@ -4,7 +4,7 @@ Last updated: **2026-05-21**
 
 ## Current test baseline
 
-`python3.11 -m pytest tests/ -q --tb=short`  → **300 passed, 2 skipped**
+`python3.11 -m pytest tests/ -q --tb=short`  → **306 passed, 2 skipped**
 
 ---
 
@@ -23,13 +23,13 @@ Last updated: **2026-05-21**
 - [x] **2.2 Background brief** — `_brief_bg_loop` in `lifespan` warms cache on startup, refreshes every 15 min; `/brief` now instant.
 - [x] **2.3 Persistent chats** — `GET/POST/DELETE /chats` endpoints backed by `data/kitty/chats.json`; frontend loads on mount, saves after stream, deletes on close.
 - [ ] **2.4 Agent tasks** — `task_runner.py` exists; need a UI surface to trigger + monitor background tasks from the dashboard.
-- [ ] **2.5 Telegram bot** — wired in lifespan; needs `TELEGRAM_BOT_TOKEN` in `.env` and smoke test.
+- [x] **2.5 Telegram bot** — wired in lifespan; 7 tests passing; `TELEGRAM_BOT_TOKEN` documented in `.env.example`; supports `/brief`, `/stuck`, `/help`, plain chat.
 
 ---
 
 ## Next Smallest Action
 
-Ship Phase 2.4: add a task trigger button to BriefPanel that calls `POST /task/create` and shows live status via polling `GET /tasks`.
+Phase 2 complete. Start Phase 3: pick the highest-value external connection — calendar read (`GET /calendar/today`) or weather snapshot — and wire it into the morning brief.
 
 ---
 
