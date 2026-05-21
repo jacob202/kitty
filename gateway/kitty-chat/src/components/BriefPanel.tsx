@@ -10,6 +10,7 @@ interface Props {
   onSelectChat: (id: string) => void
   onPrompt: (text: string) => void
   brief?: GatewayBrief | null
+  loading?: boolean
 }
 
 const CHAT_COLOR_MAP: Record<string, string> = {
@@ -88,7 +89,7 @@ function buildCards(brief: GatewayBrief | null | undefined): PriorityCard[] {
   ]
 }
 
-export function BriefPanel({ chats, onSelectChat, onPrompt, brief }: Props) {
+export function BriefPanel({ chats, onSelectChat, onPrompt, brief, loading = false }: Props) {
   const recentChats = useMemo(() => {
     return [...chats]
       .filter(c => c.messages.length > 0)
@@ -119,12 +120,33 @@ export function BriefPanel({ chats, onSelectChat, onPrompt, brief }: Props) {
         </div>
       </section>
 
-      {/* SECTION B — Three priority cards */}
-      <section style={cardsGridStyle}>
-        {cards.map((card) => (
-          <PriorityCardItem key={card.label} card={card} />
-        ))}
-      </section>
+      {/* SECTION B — Three priority cards (or loading skeleton) */}
+      {loading ? (
+        <section
+          role="status"
+          aria-label="loading brief"
+          style={cardsGridStyle}
+        >
+          {[0, 1, 2].map(i => (
+            <div
+              key={i}
+              style={{
+                ...cardBaseStyle,
+                height: 90,
+                opacity: 0.35,
+                background: 'var(--surface-low)',
+                animation: 'none',
+              }}
+            />
+          ))}
+        </section>
+      ) : (
+        <section style={cardsGridStyle}>
+          {cards.map((card) => (
+            <PriorityCardItem key={card.label} card={card} />
+          ))}
+        </section>
+      )}
 
       {/* SECTION C — Activity feed */}
       {recentChats.length > 0 && (

@@ -1,5 +1,5 @@
 'use client'
-import { startTransition, useState, useRef, useEffect, useCallback } from 'react'
+import { startTransition, useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Chat, Message, Model, MODELS, COLOR_CYCLE, ChatColor } from '@/lib/types'
 import { streamChat } from '@/lib/openwebui'
 import { inferMood } from '@/lib/mood'
@@ -83,6 +83,9 @@ export default function KittyChat() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const activeChat = chats.find(c => c.id === activeChatId) ?? chats[0] ?? null
+  const userMessageCount = activeChat?.messages.filter(m => m.role === 'user').length ?? 0
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const searchQuery = useMemo(() => latestSearchQuery(activeChat), [activeChatId, userMessageCount])
 
   useEffect(() => {
     if (chats.length > 0 && !activeChatId) {
@@ -131,33 +134,28 @@ export default function KittyChat() {
   }, [gwReload])
 
   useEffect(() => {
-    let cancelled = false
-    const query = latestSearchQuery(activeChat)
-
-    if (!query) {
+    if (!searchQuery) {
       setSearchSnapshot(null)
       setSearchGateway({ live: true, error: null })
-      return () => {
-        cancelled = true
-      }
+      return
     }
 
-    void (async () => {
-      const searchPayload = await fetchGatewaySearch(query, 3)
-      if (cancelled) return
+    const controller = new AbortController()
+
+    const timeoutId = window.setTimeout(async () => {
+      const payload = await fetchGatewaySearch(searchQuery, 3, controller.signal)
+      if (controller.signal.aborted) return
       startTransition(() => {
-        setSearchSnapshot(searchPayload.snapshot)
-        setSearchGateway({
-          live: searchPayload.fromLiveGateway,
-          error: searchPayload.error,
-        })
+        setSearchSnapshot(payload.snapshot)
+        setSearchGateway({ live: payload.fromLiveGateway, error: payload.error })
       })
-    })()
+    }, 400)
 
     return () => {
-      cancelled = true
+      clearTimeout(timeoutId)
+      controller.abort()
     }
-  }, [activeChat])
+  }, [searchQuery])
 
   // rough token estimate: ~4 chars per token
   useEffect(() => {
@@ -330,6 +328,7 @@ export default function KittyChat() {
           setShowModelMenu={setShowModelMenu}
           isStreaming={isStreaming}
           activeChat={activeChat}
+          modelFromGateway={modelGateway.live}
         />
 
         {modelGateway.loaded && !modelGateway.live && (
@@ -397,6 +396,7 @@ export default function KittyChat() {
               onSelectChat={id => { setActiveChatId(id) }}
               onPrompt={handlePrompt}
               brief={brief}
+              loading={!briefGateway.loaded}
             />
           ) : (
             <div style={{ paddingBottom: 140 }}>

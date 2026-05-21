@@ -56,7 +56,7 @@ duplicate_analysis_report.txt
 .kiro/
 
 # Stale pre-restructure paths (canonical: gateway/kitty-chat/, gateway/)
-kitty-chat/
+/kitty-chat/
 kitty_gateway/
 .aider*
 

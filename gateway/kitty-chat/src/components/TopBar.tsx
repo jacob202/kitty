@@ -9,6 +9,7 @@ interface Props {
   setShowModelMenu: (v: boolean) => void
   isStreaming: boolean
   activeChat: Chat | null
+  modelFromGateway?: boolean
 }
 
 function greeting() {
@@ -22,7 +23,7 @@ function greeting() {
 
 export function TopBar({
   activeModel, models, onSelectModel, showModelMenu, setShowModelMenu,
-  isStreaming, activeChat,
+  isStreaming, activeChat, modelFromGateway = true,
 }: Props) {
   const face = isStreaming ? '=^._.^=' : '=^•ﻌ•^='
   const title = activeChat?.messages.length ? activeChat.title : greeting() + '.'
@@ -83,7 +84,17 @@ export function TopBar({
             }
           }}
         >
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: activeModel.color, flexShrink: 0 }} />
+          <span
+            title={modelFromGateway ? undefined : 'Using offline model list'}
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: '50%',
+              background: modelFromGateway ? activeModel.color : 'var(--warning)',
+              flexShrink: 0,
+              transition: 'background 0.3s',
+            }}
+          />
           <span style={{ color: activeModel.color }}>{activeModel.name}</span>
           <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>⌄</span>
         </button>
