@@ -299,6 +299,31 @@ async def journal_synthesize(request: Request):
     return {"entry": entry}
 
 
+class JournalChatRequest(BaseModel):
+    messages: list[dict]
+    system_prompt: str = ""
+
+
+@app.post("/journal/chat")
+async def journal_chat(payload: JournalChatRequest):
+    """Single journal interview turn — uses provided system_prompt, bypasses context_builder."""
+    if not payload.messages:
+        raise HTTPException(status_code=400, detail="messages required")
+    model = route_model("")
+    llm_messages: list[dict] = []
+    if payload.system_prompt:
+        llm_messages.append({"role": "system", "content": payload.system_prompt})
+    llm_messages.extend(payload.messages)
+    data = await _non_stream_response({"model": model, "stream": False, "messages": llm_messages})
+    choices = data.get("choices", []) if isinstance(data, dict) else []
+    reply = ""
+    if choices and isinstance(choices[0], dict):
+        msg = choices[0].get("message", {})
+        if isinstance(msg, dict):
+            reply = msg.get("content", "")
+    return {"reply": reply}
+
+
 @app.get("/reset")
 async def nightly_reset():
     from gateway.reset import send_nightly_reset
