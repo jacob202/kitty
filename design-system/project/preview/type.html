@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>kitty — type</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--ink);
+    color: var(--cream);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    box-sizing: border-box;
+  }
+
+  .sheet {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 48px 56px 56px;
+  }
+
+  /* ============ HEAD ============ */
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 10px;
+    color: var(--cream-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    margin-bottom: 28px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--ink-line);
+  }
+  .topbar b { color: var(--cream-dim); font-weight: 500; }
+
+  .masthead {
+    display: grid;
+    grid-template-columns: 1fr 240px;
+    gap: 32px;
+    margin-bottom: 48px;
+    align-items: end;
+  }
+  .masthead h1 {
+    font-family: var(--font-display);
+    font-size: 120px;
+    line-height: 0.9;
+    color: var(--cream);
+    letter-spacing: -0.02em;
+    margin: 0;
+  }
+  .masthead h1 .one { color: var(--tabby); }
+  .masthead h1 .two { color: var(--teal); }
+  .masthead h1 .amp {
+    display: inline-block;
+    transform: rotate(-8deg);
+    color: var(--grape);
+    margin: 0 0.05em;
+  }
+  .masthead .meta {
+    font-size: 13px;
+    color: var(--cream-dim);
+    line-height: 1.55;
+  }
+  .masthead .meta .tag {
+    display: inline-block;
+    font-size: 10px;
+    color: var(--tabby);
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    border: 1px solid var(--tabby);
+    border-radius: 999px;
+    padding: 3px 10px;
+    margin-bottom: 10px;
+  }
+
+  /* ============ TWO FAMILY POSTERS ============ */
+  .families {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 40px;
+  }
+  .fam {
+    border: 1px solid var(--ink-line);
+    border-radius: 10px;
+    background: var(--ink-soft);
+    padding: 28px 28px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .fam::before {
+    content: attr(data-num);
+    position: absolute;
+    top: 14px; right: 18px;
+    font-family: var(--font-display);
+    font-size: 56px;
+    line-height: 1;
+    color: var(--cream-faint);
+    opacity: 0.25;
+  }
+  .fam .role {
+    font-size: 10px;
+    color: var(--cream-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    margin-bottom: 4px;
+  }
+  .fam .role b { color: var(--tabby); font-weight: 500; }
+  .fam.b .role b { color: var(--teal); }
+
+  .fam .specimen {
+    font-family: var(--font-display);
+    font-size: 96px;
+    line-height: 0.95;
+    color: var(--cream);
+    letter-spacing: -0.02em;
+    margin: 6px 0 18px;
+  }
+  .fam.b .specimen {
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 56px;
+    letter-spacing: -0.01em;
+  }
+  .fam .source {
+    font-size: 11px;
+    color: var(--cream-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    border-top: 1px dashed var(--ink-line);
+    padding-top: 14px;
+    margin-bottom: 14px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .fam .source span:last-child { color: var(--cream-dim); }
+
+  .ladder {
+    color: var(--cream);
+    line-height: 1.15;
+    margin: 0 0 16px;
+  }
+  .fam.a .ladder { font-family: var(--font-display); }
+  .fam.b .ladder { font-family: var(--font-body); }
+  .ladder .r {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    padding: 6px 0;
+    border-top: 1px solid var(--ink-line);
+  }
+  .ladder .r:first-child { border-top: 0; padding-top: 0; }
+  .ladder .px {
+    font-family: var(--font-body);
+    font-size: 10px;
+    color: var(--cream-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    min-width: 56px;
+  }
+  .ladder .t { flex: 1; }
+
+  .fam .glyphs {
+    color: var(--cream-dim);
+    font-size: 22px;
+    letter-spacing: 0.04em;
+    padding: 12px 14px;
+    background: var(--ink-deep);
+    border-radius: 6px;
+  }
+  .fam.a .glyphs { font-family: var(--font-display); color: var(--grape); }
+  .fam.b .glyphs { font-family: var(--font-body); color: var(--teal); font-size: 16px; }
+  .fam .glyphs b { color: var(--cream); font-weight: inherit; }
+
+  /* ============ IN USE: chat scene ============ */
+  .inuse {
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--ink-line);
+    background:
+      linear-gradient(180deg, rgba(255,163,64,0.05), transparent 40%),
+      var(--ink-soft);
+    padding: 24px 28px 28px;
+  }
+  .inuse-h {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px dashed var(--ink-line);
+  }
+  .inuse-h h3 {
+    font-family: var(--font-display);
+    font-size: 28px;
+    color: var(--cream);
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  .inuse-h h3 .accent { color: var(--tabby); }
+  .inuse-h .ann {
+    font-size: 11px;
+    color: var(--cream-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+  }
+
+  .scene {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .scene-col h4 {
+    font-family: var(--font-body);
+    font-size: 11px;
+    color: var(--cream-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    margin: 0 0 12px;
+  }
+  .scene-col h4 .when { color: var(--tabby); }
+
+  .post {
+    background: var(--ink-deep);
+    border-radius: 8px;
+    padding: 18px 20px 20px;
+    margin-bottom: 12px;
+    position: relative;
+  }
+  .post .head {
+    font-family: var(--font-display);
+    font-size: 32px;
+    line-height: 1.05;
+    color: var(--tabby);
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+  }
+  .post .sub {
+    font-size: 11px;
+    color: var(--cream-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    margin-bottom: 14px;
+  }
+  .post p {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--cream);
+    margin: 0 0 10px;
+  }
+  .post p:last-child { margin: 0; }
+  .post code {
+    font-family: var(--font-body);
+    background: var(--ink);
+    color: var(--mint);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+  .post .small {
+    font-size: 11px;
+    color: var(--cream-faint);
+    margin-top: 12px;
+  }
+  .post .small kbd {
+    font-family: var(--font-body);
+    border: 1px solid var(--ink-line);
+    background: var(--ink-soft);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 10px;
+    margin: 0 1px;
+    color: var(--cream-dim);
+  }
+
+  .annot {
+    position: absolute;
+    font-family: var(--font-body);
+    font-size: 10px;
+    color: var(--tabby);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+  }
+  .annot.r { right: 18px; top: 18px; }
+  .annot.l { left: -14px; top: 36px; transform: rotate(-90deg); transform-origin: left top; color: var(--grape); }
+
+  /* footer note */
+  .footnote {
+    margin-top: 24px;
+    font-size: 11px;
+    color: var(--cream-faint);
+    line-height: 1.6;
+    border-top: 1px dashed var(--ink-line);
+    padding-top: 14px;
+  }
+  .footnote b { color: var(--cream-dim); font-weight: 500; }
+</style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="topbar">
+      <span><b>type system</b> · 02</span>
+      <span>display × body · monospace pair · lowercase first</span>
+      <span>kitty design · v0.1</span>
+    </div>
+
+    <div class="masthead">
+      <h1>
+        <span class="one">vt323</span><span class="amp">×</span><span class="two">jetbrains</span>
+      </h1>
+      <div class="meta">
+        <span class="tag">02 faces</span>
+        one shows up loud for headlines, the wordmark, and the times kitty raises her voice. the other does every word you'll actually read. lowercase by default — caps are a special occasion.
+      </div>
+    </div>
+
+    <!-- two families -->
+    <div class="families">
+      <div class="fam a" data-num="01">
+        <div class="role"><b>vt323</b> · display · pixel face</div>
+        <div class="specimen">$ kitty</div>
+        <div class="source">
+          <span>peter hull · google fonts</span>
+          <span>sil ofl · single weight</span>
+        </div>
+        <div class="ladder">
+          <div class="r"><span class="px">72 hero</span><span class="t" style="font-size:46px; color:var(--tabby)">today's plan</span></div>
+          <div class="r"><span class="px">32 h1</span><span class="t" style="font-size:32px">tasks &amp; nudges</span></div>
+          <div class="r"><span class="px">22 h2</span><span class="t" style="font-size:22px; color:var(--cream-dim)">in the queue</span></div>
+        </div>
+        <div class="glyphs"><b>abcdefg</b> 0123456 :3 &gt;:3 ^_^ ♡ ★ ◆ →</div>
+      </div>
+
+      <div class="fam b" data-num="02">
+        <div class="role"><b>jetbrains mono</b> · body · ui · code</div>
+        <div class="specimen">aA · 0123</div>
+        <div class="source">
+          <span>jetbrains · open font</span>
+          <span>400 · 500 · 700</span>
+        </div>
+        <div class="ladder">
+          <div class="r"><span class="px">15 body</span><span class="t" style="font-size:15px">hey. you said you'd start the laundry an hour ago.</span></div>
+          <div class="r"><span class="px">13 meta</span><span class="t" style="font-size:13px; color:var(--cream-dim)">2 min ago · from your laptop</span></div>
+          <div class="r"><span class="px">11 caps</span><span class="t" style="font-size:11px; text-transform:uppercase; letter-spacing:0.16em; color:var(--cream-faint)">⌘k · focus chat</span></div>
+        </div>
+        <div class="glyphs"><b>const</b> kitty = <b>{</b> mood: "fine" <b>}</b> // =&gt; !==</div>
+      </div>
+    </div>
+
+    <!-- in use -->
+    <div class="inuse">
+      <div class="inuse-h">
+        <h3>in use <span class="accent">·</span> what a kitty page reads like</h3>
+        <span class="ann">type doing its job · not posing for it</span>
+      </div>
+
+      <div class="scene">
+        <div class="scene-col">
+          <h4>headline post <span class="when">· 9:02 am</span></h4>
+          <div class="post">
+            <span class="annot r">vt323 / 32</span>
+            <p class="head">good morning, sort of</p>
+            <p class="sub">monday · feb 26 · 4 things on the list</p>
+            <p>laundry's been sitting in the basket since saturday. i moved it back to the top. don't shoot the messenger.</p>
+            <p>also: your sister texted twice. she's <code>fine</code>, she just wants to talk about the trip.</p>
+            <p class="small">press <kbd>j</kbd> for next · <kbd>⌘k</kbd> to ask kitty</p>
+          </div>
+        </div>
+
+        <div class="scene-col">
+          <h4>system &amp; chat <span class="when">· live</span></h4>
+          <div class="post" style="padding:14px 18px">
+            <span class="annot l">jetbrains / 13</span>
+            <div style="font-family:var(--font-display); font-size:22px; color:var(--mint); letter-spacing:-0.01em;">^_^ all done</div>
+            <p style="font-size:13px; color:var(--cream-dim); margin-top:4px">saved <code>3 changes</code> to your notes. you can find them under <code>~/today</code>.</p>
+          </div>
+          <div class="post" style="padding:14px 18px">
+            <div style="font-family:var(--font-display); font-size:22px; color:var(--tabby); letter-spacing:-0.01em;">$ kitty</div>
+            <p style="font-size:13px; margin-top:4px">remind me to call mom on sunday at 2pm</p>
+            <div style="display:flex; gap:8px; margin-top:10px">
+              <span style="font-family:var(--font-body); font-size:10px; text-transform:uppercase; letter-spacing:0.14em; color:var(--grape); border:1px solid rgba(168,132,255,0.4); padding:3px 8px; border-radius:999px;">@mom</span>
+              <span style="font-family:var(--font-body); font-size:10px; text-transform:uppercase; letter-spacing:0.14em; color:var(--teal); border:1px solid rgba(45,212,191,0.4); padding:3px 8px; border-radius:999px;">sun 2pm</span>
+            </div>
+          </div>
+          <div class="post" style="padding:14px 18px">
+            <div style="font-family:var(--font-display); font-size:22px; color:var(--maple); letter-spacing:-0.01em;">o_o couldn't reach</div>
+            <p style="font-size:13px; color:var(--cream-dim); margin-top:4px">calendar's offline. i'll try again in <code>30s</code>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footnote">
+      <b>rules of the road:</b> &nbsp; lowercase by default · vt323 for headlines, prompts, anything kitty says loudly · jetbrains for everything you'll read more than once · numbers use vt323 when they're the point, jetbrains when they're context · never mix the two in the same line · don't load a third family — the system already has its hands full.
+    </div>
+  </div>
+</body>
+</html>

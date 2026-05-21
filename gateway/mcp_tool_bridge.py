@@ -13,8 +13,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import subprocess
-from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger("kitty.mcp_tool_bridge")
@@ -110,7 +108,7 @@ async def invoke(
         )
         stdout, stderr = await asyncio.wait_for(
             proc.communicate(json.dumps(payload).encode()),
-            timeout=30,
+            timeout=120,
         )
 
         if proc.returncode != 0:

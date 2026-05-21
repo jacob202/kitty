@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Kitty AI — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:          #09090b;
+    --surface-1:   #111113;
+    --surface-2:   #18181b;
+    --surface-3:   #1f1f23;
+    --surface-hov: #27272a;
+    --border:      rgba(255,255,255,0.06);
+    --border-md:   rgba(255,255,255,0.10);
+    --border-hi:   rgba(255,255,255,0.16);
+    --text-1: #fafafa;
+    --text-2: #a1a1aa;
+    --text-3: #52525b;
+    --text-4: #3f3f46;
+    --teal:        #14b8a6;
+    --teal-dim:    rgba(20,184,166,0.12);
+    --amber:       #f59e0b;
+    --amber-dim:   rgba(245,158,11,0.10);
+    --red:         #ef4444;
+    --red-dim:     rgba(239,68,68,0.10);
+    --purple:      #8b5cf6;
+    --purple-dim:  rgba(139,92,246,0.10);
+    --green:       #22c55e;
+    --r: 8px;
+    --r-lg: 12px;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text-1); font-family: var(--mono); font-size: 13px; line-height: 1.5; overflow: hidden; }
+
+  /* ── LAYOUT ── */
+  .app {
+    display: grid;
+    grid-template-columns: 48px 210px 1fr 268px;
+    height: 100vh;
+  }
+
+  /* ── ICON RAIL ── */
+  .icon-rail {
+    background: var(--surface-1);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; align-items: center;
+    padding: 10px 0; gap: 2px;
+  }
+  .rail-logo {
+    width: 30px; height: 30px; border-radius: 7px;
+    background: var(--amber-dim); border: 1px solid rgba(245,158,11,0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; margin-bottom: 10px; cursor: pointer;
+    flex-shrink: 0;
+  }
+  .ri {
+    width: 34px; height: 34px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-3); cursor: pointer; font-size: 15px;
+    transition: all 0.12s;
+  }
+  .ri:hover { background: var(--surface-2); color: var(--text-2); }
+  .ri.on   { background: var(--surface-3); color: var(--text-1); }
+  .ri-sp { flex: 1; }
+
+  /* ── SESSION SIDEBAR ── */
+  .sidebar {
+    background: var(--surface-1);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .sb-head {
+    padding: 13px 13px 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .sb-title { font-size: 10px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-4); }
+  .new-btn {
+    font-size: 10px; font-family: var(--mono); padding: 3px 8px;
+    border-radius: 4px; background: var(--surface-3); border: 1px solid var(--border-md);
+    color: var(--text-2); cursor: pointer; transition: all 0.12s;
+  }
+  .new-btn:hover { color: var(--text-1); border-color: var(--border-hi); }
+  .sb-body { flex: 1; overflow-y: auto; padding: 6px 0; }
+  .sb-body::-webkit-scrollbar { width: 3px; }
+  .sb-body::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 2px; }
+
+  .sec-lbl {
+    font-size: 9px; font-weight: 600; letter-spacing: 0.11em;
+    text-transform: uppercase; color: var(--text-4);
+    padding: 10px 13px 3px;
+  }
+  .sess {
+    padding: 7px 13px; cursor: pointer;
+    display: flex; align-items: flex-start; gap: 8px;
+    transition: background 0.1s; border-radius: 0;
+  }
+  .sess:hover { background: var(--surface-2); }
+  .sess.on    { background: var(--surface-2); }
+  .s-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+  .s-info { flex: 1; min-width: 0; }
+  .s-name {
+    font-size: 12px; font-weight: 500; color: var(--text-2);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3;
+  }
+  .sess.on .s-name { color: var(--text-1); }
+  .s-meta { font-size: 10px; color: var(--text-3); margin-top: 1px; }
+  .badge {
+    font-size: 9px; padding: 1px 5px; border-radius: 3px;
+    font-weight: 600; flex-shrink: 0; margin-top: 3px;
+  }
+  .badge-r { background: var(--red-dim);  color: var(--red); }
+  .badge-g { background: var(--teal-dim); color: var(--teal); }
+
+  .proj {
+    padding: 5px 13px; cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
+    transition: background 0.1s;
+  }
+  .proj:hover { background: var(--surface-2); }
+  .p-dot { width: 5px; height: 5px; border-radius: 1px; flex-shrink: 0; }
+  .p-name { font-size: 12px; color: var(--text-3); flex: 1; }
+  .proj:hover .p-name { color: var(--text-2); }
+  .p-n { font-size: 10px; color: var(--text-4); }
+
+  /* ── MAIN ── */
+  .main { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+
+  .m-head {
+    padding: 14px 22px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 14px;
+    flex-shrink: 0;
+  }
+  .mascot { font-size: 20px; line-height: 1; }
+  .greeting { flex: 1; }
+  .g-text { font-size: 20px; font-weight: 300; color: var(--text-1); letter-spacing: -0.02em; }
+  .g-text strong { font-weight: 600; }
+  .g-sub { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+  .hcontrols { display: flex; align-items: center; gap: 7px; }
+  .state-pill {
+    display: flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: 20px;
+    background: var(--teal-dim); border: 1px solid rgba(20,184,166,0.18);
+    font-size: 11px; font-weight: 600; color: var(--teal); cursor: pointer;
+  }
+  .s-pulse { width: 5px; height: 5px; border-radius: 50%; background: var(--teal); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+  .tone-sel {
+    display: flex; gap: 2px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 2px;
+  }
+  .t-opt {
+    padding: 3px 8px; border-radius: 4px;
+    font-size: 10px; font-weight: 500; font-family: var(--mono);
+    color: var(--text-3); cursor: pointer; transition: all 0.12s;
+  }
+  .t-opt.on { background: var(--surface-hov); color: var(--text-1); }
+  .t-opt:hover:not(.on) { color: var(--text-2); }
+
+  .ctrl {
+    padding: 4px 10px; border-radius: 6px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    font-size: 11px; font-family: var(--mono); color: var(--text-3);
+    cursor: pointer; transition: all 0.12s;
+  }
+  .ctrl:hover { color: var(--text-2); border-color: var(--border-md); }
+
+  /* scroll area */
+  .m-body { flex: 1; overflow-y: auto; padding: 18px 22px; display: flex; flex-direction: column; gap: 18px; }
+  .m-body::-webkit-scrollbar { width: 3px; }
+  .m-body::-webkit-scrollbar-thumb { background: var(--surface-2); border-radius: 2px; }
+
+  /* zone label */
+  .zlbl {
+    font-size: 9px; font-weight: 600; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--text-4);
+    display: flex; align-items: center; gap: 8px; margin-bottom: 9px;
+  }
+  .zlbl::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* NOW — 4 cards */
+  .ctx-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 7px; }
+  .ctx {
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: var(--r); padding: 11px 13px;
+    cursor: pointer; transition: all 0.12s;
+  }
+  .ctx:hover { border-color: var(--border-md); background: var(--surface-3); }
+  .ctx-lbl { font-size: 9px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-4); margin-bottom: 5px; }
+  .ctx-val { font-size: 15px; font-weight: 700; color: var(--text-1); line-height: 1.2; }
+  .ctx-sub { font-size: 11px; color: var(--text-3); margin-top: 3px; }
+  .ctx.amber { border-color: rgba(245,158,11,0.18); }
+  .ctx.amber .ctx-val { color: var(--amber); }
+  .ctx.red   { border-color: rgba(239,68,68,0.18); background: rgba(239,68,68,0.03); }
+  .ctx.red   .ctx-val { color: var(--red); }
+  .ctx.teal  .ctx-val { color: var(--teal); }
+
+  /* CONTINUE — hero card */
+  .hero {
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: var(--r-lg); padding: 18px;
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: ''; position: absolute;
+    top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--amber) 0%, transparent 60%);
+  }
+  .hero-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .hero-ttl { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); }
+  .hero-act { font-size: 11px; color: var(--teal); cursor: pointer; }
+  .hero-act:hover { text-decoration: underline; }
+
+  .fields { display: grid; gap: 10px; }
+  .field { display: grid; grid-template-columns: 72px 1fr; gap: 10px; align-items: baseline; }
+  .f-lbl { font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-4); }
+  .f-val { font-size: 12px; color: var(--text-2); line-height: 1.5; }
+  .f-val b    { color: var(--text-1); font-weight: 600; }
+  .f-val .hl  { color: var(--amber); }
+  .f-val .rsk { color: var(--red); }
+
+  .next-act {
+    margin-top: 14px; padding: 9px 12px;
+    background: var(--teal-dim); border: 1px solid rgba(20,184,166,0.14);
+    border-radius: 6px; display: flex; align-items: center; gap: 10px;
+  }
+  .na-lbl { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--teal); flex-shrink: 0; }
+  .na-txt { font-size: 12px; color: var(--text-1); }
+
+  /* focus banner */
+  .focus-bar {
+    padding: 9px 14px;
+    background: var(--purple-dim); border: 1px solid rgba(139,92,246,0.18);
+    border-radius: var(--r); display: flex; align-items: center; gap: 10px;
+    cursor: pointer; transition: all 0.12s;
+  }
+  .focus-bar:hover { background: rgba(139,92,246,0.15); }
+  .fb-icon { font-size: 13px; }
+  .fb-body { flex: 1; }
+  .fb-ttl { font-size: 11px; font-weight: 600; color: var(--purple); }
+  .fb-sub { font-size: 11px; color: var(--text-3); }
+  .fb-arr { color: var(--text-4); font-size: 12px; }
+
+  /* COMMAND */
+  .inp-wrap {
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: var(--r-lg); overflow: hidden;
+    transition: border-color 0.12s;
+  }
+  .inp-wrap:focus-within { border-color: var(--border-md); }
+  .inp {
+    width: 100%; padding: 13px 15px;
+    background: transparent; border: none; outline: none;
+    font-size: 13px; font-family: var(--mono); color: var(--text-1);
+  }
+  .inp::placeholder { color: var(--text-4); }
+  .inp-foot {
+    padding: 7px 13px; border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .inp-meta { font-size: 10px; color: var(--text-4); display: flex; gap: 14px; }
+  .send {
+    padding: 5px 13px; border-radius: 5px;
+    background: var(--amber); border: none;
+    font-size: 11px; font-weight: 600; font-family: var(--mono);
+    color: #000; cursor: pointer; transition: opacity 0.12s;
+  }
+  .send:hover { opacity: .82; }
+
+  /* ── SIGNALS ── */
+  .signals {
+    background: var(--surface-1);
+    border-left: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .sig-head {
+    padding: 14px 14px 11px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .sig-ttl { font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-4); }
+  .sig-date { font-size: 11px; color: var(--text-3); }
+  .sig-body { flex: 1; overflow-y: auto; padding: 10px 11px; display: flex; flex-direction: column; gap: 7px; }
+  .sig-body::-webkit-scrollbar { width: 3px; }
+  .sig-body::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 2px; }
+
+  /* kitty state */
+  .k-state {
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: var(--r); padding: 10px 12px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .k-face { font-size: 18px; line-height: 1; }
+  .k-info { flex: 1; }
+  .k-name { font-size: 12px; font-weight: 600; color: var(--text-1); }
+  .k-desc { font-size: 11px; color: var(--text-3); }
+  .k-dot { width: 6px; height: 6px; border-radius: 50%; animation: pulse 2s infinite; }
+
+  /* reality check */
+  .reality {
+    background: var(--surface-2); border: 1px solid rgba(139,92,246,0.18);
+    border-radius: var(--r-lg); padding: 13px;
+    position: relative; overflow: hidden;
+  }
+  .reality::before {
+    content: ''; position: absolute;
+    top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--purple), transparent 60%);
+  }
+  .r-ttl { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--purple); margin-bottom: 10px; }
+  .stream { margin-bottom: 8px; }
+  .stream:last-of-type { margin-bottom: 0; }
+  .st-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 3px; }
+  .st-lbl { font-size: 9px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-4); }
+  .st-rank { font-size: 10px; font-weight: 700; }
+  .st-body { font-size: 12px; color: var(--text-2); line-height: 1.4; padding-left: 8px; border-left: 2px solid var(--border); }
+  .r-rec {
+    margin-top: 10px; padding: 8px 10px;
+    background: var(--purple-dim); border-radius: 5px;
+    font-size: 11px; color: var(--text-2); line-height: 1.4;
+  }
+  .r-rec b { color: var(--purple); }
+
+  /* generic signal card */
+  .sig-card {
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: var(--r); padding: 11px 12px;
+    cursor: pointer; transition: all 0.12s;
+  }
+  .sig-card:hover { border-color: var(--border-md); }
+  .sc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .sc-lbl { font-size: 9px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; }
+  .sc-badge { font-size: 9px; padding: 1px 5px; border-radius: 3px; font-weight: 600; }
+  .sc-val { font-size: 13px; font-weight: 600; color: var(--text-1); line-height: 1.3; }
+  .sc-sub { font-size: 11px; color: var(--text-3); margin-top: 2px; line-height: 1.4; }
+
+  /* insight card */
+  .ins-card {
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: var(--r); padding: 11px 12px;
+  }
+  .ins-head { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; }
+  .ins-icon { font-size: 11px; }
+  .ins-lbl { font-size: 9px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; color: var(--text-4); }
+  .ins-cat { font-size: 9px; padding: 1px 5px; border-radius: 3px; font-weight: 600; margin-left: auto; }
+  .ins-obs { font-size: 11px; color: var(--text-3); margin-bottom: 5px; line-height: 1.5; }
+  .ins-fix { font-size: 11px; color: var(--text-2); font-weight: 500; line-height: 1.5; }
+  .ins-fix::before { content: 'Fix: '; color: var(--teal); font-weight: 700; }
+
+  /* quick action */
+  .qa {
+    padding: 9px 12px; border-radius: var(--r);
+    background: transparent; border: 1px solid var(--border);
+    font-size: 11px; font-family: var(--mono); font-weight: 500;
+    color: var(--text-2); text-align: left; cursor: pointer; width: 100%;
+    transition: all 0.12s;
+  }
+  .qa:hover { background: var(--surface-3); border-color: var(--border-md); color: var(--text-1); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ICON RAIL -->
+  <nav class="icon-rail">
+    <div class="rail-logo">🐱</div>
+    <div class="ri on"  title="Dashboard">⌂</div>
+    <div class="ri"     title="Journal">✍</div>
+    <div class="ri"     title="Knowledge">◈</div>
+    <div class="ri"     title="Tasks">✓</div>
+    <div class="ri-sp"></div>
+    <div class="ri"     title="Settings">⚙</div>
+  </nav>
+
+  <!-- SESSION SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sb-head">
+      <span class="sb-title">Sessions</span>
+      <button class="new-btn">+ new</button>
+    </div>
+    <div class="sb-body">
+      <div class="sec-lbl">Today</div>
+
+      <div class="sess on">
+        <div class="s-dot" style="background:var(--teal)"></div>
+        <div class="s-info">
+          <div class="s-name">today's brief</div>
+          <div class="s-meta">active now</div>
+        </div>
+        <div class="badge badge-g">live</div>
+      </div>
+
+      <div class="sess">
+        <div class="s-dot" style="background:var(--purple)"></div>
+        <div class="s-info">
+          <div class="s-name">Kitty dashboard</div>
+          <div class="s-meta">3:16 ago · prototype</div>
+        </div>
+      </div>
+
+      <div class="sess">
+        <div class="s-dot" style="background:var(--red)"></div>
+        <div class="s-info">
+          <div class="s-name">landlord email</div>
+          <div class="s-meta">4 days overdue</div>
+        </div>
+        <div class="badge badge-r">4d</div>
+      </div>
+
+      <div class="sec-lbl">Yesterday</div>
+
+      <div class="sess">
+        <div class="s-dot" style="background:var(--amber)"></div>
+        <div class="s-info">
+          <div class="s-name">brake appointment</div>
+          <div class="s-meta">photos needed</div>
+        </div>
+      </div>
+
+      <div class="sess">
+        <div class="s-dot" style="background:var(--text-4)"></div>
+        <div class="s-info">
+          <div class="s-name">income options</div>
+          <div class="s-meta">life ops</div>
+        </div>
+      </div>
+
+      <div class="sec-lbl">Projects</div>
+
+      <div class="proj">
+        <div class="p-dot" style="background:var(--teal)"></div>
+        <span class="p-name">Kitty design system</span>
+        <span class="p-n">7</span>
+      </div>
+      <div class="proj">
+        <div class="p-dot" style="background:var(--purple)"></div>
+        <span class="p-name">resume rebuild</span>
+        <span class="p-n">2</span>
+      </div>
+      <div class="proj">
+        <div class="p-dot" style="background:var(--amber)"></div>
+        <span class="p-name">DTC paperwork</span>
+        <span class="p-n">5</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="m-head">
+      <div class="mascot">🐱</div>
+      <div class="greeting">
+        <div class="g-text">good morning, <strong>jacob</strong></div>
+        <div class="g-sub">Monday, May 18 · dashboard home</div>
+      </div>
+      <div class="hcontrols">
+        <div class="state-pill">
+          <div class="s-pulse"></div>
+          Kitty active
+        </div>
+        <div class="tone-sel">
+          <div class="t-opt">gentle</div>
+          <div class="t-opt">balanced</div>
+          <div class="t-opt on">blunt</div>
+          <div class="t-opt">auto</div>
+        </div>
+        <button class="ctrl">clear chat</button>
+      </div>
+    </div>
+
+    <div class="m-body">
+
+      <!-- NOW -->
+      <div>
+        <div class="zlbl">Now</div>
+        <div class="ctx-grid">
+          <div class="ctx">
+            <div class="ctx-lbl">Weather</div>
+            <div class="ctx-val">−4°C</div>
+            <div class="ctx-sub">snow later · wind NE</div>
+          </div>
+          <div class="ctx amber">
+            <div class="ctx-lbl">Next Up</div>
+            <div class="ctx-val">standup</div>
+            <div class="ctx-sub">2:00 PM · prep notes</div>
+          </div>
+          <div class="ctx red">
+            <div class="ctx-lbl">Overdue</div>
+            <div class="ctx-val">landlord email</div>
+            <div class="ctx-sub">4 days late</div>
+          </div>
+          <div class="ctx teal">
+            <div class="ctx-lbl">Focus</div>
+            <div class="ctx-val">Kitty dashboard</div>
+            <div class="ctx-sub">home shell first</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CONTINUE -->
+      <div>
+        <div class="zlbl">Continue</div>
+        <div class="hero">
+          <div class="hero-head">
+            <div class="hero-ttl">Last session + suggested fix</div>
+            <div class="hero-act">continue →</div>
+          </div>
+          <div class="fields">
+            <div class="field">
+              <div class="f-lbl">Worked on</div>
+              <div class="f-val">Kitty dashboard direction and concept.</div>
+            </div>
+            <div class="field">
+              <div class="f-lbl">Decided</div>
+              <div class="f-val">The examples are a <b>mood board</b>, not a literal spec. Codex architecture wins — three-column layout.</div>
+            </div>
+            <div class="field">
+              <div class="f-lbl">Insight</div>
+              <div class="f-val">The product is a <span class="hl">context-restoration system</span>, not a chat app.</div>
+            </div>
+            <div class="field">
+              <div class="f-lbl">Risk</div>
+              <div class="f-val"><span class="rsk">Refining prompts could replace execution.</span> Design loop risk is real.</div>
+            </div>
+          </div>
+          <div class="next-act">
+            <div class="na-lbl">Next →</div>
+            <div class="na-txt">Generate one refined prototype. Ship a layout shell before wiring data.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FOCUS MODE -->
+      <div class="focus-bar">
+        <div class="fb-icon">◎</div>
+        <div class="fb-body">
+          <div class="fb-ttl">Focus mode</div>
+          <div class="fb-sub">One priority · why it matters · what to do in 10 min</div>
+        </div>
+        <div class="fb-arr">→</div>
+      </div>
+
+      <!-- COMMAND -->
+      <div>
+        <div class="zlbl">Command</div>
+        <div class="inp-wrap">
+          <input class="inp" type="text" placeholder="message Kitty...">
+          <div class="inp-foot">
+            <div class="inp-meta">
+              <span>⌘K commands</span>
+              <span>context: 6</span>
+              <span>tone: blunt</span>
+            </div>
+            <button class="send">Send</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- SIGNALS -->
+  <aside class="signals">
+    <div class="sig-head">
+      <span class="sig-ttl">Signals</span>
+      <span class="sig-date">May 18</span>
+    </div>
+    <div class="sig-body">
+
+      <div class="k-state">
+        <div class="k-face">:3</div>
+        <div class="k-info">
+          <div class="k-name">online and nosy</div>
+          <div class="k-desc">watching priorities</div>
+        </div>
+        <div class="k-dot" style="background:var(--teal)"></div>
+      </div>
+
+      <div class="reality">
+        <div class="r-ttl">⚖ Reality Check</div>
+        <div class="stream">
+          <div class="st-head">
+            <span class="st-lbl">Life</span>
+            <span class="st-rank" style="color:var(--amber)">#1</span>
+          </div>
+          <div class="st-body">Housing/admin outranks UI polish today.</div>
+        </div>
+        <div class="stream">
+          <div class="st-head">
+            <span class="st-lbl">Coding</span>
+            <span class="st-rank" style="color:var(--teal)">#2</span>
+          </div>
+          <div class="st-body">Prototype target: home shell. Avoid backend scope.</div>
+        </div>
+        <div class="stream">
+          <div class="st-head">
+            <span class="st-lbl">Chat</span>
+            <span class="st-rank" style="color:var(--purple)">#3</span>
+          </div>
+          <div class="st-body">Open loops from last session need a next action.</div>
+        </div>
+        <div class="r-rec"><b>Suggested:</b> 10 min on landlord email first, then ship one layout prototype.</div>
+      </div>
+
+      <div class="sig-card">
+        <div class="sc-head">
+          <span class="sc-lbl" style="color:var(--teal)">Calendar</span>
+          <span class="sc-badge" style="background:var(--teal-dim);color:var(--teal)">2 today</span>
+        </div>
+        <div class="sc-val">Standup at 2:00 PM</div>
+        <div class="sc-sub">No hard conflict detected.</div>
+      </div>
+
+      <div class="sig-card">
+        <div class="sc-head">
+          <span class="sc-lbl" style="color:var(--red)">Important Email</span>
+          <span class="sc-badge" style="background:var(--red-dim);color:var(--red)">overdue</span>
+        </div>
+        <div class="sc-val">Landlord — 4d</div>
+        <div class="sc-sub">Draft short, send before another design loop.</div>
+      </div>
+
+      <div class="ins-card">
+        <div class="ins-head">
+          <span class="ins-icon">◈</span>
+          <span class="ins-lbl">Insight</span>
+          <span class="ins-cat" style="background:var(--purple-dim);color:var(--purple)">chat</span>
+        </div>
+        <div class="ins-obs">Highest quality output came after consolidating instructions into one direction.</div>
+        <div class="ins-fix">generate one artifact at a time.</div>
+      </div>
+
+      <div class="ins-card">
+        <div class="ins-head">
+          <span class="ins-icon">◈</span>
+          <span class="ins-lbl">Insight</span>
+          <span class="ins-cat" style="background:var(--teal-dim);color:var(--teal)">coding</span>
+        </div>
+        <div class="ins-obs">UI concept is stable enough to prototype.</div>
+        <div class="ins-fix">ship a shell before wiring data.</div>
+      </div>
+
+      <button class="qa">▶ start 10-min life task</button>
+
+    </div>
+  </aside>
+
+</div>
+</body>
+</html>

@@ -24,7 +24,7 @@ from contextlib import asynccontextmanager
 from gateway.paths import LOG_FILE, LITELLM_BASE, LITELLM_KEY, DATA_DIR, validate_dirs, validate_env
 from gateway.token_usage_log import log_llm_usage, normalize_usage_payload
 
-_http_client: httpx.AsyncClient | None = None
+from gateway.http_client import get_http_client
 
 
 async def _brief_bg_loop():
@@ -86,9 +86,13 @@ async def lifespan(app: FastAPI):
         pass
     yield
     brief_task.cancel()
-    global _http_client
-    if _http_client and not _http_client.is_closed:
-        await _http_client.aclose()
+    # Close shared http client if it exists
+    try:
+        from gateway.http_client import _http_client
+        if _http_client and not _http_client.is_closed:
+            await _http_client.aclose()
+    except Exception:
+        pass
     # Stop Telegram bot
     try:
         from gateway.telegram_bot import stop as tg_stop
@@ -103,6 +107,9 @@ logging.basicConfig(level=logging.INFO)
 app = FastAPI(title="Kitty Gateway", lifespan=lifespan)
 
 from gateway.auth import BearerAuthMiddleware
+from gateway.voice_middleware import VoiceGateMiddleware
+
+app.add_middleware(VoiceGateMiddleware)
 app.add_middleware(BearerAuthMiddleware)
 _webui_origin = os.environ.get("KITTY_WEBUI_ORIGIN")
 _cors_origins = [o for o in ["http://localhost:3000", "http://localhost:8000", _webui_origin] if o]
@@ -143,11 +150,7 @@ class LearnRequest(BaseModel):
     topic: str = Field(min_length=1, max_length=1000)
 
 
-async def get_http_client() -> httpx.AsyncClient:
-    global _http_client
-    if _http_client is None or _http_client.is_closed:
-        _http_client = httpx.AsyncClient(timeout=60, limits=httpx.Limits(max_connections=100))
-    return _http_client
+
 
 
 @app.get("/health")
@@ -389,10 +392,14 @@ async def tasks_sync(payload: TasksSyncRequest):
     return {"success": success}
 
 
+class DeepResearchRequest(BaseModel):
+    topic: str
+
+
 @app.post("/research/deep")
-async def deep_research(topic: str):
+async def deep_research(req: DeepResearchRequest):
     from gateway.researcher import deep_dive
-    result = await deep_dive(topic)
+    result = await deep_dive(req.topic)
     return {"result": result}
 
 
@@ -716,8 +723,8 @@ async def sync_import(request: Request):
 
 @app.get("/search")
 async def search_all(q: str = "", limit: int = 5):
-    from gateway.search import search
-    return search(q, limit=limit)
+    from gateway.search import async_search
+    return await async_search(q, limit=limit)
 
 
 # --- Deploy endpoint ---

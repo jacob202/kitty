@@ -1,5 +1,5 @@
 'use client'
-import { startTransition, useState, useRef, useEffect, useCallback } from 'react'
+import { startTransition, useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Chat, Message, Model, MODELS, COLOR_CYCLE, ChatColor } from '@/lib/types'
 import { streamChat } from '@/lib/openwebui'
 import { inferMood } from '@/lib/mood'
@@ -10,7 +10,13 @@ import { BriefPanel } from '@/components/BriefPanel'
 import { Rail } from '@/components/Rail'
 import { SessionSidebar } from '@/components/SessionSidebar'
 import { RightBar } from '@/components/RightBar'
-import { fetchGatewayBrief, fetchGatewayModels, fetchGatewaySearch, fetchGatewayMood, loadGatewayChats, saveGatewayChat, deleteGatewayChat, synthesizeSpeech, type GatewayBrief, type GatewaySearchSnapshot } from '@/lib/gateway'
+import {
+  fetchGatewayBrief,
+  fetchGatewayModels,
+  fetchGatewaySearch,
+  type GatewayBrief,
+  type GatewaySearchSnapshot,
+} from '@/lib/gateway'
 
 let chatCounter = 0
 function newChatId() { return `chat-${++chatCounter}-${Date.now()}` }
@@ -45,7 +51,19 @@ function latestSearchQuery(chat: Chat | null): string {
 }
 
 export default function KittyChat() {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+
+  if (!mounted) {
+    return <div style={{ height: '100vh', background: 'var(--bg)' }} />
+  }
+
+  return <KittyChatInner />
+}
+
+function KittyChatInner() {
   const [chats, setChats] = useState<Chat[]>(() => [makeChat('teal')])
+  const [activeView, setActiveView] = useState('home')
   const [activeChatId, setActiveChatId] = useState<string | null>(() => null)
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
@@ -55,9 +73,21 @@ export default function KittyChat() {
   const [tokenCount, setTokenCount] = useState(0)
   const [brief, setBrief] = useState<GatewayBrief | null>(null)
   const [searchSnapshot, setSearchSnapshot] = useState<GatewaySearchSnapshot | null>(null)
-  const [kittyMood, setKittyMood] = useState<import('@/lib/types').KittyMood>('idle')
-  const [voiceEnabled, setVoiceEnabled] = useState(false)
-  const ttsAudioRef = useRef<HTMLAudioElement | null>(null)
+  const [modelGateway, setModelGateway] = useState<{
+    loaded: boolean
+    live: boolean
+    error: string | null
+  }>({ loaded: false, live: true, error: null })
+  const [briefGateway, setBriefGateway] = useState<{
+    loaded: boolean
+    live: boolean
+    error: string | null
+  }>({ loaded: false, live: true, error: null })
+  const [searchGateway, setSearchGateway] = useState<{
+    live: boolean
+    error: string | null
+  }>({ live: true, error: null })
+  const [gwReload, setGwReload] = useState(0)
 
   const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -65,6 +95,9 @@ export default function KittyChat() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const activeChat = chats.find(c => c.id === activeChatId) ?? chats[0] ?? null
+  const userMessageCount = activeChat?.messages.filter(m => m.role === 'user').length ?? 0
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const searchQuery = useMemo(() => latestSearchQuery(activeChat), [activeChatId, userMessageCount])
 
   useEffect(() => {
     if (chats.length > 0 && !activeChatId) {
@@ -80,57 +113,61 @@ export default function KittyChat() {
     let cancelled = false
 
     void (async () => {
-      // Load persisted chats from gateway first
-      const saved = await loadGatewayChats()
-      if (!cancelled && saved && saved.length > 0) {
-        startTransition(() => {
-          setChats(saved)
-          setActiveChatId(saved[saved.length - 1].id)
-        })
-      }
-
-      const models = await fetchGatewayModels()
+      const modelsPayload = await fetchGatewayModels()
       if (cancelled) return
+
       startTransition(() => {
-        setAvailableModels(models)
-        setActiveModel(current => models.find(model => model.id === current.id) ?? models[0] ?? current)
+        setModelGateway({
+          loaded: true,
+          live: modelsPayload.fromLiveGateway,
+          error: modelsPayload.error,
+        })
+        setAvailableModels(modelsPayload.models)
+        setActiveModel(current =>
+          modelsPayload.models.find(model => model.id === current.id) ?? modelsPayload.models[0] ?? current,
+        )
       })
 
-      const liveBrief = await fetchGatewayBrief()
+      const briefPayload = await fetchGatewayBrief()
       if (cancelled) return
       startTransition(() => {
-        setBrief(liveBrief)
+        setBriefGateway({
+          loaded: true,
+          live: briefPayload.fromLiveGateway,
+          error: briefPayload.error,
+        })
+        setBrief(briefPayload.brief)
       })
     })()
 
     return () => {
       cancelled = true
     }
-  }, [])
-
-  // Only re-run when the last user message or active chat actually changes.
-  // Avoids firing N times per streaming response.
-  const lastUserMsg = activeChat?.messages.findLast(m => m.role === 'user')?.content ?? ''
-  const searchKey = `${activeChatId}:${lastUserMsg}`
+  }, [gwReload])
 
   useEffect(() => {
-    let cancelled = false
-    const query = lastUserMsg.trim()
-
-    if (!query) {
+    if (!searchQuery) {
       setSearchSnapshot(null)
-      return () => { cancelled = true }
+      setSearchGateway({ live: true, error: null })
+      return
     }
 
-    void (async () => {
-      const nextSnapshot = await fetchGatewaySearch(query, 3)
-      if (cancelled) return
-      startTransition(() => setSearchSnapshot(nextSnapshot))
-    })()
+    const controller = new AbortController()
 
-    return () => { cancelled = true }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchKey])
+    const timeoutId = window.setTimeout(async () => {
+      const payload = await fetchGatewaySearch(searchQuery, 3, controller.signal)
+      if (controller.signal.aborted) return
+      startTransition(() => {
+        setSearchSnapshot(payload.snapshot)
+        setSearchGateway({ live: payload.fromLiveGateway, error: payload.error })
+      })
+    }, 400)
+
+    return () => {
+      clearTimeout(timeoutId)
+      controller.abort()
+    }
+  }, [searchQuery])
 
   // rough token estimate: ~4 chars per token
   useEffect(() => {
@@ -138,18 +175,6 @@ export default function KittyChat() {
     const chars = activeChat.messages.reduce((sum, m) => sum + m.content.length, 0)
     setTokenCount(Math.round(chars / 4))
   }, [activeChat?.messages])
-
-  // Poll gateway mood every 3s so the avatar reflects backend state
-  useEffect(() => {
-    let alive = true
-    const poll = async () => {
-      const state = await fetchGatewayMood()
-      if (alive && state) setKittyMood(state.mood)
-    }
-    void poll()
-    const id = setInterval(() => { void poll() }, 3000)
-    return () => { alive = false; clearInterval(id) }
-  }, [])
 
   const handleNewChat = useCallback(() => {
     const color = COLOR_CYCLE[colorIndexRef.current % COLOR_CYCLE.length]
@@ -162,19 +187,21 @@ export default function KittyChat() {
   }, [activeModel.id])
 
   const handleCloseChat = useCallback((id: string) => {
-    void deleteGatewayChat(id)
     setChats(prev => {
-      let next = prev.filter(c => c.id !== id)
+      const next = prev.filter(c => c.id !== id)
       if (next.length === 0) {
         const fresh = makeChat(COLOR_CYCLE[colorIndexRef.current % COLOR_CYCLE.length])
         colorIndexRef.current++
-        next = [fresh]
+        return [fresh]
       }
-      // Update active ID inside the same state batch to avoid stale closure
-      setActiveChatId(cur => cur === id ? (next[next.length - 1]?.id ?? null) : cur)
       return next
     })
-  }, [])
+    setActiveChatId(prev => {
+      if (prev !== id) return prev
+      const remaining = chats.filter(c => c.id !== id)
+      return remaining[remaining.length - 1]?.id ?? null
+    })
+  }, [chats])
 
   const handleSelectModel = useCallback((m: Model) => {
     setActiveModel(m)
@@ -249,26 +276,6 @@ export default function KittyChat() {
           m.id === aiMsgId ? { ...m, content: accumulated, mood } : m
         ),
       }))
-
-      // TTS playback — speak the response if voice is enabled
-      if (voiceEnabled && accumulated) {
-        void (async () => {
-          try {
-            // Strip markdown and keep it under ~500 chars for snappy playback
-            const plain = accumulated
-              .replace(/```[\s\S]*?```/g, '')
-              .replace(/[#*`_~>]/g, '')
-              .trim()
-              .slice(0, 500)
-            ttsAudioRef.current?.pause()
-            const url = await synthesizeSpeech(plain)
-            const audio = new Audio(url)
-            ttsAudioRef.current = audio
-            audio.play()
-            audio.onended = () => URL.revokeObjectURL(url)
-          } catch { /* TTS failure is non-fatal */ }
-        })()
-      }
     } catch (err: unknown) {
       if (err instanceof Error && err.name !== 'AbortError') {
         updateChat(activeChat.id, c => ({
@@ -283,14 +290,14 @@ export default function KittyChat() {
     } finally {
       setIsStreaming(false)
       abortRef.current = null
-      // Persist the completed chat
-      setChats(current => {
-        const saved = current.find(c => c.id === activeChat.id)
-        if (saved) void saveGatewayChat(saved)
-        return current
-      })
     }
-  }, [input, isStreaming, activeChat, activeModel, updateChat, voiceEnabled])
+  }, [input, isStreaming, activeChat, activeModel, updateChat])
+
+  const retryGatewayBootstrap = useCallback(() => {
+    setModelGateway({ loaded: false, live: true, error: null })
+    setBriefGateway({ loaded: false, live: true, error: null })
+    setGwReload(n => n + 1)
+  }, [])
 
   const handlePrompt = useCallback((text: string) => {
     setInput(text)
@@ -309,7 +316,7 @@ export default function KittyChat() {
     }}
       onClick={() => showModelMenu && setShowModelMenu(false)}
     >
-      <Rail sessionCount={chats.length} />
+      <Rail activeView={activeView} onViewChange={setActiveView} />
 
       <SessionSidebar
         chats={chats}
@@ -333,16 +340,87 @@ export default function KittyChat() {
           setShowModelMenu={setShowModelMenu}
           isStreaming={isStreaming}
           activeChat={activeChat}
-          kittyMood={kittyMood}
+          modelFromGateway={modelGateway.live}
         />
 
+        {modelGateway.loaded && !modelGateway.live && (
+          <div
+            role="status"
+            style={{
+              padding: '8px 16px',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 12,
+              color: 'var(--warning, #f5a623)',
+              background: 'rgba(245, 166, 35, 0.08)',
+              borderBottom: '1px solid var(--border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              flexShrink: 0,
+            }}
+          >
+            <span>
+              Offline: using built-in model list — {modelGateway.error ?? 'gateway unreachable.'}
+            </span>
+            <button
+              type="button"
+              onClick={retryGatewayBootstrap}
+              style={{
+                border: '1px solid var(--border)',
+                borderRadius: 6,
+                padding: '4px 10px',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: 'var(--panel-2)',
+                color: 'var(--text)',
+                flexShrink: 0,
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {modelGateway.loaded && modelGateway.live && briefGateway.loaded && !briefGateway.live && (
+          <div
+            role="status"
+            style={{
+              padding: '6px 16px',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              color: 'var(--text-dim)',
+              background: 'rgba(16, 20, 29, 0.5)',
+              borderBottom: '1px solid var(--border)',
+              flexShrink: 0,
+            }}
+          >
+            Brief unavailable ({briefGateway.error ?? 'unknown'}). Chat still works.
+          </div>
+        )}
+
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-          {!activeChat || activeChat.messages.length === 0 ? (
+          {activeView !== 'home' && activeView !== 'chat' ? (
+            <div style={{
+              flex: 1, display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center',
+              gap: 12, fontFamily: 'var(--font-mono)',
+              color: 'var(--text-muted)', fontSize: 14,
+            }}>
+              <span style={{ fontSize: 32, opacity: 0.3 }}>?
+              </span>
+              <span>{activeView.charAt(0).toUpperCase() + activeView.slice(1)} view</span>
+              <span style={{ fontSize: 12, color: 'var(--text-ghost)' }}>coming soon</span>
+            </div>
+          ) : !activeChat || activeChat.messages.length === 0 ? (
             <BriefPanel
               chats={chats}
               onSelectChat={id => { setActiveChatId(id) }}
               onPrompt={handlePrompt}
               brief={brief}
+              loading={!briefGateway.loaded}
             />
           ) : (
             <div style={{ paddingBottom: 140 }}>
@@ -373,8 +451,6 @@ export default function KittyChat() {
           tokenCount={tokenCount}
           maxTokens={200000}
           textareaRef={textareaRef}
-          voiceEnabled={voiceEnabled}
-          onVoiceToggle={() => setVoiceEnabled(v => !v)}
         />
       </main>
 
@@ -384,6 +460,7 @@ export default function KittyChat() {
         isStreaming={isStreaming}
         brief={brief}
         search={searchSnapshot}
+        searchGatewayError={searchGateway.live ? null : searchGateway.error}
         activeModelName={activeModel.name}
       />
     </div>

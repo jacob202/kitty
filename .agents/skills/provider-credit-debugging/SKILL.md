@@ -32,7 +32,15 @@ opencode debug skill --pure
 opencode models fcm-nvidia --pure
 ```
 
-Use `{env:NVIDIA_API_KEY}` (or the provider’s documented env) in `~/.config/opencode/opencode.json` — not literal keys.
+Use `{env:NVIDIA_API_KEY}` or `{file:~/.config/opencode/nvidia_api_key}` in `~/.config/opencode/opencode.json` — not pasted literals in shared logs.
+
+### Orca overlay: ENOENT on `.gitignore`
+
+If OpenCode exits with something like `FileSystem.writeFile (…/Library/Application Support/orca/opencode-hooks/<hash>/.gitignore)` and ENOENT: Orca never created that per-repo directory. Create it, then rerun:
+
+```bash
+mkdir -p "$HOME/Library/Application Support/orca/opencode-hooks/<paste-hash-from-error>"
+```
 
 ## Order of diagnosis
 

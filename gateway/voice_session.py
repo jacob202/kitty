@@ -20,11 +20,9 @@ Binary frames: client → server = audio bytes (webm/mp4)
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import time
-from typing import Optional
 
 from fastapi import WebSocket, WebSocketDisconnect
 
@@ -129,6 +127,10 @@ async def _handle_audio_bytes(session: VoiceSession, audio: bytes) -> None:
         from gateway.context_builder import get_system_prompt
         from gateway.domain_router import classify_domain
         from gateway.llm_client import route_model
+        from gateway.routes.completions import (
+            _non_stream_response,
+            extract_assistant_text,
+        )
         from gateway.voice_gate import filter_response
 
         domain = classify_domain(user_text)
@@ -147,21 +149,14 @@ async def _handle_audio_bytes(session: VoiceSession, audio: bytes) -> None:
             ],
         }
 
-        from gateway.app import _non_stream_response
         data = await _non_stream_response(payload)
-
-        choices = data.get("choices", []) if isinstance(data, dict) else []
-        reply = ""
-        if choices and isinstance(choices[0], dict):
-            msg = choices[0].get("message", {})
-            if isinstance(msg, dict):
-                reply = msg.get("content", "")
+        reply = extract_assistant_text(data)
 
         # Filter through voice gate
         gate = filter_response(reply)
         reply = gate.cleaned
 
-    except Exception as e:
+    except Exception:
         logger.exception("Voice LLM call failed")
         await session.ws.send_json({"type": "error", "message": "Brain fog — say that again?"})
         return

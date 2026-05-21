@@ -1,320 +1,248 @@
 'use client'
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo } from 'react'
 import type { CSSProperties } from 'react'
 import { Chat } from '@/lib/types'
-import { commandZones, realityCheck, type DashboardTone } from '@/lib/dashboardMock'
-import type { GatewayBrief, CalendarEvent } from '@/lib/gateway'
-import { fetchCalendarToday } from '@/lib/gateway'
-import { TaskPanel } from './TaskPanel'
-import { MonitorPanel } from './MonitorPanel'
-import { TodoPanel } from './TodoPanel'
-import { JournalPanel } from './JournalPanel'
-import { AgentPanel } from './AgentPanel'
-import { ImageGenPanel } from './ImageGenPanel'
-import { CronPanel } from './CronPanel'
+import { commandZones } from '@/lib/dashboardMock'
+import type { GatewayBrief, GatewayHeadline } from '@/lib/gateway'
+
+function headlineText(h: string | GatewayHeadline): string {
+  return typeof h === 'string' ? h : h.title
+}
+
+const USER_DISPLAY_NAME = 'jacob'
+
+function greetingTime(): string {
+  const h = new Date().getHours()
+  if (h < 5) return 'still up'
+  if (h < 12) return 'good morning'
+  if (h < 17) return 'good afternoon'
+  if (h < 21) return 'good evening'
+  return 'late night'
+}
 
 interface Props {
   chats: Chat[]
   onSelectChat: (id: string) => void
   onPrompt: (text: string) => void
   brief?: GatewayBrief | null
+  loading?: boolean
 }
 
-interface WeeklyPatterns {
-  total_interactions: number
-  top_domains: [string, number][]
-  peak_hour: number
-  trend_direction: string
-  avg_response_ms: number
+const CHAT_COLOR_MAP: Record<string, string> = {
+  teal:   'var(--teal)',
+  indigo: 'var(--indigo)',
+  orange: 'var(--primary)',
+  purple: 'var(--purple)',
+  mint:   'var(--mint)',
+  blue:   'var(--blue)',
+  yellow: 'var(--yellow)',
+  pink:   'var(--pink-blue)',
 }
 
-export function BriefPanel({ chats, onSelectChat, onPrompt, brief }: Props) {
-  const [tone, setTone] = useState<DashboardTone>('gentle')
-  const [calEvents, setCalEvents] = useState<CalendarEvent[]>([])
-  const [patterns, setPatterns] = useState<WeeklyPatterns | null>(null)
+function gatewayIsLive(brief: GatewayBrief | null | undefined): boolean {
+  if (!brief) return false
+  if (brief.error) return false
+  return true
+}
 
-  useEffect(() => {
-    void fetchCalendarToday().then(setCalEvents)
-    void fetch('/proxy/patterns/weekly').then(r => r.ok ? r.json() : null).then(j => j && setPatterns(j as WeeklyPatterns))
-  }, [])
+interface PriorityCard {
+  label: string
+  badge: string
+  badgeColor: string
+  title: string
+  body: string
+}
 
+function buildCards(brief: GatewayBrief | null | undefined): PriorityCard[] {
+  if (brief && !brief.error && brief.headlines?.length) {
+    return [
+      {
+        label: 'HEADLINE',
+        badge: 'LIVE',
+        badgeColor: 'var(--mint)',
+        title: headlineText(brief.headlines[0]) || 'No headline',
+        body: brief.intention ?? '',
+      },
+      {
+        label: 'MEMORY',
+        badge: 'GATEWAY',
+        badgeColor: 'var(--secondary)',
+        title: 'context loaded',
+        body: brief.memory_snippet ?? 'No memory snippet returned.',
+      },
+      {
+        label: 'STATUS',
+        badge: brief.notification_sent ? 'SENT' : 'LIVE',
+        badgeColor: brief.notification_sent ? 'var(--mint)' : 'var(--primary)',
+        title: brief.date ?? 'today',
+        body: brief.notification_sent ? 'Brief notification sent.' : 'Brief is live and connected.',
+      },
+    ]
+  }
+  return [
+    {
+      label: 'NEXT UP',
+      badge: 'NOW',
+      badgeColor: 'var(--primary)',
+      title: 'clean home surface',
+      body: 'Consolidate the dashboard around one useful continuation, not a wall of widgets.',
+    },
+    {
+      label: 'SUGGESTED FIX',
+      badge: 'READY',
+      badgeColor: 'var(--mint)',
+      title: 'proxy default',
+      body: 'KittyChat should default to the live gateway at 127.0.0.1:8000.',
+    },
+    {
+      label: 'SIGNAL',
+      badge: 'VERIFIED',
+      badgeColor: 'var(--secondary)',
+      title: 'typescript clean',
+      body: 'Keep the UI pass buildable before plumbing deeper backend contracts.',
+    },
+  ]
+}
+
+export function BriefPanel({ chats, onSelectChat, onPrompt, brief, loading = false }: Props) {
   const recentChats = useMemo(() => {
     return [...chats]
       .filter(c => c.messages.length > 0)
       .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
-      .slice(0, 3)
+      .slice(0, 6)
   }, [chats])
 
-  const lastChat = recentChats[0]
-  const lastLine = (lastChat?.messages.filter(m => m.role === 'assistant').at(-1)?.content || lastChat?.messages.at(-1)?.content || '')
-    .replace(/```[\s\S]*?```/g, '[code]')
-    .slice(0, 180)
+  const cards = buildCards(brief)
+  const live = gatewayIsLive(brief)
+  const dateStr = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })
 
   return (
     <div style={panelStyle}>
-      <section style={heroStyle}>
-        <div style={identityStyle}>
-          <div className="pixel-kitty" style={{ width: 54, height: 54, borderRadius: 12 }} aria-label="Kitty" />
+      {/* SECTION A — Greeting bar */}
+      <section style={greetingBarStyle}>
+        <div>
+          <div style={greetingTitleStyle}>{greetingTime()}, {USER_DISPLAY_NAME}.</div>
+          <div style={greetingDateStyle}>{dateStr}</div>
+        </div>
+        <div style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10,
+          textTransform: 'uppercase' as const,
+          letterSpacing: '0.08em',
+          color: live ? 'var(--mint)' : 'var(--error)',
+        }}>
+          GATEWAY: {live ? 'LIVE' : 'OFFLINE'}
+        </div>
+      </section>
+
+      {/* SECTION B — Three priority cards (or loading skeleton) */}
+      {loading ? (
+        <section
+          role="status"
+          aria-label="loading brief"
+          style={cardsGridStyle}
+        >
+          {[0, 1, 2].map(i => (
+            <div
+              key={i}
+              style={{
+                ...cardBaseStyle,
+                height: 104,
+                opacity: 0.35,
+                background: 'var(--surface-mid)',
+                animation: 'none',
+              }}
+            />
+          ))}
+        </section>
+      ) : (
+        <section style={cardsGridStyle}>
+          {cards.map((card) => (
+            <PriorityCardItem key={card.label} card={card} />
+          ))}
+        </section>
+      )}
+
+      {/* SECTION C — Activity feed */}
+      {recentChats.length > 0 && (
+        <section>
+          <div style={sectionLabelStyle}>RECENT SESSIONS</div>
           <div>
-            <h1 style={titleStyle}>morning, jacob :3</h1>
-            <p style={subtitleStyle}>{new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}</p>
-          </div>
-        </div>
-
-        <div style={statusStripStyle}>
-          <span>gateway: 5001</span>
-          <span>{brief ? 'brief live' : 'awaiting brief'}</span>
-          <span>{brief?.date ?? 'backend next'}</span>
-        </div>
-      </section>
-
-      <section style={liveBriefStyle}>
-        <SectionHeader title="Live brief" meta={brief?.generated_at ? 'gateway' : 'fallback'} />
-        {brief?.error ? (
-          <p style={bodyStyle}>{brief.error}</p>
-        ) : brief ? (
-          <div style={liveBriefGridStyle}>
-            <div>
-              <div style={liveBriefLabelStyle}>Headline</div>
-              <p style={liveBriefHeadlineStyle}>{brief.headlines[0]?.title ?? 'No headline yet.'}</p>
-            </div>
-            <div>
-              <div style={liveBriefLabelStyle}>Intention</div>
-              <p style={bodyStyle}>{brief.intention || 'Waiting on the gateway brief.'}</p>
-            </div>
-            <div>
-              <div style={liveBriefLabelStyle}>Memory</div>
-              <p style={bodyStyle}>{brief.memory_snippet || 'No memory snippet returned yet.'}</p>
-            </div>
-            {calEvents.length > 0 && (
-              <div>
-                <div style={liveBriefLabelStyle}>Today</div>
-                <div style={{ display: 'grid', gap: 4, marginTop: 4 }}>
-                  {calEvents.slice(0, 5).map((ev, i) => (
-                    <div key={i} style={calEventRowStyle}>
-                      <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                        {ev.start.split(' ')[1] ?? ev.start}
-                      </span>
-                      <span style={{ fontSize: 12, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
-                        {ev.title}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <p style={bodyStyle}>The live gateway brief will appear here once the backend responds.</p>
-        )}
-      </section>
-
-      <section style={topCardsStyle}>
-        <PatternCard
-          label="this week"
-          title={patterns ? String(patterns.total_interactions) : '—'}
-          meta={patterns?.trend_direction ?? 'loading'}
-          tone="blue"
-        >
-          {patterns
-            ? `${patterns.total_interactions} interactions · avg ${Math.round((patterns.avg_response_ms ?? 0) / 1000)}s response`
-            : 'Fetching pattern data from gateway…'}
-        </PatternCard>
-        <PatternCard
-          label="top domain"
-          title={patterns?.top_domains?.[0]?.[0] ?? '—'}
-          meta={patterns?.top_domains?.[0] ? String(patterns.top_domains[0][1]) + ' msgs' : 'no data'}
-          tone="orange"
-        >
-          {patterns?.top_domains?.slice(0, 3).map(([d, n]) => `${d} (${n})`).join(' · ') ?? 'No domain data yet.'}
-        </PatternCard>
-        <PatternCard
-          label="peak hour"
-          title={patterns != null ? `${String(patterns.peak_hour).padStart(2, '0')}:00` : '—'}
-          meta="most active"
-          tone="green"
-        >
-          {patterns
-            ? `You tend to be most active around ${String(patterns.peak_hour).padStart(2, '0')}:00 this week.`
-            : 'Peak hour analysis loading…'}
-        </PatternCard>
-      </section>
-
-      <section style={contentGridStyle}>
-        <div style={activityStyle}>
-          <SectionHeader title="Activity feed" meta="current lane" />
-          <div style={feedStyle}>
-            {recentChats.length === 0 ? (
-              <p style={bodyStyle}>No recent activity. Start a chat below.</p>
-            ) : recentChats.map((chat, i) => {
-              const lastMsg = chat.messages.filter(m => m.role === 'assistant').at(-1)
-                ?? chat.messages.at(-1)
-              const preview = (lastMsg?.content ?? '')
-                .replace(/```[\s\S]*?```/g, '[code]')
-                .slice(0, 160)
+            {recentChats.map(chat => {
+              const accentColor = CHAT_COLOR_MAP[chat.color] ?? 'var(--primary)'
               return (
-                <FeedRow
+                <div
                   key={chat.id}
-                  speaker={chat.title}
-                  text={preview || 'No messages yet.'}
-                  highlighted={i === 0}
-                />
+                  onClick={() => onSelectChat(chat.id)}
+                  style={{
+                    borderLeft: `2px solid ${accentColor}`,
+                    fontFamily: 'var(--font-ui)',
+                    fontSize: 14,
+                    padding: '10px 24px 10px 20px',
+                    borderBottom: '1px solid var(--border)',
+                    cursor: 'pointer',
+                    color: 'var(--text)',
+                    transition: 'background 0.15s ease',
+                  }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'var(--surface-low)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
+                >
+                  {chat.title}
+                </div>
               )
             })}
           </div>
+        </section>
+      )}
 
-          <div style={lastSessionBoxStyle}>
-            <SectionHeader title="Continue" meta={lastChat ? 'last chat' : 'empty'} compact />
-            {lastChat ? (
-              <button onClick={() => onSelectChat(lastChat.id)} style={continueButtonStyle}>
-                <span style={continueTitleStyle}>{lastChat.title}</span>
-                <span style={continueTextStyle}>{lastLine || 'Ready to reopen this thread.'}</span>
-                <span style={continueLinkStyle}>open thread -&gt;</span>
+      {/* SECTION D — Quick command shortcuts */}
+      {commandZones.length > 0 && (
+        <section style={{ padding: '24px 24px 40px' }}>
+          <div style={{...sectionLabelStyle, padding: '0 0 12px'}}>QUICK COMMANDS</div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' as const }}>
+            {commandZones.map(zone => (
+              <button
+                key={zone.label}
+                onClick={() => onPrompt(zone.prompt)}
+                style={commandButtonStyle}
+                onMouseEnter={e => {
+                  const el = e.currentTarget as HTMLButtonElement
+                  el.style.borderColor = 'var(--primary)'
+                  el.style.color = 'var(--primary-bright)'
+                  el.style.background = 'var(--surface-low)'
+                }}
+                onMouseLeave={e => {
+                  const el = e.currentTarget as HTMLButtonElement
+                  el.style.borderColor = 'var(--border)'
+                  el.style.color = 'var(--text-dim)'
+                  el.style.background = 'transparent'
+                }}
+              >
+                {zone.label}
               </button>
-            ) : (
-              <p style={bodyStyle}>No prior chat yet. Start from a command below or type directly.</p>
-            )}
+            ))}
           </div>
-        </div>
-
-        <aside style={sideStackStyle}>
-          <div style={panelCardStyle}>
-            <SectionHeader title="Reality check" meta="tone" compact />
-            <div style={toggleStyle}>
-              {realityCheck.tones.map(option => (
-                <button
-                  key={option.id}
-                  onClick={() => setTone(option.id)}
-                  style={{
-                    ...toggleButtonStyle,
-                    background: tone === option.id ? 'rgba(232, 120, 69, 0.22)' : 'transparent',
-                    color: tone === option.id ? 'var(--orange-2)' : 'var(--text-muted)',
-                  }}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-            <p style={{ ...bodyStyle, marginTop: 12 }}>{realityCheck[tone]}</p>
-          </div>
-
-          <div style={panelCardStyle}>
-            <SectionHeader title="Commands" meta="4" compact />
-            <div style={commandsStyle}>
-              {commandZones.map(zone => (
-                <button key={zone.label} onClick={() => onPrompt(zone.prompt)} style={commandStyle}>
-                  <span>{zone.label}</span>
-                  <b style={{ color: zone.accent }}>+</b>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={panelCardStyle}>
-            <SectionHeader title="Gateway" meta="live" compact />
-            <div style={miniListStyle}>
-              {([
-                { label: 'brief', value: brief ? 'live' : 'loading', accent: brief ? 'var(--teal)' : 'var(--text-faint)' },
-                { label: 'patterns', value: patterns ? `${patterns.trend_direction}` : 'pending', accent: patterns ? 'var(--indigo)' : 'var(--text-faint)' },
-                { label: 'calendar', value: calEvents.length > 0 ? `${calEvents.length} today` : 'none', accent: calEvents.length > 0 ? 'var(--purple)' : 'var(--text-faint)' },
-                { label: 'chats', value: String(chats.length), accent: 'var(--orange)' },
-              ] as { label: string; value: string; accent: string }[]).map(item => (
-                <div key={item.label} style={{ ...miniRowStyle, borderLeftColor: item.accent }}>
-                  <span style={miniLabelStyle}>{item.label}</span>
-                  <span style={miniValueStyle}>{item.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div style={panelCardStyle}>
-            <SectionHeader title="Todos" meta="active" compact />
-            <div style={{ marginTop: 10 }}>
-              <TodoPanel />
-            </div>
-          </div>
-
-          <div style={panelCardStyle}>
-            <SectionHeader title="Journal" meta="interview" compact />
-            <div style={{ marginTop: 10 }}>
-              <JournalPanel />
-            </div>
-          </div>
-
-          <div style={panelCardStyle}>
-            <SectionHeader title="Agents" meta="spawn" compact />
-            <div style={{ marginTop: 10 }}>
-              <AgentPanel />
-            </div>
-          </div>
-
-          <div style={panelCardStyle}>
-            <SectionHeader title="Image gen" meta="comfyui" compact />
-            <div style={{ marginTop: 10 }}>
-              <ImageGenPanel />
-            </div>
-          </div>
-
-          <div style={panelCardStyle}>
-            <SectionHeader title="Background tasks" meta="queue" compact />
-            <div style={{ marginTop: 10 }}>
-              <TaskPanel />
-            </div>
-          </div>
-
-          <div style={panelCardStyle}>
-            <SectionHeader title="Web monitors" meta="watching" compact />
-            <div style={{ marginTop: 10 }}>
-              <MonitorPanel />
-            </div>
-          </div>
-
-          <div style={panelCardStyle}>
-            <SectionHeader title="Cron" meta="schedules" compact />
-            <div style={{ marginTop: 10 }}>
-              <CronPanel />
-            </div>
-          </div>
-        </aside>
-      </section>
+        </section>
+      )}
     </div>
   )
 }
 
-function PatternCard({ label, title, meta, tone, children }: {
-  label: string
-  title: string
-  meta: string
-  tone: 'blue' | 'orange' | 'green'
-  children: string
-}) {
-  const accent = tone === 'blue' ? 'var(--indigo)' : tone === 'green' ? 'var(--teal)' : 'var(--orange)'
+function PriorityCardItem({ card }: { card: PriorityCard }) {
   return (
-    <div style={{ ...statusCardStyle, borderTopColor: accent }}>
-      <div style={cardMetaStyle}>
-        <span>{label}</span>
-        <span style={{ color: accent }}>{meta}</span>
+    <div
+      style={cardBaseStyle}
+      onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = card.badgeColor }}
+      onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border)' }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={cardLabelStyle}>{card.label}</span>
+        <span style={{ ...cardBadgeStyle, borderColor: card.badgeColor, color: card.badgeColor }}>
+          {card.badge}
+        </span>
       </div>
-      <h2 style={cardTitleStyle}>{title}</h2>
-      <p style={bodyStyle}>{children}</p>
-    </div>
-  )
-}
-
-function SectionHeader({ title, meta, compact = false }: { title: string; meta?: string; compact?: boolean }) {
-  return (
-    <div style={sectionHeaderStyle}>
-      <h2 style={{ ...sectionTitleStyle, fontSize: compact ? 17 : 20 }}>{title}</h2>
-      {meta && <span style={metaStyle}>{meta}</span>}
-    </div>
-  )
-}
-
-function FeedRow({ speaker, text, highlighted = false }: { speaker: string; text: string; highlighted?: boolean }) {
-  return (
-    <div style={{ ...feedRowStyle, borderLeftColor: highlighted ? 'var(--orange)' : 'var(--border)' }}>
-      <span style={feedSpeakerStyle}>{speaker}</span>
-      <p style={feedTextStyle}>{text}</p>
+      <div style={cardTitleStyle}>{card.title}</div>
+      <div style={cardBodyStyle}>{card.body}</div>
     </div>
   )
 }
@@ -322,324 +250,103 @@ function FeedRow({ speaker, text, highlighted = false }: { speaker: string; text
 const panelStyle: CSSProperties = {
   flex: 1,
   overflowY: 'auto',
-  padding: '32px 60px 160px',
   display: 'flex',
   flexDirection: 'column',
-  gap: 18,
+  gap: 0,
 }
 
-const heroStyle: CSSProperties = {
+const greetingBarStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
-  gap: 18,
-  borderBottom: '1px solid var(--border-dim)',
-  paddingBottom: 20,
+  padding: '24px 32px',
+  borderBottom: '1px solid var(--border)',
 }
 
-const identityStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 16,
-  minWidth: 0,
-}
-
-const titleStyle: CSSProperties = {
-  margin: 0,
+const greetingTitleStyle: CSSProperties = {
   fontFamily: 'var(--font-ui)',
-  fontSize: 34,
-  lineHeight: 1,
+  fontSize: 28,
+  fontWeight: 600,
   color: 'var(--text)',
-  letterSpacing: 0,
+  lineHeight: 1.15,
 }
 
-const subtitleStyle: CSSProperties = {
-  margin: '4px 0 0',
+const greetingDateStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 12,
   color: 'var(--text-muted)',
+  marginTop: 6,
 }
 
-const statusStripStyle: CSSProperties = {
-  display: 'flex',
-  gap: 8,
-  flexWrap: 'wrap',
-  justifyContent: 'flex-end',
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  color: 'var(--text-muted)',
-  textTransform: 'uppercase',
-  letterSpacing: '0.12em',
-}
-
-const topCardsStyle: CSSProperties = {
+const cardsGridStyle: CSSProperties = {
   display: 'grid',
   gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-  gap: 12,
+  gap: 16,
+  padding: '24px 32px',
 }
 
-const liveBriefStyle: CSSProperties = {
-  background: 'linear-gradient(180deg, rgba(102, 119, 204, 0.08), rgba(255,255,255,0.012)), var(--panel-2)',
+const cardBaseStyle: CSSProperties = {
+  background: 'var(--surface-low)',
   border: '1px solid var(--border)',
   borderRadius: 10,
-  padding: 16,
+  padding: '16px 20px',
+  transition: 'border-color 0.2s ease',
+  cursor: 'default',
 }
 
-const liveBriefGridStyle: CSSProperties = {
-  display: 'grid',
-  gap: 12,
-  marginTop: 12,
-}
-
-const liveBriefLabelStyle: CSSProperties = {
+const cardLabelStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-muted)',
   textTransform: 'uppercase',
   letterSpacing: '0.12em',
-  marginBottom: 5,
+  color: 'var(--text-muted)',
 }
 
-const liveBriefHeadlineStyle: CSSProperties = {
-  margin: 0,
-  fontFamily: 'var(--font-ui)',
-  fontSize: 26,
-  lineHeight: 1.05,
-  color: 'var(--orange-2)',
-}
-
-const statusCardStyle: CSSProperties = {
-  minHeight: 126,
-  background: 'linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.012)), var(--panel-2)',
-  border: '1px solid var(--border)',
-  borderTop: '3px solid var(--indigo)',
-  borderRadius: 8,
-  padding: 16,
-}
-
-const cardMetaStyle: CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  gap: 10,
-  marginBottom: 10,
+const cardBadgeStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-muted)',
   textTransform: 'uppercase',
-  letterSpacing: '0.12em',
+  letterSpacing: '0.05em',
+  border: '1px solid',
+  borderRadius: 4,
+  padding: '2px 6px',
+  background: 'transparent',
 }
 
 const cardTitleStyle: CSSProperties = {
-  margin: '0 0 8px',
   fontFamily: 'var(--font-ui)',
-  fontSize: 28,
-  lineHeight: 1,
-  color: 'var(--text)',
-  letterSpacing: 0,
-}
-
-const contentGridStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'minmax(0, 1fr) 292px',
-  gap: 14,
-  alignItems: 'start',
-}
-
-const activityStyle: CSSProperties = {
-  background: 'rgba(16,20,29,0.52)',
-  border: '1px solid var(--border)',
-  borderRadius: 8,
-  padding: 18,
-  minWidth: 0,
-}
-
-const feedStyle: CSSProperties = {
-  display: 'grid',
-  gap: 10,
-  marginTop: 14,
-}
-
-const feedRowStyle: CSSProperties = {
-  borderLeft: '3px solid var(--border)',
-  padding: '2px 0 2px 14px',
-}
-
-const feedSpeakerStyle: CSSProperties = {
-  display: 'block',
-  fontFamily: 'var(--font-mono)',
-  fontSize: 12,
-  color: 'var(--orange-2)',
-  marginBottom: 5,
-}
-
-const feedTextStyle: CSSProperties = {
-  margin: 0,
-  fontFamily: 'var(--font-mono)',
-  fontSize: 14,
-  lineHeight: 1.7,
-  color: 'var(--text-dim)',
-}
-
-const lastSessionBoxStyle: CSSProperties = {
-  marginTop: 18,
-  border: '1px solid var(--border-dim)',
-  borderRadius: 8,
-  padding: 14,
-  background: 'var(--recessed)',
-}
-
-const continueButtonStyle: CSSProperties = {
-  width: '100%',
-  textAlign: 'left',
-  display: 'grid',
-  gap: 6,
+  fontSize: 16,
+  fontWeight: 600,
   marginTop: 10,
-  background: 'transparent',
-  border: 'none',
-  cursor: 'pointer',
-  padding: 0,
-}
-
-const continueTitleStyle: CSSProperties = {
-  fontFamily: 'var(--font-ui)',
-  fontSize: 24,
   color: 'var(--text)',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
 }
 
-const continueTextStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 12,
+const cardBodyStyle: CSSProperties = {
+  fontFamily: 'var(--font-ui)',
+  fontSize: 14,
+  color: 'var(--text-dim)',
   lineHeight: 1.5,
-  color: 'var(--text-muted)',
+  marginTop: 6,
 }
 
-const continueLinkStyle: CSSProperties = {
+const sectionLabelStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--teal)',
+  fontWeight: 700,
   textTransform: 'uppercase',
   letterSpacing: '0.12em',
+  color: 'var(--text-muted)',
+  padding: '24px 32px 12px',
 }
 
-const sideStackStyle: CSSProperties = {
-  display: 'grid',
-  gap: 12,
-}
-
-const panelCardStyle: CSSProperties = {
-  background: 'linear-gradient(180deg, rgba(255,255,255,0.032), rgba(255,255,255,0.012)), var(--panel)',
+const commandButtonStyle: CSSProperties = {
   border: '1px solid var(--border)',
-  borderRadius: 8,
-  padding: 14,
-}
-
-const commandsStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-  gap: 8,
-  marginTop: 12,
-}
-
-const commandStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 8,
-  minHeight: 38,
-  padding: '9px 10px',
-  border: '1px solid var(--border-dim)',
   borderRadius: 6,
-  background: 'var(--recessed)',
+  padding: '8px 16px',
   fontFamily: 'var(--font-mono)',
   fontSize: 12,
+  background: 'transparent',
   color: 'var(--text-dim)',
   cursor: 'pointer',
-}
-
-const miniListStyle: CSSProperties = {
-  display: 'grid',
-  gap: 8,
-  marginTop: 12,
-}
-
-const miniRowStyle: CSSProperties = {
-  display: 'grid',
-  gap: 3,
-  borderLeft: '3px solid var(--indigo)',
-  paddingLeft: 10,
-}
-
-const miniLabelStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  color: 'var(--text-muted)',
-  textTransform: 'uppercase',
-  letterSpacing: '0.12em',
-}
-
-const miniValueStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 12,
-  color: 'var(--text-dim)',
-}
-
-const toggleStyle: CSSProperties = {
-  display: 'flex',
-  gap: 4,
-  marginTop: 12,
-  padding: 3,
-  background: 'var(--recessed)',
-  border: '1px solid var(--border-dim)',
-  borderRadius: 7,
-}
-
-const toggleButtonStyle: CSSProperties = {
-  flex: 1,
-  borderRadius: 5,
-  padding: '6px 8px',
-  fontFamily: 'var(--font-mono)',
-  fontSize: 11,
-}
-
-const calEventRowStyle: CSSProperties = {
-  display: 'flex',
-  gap: 8,
-  alignItems: 'baseline',
-  borderLeft: '2px solid var(--teal)',
-  paddingLeft: 8,
-}
-
-const sectionHeaderStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 10,
-}
-
-const sectionTitleStyle: CSSProperties = {
-  margin: 0,
-  fontFamily: 'var(--font-ui)',
-  lineHeight: 1,
-  color: 'var(--text)',
-  letterSpacing: 0,
-}
-
-const metaStyle: CSSProperties = {
-  flexShrink: 0,
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  color: 'var(--text-muted)',
-  textTransform: 'uppercase',
-  letterSpacing: '0.12em',
-}
-
-const bodyStyle: CSSProperties = {
-  margin: 0,
-  fontFamily: 'var(--font-mono)',
-  fontSize: 12,
-  lineHeight: 1.55,
-  color: 'var(--text-dim)',
+  transition: 'all 0.2s ease',
 }

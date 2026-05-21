@@ -17,7 +17,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from typing import Optional
 
 import httpx
 
@@ -71,6 +70,10 @@ async def _process_message(chat_id: int, text: str) -> None:
         from gateway.context_builder import get_system_prompt
         from gateway.domain_router import classify_domain
         from gateway.llm_client import route_model
+        from gateway.routes.completions import (
+            _non_stream_response,
+            extract_assistant_text,
+        )
         from gateway.voice_gate import filter_response
 
         domain = classify_domain(text)
@@ -86,15 +89,8 @@ async def _process_message(chat_id: int, text: str) -> None:
             ],
         }
 
-        from gateway.app import _non_stream_response
         data = await _non_stream_response(payload)
-
-        choices = data.get("choices", []) if isinstance(data, dict) else []
-        reply = ""
-        if choices and isinstance(choices[0], dict):
-            msg = choices[0].get("message", {})
-            if isinstance(msg, dict):
-                reply = msg.get("content", "")
+        reply = extract_assistant_text(data)
 
         gate = filter_response(reply)
         reply = gate.cleaned
@@ -109,7 +105,7 @@ async def _process_message(chat_id: int, text: str) -> None:
         except Exception:
             pass
 
-    except Exception as e:
+    except Exception:
         logger.exception("Telegram message processing failed")
         await send_message(chat_id, "Sorry, brain fog — try again?")
 

@@ -5,7 +5,7 @@ from pathlib import Path
 from pypdf import PdfReader
 
 # Paths
-SOURCE_ROOT = Path("/Volumes/DATA/books/ingestion_curated")
+SOURCE_ROOT = Path("/Volumes/DATA/books_dedup_backup/ingestion_curated")
 TARGET_ROOT = Path("/Volumes/DATA/books/ingestion_curated_deep")
 
 # Refined Categories Structure
@@ -39,10 +39,16 @@ def peek_content(path):
     content = ""
     try:
         if ext == ".pdf":
-            reader = PdfReader(path)
-            # Try to get first three pages for more context
-            pages_to_read = min(3, len(reader.pages))
-            content = " ".join([reader.pages[i].extract_text() or "" for i in range(pages_to_read)])
+            try:
+                # Use a timeout for PDF reading
+                reader = PdfReader(path)
+                pages_to_read = min(2, len(reader.pages))
+                content = " ".join([reader.pages[i].extract_text() or "" for i in range(pages_to_read)])
+                if len(content) > 3000:
+                    content = content[:3000]
+            except Exception:
+                # If PDF reading fails, just use the filename
+                pass
         elif ext in [".txt", ".md"]:
             with open(path, "r", errors="ignore") as f:
                 content = f.read(3000)
@@ -87,9 +93,8 @@ def clean_filename(name):
     return name
 
 def process():
-    if TARGET_ROOT.exists():
-        shutil.rmtree(TARGET_ROOT)
-    TARGET_ROOT.mkdir()
+    if not TARGET_ROOT.exists():
+        TARGET_ROOT.mkdir(parents=True)
     
     for cat, subs in STRUCTURE.items():
         for sub in subs.keys():
@@ -123,13 +128,21 @@ def process():
             
             for f in files:
                 if f.startswith("."): continue
-                shutil.copy2(Path(root) / f, dest_dir / f)
+                dest_path = dest_dir / f
+                shutil.copy2(Path(root) / f, dest_path)
                 print(f"GROUPED: {book_title} -> {cat_path}")
+                
+                try:
+                    from gateway.ingestion_queue import enqueue_file
+                    enqueue_file(dest_path)
+                except Exception as e:
+                    print(f"Failed to enqueue {dest_path}: {e}")
             continue
 
         for f in files:
             if f.startswith("."): continue
             old_path = Path(root) / f
+            print(f"PROCESSING: {f}")
             content = peek_content(old_path)
             cat_path = get_best_category(f, content)
             new_name = clean_filename(f)
@@ -145,6 +158,12 @@ def process():
             dest_path = TARGET_ROOT / cat_path / new_name
             shutil.copy2(old_path, dest_path)
             print(f"MOVED: {f} -> {cat_path}/{new_name}")
+            
+            try:
+                from gateway.ingestion_queue import enqueue_file
+                enqueue_file(dest_path)
+            except Exception as e:
+                print(f"Failed to enqueue {dest_path}: {e}")
 
 if __name__ == "__main__":
     process()

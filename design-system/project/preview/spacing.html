@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>kitty — spacing</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--ink);
+    color: var(--cream);
+    font-family: var(--font-body);
+    padding: 48px 56px;
+    min-height: 100vh;
+    box-sizing: border-box;
+    background-image:
+      radial-gradient(circle at 100% 0%, rgba(168,132,255,0.07), transparent 40%),
+      radial-gradient(circle at 0% 100%, rgba(255,163,64,0.06), transparent 45%);
+  }
+  .head {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: end;
+    gap: 24px;
+    margin-bottom: 32px;
+    padding-bottom: 18px;
+    border-bottom: 1px dashed var(--ink-line);
+  }
+  h1 {
+    font-family: var(--font-display);
+    font-size: 60px;
+    line-height: 0.95;
+    margin: 0;
+    color: var(--cream);
+    letter-spacing: -0.02em;
+  }
+  h1 .accent { color: var(--tabby); }
+  .sub { color: var(--cream-dim); font-size: 14px; max-width: 52ch; line-height: 1.55; margin: 12px 0 0; }
+  .unit-badge {
+    font-family: var(--font-display);
+    font-size: 44px;
+    line-height: 1;
+    color: var(--tabby);
+    border: 1px solid var(--ink-line);
+    border-radius: 8px;
+    padding: 14px 18px;
+    background: var(--ink-deep);
+  }
+  .unit-badge small {
+    display: block;
+    font-family: var(--font-body);
+    font-size: 10px;
+    color: var(--cream-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    margin-top: 4px;
+  }
+
+  .panel {
+    background: rgba(37,28,23,0.5);
+    border: 1px solid var(--ink-line);
+    border-radius: 8px;
+    padding: 22px 24px;
+    margin-bottom: 18px;
+  }
+  .panel-h {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--cream-faint);
+    margin: 0 0 16px; display: flex; align-items: center; gap: 10px;
+  }
+  .panel-h .num {
+    font-family: var(--font-display);
+    color: var(--tabby);
+    font-size: 16px;
+    letter-spacing: 0;
+  }
+  .panel-h b { color: var(--cream); font-weight: 500; letter-spacing: 0.14em; }
+
+  /* ============ ruler ============ */
+  .ruler-wrap {
+    background: var(--ink-deep);
+    border-radius: 6px;
+    padding: 20px 24px 28px;
+    position: relative;
+  }
+  .ruler {
+    position: relative;
+    height: 56px;
+    margin-top: 10px;
+  }
+  .ruler .axis {
+    position: absolute; left: 0; right: 0; top: 22px; height: 2px;
+    background: var(--ink-line);
+  }
+  .ruler .tick {
+    position: absolute; top: 22px; width: 1px; background: var(--cream-faint);
+  }
+  .ruler .tick.major { background: var(--cream-dim); height: 14px; top: 18px; }
+  .ruler .tick.minor { height: 7px; top: 22px; opacity: 0.5; }
+  .ruler .stop {
+    position: absolute;
+    top: -8px;
+    transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+  }
+  .ruler .stop .pin {
+    width: 14px; height: 14px;
+    background: var(--tabby);
+    transform: rotate(45deg);
+    border-radius: 2px;
+    box-shadow: 0 4px 12px -2px rgba(255,163,64,0.5);
+  }
+  .ruler .stop.teal .pin { background: var(--teal); box-shadow: 0 4px 12px -2px rgba(45,212,191,0.5); }
+  .ruler .stop.grape .pin { background: var(--grape); box-shadow: 0 4px 12px -2px rgba(168,132,255,0.5); }
+  .ruler .stop.lemon .pin { background: var(--lemon); box-shadow: 0 4px 12px -2px rgba(244,197,66,0.5); }
+  .ruler .stop .name {
+    font-family: var(--font-display);
+    font-size: 18px;
+    color: var(--cream);
+    line-height: 1;
+    margin-top: 22px;
+  }
+  .ruler .stop .px {
+    font-size: 10px;
+    color: var(--cream-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .ruler .stop .role {
+    font-size: 10px;
+    color: var(--cream-dim);
+    white-space: nowrap;
+  }
+
+  /* ============ density demo ============ */
+  .density {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  .dcol {
+    background: var(--ink-deep);
+    border: 1px solid var(--ink-line);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .dcol-h {
+    padding: 12px 14px;
+    border-bottom: 1px dashed var(--ink-line);
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .dcol-h .l { font-family: var(--font-display); font-size: 18px; color: var(--cream); letter-spacing: -0.01em; }
+  .dcol-h .r { font-size: 10px; color: var(--cream-faint); text-transform: uppercase; letter-spacing: 0.12em; }
+  .dcol .body {
+    padding: var(--p, 16px);
+    display: flex; flex-direction: column;
+    gap: var(--g, 12px);
+  }
+  .drow {
+    background: rgba(255,255,255,0.03);
+    border-radius: 6px;
+    padding: var(--p, 10px) var(--px, 12px);
+    display: flex; gap: 10px; align-items: center;
+    box-shadow: inset 0 0 0 1px var(--ink-line);
+  }
+  .drow .ico {
+    width: 8px; height: 8px; border-radius: 999px; background: var(--tabby); flex-shrink: 0;
+  }
+  .drow .t { flex: 1; font-size: 13px; color: var(--cream); }
+  .drow .meta { font-size: 10px; color: var(--cream-faint); text-transform: uppercase; letter-spacing: 0.1em; }
+
+  /* ============ radii ============ */
+  .three-up {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+  .radii-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+  .r-card {
+    background: var(--ink-deep);
+    box-shadow: inset 0 0 0 1px var(--ink-line);
+    padding: 14px;
+    display: flex; flex-direction: column; gap: 10px;
+    align-items: center;
+  }
+  .r-card .shape {
+    width: 64px; height: 64px;
+    background: linear-gradient(135deg, rgba(255,163,64,0.5), rgba(168,132,255,0.5));
+    border: 1px solid var(--cream-faint);
+  }
+  .r-card .name {
+    font-family: var(--font-display);
+    font-size: 16px;
+    color: var(--cream);
+    line-height: 1;
+  }
+  .r-card .px {
+    font-size: 10px; color: var(--cream-faint);
+    text-transform: uppercase; letter-spacing: 0.1em;
+  }
+
+  /* ============ shadows ============ */
+  .shadow-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  .s-card {
+    padding: 16px;
+    background: var(--ink-deep);
+    box-shadow: inset 0 0 0 1px var(--ink-line);
+    border-radius: 6px;
+    display: flex; flex-direction: column; gap: 12px;
+    align-items: flex-start;
+  }
+  .s-card .label { font-family: var(--font-display); font-size: 16px; color: var(--cream); line-height: 1; }
+  .s-card .desc { font-size: 11px; color: var(--cream-faint); line-height: 1.4; }
+  .s-demo {
+    width: 100%; height: 64px;
+    border-radius: 8px;
+    display: grid; place-items: center;
+    font-family: var(--font-display); font-size: 14px;
+  }
+  .s-demo.lift {
+    background: var(--ink-soft);
+    box-shadow: 0 8px 20px -8px rgba(0,0,0,0.8);
+    color: var(--cream);
+  }
+  .s-demo.glow {
+    background: var(--ink-soft);
+    box-shadow: 0 0 0 1px rgba(255,163,64,0.5), 0 0 24px -4px rgba(255,163,64,0.45);
+    color: var(--tabby);
+  }
+  .s-demo.ring {
+    background: var(--ink-soft);
+    box-shadow: 0 0 0 1px var(--ink-line), 0 0 0 4px rgba(45,212,191,0.18);
+    color: var(--teal);
+  }
+
+  /* ============ kitty caption ============ */
+  .kitty-tip {
+    margin-top: 10px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 14px 16px;
+    background: rgba(168,132,255,0.06);
+    box-shadow: inset 3px 0 0 var(--grape), inset 0 0 0 1px var(--ink-line);
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--cream);
+    line-height: 1.55;
+  }
+  .kitty-tip .who {
+    color: var(--grape);
+    font-family: var(--font-display);
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+  <div class="head">
+    <div>
+      <h1>spacing <span class="accent">·</span> on a leash</h1>
+      <p class="sub">eight pixels does ninety percent of the work. every gap and pad on a kitty screen lands on a multiple of 8 — until it can't, in which case it lands on 4. that's the whole law.</p>
+    </div>
+    <div class="unit-badge">8<small>base unit · px</small></div>
+  </div>
+
+  <!-- Ruler -->
+  <div class="panel">
+    <div class="panel-h"><span class="num">01</span> <b>scale</b> · pin the stops</div>
+    <div class="ruler-wrap">
+      <div class="ruler" style="height: 92px">
+        <!-- axis -->
+        <div class="axis" style="top: 36px"></div>
+        <!-- minor ticks every 8px (16 ticks across) -->
+        <div class="tick minor" style="left:0%; top:36px"></div>
+        <div class="tick minor" style="left:6.25%; top:36px"></div>
+        <div class="tick minor" style="left:12.5%; top:36px"></div>
+        <div class="tick minor" style="left:18.75%; top:36px"></div>
+        <div class="tick minor" style="left:25%; top:36px"></div>
+        <div class="tick minor" style="left:31.25%; top:36px"></div>
+        <div class="tick minor" style="left:37.5%; top:36px"></div>
+        <div class="tick minor" style="left:43.75%; top:36px"></div>
+        <div class="tick minor" style="left:50%; top:36px"></div>
+        <div class="tick minor" style="left:56.25%; top:36px"></div>
+        <div class="tick minor" style="left:62.5%; top:36px"></div>
+        <div class="tick minor" style="left:68.75%; top:36px"></div>
+        <div class="tick minor" style="left:75%; top:36px"></div>
+        <div class="tick minor" style="left:81.25%; top:36px"></div>
+        <div class="tick minor" style="left:87.5%; top:36px"></div>
+        <div class="tick minor" style="left:93.75%; top:36px"></div>
+        <div class="tick major" style="left:0%; top:32px"></div>
+        <div class="tick major" style="left:100%; top:32px"></div>
+
+        <!-- stops -->
+        <div class="stop" style="left:3%; top:8px">
+          <div class="pin lemon" style="background:var(--lemon)"></div>
+          <div class="name">4</div>
+          <div class="px">--s-1</div>
+          <div class="role">hairlines</div>
+        </div>
+        <div class="stop teal" style="left:9%; top:8px">
+          <div class="pin"></div>
+          <div class="name">8</div>
+          <div class="px">--s-2</div>
+          <div class="role">icon ↔ label</div>
+        </div>
+        <div class="stop teal" style="left:18%; top:8px">
+          <div class="pin"></div>
+          <div class="name">12</div>
+          <div class="px">--s-3</div>
+          <div class="role">tight inner</div>
+        </div>
+        <div class="stop" style="left:30%; top:8px">
+          <div class="pin"></div>
+          <div class="name">16</div>
+          <div class="px">--s-4</div>
+          <div class="role">default pad</div>
+        </div>
+        <div class="stop grape" style="left:44%; top:8px">
+          <div class="pin"></div>
+          <div class="name">24</div>
+          <div class="px">--s-5</div>
+          <div class="role">between rows</div>
+        </div>
+        <div class="stop grape" style="left:60%; top:8px">
+          <div class="pin"></div>
+          <div class="name">32</div>
+          <div class="px">--s-6</div>
+          <div class="role">section gap</div>
+        </div>
+        <div class="stop" style="left:78%; top:8px">
+          <div class="pin" style="background:var(--cream); box-shadow:none"></div>
+          <div class="name">48</div>
+          <div class="px">--s-7</div>
+          <div class="role">page gutters</div>
+        </div>
+        <div class="stop" style="left:97%; top:8px">
+          <div class="pin" style="background:var(--cream); box-shadow:none"></div>
+          <div class="name">64</div>
+          <div class="px">--s-8</div>
+          <div class="role">hero margin</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Density -->
+  <div class="panel">
+    <div class="panel-h"><span class="num">02</span> <b>density</b> · same list, three moods</div>
+    <div class="density">
+      <div class="dcol" style="--p:10px;--g:6px;--px:10px">
+        <div class="dcol-h"><span class="l">tight</span><span class="r">--s-2 / 8</span></div>
+        <div class="body" style="padding:8px;gap:6px">
+          <div class="drow" style="padding:6px 10px"><span class="ico"></span><span class="t">call mom</span><span class="meta">2pm</span></div>
+          <div class="drow" style="padding:6px 10px"><span class="ico" style="background:var(--teal)"></span><span class="t">laundry timer</span><span class="meta">28m</span></div>
+          <div class="drow" style="padding:6px 10px"><span class="ico" style="background:var(--grape)"></span><span class="t">draft landlord email</span><span class="meta">today</span></div>
+        </div>
+      </div>
+      <div class="dcol">
+        <div class="dcol-h"><span class="l">default</span><span class="r">--s-4 / 16</span></div>
+        <div class="body" style="padding:14px;gap:10px">
+          <div class="drow" style="padding:10px 14px"><span class="ico"></span><span class="t">call mom</span><span class="meta">2pm</span></div>
+          <div class="drow" style="padding:10px 14px"><span class="ico" style="background:var(--teal)"></span><span class="t">laundry timer</span><span class="meta">28m</span></div>
+          <div class="drow" style="padding:10px 14px"><span class="ico" style="background:var(--grape)"></span><span class="t">draft landlord email</span><span class="meta">today</span></div>
+        </div>
+      </div>
+      <div class="dcol">
+        <div class="dcol-h"><span class="l">roomy</span><span class="r">--s-5 / 24</span></div>
+        <div class="body" style="padding:20px;gap:16px">
+          <div class="drow" style="padding:16px 18px"><span class="ico"></span><span class="t">call mom</span><span class="meta">2pm</span></div>
+          <div class="drow" style="padding:16px 18px"><span class="ico" style="background:var(--teal)"></span><span class="t">laundry timer</span><span class="meta">28m</span></div>
+          <div class="drow" style="padding:16px 18px"><span class="ico" style="background:var(--grape)"></span><span class="t">draft landlord email</span><span class="meta">today</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Radii + Shadows -->
+  <div class="three-up">
+    <div class="panel">
+      <div class="panel-h"><span class="num">03</span> <b>radii</b> · soft, not bubbly</div>
+      <div class="radii-grid">
+        <div class="r-card">
+          <div class="shape" style="border-radius:0"></div>
+          <div class="name">0</div>
+          <div class="px">--r-0 · sharp</div>
+        </div>
+        <div class="r-card">
+          <div class="shape" style="border-radius:4px"></div>
+          <div class="name">4</div>
+          <div class="px">--r-1 · default</div>
+        </div>
+        <div class="r-card">
+          <div class="shape" style="border-radius:8px"></div>
+          <div class="name">8</div>
+          <div class="px">--r-2 · panel</div>
+        </div>
+        <div class="r-card">
+          <div class="shape" style="border-radius:999px; width:80px; height:32px"></div>
+          <div class="name">pill</div>
+          <div class="px">--r-pill · tags</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-h"><span class="num">04</span> <b>shadows</b> · three jobs only</div>
+      <div class="shadow-grid">
+        <div class="s-card">
+          <div class="s-demo lift">lift</div>
+          <div class="label">--shadow-lift</div>
+          <div class="desc">soft drop for floaters: menus, toasts, modals</div>
+        </div>
+        <div class="s-card">
+          <div class="s-demo glow">glow</div>
+          <div class="label">--shadow-glow</div>
+          <div class="desc">tabby halo for the primary action only</div>
+        </div>
+        <div class="s-card">
+          <div class="s-demo ring">ring</div>
+          <div class="label">--shadow-ring</div>
+          <div class="desc">focus state — teal halo on inputs &amp; buttons</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="kitty-tip">
+    <span class="who">kitty:</span>
+    <span>if your design has a 14px gap somewhere, it's because you got tired. fix it to 12 or 16, take a break, come back. there's no 14 in this house.</span>
+  </div>
+</body>
+</html>

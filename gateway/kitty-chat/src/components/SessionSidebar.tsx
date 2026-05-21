@@ -1,5 +1,5 @@
 'use client'
-import { Chat } from '@/lib/types'
+import { Chat, CHAT_COLORS } from '@/lib/types'
 
 interface Props {
   chats: Chat[]
@@ -9,116 +9,150 @@ interface Props {
   onCloseChat: (id: string) => void
 }
 
+function timeAgo(date: Date): string {
+  const diff = (Date.now() - date.getTime()) / 1000
+  if (diff < 60) return 'now'
+  if (diff < 3600) return Math.floor(diff / 60) + 'm'
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h'
+  if (diff < 86400 * 7) return 'yday'
+  return Math.floor(diff / 86400) + 'd'
+}
+
 export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, onCloseChat }: Props) {
+  const sorted = [...chats].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+  const cutoff = Date.now() - 24 * 3600 * 1000
+  const today = sorted.filter(c => c.updatedAt.getTime() > cutoff)
+  const older = sorted.filter(c => c.updatedAt.getTime() <= cutoff)
+
   return (
     <aside style={{
       width: 'var(--sidebar)',
-      height: '100vh',
+      padding: '24px 16px',
+      overflowY: 'auto',
       borderRight: '1px solid var(--border)',
-      background: 'var(--bg-deep)',
-      display: 'flex',
-      flexDirection: 'column',
+      background: 'rgba(16, 20, 29, 0.74)',
+      backdropFilter: 'blur(10px)',
       flexShrink: 0,
-      overflow: 'hidden',
     }}>
-      <div style={{
-        padding: '14px 14px 10px',
-        borderBottom: '1px solid var(--border)',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-      }}>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-          sessions
-        </span>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <span style={{
+          fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
+          color: 'var(--text-muted)', letterSpacing: '0.14em', textTransform: 'uppercase',
+        }}>sessions</span>
         <button
           onClick={onNewChat}
           style={{
-            background: 'transparent',
-            border: '1px solid var(--border)',
-            borderRadius: 6,
-            color: 'var(--orange)',
-            fontFamily: 'var(--font-mono)',
-            fontSize: 11,
-            padding: '3px 10px',
+            background: 'var(--primary)', color: '#fff',
+            padding: '6px 12px', borderRadius: 8,
+            fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 11,
+            boxShadow: '0 4px 12px rgba(232, 120, 69, 0.15)',
             cursor: 'pointer',
+            transition: 'background 0.2s',
           }}
-        >
-          + new
-        </button>
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--orange-deep)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--primary)' }}
+        >+ new</button>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '6px 8px' }}>
-        {chats.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)', fontSize: 12, padding: '12px 6px', fontFamily: 'var(--font-mono)' }}>
-            no sessions yet
-          </p>
-        ) : (
-          [...chats].reverse().map(chat => {
-            const isActive = chat.id === activeChatId
-            return (
-              <div
-                key={chat.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  borderRadius: 7,
-                  marginBottom: 2,
-                  background: isActive ? 'rgba(232, 120, 69, 0.10)' : 'transparent',
-                  border: isActive ? '1px solid rgba(232, 120, 69, 0.22)' : '1px solid transparent',
-                  transition: 'background 0.1s, border 0.1s',
-                }}
-              >
-                <button
-                  onClick={() => onSelectChat(chat.id)}
-                  style={{
-                    flex: 1,
-                    background: 'transparent',
-                    border: 'none',
-                    textAlign: 'left',
-                    padding: '8px 10px',
-                    cursor: 'pointer',
-                    minWidth: 0,
-                  }}
-                >
-                  <div style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 12,
-                    color: isActive ? 'var(--orange-2)' : 'var(--text-dim)',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}>
-                    {chat.title === 'new chat'
-                      ? (chat.messages[0]?.content.slice(0, 28) || 'new chat')
-                      : chat.title}
-                  </div>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, fontFamily: 'var(--font-mono)' }}>
-                    {chat.messages.length} msg{chat.messages.length !== 1 ? 's' : ''}
-                  </div>
-                </button>
-                <button
-                  onClick={e => { e.stopPropagation(); onCloseChat(chat.id) }}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--text-faint)',
-                    cursor: 'pointer',
-                    padding: '4px 8px',
-                    fontSize: 14,
-                    lineHeight: 1,
-                    flexShrink: 0,
-                  }}
-                  aria-label="close"
-                >
-                  ×
-                </button>
-              </div>
-            )
-          })
-        )}
-      </div>
+      {today.length > 0 && (
+        <>
+          <GroupLabel>Today</GroupLabel>
+          {today.map(c => (
+            <SessionItem key={c.id} chat={c} active={c.id === activeChatId} onSelect={onSelectChat} onClose={onCloseChat} />
+          ))}
+        </>
+      )}
+
+      {older.length > 0 && (
+        <>
+          <GroupLabel>Earlier</GroupLabel>
+          {older.map(c => (
+            <SessionItem key={c.id} chat={c} active={c.id === activeChatId} onSelect={onSelectChat} onClose={onCloseChat} />
+          ))}
+        </>
+      )}
     </aside>
+  )
+}
+
+function GroupLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
+      color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase',
+      margin: '24px 0 8px', paddingLeft: 4,
+    }}>{children}</div>
+  )
+}
+
+function SessionItem({ chat, active, onSelect, onClose }: {
+  chat: Chat
+  active: boolean
+  onSelect: (id: string) => void
+  onClose: (id: string) => void
+}) {
+  const dotColor = CHAT_COLORS[chat.color]?.tab ?? 'var(--indigo)'
+  const lastMsg = chat.messages.at(-1)
+  const meta = lastMsg?.role === 'assistant' ? 'kitty' : lastMsg ? 'you' : 'new'
+
+  return (
+    <button
+      onClick={() => onSelect(chat.id)}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '7px 1fr auto',
+        gap: 12,
+        alignItems: 'center',
+        padding: '10px 12px',
+        borderRadius: 10,
+        color: active ? 'var(--text)' : 'var(--text-dim)',
+        background: active ? 'var(--surface-mid)' : 'transparent',
+        border: `1px solid ${active ? 'var(--border)' : 'transparent'}`,
+        width: '100%',
+        textAlign: 'left',
+        cursor: 'pointer',
+        transition: 'background 0.2s ease, border-color 0.2s ease',
+        marginBottom: 4,
+      }}
+      onMouseEnter={e => {
+        if (!active) {
+          const el = e.currentTarget as HTMLButtonElement
+          el.style.background = 'var(--surface-low)'
+          el.style.borderColor = 'var(--border-dim)'
+        }
+      }}
+      onMouseLeave={e => {
+        if (!active) {
+          const el = e.currentTarget as HTMLButtonElement
+          el.style.background = 'transparent'
+          el.style.borderColor = 'transparent'
+        }
+      }}
+    >
+      <span style={{
+        width: 7, height: 24, borderRadius: 999,
+        background: active ? 'var(--primary)' : dotColor,
+        display: 'block', flexShrink: 0,
+      }} />
+      <span style={{ minWidth: 0 }}>
+        <span style={{
+          fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600,
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          display: 'block', color: active ? 'var(--text)' : 'var(--text-dim)',
+        }}>{chat.title}</span>
+        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', fontSize: 10 }}>{meta}</span>
+      </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', fontSize: 10 }}>
+          {timeAgo(chat.updatedAt)}
+        </span>
+        <span
+          onClick={e => { e.stopPropagation(); onClose(chat.id) }}
+          style={{ color: 'var(--text-ghost)', fontSize: 11, cursor: 'pointer', padding: '0 4px', visibility: active ? 'visible' : 'hidden' }}
+          onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-muted)')}
+          onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-ghost)')}
+        >✕</span>
+      </div>
+    </button>
   )
 }

@@ -74,7 +74,7 @@ def generate_source_summary(source_name: str, text_preview: str, doc_type: str) 
     """
     default_data = {
         "summary": f"A {doc_type} titled {source_name}.",
-        "authority_score": 3,
+        "authority_score": 0.5,
         "relevance_period": "unknown",
         "pollution_warning": None,
         "needs_vision": (doc_type in ("service_manual", "textbook")),
@@ -96,7 +96,7 @@ def generate_source_summary(source_name: str, text_preview: str, doc_type: str) 
     
     TASK 2: TASTE CHECK (Knowledge Quality & Safety)
     Assess the content against modern engineering and safety standards:
-    1. AUTHORITY: Is this a gold-standard reference (e.g. factory service manual, academic textbook), or secondary/informal? (Score 1-5)
+    1. AUTHORITY: Is this a gold-standard reference (e.g. factory service manual, academic textbook), or secondary/informal? (Score 0.0-1.0)
     2. RECENCY: Is the knowledge likely outdated or superseded?
     3. SAFETY CRITICAL: Does this document contain high-voltage warnings, hazardous material handling, or safety-critical procedures?
     4. POLLUTION RISK: Does this contain outdated theories that could lead to incorrect or dangerous repair actions today?
@@ -104,7 +104,7 @@ def generate_source_summary(source_name: str, text_preview: str, doc_type: str) 
     Respond in JSON format:
     {{
       "summary": "...",
-      "authority_score": 1-5,
+      "authority_score": 0.0-1.0,
       "relevance_period": "...",
       "safety_level": "high/medium/low",
       "pollution_warning": "...",
@@ -120,7 +120,6 @@ def generate_source_summary(source_name: str, text_preview: str, doc_type: str) 
         "temperature": 0.1,
     }
 
-    # Fixed LiteLLM route — keep ingestion on the single Kitty lane unless Jacob overrides it.
     ingest_model = os.environ.get("KITTY_INGEST_LLM_MODEL", "kitty-default")
 
     response_text = call_llm(
@@ -139,6 +138,16 @@ def generate_source_summary(source_name: str, text_preview: str, doc_type: str) 
 
     try:
         data = json.loads(response_text)
+        
+        # Normalize authority_score if it's on a 1-5 scale
+        if "authority_score" in data:
+            try:
+                score = float(data["authority_score"])
+                if score > 1.0:
+                    data["authority_score"] = score / 5.0
+            except (ValueError, TypeError):
+                pass
+
         # Ensure all keys exist
         return LibrarianReport(**{**default_data, **data})
     except Exception:

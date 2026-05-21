@@ -7,10 +7,8 @@ Public API:
 """
 from __future__ import annotations
 
-import json
 import logging
 import subprocess
-from datetime import datetime, timedelta
 from typing import Optional
 
 logger = logging.getLogger("kitty.calendar")

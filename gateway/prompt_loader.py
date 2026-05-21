@@ -1,6 +1,5 @@
 """Load and cache versioned system prompts from /prompts/."""
 from functools import lru_cache
-from pathlib import Path
 from gateway.paths import PROMPTS_DIR
 
 DOMAIN_TO_FILE = {

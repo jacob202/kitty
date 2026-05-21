@@ -1,240 +1,190 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { Chat } from '@/lib/types'
-import type { GatewayBrief, GatewaySearchSnapshot, GatewayWeather, GatewaySkill, GatewayAgent, GatewayNudge } from '@/lib/gateway'
-import { fetchGatewayWeather, fetchGatewaySkills, fetchGatewayAgents, fetchGatewayNudges, dismissGatewayNudge } from '@/lib/gateway'
+import { Chat, STREAMING_LABEL } from '@/lib/types'
+import type { GatewayBrief, GatewayHeadline, GatewaySearchSnapshot } from '@/lib/gateway'
 
 interface Props {
   chats: Chat[]
   activeChat: Chat | null
   isStreaming: boolean
-  brief: GatewayBrief | null | undefined
-  search: GatewaySearchSnapshot | null
-  activeModelName: string
+  brief?: GatewayBrief | null
+  search?: GatewaySearchSnapshot | null
+  /** Set when /search failed for the current thread (so we distinguish offline from empty hits). */
+  searchGatewayError?: string | null
+  activeModelName?: string
 }
 
-export function RightBar({ chats, activeChat, isStreaming, brief, search, activeModelName }: Props) {
-  const [weather, setWeather] = useState<GatewayWeather | null>(null)
-  const [skills, setSkills] = useState<GatewaySkill[]>([])
-  const [agents, setAgents] = useState<GatewayAgent[]>([])
-  const [nudges, setNudges] = useState<GatewayNudge[]>([])
-
-  useEffect(() => {
-    void fetchGatewayWeather().then(setWeather)
-    const id = setInterval(() => { void fetchGatewayWeather().then(setWeather) }, 1800000)
-    return () => clearInterval(id)
-  }, [])
-
-  useEffect(() => {
-    void fetchGatewaySkills().then(setSkills)
-    void fetchGatewayAgents().then(setAgents)
-    void fetchGatewayNudges().then(setNudges)
-  }, [])
-
-  const tokenEstimate = activeChat
-    ? Math.round(activeChat.messages.reduce((s, m) => s + m.content.length, 0) / 4)
-    : 0
+export function RightBar({
+  chats,
+  activeChat,
+  isStreaming,
+  brief,
+  search,
+  searchGatewayError,
+  activeModelName,
+}: Props) {
+  const msgCount = chats.reduce((sum, c) => sum + c.messages.length, 0)
+  const lastAi = activeChat?.messages.filter(m => m.role === 'assistant').at(-1)
+  const dateStr = new Date().toLocaleDateString([], { month: 'short', day: 'numeric' })
+  const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
   return (
     <aside style={{
       width: 'var(--rightbar)',
-      height: '100vh',
       borderLeft: '1px solid var(--border)',
-      background: 'var(--bg-deep)',
-      display: 'flex',
-      flexDirection: 'column',
+      padding: '24px 20px',
+      overflowY: 'auto',
+      background: 'rgba(16, 20, 29, 0.74)',
+      backdropFilter: 'blur(10px)',
       flexShrink: 0,
-      overflow: 'hidden',
     }}>
-      {/* Status strip */}
-      <div style={{
-        padding: '12px 16px',
-        borderBottom: '1px solid var(--border)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 4,
-      }}>
-        <Label>model</Label>
-        <span style={valueStyle}>{activeModelName}</span>
-        {weather && (
-          <>
-            <Label>weather</Label>
-            <span style={valueStyle}>
-              {weather.description} {weather.temp_c}°C
-            </span>
-          </>
-        )}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <span style={{
+          fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
+          color: 'var(--text-muted)', letterSpacing: '0.14em', textTransform: 'uppercase',
+        }}>today</span>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>{dateStr}</span>
       </div>
 
-      {/* Context / search results */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {search && search.results.length > 0 ? (
-          <section>
-            <Label>context</Label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
-              {search.results.slice(0, 4).map((r, i) => (
-                <div key={i} style={contextRowStyle}>
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                    {r.source || 'memory'}
-                  </span>
-                  <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: '3px 0 0', lineHeight: 1.5 }}>
-                    {r.text.slice(0, 120)}{r.text.length > 120 ? '…' : ''}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </section>
-        ) : (
-          <section>
-            <Label>context</Label>
-            <p style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 6, fontFamily: 'var(--font-mono)' }}>
-              send a message to load context
-            </p>
-          </section>
-        )}
+      <RightCard accent="var(--pink-blue)" title="Sessions" value={`${chats.length}`}>
+        <p style={bodyStyle}>{msgCount} total messages</p>
+      </RightCard>
 
-        {/* Brief snippet */}
-        {brief?.intention && (
-          <section>
-            <Label>today's intention</Label>
-            <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 6, lineHeight: 1.6 }}>
-              {brief.intention.slice(0, 280)}{brief.intention.length > 280 ? '…' : ''}
-            </p>
-          </section>
-        )}
+      {activeModelName && (
+        <RightCard accent="var(--yellow)" title="Model">
+          <p style={bodyStyle}>{activeModelName}</p>
+        </RightCard>
+      )}
 
-        {/* Session stats */}
-        <section>
-          <Label>session</Label>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
-            <StatRow label="messages" value={String(activeChat?.messages.length ?? 0)} />
-            <StatRow label="~tokens" value={tokenEstimate > 0 ? String(tokenEstimate) : '—'} />
-            <StatRow label="streaming" value={isStreaming ? 'yes' : 'no'} highlight={isStreaming} />
-            <StatRow label="chats" value={String(chats.length)} />
+      <RightCard accent="var(--orange)" title="Kitty">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: '50%',
+            display: 'grid', placeItems: 'center',
+            background: 'var(--surface-mid)',
+            border: '1px solid var(--border)',
+            fontFamily: 'var(--font-ui)', fontSize: 14,
+            color: isStreaming ? 'var(--purple)' : 'var(--orange)',
+            animation: isStreaming ? 'none' : undefined,
+          }}>
+            {isStreaming ? '=^._.^=' : '=^•ﻌ•^='}
           </div>
-        </section>
-
-        {/* Nudges */}
-        {nudges.length > 0 && (
-          <section>
-            <Label>nudges</Label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 6 }}>
-              {nudges.map(n => (
-                <div key={n.id} style={nudgeRowStyle}>
-                  <p style={{ fontSize: 11, color: 'var(--text-dim)', margin: 0, lineHeight: 1.45, flex: 1 }}>
-                    {n.message}
-                  </p>
-                  <button
-                    onClick={() => {
-                      void dismissGatewayNudge(n.id).then(() =>
-                        setNudges(prev => prev.filter(x => x.id !== n.id))
-                      )
-                    }}
-                    style={nudgeDismissStyle}
-                    title="dismiss"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
+          <div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+              {isStreaming ? STREAMING_LABEL : 'online'}
             </div>
-          </section>
-        )}
-
-        {/* Skills */}
-        {skills.length > 0 && (
-          <section>
-            <Label>skills</Label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 6 }}>
-              {skills.slice(0, 6).map(s => (
-                <span key={s.name} style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                  · {s.name}
-                </span>
-              ))}
-              {skills.length > 6 && (
-                <span style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
-                  +{skills.length - 6} more
-                </span>
-              )}
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+              {isStreaming ? 'generating response' : 'ready for anything'}
             </div>
-          </section>
-        )}
+          </div>
+        </div>
+      </RightCard>
 
-        {/* Agents */}
-        {agents.length > 0 && (
-          <section>
-            <Label>agents</Label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 6 }}>
-              {agents.slice(0, 5).map(a => (
-                <span key={a.role} style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                  · {a.role}
-                </span>
-              ))}
+      {brief && (
+        <RightCard accent="var(--mint)" title="Brief">
+          <p style={bodyStyle}>{brief.intention || (typeof brief.headlines[0] === 'string' ? brief.headlines[0] : (brief.headlines[0] as GatewayHeadline | undefined)?.title) || 'Live brief connected.'}</p>
+        </RightCard>
+      )}
+
+      {lastAi && (
+        <RightCard accent="var(--indigo)" title="Last reply">
+          <p style={bodyStyle}>
+            {lastAi.content.replace(/```[\s\S]*?```/g, '[code]').slice(0, 120)}
+            {lastAi.content.length > 120 ? '…' : ''}
+          </p>
+        </RightCard>
+      )}
+
+      {activeChat && activeChat.messages.length > 0 && (
+        <RightCard accent="var(--teal)" title="Context" value={`${activeChat.messages.length} msg`}>
+          <p style={bodyStyle}>{activeChat.title}</p>
+        </RightCard>
+      )}
+
+      {searchGatewayError && !search && (
+        <RightCard accent="var(--warning)" title="Search unavailable">
+          <p style={bodyStyle}>{searchGatewayError}</p>
+        </RightCard>
+      )}
+
+      {search && (
+        <RightCard accent="var(--pink-blue)" title="Gateway search" value={search.query || 'live'}>
+          {search.counts.memories + search.counts.knowledge + search.counts.journal + search.counts.todos > 0 ? (
+            <div style={{ display: 'grid', gap: 10, marginTop: 8 }}>
+              {([
+                ['Memories', search.sections.memories[0]],
+                ['Knowledge', search.sections.knowledge[0]],
+                ['Journal', search.sections.journal[0]],
+                ['Todos', search.sections.todos[0]],
+              ] as const)
+                .filter(([, value]) => Boolean(value))
+                .map(([label, value]) => (
+                  <div key={label}>
+                    <div style={labelStyle}>{label}</div>
+                    <p style={{...bodyStyle, marginTop: 2}}>{value}</p>
+                  </div>
+                ))}
             </div>
-          </section>
-        )}
-      </div>
+          ) : (
+            <p style={bodyStyle}>No grouped search hits yet for this thread.</p>
+          )}
+        </RightCard>
+      )}
+
+      <RightCard accent="var(--mint)" title="Time">
+        <p style={bodyStyle}>{timeStr} · {new Date().toLocaleDateString([], { weekday: 'long' })}</p>
+      </RightCard>
     </aside>
   )
 }
 
-function Label({ children }: { children: string }) {
-  return (
-    <span style={{
-      fontFamily: 'var(--font-mono)',
-      fontSize: 10,
-      color: 'var(--text-muted)',
-      letterSpacing: '0.08em',
-      textTransform: 'uppercase',
-    }}>
-      {children}
-    </span>
-  )
+const bodyStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-ui)',
+  fontSize: 14,
+  color: 'var(--text-dim)',
+  lineHeight: 1.5,
+  marginTop: 4,
 }
 
-function StatRow({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+const labelStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  color: 'var(--text-muted)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.1em',
+}
+
+function RightCard({ children, accent, title, value }: {
+  children?: React.ReactNode
+  accent: string
+  title: string
+  value?: string
+}) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{label}</span>
-      <span style={{ fontSize: 11, color: highlight ? 'var(--purple)' : 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
-        {value}
-      </span>
+    <div style={{
+      background: 'var(--surface-low)',
+      border: '1px solid var(--border)',
+      borderTop: `3px solid ${accent}`,
+      borderRadius: 'var(--radius-sm)',
+      padding: '16px',
+      marginBottom: 16,
+      transition: 'border-color 0.2s ease',
+    }}>
+      <h3 style={{
+        margin: '0 0 8px',
+        fontSize: 11,
+        letterSpacing: '0.05em',
+        textTransform: 'uppercase',
+        fontFamily: 'var(--font-mono)',
+        fontWeight: 700,
+        color: 'var(--text-dim)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        gap: 8,
+      }}>
+        {title}
+        {value && <span style={{ color: accent, fontWeight: 900 }}>{value}</span>}
+      </h3>
+      {children}
     </div>
   )
-}
-
-const valueStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: 'var(--text-dim)',
-  fontFamily: 'var(--font-mono)',
-}
-
-const nudgeRowStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'flex-start',
-  gap: 6,
-  padding: '6px 8px',
-  background: 'var(--bg-card)',
-  border: '1px solid var(--border-dim)',
-  borderLeft: '3px solid var(--orange)',
-  borderRadius: 5,
-}
-
-const nudgeDismissStyle: React.CSSProperties = {
-  background: 'transparent',
-  border: 'none',
-  color: 'var(--text-faint)',
-  cursor: 'pointer',
-  fontSize: 13,
-  padding: '0 2px',
-  lineHeight: 1,
-  flexShrink: 0,
-}
-
-const contextRowStyle: React.CSSProperties = {
-  padding: '8px 10px',
-  background: 'var(--bg-card)',
-  border: '1px solid var(--border-dim)',
-  borderLeft: '3px solid var(--indigo)',
-  borderRadius: 6,
 }

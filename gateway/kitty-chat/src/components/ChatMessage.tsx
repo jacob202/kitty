@@ -1,5 +1,5 @@
 'use client'
-import { Message } from '@/lib/types'
+import { Message, STREAMING_LABEL } from '@/lib/types'
 import { MoodAvatar } from './MoodAvatar'
 import { inferMood } from '@/lib/mood'
 
@@ -18,29 +18,27 @@ export function ChatMessage({ message, isStreaming, initials }: Props) {
   return (
     <div
       style={{
-        display: 'flex', gap: 14, padding: '14px 20px',
+        display: 'flex', gap: 16, padding: '16px 24px',
         alignItems: 'flex-start',
         borderBottom: '1px solid var(--border-dim)',
-        borderLeft: isAI ? '3px solid var(--indigo)' : '3px solid transparent',
-        background: isAI ? 'rgba(102, 119, 204, 0.035)' : 'transparent',
-        transition: 'background 0.1s',
-        animation: 'fadeSlideUp 0.2s ease',
+        background: isAI ? 'rgba(16, 20, 29, 0.4)' : 'transparent',
+        transition: 'background 0.2s',
+        animation: 'fadeSlideUp 0.3s ease',
       }}
-      onMouseEnter={e => (e.currentTarget.style.background = isAI ? 'rgba(102, 119, 204, 0.07)' : 'rgba(16, 20, 29, 0.64)')}
-      onMouseLeave={e => (e.currentTarget.style.background = isAI ? 'rgba(102, 119, 204, 0.035)' : 'transparent')}
+      onMouseEnter={e => (e.currentTarget.style.background = isAI ? 'rgba(16, 20, 29, 0.8)' : 'rgba(16, 20, 29, 0.3)')}
+      onMouseLeave={e => (e.currentTarget.style.background = isAI ? 'rgba(16, 20, 29, 0.4)' : 'transparent')}
     >
       {/* Avatar */}
       {isAI ? (
-        <MoodAvatar mood={mood} size={40} />
+        <MoodAvatar mood={mood} size={36} />
       ) : (
         <div style={{
-          width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+          width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'linear-gradient(135deg, #2d1208, #1a0800)',
-          border: '1.5px solid #e8572a66',
-          boxShadow: '0 0 12px #e8572a22',
-          fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: 'var(--orange)',
-          letterSpacing: '0.5px', marginTop: 2,
+          background: 'var(--surface-mid)',
+          border: '1px solid var(--border)',
+          fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: 'var(--text-muted)',
+          letterSpacing: '0.5px',
         }}>
           {initials}
         </div>
@@ -49,27 +47,26 @@ export function ChatMessage({ message, isStreaming, initials }: Props) {
       {/* Body */}
       <div style={{ flex: 1, minWidth: 0 }}>
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 7 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6 }}>
           <span style={{
-            fontFamily: 'var(--font-ui)', fontSize: 22, lineHeight: 1, letterSpacing: '0.5px',
-            color: isAI ? 'var(--purple-2)' : '#ff7a52',
-            textShadow: isAI ? '0 0 10px #9b59ff66' : '0 0 8px #e8572a44',
+            fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600,
+            color: isAI ? 'var(--text)' : 'var(--text-dim)',
           }}>
-            {isAI ? 'KITTY' : 'YOU'}
+            {isAI ? 'Kitty' : 'You'}
           </span>
           <span style={{
-            fontSize: 11,
-            color: isStreaming ? '#9b59ff44' : '#333',
+            fontSize: 10,
+            color: isStreaming ? 'var(--primary)' : 'var(--text-ghost)',
             fontFamily: 'var(--font-mono)',
           }}>
-            {isStreaming ? 'thinking…' : time}
+            {isStreaming ? STREAMING_LABEL : time}
           </span>
           {isAI && message.model && !isStreaming && (
             <span style={{
-            fontSize: 10, color: '#9b59ff88',
-            fontFamily: 'var(--font-mono)',
-              border: '1px solid var(--border-soft)',
-              borderRadius: 4, padding: '1px 6px', background: 'rgba(102, 119, 204, 0.12)',
+              fontSize: 10, color: 'var(--text-muted)',
+              fontFamily: 'var(--font-mono)',
+              border: '1px solid var(--border)',
+              borderRadius: 4, padding: '1px 6px', background: 'var(--surface-low)',
             }}>
               {message.model}
             </span>
@@ -85,13 +82,13 @@ export function ChatMessage({ message, isStreaming, initials }: Props) {
 
         {/* Tags */}
         {message.tags && message.tags.length > 0 && (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12 }}>
             {message.tags.map(tag => (
               <span key={tag} style={{
-                borderRadius: 20, padding: '4px 10px',
-                fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600,
-                background: 'var(--teal-dim)', border: '1px solid color-mix(in srgb, var(--teal) 40%, transparent)',
-                color: 'var(--teal)',
+                borderRadius: 4, padding: '3px 8px',
+                fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600,
+                background: 'var(--surface-high)', border: '1px solid var(--border)',
+                color: 'var(--text-dim)',
               }}>
                 {tag}
               </span>
@@ -106,23 +103,37 @@ export function ChatMessage({ message, isStreaming, initials }: Props) {
 function MessageContent({ content }: { content: string }) {
   const parts = content.split(/(```[\s\S]*?```)/g)
   return (
-    <div style={{ fontSize: 14, lineHeight: 1.8, color: 'var(--text-dim)' }}>
+    <div style={{ fontSize: 15, lineHeight: 1.6, fontFamily: 'var(--font-ui)', color: 'var(--text)', wordBreak: 'break-word' }}>
       {parts.map((part, i) => {
         if (part.startsWith('```') && part.endsWith('```')) {
           const lines = part.slice(3, -3).split('\n')
-          const lang = lines[0]
+          const lang = lines[0].trim()
           const code = lines.slice(1).join('\n')
           return (
-            <pre key={i} style={{
-              marginTop: 10, background: '#141414',
-              border: '1px solid #222', borderLeft: '3px solid var(--teal)',
-              borderRadius: 6, padding: '14px 16px',
-              fontSize: 13, lineHeight: 1.7, color: '#888',
-              overflowX: 'auto', fontFamily: 'var(--font-mono)',
+            <div key={i} style={{
+              marginTop: 12, marginBottom: 12,
+              background: 'var(--surface-low)',
+              border: '1px solid var(--border)',
+              borderRadius: 8, overflow: 'hidden',
             }}>
-              {lang && <div style={{ color: '#333', fontSize: 10, marginBottom: 8 }}>{lang}</div>}
-              <code>{code}</code>
-            </pre>
+              {lang && (
+                <div style={{ 
+                  background: 'var(--surface-mid)', borderBottom: '1px solid var(--border)',
+                  padding: '6px 12px', color: 'var(--text-muted)', fontSize: 11, fontFamily: 'var(--font-mono)',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                }}>
+                  <span>{lang}</span>
+                  <span style={{ fontSize: 10, opacity: 0.5 }}>Copy</span>
+                </div>
+              )}
+              <pre style={{
+                padding: '12px 14px', margin: 0,
+                fontSize: 13, lineHeight: 1.5, color: 'var(--text)',
+                overflowX: 'auto', fontFamily: 'var(--font-mono)',
+              }}>
+                <code>{code}</code>
+              </pre>
+            </div>
           )
         }
         return (
@@ -135,12 +146,12 @@ function MessageContent({ content }: { content: string }) {
 
 function TypingDots() {
   return (
-    <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center', padding: '8px 0' }}>
+    <div style={{ display: 'inline-flex', gap: 4, alignItems: 'center', padding: '4px 0' }}>
       {[0, 1, 2].map(i => (
         <span key={i} style={{
-          width: 8, height: 8, borderRadius: '50%', background: 'var(--purple)',
-          display: 'inline-block',
-          animation: `bounce 1.2s infinite ${i * 0.2}s`,
+          width: 6, height: 6, borderRadius: '50%', background: 'var(--primary)',
+          display: 'inline-block', opacity: 0.6,
+          animation: `bounce 1.4s infinite ease-in-out ${i * 0.16}s`,
         }} />
       ))}
     </div>

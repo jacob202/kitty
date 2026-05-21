@@ -13,8 +13,7 @@ import asyncio
 import json
 import logging
 import time
-from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Any
 
 from gateway.paths import DATA_DIR, LOGS_DIR
 

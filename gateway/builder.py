@@ -15,6 +15,7 @@ Public API:
   get_artifact(build_id) -> str
   list_builds(limit) -> list[dict]
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -24,7 +25,6 @@ import sqlite3
 import time
 import uuid
 from pathlib import Path
-from typing import Optional
 
 from gateway.paths import DATA_DIR
 
@@ -121,7 +121,9 @@ def get_artifact(build_id: str) -> str:
     """Get the build artifact (generated code/text)."""
     init_db()
     with sqlite3.connect(BUILD_DB) as conn:
-        row = conn.execute("SELECT artifact FROM builds WHERE id = ?", (build_id,)).fetchone()
+        row = conn.execute(
+            "SELECT artifact FROM builds WHERE id = ?", (build_id,)
+        ).fetchone()
     return row[0] if row else ""
 
 
@@ -138,9 +140,11 @@ def list_builds(limit: int = 10) -> list[dict]:
 
 # --- Pipeline Execution ---
 
-async def _run_pipeline(build_id: str, goal: str, target_dir: str, auto_approve: bool) -> None:
+
+async def _run_pipeline(
+    build_id: str, goal: str, target_dir: str, auto_approve: bool
+) -> None:
     """Execute all pipeline stages in sequence."""
-    stages = VALID_STAGES.copy()
     stages_status: dict[str, str] = {}
 
     try:
@@ -161,7 +165,9 @@ async def _run_pipeline(build_id: str, goal: str, target_dir: str, auto_approve:
         _update(build_id, stage_status=stages_status)
 
         # Stage 3: IMPLEMENT — requires approval
-        stages_status["implement"] = "awaiting_approval" if not auto_approve else "approved"
+        stages_status["implement"] = (
+            "awaiting_approval" if not auto_approve else "approved"
+        )
         _update(build_id, current_stage="implement", stage_status=stages_status)
 
         if not auto_approve:
@@ -195,7 +201,9 @@ async def _run_pipeline(build_id: str, goal: str, target_dir: str, auto_approve:
         _update(build_id, stage_status=stages_status, artifact=review)
 
         # Stage 6: COMMIT — requires approval
-        stages_status["commit"] = "awaiting_approval" if not auto_approve else "approved"
+        stages_status["commit"] = (
+            "awaiting_approval" if not auto_approve else "approved"
+        )
         _update(build_id, current_stage="commit", stage_status=stages_status)
 
         if not auto_approve:
@@ -208,16 +216,18 @@ async def _run_pipeline(build_id: str, goal: str, target_dir: str, auto_approve:
 
     except asyncio.CancelledError:
         _update(build_id, status="cancelled", stage_status=stages_status)
-    except Exception as e:
+    except Exception:
         logger.exception("Build %s failed", build_id)
         _update(build_id, status="failed", stage_status=stages_status)
 
 
 # --- Individual Stage Runners ---
 
+
 async def _run_plan_stage(goal: str) -> str:
     """Use planner agent to break goal into steps."""
     from gateway.agent_runner import spawn, get_output, get_status
+
     session_id = await spawn(goal, agent_type="planner", max_iterations=3)
     for _ in range(30):
         await asyncio.sleep(3)
@@ -230,6 +240,7 @@ async def _run_plan_stage(goal: str) -> str:
 async def _run_scaffold_stage(goal: str, plan: str, target_dir: str) -> str:
     """Generate file structure based on the plan."""
     from gateway.agent_runner import spawn, get_output, get_status
+
     scaffold_goal = (
         f"Based on this plan, create the file and directory structure for the project.\n\n"
         f"Goal: {goal}\n\nPlan:\n{plan}\n\n"
@@ -245,9 +256,12 @@ async def _run_scaffold_stage(goal: str, plan: str, target_dir: str) -> str:
     return get_output(session_id)
 
 
-async def _run_implement_stage(goal: str, plan: str, scaffold: str, target_dir: str) -> str:
+async def _run_implement_stage(
+    goal: str, plan: str, scaffold: str, target_dir: str
+) -> str:
     """Write the actual code."""
     from gateway.agent_runner import spawn, get_output, get_status
+
     impl_goal = (
         f"Implement the following project. Write complete, working code for every file.\n\n"
         f"Goal: {goal}\n\nPlan:\n{plan}\n\nFile structure:\n{scaffold}\n\n"
@@ -267,7 +281,12 @@ async def _run_test_stage(target_dir: str) -> dict:
     """Run tests in the target directory."""
     try:
         proc = await asyncio.create_subprocess_exec(
-            "python3.12", "-m", "pytest", str(target_dir), "-q", "--tb=short",
+            "python3.12",
+            "-m",
+            "pytest",
+            str(target_dir),
+            "-q",
+            "--tb=short",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -284,6 +303,7 @@ async def _run_test_stage(target_dir: str) -> dict:
 async def _run_review_stage(goal: str, code: str, test_result: dict) -> str:
     """Review the output for quality."""
     from gateway.agent_runner import spawn, get_output, get_status
+
     review_goal = (
         f"Review this code implementation.\n\n"
         f"Goal: {goal}\n\n"
@@ -309,10 +329,13 @@ async def _wait_for_approval(build_id: str, stage: str, timeout: int) -> None:
         if stages.get(stage) == "approved":
             return
         await asyncio.sleep(2)
-    raise TimeoutError(f"Build {build_id} timed out waiting for approval on stage {stage}")
+    raise TimeoutError(
+        f"Build {build_id} timed out waiting for approval on stage {stage}"
+    )
 
 
 # --- Helpers ---
+
 
 def _update(build_id: str, **fields) -> None:
     init_db()

@@ -1,0 +1,400 @@
+/* =========================================================================
+   kitty × open webui — custom theme
+   drop this into Settings → Interface → Custom CSS (or Admin → Settings → Custom CSS)
+   in Open WebUI. it inherits open-webui's dom and reskins the parts that
+   show up most: sidebar, chat, composer, modals.
+   ========================================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+/* --------------------------------------------------------------
+   1. tokens — change these to retune the whole theme
+   -------------------------------------------------------------- */
+:root,
+:root.dark,
+html.dark {
+  /* surfaces */
+  --kitty-ink:       #1a1410;
+  --kitty-ink-soft:  #251c17;
+  --kitty-ink-deep:  #0e0a08;
+  --kitty-ink-line:  #3a2e25;
+
+  /* text */
+  --kitty-cream:       #f5ead3;
+  --kitty-cream-dim:   #bdb19a;
+  --kitty-cream-faint: #7a7160;
+
+  /* brand */
+  --kitty-tabby:       #ff7a1a;
+  --kitty-tabby-deep:  #cc4f00;
+  --kitty-tabby-glow:  #ffb066;
+
+  /* co-stars */
+  --kitty-teal:        #21bdd9;
+  --kitty-grape:       #a884ff;
+  --kitty-mint:        #9be86b;
+  --kitty-lemon:       #f4c542;
+  --kitty-maple:       #ff5577;
+  --kitty-blush:       #ff8aa6;
+
+  /* fonts */
+  --kitty-display: 'Space Grotesk', system-ui, sans-serif;
+  --kitty-body:    'Space Mono', 'SF Mono', Consolas, monospace;
+
+  /* override open-webui / tailwind grays so dark surfaces match kitty's ink */
+  --color-gray-50:  #f5ead3;
+  --color-gray-100: #ebdfc4;
+  --color-gray-200: #d5c7a8;
+  --color-gray-300: #bdb19a;
+  --color-gray-400: #7a7160;
+  --color-gray-500: #5a5347;
+  --color-gray-600: #3a2e25;
+  --color-gray-700: #2b2118;
+  --color-gray-800: #251c17;
+  --color-gray-850: #1a1410;
+  --color-gray-900: #14100c;
+  --color-gray-950: #0e0a08;
+}
+
+/* --------------------------------------------------------------
+   2. base — body, scrollbars, default text
+   -------------------------------------------------------------- */
+html.dark body,
+body {
+  background: var(--kitty-ink) !important;
+  color: var(--kitty-cream) !important;
+  font-family: var(--kitty-body);
+  font-feature-settings: 'ss01';
+  background-image:
+    radial-gradient(circle at 0% 0%, rgba(255,122,26,0.05), transparent 40%),
+    radial-gradient(circle at 100% 100%, rgba(168,132,255,0.05), transparent 45%);
+}
+
+/* common open-webui surfaces */
+.bg-white,
+.dark .bg-gray-900,
+.dark .bg-gray-850,
+.dark .bg-gray-800 {
+  background-color: var(--kitty-ink) !important;
+}
+.dark .bg-gray-950,
+.dark .bg-black {
+  background-color: var(--kitty-ink-deep) !important;
+}
+.dark .bg-gray-700,
+.dark .bg-gray-750 {
+  background-color: var(--kitty-ink-soft) !important;
+}
+
+/* text colors */
+.dark .text-white,
+.dark .text-gray-100,
+.dark .text-gray-200 { color: var(--kitty-cream) !important; }
+.dark .text-gray-300,
+.dark .text-gray-400 { color: var(--kitty-cream-dim) !important; }
+.dark .text-gray-500,
+.dark .text-gray-600 { color: var(--kitty-cream-faint) !important; }
+
+/* borders */
+.dark .border-gray-700,
+.dark .border-gray-800,
+.dark .border-gray-850,
+.dark .border-gray-900 {
+  border-color: var(--kitty-ink-line) !important;
+}
+
+/* scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--kitty-ink-deep); }
+::-webkit-scrollbar-thumb {
+  background: var(--kitty-ink-line);
+  border-radius: 999px;
+  border: 2px solid var(--kitty-ink-deep);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--kitty-tabby-deep); }
+
+/* selection */
+::selection {
+  background: var(--kitty-tabby);
+  color: var(--kitty-ink-deep);
+}
+
+/* --------------------------------------------------------------
+   3. typography — headings, prose, code
+   -------------------------------------------------------------- */
+h1, h2, h3, h4, h5, h6,
+.font-primary,
+[class*="text-3xl"],
+[class*="text-2xl"],
+[class*="text-xl"] {
+  font-family: var(--kitty-display) !important;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+}
+
+/* body / prose */
+p, span, div, button, input, textarea, li, td {
+  font-family: var(--kitty-body);
+}
+
+/* code blocks — open-webui uses `code`, `pre`, `.hljs` */
+code, pre, .hljs {
+  font-family: var(--kitty-body) !important;
+}
+.dark pre,
+.dark .hljs {
+  background: var(--kitty-ink-deep) !important;
+  color: var(--kitty-cream) !important;
+  border: 1px solid var(--kitty-ink-line);
+  border-radius: 10px !important;
+}
+:not(pre) > code {
+  background: var(--kitty-ink-deep) !important;
+  color: var(--kitty-teal) !important;
+  padding: 1px 6px !important;
+  border-radius: 4px !important;
+  font-size: 0.9em;
+}
+
+/* links */
+a {
+  color: var(--kitty-teal) !important;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+a:hover { color: var(--kitty-tabby) !important; }
+
+/* --------------------------------------------------------------
+   4. sidebar — chat list
+   -------------------------------------------------------------- */
+/* open-webui's sidebar is typically aside / nav with a chat list */
+aside,
+nav[aria-label*="idebar" i],
+.sidebar {
+  background: var(--kitty-ink-deep) !important;
+  border-right: 1px solid var(--kitty-ink-line);
+}
+
+/* chat list item — active state */
+a.bg-gray-100,
+a.bg-gray-900,
+a[class*="bg-gray-"][aria-current],
+button[aria-current="true"] {
+  background: rgba(255, 122, 26, 0.1) !important;
+  color: var(--kitty-cream) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 122, 26, 0.35);
+  border-radius: 8px;
+}
+
+/* new chat button — kitty's primary cta */
+button[aria-label*="ew chat" i],
+a[href$="/"] button.bg-gray-50,
+button.bg-emerald-600,
+.new-chat-button {
+  background: linear-gradient(135deg, var(--kitty-tabby), var(--kitty-tabby-deep)) !important;
+  color: var(--kitty-ink-deep) !important;
+  font-weight: 700;
+  border-radius: 999px !important;
+  box-shadow: 0 8px 20px -8px rgba(255, 122, 26, 0.55), inset 0 1px 0 rgba(255,255,255,0.2);
+}
+
+/* --------------------------------------------------------------
+   5. chat — messages, bubbles, names
+   -------------------------------------------------------------- */
+.chat-container,
+[class*="chat-"] {
+  font-family: var(--kitty-body);
+}
+
+/* user message — tabby gradient bubble */
+.user-message,
+[class*="user-message"],
+.chat-message-user .markdown-content,
+.message-user .prose {
+  background: linear-gradient(135deg, var(--kitty-tabby), var(--kitty-tabby-deep)) !important;
+  color: var(--kitty-ink-deep) !important;
+  border-radius: 14px 4px 14px 14px !important;
+  padding: 12px 16px !important;
+  box-shadow: 0 8px 20px -8px rgba(255, 122, 26, 0.4);
+}
+
+/* assistant message — keep on ink, just frame it */
+.chat-message-assistant,
+.message-assistant {
+  color: var(--kitty-cream);
+}
+.chat-message-assistant .markdown-content,
+.message-assistant .prose {
+  background: rgba(255,255,255,0.025) !important;
+  border: 1px solid var(--kitty-ink-line);
+  border-radius: 4px 14px 14px 14px !important;
+  padding: 12px 16px !important;
+}
+
+/* model / role name — make kitty's name pop */
+.chat-message-assistant .name,
+[class*="model-name"] {
+  font-family: var(--kitty-display) !important;
+  color: var(--kitty-tabby) !important;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* avatar — round + bordered */
+.chat-message img.avatar,
+img[alt*="vatar"],
+.profile-image {
+  border-radius: 999px !important;
+  box-shadow: 0 0 0 2px var(--kitty-tabby), 0 0 0 4px var(--kitty-ink-deep);
+}
+
+/* --------------------------------------------------------------
+   6. composer — the chat input
+   -------------------------------------------------------------- */
+textarea,
+.chat-input,
+[class*="composer"] {
+  background: var(--kitty-ink-deep) !important;
+  color: var(--kitty-cream) !important;
+  border: 1px solid var(--kitty-ink-line) !important;
+  border-radius: 16px !important;
+  font-family: var(--kitty-body) !important;
+  transition: box-shadow 200ms, border-color 200ms;
+}
+textarea:focus,
+.chat-input:focus-within {
+  border-color: var(--kitty-tabby) !important;
+  box-shadow: 0 0 0 4px rgba(255, 122, 26, 0.15) !important;
+  outline: none !important;
+}
+textarea::placeholder { color: var(--kitty-cream-faint) !important; }
+
+/* send button — tabby glow */
+button[type="submit"],
+button[aria-label*="end" i] svg,
+.send-button {
+  color: var(--kitty-tabby) !important;
+}
+button[type="submit"]:not(:disabled),
+.send-button:not(:disabled) {
+  background: var(--kitty-tabby) !important;
+  color: var(--kitty-ink-deep) !important;
+  border-radius: 999px !important;
+}
+
+/* --------------------------------------------------------------
+   7. buttons — generic
+   -------------------------------------------------------------- */
+button.bg-blue-500,
+button.bg-blue-600,
+button[class*="bg-emerald"],
+.primary-button {
+  background: var(--kitty-tabby) !important;
+  color: var(--kitty-ink-deep) !important;
+  font-weight: 700;
+  border-radius: 999px !important;
+}
+button.bg-blue-500:hover,
+button.bg-blue-600:hover,
+button[class*="bg-emerald"]:hover {
+  background: var(--kitty-tabby-glow) !important;
+}
+
+/* secondary / ghost */
+button.bg-gray-100,
+button.bg-gray-800,
+.secondary-button {
+  background: transparent !important;
+  color: var(--kitty-cream-dim) !important;
+  box-shadow: inset 0 0 0 1px var(--kitty-ink-line) !important;
+  border-radius: 999px !important;
+}
+button.bg-gray-100:hover,
+button.bg-gray-800:hover {
+  color: var(--kitty-tabby) !important;
+  box-shadow: inset 0 0 0 1px rgba(255,122,26,0.5) !important;
+}
+
+/* --------------------------------------------------------------
+   8. modals / popovers / tooltips
+   -------------------------------------------------------------- */
+[role="dialog"],
+.modal,
+.popover {
+  background: var(--kitty-ink-soft) !important;
+  border: 1px solid var(--kitty-ink-line) !important;
+  border-radius: 14px !important;
+  color: var(--kitty-cream) !important;
+}
+[role="tooltip"] {
+  background: var(--kitty-ink-deep) !important;
+  color: var(--kitty-cream) !important;
+  border: 1px solid var(--kitty-ink-line) !important;
+  border-radius: 8px !important;
+  font-family: var(--kitty-body) !important;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+/* --------------------------------------------------------------
+   9. tags / chips / badges — accent doses
+   -------------------------------------------------------------- */
+.tag,
+.badge,
+[class*="rounded-full"][class*="bg-"] {
+  border-radius: 999px !important;
+  font-family: var(--kitty-body) !important;
+  font-size: 10px !important;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+/* status indicators */
+.text-green-500, .text-green-400 { color: var(--kitty-mint) !important; }
+.text-red-500, .text-red-400 { color: var(--kitty-maple) !important; }
+.text-yellow-500, .text-yellow-400 { color: var(--kitty-lemon) !important; }
+.text-blue-500, .text-blue-400 { color: var(--kitty-teal) !important; }
+.text-purple-500, .text-purple-400 { color: var(--kitty-grape) !important; }
+
+/* --------------------------------------------------------------
+  10. fun extras — kitty's signature touches
+   -------------------------------------------------------------- */
+
+/* caret in inputs blinks tabby */
+textarea, input { caret-color: var(--kitty-tabby) !important; }
+
+/* h1 in chat (when kitty replies with a heading) gets the prompt feel */
+.prose h1::before {
+  content: "$ ";
+  color: var(--kitty-teal);
+  font-family: var(--kitty-display);
+}
+
+/* small wink: blockquotes get a grape accent */
+.prose blockquote {
+  border-left: 3px solid var(--kitty-grape) !important;
+  background: rgba(168, 132, 255, 0.06);
+  border-radius: 0 8px 8px 0;
+  padding: 8px 14px !important;
+  color: var(--kitty-cream) !important;
+}
+
+/* tables */
+.prose table { border-collapse: separate; border-spacing: 0; border-radius: 10px; overflow: hidden; }
+.prose th {
+  background: var(--kitty-ink-deep) !important;
+  color: var(--kitty-tabby) !important;
+  font-family: var(--kitty-display) !important;
+  font-weight: 600;
+  text-transform: lowercase;
+  letter-spacing: 0;
+}
+.prose td { border-color: var(--kitty-ink-line) !important; }
+
+/* hr — dashed kitty separator */
+.prose hr {
+  border: 0 !important;
+  height: 1px;
+  background: repeating-linear-gradient(to right, var(--kitty-ink-line) 0 6px, transparent 6px 12px);
+}

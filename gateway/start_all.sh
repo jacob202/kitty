@@ -14,10 +14,12 @@ ENABLE_JUPYTER="${ENABLE_JUPYTER:-1}"
 # Open Terminal (pip `open-terminal`) is for WebUI tool/terminal integrations — not required
 # for Kitty chat. Leave off by default so `start_all` does not spawn extra services.
 ENABLE_OPEN_TERMINAL="${ENABLE_OPEN_TERMINAL:-0}"
+ENABLE_KITTY_DOCKER_TERMINAL="${ENABLE_KITTY_DOCKER_TERMINAL:-0}"
 ENABLE_COMMUNITY_TOOL_SERVERS="${ENABLE_COMMUNITY_TOOL_SERVERS:-1}"
 ENABLE_CLOUDFLARE_HTTPS="${ENABLE_CLOUDFLARE_HTTPS:-0}"
 AUTO_SYNC_OPENWEBUI_INTEGRATIONS="${AUTO_SYNC_OPENWEBUI_INTEGRATIONS:-1}"
 AUTO_IMPORT_OPENWEBUI_FUNCTIONS="${AUTO_IMPORT_OPENWEBUI_FUNCTIONS:-1}"
+AUTO_IMPORT_OPENWEBUI_PROMPTS="${AUTO_IMPORT_OPENWEBUI_PROMPTS:-1}"
 ASSERT_BASELINE_ON_BOOT="${ASSERT_BASELINE_ON_BOOT:-1}"
 ASSERT_FAIL_ON_WARN="${ASSERT_FAIL_ON_WARN:-0}"
 START_ALL_SMOKE="${START_ALL_SMOKE:-0}"
@@ -46,6 +48,7 @@ service_pattern() {
     jupyter) echo "venv/bin/jupyter.*lab.*--ip=127.0.0.1.*--port=8888" ;;
     cloudflare) echo "cloudflared tunnel" ;;
     openterminal) echo "venv/bin/open-terminal run --host 127.0.0.1 --port" ;;
+    kitty-docker-term) echo "docker.*kitty-terminal" ;;
     tool-filesystem) echo "uvicorn main:app --host 127.0.0.1 --port 9721" ;;
     tool-memory) echo "uvicorn main:app --host 127.0.0.1 --port 9722" ;;
     tool-time) echo "uvicorn main:app --host 127.0.0.1 --port 9723" ;;
@@ -188,6 +191,9 @@ fi
 if [[ "${ENABLE_OPEN_TERMINAL}" == "1" ]]; then
   start_service "openterminal" "cd '${ROOT_DIR}' && bash gateway/start_open_terminal.sh"
 fi
+if [[ "${ENABLE_KITTY_DOCKER_TERMINAL}" == "1" ]]; then
+  bash gateway/start_kitty_docker_terminal.sh
+fi
 if [[ "${ENABLE_COMMUNITY_TOOL_SERVERS}" == "1" ]]; then
   bash gateway/start_tool_servers.sh
 fi
@@ -200,6 +206,7 @@ fi
 [[ "${ENABLE_OPENWEBUI}" == "1" ]] && wait_http "openwebui" "${OPENWEBUI_HEALTH_URL}" "" 120 1 5 || true
 [[ "${ENABLE_JUPYTER}" == "1" ]] && wait_http "jupyter" "http://127.0.0.1:8888/api" "Authorization: token ${CODE_EXECUTION_JUPYTER_AUTH_TOKEN:-}" || true
 [[ "${ENABLE_OPEN_TERMINAL}" == "1" ]] && wait_http "openterminal" "${OPEN_TERMINAL_URL:-http://127.0.0.1:9614}/health" || true
+[[ "${ENABLE_KITTY_DOCKER_TERMINAL}" == "1" ]] && wait_http "kitty-docker-terminal" "${KITTY_DOCKER_TERMINAL_URL:-http://127.0.0.1:9615}/health" || true
 [[ "${ENABLE_COMMUNITY_TOOL_SERVERS}" == "1" ]] && wait_http "tool-filesystem" "http://127.0.0.1:9721/openapi.json" || true
 [[ "${ENABLE_COMMUNITY_TOOL_SERVERS}" == "1" ]] && wait_http "tool-memory" "http://127.0.0.1:9722/openapi.json" || true
 [[ "${ENABLE_COMMUNITY_TOOL_SERVERS}" == "1" ]] && wait_http "tool-time" "http://127.0.0.1:9723/openapi.json" || true
@@ -210,6 +217,9 @@ if [[ "${ENABLE_OPENWEBUI}" == "1" && "${AUTO_SYNC_OPENWEBUI_INTEGRATIONS}" == "
 fi
 if [[ "${ENABLE_OPENWEBUI}" == "1" && "${AUTO_IMPORT_OPENWEBUI_FUNCTIONS}" == "1" ]]; then
   bash gateway/import_openwebui_functions.sh || true
+fi
+if [[ "${ENABLE_OPENWEBUI}" == "1" && "${AUTO_IMPORT_OPENWEBUI_PROMPTS}" == "1" ]]; then
+  ./venv/bin/python kitty_gateway/import_openwebui_prompts.py || true
 fi
 if [[ "${ENABLE_OPENWEBUI}" == "1" && "${ASSERT_BASELINE_ON_BOOT}" == "1" ]]; then
   if [[ "${ASSERT_FAIL_ON_WARN}" == "1" ]]; then

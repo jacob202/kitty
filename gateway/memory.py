@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 import logging
 from functools import lru_cache
-from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger("kitty.memory")
@@ -113,4 +112,18 @@ def delete_memory(memory_id: str) -> bool:
         return True
     except Exception as e:
         logger.warning("Memory delete failed (non-fatal): %s", e)
+        return False
+
+
+def consolidate_session(session_id: str, messages: list[dict]) -> bool:
+    """Best-effort close-session hook until richer consolidation lands."""
+    try:
+        logger.info(
+            "Session close requested: %s (%d messages)",
+            session_id or "<anonymous>",
+            len(messages),
+        )
+        return True
+    except Exception as e:
+        logger.warning("Session consolidation failed (non-fatal): %s", e)
         return False

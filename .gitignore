@@ -44,6 +44,9 @@ out/
 # Misc
 *.sqlite
 *.db
+duplicate_analysis_report.txt
+*_analysis_report.txt
+.superpowers/
 
 # Ephemeral runtime state
 .kitty.pid
@@ -54,4 +57,7 @@ out/
 
 # Stale pre-restructure paths (canonical: gateway/kitty-chat/, gateway/)
 /kitty-chat/
-/kitty_gateway/
+kitty_gateway/
+.aider*
+
+.worktrees/

@@ -3,8 +3,6 @@ Queries the knowledge base for a specific device and symptom,
 then uses the LLM to format the FIRST diagnostic step in a Socratic way.
 """
 import logging
-import os
-from typing import Optional
 
 logger = logging.getLogger("kitty.troubleshooter")
 

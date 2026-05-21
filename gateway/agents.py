@@ -6,7 +6,6 @@ similar to Antigravity's agent team configuration.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import Dict, Optional
 
 from gateway.paths import PROJECT_ROOT

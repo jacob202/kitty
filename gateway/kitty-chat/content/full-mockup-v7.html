@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Kitty AI — Command Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:        #08080a;
+  --s1:        #0e0e11;
+  --s2:        #141418;
+  --s3:        #1c1c22;
+  --s4:        #242429;
+  --b0:        rgba(255,255,255,0.04);
+  --b1:        rgba(255,255,255,0.08);
+  --b2:        rgba(255,255,255,0.14);
+
+  --t1: #f4f4f6;
+  --t2: #9898a6;
+  --t3: #55555f;
+  --t4: #33333b;
+
+  --teal:   #0ed2b8;
+  --tealb:  rgba(14,210,184,0.10);
+  --tealb2: rgba(14,210,184,0.18);
+  --amber:  #f5a623;
+  --amberb: rgba(245,166,35,0.10);
+  --red:    #ff4d4d;
+  --redb:   rgba(255,77,77,0.10);
+  --redb2:  rgba(255,77,77,0.18);
+  --purple: #9b6dff;
+  --purpleb:rgba(155,109,255,0.10);
+  --purpleb2:rgba(155,109,255,0.18);
+  --blue:   #4d9fff;
+  --blueb:  rgba(77,159,255,0.10);
+
+  --brig: 'Bricolage Grotesque', sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+  --r:    8px;
+  --r2:   12px;
+  --r3:   16px;
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--t1);overflow:hidden}
+
+/* ═══ LAYOUT ═══ */
+.app{
+  display:grid;
+  grid-template-columns: 44px 200px 1fr 272px;
+  grid-template-rows: 1fr;
+  height:100vh;
+}
+
+/* ═══ ICON RAIL ═══ */
+.rail{
+  background:var(--s1);
+  border-right:1px solid var(--b0);
+  display:flex;flex-direction:column;align-items:center;
+  padding:10px 0;gap:2px;
+}
+.rail-logo{
+  width:28px;height:28px;border-radius:7px;
+  background:linear-gradient(135deg,rgba(245,166,35,.25),rgba(245,166,35,.08));
+  border:1px solid rgba(245,166,35,.25);
+  display:flex;align-items:center;justify-content:center;
+  font-size:15px;margin-bottom:12px;cursor:pointer;
+  box-shadow:0 0 12px rgba(245,166,35,.15);
+}
+.ri{
+  width:32px;height:32px;border-radius:6px;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--t4);cursor:pointer;font-size:14px;
+  font-family:var(--mono);
+  transition:all .12s;
+}
+.ri:hover{background:var(--s3);color:var(--t2);}
+.ri.on{background:var(--s3);color:var(--t1);}
+.ri-sp{flex:1}
+
+/* ═══ SIDEBAR ═══ */
+.sidebar{
+  background:var(--s1);
+  border-right:1px solid var(--b0);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.sb-top{
+  padding:12px 12px 10px;
+  border-bottom:1px solid var(--b0);
+  display:flex;align-items:center;justify-content:space-between;
+  flex-shrink:0;
+}
+.sb-title{font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--t4);}
+.new-btn{
+  font-family:var(--mono);font-size:10px;padding:3px 8px;
+  border-radius:4px;background:var(--s3);border:1px solid var(--b1);
+  color:var(--t2);cursor:pointer;transition:all .12s;
+}
+.new-btn:hover{color:var(--t1);border-color:var(--b2);}
+.sb-scroll{flex:1;overflow-y:auto;padding:6px 0;}
+.sb-scroll::-webkit-scrollbar{width:2px;}
+.sb-scroll::-webkit-scrollbar-thumb{background:var(--s4);}
+
+.glabel{
+  font-family:var(--mono);font-size:9px;font-weight:600;
+  letter-spacing:.11em;text-transform:uppercase;color:var(--t4);
+  padding:10px 12px 3px;
+}
+.sess{
+  padding:7px 12px;cursor:pointer;
+  display:flex;align-items:flex-start;gap:7px;
+  transition:background .1s;
+}
+.sess:hover{background:var(--s2);}
+.sess.on{background:var(--s2);}
+.s-dot{width:5px;height:5px;border-radius:50%;margin-top:6px;flex-shrink:0;}
+.s-info{flex:1;min-width:0;}
+.s-name{
+  font-family:var(--mono);font-size:11px;font-weight:500;color:var(--t2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;
+}
+.sess.on .s-name{color:var(--t1);}
+.s-meta{font-family:var(--mono);font-size:10px;color:var(--t3);margin-top:1px;}
+.badge{
+  font-family:var(--mono);font-size:8px;padding:2px 5px;border-radius:3px;
+  font-weight:700;flex-shrink:0;margin-top:3px;letter-spacing:.03em;
+}
+.br{background:var(--redb);color:var(--red);}
+.bg{background:var(--tealb);color:var(--teal);}
+
+.proj{
+  padding:5px 12px;cursor:pointer;
+  display:flex;align-items:center;gap:7px;
+  transition:background .1s;
+}
+.proj:hover{background:var(--s2);}
+.p-sq{width:5px;height:5px;border-radius:1px;flex-shrink:0;}
+.p-name{font-family:var(--mono);font-size:11px;color:var(--t3);flex:1;}
+.proj:hover .p-name{color:var(--t2);}
+.p-n{font-family:var(--mono);font-size:9px;color:var(--t4);}
+
+/* ═══ MAIN ═══ */
+.main{display:flex;flex-direction:column;overflow:hidden;background:var(--bg);}
+
+/* Header */
+.m-head{
+  padding:0 22px;height:52px;
+  border-bottom:1px solid var(--b0);
+  display:flex;align-items:center;gap:14px;
+  flex-shrink:0;
+}
+.h-name{
+  font-family:var(--brig);font-size:19px;font-weight:500;
+  color:var(--t1);letter-spacing:-.02em;
+}
+.h-name span{color:var(--t3);}
+.h-sub{font-family:var(--mono);font-size:10px;color:var(--t3);margin-top:2px;}
+.h-flex{flex:1;}
+.hc{display:flex;align-items:center;gap:6px;}
+
+.state-pill{
+  display:flex;align-items:center;gap:5px;
+  padding:4px 10px;border-radius:20px;
+  background:var(--tealb);border:1px solid rgba(14,210,184,.2);
+  font-family:var(--mono);font-size:10px;font-weight:600;color:var(--teal);
+  cursor:pointer;
+}
+.sdot{width:5px;height:5px;border-radius:50%;background:var(--teal);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+.tone-row{
+  display:flex;gap:1px;
+  background:var(--s2);border:1px solid var(--b0);
+  border-radius:6px;padding:2px;
+}
+.t-o{
+  font-family:var(--mono);font-size:9px;font-weight:600;
+  letter-spacing:.04em;
+  padding:3px 8px;border-radius:4px;color:var(--t3);cursor:pointer;
+  transition:all .12s;text-transform:uppercase;
+}
+.t-o:hover:not(.on){color:var(--t2);}
+.t-o.on{background:var(--s4);color:var(--t1);}
+.ctrl-btn{
+  font-family:var(--mono);font-size:10px;padding:4px 10px;
+  border-radius:5px;background:var(--s2);border:1px solid var(--b0);
+  color:var(--t3);cursor:pointer;transition:all .12s;
+}
+.ctrl-btn:hover{color:var(--t2);border-color:var(--b1);}
+
+/* BRIEF BANNER */
+.brief-bar{
+  margin:0;padding:11px 22px;
+  background:linear-gradient(90deg,rgba(155,109,255,.06) 0%,transparent 70%);
+  border-bottom:1px solid rgba(155,109,255,.12);
+  display:flex;align-items:flex-start;gap:12px;
+  flex-shrink:0;
+}
+.brief-face{
+  font-family:var(--mono);font-size:17px;line-height:1;
+  color:var(--purple);flex-shrink:0;margin-top:1px;
+}
+.brief-body{flex:1;}
+.brief-lbl{
+  font-family:var(--mono);font-size:9px;font-weight:700;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--purple);
+  margin-bottom:4px;
+}
+.brief-txt{
+  font-family:var(--brig);font-size:13px;font-weight:400;
+  color:var(--t2);line-height:1.6;
+}
+.brief-txt b{color:var(--t1);font-weight:600;}
+.brief-txt .warn{color:var(--red);}
+.brief-txt .go{color:var(--teal);}
+
+/* scroll body */
+.m-body{
+  flex:1;overflow-y:auto;
+  padding:16px 22px;
+  display:flex;flex-direction:column;gap:16px;
+}
+.m-body::-webkit-scrollbar{width:3px;}
+.m-body::-webkit-scrollbar-thumb{background:var(--s3);}
+
+/* zone label */
+.zlbl{
+  font-family:var(--mono);font-size:9px;font-weight:700;
+  letter-spacing:.13em;text-transform:uppercase;color:var(--t4);
+  display:flex;align-items:center;gap:8px;margin-bottom:10px;
+}
+.zlbl::after{content:'';flex:1;height:1px;background:var(--b0);}
+
+/* ─── NOW: 4 cards ─── */
+.ctx-row{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;}
+.ctx{
+  background:var(--s2);border:1px solid var(--b0);
+  border-radius:var(--r);padding:11px 12px;
+  cursor:pointer;transition:all .12s;
+}
+.ctx:hover{background:var(--s3);border-color:var(--b1);}
+.ctx-l{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--t4);margin-bottom:5px;}
+.ctx-v{font-family:var(--brig);font-size:18px;font-weight:700;color:var(--t1);line-height:1.1;}
+.ctx-s{font-family:var(--mono);font-size:10px;color:var(--t3);margin-top:3px;}
+/* urgent overdue card */
+.ctx.urgent{
+  background:rgba(255,77,77,.05);
+  border-color:rgba(255,77,77,.22);
+}
+.ctx.urgent .ctx-l{color:var(--red);}
+.ctx.urgent .ctx-v{color:var(--red);}
+/* amber attention */
+.ctx.attn{border-color:rgba(245,166,35,.18);}
+.ctx.attn .ctx-v{color:var(--amber);}
+/* teal focus */
+.ctx.focus-c .ctx-v{color:var(--teal);}
+
+/* ─── CONTINUE: two-col hero ─── */
+.hero-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+
+.hero-card{
+  background:var(--s2);border:1px solid var(--b1);
+  border-radius:var(--r2);padding:18px;
+  position:relative;overflow:hidden;
+}
+.hero-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--amber) 0%,transparent 55%);
+}
+.hc-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;}
+.hc-ttl{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--t3);}
+.hc-link{font-family:var(--mono);font-size:10px;color:var(--teal);cursor:pointer;}
+.hc-link:hover{text-decoration:underline;}
+
+.fields{display:grid;gap:9px;}
+.field{display:grid;grid-template-columns:65px 1fr;gap:8px;align-items:baseline;}
+.f-l{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t4);}
+.f-v{font-family:var(--brig);font-size:13px;font-weight:400;color:var(--t2);line-height:1.5;}
+.f-v b{color:var(--t1);font-weight:600;}
+.f-v .hl{color:var(--amber);}
+.f-v .rsk{color:var(--red);font-weight:500;}
+
+.next-step{
+  margin-top:14px;padding:9px 12px;
+  background:var(--tealb);border:1px solid rgba(14,210,184,.15);
+  border-radius:6px;display:flex;align-items:flex-start;gap:10px;
+}
+.ns-l{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--teal);flex-shrink:0;padding-top:2px;}
+.ns-v{font-family:var(--brig);font-size:13px;font-weight:500;color:var(--t1);line-height:1.5;}
+
+/* Insight hero card */
+.ins-hero{
+  background:var(--s2);border:1px solid var(--purpleb2);
+  border-radius:var(--r2);padding:18px;
+  position:relative;overflow:hidden;
+  display:flex;flex-direction:column;
+}
+.ins-hero::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--purple) 0%,transparent 55%);
+}
+.ih-lbl{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--purple);margin-bottom:10px;}
+.ih-big{
+  font-family:var(--brig);font-size:32px;font-weight:800;
+  color:var(--t1);letter-spacing:-.03em;line-height:1.1;
+  margin-bottom:6px;
+}
+.ih-sub{font-family:var(--mono);font-size:11px;color:var(--t3);margin-bottom:16px;}
+.ih-obs{
+  font-family:var(--brig);font-size:13px;color:var(--t2);
+  line-height:1.6;margin-bottom:10px;flex:1;
+}
+.ih-fix{
+  padding:9px 11px;
+  background:rgba(14,210,184,.07);border:1px solid rgba(14,210,184,.15);
+  border-radius:6px;
+  font-family:var(--mono);font-size:11px;color:var(--t1);
+  line-height:1.5;
+}
+.ih-fix::before{content:'Fix → ';color:var(--teal);font-weight:700;}
+
+/* FOCUS BANNER */
+.focus-bar{
+  padding:9px 14px;
+  background:rgba(77,159,255,.05);
+  border:1px solid rgba(77,159,255,.14);
+  border-radius:var(--r);
+  display:flex;align-items:center;gap:10px;cursor:pointer;
+  transition:all .12s;
+}
+.focus-bar:hover{background:rgba(77,159,255,.09);}
+.fb-icon{font-family:var(--mono);font-size:12px;color:var(--blue);}
+.fb-body{flex:1;}
+.fb-ttl{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--blue);}
+.fb-sub{font-family:var(--brig);font-size:12px;color:var(--t3);margin-top:1px;}
+.fb-arr{font-family:var(--mono);font-size:12px;color:var(--t4);}
+
+/* COMMAND */
+.inp-wrap{
+  background:var(--s2);border:1px solid var(--b1);
+  border-radius:var(--r2);overflow:hidden;
+  transition:border-color .12s;
+}
+.inp-wrap:focus-within{border-color:var(--b2);}
+.inp{
+  width:100%;padding:13px 16px;
+  background:transparent;border:none;outline:none;
+  font-family:var(--mono);font-size:12px;color:var(--t1);
+}
+.inp::placeholder{color:var(--t4);}
+.inp-foot{
+  padding:7px 13px;border-top:1px solid var(--b0);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.inp-meta{display:flex;gap:14px;font-family:var(--mono);font-size:9px;color:var(--t4);}
+.send-btn{
+  padding:5px 14px;border-radius:5px;
+  background:var(--amber);border:none;
+  font-family:var(--mono);font-size:10px;font-weight:700;
+  color:#000;cursor:pointer;letter-spacing:.04em;
+  transition:opacity .12s;
+}
+.send-btn:hover{opacity:.82;}
+
+/* ═══ SIGNALS ═══ */
+.sigs{
+  background:var(--s1);
+  border-left:1px solid var(--b0);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.sig-top{
+  padding:14px 14px 11px;
+  border-bottom:1px solid var(--b0);
+  display:flex;align-items:center;justify-content:space-between;
+  flex-shrink:0;
+}
+.sig-ttl{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--t4);}
+.sig-date{font-family:var(--mono);font-size:10px;color:var(--t3);}
+.sig-scroll{flex:1;overflow-y:auto;padding:10px 10px;display:flex;flex-direction:column;gap:7px;}
+.sig-scroll::-webkit-scrollbar{width:2px;}
+.sig-scroll::-webkit-scrollbar-thumb{background:var(--s4);}
+
+/* Kitty state */
+.k-state{
+  background:var(--s2);border:1px solid var(--b0);
+  border-radius:var(--r);padding:10px 11px;
+  display:flex;align-items:center;gap:10px;
+}
+.k-face{font-family:var(--mono);font-size:18px;line-height:1;}
+.k-info{flex:1;}
+.k-name{font-family:var(--brig);font-size:13px;font-weight:600;color:var(--t1);}
+.k-desc{font-family:var(--mono);font-size:10px;color:var(--t3);margin-top:1px;}
+.k-live{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+
+/* REALITY CHECK — hero of the right column */
+.reality{
+  background:var(--s2);
+  border:1px solid var(--purpleb2);
+  border-radius:var(--r2);padding:14px;
+  position:relative;overflow:hidden;
+}
+.reality::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--purple) 0%,transparent 60%);
+}
+.r-ttl{
+  font-family:var(--mono);font-size:9px;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--purple);
+  margin-bottom:11px;
+}
+
+.stream{margin-bottom:9px;}
+.stream:last-of-type{margin-bottom:0;}
+.st-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:3px;}
+.st-l{font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--t4);}
+.st-r{font-family:var(--brig);font-size:14px;font-weight:800;}
+.st-body{font-family:var(--brig);font-size:12px;color:var(--t2);line-height:1.5;padding-left:9px;border-left:2px solid var(--b1);}
+
+.r-rec{
+  margin-top:11px;padding:9px 10px;
+  background:var(--purpleb);border-radius:6px;
+  font-family:var(--brig);font-size:12px;color:var(--t2);line-height:1.5;
+}
+.r-rec b{color:var(--purple);font-weight:600;}
+
+/* Signal cards */
+.sc{
+  background:var(--s2);border:1px solid var(--b0);
+  border-radius:var(--r);padding:11px 12px;
+  cursor:pointer;transition:all .12s;
+}
+.sc:hover{border-color:var(--b1);}
+.sc-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
+.sc-l{font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;}
+.sc-badge{font-family:var(--mono);font-size:8px;padding:2px 5px;border-radius:3px;font-weight:700;}
+.sc-val{font-family:var(--brig);font-size:14px;font-weight:600;color:var(--t1);line-height:1.3;}
+.sc-sub{font-family:var(--mono);font-size:10px;color:var(--t3);margin-top:3px;line-height:1.4;}
+
+/* overdue signal card - very prominent */
+.sc.crit{
+  background:rgba(255,77,77,.04);
+  border-color:rgba(255,77,77,.22);
+}
+.sc.crit .sc-val{color:var(--red);}
+
+/* insight card in signals */
+.i-card{
+  background:var(--s2);border:1px solid var(--b0);
+  border-radius:var(--r);padding:11px 12px;
+}
+.ic-head{display:flex;align-items:center;gap:6px;margin-bottom:7px;}
+.ic-l{font-family:var(--mono);font-size:8px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--t4);}
+.ic-tag{font-family:var(--mono);font-size:8px;padding:2px 5px;border-radius:3px;font-weight:700;margin-left:auto;}
+.ic-obs{font-family:var(--brig);font-size:12px;color:var(--t3);line-height:1.5;margin-bottom:6px;}
+.ic-fix{
+  font-family:var(--mono);font-size:10px;color:var(--teal);
+  line-height:1.5;border-left:2px solid rgba(14,210,184,.3);
+  padding-left:7px;
+}
+.ic-fix::before{content:'fix → ';font-weight:700;}
+
+/* quick action btn */
+.qa{
+  width:100%;padding:9px 12px;border-radius:var(--r);
+  background:transparent;border:1px solid var(--b0);
+  font-family:var(--mono);font-size:10px;font-weight:600;
+  color:var(--t2);text-align:left;cursor:pointer;
+  transition:all .12s;letter-spacing:.03em;
+}
+.qa:hover{background:var(--s3);border-color:var(--b1);color:var(--t1);}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ICON RAIL -->
+  <nav class="rail">
+    <div class="rail-logo">🐱</div>
+    <div class="ri on" title="Dashboard">⌂</div>
+    <div class="ri" title="Journal">✍</div>
+    <div class="ri" title="Knowledge">◈</div>
+    <div class="ri" title="Tasks">✓</div>
+    <div class="ri-sp"></div>
+    <div class="ri" title="Settings">⚙</div>
+  </nav>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sb-top">
+      <span class="sb-title">Sessions</span>
+      <button class="new-btn">+ new</button>
+    </div>
+    <div class="sb-scroll">
+      <div class="glabel">Today</div>
+
+      <div class="sess on">
+        <div class="s-dot" style="background:var(--teal)"></div>
+        <div class="s-info">
+          <div class="s-name">today's brief</div>
+          <div class="s-meta">active now</div>
+        </div>
+        <div class="badge bg">live</div>
+      </div>
+      <div class="sess">
+        <div class="s-dot" style="background:var(--purple)"></div>
+        <div class="s-info">
+          <div class="s-name">Kitty dashboard</div>
+          <div class="s-meta">prototype · 3h ago</div>
+        </div>
+      </div>
+      <div class="sess">
+        <div class="s-dot" style="background:var(--red)"></div>
+        <div class="s-info">
+          <div class="s-name">landlord email</div>
+          <div class="s-meta">4 days overdue</div>
+        </div>
+        <div class="badge br">4d</div>
+      </div>
+
+      <div class="glabel">Yesterday</div>
+
+      <div class="sess">
+        <div class="s-dot" style="background:var(--amber)"></div>
+        <div class="s-info">
+          <div class="s-name">brake appointment</div>
+          <div class="s-meta">photos needed</div>
+        </div>
+      </div>
+      <div class="sess">
+        <div class="s-dot" style="background:var(--t4)"></div>
+        <div class="s-info">
+          <div class="s-name">income options</div>
+          <div class="s-meta">life ops</div>
+        </div>
+      </div>
+
+      <div class="glabel">Projects</div>
+      <div class="proj">
+        <div class="p-sq" style="background:var(--teal)"></div>
+        <span class="p-name">Kitty design system</span>
+        <span class="p-n">7</span>
+      </div>
+      <div class="proj">
+        <div class="p-sq" style="background:var(--purple)"></div>
+        <span class="p-name">resume rebuild</span>
+        <span class="p-n">2</span>
+      </div>
+      <div class="proj">
+        <div class="p-sq" style="background:var(--amber)"></div>
+        <span class="p-name">DTC paperwork</span>
+        <span class="p-n">5</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- Header -->
+    <div class="m-head">
+      <div class="h-flex">
+        <div class="h-name">good morning, <span>jacob</span></div>
+        <div class="h-sub">Monday, May 18 · dashboard home</div>
+      </div>
+      <div class="hc">
+        <div class="state-pill">
+          <div class="sdot"></div>
+          Kitty active
+        </div>
+        <div class="tone-row">
+          <div class="t-o">gentle</div>
+          <div class="t-o">balanced</div>
+          <div class="t-o on">blunt</div>
+          <div class="t-o">auto</div>
+        </div>
+        <button class="ctrl-btn">clear chat</button>
+      </div>
+    </div>
+
+    <!-- Morning Brief -->
+    <div class="brief-bar">
+      <div class="brief-face">:3</div>
+      <div class="brief-body">
+        <div class="brief-lbl">Kitty's brief</div>
+        <div class="brief-txt">
+          You've been in a <b>design loop for 3 sessions.</b>
+          <span class="warn"> Landlord email is 4 days overdue</span> — that's the real blocker.
+          Standup at <b>2:00 PM</b>, snow incoming.
+          Today: <span class="go">fix the email first, then ship one prototype shell.</span> Don't touch the backend.
+        </div>
+      </div>
+    </div>
+
+    <!-- Scrollable -->
+    <div class="m-body">
+
+      <!-- NOW -->
+      <div>
+        <div class="zlbl">Now</div>
+        <div class="ctx-row">
+          <div class="ctx">
+            <div class="ctx-l">Weather</div>
+            <div class="ctx-v">−4°C</div>
+            <div class="ctx-s">snow later · wind NE</div>
+          </div>
+          <div class="ctx attn">
+            <div class="ctx-l">Next Up</div>
+            <div class="ctx-v">standup</div>
+            <div class="ctx-s">2:00 PM · prep notes</div>
+          </div>
+          <div class="ctx urgent">
+            <div class="ctx-l">Overdue</div>
+            <div class="ctx-v">landlord email</div>
+            <div class="ctx-s">4 days late · act now</div>
+          </div>
+          <div class="ctx focus-c">
+            <div class="ctx-l">Focus</div>
+            <div class="ctx-v">Kitty dashboard</div>
+            <div class="ctx-s">home shell · no backend</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CONTINUE -->
+      <div>
+        <div class="zlbl">Continue</div>
+        <div class="hero-row">
+
+          <!-- Last session card -->
+          <div class="hero-card">
+            <div class="hc-head">
+              <div class="hc-ttl">Last session + suggested fix</div>
+              <div class="hc-link">continue →</div>
+            </div>
+            <div class="fields">
+              <div class="field">
+                <div class="f-l">Worked on</div>
+                <div class="f-v">Kitty dashboard direction and concept.</div>
+              </div>
+              <div class="field">
+                <div class="f-l">Decided</div>
+                <div class="f-v">Examples are a <b>mood board</b>, not a spec. Codex layout wins — three columns.</div>
+              </div>
+              <div class="field">
+                <div class="f-l">Insight</div>
+                <div class="f-v">Kitty is a <span class="hl">context-restoration system</span>, not a chat app.</div>
+              </div>
+              <div class="field">
+                <div class="f-l">Risk</div>
+                <div class="f-v"><span class="rsk">Prompt refinement is replacing execution.</span> Design loop is the actual problem.</div>
+              </div>
+            </div>
+            <div class="next-step">
+              <div class="ns-l">Next →</div>
+              <div class="ns-v">Ship one layout shell. No data wiring. One artifact.</div>
+            </div>
+          </div>
+
+          <!-- Single insight hero -->
+          <div class="ins-hero">
+            <div class="ih-lbl">◈ Insight of the session</div>
+            <div class="ih-big">single<br>prompt.</div>
+            <div class="ih-sub">less friction · more output</div>
+            <div class="ih-obs">
+              Highest quality output came after consolidating all instructions into one clear direction. Splitting across multiple turns dilutes signal.
+            </div>
+            <div class="ih-fix">generate one artifact at a time.</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- FOCUS MODE -->
+      <div class="focus-bar">
+        <div class="fb-icon">◎</div>
+        <div class="fb-body">
+          <div class="fb-ttl">Focus mode</div>
+          <div class="fb-sub">Collapse everything → one priority, why it matters, what to do in 10 minutes</div>
+        </div>
+        <div class="fb-arr">→</div>
+      </div>
+
+      <!-- COMMAND -->
+      <div>
+        <div class="zlbl">Command</div>
+        <div class="inp-wrap">
+          <input class="inp" type="text" placeholder="message Kitty...">
+          <div class="inp-foot">
+            <div class="inp-meta">
+              <span>⌘K commands</span>
+              <span>context: 6</span>
+              <span>tone: blunt</span>
+            </div>
+            <button class="send-btn">Send</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- SIGNALS -->
+  <aside class="sigs">
+    <div class="sig-top">
+      <span class="sig-ttl">Signals</span>
+      <span class="sig-date">May 18</span>
+    </div>
+    <div class="sig-scroll">
+
+      <!-- Kitty state -->
+      <div class="k-state">
+        <div class="k-face">:3</div>
+        <div class="k-info">
+          <div class="k-name">online and nosy</div>
+          <div class="k-desc">watching priorities · not being a cop about it</div>
+        </div>
+        <div class="k-live" style="background:var(--teal);animation:pulse 2s infinite"></div>
+      </div>
+
+      <!-- Reality check -->
+      <div class="reality">
+        <div class="r-ttl">⚖ Reality Check</div>
+
+        <div class="stream">
+          <div class="st-head">
+            <span class="st-l">Life</span>
+            <span class="st-r" style="color:var(--amber)">#1</span>
+          </div>
+          <div class="st-body">Housing/admin outranks UI polish. Landlord email is the blocker.</div>
+        </div>
+        <div class="stream">
+          <div class="st-head">
+            <span class="st-l">Coding</span>
+            <span class="st-r" style="color:var(--teal)">#2</span>
+          </div>
+          <div class="st-body">Ship a layout shell. One prototype. No backend scope.</div>
+        </div>
+        <div class="stream">
+          <div class="st-head">
+            <span class="st-l">Chat</span>
+            <span class="st-r" style="color:var(--purple)">#3</span>
+          </div>
+          <div class="st-body">Open loops from last session — decisions need a next action.</div>
+        </div>
+
+        <div class="r-rec">
+          <b>Suggested:</b> 10 min on landlord email, then one layout prototype. That's it.
+        </div>
+      </div>
+
+      <!-- Calendar -->
+      <div class="sc">
+        <div class="sc-head">
+          <span class="sc-l" style="color:var(--teal)">Calendar</span>
+          <span class="sc-badge" style="background:var(--tealb);color:var(--teal)">2 today</span>
+        </div>
+        <div class="sc-val">Standup at 2:00 PM</div>
+        <div class="sc-sub">No hard conflict detected. Prep notes before 1:45.</div>
+      </div>
+
+      <!-- Overdue email — critical -->
+      <div class="sc crit">
+        <div class="sc-head">
+          <span class="sc-l" style="color:var(--red)">Email — Overdue</span>
+          <span class="sc-badge" style="background:var(--redb);color:var(--red)">4d late</span>
+        </div>
+        <div class="sc-val">Landlord response</div>
+        <div class="sc-sub">Draft short. Send before another design session.</div>
+      </div>
+
+      <!-- Insight cards -->
+      <div class="i-card">
+        <div class="ic-head">
+          <span class="ic-l">Insight</span>
+          <span class="ic-tag" style="background:var(--purpleb);color:var(--purple)">chat</span>
+        </div>
+        <div class="ic-obs">High-detail planning is replacing execution. The plan keeps getting refined instead of shipped.</div>
+        <div class="ic-fix">ship one ugly prototype first.</div>
+      </div>
+
+      <div class="i-card">
+        <div class="ic-head">
+          <span class="ic-l">Insight</span>
+          <span class="ic-tag" style="background:var(--tealb);color:var(--teal)">coding</span>
+        </div>
+        <div class="ic-obs">UI concept is stable. Prototyping phase is the right call now.</div>
+        <div class="ic-fix">layout shell before any data wiring.</div>
+      </div>
+
+      <!-- Quick action -->
+      <button class="qa">▶ start 10-min life task</button>
+
+    </div>
+  </aside>
+
+</div>
+</body>
+</html>

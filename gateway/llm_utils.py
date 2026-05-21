@@ -1,6 +1,6 @@
 import time
 import logging
-from typing import Callable, Any
+from typing import Callable
 
 logger = logging.getLogger("kitty.llm_utils")
 

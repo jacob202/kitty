@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>kitty — type options</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  @font-face {
+    font-family: 'Departure Mono';
+    src: url('https://departuremono.com/assets/DepartureMono-Regular.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+</style>
+<style>
+  :root {
+    --ink: #1a1410;
+    --ink-soft: #251c17;
+    --ink-deep: #0e0a08;
+    --ink-line: #3a2e25;
+    --cream: #f5ead3;
+    --cream-dim: #bdb19a;
+    --cream-faint: #7a7160;
+    --tabby: #ff7a1a;
+    --teal: #21bdd9;
+    --grape: #a884ff;
+    --mint: #9be86b;
+    --lemon: #f4c542;
+    --maple: #ff5577;
+  }
+
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--ink);
+    color: var(--cream);
+    font-family: 'Inter', system-ui, sans-serif;
+    min-height: 100vh;
+  }
+
+  .frame { padding: 40px 48px 56px; }
+
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px solid var(--ink-line);
+    padding-bottom: 14px;
+    margin-bottom: 28px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--cream-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+  }
+  .topbar b { color: var(--cream); font-weight: 500; }
+
+  .title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 56px;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    margin: 0 0 8px;
+    color: var(--cream);
+  }
+  .title em { font-style: italic; color: var(--tabby); font-weight: 500; }
+  .title .vs {
+    display: inline-block;
+    transform: translateY(-6px);
+    color: var(--grape);
+    font-size: 36px;
+    padding: 0 8px;
+    font-weight: 400;
+  }
+  .lede {
+    color: var(--cream-dim);
+    font-size: 14px;
+    line-height: 1.55;
+    max-width: 62ch;
+    margin: 0 0 32px;
+  }
+
+  /* ============ CARDS ============ */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  .card {
+    border: 1px solid var(--ink-line);
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(37,28,23,0.7), rgba(14,10,8,0.4));
+    overflow: hidden;
+    position: relative;
+  }
+  .card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+      radial-gradient(circle at 10% 0%, rgba(255,122,26,0.06), transparent 40%),
+      radial-gradient(circle at 100% 100%, rgba(168,132,255,0.06), transparent 45%);
+    pointer-events: none;
+  }
+
+  .card-h {
+    padding: 22px 26px 16px;
+    border-bottom: 1px dashed var(--ink-line);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 16px;
+    position: relative;
+  }
+  .card-h .num {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--cream-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    margin-bottom: 8px;
+  }
+  .card-h .num b { color: var(--tabby); }
+  .card.b .card-h .num b { color: var(--grape); }
+  .card-h .name {
+    font-size: 32px;
+    line-height: 1;
+    color: var(--cream);
+    margin: 0;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+  }
+  .card.a .card-h .name { font-family: 'Departure Mono', 'VT323', monospace; font-weight: 400; letter-spacing: 0; font-size: 30px; }
+  .card.b .card-h .name { font-family: 'Space Grotesk', sans-serif; }
+  .card-h .vibe {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--cream-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    text-align: right;
+    line-height: 1.5;
+  }
+  .card-h .vibe b { color: var(--cream-dim); }
+
+  .card-body { padding: 24px 26px 26px; position: relative; }
+
+  .specimen {
+    line-height: 0.95;
+    margin: 4px 0 18px;
+    letter-spacing: -0.02em;
+    color: var(--cream);
+  }
+  .card.a .specimen {
+    font-family: 'Departure Mono', 'VT323', monospace;
+    font-size: 88px;
+    letter-spacing: 0;
+    color: var(--tabby);
+  }
+  .card.b .specimen {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 96px;
+    font-weight: 600;
+    color: var(--tabby);
+  }
+  .specimen .alt { color: var(--teal); }
+  .card.b .specimen em { font-style: italic; font-weight: 500; color: var(--grape); }
+
+  .row-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--cream-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    margin: 18px 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .row-label::after { content: ""; flex: 1; height: 1px; background: var(--ink-line); }
+
+  .ladder { display: flex; flex-direction: column; gap: 4px; }
+  .ladder .row {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    padding: 6px 0;
+    border-top: 1px solid var(--ink-line);
+  }
+  .ladder .row:first-child { border-top: 0; }
+  .ladder .px {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--cream-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    min-width: 64px;
+  }
+  .ladder .t { flex: 1; color: var(--cream); }
+
+  .card.a .ladder .t { font-family: 'Inter', sans-serif; }
+  .card.a .ladder .t.disp { font-family: 'Departure Mono', monospace; color: var(--tabby); }
+  .card.b .ladder .t { font-family: 'Space Mono', monospace; }
+  .card.b .ladder .t.disp { font-family: 'Space Grotesk', sans-serif; font-weight: 600; color: var(--tabby); letter-spacing: -0.01em; }
+
+  /* ============ MOCK CHAT ============ */
+  .mock {
+    margin-top: 22px;
+    background: var(--ink-deep);
+    border-radius: 10px;
+    border: 1px solid var(--ink-line);
+    padding: 18px 20px 18px;
+  }
+  .mock-h {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px dashed var(--ink-line);
+    padding-bottom: 10px;
+    margin-bottom: 14px;
+  }
+  .mock-h .title-s {
+    font-size: 22px;
+    color: var(--cream);
+    line-height: 1;
+    margin: 0;
+    letter-spacing: -0.01em;
+    font-weight: 600;
+  }
+  .card.a .mock-h .title-s { font-family: 'Departure Mono', monospace; font-weight: 400; color: var(--tabby); }
+  .card.b .mock-h .title-s { font-family: 'Space Grotesk', sans-serif; }
+  .card.b .mock-h .title-s em { font-style: italic; color: var(--tabby); font-weight: 500; }
+  .mock-h .when {
+    font-size: 10px;
+    color: var(--cream-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+  }
+  .card.a .mock-h .when { font-family: 'Inter', sans-serif; }
+  .card.b .mock-h .when { font-family: 'Space Mono', monospace; }
+
+  .bubbles { display: flex; flex-direction: column; gap: 10px; }
+  .bubble {
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--cream);
+    max-width: 92%;
+  }
+  .bubble.kitty {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--ink-line);
+    border-top-left-radius: 4px;
+  }
+  .bubble.me {
+    background: linear-gradient(135deg, var(--tabby), #cc4f00);
+    color: var(--ink-deep);
+    align-self: flex-end;
+    border-top-right-radius: 4px;
+    font-weight: 600;
+  }
+  .card.a .bubble { font-family: 'Inter', sans-serif; }
+  .card.b .bubble { font-family: 'Space Mono', monospace; }
+
+  .bubble .head {
+    font-size: 22px;
+    line-height: 1.05;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+  }
+  .card.a .bubble .head { font-family: 'Departure Mono', monospace; color: var(--mint); }
+  .card.b .bubble .head { font-family: 'Space Grotesk', sans-serif; font-weight: 600; color: var(--mint); }
+  .bubble code {
+    background: rgba(0,0,0,0.4);
+    color: var(--teal);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+  }
+  .bubble .who {
+    font-size: 10px;
+    color: var(--cream-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    margin-bottom: 6px;
+  }
+  .card.a .bubble .who { font-family: 'Inter', sans-serif; }
+  .card.b .bubble .who { font-family: 'Space Mono', monospace; }
+  .bubble .who b { color: var(--tabby); font-weight: 600; }
+  .bubble.me .who b { color: var(--grape); }
+
+  .chips { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .chip {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+  }
+  .card.a .chip { font-family: 'Inter', sans-serif; font-weight: 500; }
+  .card.b .chip { font-family: 'Space Mono', monospace; }
+
+  .footer {
+    margin-top: 18px;
+    padding: 12px 14px;
+    background: rgba(168,132,255,0.06);
+    border: 1px solid rgba(168,132,255,0.3);
+    border-radius: 8px;
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--cream);
+  }
+  .card.a .footer { font-family: 'Inter', sans-serif; }
+  .card.b .footer { font-family: 'Space Mono', monospace; }
+  .footer b { color: var(--grape); }
+
+  .verdict {
+    margin-top: 32px;
+    padding: 18px 22px;
+    border: 1px dashed var(--ink-line);
+    border-radius: 10px;
+    background: rgba(255,255,255,0.02);
+  }
+  .verdict h3 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 18px;
+    margin: 0 0 6px;
+    color: var(--cream);
+    letter-spacing: -0.01em;
+  }
+  .verdict p {
+    margin: 4px 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--cream-dim);
+  }
+  .verdict b { color: var(--cream); font-weight: 600; }
+  .verdict .pick { color: var(--tabby); }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="topbar">
+    <span><b>type · two options</b> for the kitty system</span>
+    <span>preview · pick one and i'll wire it through</span>
+  </div>
+
+  <h1 class="title">option a <span class="vs">×</span> option b</h1>
+  <p class="lede">same brand mood, two voices. left is a modern pixel-mono with a humanist body (terminal energy, but cleaner). right is a designer-cat duo where grotesk and mono live in the same family and finish each other's sentences.</p>
+
+  <div class="grid">
+
+    <!-- ====== OPTION A ====== -->
+    <div class="card a">
+      <div class="card-h">
+        <div>
+          <div class="num"><b>option a</b> · pixel + humanist</div>
+          <h2 class="name">departure mono × inter</h2>
+        </div>
+        <div class="vibe">
+          terminal energy<br>
+          <b>cleaner than vt323</b><br>
+          single + variable
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="specimen">$ kitty<span class="alt">.</span></div>
+
+        <div class="row-label">scale</div>
+        <div class="ladder">
+          <div class="row"><span class="px">hero · 72</span><span class="t disp" style="font-size:48px">today's plan</span></div>
+          <div class="row"><span class="px">h1 · 28</span><span class="t disp" style="font-size:24px">tasks &amp; nudges</span></div>
+          <div class="row"><span class="px">body · 15</span><span class="t" style="font-size:15px">hey. you said you'd start the laundry an hour ago.</span></div>
+          <div class="row"><span class="px">meta · 11</span><span class="t" style="font-size:11px; color:var(--cream-dim)">2 min ago · from your laptop</span></div>
+        </div>
+
+        <div class="mock">
+          <div class="mock-h">
+            <h3 class="title-s">monday, sort of</h3>
+            <span class="when">9:02 am · live</span>
+          </div>
+          <div class="bubbles">
+            <div class="bubble kitty">
+              <div class="who"><b>kitty</b> · 9:02</div>
+              <p class="head">good morning, sort of</p>
+              <span>laundry's been sitting in the basket since saturday. moved it back to the top. don't shoot the messenger.</span>
+              <div class="chips">
+                <span class="chip" style="color:var(--grape)">@chores</span>
+                <span class="chip" style="color:var(--teal)">today</span>
+              </div>
+            </div>
+            <div class="bubble me">
+              <div class="who"><b>you</b> · 9:03</div>
+              fine. remind me at 2pm to call mom.
+            </div>
+            <div class="bubble kitty">
+              <div class="who"><b>kitty</b> · 9:03</div>
+              set. saved as <code>~/today/call-mom</code>. ^_^
+            </div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <b>read like:</b> headlines feel like terminal printouts but with crisp dots, body text is friendly sans you can scan for hours. ages well. doesn't try too hard.
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== OPTION B ====== -->
+    <div class="card b">
+      <div class="card-h">
+        <div>
+          <div class="num"><b>option b</b> · grotesk + sibling mono</div>
+          <h2 class="name">space grotesk × <em>space mono</em></h2>
+        </div>
+        <div class="vibe">
+          designer-cat<br>
+          <b>same family dna</b><br>
+          400 / 500 / 700
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="specimen">kitty<em>.</em></div>
+
+        <div class="row-label">scale</div>
+        <div class="ladder">
+          <div class="row"><span class="px">hero · 72</span><span class="t disp" style="font-size:48px">today's plan</span></div>
+          <div class="row"><span class="px">h1 · 28</span><span class="t disp" style="font-size:24px">tasks &amp; nudges</span></div>
+          <div class="row"><span class="px">body · 14</span><span class="t" style="font-size:14px">hey. you said you'd start the laundry an hour ago.</span></div>
+          <div class="row"><span class="px">meta · 11</span><span class="t" style="font-size:11px; color:var(--cream-dim)">2 min ago · from your laptop</span></div>
+        </div>
+
+        <div class="mock">
+          <div class="mock-h">
+            <h3 class="title-s">monday, <em>sort of</em></h3>
+            <span class="when">9:02 am · live</span>
+          </div>
+          <div class="bubbles">
+            <div class="bubble kitty">
+              <div class="who"><b>kitty</b> · 9:02</div>
+              <p class="head">good morning, sort of</p>
+              <span>laundry's been sitting in the basket since saturday. moved it back to the top. don't shoot the messenger.</span>
+              <div class="chips">
+                <span class="chip" style="color:var(--grape)">@chores</span>
+                <span class="chip" style="color:var(--teal)">today</span>
+              </div>
+            </div>
+            <div class="bubble me">
+              <div class="who"><b>you</b> · 9:03</div>
+              fine. remind me at 2pm to call mom.
+            </div>
+            <div class="bubble kitty">
+              <div class="who"><b>kitty</b> · 9:03</div>
+              set. saved as <code>~/today/call-mom</code>. ^_^
+            </div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <b>read like:</b> a slightly off-kilter grotesk for personality (that weird <em>a</em>, that funny <em>g</em>), with its own mono sibling for code &amp; meta. very cohesive. tiniest bit precious — fits a cat with attitude.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="verdict">
+    <h3>verdict, roughly</h3>
+    <p><b>option a (departure × inter)</b> reads more like a professional dev tool with a wink. body text scans for miles. great if kitty's going to handle lots of words.</p>
+    <p><b>option b (space grotesk × space mono)</b> reads more like a designed product. more personality at-a-glance. great if kitty's mostly short snappy interactions and screens with one big idea.</p>
+    <p class="pick">say the word and i'll wire either through the whole system — tokens, type card, components, terminal.</p>
+  </div>
+</div>
+</body>
+</html>
