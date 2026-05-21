@@ -1,8 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { Chat } from '@/lib/types'
-import type { GatewayBrief, GatewaySearchSnapshot, GatewayWeather } from '@/lib/gateway'
-import { fetchGatewayWeather } from '@/lib/gateway'
+import type { GatewayBrief, GatewaySearchSnapshot, GatewayWeather, GatewaySkill, GatewayAgent } from '@/lib/gateway'
+import { fetchGatewayWeather, fetchGatewaySkills, fetchGatewayAgents } from '@/lib/gateway'
 
 interface Props {
   chats: Chat[]
@@ -15,11 +15,18 @@ interface Props {
 
 export function RightBar({ chats, activeChat, isStreaming, brief, search, activeModelName }: Props) {
   const [weather, setWeather] = useState<GatewayWeather | null>(null)
+  const [skills, setSkills] = useState<GatewaySkill[]>([])
+  const [agents, setAgents] = useState<GatewayAgent[]>([])
 
   useEffect(() => {
     void fetchGatewayWeather().then(setWeather)
-    const id = setInterval(() => { void fetchGatewayWeather().then(setWeather) }, 1800000) // 30 min
+    const id = setInterval(() => { void fetchGatewayWeather().then(setWeather) }, 1800000)
     return () => clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    void fetchGatewaySkills().then(setSkills)
+    void fetchGatewayAgents().then(setAgents)
   }, [])
 
   const tokenEstimate = activeChat
@@ -104,6 +111,39 @@ export function RightBar({ chats, activeChat, isStreaming, brief, search, active
             <StatRow label="chats" value={String(chats.length)} />
           </div>
         </section>
+
+        {/* Skills */}
+        {skills.length > 0 && (
+          <section>
+            <Label>skills</Label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 6 }}>
+              {skills.slice(0, 6).map(s => (
+                <span key={s.name} style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                  · {s.name}
+                </span>
+              ))}
+              {skills.length > 6 && (
+                <span style={{ fontSize: 10, color: 'var(--text-faint)', fontFamily: 'var(--font-mono)' }}>
+                  +{skills.length - 6} more
+                </span>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* Agents */}
+        {agents.length > 0 && (
+          <section>
+            <Label>agents</Label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 6 }}>
+              {agents.slice(0, 5).map(a => (
+                <span key={a.role} style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                  · {a.role}
+                </span>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </aside>
   )

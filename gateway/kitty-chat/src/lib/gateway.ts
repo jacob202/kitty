@@ -201,6 +201,68 @@ export async function cancelGatewayTask(id: string): Promise<boolean> {
   }
 }
 
+// ── Web monitors ────────────────────────────────────────────────────────────
+
+export interface GatewayMonitor {
+  watch_id: string
+  url: string
+  label: string
+  keywords: string[]
+  interval_minutes: number
+  last_checked?: number
+  last_status?: string
+  match_count: number
+}
+
+export async function fetchGatewayMonitors(): Promise<GatewayMonitor[]> {
+  try {
+    const json = await gfetch('/monitors')
+    return json.watches ?? []
+  } catch {
+    return []
+  }
+}
+
+export async function addGatewayMonitor(url: string, label: string, keywords: string[] = []): Promise<string | null> {
+  try {
+    const json = await gfetch('/monitor/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, label, keywords, interval_minutes: 60 }),
+    })
+    return json.watch_id ?? null
+  } catch {
+    return null
+  }
+}
+
+export async function removeGatewayMonitor(id: string): Promise<void> {
+  try { await gfetch(`/monitor/${id}`, { method: 'DELETE' }) } catch { /* non-fatal */ }
+}
+
+// ── Agents + Skills ─────────────────────────────────────────────────────────
+
+export interface GatewayAgent { role: string; description?: string }
+export interface GatewaySkill { name: string; description?: string; enabled?: boolean }
+
+export async function fetchGatewayAgents(): Promise<GatewayAgent[]> {
+  try {
+    const json = await gfetch('/agents')
+    return json.agents ?? []
+  } catch {
+    return []
+  }
+}
+
+export async function fetchGatewaySkills(): Promise<GatewaySkill[]> {
+  try {
+    const json = await gfetch('/skills')
+    return json.skills ?? []
+  } catch {
+    return []
+  }
+}
+
 // ── Chat persistence ─────────────────────────────────────────────────────────
 
 function serializeChat(chat: Chat) {

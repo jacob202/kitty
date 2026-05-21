@@ -6,6 +6,7 @@ import { commandZones, contextFound, continueItems, realityCheck, signals, type 
 import type { GatewayBrief, CalendarEvent } from '@/lib/gateway'
 import { fetchCalendarToday } from '@/lib/gateway'
 import { TaskPanel } from './TaskPanel'
+import { MonitorPanel } from './MonitorPanel'
 
 interface Props {
   chats: Chat[]
@@ -191,6 +192,13 @@ export function BriefPanel({ chats, onSelectChat, onPrompt, brief }: Props) {
             <SectionHeader title="Background tasks" meta="queue" compact />
             <div style={{ marginTop: 10 }}>
               <TaskPanel />
+            </div>
+          </div>
+
+          <div style={panelCardStyle}>
+            <SectionHeader title="Web monitors" meta="watching" compact />
+            <div style={{ marginTop: 10 }}>
+              <MonitorPanel />
             </div>
           </div>
         </aside>

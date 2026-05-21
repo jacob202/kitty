@@ -106,6 +106,30 @@ async def get_system_prompt(
     except Exception:
         pass
 
+    # 6.5 Behavioral patterns (30-day analysis from gateway trace log)
+    try:
+        from gateway.patterns import get_insight_text
+        pattern_text = await asyncio.to_thread(get_insight_text, 30)
+        if pattern_text:
+            dynamic_context = f"{dynamic_context}\n\n{pattern_text}" if dynamic_context else pattern_text
+    except Exception:
+        pass
+
+    # 6.6 Learning stats (absorption score, level, topics mastered)
+    try:
+        from gateway.learning import init_stats
+        stats = init_stats()
+        level = stats.get("user_level", 1)
+        score = stats.get("absorption_score", 0)
+        mastered = stats.get("topics_mastered", [])
+        if level > 1 or score > 0 or mastered:
+            learn_parts = [f"[Learning] Level {level}, absorption {score}/100"]
+            if mastered:
+                learn_parts.append(f"mastered: {', '.join(mastered[:5])}")
+            dynamic_context = f"{dynamic_context}\n{' — '.join(learn_parts)}" if dynamic_context else ' — '.join(learn_parts)
+    except Exception:
+        pass
+
     # 7. Active nudges — pending proactive suggestions
     try:
         from gateway.nudge import get_pending
