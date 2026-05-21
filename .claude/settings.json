@@ -1,5 +1,5 @@
 {
-  "sessionStart": "cd /Users/jacobbrizinski/Projects/kitty && pwd && echo '' && python3 scripts/agent-context-brief.py && echo '' && echo 'Type your task. I will restate it and wait for you to say go.'",
+  "sessionStart": "python3.11 -m pytest tests/ -q --tb=line 2>/dev/null | tail -1 || true",
   "autoSave": true,
   "terminalIntegration": true
 }

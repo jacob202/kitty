@@ -1,283 +1,185 @@
-"""Memory Consolidation System — Claude Code inspired "Dream" system.
+"""Memory consolidation — periodic compression of traces into durable long-term memory.
 
-Implements a background memory consolidation engine that runs periodically to
-synthesize recent learning into durable, organized memories.
+Called by:
+  - cron action  "memory.consolidate"  (registered at gateway startup)
+  - dream task via task_runner._run_dream()
+  - POST /session/end  (per-session lightweight consolidation)
+
+Main entry point: nightly_dream()
 """
+from __future__ import annotations
 
-import asyncio
+import json
 import logging
-import os
 import time
-from typing import Optional, Callable, Dict, Any
-from datetime import datetime, timedelta
+from collections import defaultdict
 from pathlib import Path
+from typing import Optional
+
+from gateway.paths import DATA_DIR, LOGS_DIR
 
 logger = logging.getLogger("kitty.memory_consolidation")
 
-class MemoryConsolidationSystem:
-    """Implements Claude Code's dream system for memory consolidation."""
-    
-    def __init__(self,
-                 knowledge_dir: Path,
-                 get_recent_sessions: Callable[[], list[Dict[str, Any]]],
-                 get_memory_files: Callable[[], list[Path]],
-                 update_memory_file: Callable[[Path, str], None],
-                 min_hours_between: int = 24,
-                 min_sessions_since: int = 5):
-        """
-        Initialize the memory consolidation system.
-        
-        Args:
-            knowledge_dir: Directory where memory files are stored
-            get_recent_sessions: Function to retrieve recent session data
-            get_memory_files: Function to get list of memory files
-            update_memory_file: Function to update a memory file with new content
-            min_hours_between: Minimum hours between consolidation runs
-            min_sessions_since: Minimum sessions since last consolidation
-        """
-        self.knowledge_dir = knowledge_dir
-        self.get_recent_sessions = get_recent_sessions
-        self.get_memory_files = get_memory_files
-        self.update_memory_file = update_memory_file
-        self.min_hours_between = min_hours_between
-        self.min_sessions_since = min_sessions_since
-        
-        self._last_consolidation: Optional[float] = None
-        self._consolidation_lock: bool = False
-        self._task: Optional[asyncio.Task] = None
-        self._running: bool = False
-        
-    async def start(self):
-        """Start the memory consolidation background task."""
-        if self._running:
-            logger.warning("Memory consolidation already running")
-            return
-            
-        self._running = True
-        self._task = asyncio.create_task(self._consolidation_loop())
-        logger.info("Started memory consolidation system")
-        
-    async def stop(self):
-        """Stop the memory consolidation background task."""
-        self._running = False
-        if self._task:
-            self._task.cancel()
+GATEWAY_LOG  = LOGS_DIR / "gateway_trace.jsonl"
+CONSOL_CACHE = DATA_DIR / "last_consolidation.json"
+PRUNE_KEEP_DAYS = 30
+MIN_TRACES_FOR_SUMMARY = 3
+
+
+# ── public API ────────────────────────────────────────────────────────────────
+
+def nightly_dream() -> str:
+    """Full consolidation pass: summarize recent clusters, prune log, update mirror."""
+    results: list[str] = []
+
+    try:
+        n = consolidate_recent(days=3)
+        results.append(f"Consolidated {n} trace cluster(s) into long-term memory")
+    except Exception as e:
+        logger.error("consolidate_recent failed: %s", e)
+        results.append(f"Consolidation error: {e}")
+
+    try:
+        pruned = prune_trace_log(keep_days=PRUNE_KEEP_DAYS)
+        results.append(f"Pruned {pruned} old trace entries (kept last {PRUNE_KEEP_DAYS}d)")
+    except Exception as e:
+        results.append(f"Prune error: {e}")
+
+    try:
+        from gateway.honcho import get_weekly_mirror
+        mirror = get_weekly_mirror(use_cache=False)
+        summary = mirror.get("summary", "")[:120]
+        results.append(f"Weekly mirror refreshed: {summary}")
+    except Exception as e:
+        results.append(f"Mirror error: {e}")
+
+    _save_timestamp()
+    return "\n".join(results)
+
+
+def consolidate_recent(days: int = 3) -> int:
+    """
+    Read traces from the last N days, group by domain, call LLM to summarize
+    each cluster, store result as a memory fact. Returns cluster count processed.
+    """
+    from gateway.honcho import get_recent_traces
+    traces = get_recent_traces(days=days)
+    if not traces:
+        return 0
+
+    last_ts = _load_last_consolidation_ts()
+    new_traces = [t for t in traces if t.get("timestamp", 0) > last_ts]
+    if len(new_traces) < MIN_TRACES_FOR_SUMMARY:
+        return 0
+
+    clusters = _cluster_by_domain(new_traces)
+    count = 0
+    for domain, cluster_traces in clusters.items():
+        if len(cluster_traces) < MIN_TRACES_FOR_SUMMARY:
+            continue
+        summary = _summarize_cluster(domain, cluster_traces)
+        if summary:
+            _store_memory(domain, summary, cluster_traces)
+            count += 1
+
+    return count
+
+
+def prune_trace_log(keep_days: int = PRUNE_KEEP_DAYS) -> int:
+    """Remove lines older than keep_days from the trace log. Returns pruned count."""
+    if not GATEWAY_LOG.exists():
+        return 0
+    cutoff = time.time() - keep_days * 86400
+    kept: list[str] = []
+    pruned = 0
+    with GATEWAY_LOG.open("r", errors="ignore") as f:
+        for line in f:
+            if not line.strip():
+                continue
             try:
-                await self._task
-            except asyncio.CancelledError:
-                pass
-            self._task = None
-        logger.info("Stopped memory consolidation system")
-        
-    async def _consolidation_loop(self):
-        """Main consolidation loop that checks gates and runs consolidation."""
-        while self._running:
-            try:
-                # Check if we should run consolidation
-                if await self._should_consolidate():
-                    await self._run_consolidation()
-                
-                # Check every hour or so
-                await asyncio.sleep(3600)
-                
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Error in consolidation loop: {e}")
-                await asyncio.sleep(3600)  # Continue after error
-                
-    async def _should_consolidate(self) -> bool:
-        """Check if all gates are open for consolidation."""
-        # Gate 1: Time gate
-        now = time.time()
-        if self._last_consolidation is not None:
-            hours_since = (now - self._last_consolidation) / 3600
-            if hours_since < self.min_hours_between:
-                logger.debug(f"Time gate closed: {hours_since:.1f}h < {self.min_hours_between}h")
-                return False
-        
-        # Gate 2: Session gate
-        try:
-            recent_sessions = self.get_recent_sessions()
-            if len(recent_sessions) < self.min_sessions_since:
-                logger.debug(f"Session gate closed: {len(recent_sessions)} sessions < {self.min_sessions_since}")
-                return False
-        except Exception as e:
-            logger.error(f"Error checking session gate: {e}")
-            return False
-            
-        # Gate 3: Lock gate
-        if self._consolidation_lock:
-            logger.debug("Lock gate closed: consolidation already in progress")
-            return False
-            
-        logger.info("All gates open for memory consolidation")
-        return True
-        
-    async def _run_consolidation(self):
-        """Run the memory consolidation process (Claude Code's dream)."""
-        logger.info("Starting memory consolidation (dream)")
-        self._consolidation_lock = True
-        
-        try:
-            # Phase 1: Orient
-            await self._phase_1_orient()
-            
-            # Phase 2: Gather Recent Signal
-            recent_signal = await self._phase_2_gather_recent_signal()
-            
-            # Phase 3: Consolidate
-            consolidated_content = await self._phase_3_consolidate(recent_signal)
-            
-            # Phase 4: Prune and Index
-            await self._phase_4_prune_and_index(consolidated_content)
-            
-            # Record completion
-            self._last_consolidation = time.time()
-            logger.info("Memory consolidation completed successfully")
-            
-        except Exception as e:
-            logger.exception(f"Memory consolidation failed: {e}")
-        finally:
-            self._consolidation_lock = False
-            
-    async def _phase_1_orient(self):
-        """Phase 1: Orient - ls the memory directory, read memory index, skim existing files."""
-        logger.debug("Phase 1: Orient")
-        
-        try:
-            # List memory directory
-            memory_files = self.get_memory_files()
-            logger.debug(f"Found {len(memory_files)} memory files")
-            
-            # In a full implementation, we would read the main memory index file
-            # For now, we just log what we found
-            for mem_file in memory_files[:5]:  # Log first 5 files
-                logger.debug(f"Memory file: {mem_file.name}")
-                
-        except Exception as e:
-            logger.error(f"Error in orient phase: {e}")
-            
-    async def _phase_2_gather_recent_signal(self) -> str:
-        """Phase 2: Gather Recent Signal - find new information worth persisting."""
-        logger.debug("Phase 2: Gather Recent Signal")
-        
-        try:
-            # Get recent sessions (priority: daily logs → drifted memories → transcript search)
-            recent_sessions = self.get_recent_sessions()
-            
-            # Extract key information from recent sessions
-            signal_parts = []
-            for session in recent_sessions[-10:]:  # Last 10 sessions
-                if isinstance(session, dict):
-                    # Extract meaningful content
-                    content = session.get('content', '') or session.get('goal', '')
-                    if content:
-                        signal_parts.append(f"- {content[:200]}...")
-                        
-            # Also look for contradictions or new information
-            # In a full implementation, we would compare with existing memories
-            
-            signal = "\n".join(signal_parts) if signal_parts else "No significant recent activity detected."
-            logger.debug(f"Gathered signal: {signal[:100]}...")
-            return signal
-            
-        except Exception as e:
-            logger.error(f"Error gathering recent signal: {e}")
-            return "Error gathering recent signal"
-            
-    async def _phase_3_consolidate(self, recent_signal: str) -> str:
-        """Phase 3: Consolidate - write or update memory files."""
-        logger.debug("Phase 3: Consolidate")
-        
-        try:
-            # In Claude Code's system, this would use an LLM to process the signal
-            # and update memory files. For now, we'll create a simple summary.
-            
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            consolidated_content = f"""# Memory Consolidation Log
-## Consolidated at: {timestamp}
+                entry = json.loads(line)
+                if entry.get("timestamp", 0) >= cutoff:
+                    kept.append(line)
+                else:
+                    pruned += 1
+            except json.JSONDecodeError:
+                kept.append(line)
+    if pruned:
+        GATEWAY_LOG.write_text("".join(kept))
+    return pruned
 
-### Recent Activity Summary
-{recent_signal}
 
-### Key Insights
-- System has been processing user requests and agent tasks
-- Memory consolidation system is now active
-- Ready to retain important learnings from interactions
+def get_last_run_info() -> dict:
+    """Return metadata about the last consolidation run."""
+    if not CONSOL_CACHE.exists():
+        return {"last_run": None, "never": True}
+    try:
+        return json.loads(CONSOL_CACHE.read_text())
+    except Exception:
+        return {"last_run": None, "error": True}
 
-### Actions Taken
-- Completed orient phase: surveyed memory directory
-- Completed signal gathering: analyzed recent sessions
-- Ready for consolidation phase
-"""
-            
-            # In a full implementation, we would:
-            # 1. Use an LLM to analyze the signal and extract key insights
-            # 2. Update existing memory files or create new ones
-            # 3. Convert relative dates to absolute dates
-            # 4. Delete contradicted facts
-            
-            logger.debug(f"Prepared consolidated content: {len(consolidated_content)} chars")
-            return consolidated_content
-            
-        except Exception as e:
-            logger.error(f"Error in consolidation phase: {e}")
-            return f"Error during consolidation: {e}"
-            
-    async def _phase_4_prune_and_index(self, consolidated_content: str):
-        """Phase 4: Prune and Index - maintain memory files under limits."""
-        logger.debug("Phase 4: Prune and Index")
-        
-        try:
-            # In Claude Code's system:
-            # - Keep MAIN_MEMORY_FILE under 200 lines AND ~25KB
-            # - Remove stale pointers
-            # - Resolve contradictions
-            
-            # For now, we'll just log what we would do
-            logger.debug("Would prune memory index to under 200 lines and 25KB")
-            logger.debug("Would remove stale pointers and resolve contradictions")
-            
-            # In a full implementation, we would:
-            # 1. Update or create a consolidated memory file
-            # 2. Ensure it meets size limits
-            # 3. Update any index files
-            
-        except Exception as e:
-            logger.error(f"Error in prune and index phase: {e}")
 
-# Global instance
-_memory_consolidation_system: Optional[MemoryConsolidationSystem] = None
+# ── internals ─────────────────────────────────────────────────────────────────
 
-def initialize_memory_consolidation(knowledge_dir: Path,
-                                  get_recent_sessions: Callable[[], list[Dict[str, Any]]],
-                                  get_memory_files: Callable[[], list[Path]],
-                                  update_memory_file: Callable[[Path, str], None],
-                                  min_hours_between: int = 24,
-                                  min_sessions_since: int = 5) -> MemoryConsolidationSystem:
-    """Initialize the global memory consolidation system."""
-    global _memory_consolidation_system
-    _memory_consolidation_system = MemoryConsolidationSystem(
-        knowledge_dir=knowledge_dir,
-        get_recent_sessions=get_recent_sessions,
-        get_memory_files=get_memory_files,
-        update_memory_file=update_memory_file,
-        min_hours_between=min_hours_between,
-        min_sessions_since=min_sessions_since
+def _cluster_by_domain(traces: list[dict]) -> dict[str, list[dict]]:
+    clusters: dict[str, list[dict]] = defaultdict(list)
+    for t in traces:
+        domain = t.get("domain_classified", "general") or "general"
+        clusters[domain].append(t)
+    return dict(clusters)
+
+
+def _summarize_cluster(domain: str, traces: list[dict]) -> Optional[str]:
+    """Use LLM to summarize a cluster of traces into a durable fact sentence."""
+    try:
+        from gateway.llm_client import call_llm
+    except ImportError:
+        return None
+
+    snippets = "\n".join(
+        f"- {t.get('user_request', '')[:100]}" for t in traces[-15:]
     )
-    return _memory_consolidation_system
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are summarizing recent interactions for a personal AI companion. "
+                "Write ONE concise sentence (under 80 words) capturing what Jacob has "
+                "been focused on in the '{domain}' domain. Start with 'Jacob has been...'"
+            ).replace("{domain}", domain),
+        },
+        {
+            "role": "user",
+            "content": f"Recent {domain} interactions:\n{snippets}",
+        },
+    ]
+    try:
+        result = call_llm(messages=messages, model="kitty-default")
+        return result.strip() if result else None
+    except Exception as e:
+        logger.warning("Cluster summarization failed for %s: %s", domain, e)
+        return None
 
-def get_memory_consolidation_system() -> Optional[MemoryConsolidationSystem]:
-    """Get the global memory consolidation system instance."""
-    return _memory_consolidation_system
 
-async def start_memory_consolidation():
-    """Start the memory consolidation system if initialized."""
-    if _memory_consolidation_system:
-        await _memory_consolidation_system.start()
-        
-async def stop_memory_consolidation():
-    """Stop the memory consolidation system if running."""
-    if _memory_consolidation_system:
-        await _memory_consolidation_system.stop()
+def _store_memory(domain: str, summary: str, traces: list[dict]) -> None:
+    """Write summary into long-term memory store."""
+    try:
+        from gateway.memory import add_memory
+        ts_str = time.strftime("%Y-%m-%d")
+        text = f"[{ts_str} consolidation/{domain}] {summary}"
+        add_memory(text, namespace="consolidations", metadata={"domain": domain, "trace_count": len(traces)})
+    except Exception as e:
+        logger.warning("Failed to store memory for %s: %s", domain, e)
+
+
+def _load_last_consolidation_ts() -> float:
+    info = get_last_run_info()
+    return info.get("timestamp", 0) or 0
+
+
+def _save_timestamp() -> None:
+    CONSOL_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    CONSOL_CACHE.write_text(json.dumps({
+        "last_run": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "timestamp": time.time(),
+    }))

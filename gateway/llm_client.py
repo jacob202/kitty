@@ -51,9 +51,6 @@ _LEGACY_MODEL_ALIASES: dict[str, str] = {
     "kitty-smart": _LITELLM_DEFAULT,
     "kitty-parts": _LITELLM_DEFAULT,
     "kitty-fallback-or": _LITELLM_DEFAULT,
-    "claude-sonnet-4-6": _LITELLM_DEFAULT,
-    "anthropic/claude-sonnet-4.6": _LITELLM_DEFAULT,
-    "anthropic/claude-3.7-sonnet": _LITELLM_DEFAULT,
     "deepseek/deepseek-chat": _LITELLM_DEFAULT,
     "deepseek/deepseek-v4-flash": _LITELLM_DEFAULT,
     "google/gemini-2.0-flash-001": _LITELLM_DEFAULT,
@@ -597,7 +594,17 @@ _BEST_TRIGGERS = frozenset(
     }
 )
 
+_LITELLM_SONNET = "kitty-sonnet"
+
+
 def route_model(message: str) -> str:
-    """Single-route model selector for Kitty."""
-    logger.debug("routing: single route -> %s", _LITELLM_DEFAULT)
+    """Route to Sonnet for reasoning/review requests; DeepSeek Flash for everything else."""
+    lower = message.lower()
+    if any(t in lower for t in _BEST_TRIGGERS):
+        logger.debug("routing: best-trigger -> %s", _LITELLM_SONNET)
+        return _LITELLM_SONNET
+    if any(kw in lower for kw in _REASONING_KEYWORDS):
+        logger.debug("routing: reasoning keyword -> %s", _LITELLM_SONNET)
+        return _LITELLM_SONNET
+    logger.debug("routing: default -> %s", _LITELLM_DEFAULT)
     return _LITELLM_DEFAULT

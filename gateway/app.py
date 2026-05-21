@@ -21,10 +21,24 @@ from gateway.llm_client import route_model
 from gateway.prompt_loader import load_prompt
 
 from contextlib import asynccontextmanager
-from gateway.paths import LOG_FILE, LITELLM_BASE, LITELLM_KEY, validate_dirs, validate_env
+from gateway.paths import LOG_FILE, LITELLM_BASE, LITELLM_KEY, DATA_DIR, validate_dirs, validate_env
 from gateway.token_usage_log import log_llm_usage, normalize_usage_payload
 
 _http_client: httpx.AsyncClient | None = None
+
+
+async def _brief_bg_loop():
+    """Warm the brief cache on startup, then refresh every 15 minutes."""
+    import asyncio
+    from gateway.brief import generate_brief
+    loop = asyncio.get_event_loop()
+    while True:
+        try:
+            await loop.run_in_executor(None, generate_brief)
+            logger.info("Brief cache refreshed.")
+        except Exception as e:
+            logger.warning("Brief refresh failed: %s", e)
+        await asyncio.sleep(900)
 
 
 @asynccontextmanager
@@ -38,7 +52,40 @@ async def lifespan(app: FastAPI):
             start_polling()
     except Exception:
         pass
+    brief_task = asyncio.create_task(_brief_bg_loop())
+    # Start cron scheduler + register built-in actions
+    try:
+        from gateway.cron import start as cron_start, register_action
+
+        async def _action_refresh_brief():
+            from gateway.brief import generate_brief
+            await asyncio.to_thread(generate_brief)
+
+        async def _action_check_nudges():
+            from gateway.nudge import check
+            check()
+
+        async def _action_check_monitors():
+            from gateway.web_monitor import check_now, list_watches
+            for w in list_watches():
+                try:
+                    await check_now(w["watch_id"])
+                except Exception:
+                    pass
+
+        async def _action_memory_consolidate():
+            from gateway.memory_consolidation import nightly_dream
+            await asyncio.to_thread(nightly_dream)
+
+        register_action("brief.refresh", _action_refresh_brief)
+        register_action("nudges.check", _action_check_nudges)
+        register_action("monitors.check", _action_check_monitors)
+        register_action("memory.consolidate", _action_memory_consolidate)
+        cron_start()
+    except Exception:
+        pass
     yield
+    brief_task.cancel()
     global _http_client
     if _http_client and not _http_client.is_closed:
         await _http_client.aclose()
@@ -108,6 +155,13 @@ async def health():
     return {"status": "ok", "service": "kitty-gateway"}
 
 
+@app.get("/mood")
+async def get_mood():
+    """Return Kitty's current mood and session stats for the UI."""
+    from gateway.buddy import get_state
+    return get_state()
+
+
 @app.get("/brief")
 @app.get("/api/brief")
 async def morning_brief():
@@ -127,6 +181,49 @@ async def morning_brief():
         return generate_fast_brief()
 
 
+_CHATS_FILE = DATA_DIR / "kitty" / "chats.json"
+
+
+def _read_chats() -> list:
+    if not _CHATS_FILE.exists():
+        return []
+    try:
+        return json.loads(_CHATS_FILE.read_text())
+    except Exception:
+        return []
+
+
+def _write_chats(chats: list) -> None:
+    _CHATS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _CHATS_FILE.write_text(json.dumps(chats, ensure_ascii=False))
+
+
+@app.get("/chats")
+async def get_chats():
+    """Return all saved chat sessions."""
+    return {"chats": _read_chats()}
+
+
+@app.post("/chats")
+async def upsert_chat(request: Request):
+    """Create or update a chat session by id."""
+    chat = await request.json()
+    if not chat.get("id"):
+        raise HTTPException(status_code=400, detail="id required")
+    existing = _read_chats()
+    updated = [c for c in existing if c.get("id") != chat["id"]] + [chat]
+    _write_chats(updated)
+    return {"ok": True}
+
+
+@app.delete("/chats/{chat_id}")
+async def delete_chat(chat_id: str):
+    """Delete a chat session."""
+    existing = _read_chats()
+    _write_chats([c for c in existing if c.get("id") != chat_id])
+    return {"ok": True}
+
+
 @app.post("/ask")
 async def ask(payload: AskRequest):
     """Plain JSON chat endpoint for Siri Shortcuts and scripts."""
@@ -134,38 +231,49 @@ async def ask(payload: AskRequest):
     if not message:
         raise HTTPException(status_code=400, detail="message is required")
 
+    from gateway.buddy import on_request_start, on_request_success, on_request_error, on_context_fetch
     from gateway.context_builder import get_system_prompt
 
-    domain = classify_domain(message)
-    system_prompt = await get_system_prompt(
-        message, parts_mode=payload.parts_mode, domain=domain
-    )
+    on_request_start()
+    try:
+        domain = classify_domain(message)
+        on_context_fetch()
+        system_prompt = await get_system_prompt(
+            message, parts_mode=payload.parts_mode, domain=domain
+        )
 
-    model = route_model(message)
-    llm_payload = {
-        "model": model,
-        "stream": False,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": message},
-        ],
-    }
-    data = await _non_stream_response(llm_payload)
-    choices = data.get("choices", []) if isinstance(data, dict) else []
-    reply = ""
-    if choices and isinstance(choices[0], dict):
-        message_obj = choices[0].get("message", {})
-        if isinstance(message_obj, dict):
-            reply = message_obj.get("content", "")
+        model = route_model(message)
+        llm_payload = {
+            "model": model,
+            "stream": False,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": message},
+            ],
+        }
+        data = await _non_stream_response(llm_payload)
+        choices = data.get("choices", []) if isinstance(data, dict) else []
+        reply = ""
+        if choices and isinstance(choices[0], dict):
+            message_obj = choices[0].get("message", {})
+            if isinstance(message_obj, dict):
+                reply = message_obj.get("content", "")
 
-    from gateway.voice_gate import filter_response
-    gate = filter_response(reply)
-    reply = gate.cleaned
+        from gateway.voice_gate import filter_response
+        gate = filter_response(reply)
+        reply = gate.cleaned
+        if gate.violations:
+            on_request_error()
+        else:
+            on_request_success()
 
-    from gateway.self_review import record_interaction
-    record_interaction(message, reply)
+        from gateway.self_review import record_interaction
+        record_interaction(message, reply)
 
-    return {"reply": reply}
+        return {"reply": reply}
+    except Exception:
+        on_request_error()
+        raise
 
 
 @app.get("/journal/prompt")
@@ -214,6 +322,31 @@ async def journal_synthesize(request: Request):
     if entry:
         save_journal_entry(entry, theme=theme, session_id=session_id)
     return {"entry": entry}
+
+
+class JournalChatRequest(BaseModel):
+    messages: list[dict]
+    system_prompt: str = ""
+
+
+@app.post("/journal/chat")
+async def journal_chat(payload: JournalChatRequest):
+    """Single journal interview turn — uses provided system_prompt, bypasses context_builder."""
+    if not payload.messages:
+        raise HTTPException(status_code=400, detail="messages required")
+    model = route_model("")
+    llm_messages: list[dict] = []
+    if payload.system_prompt:
+        llm_messages.append({"role": "system", "content": payload.system_prompt})
+    llm_messages.extend(payload.messages)
+    data = await _non_stream_response({"model": model, "stream": False, "messages": llm_messages})
+    choices = data.get("choices", []) if isinstance(data, dict) else []
+    reply = ""
+    if choices and isinstance(choices[0], dict):
+        msg = choices[0].get("message", {})
+        if isinstance(msg, dict):
+            reply = msg.get("content", "")
+    return {"reply": reply}
 
 
 @app.get("/reset")
@@ -674,6 +807,21 @@ async def cron_delete(schedule_id: str):
     return {"deleted": True}
 
 
+@app.post("/cron/{schedule_id}/toggle")
+async def cron_toggle(schedule_id: str):
+    from gateway.cron import toggle
+    state = toggle(schedule_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    return {"enabled": state}
+
+
+@app.get("/cron/actions")
+async def cron_actions():
+    from gateway.cron import get_actions
+    return {"actions": get_actions()}
+
+
 # --- Build endpoints ---
 
 class BuildStartRequest(BaseModel):
@@ -790,6 +938,13 @@ async def monitor_delete(watch_id: str):
 
 # --- Calendar endpoints ---
 
+@app.get("/weather")
+async def weather():
+    """Current weather for Regina."""
+    from gateway.weather import get_weather
+    return get_weather() or {"error": "weather unavailable"}
+
+
 @app.get("/calendar/today")
 async def calendar_today():
     from gateway.calendar import get_today, is_available
@@ -902,6 +1057,30 @@ async def todos_clear():
     from gateway.todo_store import clear
     clear()
     return {"todos": []}
+
+
+class TodoAddRequest(BaseModel):
+    content: str = Field(min_length=1, max_length=500)
+    status: str = "pending"
+    active_form: str = ""
+
+
+@app.post("/todos/add")
+async def todos_add(payload: TodoAddRequest):
+    from gateway.todo_store import add
+    return add(payload.content, payload.status, payload.active_form)
+
+
+@app.post("/todos/{todo_id}/complete")
+async def todos_complete_by_id(todo_id: int):
+    from gateway.todo_store import complete_by_id
+    return {"completed": complete_by_id(todo_id), "id": todo_id}
+
+
+@app.delete("/todos/{todo_id}")
+async def todos_delete(todo_id: int):
+    from gateway.todo_store import delete_by_id
+    return {"deleted": delete_by_id(todo_id), "id": todo_id}
 
 
 # --- Agent endpoints ---
@@ -1032,3 +1211,25 @@ async def image_generate(req: ImageGenRequest):
         raise HTTPException(status_code=504, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/image/view/{filename}")
+async def image_view(filename: str):
+    """Proxy an output image from ComfyUI (works with both local and Colab tunnel URLs)."""
+    import httpx
+    from gateway.image_gen import COMFY_URL
+    from fastapi.responses import Response
+    url = f"{COMFY_URL}/view?filename={filename}&subfolder=&type=output"
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.get(url)
+        if r.status_code != 200:
+            raise HTTPException(status_code=404, detail="Image not found in ComfyUI")
+        ct = r.headers.get("content-type", "image/png")
+        return Response(content=r.content, media_type=ct)
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"Could not reach ComfyUI: {e}")
+
+@app.get("/image/history")
+async def image_history():
+    from gateway.image_gen import get_history
+    return {"images": get_history()}

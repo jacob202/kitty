@@ -1,9 +1,17 @@
 'use client'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import type { CSSProperties } from 'react'
 import { Chat } from '@/lib/types'
-import { commandZones, contextFound, continueItems, realityCheck, signals, type DashboardTone } from '@/lib/dashboardMock'
-import type { GatewayBrief } from '@/lib/gateway'
+import { commandZones, realityCheck, type DashboardTone } from '@/lib/dashboardMock'
+import type { GatewayBrief, CalendarEvent } from '@/lib/gateway'
+import { fetchCalendarToday } from '@/lib/gateway'
+import { TaskPanel } from './TaskPanel'
+import { MonitorPanel } from './MonitorPanel'
+import { TodoPanel } from './TodoPanel'
+import { JournalPanel } from './JournalPanel'
+import { AgentPanel } from './AgentPanel'
+import { ImageGenPanel } from './ImageGenPanel'
+import { CronPanel } from './CronPanel'
 
 interface Props {
   chats: Chat[]
@@ -12,8 +20,24 @@ interface Props {
   brief?: GatewayBrief | null
 }
 
+interface WeeklyPatterns {
+  total_interactions: number
+  top_domains: [string, number][]
+  peak_hour: number
+  trend_direction: string
+  avg_response_ms: number
+}
+
 export function BriefPanel({ chats, onSelectChat, onPrompt, brief }: Props) {
   const [tone, setTone] = useState<DashboardTone>('gentle')
+  const [calEvents, setCalEvents] = useState<CalendarEvent[]>([])
+  const [patterns, setPatterns] = useState<WeeklyPatterns | null>(null)
+
+  useEffect(() => {
+    void fetchCalendarToday().then(setCalEvents)
+    void fetch('/proxy/patterns/weekly').then(r => r.ok ? r.json() : null).then(j => j && setPatterns(j as WeeklyPatterns))
+  }, [])
+
   const recentChats = useMemo(() => {
     return [...chats]
       .filter(c => c.messages.length > 0)
@@ -38,8 +62,8 @@ export function BriefPanel({ chats, onSelectChat, onPrompt, brief }: Props) {
         </div>
 
         <div style={statusStripStyle}>
-          <span>gateway: 8000</span>
-          <span>{brief?.notification_sent ? 'brief sent' : 'brief live'}</span>
+          <span>gateway: 5001</span>
+          <span>{brief ? 'brief live' : 'awaiting brief'}</span>
           <span>{brief?.date ?? 'backend next'}</span>
         </div>
       </section>
@@ -52,7 +76,7 @@ export function BriefPanel({ chats, onSelectChat, onPrompt, brief }: Props) {
           <div style={liveBriefGridStyle}>
             <div>
               <div style={liveBriefLabelStyle}>Headline</div>
-              <p style={liveBriefHeadlineStyle}>{brief.headlines[0] ?? 'No headline yet.'}</p>
+              <p style={liveBriefHeadlineStyle}>{brief.headlines[0]?.title ?? 'No headline yet.'}</p>
             </div>
             <div>
               <div style={liveBriefLabelStyle}>Intention</div>
@@ -62,6 +86,23 @@ export function BriefPanel({ chats, onSelectChat, onPrompt, brief }: Props) {
               <div style={liveBriefLabelStyle}>Memory</div>
               <p style={bodyStyle}>{brief.memory_snippet || 'No memory snippet returned yet.'}</p>
             </div>
+            {calEvents.length > 0 && (
+              <div>
+                <div style={liveBriefLabelStyle}>Today</div>
+                <div style={{ display: 'grid', gap: 4, marginTop: 4 }}>
+                  {calEvents.slice(0, 5).map((ev, i) => (
+                    <div key={i} style={calEventRowStyle}>
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                        {ev.start.split(' ')[1] ?? ev.start}
+                      </span>
+                      <span style={{ fontSize: 12, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
+                        {ev.title}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <p style={bodyStyle}>The live gateway brief will appear here once the backend responds.</p>
@@ -69,24 +110,57 @@ export function BriefPanel({ chats, onSelectChat, onPrompt, brief }: Props) {
       </section>
 
       <section style={topCardsStyle}>
-        <StatusCard tone="blue" label="Next up" title="clean home surface" meta="now">
-          Consolidate the dashboard around one useful continuation, not a wall of widgets.
-        </StatusCard>
-        <StatusCard tone="orange" label="Suggested fix" title="proxy default" meta="ready">
-          KittyChat should default to the live gateway at 127.0.0.1:8000.
-        </StatusCard>
-        <StatusCard tone="green" label="Signal" title="typescript clean" meta="verified">
-          Keep the UI pass buildable before plumbing deeper backend contracts.
-        </StatusCard>
+        <PatternCard
+          label="this week"
+          title={patterns ? String(patterns.total_interactions) : '—'}
+          meta={patterns?.trend_direction ?? 'loading'}
+          tone="blue"
+        >
+          {patterns
+            ? `${patterns.total_interactions} interactions · avg ${Math.round((patterns.avg_response_ms ?? 0) / 1000)}s response`
+            : 'Fetching pattern data from gateway…'}
+        </PatternCard>
+        <PatternCard
+          label="top domain"
+          title={patterns?.top_domains?.[0]?.[0] ?? '—'}
+          meta={patterns?.top_domains?.[0] ? String(patterns.top_domains[0][1]) + ' msgs' : 'no data'}
+          tone="orange"
+        >
+          {patterns?.top_domains?.slice(0, 3).map(([d, n]) => `${d} (${n})`).join(' · ') ?? 'No domain data yet.'}
+        </PatternCard>
+        <PatternCard
+          label="peak hour"
+          title={patterns != null ? `${String(patterns.peak_hour).padStart(2, '0')}:00` : '—'}
+          meta="most active"
+          tone="green"
+        >
+          {patterns
+            ? `You tend to be most active around ${String(patterns.peak_hour).padStart(2, '0')}:00 this week.`
+            : 'Peak hour analysis loading…'}
+        </PatternCard>
       </section>
 
       <section style={contentGridStyle}>
         <div style={activityStyle}>
           <SectionHeader title="Activity feed" meta="current lane" />
           <div style={feedStyle}>
-            <FeedRow speaker="You" text="the mascot idea and dashboard are right; the implementation needs better craft." />
-            <FeedRow speaker="Kitty" text="Understood. Keep the identity, rebuild the surface with less noise and stronger hierarchy." highlighted />
-            <FeedRow speaker="Next" text="Use the design-system references: tabby orange, muted cards, right-side context, quiet glow." />
+            {recentChats.length === 0 ? (
+              <p style={bodyStyle}>No recent activity. Start a chat below.</p>
+            ) : recentChats.map((chat, i) => {
+              const lastMsg = chat.messages.filter(m => m.role === 'assistant').at(-1)
+                ?? chat.messages.at(-1)
+              const preview = (lastMsg?.content ?? '')
+                .replace(/```[\s\S]*?```/g, '[code]')
+                .slice(0, 160)
+              return (
+                <FeedRow
+                  key={chat.id}
+                  speaker={chat.title}
+                  text={preview || 'No messages yet.'}
+                  highlighted={i === 0}
+                />
+              )
+            })}
           </div>
 
           <div style={lastSessionBoxStyle}>
@@ -137,14 +211,68 @@ export function BriefPanel({ chats, onSelectChat, onPrompt, brief }: Props) {
           </div>
 
           <div style={panelCardStyle}>
-            <SectionHeader title="Context found" meta="live" compact />
+            <SectionHeader title="Gateway" meta="live" compact />
             <div style={miniListStyle}>
-              {[...contextFound.slice(0, 2), signals[1], continueItems[2]].map(item => (
-                <div key={`${item.label}-${item.value}`} style={{ ...miniRowStyle, borderLeftColor: item.accent }}>
+              {([
+                { label: 'brief', value: brief ? 'live' : 'loading', accent: brief ? 'var(--teal)' : 'var(--text-faint)' },
+                { label: 'patterns', value: patterns ? `${patterns.trend_direction}` : 'pending', accent: patterns ? 'var(--indigo)' : 'var(--text-faint)' },
+                { label: 'calendar', value: calEvents.length > 0 ? `${calEvents.length} today` : 'none', accent: calEvents.length > 0 ? 'var(--purple)' : 'var(--text-faint)' },
+                { label: 'chats', value: String(chats.length), accent: 'var(--orange)' },
+              ] as { label: string; value: string; accent: string }[]).map(item => (
+                <div key={item.label} style={{ ...miniRowStyle, borderLeftColor: item.accent }}>
                   <span style={miniLabelStyle}>{item.label}</span>
                   <span style={miniValueStyle}>{item.value}</span>
                 </div>
               ))}
+            </div>
+          </div>
+
+          <div style={panelCardStyle}>
+            <SectionHeader title="Todos" meta="active" compact />
+            <div style={{ marginTop: 10 }}>
+              <TodoPanel />
+            </div>
+          </div>
+
+          <div style={panelCardStyle}>
+            <SectionHeader title="Journal" meta="interview" compact />
+            <div style={{ marginTop: 10 }}>
+              <JournalPanel />
+            </div>
+          </div>
+
+          <div style={panelCardStyle}>
+            <SectionHeader title="Agents" meta="spawn" compact />
+            <div style={{ marginTop: 10 }}>
+              <AgentPanel />
+            </div>
+          </div>
+
+          <div style={panelCardStyle}>
+            <SectionHeader title="Image gen" meta="comfyui" compact />
+            <div style={{ marginTop: 10 }}>
+              <ImageGenPanel />
+            </div>
+          </div>
+
+          <div style={panelCardStyle}>
+            <SectionHeader title="Background tasks" meta="queue" compact />
+            <div style={{ marginTop: 10 }}>
+              <TaskPanel />
+            </div>
+          </div>
+
+          <div style={panelCardStyle}>
+            <SectionHeader title="Web monitors" meta="watching" compact />
+            <div style={{ marginTop: 10 }}>
+              <MonitorPanel />
+            </div>
+          </div>
+
+          <div style={panelCardStyle}>
+            <SectionHeader title="Cron" meta="schedules" compact />
+            <div style={{ marginTop: 10 }}>
+              <CronPanel />
             </div>
           </div>
         </aside>
@@ -153,7 +281,7 @@ export function BriefPanel({ chats, onSelectChat, onPrompt, brief }: Props) {
   )
 }
 
-function StatusCard({ label, title, meta, tone, children }: {
+function PatternCard({ label, title, meta, tone, children }: {
   label: string
   title: string
   meta: string
@@ -366,6 +494,10 @@ const continueButtonStyle: CSSProperties = {
   display: 'grid',
   gap: 6,
   marginTop: 10,
+  background: 'transparent',
+  border: 'none',
+  cursor: 'pointer',
+  padding: 0,
 }
 
 const continueTitleStyle: CSSProperties = {
@@ -424,6 +556,7 @@ const commandStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 12,
   color: 'var(--text-dim)',
+  cursor: 'pointer',
 }
 
 const miniListStyle: CSSProperties = {
@@ -469,6 +602,14 @@ const toggleButtonStyle: CSSProperties = {
   padding: '6px 8px',
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
+}
+
+const calEventRowStyle: CSSProperties = {
+  display: 'flex',
+  gap: 8,
+  alignItems: 'baseline',
+  borderLeft: '2px solid var(--teal)',
+  paddingLeft: 8,
 }
 
 const sectionHeaderStyle: CSSProperties = {

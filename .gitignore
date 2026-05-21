@@ -53,5 +53,5 @@ out/
 .kiro/
 
 # Stale pre-restructure paths (canonical: gateway/kitty-chat/, gateway/)
-kitty-chat/
-kitty_gateway/
+/kitty-chat/
+/kitty_gateway/

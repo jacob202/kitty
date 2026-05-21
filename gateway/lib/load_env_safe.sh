@@ -8,7 +8,7 @@ load_env_assignments() {
   # so helper scripts don't try to execute junk from a hand-edited .env.
   set -a
   eval "$(
-    /opt/homebrew/bin/python3.12 - "${file}" <<'PY'
+    "${PYTHON_BIN:-$(command -v python3.12 || command -v python3 || echo python3)}" - "${file}" <<'PY'
 import os
 import re
 import shlex

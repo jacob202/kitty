@@ -67,12 +67,3 @@ def test_start_all_and_runtime_manifest_point_at_live_gateway_scripts() -> None:
     ]
 
 
-def test_legacy_operator_wrappers_exist_under_kitty_gateway() -> None:
-    for rel_path in (
-        "kitty_gateway/start_all.sh",
-        "kitty_gateway/status_all.sh",
-        "kitty_gateway/stop_all.sh",
-        "kitty_gateway/doctor.sh",
-    ):
-        path = ROOT / rel_path
-        assert path.exists(), f"Missing compatibility wrapper: {rel_path}"

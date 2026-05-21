@@ -49,13 +49,104 @@ async def get_system_prompt(
 
     # 4. Dynamic Context Retrieval (unified across all stores)
     dynamic_context = await memory_graph.unified_context(message)
-    
-    # 5. Drift correction nudge (if Kitty has been off-voice this session)
+
+    # 5. Calendar context — today's upcoming events (macOS only, silent on Linux)
+    try:
+        from gateway.calendar import get_upcoming_text, is_available as cal_available
+        if cal_available():
+            cal_text = await asyncio.to_thread(get_upcoming_text, 3)
+            if cal_text:
+                dynamic_context = f"{dynamic_context}\n\n{cal_text}" if dynamic_context else cal_text
+    except Exception:
+        pass
+
+    # 5.5 Weather context (30-min cached, Regina)
+    try:
+        from gateway.weather import get_weather_text
+        wx = await asyncio.to_thread(get_weather_text)
+        if wx:
+            dynamic_context = f"{dynamic_context}\n{wx}" if dynamic_context else wx
+    except Exception:
+        pass
+
+    # 5.6 Current todos
+    try:
+        from gateway.todo_store import get_todos_text
+        todos = get_todos_text()
+        if todos:
+            dynamic_context = f"{dynamic_context}\n\n{todos}" if dynamic_context else todos
+    except Exception:
+        pass
+
+    # 5.7 Recent iMessages (macOS only)
+    try:
+        from gateway.imessage import get_recent_text, is_available as imsg_available
+        if imsg_available():
+            imsg = await asyncio.to_thread(get_recent_text, 4)
+            if imsg:
+                dynamic_context = f"{dynamic_context}\n\n{imsg}" if dynamic_context else imsg
+    except Exception:
+        pass
+
+    # 5.8 Health summary (from last Apple Health export)
+    try:
+        from gateway.health_parser import get_health_text
+        health = get_health_text()
+        if health:
+            dynamic_context = f"{dynamic_context}\n\n{health}" if dynamic_context else health
+    except Exception:
+        pass
+
+    # 6. Ambient context — what app Jacob is currently in (opt-in via KITTY_AMBIENT_ENABLED=1)
+    try:
+        from gateway.ambient import get_ambient_text
+        ambient = get_ambient_text()
+        if ambient:
+            dynamic_context = f"{dynamic_context}\n{ambient}" if dynamic_context else ambient
+    except Exception:
+        pass
+
+    # 6.5 Behavioral patterns (30-day analysis from gateway trace log)
+    try:
+        from gateway.patterns import get_insight_text
+        pattern_text = await asyncio.to_thread(get_insight_text, 30)
+        if pattern_text:
+            dynamic_context = f"{dynamic_context}\n\n{pattern_text}" if dynamic_context else pattern_text
+    except Exception:
+        pass
+
+    # 6.6 Learning stats (absorption score, level, topics mastered)
+    try:
+        from gateway.learning import init_stats
+        stats = init_stats()
+        level = stats.get("user_level", 1)
+        score = stats.get("absorption_score", 0)
+        mastered = stats.get("topics_mastered", [])
+        if level > 1 or score > 0 or mastered:
+            learn_parts = [f"[Learning] Level {level}, absorption {score}/100"]
+            if mastered:
+                learn_parts.append(f"mastered: {', '.join(mastered[:5])}")
+            dynamic_context = f"{dynamic_context}\n{' — '.join(learn_parts)}" if dynamic_context else ' — '.join(learn_parts)
+    except Exception:
+        pass
+
+    # 7. Active nudges — pending proactive suggestions
+    try:
+        from gateway.nudge import get_pending
+        pending = get_pending()
+        if pending:
+            nudge_lines = "\n".join(f"- {n['message']}" for n in pending[:2])
+            nudge_block = f"[PENDING NUDGES]\n{nudge_lines}"
+            dynamic_context = f"{dynamic_context}\n\n{nudge_block}" if dynamic_context else nudge_block
+    except Exception:
+        pass
+
+    # 8. Drift correction nudge (if Kitty has been off-voice this session)
     nudge = voice_gate.get_drift_nudge()
     if nudge:
         dynamic_context = (dynamic_context + nudge) if dynamic_context else nudge
-    
-    # 6. Assembly
+
+    # 9. Assembly
     return _assemble(system_prompt, dynamic_context)
 
 

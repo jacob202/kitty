@@ -1,6 +1,6 @@
 """Tests for todo_store — structured task list CRUD."""
 import pytest
-from gateway.todo_store import update, get, add, complete, clear, init_db
+from gateway.todo_store import update, get, add, complete, clear, init_db, complete_by_id, delete_by_id
 
 
 class TestUpdate:
@@ -83,6 +83,63 @@ class TestClear:
         update([{"content": "a"}, {"content": "b"}])
         clear()
         assert get() == []
+
+
+class TestCompleteById:
+    def test_complete_by_id_returns_true(self):
+        clear()
+        todo = add("task to complete")
+        result = complete_by_id(todo["id"])
+        assert result is True
+
+    def test_complete_by_id_updates_status(self):
+        clear()
+        todo = add("finish me")
+        complete_by_id(todo["id"])
+        result = get()
+        match = next(t for t in result if t["id"] == todo["id"])
+        assert match["status"] == "completed"
+
+    def test_complete_by_id_nonexistent(self):
+        clear()
+        assert complete_by_id(99999) is False
+
+    def test_complete_by_id_does_not_affect_other_todos(self):
+        clear()
+        a = add("keep me")
+        b = add("complete me")
+        complete_by_id(b["id"])
+        result = get()
+        a_row = next(t for t in result if t["id"] == a["id"])
+        assert a_row["status"] == "pending"
+
+
+class TestDeleteById:
+    def test_delete_by_id_returns_true(self):
+        clear()
+        todo = add("to delete")
+        result = delete_by_id(todo["id"])
+        assert result is True
+
+    def test_delete_by_id_removes_row(self):
+        clear()
+        todo = add("ephemeral")
+        delete_by_id(todo["id"])
+        result = get()
+        assert not any(t["id"] == todo["id"] for t in result)
+
+    def test_delete_by_id_nonexistent(self):
+        clear()
+        assert delete_by_id(99999) is False
+
+    def test_delete_by_id_does_not_affect_other_todos(self):
+        clear()
+        a = add("keep")
+        b = add("delete")
+        delete_by_id(b["id"])
+        result = get()
+        assert len(result) == 1
+        assert result[0]["id"] == a["id"]
 
 
 class TestInit:
