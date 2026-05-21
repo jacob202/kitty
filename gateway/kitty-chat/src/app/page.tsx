@@ -10,7 +10,7 @@ import { BriefPanel } from '@/components/BriefPanel'
 import { Rail } from '@/components/Rail'
 import { SessionSidebar } from '@/components/SessionSidebar'
 import { RightBar } from '@/components/RightBar'
-import { fetchGatewayBrief, fetchGatewayModels, fetchGatewaySearch, fetchGatewayMood, loadGatewayChats, saveGatewayChat, deleteGatewayChat, type GatewayBrief, type GatewaySearchSnapshot } from '@/lib/gateway'
+import { fetchGatewayBrief, fetchGatewayModels, fetchGatewaySearch, fetchGatewayMood, loadGatewayChats, saveGatewayChat, deleteGatewayChat, synthesizeSpeech, type GatewayBrief, type GatewaySearchSnapshot } from '@/lib/gateway'
 
 let chatCounter = 0
 function newChatId() { return `chat-${++chatCounter}-${Date.now()}` }
@@ -56,6 +56,8 @@ export default function KittyChat() {
   const [brief, setBrief] = useState<GatewayBrief | null>(null)
   const [searchSnapshot, setSearchSnapshot] = useState<GatewaySearchSnapshot | null>(null)
   const [kittyMood, setKittyMood] = useState<import('@/lib/types').KittyMood>('idle')
+  const [voiceEnabled, setVoiceEnabled] = useState(false)
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null)
 
   const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -250,6 +252,26 @@ export default function KittyChat() {
           m.id === aiMsgId ? { ...m, content: accumulated, mood } : m
         ),
       }))
+
+      // TTS playback — speak the response if voice is enabled
+      if (voiceEnabled && accumulated) {
+        void (async () => {
+          try {
+            // Strip markdown and keep it under ~500 chars for snappy playback
+            const plain = accumulated
+              .replace(/```[\s\S]*?```/g, '')
+              .replace(/[#*`_~>]/g, '')
+              .trim()
+              .slice(0, 500)
+            ttsAudioRef.current?.pause()
+            const url = await synthesizeSpeech(plain)
+            const audio = new Audio(url)
+            ttsAudioRef.current = audio
+            audio.play()
+            audio.onended = () => URL.revokeObjectURL(url)
+          } catch { /* TTS failure is non-fatal */ }
+        })()
+      }
     } catch (err: unknown) {
       if (err instanceof Error && err.name !== 'AbortError') {
         updateChat(activeChat.id, c => ({
@@ -271,7 +293,7 @@ export default function KittyChat() {
         return current
       })
     }
-  }, [input, isStreaming, activeChat, activeModel, updateChat])
+  }, [input, isStreaming, activeChat, activeModel, updateChat, voiceEnabled])
 
   const handlePrompt = useCallback((text: string) => {
     setInput(text)
@@ -354,6 +376,8 @@ export default function KittyChat() {
           tokenCount={tokenCount}
           maxTokens={200000}
           textareaRef={textareaRef}
+          voiceEnabled={voiceEnabled}
+          onVoiceToggle={() => setVoiceEnabled(v => !v)}
         />
       </main>
 

@@ -93,6 +93,28 @@ export async function fetchGatewayMood(): Promise<GatewayMoodState | null> {
   }
 }
 
+// ── Voice (STT / TTS) ────────────────────────────────────────────────────────
+
+export async function transcribeAudio(blob: Blob): Promise<string> {
+  const form = new FormData()
+  form.append('file', blob, 'audio.webm')
+  const res = await fetch(`${BASE}/v1/audio/transcriptions`, { method: 'POST', body: form })
+  if (!res.ok) throw new Error(`STT ${res.status}`)
+  const json = await res.json()
+  return (json.text ?? '').trim()
+}
+
+export async function synthesizeSpeech(text: string, voice = 'kitty'): Promise<string> {
+  const res = await fetch(`${BASE}/v1/audio/speech`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ input: text, voice }),
+  })
+  if (!res.ok) throw new Error(`TTS ${res.status}`)
+  const blob = await res.blob()
+  return URL.createObjectURL(blob)
+}
+
 // ── Weather ─────────────────────────────────────────────────────────────────
 
 export interface GatewayWeather {

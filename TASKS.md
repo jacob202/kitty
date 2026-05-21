@@ -52,8 +52,8 @@ These modules have endpoints in app.py but are fully disconnected from context/b
 | `learning.py` | `/learn` | No UI trigger |
 | `cron.py` | `/cron/*` | No UI for scheduling |
 | `image_gen.py` | `/image/*` | No UI |
-| `tts.py` | `/v1/audio/speech` | Not wired to chat response playback |
-| `stt.py` | `/v1/audio/transcriptions` | Not wired to InputBar mic button |
+| `tts.py` | `/v1/audio/speech` | ✅ Wired — voice toggle in InputBar, auto-plays responses |
+| `stt.py` | `/v1/audio/transcriptions` | ✅ Wired — mic button in InputBar, transcribes to text |
 | `skills/` | `/skills`, `/skill/*` | Not surfaced in UI |
 | `agents.py` | `/agent/*` | No UI to spawn/monitor agents |
 
@@ -71,4 +71,4 @@ These modules exist, have no routes, and no tests. Evaluate each:
 
 ## Next Smallest Action
 
-Phase 3 complete. Start Phase 4 — highest-value wiring: **STT/TTS** (mic button in InputBar + voice response playback) would make Kitty voice-interactive without any new backend work.
+Phase 4 STT/TTS done. Next: wire **`researcher.py`** (`/research/deep`) into TaskPanel as a "research" task type — already exists, just needs a UI path.
