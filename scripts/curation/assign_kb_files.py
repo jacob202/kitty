@@ -24,7 +24,7 @@ from pathlib import Path
 
 import requests
 
-WEBUI_URL = "http://127.0.0.1:3000"
+WEBUI_URL = os.environ.get("WEBUI_URL", "http://127.0.0.1:3001")
 EMAIL = os.environ.get("OWUI_EMAIL", "")
 PASSWORD = os.environ.get("OWUI_PASSWORD", "")
 DB_PATH = Path.home() / "kitty-services/open-webui-data/webui.db"
@@ -153,12 +153,17 @@ def create_kb(token: str, name: str, description: str) -> str:
 
 
 def add_file_to_kb(token: str, kb_id: str, file_id: str) -> bool:
-    r = requests.post(
-        f"{WEBUI_URL}/api/v1/knowledge/{kb_id}/file/add",
-        headers={"Authorization": f"Bearer {token}"},
-        json={"file_id": file_id},
-        timeout=120,
-    )
+    try:
+        r = requests.post(
+            f"{WEBUI_URL}/api/v1/knowledge/{kb_id}/file/add",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"file_id": file_id},
+            timeout=300,
+        )
+    except requests.exceptions.ReadTimeout:
+        # Open WebUI may still finish processing in the background; treat as ok.
+        print(f"  WARN timeout on {file_id} — skipping (WebUI may still embed it)", file=sys.stderr)
+        return True
     if r.status_code == 200:
         return True
     if r.status_code == 400 and "already" in r.text.lower():
