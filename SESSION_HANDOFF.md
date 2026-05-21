@@ -1,10 +1,14 @@
 # Session handoff — Kitty
 
-**Updated:** 2026-05-18  
-**Branch:** `main` (uncommitted work in tree)  
-**Tests last run:** 296 passed, 2 deselected (`pytest tests/ -q --tb=short`, 2026-05-18 cleanup pass).
+**Updated:** 2026-05-19  
+**Branch:** `main`  
+**Tests last run:** 302 passed, 2 deselected (`pytest tests/ -q --tb=short`, 2026-05-19); 17 frontend tests passed (`npm test`).
 
 **Cleanup (2026-05-18):** Calendar routes use `asyncio.to_thread`; `council_graph` uses `PROJECT_ROOT` for env path + logging; MCP council caches compiled graph; ruff F401 sweep on `gateway/` (kept `knowledge.py` test re-exports); `.gitignore` for `duplicate_analysis_report.txt` and `.superpowers/`. **Pass 2:** F841 fixes; `gateway/app.py` slimmed (~90 lines) with routes in `gateway/routes/`; scripts split into `scripts/curation/` and `scripts/ops/` with root shims for `spend_report` / `assign_kb_files`. **Chat split:** `completions`, `ask`, `journal`, `memories`, `voice`, `kitty_tools` (+ `chat.py` re-export barrel).
+
+## What landed (2026-05-19)
+
+- **UI polish (kitty-chat):** `fetchGatewaySearch` accepts optional `AbortSignal`; search effect debounced 400ms (fires on user-message-count/chat change only, not stream chunks); RightBar shows "Search unavailable" card on gateway error; TopBar model dot turns warning-colored when using offline fallback; BriefPanel shows skeleton during brief load. 17 tests added.
 
 ## What landed (Codex + Cursor follow-up)
 
@@ -22,8 +26,8 @@
 
 ## Good next steps
 
-1. Run full pytest, then commit the current gateway + frontend + tests + handoff.
-2. Frontend: finish any remaining live brief/search wiring if UI still shows fallback.
+1. Run the manual smoke checklist (plan §6) — verify debounce, error card, offline dot, skeleton in real browser.
+2. Push to origin/main.
 3. Rotate any API keys that were pasted into chat logs elsewhere.
 
 ## Quick commands
