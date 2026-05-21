@@ -107,6 +107,9 @@ logging.basicConfig(level=logging.INFO)
 app = FastAPI(title="Kitty Gateway", lifespan=lifespan)
 
 from gateway.auth import BearerAuthMiddleware
+from gateway.voice_middleware import VoiceGateMiddleware
+
+app.add_middleware(VoiceGateMiddleware)
 app.add_middleware(BearerAuthMiddleware)
 _webui_origin = os.environ.get("KITTY_WEBUI_ORIGIN")
 _cors_origins = [o for o in ["http://localhost:3000", "http://localhost:8000", _webui_origin] if o]
