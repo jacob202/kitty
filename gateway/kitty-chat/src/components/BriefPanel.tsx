@@ -3,7 +3,11 @@ import { useMemo } from 'react'
 import type { CSSProperties } from 'react'
 import { Chat } from '@/lib/types'
 import { commandZones } from '@/lib/dashboardMock'
-import type { GatewayBrief } from '@/lib/gateway'
+import type { GatewayBrief, GatewayHeadline } from '@/lib/gateway'
+
+function headlineText(h: string | GatewayHeadline): string {
+  return typeof h === 'string' ? h : h.title
+}
 
 interface Props {
   chats: Chat[]
@@ -45,7 +49,7 @@ function buildCards(brief: GatewayBrief | null | undefined): PriorityCard[] {
         label: 'HEADLINE',
         badge: 'LIVE',
         badgeColor: 'var(--teal)',
-        title: brief.headlines[0] ?? 'No headline',
+        title: headlineText(brief.headlines[0]) || 'No headline',
         body: brief.intention ?? '',
       },
       {

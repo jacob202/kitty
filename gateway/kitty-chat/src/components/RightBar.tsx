@@ -1,6 +1,6 @@
 'use client'
 import { Chat } from '@/lib/types'
-import type { GatewayBrief, GatewaySearchSnapshot } from '@/lib/gateway'
+import type { GatewayBrief, GatewayHeadline, GatewaySearchSnapshot } from '@/lib/gateway'
 
 interface Props {
   chats: Chat[]
@@ -81,7 +81,7 @@ export function RightBar({
 
       {brief && (
         <RightCard accent="var(--mint)" title="Brief">
-          <p style={bodyStyle}>{brief.intention || brief.headlines[0] || 'Live brief connected.'}</p>
+          <p style={bodyStyle}>{brief.intention || (typeof brief.headlines[0] === 'string' ? brief.headlines[0] : (brief.headlines[0] as GatewayHeadline | undefined)?.title) || 'Live brief connected.'}</p>
         </RightCard>
       )}
 

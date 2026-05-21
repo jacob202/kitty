@@ -3,9 +3,15 @@ import { MODELS, type Model } from './types'
 const GATEWAY_BASE = '/proxy'
 const DEFAULT_TIMEOUT_MS = 2500
 
+export interface GatewayHeadline {
+  title: string
+  url: string
+  snippet: string
+}
+
 export interface GatewayBrief {
   date: string
-  headlines: string[]
+  headlines: (string | GatewayHeadline)[]
   memory_snippet: string
   intention: string
   generated_at: string
@@ -239,7 +245,7 @@ export async function fetchGatewaySearch(
   try {
     const response = await fetchWithTimeout(
       `${GATEWAY_BASE}/search?q=${encodeURIComponent(q)}&limit=${limit}`,
-      1800,
+      4000,
       signal,
     )
     if (!response.ok) {
