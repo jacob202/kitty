@@ -240,6 +240,74 @@ export async function removeGatewayMonitor(id: string): Promise<void> {
   try { await gfetch(`/monitor/${id}`, { method: 'DELETE' }) } catch { /* non-fatal */ }
 }
 
+// ── Cron schedules ───────────────────────────────────────────────────────────
+
+export type CronScheduleType = 'daily' | 'interval' | 'once'
+
+export interface CronSchedule {
+  id: string
+  name: string
+  action: string
+  schedule_type: CronScheduleType
+  schedule_value: string
+  enabled: number
+  last_run: number
+  created_at: number
+  metadata?: string
+}
+
+export async function fetchCronSchedules(): Promise<CronSchedule[]> {
+  try {
+    const json = await gfetch('/cron/schedules')
+    return json.schedules ?? []
+  } catch {
+    return []
+  }
+}
+
+export async function fetchCronActions(): Promise<string[]> {
+  try {
+    const json = await gfetch('/cron/actions')
+    return json.actions ?? []
+  } catch {
+    return []
+  }
+}
+
+export async function createCronSchedule(
+  name: string, action: string,
+  scheduleType: CronScheduleType, scheduleValue: string,
+): Promise<string | null> {
+  try {
+    const json = await gfetch('/cron/schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, action, schedule_type: scheduleType, schedule_value: scheduleValue }),
+    })
+    return json.schedule_id ?? null
+  } catch {
+    return null
+  }
+}
+
+export async function deleteCronSchedule(id: string): Promise<boolean> {
+  try {
+    const json = await gfetch(`/cron/${id}`, { method: 'DELETE' })
+    return json.deleted ?? false
+  } catch {
+    return false
+  }
+}
+
+export async function toggleCronSchedule(id: string): Promise<boolean | null> {
+  try {
+    const json = await gfetch(`/cron/${id}/toggle`, { method: 'POST' })
+    return json.enabled ?? null
+  } catch {
+    return null
+  }
+}
+
 // ── Image generation ─────────────────────────────────────────────────────────
 
 export interface ImageGenStatus {

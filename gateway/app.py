@@ -53,9 +53,29 @@ async def lifespan(app: FastAPI):
     except Exception:
         pass
     brief_task = asyncio.create_task(_brief_bg_loop())
-    # Start cron scheduler
+    # Start cron scheduler + register built-in actions
     try:
-        from gateway.cron import start as cron_start
+        from gateway.cron import start as cron_start, register_action
+
+        async def _action_refresh_brief():
+            from gateway.brief import generate_brief
+            await asyncio.to_thread(generate_brief)
+
+        async def _action_check_nudges():
+            from gateway.nudge import check
+            check()
+
+        async def _action_check_monitors():
+            from gateway.web_monitor import check_now, list_watches
+            for w in list_watches():
+                try:
+                    await check_now(w["watch_id"])
+                except Exception:
+                    pass
+
+        register_action("brief.refresh", _action_refresh_brief)
+        register_action("nudges.check", _action_check_nudges)
+        register_action("monitors.check", _action_check_monitors)
         cron_start()
     except Exception:
         pass
@@ -780,6 +800,21 @@ async def cron_delete(schedule_id: str):
     if not ok:
         raise HTTPException(status_code=404, detail="Schedule not found")
     return {"deleted": True}
+
+
+@app.post("/cron/{schedule_id}/toggle")
+async def cron_toggle(schedule_id: str):
+    from gateway.cron import toggle
+    state = toggle(schedule_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    return {"enabled": state}
+
+
+@app.get("/cron/actions")
+async def cron_actions():
+    from gateway.cron import get_actions
+    return {"actions": get_actions()}
 
 
 # --- Build endpoints ---

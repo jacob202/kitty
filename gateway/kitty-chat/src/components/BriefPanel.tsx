@@ -11,6 +11,7 @@ import { TodoPanel } from './TodoPanel'
 import { JournalPanel } from './JournalPanel'
 import { AgentPanel } from './AgentPanel'
 import { ImageGenPanel } from './ImageGenPanel'
+import { CronPanel } from './CronPanel'
 
 interface Props {
   chats: Chat[]
@@ -265,6 +266,13 @@ export function BriefPanel({ chats, onSelectChat, onPrompt, brief }: Props) {
             <SectionHeader title="Web monitors" meta="watching" compact />
             <div style={{ marginTop: 10 }}>
               <MonitorPanel />
+            </div>
+          </div>
+
+          <div style={panelCardStyle}>
+            <SectionHeader title="Cron" meta="schedules" compact />
+            <div style={{ marginTop: 10 }}>
+              <CronPanel />
             </div>
           </div>
         </aside>
