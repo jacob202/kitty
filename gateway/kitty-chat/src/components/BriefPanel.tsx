@@ -9,6 +9,7 @@ import { TaskPanel } from './TaskPanel'
 import { MonitorPanel } from './MonitorPanel'
 import { TodoPanel } from './TodoPanel'
 import { JournalPanel } from './JournalPanel'
+import { AgentPanel } from './AgentPanel'
 
 interface Props {
   chats: Chat[]
@@ -235,6 +236,13 @@ export function BriefPanel({ chats, onSelectChat, onPrompt, brief }: Props) {
             <SectionHeader title="Journal" meta="interview" compact />
             <div style={{ marginTop: 10 }}>
               <JournalPanel />
+            </div>
+          </div>
+
+          <div style={panelCardStyle}>
+            <SectionHeader title="Agents" meta="spawn" compact />
+            <div style={{ marginTop: 10 }}>
+              <AgentPanel />
             </div>
           </div>
 

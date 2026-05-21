@@ -263,6 +263,62 @@ export async function fetchGatewaySkills(): Promise<GatewaySkill[]> {
   }
 }
 
+// ── Agents ───────────────────────────────────────────────────────────────────
+
+export type AgentStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+export type AgentType = 'explorer' | 'planner' | 'coder' | 'reviewer' | 'researcher'
+
+export interface AgentSession {
+  session_id: number
+  goal: string
+  status: AgentStatus
+  iterations?: number
+  total_steps?: number
+  last_output_snippet?: string
+  created_at?: number
+  updated_at?: number
+  output?: string
+}
+
+export async function spawnAgent(goal: string, agentType: AgentType = 'explorer'): Promise<number | null> {
+  try {
+    const json = await gfetch('/agent/spawn', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ goal, agent_type: agentType }),
+    })
+    return json.session_id ?? null
+  } catch {
+    return null
+  }
+}
+
+export async function fetchAgentStatus(sessionId: number): Promise<AgentSession | null> {
+  try {
+    return await gfetch(`/agent/${sessionId}`)
+  } catch {
+    return null
+  }
+}
+
+export async function fetchAgentSessions(limit = 10): Promise<AgentSession[]> {
+  try {
+    const json = await gfetch(`/agents?limit=${limit}`)
+    return json.agents ?? []
+  } catch {
+    return []
+  }
+}
+
+export async function stopAgent(sessionId: number): Promise<boolean> {
+  try {
+    await gfetch(`/agent/${sessionId}/stop`, { method: 'POST' })
+    return true
+  } catch {
+    return false
+  }
+}
+
 // ── Todos ────────────────────────────────────────────────────────────────────
 
 export interface GatewayTodo {
