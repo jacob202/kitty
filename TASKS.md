@@ -27,7 +27,7 @@ Last updated: **2026-05-21**
 
 ---
 
-## Phase 3 — External world context (active)
+## Phase 3 — External world context ✅ COMPLETE
 
 - [x] **3.1 Calendar** — `gateway/calendar.py` reads macOS Calendar via AppleScript; wired into `context_builder.py` and `brief.py`; BriefPanel shows today's events.
 - [x] **3.2 Ambient context** — `gateway/ambient.py` detects active macOS app; injected into context builder step 6; opt-in via `KITTY_AMBIENT_ENABLED=1`.
@@ -39,36 +39,42 @@ Last updated: **2026-05-21**
 
 ---
 
-## Phase 4 — Wiring existing scaffolding (most already built)
+## Phase 4 — Wiring existing scaffolding ✅ COMPLETE
 
-These modules have endpoints in app.py but are fully disconnected from context/brief:
-
-| Module | Endpoint(s) | What's missing |
-|---|---|---|
-| `web_monitor.py` | `/monitor/*` | Not surfaced in UI or context |
-| `patterns.py` | `/patterns/weekly`, `/patterns/annual` | Not in brief or context |
-| `builder.py` | `/build/*` | No UI surface in kitty-chat |
-| `researcher.py` | `/research/deep` | No UI trigger |
-| `learning.py` | `/learn` | No UI trigger |
-| `cron.py` | `/cron/*` | No UI for scheduling |
-| `image_gen.py` | `/image/*` | No UI |
-| `tts.py` | `/v1/audio/speech` | ✅ Wired — voice toggle in InputBar, auto-plays responses |
-| `stt.py` | `/v1/audio/transcriptions` | ✅ Wired — mic button in InputBar, transcribes to text |
-| `skills/` | `/skills`, `/skill/*` | Not surfaced in UI |
-| `agents.py` | `/agent/*` | No UI to spawn/monitor agents |
+| Module | Status |
+|---|---|
+| `web_monitor.py` | ✅ MonitorPanel.tsx shows live monitors, add/remove form |
+| `patterns.py` | ✅ Behavioral patterns injected into context builder (step 6.5) |
+| `builder.py` | ✅ Surfaced via TaskPanel "build" task type |
+| `researcher.py` | ✅ Surfaced via TaskPanel "research" task type |
+| `learning.py` | ✅ Learning stats injected into context builder (step 6.6) |
+| `cron.py` | ✅ Started in lifespan alongside brief bg loop |
+| `image_gen.py` | ⏭ Skip — needs local ComfyUI, low priority |
+| `tts.py` | ✅ Voice toggle in InputBar, auto-plays responses |
+| `stt.py` | ✅ Mic button in InputBar, transcribes to text |
+| `skills/` | ✅ RightBar shows up to 6 skills + overflow count |
+| `agents.py` | ✅ RightBar shows up to 5 agents |
 
 ---
 
-## Phase 5 — Untested / dead scaffolding (audit & decide keep or delete)
+## Phase 5 — Dead scaffolding audit ✅ COMPLETE
 
-These modules exist, have no routes, and no tests. Evaluate each:
-`agent_summarizer`, `agentic_mode`, `context_compactor`, `memory_consolidation`,
-`onboarding`, `task_boundary`, `team_protocol`, `smoke_eval`, `specialist_router`,
-`eval_domain`, `eval_runner`, `async_feedback`, `autonomy_state`, `base_tool`,
-`antigravity_tools`, `chat_import`, `import_openwebui_prompts`, `ingest_policy`
+**Deleted** (0 imports, 0 routes, 0 tests):
+`agent_summarizer`, `agentic_mode`, `base_tool`, `chat_import`,
+`context_compactor`, `import_openwebui_prompts`, `ingest_policy`,
+`memory_consolidation`, `onboarding`, `specialist_router`
+
+**Kept** (actively imported or have tests):
+`eval_runner` (routes in app.py), `eval_domain` (used by smoke_eval),
+`smoke_eval` (eval cluster), `autonomy_state` (used by agent_runner),
+`task_boundary` / `async_feedback` / `team_protocol` (used by antigravity_tools + tests),
+`antigravity_tools` (has test_antigravity_tools.py)
 
 ---
 
-## Next Smallest Action
+## Next
 
-Phase 4 STT/TTS done. Next: wire **`researcher.py`** (`/research/deep`) into TaskPanel as a "research" task type — already exists, just needs a UI path.
+All phases complete. Possible future work:
+- Image generation UI when ComfyUI is available
+- Cron schedule editor UI (currently runs silent background jobs)
+- Memory consolidation / dream loop using `memory_consolidation.py` patterns
