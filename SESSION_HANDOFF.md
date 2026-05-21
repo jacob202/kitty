@@ -1,14 +1,18 @@
 # Session handoff — Kitty
 
-**Updated:** 2026-05-19  
+**Updated:** 2026-05-21  
 **Branch:** `main`  
-**Tests last run:** 302 passed, 2 deselected (`pytest tests/ -q --tb=short`, 2026-05-19); 17 frontend tests passed (`npm test`).
+**Tests last run:** 302 passed, 2 deselected (`pytest tests/ -q --tb=short`, 2026-05-21); 17 frontend tests passed (`npm test`).
 
 **Cleanup (2026-05-18):** Calendar routes use `asyncio.to_thread`; `council_graph` uses `PROJECT_ROOT` for env path + logging; MCP council caches compiled graph; ruff F401 sweep on `gateway/` (kept `knowledge.py` test re-exports); `.gitignore` for `duplicate_analysis_report.txt` and `.superpowers/`. **Pass 2:** F841 fixes; `gateway/app.py` slimmed (~90 lines) with routes in `gateway/routes/`; scripts split into `scripts/curation/` and `scripts/ops/` with root shims for `spend_report` / `assign_kb_files`. **Chat split:** `completions`, `ask`, `journal`, `memories`, `voice`, `kitty_tools` (+ `chat.py` re-export barrel).
 
-## What landed (2026-05-19)
+## What landed (2026-05-21)
 
 - **UI polish (kitty-chat):** `fetchGatewaySearch` accepts optional `AbortSignal`; search effect debounced 400ms (fires on user-message-count/chat change only, not stream chunks); RightBar shows "Search unavailable" card on gateway error; TopBar model dot turns warning-colored when using offline fallback; BriefPanel shows skeleton during brief load. 17 tests added.
+- **Smoke test (browser):** All 6 checklist items verified in live Chrome via agent-browser (offline banner, warning dot, skeleton fallback, debounced search, chat switching, error card).
+- **Fix:** `GatewayBrief.headlines` now accepts `(string | GatewayHeadline)[]` (gateway returns `{title, url, snippet}` objects, not plain strings).
+- **Polish:** Extracted `STREAMING_LABEL` constant; BriefPanel greeting now time-aware; raw hex colors replaced with CSS variables; shortcut hint shows `⌘/^↵` for cross-platform.
+- **Infra:** `.gitignore` `kitty-chat/` → `/kitty-chat/` (root-only); Tailscale accessible at `100.84.78.1:4000`.
 
 ## What landed (Codex + Cursor follow-up)
 
@@ -26,9 +30,8 @@
 
 ## Good next steps
 
-1. Run the manual smoke checklist (plan §6) — verify debounce, error card, offline dot, skeleton in real browser.
-2. Push to origin/main.
-3. Rotate any API keys that were pasted into chat logs elsewhere.
+1. Push to origin/main.
+2. Rotate any API keys that were pasted into chat logs elsewhere.
 
 ## Quick commands
 
