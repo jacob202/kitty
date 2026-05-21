@@ -269,8 +269,8 @@ async def _run_dream(goal: str, task_id: str) -> str:
     # Run queued ingestions
     try:
         from gateway.ingestion_queue import process_queue
-        count = process_queue()
-        results.append(f"Ingestion queue: {count} items processed")
+        await process_queue()
+        results.append("Ingestion queue processed")
     except Exception as e:
         results.append(f"Ingestion queue failed: {e}")
 
