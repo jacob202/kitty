@@ -1,5 +1,5 @@
 'use client'
-import { Chat, Model } from '@/lib/types'
+import { Chat, Model, STREAMING_LABEL } from '@/lib/types'
 
 interface Props {
   activeModel: Model
@@ -51,7 +51,7 @@ export function TopBar({
           }}>{title}</div>
           {isStreaming && (
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--purple)', marginTop: 1 }}>
-              thinking…
+              {STREAMING_LABEL}
             </div>
           )}
         </div>

@@ -1,5 +1,5 @@
 'use client'
-import { Chat } from '@/lib/types'
+import { Chat, STREAMING_LABEL } from '@/lib/types'
 import type { GatewayBrief, GatewayHeadline, GatewaySearchSnapshot } from '@/lib/gateway'
 
 interface Props {
@@ -70,7 +70,7 @@ export function RightBar({
           </div>
           <div>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
-              {isStreaming ? 'thinking…' : 'online'}
+              {isStreaming ? STREAMING_LABEL : 'online'}
             </div>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
               {isStreaming ? 'generating response' : 'ready for anything'}

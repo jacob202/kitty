@@ -88,7 +88,7 @@ export function InputBar({
               display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
               background: 'var(--teal)',
               border: 'none', borderRadius: 7, margin: 8,
-              color: '#0a1210', fontFamily: 'var(--font-ui)',
+              color: 'var(--bg-deep)', fontFamily: 'var(--font-ui)',
               fontSize: 18, letterSpacing: 0.5,
               padding: '7px 18px', cursor: disabled ? 'not-allowed' : 'pointer',
               opacity: disabled || !value.trim() ? 0.4 : 1,
@@ -114,7 +114,7 @@ export function InputBar({
             )}
           </span>
           <span style={{ color: countColor }}>
-            {tokenCount > 0 ? `${(tokenCount / 1000).toFixed(1)}k / ${(maxTokens / 1000).toFixed(0)}k` : '⌘↵ to send'}
+            {tokenCount > 0 ? `${(tokenCount / 1000).toFixed(1)}k / ${(maxTokens / 1000).toFixed(0)}k` : '⌘/^↵ to send'}
           </span>
         </div>
         <div style={{ background: 'var(--border-dim)', borderRadius: 4, height: 2, overflow: 'hidden' }}>

@@ -9,6 +9,17 @@ function headlineText(h: string | GatewayHeadline): string {
   return typeof h === 'string' ? h : h.title
 }
 
+const USER_DISPLAY_NAME = 'jacob'
+
+function greetingTime(): string {
+  const h = new Date().getHours()
+  if (h < 5) return 'still up'
+  if (h < 12) return 'good morning'
+  if (h < 17) return 'good afternoon'
+  if (h < 21) return 'good evening'
+  return 'late night'
+}
+
 interface Props {
   chats: Chat[]
   onSelectChat: (id: string) => void
@@ -110,7 +121,7 @@ export function BriefPanel({ chats, onSelectChat, onPrompt, brief, loading = fal
       {/* SECTION A — Greeting bar */}
       <section style={greetingBarStyle}>
         <div>
-          <div style={greetingTitleStyle}>good morning, jacob.</div>
+          <div style={greetingTitleStyle}>{greetingTime()}, {USER_DISPLAY_NAME}.</div>
           <div style={greetingDateStyle}>{dateStr}</div>
         </div>
         <div style={{

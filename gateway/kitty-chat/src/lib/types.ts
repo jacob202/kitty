@@ -46,3 +46,5 @@ export const CHAT_COLORS: Record<ChatColor, { border: string; glow: string; tab:
 }
 
 export const COLOR_CYCLE: ChatColor[] = ['teal', 'purple', 'blue', 'mint', 'orange']
+
+export const STREAMING_LABEL = 'thinking…'

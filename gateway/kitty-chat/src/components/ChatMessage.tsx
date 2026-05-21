@@ -1,5 +1,5 @@
 'use client'
-import { Message } from '@/lib/types'
+import { Message, STREAMING_LABEL } from '@/lib/types'
 import { MoodAvatar } from './MoodAvatar'
 import { inferMood } from '@/lib/mood'
 
@@ -36,9 +36,9 @@ export function ChatMessage({ message, isStreaming, initials }: Props) {
         <div style={{
           width: 40, height: 40, borderRadius: 10, flexShrink: 0,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'linear-gradient(135deg, #2d1208, #1a0800)',
-          border: '1.5px solid #e8572a66',
-          boxShadow: '0 0 12px #e8572a22',
+          background: 'var(--user-avatar-bg, linear-gradient(135deg, #2d1208, #1a0800))',
+          border: '1.5px solid color-mix(in srgb, var(--orange) 40%, transparent)',
+          boxShadow: '0 0 12px color-mix(in srgb, var(--orange) 13%, transparent)',
           fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: 'var(--orange)',
           letterSpacing: '0.5px', marginTop: 2,
         }}>
@@ -53,20 +53,20 @@ export function ChatMessage({ message, isStreaming, initials }: Props) {
           <span style={{
             fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
             letterSpacing: '0.08em', textTransform: 'uppercase',
-            color: isAI ? 'var(--purple-2)' : '#ff7a52',
+            color: isAI ? 'var(--purple-2)' : 'var(--orange)',
           }}>
             {isAI ? 'KITTY' : 'YOU'}
           </span>
           <span style={{
             fontSize: 11,
-            color: isStreaming ? '#9b59ff44' : '#333',
+            color: isStreaming ? 'color-mix(in srgb, var(--purple) 27%, transparent)' : 'var(--text-ghost)',
             fontFamily: 'var(--font-mono)',
           }}>
-            {isStreaming ? 'thinking…' : time}
+            {isStreaming ? STREAMING_LABEL : time}
           </span>
           {isAI && message.model && !isStreaming && (
             <span style={{
-            fontSize: 10, color: '#9b59ff88',
+            fontSize: 10, color: 'color-mix(in srgb, var(--purple) 53%, transparent)',
             fontFamily: 'var(--font-mono)',
               border: '1px solid var(--border-soft)',
               borderRadius: 4, padding: '1px 6px', background: 'rgba(102, 119, 204, 0.12)',
@@ -114,13 +114,13 @@ function MessageContent({ content }: { content: string }) {
           const code = lines.slice(1).join('\n')
           return (
             <pre key={i} style={{
-              marginTop: 10, background: '#141414',
-              border: '1px solid #222', borderLeft: '3px solid var(--teal)',
+              marginTop: 10, background: 'var(--bg-deep)',
+              border: '1px solid var(--border-dim)', borderLeft: '3px solid var(--teal)',
               borderRadius: 6, padding: '14px 16px',
-              fontSize: 13, lineHeight: 1.7, color: '#888',
+              fontSize: 13, lineHeight: 1.7, color: 'var(--text-dim)',
               overflowX: 'auto', fontFamily: 'var(--font-mono)',
             }}>
-              {lang && <div style={{ color: '#333', fontSize: 10, marginBottom: 8 }}>{lang}</div>}
+              {lang && <div style={{ color: 'var(--text-ghost)', fontSize: 10, marginBottom: 8 }}>{lang}</div>}
               <code>{code}</code>
             </pre>
           )
