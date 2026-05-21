@@ -6,6 +6,7 @@ classifier by passing a ``DomainClassifier`` instance to ``classify_domain()``.
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from functools import lru_cache
+from pathlib import Path
 from typing import Optional
 
 DOMAIN_KEYWORDS = {
@@ -46,6 +47,29 @@ HEALTH_MULTIPLIERS = {
 for _hm in HEALTH_MULTIPLIERS:
     if _hm not in DOMAIN_KEYWORDS["health"]:
         DOMAIN_KEYWORDS["health"].append(_hm)
+
+
+# --- Specialist Mapping ---
+
+SPECIALIST_PROFILES = {
+    "repair": {
+        "persona": "AudioRepair",
+        "kb_path": "/Volumes/DATA/books/ingestion_curated_deep_ocr/Engineering/Audio Repair"
+    },
+    "research": {
+        "persona": "MachineLearning",
+        "kb_path": "/Volumes/DATA/books/ingestion_curated_deep_ocr/AI & Software/Machine Learning"
+    },
+    "soul": {
+        "persona": "Soul",
+        "kb_path": None
+    }
+}
+
+
+def get_specialist(domain: str) -> dict:
+    """Return persona name and KB path for a given domain."""
+    return SPECIALIST_PROFILES.get(domain, SPECIALIST_PROFILES["soul"])
 
 
 class DomainClassifier(ABC):
