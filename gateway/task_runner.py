@@ -257,21 +257,21 @@ async def _run_dream(goal: str, task_id: str) -> str:
     _update(task_id, progress="Dreaming...")
     results = []
 
+    # Memory consolidation (summarize traces → long-term memory)
+    try:
+        from gateway.memory_consolidation import nightly_dream
+        summary = await asyncio.to_thread(nightly_dream)
+        results.append(summary)
+    except Exception as e:
+        results.append(f"Memory consolidation failed: {e}")
+
     # Run queued ingestions
     try:
         from gateway.ingestion_queue import process_queue
         count = process_queue()
-        results.append(f"Ingestion queue processed: {count} items")
+        results.append(f"Ingestion queue: {count} items processed")
     except Exception as e:
-        results.append(f"Ingestion queue processing failed: {e}")
-
-    # Generate pattern mirror
-    try:
-        from gateway.honcho import get_weekly_mirror
-        mirror = get_weekly_mirror(use_cache=False)
-        results.append(f"Weekly mirror: {mirror.get('summary', '')[:200]}")
-    except Exception as e:
-        results.append(f"Weekly mirror failed: {e}")
+        results.append(f"Ingestion queue failed: {e}")
 
     return "\n".join(results) if results else "Dream complete — nothing to do."
 

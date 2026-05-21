@@ -10,11 +10,11 @@ def test_default_routes_to_kitty_default():
     assert route_model("What should I have for breakfast?") == "kitty-default"
 
 
-def test_route_model_ignores_keywords_and_stays_on_single_route():
-    assert route_model("Can you explain why the sky is blue?") == "kitty-default"
-    assert route_model("Analyze the pros and cons of this approach") == "kitty-default"
-    assert route_model("Use your best model for this important decision") == "kitty-default"
-    assert route_model("Use claude for this") == "kitty-default"
+def test_route_model_sends_reasoning_to_sonnet():
+    assert route_model("Can you explain why the sky is blue?") == "kitty-sonnet"
+    assert route_model("Analyze the pros and cons of this approach") == "kitty-sonnet"
+    assert route_model("Use your best model for this important decision") == "kitty-sonnet"
+    assert route_model("Use claude for this") == "kitty-sonnet"
 
 
 def test_litellm_fallback_prefers_agentrouter_before_openrouter():
@@ -43,7 +43,7 @@ def test_disable_agentrouter_env_skips_agentrouter_fallback(monkeypatch):
     mock_openrouter.assert_called_once()
 
 
-def test_call_llm_normalizes_legacy_model_before_proxy_call():
+def test_call_llm_normalizes_legacy_deepseek_alias():
     mock_response = type(
         "Resp",
         (),
@@ -59,7 +59,7 @@ def test_call_llm_normalizes_legacy_model_before_proxy_call():
     with patch("gateway.llm_client.requests.post", return_value=mock_response) as mock_post:
         result = call_llm(
             [{"role": "user", "content": "hello"}],
-            model="anthropic/claude-3.7-sonnet",
+            model="deepseek/deepseek-v4-flash",
         )
 
     assert result == "ok"

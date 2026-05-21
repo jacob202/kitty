@@ -98,3 +98,18 @@ def is_available() -> bool:
         return True
     except Exception:
         return False
+
+
+def get_recent_text(limit: int = 5) -> str:
+    """Return a formatted snippet of recent iMessages for context injection."""
+    if not is_available():
+        return ""
+    msgs = read_recent(limit)
+    if not msgs:
+        return ""
+    lines = ["[Recent iMessages]"]
+    for m in msgs:
+        sender = m.get("sender", "?")
+        text = m.get("text", "")[:100]
+        lines.append(f"  {sender}: {text}")
+    return "\n".join(lines)

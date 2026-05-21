@@ -1,19 +1,25 @@
 # LiteLLM — Open WebUI + gateway public model surface
 #
-# One public Kitty route: kitty-default.
-# Fallbacks stay internal and provider-focused so the UI and gateway do not expose
-# separate "smart" / "agent" tiers anymore.
+# Two routes:
+#   kitty-default  → DeepSeek V4 Flash (fast, cheap — most calls)
+#   kitty-sonnet   → Claude Sonnet (reasoning, architecture, review)
 #
 # Run the proxy:  bash gateway/start_litellm.sh
 #
 # Env: OPENROUTER_API_KEY, GEMINI_API_KEY, AGENTROUTER_API_KEY,
-#      OPENAI_API_KEY, LITELLM_MASTER_KEY, LITELLM_MAX_BUDGET_USD
+#      ANTHROPIC_API_KEY, LITELLM_MASTER_KEY, LITELLM_MAX_BUDGET_USD
 
 model_list:
   - model_name: kitty-default
     litellm_params:
       model: openrouter/deepseek/deepseek-v4-flash
       api_key: os.environ/OPENROUTER_API_KEY
+      max_tokens: 8192
+
+  - model_name: kitty-sonnet
+    litellm_params:
+      model: anthropic/claude-sonnet-4-6
+      api_key: os.environ/ANTHROPIC_API_KEY
       max_tokens: 8192
 
   - model_name: kitty-default-or
@@ -35,12 +41,6 @@ model_list:
       api_key: os.environ/AGENTROUTER_API_KEY
       max_tokens: 8192
 
-  - model_name: kitty-openai-direct
-    litellm_params:
-      model: openai/gpt-4o
-      api_key: os.environ/OPENAI_API_KEY
-      max_tokens: 4096
-
 router_settings:
   routing_strategy: simple-shuffle
   num_retries: 1
@@ -52,8 +52,10 @@ litellm_settings:
   num_retries: 2
   fallbacks:
     - kitty-default: [kitty-default-or, kitty-default-gemini, kitty-agentrouter]
+    - kitty-sonnet: [kitty-default-or, kitty-default-gemini]
 
 general_settings:
   max_budget: os.environ/LITELLM_MAX_BUDGET_USD
   budget_duration: 1d
   master_key: os.environ/LITELLM_MASTER_KEY
+

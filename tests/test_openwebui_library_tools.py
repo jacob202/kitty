@@ -1,5 +1,5 @@
-from kitty_gateway.openwebui_library_tools.kitty_knowledge_search import Tools as KnowledgeTools
-from kitty_gateway.openwebui_library_tools.kitty_memory_search import Tools as MemoryTools
+from gateway.openwebui_library_tools.kitty_knowledge_search import Tools as KnowledgeTools
+from gateway.openwebui_library_tools.kitty_memory_search import Tools as MemoryTools
 
 
 def test_knowledge_search_hits_gateway_search_route(monkeypatch):

@@ -97,6 +97,24 @@ def remove(sid: str) -> bool:
         return cursor.rowcount > 0
 
 
+def toggle(sid: str) -> bool | None:
+    """Flip the enabled flag. Returns new state, or None if not found."""
+    init_db()
+    with sqlite3.connect(CRON_DB) as conn:
+        row = conn.execute("SELECT enabled FROM schedules WHERE id = ?", (sid,)).fetchone()
+        if not row:
+            return None
+        new_val = 0 if row[0] else 1
+        conn.execute("UPDATE schedules SET enabled = ? WHERE id = ?", (new_val, sid))
+        conn.commit()
+    return bool(new_val)
+
+
+def get_actions() -> list[str]:
+    """Return names of all registered action functions."""
+    return sorted(_actions.keys())
+
+
 def register_action(name: str, fn: Callable[[], Awaitable[None]]) -> None:
     """Register an action function that can be triggered by schedules."""
     _actions[name] = fn
