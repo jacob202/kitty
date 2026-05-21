@@ -6,6 +6,7 @@
     { "id": "litellm", "url": "http://127.0.0.1:8001/health", "required": false },
     { "id": "jupyter", "url": "http://127.0.0.1:8888/api", "required": false },
     { "id": "openterminal", "url": "http://127.0.0.1:9614/health", "required": false },
+    { "id": "kitty-docker-terminal", "url": "http://127.0.0.1:9615/health", "required": false },
     { "id": "tool-filesystem", "url": "http://127.0.0.1:9721/openapi.json", "required": false },
     { "id": "tool-memory", "url": "http://127.0.0.1:9722/openapi.json", "required": false },
     { "id": "tool-time", "url": "http://127.0.0.1:9723/openapi.json", "required": false },
