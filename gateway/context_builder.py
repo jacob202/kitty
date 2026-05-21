@@ -49,13 +49,43 @@ async def get_system_prompt(
 
     # 4. Dynamic Context Retrieval (unified across all stores)
     dynamic_context = await memory_graph.unified_context(message)
-    
-    # 5. Drift correction nudge (if Kitty has been off-voice this session)
+
+    # 5. Calendar context — today's upcoming events (macOS only, silent on Linux)
+    try:
+        from gateway.calendar import get_upcoming_text, is_available as cal_available
+        if cal_available():
+            cal_text = await asyncio.to_thread(get_upcoming_text, 3)
+            if cal_text:
+                dynamic_context = f"{dynamic_context}\n\n{cal_text}" if dynamic_context else cal_text
+    except Exception:
+        pass
+
+    # 6. Ambient context — what app Jacob is currently in (opt-in via KITTY_AMBIENT_ENABLED=1)
+    try:
+        from gateway.ambient import get_ambient_text
+        ambient = get_ambient_text()
+        if ambient:
+            dynamic_context = f"{dynamic_context}\n{ambient}" if dynamic_context else ambient
+    except Exception:
+        pass
+
+    # 7. Active nudges — pending proactive suggestions
+    try:
+        from gateway.nudge import get_pending
+        pending = get_pending()
+        if pending:
+            nudge_lines = "\n".join(f"- {n['message']}" for n in pending[:2])
+            nudge_block = f"[PENDING NUDGES]\n{nudge_lines}"
+            dynamic_context = f"{dynamic_context}\n\n{nudge_block}" if dynamic_context else nudge_block
+    except Exception:
+        pass
+
+    # 8. Drift correction nudge (if Kitty has been off-voice this session)
     nudge = voice_gate.get_drift_nudge()
     if nudge:
         dynamic_context = (dynamic_context + nudge) if dynamic_context else nudge
-    
-    # 6. Assembly
+
+    # 9. Assembly
     return _assemble(system_prompt, dynamic_context)
 
 

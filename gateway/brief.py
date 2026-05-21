@@ -79,12 +79,30 @@ def get_tasks_summary() -> str:
     return "No next action found. Check TASKS.md."
 
 
+def _fetch_calendar_text() -> str:
+    """Fetch today's calendar events as a formatted string."""
+    try:
+        from gateway.calendar import get_today, is_available
+        if not is_available():
+            return ""
+        events = get_today()
+        if not events:
+            return ""
+        lines = ["Today's Schedule:"] + [
+            f"- {e.get('start', '')}: {e.get('title', '')}" for e in events[:8]
+        ]
+        return "\n".join(lines)
+    except Exception:
+        return ""
+
+
 def synthesize_brief_with_llm(headlines: List[NewsHeadline], task_summary: str, memory_snippet: str) -> str:
     """Use LLM via LiteLLM to turn raw data into a warm, character-driven morning brief."""
     from gateway.llm_client import chat
     from gateway.context_builder import build_worker_context
 
     news_text = "\n".join([f"- {h.title}" for h in headlines[:6]])
+    calendar_text = _fetch_calendar_text()
     context_data = build_worker_context(
         "brief",
         top_task=task_summary,
@@ -92,17 +110,19 @@ def synthesize_brief_with_llm(headlines: List[NewsHeadline], task_summary: str, 
         tz="America/Regina"
     )
 
+    calendar_section = f"\n- Calendar:\n{calendar_text}" if calendar_text else ""
     prompt = f"""GATHERED DATA FOR TODAY:
 - News Headlines:
-{news_text}
+{news_text}{calendar_section}
 {context_data}
 
 TASK:
 Write a short, warm, and proactive morning greeting for Jacob (3-4 paragraphs).
 1. Acknowledge the start of the day and maybe one interesting news item.
-2. Mention the next action/task with a focus on 'Resume, don't restart'.
-3. MANDATORY: Include a 'Boring Path' recommendation. This must be the most conservative, low-risk, and surgical way to handle the current top task, prioritizing reliability over speed.
-4. End with a supportive, 'friend who is paying attention' vibe.
+2. If there are calendar events, mention any that look important or time-sensitive.
+3. Mention the next action/task with a focus on 'Resume, don't restart'.
+4. MANDATORY: Include a 'Boring Path' recommendation. This must be the most conservative, low-risk, and surgical way to handle the current top task, prioritizing reliability over speed.
+5. End with a supportive, 'friend who is paying attention' vibe.
 
 Rules: Use contractions. No corporate filler. Be dry-funny if appropriate. Speak Canadian."""
 

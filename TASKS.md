@@ -33,6 +33,14 @@ Phase 2 complete. Start Phase 3: pick the highest-value external connection — 
 
 ---
 
-## Phase 3+ (parked until Phase 2 is done)
+## Phase 3 — External world (active)
 
-External world: calendar read, email triage, weather, habit tracker. See `docs/UNIFIED_IMPLEMENTATION_PLAN.md`.
+- [x] **3.1 Calendar** — `gateway/calendar.py` reads macOS Calendar via AppleScript; `/calendar/today` + `/calendar/upcoming` + `/calendar/create` endpoints live; wired into `context_builder.py` (steps 5) and `brief.py`; BriefPanel shows today's events.
+- [x] **3.2 Ambient context** — `gateway/ambient.py` detects active macOS app; wired into `context_builder.py` (step 6); opt-in via `KITTY_AMBIENT_ENABLED=1`.
+- [x] **3.3 Nudge engine** — `gateway/nudge.py` checks repeated research, dropped threads, milestones; wired into `context_builder.py` (step 7); `/nudges` + `/nudge/{id}/dismiss` endpoints live.
+- [ ] **3.4 Weather** — add `gateway/weather.py` hitting wttr.in for Regina; inject into brief and context.
+- [ ] **3.5 Email triage** — scan unread mail for action items; surface in nudge engine.
+
+## Next Smallest Action
+
+Phase 3.4: `gateway/weather.py` — one `requests.get("https://wttr.in/Regina?format=j1")` call, cached 30 min, injected into brief and context builder.

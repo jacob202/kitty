@@ -93,6 +93,23 @@ export async function fetchGatewayMood(): Promise<GatewayMoodState | null> {
   }
 }
 
+// ── Calendar ────────────────────────────────────────────────────────────────
+
+export interface CalendarEvent {
+  title: string
+  start: string
+  end: string
+}
+
+export async function fetchCalendarToday(): Promise<CalendarEvent[]> {
+  try {
+    const json = await gfetch('/calendar/today')
+    return json.available ? (json.events ?? []) : []
+  } catch {
+    return []
+  }
+}
+
 // ── Task runner ─────────────────────────────────────────────────────────────
 
 export type TaskStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'

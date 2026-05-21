@@ -1,9 +1,10 @@
 'use client'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import type { CSSProperties } from 'react'
 import { Chat } from '@/lib/types'
 import { commandZones, contextFound, continueItems, realityCheck, signals, type DashboardTone } from '@/lib/dashboardMock'
-import type { GatewayBrief } from '@/lib/gateway'
+import type { GatewayBrief, CalendarEvent } from '@/lib/gateway'
+import { fetchCalendarToday } from '@/lib/gateway'
 import { TaskPanel } from './TaskPanel'
 
 interface Props {
@@ -15,6 +16,12 @@ interface Props {
 
 export function BriefPanel({ chats, onSelectChat, onPrompt, brief }: Props) {
   const [tone, setTone] = useState<DashboardTone>('gentle')
+  const [calEvents, setCalEvents] = useState<CalendarEvent[]>([])
+
+  useEffect(() => {
+    void fetchCalendarToday().then(setCalEvents)
+  }, [])
+
   const recentChats = useMemo(() => {
     return [...chats]
       .filter(c => c.messages.length > 0)
@@ -63,6 +70,23 @@ export function BriefPanel({ chats, onSelectChat, onPrompt, brief }: Props) {
               <div style={liveBriefLabelStyle}>Memory</div>
               <p style={bodyStyle}>{brief.memory_snippet || 'No memory snippet returned yet.'}</p>
             </div>
+            {calEvents.length > 0 && (
+              <div>
+                <div style={liveBriefLabelStyle}>Today</div>
+                <div style={{ display: 'grid', gap: 4, marginTop: 4 }}>
+                  {calEvents.slice(0, 5).map((ev, i) => (
+                    <div key={i} style={calEventRowStyle}>
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                        {ev.start.split(' ')[1] ?? ev.start}
+                      </span>
+                      <span style={{ fontSize: 12, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)' }}>
+                        {ev.title}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <p style={bodyStyle}>The live gateway brief will appear here once the backend responds.</p>
@@ -496,6 +520,14 @@ const toggleButtonStyle: CSSProperties = {
   padding: '6px 8px',
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
+}
+
+const calEventRowStyle: CSSProperties = {
+  display: 'flex',
+  gap: 8,
+  alignItems: 'baseline',
+  borderLeft: '2px solid var(--teal)',
+  paddingLeft: 8,
 }
 
 const sectionHeaderStyle: CSSProperties = {
