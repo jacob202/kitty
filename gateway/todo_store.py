@@ -130,6 +130,23 @@ def clear() -> None:
         conn.commit()
 
 
+def get_todos_text() -> str:
+    """Return current todo list as a formatted string for context injection."""
+    todos = get()
+    if not todos:
+        return ""
+    active = [t for t in todos if t["status"] in ("pending", "in_progress")]
+    if not active:
+        return ""
+    status_label = {"pending": "☐", "in_progress": "▶"}
+    lines = ["[Current Todos]"]
+    for t in active[:8]:
+        prefix = status_label.get(t["status"], "☐")
+        form = f" ({t['active_form']})" if t.get("active_form") else ""
+        lines.append(f"  {prefix} {t['content']}{form}")
+    return "\n".join(lines)
+
+
 def _row_to_dict(row: sqlite3.Row) -> dict:
     return {
         "id": row["id"],

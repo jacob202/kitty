@@ -93,6 +93,27 @@ export async function fetchGatewayMood(): Promise<GatewayMoodState | null> {
   }
 }
 
+// ── Weather ─────────────────────────────────────────────────────────────────
+
+export interface GatewayWeather {
+  temp_c: number
+  feels_like_c: number
+  description: string
+  humidity: number
+  wind_kmph: number
+  max_c: number
+  min_c: number
+}
+
+export async function fetchGatewayWeather(): Promise<GatewayWeather | null> {
+  try {
+    const json = await gfetch('/weather')
+    return json.error ? null : json as GatewayWeather
+  } catch {
+    return null
+  }
+}
+
 // ── Calendar ────────────────────────────────────────────────────────────────
 
 export interface CalendarEvent {

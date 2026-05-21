@@ -4,7 +4,7 @@ Last updated: **2026-05-21**
 
 ## Current test baseline
 
-`python3.11 -m pytest tests/ -q --tb=short`  → **306 passed, 2 skipped**
+`python3.11 -m pytest tests/ -q --tb=short`  → **311 passed, 2 skipped**
 
 ---
 
@@ -32,10 +32,10 @@ Last updated: **2026-05-21**
 - [x] **3.1 Calendar** — `gateway/calendar.py` reads macOS Calendar via AppleScript; wired into `context_builder.py` and `brief.py`; BriefPanel shows today's events.
 - [x] **3.2 Ambient context** — `gateway/ambient.py` detects active macOS app; injected into context builder step 6; opt-in via `KITTY_AMBIENT_ENABLED=1`.
 - [x] **3.3 Nudge engine** — `gateway/nudge.py` checks repeated research, dropped threads, milestones; injected into context builder step 7; `/nudges` + dismiss endpoint live.
-- [ ] **3.4 Weather** — `gateway/weather.py` missing. Add wttr.in fetch (30-min cache) → inject into brief + context builder.
-- [ ] **3.5 iMessage context** — `gateway/imessage.py` exists (AppleScript read/send) with `/imessage/recent` + `/imessage/send` endpoints, but NOT injected into context builder or brief.
-- [ ] **3.6 Todos in context** — `gateway/todo_store.py` + `/todos` endpoint exists; current todo list NOT injected into system prompt.
-- [ ] **3.7 Health summary** — `gateway/health_parser.py` parses Apple Health XML; `/health/weekly` endpoint exists; NOT injected into context.
+- [x] **3.4 Weather** — `gateway/weather.py` hits wttr.in/Regina (30-min cache); `/weather` endpoint; injected into context builder step 5.5 and brief; RightBar shows live temp+conditions.
+- [x] **3.5 iMessage context** — `get_recent_text()` added to `imessage.py`; injected into context builder step 5.7 (macOS only, silent fallback).
+- [x] **3.6 Todos in context** — `get_todos_text()` added to `todo_store.py`; injected into context builder step 5.6 and brief.
+- [x] **3.7 Health summary** — `get_health_text()` added to `health_parser.py`; injected into context builder step 5.8 (reads cached Apple Health export).
 
 ---
 
@@ -71,4 +71,4 @@ These modules exist, have no routes, and no tests. Evaluate each:
 
 ## Next Smallest Action
 
-**3.4 Weather** — `gateway/weather.py`, ~40 lines: `requests.get("https://wttr.in/Regina?format=j1")`, 30-min in-memory cache, `get_weather_text()` injected in `context_builder.py` step 5.5 and `brief.py`.
+Phase 3 complete. Start Phase 4 — highest-value wiring: **STT/TTS** (mic button in InputBar + voice response playback) would make Kitty voice-interactive without any new backend work.

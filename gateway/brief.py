@@ -96,6 +96,24 @@ def _fetch_calendar_text() -> str:
         return ""
 
 
+def _fetch_weather_text() -> str:
+    """Fetch current weather for the brief."""
+    try:
+        from gateway.weather import get_weather_text
+        return get_weather_text()
+    except Exception:
+        return ""
+
+
+def _fetch_todos_text() -> str:
+    """Fetch active todos for the brief."""
+    try:
+        from gateway.todo_store import get_todos_text
+        return get_todos_text()
+    except Exception:
+        return ""
+
+
 def synthesize_brief_with_llm(headlines: List[NewsHeadline], task_summary: str, memory_snippet: str) -> str:
     """Use LLM via LiteLLM to turn raw data into a warm, character-driven morning brief."""
     from gateway.llm_client import chat
@@ -103,6 +121,8 @@ def synthesize_brief_with_llm(headlines: List[NewsHeadline], task_summary: str, 
 
     news_text = "\n".join([f"- {h.title}" for h in headlines[:6]])
     calendar_text = _fetch_calendar_text()
+    weather_text = _fetch_weather_text()
+    todos_text = _fetch_todos_text()
     context_data = build_worker_context(
         "brief",
         top_task=task_summary,
@@ -111,16 +131,18 @@ def synthesize_brief_with_llm(headlines: List[NewsHeadline], task_summary: str, 
     )
 
     calendar_section = f"\n- Calendar:\n{calendar_text}" if calendar_text else ""
+    weather_section = f"\n- Weather: {weather_text}" if weather_text else ""
+    todos_section = f"\n- Active Todos:\n{todos_text}" if todos_text else ""
     prompt = f"""GATHERED DATA FOR TODAY:
 - News Headlines:
-{news_text}{calendar_section}
+{news_text}{weather_section}{calendar_section}{todos_section}
 {context_data}
 
 TASK:
 Write a short, warm, and proactive morning greeting for Jacob (3-4 paragraphs).
-1. Acknowledge the start of the day and maybe one interesting news item.
+1. Acknowledge the start of the day. If weather is notable (cold, storm), mention it briefly.
 2. If there are calendar events, mention any that look important or time-sensitive.
-3. Mention the next action/task with a focus on 'Resume, don't restart'.
+3. Mention the next action/task with a focus on 'Resume, don't restart'. Reference active todos if relevant.
 4. MANDATORY: Include a 'Boring Path' recommendation. This must be the most conservative, low-risk, and surgical way to handle the current top task, prioritizing reliability over speed.
 5. End with a supportive, 'friend who is paying attention' vibe.
 

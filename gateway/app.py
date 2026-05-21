@@ -867,6 +867,13 @@ async def monitor_delete(watch_id: str):
 
 # --- Calendar endpoints ---
 
+@app.get("/weather")
+async def weather():
+    """Current weather for Regina."""
+    from gateway.weather import get_weather
+    return get_weather() or {"error": "weather unavailable"}
+
+
 @app.get("/calendar/today")
 async def calendar_today():
     from gateway.calendar import get_today, is_available

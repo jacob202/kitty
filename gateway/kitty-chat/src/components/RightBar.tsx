@@ -1,6 +1,8 @@
 'use client'
+import { useState, useEffect } from 'react'
 import { Chat } from '@/lib/types'
-import type { GatewayBrief, GatewaySearchSnapshot } from '@/lib/gateway'
+import type { GatewayBrief, GatewaySearchSnapshot, GatewayWeather } from '@/lib/gateway'
+import { fetchGatewayWeather } from '@/lib/gateway'
 
 interface Props {
   chats: Chat[]
@@ -12,6 +14,14 @@ interface Props {
 }
 
 export function RightBar({ chats, activeChat, isStreaming, brief, search, activeModelName }: Props) {
+  const [weather, setWeather] = useState<GatewayWeather | null>(null)
+
+  useEffect(() => {
+    void fetchGatewayWeather().then(setWeather)
+    const id = setInterval(() => { void fetchGatewayWeather().then(setWeather) }, 1800000) // 30 min
+    return () => clearInterval(id)
+  }, [])
+
   const tokenEstimate = activeChat
     ? Math.round(activeChat.messages.reduce((s, m) => s + m.content.length, 0) / 4)
     : 0
@@ -37,6 +47,14 @@ export function RightBar({ chats, activeChat, isStreaming, brief, search, active
       }}>
         <Label>model</Label>
         <span style={valueStyle}>{activeModelName}</span>
+        {weather && (
+          <>
+            <Label>weather</Label>
+            <span style={valueStyle}>
+              {weather.description} {weather.temp_c}°C
+            </span>
+          </>
+        )}
       </div>
 
       {/* Context / search results */}

@@ -183,6 +183,14 @@ def ingest_to_knowledge(xml_path: str | Path) -> int:
         return 0
 
 
+def get_health_text() -> str:
+    """Return a brief health summary for context injection. Empty if no data."""
+    summary = get_weekly_summary()
+    if not summary:
+        return ""
+    return _format_summary_for_ingestion(summary)
+
+
 def _format_summary_for_ingestion(summary: dict) -> str:
     lines = [f"Apple Health Weekly Summary: {summary.get('period', '')}"]
     sleep = summary.get("sleep", {})

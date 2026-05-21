@@ -60,6 +60,43 @@ async def get_system_prompt(
     except Exception:
         pass
 
+    # 5.5 Weather context (30-min cached, Regina)
+    try:
+        from gateway.weather import get_weather_text
+        wx = await asyncio.to_thread(get_weather_text)
+        if wx:
+            dynamic_context = f"{dynamic_context}\n{wx}" if dynamic_context else wx
+    except Exception:
+        pass
+
+    # 5.6 Current todos
+    try:
+        from gateway.todo_store import get_todos_text
+        todos = get_todos_text()
+        if todos:
+            dynamic_context = f"{dynamic_context}\n\n{todos}" if dynamic_context else todos
+    except Exception:
+        pass
+
+    # 5.7 Recent iMessages (macOS only)
+    try:
+        from gateway.imessage import get_recent_text, is_available as imsg_available
+        if imsg_available():
+            imsg = await asyncio.to_thread(get_recent_text, 4)
+            if imsg:
+                dynamic_context = f"{dynamic_context}\n\n{imsg}" if dynamic_context else imsg
+    except Exception:
+        pass
+
+    # 5.8 Health summary (from last Apple Health export)
+    try:
+        from gateway.health_parser import get_health_text
+        health = get_health_text()
+        if health:
+            dynamic_context = f"{dynamic_context}\n\n{health}" if dynamic_context else health
+    except Exception:
+        pass
+
     # 6. Ambient context — what app Jacob is currently in (opt-in via KITTY_AMBIENT_ENABLED=1)
     try:
         from gateway.ambient import get_ambient_text
