@@ -1,0 +1,735 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>kitty — components</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--ink);
+    color: var(--cream);
+    font-family: var(--font-body);
+    padding: 48px 56px;
+    min-height: 100vh;
+    box-sizing: border-box;
+    background-image:
+      radial-gradient(circle at 12% -10%, rgba(255,122,26,0.10), transparent 40%),
+      radial-gradient(circle at 92% 110%, rgba(168,132,255,0.10), transparent 40%),
+      radial-gradient(circle at 50% 50%, rgba(45,212,191,0.04), transparent 60%);
+  }
+  .head {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: end;
+    gap: 24px;
+    margin-bottom: 36px;
+    padding-bottom: 18px;
+    border-bottom: 1px dashed var(--ink-line);
+  }
+  h1 {
+    font-family: var(--font-display);
+    font-size: 64px;
+    line-height: 0.95;
+    margin: 0;
+    color: var(--cream);
+    letter-spacing: -0.02em;
+  }
+  h1 .o { color: var(--tabby); }
+  h1 .t { color: var(--teal); }
+  h1 .p { color: var(--grape); }
+  .sub { color: var(--cream-dim); font-size: 14px; max-width: 56ch; line-height: 1.55; margin: 12px 0 0; }
+  .legend {
+    font-size: 11px; color: var(--cream-faint); text-transform: uppercase; letter-spacing: 0.12em;
+    display: flex; gap: 14px; align-items: center;
+  }
+  .legend .d { width: 8px; height: 8px; border-radius: 999px; display: inline-block; vertical-align: 1px; margin-right: 6px; }
+
+  /* Grain texture used on panels — fine paper-noise */
+  :root {
+    --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 0.92 0 0 0 0 0.82 0 0 0 0.06 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+
+  .grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 20px; }
+  .panel {
+    background:
+      radial-gradient(120% 80% at 100% 0%, rgba(168,132,255,0.05), transparent 60%),
+      radial-gradient(120% 80% at 0% 100%, rgba(255,122,26,0.04), transparent 60%),
+      linear-gradient(180deg, rgba(45,34,28,0.7), rgba(14,10,8,0.7));
+    border: 1px solid var(--ink-line);
+    padding: 18px;
+    border-radius: 14px;
+    backdrop-filter: blur(2px);
+    position: relative;
+    overflow: hidden;
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.04) inset,
+      0 -1px 0 rgba(0,0,0,0.4) inset,
+      0 20px 40px -24px rgba(0,0,0,0.6);
+  }
+  .panel::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cream-faint), transparent);
+    opacity: 0.35;
+  }
+  /* grain overlay */
+  .panel::after {
+    content: ""; position: absolute; inset: 0;
+    background-image: var(--grain);
+    background-size: 160px 160px;
+    opacity: 0.5;
+    pointer-events: none;
+    mix-blend-mode: overlay;
+  }
+  .panel > * { position: relative; z-index: 1; }
+  /* tinted panel variants */
+  .panel.tint-tabby {
+    background:
+      radial-gradient(80% 100% at 0% 0%, rgba(255,122,26,0.16), transparent 60%),
+      linear-gradient(180deg, rgba(45,34,28,0.8), rgba(14,10,8,0.8));
+    border-color: rgba(255,122,26,0.25);
+  }
+  .panel.tint-teal {
+    background:
+      radial-gradient(80% 100% at 100% 0%, rgba(33,189,217,0.14), transparent 60%),
+      linear-gradient(180deg, rgba(28,40,44,0.8), rgba(14,10,8,0.8));
+    border-color: rgba(33,189,217,0.25);
+  }
+  .panel.tint-grape {
+    background:
+      radial-gradient(80% 100% at 50% 100%, rgba(168,132,255,0.14), transparent 60%),
+      linear-gradient(180deg, rgba(34,28,46,0.8), rgba(14,10,8,0.8));
+    border-color: rgba(168,132,255,0.25);
+  }
+  .panel.col-2 { grid-column: span 2; }
+  .panel.col-3 { grid-column: span 3; }
+  .panel.col-4 { grid-column: span 4; }
+  .panel.col-6 { grid-column: span 6; }
+  .panel-h {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--cream-faint);
+    margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+  }
+  .panel-h .num { color: var(--tabby); font-family: var(--font-display); font-size: 16px; letter-spacing: 0; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+  /* ============ buttons ============ */
+  .btn {
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 9px 16px;
+    border: 0;
+    cursor: pointer;
+    border-radius: 999px;
+    text-transform: lowercase;
+    letter-spacing: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: transform 120ms;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary {
+    background: linear-gradient(180deg, #ffa040, var(--tabby) 70%, #e65f00);
+    color: #2a1605;
+    box-shadow:
+      0 0 0 1px rgba(255,176,102,0.7),
+      0 10px 26px -6px rgba(255,122,26,0.55),
+      0 0 24px -2px rgba(255,122,26,0.4),
+      inset 0 1px 0 rgba(255,255,255,0.35),
+      inset 0 -2px 0 rgba(0,0,0,0.15);
+    text-shadow: 0 1px 0 rgba(255,255,255,0.15);
+  }
+  .btn.primary:hover { background: var(--tabby-glow); }
+  .btn.ghost {
+    background: transparent;
+    color: var(--cream);
+    box-shadow: inset 0 0 0 1px var(--ink-line);
+  }
+  .btn.ghost:hover { box-shadow: inset 0 0 0 1px var(--cream-dim); color: var(--cream); }
+  .btn.teal {
+    background: transparent;
+    color: var(--teal);
+    box-shadow: inset 0 0 0 1px var(--teal);
+  }
+  .btn.teal:hover { background: rgba(45,212,191,0.12); }
+  .btn.grape {
+    background: transparent;
+    color: var(--grape);
+    box-shadow: inset 0 0 0 1px var(--grape);
+  }
+  .btn.grape:hover { background: rgba(168,132,255,0.12); }
+  .btn.danger {
+    background: transparent;
+    color: var(--maple);
+    box-shadow: inset 0 0 0 1px var(--maple);
+  }
+  .btn.icon-only { padding: 9px 11px; }
+  .btn .glyph { font-family: var(--font-display); font-size: 16px; line-height: 1; }
+
+  /* split button */
+  .split {
+    display: inline-flex;
+    background: var(--ink-soft);
+    border-radius: 999px;
+    box-shadow: inset 0 0 0 1px var(--ink-line);
+    overflow: hidden;
+  }
+  .split button {
+    background: transparent; border: 0; cursor: pointer;
+    color: var(--cream-dim);
+    font-family: var(--font-body); font-size: 12px;
+    padding: 8px 14px;
+    text-transform: lowercase;
+  }
+  .split button + button { box-shadow: inset 1px 0 0 var(--ink-line); }
+  .split button.on { background: var(--tabby); color: var(--ink-deep); font-weight: 600; }
+
+  /* ============ chips ============ */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 4px 10px 4px 8px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.03);
+    color: var(--cream-dim);
+    box-shadow: inset 0 0 0 1px var(--ink-line);
+  }
+  .chip .dot { width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
+  .chip.teal { color: var(--teal); box-shadow: inset 0 0 0 1px rgba(45,212,191,0.4); background: rgba(45,212,191,0.06); }
+  .chip.grape { color: var(--grape); box-shadow: inset 0 0 0 1px rgba(168,132,255,0.4); background: rgba(168,132,255,0.06); }
+  .chip.tabby { color: var(--tabby); box-shadow: inset 0 0 0 1px rgba(255,122,26,0.5); background: rgba(255,122,26,0.06); }
+  .chip.lemon { color: var(--lemon); box-shadow: inset 0 0 0 1px rgba(244,197,66,0.4); background: rgba(244,197,66,0.06); }
+  .chip.maple { color: var(--maple); box-shadow: inset 0 0 0 1px rgba(255,85,119,0.4); background: rgba(255,85,119,0.06); }
+  .chip .x { color: var(--cream-faint); cursor: pointer; margin-left: 2px; }
+
+  /* ============ command bar / search ============ */
+  .cmdbar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--ink-deep);
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 1px var(--ink-line);
+  }
+  .cmdbar:focus-within { box-shadow: inset 0 0 0 1px var(--tabby), 0 0 0 4px rgba(255,122,26,0.15); }
+  .cmdbar .pmt { color: var(--teal); font-family: var(--font-display); font-size: 22px; line-height: 1; }
+  .cmdbar input {
+    flex: 1; background: transparent; border: 0; outline: 0;
+    color: var(--cream); font-family: var(--font-body); font-size: 14px;
+  }
+  .cmdbar input::placeholder { color: var(--cream-faint); }
+  .cmdbar .kbd {
+    font-family: var(--font-body); font-size: 10px; padding: 2px 6px;
+    border-radius: 4px; box-shadow: inset 0 0 0 1px var(--ink-line);
+    color: var(--cream-dim); text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  .cmd-list { margin-top: 8px; }
+  .cmd-list .item {
+    display: grid; grid-template-columns: 24px 1fr auto; gap: 10px; align-items: center;
+    padding: 8px 12px; border-radius: 8px; font-size: 13px;
+  }
+  .cmd-list .item.on { background: rgba(255,122,26,0.10); box-shadow: inset 0 0 0 1px rgba(255,122,26,0.35); }
+  .cmd-list .item .glyph { font-family: var(--font-display); font-size: 16px; color: var(--tabby); }
+  .cmd-list .item .desc { color: var(--cream-faint); font-size: 11px; }
+  .cmd-list .item .hint { color: var(--cream-faint); font-size: 11px; }
+
+  /* ============ toggle / switch ============ */
+  .switch {
+    width: 44px; height: 24px; border-radius: 999px;
+    background: var(--ink-deep);
+    box-shadow: inset 0 0 0 1px var(--ink-line);
+    position: relative; cursor: pointer; transition: background 200ms;
+  }
+  .switch::after {
+    content: ""; position: absolute; top: 3px; left: 3px;
+    width: 18px; height: 18px; border-radius: 999px;
+    background: var(--cream-dim);
+    transition: all 200ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  .switch.on { background: var(--teal); box-shadow: inset 0 0 0 1px var(--teal-deep); }
+  .switch.on::after { left: 23px; background: var(--ink-deep); }
+  .switch-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px dashed var(--ink-line); }
+  .switch-row:first-child { border-top: 0; padding-top: 0; }
+  .switch-row .lbl { flex: 1; font-size: 13px; color: var(--cream); }
+  .switch-row .lbl small { display: block; font-size: 11px; color: var(--cream-faint); margin-top: 2px; }
+
+  /* ============ slider ============ */
+  .slider-wrap { padding: 4px 0; }
+  .slider {
+    --val: 64;
+    position: relative; height: 28px;
+  }
+  .slider .track {
+    position: absolute; top: 13px; left: 0; right: 0; height: 2px;
+    background: var(--ink-line); border-radius: 999px;
+  }
+  .slider .fill {
+    position: absolute; top: 13px; left: 0; height: 2px;
+    background: linear-gradient(90deg, var(--tabby), var(--grape));
+    width: calc(var(--val) * 1%);
+    border-radius: 999px;
+  }
+  .slider .thumb {
+    position: absolute; top: 6px;
+    left: calc(var(--val) * 1% - 8px);
+    width: 16px; height: 16px; border-radius: 999px;
+    background: var(--cream); box-shadow: 0 0 0 1px var(--ink-deep), 0 0 12px rgba(255,255,255,0.4);
+  }
+  .slider .ticks {
+    position: absolute; top: 18px; left: 0; right: 0;
+    display: flex; justify-content: space-between;
+    font-size: 9px; color: var(--cream-faint);
+    text-transform: uppercase; letter-spacing: 0.1em;
+  }
+  .slider-h { display: flex; justify-content: space-between; font-size: 12px; color: var(--cream); margin-bottom: 8px; }
+  .slider-h b { color: var(--tabby); font-family: var(--font-display); font-size: 18px; line-height: 1; letter-spacing: 0; }
+
+  /* ============ progress ============ */
+  .progress {
+    height: 6px; background: var(--ink-deep); border-radius: 999px;
+    box-shadow: inset 0 0 0 1px var(--ink-line);
+    overflow: hidden;
+    position: relative;
+  }
+  .progress > span {
+    position: absolute; top: 0; bottom: 0; left: 0;
+    background: linear-gradient(90deg, var(--teal-deep), var(--teal));
+    border-radius: 999px;
+  }
+  .progress.indet > span {
+    width: 30%; animation: indet 1.6s var(--ease-out) infinite;
+    background: linear-gradient(90deg, transparent, var(--tabby), transparent);
+  }
+  @keyframes indet {
+    0%   { left: -30%; }
+    100% { left: 100%; }
+  }
+
+  /* ============ status pulse ============ */
+  .status-row { display: flex; gap: 18px; align-items: center; }
+  .pulse {
+    position: relative; width: 10px; height: 10px; border-radius: 999px; background: var(--teal);
+  }
+  .pulse::after {
+    content: ""; position: absolute; inset: -4px; border-radius: 999px;
+    box-shadow: 0 0 0 0 var(--teal); animation: pulse 1.6s infinite;
+  }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(45,212,191,0.6); }
+    100% { box-shadow: 0 0 0 12px rgba(45,212,191,0); }
+  }
+  .pulse.tabby { background: var(--tabby); }
+  .pulse.tabby::after { animation-name: pulseO; }
+  @keyframes pulseO { 0% { box-shadow:0 0 0 0 rgba(255,122,26,0.5);} 100% { box-shadow:0 0 0 12px rgba(255,122,26,0);} }
+  .pulse.maple { background: var(--maple); }
+
+  /* ============ message bubble (system + chat) ============ */
+  .msg {
+    display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: flex-start;
+    padding: 10px 12px; border-radius: 12px;
+    background: rgba(255,255,255,0.02);
+    box-shadow: inset 0 0 0 1px var(--ink-line);
+  }
+  .msg .av {
+    width: 26px; height: 26px; border-radius: 999px;
+    background: var(--ink-deep);
+    display: grid; place-items: center;
+    color: var(--tabby); font-family: var(--font-display); font-size: 14px;
+    box-shadow: inset 0 0 0 1px var(--ink-line);
+  }
+  .msg .av.me { color: var(--grape); }
+  .msg .who { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--cream-faint); margin-bottom: 4px; }
+  .msg .who b { color: var(--tabby); font-weight: 500; }
+  .msg .who.you b { color: var(--grape); }
+  .msg .text { font-size: 13px; line-height: 1.5; color: var(--cream); }
+  .msg .text code { font-family: var(--font-body); font-size: 12px; padding: 1px 6px; border-radius: 4px; background: var(--ink-deep); color: var(--teal); }
+
+  /* ============ avatar stack ============ */
+  .stack-av { display: inline-flex; }
+  .stack-av .av {
+    width: 28px; height: 28px; border-radius: 999px;
+    box-shadow: 0 0 0 2px var(--ink);
+    display: grid; place-items: center;
+    font-family: var(--font-display); font-size: 14px; color: var(--ink-deep);
+  }
+  .stack-av .av + .av { margin-left: -8px; }
+
+  /* ============ key-value diff ============ */
+  .kv { font-family: var(--font-body); font-size: 13px; }
+  .kv > div {
+    display: grid; grid-template-columns: 110px 1fr; gap: 12px;
+    padding: 7px 10px; border-radius: 6px;
+  }
+  .kv > div + div { margin-top: 2px; }
+  .kv .k { color: var(--cream-faint); }
+  .kv .v { color: var(--cream); }
+  .kv .add { background: rgba(45,212,191,0.07); }
+  .kv .add .v::before { content: "+ "; color: var(--teal); }
+  .kv .rm  { background: rgba(255,85,119,0.06); }
+  .kv .rm .v { color: var(--cream-faint); text-decoration: line-through; }
+  .kv .rm .v::before { content: "− "; color: var(--maple); text-decoration: none; display: inline-block; }
+
+  /* ============ activity strip ============ */
+  .activity { display: flex; gap: 3px; align-items: flex-end; height: 48px; }
+  .activity span {
+    flex: 1; background: var(--ink-line); border-radius: 2px;
+  }
+  .act-foot { display: flex; justify-content: space-between; font-size: 10px; color: var(--cream-faint); text-transform: uppercase; letter-spacing: 0.12em; margin-top: 8px; }
+
+  /* ============ FAB / floating action ============ */
+  .fab-wrap { position: relative; display: grid; place-items: center; padding: 16px; }
+  .fab-wrap::before {
+    content: ""; position: absolute; width: 140px; height: 140px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,122,26,0.45), transparent 60%);
+    filter: blur(8px);
+    z-index: 0;
+    animation: fabPulse 3s ease-in-out infinite;
+  }
+  @keyframes fabPulse {
+    0%, 100% { transform: scale(1); opacity: 0.85; }
+    50% { transform: scale(1.15); opacity: 1; }
+  }
+  .fab {
+    position: relative;
+    width: 64px; height: 64px; border-radius: 999px;
+    background: radial-gradient(circle at 30% 25%, #ffd29a 0%, var(--tabby) 35%, #c44e00 90%);
+    display: grid; place-items: center;
+    color: #2a1605;
+    font-family: var(--font-display); font-size: 32px; line-height: 1;
+    cursor: pointer;
+    z-index: 1;
+    box-shadow:
+      0 0 0 1px rgba(255,176,102,0.6),
+      0 14px 36px -8px rgba(255,122,26,0.7),
+      0 0 40px -2px rgba(255,122,26,0.5),
+      inset 0 2px 0 rgba(255,255,255,0.4),
+      inset 0 -3px 0 rgba(0,0,0,0.2);
+  }
+  .fab .badge {
+    position: absolute; top: -2px; right: -2px;
+    background: var(--maple); color: var(--cream);
+    font-family: var(--font-body); font-size: 10px; font-weight: 700;
+    padding: 2px 6px; border-radius: 999px;
+    box-shadow: 0 0 0 2px var(--ink);
+  }
+
+  /* ============ tab bar ============ */
+  .tabs {
+    display: flex; gap: 4px; position: relative;
+    border-bottom: 1px solid var(--ink-line);
+  }
+  .tabs button {
+    background: transparent; border: 0; cursor: pointer;
+    color: var(--cream-faint); font-family: var(--font-body); font-size: 13px;
+    padding: 10px 14px; text-transform: lowercase;
+    position: relative;
+  }
+  .tabs button.on { color: var(--cream); }
+  .tabs button.on::after {
+    content: ""; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2px;
+    background: var(--tabby); border-radius: 2px 2px 0 0;
+  }
+  .tabs .count { color: var(--cream-faint); margin-left: 6px; font-size: 11px; }
+  .tabs button.on .count { color: var(--tabby); }
+</style>
+</head>
+<body>
+  <div class="head">
+    <div>
+      <h1>components <span class="o">·</span> <span class="t">·</span> <span class="p">·</span></h1>
+      <p class="sub">soft pills, color-tinted outlines, glowing focus rings, animated state. less retro-game-cartridge, more late-night terminal that's been hanging out with figma.</p>
+    </div>
+    <div class="legend">
+      <span><span class="d" style="background:#ff7a1a"></span>tabby</span>
+      <span><span class="d" style="background:#2dd4bf"></span>teal</span>
+      <span><span class="d" style="background:#a884ff"></span>grape</span>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- buttons -->
+    <div class="panel col-3">
+      <div class="panel-h"><span class="num">01</span> buttons</div>
+      <div class="row" style="margin-bottom:14px">
+        <button class="btn primary"><span class="glyph">→</span>save it</button>
+        <button class="btn ghost">cancel</button>
+        <button class="btn teal">approve</button>
+        <button class="btn grape">tag this</button>
+        <button class="btn danger">delete</button>
+      </div>
+      <div class="row">
+        <div class="split">
+          <button class="on">dark</button>
+          <button>light</button>
+        </div>
+        <div class="split">
+          <button>day</button>
+          <button class="on">week</button>
+          <button>month</button>
+          <button>year</button>
+        </div>
+        <button class="btn ghost icon-only" title="more"><span class="glyph">···</span></button>
+      </div>
+    </div>
+
+    <!-- chips -->
+    <div class="panel col-3">
+      <div class="panel-h"><span class="num">02</span> chips · tags</div>
+      <div class="row">
+        <span class="chip teal"><span class="dot"></span>done</span>
+        <span class="chip grape"><span class="dot"></span>important</span>
+        <span class="chip tabby"><span class="dot"></span>in flight</span>
+        <span class="chip lemon"><span class="dot"></span>due today</span>
+        <span class="chip maple"><span class="dot"></span>overdue</span>
+        <span class="chip">archived</span>
+        <span class="chip grape">@jamie<span class="x">×</span></span>
+        <span class="chip teal">project: novel<span class="x">×</span></span>
+      </div>
+    </div>
+
+    <!-- command bar -->
+    <div class="panel col-4">
+      <div class="panel-h"><span class="num">03</span> command bar · ⌘k</div>
+      <div class="cmdbar">
+        <span class="pmt">/</span>
+        <input value="remind" />
+        <span class="kbd">⌘k</span>
+      </div>
+      <div class="cmd-list">
+        <div class="item on">
+          <span class="glyph">⏰</span>
+          <div>remind me to… <div class="desc">create a one-off reminder</div></div>
+          <span class="hint">↵</span>
+        </div>
+        <div class="item">
+          <span class="glyph" style="color:var(--teal)">↻</span>
+          <div>repeat reminder <div class="desc">every day / week / month</div></div>
+          <span class="hint">↵</span>
+        </div>
+        <div class="item">
+          <span class="glyph" style="color:var(--grape)">@</span>
+          <div>remind <i style="color:var(--cream)">@person</i> <div class="desc">send the nudge to someone else</div></div>
+          <span class="hint">↵</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- toggles -->
+    <div class="panel col-2">
+      <div class="panel-h"><span class="num">04</span> toggles</div>
+      <div class="switch-row">
+        <div class="lbl">nudge me<small>kitty pokes you when stuff's overdue</small></div>
+        <div class="switch on"></div>
+      </div>
+      <div class="switch-row">
+        <div class="lbl">talk back<small>voice replies on messages</small></div>
+        <div class="switch"></div>
+      </div>
+      <div class="switch-row">
+        <div class="lbl">ask before tools<small>confirm anything that costs money</small></div>
+        <div class="switch on"></div>
+      </div>
+    </div>
+
+    <!-- slider -->
+    <div class="panel col-3">
+      <div class="panel-h"><span class="num">05</span> slider · how chatty</div>
+      <div class="slider-wrap">
+        <div class="slider-h">
+          <span style="color:var(--cream-dim)">how much should i talk</span>
+          <b>medium</b>
+        </div>
+        <div class="slider" style="--val:62">
+          <div class="track"></div>
+          <div class="fill"></div>
+          <div class="thumb"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:14px;font-size:10px;color:var(--cream-faint);text-transform:uppercase;letter-spacing:0.12em">
+          <span>silent</span><span>chill</span><span>medium</span><span>chatty</span><span>menace</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- progress + status -->
+    <div class="panel col-3">
+      <div class="panel-h"><span class="num">06</span> progress · status</div>
+      <div style="margin-bottom:6px;display:flex;justify-content:space-between;font-size:11px;color:var(--cream-dim)">
+        <span>indexing your notes</span><span style="color:var(--teal)">68%</span>
+      </div>
+      <div class="progress"><span style="width:68%"></span></div>
+
+      <div style="margin-top:14px;margin-bottom:6px;font-size:11px;color:var(--cream-dim)">thinking…</div>
+      <div class="progress indet"><span></span></div>
+
+      <div class="status-row" style="margin-top:18px">
+        <span style="display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--cream)"><span class="pulse" style="background:var(--teal)"></span>online</span>
+        <span style="display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--cream)"><span class="pulse tabby"></span>2 tools running</span>
+        <span style="display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--cream-dim)"><span class="pulse maple" style="animation:none"></span>1 needs attention</span>
+      </div>
+    </div>
+
+    <!-- chat row -->
+    <div class="panel col-4">
+      <div class="panel-h"><span class="num">07</span> chat</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div class="msg">
+          <div class="av"><img src="../assets/kitty-mark.svg" style="width:22px;height:22px"/></div>
+          <div>
+            <div class="who"><b>kitty</b> · 10:41</div>
+            <div class="text">hey :3 you got 4 things on the list today. wanna start with the laundry or the email</div>
+          </div>
+        </div>
+        <div class="msg">
+          <div class="av me">m</div>
+          <div>
+            <div class="who you"><b>you</b> · 10:41</div>
+            <div class="text">laundry. i'm scared of the email</div>
+          </div>
+        </div>
+        <div class="msg">
+          <div class="av"><img src="../assets/kitty-mark.svg" style="width:22px;height:22px"/></div>
+          <div>
+            <div class="who"><b>kitty</b> · 10:41</div>
+            <div class="text">understandable. timer set for <code>35 min</code>. i'll poke you when it buzzes</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- key-value diff -->
+    <div class="panel col-2">
+      <div class="panel-h"><span class="num">08</span> change preview</div>
+      <div class="kv">
+        <div class="add"><div class="k">when</div><div class="v">sunday 2:00pm</div></div>
+        <div class="add"><div class="k">where</div><div class="v">phone call</div></div>
+        <div class="rm"><div class="k">when</div><div class="v">saturday 6pm</div></div>
+        <div><div class="k">who</div><div class="v">mom</div></div>
+      </div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn primary" style="font-size:12px;padding:7px 14px">apply</button>
+        <button class="btn ghost" style="font-size:12px;padding:7px 14px">undo</button>
+      </div>
+    </div>
+
+    <!-- avatar stack + tabs -->
+    <div class="panel col-2">
+      <div class="panel-h"><span class="num">09</span> people · tabs</div>
+      <div class="row" style="margin-bottom:14px">
+        <div class="stack-av">
+          <div class="av" style="background:#ff7a1a">m</div>
+          <div class="av" style="background:#2dd4bf">j</div>
+          <div class="av" style="background:#a884ff">k</div>
+          <div class="av" style="background:#f4c542">+3</div>
+        </div>
+        <span style="font-size:12px;color:var(--cream-dim)">6 in this thread</span>
+      </div>
+      <div class="tabs">
+        <button class="on">chats<span class="count">12</span></button>
+        <button>tasks<span class="count">4</span></button>
+        <button>files<span class="count">23</span></button>
+      </div>
+    </div>
+
+    <!-- activity strip -->
+    <div class="panel col-2">
+      <div class="panel-h"><span class="num">10</span> activity · 14 days</div>
+      <div class="activity" id="act"></div>
+      <div class="act-foot"><span>feb 14</span><span style="color:var(--tabby)">today</span></div>
+    </div>
+
+    <!-- system messages -->
+    <div class="panel col-4">
+      <div class="panel-h"><span class="num">11</span> system messages</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div class="msg" style="box-shadow: inset 3px 0 0 var(--tabby), inset 0 0 0 1px var(--ink-line);">
+          <div class="av" style="color:var(--tabby)">:3</div>
+          <div><div class="text">thinking… this might take a sec.</div></div>
+        </div>
+        <div class="msg" style="box-shadow: inset 3px 0 0 var(--teal), inset 0 0 0 1px var(--ink-line);">
+          <div class="av" style="color:var(--teal)">^_^</div>
+          <div><div class="text">done. saved <code>3 changes</code> to your notes.</div></div>
+        </div>
+        <div class="msg" style="box-shadow: inset 3px 0 0 var(--maple), inset 0 0 0 1px var(--ink-line);">
+          <div class="av" style="color:var(--maple)">o_o</div>
+          <div><div class="text">that broke. couldn't reach calendar — wanna retry?</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FAB -->
+    <div class="panel col-2 tint-tabby" style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px">
+      <div class="panel-h" style="margin-bottom:0;align-self:flex-start"><span class="num">12</span> ask kitty</div>
+      <div class="fab-wrap">
+        <div class="fab">
+          <span>＋</span>
+          <span class="badge">3</span>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--cream-faint);text-transform:uppercase;letter-spacing:0.12em">3 nudges waiting</div>
+    </div>
+
+    <!-- Toast / Notification with glow -->
+    <div class="panel col-4 tint-teal">
+      <div class="panel-h"><span class="num">13</span> toast · notification</div>
+      <div style="position:relative;">
+        <div style="position:absolute; inset:-12px -20px; background:radial-gradient(60% 80% at 20% 50%, rgba(33,189,217,0.25), transparent 70%); filter:blur(10px); z-index:0;"></div>
+        <div style="position:relative; z-index:1; display:grid; grid-template-columns:auto 1fr auto; gap:14px; align-items:center; padding:14px 16px; border-radius:14px; background:linear-gradient(180deg, rgba(33,189,217,0.10), rgba(14,10,8,0.6)); box-shadow: inset 0 0 0 1px rgba(33,189,217,0.4), 0 0 40px -4px rgba(33,189,217,0.3);">
+          <div style="width:36px; height:36px; border-radius:50%; background:radial-gradient(circle at 30% 30%, #7be6ff, #21bdd9 60%, #0e7a8f 95%); display:grid; place-items:center; color:#06222a; font-family:var(--font-display); font-size:18px; box-shadow: 0 0 16px rgba(33,189,217,0.6), inset 0 1px 0 rgba(255,255,255,0.4);">^_^</div>
+          <div>
+            <div style="font-family:var(--font-display); font-size:20px; color:var(--cream); line-height:1; margin-bottom:4px;">laundry's done</div>
+            <div style="font-size:12px; color:var(--cream-dim);">timer rang 3 min ago · 1 load in the dryer</div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn teal" style="font-size:11px; padding:6px 12px;">snooze</button>
+            <button class="btn ghost" style="font-size:11px; padding:6px 12px;">dismiss</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Glowing tag cloud with mood -->
+    <div class="panel col-3 tint-grape">
+      <div class="panel-h"><span class="num">14</span> mood tags · glow chips</div>
+      <div style="display:flex; flex-wrap:wrap; gap:10px;">
+        <span style="font-family:var(--font-display); font-size:18px; color:var(--grape); padding:6px 14px; border-radius:999px; background:rgba(168,132,255,0.10); box-shadow: inset 0 0 0 1px rgba(168,132,255,0.5), 0 0 20px -2px rgba(168,132,255,0.35);">★ favorite</span>
+        <span style="font-family:var(--font-display); font-size:18px; color:var(--tabby); padding:6px 14px; border-radius:999px; background:rgba(255,122,26,0.10); box-shadow: inset 0 0 0 1px rgba(255,122,26,0.5), 0 0 20px -2px rgba(255,122,26,0.35);">♡ love</span>
+        <span style="font-family:var(--font-display); font-size:18px; color:var(--teal); padding:6px 14px; border-radius:999px; background:rgba(33,189,217,0.10); box-shadow: inset 0 0 0 1px rgba(33,189,217,0.5), 0 0 20px -2px rgba(33,189,217,0.35);">✓ shipped</span>
+        <span style="font-family:var(--font-display); font-size:18px; color:var(--mint); padding:6px 14px; border-radius:999px; background:rgba(155,232,107,0.10); box-shadow: inset 0 0 0 1px rgba(155,232,107,0.5), 0 0 20px -2px rgba(155,232,107,0.35);">:3 chill</span>
+        <span style="font-family:var(--font-display); font-size:18px; color:var(--lemon); padding:6px 14px; border-radius:999px; background:rgba(244,197,66,0.10); box-shadow: inset 0 0 0 1px rgba(244,197,66,0.5), 0 0 20px -2px rgba(244,197,66,0.35);">⚡ urgent</span>
+        <span style="font-family:var(--font-display); font-size:18px; color:var(--maple); padding:6px 14px; border-radius:999px; background:rgba(255,85,119,0.10); box-shadow: inset 0 0 0 1px rgba(255,85,119,0.5), 0 0 20px -2px rgba(255,85,119,0.35);">o_o panic</span>
+      </div>
+    </div>
+
+    <!-- Empty state -->
+    <div class="panel col-3">
+      <div class="panel-h"><span class="num">15</span> empty state</div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:10px; padding:18px 8px; text-align:center; position:relative;">
+        <div style="position:absolute; width:120px; height:120px; border-radius:50%; background:radial-gradient(circle, rgba(155,232,107,0.20), transparent 70%); filter:blur(8px); top:8px;"></div>
+        <div style="position:relative; font-family:var(--font-display); font-size:64px; color:var(--mint); line-height:1; text-shadow: 0 0 20px rgba(155,232,107,0.5);">:3</div>
+        <div style="font-family:var(--font-display); font-size:22px; color:var(--cream); line-height:1;">inbox zero</div>
+        <div style="font-size:12px; color:var(--cream-dim); max-width:32ch; line-height:1.55;">nothing to nudge you about. go drink some water or something.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // activity strip — pseudo-random heights, last bar is tabby
+    const a = document.getElementById('act');
+    const heights = [22, 38, 12, 30, 44, 18, 24, 36, 52, 28, 16, 40, 60, 34];
+    heights.forEach((h, i) => {
+      const s = document.createElement('span');
+      s.style.height = h + '%';
+      s.style.background = i === heights.length - 1 ? 'var(--tabby)' : (h > 40 ? 'var(--grape)' : (h > 25 ? 'var(--teal)' : 'var(--ink-line)'));
+      s.style.opacity = i === heights.length - 1 ? '1' : '0.85';
+      a.appendChild(s);
+    });
+  </script>
+</body>
+</html>
