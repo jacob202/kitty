@@ -76,6 +76,21 @@ local_functions = [
         "id": "kitty_context_injector",
         "description": "Injects relevant knowledge, memories, and journal entries into LLM context from Kitty's knowledge base.",
     },
+    {
+        "path": f"{ROOT_DIR}/gateway/actions/kitty_feeding_schedule.py",
+        "id": "kitty_feeding_schedule",
+        "description": "Calculate feeding amounts based on metabolic scaling (RER formula) and current weights.",
+    },
+    {
+        "path": f"{ROOT_DIR}/gateway/actions/kitty_audio_measurement.py",
+        "id": "kitty_audio_measurement",
+        "description": "Quick audio measurement conversions: dB to voltage, voltage divider attenuation, RC filter cutoff frequency.",
+    },
+    {
+        "path": f"{ROOT_DIR}/gateway/actions/kitty_kb_query.py",
+        "id": "kitty_kb_query",
+        "description": "Quick one-click search of Kitty's knowledge base, memories, and journal.",
+    },
 ]
 
 
