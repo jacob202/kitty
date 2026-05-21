@@ -35,7 +35,7 @@ Earlier **Phase 2 memory / KittyBuilder / `src/`** checkpoints (2026-05 and earl
 - `docs/plans/` and `docs/superpowers/plans/` (memory architecture, KittyBuilder-era plans)
 
 For **current runtime**, code lives under **`gateway/`**; verification:  
-`/opt/homebrew/bin/python3.12 -m pytest tests/ -q --tb=short`
+`python3.11 -m pytest tests/ -q --tb=short`
 
 ---
 
@@ -43,4 +43,4 @@ For **current runtime**, code lives under **`gateway/`**; verification:
 
 Before claiming done on Python/config/hooks:
 
-`/opt/homebrew/bin/python3.12 -m pytest tests/ -q --tb=short`
+`python3.11 -m pytest tests/ -q --tb=short`
