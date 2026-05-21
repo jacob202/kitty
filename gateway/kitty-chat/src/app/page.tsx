@@ -108,29 +108,29 @@ export default function KittyChat() {
     }
   }, [])
 
+  // Only re-run when the last user message or active chat actually changes.
+  // Avoids firing N times per streaming response.
+  const lastUserMsg = activeChat?.messages.findLast(m => m.role === 'user')?.content ?? ''
+  const searchKey = `${activeChatId}:${lastUserMsg}`
+
   useEffect(() => {
     let cancelled = false
-    const query = latestSearchQuery(activeChat)
+    const query = lastUserMsg.trim()
 
     if (!query) {
       setSearchSnapshot(null)
-      return () => {
-        cancelled = true
-      }
+      return () => { cancelled = true }
     }
 
     void (async () => {
       const nextSnapshot = await fetchGatewaySearch(query, 3)
       if (cancelled) return
-      startTransition(() => {
-        setSearchSnapshot(nextSnapshot)
-      })
+      startTransition(() => setSearchSnapshot(nextSnapshot))
     })()
 
-    return () => {
-      cancelled = true
-    }
-  }, [activeChat])
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchKey])
 
   // rough token estimate: ~4 chars per token
   useEffect(() => {
@@ -164,20 +164,17 @@ export default function KittyChat() {
   const handleCloseChat = useCallback((id: string) => {
     void deleteGatewayChat(id)
     setChats(prev => {
-      const next = prev.filter(c => c.id !== id)
+      let next = prev.filter(c => c.id !== id)
       if (next.length === 0) {
         const fresh = makeChat(COLOR_CYCLE[colorIndexRef.current % COLOR_CYCLE.length])
         colorIndexRef.current++
-        return [fresh]
+        next = [fresh]
       }
+      // Update active ID inside the same state batch to avoid stale closure
+      setActiveChatId(cur => cur === id ? (next[next.length - 1]?.id ?? null) : cur)
       return next
     })
-    setActiveChatId(prev => {
-      if (prev !== id) return prev
-      const remaining = chats.filter(c => c.id !== id)
-      return remaining[remaining.length - 1]?.id ?? null
-    })
-  }, [chats])
+  }, [])
 
   const handleSelectModel = useCallback((m: Model) => {
     setActiveModel(m)
