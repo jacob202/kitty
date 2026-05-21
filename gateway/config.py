@@ -14,7 +14,7 @@ GATEWAY_PORT = int(os.environ.get("GATEWAY_PORT", "8000"))
 GATEWAY_BASE_URL = f"http://{GATEWAY_HOST}:{GATEWAY_PORT}"
 
 # 2. LiteLLM Proxy Settings
-LITELLM_HOST = os.environ.get("LITELLM_HOST", "localhost")
+LITELLM_HOST = os.environ.get("LITELLM_HOST", "127.0.0.1")
 LITELLM_PORT = int(os.environ.get("LITELLM_PORT", "8001"))
 LITELLM_BASE_URL = f"http://{LITELLM_HOST}:{LITELLM_PORT}"
 

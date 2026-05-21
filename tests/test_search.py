@@ -70,3 +70,12 @@ def test_search_route_uses_async_search_without_dropping_knowledge() -> None:
 
     assert response.status_code == 200
     assert response.json()["knowledge"][0]["text"] == "MOSFET bias notes"
+
+
+def test_deep_research_route_uses_typed_payload() -> None:
+    with patch("gateway.researcher.deep_dive", new=AsyncMock(return_value="done")):
+        client = TestClient(app)
+        response = client.post("/research/deep", json={"topic": "mosfet bias"})
+
+    assert response.status_code == 200
+    assert response.json() == {"result": "done"}

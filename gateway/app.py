@@ -75,13 +75,3 @@ async def health():
 
 
 register_routes(app)
-
-# Backward-compat re-exports (tests patch gateway.app.*)
-from gateway.domain_router import classify_domain  # noqa: E402, F401
-from gateway.http_client import get_http_client  # noqa: E402, F401
-from gateway.llm_client import route_model  # noqa: E402, F401
-from gateway.routes.chat import (
-    _non_stream_response,
-    _stream_response,
-)  # noqa: E402, F401
-from gateway.token_usage_log import log_llm_usage  # noqa: E402, F401

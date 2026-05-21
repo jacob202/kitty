@@ -35,8 +35,8 @@ class KnowledgeMetadata(BaseModel):
     pollution_warning: Optional[str] = None
 
     def to_chroma(self) -> dict:
-        """Export as flat dict for ChromaDB metadata storage."""
-        return self.model_dump()
+        """Export as flat dict for ChromaDB metadata storage, filtering out None values."""
+        return {k: v for k, v in self.model_dump().items() if v is not None}
 
 
 class IngestionResult(BaseModel):

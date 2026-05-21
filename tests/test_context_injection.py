@@ -1,4 +1,5 @@
 """Eval: does gateway inject memory and knowledge context into system prompt?"""
+
 from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
@@ -12,7 +13,10 @@ def test_memory_and_knowledge_injected_into_system_prompt() -> None:
 
     async def _fake_non_stream_response(payload):
         captured_payload["value"] = payload
-        return {"id": "ok", "choices": [{"message": {"role": "assistant", "content": "hi"}}]}
+        return {
+            "id": "ok",
+            "choices": [{"message": {"role": "assistant", "content": "hi"}}],
+        }
 
     # context_builder pulls base text via prompt_loader; context via memory_graph.
     with patch("gateway.prompt_loader.load_prompt", return_value="BASE SYSTEM"), patch(
@@ -21,7 +25,7 @@ def test_memory_and_knowledge_injected_into_system_prompt() -> None:
             return_value="## Memory\n- Jacob lives in Regina\n\n## Knowledge\nRegina weather context"
         ),
     ), patch(
-        "gateway.routes.chat._non_stream_response",
+        "gateway.routes.completions._non_stream_response",
         new=AsyncMock(side_effect=_fake_non_stream_response),
     ):
         with TestClient(app) as client:

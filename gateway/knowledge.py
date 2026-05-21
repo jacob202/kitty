@@ -107,6 +107,9 @@ async def ingest(
         taste_report,
         chunk_metadatas,
     )
+    print(f"DEBUG: collection.add metadatas[0]: {final_metadatas[0] if final_metadatas else 'EMPTY'}")
+    import sys
+    sys.stdout.flush()
     collection.add(
         documents=chunks, embeddings=embeddings, ids=ids, metadatas=final_metadatas
     )

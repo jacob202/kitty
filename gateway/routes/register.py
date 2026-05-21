@@ -4,9 +4,31 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
-from gateway.routes import brief, calendar, chat, extended, integrations
+from gateway.routes import (
+    ask,
+    brief,
+    calendar,
+    completions,
+    extended,
+    integrations,
+    journal,
+    kitty_tools,
+    memories,
+    voice,
+)
 
 
 def register_routes(app: FastAPI) -> None:
-    for module in (brief, calendar, chat, integrations, extended):
+    for module in (
+        ask,
+        brief,
+        calendar,
+        completions,
+        journal,
+        memories,
+        voice,
+        kitty_tools,
+        integrations,
+        extended,
+    ):
         app.include_router(module.router)

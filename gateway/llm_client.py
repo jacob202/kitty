@@ -175,6 +175,7 @@ def call_llm(
     operation: str = "llm.call",
     metadata: dict[str, Any] | None = None,
 ) -> str:
+    print(f"DEBUG: call_llm start model={model}")
     """
     Centralized hub for all LLM calls.
     Tries LiteLLM proxy first; on failure → AgentRouter → OpenRouter direct → Gemini → NVIDIA.
@@ -189,6 +190,10 @@ def call_llm(
 
     model = normalize_litellm_request_model(model)
 
+    if model == "kitty-default":
+        import traceback
+        traceback.print_stack()
+    
     try:
         payload = {
             "model": model,
