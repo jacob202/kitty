@@ -27,14 +27,14 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
   return (
     <aside style={{
       width: 'var(--sidebar)',
-      padding: '18px 14px',
+      padding: '24px 16px',
       overflowY: 'auto',
       borderRight: '1px solid var(--border)',
       background: 'rgba(16, 20, 29, 0.74)',
       backdropFilter: 'blur(10px)',
       flexShrink: 0,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <span style={{
           fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
           color: 'var(--text-muted)', letterSpacing: '0.14em', textTransform: 'uppercase',
@@ -42,12 +42,15 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
         <button
           onClick={onNewChat}
           style={{
-            background: 'var(--orange)', color: '#14100d',
-            padding: '7px 10px', borderRadius: 12,
-            fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: 12,
-            boxShadow: '0 10px 28px rgba(232, 120, 69, 0.16)',
+            background: 'var(--primary)', color: '#fff',
+            padding: '6px 12px', borderRadius: 8,
+            fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 11,
+            boxShadow: '0 4px 12px rgba(232, 120, 69, 0.15)',
             cursor: 'pointer',
+            transition: 'background 0.2s',
           }}
+          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--orange-deep)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--primary)' }}
         >+ new</button>
       </div>
 
@@ -75,9 +78,9 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
 function GroupLabel({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
-      fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
-      color: 'var(--text-muted)', letterSpacing: '0.14em', textTransform: 'uppercase',
-      margin: '20px 0 6px',
+      fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
+      color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase',
+      margin: '24px 0 8px', paddingLeft: 4,
     }}>{children}</div>
   )
 }
@@ -98,24 +101,24 @@ function SessionItem({ chat, active, onSelect, onClose }: {
       style={{
         display: 'grid',
         gridTemplateColumns: '7px 1fr auto',
-        gap: 10,
+        gap: 12,
         alignItems: 'center',
-        padding: '10px 10px',
-        borderRadius: 14,
+        padding: '10px 12px',
+        borderRadius: 10,
         color: active ? 'var(--text)' : 'var(--text-dim)',
-        background: active ? 'rgba(102, 119, 204, 0.09)' : 'transparent',
-        border: `1px solid ${active ? 'rgba(102, 119, 204, 0.25)' : 'transparent'}`,
+        background: active ? 'var(--surface-mid)' : 'transparent',
+        border: `1px solid ${active ? 'var(--border)' : 'transparent'}`,
         width: '100%',
         textAlign: 'left',
         cursor: 'pointer',
-        transition: 'background 0.18s ease, border-color 0.18s ease',
-        marginBottom: 2,
+        transition: 'background 0.2s ease, border-color 0.2s ease',
+        marginBottom: 4,
       }}
       onMouseEnter={e => {
         if (!active) {
           const el = e.currentTarget as HTMLButtonElement
-          el.style.background = 'rgba(255,255,255,0.025)'
-          el.style.borderColor = 'var(--border)'
+          el.style.background = 'var(--surface-low)'
+          el.style.borderColor = 'var(--border-dim)'
         }
       }}
       onMouseLeave={e => {
@@ -128,24 +131,24 @@ function SessionItem({ chat, active, onSelect, onClose }: {
     >
       <span style={{
         width: 7, height: 24, borderRadius: 999,
-        background: active ? 'var(--orange)' : dotColor,
+        background: active ? 'var(--primary)' : dotColor,
         display: 'block', flexShrink: 0,
       }} />
       <span style={{ minWidth: 0 }}>
         <span style={{
-          fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 650,
+          fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600,
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          display: 'block',
+          display: 'block', color: active ? 'var(--text)' : 'var(--text-dim)',
         }}>{chat.title}</span>
-        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', fontSize: 11 }}>{meta}</span>
+        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', fontSize: 10 }}>{meta}</span>
       </span>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', fontSize: 11 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', fontSize: 10 }}>
           {timeAgo(chat.updatedAt)}
         </span>
         <span
           onClick={e => { e.stopPropagation(); onClose(chat.id) }}
-          style={{ color: 'var(--text-ghost)', fontSize: 10, cursor: 'pointer', padding: '0 2px' }}
+          style={{ color: 'var(--text-ghost)', fontSize: 11, cursor: 'pointer', padding: '0 4px', visibility: active ? 'visible' : 'hidden' }}
           onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-muted)')}
           onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-ghost)')}
         >✕</span>

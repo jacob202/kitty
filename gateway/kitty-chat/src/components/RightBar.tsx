@@ -31,13 +31,13 @@ export function RightBar({
     <aside style={{
       width: 'var(--rightbar)',
       borderLeft: '1px solid var(--border)',
-      padding: '18px 14px',
+      padding: '24px 20px',
       overflowY: 'auto',
       background: 'rgba(16, 20, 29, 0.74)',
       backdropFilter: 'blur(10px)',
       flexShrink: 0,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <span style={{
           fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
           color: 'var(--text-muted)', letterSpacing: '0.14em', textTransform: 'uppercase',
@@ -56,13 +56,13 @@ export function RightBar({
       )}
 
       <RightCard accent="var(--orange)" title="Kitty">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
           <div style={{
-            width: 38, height: 38, borderRadius: 13,
+            width: 36, height: 36, borderRadius: '50%',
             display: 'grid', placeItems: 'center',
-            background: 'var(--recessed)',
+            background: 'var(--surface-mid)',
             border: '1px solid var(--border)',
-            fontFamily: 'var(--font-ui)', fontSize: 16,
+            fontFamily: 'var(--font-ui)', fontSize: 14,
             color: isStreaming ? 'var(--purple)' : 'var(--orange)',
             animation: isStreaming ? 'none' : undefined,
           }}>
@@ -72,7 +72,7 @@ export function RightBar({
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
               {isStreaming ? STREAMING_LABEL : 'online'}
             </div>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
               {isStreaming ? 'generating response' : 'ready for anything'}
             </div>
           </div>
@@ -109,7 +109,7 @@ export function RightBar({
       {search && (
         <RightCard accent="var(--pink-blue)" title="Gateway search" value={search.query || 'live'}>
           {search.counts.memories + search.counts.knowledge + search.counts.journal + search.counts.todos > 0 ? (
-            <div style={{ display: 'grid', gap: 8, marginTop: 6 }}>
+            <div style={{ display: 'grid', gap: 10, marginTop: 8 }}>
               {([
                 ['Memories', search.sections.memories[0]],
                 ['Knowledge', search.sections.knowledge[0]],
@@ -120,7 +120,7 @@ export function RightBar({
                 .map(([label, value]) => (
                   <div key={label}>
                     <div style={labelStyle}>{label}</div>
-                    <p style={bodyStyle}>{value}</p>
+                    <p style={{...bodyStyle, marginTop: 2}}>{value}</p>
                   </div>
                 ))}
             </div>
@@ -138,8 +138,8 @@ export function RightBar({
 }
 
 const bodyStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 12,
+  fontFamily: 'var(--font-ui)',
+  fontSize: 14,
   color: 'var(--text-dim)',
   lineHeight: 1.5,
   marginTop: 4,
@@ -150,7 +150,7 @@ const labelStyle: React.CSSProperties = {
   fontSize: 10,
   color: 'var(--text-muted)',
   textTransform: 'uppercase',
-  letterSpacing: '0.12em',
+  letterSpacing: '0.1em',
 }
 
 function RightCard({ children, accent, title, value }: {
@@ -161,26 +161,28 @@ function RightCard({ children, accent, title, value }: {
 }) {
   return (
     <div style={{
-      background: `linear-gradient(180deg, rgba(255,255,255,0.024), transparent), var(--panel)`,
+      background: 'var(--surface-low)',
       border: '1px solid var(--border)',
-      borderLeft: `3px solid ${accent}`,
+      borderTop: `3px solid ${accent}`,
       borderRadius: 'var(--radius-sm)',
-      padding: '14px',
-      marginBottom: 12,
+      padding: '16px',
+      marginBottom: 16,
+      transition: 'border-color 0.2s ease',
     }}>
       <h3 style={{
-        margin: '0 0 4px',
-        fontSize: 13,
-        letterSpacing: '-0.02em',
+        margin: '0 0 8px',
+        fontSize: 11,
+        letterSpacing: '0.05em',
+        textTransform: 'uppercase',
         fontFamily: 'var(--font-mono)',
         fontWeight: 700,
-        color: 'var(--text)',
+        color: 'var(--text-dim)',
         display: 'flex',
         justifyContent: 'space-between',
         gap: 8,
       }}>
         {title}
-        {value && <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--yellow)', fontWeight: 900, fontSize: 12 }}>{value}</span>}
+        {value && <span style={{ color: accent, fontWeight: 900 }}>{value}</span>}
       </h3>
       {children}
     </div>

@@ -51,7 +51,19 @@ function latestSearchQuery(chat: Chat | null): string {
 }
 
 export default function KittyChat() {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+
+  if (!mounted) {
+    return <div style={{ height: '100vh', background: 'var(--bg)' }} />
+  }
+
+  return <KittyChatInner />
+}
+
+function KittyChatInner() {
   const [chats, setChats] = useState<Chat[]>(() => [makeChat('teal')])
+  const [activeView, setActiveView] = useState('home')
   const [activeChatId, setActiveChatId] = useState<string | null>(() => null)
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
@@ -304,7 +316,7 @@ export default function KittyChat() {
     }}
       onClick={() => showModelMenu && setShowModelMenu(false)}
     >
-      <Rail />
+      <Rail activeView={activeView} onViewChange={setActiveView} />
 
       <SessionSidebar
         chats={chats}
@@ -390,7 +402,19 @@ export default function KittyChat() {
         )}
 
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-          {!activeChat || activeChat.messages.length === 0 ? (
+          {activeView !== 'home' && activeView !== 'chat' ? (
+            <div style={{
+              flex: 1, display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center',
+              gap: 12, fontFamily: 'var(--font-mono)',
+              color: 'var(--text-muted)', fontSize: 14,
+            }}>
+              <span style={{ fontSize: 32, opacity: 0.3 }}>?
+              </span>
+              <span>{activeView.charAt(0).toUpperCase() + activeView.slice(1)} view</span>
+              <span style={{ fontSize: 12, color: 'var(--text-ghost)' }}>coming soon</span>
+            </div>
+          ) : !activeChat || activeChat.messages.length === 0 ? (
             <BriefPanel
               chats={chats}
               onSelectChat={id => { setActiveChatId(id) }}
