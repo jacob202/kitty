@@ -31,6 +31,8 @@ if [[ -z "${WEBUI_URL:-}" || -z "${WEBUI_ADMIN_EMAIL:-}" || -z "${WEBUI_ADMIN_PA
   exit 1
 fi
 
+export ROOT_DIR
+
 "${PYTHON_BIN}" - <<'PY'
 import sys
 import requests
@@ -66,10 +68,61 @@ def normalize_id(name: str) -> str:
     return cleaned
 
 
+ROOT_DIR = os.environ.get("ROOT_DIR", "")
+
+local_functions = [
+    {
+        "path": f"{ROOT_DIR}/gateway/openwebui_filters/kitty_context_injector.py",
+        "id": "kitty_context_injector",
+        "description": "Injects relevant knowledge, memories, and journal entries into LLM context from Kitty's knowledge base.",
+    },
+]
+
+
+def import_function(src_label: str, function_id: str, content: str, description: str) -> tuple[str, int]:
+    """Create or update a function in OWUI. Returns (status, code)."""
+    payload = {
+        "id": function_id,
+        "name": function_id,
+        "content": content,
+        "meta": {
+            "description": description,
+            "manifest": {},
+        },
+    }
+
+    created = s.post(f"{base}/api/v1/functions/create", json=payload, timeout=45)
+    if created.status_code < 300:
+        status = "created"
+    elif created.status_code in (400, 409) and (
+        "taken" in (created.text or "").lower() or "already" in (created.text or "").lower()
+    ):
+        updated = s.post(f"{base}/api/v1/functions/id/{function_id}/update", json=payload, timeout=45)
+        if updated.status_code >= 300:
+            print(f"FAIL {src_label} -> update failed ({updated.status_code}) {updated.text[:300]}")
+            return ("failed", 1)
+        status = "updated"
+    else:
+        print(f"FAIL {src_label} -> create failed ({created.status_code}) {created.text[:300]}")
+        return ("failed", 1)
+
+    current = s.get(f"{base}/api/v1/functions/id/{function_id}", timeout=20)
+    if current.status_code < 300:
+        state = current.json() if current.content else {}
+        if not state.get("is_active", False):
+            s.post(f"{base}/api/v1/functions/id/{function_id}/toggle", timeout=20)
+        if not state.get("is_global", False):
+            s.post(f"{base}/api/v1/functions/id/{function_id}/toggle/global", timeout=20)
+
+    print(f"OK   {src_label} -> {function_id} ({status})")
+    return (status, 0)
+
+
 ok = 0
 skipped = 0
 failed = 0
 
+# Import remote functions
 for url in function_urls:
     try:
         rr = s.post(f"{base}/api/v1/functions/load/url", json={"url": url}, timeout=45)
@@ -92,42 +145,32 @@ for url in function_urls:
         continue
 
     function_id = normalize_id(name)
-    payload = {
-        "id": function_id,
-        "name": name,
-        "content": content,
-        "meta": {
-            "description": f"Imported from {url}",
-            "manifest": {},
-        },
-    }
-
-    created = s.post(f"{base}/api/v1/functions/create", json=payload, timeout=45)
-    if created.status_code < 300:
-        pass
-    elif created.status_code in (400, 409) and ("taken" in (created.text or "").lower() or "already" in (created.text or "").lower()):
-        updated = s.post(f"{base}/api/v1/functions/id/{function_id}/update", json=payload, timeout=45)
-        if updated.status_code >= 300:
-            print(f"FAIL {url} -> update failed ({updated.status_code}) {updated.text[:300]}")
-            failed += 1
-            continue
-        skipped += 1
+    result, code = import_function(url, function_id, content, f"Imported from {url}")
+    if code == 1:
+        failed += 1
     else:
-        print(f"FAIL {url} -> create failed ({created.status_code}) {created.text[:300]}")
+        ok += 1
+
+# Import local functions
+for func in local_functions:
+    path = func["path"]
+    function_id = func["id"]
+    description = func["description"]
+    if not os.path.isfile(path):
+        print(f"FAIL {path} -> file not found")
         failed += 1
         continue
-
-    # Ensure imported filters are enabled and globally available.
-    current = s.get(f"{base}/api/v1/functions/id/{function_id}", timeout=20)
-    if current.status_code < 300:
-        state = current.json() if current.content else {}
-        if not state.get("is_active", False):
-            s.post(f"{base}/api/v1/functions/id/{function_id}/toggle", timeout=20)
-        if not state.get("is_global", False):
-            s.post(f"{base}/api/v1/functions/id/{function_id}/toggle/global", timeout=20)
-
-    print(f"OK   {url} -> {function_id}")
-    ok += 1
+    with open(path, "r") as fh:
+        content = fh.read()
+    if not content:
+        print(f"FAIL {path} -> empty file")
+        failed += 1
+        continue
+    result, code = import_function(path, function_id, content, description)
+    if code == 1:
+        failed += 1
+    else:
+        ok += 1
 
 print(f"Function import summary: ok={ok} skipped={skipped} failed={failed}")
 if failed > 0:

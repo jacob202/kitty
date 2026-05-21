@@ -19,12 +19,13 @@
       "community-time-local",
       "community-weather-local"
     ],
-    "min_functions": 3
+    "min_functions": 4
   },
   "required_files": [
     "kitty_gateway/openwebui.env",
     "gateway/start_all.sh",
     "gateway/sync_openwebui_integrations.sh",
-    "gateway/import_openwebui_functions.sh"
+    "gateway/import_openwebui_functions.sh",
+    "gateway/openwebui_filters/kitty_context_injector.py"
   ]
 }

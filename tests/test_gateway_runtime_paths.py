@@ -64,6 +64,7 @@ def test_start_all_and_runtime_manifest_point_at_live_gateway_scripts() -> None:
         "gateway/start_all.sh",
         "gateway/sync_openwebui_integrations.sh",
         "gateway/import_openwebui_functions.sh",
+        "gateway/openwebui_filters/kitty_context_injector.py",
     ]
 
 
