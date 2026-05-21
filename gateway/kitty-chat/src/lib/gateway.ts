@@ -3,7 +3,7 @@
  * All requests go through the Next.js proxy route so auth headers
  * stay server-side and CORS is avoided.
  */
-import { KittyMood, Model, MODELS } from './types'
+import { Chat, Message, KittyMood, Model, MODELS } from './types'
 
 const BASE = '/proxy'
 
@@ -91,4 +91,55 @@ export async function fetchGatewayMood(): Promise<GatewayMoodState | null> {
   } catch {
     return null
   }
+}
+
+// ── Chat persistence ─────────────────────────────────────────────────────────
+
+function serializeChat(chat: Chat) {
+  return {
+    ...chat,
+    createdAt: chat.createdAt.toISOString(),
+    updatedAt: chat.updatedAt.toISOString(),
+    messages: chat.messages.map(m => ({
+      ...m,
+      timestamp: m.timestamp.toISOString(),
+    })),
+  }
+}
+
+function deserializeChat(raw: Record<string, unknown>): Chat {
+  return {
+    ...(raw as Omit<Chat, 'createdAt' | 'updatedAt' | 'messages'>),
+    createdAt: new Date(raw.createdAt as string),
+    updatedAt: new Date(raw.updatedAt as string),
+    messages: ((raw.messages ?? []) as Record<string, unknown>[]).map(m => ({
+      ...(m as Omit<Message, 'timestamp'>),
+      timestamp: new Date(m.timestamp as string),
+    })),
+  }
+}
+
+export async function loadGatewayChats(): Promise<Chat[] | null> {
+  try {
+    const json = await gfetch('/chats')
+    return ((json.chats ?? []) as Record<string, unknown>[]).map(deserializeChat)
+  } catch {
+    return null
+  }
+}
+
+export async function saveGatewayChat(chat: Chat): Promise<void> {
+  try {
+    await fetch(`${BASE}/chats`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(serializeChat(chat)),
+    })
+  } catch { /* non-fatal */ }
+}
+
+export async function deleteGatewayChat(id: string): Promise<void> {
+  try {
+    await fetch(`${BASE}/chats/${id}`, { method: 'DELETE' })
+  } catch { /* non-fatal */ }
 }

@@ -10,7 +10,7 @@ import { BriefPanel } from '@/components/BriefPanel'
 import { Rail } from '@/components/Rail'
 import { SessionSidebar } from '@/components/SessionSidebar'
 import { RightBar } from '@/components/RightBar'
-import { fetchGatewayBrief, fetchGatewayModels, fetchGatewaySearch, fetchGatewayMood, type GatewayBrief, type GatewaySearchSnapshot } from '@/lib/gateway'
+import { fetchGatewayBrief, fetchGatewayModels, fetchGatewaySearch, fetchGatewayMood, loadGatewayChats, saveGatewayChat, deleteGatewayChat, type GatewayBrief, type GatewaySearchSnapshot } from '@/lib/gateway'
 
 let chatCounter = 0
 function newChatId() { return `chat-${++chatCounter}-${Date.now()}` }
@@ -78,9 +78,17 @@ export default function KittyChat() {
     let cancelled = false
 
     void (async () => {
+      // Load persisted chats from gateway first
+      const saved = await loadGatewayChats()
+      if (!cancelled && saved && saved.length > 0) {
+        startTransition(() => {
+          setChats(saved)
+          setActiveChatId(saved[saved.length - 1].id)
+        })
+      }
+
       const models = await fetchGatewayModels()
       if (cancelled) return
-
       startTransition(() => {
         setAvailableModels(models)
         setActiveModel(current => models.find(model => model.id === current.id) ?? models[0] ?? current)
@@ -152,6 +160,7 @@ export default function KittyChat() {
   }, [activeModel.id])
 
   const handleCloseChat = useCallback((id: string) => {
+    void deleteGatewayChat(id)
     setChats(prev => {
       const next = prev.filter(c => c.id !== id)
       if (next.length === 0) {
@@ -255,6 +264,12 @@ export default function KittyChat() {
     } finally {
       setIsStreaming(false)
       abortRef.current = null
+      // Persist the completed chat
+      setChats(current => {
+        const saved = current.find(c => c.id === activeChat.id)
+        if (saved) void saveGatewayChat(saved)
+        return current
+      })
     }
   }, [input, isStreaming, activeChat, activeModel, updateChat])
 

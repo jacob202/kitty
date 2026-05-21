@@ -21,10 +21,24 @@ from gateway.llm_client import route_model
 from gateway.prompt_loader import load_prompt
 
 from contextlib import asynccontextmanager
-from gateway.paths import LOG_FILE, LITELLM_BASE, LITELLM_KEY, validate_dirs, validate_env
+from gateway.paths import LOG_FILE, LITELLM_BASE, LITELLM_KEY, DATA_DIR, validate_dirs, validate_env
 from gateway.token_usage_log import log_llm_usage, normalize_usage_payload
 
 _http_client: httpx.AsyncClient | None = None
+
+
+async def _brief_bg_loop():
+    """Warm the brief cache on startup, then refresh every 15 minutes."""
+    import asyncio
+    from gateway.brief import generate_brief
+    loop = asyncio.get_event_loop()
+    while True:
+        try:
+            await loop.run_in_executor(None, generate_brief)
+            logger.info("Brief cache refreshed.")
+        except Exception as e:
+            logger.warning("Brief refresh failed: %s", e)
+        await asyncio.sleep(900)
 
 
 @asynccontextmanager
@@ -38,7 +52,9 @@ async def lifespan(app: FastAPI):
             start_polling()
     except Exception:
         pass
+    brief_task = asyncio.create_task(_brief_bg_loop())
     yield
+    brief_task.cancel()
     global _http_client
     if _http_client and not _http_client.is_closed:
         await _http_client.aclose()
@@ -132,6 +148,49 @@ async def morning_brief():
         if stale:
             return stale
         return generate_fast_brief()
+
+
+_CHATS_FILE = DATA_DIR / "kitty" / "chats.json"
+
+
+def _read_chats() -> list:
+    if not _CHATS_FILE.exists():
+        return []
+    try:
+        return json.loads(_CHATS_FILE.read_text())
+    except Exception:
+        return []
+
+
+def _write_chats(chats: list) -> None:
+    _CHATS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _CHATS_FILE.write_text(json.dumps(chats, ensure_ascii=False))
+
+
+@app.get("/chats")
+async def get_chats():
+    """Return all saved chat sessions."""
+    return {"chats": _read_chats()}
+
+
+@app.post("/chats")
+async def upsert_chat(request: Request):
+    """Create or update a chat session by id."""
+    chat = await request.json()
+    if not chat.get("id"):
+        raise HTTPException(status_code=400, detail="id required")
+    existing = _read_chats()
+    updated = [c for c in existing if c.get("id") != chat["id"]] + [chat]
+    _write_chats(updated)
+    return {"ok": True}
+
+
+@app.delete("/chats/{chat_id}")
+async def delete_chat(chat_id: str):
+    """Delete a chat session."""
+    existing = _read_chats()
+    _write_chats([c for c in existing if c.get("id") != chat_id])
+    return {"ok": True}
 
 
 @app.post("/ask")
