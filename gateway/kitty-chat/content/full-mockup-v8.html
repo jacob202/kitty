@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Kitty — v8</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:    #0d0d10;
+  --l:     #121216;
+  --l2:    #18181d;
+  --l3:    #1f1f26;
+  --l4:    #28282f;
+  --b0:    rgba(255,255,255,0.05);
+  --b1:    rgba(255,255,255,0.09);
+  --b2:    rgba(255,255,255,0.15);
+  --t1:    #f2f2f5;
+  --t2:    #9090a8;
+  --t3:    #505060;
+  --t4:    #303038;
+  --ora:   #e8672a;
+  --orab:  rgba(232,103,42,0.12);
+  --orab2: rgba(232,103,42,0.20);
+  --teal:  #3ecfb2;
+  --tealb: rgba(62,207,178,0.10);
+  --red:   #e84343;
+  --redb:  rgba(232,67,67,0.10);
+  --redb2: rgba(232,67,67,0.18);
+  --ind:   #6b7fff;
+  --indb:  rgba(107,127,255,0.10);
+  --amb:   #f0b840;
+  --ambb:  rgba(240,184,64,0.10);
+  --grn:   #3ecb6f;
+  --grnb:  rgba(62,203,111,0.10);
+  --mono:  'IBM Plex Mono', ui-monospace, monospace;
+  --sans:  'IBM Plex Sans', system-ui, sans-serif;
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--mono);font-size:13px;line-height:1.5;overflow:hidden}
+
+/* ═══ SHELL ═══ */
+.shell{display:grid;grid-template-columns:260px 1fr 300px;grid-template-rows:auto 1fr;height:100vh;}
+
+/* ─── TOPBAR ─── */
+.topbar{
+  grid-column:1/-1;grid-row:1;
+  height:44px;background:var(--l);
+  border-bottom:1px solid var(--b0);
+  display:flex;align-items:center;
+  padding:0 0 0 0;
+}
+.tb-logo{
+  width:44px;height:44px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  border-right:1px solid var(--b0);
+  font-size:20px;cursor:pointer;
+}
+.tb-section{
+  padding:0 14px;height:100%;
+  display:flex;align-items:center;gap:8px;
+  border-right:1px solid var(--b0);
+  font-size:11px;font-weight:500;color:var(--t3);
+  cursor:pointer;transition:color .12s;
+  white-space:nowrap;
+}
+.tb-section:hover{color:var(--t2);}
+.tb-section.on{color:var(--t1);}
+.tb-ct{
+  background:var(--l3);border:1px solid var(--b1);
+  border-radius:3px;font-size:9px;font-weight:700;
+  padding:1px 5px;color:var(--t2);min-width:18px;text-align:center;
+}
+.tb-ct.ora{background:var(--orab);border-color:var(--orab2);color:var(--ora);}
+.tb-flex{flex:1;}
+.tb-right{
+  padding:0 14px;height:100%;
+  display:flex;align-items:center;gap:10px;
+  border-left:1px solid var(--b0);
+}
+.tb-status{
+  display:flex;align-items:center;gap:6px;
+  font-size:10px;font-weight:600;color:var(--teal);
+}
+.tb-dot{width:5px;height:5px;border-radius:50%;background:var(--teal);animation:blink 2s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+.tb-tone{
+  display:flex;gap:1px;background:var(--l3);
+  border:1px solid var(--b0);border-radius:4px;padding:2px;
+}
+.tn{
+  font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+  padding:2px 7px;border-radius:3px;color:var(--t3);cursor:pointer;transition:all .1s;
+}
+.tn:hover{color:var(--t2);}
+.tn.on{background:var(--l4);color:var(--t1);}
+
+/* ─── LEFT: CHAT LIST ─── */
+.left{
+  grid-column:1;grid-row:2;
+  background:var(--l);border-right:1px solid var(--b0);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.lh{
+  padding:10px 12px 8px;
+  border-bottom:1px solid var(--b0);
+  display:flex;align-items:center;gap:8px;flex-shrink:0;
+}
+.lh-title{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);flex:1;}
+.new-chat{
+  display:flex;align-items:center;gap:5px;
+  padding:4px 9px;border-radius:4px;
+  background:var(--l3);border:1px solid var(--b1);
+  font-size:10px;font-weight:600;font-family:var(--mono);
+  color:var(--t2);cursor:pointer;transition:all .12s;
+}
+.new-chat:hover{color:var(--t1);border-color:var(--b2);}
+.new-badge{
+  background:var(--orab);border:1px solid var(--orab2);
+  color:var(--ora);font-size:8px;font-weight:700;
+  padding:1px 4px;border-radius:3px;
+}
+.ls{flex:1;overflow-y:auto;padding:4px 0;}
+.ls::-webkit-scrollbar{width:2px;}
+.ls::-webkit-scrollbar-thumb{background:var(--l4);}
+
+.lg{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--t4);padding:9px 12px 3px;}
+
+.ci{
+  padding:6px 12px;cursor:pointer;
+  display:flex;align-items:flex-start;gap:7px;
+  transition:background .1s;
+}
+.ci:hover{background:var(--l2);}
+.ci.on{background:var(--l2);}
+.c-bar{width:2px;border-radius:1px;align-self:stretch;flex-shrink:0;margin-top:3px;}
+.c-body{flex:1;min-width:0;}
+.c-name{font-size:11px;font-weight:500;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;}
+.ci.on .c-name{color:var(--t1);}
+.c-meta{font-size:9px;color:var(--t3);margin-top:1px;}
+.c-badge{
+  font-size:8px;padding:2px 5px;border-radius:3px;
+  font-weight:700;flex-shrink:0;margin-top:2px;
+  font-family:var(--mono);
+}
+.cb-r{background:var(--redb);color:var(--red);}
+.cb-g{background:var(--tealb);color:var(--teal);}
+.cb-a{background:var(--ambb);color:var(--amb);}
+
+.proj-item{
+  padding:5px 12px;cursor:pointer;
+  display:flex;align-items:center;gap:8px;
+  transition:background .1s;
+}
+.proj-item:hover{background:var(--l2);}
+.p-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.p-name{font-size:11px;color:var(--t3);flex:1;}
+.proj-item:hover .p-name{color:var(--t2);}
+.p-n{font-size:9px;color:var(--t4);}
+
+/* ─── CENTER ─── */
+.center{grid-column:2;grid-row:2;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);}
+
+/* greeting */
+.greeting{
+  padding:16px 22px 12px;
+  border-bottom:1px solid var(--b0);
+  display:flex;align-items:center;gap:14px;
+  flex-shrink:0;
+}
+.g-avatar{
+  width:42px;height:42px;border-radius:10px;
+  background:var(--l2);border:1px solid var(--b1);
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;flex-shrink:0;
+  position:relative;
+}
+.g-av-state{
+  position:absolute;bottom:-2px;right:-2px;
+  width:10px;height:10px;border-radius:50%;
+  border:2px solid var(--bg);
+}
+.g-text{flex:1;}
+.g-name{
+  font-family:var(--sans);font-size:22px;font-weight:700;
+  color:var(--t1);letter-spacing:-.02em;line-height:1.1;
+}
+.g-kitty{color:var(--ora);font-family:var(--mono);font-size:18px;font-weight:400;}
+.g-sub{font-size:10px;color:var(--t3);margin-top:3px;}
+
+/* context cards */
+.ctx-row{
+  padding:10px 22px;
+  border-bottom:1px solid var(--b0);
+  display:grid;grid-template-columns:repeat(4,1fr);gap:8px;
+  flex-shrink:0;
+}
+.cx{
+  background:var(--l2);border:1px solid var(--b0);
+  border-radius:6px;padding:9px 11px;cursor:pointer;
+  transition:all .12s;
+}
+.cx:hover{background:var(--l3);border-color:var(--b1);}
+.cx-l{font-size:8px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--t4);margin-bottom:4px;}
+.cx-v{font-size:16px;font-weight:700;color:var(--t1);line-height:1.1;}
+.cx-s{font-size:9px;color:var(--t3);margin-top:2px;}
+.cx.attn .cx-v{color:var(--amb);}
+.cx.attn{border-color:rgba(240,184,64,.15);}
+.cx.crit{background:rgba(232,67,67,.04);border-color:rgba(232,67,67,.2);}
+.cx.crit .cx-l{color:var(--red);}
+.cx.crit .cx-v{color:var(--red);}
+.cx.foc .cx-v{color:var(--teal);}
+
+/* feed */
+.feed{flex:1;overflow-y:auto;padding:16px 22px;display:flex;flex-direction:column;gap:14px;}
+.feed::-webkit-scrollbar{width:3px;}
+.feed::-webkit-scrollbar-thumb{background:var(--l3);}
+
+.msg-user{display:flex;flex-direction:column;gap:2px;}
+.mu-label{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);}
+.mu-text{font-size:13px;color:var(--t2);}
+
+.msg-kitty{display:flex;gap:12px;}
+.mk-gutter{
+  width:3px;background:var(--ind);
+  border-radius:2px;flex-shrink:0;opacity:.7;
+}
+.mk-body{flex:1;}
+.mk-label{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ind);margin-bottom:5px;}
+.mk-text{font-size:13px;color:var(--t2);line-height:1.7;}
+.mk-text b{color:var(--t1);font-weight:600;}
+.mk-text .hl-ora{color:var(--ora);}
+.mk-text .hl-teal{color:var(--teal);}
+.mk-text .hl-red{color:var(--red);}
+.mk-text .hl-amb{color:var(--amb);}
+
+/* data table */
+.data-table{
+  margin:8px 0;background:var(--l2);
+  border:1px solid var(--b0);border-radius:6px;
+  overflow:hidden;
+}
+.dt-row{
+  display:grid;grid-template-columns:1fr auto;
+  padding:6px 12px;border-bottom:1px solid var(--b0);
+  gap:16px;align-items:center;
+  transition:background .1s;cursor:pointer;
+}
+.dt-row:last-child{border-bottom:none;}
+.dt-row:hover{background:var(--l3);}
+.dt-key{font-size:11px;color:var(--t2);}
+.dt-val{font-size:11px;font-weight:600;text-align:right;}
+.dt-pos{color:var(--grn);}
+.dt-neg{color:var(--red);}
+.dt-neu{color:var(--t2);}
+
+/* code block */
+.code-block{
+  margin:8px 0;background:var(--l2);
+  border:1px solid var(--b0);border-left:3px solid var(--ind);
+  border-radius:0 6px 6px 0;
+  padding:11px 14px;
+  font-size:11px;color:var(--t2);line-height:1.8;
+  font-family:var(--mono);
+}
+.code-block .kw{color:var(--ind);}
+.code-block .str{color:var(--grn);}
+.code-block .fn{color:var(--ora);}
+.code-block .num{color:var(--amb);}
+
+/* success / status line */
+.status-line{
+  display:flex;align-items:center;gap:8px;
+  font-size:11px;font-weight:600;color:var(--grn);
+  margin-top:6px;
+}
+.sl-dot{width:8px;height:8px;border-radius:50%;background:var(--grn);}
+
+/* thinking */
+.thinking{display:flex;align-items:center;gap:8px;color:var(--ind);font-size:11px;}
+.th-dots{display:flex;gap:3px;}
+.th-dot{width:4px;height:4px;border-radius:50%;background:var(--ind);animation:th .9s infinite;}
+.th-dot:nth-child(2){animation-delay:.15s;}
+.th-dot:nth-child(3){animation-delay:.3s;}
+@keyframes th{0%,100%{opacity:.2}50%{opacity:1}}
+
+/* input */
+.inp-zone{padding:12px 22px;border-top:1px solid var(--b0);flex-shrink:0;}
+.inp-wrap{
+  background:var(--l2);border:1px solid var(--b1);
+  border-radius:8px;overflow:hidden;
+  transition:border-color .12s;
+}
+.inp-wrap:focus-within{border-color:var(--b2);}
+.inp-row{display:flex;align-items:center;padding:0 12px;}
+.inp-field{
+  flex:1;padding:12px 0;
+  background:transparent;border:none;outline:none;
+  font-family:var(--mono);font-size:12px;color:var(--t1);
+}
+.inp-field::placeholder{color:var(--t4);}
+.inp-cursor{
+  display:inline-block;width:8px;height:14px;
+  background:var(--ora);vertical-align:text-bottom;
+  animation:cur .9s step-end infinite;
+  margin-left:1px;
+}
+@keyframes cur{0%,100%{opacity:1}50%{opacity:0}}
+.inp-foot{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:6px 12px;border-top:1px solid var(--b0);
+}
+.inp-meta{display:flex;gap:12px;font-size:9px;color:var(--t4);}
+.im-chip{
+  background:var(--l3);border:1px solid var(--b0);
+  border-radius:3px;padding:1px 5px;
+  font-size:9px;font-weight:600;color:var(--t3);
+}
+.im-chip.active{background:var(--indb);border-color:rgba(107,127,255,.2);color:var(--ind);}
+.send-btn{
+  display:flex;align-items:center;gap:6px;
+  padding:5px 12px;border-radius:5px;
+  background:var(--ora);border:none;
+  font-family:var(--mono);font-size:10px;font-weight:700;
+  color:#fff;cursor:pointer;letter-spacing:.04em;
+  transition:opacity .12s;
+}
+.send-btn:hover{opacity:.85;}
+.send-icon{font-size:10px;}
+
+/* ─── RIGHT ─── */
+.right{
+  grid-column:3;grid-row:2;
+  background:var(--l);border-left:1px solid var(--b0);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.rh{
+  padding:11px 14px;
+  border-bottom:1px solid var(--b0);
+  display:flex;align-items:center;justify-content:space-between;
+  flex-shrink:0;
+}
+.rh-title{font-family:var(--sans);font-size:16px;font-weight:700;color:var(--t1);letter-spacing:-.01em;}
+.rh-date{font-size:10px;color:var(--t3);}
+
+.rs{flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:10px;}
+.rs::-webkit-scrollbar{width:2px;}
+.rs::-webkit-scrollbar-thumb{background:var(--l4);}
+
+/* section header in right */
+.rsc{
+  display:flex;align-items:baseline;justify-content:space-between;
+  margin-bottom:6px;
+}
+.rsc-l{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--t4);}
+.rsc-c{font-size:9px;color:var(--t3);}
+
+/* schedule items */
+.sched-item{
+  display:flex;align-items:flex-start;gap:8px;
+  padding:5px 0;border-bottom:1px solid var(--b0);
+}
+.sched-item:last-child{border-bottom:none;}
+.si-time{font-size:9px;color:var(--t3);min-width:35px;margin-top:2px;}
+.si-text{font-size:12px;color:var(--t2);}
+.si-text b{color:var(--t1);font-weight:600;}
+
+/* OVERDUE — hero of right column */
+.overdue-hero{
+  background:rgba(232,67,67,.04);
+  border:1px solid rgba(232,67,67,.2);
+  border-radius:8px;padding:12px 13px;
+  position:relative;overflow:hidden;
+}
+.overdue-hero::before{
+  content:'';position:absolute;top:0;left:0;bottom:0;width:3px;
+  background:var(--red);
+}
+.oh-lbl{
+  font-size:8px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--red);margin-bottom:6px;padding-left:8px;
+}
+.oh-name{
+  font-family:var(--sans);font-size:26px;font-weight:700;
+  color:var(--red);letter-spacing:-.02em;line-height:1.1;
+  padding-left:8px;
+}
+.oh-sub{font-size:11px;color:var(--t3);margin-top:4px;padding-left:8px;line-height:1.5;}
+.oh-badge{
+  display:inline-block;margin-top:7px;margin-left:8px;
+  background:var(--redb);border:1px solid rgba(232,67,67,.25);
+  border-radius:3px;padding:2px 7px;
+  font-size:9px;font-weight:700;color:var(--red);
+}
+
+/* matches list */
+.match-item{
+  display:flex;align-items:baseline;gap:8px;
+  padding:5px 0;border-bottom:1px solid var(--b0);
+}
+.match-item:last-child{border-bottom:none;}
+.mi-name{font-size:12px;color:var(--t2);flex:1;}
+.mi-val{font-size:11px;font-weight:700;}
+.mi-delta{font-size:9px;font-weight:600;}
+
+/* kitty state chip */
+.k-chip{
+  display:flex;align-items:center;gap:8px;
+  background:var(--l2);border:1px solid var(--b0);
+  border-radius:6px;padding:8px 11px;
+}
+.k-face{font-size:17px;line-height:1;}
+.k-info{flex:1;}
+.k-name{font-size:12px;font-weight:600;color:var(--t1);}
+.k-state-txt{font-size:10px;color:var(--t3);margin-top:1px;}
+.k-live{width:6px;height:6px;border-radius:50%;animation:blink 2s infinite;}
+
+/* quick action */
+.qa{
+  width:100%;padding:8px 11px;border-radius:6px;
+  background:var(--orab);border:1px solid var(--orab2);
+  font-family:var(--mono);font-size:10px;font-weight:700;
+  color:var(--ora);text-align:left;cursor:pointer;
+  letter-spacing:.04em;transition:all .12s;
+}
+.qa:hover{background:rgba(232,103,42,.18);}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="tb-logo">🐱</div>
+    <div class="tb-section on">
+      chats <span class="tb-ct">00</span>
+    </div>
+    <div class="tb-section">
+      journal
+    </div>
+    <div class="tb-section">
+      knowledge
+    </div>
+    <div class="tb-section">
+      tasks <span class="tb-ct ora">3</span>
+    </div>
+    <div class="tb-flex"></div>
+    <div class="tb-right">
+      <div class="tb-status">
+        <div class="tb-dot"></div>
+        Kitty active
+      </div>
+      <div class="tb-tone">
+        <div class="tn">gentle</div>
+        <div class="tn">balanced</div>
+        <div class="tn on">blunt</div>
+        <div class="tn">auto</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LEFT: CHAT LIST -->
+  <aside class="left">
+    <div class="lh">
+      <span class="lh-title">chats</span>
+      <div class="new-chat">+ new chat <span class="new-badge">new</span></div>
+    </div>
+    <div class="ls">
+
+      <div class="lg">Today</div>
+
+      <div class="ci on">
+        <div class="c-bar" style="background:var(--teal)"></div>
+        <div class="c-body">
+          <div class="c-name">today's brief</div>
+          <div class="c-meta">active now</div>
+        </div>
+        <div class="c-badge cb-g">live</div>
+      </div>
+
+      <div class="ci">
+        <div class="c-bar" style="background:var(--ind)"></div>
+        <div class="c-body">
+          <div class="c-name">kitty dashboard</div>
+          <div class="c-meta">prototype · 3h ago</div>
+        </div>
+      </div>
+
+      <div class="ci">
+        <div class="c-bar" style="background:var(--red)"></div>
+        <div class="c-body">
+          <div class="c-name">landlord email</div>
+          <div class="c-meta">4 days overdue</div>
+        </div>
+        <div class="c-badge cb-r">4d</div>
+      </div>
+
+      <div class="lg">Yesterday</div>
+
+      <div class="ci">
+        <div class="c-bar" style="background:var(--amb)"></div>
+        <div class="c-body">
+          <div class="c-name">brake appointment</div>
+          <div class="c-meta">photos needed</div>
+        </div>
+      </div>
+
+      <div class="ci">
+        <div class="c-bar" style="background:var(--t4)"></div>
+        <div class="c-body">
+          <div class="c-name">income options</div>
+          <div class="c-meta">life ops</div>
+        </div>
+      </div>
+
+      <div class="lg">Last B2SR</div>
+
+      <div class="ci">
+        <div class="c-bar" style="background:var(--t4)"></div>
+        <div class="c-body">
+          <div class="c-name">gift items for jon</div>
+          <div class="c-meta">and</div>
+        </div>
+      </div>
+      <div class="ci">
+        <div class="c-bar" style="background:var(--t4)"></div>
+        <div class="c-body">
+          <div class="c-name">sent the plateau n...</div>
+          <div class="c-meta">1on</div>
+        </div>
+      </div>
+
+      <div class="lg">Projects</div>
+
+      <div class="proj-item">
+        <div class="p-dot" style="background:var(--ora)"></div>
+        <span class="p-name">house rens</span>
+        <span class="p-n">●</span>
+      </div>
+      <div class="proj-item">
+        <div class="p-dot" style="background:var(--t4)"></div>
+        <span class="p-name">novel draft</span>
+        <span class="p-n">●</span>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- CENTER -->
+  <main class="center">
+
+    <!-- Greeting -->
+    <div class="greeting">
+      <div class="g-avatar">
+        🐱
+        <div class="g-av-state" style="background:var(--teal)"></div>
+      </div>
+      <div class="g-text">
+        <div class="g-name">morning, jacob <span class="g-kitty">:3</span></div>
+        <div class="g-sub">Wednesday, May 18 · 3:16 AM · dashboard home</div>
+      </div>
+    </div>
+
+    <!-- Context cards -->
+    <div class="ctx-row">
+      <div class="cx">
+        <div class="cx-l">Weather</div>
+        <div class="cx-v">−4°C</div>
+        <div class="cx-s">snow 8pm · wind NE</div>
+      </div>
+      <div class="cx attn">
+        <div class="cx-l">Next up</div>
+        <div class="cx-v">standup</div>
+        <div class="cx-s">2:00 PM · prep notes</div>
+      </div>
+      <div class="cx crit">
+        <div class="cx-l">Overdue</div>
+        <div class="cx-v">landlord</div>
+        <div class="cx-s">4 days late · act now</div>
+      </div>
+      <div class="cx foc">
+        <div class="cx-l">Focus</div>
+        <div class="cx-v">home shell</div>
+        <div class="cx-s">no backend today</div>
+      </div>
+    </div>
+
+    <!-- Activity Feed -->
+    <div class="feed">
+
+      <div class="msg-user">
+        <div class="mu-label">User</div>
+        <div class="mu-text">system status check</div>
+      </div>
+
+      <div class="msg-kitty">
+        <div class="mk-gutter"></div>
+        <div class="mk-body">
+          <div class="mk-label">Kitty (Agent)</div>
+          <div class="mk-text">
+            <b>SYSTEM STATUS: OK.</b> Weather active, schedule active, tasks active.<br>
+            You've been in a <span class="hl-red">design loop for 3 sessions.</span>
+            Landlord email is <span class="hl-red">4 days overdue</span> — that's the real blocker.
+            Today: <span class="hl-teal">fix the email first, then ship one layout shell.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="msg-user">
+        <div class="mu-label">User</div>
+        <div class="mu-text">query flight data halifax-toronto</div>
+      </div>
+
+      <div class="msg-kitty">
+        <div class="mk-gutter"></div>
+        <div class="mk-body">
+          <div class="mk-label">Kitty (Agent)</div>
+          <div class="mk-text"><span class="hl-amb">FLIGHT DATA MATCHES RETRIEVED:</span></div>
+          <div class="data-table">
+            <div class="dt-row">
+              <span class="dt-key">halifax → toronto</span>
+              <span class="dt-val dt-pos">+$881 <span class="dt-pos" style="font-size:9px">+5m</span></span>
+            </div>
+            <div class="dt-row">
+              <span class="dt-key">halifax reter...</span>
+              <span class="dt-val dt-pos">652 <span style="font-size:9px;color:var(--grn)">+32m</span></span>
+            </div>
+            <div class="dt-row">
+              <span class="dt-key">inbox · 3→3 flight</span>
+              <span class="dt-val dt-neu">−9</span>
+            </div>
+            <div class="dt-row">
+              <span class="dt-key">apartment lusp · last 24h</span>
+              <span class="dt-val" style="color:var(--amb)">17°c cold</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="msg-user">
+        <div class="mu-label">User</div>
+        <div class="mu-text">check overdue email</div>
+      </div>
+
+      <div class="msg-kitty">
+        <div class="mk-gutter"></div>
+        <div class="mk-body">
+          <div class="mk-label">Kitty (Agent)</div>
+          <div class="mk-text"><span class="hl-red">OVERDUE EMAIL (1): Landlord.</span></div>
+          <div class="code-block">
+<span class="kw">def</span> <span class="fn">kitty_refinement</span>(system):
+  system.palette = [<span class="str">"charcoal"</span>, <span class="str">"burnt-orange"</span>]
+  system.clean_layout = <span class="kw">True</span>
+  <span class="kw">return</span> system</div>
+          <div class="thinking">
+            <div class="th-dots">
+              <div class="th-dot"></div>
+              <div class="th-dot"></div>
+              <div class="th-dot"></div>
+            </div>
+            Thinking : Full-palette
+          </div>
+          <div class="status-line">
+            <div class="sl-dot"></div>
+            Successful — file:index.html ✓
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Input -->
+    <div class="inp-zone">
+      <div class="inp-wrap">
+        <div class="inp-row">
+          <input class="inp-field" type="text" placeholder="message Kitty...">
+          <span class="inp-cursor"></span>
+        </div>
+        <div class="inp-foot">
+          <div class="inp-meta">
+            <span class="im-chip active">/context · 2</span>
+            <span class="im-chip">⌘K commands</span>
+            <span class="im-chip">tone: blunt</span>
+          </div>
+          <button class="send-btn">
+            <span class="send-icon">▶</span>
+            Send
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- RIGHT -->
+  <aside class="right">
+    <div class="rh">
+      <span class="rh-title">today</span>
+      <span class="rh-date">Mon May 18</span>
+    </div>
+    <div class="rs">
+
+      <!-- Kitty state -->
+      <div class="k-chip">
+        <div class="k-face">🐱</div>
+        <div class="k-info">
+          <div class="k-name">Kitty · Active</div>
+          <div class="k-state-txt">online · watching priorities</div>
+        </div>
+        <div class="k-live" style="background:var(--teal)"></div>
+      </div>
+
+      <!-- Schedule -->
+      <div>
+        <div class="rsc">
+          <span class="rsc-l">Schedule</span>
+          <span class="rsc-c">1 event</span>
+        </div>
+        <div class="sched-item">
+          <span class="si-time">10:30</span>
+          <span class="si-text"><b>standup</b></span>
+        </div>
+        <div class="sched-item">
+          <span class="si-time">30:20</span>
+          <span class="si-text">lunch of jamie</span>
+        </div>
+        <div class="sched-item">
+          <span class="si-time">54:16</span>
+          <span class="si-text">room appt · of doc</span>
+        </div>
+      </div>
+
+      <!-- OVERDUE — hero -->
+      <div class="overdue-hero">
+        <div class="oh-lbl">Overdue</div>
+        <div class="oh-name">landlord<br>email</div>
+        <div class="oh-sub">Been out 4 nights, you keep saying you'll send it.</div>
+        <div class="oh-badge">4d late</div>
+      </div>
+
+      <!-- Matches -->
+      <div>
+        <div class="rsc">
+          <span class="rsc-l">Matches</span>
+          <span class="rsc-c">4</span>
+        </div>
+        <div class="match-item">
+          <span class="mi-name">halifax flight</span>
+          <span class="mi-val dt-pos">+$531</span>
+          <span class="mi-delta dt-pos">+387</span>
+        </div>
+        <div class="match-item">
+          <span class="mi-name">url raleene</span>
+          <span class="mi-val dt-neu">632</span>
+          <span class="mi-delta dt-neg">−2</span>
+        </div>
+        <div class="match-item">
+          <span class="mi-name">inbox unread</span>
+          <span class="mi-val dt-neu">3</span>
+          <span class="mi-delta dt-neg">−2</span>
+        </div>
+      </div>
+
+      <!-- Projects -->
+      <div>
+        <div class="rsc">
+          <span class="rsc-l">Projects · GitHub</span>
+          <span class="rsc-c">2</span>
+        </div>
+        <div class="match-item">
+          <span class="mi-name">house rens</span>
+          <span style="font-size:9px;color:var(--t4)">●</span>
+          <span style="font-size:9px;color:var(--t4)">—</span>
+        </div>
+        <div class="match-item">
+          <span class="mi-name">novel draft</span>
+          <span style="font-size:9px;color:var(--t4)">●</span>
+          <span style="font-size:9px;color:var(--t4)">—</span>
+        </div>
+      </div>
+
+      <!-- Quick action -->
+      <button class="qa">▶ start 10-min life task</button>
+
+    </div>
+  </aside>
+
+</div>
+</body>
+</html>
