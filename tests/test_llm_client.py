@@ -133,17 +133,21 @@ def test_route_model_case_insensitive():
 
 
 # ── resolve_agentrouter_api_key ───────────────────────────────────────────────
+# load_dotenv(override=True) inside the function would overwrite patched env vars
+# from a real .env file, so we stub it out in all these tests.
 
 def test_resolve_agentrouter_key_from_env():
     from gateway.llm_client import resolve_agentrouter_api_key
-    with patch.dict("os.environ", {"AGENTROUTER_API_KEY": "sk-test-key"}):
+    with patch("gateway.llm_client.load_dotenv"), \
+         patch.dict("os.environ", {"AGENTROUTER_API_KEY": "sk-test-key"}):
         key = resolve_agentrouter_api_key()
     assert key == "sk-test-key"
 
 
 def test_resolve_agentrouter_key_strips_quotes():
     from gateway.llm_client import resolve_agentrouter_api_key
-    with patch.dict("os.environ", {"AGENTROUTER_API_KEY": '"sk-test-key"'}):
+    with patch("gateway.llm_client.load_dotenv"), \
+         patch.dict("os.environ", {"AGENTROUTER_API_KEY": '"sk-test-key"'}):
         key = resolve_agentrouter_api_key()
     assert key == "sk-test-key"
 
@@ -151,15 +155,16 @@ def test_resolve_agentrouter_key_strips_quotes():
 def test_resolve_agentrouter_key_multiline_uses_first():
     """Multi-line key uses only the first line."""
     from gateway.llm_client import resolve_agentrouter_api_key
-    with patch.dict("os.environ", {"AGENTROUTER_API_KEY": "sk-line1\nsk-line2"}):
+    with patch("gateway.llm_client.load_dotenv"), \
+         patch.dict("os.environ", {"AGENTROUTER_API_KEY": "sk-line1\nsk-line2"}):
         key = resolve_agentrouter_api_key()
     assert key == "sk-line1"
 
 
 def test_resolve_agentrouter_key_missing_returns_empty():
     from gateway.llm_client import resolve_agentrouter_api_key
-    with patch.dict("os.environ", {}, clear=True):
-        # Ensure neither key is set
+    with patch("gateway.llm_client.load_dotenv"), \
+         patch.dict("os.environ", {}, clear=True):
         import os
         os.environ.pop("AGENTROUTER_API_KEY", None)
         os.environ.pop("AGENT_ROUTER_TOKEN", None)

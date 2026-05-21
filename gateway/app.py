@@ -73,9 +73,14 @@ async def lifespan(app: FastAPI):
                 except Exception:
                     pass
 
+        async def _action_memory_consolidate():
+            from gateway.memory_consolidation import nightly_dream
+            await asyncio.to_thread(nightly_dream)
+
         register_action("brief.refresh", _action_refresh_brief)
         register_action("nudges.check", _action_check_nudges)
         register_action("monitors.check", _action_check_monitors)
+        register_action("memory.consolidate", _action_memory_consolidate)
         cron_start()
     except Exception:
         pass
