@@ -240,6 +240,49 @@ export async function removeGatewayMonitor(id: string): Promise<void> {
   try { await gfetch(`/monitor/${id}`, { method: 'DELETE' }) } catch { /* non-fatal */ }
 }
 
+// ── Image generation ─────────────────────────────────────────────────────────
+
+export interface ImageGenStatus {
+  available: boolean
+  backend: string
+}
+
+export interface ImageEntry {
+  prompt_id: string
+  filename: string
+  prompt: string
+  created_at: number
+}
+
+export async function fetchImageStatus(): Promise<ImageGenStatus> {
+  try {
+    return await gfetch('/image/status')
+  } catch {
+    return { available: false, backend: 'comfyui' }
+  }
+}
+
+export async function generateImage(prompt: string): Promise<{ filename: string; prompt_id: string } | null> {
+  try {
+    return await gfetch('/image/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
+    })
+  } catch {
+    return null
+  }
+}
+
+export async function fetchImageHistory(): Promise<ImageEntry[]> {
+  try {
+    const json = await gfetch('/image/history')
+    return json.images ?? []
+  } catch {
+    return []
+  }
+}
+
 // ── Agents + Skills ─────────────────────────────────────────────────────────
 
 export interface GatewayAgent { role: string; description?: string }

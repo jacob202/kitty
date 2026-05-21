@@ -10,6 +10,7 @@ import { MonitorPanel } from './MonitorPanel'
 import { TodoPanel } from './TodoPanel'
 import { JournalPanel } from './JournalPanel'
 import { AgentPanel } from './AgentPanel'
+import { ImageGenPanel } from './ImageGenPanel'
 
 interface Props {
   chats: Chat[]
@@ -243,6 +244,13 @@ export function BriefPanel({ chats, onSelectChat, onPrompt, brief }: Props) {
             <SectionHeader title="Agents" meta="spawn" compact />
             <div style={{ marginTop: 10 }}>
               <AgentPanel />
+            </div>
+          </div>
+
+          <div style={panelCardStyle}>
+            <SectionHeader title="Image gen" meta="comfyui" compact />
+            <div style={{ marginTop: 10 }}>
+              <ImageGenPanel />
             </div>
           </div>
 
