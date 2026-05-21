@@ -17,30 +17,58 @@ Last updated: **2026-05-21**
 
 ---
 
-## Phase 2 — Plumbing & persistence (active)
+## Phase 2 — Plumbing & persistence ✅ COMPLETE
 
 - [x] **2.1 Route chat through gateway** — proxy default fixed to `:5001`; `/api/chat/completions` alias wires `streamChat` through `context_builder` + `voice_gate`.
 - [x] **2.2 Background brief** — `_brief_bg_loop` in `lifespan` warms cache on startup, refreshes every 15 min; `/brief` now instant.
-- [x] **2.3 Persistent chats** — `GET/POST/DELETE /chats` endpoints backed by `data/kitty/chats.json`; frontend loads on mount, saves after stream, deletes on close.
-- [ ] **2.4 Agent tasks** — `task_runner.py` exists; need a UI surface to trigger + monitor background tasks from the dashboard.
-- [x] **2.5 Telegram bot** — wired in lifespan; 7 tests passing; `TELEGRAM_BOT_TOKEN` documented in `.env.example`; supports `/brief`, `/stuck`, `/help`, plain chat.
+- [x] **2.3 Persistent chats** — `GET/POST/DELETE /chats` backed by `data/kitty/chats.json`; loads on mount, saves after stream, deletes on close.
+- [x] **2.4 Agent task UI** — `TaskPanel.tsx` in BriefPanel sidebar; type selector, goal input, live status polling every 3s, cancel button.
+- [x] **2.5 Telegram bot** — wired in lifespan; 7 tests passing; supports `/brief`, `/stuck`, `/help`, plain chat.
+
+---
+
+## Phase 3 — External world context (active)
+
+- [x] **3.1 Calendar** — `gateway/calendar.py` reads macOS Calendar via AppleScript; wired into `context_builder.py` and `brief.py`; BriefPanel shows today's events.
+- [x] **3.2 Ambient context** — `gateway/ambient.py` detects active macOS app; injected into context builder step 6; opt-in via `KITTY_AMBIENT_ENABLED=1`.
+- [x] **3.3 Nudge engine** — `gateway/nudge.py` checks repeated research, dropped threads, milestones; injected into context builder step 7; `/nudges` + dismiss endpoint live.
+- [ ] **3.4 Weather** — `gateway/weather.py` missing. Add wttr.in fetch (30-min cache) → inject into brief + context builder.
+- [ ] **3.5 iMessage context** — `gateway/imessage.py` exists (AppleScript read/send) with `/imessage/recent` + `/imessage/send` endpoints, but NOT injected into context builder or brief.
+- [ ] **3.6 Todos in context** — `gateway/todo_store.py` + `/todos` endpoint exists; current todo list NOT injected into system prompt.
+- [ ] **3.7 Health summary** — `gateway/health_parser.py` parses Apple Health XML; `/health/weekly` endpoint exists; NOT injected into context.
+
+---
+
+## Phase 4 — Wiring existing scaffolding (most already built)
+
+These modules have endpoints in app.py but are fully disconnected from context/brief:
+
+| Module | Endpoint(s) | What's missing |
+|---|---|---|
+| `web_monitor.py` | `/monitor/*` | Not surfaced in UI or context |
+| `patterns.py` | `/patterns/weekly`, `/patterns/annual` | Not in brief or context |
+| `builder.py` | `/build/*` | No UI surface in kitty-chat |
+| `researcher.py` | `/research/deep` | No UI trigger |
+| `learning.py` | `/learn` | No UI trigger |
+| `cron.py` | `/cron/*` | No UI for scheduling |
+| `image_gen.py` | `/image/*` | No UI |
+| `tts.py` | `/v1/audio/speech` | Not wired to chat response playback |
+| `stt.py` | `/v1/audio/transcriptions` | Not wired to InputBar mic button |
+| `skills/` | `/skills`, `/skill/*` | Not surfaced in UI |
+| `agents.py` | `/agent/*` | No UI to spawn/monitor agents |
+
+---
+
+## Phase 5 — Untested / dead scaffolding (audit & decide keep or delete)
+
+These modules exist, have no routes, and no tests. Evaluate each:
+`agent_summarizer`, `agentic_mode`, `context_compactor`, `memory_consolidation`,
+`onboarding`, `task_boundary`, `team_protocol`, `smoke_eval`, `specialist_router`,
+`eval_domain`, `eval_runner`, `async_feedback`, `autonomy_state`, `base_tool`,
+`antigravity_tools`, `chat_import`, `import_openwebui_prompts`, `ingest_policy`
 
 ---
 
 ## Next Smallest Action
 
-Phase 2 complete. Start Phase 3: pick the highest-value external connection — calendar read (`GET /calendar/today`) or weather snapshot — and wire it into the morning brief.
-
----
-
-## Phase 3 — External world (active)
-
-- [x] **3.1 Calendar** — `gateway/calendar.py` reads macOS Calendar via AppleScript; `/calendar/today` + `/calendar/upcoming` + `/calendar/create` endpoints live; wired into `context_builder.py` (steps 5) and `brief.py`; BriefPanel shows today's events.
-- [x] **3.2 Ambient context** — `gateway/ambient.py` detects active macOS app; wired into `context_builder.py` (step 6); opt-in via `KITTY_AMBIENT_ENABLED=1`.
-- [x] **3.3 Nudge engine** — `gateway/nudge.py` checks repeated research, dropped threads, milestones; wired into `context_builder.py` (step 7); `/nudges` + `/nudge/{id}/dismiss` endpoints live.
-- [ ] **3.4 Weather** — add `gateway/weather.py` hitting wttr.in for Regina; inject into brief and context.
-- [ ] **3.5 Email triage** — scan unread mail for action items; surface in nudge engine.
-
-## Next Smallest Action
-
-Phase 3.4: `gateway/weather.py` — one `requests.get("https://wttr.in/Regina?format=j1")` call, cached 30 min, injected into brief and context builder.
+**3.4 Weather** — `gateway/weather.py`, ~40 lines: `requests.get("https://wttr.in/Regina?format=j1")`, 30-min in-memory cache, `get_weather_text()` injected in `context_builder.py` step 5.5 and `brief.py`.
