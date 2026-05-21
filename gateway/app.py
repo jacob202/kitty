@@ -994,6 +994,30 @@ async def todos_clear():
     return {"todos": []}
 
 
+class TodoAddRequest(BaseModel):
+    content: str = Field(min_length=1, max_length=500)
+    status: str = "pending"
+    active_form: str = ""
+
+
+@app.post("/todos/add")
+async def todos_add(payload: TodoAddRequest):
+    from gateway.todo_store import add
+    return add(payload.content, payload.status, payload.active_form)
+
+
+@app.post("/todos/{todo_id}/complete")
+async def todos_complete_by_id(todo_id: int):
+    from gateway.todo_store import complete_by_id
+    return {"completed": complete_by_id(todo_id), "id": todo_id}
+
+
+@app.delete("/todos/{todo_id}")
+async def todos_delete(todo_id: int):
+    from gateway.todo_store import delete_by_id
+    return {"deleted": delete_by_id(todo_id), "id": todo_id}
+
+
 # --- Agent endpoints ---
 
 class AgentSpawnRequest(BaseModel):

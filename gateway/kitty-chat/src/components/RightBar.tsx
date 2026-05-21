@@ -1,8 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { Chat } from '@/lib/types'
-import type { GatewayBrief, GatewaySearchSnapshot, GatewayWeather, GatewaySkill, GatewayAgent } from '@/lib/gateway'
-import { fetchGatewayWeather, fetchGatewaySkills, fetchGatewayAgents } from '@/lib/gateway'
+import type { GatewayBrief, GatewaySearchSnapshot, GatewayWeather, GatewaySkill, GatewayAgent, GatewayNudge } from '@/lib/gateway'
+import { fetchGatewayWeather, fetchGatewaySkills, fetchGatewayAgents, fetchGatewayNudges, dismissGatewayNudge } from '@/lib/gateway'
 
 interface Props {
   chats: Chat[]
@@ -17,6 +17,7 @@ export function RightBar({ chats, activeChat, isStreaming, brief, search, active
   const [weather, setWeather] = useState<GatewayWeather | null>(null)
   const [skills, setSkills] = useState<GatewaySkill[]>([])
   const [agents, setAgents] = useState<GatewayAgent[]>([])
+  const [nudges, setNudges] = useState<GatewayNudge[]>([])
 
   useEffect(() => {
     void fetchGatewayWeather().then(setWeather)
@@ -27,6 +28,7 @@ export function RightBar({ chats, activeChat, isStreaming, brief, search, active
   useEffect(() => {
     void fetchGatewaySkills().then(setSkills)
     void fetchGatewayAgents().then(setAgents)
+    void fetchGatewayNudges().then(setNudges)
   }, [])
 
   const tokenEstimate = activeChat
@@ -112,6 +114,33 @@ export function RightBar({ chats, activeChat, isStreaming, brief, search, active
           </div>
         </section>
 
+        {/* Nudges */}
+        {nudges.length > 0 && (
+          <section>
+            <Label>nudges</Label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 6 }}>
+              {nudges.map(n => (
+                <div key={n.id} style={nudgeRowStyle}>
+                  <p style={{ fontSize: 11, color: 'var(--text-dim)', margin: 0, lineHeight: 1.45, flex: 1 }}>
+                    {n.message}
+                  </p>
+                  <button
+                    onClick={() => {
+                      void dismissGatewayNudge(n.id).then(() =>
+                        setNudges(prev => prev.filter(x => x.id !== n.id))
+                      )
+                    }}
+                    style={nudgeDismissStyle}
+                    title="dismiss"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Skills */}
         {skills.length > 0 && (
           <section>
@@ -178,6 +207,28 @@ const valueStyle: React.CSSProperties = {
   fontSize: 12,
   color: 'var(--text-dim)',
   fontFamily: 'var(--font-mono)',
+}
+
+const nudgeRowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: 6,
+  padding: '6px 8px',
+  background: 'var(--bg-card)',
+  border: '1px solid var(--border-dim)',
+  borderLeft: '3px solid var(--orange)',
+  borderRadius: 5,
+}
+
+const nudgeDismissStyle: React.CSSProperties = {
+  background: 'transparent',
+  border: 'none',
+  color: 'var(--text-faint)',
+  cursor: 'pointer',
+  fontSize: 13,
+  padding: '0 2px',
+  lineHeight: 1,
+  flexShrink: 0,
 }
 
 const contextRowStyle: React.CSSProperties = {

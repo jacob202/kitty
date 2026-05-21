@@ -263,6 +263,78 @@ export async function fetchGatewaySkills(): Promise<GatewaySkill[]> {
   }
 }
 
+// ── Todos ────────────────────────────────────────────────────────────────────
+
+export interface GatewayTodo {
+  id: number
+  content: string
+  status: 'pending' | 'in_progress' | 'completed' | 'deprioritized'
+  active_form: string
+  sort_order: number
+  created_at: number
+  updated_at: number
+}
+
+export async function fetchGatewayTodos(): Promise<GatewayTodo[]> {
+  try {
+    const json = await gfetch('/todos')
+    return json.todos ?? []
+  } catch {
+    return []
+  }
+}
+
+export async function addGatewayTodo(content: string): Promise<GatewayTodo | null> {
+  try {
+    return await gfetch('/todos/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    })
+  } catch {
+    return null
+  }
+}
+
+export async function completeGatewayTodo(id: number): Promise<boolean> {
+  try {
+    const json = await gfetch(`/todos/${id}/complete`, { method: 'POST' })
+    return json.completed ?? false
+  } catch {
+    return false
+  }
+}
+
+export async function deleteGatewayTodo(id: number): Promise<boolean> {
+  try {
+    const json = await gfetch(`/todos/${id}`, { method: 'DELETE' })
+    return json.deleted ?? false
+  } catch {
+    return false
+  }
+}
+
+// ── Nudges ────────────────────────────────────────────────────────────────────
+
+export interface GatewayNudge {
+  id: string
+  type: string
+  message: string
+}
+
+export async function fetchGatewayNudges(): Promise<GatewayNudge[]> {
+  try {
+    const json = await gfetch('/nudges')
+    return json.nudges ?? []
+  } catch {
+    return []
+  }
+}
+
+export async function dismissGatewayNudge(id: string): Promise<void> {
+  try { await gfetch(`/nudge/${id}/dismiss`, { method: 'POST' }) } catch { /* non-fatal */ }
+}
+
 // ── Chat persistence ─────────────────────────────────────────────────────────
 
 function serializeChat(chat: Chat) {

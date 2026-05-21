@@ -7,6 +7,7 @@ import type { GatewayBrief, CalendarEvent } from '@/lib/gateway'
 import { fetchCalendarToday } from '@/lib/gateway'
 import { TaskPanel } from './TaskPanel'
 import { MonitorPanel } from './MonitorPanel'
+import { TodoPanel } from './TodoPanel'
 
 interface Props {
   chats: Chat[]
@@ -185,6 +186,13 @@ export function BriefPanel({ chats, onSelectChat, onPrompt, brief }: Props) {
                   <span style={miniValueStyle}>{item.value}</span>
                 </div>
               ))}
+            </div>
+          </div>
+
+          <div style={panelCardStyle}>
+            <SectionHeader title="Todos" meta="active" compact />
+            <div style={{ marginTop: 10 }}>
+              <TodoPanel />
             </div>
           </div>
 

@@ -130,6 +130,28 @@ def clear() -> None:
         conn.commit()
 
 
+def complete_by_id(todo_id: int) -> bool:
+    """Mark item with given DB id as completed."""
+    init_db()
+    now = time.time()
+    with sqlite3.connect(TODO_DB) as conn:
+        cursor = conn.execute(
+            "UPDATE todos SET status = 'completed', updated_at = ? WHERE id = ?",
+            (now, todo_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def delete_by_id(todo_id: int) -> bool:
+    """Remove one todo by DB id."""
+    init_db()
+    with sqlite3.connect(TODO_DB) as conn:
+        cursor = conn.execute("DELETE FROM todos WHERE id = ?", (todo_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
 def get_todos_text() -> str:
     """Return current todo list as a formatted string for context injection."""
     todos = get()
