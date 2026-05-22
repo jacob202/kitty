@@ -36,35 +36,6 @@ class VoiceTurnResult:
 
 
 # --- Legacy compatibility: VoiceSession class ---
-# Kept for backward compatibility with tests. New code should use VoiceSessionState.
-
-
-class VoiceSession:
-    """State for one WebSocket voice connection.
-
-    Legacy compatibility shim. New code should use VoiceSessionState.
-    """
-
-    MAX_MESSAGE_HISTORY: int = 20
-
-    def __init__(self, ws: WebSocket):
-        self.ws = ws
-        self.messages: list[dict] = []
-        self.mode: str = "ptt"
-        self.created_at: float = time.time()
-        self.turn_count: int = 0
-
-    def add_user_message(self, text: str) -> None:
-        self.messages.append({"role": "user", "content": text})
-        self._trim()
-
-    def add_assistant_message(self, text: str) -> None:
-        self.messages.append({"role": "assistant", "content": text})
-        self._trim()
-
-    def _trim(self) -> None:
-        if len(self.messages) > self.MAX_MESSAGE_HISTORY:
-            self.messages = self.messages[-self.MAX_MESSAGE_HISTORY :]
 
 
 @dataclass
@@ -186,12 +157,14 @@ class VoicePipeline:
     async def process_turn(
         self,
         audio_bytes: bytes,
+        session: Optional[VoiceSessionState] = None,
         domain: Optional[str] = None,
     ) -> VoiceTurnResult:
-        """Process one voice turn: STT → LLM → TTS → gate.
+        """Process one voice turn: STT → LLM → gate.
 
-        This is the DEEP entry point. Callers don't need to know about
-        STT, TTS, or gate internals — they just process a turn.
+        When ``session`` is provided, prior turns in ``session.messages`` are
+        included in the LLM payload. TTS and session mutation stay in the
+        WebSocket handler.
         """
         # 1. Transcribe
         try:
@@ -229,19 +202,23 @@ class VoicePipeline:
             system_prompt = await get_system_prompt(user_text, domain=domain)
             model = route_model(user_text)
 
+            llm_messages: List[Dict[str, str]] = [
+                {"role": "system", "content": system_prompt},
+            ]
+            if session is not None:
+                llm_messages.extend(session.messages)
+            llm_messages.append({"role": "user", "content": user_text})
+
             payload = {
                 "model": model,
                 "stream": False,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_text},
-                ],
+                "messages": llm_messages,
             }
 
             data = await chat_completions_non_stream(payload)
             reply = extract_assistant_text(data)
 
-            # 3. Gate filtering
+            # Gate filtering
             reply, violations = self._gate.filter(reply)
 
         except Exception:
@@ -258,21 +235,6 @@ class VoicePipeline:
                 assistant_text="",
                 error="Got nothing back — try again?",
             )
-
-        # 4. Synthesize speech
-        try:
-            audio_out = await self._tts.synthesize(reply, voice="kitty")
-        except Exception as e:
-            logger.warning("TTS failed (non-fatal): %s", e)
-            audio_out = b""
-
-        # 5. Log interaction
-        try:
-            from gateway.self_review import record_interaction
-
-            record_interaction(user_text, reply)
-        except Exception:
-            pass
 
         return VoiceTurnResult(
             user_text=user_text,

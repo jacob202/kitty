@@ -3,7 +3,9 @@ import { useMemo } from 'react'
 import type { CSSProperties } from 'react'
 import { Chat } from '@/lib/types'
 import { commandZones } from '@/lib/dashboardMock'
-import type { GatewayBrief, GatewayHeadline } from '@/lib/gateway'
+import type { GatewayBrief, GatewayHeadline, GatewayTodo } from '@/lib/gateway'
+import { BriefStrip } from '@/components/BriefStrip'
+import { TodayCompass, type PriorityItem } from '@/components/TodayCompass'
 
 function headlineText(h: string | GatewayHeadline): string {
   return typeof h === 'string' ? h : h.title
@@ -25,6 +27,7 @@ interface Props {
   onSelectChat: (id: string) => void
   onPrompt: (text: string) => void
   brief?: GatewayBrief | null
+  todos?: GatewayTodo[]
   loading?: boolean
 }
 
@@ -45,66 +48,72 @@ function gatewayIsLive(brief: GatewayBrief | null | undefined): boolean {
   return true
 }
 
-interface PriorityCard {
-  label: string
-  badge: string
-  badgeColor: string
-  title: string
-  body: string
+function activeTodos(todos: GatewayTodo[]): GatewayTodo[] {
+  return todos.filter(t => t.status === 'pending' || t.status === 'in_progress')
 }
 
-function buildCards(brief: GatewayBrief | null | undefined): PriorityCard[] {
-  if (brief && !brief.error && brief.headlines?.length) {
-    return [
-      {
-        label: 'HEADLINE',
-        badge: 'LIVE',
-        badgeColor: 'var(--mint)',
-        title: headlineText(brief.headlines[0]) || 'No headline',
-        body: brief.intention ?? '',
-      },
-      {
-        label: 'MEMORY',
-        badge: 'GATEWAY',
-        badgeColor: 'var(--secondary)',
-        title: 'context loaded',
-        body: brief.memory_snippet ?? 'No memory snippet returned.',
-      },
-      {
-        label: 'STATUS',
-        badge: brief.notification_sent ? 'SENT' : 'LIVE',
-        badgeColor: brief.notification_sent ? 'var(--mint)' : 'var(--primary)',
-        title: brief.date ?? 'today',
-        body: brief.notification_sent ? 'Brief notification sent.' : 'Brief is live and connected.',
-      },
-    ]
+function weatherFromHeadlines(headlines: GatewayBrief['headlines']): string | null {
+  if (!headlines?.length) return null
+  const match = headlines.find(h => {
+    const text = headlineText(h).toLowerCase()
+    return text.includes('weather') || text.includes('forecast') || text.includes('°')
+  })
+  return match ? headlineText(match) : null
+}
+
+function buildCompassItems(
+  brief: GatewayBrief | null | undefined,
+  todos: GatewayTodo[],
+  onPrompt: (text: string) => void,
+): PriorityItem[] {
+  const items: PriorityItem[] = []
+  const active = activeTodos(todos)
+
+  if (brief?.intention?.trim()) {
+    items.push({
+      id: 'intention',
+      title: brief.intention.trim(),
+      description: brief.memory_snippet?.slice(0, 120) || undefined,
+      priority: 'high',
+      icon: '🎯',
+      onSelect: () => onPrompt(brief.intention!.trim()),
+    })
   }
-  return [
-    {
-      label: 'NEXT UP',
-      badge: 'NOW',
-      badgeColor: 'var(--primary)',
-      title: 'clean home surface',
-      body: 'Consolidate the dashboard around one useful continuation, not a wall of widgets.',
-    },
-    {
-      label: 'SUGGESTED FIX',
-      badge: 'READY',
-      badgeColor: 'var(--mint)',
-      title: 'proxy default',
-      body: 'KittyChat should default to the live gateway at 127.0.0.1:8000.',
-    },
-    {
-      label: 'SIGNAL',
-      badge: 'VERIFIED',
-      badgeColor: 'var(--secondary)',
-      title: 'typescript clean',
-      body: 'Keep the UI pass buildable before plumbing deeper backend contracts.',
-    },
-  ]
+
+  brief?.headlines?.slice(0, 4).forEach((headline, index) => {
+    const title = headlineText(headline)
+    if (!title) return
+    items.push({
+      id: `headline-${index}`,
+      title,
+      description: typeof headline === 'object' ? headline.snippet?.slice(0, 120) : undefined,
+      priority: index === 0 ? 'medium' : 'low',
+      icon: '📰',
+    })
+  })
+
+  active.slice(0, 3).forEach(todo => {
+    items.push({
+      id: `todo-${todo.id}`,
+      title: todo.content,
+      description: todo.active_form || undefined,
+      priority: todo.status === 'in_progress' ? 'high' : 'medium',
+      icon: '☐',
+      onSelect: () => onPrompt(todo.content),
+    })
+  })
+
+  return items
 }
 
-export function BriefPanel({ chats, onSelectChat, onPrompt, brief, loading = false }: Props) {
+export function BriefPanel({
+  chats,
+  onSelectChat,
+  onPrompt,
+  brief,
+  todos = [],
+  loading = false,
+}: Props) {
   const recentChats = useMemo(() => {
     return [...chats]
       .filter(c => c.messages.length > 0)
@@ -112,13 +121,17 @@ export function BriefPanel({ chats, onSelectChat, onPrompt, brief, loading = fal
       .slice(0, 6)
   }, [chats])
 
-  const cards = buildCards(brief)
   const live = gatewayIsLive(brief)
   const dateStr = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })
+  const openTodos = activeTodos(todos)
+  const focusTodo = openTodos.find(t => t.status === 'in_progress') ?? openTodos[0]
+  const compassItems = useMemo(
+    () => buildCompassItems(brief, todos, onPrompt),
+    [brief, todos, onPrompt],
+  )
 
   return (
     <div style={panelStyle}>
-      {/* SECTION A — Greeting bar */}
       <section style={greetingBarStyle}>
         <div>
           <div style={greetingTitleStyle}>{greetingTime()}, {USER_DISPLAY_NAME}.</div>
@@ -135,35 +148,31 @@ export function BriefPanel({ chats, onSelectChat, onPrompt, brief, loading = fal
         </div>
       </section>
 
-      {/* SECTION B — Three priority cards (or loading skeleton) */}
       {loading ? (
-        <section
-          role="status"
-          aria-label="loading brief"
-          style={cardsGridStyle}
-        >
-          {[0, 1, 2].map(i => (
-            <div
-              key={i}
-              style={{
-                ...cardBaseStyle,
-                height: 104,
-                opacity: 0.35,
-                background: 'var(--surface-mid)',
-                animation: 'none',
-              }}
-            />
-          ))}
+        <section role="status" aria-label="loading brief" style={sectionPadStyle}>
+          <div style={{ ...stripSkeletonStyle, height: 72, opacity: 0.35 }} />
+          <div style={{ ...stripSkeletonStyle, height: 140, opacity: 0.25, marginTop: 16 }} />
         </section>
       ) : (
-        <section style={cardsGridStyle}>
-          {cards.map((card) => (
-            <PriorityCardItem key={card.label} card={card} />
-          ))}
+        <section style={sectionPadStyle}>
+          <BriefStrip
+            intention={brief?.intention ?? null}
+            weather={weatherFromHeadlines(brief?.headlines)}
+            overdueCount={openTodos.length}
+            focusText={focusTodo?.content ?? null}
+          />
+          <div style={{ marginTop: 16 }}>
+            <TodayCompass
+              items={compassItems}
+              onItemSelect={item => {
+                if (item.onSelect) return
+                onPrompt(item.title)
+              }}
+            />
+          </div>
         </section>
       )}
 
-      {/* SECTION C — Activity feed */}
       {recentChats.length > 0 && (
         <section>
           <div style={sectionLabelStyle}>RECENT SESSIONS</div>
@@ -195,7 +204,6 @@ export function BriefPanel({ chats, onSelectChat, onPrompt, brief, loading = fal
         </section>
       )}
 
-      {/* SECTION D — Quick command shortcuts */}
       {commandZones.length > 0 && (
         <section style={{ padding: '24px 24px 40px' }}>
           <div style={{...sectionLabelStyle, padding: '0 0 12px'}}>QUICK COMMANDS</div>
@@ -224,25 +232,6 @@ export function BriefPanel({ chats, onSelectChat, onPrompt, brief, loading = fal
           </div>
         </section>
       )}
-    </div>
-  )
-}
-
-function PriorityCardItem({ card }: { card: PriorityCard }) {
-  return (
-    <div
-      style={cardBaseStyle}
-      onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = card.badgeColor }}
-      onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border)' }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={cardLabelStyle}>{card.label}</span>
-        <span style={{ ...cardBadgeStyle, borderColor: card.badgeColor, color: card.badgeColor }}>
-          {card.badge}
-        </span>
-      </div>
-      <div style={cardTitleStyle}>{card.title}</div>
-      <div style={cardBodyStyle}>{card.body}</div>
     </div>
   )
 }
@@ -278,55 +267,14 @@ const greetingDateStyle: CSSProperties = {
   marginTop: 6,
 }
 
-const cardsGridStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-  gap: 16,
+const sectionPadStyle: CSSProperties = {
   padding: '24px 32px',
 }
 
-const cardBaseStyle: CSSProperties = {
-  background: 'var(--surface-low)',
-  border: '1px solid var(--border)',
+const stripSkeletonStyle: CSSProperties = {
+  background: 'var(--surface-mid)',
   borderRadius: 10,
-  padding: '16px 20px',
-  transition: 'border-color 0.2s ease',
-  cursor: 'default',
-}
-
-const cardLabelStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  textTransform: 'uppercase',
-  letterSpacing: '0.12em',
-  color: 'var(--text-muted)',
-}
-
-const cardBadgeStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  textTransform: 'uppercase',
-  letterSpacing: '0.05em',
-  border: '1px solid',
-  borderRadius: 4,
-  padding: '2px 6px',
-  background: 'transparent',
-}
-
-const cardTitleStyle: CSSProperties = {
-  fontFamily: 'var(--font-ui)',
-  fontSize: 16,
-  fontWeight: 600,
-  marginTop: 10,
-  color: 'var(--text)',
-}
-
-const cardBodyStyle: CSSProperties = {
-  fontFamily: 'var(--font-ui)',
-  fontSize: 14,
-  color: 'var(--text-dim)',
-  lineHeight: 1.5,
-  marginTop: 6,
+  border: '1px solid var(--border)',
 }
 
 const sectionLabelStyle: CSSProperties = {

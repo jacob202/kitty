@@ -10,12 +10,16 @@ import { BriefPanel } from '@/components/BriefPanel'
 import { Rail } from '@/components/Rail'
 import { SessionSidebar } from '@/components/SessionSidebar'
 import { RightBar } from '@/components/RightBar'
+import { TaskPanel } from '@/components/TaskPanel'
+import { TodoPanel } from '@/components/TodoPanel'
 import {
   fetchGatewayBrief,
   fetchGatewayModels,
   fetchGatewaySearch,
+  fetchGatewayTodos,
   type GatewayBrief,
   type GatewaySearchSnapshot,
+  type GatewayTodo,
 } from '@/lib/gateway'
 
 let chatCounter = 0
@@ -72,6 +76,7 @@ function KittyChatInner() {
   const [showModelMenu, setShowModelMenu] = useState(false)
   const [tokenCount, setTokenCount] = useState(0)
   const [brief, setBrief] = useState<GatewayBrief | null>(null)
+  const [todos, setTodos] = useState<GatewayTodo[]>([])
   const [searchSnapshot, setSearchSnapshot] = useState<GatewaySearchSnapshot | null>(null)
   const [modelGateway, setModelGateway] = useState<{
     loaded: boolean
@@ -137,6 +142,12 @@ function KittyChatInner() {
           error: briefPayload.error,
         })
         setBrief(briefPayload.brief)
+      })
+
+      const todoList = await fetchGatewayTodos()
+      if (cancelled) return
+      startTransition(() => {
+        setTodos(todoList)
       })
     })()
 

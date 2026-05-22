@@ -104,3 +104,38 @@ def on_context_fetch() -> None:
     _state["mood"] = "searching"
     _state["last_active_ts"] = time.time()
     _save()
+
+
+# --- Drift tracking for voice gate compatibility ---
+# Session-local drift counter (resets on session start)
+
+_drift_count: int = 0
+_DRIFT_THRESHOLD: int = 3  # after this many drifts in a session, nudge
+
+
+def record_drift() -> None:
+    """Record a drift violation. Increments both lifetime and session counters."""
+    global _drift_count
+    _drift_count += 1
+    _state["drift_count"] = _state.get("drift_count", 0) + 1
+    _state["mood"] = "confused"
+    _state["energy"] = max(0, _state["energy"] - 5)
+    _state["last_active_ts"] = time.time()
+    _save()
+
+
+def get_drift_nudge() -> Optional[str]:
+    """Return a correction nudge if drift threshold exceeded this session."""
+    if _drift_count >= _DRIFT_THRESHOLD:
+        return (
+            "\n\n[SYSTEM NOTE: You've drifted from your voice a few times this session. "
+            "Re-read SOUL.md rules. No 'Certainly!', no corporate-speak, no unearned agreement. "
+            "Be the friend who's actually paying attention.]"
+        )
+    return None
+
+
+def reset_drift_counter() -> None:
+    """Reset session drift counter."""
+    global _drift_count
+    _drift_count = 0

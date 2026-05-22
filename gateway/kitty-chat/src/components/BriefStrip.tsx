@@ -2,6 +2,9 @@
 
 interface Props {
   intention: string | null
+  weather?: string | null
+  overdueCount?: number
+  focusText?: string | null
 }
 
 interface BriefCard {
@@ -18,12 +21,37 @@ function cardColor(color: BriefCard['color']): string {
   return 'var(--text)'
 }
 
-export function BriefStrip({ intention }: Props) {
+export function BriefStrip({
+  intention,
+  weather = null,
+  overdueCount = 0,
+  focusText = null,
+}: Props) {
   const cards: BriefCard[] = [
-    { label: 'WEATHER', value: '—', sub: 'no data', color: 'default' },
-    { label: 'NEXT UP', value: intention ?? '—', sub: 'from brief', color: 'orange' },
-    { label: 'OVERDUE', value: '—', sub: 'nothing flagged', color: 'red' },
-    { label: 'FOCUS',   value: '—', sub: 'see compass', color: 'teal' },
+    {
+      label: 'WEATHER',
+      value: weather?.trim() || '—',
+      sub: weather ? 'live' : 'no data',
+      color: 'default',
+    },
+    {
+      label: 'NEXT UP',
+      value: intention?.trim() || '—',
+      sub: intention ? 'from brief' : 'waiting on gateway',
+      color: 'orange',
+    },
+    {
+      label: 'OVERDUE',
+      value: overdueCount > 0 ? String(overdueCount) : '—',
+      sub: overdueCount > 0 ? `${overdueCount} open todo${overdueCount === 1 ? '' : 's'}` : 'nothing flagged',
+      color: overdueCount > 0 ? 'red' : 'default',
+    },
+    {
+      label: 'FOCUS',
+      value: focusText?.trim() || '—',
+      sub: focusText ? 'active todo' : 'see compass',
+      color: 'teal',
+    },
   ]
 
   return (

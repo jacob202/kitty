@@ -144,34 +144,34 @@ def filter_response(text: str) -> VoiceGateResult:
 
 
 # --- Correction nudge — appended to system prompt when drift accumulates ---
-
-_drift_count: int = 0
-_DRIFT_THRESHOLD: int = 3  # after this many drifts in a session, nudge
+# Delegated to buddy.py for unified drift tracking across all endpoints.
 
 
 def get_drift_nudge() -> Optional[str]:
     """Return a correction nudge if drift threshold has been exceeded this session.
-    
+
     Call this when building the system prompt. If Kitty has drifted 3+ times,
     append a reminder to stay in character.
+
+    Delegated to buddy.py for unified tracking.
     """
-    global _drift_count
-    if _drift_count >= _DRIFT_THRESHOLD:
-        return (
-            "\n\n[SYSTEM NOTE: You've drifted from your voice a few times this session. "
-            "Re-read SOUL.md rules. No 'Certainly!', no corporate-speak, no unearned agreement. "
-            "Be the friend who's actually paying attention.]"
-        )
-    return None
+    from gateway.buddy import get_drift_nudge as buddy_get_drift_nudge
+    return buddy_get_drift_nudge()
 
 
 def record_drift() -> None:
-    """Increment the session drift counter. Call after filtering a response."""
-    global _drift_count
-    _drift_count += 1
+    """Increment the session drift counter. Call after filtering a response.
+
+    Delegated to buddy.py for unified tracking.
+    """
+    from gateway.buddy import record_drift as buddy_record_drift
+    buddy_record_drift()
 
 
 def reset_drift_counter() -> None:
-    """Reset drift counter (e.g. on new session)."""
-    global _drift_count
-    _drift_count = 0
+    """Reset drift counter (e.g. on new session).
+
+    Delegated to buddy.py for unified tracking.
+    """
+    from gateway.buddy import reset_drift_counter as buddy_reset_drift_counter
+    buddy_reset_drift_counter()
