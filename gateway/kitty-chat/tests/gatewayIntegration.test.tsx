@@ -2,7 +2,7 @@ import { render, screen, cleanup } from '@testing-library/react'
 import { vi, describe, expect, it, beforeEach, afterEach } from 'vitest'
 
 import { BriefPanel } from '../src/components/BriefPanel'
-import { RightBar } from '../src/components/RightBar'
+import { RightPanel } from '../src/components/RightPanel'
 import { TopBar } from '../src/components/TopBar'
 import { buildGatewayModels, fetchGatewaySearch, summarizeGatewaySearch } from '../src/lib/gateway'
 
@@ -104,11 +104,11 @@ describe('fetchGatewaySearch abort', () => {
   })
 })
 
-describe('RightBar', () => {
+describe('RightPanel', () => {
   afterEach(cleanup)
   it('shows search unavailable card when searchGatewayError is set', () => {
     render(
-      <RightBar
+      <RightPanel
         chats={[]}
         activeChat={null}
         isStreaming={false}
@@ -122,7 +122,7 @@ describe('RightBar', () => {
 
   it('shows search results when search snapshot has data', () => {
     render(
-      <RightBar
+      <RightPanel
         chats={[]}
         activeChat={null}
         isStreaming={false}

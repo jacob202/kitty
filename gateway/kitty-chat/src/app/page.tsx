@@ -9,7 +9,7 @@ import { InputBar } from '@/components/InputBar'
 import { BriefPanel } from '@/components/BriefPanel'
 import { Rail } from '@/components/Rail'
 import { SessionSidebar } from '@/components/SessionSidebar'
-import { RightBar } from '@/components/RightBar'
+import { RightPanel } from '@/components/RightPanel'
 import { TaskPanel } from '@/components/TaskPanel'
 import { TodoPanel } from '@/components/TodoPanel'
 import {
@@ -476,7 +476,7 @@ function KittyChatInner() {
         />
       </main>
 
-      <RightBar
+      <RightPanel
         chats={chats}
         activeChat={activeChat}
         isStreaming={isStreaming}
