@@ -14,6 +14,7 @@ Public API:
   get_output(task_id) -> str
   cancel(task_id) -> bool
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -66,7 +67,9 @@ def create(
 ) -> str:
     """Create a background task. Returns task_id."""
     if task_type not in VALID_TYPES:
-        raise ValueError(f"Unknown task type: {task_type}. Valid: {sorted(VALID_TYPES)}")
+        raise ValueError(
+            f"Unknown task type: {task_type}. Valid: {sorted(VALID_TYPES)}"
+        )
 
     init_db()
     task_id = str(uuid.uuid4())[:8]
@@ -146,6 +149,7 @@ def cancel(task_id: str) -> bool:
 
 # --- Internal Execution ---
 
+
 async def _execute(task_id: str) -> None:
     """Execute a task in the background."""
     task = get(task_id)
@@ -185,20 +189,17 @@ async def _execute(task_id: str) -> None:
 async def _run_research(goal: str, task_id: str) -> str:
     """Research task: use an explorer agent to investigate and report."""
     _update(task_id, progress="Running explorer agent...")
-    from gateway.agent_runner import spawn, get_output as agent_output, get_status
-    import asyncio
+    from gateway.agent_runner import spawn, get_output as agent_output, await_completion
 
     session_id = await spawn(goal, agent_type="researcher", max_iterations=4)
     _update(task_id, progress=f"Agent spawned (session {session_id}), running...")
 
-    # Poll until complete
-    for _ in range(60):  # max 5 minutes at 5s intervals
-        await asyncio.sleep(5)
-        status = get_status(session_id)
-        if status["status"] in ("completed", "failed", "cancelled"):
-            break
-        _update(task_id, progress=f"Iteration {status.get('iterations', 0)}...")
-
+    await await_completion(
+        session_id,
+        on_poll=lambda status: _update(
+            task_id, progress=f"Iteration {status.get('iterations', 0)}..."
+        ),
+    )
     return agent_output(session_id)
 
 
@@ -206,6 +207,7 @@ async def _run_ingest(goal: str, task_id: str) -> str:
     """Ingest task: queue documents for knowledge base ingestion."""
     _update(task_id, progress="Queueing ingestion...")
     from gateway.ingestion_queue import enqueue
+
     try:
         # goal is a file path or directory path to ingest
         enqueue(goal)
@@ -217,19 +219,17 @@ async def _run_ingest(goal: str, task_id: str) -> str:
 async def _run_build(goal: str, task_id: str) -> str:
     """Build task: use a coder agent to generate code."""
     _update(task_id, progress="Running coder agent...")
-    from gateway.agent_runner import spawn, get_output as agent_output, get_status
-    import asyncio
+    from gateway.agent_runner import spawn, get_output as agent_output, await_completion
 
     session_id = await spawn(goal, agent_type="coder", max_iterations=5)
     _update(task_id, progress=f"Coder agent running (session {session_id})...")
 
-    for _ in range(60):
-        await asyncio.sleep(5)
-        status = get_status(session_id)
-        if status["status"] in ("completed", "failed", "cancelled"):
-            break
-        _update(task_id, progress=f"Building... iteration {status.get('iterations', 0)}")
-
+    await await_completion(
+        session_id,
+        on_poll=lambda status: _update(
+            task_id, progress=f"Building... iteration {status.get('iterations', 0)}"
+        ),
+    )
     return agent_output(session_id)
 
 
@@ -240,6 +240,7 @@ async def _run_cleanup(goal: str, task_id: str) -> str:
     # Compact old traces (keep last 30 days)
     try:
         from gateway.honcho import GATEWAY_LOG
+
         if GATEWAY_LOG.exists():
             cutoff = time.time() - 30 * 86400
             lines = GATEWAY_LOG.read_text().splitlines()
@@ -260,6 +261,7 @@ async def _run_dream(goal: str, task_id: str) -> str:
     # Memory consolidation (summarize traces → long-term memory)
     try:
         from gateway.memory_consolidation import nightly_dream
+
         summary = await asyncio.to_thread(nightly_dream)
         results.append(summary)
     except Exception as e:
@@ -268,6 +270,7 @@ async def _run_dream(goal: str, task_id: str) -> str:
     # Run queued ingestions
     try:
         from gateway.ingestion_queue import process_queue
+
         count = process_queue()
         results.append(f"Ingestion queue: {count} items processed")
     except Exception as e:
@@ -277,6 +280,7 @@ async def _run_dream(goal: str, task_id: str) -> str:
 
 
 # --- Helpers ---
+
 
 def _update(task_id: str, **fields) -> None:
     """Update task fields in the database."""

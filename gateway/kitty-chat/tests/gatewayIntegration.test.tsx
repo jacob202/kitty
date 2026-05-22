@@ -188,8 +188,9 @@ describe('BriefPanel', () => {
     )
 
     expect(screen.getByText('Kitty is live')).toBeInTheDocument()
-    expect(screen.getByText('Ship the integrated UI.')).toBeInTheDocument()
+    expect(screen.getAllByText('Ship the integrated UI.').length).toBeGreaterThan(0)
     expect(screen.getByText('Remember to use the live gateway.')).toBeInTheDocument()
+    expect(screen.getByText("Today's Compass")).toBeInTheDocument()
   })
 
   it('shows loading skeleton when loading prop is true', () => {

@@ -1,0 +1,188 @@
+'use client'
+import type { CSSProperties } from 'react'
+
+interface PromptTemplate {
+  id: string | number
+  title: string
+  content: string
+  category?: string
+  icon?: string
+}
+
+interface Props {
+  templates: PromptTemplate[]
+  onSelect?: (template: PromptTemplate) => void
+  title?: string
+}
+
+export function PromptToolkit({ templates, onSelect, title = 'Prompt Toolkit' }: Props) {
+  const grouped = templates.reduce((acc, tpl) => {
+    const cat = tpl.category || 'General'
+    if (!acc[cat]) acc[cat] = []
+    acc[cat].push(tpl)
+    return acc
+  }, {} as Record<string, PromptTemplate[]>)
+
+  return (
+    <div style={containerStyle}>
+      <div style={headerStyle}>
+        <span style={titleStyle}>{title}</span>
+        <span style={countStyle}>{templates.length} templates</span>
+      </div>
+      <div style={bodyStyle}>
+        {Object.entries(grouped).map(([category, items]) => (
+          <div key={category} style={categoryGroupStyle}>
+            <div style={categoryHeaderStyle}>{category}</div>
+            <div style={templateListStyle}>
+              {items.map(tpl => (
+                <div
+                  key={tpl.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onSelect?.(tpl)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      onSelect?.(tpl)
+                    }
+                  }}
+                  style={templateCardStyle}
+                  onMouseEnter={(e) => {
+                    const el = e.currentTarget as HTMLDivElement
+                    el.style.background = 'var(--surface-mid)'
+                    el.style.borderColor = 'var(--primary)'
+                  }}
+                  onMouseLeave={(e) => {
+                    const el = e.currentTarget as HTMLDivElement
+                    el.style.background = 'var(--surface-low)'
+                    el.style.borderColor = 'var(--border)'
+                  }}
+                >
+                  <div style={templateHeaderStyle}>
+                    {tpl.icon && <span style={iconStyle}>{tpl.icon}</span>}
+                    <span style={templateTitleStyle}>{tpl.title}</span>
+                  </div>
+                  <div style={templatePreviewStyle}>
+                    {tpl.content.slice(0, 100)}
+                    {tpl.content.length > 100 ? '...' : ''}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+        {templates.length === 0 && (
+          <div style={emptyStyle}>No prompt templates available</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+const containerStyle: CSSProperties = {
+  background: 'var(--surface-low)',
+  border: '1px solid var(--border)',
+  borderRadius: 10,
+  padding: '16px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 12,
+}
+
+const headerStyle: CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  paddingBottom: 8,
+  borderBottom: '1px solid var(--border-dim)',
+}
+
+const titleStyle: CSSProperties = {
+  fontFamily: 'var(--font-ui)',
+  fontSize: 16,
+  fontWeight: 600,
+  color: 'var(--text)',
+  marginBottom: 4,
+}
+
+const countStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  color: 'var(--text-muted)',
+  letterSpacing: '0.05em',
+}
+
+const bodyStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 16,
+}
+
+const categoryGroupStyle: CSSProperties = {}
+
+const categoryHeaderStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  fontWeight: 700,
+  color: 'var(--text-muted)',
+  letterSpacing: '0.1em',
+  textTransform: 'uppercase',
+  marginBottom: 8,
+  marginTop: 4,
+}
+
+const templateListStyle: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+  gap: 8,
+}
+
+const templateCardStyle: CSSProperties = {
+  background: 'var(--panel)',
+  border: '1px solid var(--border)',
+  borderRadius: 8,
+  padding: '12px',
+  cursor: 'pointer',
+  transition: 'all 0.2s ease',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
+}
+
+const templateHeaderStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+}
+
+const iconStyle: CSSProperties = {
+  fontSize: 16,
+  lineHeight: 1,
+}
+
+const templateTitleStyle: CSSProperties = {
+  fontFamily: 'var(--font-ui)',
+  fontSize: 13,
+  fontWeight: 600,
+  color: 'var(--text)',
+}
+
+const templatePreviewStyle: CSSProperties = {
+  fontFamily: 'var(--font-ui)',
+  fontSize: 12,
+  color: 'var(--text-dim)',
+  lineHeight: 1.4,
+  display: '-webkit-box',
+  WebkitLineClamp: 2,
+  WebkitBoxOrient: 'vertical',
+  overflow: 'hidden',
+}
+
+const emptyStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 12,
+  color: 'var(--text-faint)',
+  textAlign: 'center',
+  padding: '24px 0',
+  fontStyle: 'italic',
+}

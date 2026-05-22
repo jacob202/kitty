@@ -125,3 +125,40 @@ async def enrich_dynamic_context(base: str, message: str) -> str:
         dynamic_context = (dynamic_context + nudge) if dynamic_context else nudge
 
     return dynamic_context
+
+
+# Sync helpers for brief synthesis (same sources as async enrichment blocks)
+def weather_text_sync() -> str:
+    try:
+        from gateway.weather import get_weather_text
+
+        return get_weather_text() or ""
+    except Exception:
+        return ""
+
+
+def todos_text_sync() -> str:
+    try:
+        from gateway.todo_store import get_todos_text
+
+        return get_todos_text() or ""
+    except Exception:
+        return ""
+
+
+def calendar_today_text_sync() -> str:
+    """Today's calendar events as a formatted string for brief prompts."""
+    try:
+        from gateway.calendar_integration import get_today, is_available
+
+        if not is_available():
+            return ""
+        events = get_today()
+        if not events:
+            return ""
+        lines = ["Today's Schedule:"] + [
+            f"- {e.get('start', '')}: {e.get('title', '')}" for e in events[:8]
+        ]
+        return "\n".join(lines)
+    except Exception:
+        return ""

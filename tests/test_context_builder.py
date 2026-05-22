@@ -1,20 +1,13 @@
-"""Tests for context_builder — unified context via memory_graph, constants, assembly."""
+"""Tests for context_builder — unified context via memory_graph, assembly."""
 
 import pytest
 from unittest.mock import patch, AsyncMock
 
 from gateway import context_enrichment
 from gateway.context_builder import (
-    MEMORY_TOKEN_CAP,
-    KNOWLEDGE_TOKEN_CAP,
-    MEMORY_SIMILARITY_THRESHOLD,
-    MEMORY_LIMIT,
-    KNOWLEDGE_LIMIT,
-    _truncate,
     _assemble,
-    assemble_system_prompt,
-    build_user_context,
     get_system_prompt,
+    build_worker_context,
 )
 
 # ---------------------------------------------------------------------------
@@ -31,65 +24,21 @@ def test_assemble_empty_dynamic_returns_base():
     assert _assemble("BASE", "") == "BASE"
 
 
-def test_truncate_short_text_unchanged():
-    text = "hello world"
-    assert _truncate(text, 500) == text
+def test_build_worker_context_researcher():
+    result = build_worker_context(
+        "researcher", topic="Kitty routing", chunks="Some notes"
+    )
+    assert "Research topic: Kitty routing" in result
+    assert "Some notes" in result
 
 
-def test_truncate_long_text_ends_with_ellipsis():
-    long_text = "x" * 10000
-    result = _truncate(long_text, 100)
-    assert result.endswith("…")
-    assert len(result) < len(long_text)
-
-
-def test_assemble_system_prompt_with_dynamic():
-    result = assemble_system_prompt("SOUL", "DYNAMIC")
-    assert "SOUL" in result
-    assert "DYNAMIC" in result
-    assert result.index("SOUL") < result.index("DYNAMIC")
-
-
-def test_assemble_system_prompt_empty_dynamic_returns_soul():
-    assert assemble_system_prompt("SOUL", "") == "SOUL"
-
-
-def test_constants_exist_and_sane():
-    assert 0 < MEMORY_SIMILARITY_THRESHOLD <= 1.0
-    assert MEMORY_TOKEN_CAP > 0
-    assert KNOWLEDGE_TOKEN_CAP > 0
-    assert MEMORY_LIMIT > 0
-    assert KNOWLEDGE_LIMIT > 0
+def test_build_worker_context_unknown_returns_empty():
+    assert build_worker_context("brief", top_task="ignored") == ""
 
 
 # ---------------------------------------------------------------------------
 # Async integration tests — unified context via memory_graph
 # ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_build_user_context_returns_tuple():
-    with patch(
-        "gateway.context_builder.memory_graph.unified_context",
-        new=AsyncMock(
-            return_value="## Memory\n- test memory\n\n## Knowledge\n[src | general]\ntest knowledge"
-        ),
-    ):
-        soul, dynamic = await build_user_context("test query", "SOUL")
-    assert soul == "SOUL"
-    assert "Memory" in dynamic
-    assert "Knowledge" in dynamic
-
-
-@pytest.mark.asyncio
-async def test_build_user_context_soul_unchanged_on_empty():
-    with patch(
-        "gateway.context_builder.memory_graph.unified_context",
-        new=AsyncMock(return_value=""),
-    ):
-        soul, dynamic = await build_user_context("test query", "SOUL")
-    assert soul == "SOUL"
-    assert dynamic == ""
 
 
 @pytest.mark.asyncio
@@ -126,22 +75,23 @@ async def test_enrich_dynamic_context_appends_block():
     assert result == "BASE\n\n[TestBlock] hello"
 
 
-@pytest.mark.asyncio
-async def test_build_user_context_exception_does_not_crash():
-    with patch(
-        "gateway.context_builder.memory_graph.unified_context",
-        new=AsyncMock(return_value="## Memory\n- survived"),
-    ):
-        soul, dynamic = await build_user_context("test query", "SOUL")
-    assert soul == "SOUL"
-    assert "Memory" in dynamic
-
-
 # ---------------------------------------------------------------------------
 # Unified memory_graph unit tests
 # ---------------------------------------------------------------------------
 
-from gateway.memory_graph import _format_unified, _truncate as _mg_truncate
+from gateway.memory_graph import _format_unified, _truncate
+
+
+def test_truncate_short_text_unchanged():
+    text = "hello world"
+    assert _truncate(text, 500) == text
+
+
+def test_truncate_long_text_ends_with_ellipsis():
+    long_text = "x" * 10000
+    result = _truncate(long_text, 100)
+    assert result.endswith("…")
+    assert len(result) < len(long_text)
 
 
 def test_format_unified_empty_results_returns_empty():

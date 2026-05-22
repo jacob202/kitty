@@ -10,7 +10,7 @@ Implementation details (domain routing, prompt loading, dynamic context) are pri
 from __future__ import annotations
 
 import logging
-from typing import Optional, Tuple
+from typing import Optional
 
 from gateway import (
     domain_router,
@@ -23,13 +23,6 @@ from gateway import (
 from gateway.context_enrichment import enrich_dynamic_context
 
 logger = logging.getLogger("kitty.context_builder")
-
-# Legacy retrieval constants (used by tests and external patches)
-MEMORY_LIMIT: int = 5
-KNOWLEDGE_LIMIT: int = 3
-MEMORY_TOKEN_CAP: int = 500
-KNOWLEDGE_TOKEN_CAP: int = 700
-MEMORY_SIMILARITY_THRESHOLD: float = 0.7
 
 
 async def get_system_prompt(
@@ -54,19 +47,6 @@ async def get_system_prompt(
 
 def build_worker_context(context_type: str, **kwargs) -> str:
     """Build a plain-text context block for synchronous worker tasks."""
-    if context_type == "brief":
-        top_task = kwargs.get("top_task", "")
-        m = kwargs.get("memory", "")
-        tz = kwargs.get("tz", "")
-        parts_list = []
-        if top_task:
-            parts_list.append(f"Current Top Task: {top_task}")
-        if m:
-            parts_list.append(f"Recent Memories: {m}")
-        if tz:
-            parts_list.append(f"Timezone: {tz}")
-        return "\n".join(parts_list)
-
     if context_type in ("learning", "reset", "troubleshooter"):
         return kwargs.get("task_desc", "")
 
@@ -83,25 +63,3 @@ def _assemble(base: str, dynamic_context: str) -> str:
     if dynamic_context:
         return f"{base}\n\n{dynamic_context}"
     return base
-
-
-def _truncate(text: str, cap: int) -> str:
-    if (len(text) // 4) <= cap:
-        return text
-    return text[: cap * 4] + "…"
-
-
-async def build_user_context(query: str, soul_prompt: str) -> Tuple[str, str]:
-    """Shim for legacy callers who expect (soul, dynamic) split."""
-    dynamic = await memory_graph.unified_context(query)
-    return soul_prompt, dynamic
-
-
-def assemble_system_prompt(soul: str, dynamic: str) -> str:
-    return f"{soul}\n\n{dynamic}".strip()
-
-
-from gateway.memory import get_context_block as _fetch_memory  # noqa: E402, F401
-from gateway.knowledge import (
-    get_knowledge_block as _fetch_knowledge_block,
-)  # noqa: E402, F401

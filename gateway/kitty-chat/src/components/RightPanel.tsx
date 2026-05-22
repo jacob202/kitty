@@ -13,7 +13,7 @@ interface Props {
   activeModelName?: string
 }
 
-export function RightBar({
+export function RightPanel({
   chats,
   activeChat,
   isStreaming,

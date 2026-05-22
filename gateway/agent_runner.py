@@ -23,7 +23,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Optional, Any
+from typing import Optional, Any, Callable
 
 logger = logging.getLogger("kitty.agent_runner")
 
@@ -350,6 +350,30 @@ def stop(session_id: int) -> bool:
         conn.commit()
     logger.info("Agent %d marked cancelled", session_id)
     return True
+
+
+async def await_completion(
+    session_id: int,
+    *,
+    timeout: int = AGENT_TIMEOUT_SECONDS,
+    poll: float = 5.0,
+    on_poll: Optional[Callable[[dict[str, Any]], None]] = None,
+) -> dict[str, Any]:
+    """Poll agent status until terminal state or timeout.
+
+    Interactive agents use spawn + get_status/get_output. Durable queued tasks
+    should call this helper instead of duplicating poll loops.
+    """
+    elapsed = 0.0
+    while elapsed < timeout:
+        await asyncio.sleep(poll)
+        elapsed += poll
+        status = get_status(session_id)
+        if on_poll:
+            on_poll(status)
+        if status["status"] in ("completed", "failed", "cancelled"):
+            return status
+    return get_status(session_id)
 
 
 # Avoid circular import at module level

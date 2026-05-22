@@ -7,6 +7,7 @@ interface Props {
   onSelectChat: (id: string) => void
   onNewChat: () => void
   onCloseChat: (id: string) => void
+  collapsed?: boolean
 }
 
 function timeAgo(date: Date): string {
@@ -18,7 +19,7 @@ function timeAgo(date: Date): string {
   return Math.floor(diff / 86400) + 'd'
 }
 
-export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, onCloseChat }: Props) {
+export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, onCloseChat, collapsed = false }: Props) {
   const sorted = [...chats].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
   const cutoff = Date.now() - 24 * 3600 * 1000
   const today = sorted.filter(c => c.updatedAt.getTime() > cutoff)
@@ -26,53 +27,113 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
 
   return (
     <aside style={{
-      width: 'var(--sidebar)',
-      padding: '24px 16px',
+      width: collapsed ? '60px' : 'var(--sidebar)',
+      padding: collapsed ? '16px 12px' : '24px 16px',
       overflowY: 'auto',
       borderRight: '1px solid var(--border)',
       background: 'rgba(16, 20, 29, 0.74)',
       backdropFilter: 'blur(10px)',
       flexShrink: 0,
+      transition: 'width 0.2s ease, padding 0.2s ease',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <span style={{
-          fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
-          color: 'var(--text-muted)', letterSpacing: '0.14em', textTransform: 'uppercase',
-        }}>sessions</span>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: collapsed ? 'center' : 'space-between',
+        marginBottom: 20,
+        minHeight: 32,
+      }}>
+        {!collapsed && (
+          <span style={{
+            fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
+            color: 'var(--text-muted)', letterSpacing: '0.14em', textTransform: 'uppercase',
+          }}>sessions</span>
+        )}
         <button
           onClick={onNewChat}
           style={{
-            background: 'var(--primary)', color: '#fff',
-            padding: '6px 12px', borderRadius: 8,
-            fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 11,
+            background: 'var(--primary)',
+            color: '#fff',
+            padding: collapsed ? '6px' : '6px 12px',
+            borderRadius: 8,
+            fontFamily: 'var(--font-mono)',
+            fontWeight: 700,
+            fontSize: 11,
             boxShadow: '0 4px 12px rgba(232, 120, 69, 0.15)',
             cursor: 'pointer',
             transition: 'background 0.2s',
+            width: collapsed ? 32 : 'auto',
+            height: collapsed ? 32 : 'auto',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: collapsed ? 'center' : 'space-between',
           }}
+          title={collapsed ? 'New chat' : undefined}
           onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--orange-deep)' }}
           onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--primary)' }}
-        >+ new</button>
+        >
+          {collapsed ? '+' : '+ new'}
+        </button>
       </div>
 
-      {today.length > 0 && (
+      {!collapsed && (
         <>
-          <GroupLabel>Today</GroupLabel>
-          {today.map(c => (
-            <SessionItem key={c.id} chat={c} active={c.id === activeChatId} onSelect={onSelectChat} onClose={onCloseChat} />
-          ))}
+          {today.length > 0 && (
+            <>
+              <GroupLabel>Today</GroupLabel>
+              {today.map(c => (
+                <SessionItem key={c.id} chat={c} active={c.id === activeChatId} onSelect={onSelectChat} onClose={onCloseChat} />
+              ))}
+            </>
+          )}
+
+          {older.length > 0 && (
+            <>
+              <GroupLabel>Earlier</GroupLabel>
+              {older.map(c => (
+                <SessionItem key={c.id} chat={c} active={c.id === activeChatId} onSelect={onSelectChat} onClose={onCloseChat} />
+              ))}
+            </>
+          )}
+
+          {chats.length === 0 && (
+            <div style={{ textAlign: 'center', color: 'var(--text-faint)', fontSize: 12, fontStyle: 'italic', marginTop: 20 }}>
+              no sessions yet
+            </div>
+          )}
         </>
       )}
 
-      {older.length > 0 && (
-        <>
-          <GroupLabel>Earlier</GroupLabel>
-          {older.map(c => (
-            <SessionItem key={c.id} chat={c} active={c.id === activeChatId} onSelect={onSelectChat} onClose={onCloseChat} />
+      {collapsed && chats.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
+          {chats.slice(0, 5).map(c => (
+            <div
+              key={c.id}
+              onClick={() => onSelectChat(c.id)}
+              title={c.title}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                background: CHAT_COLORS[c.color]?.tab || 'var(--indigo)',
+                display: 'grid',
+                placeItems: 'center',
+                fontSize: 10,
+                color: '#fff',
+                fontWeight: 600,
+                cursor: 'pointer',
+                border: c.id === activeChatId ? '2px solid var(--primary)' : '2px solid transparent',
+                transition: 'border-color 0.2s ease',
+              }}
+            >
+              {c.title.charAt(0).toUpperCase()}
+            </div>
           ))}
-        </>
+        </div>
       )}
     </aside>
   )
+}
 }
 
 function GroupLabel({ children }: { children: React.ReactNode }) {

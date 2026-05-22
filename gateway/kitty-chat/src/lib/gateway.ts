@@ -44,6 +44,50 @@ export interface GatewaySearchSnapshot {
   }
 }
 
+// ── Loops ─────────────────────────────────────────────────────────────────────
+
+export type LoopStatus = 'running' | 'paused' | 'error' | 'idle'
+
+export interface GatewayLoop {
+  loop_id: string
+  name: string
+  description?: string
+  status: LoopStatus
+  interval_minutes?: number
+  last_run?: number
+  last_result?: string
+  error_message?: string
+  created_at?: number
+  updated_at?: number
+}
+
+export interface GatewayLoopsPayload {
+  loops: GatewayLoop[]
+  fromLiveGateway: boolean
+  error: string | null
+}
+
+// ── Insights ───────────────────────────────────────────────────────────────────
+
+export type InsightKind = 'pattern' | 'anomaly' | 'suggestion' | 'milestone'
+
+export interface GatewayInsight {
+  insight_id: string
+  kind: InsightKind
+  title: string
+  detail?: string
+  source?: string
+  confidence?: number
+  created_at: number
+  actions?: Array<{ label: string; action_id: string }>
+}
+
+export interface GatewayInsightsPayload {
+  insights: GatewayInsight[]
+  fromLiveGateway: boolean
+  error: string | null
+}
+
 /** When `fromLiveGateway` is false, `error` explains why; `data` is still safe to render (fallback or null). */
 export type GatewayModelsPayload = {
   models: Model[]
@@ -496,5 +540,61 @@ export async function fetchGatewaySearch(
       fromLiveGateway: false,
       error: describeFetchError(err, null),
     }
+  }
+}
+
+// ── Loops Fetch ───────────────────────────────────────────────────────────────
+
+export async function fetchGatewayLoops(): Promise<GatewayLoopsPayload> {
+  try {
+    const json = await gfetch<{ loops?: GatewayLoop[] }>('/loops')
+    return {
+      loops: json.loops ?? [],
+      fromLiveGateway: true,
+      error: null,
+    }
+  } catch (err) {
+    return {
+      loops: [],
+      fromLiveGateway: false,
+      error: describeFetchError(err, null),
+    }
+  }
+}
+
+export async function toggleGatewayLoop(loopId: string): Promise<boolean> {
+  try {
+    await gfetch(`/loop/${loopId}/toggle`, { method: 'POST' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+// ── Insights Fetch ────────────────────────────────────────────────────────────
+
+export async function fetchGatewayInsights(limit = 10): Promise<GatewayInsightsPayload> {
+  try {
+    const json = await gfetch<{ insights?: GatewayInsight[] }>(`/insights?limit=${limit}`)
+    return {
+      insights: json.insights ?? [],
+      fromLiveGateway: true,
+      error: null,
+    }
+  } catch (err) {
+    return {
+      insights: [],
+      fromLiveGateway: false,
+      error: describeFetchError(err, null),
+    }
+  }
+}
+
+export async function dismissGatewayInsight(insightId: string): Promise<boolean> {
+  try {
+    await gfetch(`/insight/${insightId}/dismiss`, { method: 'POST' })
+    return true
+  } catch {
+    return false
   }
 }

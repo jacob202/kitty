@@ -2,23 +2,38 @@
 
 import pytest
 import json
-import asyncio
-from unittest.mock import MagicMock, patch, AsyncMock
-from gateway.memory_graph import unified_context, search_all, CONTEXT_TOKEN_CAP
+import time
+from unittest.mock import patch, AsyncMock
+
+from gateway.memory_graph import (
+    unified_context,
+    search_all,
+    CONTEXT_TOKEN_CAP,
+    MemoryGraph,
+    GraphResult,
+    MemoryAdapter,
+    KnowledgeAdapter,
+    JournalAdapter,
+    TracesAdapter,
+    TodosAdapter,
+    _fetch_traces,
+)
 
 
 @pytest.mark.asyncio
 async def test_search_all_returns_all_keys():
     """search_all should always return the five canonical keys."""
-    # Mocking external store fetchers to return empty lists
-    with patch("gateway.memory_graph._fetch_memory", return_value=[]), patch(
-        "gateway.memory_graph._fetch_knowledge", return_value=[]
-    ), patch("gateway.memory_graph.search_entries", return_value=[]), patch(
-        "gateway.memory_graph._fetch_traces", return_value=[]
-    ), patch(
-        "gateway.memory_graph._fetch_todos", return_value=[]
+    with patch.object(
+        MemoryAdapter, "fetch", new=AsyncMock(return_value=[])
+    ), patch.object(
+        KnowledgeAdapter, "fetch", new=AsyncMock(return_value=[])
+    ), patch.object(
+        JournalAdapter, "fetch", new=AsyncMock(return_value=[])
+    ), patch.object(
+        TracesAdapter, "fetch", new=AsyncMock(return_value=[])
+    ), patch.object(
+        TodosAdapter, "fetch", new=AsyncMock(return_value=[])
     ):
-
         results = await search_all("test query")
         assert set(results.keys()) == {
             "memory",
@@ -33,21 +48,21 @@ async def test_search_all_returns_all_keys():
 @pytest.mark.asyncio
 async def test_failure_isolation():
     """A failure in one store should not prevent others from returning results."""
-    # Mock one to fail, others to succeed
-    with patch(
-        "gateway.memory_graph._fetch_memory", side_effect=RuntimeError("Store down")
-    ), patch(
-        "gateway.memory_graph._fetch_knowledge", return_value=[{"text": "found it"}]
-    ), patch(
-        "gateway.memory_graph.search_entries", return_value=[]
-    ), patch(
-        "gateway.memory_graph._fetch_traces", return_value=[]
-    ), patch(
-        "gateway.memory_graph._fetch_todos", return_value=[]
+    with patch.object(
+        MemoryAdapter, "fetch", new=AsyncMock(side_effect=RuntimeError("Store down"))
+    ), patch.object(
+        KnowledgeAdapter,
+        "fetch",
+        new=AsyncMock(return_value=[{"text": "found it"}]),
+    ), patch.object(
+        JournalAdapter, "fetch", new=AsyncMock(return_value=[])
+    ), patch.object(
+        TracesAdapter, "fetch", new=AsyncMock(return_value=[])
+    ), patch.object(
+        TodosAdapter, "fetch", new=AsyncMock(return_value=[])
     ):
-
         results = await search_all("test query")
-        assert results["memory"] == []  # Isolated failure
+        assert results["memory"] == []
         assert len(results["knowledge"]) == 1
         assert results["knowledge"][0]["text"] == "found it"
 
@@ -60,9 +75,14 @@ async def test_unified_context_formatting():
         "knowledge": [{"text": "learned this", "source": "book.pdf"}],
         "journal": [{"entry": "today I felt happy"}],
         "traces": [{"user_request": "how are you", "domain_classified": "chat"}],
+        "todos": [],
     }
 
-    with patch("gateway.memory_graph._fetch_all_stores", return_value=mock_results):
+    with patch.object(
+        MemoryGraph,
+        "search_all",
+        new=AsyncMock(return_value=GraphResult(results=mock_results)),
+    ):
         ctx = await unified_context("hello")
         assert "## Memory" in ctx
         assert "remembered this" in ctx
@@ -77,18 +97,21 @@ async def test_unified_context_formatting():
 @pytest.mark.asyncio
 async def test_token_budget_truncation():
     """unified_context should truncate output according to CONTEXT_TOKEN_CAP."""
-    # Create a result that will exceed the 1200 token (4800 char) cap
     long_text = "A" * (CONTEXT_TOKEN_CAP * 5)
     mock_results = {
         "memory": [{"memory": long_text}],
         "knowledge": [],
         "journal": [],
         "traces": [],
+        "todos": [],
     }
 
-    with patch("gateway.memory_graph._fetch_all_stores", return_value=mock_results):
+    with patch.object(
+        MemoryGraph,
+        "search_all",
+        new=AsyncMock(return_value=GraphResult(results=mock_results)),
+    ):
         ctx = await unified_context("hello")
-        # chars approx 4 * tokens
         assert len(ctx) <= (CONTEXT_TOKEN_CAP * 4) + 5
         assert ctx.endswith("…")
 
@@ -99,7 +122,6 @@ async def test_real_journal_fetch_smoke(tmp_path, monkeypatch):
     journal_file = tmp_path / "journal_entries.jsonl"
     monkeypatch.setattr("gateway.journal.JOURNAL_LOG", journal_file)
 
-    # Write some mock entries
     with open(journal_file, "w") as f:
         f.write(json.dumps({"entry": "the quick brown fox"}) + "\n")
         f.write(json.dumps({"entry": "lazy dog jumps"}) + "\n")
@@ -110,8 +132,6 @@ async def test_real_journal_fetch_smoke(tmp_path, monkeypatch):
     results = search_entries("quick dog")
 
     assert len(results) == 2
-    # "quick brown fox" has "quick"
-    # "lazy dog jumps" has "dog"
     assert any("quick" in r["entry"] for r in results)
     assert any("dog" in r["entry"] for r in results)
 
@@ -119,13 +139,10 @@ async def test_real_journal_fetch_smoke(tmp_path, monkeypatch):
 @pytest.mark.asyncio
 async def test_real_trace_fetch_smoke(tmp_path, monkeypatch):
     """Test the real _fetch_traces logic with a temporary file."""
-    import time
-
     trace_file = tmp_path / "gateway_trace.jsonl"
     monkeypatch.setattr("gateway.memory_graph.GATEWAY_LOG", trace_file)
 
     now = time.time()
-    # Write some mock entries
     with open(trace_file, "w") as f:
         f.write(
             json.dumps(
@@ -147,8 +164,6 @@ async def test_real_trace_fetch_smoke(tmp_path, monkeypatch):
             )
             + "\n"
         )
-
-    from gateway.memory_graph import _fetch_traces
 
     results = _fetch_traces("hvac")
 

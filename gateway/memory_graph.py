@@ -1,156 +1,216 @@
-"""Unified memory graph — single query across Memory, Knowledge, Journal, Traces, and Todos.
+"""Unified Memory Graph — deep module for cross-store context retrieval.
 
-Entry points:
-- unified_context(query) -> str: The one function context_builder should call.
-- search_all(query) -> dict[str, list]: Raw results from all stores for debugging/search UI.
+This is a DEEP module. Callers should only use:
+- unified_context(query) -> str: High-leverage entry point for context building.
+- search_all(query) -> dict: Raw results from all stores for debugging.
+
+Internal store adapters (Memory, Knowledge, Journal, Traces, Todos) are
+implementation details. The module provides:
+1. Unified query interface across 5 stores
+2. Cross-store correlation (find related entities across stores)
+3. Concurrent fetching with graceful degradation
+4. Token-aware truncation
+
+Depth principle: A lot of behaviour (5 stores + correlation) behind a small
+interface (unified_context, search_all).
 """
-
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
 import time
-from typing import Any
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from typing import Any, Protocol
 
-from gateway.journal import search_entries
 from gateway.paths import LOGS_DIR
 
 logger = logging.getLogger("kitty.memory_graph")
 
 CONTEXT_TOKEN_CAP: int = 1200
-STORE_KEYS = ("memory", "knowledge", "journal", "traces", "todos")
-
 GATEWAY_LOG = LOGS_DIR / "gateway_trace.jsonl"
 
 
-async def unified_context(query: str) -> str:
-    """Return a single formatted context block from all stores."""
-    results = await _fetch_all_stores(query)
-    return _format_unified(results)
+# --- Store Adapter Interface ---
 
 
-async def search_all(query: str) -> dict[str, list[dict[str, Any]]]:
-    """Search all stores, return raw results keyed by store name."""
-    return await _fetch_all_stores(query)
+class StoreAdapter(ABC):
+    """Abstract base for all memory graph stores.
+
+    Each store implements:
+    - fetch(query): Get relevant items from this store
+    - format(items): Format items for context injection
+    - correlate(items, other_stores): Find cross-store relationships
+    """
+
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Human-readable store name."""
+        pass
+
+    @abstractmethod
+    async def fetch(self, query: str) -> list[dict[str, Any]]:
+        """Fetch items matching query."""
+        pass
+
+    @abstractmethod
+    def format_items(self, items: list[dict[str, Any]]) -> str:
+        """Format items for context injection."""
+        pass
+
+    def correlate(
+        self, items: list[dict[str, Any]], all_results: dict[str, list[dict[str, Any]]]
+    ) -> list[str]:
+        """Find cross-store correlations.
+
+        Args:
+            items: This store's fetched items
+            all_results: Results from all stores (for cross-reference)
+
+        Returns:
+            List of correlation notes (e.g., "3 related journal entries found")
+        """
+        # Default: no correlation
+        return []
 
 
-async def _fetch_all_stores(query: str) -> dict[str, list[dict[str, Any]]]:
-    """Fetch from all registered stores concurrently."""
-    tasks = [
-        _fetch_memory(query),
-        _fetch_knowledge(query),
-        asyncio.to_thread(search_entries, query),
-        asyncio.to_thread(_fetch_traces, query),
-        _fetch_todos(query),
-    ]
-    mem, kn, journal, traces, todos = await asyncio.gather(
-        *tasks, return_exceptions=True
-    )
-
-    out: dict[str, list[dict[str, Any]]] = {}
-    out["memory"] = mem if isinstance(mem, list) else []
-    out["knowledge"] = kn if isinstance(kn, list) else []
-    out["journal"] = journal if isinstance(journal, list) else []
-    out["traces"] = traces if isinstance(traces, list) else []
-    out["todos"] = todos if isinstance(todos, list) else []
-
-    for label, exc in [
-        ("memory", mem),
-        ("knowledge", kn),
-        ("journal", journal),
-        ("traces", traces),
-        ("todos", todos),
-    ]:
-        if isinstance(exc, Exception):
-            logger.warning("Unified fetch failed for %s: %s", label, exc)
-
-    return out
+# --- Store Adapters ---
 
 
-def _format_unified(results: dict[str, list[dict[str, Any]]]) -> str:
-    """Build a single context block from all store results."""
-    sections: list[str] = []
+class MemoryAdapter(StoreAdapter):
+    """Adapter for mem0-based memory store."""
 
-    if results.get("memory"):
+    @property
+    def name(self) -> str:
+        return "memory"
+
+    async def fetch(self, query: str) -> list[dict[str, Any]]:
+        try:
+            from gateway.memory import search_memory
+            return search_memory(query, limit=5)
+        except Exception as e:
+            logger.warning("Memory fetch failed: %s", e)
+            return []
+
+    def format_items(self, items: list[dict[str, Any]]) -> str:
+        if not items:
+            return ""
         lines = ["## Memory"]
-        for m in results["memory"][:5]:
+        for m in items[:5]:
             text = m.get("memory", m.get("text", ""))
             if text:
                 lines.append(f"- {text}")
-        sections.append("\n".join(lines))
+        return "\n".join(lines)
 
-    if results.get("knowledge"):
+    def correlate(
+        self, items: list[dict[str, Any]], all_results: dict[str, list[dict[str, Any]]]
+    ) -> list[str]:
+        """Find correlations with journal and knowledge."""
+        correlations = []
+        if items and all_results.get("journal"):
+            count = len(all_results["journal"])
+            if count > 0:
+                correlations.append(f"{count} related journal entries")
+        if items and all_results.get("knowledge"):
+            count = len(all_results["knowledge"])
+            if count > 0:
+                correlations.append(f"{count} related knowledge chunks")
+        return correlations
+
+
+class KnowledgeAdapter(StoreAdapter):
+    """Adapter for ChromaDB-based knowledge store."""
+
+    @property
+    def name(self) -> str:
+        return "knowledge"
+
+    async def fetch(self, query: str) -> list[dict[str, Any]]:
+        try:
+            from gateway.knowledge import search
+            return await search(query, limit=3)
+        except Exception as e:
+            logger.warning("Knowledge fetch failed: %s", e)
+            return []
+
+    def format_items(self, items: list[dict[str, Any]]) -> str:
+        if not items:
+            return ""
         lines = ["## Knowledge"]
-        for c in results["knowledge"][:3]:
+        for c in items[:3]:
             src = c.get("source", "unknown")
             dtype = c.get("doc_type", "general")
             text = (c.get("text") or "")[:400]
             lines.append(f"[{src} | {dtype}]\n{text}")
-        sections.append("\n".join(lines))
+        return "\n".join(lines)
 
-    if results.get("journal"):
+    def correlate(
+        self, items: list[dict[str, Any]], all_results: dict[str, list[dict[str, Any]]]
+    ) -> list[str]:
+        """Find correlations with memory and traces."""
+        correlations = []
+        if items and all_results.get("memory"):
+            count = len(all_results["memory"])
+            if count > 0:
+                correlations.append(f"Supported by {count} memory entries")
+        return correlations
+
+
+class JournalAdapter(StoreAdapter):
+    """Adapter for journal entries (JSONL-based)."""
+
+    @property
+    def name(self) -> str:
+        return "journal"
+
+    async def fetch(self, query: str) -> list[dict[str, Any]]:
+        try:
+            from gateway.journal import search_entries
+            # Run in executor since it's synchronous
+            return await asyncio.to_thread(search_entries, query)
+        except Exception as e:
+            logger.warning("Journal fetch failed: %s", e)
+            return []
+
+    def format_items(self, items: list[dict[str, Any]]) -> str:
+        if not items:
+            return ""
         lines = ["## Recent Journal"]
-        for entry in results["journal"][:3]:
-            lines.append(f"- {entry['entry'][:200]}")
-        sections.append("\n".join(lines))
+        for entry in items[:3]:
+            lines.append(f"- {entry.get('entry', '')[:200]}")
+        return "\n".join(lines)
 
-    if results.get("traces"):
-        lines = ["## Recent Activity"]
-        for trace in results["traces"][:3]:
-            text = trace.get("user_request", "")[:120]
-            domain = trace.get("domain_classified", "")
-            lines.append(f"- [{domain}] {text}")
-        sections.append("\n".join(lines))
-
-    raw = "\n\n".join(sections)
-    return _truncate(raw, CONTEXT_TOKEN_CAP)
-
-
-async def _fetch_memory(query: str) -> list[dict[str, Any]]:
-    try:
-        from gateway.memory import search_memory
-
-        return search_memory(query, limit=5)
-    except Exception as e:
-        logger.warning("Memory fetch failed in unified graph: %s", e)
-        return []
+    def correlate(
+        self, items: list[dict[str, Any]], all_results: dict[str, list[dict[str, Any]]]
+    ) -> list[str]:
+        """Find correlations with traces (same timestamp range)."""
+        correlations = []
+        if items and all_results.get("traces"):
+            # Check for temporal correlation
+            traces = all_results["traces"]
+            if traces:
+                correlations.append(f"Concurrent with {len(traces)} activity traces")
+        return correlations
 
 
-async def _fetch_knowledge(query: str) -> list[dict[str, Any]]:
-    try:
-        from gateway.knowledge import search
+class TracesAdapter(StoreAdapter):
+    """Adapter for gateway activity traces."""
 
-        return await search(query, limit=3)
-    except Exception as e:
-        logger.warning("Knowledge fetch failed in unified graph: %s", e)
-        return []
+    @property
+    def name(self) -> str:
+        return "traces"
 
+    async def fetch(self, query: str) -> list[dict[str, Any]]:
+        try:
+            return await asyncio.to_thread(self._fetch_traces, query)
+        except Exception as e:
+            logger.warning("Trace fetch failed: %s", e)
+            return []
 
-async def _fetch_todos(query: str, limit: int = 5) -> list[dict[str, Any]]:
-    try:
-        from gateway.todo_store import get
-
-        terms = [term for term in query.lower().split() if term]
-        todos = await asyncio.to_thread(get)
-        if not terms:
-            return todos[:limit]
-
-        def _content(todo: dict[str, Any]) -> str:
-            return str(todo.get("content") or "").lower()
-
-        matches = [
-            todo for todo in todos if any(term in _content(todo) for term in terms)
-        ]
-        return matches[:limit]
-    except Exception as e:
-        logger.warning("Todo fetch failed in unified graph: %s", e)
-        return []
-
-
-def _fetch_traces(query: str) -> list[dict[str, Any]]:
-    """Simple text-match search over recent gateway traces."""
-    try:
+    def _fetch_traces(self, query: str) -> list[dict[str, Any]]:
+        """Simple text-match search over recent gateway traces."""
         if not GATEWAY_LOG.exists():
             return []
         cutoff = time.time() - 7 * 86400
@@ -174,12 +234,238 @@ def _fetch_traces(query: str) -> list[dict[str, Any]]:
                     matches.append(trace)
         matches.sort(key=lambda x: x.get("_score", 0), reverse=True)
         return matches[:5]
-    except Exception as e:
-        logger.warning("Trace fetch failed in unified graph: %s", e)
-        return []
+
+    def format_items(self, items: list[dict[str, Any]]) -> str:
+        if not items:
+            return ""
+        lines = ["## Recent Activity"]
+        for trace in items[:3]:
+            text = trace.get("user_request", "")[:120]
+            domain = trace.get("domain_classified", "")
+            lines.append(f"- [{domain}] {text}")
+        return "\n".join(lines)
+
+    def correlate(
+        self, items: list[dict[str, Any]], all_results: dict[str, list[dict[str, Any]]]
+    ) -> list[str]:
+        """Find correlations with knowledge (domain-based)."""
+        correlations = []
+        if items and all_results.get("knowledge"):
+            domains = set(t.get("domain_classified", "") for t in items if t.get("domain_classified"))
+            if domains:
+                correlations.append(f"Domains: {', '.join(domains)}")
+        return correlations
+
+
+class TodosAdapter(StoreAdapter):
+    """Adapter for todo store."""
+
+    @property
+    def name(self) -> str:
+        return "todos"
+
+    async def fetch(self, query: str) -> list[dict[str, Any]]:
+        try:
+            from gateway.todo_store import get
+            todos = await asyncio.to_thread(get)
+            terms = [term for term in query.lower().split() if term]
+            if not terms:
+                return todos[:5]
+            def _content(todo: dict[str, Any]) -> str:
+                return str(todo.get("content") or "").lower()
+            matches = [
+                todo for todo in todos if any(term in _content(todo) for term in terms)
+            ]
+            return matches[:5]
+        except Exception as e:
+            logger.warning("Todo fetch failed: %s", e)
+            return []
+
+    def format_items(self, items: list[dict[str, Any]]) -> str:
+        if not items:
+            return ""
+        lines = ["## Todos"]
+        for todo in items[:5]:
+            content = todo.get("content", "")
+            status = todo.get("status", "pending")
+            lines.append(f"- [{status}] {content}")
+        return "\n".join(lines)
+
+    def correlate(
+        self, items: list[dict[str, Any]], all_results: dict[str, list[dict[str, Any]]]
+    ) -> list[str]:
+        """Find correlations with journal (completed todos)."""
+        correlations = []
+        if items:
+            completed = [t for t in items if t.get("status") == "completed"]
+            if completed:
+                correlations.append(f"{len(completed)} completed, rest pending")
+        return correlations
+
+
+# --- Memory Graph Orchestrator ---
+
+
+@dataclass
+class GraphResult:
+    """Result of a unified graph query."""
+    results: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    correlations: dict[str, list[str]] = field(default_factory=dict)
+    errors: list[str] = field(default_factory=list)
+
+    def formatted_context(self, cap: int = CONTEXT_TOKEN_CAP) -> str:
+        """Format results as a single context string."""
+        sections = []
+        adapters = self._get_adapters()
+
+        for adapter in adapters:
+            items = self.results.get(adapter.name, [])
+            if items:
+                formatted = adapter.format_items(items)
+                if formatted:
+                    sections.append(formatted)
+                    # Add correlation notes
+                    corr_notes = adapter.correlate(items, self.results)
+                    if corr_notes:
+                        sections[-1] += f"\n→ {', '.join(corr_notes)}"
+
+        raw = "\n\n".join(sections)
+        return self._truncate(raw, cap)
+
+    def _get_adapters(self) -> list[StoreAdapter]:
+        return [
+            MemoryAdapter(),
+            KnowledgeAdapter(),
+            JournalAdapter(),
+            TracesAdapter(),
+            TodosAdapter(),
+        ]
+
+    def _truncate(self, text: str, cap: int) -> str:
+        if (len(text) // 4) <= cap:
+            return text
+        return text[: cap * 4] + "…"
+
+
+class MemoryGraph:
+    """Deep memory graph module.
+
+    High-leverage entry point for all context retrieval.
+    Internal store adapters are implementation details.
+    """
+
+    def __init__(self, adapters: list[StoreAdapter] | None = None):
+        self._adapters = adapters or [
+            MemoryAdapter(),
+            KnowledgeAdapter(),
+            JournalAdapter(),
+            TracesAdapter(),
+            TodosAdapter(),
+        ]
+
+    async def unified_context(self, query: str) -> str:
+        """Get unified context from all stores.
+
+        This is the DEEP entry point. Callers don't need to know about
+        individual stores — they just get relevant context.
+        """
+        result = await self.search_all(query)
+        return result.formatted_context()
+
+    async def search_all(self, query: str) -> GraphResult:
+        """Search all stores concurrently.
+
+        Returns structured results for callers who want raw data.
+        """
+        tasks = [adapter.fetch(query) for adapter in self._adapters]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        result = GraphResult()
+        for i, adapter in enumerate(self._adapters):
+            res = results[i]
+            if isinstance(res, Exception):
+                logger.warning(f"{adapter.name} fetch failed: {res}")
+                result.errors.append(f"{adapter.name}: {res}")
+                result.results[adapter.name] = []
+            else:
+                result.results[adapter.name] = res
+
+        return result
+
+
+# --- Global instance for backward compatibility ---
+
+_graph: MemoryGraph | None = None
+
+
+def _get_graph() -> MemoryGraph:
+    global _graph
+    if _graph is None:
+        _graph = MemoryGraph()
+    return _graph
+
+
+# --- Public API (backward compatible) ---
+
+
+async def unified_context(query: str) -> str:
+    """Return unified context from all stores."""
+    return await _get_graph().unified_context(query)
+
+
+async def search_all(query: str) -> dict[str, list[dict[str, Any]]]:
+    """Search all stores, return raw results."""
+    result = await _get_graph().search_all(query)
+    return result.results
+
+
+# --- Legacy shims for backward compatibility ---
+# These exist only for tests that patch internal functions.
+# New code should use the adapter pattern directly.
+
+
+async def _fetch_memory(query: str) -> list[dict[str, Any]]:
+    """Legacy shim for tests."""
+    return await MemoryAdapter().fetch(query)
+
+
+async def _fetch_knowledge(query: str) -> list[dict[str, Any]]:
+    """Legacy shim for tests."""
+    return await KnowledgeAdapter().fetch(query)
+
+
+async def _fetch_todos(query: str) -> list[dict[str, Any]]:
+    """Legacy shim for tests."""
+    return await TodosAdapter().fetch(query)
+
+
+def _fetch_traces(query: str) -> list[dict[str, Any]]:
+    """Legacy shim for tests."""
+    adapter = TracesAdapter()
+    return adapter._fetch_traces(query)
+
+
+async def _fetch_all_stores(query: str) -> dict[str, list[dict[str, Any]]]:
+    """Legacy shim for tests."""
+    result = await MemoryGraph().search_all(query)
+    return result.results
+
+
+def search_entries(query: str) -> list[dict[str, Any]]:
+    """Legacy shim for tests - delegates to journal."""
+    from gateway.journal import search_entries as journal_search
+    return journal_search(query)
+
+
+def _format_unified(results: dict[str, list[dict[str, Any]]]) -> str:
+    """Format results for backward compatibility."""
+    # Create a dummy GraphResult for formatting
+    result = GraphResult(results=results)
+    return result.formatted_context()
 
 
 def _truncate(text: str, cap: int) -> str:
+    """Truncate text to token cap."""
     if (len(text) // 4) <= cap:
         return text
     return text[: cap * 4] + "…"

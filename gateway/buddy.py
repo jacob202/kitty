@@ -17,7 +17,7 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
 
 from gateway.paths import DATA_DIR
 

@@ -1,7 +1,8 @@
 """Tests for agent_runner — spawn, status, listing, stopping."""
+
 import time
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 
 from gateway.agent_runner import (
     AGENT_PRESETS,
@@ -10,6 +11,7 @@ from gateway.agent_runner import (
     get_output,
     list_agents,
     stop,
+    await_completion,
 )
 
 
@@ -32,6 +34,7 @@ class TestPresets:
 
     def test_spawn_unknown_type_raises(self):
         import asyncio
+
         with pytest.raises(ValueError, match="Unknown agent type"):
             asyncio.run(
                 __import__("gateway.agent_runner", fromlist=["spawn"]).spawn(
@@ -115,3 +118,23 @@ class TestSpawnAndRun:
                     max_iterations=1,
                 )
                 assert session_id > 0
+
+
+@pytest.mark.asyncio
+class TestAwaitCompletion:
+    async def test_returns_when_agent_completes(self):
+        statuses = [{"status": "active"}, {"status": "completed", "iterations": 2}]
+
+        with patch("gateway.agent_runner.get_status", side_effect=statuses), patch(
+            "gateway.agent_runner.asyncio.sleep", new=AsyncMock()
+        ):
+            result = await await_completion(1, timeout=10, poll=1)
+        assert result["status"] == "completed"
+
+    async def test_timeout_returns_last_status(self):
+        with patch(
+            "gateway.agent_runner.get_status",
+            return_value={"status": "active", "iterations": 1},
+        ), patch("gateway.agent_runner.asyncio.sleep", new=AsyncMock()):
+            result = await await_completion(1, timeout=2, poll=1)
+        assert result["status"] == "active"

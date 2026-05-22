@@ -413,15 +413,25 @@ function KittyChatInner() {
         )}
 
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-          {activeView !== 'home' && activeView !== 'chat' ? (
+          {activeView === 'tasks' ? (
+            <div style={{
+              flex: 1,
+              padding: '24px 32px 40px',
+              display: 'grid',
+              gap: 24,
+              alignContent: 'start',
+            }}>
+              <TaskPanel />
+              <TodoPanel />
+            </div>
+          ) : activeView !== 'home' && activeView !== 'chat' ? (
             <div style={{
               flex: 1, display: 'flex', flexDirection: 'column',
               alignItems: 'center', justifyContent: 'center',
               gap: 12, fontFamily: 'var(--font-mono)',
               color: 'var(--text-muted)', fontSize: 14,
             }}>
-              <span style={{ fontSize: 32, opacity: 0.3 }}>?
-              </span>
+              <span style={{ fontSize: 32, opacity: 0.3 }}>?</span>
               <span>{activeView.charAt(0).toUpperCase() + activeView.slice(1)} view</span>
               <span style={{ fontSize: 12, color: 'var(--text-ghost)' }}>coming soon</span>
             </div>
@@ -431,6 +441,7 @@ function KittyChatInner() {
               onSelectChat={id => { setActiveChatId(id) }}
               onPrompt={handlePrompt}
               brief={brief}
+              todos={todos}
               loading={!briefGateway.loaded}
             />
           ) : (

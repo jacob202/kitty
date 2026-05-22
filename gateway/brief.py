@@ -4,6 +4,7 @@ try:
     import feedparser
 except ImportError:  # optional dependency — TTS/brief features degrade gracefully
     feedparser = None  # type: ignore[assignment]
+import asyncio
 import logging
 import threading
 import requests
@@ -74,8 +75,6 @@ def fetch_news(limit_per_feed: int = 3) -> List[NewsHeadline]:
 
 def get_tasks_summary() -> str:
     """Read the 'Next Smallest Action' from TASKS.md."""
-    from gateway.paths import PROJECT_ROOT
-
     tasks_path = PROJECT_ROOT / "TASKS.md"
     try:
         content = tasks_path.read_text()
@@ -89,60 +88,41 @@ def get_tasks_summary() -> str:
     return "No next action found. Check TASKS.md."
 
 
-def _fetch_calendar_text() -> str:
-    """Fetch today's calendar events as a formatted string."""
-    try:
-        from gateway.calendar_integration import get_today, is_available
-
-        if not is_available():
-            return ""
-        events = get_today()
-        if not events:
-            return ""
-        lines = ["Today's Schedule:"] + [
-            f"- {e.get('start', '')}: {e.get('title', '')}" for e in events[:8]
-        ]
-        return "\n".join(lines)
-    except Exception:
-        return ""
-
-
-def _fetch_weather_text() -> str:
-    """Fetch current weather for the brief."""
-    try:
-        from gateway.weather import get_weather_text
-
-        return get_weather_text()
-    except Exception:
-        return ""
-
-
-def _fetch_todos_text() -> str:
-    """Fetch active todos for the brief."""
-    try:
-        from gateway.todo_store import get_todos_text
-
-        return get_todos_text()
-    except Exception:
-        return ""
+def _build_brief_worker_context(
+    *, top_task: str, memory: str, tz: str = "America/Regina"
+) -> str:
+    parts_list = []
+    if top_task:
+        parts_list.append(f"Current Top Task: {top_task}")
+    if memory:
+        parts_list.append(
+            memory
+            if memory.startswith("Recent Memories:")
+            else f"Recent Memories: {memory}"
+        )
+    if tz:
+        parts_list.append(f"Timezone: {tz}")
+    return "\n".join(parts_list)
 
 
 def synthesize_brief_with_llm(
     headlines: List[NewsHeadline], task_summary: str, memory_snippet: str
 ) -> str:
     """Use LLM via LiteLLM to turn raw data into a warm, character-driven morning brief."""
+    from gateway.context_enrichment import (
+        calendar_today_text_sync,
+        todos_text_sync,
+        weather_text_sync,
+    )
     from gateway.llm_client import chat
-    from gateway.context_builder import build_worker_context
 
     news_text = "\n".join([f"- {h.title}" for h in headlines[:6]])
-    calendar_text = _fetch_calendar_text()
-    weather_text = _fetch_weather_text()
-    todos_text = _fetch_todos_text()
-    context_data = build_worker_context(
-        "brief",
+    calendar_text = calendar_today_text_sync()
+    weather_text = weather_text_sync()
+    todos_text = todos_text_sync()
+    context_data = _build_brief_worker_context(
         top_task=task_summary,
-        memory=f"Recent Memories: {memory_snippet}",
-        tz="America/Regina",
+        memory=memory_snippet,
     )
 
     calendar_section = f"\n- Calendar:\n{calendar_text}" if calendar_text else ""
@@ -176,12 +156,11 @@ Rules: Use contractions. No corporate filler. Be dry-funny if appropriate. Speak
 
 
 def _fetch_memory_snippet() -> str:
-    """Fetch a short memory snippet for context."""
+    """Fetch unified context for brief synthesis."""
     try:
-        from gateway.memory import search_memory
+        from gateway.memory_graph import unified_context
 
-        results = search_memory("morning brief context", limit=2)
-        return "\n".join([m.get("memory", "") for m in results])
+        return asyncio.run(unified_context("morning brief"))
     except Exception:
         return ""
 

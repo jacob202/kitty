@@ -1,4 +1,5 @@
 """Tests for gateway.brief and gateway.notify."""
+
 import os
 from unittest.mock import patch, MagicMock
 
@@ -6,9 +7,12 @@ from unittest.mock import patch, MagicMock
 def test_brief_item_contract():
     from contracts.brief_item import BriefItem, NewsHeadline
     from datetime import datetime
+
     item = BriefItem(
         date="2026-05-09",
-        headlines=[NewsHeadline(title="AI news", url="http://example.com", snippet="test")],
+        headlines=[
+            NewsHeadline(title="AI news", url="http://example.com", snippet="test")
+        ],
         memory_snippet="Jacob likes cars",
         intention="Today focus on shipping Phase 7.",
     )
@@ -21,12 +25,16 @@ def test_brief_item_contract():
 def test_fetch_news_returns_headlines_on_success():
     import pytest
     import gateway.brief as b
+
     if b.feedparser is None:
         pytest.skip("feedparser not installed")
     entry = MagicMock()
     entry.title = "Big AI news"
     entry.link = "http://t.co/1"
-    entry.get.side_effect = lambda key, default="": {"summary": "Something happened", "description": ""}.get(key, default)
+    entry.get.side_effect = lambda key, default="": {
+        "summary": "Something happened",
+        "description": "",
+    }.get(key, default)
     mock_feed = MagicMock()
     mock_feed.entries = [entry]
     with patch.object(b.feedparser, "parse", return_value=mock_feed):
@@ -38,6 +46,7 @@ def test_fetch_news_returns_headlines_on_success():
 def test_fetch_news_handles_feed_error():
     import pytest
     import gateway.brief as b
+
     if b.feedparser is None:
         pytest.skip("feedparser not installed")
     with patch.object(b.feedparser, "parse", side_effect=Exception("network error")):
@@ -48,16 +57,20 @@ def test_fetch_news_handles_feed_error():
 def test_send_pushover_skips_when_no_keys():
     with patch.dict(os.environ, {"PUSHOVER_USER_KEY": "", "PUSHOVER_API_TOKEN": ""}):
         from gateway.notify import send_pushover
+
         result = send_pushover("Hello", title="Test")
     assert result is False
 
 
 def test_send_pushover_returns_true_on_success():
     import gateway.notify as n
+
     mock_resp = MagicMock()
     mock_resp.status_code = 200
     mock_resp.raise_for_status.return_value = None
-    with patch.dict(os.environ, {"PUSHOVER_USER_KEY": "ukey", "PUSHOVER_API_TOKEN": "tok"}):
+    with patch.dict(
+        os.environ, {"PUSHOVER_USER_KEY": "ukey", "PUSHOVER_API_TOKEN": "tok"}
+    ):
         with patch.object(n.requests, "post", return_value=mock_resp):
             result = n.send_pushover("Msg", title="Title")
     assert result is True
@@ -65,7 +78,10 @@ def test_send_pushover_returns_true_on_success():
 
 def test_send_pushover_returns_false_on_error():
     import gateway.notify as n
-    with patch.dict(os.environ, {"PUSHOVER_USER_KEY": "ukey", "PUSHOVER_API_TOKEN": "tok"}):
+
+    with patch.dict(
+        os.environ, {"PUSHOVER_USER_KEY": "ukey", "PUSHOVER_API_TOKEN": "tok"}
+    ):
         with patch.object(n.requests, "post", side_effect=Exception("timeout")):
             result = n.send_pushover("Msg", title="Title")
     assert result is False
@@ -73,6 +89,7 @@ def test_send_pushover_returns_false_on_error():
 
 def test_format_brief_notification():
     from gateway.notify import format_brief_notification
+
     brief = {
         "date": "2026-05-09",
         "intention": "Focus on what matters.",
@@ -89,6 +106,7 @@ def test_format_brief_notification():
 def test_generate_brief_structure():
     """generate_brief returns a dict matching BriefItem schema."""
     import gateway.brief as b
+
     with patch.object(b, "fetch_news", return_value=[]):
         with patch.object(b, "_fetch_memory_snippet", return_value=""):
             with patch.object(b, "get_tasks_summary", return_value="Ship Phase 7."):
@@ -102,7 +120,10 @@ def test_generate_brief_structure():
 
 def test_generate_fast_brief_returns_contract_without_news():
     import gateway.brief as b
-    with patch.object(b, "_fetch_memory_snippet", return_value="Remember the boring path."):
+
+    with patch.object(
+        b, "_fetch_memory_snippet", return_value="Remember the boring path."
+    ):
         with patch.object(b, "get_tasks_summary", return_value="Ship Phase 7."):
             result = b.generate_fast_brief()
     assert result["headlines"] == []
@@ -112,6 +133,7 @@ def test_generate_fast_brief_returns_contract_without_news():
 
 def test_cached_brief_round_trip():
     import gateway.brief as b
+
     sample = {
         "date": "2026-05-18",
         "headlines": [],
@@ -122,3 +144,46 @@ def test_cached_brief_round_trip():
     cached = b.get_cached_brief()
     assert cached is not None
     assert cached["intention"] == "Cached brief"
+
+
+def test_fetch_memory_snippet_uses_unified_context():
+    import gateway.brief as b
+
+    with patch(
+        "gateway.memory_graph.unified_context", new=MagicMock(return_value="ctx")
+    ):
+        with patch("gateway.brief.asyncio.run", side_effect=lambda coro: "ctx"):
+            result = b._fetch_memory_snippet()
+    assert result == "ctx"
+
+
+def test_synthesize_brief_prompt_includes_unified_memory():
+    import gateway.brief as b
+    from contracts.brief_item import NewsHeadline
+
+    headlines = [NewsHeadline(title="AI news", url="http://x", snippet="")]
+    with patch(
+        "gateway.context_enrichment.calendar_today_text_sync", return_value=""
+    ), patch("gateway.context_enrichment.weather_text_sync", return_value=""), patch(
+        "gateway.context_enrichment.todos_text_sync", return_value=""
+    ), patch(
+        "gateway.llm_client.chat",
+        side_effect=lambda **kwargs: kwargs["messages"][0]["content"],
+    ):
+        prompt = b.synthesize_brief_with_llm(
+            headlines, "Ship Phase 7.", "## Memory\n- unified context"
+        )
+    assert "unified context" in prompt
+    assert "AI news" in prompt
+
+
+def test_calendar_today_text_sync_formats_events():
+    from gateway.context_enrichment import calendar_today_text_sync
+
+    with patch("gateway.calendar_integration.is_available", return_value=True), patch(
+        "gateway.calendar_integration.get_today",
+        return_value=[{"start": "9:00", "title": "Standup"}],
+    ):
+        text = calendar_today_text_sync()
+    assert "Today's Schedule:" in text
+    assert "Standup" in text

@@ -165,8 +165,7 @@ export function BriefPanel({
             <TodayCompass
               items={compassItems}
               onItemSelect={item => {
-                if (item.onSelect) return
-                onPrompt(item.title)
+                if (!item.onSelect) onPrompt(item.title)
               }}
             />
           </div>
