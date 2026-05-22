@@ -1,42 +1,61 @@
-# Session handoff — Kitty
+# Session Handoff — Architectural Deepening Complete
 
-**Updated:** 2026-05-21  
-**Branch:** `main`  
-**Tests last run:** 302 passed, 2 deselected (`pytest tests/ -q --tb=short`, 2026-05-21); 17 frontend tests passed (`npm test`).
+**Date:** 2026-05-21  
+**Focus:** Codebase architecture improvement via deep module pattern
 
-**Cleanup (2026-05-18):** Calendar routes use `asyncio.to_thread`; `council_graph` uses `PROJECT_ROOT` for env path + logging; MCP council caches compiled graph; ruff F401 sweep on `gateway/` (kept `knowledge.py` test re-exports); `.gitignore` for `duplicate_analysis_report.txt` and `.superpowers/`. **Pass 2:** F841 fixes; `gateway/app.py` slimmed (~90 lines) with routes in `gateway/routes/`; scripts split into `scripts/curation/` and `scripts/ops/` with root shims for `spend_report` / `assign_kb_files`. **Chat split:** `completions`, `ask`, `journal`, `memories`, `voice`, `kitty_tools` (+ `chat.py` re-export barrel).
+## What Was Done
 
-## What landed (2026-05-21)
+### 1. Voice Pipeline Consolidation ✅
+- **Created:** `gateway/voice_pipeline.py` — deep module unifying STT, TTS, voice gate, session
+- **Interface:** `VoicePipeline.process_turn(audio_bytes)` and `handle_websocket(ws)`
+- **Internal adapters:** `STTAdapter`, `TTSAdapter`, `VoiceGateAdapter`
+- **Backward compat:** `voice_session.py` re-exports from new module
+- **Tests:** All 10 voice tests pass
 
-- **UI polish (kitty-chat):** `fetchGatewaySearch` accepts optional `AbortSignal`; search effect debounced 400ms (fires on user-message-count/chat change only, not stream chunks); RightBar shows "Search unavailable" card on gateway error; TopBar model dot turns warning-colored when using offline fallback; BriefPanel shows skeleton during brief load. 17 tests added.
-- **Smoke test (browser):** All 6 checklist items verified in live Chrome via agent-browser (offline banner, warning dot, skeleton fallback, debounced search, chat switching, error card).
-- **Fix:** `GatewayBrief.headlines` now accepts `(string | GatewayHeadline)[]` (gateway returns `{title, url, snippet}` objects, not plain strings).
-- **Polish:** Extracted `STREAMING_LABEL` constant; BriefPanel greeting now time-aware; raw hex colors replaced with CSS variables; shortcut hint shows `⌘/^↵` for cross-platform.
-- **Infra:** `.gitignore` `kitty-chat/` → `/kitty-chat/` (root-only); Tailscale accessible at `100.84.78.1:4000`.
+### 2. Session State Unification ✅
+- **Enhanced:** `buddy.py` with drift tracking functions
+  - `record_drift()` — increments session and lifetime drift counters
+  - `get_drift_nudge()` — returns nudge text after 3 drifts
+  - `reset_drift_counter()` — resets session drift
+- **Delegated:** `voice_gate.py` now calls buddy for drift (single source of truth)
+- **Wired up:** `routes/completions.py` now calls `on_request_start/success/error()`
+- **Result:** Consistent mood/energy/drift tracking across `/ask`, `/v1/chat/completions`, and `/voice`
 
-## What landed (Codex + Cursor follow-up)
+### 3. Memory Graph Deepening ✅
+- **Refactored:** `gateway/memory_graph.py` with adapter pattern
+- **Adapters:** `MemoryAdapter`, `KnowledgeAdapter`, `JournalAdapter`, `TracesAdapter`, `TodosAdapter`
+- **Cross-store correlation:** Each adapter can correlate with other stores
+- **Interface unchanged:** `unified_context()` and `search_all()` still work
+- **Tests:** All 8 memory graph tests pass
 
-- **`/brief` no longer blocks the UI:** RSS fetch uses short HTTP timeouts; in-memory cache; route uses `asyncio.wait_for` with fast fallback (`gateway/brief.py`, `gateway/app.py`).
-- **Single public model route:** `kitty-default` only; removed tiered `kitty-smart` / `kitty-agent` routing; AgentRouter defaults separated from `KITTY_MODEL` (`gateway/llm_client.py`, `gateway/litellm_config.yaml`, tests).
-- **Spend visibility:** `gateway/token_spend_report.py` + `scripts/spend_report.py` for estimated usage vs optional `--credits` balance hint (`data/kitty_token_log.jsonl`).
-- **AgentRouter:** hosted `https://agentrouter.org/v1` with valid token + model IDs your account lists (e.g. `deepseek-v4-pro`); stale token showed `unauthorized_client` / `invalid token` until rotated.
-- **OpenCode (machine):** `~/.config/opencode/opencode.json` — use `{env:NVIDIA_API_KEY}` for NIM, not a literal key; invalid top-level `hooks` breaks startup.
-- **Skills:** `.agents/skills/image-gen/SKILL.md` has YAML frontmatter; `journal-entry` already has frontmatter. Repo + `~/.agents` / `~/.codex` / `~/.config/opencode/skills` carry `provider-credit-debugging` variants.
+### 4. Documentation ✅
+- **Updated:** `CLAUDE.md` with:
+  - Deep module pattern explanation
+  - Updated key files list (added `voice_pipeline.py`)
+  - Updated test count (449 passed)
+  - Updated current state section
 
-## Do not commit
+## Test Results
+- **449 passed, 2 skipped** (was ~300 at session start)
+- All existing tests remain functional
+- No regressions introduced
 
-- `.env` (secrets; gitignored).
-- `.superpowers/brainstorm/` (local brainstorm artifact).
+## Files Modified
+| File | Change |
+|------|--------|
+| `gateway/voice_pipeline.py` | Created (deep module) |
+| `gateway/memory_graph.py` | Refactored (adapters) |
+| `gateway/buddy.py` | Enhanced (drift tracking) |
+| `gateway/voice_gate.py` | Delegated to buddy |
+| `gateway/routes/completions.py` | Wired buddy hooks |
+| `CLAUDE.md` | Documentation |
 
-## Good next steps
+## Open Questions / Next Steps
+1. **Middleware tracking:** Consider `SessionStateMiddleware` for automatic state tracking (optional)
+2. **Cross-store correlation:** Expose `result.correlations` from memory graph for UI features
+3. **Adapter injection:** Allow test injection in `VoicePipeline` for faster unit tests
 
-1. Push to origin/main.
-2. Rotate any API keys that were pasted into chat logs elsewhere.
-
-## Quick commands
-
-```bash
-cd /Users/jacobbrizinski/Projects/kitty
-/opt/homebrew/bin/python3.12 -m pytest tests/ -q --tb=short
-python3 scripts/spend_report.py --since 2026-05-18 --credits 150
-```
+## Where to Resume
+- Phase 2 (agents & background tasks) per `TASKS.md`
+- Any of the 3 open questions above
+- Further deepening opportunities in `context_builder.py` or `llm_client.py`

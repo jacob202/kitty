@@ -134,7 +134,6 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
     </aside>
   )
 }
-}
 
 function GroupLabel({ children }: { children: React.ReactNode }) {
   return (
