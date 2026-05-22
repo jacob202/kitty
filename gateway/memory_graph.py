@@ -1,12 +1,10 @@
-"""Unified memory graph — single query across Memory, Knowledge, Journal, and Traces.
+"""Unified memory graph — single query across Memory, Knowledge, Journal, Traces, and Todos.
 
 Entry points:
 - unified_context(query) -> str: The one function context_builder should call.
-- search_all(query) -> dict[str, list]: Raw results from all four stores for debugging.
-
-This module treats the four stores as a single graph. Future: cross-reference entities
-across stores (e.g. "find journal entries related to this knowledge chunk").
+- search_all(query) -> dict[str, list]: Raw results from all stores for debugging/search UI.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -15,51 +13,55 @@ import logging
 import time
 from typing import Any
 
-from gateway.paths import DATA_DIR, LOGS_DIR
+from gateway.journal import search_entries
+from gateway.paths import LOGS_DIR
 
 logger = logging.getLogger("kitty.memory_graph")
 
 CONTEXT_TOKEN_CAP: int = 1200
+STORE_KEYS = ("memory", "knowledge", "journal", "traces", "todos")
 
 GATEWAY_LOG = LOGS_DIR / "gateway_trace.jsonl"
-JOURNAL_LOG = DATA_DIR / "journal_entries.jsonl"
 
 
 async def unified_context(query: str) -> str:
-    """Return a single formatted context block from all four stores.
-
-    Call this instead of the old separate memory + knowledge fetches.
-    Returns a string ready to append to the system prompt.
-    """
+    """Return a single formatted context block from all stores."""
     results = await _fetch_all_stores(query)
     return _format_unified(results)
 
 
 async def search_all(query: str) -> dict[str, list[dict[str, Any]]]:
-    """Search all stores, return raw results keyed by store name.
-
-    Useful for debugging and for endpoints that want structured results.
-    """
+    """Search all stores, return raw results keyed by store name."""
     return await _fetch_all_stores(query)
 
 
 async def _fetch_all_stores(query: str) -> dict[str, list[dict[str, Any]]]:
-    """Fetch from all four stores concurrently."""
+    """Fetch from all registered stores concurrently."""
     tasks = [
         _fetch_memory(query),
         _fetch_knowledge(query),
-        asyncio.to_thread(_fetch_journal, query),
+        asyncio.to_thread(search_entries, query),
         asyncio.to_thread(_fetch_traces, query),
+        _fetch_todos(query),
     ]
-    mem, kn, journal, traces = await asyncio.gather(*tasks, return_exceptions=True)
+    mem, kn, journal, traces, todos = await asyncio.gather(
+        *tasks, return_exceptions=True
+    )
 
     out: dict[str, list[dict[str, Any]]] = {}
     out["memory"] = mem if isinstance(mem, list) else []
     out["knowledge"] = kn if isinstance(kn, list) else []
     out["journal"] = journal if isinstance(journal, list) else []
     out["traces"] = traces if isinstance(traces, list) else []
+    out["todos"] = todos if isinstance(todos, list) else []
 
-    for label, exc in [("memory", mem), ("knowledge", kn), ("journal", journal), ("traces", traces)]:
+    for label, exc in [
+        ("memory", mem),
+        ("knowledge", kn),
+        ("journal", journal),
+        ("traces", traces),
+        ("todos", todos),
+    ]:
         if isinstance(exc, Exception):
             logger.warning("Unified fetch failed for %s: %s", label, exc)
 
@@ -105,11 +107,10 @@ def _format_unified(results: dict[str, list[dict[str, Any]]]) -> str:
     return _truncate(raw, CONTEXT_TOKEN_CAP)
 
 
-# --- Store-specific fetchers ---
-
 async def _fetch_memory(query: str) -> list[dict[str, Any]]:
     try:
         from gateway.memory import search_memory
+
         return search_memory(query, limit=5)
     except Exception as e:
         logger.warning("Memory fetch failed in unified graph: %s", e)
@@ -119,37 +120,31 @@ async def _fetch_memory(query: str) -> list[dict[str, Any]]:
 async def _fetch_knowledge(query: str) -> list[dict[str, Any]]:
     try:
         from gateway.knowledge import search
+
         return await search(query, limit=3)
     except Exception as e:
         logger.warning("Knowledge fetch failed in unified graph: %s", e)
         return []
 
 
-def _fetch_journal(query: str) -> list[dict[str, Any]]:
-    """Simple text-match search over journal entries."""
+async def _fetch_todos(query: str, limit: int = 5) -> list[dict[str, Any]]:
     try:
-        if not JOURNAL_LOG.exists():
-            return []
-        terms = query.lower().split()
-        matches: list[dict[str, Any]] = []
-        with JOURNAL_LOG.open("r") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    entry = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                entry_text = entry.get("entry", "").lower()
-                score = sum(1 for t in terms if t in entry_text)
-                if score > 0:
-                    entry["_score"] = score
-                    matches.append(entry)
-        matches.sort(key=lambda x: x.get("_score", 0), reverse=True)
-        return matches[:5]
+        from gateway.todo_store import get
+
+        terms = [term for term in query.lower().split() if term]
+        todos = await asyncio.to_thread(get)
+        if not terms:
+            return todos[:limit]
+
+        def _content(todo: dict[str, Any]) -> str:
+            return str(todo.get("content") or "").lower()
+
+        matches = [
+            todo for todo in todos if any(term in _content(todo) for term in terms)
+        ]
+        return matches[:limit]
     except Exception as e:
-        logger.warning("Journal fetch failed in unified graph: %s", e)
+        logger.warning("Todo fetch failed in unified graph: %s", e)
         return []
 
 
@@ -187,4 +182,4 @@ def _fetch_traces(query: str) -> list[dict[str, Any]]:
 def _truncate(text: str, cap: int) -> str:
     if (len(text) // 4) <= cap:
         return text
-    return text[:cap * 4] + "…"
+    return text[: cap * 4] + "…"

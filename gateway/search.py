@@ -4,6 +4,7 @@ Public API:
   async_search(query) -> dict  Async search with grouped, normalized hits
   search(query) -> dict        Sync wrapper for offline scripts/tests only
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -89,7 +90,9 @@ def normalize_hit(kind: str, item: dict[str, Any]) -> dict[str, Any]:
     elif kind == "journal":
         text = _first_text(item, ("text", "entry", "content"))
         source = _compact(item.get("source"), "journal")
-        title = _compact(item.get("title")) or _compact(item.get("ts")) or "Journal entry"
+        title = (
+            _compact(item.get("title")) or _compact(item.get("ts")) or "Journal entry"
+        )
     elif kind == "todo":
         text = _first_text(item, ("text", "content", "title", "task"))
         source = _compact(item.get("source"), "todo")
@@ -109,30 +112,9 @@ def normalize_hit(kind: str, item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-async def _fetch_todos(query: str, limit: int) -> list[dict[str, Any]]:
-    try:
-        from gateway.todo_store import get
-
-        terms = [term for term in query.lower().split() if term]
-        todos = await asyncio.to_thread(get)
-        if not terms:
-            return todos[:limit]
-        matches = [
-            todo
-            for todo in todos
-            if any(term in _compact(todo.get("content")).lower() for term in terms)
-        ]
-        return matches[:limit]
-    except Exception as e:
-        logger.warning("Todo search failed: %s", e)
-        return []
-
-
 async def async_search(query: str, limit: int = 5) -> dict[str, Any]:
     """Unified async search with stable grouped hit shapes."""
     raw = await memory_graph.search_all(query)
-    if "todos" not in raw:
-        raw["todos"] = await _fetch_todos(query, limit)
 
     results: dict[str, Any] = {
         "memories": [],

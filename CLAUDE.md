@@ -40,7 +40,8 @@ Currently: **300 passed, 2 skipped** (as of 2026-05-21).
 ## Rules
 - Secrets in `.env` only — never in code
 - Auth middleware in `gateway/auth.py` — don't bypass
-- All storage goes through `StorageRouter` — never import a backend directly
+- All storage reads for prompt/search context go through `memory_graph` — never bypass with raw JSONL/file reads in new code
+- Direct backend imports (`memory`, `knowledge`, `todo_store`) are OK for write paths until a StorageRouter exists
 - Run tests before claiming done on any Python/config change
 - One concern per commit
 

@@ -5,11 +5,20 @@ from __future__ import annotations
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
 
-from gateway.llm_client import route_model
-from gateway.routes import completions as llm
+from gateway.llm_client import (
+    chat_completions_non_stream,
+    extract_assistant_text,
+    route_model,
+)
 
 router = APIRouter(tags=["journal"])
+
+
+class JournalChatRequest(BaseModel):
+    messages: list[dict]
+    system_prompt: str = ""
 
 
 @router.get("/journal/prompt")
@@ -51,11 +60,27 @@ async def journal_synthesize(request: Request):
         "stream": False,
         "messages": [{"role": "system", "content": synthesis_system}] + messages,
     }
-    data = await llm._non_stream_response(payload)
-    entry = llm.extract_assistant_text(data)
+    data = await chat_completions_non_stream(payload)
+    entry = extract_assistant_text(data)
     if entry:
         save_journal_entry(entry, theme=theme, session_id=session_id)
     return {"entry": entry}
+
+
+@router.post("/journal/chat")
+async def journal_chat(payload: JournalChatRequest):
+    """Single journal interview turn — uses provided system_prompt, bypasses context_builder."""
+    if not payload.messages:
+        raise HTTPException(status_code=400, detail="messages required")
+    model = route_model("")
+    llm_messages: list[dict] = []
+    if payload.system_prompt:
+        llm_messages.append({"role": "system", "content": payload.system_prompt})
+    llm_messages.extend(payload.messages)
+    data = await chat_completions_non_stream(
+        {"model": model, "stream": False, "messages": llm_messages}
+    )
+    return {"reply": extract_assistant_text(data)}
 
 
 @router.delete("/sessions/{session_id}/messages/{message_id}")

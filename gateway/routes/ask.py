@@ -6,8 +6,11 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from gateway.domain_router import classify_domain
-from gateway.llm_client import route_model
-from gateway.routes import completions as llm
+from gateway.llm_client import (
+    chat_completions_non_stream,
+    extract_assistant_text,
+    route_model,
+)
 
 router = APIRouter(tags=["ask"])
 
@@ -24,32 +27,48 @@ async def ask(payload: AskRequest):
     if not message:
         raise HTTPException(status_code=400, detail="message is required")
 
+    from gateway.buddy import (
+        on_context_fetch,
+        on_request_error,
+        on_request_start,
+        on_request_success,
+    )
     from gateway.context_builder import get_system_prompt
 
-    domain = classify_domain(message)
-    system_prompt = await get_system_prompt(
-        message, parts_mode=payload.parts_mode, domain=domain
-    )
+    on_request_start()
+    try:
+        domain = classify_domain(message)
+        on_context_fetch()
+        system_prompt = await get_system_prompt(
+            message, parts_mode=payload.parts_mode, domain=domain
+        )
 
-    model = route_model(message)
-    llm_payload = {
-        "model": model,
-        "stream": False,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": message},
-        ],
-    }
-    data = await llm._non_stream_response(llm_payload)
-    reply = llm.extract_assistant_text(data)
+        model = route_model(message)
+        llm_payload = {
+            "model": model,
+            "stream": False,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": message},
+            ],
+        }
+        data = await chat_completions_non_stream(llm_payload)
+        reply = extract_assistant_text(data)
 
-    from gateway.voice_gate import filter_response
+        from gateway.voice_gate import filter_response
 
-    gate = filter_response(reply)
-    reply = gate.cleaned
+        gate = filter_response(reply)
+        reply = gate.cleaned
+        if gate.violations:
+            on_request_error()
+        else:
+            on_request_success()
 
-    from gateway.self_review import record_interaction
+        from gateway.self_review import record_interaction
 
-    record_interaction(message, reply)
+        record_interaction(message, reply)
 
-    return {"reply": reply}
+        return {"reply": reply}
+    except Exception:
+        on_request_error()
+        raise

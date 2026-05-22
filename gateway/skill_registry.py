@@ -1,6 +1,6 @@
 """Skill Registry — discover, register, and invoke skills from disk.
 
-Skills live in .agents/skills/<name>/SKILL.md with YAML frontmatter:
+Skills live in .agents/skills/<name>/SKILL.md or .agents/skills/<category>/<name>/SKILL.md with YAML frontmatter:
   ---
   name: skill-name
   description: what it does
@@ -15,6 +15,7 @@ Public API:
   search(query) -> list[dict]  Find skills matching a query
   invoke(name, context) -> str Render a skill's system prompt for injection
 """
+
 from __future__ import annotations
 
 import logging
@@ -50,7 +51,11 @@ def _yaml_frontmatter(text: str) -> dict:
             value = value.strip().strip('"').strip("'")
             if value.startswith("[") and value.endswith("]"):
                 # Simple list parsing: [a, b, c]
-                value = [v.strip().strip('"').strip("'") for v in value[1:-1].split(",") if v.strip()]
+                value = [
+                    v.strip().strip('"').strip("'")
+                    for v in value[1:-1].split(",")
+                    if v.strip()
+                ]
             result[key] = value
     return result
 
@@ -87,12 +92,7 @@ def _scan_directories() -> list[dict]:
     for root in SKILL_ROOTS:
         if not root.exists():
             continue
-        for skill_dir in root.iterdir():
-            if not skill_dir.is_dir():
-                continue
-            skill_file = skill_dir / "SKILL.md"
-            if not skill_file.exists():
-                continue
+        for skill_file in root.rglob("SKILL.md"):
             parsed = _parse_skill_file(skill_file)
             if parsed and parsed["name"] not in seen:
                 seen.add(parsed["name"])

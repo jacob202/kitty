@@ -4,7 +4,8 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 from starlette.datastructures import Headers
 
-from gateway.app import app, MAX_BODY_BYTES
+from gateway.constants import MAX_BODY_BYTES
+from gateway.app import app
 
 
 def _client():
@@ -30,7 +31,9 @@ def test_troubleshoot_accepts_valid_payload():
         "gateway.troubleshooter.initiate_troubleshooting", return_value="step 1"
     ):
         client = _client()
-        response = client.post("/troubleshoot", json={"device": "sansui", "symptom": "hiss"})
+        response = client.post(
+            "/troubleshoot", json={"device": "sansui", "symptom": "hiss"}
+        )
     assert response.status_code == 200
     assert response.json()["response"] == "step 1"
 
@@ -60,6 +63,9 @@ def test_global_body_size_guard_blocks_large_requests():
         response = client.post(
             "/learn",
             content=body,
-            headers={"content-type": "application/json", "content-length": str(MAX_BODY_BYTES + 1)},
+            headers={
+                "content-type": "application/json",
+                "content-length": str(MAX_BODY_BYTES + 1),
+            },
         )
     assert response.status_code == 413

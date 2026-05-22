@@ -224,6 +224,31 @@ async def cron_delete(schedule_id: str):
     return {"deleted": True}
 
 
+@router.post("/cron/{schedule_id}/toggle")
+async def cron_toggle(schedule_id: str):
+    from gateway.cron import toggle
+
+    state = toggle(schedule_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    return {"enabled": state}
+
+
+@router.get("/cron/actions")
+async def cron_actions():
+    from gateway.cron import get_actions
+
+    return {"actions": get_actions()}
+
+
+@router.get("/weather")
+async def weather():
+    """Current weather for Regina."""
+    from gateway.weather import get_weather
+
+    return get_weather() or {"error": "weather unavailable"}
+
+
 # --- Build endpoints ---
 
 

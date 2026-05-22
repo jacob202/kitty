@@ -232,6 +232,219 @@ export async function fetchGatewayBrief(): Promise<GatewayBriefPayload> {
   }
 }
 
+// ── Agents ───────────────────────────────────────────────────────────────────
+
+export type AgentStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+export type AgentType = 'explorer' | 'planner' | 'coder' | 'reviewer' | 'researcher'
+
+export interface AgentSession {
+  session_id: number
+  goal: string
+  status: AgentStatus
+  iterations?: number
+  total_steps?: number
+  last_output_snippet?: string
+  created_at?: number
+  updated_at?: number
+  output?: string
+}
+
+async function gfetch<T = unknown>(path: string, init?: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const response = await fetch(`${GATEWAY_BASE}${path}`, { ...init, signal: controller.signal })
+    if (!response.ok) {
+      throw new Error(`Gateway returned ${response.status} ${response.statusText}`.trim())
+    }
+    return (await response.json()) as T
+  } finally {
+    window.clearTimeout(timeoutId)
+  }
+}
+
+export async function spawnAgent(goal: string, agentType: AgentType = 'explorer'): Promise<number | null> {
+  try {
+    const json = await gfetch<{ session_id?: number }>('/agent/spawn', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ goal, agent_type: agentType }),
+    })
+    return json.session_id ?? null
+  } catch {
+    return null
+  }
+}
+
+export async function fetchAgentStatus(sessionId: number): Promise<AgentSession | null> {
+  try {
+    return await gfetch<AgentSession>(`/agent/${sessionId}`)
+  } catch {
+    return null
+  }
+}
+
+export async function fetchAgentSessions(limit = 10): Promise<AgentSession[]> {
+  try {
+    const json = await gfetch<{ agents?: AgentSession[] }>(`/agents?limit=${limit}`)
+    return json.agents ?? []
+  } catch {
+    return []
+  }
+}
+
+export async function stopAgent(sessionId: number): Promise<boolean> {
+  try {
+    await gfetch(`/agent/${sessionId}/stop`, { method: 'POST' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+// ── Todos ────────────────────────────────────────────────────────────────────
+
+export interface GatewayTodo {
+  id: number
+  content: string
+  status: string
+  active_form?: string
+  sort_order?: number
+  created_at?: number
+  updated_at?: number
+}
+
+export async function fetchGatewayTodos(): Promise<GatewayTodo[]> {
+  try {
+    const json = await gfetch<{ todos?: GatewayTodo[] }>('/todos')
+    return json.todos ?? []
+  } catch {
+    return []
+  }
+}
+
+export async function addGatewayTodo(content: string): Promise<GatewayTodo | null> {
+  try {
+    return await gfetch<GatewayTodo>('/todos/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    })
+  } catch {
+    return null
+  }
+}
+
+export async function completeGatewayTodo(id: number): Promise<boolean> {
+  try {
+    await gfetch(`/todos/${id}/complete`, { method: 'POST' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function deleteGatewayTodo(id: number): Promise<boolean> {
+  try {
+    await gfetch(`/todos/${id}`, { method: 'DELETE' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+// ── Tasks ────────────────────────────────────────────────────────────────────
+
+export type TaskType = 'research' | 'ingest' | 'build' | 'cleanup' | 'dream'
+
+export interface GatewayTask {
+  task_id: string
+  goal: string
+  task_type: string
+  status: string
+  created_at?: number
+  updated_at?: number
+  error?: string | null
+}
+
+export async function fetchGatewayTasks(limit = 20): Promise<GatewayTask[]> {
+  try {
+    const json = await gfetch<{ tasks?: GatewayTask[] }>(`/tasks?limit=${limit}`)
+    return json.tasks ?? []
+  } catch {
+    return []
+  }
+}
+
+export async function createGatewayTask(
+  goal: string,
+  taskType: TaskType = 'research',
+): Promise<string | null> {
+  try {
+    const json = await gfetch<{ task_id?: string }>('/task/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ goal, task_type: taskType }),
+    })
+    return json.task_id ?? null
+  } catch {
+    return null
+  }
+}
+
+export async function cancelGatewayTask(taskId: string): Promise<boolean> {
+  try {
+    await gfetch(`/task/${taskId}/cancel`, { method: 'POST' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+// ── Monitors ─────────────────────────────────────────────────────────────────
+
+export interface GatewayMonitor {
+  watch_id: string
+  url: string
+  label: string
+  keywords?: string[]
+  interval_minutes?: number
+  last_checked?: number | null
+  last_hash?: string | null
+  last_match?: string | null
+}
+
+export async function fetchGatewayMonitors(): Promise<GatewayMonitor[]> {
+  try {
+    const json = await gfetch<{ watches?: GatewayMonitor[] }>('/monitors')
+    return json.watches ?? []
+  } catch {
+    return []
+  }
+}
+
+export async function addGatewayMonitor(url: string, label: string): Promise<string | null> {
+  try {
+    const json = await gfetch<{ watch_id?: string }>('/monitor/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, label }),
+    })
+    return json.watch_id ?? null
+  } catch {
+    return null
+  }
+}
+
+export async function removeGatewayMonitor(watchId: string): Promise<boolean> {
+  try {
+    await gfetch(`/monitor/${watchId}`, { method: 'DELETE' })
+    return true
+  } catch {
+    return false
+  }
+}
+
 export async function fetchGatewaySearch(
   query: string,
   limit = 5,

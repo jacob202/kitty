@@ -8,6 +8,7 @@ AgentRouter, OpenRouter, and Gemini. The Kitty side now keeps a single canonical
 Successful completions append one row to ``data/kitty_token_log.jsonl`` via
 ``gateway.token_usage_log`` when the API returns a ``usage`` object.
 """
+
 from __future__ import annotations
 
 import json
@@ -115,10 +116,7 @@ def agentrouter_model_for_request(request_model: str | None) -> str:
     if rm and rm not in _LEGACY_MODEL_ALIASES and rm != _LITELLM_DEFAULT:
         return _sanitize_agentrouter_model_id(rm)
 
-    g_model = (
-        os.environ.get("AGENTROUTER_MODEL", "").strip()
-        or "gpt-5.4-mini"
-    )
+    g_model = os.environ.get("AGENTROUTER_MODEL", "").strip() or "gpt-5.4-mini"
     return _sanitize_agentrouter_model_id(g_model)
 
 
@@ -147,8 +145,14 @@ def _finalize_openai_shape_response(
         logger.error("Malformed response from %s: %s", provider, data)
         return ""
 
-    usage = normalize_usage_payload(data.get("usage") if isinstance(data.get("usage"), dict) else None)
-    meta: dict[str, Any] = {**(metadata or {}), "route": route, "completion_chars": len(text)}
+    usage = normalize_usage_payload(
+        data.get("usage") if isinstance(data.get("usage"), dict) else None
+    )
+    meta: dict[str, Any] = {
+        **(metadata or {}),
+        "route": route,
+        "completion_chars": len(text),
+    }
     if request_model:
         meta["request_model"] = request_model
     log_llm_usage(provider, model_logged, operation, usage, meta)
@@ -208,7 +212,9 @@ def call_llm(
             metadata=metadata,
         )
     except Exception as e:
-        logger.warning("LLM call failed via LiteLLM (%s), trying fallbacks: %s", model, e)
+        logger.warning(
+            "LLM call failed via LiteLLM (%s), trying fallbacks: %s", model, e
+        )
 
         # 1. OpenAI direct. This is the current known-good paid fallback on this machine.
         out = _call_openai_direct(
@@ -238,7 +244,9 @@ def call_llm(
         if out:
             return out
 
-        disable_agentrouter = os.environ.get("KITTY_DISABLE_AGENTROUTER", "").strip().lower()
+        disable_agentrouter = (
+            os.environ.get("KITTY_DISABLE_AGENTROUTER", "").strip().lower()
+        )
         if disable_agentrouter not in ("1", "true", "yes"):
             # 3. AgentRouter when the hosted client auth lane is healthy.
             out = _call_agentrouter_direct(
@@ -304,7 +312,10 @@ def _call_openai_direct(
     if not api_key:
         return ""
 
-    model = os.environ.get("KITTY_OPENAI_FALLBACK_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini"
+    model = (
+        os.environ.get("KITTY_OPENAI_FALLBACK_MODEL", "gpt-4o-mini").strip()
+        or "gpt-4o-mini"
+    )
     base = os.environ.get("OPENAI_API_BASE", "https://api.openai.com/v1").rstrip("/")
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -320,7 +331,9 @@ def _call_openai_direct(
         payload["response_format"] = response_format
 
     try:
-        resp = requests.post(f"{base}/chat/completions", headers=headers, json=payload, timeout=timeout)
+        resp = requests.post(
+            f"{base}/chat/completions", headers=headers, json=payload, timeout=timeout
+        )
         resp.raise_for_status()
         data = resp.json()
         mlog = data.get("model") or model
@@ -371,9 +384,13 @@ def _call_gemini_direct(
         payload["response_format"] = response_format
 
     try:
-        resp = requests.post(f"{base}/chat/completions", headers=headers, json=payload, timeout=timeout)
+        resp = requests.post(
+            f"{base}/chat/completions", headers=headers, json=payload, timeout=timeout
+        )
         if resp.status_code != 200:
-            logger.error("Gemini call failed (%d): %s", resp.status_code, resp.text[:500])
+            logger.error(
+                "Gemini call failed (%d): %s", resp.status_code, resp.text[:500]
+            )
             return ""
         data = resp.json()
         mlog = data.get("model") or model
@@ -427,7 +444,12 @@ def _call_openrouter_direct(
         payload["response_format"] = response_format
 
     try:
-        resp = requests.post(f"{OPENROUTER_BASE}/chat/completions", headers=headers, json=payload, timeout=timeout)
+        resp = requests.post(
+            f"{OPENROUTER_BASE}/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=timeout,
+        )
         resp.raise_for_status()
         data = resp.json()
         mlog = data.get("model") or model
@@ -443,6 +465,7 @@ def _call_openrouter_direct(
     except Exception as e:
         logger.error("OpenRouter direct call failed: %s", e)
         return ""
+
 
 # AgentRouter's hosted API rejects generic clients before token validation. These
 # defaults match its Codex integration path and can be overridden from env.
@@ -485,7 +508,9 @@ def _call_agentrouter_direct(
     ar_model = agentrouter_model_for_request(request_model)
 
     if not api_key:
-        logger.debug("AgentRouter skipped: set AGENTROUTER_API_KEY or AGENT_ROUTER_TOKEN")
+        logger.debug(
+            "AgentRouter skipped: set AGENTROUTER_API_KEY or AGENT_ROUTER_TOKEN"
+        )
         return ""
 
     ua = os.environ.get("KITTY_AGENTROUTER_USER_AGENT", "").strip()
@@ -512,7 +537,9 @@ def _call_agentrouter_direct(
                     if isinstance(k, str) and isinstance(v, str):
                         base_headers[str(k)] = str(v)
         except json.JSONDecodeError:
-            logger.warning("KITTY_AGENTROUTER_EXTRA_HEADERS_JSON must be JSON object — ignoring.")
+            logger.warning(
+                "KITTY_AGENTROUTER_EXTRA_HEADERS_JSON must be JSON object — ignoring."
+            )
 
     def build_headers(user_agent: str) -> dict[str, str]:
         h = {**base_headers, "User-Agent": user_agent}
@@ -575,6 +602,7 @@ def _call_agentrouter_direct(
         logger.error("AgentRouter direct call failed: %s", e)
         return ""
 
+
 @retry_with_backoff
 def _call_nvidia_direct(
     messages: list[dict],
@@ -591,7 +619,9 @@ def _call_nvidia_direct(
     if not api_key:
         return ""
 
-    base = os.environ.get("NVIDIA_API_BASE", "https://integrate.api.nvidia.com/v1").rstrip("/")
+    base = os.environ.get(
+        "NVIDIA_API_BASE", "https://integrate.api.nvidia.com/v1"
+    ).rstrip("/")
     nv_model = os.environ.get("NVIDIA_CHAT_MODEL", "deepseek-ai/deepseek-v4-pro")
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -607,7 +637,9 @@ def _call_nvidia_direct(
         payload["response_format"] = response_format
 
     try:
-        resp = requests.post(f"{base}/chat/completions", headers=headers, json=payload, timeout=timeout)
+        resp = requests.post(
+            f"{base}/chat/completions", headers=headers, json=payload, timeout=timeout
+        )
         resp.raise_for_status()
         data = resp.json()
         mlog = data.get("model") or nv_model
@@ -625,8 +657,12 @@ def _call_nvidia_direct(
         return ""
 
 
-def chat(model: str, messages: list[dict], max_tokens: int = 500, temperature: float = 0.7) -> str:
-    return call_llm(messages, model=model, max_tokens=max_tokens, temperature=temperature)
+def chat(
+    model: str, messages: list[dict], max_tokens: int = 500, temperature: float = 0.7
+) -> str:
+    return call_llm(
+        messages, model=model, max_tokens=max_tokens, temperature=temperature
+    )
 
 
 _REASONING_KEYWORDS = frozenset(
@@ -673,3 +709,122 @@ def route_model(message: str) -> str:
         return _LITELLM_SONNET
     logger.debug("routing: default -> %s", _LITELLM_DEFAULT)
     return _LITELLM_DEFAULT
+
+
+# --- Async HTTP chat (gateway /v1/chat/completions) ---
+
+
+def extract_assistant_text(data: object) -> str:
+    """Return the first assistant message content from a LiteLLM-style response."""
+    if not isinstance(data, dict):
+        return ""
+    choices = data.get("choices", [])
+    if not choices or not isinstance(choices[0], dict):
+        return ""
+    message = choices[0].get("message", {})
+    if not isinstance(message, dict):
+        return ""
+    content = message.get("content", "")
+    return content if isinstance(content, str) else ""
+
+
+async def chat_completions_non_stream(payload: dict[str, Any]) -> dict[str, Any]:
+    """Async chat completion — LiteLLM first, sync fallback chain on failure."""
+    import asyncio
+
+    from gateway.http_client import get_http_client
+
+    try:
+        client = await get_http_client()
+        resp = await client.post(
+            f"{LITELLM_BASE}/v1/chat/completions",
+            json=payload,
+            headers={"Authorization": f"Bearer {LITELLM_KEY}"},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        usage = normalize_usage_payload(
+            data.get("usage") if isinstance(data, dict) else None
+        )
+        if usage:
+            log_llm_usage(
+                "litellm",
+                str(data.get("model") or payload.get("model") or "unknown"),
+                "chat.completions.create",
+                usage,
+                {
+                    "route": "gateway_chat_nonstream",
+                    "request_model": payload.get("model"),
+                },
+            )
+        return data
+    except Exception as e:
+        logger.warning("Async LiteLLM chat failed (%s), using sync fallback", e)
+
+    messages = payload.get("messages") or []
+    model = normalize_litellm_request_model(payload.get("model"))
+    text = await asyncio.to_thread(
+        call_llm,
+        messages,
+        model=model,
+        max_tokens=int(payload.get("max_tokens") or 1500),
+        temperature=float(payload.get("temperature") or 0.7),
+        operation="chat.completions.create",
+        metadata={
+            "route": "gateway_chat_fallback",
+            "request_model": payload.get("model"),
+        },
+    )
+    resolved_model = model or _LITELLM_DEFAULT
+    return {
+        "choices": [{"message": {"role": "assistant", "content": text}}],
+        "model": resolved_model,
+    }
+
+
+async def iter_chat_completions_stream(payload: dict[str, Any]):
+    """Stream SSE chunks from LiteLLM. Streaming does not use the fallback chain."""
+    import json
+
+    from gateway.http_client import get_http_client
+
+    client = await get_http_client()
+    async with client.stream(
+        "POST",
+        f"{LITELLM_BASE}/v1/chat/completions",
+        json=payload,
+        headers={"Authorization": f"Bearer {LITELLM_KEY}"},
+    ) as resp:
+        async for chunk in resp.aiter_lines():
+            if not chunk or not chunk.startswith("data: "):
+                continue
+            raw_data = chunk[6:].strip()
+            if raw_data == "[DONE]":
+                yield chunk.encode("utf-8") + b"\n\n"
+                break
+            yield chunk.encode("utf-8") + b"\n\n"
+
+
+def log_chat_trace(
+    log_file,
+    correlation_id: str,
+    user_text: str,
+    domain: str,
+    model: str,
+    t_start: float,
+) -> None:
+    import json
+    import time
+
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    elapsed_ms = round((time.monotonic() - t_start) * 1000, 1)
+    entry = {
+        "correlation_id": correlation_id,
+        "user_request": user_text[:120],
+        "domain_classified": domain,
+        "model_selected": model,
+        "timestamp": time.time(),
+        "elapsed_ms": elapsed_ms,
+    }
+    with log_file.open("a") as f:
+        f.write(json.dumps(entry) + "\n")

@@ -4,6 +4,7 @@ Two modes:
 - Ambient: every /ask is logged; no friction
 - Intentional: Jacob triggers it, Kitty conducts a themed interview
 """
+
 from __future__ import annotations
 
 import json
@@ -21,7 +22,9 @@ logger = logging.getLogger("kitty.journal")
 JOURNAL_LOG = DATA_DIR / "journal_entries.jsonl"
 
 
-def save_journal_entry(entry: str, theme: str | None = None, session_id: str | None = None) -> dict:
+def save_journal_entry(
+    entry: str, theme: str | None = None, session_id: str | None = None
+) -> dict:
     record = {"ts": time.time(), "theme": theme, "entry": entry}
     if session_id:
         record["session_id"] = session_id
@@ -29,6 +32,7 @@ def save_journal_entry(entry: str, theme: str | None = None, session_id: str | N
     with JOURNAL_LOG.open("a") as f:
         f.write(json.dumps(record) + "\n")
     return record
+
 
 THEMES = ["recovery", "work", "mood", "relationships", "body", "creative", "reflection"]
 
@@ -136,8 +140,16 @@ _PROMPTS: dict[str, list[str]] = {
 }
 
 _JOURNAL_TRIGGERS = [
-    "journal", "interview me", "let's talk", "lets talk", "check in", "debrief",
-    "how am i doing", "ask me", "tell me about my week", "end of day",
+    "journal",
+    "interview me",
+    "let's talk",
+    "lets talk",
+    "check in",
+    "debrief",
+    "how am i doing",
+    "ask me",
+    "tell me about my week",
+    "end of day",
 ]
 
 
@@ -158,7 +170,9 @@ def get_random_prompt(theme: Optional[str] = None) -> dict:
     return {"theme": theme, "prompt": random.choice(_PROMPTS[theme])}
 
 
-def build_interview_system_prompt(base_soul_prompt: str, theme: Optional[str] = None) -> str:
+def build_interview_system_prompt(
+    base_soul_prompt: str, theme: Optional[str] = None
+) -> str:
     theme_line = f"\n\nFocus area for this session: {theme}." if theme else ""
     return f"{base_soul_prompt}\n\n{INTERVIEW_SYSTEM_PROMPT}{theme_line}"
 
@@ -226,3 +240,31 @@ def delete_journal_message(session_id: str, message_id: str) -> bool:
     finally:
         if tmp_path and Path(tmp_path).exists():
             Path(tmp_path).unlink(missing_ok=True)
+
+
+def search_entries(query: str, limit: int = 5) -> list[dict]:
+    """Keyword search over journal entries for memory_graph / search."""
+    try:
+        if not JOURNAL_LOG.exists():
+            return []
+        terms = query.lower().split()
+        matches: list[dict] = []
+        with JOURNAL_LOG.open("r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                entry_text = entry.get("entry", "").lower()
+                score = sum(1 for t in terms if t in entry_text)
+                if score > 0:
+                    entry["_score"] = score
+                    matches.append(entry)
+        matches.sort(key=lambda x: x.get("_score", 0), reverse=True)
+        return matches[:limit]
+    except Exception as e:
+        logger.warning("Journal search failed: %s", e)
+        return []

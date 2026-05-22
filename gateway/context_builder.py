@@ -6,16 +6,25 @@ This is a DEEP module. Callers (like app.py) should only use:
 
 Implementation details (domain routing, prompt loading, dynamic context) are private.
 """
+
 from __future__ import annotations
 
 import logging
 from typing import Optional, Tuple
 
-from gateway import domain_router, prompt_loader, journal, parts, memory_graph, voice_gate
+from gateway import (
+    domain_router,
+    prompt_loader,
+    journal,
+    parts,
+    memory_graph,
+    voice_gate,
+)
+from gateway.context_enrichment import enrich_dynamic_context
 
 logger = logging.getLogger("kitty.context_builder")
 
-# Retrieval constants
+# Legacy retrieval constants (used by tests and external patches)
 MEMORY_LIMIT: int = 5
 KNOWLEDGE_LIMIT: int = 3
 MEMORY_TOKEN_CAP: int = 500
@@ -26,126 +35,20 @@ MEMORY_SIMILARITY_THRESHOLD: float = 0.7
 async def get_system_prompt(
     message: str, parts_mode: bool = False, domain: Optional[str] = None
 ) -> str:
-    """The deep entry point for Kitty's reasoning setup.
-    
-    1. Classifies the domain of the message (unless ``domain`` is provided).
-    2. Loads the appropriate base prompt.
-    3. Detects and applies specialized modes (Journal, Parts).
-    4. Fetches and appends dynamic context (Memory, Knowledge).
-    """
-    # 1. Classification & Base Prompt
+    """The deep entry point for Kitty's reasoning setup."""
     if domain is None:
         domain = domain_router.classify_domain(message)
     system_prompt = prompt_loader.load_prompt(domain)
 
-    # 2. Specialized Mode: Journal
     if journal.is_journal_trigger(message):
         system_prompt = journal.build_interview_system_prompt(system_prompt)
 
-    # 3. Specialized Mode: Parts (Internal Council)
     if parts_mode or parts.should_surface_parts(message):
         system_prompt = parts.build_parts_system_prompt(system_prompt)
 
-    # 4. Dynamic Context Retrieval (unified across all stores)
     dynamic_context = await memory_graph.unified_context(message)
+    dynamic_context = await enrich_dynamic_context(dynamic_context, message)
 
-    # 5. Calendar context — today's upcoming events (macOS only, silent on Linux)
-    try:
-        from gateway.calendar import get_upcoming_text, is_available as cal_available
-        if cal_available():
-            cal_text = await asyncio.to_thread(get_upcoming_text, 3)
-            if cal_text:
-                dynamic_context = f"{dynamic_context}\n\n{cal_text}" if dynamic_context else cal_text
-    except Exception:
-        pass
-
-    # 5.5 Weather context (30-min cached, Regina)
-    try:
-        from gateway.weather import get_weather_text
-        wx = await asyncio.to_thread(get_weather_text)
-        if wx:
-            dynamic_context = f"{dynamic_context}\n{wx}" if dynamic_context else wx
-    except Exception:
-        pass
-
-    # 5.6 Current todos
-    try:
-        from gateway.todo_store import get_todos_text
-        todos = get_todos_text()
-        if todos:
-            dynamic_context = f"{dynamic_context}\n\n{todos}" if dynamic_context else todos
-    except Exception:
-        pass
-
-    # 5.7 Recent iMessages (macOS only)
-    try:
-        from gateway.imessage import get_recent_text, is_available as imsg_available
-        if imsg_available():
-            imsg = await asyncio.to_thread(get_recent_text, 4)
-            if imsg:
-                dynamic_context = f"{dynamic_context}\n\n{imsg}" if dynamic_context else imsg
-    except Exception:
-        pass
-
-    # 5.8 Health summary (from last Apple Health export)
-    try:
-        from gateway.health_parser import get_health_text
-        health = get_health_text()
-        if health:
-            dynamic_context = f"{dynamic_context}\n\n{health}" if dynamic_context else health
-    except Exception:
-        pass
-
-    # 6. Ambient context — what app Jacob is currently in (opt-in via KITTY_AMBIENT_ENABLED=1)
-    try:
-        from gateway.ambient import get_ambient_text
-        ambient = get_ambient_text()
-        if ambient:
-            dynamic_context = f"{dynamic_context}\n{ambient}" if dynamic_context else ambient
-    except Exception:
-        pass
-
-    # 6.5 Behavioral patterns (30-day analysis from gateway trace log)
-    try:
-        from gateway.patterns import get_insight_text
-        pattern_text = await asyncio.to_thread(get_insight_text, 30)
-        if pattern_text:
-            dynamic_context = f"{dynamic_context}\n\n{pattern_text}" if dynamic_context else pattern_text
-    except Exception:
-        pass
-
-    # 6.6 Learning stats (absorption score, level, topics mastered)
-    try:
-        from gateway.learning import init_stats
-        stats = init_stats()
-        level = stats.get("user_level", 1)
-        score = stats.get("absorption_score", 0)
-        mastered = stats.get("topics_mastered", [])
-        if level > 1 or score > 0 or mastered:
-            learn_parts = [f"[Learning] Level {level}, absorption {score}/100"]
-            if mastered:
-                learn_parts.append(f"mastered: {', '.join(mastered[:5])}")
-            dynamic_context = f"{dynamic_context}\n{' — '.join(learn_parts)}" if dynamic_context else ' — '.join(learn_parts)
-    except Exception:
-        pass
-
-    # 7. Active nudges — pending proactive suggestions
-    try:
-        from gateway.nudge import get_pending
-        pending = get_pending()
-        if pending:
-            nudge_lines = "\n".join(f"- {n['message']}" for n in pending[:2])
-            nudge_block = f"[PENDING NUDGES]\n{nudge_lines}"
-            dynamic_context = f"{dynamic_context}\n\n{nudge_block}" if dynamic_context else nudge_block
-    except Exception:
-        pass
-
-    # 8. Drift correction nudge (if Kitty has been off-voice this session)
-    nudge = voice_gate.get_drift_nudge()
-    if nudge:
-        dynamic_context = (dynamic_context + nudge) if dynamic_context else nudge
-
-    # 9. Assembly
     return _assemble(system_prompt, dynamic_context)
 
 
@@ -156,9 +59,12 @@ def build_worker_context(context_type: str, **kwargs) -> str:
         m = kwargs.get("memory", "")
         tz = kwargs.get("tz", "")
         parts_list = []
-        if top_task: parts_list.append(f"Current Top Task: {top_task}")
-        if m: parts_list.append(f"Recent Memories: {m}")
-        if tz: parts_list.append(f"Timezone: {tz}")
+        if top_task:
+            parts_list.append(f"Current Top Task: {top_task}")
+        if m:
+            parts_list.append(f"Recent Memories: {m}")
+        if tz:
+            parts_list.append(f"Timezone: {tz}")
         return "\n".join(parts_list)
 
     if context_type in ("learning", "reset", "troubleshooter"):
@@ -173,8 +79,6 @@ def build_worker_context(context_type: str, **kwargs) -> str:
     return ""
 
 
-# --- Private Implementation Details ---
-
 def _assemble(base: str, dynamic_context: str) -> str:
     if dynamic_context:
         return f"{base}\n\n{dynamic_context}"
@@ -184,19 +88,20 @@ def _assemble(base: str, dynamic_context: str) -> str:
 def _truncate(text: str, cap: int) -> str:
     if (len(text) // 4) <= cap:
         return text
-    return text[:cap * 4] + "…"
+    return text[: cap * 4] + "…"
 
 
-# Legacy compatibility aliases
 async def build_user_context(query: str, soul_prompt: str) -> Tuple[str, str]:
     """Shim for legacy callers who expect (soul, dynamic) split."""
     dynamic = await memory_graph.unified_context(query)
     return soul_prompt, dynamic
 
+
 def assemble_system_prompt(soul: str, dynamic: str) -> str:
     return f"{soul}\n\n{dynamic}".strip()
 
 
-# Backward-compat: keep old function names available for any caller that patches them
 from gateway.memory import get_context_block as _fetch_memory  # noqa: E402, F401
-from gateway.knowledge import get_knowledge_block as _fetch_knowledge_block  # noqa: E402, F401
+from gateway.knowledge import (
+    get_knowledge_block as _fetch_knowledge_block,
+)  # noqa: E402, F401

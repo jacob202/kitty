@@ -1,7 +1,9 @@
 """Tests for context_builder — unified context via memory_graph, constants, assembly."""
+
 import pytest
 from unittest.mock import patch, AsyncMock
 
+from gateway import context_enrichment
 from gateway.context_builder import (
     MEMORY_TOKEN_CAP,
     KNOWLEDGE_TOKEN_CAP,
@@ -12,12 +14,13 @@ from gateway.context_builder import (
     _assemble,
     assemble_system_prompt,
     build_user_context,
+    get_system_prompt,
 )
-
 
 # ---------------------------------------------------------------------------
 # Unit tests — pure functions
 # ---------------------------------------------------------------------------
+
 
 def test_assemble_appends_dynamic_to_base():
     result = _assemble("BASE", "DYNAMIC")
@@ -63,11 +66,14 @@ def test_constants_exist_and_sane():
 # Async integration tests — unified context via memory_graph
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_build_user_context_returns_tuple():
     with patch(
         "gateway.context_builder.memory_graph.unified_context",
-        new=AsyncMock(return_value="## Memory\n- test memory\n\n## Knowledge\n[src | general]\ntest knowledge"),
+        new=AsyncMock(
+            return_value="## Memory\n- test memory\n\n## Knowledge\n[src | general]\ntest knowledge"
+        ),
     ):
         soul, dynamic = await build_user_context("test query", "SOUL")
     assert soul == "SOUL"
@@ -84,6 +90,40 @@ async def test_build_user_context_soul_unchanged_on_empty():
         soul, dynamic = await build_user_context("test query", "SOUL")
     assert soul == "SOUL"
     assert dynamic == ""
+
+
+@pytest.mark.asyncio
+async def test_get_system_prompt_calls_enrichment():
+    unified_mock = AsyncMock(return_value="UNIFIED")
+    enrich_mock = AsyncMock(return_value="UNIFIED\n\nENRICHED")
+
+    with patch(
+        "gateway.context_builder.memory_graph.unified_context", unified_mock
+    ), patch("gateway.context_builder.enrich_dynamic_context", enrich_mock), patch(
+        "gateway.context_builder.prompt_loader.load_prompt", return_value="BASE"
+    ), patch(
+        "gateway.context_builder.journal.is_journal_trigger", return_value=False
+    ), patch(
+        "gateway.context_builder.parts.should_surface_parts", return_value=False
+    ):
+        result = await get_system_prompt("hello")
+
+    unified_mock.assert_awaited_once_with("hello")
+    enrich_mock.assert_awaited_once_with("UNIFIED", "hello")
+    assert result == "BASE\n\nUNIFIED\n\nENRICHED"
+
+
+@pytest.mark.asyncio
+async def test_enrich_dynamic_context_appends_block():
+    async def fake_block(_message: str) -> str:
+        return "[TestBlock] hello"
+
+    with patch.object(context_enrichment, "_ENRICHMENTS", (fake_block,)), patch(
+        "gateway.voice_gate.get_drift_nudge", return_value=""
+    ):
+        result = await context_enrichment.enrich_dynamic_context("BASE", "msg")
+
+    assert result == "BASE\n\n[TestBlock] hello"
 
 
 @pytest.mark.asyncio
@@ -118,7 +158,9 @@ def test_format_unified_memory_only():
 def test_format_unified_all_sections():
     results = {
         "memory": [{"memory": "test memory"}],
-        "knowledge": [{"text": "test knowledge", "source": "test.txt", "doc_type": "general"}],
+        "knowledge": [
+            {"text": "test knowledge", "source": "test.txt", "doc_type": "general"}
+        ],
         "journal": [{"entry": "test journal entry"}],
         "traces": [{"user_request": "test request", "domain_classified": "soul"}],
     }

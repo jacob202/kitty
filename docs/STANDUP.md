@@ -183,7 +183,7 @@ These are job descriptions for future wiring. They are not implemented yet. Toda
 ## 5. Exact current state of the codebase
 - **Repo:** `~/Projects/kitty` — proper git repo with a baseline commit.
 - **Pre-commit hook:** runs the full test suite (~40–55s on this machine; **240+** tests at last audit). Keep green before push.
-- **Storage:** 5 fragmented stores (LightRAG, ChromaDB, SQLite, JournalDB, MemoryWeave). A `StorageRouter` class exists to enforce routing. Full unification is post-launch.
+- **Storage:** 5 fragmented stores (LightRAG, ChromaDB, SQLite, JournalDB, MemoryWeave). **`memory_graph`** is the read seam for prompt/search context. Direct backend imports remain OK for writes; a full `StorageRouter` is post-launch.
 - **Specialists:** Sansui (audio) and Ridgeline specialists have knowledge bases. Onboarding Pipeline will formalize how these are built.
 - **Frontend:** kitty-chat Next.js app. Functional but feels like a dev tool, not a companion.
 - **Voice:** VoiceInk handles transcription locally. No custom browser audio capture.
@@ -204,7 +204,8 @@ After infrastructure is wired, move to Layer 1: the 4 sub-projects in order.
 - **Never touch the Desktop backup path.** `~/Desktop/kitty-system/kitty-app` is off-limits.
 - **No MCP expansion.** The orchestrator is cut. Don't add new MCP servers without Jacob's explicit approval.
 - **No secrets in committed configs.** Use `$ENV_VAR` placeholders. Rotate any exposed keys.
-- **Always route storage through `StorageRouter`.** Never import a storage backend directly.
+- **Route HTTP handlers through `gateway/routes/`** via `register_routes(app)` in `gateway/app.py`. Keep `app.py` for lifespan, middleware, and `/health` + `/mood` only.
+- **Reads for prompt/search context go through `memory_graph`.** Direct backend imports are OK for write paths until StorageRouter exists.
 - **Pre-commit hook must pass.** Full `pytest`; don’t ship on red.
 - **Jacob reviews demos, not code.** Show him the experience. Yes/no/redirect.
 - **Standup voice, always.** When you update this file, write like you're talking to a teammate handing off a shift, not filing a report.

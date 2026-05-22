@@ -105,6 +105,33 @@ async def todos_clear():
     return {"todos": []}
 
 
+class TodoAddRequest(BaseModel):
+    content: str = Field(min_length=1, max_length=500)
+    status: str = "pending"
+    active_form: str = ""
+
+
+@router.post("/todos/add")
+async def todos_add(payload: TodoAddRequest):
+    from gateway.todo_store import add
+
+    return add(payload.content, payload.status, payload.active_form)
+
+
+@router.post("/todos/{todo_id}/complete")
+async def todos_complete_by_id(todo_id: int):
+    from gateway.todo_store import complete_by_id
+
+    return {"completed": complete_by_id(todo_id), "id": todo_id}
+
+
+@router.delete("/todos/{todo_id}")
+async def todos_delete(todo_id: int):
+    from gateway.todo_store import delete_by_id
+
+    return {"deleted": delete_by_id(todo_id), "id": todo_id}
+
+
 # --- Agent endpoints ---
 
 
@@ -251,3 +278,29 @@ async def image_generate(req: ImageGenRequest):
         raise HTTPException(status_code=504, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/image/view/{filename}")
+async def image_view(filename: str):
+    """Proxy an output image from ComfyUI (works with both local and Colab tunnel URLs)."""
+    import httpx
+    from gateway.image_gen import COMFY_URL
+    from fastapi.responses import Response
+
+    url = f"{COMFY_URL}/view?filename={filename}&subfolder=&type=output"
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.get(url)
+        if r.status_code != 200:
+            raise HTTPException(status_code=404, detail="Image not found in ComfyUI")
+        ct = r.headers.get("content-type", "image/png")
+        return Response(content=r.content, media_type=ct)
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"Could not reach ComfyUI: {e}")
+
+
+@router.get("/image/history")
+async def image_history():
+    from gateway.image_gen import get_history
+
+    return {"images": get_history()}
