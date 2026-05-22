@@ -15,6 +15,7 @@ interface Props {
   onViewChange: (view: string) => void
   kittyMode: string
   onKittyModeChange: (mode: string) => void
+  kittyModes?: Array<{ id: string; name: string }>
   sidebarCollapsed?: boolean
   onToggleSidebar?: () => void
 }
@@ -47,6 +48,8 @@ export function TopBar({
   kittyMode,
   onKittyModeChange,
   kittyModes = KITTY_MODES,
+  sidebarCollapsed = false,
+  onToggleSidebar,
 }: Props) {
   const face = isStreaming ? '=^._.^=' : '=^•ﻌ•^='
   const title = activeChat?.messages.length ? activeChat.title : getGreeting() + '.'

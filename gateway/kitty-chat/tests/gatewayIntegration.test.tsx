@@ -158,7 +158,6 @@ describe('TopBar', () => {
     onViewChange: () => undefined,
     kittyMode: 'default',
     onKittyModeChange: () => undefined,
-    kittyModes: [{ id: 'default', name: 'Default' }],
   }
 
   it('shows offline indicator when modelFromGateway is false', () => {
