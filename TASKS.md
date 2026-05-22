@@ -4,9 +4,17 @@ Last updated: **2026-05-21**
 
 ## Current test baseline
 
-`python3.11 -m pytest tests/ -q --tb=short`  → **311 passed, 2 skipped**
+`python3.11 -m pytest tests/ -q --tb=short --ignore=tests/test_council_graph.py --ignore=tests/test_mcp_council_server.py` → **449 passed, 2 skipped**
+
+`cd gateway/kitty-chat && npm test` → **36 passed**
 
 ---
+
+## UI home surface
+
+- **DashboardHome** is the canonical home view (`BriefPanel` removed).
+- Bootstraps: brief, todos, weather (`/weather`), loops, insights.
+- **RightPanel** (formerly RightBar) stays on the right rail.
 
 ## Phase 1 — Companion architecture foundation ✅ COMPLETE
 
@@ -22,17 +30,17 @@ Last updated: **2026-05-21**
 - [x] **2.1 Route chat through gateway** — proxy default fixed to `:5001`; `/api/chat/completions` alias wires `streamChat` through `context_builder` + `voice_gate`.
 - [x] **2.2 Background brief** — `_brief_bg_loop` in `lifespan` warms cache on startup, refreshes every 15 min; `/brief` now instant.
 - [x] **2.3 Persistent chats** — `GET/POST/DELETE /chats` backed by `data/kitty/chats.json`; loads on mount, saves after stream, deletes on close.
-- [x] **2.4 Agent task UI** — `TaskPanel.tsx` in BriefPanel sidebar; type selector, goal input, live status polling every 3s, cancel button.
+- [x] **2.4 Agent task UI** — `TaskPanel.tsx` on tasks rail; type selector, goal input, live status polling every 3s, cancel button.
 - [x] **2.5 Telegram bot** — wired in lifespan; 7 tests passing; supports `/brief`, `/stuck`, `/help`, plain chat.
 
 ---
 
 ## Phase 3 — External world context ✅ COMPLETE
 
-- [x] **3.1 Calendar** — `gateway/calendar.py` reads macOS Calendar via AppleScript; wired into `context_builder.py` and `brief.py`; BriefPanel shows today's events.
+- [x] **3.1 Calendar** — `gateway/calendar_integration.py` reads macOS Calendar via AppleScript; wired into `context_enrichment.py` and `brief.py`.
 - [x] **3.2 Ambient context** — `gateway/ambient.py` detects active macOS app; injected into context builder step 6; opt-in via `KITTY_AMBIENT_ENABLED=1`.
 - [x] **3.3 Nudge engine** — `gateway/nudge.py` checks repeated research, dropped threads, milestones; injected into context builder step 7; `/nudges` + dismiss endpoint live.
-- [x] **3.4 Weather** — `gateway/weather.py` hits wttr.in/Regina (30-min cache); `/weather` endpoint; injected into context builder step 5.5 and brief; RightBar shows live temp+conditions.
+- [x] **3.4 Weather** — `gateway/weather.py` hits wttr.in/Regina (30-min cache); `/weather` endpoint; injected into context enrichment and brief; DashboardHome BriefStrip shows live temp+conditions.
 - [x] **3.5 iMessage context** — `get_recent_text()` added to `imessage.py`; injected into context builder step 5.7 (macOS only, silent fallback).
 - [x] **3.6 Todos in context** — `get_todos_text()` added to `todo_store.py`; injected into context builder step 5.6 and brief.
 - [x] **3.7 Health summary** — `get_health_text()` added to `health_parser.py`; injected into context builder step 5.8 (reads cached Apple Health export).
@@ -52,8 +60,8 @@ Last updated: **2026-05-21**
 | `image_gen.py` | ⏭ Skip — needs local ComfyUI, low priority |
 | `tts.py` | ✅ Voice toggle in InputBar, auto-plays responses |
 | `stt.py` | ✅ Mic button in InputBar, transcribes to text |
-| `skills/` | ✅ RightBar shows up to 6 skills + overflow count |
-| `agents.py` | ✅ RightBar shows up to 5 agents |
+| `skills/` | ✅ RightPanel shows up to 6 skills + overflow count |
+| `agents.py` | ✅ RightPanel shows up to 5 agents |
 
 ---
 

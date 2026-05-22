@@ -107,6 +107,23 @@ export type GatewaySearchPayload = {
   error: string | null
 }
 
+export interface GatewayWeather {
+  temp_c?: number
+  feels_like_c?: number
+  description?: string
+  humidity?: number
+  wind_kmph?: number
+  max_c?: number
+  min_c?: number
+  error?: string
+}
+
+export type GatewayWeatherPayload = {
+  weather: GatewayWeather | null
+  fromLiveGateway: boolean
+  error: string | null
+}
+
 function describeFetchError(err: unknown, response: Response | null): string {
   if (err instanceof Error) {
     if (err.name === 'AbortError') return 'Request timed out — is the Kitty gateway running?'
@@ -270,6 +287,38 @@ export async function fetchGatewayBrief(): Promise<GatewayBriefPayload> {
   } catch (err) {
     return {
       brief: null,
+      fromLiveGateway: false,
+      error: describeFetchError(err, null),
+    }
+  }
+}
+
+export async function fetchGatewayWeather(): Promise<GatewayWeatherPayload> {
+  try {
+    const response = await fetchWithTimeout(`${GATEWAY_BASE}/weather`, 1500)
+    if (!response.ok) {
+      return {
+        weather: null,
+        fromLiveGateway: false,
+        error: describeFetchError(null, response),
+      }
+    }
+    const weather = (await response.json()) as GatewayWeather
+    if (weather.error) {
+      return {
+        weather: null,
+        fromLiveGateway: true,
+        error: weather.error,
+      }
+    }
+    return {
+      weather,
+      fromLiveGateway: true,
+      error: null,
+    }
+  } catch (err) {
+    return {
+      weather: null,
       fromLiveGateway: false,
       error: describeFetchError(err, null),
     }

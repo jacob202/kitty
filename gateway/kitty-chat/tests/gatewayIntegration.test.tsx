@@ -1,7 +1,7 @@
 import { render, screen, cleanup } from '@testing-library/react'
 import { vi, describe, expect, it, beforeEach, afterEach } from 'vitest'
 
-import { BriefPanel } from '../src/components/BriefPanel'
+import { DashboardHome } from '../src/components/DashboardHome'
 import { RightPanel } from '../src/components/RightPanel'
 import { TopBar } from '../src/components/TopBar'
 import { buildGatewayModels, fetchGatewaySearch, summarizeGatewaySearch } from '../src/lib/gateway'
@@ -154,6 +154,11 @@ describe('TopBar', () => {
     setShowModelMenu: () => undefined,
     isStreaming: false,
     activeChat: null,
+    activeView: 'home',
+    onViewChange: () => undefined,
+    kittyMode: 'default',
+    onKittyModeChange: () => undefined,
+    kittyModes: [{ id: 'default', name: 'Default' }],
   }
 
   it('shows offline indicator when modelFromGateway is false', () => {
@@ -167,14 +172,11 @@ describe('TopBar', () => {
   })
 })
 
-describe('BriefPanel', () => {
+describe('DashboardHome', () => {
   afterEach(cleanup)
   it('renders a live gateway brief when one is available', () => {
     render(
-      <BriefPanel
-        chats={[]}
-        onSelectChat={() => undefined}
-        onPrompt={() => undefined}
+      <DashboardHome
         brief={{
           date: '2026-05-18',
           headlines: ['Kitty is live'],
@@ -184,6 +186,10 @@ describe('BriefPanel', () => {
           notification_sent: false,
           error: null,
         }}
+        todos={[]}
+        loops={[]}
+        insights={[]}
+        promptTemplates={[]}
       />
     )
 
@@ -191,28 +197,31 @@ describe('BriefPanel', () => {
     expect(screen.getAllByText('Ship the integrated UI.').length).toBeGreaterThan(0)
     expect(screen.getByText('Remember to use the live gateway.')).toBeInTheDocument()
     expect(screen.getByText("Today's Compass")).toBeInTheDocument()
+    expect(screen.getByText('Loop Watch')).toBeInTheDocument()
   })
 
   it('shows loading skeleton when loading prop is true', () => {
     render(
-      <BriefPanel
-        chats={[]}
-        onSelectChat={() => undefined}
-        onPrompt={() => undefined}
+      <DashboardHome
         brief={null}
+        todos={[]}
+        loops={[]}
+        insights={[]}
+        promptTemplates={[]}
         loading={true}
       />
     )
-    expect(screen.getByRole('status', { name: /loading brief/i })).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: /loading dashboard/i })).toBeInTheDocument()
   })
 
-  it('shows fallback cards when loading is false and brief is null', () => {
+  it('shows brief strip when loading is false and brief is null', () => {
     render(
-      <BriefPanel
-        chats={[]}
-        onSelectChat={() => undefined}
-        onPrompt={() => undefined}
+      <DashboardHome
         brief={null}
+        todos={[]}
+        loops={[]}
+        insights={[]}
+        promptTemplates={[]}
         loading={false}
       />
     )

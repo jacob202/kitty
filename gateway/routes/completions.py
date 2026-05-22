@@ -33,9 +33,15 @@ class CloseSessionRequest(BaseModel):
 
 @router.post("/v1/chat/completions")
 async def chat_completions(request: Request):
+    from gateway.buddy import on_request_start, on_request_success, on_request_error, on_context_fetch
+
     content_length = request.headers.get("content-length")
     if content_length and int(content_length) > MAX_BODY_BYTES:
+        on_request_error()
         return Response(status_code=413, content="Request body too large")
+
+    on_request_start()
+
     body = await request.json()
     messages = body.get("messages", [])
     stream = body.get("stream", True)
@@ -58,7 +64,12 @@ async def chat_completions(request: Request):
 
     from gateway.context_builder import get_system_prompt
 
-    system_prompt = await get_system_prompt(user_text, parts_mode=False, domain=domain)
+    try:
+        on_context_fetch()
+        system_prompt = await get_system_prompt(user_text, parts_mode=False, domain=domain)
+    except Exception:
+        on_request_error()
+        raise
 
     enriched = [m for m in messages if m.get("role") != "system"]
     enriched = [{"role": "system", "content": system_prompt}] + enriched
@@ -66,17 +77,26 @@ async def chat_completions(request: Request):
     payload = {**body, "messages": enriched, "model": model, "stream": stream}
 
     if stream:
-
         async def stream_with_trace():
-            async for chunk in iter_chat_completions_stream(payload):
-                yield chunk
-            log_chat_trace(LOG_FILE, correlation_id, user_text, domain, model, t_start)
+            try:
+                async for chunk in iter_chat_completions_stream(payload):
+                    yield chunk
+                log_chat_trace(LOG_FILE, correlation_id, user_text, domain, model, t_start)
+                on_request_success()
+            except Exception:
+                on_request_error()
+                raise
 
         return StreamingResponse(stream_with_trace(), media_type="text/event-stream")
 
-    result = await chat_completions_non_stream(payload)
-    log_chat_trace(LOG_FILE, correlation_id, user_text, domain, model, t_start)
-    return result
+    try:
+        result = await chat_completions_non_stream(payload)
+        log_chat_trace(LOG_FILE, correlation_id, user_text, domain, model, t_start)
+        on_request_success()
+        return result
+    except Exception:
+        on_request_error()
+        raise
 
 
 @router.post("/api/chat/completions")
@@ -98,12 +118,12 @@ async def api_models():
             return Response(content=resp.content, media_type="application/json")
     except Exception as e:
         logger.warning("Failed to fetch models from LiteLLM: %s", e)
-    return {
-        "object": "list",
-        "data": [
-            {"id": "kitty-default", "object": "model", "owned_by": "kitty"},
-        ],
-    }
+        return {
+            "object": "list",
+            "data": [
+                {"id": "kitty-default", "object": "model", "owned_by": "kitty"},
+            ],
+        }
 
 
 @router.post("/sessions/close")

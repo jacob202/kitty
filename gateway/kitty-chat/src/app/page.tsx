@@ -6,21 +6,36 @@ import { inferMood } from '@/lib/mood'
 import { TopBar } from '@/components/TopBar'
 import { ChatMessage } from '@/components/ChatMessage'
 import { InputBar } from '@/components/InputBar'
-import { BriefPanel } from '@/components/BriefPanel'
+import { DashboardHome } from '@/components/DashboardHome'
 import { Rail } from '@/components/Rail'
 import { SessionSidebar } from '@/components/SessionSidebar'
 import { RightPanel } from '@/components/RightPanel'
 import { TaskPanel } from '@/components/TaskPanel'
 import { TodoPanel } from '@/components/TodoPanel'
+import { TerminalStrip } from '@/components/TerminalStrip'
 import {
   fetchGatewayBrief,
   fetchGatewayModels,
   fetchGatewaySearch,
   fetchGatewayTodos,
+  fetchGatewayLoops,
+  fetchGatewayInsights,
+  fetchGatewayWeather,
+  toggleGatewayLoop,
+  dismissGatewayInsight,
   type GatewayBrief,
   type GatewaySearchSnapshot,
   type GatewayTodo,
+  type GatewayLoop,
+  type GatewayInsight,
+  type GatewayWeather,
 } from '@/lib/gateway'
+
+const KITTY_MODES = [
+  { id: 'default', name: 'Default' },
+  { id: 'focus', name: 'Focus' },
+  { id: 'explore', name: 'Explore' },
+]
 
 let chatCounter = 0
 function newChatId() { return `chat-${++chatCounter}-${Date.now()}` }
@@ -77,6 +92,16 @@ function KittyChatInner() {
   const [tokenCount, setTokenCount] = useState(0)
   const [brief, setBrief] = useState<GatewayBrief | null>(null)
   const [todos, setTodos] = useState<GatewayTodo[]>([])
+  const [weather, setWeather] = useState<GatewayWeather | null>(null)
+  const [loops, setLoops] = useState<GatewayLoop[]>([])
+  const [insights, setInsights] = useState<GatewayInsight[]>([])
+  const [promptTemplates, setPromptTemplates] = useState<Array<{ id: string | number; title: string; content: string; category?: string; icon?: string }>>([
+    { id: 1, title: 'Brainstorm', content: 'Help me brainstorm ideas for...', category: 'Creative', icon: '💡' },
+    { id: 2, title: 'Debug Code', content: 'Help me debug this code:\n\n```\n\n```', category: 'Technical', icon: '🔧' },
+    { id: 3, title: 'Summarize', content: 'Summarize the following text:\n\n', category: 'Analysis', icon: '📄' },
+    { id: 4, title: 'Rewrite', content: 'Rewrite the following to be more concise:\n\n', category: 'Writing', icon: '✍️' },
+    { id: 5, title: 'Explain', content: 'Explain the following concept:\n\n', category: 'Learning', icon: '🎓' },
+  ])
   const [searchSnapshot, setSearchSnapshot] = useState<GatewaySearchSnapshot | null>(null)
   const [modelGateway, setModelGateway] = useState<{
     loaded: boolean
@@ -93,6 +118,8 @@ function KittyChatInner() {
     error: string | null
   }>({ live: true, error: null })
   const [gwReload, setGwReload] = useState(0)
+  const [kittyMode, setKittyMode] = useState('default')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -148,6 +175,24 @@ function KittyChatInner() {
       if (cancelled) return
       startTransition(() => {
         setTodos(todoList)
+      })
+
+      const weatherPayload = await fetchGatewayWeather()
+      if (cancelled) return
+      startTransition(() => {
+        setWeather(weatherPayload.weather)
+      })
+
+      const loopsPayload = await fetchGatewayLoops()
+      if (cancelled) return
+      startTransition(() => {
+        setLoops(loopsPayload.loops)
+      })
+
+      const insightsPayload = await fetchGatewayInsights()
+      if (cancelled) return
+      startTransition(() => {
+        setInsights(insightsPayload.insights)
       })
     })()
 
@@ -319,6 +364,24 @@ function KittyChatInner() {
     }, 0)
   }, [])
 
+  const handleLoopToggle = useCallback((loopId: string) => {
+    void (async () => {
+      await toggleGatewayLoop(loopId)
+      setGwReload(n => n + 1)
+    })()
+  }, [])
+
+  const handleInsightDismiss = useCallback((insightId: string) => {
+    void (async () => {
+      await dismissGatewayInsight(insightId)
+      setInsights(prev => prev.filter(i => i.insight_id !== insightId))
+    })()
+  }, [])
+
+  const handleInsightAction = useCallback((insightId: string, actionId: string) => {
+    console.log('Insight action:', insightId, actionId)
+  }, [])
+
   return (
     <div className="app-canvas" style={{
       display: 'grid',
@@ -329,13 +392,14 @@ function KittyChatInner() {
     >
       <Rail activeView={activeView} onViewChange={setActiveView} />
 
-      <SessionSidebar
-        chats={chats}
-        activeChatId={activeChatId}
-        onSelectChat={setActiveChatId}
-        onNewChat={handleNewChat}
-        onCloseChat={handleCloseChat}
-      />
+       <SessionSidebar
+         chats={chats}
+         activeChatId={activeChatId}
+         onSelectChat={setActiveChatId}
+         onNewChat={handleNewChat}
+         onCloseChat={handleCloseChat}
+         collapsed={sidebarCollapsed}
+       />
 
       <main style={{
         position: 'relative', minWidth: 0,
@@ -352,6 +416,12 @@ function KittyChatInner() {
           isStreaming={isStreaming}
           activeChat={activeChat}
           modelFromGateway={modelGateway.live}
+          activeView={activeView}
+          onViewChange={setActiveView}
+          kittyMode={kittyMode}
+          onKittyModeChange={setKittyMode}
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
         />
 
         {modelGateway.loaded && !modelGateway.live && (
@@ -424,27 +494,16 @@ function KittyChatInner() {
               <TaskPanel />
               <TodoPanel />
             </div>
-          ) : activeView !== 'home' && activeView !== 'chat' ? (
+          ) : activeView === 'terminal' ? (
             <div style={{
-              flex: 1, display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center',
-              gap: 12, fontFamily: 'var(--font-mono)',
-              color: 'var(--text-muted)', fontSize: 14,
+              flex: 1,
+              padding: '24px 32px 40px',
+              display: 'flex',
+              flexDirection: 'column',
             }}>
-              <span style={{ fontSize: 32, opacity: 0.3 }}>?</span>
-              <span>{activeView.charAt(0).toUpperCase() + activeView.slice(1)} view</span>
-              <span style={{ fontSize: 12, color: 'var(--text-ghost)' }}>coming soon</span>
+              <TerminalStrip title="Gateway Log" maxLines={100} />
             </div>
-          ) : !activeChat || activeChat.messages.length === 0 ? (
-            <BriefPanel
-              chats={chats}
-              onSelectChat={id => { setActiveChatId(id) }}
-              onPrompt={handlePrompt}
-              brief={brief}
-              todos={todos}
-              loading={!briefGateway.loaded}
-            />
-          ) : (
+          ) : activeView === 'chat' && activeChat && activeChat.messages.length > 0 ? (
             <div style={{ paddingBottom: 140 }}>
               {activeChat.messages.map((msg, i) => {
                 const isLast = i === activeChat.messages.length - 1
@@ -458,6 +517,33 @@ function KittyChatInner() {
                 )
               })}
               <div ref={bottomRef} />
+            </div>
+          ) : activeView === 'home' || activeView === 'chat' ? (
+            <DashboardHome
+              chats={chats}
+              onSelectChat={setActiveChatId}
+              onPromptSelect={handlePrompt}
+              brief={brief}
+              todos={todos}
+              weather={weather}
+              loops={loops}
+              insights={insights}
+              promptTemplates={promptTemplates}
+              loading={!briefGateway.loaded}
+              onLoopToggle={handleLoopToggle}
+              onInsightDismiss={handleInsightDismiss}
+              onInsightAction={handleInsightAction}
+            />
+          ) : (
+            <div style={{
+              flex: 1, display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center',
+              gap: 12, fontFamily: 'var(--font-mono)',
+              color: 'var(--text-muted)', fontSize: 14,
+            }}>
+              <span style={{ fontSize: 32, opacity: 0.3 }}>?</span>
+              <span>{activeView.charAt(0).toUpperCase() + activeView.slice(1)} view</span>
+              <span style={{ fontSize: 12, color: 'var(--text-ghost)' }}>coming soon</span>
             </div>
           )}
         </div>

@@ -15,13 +15,15 @@ interface Props {
   onViewChange: (view: string) => void
   kittyMode: string
   onKittyModeChange: (mode: string) => void
-  kittyModes: Array<{ id: string; name: string }>
+  sidebarCollapsed?: boolean
+  onToggleSidebar?: () => void
 }
 
 const VIEWS = [
   { id: 'home', label: 'Home' },
   { id: 'chat', label: 'Chat' },
   { id: 'tasks', label: 'Tasks' },
+  { id: 'terminal', label: 'Terminal' },
 ] as const
 
 const KITTY_MODES = [
@@ -74,6 +76,19 @@ export function TopBar({
         }}>{face}</span>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          {onToggleSidebar && (
+            <button
+              onClick={onToggleSidebar}
+              style={{
+                ...iconBtnStyle,
+                background: 'transparent',
+                color: 'var(--text-muted)',
+              }}
+              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {sidebarCollapsed ? '▶' : '◀'}
+            </button>
+          )}
           {VIEWS.map(view => (
             <button
               key={view.id}
@@ -402,4 +417,15 @@ const tabStyle: CSSProperties = {
   borderBottom: '2px solid transparent',
   background: 'transparent',
   marginBottom: '-2px',
+}
+
+const iconBtnStyle: CSSProperties = {
+  width: 32,
+  height: 32,
+  display: 'grid',
+  placeItems: 'center',
+  borderRadius: 8,
+  cursor: 'pointer',
+  fontSize: 12,
+  transition: 'all 0.2s ease',
 }
