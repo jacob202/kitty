@@ -9,11 +9,21 @@ if [[ -f "${ROOT_DIR}/.env" ]]; then
   load_env_assignments "${ROOT_DIR}/.env"
 fi
 
+# Preserve real upstream provider keys loaded from the local .env before
+# openwebui.env overlays proxy-facing placeholders for the WebUI process.
+REAL_OPENAI_API_KEY="${OPENAI_API_KEY:-}"
+
 # AgentRouter credits live on the hosted API. Point to local 9router only by explicit override.
 export AGENTROUTER_API_BASE="${AGENTROUTER_API_BASE:-https://agentrouter.org/v1}"
 
 if [[ -f "${ROOT_DIR}/kitty_gateway/openwebui.env" ]]; then
   load_env_assignments "${ROOT_DIR}/kitty_gateway/openwebui.env"
+fi
+
+# Open WebUI uses a local proxy placeholder API key, but LiteLLM itself must keep
+# the real upstream provider key for direct fallback models like `kitty-openai`.
+if [[ -n "${REAL_OPENAI_API_KEY}" ]]; then
+  export OPENAI_API_KEY="${REAL_OPENAI_API_KEY}"
 fi
 
 LITELLM_VENV="${LITELLM_VENV:-${HOME}/kitty-services/venv-litellm}"

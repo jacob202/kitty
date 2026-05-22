@@ -57,6 +57,28 @@ service_pattern() {
   esac
 }
 
+service_session_name() {
+  local name="$1"
+  case "${name}" in
+    litellm) echo "kitty-litellm" ;;
+    gateway) echo "kitty-gateway" ;;
+    openwebui) echo "kitty-openwebui" ;;
+    jupyter) echo "kitty-jupyter" ;;
+    *) echo "" ;;
+  esac
+}
+
+service_session_command() {
+  local name="$1"
+  case "${name}" in
+    litellm) echo "bash gateway/start_litellm.sh" ;;
+    gateway) echo "bash gateway/start_gateway.sh" ;;
+    openwebui) echo "bash gateway/start_openwebui.sh" ;;
+    jupyter) echo "bash gateway/start_jupyter_exec.sh" ;;
+    *) echo "" ;;
+  esac
+}
+
 start_service() {
   local name="$1"
   local cmd="$2"
@@ -76,11 +98,20 @@ start_service() {
   echo "Starting ${name}..."
   local launcher_pid=""
   local startup_retries=2
-  if [[ "${name}" == "openwebui" && -n "${TMUX_BIN}" ]]; then
-    local session_name="kitty-openwebui"
-    startup_retries=30
+  local session_name=""
+  local session_cmd=""
+  if [[ "${name}" == "litellm" ]]; then
+    # LiteLLM does env + dependency preflight before the proxy process appears.
+    startup_retries=15
+  fi
+  session_name="$(service_session_name "${name}")"
+  session_cmd="$(service_session_command "${name}")"
+  if [[ -n "${TMUX_BIN}" && -n "${session_name}" ]]; then
+    if [[ "${name}" == "openwebui" ]]; then
+      startup_retries=30
+    fi
     "${TMUX_BIN}" kill-session -t "${session_name}" >/dev/null 2>&1 || true
-    "${TMUX_BIN}" new-session -d -s "${session_name}" "cd '${ROOT_DIR}' && bash gateway/start_openwebui.sh >'${log_file}' 2>&1"
+    "${TMUX_BIN}" new-session -d -s "${session_name}" "cd '${ROOT_DIR}' && ${session_cmd} >'${log_file}' 2>&1"
   else
     nohup bash -lc "${cmd}" >"${log_file}" 2>&1 &
     launcher_pid=$!
@@ -99,7 +130,7 @@ start_service() {
       echo "${name}: failed to start. See ${log_file}"
       return 1
     fi
-    if [[ "${name}" == "openwebui" && -n "${TMUX_BIN}" ]] && ! "${TMUX_BIN}" has-session -t "kitty-openwebui" 2>/dev/null; then
+    if [[ -n "${TMUX_BIN}" && -n "${session_name}" ]] && ! "${TMUX_BIN}" has-session -t "${session_name}" 2>/dev/null; then
       echo "${name}: failed to start. See ${log_file}"
       return 1
     fi
@@ -203,7 +234,7 @@ fi
 
 [[ "${ENABLE_LITELLM}" == "1" ]] && wait_http "litellm" "http://127.0.0.1:8001/health" "Authorization: Bearer ${LITELLM_MASTER_KEY:-kitty-local-key-change-me}" 30 1 8 || true
 [[ "${ENABLE_GATEWAY}" == "1" ]] && wait_http "gateway" "http://127.0.0.1:8000/health" || true
-[[ "${ENABLE_OPENWEBUI}" == "1" ]] && wait_http "openwebui" "${OPENWEBUI_HEALTH_URL}" "" 120 1 5 || true
+[[ "${ENABLE_OPENWEBUI}" == "1" ]] && wait_openwebui_http || true
 [[ "${ENABLE_JUPYTER}" == "1" ]] && wait_http "jupyter" "http://127.0.0.1:8888/api" "Authorization: token ${CODE_EXECUTION_JUPYTER_AUTH_TOKEN:-}" || true
 [[ "${ENABLE_OPEN_TERMINAL}" == "1" ]] && wait_http "openterminal" "${OPEN_TERMINAL_URL:-http://127.0.0.1:9614}/health" || true
 [[ "${ENABLE_KITTY_DOCKER_TERMINAL}" == "1" ]] && wait_http "kitty-docker-terminal" "${KITTY_DOCKER_TERMINAL_URL:-http://127.0.0.1:9615}/health" || true

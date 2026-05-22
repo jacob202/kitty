@@ -22,8 +22,10 @@ LOG_FILE = LOGS_DIR / "gateway_trace.jsonl"
 
 ESSENTIAL_DIRS = [DATA_DIR, LOGS_DIR, PROMPTS_DIR]
 
-# LiteLLM proxy settings — single source of truth for the gateway
-LITELLM_BASE = _os.environ.get("LITELLM_BASE", "http://localhost:8001")
+# LiteLLM proxy settings — single source of truth for the gateway.
+# Use 127.0.0.1 to avoid localhost resolving to an address family the proxy
+# did not bind on.
+LITELLM_BASE = _os.environ.get("LITELLM_BASE", "http://127.0.0.1:8001")
 LITELLM_KEY = _os.environ.get("LITELLM_KEY", "kitty-local-key-change-me")
 
 

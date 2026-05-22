@@ -17,30 +17,33 @@ def test_route_model_sends_reasoning_to_sonnet():
     assert route_model("Use claude for this") == "kitty-sonnet"
 
 
-def test_litellm_fallback_prefers_agentrouter_before_openrouter():
-    """When LiteLLM is down, AgentRouter should be tried before OpenRouter."""
+def test_litellm_fallback_prefers_openai_before_other_providers():
+    """When LiteLLM is down, OpenAI should be tried before the dead provider lanes."""
     with patch("gateway.llm_client.requests.post", side_effect=requests.RequestException("down")), \
+         patch("gateway.llm_client._call_openai_direct", return_value="openai"), \
+         patch("gateway.llm_client._call_nvidia_direct", return_value="nvidia"), \
          patch("gateway.llm_client._call_agentrouter_direct", return_value="agentrouter"), \
          patch("gateway.llm_client._call_openrouter_direct", return_value="openrouter"), \
-         patch("gateway.llm_client._call_gemini_direct", return_value="gemini"), \
-         patch("gateway.llm_client._call_nvidia_direct", return_value="nvidia"):
+         patch("gateway.llm_client._call_gemini_direct", return_value="gemini"):
         result = call_llm([{"role": "user", "content": "hello"}], model="kitty-default")
 
-    assert result == "agentrouter"
+    assert result == "openai"
 
 
 def test_disable_agentrouter_env_skips_agentrouter_fallback(monkeypatch):
     monkeypatch.setenv("KITTY_DISABLE_AGENTROUTER", "1")
     with patch("gateway.llm_client.requests.post", side_effect=requests.RequestException("down")), \
+         patch("gateway.llm_client._call_openai_direct", return_value=""), \
+         patch("gateway.llm_client._call_nvidia_direct", return_value="nvidia") as mock_nvidia, \
          patch("gateway.llm_client._call_agentrouter_direct", return_value="agentrouter") as mock_agent, \
          patch("gateway.llm_client._call_openrouter_direct", return_value="openrouter") as mock_openrouter, \
-         patch("gateway.llm_client._call_gemini_direct", return_value="gemini"), \
-         patch("gateway.llm_client._call_nvidia_direct", return_value="nvidia"):
+         patch("gateway.llm_client._call_gemini_direct", return_value="gemini"):
         result = call_llm([{"role": "user", "content": "hello"}], model="kitty-default")
 
-    assert result == "openrouter"
+    assert result == "nvidia"
+    mock_nvidia.assert_called_once()
     mock_agent.assert_not_called()
-    mock_openrouter.assert_called_once()
+    mock_openrouter.assert_not_called()
 
 
 def test_call_llm_normalizes_legacy_deepseek_alias():

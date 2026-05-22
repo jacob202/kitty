@@ -1,8 +1,8 @@
 """Unified LLM client — one Kitty route, then provider fallbacks.
 
 All backend LLM calls go through LiteLLM first for logging and proxy-level routing.
-When LiteLLM fails, ``call_llm`` falls back to AgentRouter, then OpenRouter, Gemini,
-and NVIDIA. The Kitty side now keeps a single canonical route name
+When LiteLLM fails, ``call_llm`` falls back to OpenAI, then NVIDIA, then
+AgentRouter, OpenRouter, and Gemini. The Kitty side now keeps a single canonical route name
 (``kitty-default``) instead of the old ``kitty-agent`` / ``kitty-smart`` split.
 
 Successful completions append one row to ``data/kitty_token_log.jsonl`` via
@@ -210,9 +210,37 @@ def call_llm(
     except Exception as e:
         logger.warning("LLM call failed via LiteLLM (%s), trying fallbacks: %s", model, e)
 
+        # 1. OpenAI direct. This is the current known-good paid fallback on this machine.
+        out = _call_openai_direct(
+            messages,
+            max_tokens,
+            temperature,
+            timeout,
+            response_format,
+            operation=operation,
+            metadata=metadata,
+            request_model=model,
+        )
+        if out:
+            return out
+
+        # 2. NVIDIA NIM.
+        out = _call_nvidia_direct(
+            messages,
+            max_tokens,
+            temperature,
+            timeout,
+            response_format,
+            operation=operation,
+            metadata=metadata,
+            request_model=model,
+        )
+        if out:
+            return out
+
         disable_agentrouter = os.environ.get("KITTY_DISABLE_AGENTROUTER", "").strip().lower()
         if disable_agentrouter not in ("1", "true", "yes"):
-            # 1. AgentRouter first (single key, single Kitty route).
+            # 3. AgentRouter when the hosted client auth lane is healthy.
             out = _call_agentrouter_direct(
                 messages,
                 max_tokens,
@@ -226,7 +254,7 @@ def call_llm(
             if out:
                 return out
 
-        # 2. OpenRouter direct (cheap/free slugs when key set).
+        # 4. OpenRouter direct (cheap/free slugs when key set).
         or_model = _openrouter_fallback_model(model)
         out = _call_openrouter_direct(
             messages,
@@ -242,7 +270,7 @@ def call_llm(
         if out:
             return out
 
-        # 3. Gemini.
+        # 5. Gemini.
         out = _call_gemini_direct(
             messages,
             max_tokens,
@@ -256,20 +284,57 @@ def call_llm(
         if out:
             return out
 
-        # 4. NVIDIA NIM.
-        out = _call_nvidia_direct(
-            messages,
-            max_tokens,
-            temperature,
-            timeout,
-            response_format,
-            operation=operation,
-            metadata=metadata,
-            request_model=model,
-        )
-        if out:
-            return out
+        return ""
 
+
+@retry_with_backoff
+def _call_openai_direct(
+    messages: list[dict],
+    max_tokens: int,
+    temperature: float,
+    timeout: int,
+    response_format: dict = None,
+    operation: str = "llm.call",
+    metadata: dict[str, Any] | None = None,
+    request_model: str | None = None,
+) -> str:
+    """Direct call to OpenAI for the current known-good paid fallback."""
+    load_dotenv()
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return ""
+
+    model = os.environ.get("KITTY_OPENAI_FALLBACK_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini"
+    base = os.environ.get("OPENAI_API_BASE", "https://api.openai.com/v1").rstrip("/")
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": model,
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+    }
+    if response_format:
+        payload["response_format"] = response_format
+
+    try:
+        resp = requests.post(f"{base}/chat/completions", headers=headers, json=payload, timeout=timeout)
+        resp.raise_for_status()
+        data = resp.json()
+        mlog = data.get("model") or model
+        return _finalize_openai_shape_response(
+            data,
+            provider="openai",
+            model_logged=str(mlog),
+            operation=operation,
+            route="openai_direct",
+            request_model=request_model,
+            metadata=metadata,
+        )
+    except Exception as e:
+        logger.error("OpenAI direct call failed: %s", e)
         return ""
 
 

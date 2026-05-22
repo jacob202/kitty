@@ -23,14 +23,27 @@ service_pattern() {
   esac
 }
 
+service_session_name() {
+  local name="$1"
+  case "${name}" in
+    litellm) echo "kitty-litellm" ;;
+    gateway) echo "kitty-gateway" ;;
+    openwebui) echo "kitty-openwebui" ;;
+    jupyter) echo "kitty-jupyter" ;;
+    *) echo "" ;;
+  esac
+}
+
 stop_service() {
   local name="$1"
   local pid_file="${RUN_DIR}/${name}.pid"
   local pattern
+  local session_name
   pattern="$(service_pattern "${name}")"
+  session_name="$(service_session_name "${name}")"
 
-  if [[ "${name}" == "openwebui" && -n "${TMUX_BIN}" ]]; then
-    "${TMUX_BIN}" kill-session -t "kitty-openwebui" >/dev/null 2>&1 || true
+  if [[ -n "${TMUX_BIN}" && -n "${session_name}" ]]; then
+    "${TMUX_BIN}" kill-session -t "${session_name}" >/dev/null 2>&1 || true
   fi
 
   if pgrep -f "${pattern}" >/dev/null 2>&1; then

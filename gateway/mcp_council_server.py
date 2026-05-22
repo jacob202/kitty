@@ -114,10 +114,13 @@ def dispatch(req: dict) -> dict | None:
 
             graph = _get_council_graph()
             final_state = graph.invoke({"query": query, "messages": []})
-            messages = final_state.get("messages") or []
-            tail = messages[-1] if messages else None
-            reply = getattr(tail, "content", str(tail) if tail is not None else "")
-            reply = reply.strip()
+            reply = str(final_state.get("final_response") or "").strip()
+
+            if not reply:
+                messages = final_state.get("messages") or []
+                tail = messages[-1] if messages else None
+                reply = getattr(tail, "content", str(tail) if tail is not None else "")
+                reply = reply.strip()
 
             return _jsonrpc_success(req_id, _tool_result_payload(reply))
 

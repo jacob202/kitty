@@ -19,7 +19,7 @@ from typing import Any
 
 ROOT_DIR = pathlib.Path(__file__).resolve().parent.parent
 ENV_FILE = ROOT_DIR / "kitty_gateway" / "openwebui.env"
-MANIFEST_FILE = ROOT_DIR / "kitty_gateway" / "runtime_manifest.json"
+MANIFEST_FILE = ROOT_DIR / "gateway" / "runtime_manifest.json"
 
 
 @dataclass

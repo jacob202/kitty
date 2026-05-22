@@ -6,8 +6,9 @@ classifier by passing a ``DomainClassifier`` instance to ``classify_domain()``.
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from functools import lru_cache
-from pathlib import Path
 from typing import Optional
+
+from gateway.registry import get_collection_id
 
 DOMAIN_KEYWORDS = {
     "repair": [
@@ -49,27 +50,20 @@ for _hm in HEALTH_MULTIPLIERS:
         DOMAIN_KEYWORDS["health"].append(_hm)
 
 
-# --- Specialist Mapping ---
-
-SPECIALIST_PROFILES = {
-    "repair": {
-        "persona": "AudioRepair",
-        "kb_path": "/Volumes/DATA/books/ingestion_curated_deep_ocr/Engineering/Audio Repair"
-    },
-    "research": {
-        "persona": "MachineLearning",
-        "kb_path": "/Volumes/DATA/books/ingestion_curated_deep_ocr/AI & Software/Machine Learning"
-    },
-    "soul": {
-        "persona": "Soul",
-        "kb_path": None
-    }
+DOMAIN_SPECIALISTS = {
+    "repair": "audio_repair",
+    "research": "electronics",
+    "soul": "sask_watchdog",
 }
 
 
 def get_specialist(domain: str) -> dict:
-    """Return persona name and KB path for a given domain."""
-    return SPECIALIST_PROFILES.get(domain, SPECIALIST_PROFILES["soul"])
+    """Return canonical specialist name and collection id for a given domain."""
+    specialist_name = DOMAIN_SPECIALISTS.get(domain, DOMAIN_SPECIALISTS["soul"])
+    return {
+        "name": specialist_name,
+        "collection_id": get_collection_id(specialist_name),
+    }
 
 
 class DomainClassifier(ABC):

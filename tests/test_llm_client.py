@@ -198,7 +198,7 @@ def test_call_llm_falls_back_on_litellm_error():
     import requests as req
 
     with patch("requests.post", side_effect=req.exceptions.ConnectionError("refused")):
-        with patch("gateway.llm_client._call_openrouter_direct", return_value="Fallback response"):
+        with patch("gateway.llm_client._call_openai_direct", return_value="Fallback response"):
             result = call_llm(
                 messages=[{"role": "user", "content": "hello"}],
                 model="kitty-default",

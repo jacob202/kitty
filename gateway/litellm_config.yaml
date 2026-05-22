@@ -41,6 +41,12 @@ model_list:
       api_key: os.environ/AGENTROUTER_API_KEY
       max_tokens: 8192
 
+  - model_name: kitty-openai
+    litellm_params:
+      model: openai/gpt-4o-mini
+      api_key: os.environ/OPENAI_API_KEY
+      max_tokens: 8192
+
 router_settings:
   routing_strategy: simple-shuffle
   num_retries: 1
@@ -51,11 +57,10 @@ litellm_settings:
   set_verbose: false
   num_retries: 2
   fallbacks:
-    - kitty-default: [kitty-default-or, kitty-default-gemini, kitty-agentrouter]
-    - kitty-sonnet: [kitty-default-or, kitty-default-gemini]
+    - kitty-default: [kitty-openai]
+    - kitty-sonnet: [kitty-openai]
 
 general_settings:
   max_budget: os.environ/LITELLM_MAX_BUDGET_USD
   budget_duration: 1d
   master_key: os.environ/LITELLM_MASTER_KEY
-
