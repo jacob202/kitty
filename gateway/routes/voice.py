@@ -42,6 +42,7 @@ async def audio_speech(payload: AudioSpeechRequest):
 
 @router.websocket("/voice")
 async def voice_session(ws: WebSocket):
-    from gateway.voice_session import handle_voice_session
+    from gateway.voice_pipeline import VoicePipeline
 
-    await handle_voice_session(ws)
+    pipeline = VoicePipeline()
+    await pipeline.handle_websocket(ws)

@@ -48,3 +48,13 @@ export const CHAT_COLORS: Record<ChatColor, { border: string; glow: string; tab:
 export const COLOR_CYCLE: ChatColor[] = ['teal', 'purple', 'blue', 'mint', 'orange']
 
 export const STREAMING_LABEL = 'thinking…'
+
+export type KittyMode = 'gentle' | 'balanced' | 'blunt' | 'auto'
+
+export type NavTab = 'chats' | 'journal' | 'knowledge' | 'tasks'
+
+export interface TerminalState {
+  expanded: boolean
+  height: number
+  pendingPrompt: string
+}
