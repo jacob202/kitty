@@ -1,12 +1,13 @@
 'use client'
+import { GlyphIcon, type GlyphId } from '@/components/GlyphIcon'
 
-const NAV_ITEMS = [
-  { icon: '⌂', label: 'Home', view: 'home' },
-  { icon: '☰', label: 'Chat', view: 'chat' },
-  { icon: '✓', label: 'Tasks', view: 'tasks' },
-  { icon: '□', label: 'Files', view: 'files' },
-  { icon: '✎', label: 'Notes', view: 'notes' },
-  { icon: '⚡', label: 'Tools', view: 'tools' },
+const NAV_ITEMS: { glyph: GlyphId; label: string; view: string }[] = [
+  { glyph: 'g-home', label: 'Home', view: 'home' },
+  { glyph: 'g-chat', label: 'Chat', view: 'chat' },
+  { glyph: 'g-check', label: 'Tasks', view: 'tasks' },
+  { glyph: 'g-folder', label: 'Files', view: 'files' },
+  { glyph: 'g-prompt', label: 'Notes', view: 'notes' },
+  { glyph: 'g-spark', label: 'Tools', view: 'tools' },
 ]
 
 export function Rail({ activeView = 'home', onViewChange }: { activeView?: string, onViewChange?: (view: string) => void }) {
@@ -29,11 +30,11 @@ export function Rail({ activeView = 'home', onViewChange }: { activeView?: strin
         display: 'flex', flexDirection: 'column', gap: 10,
         width: '100%', alignItems: 'center', marginTop: 8,
       }}>
-        {NAV_ITEMS.map(({ icon, label, view }) => {
+        {NAV_ITEMS.map(({ glyph, label, view }) => {
           const active = activeView === view
           return (
             <button
-              key={label}
+              key={view}
               aria-label={label}
               onClick={() => onViewChange?.(view)}
               style={{
@@ -41,7 +42,6 @@ export function Rail({ activeView = 'home', onViewChange }: { activeView?: strin
                 borderRadius: 12,
                 display: 'grid',
                 placeItems: 'center',
-                fontSize: 18,
                 color: active ? 'var(--primary-bright)' : 'var(--text-muted)',
                 background: active ? 'var(--surface-mid)' : 'transparent',
                 border: `1px solid ${active ? 'var(--border)' : 'transparent'}`,
@@ -67,7 +67,7 @@ export function Rail({ activeView = 'home', onViewChange }: { activeView?: strin
                 }
               }}
             >
-              {icon}
+              <GlyphIcon id={glyph} size={18} />
             </button>
           )
         })}
@@ -82,7 +82,6 @@ export function Rail({ activeView = 'home', onViewChange }: { activeView?: strin
             borderRadius: 10,
             display: 'grid',
             placeItems: 'center',
-            fontSize: 16,
             color: activeView === 'settings' ? 'var(--primary-bright)' : 'var(--text-muted)',
             background: activeView === 'settings' ? 'var(--surface-mid)' : 'transparent',
             border: `1px solid ${activeView === 'settings' ? 'var(--border)' : 'transparent'}`,
@@ -105,7 +104,9 @@ export function Rail({ activeView = 'home', onViewChange }: { activeView?: strin
               el.style.borderColor = 'transparent'
             }
           }}
-        >⚙</button>
+        >
+          <GlyphIcon id="g-cog" size={16} />
+        </button>
         <span style={{
           width: 8, height: 8,
           borderRadius: '50%',
