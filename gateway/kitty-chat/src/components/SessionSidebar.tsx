@@ -208,10 +208,10 @@ function SessionItem({ chat, active, onSelect, onClose }: {
         </span>
         <span
           onClick={e => { e.stopPropagation(); onClose(chat.id) }}
-          style={{ color: 'var(--text-ghost)', fontSize: 11, cursor: 'pointer', padding: '0 4px', visibility: active ? 'visible' : 'hidden' }}
+          style={{ color: 'var(--text-ghost)', fontSize: 11, cursor: 'pointer', padding: '0 4px', opacity: active ? 1 : 0, transition: 'opacity 0.15s ease' }}
           onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-muted)')}
           onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-ghost)')}
-        >✕</span>
+        >Close</span>
       </div>
     </button>
   )

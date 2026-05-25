@@ -66,7 +66,6 @@ export function buildCompassItems(
       title: brief.intention.trim(),
       description: brief.memory_snippet?.slice(0, 120) || undefined,
       priority: 'high',
-      icon: '🎯',
       onSelect: () => onPrompt(brief.intention!.trim()),
     })
   }
@@ -79,7 +78,6 @@ export function buildCompassItems(
       title,
       description: typeof headline === 'object' ? headline.snippet?.slice(0, 120) : undefined,
       priority: index === 0 ? 'medium' : 'low',
-      icon: '📰',
     })
   })
 
@@ -89,7 +87,6 @@ export function buildCompassItems(
       title: todo.content,
       description: todo.active_form || undefined,
       priority: todo.status === 'in_progress' ? 'high' : 'medium',
-      icon: '☐',
       onSelect: () => onPrompt(todo.content),
     })
   })

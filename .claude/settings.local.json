@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(agent-browser navigate *)",
+      "Bash(agent-browser screenshot *)"
+    ]
+  }
+}

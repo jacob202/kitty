@@ -47,13 +47,13 @@ export function MonitorPanel() {
             <div key={m.watch_id} style={rowStyle}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={labelStyle}>{m.label}</span>
-                <span style={{ ...statusStyle, color: m.match_count > 0 ? 'var(--orange)' : 'var(--text-faint)' }}>
-                  {m.match_count > 0 ? `${m.match_count} hits` : 'watching'}
+                <span style={{ ...statusStyle, color: m.last_match ? 'var(--orange)' : 'var(--text-faint)' }}>
+                  {m.last_match ? 'match found' : 'watching'}
                 </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
                 <span style={urlStyle}>{m.url.replace(/^https?:\/\//, '').slice(0, 40)}</span>
-                <button onClick={() => void handleRemove(m.watch_id)} style={removeButtonStyle}>×</button>
+                <button onClick={() => void handleRemove(m.watch_id)} style={removeButtonStyle}>Del</button>
               </div>
             </div>
           ))}

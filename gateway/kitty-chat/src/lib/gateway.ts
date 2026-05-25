@@ -647,3 +647,110 @@ export async function dismissGatewayInsight(insightId: string): Promise<boolean>
     return false
   }
 }
+
+// ── Cron Schedules ────────────────────────────────────────────────────────────
+
+export type CronScheduleType = 'daily' | 'interval' | 'once'
+
+export interface CronSchedule {
+  id: string
+  name: string
+  action: string
+  schedule_type: CronScheduleType
+  schedule_value: string
+  last_run: number
+  enabled: number
+}
+
+export async function fetchCronSchedules(): Promise<CronSchedule[]> {
+  try {
+    const json = await gfetch<{ schedules?: CronSchedule[] }>('/cron/schedules')
+    return json.schedules ?? []
+  } catch {
+    return []
+  }
+}
+
+export async function fetchCronActions(): Promise<string[]> {
+  try {
+    const json = await gfetch<{ actions?: string[] }>('/cron/actions')
+    return json.actions ?? []
+  } catch {
+    return []
+  }
+}
+
+export async function createCronSchedule(
+  name: string,
+  action: string,
+  scheduleType: CronScheduleType,
+  scheduleValue: string,
+): Promise<string | null> {
+  try {
+    const json = await gfetch<{ id?: string }>('/cron/schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, action, schedule_type: scheduleType, schedule_value: scheduleValue }),
+    })
+    return json.id ?? null
+  } catch {
+    return null
+  }
+}
+
+export async function deleteCronSchedule(id: string): Promise<boolean> {
+  try {
+    await gfetch(`/cron/schedule/${id}`, { method: 'DELETE' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function toggleCronSchedule(id: string): Promise<boolean> {
+  try {
+    await gfetch(`/cron/schedule/${id}/toggle`, { method: 'POST' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+// ── Image Generation ──────────────────────────────────────────────────────────
+
+export interface ImageEntry {
+  prompt_id: string
+  filename: string
+  prompt: string
+  created_at?: number
+}
+
+export async function fetchImageStatus(): Promise<{ available: boolean }> {
+  try {
+    await gfetch('/image/status')
+    return { available: true }
+  } catch {
+    return { available: false }
+  }
+}
+
+export async function generateImage(prompt: string): Promise<{ filename: string } | null> {
+  try {
+    return await gfetch<{ filename: string }>('/image/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
+    })
+  } catch {
+    return null
+  }
+}
+
+export async function fetchImageHistory(limit = 20): Promise<ImageEntry[]> {
+  try {
+    const json = await gfetch<{ images?: ImageEntry[] }>(`/image/history?limit=${limit}`)
+    return json.images ?? []
+  } catch {
+    return []
+  }
+}

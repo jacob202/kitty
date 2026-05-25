@@ -98,14 +98,14 @@ export function CronPanel() {
                     style={{ ...toggleBtnStyle, color: s.enabled ? 'var(--teal)' : 'var(--text-faint)' }}
                     title={s.enabled ? 'disable' : 'enable'}
                   >
-                    {s.enabled ? '●' : '○'}
+                    {s.enabled ? 'On' : 'Off'}
                   </button>
                   <button
                     onClick={() => void handleDelete(s.id)}
                     style={deleteBtnStyle}
                     title="delete"
                   >
-                    ×
+                    Del
                   </button>
                 </div>
               </div>

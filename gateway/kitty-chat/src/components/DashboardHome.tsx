@@ -31,7 +31,7 @@ interface Props {
   loops: GatewayLoop[]
   insights: GatewayInsight[]
   weather?: GatewayWeather | null
-  promptTemplates: Array<{ id: string | number; title: string; content: string; category?: string; icon?: string }>
+  promptTemplates: Array<{ id: string | number; title: string; content: string; category?: string }>
   chats?: Chat[]
   loading?: boolean
   onSelectChat?: (id: string) => void
@@ -85,15 +85,21 @@ export function DashboardHome({
           <div style={greetingTitleStyle}>{greetingTime()}, {USER_DISPLAY_NAME}.</div>
           <div style={greetingDateStyle}>{dateStr}</div>
         </div>
-        <div style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10,
-          textTransform: 'uppercase' as const,
-          letterSpacing: '0.08em',
-          color: live ? 'var(--mint)' : 'var(--error)',
-        }}>
-          GATEWAY: {live ? 'LIVE' : 'OFFLINE'}
-        </div>
+        {live && (
+          <div style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            textTransform: 'uppercase' as const,
+            letterSpacing: '0.08em',
+            color: 'var(--mint)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+          }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--mint)', display: 'inline-block' }} />
+            live
+          </div>
+        )}
       </section>
 
       {loading ? (
@@ -180,11 +186,10 @@ export function DashboardHome({
 }
 
 const panelStyle: CSSProperties = {
-  flex: 1,
-  overflowY: 'auto',
   display: 'flex',
   flexDirection: 'column',
   gap: 0,
+  paddingBottom: 160,
 }
 
 const greetingBarStyle: CSSProperties = {

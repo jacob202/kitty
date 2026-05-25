@@ -48,13 +48,13 @@ export function TodoPanel() {
           {active.map(t => (
             <div key={t.id} style={rowStyle}>
               <button onClick={() => void handleComplete(t.id)} style={checkStyle} title="complete">
-                {t.status === 'in_progress' ? '▶' : '☐'}
+                {t.status === 'in_progress' ? 'Active' : 'Done'}
               </button>
               <span style={{ ...labelStyle, flex: 1 }}>
                 {t.content}
                 {t.active_form && <em style={activeFormStyle}> — {t.active_form}</em>}
               </span>
-              <button onClick={() => void handleDelete(t.id)} style={removeStyle} title="delete">×</button>
+              <button onClick={() => void handleDelete(t.id)} style={removeStyle} title="delete">Del</button>
             </div>
           ))}
         </div>
@@ -81,7 +81,7 @@ export function TodoPanel() {
           disabled={!input.trim() || adding}
           style={{ ...addBtnStyle, opacity: !input.trim() || adding ? 0.4 : 1 }}
         >
-          {adding ? '…' : '+'}
+          {adding ? '…' : 'Add'}
         </button>
       </div>
     </div>

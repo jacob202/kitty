@@ -11,19 +11,19 @@ interface Props {
 
 function kindColor(kind: InsightKind): string {
   switch (kind) {
-    case 'pattern': return 'var(--teal)'
-    case 'anomaly': return 'var(--error)'
+    case 'pattern':    return 'var(--teal)'
+    case 'anomaly':    return 'var(--error)'
     case 'suggestion': return 'var(--orange)'
-    case 'milestone': return 'var(--mint)'
+    case 'milestone':  return 'var(--mint)'
   }
 }
 
 function kindLabel(kind: InsightKind): string {
   switch (kind) {
-    case 'pattern': return 'PATTERN'
-    case 'anomaly': return 'ANOMALY'
-    case 'suggestion': return 'SUGGESTION'
-    case 'milestone': return 'MILESTONE'
+    case 'pattern':    return 'pattern'
+    case 'anomaly':    return 'anomaly'
+    case 'suggestion': return 'suggestion'
+    case 'milestone':  return 'milestone'
   }
 }
 
@@ -41,58 +41,130 @@ export function InsightFeed({ insights, onDismiss, onAction, title = 'Insights' 
   return (
     <div style={containerStyle}>
       <div style={headerStyle}>
-        <span style={titleStyle}>{title}</span>
+        <span style={headerTitleStyle}>{title}</span>
         <span style={countStyle}>{insights.length} new</span>
       </div>
-      <div style={listStyle}>
-        {sorted.map(insight => (
-          <div key={insight.insight_id} style={cardBaseStyle}>
-            <div style={cardHeaderStyle}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingBottom: 4 }}>
+        {sorted.map(insight => {
+          const kColor = kindColor(insight.kind)
+          return (
+            <div
+              key={insight.insight_id}
+              style={{
+                borderLeft: `2px solid ${kColor}`,
+                padding: '10px 14px',
+                position: 'relative',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 4,
+                borderRadius: '0 6px 6px 0',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{
+                    width: 6, height: 6, borderRadius: '50%',
+                    background: kColor, flexShrink: 0,
+                  }} />
+                  <span style={{
+                    fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700,
+                    letterSpacing: '0.1em', textTransform: 'uppercase' as const,
+                    color: kColor, border: `1px solid ${kColor}`,
+                    borderRadius: 3, padding: '1px 5px',
+                  }}>
+                    {kindLabel(insight.kind)}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{
+                    fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-ghost)',
+                  }}>
+                    {timeAgo(insight.created_at)}
+                  </span>
+                  {onDismiss && (
+                    <span
+                      onClick={() => onDismiss(insight.insight_id)}
+                      style={{
+                        color: 'var(--text-ghost)', fontSize: 10, cursor: 'pointer',
+                        padding: '0 2px', lineHeight: 1,
+                        fontFamily: 'var(--font-mono)',
+                        fontWeight: 700,
+                        letterSpacing: '0.04em',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-muted)')}
+                      onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-ghost)')}
+                    >
+                      Dismiss
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div style={{
+                fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600,
+                color: 'var(--text)', lineHeight: 1.3,
+              }}>
+                {insight.title}
+              </div>
+
+              {insight.detail && (
                 <div style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  background: kindColor(insight.kind),
-                  flexShrink: 0,
-                }} />
-                <span style={kindBadgeStyle(cardBaseStyle, kindColor(insight.kind))}>
-                  {kindLabel(insight.kind)}
-                </span>
-              </div>
-              <span style={timeStyle}>{timeAgo(insight.created_at)}</span>
+                  fontFamily: 'var(--font-ui)', fontSize: 12, color: 'var(--text-dim)',
+                  lineHeight: 1.4,
+                }}>
+                  {insight.detail}
+                </div>
+              )}
+
+              {insight.source && (
+                <div style={{
+                  fontFamily: 'var(--font-mono)', fontSize: 10,
+                  color: 'var(--text-ghost)', fontStyle: 'italic',
+                }}>
+                  {insight.source}
+                </div>
+              )}
+
+              {insight.actions && insight.actions.length > 0 && (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const, marginTop: 4 }}>
+                  {insight.actions.map(action => (
+                    <button
+                      key={action.action_id}
+                      onClick={() => onAction?.(insight.insight_id, action.action_id)}
+                      style={{
+                        background: 'var(--surface-mid)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 4,
+                        padding: '3px 10px',
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 10,
+                        fontWeight: 600,
+                        color: 'var(--text-muted)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        letterSpacing: '0.03em',
+                      }}
+                      onMouseEnter={e => {
+                        const el = e.currentTarget as HTMLButtonElement
+                        el.style.color = 'var(--text)'
+                        el.style.borderColor = kColor
+                      }}
+                      onMouseLeave={e => {
+                        const el = e.currentTarget as HTMLButtonElement
+                        el.style.color = 'var(--text-muted)'
+                        el.style.borderColor = 'var(--border)'
+                      }}
+                    >
+                      {action.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-            <div style={insightTitleStyle}>{insight.title}</div>
-            {insight.detail && (
-              <div style={insightDetailStyle}>{insight.detail}</div>
-            )}
-            {insight.source && (
-              <div style={sourceStyle}>Source: {insight.source}</div>
-            )}
-            {insight.actions && insight.actions.length > 0 && (
-              <div style={actionsStyle}>
-                {insight.actions.map(action => (
-                  <button
-                    key={action.action_id}
-                    onClick={() => onAction?.(insight.insight_id, action.action_id)}
-                    style={actionBtnStyle}
-                  >
-                    {action.label}
-                  </button>
-                ))}
-              </div>
-            )}
-            {onDismiss && (
-              <button
-                onClick={() => onDismiss(insight.insight_id)}
-                style={dismissBtnStyle}
-                title="Dismiss"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        ))}
+          )
+        })}
+
         {insights.length === 0 && (
           <div style={emptyStyle}>No new insights</div>
         )}
@@ -105,134 +177,35 @@ const containerStyle: CSSProperties = {
   background: 'var(--surface-low)',
   border: '1px solid var(--border)',
   borderRadius: 10,
-  padding: '16px',
+  paddingTop: 14,
   display: 'flex',
   flexDirection: 'column',
-  gap: 12,
+  gap: 8,
+  overflow: 'hidden',
 }
 
 const headerStyle: CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
-  paddingBottom: 8,
+  padding: '0 14px 10px',
   borderBottom: '1px solid var(--border-dim)',
 }
 
-const titleStyle: CSSProperties = {
-  fontFamily: 'var(--font-ui)',
-  fontSize: 16,
-  fontWeight: 600,
-  color: 'var(--text)',
-  marginBottom: 4,
+const headerTitleStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  fontWeight: 700,
+  color: 'var(--text-muted)',
+  letterSpacing: '0.12em',
+  textTransform: 'uppercase',
 }
 
 const countStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-muted)',
-  letterSpacing: '0.05em',
-}
-
-const listStyle: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 8,
-}
-
-const cardBaseStyle: CSSProperties = {
-  background: 'var(--panel)',
-  border: '1px solid var(--border)',
-  borderRadius: 8,
-  padding: '12px 14px',
-  position: 'relative',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 6,
-}
-
-const cardHeaderStyle: CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-}
-
-const kindBadgeStyle = (base: CSSProperties, color: string): CSSProperties => ({
-  ...base,
-  fontFamily: 'var(--font-mono)',
-  fontSize: 9,
-  fontWeight: 700,
-  letterSpacing: '0.08em',
-  textTransform: 'uppercase',
-  border: `1px solid ${color}`,
-  borderRadius: 4,
-  padding: '2px 6px',
-  background: 'transparent',
-  color,
-})
-
-const timeStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  color: 'var(--text-muted)',
-}
-
-const insightTitleStyle: CSSProperties = {
-  fontFamily: 'var(--font-ui)',
-  fontSize: 13,
-  fontWeight: 600,
-  color: 'var(--text)',
-  marginTop: 2,
-}
-
-const insightDetailStyle: CSSProperties = {
-  fontFamily: 'var(--font-ui)',
-  fontSize: 12,
-  color: 'var(--text-dim)',
-  lineHeight: 1.4,
-}
-
-const sourceStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  color: 'var(--text-muted)',
-  fontStyle: 'italic',
-}
-
-const actionsStyle: CSSProperties = {
-  display: 'flex',
-  gap: 6,
-  flexWrap: 'wrap',
-  marginTop: 4,
-}
-
-const actionBtnStyle: CSSProperties = {
-  background: 'var(--surface-mid)',
-  border: '1px solid var(--border)',
-  borderRadius: 6,
-  padding: '4px 10px',
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  fontWeight: 600,
-  color: 'var(--text)',
-  cursor: 'pointer',
-  transition: 'all 0.15s ease',
-}
-
-const dismissBtnStyle: CSSProperties = {
-  position: 'absolute',
-  top: 8,
-  right: 8,
-  background: 'transparent',
-  border: 'none',
   color: 'var(--text-ghost)',
-  cursor: 'pointer',
-  fontSize: 12,
-  padding: 2,
-  lineHeight: 1,
-  ':hover': {
-    color: 'var(--text-muted)',
-  },
+  letterSpacing: '0.05em',
 }
 
 const emptyStyle: CSSProperties = {
@@ -240,6 +213,6 @@ const emptyStyle: CSSProperties = {
   fontSize: 12,
   color: 'var(--text-faint)',
   textAlign: 'center',
-  padding: '24px 0',
+  padding: '20px 0',
   fontStyle: 'italic',
 }

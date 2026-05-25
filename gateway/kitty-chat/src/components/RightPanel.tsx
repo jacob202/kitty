@@ -8,7 +8,6 @@ interface Props {
   isStreaming: boolean
   brief?: GatewayBrief | null
   search?: GatewaySearchSnapshot | null
-  /** Set when /search failed for the current thread (so we distinguish offline from empty hits). */
   searchGatewayError?: string | null
   activeModelName?: string
 }
@@ -24,167 +23,222 @@ export function RightPanel({
 }: Props) {
   const msgCount = chats.reduce((sum, c) => sum + c.messages.length, 0)
   const lastAi = activeChat?.messages.filter(m => m.role === 'assistant').at(-1)
-  const dateStr = new Date().toLocaleDateString([], { month: 'short', day: 'numeric' })
+  const dateStr = new Date().toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
   const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
   return (
     <aside style={{
       width: 'var(--rightbar)',
       borderLeft: '1px solid var(--border)',
-      padding: '24px 20px',
       overflowY: 'auto',
-      background: 'rgba(16, 20, 29, 0.74)',
-      backdropFilter: 'blur(10px)',
+      background: 'rgba(14, 18, 26, 0.82)',
+      backdropFilter: 'blur(12px)',
       flexShrink: 0,
+      display: 'flex',
+      flexDirection: 'column',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+      {/* Header */}
+      <div style={{
+        padding: '18px 20px 12px',
+        borderBottom: '1px solid var(--border)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexShrink: 0,
+      }}>
         <span style={{
-          fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
-          color: 'var(--text-muted)', letterSpacing: '0.14em', textTransform: 'uppercase',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10,
+          fontWeight: 700,
+          color: 'var(--text-ghost)',
+          letterSpacing: '0.16em',
+          textTransform: 'uppercase' as const,
         }}>today</span>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>{dateStr}</span>
+        <span style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10,
+          color: 'var(--text-ghost)',
+        }}>{dateStr}</span>
       </div>
 
-      <RightCard accent="var(--pink-blue)" title="Sessions" value={`${chats.length}`}>
-        <p style={bodyStyle}>{msgCount} total messages</p>
-      </RightCard>
+      {/* Content */}
+      <div style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}>
 
-      {activeModelName && (
-        <RightCard accent="var(--yellow)" title="Model">
-          <p style={bodyStyle}>{activeModelName}</p>
-        </RightCard>
-      )}
-
-      <RightCard accent="var(--orange)" title="Kitty">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: '50%',
-            display: 'grid', placeItems: 'center',
-            background: 'var(--surface-mid)',
-            border: '1px solid var(--border)',
-            fontFamily: 'var(--font-ui)', fontSize: 14,
-            color: isStreaming ? 'var(--purple)' : 'var(--orange)',
-            animation: isStreaming ? 'none' : undefined,
-          }}>
-            {isStreaming ? '=^._.^=' : '=^•ﻌ•^='}
-          </div>
-          <div>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
-              {isStreaming ? STREAMING_LABEL : 'online'}
-            </div>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-              {isStreaming ? 'generating response' : 'ready for anything'}
-            </div>
-          </div>
+        {/* Quick stats strip */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 8,
+          padding: '0 16px 12px',
+          borderBottom: '1px solid var(--border)',
+          marginBottom: 12,
+        }}>
+          <Stat label="Sessions" value={String(chats.length)} accent="var(--purple)" />
+          <Stat label="Messages" value={String(msgCount)} accent="var(--teal)" />
         </div>
-      </RightCard>
 
-      {brief && (
-        <RightCard accent="var(--mint)" title="Brief">
-          <p style={bodyStyle}>{brief.intention || (typeof brief.headlines[0] === 'string' ? brief.headlines[0] : (brief.headlines[0] as GatewayHeadline | undefined)?.title) || 'Live brief connected.'}</p>
-        </RightCard>
-      )}
+        {/* Time */}
+        <PanelRow accent="var(--mint)" label="Time">
+          <span style={valueStyle}>{timeStr}</span>
+          <span style={subStyle}>{new Date().toLocaleDateString([], { weekday: 'long' })}</span>
+        </PanelRow>
 
-      {lastAi && (
-        <RightCard accent="var(--indigo)" title="Last reply">
-          <p style={bodyStyle}>
-            {lastAi.content.replace(/```[\s\S]*?```/g, '[code]').slice(0, 120)}
-            {lastAi.content.length > 120 ? '…' : ''}
-          </p>
-        </RightCard>
-      )}
+        {/* Active model */}
+        {activeModelName && (
+          <PanelRow accent="var(--yellow)" label="Model">
+            <span style={valueStyle}>{activeModelName}</span>
+          </PanelRow>
+        )}
 
-      {activeChat && activeChat.messages.length > 0 && (
-        <RightCard accent="var(--teal)" title="Context" value={`${activeChat.messages.length} msg`}>
-          <p style={bodyStyle}>{activeChat.title}</p>
-        </RightCard>
-      )}
-
-      {searchGatewayError && !search && (
-        <RightCard accent="var(--warning)" title="Search unavailable">
-          <p style={bodyStyle}>{searchGatewayError}</p>
-        </RightCard>
-      )}
-
-      {search && (
-        <RightCard accent="var(--pink-blue)" title="Gateway search" value={search.query || 'live'}>
-          {search.counts.memories + search.counts.knowledge + search.counts.journal + search.counts.todos > 0 ? (
-            <div style={{ display: 'grid', gap: 10, marginTop: 8 }}>
-              {([
-                ['Memories', search.sections.memories[0]],
-                ['Knowledge', search.sections.knowledge[0]],
-                ['Journal', search.sections.journal[0]],
-                ['Todos', search.sections.todos[0]],
-              ] as const)
-                .filter(([, value]) => Boolean(value))
-                .map(([label, value]) => (
-                  <div key={label}>
-                    <div style={labelStyle}>{label}</div>
-                    <p style={{...bodyStyle, marginTop: 2}}>{value}</p>
-                  </div>
-                ))}
+        {/* Kitty status */}
+        <PanelRow accent="var(--primary)" label="Kitty">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{
+              width: 7,
+              height: 7,
+              borderRadius: '50%',
+              background: isStreaming ? 'var(--purple)' : 'var(--mint)',
+              flexShrink: 0,
+              display: 'inline-block',
+              boxShadow: isStreaming
+                ? '0 0 8px rgba(160,90,255,0.6)'
+                : '0 0 8px rgba(115,217,159,0.5)',
+            }} />
+            <div>
+              <div style={valueStyle}>{isStreaming ? STREAMING_LABEL : 'online'}</div>
+              <div style={subStyle}>{isStreaming ? 'generating…' : 'ready for anything'}</div>
             </div>
-          ) : (
-            <p style={bodyStyle}>No grouped search hits yet for this thread.</p>
-          )}
-        </RightCard>
-      )}
+          </div>
+        </PanelRow>
 
-      <RightCard accent="var(--mint)" title="Time">
-        <p style={bodyStyle}>{timeStr} · {new Date().toLocaleDateString([], { weekday: 'long' })}</p>
-      </RightCard>
+        {/* Brief */}
+        {brief && (
+          <PanelRow accent="var(--mint)" label="Brief">
+            <span style={valueStyle}>
+              {brief.intention || (typeof brief.headlines[0] === 'string' ? brief.headlines[0] : (brief.headlines[0] as GatewayHeadline | undefined)?.title) || 'Live brief connected.'}
+            </span>
+          </PanelRow>
+        )}
+
+        {/* Active context */}
+        {activeChat && activeChat.messages.length > 0 && (
+          <PanelRow accent="var(--indigo)" label="Context">
+            <span style={valueStyle}>{activeChat.title}</span>
+            <span style={subStyle}>{activeChat.messages.length} messages</span>
+          </PanelRow>
+        )}
+
+        {/* Last AI reply */}
+        {lastAi && (
+          <PanelRow accent="var(--pink-blue)" label="Last reply">
+            <span style={{ ...valueStyle, fontFamily: 'var(--font-ui)', fontWeight: 400, fontSize: 12, lineHeight: 1.5 }}>
+              {lastAi.content.replace(/```[\s\S]*?```/g, '[code]').slice(0, 100)}
+              {lastAi.content.length > 100 ? '…' : ''}
+            </span>
+          </PanelRow>
+        )}
+
+        {/* Search error */}
+        {searchGatewayError && !search && (
+          <PanelRow accent="var(--warning)" label="Search">
+            <span style={{ ...subStyle, color: 'var(--warning)' }}>unavailable</span>
+          </PanelRow>
+        )}
+
+        {/* Gateway search results */}
+        {search && (
+          <PanelRow accent="var(--primary)" label={`Search · ${search.query || 'live'}`}>
+            {search.counts.memories + search.counts.knowledge + search.counts.journal + search.counts.todos > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+                {([
+                  ['Mem', search.sections.memories[0]],
+                  ['KB', search.sections.knowledge[0]],
+                  ['Journal', search.sections.journal[0]],
+                  ['Todos', search.sections.todos[0]],
+                ] as const)
+                  .filter(([, v]) => Boolean(v))
+                  .map(([label, v]) => (
+                    <div key={label}>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-ghost)', letterSpacing: '0.12em', textTransform: 'uppercase' as const }}>{label}</div>
+                      <div style={valueStyle}>{v}</div>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <span style={subStyle}>no hits yet</span>
+            )}
+          </PanelRow>
+        )}
+      </div>
     </aside>
   )
 }
 
-const bodyStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-ui)',
-  fontSize: 14,
-  color: 'var(--text-dim)',
-  lineHeight: 1.5,
-  marginTop: 4,
-}
-
-const labelStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  color: 'var(--text-muted)',
-  textTransform: 'uppercase',
-  letterSpacing: '0.1em',
-}
-
-function RightCard({ children, accent, title, value }: {
-  children?: React.ReactNode
-  accent: string
-  title: string
-  value?: string
-}) {
+function Stat({ label, value, accent }: { label: string; value: string; accent: string }) {
   return (
     <div style={{
       background: 'var(--surface-low)',
       border: '1px solid var(--border)',
-      borderTop: `3px solid ${accent}`,
-      borderRadius: 'var(--radius-sm)',
-      padding: '16px',
-      marginBottom: 16,
-      transition: 'border-color 0.2s ease',
+      borderRadius: 8,
+      padding: '10px 12px',
     }}>
-      <h3 style={{
-        margin: '0 0 8px',
-        fontSize: 11,
-        letterSpacing: '0.05em',
-        textTransform: 'uppercase',
+      <div style={{
         fontFamily: 'var(--font-mono)',
+        fontSize: 9,
+        color: 'var(--text-ghost)',
+        letterSpacing: '0.14em',
+        textTransform: 'uppercase' as const,
+        marginBottom: 4,
+      }}>{label}</div>
+      <div style={{
+        fontFamily: 'var(--font-mono)',
+        fontSize: 20,
         fontWeight: 700,
-        color: 'var(--text-dim)',
-        display: 'flex',
-        justifyContent: 'space-between',
-        gap: 8,
-      }}>
-        {title}
-        {value && <span style={{ color: accent, fontWeight: 900 }}>{value}</span>}
-      </h3>
+        color: accent,
+        lineHeight: 1,
+      }}>{value}</div>
+    </div>
+  )
+}
+
+function PanelRow({ accent, label, children }: {
+  accent: string
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div style={{
+      padding: '10px 16px 10px 14px',
+      borderLeft: `2px solid ${accent}`,
+      marginLeft: 16,
+      marginBottom: 10,
+    }}>
+      <div style={{
+        fontFamily: 'var(--font-mono)',
+        fontSize: 9,
+        fontWeight: 700,
+        color: 'var(--text-ghost)',
+        letterSpacing: '0.16em',
+        textTransform: 'uppercase' as const,
+        marginBottom: 4,
+      }}>{label}</div>
       {children}
     </div>
   )
+}
+
+const valueStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 12,
+  fontWeight: 600,
+  color: 'var(--text)',
+  display: 'block',
+}
+
+const subStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  color: 'var(--text-ghost)',
+  display: 'block',
+  marginTop: 2,
 }

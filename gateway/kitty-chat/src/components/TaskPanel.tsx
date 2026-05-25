@@ -102,22 +102,26 @@ export function TaskPanel() {
       {tasks.length > 0 && (
         <div style={{ display: 'grid', gap: 5 }}>
           {tasks.map(task => (
-            <div key={task.id} style={taskRowStyle}>
+            <div key={task.task_id} style={taskRowStyle}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
-                <span style={{ ...statusDotStyle, color: STATUS_COLOR[task.status] }}>
-                  {task.status === 'running' ? '● ' : task.status === 'completed' ? '✓ ' : task.status === 'failed' ? '✗ ' : '○ '}
-                  <span style={taskTypeTagStyle}>{task.task_type}</span>
+                <span style={taskTypeTagStyle}>{task.task_type}</span>
+                <span style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: '0.04em',
+                  color: STATUS_COLOR[task.status],
+                  textTransform: 'uppercase',
+                }}>
+                  {task.status}
                 </span>
                 {(task.status === 'queued' || task.status === 'running') && (
-                  <button onClick={() => void handleCancel(task.id)} style={cancelButtonStyle}>
+                  <button onClick={() => void handleCancel(task.task_id)} style={cancelButtonStyle}>
                     cancel
                   </button>
                 )}
               </div>
               <p style={taskGoalStyle}>{task.goal.slice(0, 100)}{task.goal.length > 100 ? '…' : ''}</p>
-              {task.progress && (
-                <p style={progressStyle}>{task.progress.slice(0, 80)}</p>
-              )}
               {task.status === 'failed' && task.error && (
                 <p style={{ ...progressStyle, color: STATUS_COLOR.failed }}>{task.error.slice(0, 80)}</p>
               )}

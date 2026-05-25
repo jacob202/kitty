@@ -59,3 +59,18 @@
 - Phase 2 (agents & background tasks) per `TASKS.md`
 - Any of the 3 open questions above
 - Further deepening opportunities in `context_builder.py` or `llm_client.py`
+
+---
+
+## Commit Status
+
+All architectural deepening changes are in place and verified:
+- ✅ `gateway/voice_pipeline.py` - Deep voice pipeline module
+- ✅ `gateway/memory_graph.py` - Adapter pattern with 5 store adapters
+- ✅ `gateway/buddy.py` - Unified drift tracking
+- ✅ `gateway/voice_gate.py` - Delegates to buddy
+- ✅ `gateway/routes/completions.py` - Buddy hooks wired
+- ✅ `CLAUDE.md` - Deep module pattern documented
+- ✅ 449 tests pass
+
+The changes are working but not yet committed to a new commit. Ready for next session.

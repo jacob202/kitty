@@ -31,12 +31,6 @@ import {
   type GatewayWeather,
 } from '@/lib/gateway'
 
-const KITTY_MODES = [
-  { id: 'default', name: 'Default' },
-  { id: 'focus', name: 'Focus' },
-  { id: 'explore', name: 'Explore' },
-]
-
 let chatCounter = 0
 function newChatId() { return `chat-${++chatCounter}-${Date.now()}` }
 function newMsgId()  { return `msg-${Date.now()}-${Math.random().toString(36).slice(2)}` }
@@ -95,12 +89,12 @@ function KittyChatInner() {
   const [weather, setWeather] = useState<GatewayWeather | null>(null)
   const [loops, setLoops] = useState<GatewayLoop[]>([])
   const [insights, setInsights] = useState<GatewayInsight[]>([])
-  const [promptTemplates, setPromptTemplates] = useState<Array<{ id: string | number; title: string; content: string; category?: string; icon?: string }>>([
-    { id: 1, title: 'Brainstorm', content: 'Help me brainstorm ideas for...', category: 'Creative', icon: '💡' },
-    { id: 2, title: 'Debug Code', content: 'Help me debug this code:\n\n```\n\n```', category: 'Technical', icon: '🔧' },
-    { id: 3, title: 'Summarize', content: 'Summarize the following text:\n\n', category: 'Analysis', icon: '📄' },
-    { id: 4, title: 'Rewrite', content: 'Rewrite the following to be more concise:\n\n', category: 'Writing', icon: '✍️' },
-    { id: 5, title: 'Explain', content: 'Explain the following concept:\n\n', category: 'Learning', icon: '🎓' },
+  const [promptTemplates, setPromptTemplates] = useState<Array<{ id: string | number; title: string; content: string; category?: string }>>([
+    { id: 1, title: 'Brainstorm', content: 'Help me brainstorm ideas for...', category: 'Creative' },
+    { id: 2, title: 'Debug Code', content: 'Help me debug this code:\n\n```\n\n```', category: 'Technical' },
+    { id: 3, title: 'Summarize', content: 'Summarize the following text:\n\n', category: 'Analysis' },
+    { id: 4, title: 'Rewrite', content: 'Rewrite the following to be more concise:\n\n', category: 'Writing' },
+    { id: 5, title: 'Explain', content: 'Explain the following concept:\n\n', category: 'Learning' },
   ])
   const [searchSnapshot, setSearchSnapshot] = useState<GatewaySearchSnapshot | null>(null)
   const [modelGateway, setModelGateway] = useState<{
@@ -292,6 +286,7 @@ function KittyChatInner() {
       updatedAt: new Date(),
     }))
     setInput('')
+    setActiveView('chat')
     setIsStreaming(true)
 
     const aiMsgId = newMsgId()
@@ -333,16 +328,14 @@ function KittyChatInner() {
         ),
       }))
     } catch (err: unknown) {
-      if (err instanceof Error && err.name !== 'AbortError') {
-        updateChat(activeChat.id, c => ({
-          ...c,
-          messages: c.messages.map(m =>
-            m.id === aiMsgId
-              ? { ...m, content: `⚠ Error: ${err.message}`, mood: 'confused' as const }
-              : m
-          ),
-        }))
-      }
+      updateChat(activeChat.id, c => ({
+        ...c,
+        messages: c.messages.map(m =>
+          m.id === aiMsgId
+            ? { ...m, content: `⚠ ${err instanceof Error ? err.message : 'Error connecting to gateway'}`, mood: 'confused' as const }
+            : m
+        ),
+      }))
     } finally {
       setIsStreaming(false)
       abortRef.current = null
@@ -378,14 +371,14 @@ function KittyChatInner() {
     })()
   }, [])
 
-  const handleInsightAction = useCallback((insightId: string, actionId: string) => {
-    console.log('Insight action:', insightId, actionId)
+  const handleInsightAction = useCallback((_insightId: string, _actionId: string) => {
   }, [])
 
   return (
     <div className="app-canvas" style={{
       display: 'grid',
-      gridTemplateColumns: 'var(--rail) var(--sidebar) minmax(520px, 1fr) var(--rightbar)',
+      gridTemplateColumns: `var(--rail) ${sidebarCollapsed ? '60px' : 'var(--sidebar)'} minmax(520px, 1fr) var(--rightbar)`,
+      transition: 'grid-template-columns 0.2s ease',
       height: '100vh', minHeight: 0, overflow: 'hidden',
     }}
       onClick={() => showModelMenu && setShowModelMenu(false)}
@@ -417,7 +410,6 @@ function KittyChatInner() {
           activeChat={activeChat}
           modelFromGateway={modelGateway.live}
           activeView={activeView}
-          onViewChange={setActiveView}
           kittyMode={kittyMode}
           onKittyModeChange={setKittyMode}
           sidebarCollapsed={sidebarCollapsed}
@@ -428,11 +420,10 @@ function KittyChatInner() {
           <div
             role="status"
             style={{
-              padding: '8px 16px',
+              padding: '4px 16px',
               fontFamily: 'var(--font-mono)',
-              fontSize: 12,
-              color: 'var(--warning, #f5a623)',
-              background: 'rgba(245, 166, 35, 0.08)',
+              fontSize: 11,
+              color: 'var(--text-muted)',
               borderBottom: '1px solid var(--border)',
               display: 'flex',
               alignItems: 'center',
@@ -441,26 +432,29 @@ function KittyChatInner() {
               flexShrink: 0,
             }}
           >
-            <span>
-              Offline: using built-in model list — {modelGateway.error ?? 'gateway unreachable.'}
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--error)', flexShrink: 0, display: 'inline-block' }} />
+              gateway offline
             </span>
             <button
               type="button"
               onClick={retryGatewayBootstrap}
               style={{
-                border: '1px solid var(--border)',
-                borderRadius: 6,
-                padding: '4px 10px',
+                border: 'none',
+                borderRadius: 4,
+                padding: '2px 8px',
                 fontFamily: 'var(--font-mono)',
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: 600,
                 cursor: 'pointer',
-                background: 'var(--panel-2)',
-                color: 'var(--text)',
+                background: 'transparent',
+                color: 'var(--text-muted)',
                 flexShrink: 0,
               }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)' }}
             >
-              Retry
+              retry
             </button>
           </div>
         )}
@@ -482,7 +476,7 @@ function KittyChatInner() {
           </div>
         )}
 
-        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           {activeView === 'tasks' ? (
             <div style={{
               flex: 1,
@@ -518,7 +512,19 @@ function KittyChatInner() {
               })}
               <div ref={bottomRef} />
             </div>
-          ) : activeView === 'home' || activeView === 'chat' ? (
+          ) : activeView === 'chat' ? (
+            <div style={{
+              flex: 1, display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center',
+              gap: 16, paddingBottom: 100,
+            }}>
+              <span style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 13,
+                color: 'var(--text-ghost)',
+              }}>start a conversation</span>
+            </div>
+          ) : activeView === 'home' ? (
             <DashboardHome
               chats={chats}
               onSelectChat={setActiveChatId}
@@ -548,18 +554,20 @@ function KittyChatInner() {
           )}
         </div>
 
-        <InputBar
-          value={input}
-          onChange={setInput}
-          onSend={handleSend}
-          disabled={isStreaming}
-          chatTitle={activeChat?.title}
-          modelName={activeModel.name}
-          modelColor={activeModel.color}
-          tokenCount={tokenCount}
-          maxTokens={200000}
-          textareaRef={textareaRef}
-        />
+        {(activeView === 'home' || activeView === 'chat') && (
+          <InputBar
+            value={input}
+            onChange={setInput}
+            onSend={handleSend}
+            disabled={isStreaming}
+            chatTitle={activeChat?.title}
+            modelName={activeModel.name}
+            modelColor={activeModel.color}
+            tokenCount={tokenCount}
+            maxTokens={200000}
+            textareaRef={textareaRef}
+          />
+        )}
       </main>
 
       <RightPanel

@@ -92,7 +92,7 @@ export function AgentPanel() {
           disabled={!goal.trim() || spawning}
           style={{ ...spawnBtnStyle, opacity: !goal.trim() || spawning ? 0.4 : 1 }}
         >
-          {spawning ? '…' : '▶'}
+          {spawning ? '…' : 'Run'}
         </button>
       </div>
 
@@ -103,12 +103,11 @@ export function AgentPanel() {
             <div key={s.session_id} style={sessionRowStyle}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
                 <button onClick={() => void handleExpand(s.session_id)} style={goalBtnStyle}>
-                  <span style={statusDotStyle(s.status)} />
                   <span style={goalTextStyle}>{s.goal.slice(0, 55)}{s.goal.length > 55 ? '…' : ''}</span>
                 </button>
                 <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
                   {(s.status === 'running' || s.status === 'queued') && (
-                    <button onClick={() => void handleStop(s.session_id)} style={stopBtnStyle} title="stop">■</button>
+                    <button onClick={() => void handleStop(s.session_id)} style={stopBtnStyle} title="stop">Stop</button>
                   )}
                   <span style={statusBadgeStyle(s.status)}>{s.status}</span>
                 </div>

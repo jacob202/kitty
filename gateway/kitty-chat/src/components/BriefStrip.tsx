@@ -11,14 +11,8 @@ interface BriefCard {
   label: string
   value: string
   sub: string
-  color: 'default' | 'orange' | 'red' | 'teal'
-}
-
-function cardColor(color: BriefCard['color']): string {
-  if (color === 'orange') return 'var(--orange)'
-  if (color === 'red')    return '#e74c3c'
-  if (color === 'teal')   return 'var(--teal)'
-  return 'var(--text)'
+  accent: string
+  dim: boolean
 }
 
 export function BriefStrip({
@@ -32,25 +26,29 @@ export function BriefStrip({
       label: 'WEATHER',
       value: weather?.trim() || '—',
       sub: weather ? 'live' : 'no data',
-      color: 'default',
+      accent: 'var(--blue)',
+      dim: !weather,
     },
     {
       label: 'NEXT UP',
       value: intention?.trim() || '—',
       sub: intention ? 'from brief' : 'waiting on gateway',
-      color: 'orange',
+      accent: 'var(--primary)',
+      dim: !intention,
     },
     {
       label: 'OVERDUE',
       value: overdueCount > 0 ? String(overdueCount) : '—',
-      sub: overdueCount > 0 ? `${overdueCount} open todo${overdueCount === 1 ? '' : 's'}` : 'nothing flagged',
-      color: overdueCount > 0 ? 'red' : 'default',
+      sub: overdueCount > 0 ? `act now` : 'nothing flagged',
+      accent: overdueCount > 0 ? 'var(--error)' : 'var(--border)',
+      dim: overdueCount === 0,
     },
     {
       label: 'FOCUS',
       value: focusText?.trim() || '—',
       sub: focusText ? 'active todo' : 'see compass',
-      color: 'teal',
+      accent: 'var(--mint)',
+      dim: !focusText,
     },
   ]
 
@@ -58,35 +56,47 @@ export function BriefStrip({
     <div style={{
       display: 'grid',
       gridTemplateColumns: 'repeat(4, 1fr)',
-      gap: '8px',
+      gap: 8,
     }}>
       {cards.map(card => (
         <div key={card.label} style={{
-          background: 'var(--panel)',
+          position: 'relative',
+          background: 'var(--surface-low)',
           border: '1px solid var(--border)',
-          borderRadius: '6px',
-          padding: '10px 12px',
+          borderLeft: `2px solid ${card.dim ? 'var(--border)' : card.accent}`,
+          borderRadius: '0 8px 8px 0',
+          padding: '12px 14px 10px',
+          overflow: 'hidden',
         }}>
           <div style={{
-            fontSize: '9px',
-            letterSpacing: '1.5px',
-            color: 'var(--text-muted)',
-            fontWeight: 600,
-            marginBottom: '5px',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 9,
+            letterSpacing: '1.6px',
+            color: 'var(--text-ghost)',
+            fontWeight: 700,
+            marginBottom: 6,
+            textTransform: 'uppercase' as const,
           }}>
             {card.label}
           </div>
           <div style={{
-            fontSize: '14px',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 15,
             fontWeight: 700,
-            color: cardColor(card.color),
+            color: card.dim ? 'var(--text-muted)' : card.accent,
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
+            lineHeight: 1.2,
           }}>
             {card.value}
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px' }}>
+          <div style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            color: 'var(--text-ghost)',
+            marginTop: 4,
+          }}>
             {card.sub}
           </div>
         </div>
