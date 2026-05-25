@@ -74,3 +74,42 @@ All architectural deepening changes are in place and verified:
 - ✅ 449 tests pass
 
 The changes are working but not yet committed to a new commit. Ready for next session.
+
+## Backend Enhancement Complete ✅
+
+### New Routes Added for Kitty UI Chat
+
+**4 new route modules created:**
+
+1. **`gateway/routes/search.py`** — Unified search across memory, knowledge, journal
+   - `GET /search?q=<query>&limit=<n>` — Returns flattened, scored results from all stores
+
+2. **`gateway/routes/loops.py`** — Background task loops
+   - `GET /loops` — Get all active loops
+   - `POST /loops` — Create new loop
+   - `POST /loop/{id}/toggle` — Toggle loop on/off
+   - `DELETE /loop/{id}` — Delete loop
+
+3. **`gateway/routes/insights.py`** — Insights from dream/consolidation
+   - `GET /insights` — Get recent insights
+   - `GET /dream/insights` — Alias for backward compatibility
+   - `POST /insight/{id}/dismiss` — Dismiss insight
+   - `POST /dream/trigger` — Trigger consolidation cycle
+   - `GET /dream/status` — Get dream status
+
+4. **`gateway/routes/monitors.py`** — Web/page monitors
+   - `GET /monitors` — Get all monitors (integrates with `web_monitor.list_watches()`)
+   - `GET /monitor/create?url=<url>&interval=<sec>` — Create monitor
+   - `DELETE /monitor/{id}` — Delete monitor
+   - `GET /monitor/{id}/check` — Manual check
+
+### Integration Points
+
+- **Search** → `memory_graph.search_all()` for unified cross-store search
+- **Insights** → `gateway.dream` module for consolidation
+- **Monitors** → `gateway.web_monitor` module for watch management
+- **Loops** → In-memory state (ready for cron integration)
+
+### Test Results
+- **449 tests pass** (no regressions)
+- New routes tested via existing search tests

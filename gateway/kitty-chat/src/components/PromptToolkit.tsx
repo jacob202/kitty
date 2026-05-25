@@ -6,7 +6,6 @@ interface PromptTemplate {
   title: string
   content: string
   category?: string
-  icon?: string
 }
 
 interface Props {
@@ -69,7 +68,6 @@ export function PromptToolkit({ templates, onSelect, title = 'Prompt Toolkit' }:
                     el.style.borderLeftColor = 'transparent'
                   }}
                 >
-                  {tpl.icon && <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>{tpl.icon}</span>}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{
                       fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600,

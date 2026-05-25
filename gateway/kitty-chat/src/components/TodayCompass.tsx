@@ -6,7 +6,6 @@ export interface PriorityItem {
   title: string
   description?: string
   priority: 'high' | 'medium' | 'low'
-  icon?: string
   onSelect?: () => void
 }
 
@@ -73,7 +72,6 @@ export function TodayCompass({
               onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'var(--surface-mid)' }}
               onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
             >
-              {item.icon && <span style={{ fontSize: 14, marginTop: 1, flexShrink: 0 }}>{item.icon}</span>}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
                   <span style={{

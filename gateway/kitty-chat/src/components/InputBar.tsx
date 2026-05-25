@@ -125,7 +125,6 @@ export function InputBar({
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {chatTitle && (
                 <>
-                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: modelColor, display: 'inline-block' }} />
                   {chatTitle}
                   {modelName && <span style={{ color: 'var(--text-ghost)' }}> · {modelName}</span>}
                 </>

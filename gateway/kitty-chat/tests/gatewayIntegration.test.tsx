@@ -218,7 +218,7 @@ describe('LoopWatch', () => {
 describe('PromptToolkit', () => {
   afterEach(cleanup)
   const templates = [
-    { id: 1, title: 'Brainstorm', content: 'Help me brainstorm...', category: 'Creative', icon: '💡' },
+    { id: 1, title: 'Brainstorm', content: 'Help me brainstorm...', category: 'Creative' },
     { id: 2, title: 'Debug', content: 'Help me debug...', category: 'Technical' },
   ]
 

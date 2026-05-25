@@ -205,14 +205,6 @@ const taskRowStyle: CSSProperties = {
   gap: 3,
 }
 
-const statusDotStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 11,
-  display: 'flex',
-  alignItems: 'center',
-  gap: 4,
-}
-
 const taskTypeTagStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 9,

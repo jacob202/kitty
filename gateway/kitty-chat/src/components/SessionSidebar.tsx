@@ -72,7 +72,7 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
           onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--orange-deep)' }}
           onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--primary)' }}
         >
-          {collapsed ? '+' : '+ new'}
+          {collapsed ? 'New' : 'New chat'}
         </button>
       </div>
 

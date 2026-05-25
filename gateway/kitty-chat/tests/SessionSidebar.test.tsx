@@ -54,7 +54,7 @@ describe('SessionSidebar', () => {
 
   it('shows close button only on hover for non-collapsed', () => {
     render(<SessionSidebar chats={mockChats} activeChatId={null} onSelectChat={() => {}} onNewChat={() => {}} onCloseChat={() => {}} />)
-    const closeButtons = screen.getAllByText('✕')
+    const closeButtons = screen.getAllByText('Close')
     expect(closeButtons.length).toBe(mockChats.length)
   })
 
@@ -68,12 +68,12 @@ describe('SessionSidebar', () => {
     expect(avatars.length).toBe(mockChats.length)
   })
 
-  it('new chat button shows + only when collapsed', () => {
+  it('new chat button shows compact label when collapsed', () => {
     const { rerender } = render(<SessionSidebar chats={mockChats} activeChatId={null} onSelectChat={() => {}} onNewChat={() => {}} onCloseChat={() => {}} collapsed={false} />)
-    expect(screen.getByText('+ new')).toBeInTheDocument()
+    expect(screen.getByText('New chat')).toBeInTheDocument()
     
     rerender(<SessionSidebar chats={mockChats} activeChatId={null} onSelectChat={() => {}} onNewChat={() => {}} onCloseChat={() => {}} collapsed={true} />)
-    expect(screen.queryByText('+ new')).not.toBeInTheDocument()
-    expect(screen.getByText('+')).toBeInTheDocument()
+    expect(screen.queryByText('New chat')).not.toBeInTheDocument()
+    expect(screen.getByText('New')).toBeInTheDocument()
   })
 })

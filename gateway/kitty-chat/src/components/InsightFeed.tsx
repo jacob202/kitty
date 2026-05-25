@@ -62,20 +62,14 @@ export function InsightFeed({ insights, onDismiss, onAction, title = 'Insights' 
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <div style={{
-                    width: 6, height: 6, borderRadius: '50%',
-                    background: kColor, flexShrink: 0,
-                  }} />
-                  <span style={{
-                    fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700,
-                    letterSpacing: '0.1em', textTransform: 'uppercase' as const,
-                    color: kColor, border: `1px solid ${kColor}`,
-                    borderRadius: 3, padding: '1px 5px',
-                  }}>
-                    {kindLabel(insight.kind)}
-                  </span>
-                </div>
+                <span style={{
+                  fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700,
+                  letterSpacing: '0.1em', textTransform: 'uppercase' as const,
+                  color: kColor, border: `1px solid ${kColor}`,
+                  borderRadius: 3, padding: '1px 5px',
+                }}>
+                  {kindLabel(insight.kind)}
+                </span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{
                     fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-ghost)',
@@ -83,9 +77,13 @@ export function InsightFeed({ insights, onDismiss, onAction, title = 'Insights' 
                     {timeAgo(insight.created_at)}
                   </span>
                   {onDismiss && (
-                    <span
+                    <button
+                      type="button"
                       onClick={() => onDismiss(insight.insight_id)}
+                      aria-label="Dismiss"
                       style={{
+                        background: 'transparent',
+                        border: 'none',
                         color: 'var(--text-ghost)', fontSize: 10, cursor: 'pointer',
                         padding: '0 2px', lineHeight: 1,
                         fontFamily: 'var(--font-mono)',
@@ -96,7 +94,7 @@ export function InsightFeed({ insights, onDismiss, onAction, title = 'Insights' 
                       onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-ghost)')}
                     >
                       Dismiss
-                    </span>
+                    </button>
                   )}
                 </div>
               </div>

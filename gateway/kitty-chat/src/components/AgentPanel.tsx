@@ -137,15 +137,6 @@ export function AgentPanel() {
   )
 }
 
-function statusDotStyle(status: string): CSSProperties {
-  const color = status === 'running' ? 'var(--teal)'
-    : status === 'completed' ? 'var(--text-muted)'
-    : status === 'failed' ? 'var(--orange)'
-    : status === 'queued' ? 'var(--indigo)'
-    : 'var(--text-faint)'
-  return { width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }
-}
-
 function statusBadgeStyle(status: string): CSSProperties {
   const color = status === 'running' ? 'var(--teal)'
     : status === 'completed' ? 'var(--text-muted)'
