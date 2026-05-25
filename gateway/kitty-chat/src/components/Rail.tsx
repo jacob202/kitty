@@ -5,9 +5,7 @@ const NAV_ITEMS: { glyph: GlyphId; label: string; view: string }[] = [
   { glyph: 'g-home', label: 'Home', view: 'home' },
   { glyph: 'g-chat', label: 'Chat', view: 'chat' },
   { glyph: 'g-check', label: 'Tasks', view: 'tasks' },
-  { glyph: 'g-folder', label: 'Files', view: 'files' },
-  { glyph: 'g-prompt', label: 'Notes', view: 'notes' },
-  { glyph: 'g-spark', label: 'Tools', view: 'tools' },
+  { glyph: 'g-terminal', label: 'Terminal', view: 'terminal' },
 ]
 
 export function Rail({ activeView = 'home', onViewChange }: { activeView?: string, onViewChange?: (view: string) => void }) {
@@ -45,7 +43,8 @@ export function Rail({ activeView = 'home', onViewChange }: { activeView?: strin
                 color: active ? 'var(--primary-bright)' : 'var(--text-muted)',
                 background: active ? 'var(--surface-mid)' : 'transparent',
                 border: `1px solid ${active ? 'var(--border)' : 'transparent'}`,
-                transition: 'background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease',
+                boxShadow: active ? 'inset 2px 0 0 var(--primary)' : 'none',
+                transition: 'background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease',
                 cursor: 'pointer',
               }}
               onMouseEnter={e => {

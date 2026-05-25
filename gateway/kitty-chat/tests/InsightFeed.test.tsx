@@ -39,8 +39,8 @@ describe('InsightFeed', () => {
 
   it('shows insights sorted by created_at descending', () => {
     render(<InsightFeed insights={mockInsights} />)
-    const titles = screen.getAllByRole('heading', { level: 6 }).map(h => h.textContent)
-    expect(titles[0]).toContain('weather in the morning')
+    const titles = screen.getAllByText(/weather in the morning|daily weather loop|Unusual activity detected/)
+    expect(titles[0]).toHaveTextContent('weather in the morning')
   })
 
   it('displays insight kind badge', () => {

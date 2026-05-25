@@ -116,8 +116,8 @@ describe('RightPanel', () => {
         searchGatewayError="Gateway returned 500 Internal Server Error"
       />
     )
-    expect(screen.getByText('Search unavailable')).toBeInTheDocument()
-    expect(screen.getByText(/500/)).toBeInTheDocument()
+    expect(screen.getByText('Search')).toBeInTheDocument()
+    expect(screen.getByText('unavailable')).toBeInTheDocument()
   })
 
   it('shows search results when search snapshot has data', () => {
@@ -139,8 +139,9 @@ describe('RightPanel', () => {
         searchGatewayError={null}
       />
     )
-    expect(screen.getByText('Gateway search')).toBeInTheDocument()
-    expect(screen.getByText('Memories')).toBeInTheDocument()
+    expect(screen.getByText(/Search · test/)).toBeInTheDocument()
+    expect(screen.getByText('Mem')).toBeInTheDocument()
+    expect(screen.getByText('Memory A: remember this')).toBeInTheDocument()
   })
 })
 

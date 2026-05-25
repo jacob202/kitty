@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import type { CSSProperties } from 'react'
 import { Chat, Model, STREAMING_LABEL } from '@/lib/types'
 
 interface Props {
@@ -265,6 +266,7 @@ function KittyModeSelector({
                 el.style.color = 'var(--text-dim)'
               } }}
             >
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: m.id === mode ? 'var(--purple)' : 'var(--text-muted)', flexShrink: 0 }} /            >
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: m.id === mode ? 'var(--purple)' : 'var(--text-muted)', flexShrink: 0 }} />
               {m.name}
             </button>
@@ -389,6 +391,7 @@ function ModelSelector({
                 el.style.color = 'var(--text-dim)'
               } }}
             >
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: m.color, flexShrink: 0 }} /            >
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: m.color, flexShrink: 0 }} />
               {m.name}
             </button>

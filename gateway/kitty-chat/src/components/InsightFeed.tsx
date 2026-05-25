@@ -87,6 +87,7 @@ export function InsightFeed({ insights, onDismiss, onAction, title = 'Insights' 
                 onClick={() => onDismiss(insight.insight_id)}
                 style={dismissBtnStyle}
                 title="Dismiss"
+                aria-label="Dismiss"
               >
                 ✕
               </button>
@@ -130,7 +131,6 @@ const titleStyle: CSSProperties = {
 const countStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-muted)',
   letterSpacing: '0.05em',
 }
 
@@ -174,7 +174,6 @@ const kindBadgeStyle = (base: CSSProperties, color: string): CSSProperties => ({
 const timeStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-muted)',
 }
 
 const insightTitleStyle: CSSProperties = {
@@ -195,7 +194,6 @@ const insightDetailStyle: CSSProperties = {
 const sourceStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-muted)',
   fontStyle: 'italic',
 }
 
@@ -230,10 +228,8 @@ const dismissBtnStyle: CSSProperties = {
   fontSize: 12,
   padding: 2,
   lineHeight: 1,
-  ':hover': {
-    color: 'var(--text-muted)',
-  },
 }
+
 
 const emptyStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',

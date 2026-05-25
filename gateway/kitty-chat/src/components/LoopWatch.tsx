@@ -65,6 +65,7 @@ export function LoopWatch({ loops, onToggle, title = 'Loop Watch' }: Props) {
                     onClick={() => onToggle(loop.loop_id)}
                     style={toggleBtnStyle(loop.status === 'running')}
                     title={loop.status === 'running' ? 'Pause loop' : 'Start loop'}
+                    aria-label={loop.status === 'running' ? 'Pause loop' : 'Start loop'}
                   >
                     {loop.status === 'running' ? '⏸' : '▶'}
                   </button>
@@ -181,10 +182,6 @@ const toggleBtnStyle = (isRunning: boolean): CSSProperties => ({
   fontSize: 10,
   color: 'var(--text-dim)',
   transition: 'all 0.15s ease',
-  ':hover': {
-    background: 'var(--surface-high)',
-    borderColor: 'var(--text-muted)',
-  },
 })
 
 const descStyle: CSSProperties = {

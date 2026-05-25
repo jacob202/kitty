@@ -6,9 +6,9 @@ describe('PromptToolkit', () => {
   afterEach(cleanup)
 
   const mockTemplates = [
-    { id: 1, title: 'Brainstorm', content: 'Help me brainstorm ideas for...', category: 'Creative' },
-    { id: 2, title: 'Debug Code', content: 'Help me debug this code:\n\n```\n\n```', category: 'Technical' },
-    { id: 3, title: 'Summarize', content: 'Summarize the following text:\n\n', category: 'Analysis' },
+    { id: 1, title: 'Brainstorm', content: 'Help me brainstorm ideas for...', category: 'Creative', icon: '💡' },
+    { id: 2, title: 'Debug Code', content: 'Help me debug this code:\n\n```\n\n```', category: 'Technical', icon: '🔧' },
+    { id: 3, title: 'Summarize', content: 'Summarize the following text:\n\n', category: 'Analysis', icon: '📄' },
   ]
 
   it('renders title and count', () => {
@@ -19,9 +19,9 @@ describe('PromptToolkit', () => {
 
   it('groups templates by category', () => {
     render(<PromptToolkit templates={mockTemplates} />)
-    expect(screen.getByText('CREATIVE')).toBeInTheDocument()
-    expect(screen.getByText('TECHNICAL')).toBeInTheDocument()
-    expect(screen.getByText('ANALYSIS')).toBeInTheDocument()
+    expect(screen.getByText('Creative')).toBeInTheDocument()
+    expect(screen.getByText('Technical')).toBeInTheDocument()
+    expect(screen.getByText('Analysis')).toBeInTheDocument()
   })
 
   it('shows template title and preview', () => {
@@ -35,7 +35,7 @@ describe('PromptToolkit', () => {
     render(<PromptToolkit templates={mockTemplates} onSelect={onSelect} />)
 
     fireEvent.click(screen.getByText('Brainstorm'))
-    expect(onSelect).toHaveBeenCalledWith('Help me brainstorm ideas for...')
+    expect(onSelect).toHaveBeenCalledWith(mockTemplates[0])
   })
 
   it('supports keyboard navigation', () => {
@@ -60,6 +60,6 @@ describe('PromptToolkit', () => {
   it('handles templates without category', () => {
     const uncategorized = [{ id: 1, title: 'Generic', content: 'Do something' }]
     render(<PromptToolkit templates={uncategorized} />)
-    expect(screen.getByText('GENERAL')).toBeInTheDocument()
+    expect(screen.getByText('General')).toBeInTheDocument()
   })
 })

@@ -20,14 +20,14 @@ import {
   fetchGatewayTodos,
   fetchGatewayLoops,
   fetchGatewayInsights,
-  fetchGatewayPrompts,
+  fetchGatewayPrompts, fetchGatewayWeather,
   toggleGatewayLoop,
   dismissGatewayInsight,
   type GatewayBrief,
   type GatewaySearchSnapshot,
   type GatewayTodo,
   type GatewayLoop,
-  type GatewayInsight,
+  type GatewayInsight, type GatewayWeather,
   type GatewayPromptTemplate,
 } from '@/lib/gateway'
 
@@ -410,6 +410,7 @@ function KittyChatInner() {
           activeChat={activeChat}
           modelFromGateway={modelGateway.live}
           activeView={activeView}
+          onViewChange={setActiveView}
           kittyMode={kittyMode}
           onKittyModeChange={setKittyMode}
           sidebarCollapsed={sidebarCollapsed}
@@ -518,6 +519,13 @@ function KittyChatInner() {
               alignItems: 'center', justifyContent: 'center',
               gap: 16, paddingBottom: 100,
             }}>
+              <span style={{
+                fontFamily: 'var(--font-ui)',
+                fontSize: 28,
+                color: 'var(--primary)',
+                opacity: 0.35,
+                userSelect: 'none',
+              }}>{'=^•ﻌ•^='}</span>
               <span style={{
                 fontFamily: 'var(--font-mono)',
                 fontSize: 13,

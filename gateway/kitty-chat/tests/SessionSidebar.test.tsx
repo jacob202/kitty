@@ -1,5 +1,5 @@
 import { render, screen, cleanup, fireEvent } from '@testing-library/react'
-import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
+import { describe, expect, it, afterEach, vi } from 'vitest'
 import { SessionSidebar } from '../src/components/SessionSidebar'
 import type { Chat } from '../src/lib/types'
 
@@ -22,14 +22,14 @@ describe('SessionSidebar', () => {
       messages: [{ role: 'user', content: 'hello', timestamp: new Date() }],
       model: 'kitty-default',
       color: 'coral',
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: new Date(Date.now() - 48 * 3600 * 1000),
+      updatedAt: new Date(Date.now() - 48 * 3600 * 1000),
     },
   ]
 
   it('renders sessions header and new chat button', () => {
     render(<SessionSidebar chats={mockChats} activeChatId={null} onSelectChat={() => {}} onNewChat={() => {}} onCloseChat={() => {}} />)
-    expect(screen.getByText('SESSIONS')).toBeInTheDocument()
+    expect(screen.getByText('sessions')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '+ new' })).toBeInTheDocument()
   })
 
@@ -54,26 +54,25 @@ describe('SessionSidebar', () => {
 
   it('shows close button only on hover for non-collapsed', () => {
     render(<SessionSidebar chats={mockChats} activeChatId={null} onSelectChat={() => {}} onNewChat={() => {}} onCloseChat={() => {}} />)
-    const closeButtons = screen.getAllByText('Close')
+    const closeButtons = screen.getAllByText('✕')
     expect(closeButtons.length).toBe(mockChats.length)
   })
 
   it('collapses to icon-only mode when collapsed prop is true', () => {
     render(<SessionSidebar chats={mockChats} activeChatId={null} onSelectChat={() => {}} onNewChat={() => {}} onCloseChat={() => {}} collapsed={true} />)
-    expect(screen.queryByText('SESSIONS')).not.toBeInTheDocument()
+    expect(screen.queryByText('sessions')).not.toBeInTheDocument()
     expect(screen.queryByText('Today')).not.toBeInTheDocument()
     expect(screen.queryByText('First Chat')).not.toBeInTheDocument()
-    // Should show mini avatars instead
-    const avatars = screen.getAllByRole('button', { name: /^[A-Z]$/ })
-    expect(avatars.length).toBe(mockChats.length)
+    expect(screen.getByTitle('First Chat')).toBeInTheDocument()
+    expect(screen.getByTitle('Second Chat')).toBeInTheDocument()
   })
 
-  it('new chat button shows compact label when collapsed', () => {
+  it('new chat button shows + only when collapsed', () => {
     const { rerender } = render(<SessionSidebar chats={mockChats} activeChatId={null} onSelectChat={() => {}} onNewChat={() => {}} onCloseChat={() => {}} collapsed={false} />)
-    expect(screen.getByText('New chat')).toBeInTheDocument()
-    
+    expect(screen.getByText('+ new')).toBeInTheDocument()
+
     rerender(<SessionSidebar chats={mockChats} activeChatId={null} onSelectChat={() => {}} onNewChat={() => {}} onCloseChat={() => {}} collapsed={true} />)
-    expect(screen.queryByText('New chat')).not.toBeInTheDocument()
-    expect(screen.getByText('New')).toBeInTheDocument()
+    expect(screen.queryByText('+ new')).not.toBeInTheDocument()
+    expect(screen.getByText('+')).toBeInTheDocument()
   })
 })

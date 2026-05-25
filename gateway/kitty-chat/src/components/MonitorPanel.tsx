@@ -47,8 +47,8 @@ export function MonitorPanel() {
             <div key={m.watch_id} style={rowStyle}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={labelStyle}>{m.label}</span>
-                <span style={{ ...statusStyle, color: m.match_count > 0 ? 'var(--orange)' : 'var(--text-faint)' }}>
-                  {m.match_count > 0 ? `${m.match_count} hits` : 'watching'}
+                <span style={{ ...statusStyle, color: m.last_match ? 'var(--orange)' : 'var(--text-faint)' }}>
+                  {m.last_match ? 'hit' : 'watching'}
                 </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
