@@ -92,7 +92,7 @@ export function AgentPanel() {
           disabled={!goal.trim() || spawning}
           style={{ ...spawnBtnStyle, opacity: !goal.trim() || spawning ? 0.4 : 1 }}
         >
-          {spawning ? '…' : 'Run'}
+          {spawning ? '…' : '▶'}
         </button>
       </div>
 
@@ -103,11 +103,12 @@ export function AgentPanel() {
             <div key={s.session_id} style={sessionRowStyle}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
                 <button onClick={() => void handleExpand(s.session_id)} style={goalBtnStyle}>
+                  <span style={statusDotStyle(s.status)} />
                   <span style={goalTextStyle}>{s.goal.slice(0, 55)}{s.goal.length > 55 ? '…' : ''}</span>
                 </button>
                 <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
                   {(s.status === 'running' || s.status === 'queued') && (
-                    <button onClick={() => void handleStop(s.session_id)} style={stopBtnStyle} title="stop">Stop</button>
+                    <button onClick={() => void handleStop(s.session_id)} style={stopBtnStyle} title="stop">■</button>
                   )}
                   <span style={statusBadgeStyle(s.status)}>{s.status}</span>
                 </div>
@@ -135,6 +136,15 @@ export function AgentPanel() {
       )}
     </div>
   )
+}
+
+function statusDotStyle(status: string): CSSProperties {
+  const color = status === 'running' ? 'var(--teal)'
+    : status === 'completed' ? 'var(--text-muted)'
+    : status === 'failed' ? 'var(--orange)'
+    : status === 'queued' ? 'var(--indigo)'
+    : 'var(--text-faint)'
+  return { width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }
 }
 
 function statusBadgeStyle(status: string): CSSProperties {

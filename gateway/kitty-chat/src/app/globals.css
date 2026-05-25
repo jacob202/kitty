@@ -102,6 +102,38 @@ button, input { font: inherit; }
 ::selection { background: var(--orange); color: #000; }
 * { caret-color: var(--orange); scrollbar-width: thin; scrollbar-color: #252C3A transparent; }
 
+/* Pixel kitty logo — used via className="pixel-kitty" */
+.pixel-kitty {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  image-rendering: pixelated;
+  border-radius: 10px;
+  background:
+    linear-gradient(var(--orange), var(--orange)) 8px 8px / 4px 4px no-repeat,
+    linear-gradient(var(--orange), var(--orange)) 28px 8px / 4px 4px no-repeat,
+    linear-gradient(var(--orange), var(--orange)) 4px 12px / 32px 20px no-repeat,
+    linear-gradient(var(--orange), var(--orange)) 8px 32px / 24px 4px no-repeat,
+    linear-gradient(var(--bg), var(--bg)) 12px 20px / 4px 4px no-repeat,
+    linear-gradient(var(--bg), var(--bg)) 24px 20px / 4px 4px no-repeat,
+    linear-gradient(var(--bg), var(--bg)) 16px 28px / 8px 4px no-repeat;
+  box-shadow: 0 0 0 1px rgba(232, 120, 69, 0.26), 0 8px 22px rgba(232, 120, 69, 0.16);
+  animation: kitty-bob 3.8s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.pixel-kitty::before, .pixel-kitty::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  width: 12px;
+  height: 12px;
+  background: var(--orange);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.pixel-kitty::before { left: 4px; }
+.pixel-kitty::after { right: 4px; }
+
 /* Radial background glow */
 .app-canvas {
   background: var(--canvas);
@@ -114,6 +146,10 @@ button, input { font: inherit; }
 @keyframes fadeSlideUp {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes kitty-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
 }
 @keyframes blink {
   50% { opacity: 0; }

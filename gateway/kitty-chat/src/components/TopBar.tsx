@@ -1,5 +1,5 @@
 'use client'
-import { useState, type CSSProperties } from 'react'
+import { useState } from 'react'
 import { Chat, Model, STREAMING_LABEL } from '@/lib/types'
 
 interface Props {
@@ -12,12 +12,20 @@ interface Props {
   activeChat: Chat | null
   modelFromGateway?: boolean
   activeView: string
+  onViewChange: (view: string) => void
   kittyMode: string
   onKittyModeChange: (mode: string) => void
   kittyModes?: Array<{ id: string; name: string }>
   sidebarCollapsed?: boolean
   onToggleSidebar?: () => void
 }
+
+const VIEWS = [
+  { id: 'home', label: 'Home' },
+  { id: 'chat', label: 'Chat' },
+  { id: 'tasks', label: 'Tasks' },
+  { id: 'terminal', label: 'Terminal' },
+] as const
 
 const KITTY_MODES = [
   { id: 'default', name: 'Default' },
@@ -36,26 +44,23 @@ export function TopBar({
   activeChat,
   modelFromGateway = true,
   activeView,
+  onViewChange,
   kittyMode,
   onKittyModeChange,
   kittyModes = KITTY_MODES,
   sidebarCollapsed = false,
   onToggleSidebar,
 }: Props) {
-  const title = (() => {
-    if (activeView === 'tasks') return 'Tasks'
-    if (activeView === 'terminal') return 'Terminal'
-    if (activeChat?.messages.length) return activeChat.title
-    return getGreeting() + '.'
-  })()
+  const face = isStreaming ? '=^._.^=' : '=^•ﻌ•^='
+  const title = activeChat?.messages.length ? activeChat.title : getGreeting() + '.'
 
   return (
     <div style={{
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
-      height: 56,
-      padding: '0 20px',
+      height: 60,
+      padding: '0 16px',
       flexShrink: 0,
       borderBottom: '1px solid var(--border)',
       background: 'rgba(16, 20, 29, 0.74)',
@@ -64,31 +69,60 @@ export function TopBar({
       zIndex: 10,
       gap: 16,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
-        {onToggleSidebar && (
-          <button
-            onClick={onToggleSidebar}
-            style={{
-              ...iconBtnStyle,
-              background: 'transparent',
-              color: 'var(--text-muted)',
-              flexShrink: 0,
-              width: 'auto',
-              padding: '0 8px',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: '0.04em',
-            }}
-            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text)' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)' }}
-          >
-            {sidebarCollapsed ? 'Show' : 'Hide'}
-          </button>
-        )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
+        <span style={{
+          fontFamily: 'var(--font-ui)',
+          fontSize: 22,
+          flexShrink: 0,
+          color: isStreaming ? 'var(--tertiary)' : 'var(--primary)',
+          transition: 'color 0.3s ease',
+        }}>{face}</span>
 
-        <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          {onToggleSidebar && (
+            <button
+              onClick={onToggleSidebar}
+              style={{
+                ...iconBtnStyle,
+                background: 'transparent',
+                color: 'var(--text-muted)',
+              }}
+              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {sidebarCollapsed ? '▶' : '◀'}
+            </button>
+          )}
+          {VIEWS.map(view => (
+            <button
+              key={view.id}
+              onClick={() => onViewChange(view.id)}
+              style={{
+                ...tabStyle,
+                background: activeView === view.id ? 'var(--surface-mid)' : 'transparent',
+                color: activeView === view.id ? 'var(--text)' : 'var(--text-muted)',
+                borderBottom: activeView === view.id ? `2px solid var(--primary)` : '2px solid transparent',
+              }}
+              onMouseEnter={e => {
+                if (activeView !== view.id) {
+                  const el = e.currentTarget as HTMLButtonElement
+                  el.style.background = 'var(--surface-low)'
+                  el.style.color = 'var(--text)'
+                }
+              }}
+              onMouseLeave={e => {
+                if (activeView !== view.id) {
+                  const el = e.currentTarget as HTMLButtonElement
+                  el.style.background = 'transparent'
+                  el.style.color = 'var(--text-muted)'
+                }
+              }}
+            >
+              {view.label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ minWidth: 0 }}>
           <div style={{
             fontFamily: 'var(--font-mono)',
             fontSize: 13,
@@ -108,7 +142,7 @@ export function TopBar({
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-        <KittyModeSelector
+        < KittyModeSelector
           mode={kittyMode}
           modes={kittyModes}
           onChange={onKittyModeChange}
@@ -176,7 +210,11 @@ function KittyModeSelector({
           }
         }}
       >
+        <span style={{ color: 'var(--purple)', fontSize: 12 }}>◉</span>
         <span>{current.name}</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5, marginLeft: 2, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }}>
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
       </button>
 
       {open && (
@@ -227,6 +265,7 @@ function KittyModeSelector({
                 el.style.color = 'var(--text-dim)'
               } }}
             >
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: m.id === mode ? 'var(--purple)' : 'var(--text-muted)', flexShrink: 0 }} />
               {m.name}
             </button>
           ))}
@@ -285,7 +324,21 @@ function ModelSelector({
           }
         }}
       >
+        <span
+          title={modelFromGateway ? undefined : 'Using offline model list'}
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            background: modelFromGateway ? activeModel.color : 'var(--error)',
+            flexShrink: 0,
+            transition: 'background 0.3s',
+          }}
+        />
         <span style={{ color: modelFromGateway ? 'inherit' : 'var(--text-muted)' }}>{activeModel.name}</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5, marginLeft: 2, transform: showModelMenu ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }}>
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
       </button>
 
       {showModelMenu && (
@@ -336,6 +389,7 @@ function ModelSelector({
                 el.style.color = 'var(--text-dim)'
               } }}
             >
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: m.color, flexShrink: 0 }} />
               {m.name}
             </button>
           ))}
@@ -352,6 +406,20 @@ function getGreeting(): string {
   if (h < 17) return 'good afternoon'
   if (h < 21) return 'good evening'
   return 'late night'
+}
+
+const tabStyle: CSSProperties = {
+  padding: '8px 16px',
+  borderRadius: 8,
+  cursor: 'pointer',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 12,
+  fontWeight: 600,
+  transition: 'all 0.2s ease',
+  border: 'none',
+  borderBottom: '2px solid transparent',
+  background: 'transparent',
+  marginBottom: '-2px',
 }
 
 const iconBtnStyle: CSSProperties = {

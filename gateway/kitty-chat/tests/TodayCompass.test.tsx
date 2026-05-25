@@ -13,6 +13,7 @@ describe('TodayCompass', () => {
       title: 'Review PR #42',
       description: 'Check code changes and approve',
       priority: 'high',
+      icon: '🔥',
       onSelect: vi.fn(),
     },
     {
@@ -20,12 +21,14 @@ describe('TodayCompass', () => {
       title: 'Team meeting',
       description: 'Weekly sync at 3pm',
       priority: 'medium',
+      icon: '📅',
     },
     {
       id: 3,
       title: 'Update docs',
       description: 'Add API examples',
       priority: 'low',
+      icon: '📝',
     },
   ]
 
@@ -76,6 +79,14 @@ describe('TodayCompass', () => {
     expect(screen.getByText('HIGH')).toBeInTheDocument()
     expect(screen.getByText('MEDIUM')).toBeInTheDocument()
     expect(screen.getByText('LOW')).toBeInTheDocument()
+  })
+
+  it('displays icons when provided', () => {
+    render(<TodayCompass items={mockItems} />)
+
+    expect(screen.getByText('🔥')).toBeInTheDocument()
+    expect(screen.getByText('📅')).toBeInTheDocument()
+    expect(screen.getByText('📝')).toBeInTheDocument()
   })
 
   it('calls item.onSelect when card clicked', () => {

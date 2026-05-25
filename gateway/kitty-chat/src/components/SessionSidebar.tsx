@@ -72,7 +72,7 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
           onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--orange-deep)' }}
           onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--primary)' }}
         >
-          {collapsed ? 'New' : 'New chat'}
+          {collapsed ? '+' : '+ new'}
         </button>
       </div>
 
@@ -208,10 +208,10 @@ function SessionItem({ chat, active, onSelect, onClose }: {
         </span>
         <span
           onClick={e => { e.stopPropagation(); onClose(chat.id) }}
-          style={{ color: 'var(--text-ghost)', fontSize: 11, cursor: 'pointer', padding: '0 4px', opacity: active ? 1 : 0, transition: 'opacity 0.15s ease' }}
+          style={{ color: 'var(--text-ghost)', fontSize: 11, cursor: 'pointer', padding: '0 4px', visibility: active ? 'visible' : 'hidden' }}
           onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-muted)')}
           onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-ghost)')}
-        >Close</span>
+        >✕</span>
       </div>
     </button>
   )

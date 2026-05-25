@@ -102,26 +102,22 @@ export function TaskPanel() {
       {tasks.length > 0 && (
         <div style={{ display: 'grid', gap: 5 }}>
           {tasks.map(task => (
-            <div key={task.task_id} style={taskRowStyle}>
+            <div key={task.id} style={taskRowStyle}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
-                <span style={taskTypeTagStyle}>{task.task_type}</span>
-                <span style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 10,
-                  fontWeight: 700,
-                  letterSpacing: '0.04em',
-                  color: STATUS_COLOR[task.status],
-                  textTransform: 'uppercase',
-                }}>
-                  {task.status}
+                <span style={{ ...statusDotStyle, color: STATUS_COLOR[task.status] }}>
+                  {task.status === 'running' ? '● ' : task.status === 'completed' ? '✓ ' : task.status === 'failed' ? '✗ ' : '○ '}
+                  <span style={taskTypeTagStyle}>{task.task_type}</span>
                 </span>
                 {(task.status === 'queued' || task.status === 'running') && (
-                  <button onClick={() => void handleCancel(task.task_id)} style={cancelButtonStyle}>
+                  <button onClick={() => void handleCancel(task.id)} style={cancelButtonStyle}>
                     cancel
                   </button>
                 )}
               </div>
               <p style={taskGoalStyle}>{task.goal.slice(0, 100)}{task.goal.length > 100 ? '…' : ''}</p>
+              {task.progress && (
+                <p style={progressStyle}>{task.progress.slice(0, 80)}</p>
+              )}
               {task.status === 'failed' && task.error && (
                 <p style={{ ...progressStyle, color: STATUS_COLOR.failed }}>{task.error.slice(0, 80)}</p>
               )}
@@ -135,7 +131,7 @@ export function TaskPanel() {
       )}
 
       {hasActive && (
-        <p style={{ ...emptyStyle, color: 'var(--orange)' }}>active tasks running</p>
+        <p style={{ ...emptyStyle, color: 'var(--orange)' }}>● active</p>
       )}
     </div>
   )
@@ -203,6 +199,14 @@ const taskRowStyle: CSSProperties = {
   borderRadius: 5,
   display: 'grid',
   gap: 3,
+}
+
+const statusDotStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 4,
 }
 
 const taskTypeTagStyle: CSSProperties = {

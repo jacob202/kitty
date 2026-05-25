@@ -6,6 +6,7 @@ interface PromptTemplate {
   title: string
   content: string
   category?: string
+  icon?: string
 }
 
 interface Props {
@@ -25,74 +26,51 @@ export function PromptToolkit({ templates, onSelect, title = 'Prompt Toolkit' }:
   return (
     <div style={containerStyle}>
       <div style={headerStyle}>
-        <span style={headerTitleStyle}>{title}</span>
+        <span style={titleStyle}>{title}</span>
         <span style={countStyle}>{templates.length} templates</span>
       </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 4 }}>
+      <div style={bodyStyle}>
         {Object.entries(grouped).map(([category, items]) => (
-          <div key={category}>
+          <div key={category} style={categoryGroupStyle}>
             <div style={categoryHeaderStyle}>{category}</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <div style={templateListStyle}>
               {items.map(tpl => (
                 <div
                   key={tpl.id}
                   role="button"
                   tabIndex={0}
                   onClick={() => onSelect?.(tpl)}
-                  onKeyDown={e => {
+                  onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault()
                       onSelect?.(tpl)
                     }
                   }}
-                  style={{
-                    borderLeft: '2px solid transparent',
-                    padding: '9px 14px',
-                    cursor: 'pointer',
-                    background: 'transparent',
-                    transition: 'background 0.15s ease, border-color 0.15s ease',
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 8,
-                    borderRadius: '0 6px 6px 0',
-                  }}
-                  onMouseEnter={e => {
+                  style={templateCardStyle}
+                  onMouseEnter={(e) => {
                     const el = e.currentTarget as HTMLDivElement
                     el.style.background = 'var(--surface-mid)'
-                    el.style.borderLeftColor = 'var(--primary)'
+                    el.style.borderColor = 'var(--primary)'
                   }}
-                  onMouseLeave={e => {
+                  onMouseLeave={(e) => {
                     const el = e.currentTarget as HTMLDivElement
-                    el.style.background = 'transparent'
-                    el.style.borderLeftColor = 'transparent'
+                    el.style.background = 'var(--surface-low)'
+                    el.style.borderColor = 'var(--border)'
                   }}
                 >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{
-                      fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600,
-                      color: 'var(--text)', lineHeight: 1.3,
-                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                    }}>
-                      {tpl.title}
-                    </div>
-                    <div style={{
-                      fontFamily: 'var(--font-ui)', fontSize: 12, color: 'var(--text-dim)',
-                      lineHeight: 1.4, marginTop: 2,
-                      display: '-webkit-box',
-                      WebkitLineClamp: 1,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                    }}>
-                      {tpl.content}
-                    </div>
+                  <div style={templateHeaderStyle}>
+                    {tpl.icon && <span style={iconStyle}>{tpl.icon}</span>}
+                    <span style={templateTitleStyle}>{tpl.title}</span>
+                  </div>
+                  <div style={templatePreviewStyle}>
+                    {tpl.content.slice(0, 100)}
+                    {tpl.content.length > 100 ? '...' : ''}
                   </div>
                 </div>
               ))}
             </div>
           </div>
         ))}
-
         {templates.length === 0 && (
           <div style={emptyStyle}>No prompt templates available</div>
         )}
@@ -105,45 +83,99 @@ const containerStyle: CSSProperties = {
   background: 'var(--surface-low)',
   border: '1px solid var(--border)',
   borderRadius: 10,
-  paddingTop: 14,
+  padding: '16px',
   display: 'flex',
   flexDirection: 'column',
-  gap: 8,
-  overflow: 'hidden',
+  gap: 12,
 }
 
 const headerStyle: CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
-  padding: '0 14px 10px',
+  paddingBottom: 8,
   borderBottom: '1px solid var(--border-dim)',
 }
 
-const headerTitleStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 11,
-  fontWeight: 700,
-  color: 'var(--text-muted)',
-  letterSpacing: '0.12em',
-  textTransform: 'uppercase',
+const titleStyle: CSSProperties = {
+  fontFamily: 'var(--font-ui)',
+  fontSize: 16,
+  fontWeight: 600,
+  color: 'var(--text)',
+  marginBottom: 4,
 }
 
 const countStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-ghost)',
+  color: 'var(--text-muted)',
   letterSpacing: '0.05em',
 }
 
+const bodyStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 16,
+}
+
+const categoryGroupStyle: CSSProperties = {}
+
 const categoryHeaderStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
-  fontSize: 9,
+  fontSize: 10,
   fontWeight: 700,
-  color: 'var(--text-ghost)',
-  letterSpacing: '0.14em',
+  color: 'var(--text-muted)',
+  letterSpacing: '0.1em',
   textTransform: 'uppercase',
-  padding: '8px 14px 4px',
+  marginBottom: 8,
+  marginTop: 4,
+}
+
+const templateListStyle: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+  gap: 8,
+}
+
+const templateCardStyle: CSSProperties = {
+  background: 'var(--panel)',
+  border: '1px solid var(--border)',
+  borderRadius: 8,
+  padding: '12px',
+  cursor: 'pointer',
+  transition: 'all 0.2s ease',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
+}
+
+const templateHeaderStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+}
+
+const iconStyle: CSSProperties = {
+  fontSize: 16,
+  lineHeight: 1,
+}
+
+const templateTitleStyle: CSSProperties = {
+  fontFamily: 'var(--font-ui)',
+  fontSize: 13,
+  fontWeight: 600,
+  color: 'var(--text)',
+}
+
+const templatePreviewStyle: CSSProperties = {
+  fontFamily: 'var(--font-ui)',
+  fontSize: 12,
+  color: 'var(--text-dim)',
+  lineHeight: 1.4,
+  display: '-webkit-box',
+  WebkitLineClamp: 2,
+  WebkitBoxOrient: 'vertical',
+  overflow: 'hidden',
 }
 
 const emptyStyle: CSSProperties = {
@@ -151,6 +183,6 @@ const emptyStyle: CSSProperties = {
   fontSize: 12,
   color: 'var(--text-faint)',
   textAlign: 'center',
-  padding: '20px 0',
+  padding: '24px 0',
   fontStyle: 'italic',
 }

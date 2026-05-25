@@ -446,6 +446,25 @@ export async function deleteGatewayTodo(id: number): Promise<boolean> {
   }
 }
 
+// ── Prompt Templates ─────────────────────────────────────────────────────────
+
+export interface GatewayPromptTemplate {
+  id: string | number
+  title: string
+  content: string
+  category?: string
+  icon?: string
+}
+
+export async function fetchGatewayPrompts(): Promise<GatewayPromptTemplate[]> {
+  try {
+    const json = await gfetch<{ templates?: GatewayPromptTemplate[] }>('/prompts')
+    return json.templates ?? []
+  } catch {
+    return []
+  }
+}
+
 // ── Tasks ────────────────────────────────────────────────────────────────────
 
 export type TaskType = 'research' | 'ingest' | 'build' | 'cleanup' | 'dream'

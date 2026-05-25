@@ -20,7 +20,7 @@ import {
   fetchGatewayTodos,
   fetchGatewayLoops,
   fetchGatewayInsights,
-  fetchGatewayWeather,
+  fetchGatewayPrompts,
   toggleGatewayLoop,
   dismissGatewayInsight,
   type GatewayBrief,
@@ -28,7 +28,7 @@ import {
   type GatewayTodo,
   type GatewayLoop,
   type GatewayInsight,
-  type GatewayWeather,
+  type GatewayPromptTemplate,
 } from '@/lib/gateway'
 
 let chatCounter = 0
@@ -89,13 +89,7 @@ function KittyChatInner() {
   const [weather, setWeather] = useState<GatewayWeather | null>(null)
   const [loops, setLoops] = useState<GatewayLoop[]>([])
   const [insights, setInsights] = useState<GatewayInsight[]>([])
-  const [promptTemplates, setPromptTemplates] = useState<Array<{ id: string | number; title: string; content: string; category?: string }>>([
-    { id: 1, title: 'Brainstorm', content: 'Help me brainstorm ideas for...', category: 'Creative' },
-    { id: 2, title: 'Debug Code', content: 'Help me debug this code:\n\n```\n\n```', category: 'Technical' },
-    { id: 3, title: 'Summarize', content: 'Summarize the following text:\n\n', category: 'Analysis' },
-    { id: 4, title: 'Rewrite', content: 'Rewrite the following to be more concise:\n\n', category: 'Writing' },
-    { id: 5, title: 'Explain', content: 'Explain the following concept:\n\n', category: 'Learning' },
-  ])
+  const [promptTemplates, setPromptTemplates] = useState<GatewayPromptTemplate[]>([])
   const [searchSnapshot, setSearchSnapshot] = useState<GatewaySearchSnapshot | null>(null)
   const [modelGateway, setModelGateway] = useState<{
     loaded: boolean
@@ -187,6 +181,12 @@ function KittyChatInner() {
       if (cancelled) return
       startTransition(() => {
         setInsights(insightsPayload.insights)
+      })
+
+      const promptsPayload = await fetchGatewayPrompts()
+      if (cancelled) return
+      startTransition(() => {
+        setPromptTemplates(promptsPayload)
       })
     })()
 

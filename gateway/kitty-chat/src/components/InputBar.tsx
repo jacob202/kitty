@@ -69,14 +69,6 @@ export function InputBar({
             e.currentTarget.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.4)'
           }}
         >
-          {tokenCount > 0 && (
-            <div style={{ height: 2, background: 'var(--surface-high)', margin: '4px 4px 0', borderRadius: 1 }}>
-              <div style={{
-                height: '100%', width: `${pct}%`, background: barColor,
-                borderRadius: 1, transition: 'width 0.3s ease, background 0.3s ease',
-              }} />
-            </div>
-          )}
           <div style={{ display: 'flex', alignItems: 'flex-end', padding: '4px' }}>
             <textarea
               ref={ref}
@@ -98,24 +90,22 @@ export function InputBar({
               disabled={disabled || !value.trim()}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                minWidth: 52, height: 36, flexShrink: 0,
-                padding: '0 10px',
+                width: 36, height: 36, flexShrink: 0,
                 background: value.trim() ? 'var(--primary)' : 'var(--surface-high)',
                 border: 'none', borderRadius: 10, margin: '6px 8px 6px 0',
                 color: value.trim() ? '#fff' : 'var(--text-muted)', 
                 cursor: disabled ? 'default' : 'pointer',
                 opacity: disabled ? 0.5 : 1,
                 transition: 'all 0.2s ease',
-                fontFamily: 'var(--font-mono)',
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: '0.04em',
               }}
               onMouseEnter={e => { if (!disabled && value.trim()) (e.currentTarget as HTMLButtonElement).style.background = 'var(--orange-deep)' }}
               onMouseLeave={e => { if (!disabled && value.trim()) (e.currentTarget as HTMLButtonElement).style.background = 'var(--primary)' }}
               aria-label="Send message"
             >
-              Send
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="19" x2="12" y2="5"></line>
+                <polyline points="5 12 12 5 19 12"></polyline>
+              </svg>
             </button>
           </div>
         </div>
@@ -125,6 +115,7 @@ export function InputBar({
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {chatTitle && (
                 <>
+                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: modelColor, display: 'inline-block' }} />
                   {chatTitle}
                   {modelName && <span style={{ color: 'var(--text-ghost)' }}> · {modelName}</span>}
                 </>

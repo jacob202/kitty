@@ -20,6 +20,7 @@ from gateway.routes import (
     loops,
     memories,
     monitors,
+    prompts,
     search,
     voice,
 )
@@ -41,6 +42,7 @@ def register_routes(app: FastAPI) -> None:
         loops,
         memories,
         monitors,
+        prompts,
         search,
         voice,
         extended,

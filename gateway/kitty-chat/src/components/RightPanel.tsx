@@ -1,6 +1,7 @@
 'use client'
 import { Chat, STREAMING_LABEL } from '@/lib/types'
 import type { GatewayBrief, GatewayHeadline, GatewaySearchSnapshot } from '@/lib/gateway'
+import { CronPanel } from './CronPanel'
 
 interface Props {
   chats: Chat[]
@@ -64,20 +65,23 @@ export function RightPanel({
       {/* Content */}
       <div style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}>
 
-        {/* Quick stats strip */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 8,
-          padding: '0 16px 12px',
-          borderBottom: '1px solid var(--border)',
-          marginBottom: 12,
-        }}>
-          <Stat label="Sessions" value={String(chats.length)} accent="var(--purple)" />
-          <Stat label="Messages" value={String(msgCount)} accent="var(--teal)" />
-        </div>
+{/* Quick stats strip */}
+<div style={{
+display: 'grid',
+gridTemplateColumns: '1fr 1fr',
+gap: 8,
+padding: '0 16px 12px',
+borderBottom: '1px solid var(--border)',
+marginBottom: 12,
+}}>
+<Stat label="Sessions" value={String(chats.length)} accent="var(--purple)" />
+<Stat label="Messages" value={String(msgCount)} accent="var(--teal)" />
+</div>
 
-        {/* Time */}
+{/* Cron schedules */}
+<CronPanel />
+
+{/* Time */}
         <PanelRow accent="var(--mint)" label="Time">
           <span style={valueStyle}>{timeStr}</span>
           <span style={subStyle}>{new Date().toLocaleDateString([], { weekday: 'long' })}</span>
@@ -91,7 +95,7 @@ export function RightPanel({
         )}
 
         {/* Kitty status */}
-        <PanelRow accent="var(--primary)" label="Kitty">
+        <PanelRow accent={isStreaming ? 'var(--purple)' : 'var(--mint)'} label="Kitty">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{
               width: 7,
