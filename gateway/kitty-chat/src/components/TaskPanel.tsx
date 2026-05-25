@@ -135,7 +135,7 @@ export function TaskPanel() {
       )}
 
       {hasActive && (
-        <p style={{ ...emptyStyle, color: 'var(--orange)' }}>● active</p>
+        <p style={{ ...emptyStyle, color: 'var(--orange)' }}>active tasks running</p>
       )}
     </div>
   )
