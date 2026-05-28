@@ -22,7 +22,8 @@ export function Rail({ activeView = 'home', onViewChange }: { activeView?: strin
       backdropFilter: 'blur(10px)',
       flexShrink: 0,
     }}>
-      <div className="pixel-kitty" aria-label="Kitty AI" />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/kitty-mark.svg" alt="Kitty" width={32} height={32} style={{ display: 'block', borderRadius: 8, flexShrink: 0 }} />
 
       <nav style={{
         display: 'flex', flexDirection: 'column', gap: 10,
