@@ -52,7 +52,6 @@ export function TopBar({
   sidebarCollapsed = false,
   onToggleSidebar,
 }: Props) {
-  const face = isStreaming ? '=^._.^=' : '=^•ﻌ•^='
   const title = activeChat?.messages.length ? activeChat.title : getGreeting() + '.'
 
   return (
@@ -71,13 +70,19 @@ export function TopBar({
       gap: 16,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
-        <span style={{
-          fontFamily: 'var(--font-ui)',
-          fontSize: 22,
-          flexShrink: 0,
-          color: isStreaming ? 'var(--tertiary)' : 'var(--primary)',
-          transition: 'color 0.3s ease',
-        }}>{face}</span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/kitty-mascot.svg"
+          alt="Kitty"
+          width={32}
+          height={32}
+          style={{
+            flexShrink: 0,
+            display: 'block',
+            filter: isStreaming ? 'saturate(1.35) brightness(1.08)' : 'none',
+            transition: 'filter 0.3s ease',
+          }}
+        />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           {onToggleSidebar && (
