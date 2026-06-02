@@ -12,6 +12,7 @@ SPECIALISTS = {
     "coder":      SOUL_DIR / "specialists" / "coder.md",
     "creative":   SOUL_DIR / "specialists" / "creative.md",
     "companion":  SOUL_DIR / "specialists" / "companion.md",
+    "analyst":    SOUL_DIR / "specialists" / "analyst.md",
 }
 
 # Keywords that trigger each specialist (fast pre-filter before LLM routing)
@@ -36,11 +37,18 @@ _SIGNALS: dict[str, list[str]] = {
         "tired", "excited", "lonely", "struggling", "need to talk",
         "just want", "vent", "hard day", "miss", "relationship",
     ],
+    "analyst": [
+        "should i", "help me think", "decision", "analyze", "pros and cons",
+        "trade off", "tradeoff", "evaluate", "comparing", "which is better",
+        "strategy", "plan", "thinking about", "weighing", "advice on",
+        "make sense", "worth it", "good idea", "bad idea",
+    ],
 }
 
 # Model routing by specialist
 _MODEL_MAP: dict[str, str] = {
     "coder":      settings.opus_model,    # precision matters
+    "analyst":    settings.opus_model,    # reasoning matters
     "researcher": settings.sonnet_model,
     "creative":   settings.sonnet_model,
     "companion":  settings.sonnet_model,
@@ -49,6 +57,7 @@ _MODEL_MAP: dict[str, str] = {
 
 _MAX_TOKENS_MAP: dict[str, int] = {
     "coder":      settings.opus_max_tokens,
+    "analyst":    settings.opus_max_tokens,
     "researcher": settings.sonnet_max_tokens,
     "creative":   settings.sonnet_max_tokens,
     "companion":  settings.sonnet_max_tokens,

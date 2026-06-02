@@ -21,6 +21,7 @@ from .memory import (
     format_profile_injection,
     get_user_profile,
     search_memories,
+    update_user_profile,
 )
 from .router import build_system_prompt, classify, get_max_tokens, get_model
 
@@ -196,6 +197,17 @@ async def chat(request: ChatRequest):
         metadata={"specialist": specialist},
     )
     return _openai_response(content, model)
+
+
+@app.get("/profile")
+def get_profile():
+    return get_user_profile()
+
+
+@app.patch("/profile")
+def patch_profile(updates: dict):
+    update_user_profile(updates)
+    return get_user_profile()
 
 
 @app.get("/health")
