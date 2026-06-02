@@ -74,8 +74,8 @@ export function TopBar({
         <img
           src="/kitty-mascot.svg"
           alt="Kitty"
-          width={32}
-          height={32}
+          width={44}
+          height={44}
           style={{
             flexShrink: 0,
             display: 'block',

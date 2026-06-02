@@ -23,7 +23,7 @@ export function Rail({ activeView = 'home', onViewChange }: { activeView?: strin
       flexShrink: 0,
     }}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/kitty-mark.svg" alt="Kitty" width={32} height={32} style={{ display: 'block', borderRadius: 8, flexShrink: 0 }} />
+      <img src="/kitty-mascot.svg" alt="Kitty" width={36} height={36} style={{ display: 'block', flexShrink: 0 }} />
 
       <nav style={{
         display: 'flex', flexDirection: 'column', gap: 10,
