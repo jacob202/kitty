@@ -2,6 +2,7 @@
 import { Chat, STREAMING_LABEL } from '@/lib/types'
 import type { GatewayBrief, GatewayHeadline, GatewaySearchSnapshot } from '@/lib/gateway'
 import { CronPanel } from './CronPanel'
+import { sectionLabel } from '@/lib/ui'
 
 interface Props {
   chats: Chat[]
@@ -32,8 +33,7 @@ export function RightPanel({
       width: 'var(--rightbar)',
       borderLeft: '1px solid var(--border)',
       overflowY: 'auto',
-      background: 'rgba(14, 18, 26, 0.82)',
-      backdropFilter: 'blur(12px)',
+      background: 'var(--surface)',
       flexShrink: 0,
       display: 'flex',
       flexDirection: 'column',
@@ -47,66 +47,59 @@ export function RightPanel({
         justifyContent: 'space-between',
         flexShrink: 0,
       }}>
+        <span style={{ ...sectionLabel, letterSpacing: '0.16em' }}>today</span>
         <span style={{
           fontFamily: 'var(--font-mono)',
           fontSize: 10,
-          fontWeight: 700,
-          color: 'var(--text-ghost)',
-          letterSpacing: '0.16em',
-          textTransform: 'uppercase' as const,
-        }}>today</span>
-        <span style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10,
-          color: 'var(--text-ghost)',
+          color: 'var(--text-muted)',
         }}>{dateStr}</span>
       </div>
 
       {/* Content */}
       <div style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}>
 
-{/* Quick stats strip */}
-<div style={{
-display: 'grid',
-gridTemplateColumns: '1fr 1fr',
-gap: 8,
-padding: '0 16px 12px',
-borderBottom: '1px solid var(--border)',
-marginBottom: 12,
-}}>
-<Stat label="Sessions" value={String(chats.length)} accent="var(--purple)" />
-<Stat label="Messages" value={String(msgCount)} accent="var(--teal)" />
-</div>
+        {/* Quick stats strip */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 8,
+          padding: '0 16px 12px',
+          borderBottom: '1px solid var(--border)',
+          marginBottom: 12,
+        }}>
+          <Stat label="Sessions" value={String(chats.length)} />
+          <Stat label="Messages" value={String(msgCount)} />
+        </div>
 
-{/* Cron schedules */}
-<CronPanel />
+        {/* Cron schedules */}
+        <CronPanel />
 
-{/* Time */}
-        <PanelRow accent="var(--mint)" label="Time">
+        {/* Time */}
+        <PanelRow label="Time">
           <span style={valueStyle}>{timeStr}</span>
           <span style={subStyle}>{new Date().toLocaleDateString([], { weekday: 'long' })}</span>
         </PanelRow>
 
         {/* Active model */}
         {activeModelName && (
-          <PanelRow accent="var(--yellow)" label="Model">
+          <PanelRow label="Model">
             <span style={valueStyle}>{activeModelName}</span>
           </PanelRow>
         )}
 
         {/* Kitty status */}
-        <PanelRow accent={isStreaming ? 'var(--purple)' : 'var(--mint)'} label="Kitty">
+        <PanelRow label="Kitty">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{
               width: 7,
               height: 7,
               borderRadius: '50%',
-              background: isStreaming ? 'var(--purple)' : 'var(--mint)',
+              background: isStreaming ? 'var(--primary)' : 'var(--mint)',
               flexShrink: 0,
               display: 'inline-block',
               boxShadow: isStreaming
-                ? '0 0 8px rgba(160,90,255,0.6)'
-                : '0 0 8px rgba(115,217,159,0.5)',
+                ? '0 0 8px rgba(224,122,95,0.5)'
+                : '0 0 8px rgba(115,217,159,0.4)',
             }} />
             <div>
               <div style={valueStyle}>{isStreaming ? STREAMING_LABEL : 'online'}</div>
@@ -117,7 +110,7 @@ marginBottom: 12,
 
         {/* Brief */}
         {brief && (
-          <PanelRow accent="var(--mint)" label="Brief">
+          <PanelRow label="Brief">
             <span style={valueStyle}>
               {brief.intention || (typeof brief.headlines[0] === 'string' ? brief.headlines[0] : (brief.headlines[0] as GatewayHeadline | undefined)?.title) || 'Live brief connected.'}
             </span>
@@ -126,7 +119,7 @@ marginBottom: 12,
 
         {/* Active context */}
         {activeChat && activeChat.messages.length > 0 && (
-          <PanelRow accent="var(--indigo)" label="Context">
+          <PanelRow label="Context">
             <span style={valueStyle}>{activeChat.title}</span>
             <span style={subStyle}>{activeChat.messages.length} messages</span>
           </PanelRow>
@@ -134,7 +127,7 @@ marginBottom: 12,
 
         {/* Last AI reply */}
         {lastAi && (
-          <PanelRow accent="var(--pink-blue)" label="Last reply">
+          <PanelRow label="Last reply">
             <span style={{ ...valueStyle, fontFamily: 'var(--font-ui)', fontWeight: 400, fontSize: 12, lineHeight: 1.5 }}>
               {lastAi.content.replace(/```[\s\S]*?```/g, '[code]').slice(0, 100)}
               {lastAi.content.length > 100 ? '…' : ''}
@@ -144,14 +137,14 @@ marginBottom: 12,
 
         {/* Search error */}
         {searchGatewayError && !search && (
-          <PanelRow accent="var(--warning)" label="Search">
+          <PanelRow label="Search">
             <span style={{ ...subStyle, color: 'var(--warning)' }}>unavailable</span>
           </PanelRow>
         )}
 
         {/* Gateway search results */}
         {search && (
-          <PanelRow accent="var(--primary)" label={`Search · ${search.query || 'live'}`}>
+          <PanelRow label={`Search · ${search.query || 'live'}`}>
             {search.counts.memories + search.counts.knowledge + search.counts.journal + search.counts.todos > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
                 {([
@@ -163,7 +156,7 @@ marginBottom: 12,
                   .filter(([, v]) => Boolean(v))
                   .map(([label, v]) => (
                     <div key={label}>
-                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-ghost)', letterSpacing: '0.12em', textTransform: 'uppercase' as const }}>{label}</div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.12em', textTransform: 'uppercase' as const }}>{label}</div>
                       <div style={valueStyle}>{v}</div>
                     </div>
                   ))}
@@ -178,59 +171,6 @@ marginBottom: 12,
   )
 }
 
-function Stat({ label, value, accent }: { label: string; value: string; accent: string }) {
-  return (
-    <div style={{
-      background: 'var(--surface-low)',
-      border: '1px solid var(--border)',
-      borderRadius: 8,
-      padding: '10px 12px',
-    }}>
-      <div style={{
-        fontFamily: 'var(--font-mono)',
-        fontSize: 9,
-        color: 'var(--text-ghost)',
-        letterSpacing: '0.14em',
-        textTransform: 'uppercase' as const,
-        marginBottom: 4,
-      }}>{label}</div>
-      <div style={{
-        fontFamily: 'var(--font-mono)',
-        fontSize: 20,
-        fontWeight: 700,
-        color: accent,
-        lineHeight: 1,
-      }}>{value}</div>
-    </div>
-  )
-}
-
-function PanelRow({ accent, label, children }: {
-  accent: string
-  label: string
-  children: React.ReactNode
-}) {
-  return (
-    <div style={{
-      padding: '10px 16px 10px 14px',
-      borderLeft: `2px solid ${accent}`,
-      marginLeft: 16,
-      marginBottom: 10,
-    }}>
-      <div style={{
-        fontFamily: 'var(--font-mono)',
-        fontSize: 9,
-        fontWeight: 700,
-        color: 'var(--text-ghost)',
-        letterSpacing: '0.16em',
-        textTransform: 'uppercase' as const,
-        marginBottom: 4,
-      }}>{label}</div>
-      {children}
-    </div>
-  )
-}
-
 const valueStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 12,
@@ -242,7 +182,51 @@ const valueStyle: React.CSSProperties = {
 const subStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-ghost)',
+  color: 'var(--text-muted)',
   display: 'block',
   marginTop: 2,
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{
+      background: 'var(--surface-low)',
+      border: '1px solid var(--border)',
+      borderRadius: 8,
+      padding: '10px 12px',
+    }}>
+      <div style={{
+        fontFamily: 'var(--font-mono)',
+        fontSize: 9,
+        color: 'var(--text-muted)',
+        letterSpacing: '0.14em',
+        textTransform: 'uppercase' as const,
+        marginBottom: 4,
+      }}>{label}</div>
+      <div style={{
+        fontFamily: 'var(--font-mono)',
+        fontSize: 20,
+        fontWeight: 700,
+        color: 'var(--text)',
+        lineHeight: 1,
+      }}>{value}</div>
+    </div>
+  )
+}
+
+function PanelRow({ label, children }: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div style={{
+      padding: '10px 16px 10px 14px',
+      borderLeft: '2px solid var(--border-dim)',
+      marginLeft: 16,
+      marginBottom: 10,
+    }}>
+      <div style={{ ...sectionLabel, marginBottom: 4 }}>{label}</div>
+      {children}
+    </div>
+  )
 }

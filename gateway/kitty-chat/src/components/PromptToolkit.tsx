@@ -1,5 +1,6 @@
 'use client'
 import type { CSSProperties } from 'react'
+import { card, cardHeader, cardTitle, cardMeta, itemCard, emptyState, sectionLabel } from '@/lib/ui'
 
 interface PromptTemplate {
   id: string | number
@@ -79,38 +80,10 @@ export function PromptToolkit({ templates, onSelect, title = 'Prompt Toolkit' }:
   )
 }
 
-const containerStyle: CSSProperties = {
-  background: 'var(--surface-low)',
-  border: '1px solid var(--border)',
-  borderRadius: 10,
-  padding: '16px',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 12,
-}
-
-const headerStyle: CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  paddingBottom: 8,
-  borderBottom: '1px solid var(--border-dim)',
-}
-
-const titleStyle: CSSProperties = {
-  fontFamily: 'var(--font-ui)',
-  fontSize: 16,
-  fontWeight: 600,
-  color: 'var(--text)',
-  marginBottom: 4,
-}
-
-const countStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  color: 'var(--text-muted)',
-  letterSpacing: '0.05em',
-}
+const containerStyle: CSSProperties = { ...card, display: 'flex', flexDirection: 'column', gap: 12 }
+const headerStyle: CSSProperties = cardHeader
+const titleStyle: CSSProperties = cardTitle
+const countStyle: CSSProperties = cardMeta
 
 const bodyStyle: CSSProperties = {
   display: 'flex',
@@ -120,16 +93,7 @@ const bodyStyle: CSSProperties = {
 
 const categoryGroupStyle: CSSProperties = {}
 
-const categoryHeaderStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  fontWeight: 700,
-  color: 'var(--text-muted)',
-  letterSpacing: '0.1em',
-  textTransform: 'uppercase',
-  marginBottom: 8,
-  marginTop: 4,
-}
+const categoryHeaderStyle: CSSProperties = { ...sectionLabel, marginBottom: 8, marginTop: 4 }
 
 const templateListStyle: CSSProperties = {
   display: 'grid',
@@ -137,17 +101,7 @@ const templateListStyle: CSSProperties = {
   gap: 8,
 }
 
-const templateCardStyle: CSSProperties = {
-  background: 'var(--panel)',
-  border: '1px solid var(--border)',
-  borderRadius: 8,
-  padding: '12px',
-  cursor: 'pointer',
-  transition: 'all 0.2s ease',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 6,
-}
+const templateCardStyle: CSSProperties = { ...itemCard, padding: '12px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 6 }
 
 const templateHeaderStyle: CSSProperties = {
   display: 'flex',
@@ -178,11 +132,4 @@ const templatePreviewStyle: CSSProperties = {
   overflow: 'hidden',
 }
 
-const emptyStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 12,
-  color: 'var(--text-faint)',
-  textAlign: 'center',
-  padding: '24px 0',
-  fontStyle: 'italic',
-}
+const emptyStyle: CSSProperties = emptyState
