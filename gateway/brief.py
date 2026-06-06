@@ -6,9 +6,24 @@ except ImportError:  # optional dependency — TTS/brief features degrade gracef
     feedparser = None  # type: ignore[assignment]
 import asyncio
 import logging
+import os
 import threading
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# Optional: trafilatura pulls clean article body text from a URL so the brief
+# can be more than headline-only. Opt-in via BRIEF_ENRICH_ARTICLES=1 because it
+# adds 2–4s of HTTP at brief refresh time.
+try:
+    import trafilatura
+
+    HAS_TRAFILATURA = True
+except ImportError:  # pragma: no cover - optional dependency
+    HAS_TRAFILATURA = False
+
+_ENRICH_ARTICLES = os.environ.get("BRIEF_ENRICH_ARTICLES", "0") == "1"
+_BODY_FETCH_TIMEOUT_SECONDS = 4.0
+_BODY_MAX_LEN = 800
 
 # Optional: tenacity gives the feed fetcher a tiny retry on transient
 # connection/timeout errors. If not installed, _retry_transient is a no-op.
@@ -81,8 +96,38 @@ def _fetch_single_feed(category: str, url: str, limit: int) -> List[NewsHeadline
     return headlines
 
 
+def _extract_article_body(url: str) -> str:
+    """Fetch and clean an article body via trafilatura. Returns "" on any failure."""
+    if not HAS_TRAFILATURA:
+        return ""
+    try:
+        resp = requests.get(url, timeout=_BODY_FETCH_TIMEOUT_SECONDS, headers=_RSS_HEADERS)
+        resp.raise_for_status()
+        text = trafilatura.extract(resp.text, favor_recall=False) or ""
+        return text.strip()[:_BODY_MAX_LEN]
+    except Exception as e:  # pragma: no cover - network paths
+        logger.debug("trafilatura extract failed for %s: %s", url, e)
+        return ""
+
+
+def _enrich_with_bodies(headlines: List[NewsHeadline]) -> List[NewsHeadline]:
+    if not _ENRICH_ARTICLES or not HAS_TRAFILATURA or not headlines:
+        return headlines
+    with ThreadPoolExecutor(max_workers=min(len(headlines), 6)) as pool:
+        future_to_headline = {pool.submit(_extract_article_body, h.url): h for h in headlines}
+        for fut in as_completed(future_to_headline):
+            headline = future_to_headline[fut]
+            try:
+                body = fut.result(timeout=_BODY_FETCH_TIMEOUT_SECONDS + 1)
+                if body:
+                    headline.body = body
+            except Exception:
+                pass
+    return headlines
+
+
 def fetch_news(limit_per_feed: int = 3) -> List[NewsHeadline]:
-    """Fetch headlines from all feeds in parallel."""
+    """Fetch headlines from all feeds in parallel, optionally enriched with article bodies."""
     all_headlines = []
     with ThreadPoolExecutor(max_workers=len(DEFAULT_FEEDS)) as pool:
         futures = {
@@ -91,7 +136,7 @@ def fetch_news(limit_per_feed: int = 3) -> List[NewsHeadline]:
         }
         for future in as_completed(futures):
             all_headlines.extend(future.result())
-    return all_headlines
+    return _enrich_with_bodies(all_headlines)
 
 
 def get_tasks_summary() -> str:

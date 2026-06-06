@@ -9,6 +9,7 @@ class NewsHeadline(BaseModel):
     title: str
     url: str
     snippet: str = ""
+    body: str = ""  # optional clean article text (trafilatura extract)
 
 
 class BriefItem(BaseModel):
