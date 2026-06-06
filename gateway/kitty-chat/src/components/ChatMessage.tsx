@@ -1,7 +1,8 @@
 'use client'
-import type { CSSProperties } from 'react'
+import { isValidElement, useRef, useState, type ReactNode, type CSSProperties } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { Copy, Check } from 'lucide-react'
 import { Message, STREAMING_LABEL } from '@/lib/types'
 import { MoodAvatar } from './MoodAvatar'
 import { inferMood } from '@/lib/mood'
@@ -125,7 +126,7 @@ function MessageContent({ content }: { content: string }) {
           ),
           th: ({ children }) => <th style={thStyle}>{children}</th>,
           td: ({ children }) => <td style={tdStyle}>{children}</td>,
-          pre: ({ children }) => <pre style={preStyle}>{children}</pre>,
+          pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
           code: ({ className, children, ...props }) => {
             const isBlock = typeof className === 'string' && className.startsWith('language-')
             if (isBlock) {
@@ -137,6 +138,44 @@ function MessageContent({ content }: { content: string }) {
       >
         {content}
       </ReactMarkdown>
+    </div>
+  )
+}
+
+function CodeBlock({ children }: { children: ReactNode }) {
+  const [copied, setCopied] = useState(false)
+  const preRef = useRef<HTMLPreElement>(null)
+
+  // The remark-gfm AST renders <pre><code className="language-xxx">…</code></pre>;
+  // sniff the language off the first child to label the block.
+  let lang = ''
+  if (isValidElement<{ className?: string }>(children)) {
+    const cls = children.props.className ?? ''
+    const m = cls.match(/language-(\w+)/)
+    if (m) lang = m[1]
+  }
+
+  const copy = () => {
+    const text = preRef.current?.innerText ?? ''
+    if (!text) return
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1500)
+    })
+  }
+
+  return (
+    <div style={codeBoxStyle}>
+      <div style={codeBoxHeaderStyle}>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
+          {lang || 'code'}
+        </span>
+        <button onClick={copy} style={copyBtnStyle} title="Copy">
+          {copied ? <Check size={11} /> : <Copy size={11} />}
+          <span>{copied ? 'copied' : 'copy'}</span>
+        </button>
+      </div>
+      <pre ref={preRef} style={preStyle}>{children}</pre>
     </div>
   )
 }
@@ -208,12 +247,38 @@ const tdStyle: CSSProperties = {
   borderTop: '1px solid var(--border-dim)',
   color: 'var(--text-dim)',
 }
-const preStyle: CSSProperties = {
+const codeBoxStyle: CSSProperties = {
   margin: '8px 0 12px',
-  padding: '12px 14px',
   background: 'var(--surface-low)',
   border: '1px solid var(--border)',
   borderRadius: 8,
+  overflow: 'hidden',
+}
+const codeBoxHeaderStyle: CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  padding: '4px 10px',
+  background: 'var(--surface-mid)',
+  borderBottom: '1px solid var(--border)',
+}
+const copyBtnStyle: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 4,
+  background: 'transparent',
+  border: 'none',
+  padding: '2px 4px',
+  color: 'var(--text-muted)',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  cursor: 'pointer',
+  borderRadius: 4,
+  transition: 'color 0.15s ease',
+}
+const preStyle: CSSProperties = {
+  margin: 0,
+  padding: '12px 14px',
   overflowX: 'auto',
   fontFamily: 'var(--font-mono)',
   fontSize: 13,
