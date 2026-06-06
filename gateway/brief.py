@@ -55,7 +55,9 @@ DEFAULT_FEEDS = {
     "regina": "https://www.cbc.ca/cmlink/rss-canada-saskatchewan",
     "audiophile": "https://www.stereophile.com/rss.xml",
     "ai_research": "https://arxiv.org/rss/cs.AI",
-    "ai_news": "https://www.theverge.com/ai-artificial-intelligence/rss/index.xml",
+    # The Verge retired their AI subfeed; VentureBeat's AI category is a
+    # solid replacement and is still updated daily.
+    "ai_news": "https://venturebeat.com/category/ai/feed/",
     "high_signal": "https://news.ycombinator.com/rss",
     "world": "https://feeds.bbci.co.uk/news/world/rss.xml",
 }
