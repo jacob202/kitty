@@ -2,7 +2,6 @@
 from __future__ import annotations
 import os
 import logging
-from functools import lru_cache
 from typing import Optional
 
 logger = logging.getLogger("kitty.memory")
@@ -10,6 +9,24 @@ logger = logging.getLogger("kitty.memory")
 from gateway.paths import DATA_DIR
 MEM0_DATA_DIR = DATA_DIR / "mem0"
 USER_ID = "jacob"
+
+# Soft-import mem0 once at module load. If missing (or init fails — e.g. the
+# embedder host is down), we cache that fact and turn every public function
+# into a quiet no-op instead of warning on every call.
+try:
+    from mem0 import Memory as _Mem0Memory
+
+    _MEM0_IMPORT_OK = True
+except ImportError:
+    _Mem0Memory = None  # type: ignore[assignment]
+    _MEM0_IMPORT_OK = False
+    logger.info(
+        "mem0ai not installed — memory features disabled. "
+        "Run `pip install -r requirements.txt` to enable."
+    )
+
+_MEMORY_INSTANCE = None
+_MEMORY_INIT_FAILED = False
 
 
 def _build_mem0_config() -> dict:
@@ -41,19 +58,32 @@ def _build_mem0_config() -> dict:
     }
 
 
-@lru_cache(maxsize=1)
 def _get_memory():
-    """Lazy-init Mem0 — only loaded when first needed."""
-    from mem0 import Memory
-    MEM0_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    config = _build_mem0_config()
-    return Memory.from_config(config)
+    """Lazy-init Mem0. Caches both success and failure so we don't retry-and-warn forever."""
+    global _MEMORY_INSTANCE, _MEMORY_INIT_FAILED
+    if not _MEM0_IMPORT_OK or _MEMORY_INIT_FAILED:
+        return None
+    if _MEMORY_INSTANCE is not None:
+        return _MEMORY_INSTANCE
+    try:
+        MEM0_DATA_DIR.mkdir(parents=True, exist_ok=True)
+        config = _build_mem0_config()
+        _MEMORY_INSTANCE = _Mem0Memory.from_config(config)
+        return _MEMORY_INSTANCE
+    except Exception as e:
+        _MEMORY_INIT_FAILED = True
+        logger.warning(
+            "mem0 init failed (memory features disabled until restart): %s", e
+        )
+        return None
 
 
 def add_memory(text: str, namespace: str = "facts", metadata: Optional[dict] = None) -> None:
     """Store a memory for Jacob. namespace: facts | patterns"""
+    mem = _get_memory()
+    if mem is None:
+        return
     try:
-        mem = _get_memory()
         meta = {"namespace": namespace, **(metadata or {})}
         mem.add(text, user_id=USER_ID, metadata=meta)
         logger.info("Memory stored [%s]: %s", namespace, text[:80])
@@ -63,8 +93,10 @@ def add_memory(text: str, namespace: str = "facts", metadata: Optional[dict] = N
 
 def search_memory(query: str, limit: int = 5, namespace: Optional[str] = None) -> list[dict]:
     """Search memories relevant to query. Returns list of {memory, score} dicts."""
+    mem = _get_memory()
+    if mem is None:
+        return []
     try:
-        mem = _get_memory()
         results = mem.search(query, filters={"user_id": USER_ID}, limit=limit)
         memories = results.get("results", []) if isinstance(results, dict) else results
         if namespace:
@@ -91,8 +123,10 @@ def get_context_block(query: str, limit: int = 5) -> str:
 
 def list_memories(namespace: Optional[str] = None, limit: int = 50) -> list[dict]:
     """List all stored memories. Optionally filter by namespace."""
+    mem = _get_memory()
+    if mem is None:
+        return []
     try:
-        mem = _get_memory()
         results = mem.get(user_id=USER_ID)
         memories = results.get("results", []) if isinstance(results, dict) else results
         if namespace:
@@ -105,8 +139,10 @@ def list_memories(namespace: Optional[str] = None, limit: int = 50) -> list[dict
 
 def delete_memory(memory_id: str) -> bool:
     """Delete a specific memory by ID."""
+    mem = _get_memory()
+    if mem is None:
+        return False
     try:
-        mem = _get_memory()
         mem.delete(memory_id=memory_id)
         logger.info("Memory deleted: %s", memory_id)
         return True
