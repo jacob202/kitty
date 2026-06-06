@@ -25,6 +25,34 @@ from gateway.paths import LITELLM_BASE, LITELLM_KEY
 from gateway.token_usage_log import log_llm_usage, normalize_usage_payload
 from gateway.llm_utils import retry_with_backoff
 
+# Optional tenacity retry on transient network errors per provider call.
+# 4xx errors (auth, bad model) fall through immediately so the fallback chain
+# can take over.
+try:
+    from tenacity import (
+        retry as _tenacity_retry,
+        stop_after_attempt,
+        wait_exponential,
+        retry_if_exception_type,
+    )
+
+    _retry_post = _tenacity_retry(
+        stop=stop_after_attempt(2),
+        wait=wait_exponential(multiplier=0.3, min=0.3, max=1.5),
+        retry=retry_if_exception_type((requests.ConnectionError, requests.Timeout)),
+        reraise=True,
+    )
+except ImportError:  # pragma: no cover - optional dependency
+
+    def _retry_post(fn):  # type: ignore[misc]
+        return fn
+
+
+@_retry_post
+def _post(*args, **kwargs):
+    """requests.post wrapper with optional tenacity retry on transient errors."""
+    return requests.post(*args, **kwargs)
+
 OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 
 # LiteLLM virtual name (gateway/litellm_config.yaml) — valid toward localhost:8001 only.
@@ -193,7 +221,7 @@ def call_llm(
         if response_format:
             payload["response_format"] = response_format
 
-        resp = requests.post(
+        resp = _post(
             f"{LITELLM_BASE}/v1/chat/completions",
             headers={"Authorization": f"Bearer {LITELLM_KEY}"},
             json=payload,
@@ -331,7 +359,7 @@ def _call_openai_direct(
         payload["response_format"] = response_format
 
     try:
-        resp = requests.post(
+        resp = _post(
             f"{base}/chat/completions", headers=headers, json=payload, timeout=timeout
         )
         resp.raise_for_status()
@@ -384,7 +412,7 @@ def _call_gemini_direct(
         payload["response_format"] = response_format
 
     try:
-        resp = requests.post(
+        resp = _post(
             f"{base}/chat/completions", headers=headers, json=payload, timeout=timeout
         )
         if resp.status_code != 200:
@@ -444,7 +472,7 @@ def _call_openrouter_direct(
         payload["response_format"] = response_format
 
     try:
-        resp = requests.post(
+        resp = _post(
             f"{OPENROUTER_BASE}/chat/completions",
             headers=headers,
             json=payload,
@@ -559,7 +587,7 @@ def _call_agentrouter_direct(
     try:
         url = f"{base}/chat/completions"
         headers = build_headers(primary_ua)
-        resp = requests.post(url, headers=headers, json=payload, timeout=timeout)
+        resp = _post(url, headers=headers, json=payload, timeout=timeout)
 
         if (
             not resp.ok
@@ -570,7 +598,7 @@ def _call_agentrouter_direct(
             logger.warning(
                 "AgentRouter rejected client fingerprint — retrying once with alternate User-Agent"
             )
-            resp = requests.post(
+            resp = _post(
                 url,
                 headers=build_headers(_AGENTROUTER_ALT_USER_AGENT),
                 json=payload,
@@ -637,7 +665,7 @@ def _call_nvidia_direct(
         payload["response_format"] = response_format
 
     try:
-        resp = requests.post(
+        resp = _post(
             f"{base}/chat/completions", headers=headers, json=payload, timeout=timeout
         )
         resp.raise_for_status()
