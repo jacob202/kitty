@@ -1,4 +1,7 @@
 'use client'
+import type { CSSProperties } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { Message, STREAMING_LABEL } from '@/lib/types'
 import { MoodAvatar } from './MoodAvatar'
 import { inferMood } from '@/lib/mood'
@@ -12,7 +15,6 @@ interface Props {
 export function ChatMessage({ message, isStreaming, initials }: Props) {
   const isAI = message.role === 'assistant'
   const mood = isStreaming ? 'thinking' : (message.mood ?? inferMood(message.content, message.role))
-
   const time = message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
   return (
@@ -101,45 +103,40 @@ export function ChatMessage({ message, isStreaming, initials }: Props) {
 }
 
 function MessageContent({ content }: { content: string }) {
-  const parts = content.split(/(```[\s\S]*?```)/g)
   return (
-    <div style={{ fontSize: 15, lineHeight: 1.6, fontFamily: 'var(--font-ui)', color: 'var(--text)', wordBreak: 'break-word' }}>
-      {parts.map((part, i) => {
-        if (part.startsWith('```') && part.endsWith('```')) {
-          const lines = part.slice(3, -3).split('\n')
-          const lang = lines[0].trim()
-          const code = lines.slice(1).join('\n')
-          return (
-            <div key={i} style={{
-              marginTop: 12, marginBottom: 12,
-              background: 'var(--surface-low)',
-              border: '1px solid var(--border)',
-              borderRadius: 8, overflow: 'hidden',
-            }}>
-              {lang && (
-                <div style={{ 
-                  background: 'var(--surface-mid)', borderBottom: '1px solid var(--border)',
-                  padding: '6px 12px', color: 'var(--text-muted)', fontSize: 11, fontFamily: 'var(--font-mono)',
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                }}>
-                  <span>{lang}</span>
-                  <span style={{ fontSize: 10, opacity: 0.5 }}>Copy</span>
-                </div>
-              )}
-              <pre style={{
-                padding: '12px 14px', margin: 0,
-                fontSize: 13, lineHeight: 1.5, color: 'var(--text)',
-                overflowX: 'auto', fontFamily: 'var(--font-mono)',
-              }}>
-                <code>{code}</code>
-              </pre>
-            </div>
-          )
-        }
-        return (
-          <span key={i} style={{ whiteSpace: 'pre-wrap' }}>{part}</span>
-        )
-      })}
+    <div style={bodyStyle}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          p: ({ children }) => <p style={pStyle}>{children}</p>,
+          h1: ({ children }) => <h1 style={h1Style}>{children}</h1>,
+          h2: ({ children }) => <h2 style={h2Style}>{children}</h2>,
+          h3: ({ children }) => <h3 style={h3Style}>{children}</h3>,
+          ul: ({ children }) => <ul style={ulStyle}>{children}</ul>,
+          ol: ({ children }) => <ol style={olStyle}>{children}</ol>,
+          li: ({ children }) => <li style={liStyle}>{children}</li>,
+          a: ({ children, href }) => (
+            <a href={href} target="_blank" rel="noreferrer" style={linkStyle}>{children}</a>
+          ),
+          blockquote: ({ children }) => <blockquote style={quoteStyle}>{children}</blockquote>,
+          hr: () => <hr style={hrStyle} />,
+          table: ({ children }) => (
+            <div style={tableWrapStyle}><table style={tableStyle}>{children}</table></div>
+          ),
+          th: ({ children }) => <th style={thStyle}>{children}</th>,
+          td: ({ children }) => <td style={tdStyle}>{children}</td>,
+          pre: ({ children }) => <pre style={preStyle}>{children}</pre>,
+          code: ({ className, children, ...props }) => {
+            const isBlock = typeof className === 'string' && className.startsWith('language-')
+            if (isBlock) {
+              return <code className={className} style={blockCodeStyle} {...props}>{children}</code>
+            }
+            return <code style={inlineCodeStyle} {...props}>{children}</code>
+          },
+        }}
+      >
+        {content}
+      </ReactMarkdown>
     </div>
   )
 }
@@ -156,4 +153,84 @@ function TypingDots() {
       ))}
     </div>
   )
+}
+
+// --- Markdown component styles ---
+
+const bodyStyle: CSSProperties = {
+  fontFamily: 'var(--font-ui)',
+  fontSize: 15,
+  lineHeight: 1.6,
+  color: 'var(--text)',
+  wordBreak: 'break-word',
+}
+const pStyle: CSSProperties = { margin: '0 0 10px' }
+const h1Style: CSSProperties = { fontSize: 20, fontWeight: 700, margin: '14px 0 8px' }
+const h2Style: CSSProperties = { fontSize: 17, fontWeight: 700, margin: '14px 0 8px' }
+const h3Style: CSSProperties = { fontSize: 15, fontWeight: 700, margin: '12px 0 6px' }
+const ulStyle: CSSProperties = { margin: '0 0 10px', paddingLeft: 22 }
+const olStyle: CSSProperties = { margin: '0 0 10px', paddingLeft: 22 }
+const liStyle: CSSProperties = { margin: '2px 0' }
+const linkStyle: CSSProperties = { color: 'var(--primary)', textDecoration: 'underline', textUnderlineOffset: 2 }
+const quoteStyle: CSSProperties = {
+  margin: '8px 0',
+  padding: '6px 12px',
+  borderLeft: '3px solid var(--border)',
+  color: 'var(--text-dim)',
+  background: 'var(--surface-low)',
+  borderRadius: '0 4px 4px 0',
+}
+const hrStyle: CSSProperties = { border: 0, borderTop: '1px solid var(--border-dim)', margin: '12px 0' }
+const tableWrapStyle: CSSProperties = {
+  margin: '8px 0 12px',
+  overflowX: 'auto',
+  border: '1px solid var(--border)',
+  borderRadius: 6,
+}
+const tableStyle: CSSProperties = {
+  width: '100%',
+  borderCollapse: 'collapse',
+  fontSize: 13,
+}
+const thStyle: CSSProperties = {
+  textAlign: 'left',
+  padding: '6px 10px',
+  background: 'var(--surface-mid)',
+  borderBottom: '1px solid var(--border)',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: '0.03em',
+  color: 'var(--text)',
+}
+const tdStyle: CSSProperties = {
+  padding: '6px 10px',
+  borderTop: '1px solid var(--border-dim)',
+  color: 'var(--text-dim)',
+}
+const preStyle: CSSProperties = {
+  margin: '8px 0 12px',
+  padding: '12px 14px',
+  background: 'var(--surface-low)',
+  border: '1px solid var(--border)',
+  borderRadius: 8,
+  overflowX: 'auto',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 13,
+  lineHeight: 1.5,
+}
+const blockCodeStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 13,
+  color: 'var(--text)',
+  background: 'transparent',
+}
+const inlineCodeStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 12,
+  padding: '1px 6px',
+  borderRadius: 4,
+  background: 'var(--surface-low)',
+  border: '1px solid var(--border-dim)',
+  color: 'var(--primary-bright)',
 }

@@ -9,6 +9,22 @@ import logging
 import threading
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# Optional: tenacity gives the feed fetcher a tiny retry on transient
+# connection/timeout errors. If not installed, _retry_transient is a no-op.
+try:
+    from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
+
+    _retry_transient = retry(
+        stop=stop_after_attempt(2),
+        wait=wait_fixed(0.4),
+        retry=retry_if_exception_type((requests.ConnectionError, requests.Timeout)),
+        reraise=True,
+    )
+except ImportError:  # pragma: no cover - optional dependency
+
+    def _retry_transient(fn):  # type: ignore[misc]
+        return fn
 from datetime import datetime, timezone
 from typing import List, Optional
 from contracts.brief_item import NewsHeadline
@@ -30,22 +46,27 @@ DEFAULT_FEEDS = {
 }
 
 
+_RSS_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "application/rss+xml, application/xml, text/xml, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Cache-Control": "no-cache",
+}
+
+
+@_retry_transient
+def _fetch_feed_response(url: str) -> requests.Response:
+    response = requests.get(url, timeout=FEED_TIMEOUT_SECONDS, headers=_RSS_HEADERS)
+    response.raise_for_status()
+    return response
+
+
 def _fetch_single_feed(category: str, url: str, limit: int) -> List[NewsHeadline]:
     """Fetch headlines from a single RSS feed."""
     headlines = []
     logger.info("Fetching %s news from %s...", category, url)
     try:
-        response = requests.get(
-            url,
-            timeout=FEED_TIMEOUT_SECONDS,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-                "Accept": "application/rss+xml, application/xml, text/xml, */*",
-                "Accept-Language": "en-US,en;q=0.9",
-                "Cache-Control": "no-cache",
-            },
-        )
-        response.raise_for_status()
+        response = _fetch_feed_response(url)
         feed = feedparser.parse(response.content)
         for entry in feed.entries[:limit]:
             headlines.append(
