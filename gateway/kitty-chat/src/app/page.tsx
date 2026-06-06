@@ -1,5 +1,6 @@
 'use client'
 import { startTransition, useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Chat, Message, Model, MODELS, COLOR_CYCLE, ChatColor } from '@/lib/types'
 import { streamChat } from '@/lib/openwebui'
 import { inferMood } from '@/lib/mood'
@@ -14,22 +15,20 @@ import { TaskPanel } from '@/components/TaskPanel'
 import { TodoPanel } from '@/components/TodoPanel'
 import { TerminalStrip } from '@/components/TerminalStrip'
 import {
-  fetchGatewayBrief,
-  fetchGatewayModels,
   fetchGatewaySearch,
-  fetchGatewayTodos,
-  fetchGatewayLoops,
-  fetchGatewayInsights,
-  fetchGatewayPrompts, fetchGatewayWeather,
-  toggleGatewayLoop,
-  dismissGatewayInsight,
-  type GatewayBrief,
   type GatewaySearchSnapshot,
-  type GatewayTodo,
-  type GatewayLoop,
-  type GatewayInsight, type GatewayWeather,
-  type GatewayPromptTemplate,
 } from '@/lib/gateway'
+import {
+  useGatewayBrief,
+  useGatewayModels,
+  useGatewayWeather,
+  useTodos,
+  useLoops,
+  useInsights,
+  usePrompts,
+  useToggleLoop,
+  useDismissInsight,
+} from '@/lib/queries'
 
 let chatCounter = 0
 function newChatId() { return `chat-${++chatCounter}-${Date.now()}` }
@@ -80,34 +79,46 @@ function KittyChatInner() {
   const [activeChatId, setActiveChatId] = useState<string | null>(() => null)
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
-  const [availableModels, setAvailableModels] = useState<Model[]>(MODELS)
   const [activeModel, setActiveModel] = useState<Model>(MODELS[0])
   const [showModelMenu, setShowModelMenu] = useState(false)
   const [tokenCount, setTokenCount] = useState(0)
-  const [brief, setBrief] = useState<GatewayBrief | null>(null)
-  const [todos, setTodos] = useState<GatewayTodo[]>([])
-  const [weather, setWeather] = useState<GatewayWeather | null>(null)
-  const [loops, setLoops] = useState<GatewayLoop[]>([])
-  const [insights, setInsights] = useState<GatewayInsight[]>([])
-  const [promptTemplates, setPromptTemplates] = useState<GatewayPromptTemplate[]>([])
   const [searchSnapshot, setSearchSnapshot] = useState<GatewaySearchSnapshot | null>(null)
-  const [modelGateway, setModelGateway] = useState<{
-    loaded: boolean
-    live: boolean
-    error: string | null
-  }>({ loaded: false, live: true, error: null })
-  const [briefGateway, setBriefGateway] = useState<{
-    loaded: boolean
-    live: boolean
-    error: string | null
-  }>({ loaded: false, live: true, error: null })
   const [searchGateway, setSearchGateway] = useState<{
     live: boolean
     error: string | null
   }>({ live: true, error: null })
-  const [gwReload, setGwReload] = useState(0)
   const [kittyMode, setKittyMode] = useState('default')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+
+  // Dashboard data — all via React Query (auto-retry, refetch on focus, cache).
+  const queryClient = useQueryClient()
+  const modelsQuery = useGatewayModels()
+  const briefQuery = useGatewayBrief()
+  const todosQuery = useTodos()
+  const weatherQuery = useGatewayWeather()
+  const loopsQuery = useLoops()
+  const insightsQuery = useInsights()
+  const promptsQuery = usePrompts()
+  const toggleLoop = useToggleLoop()
+  const dismissInsight = useDismissInsight()
+
+  const availableModels = modelsQuery.data?.models ?? MODELS
+  const brief = briefQuery.data?.brief ?? null
+  const todos = todosQuery.data ?? []
+  const weather = weatherQuery.data?.weather ?? null
+  const loops = loopsQuery.data?.loops ?? []
+  const insights = insightsQuery.data?.insights ?? []
+  const promptTemplates = promptsQuery.data ?? []
+  const modelGateway = {
+    loaded: modelsQuery.isFetched,
+    live: modelsQuery.data?.fromLiveGateway ?? true,
+    error: modelsQuery.data?.error ?? null,
+  }
+  const briefGateway = {
+    loaded: briefQuery.isFetched,
+    live: briefQuery.data?.fromLiveGateway ?? true,
+    error: briefQuery.data?.error ?? null,
+  }
 
   const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -129,71 +140,12 @@ function KittyChatInner() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [activeChat?.messages.length, isStreaming])
 
+  // Sync activeModel with the models list once it loads (or after retry).
   useEffect(() => {
-    let cancelled = false
-
-    void (async () => {
-      const modelsPayload = await fetchGatewayModels()
-      if (cancelled) return
-
-      startTransition(() => {
-        setModelGateway({
-          loaded: true,
-          live: modelsPayload.fromLiveGateway,
-          error: modelsPayload.error,
-        })
-        setAvailableModels(modelsPayload.models)
-        setActiveModel(current =>
-          modelsPayload.models.find(model => model.id === current.id) ?? modelsPayload.models[0] ?? current,
-        )
-      })
-
-      const briefPayload = await fetchGatewayBrief()
-      if (cancelled) return
-      startTransition(() => {
-        setBriefGateway({
-          loaded: true,
-          live: briefPayload.fromLiveGateway,
-          error: briefPayload.error,
-        })
-        setBrief(briefPayload.brief)
-      })
-
-      const todoList = await fetchGatewayTodos()
-      if (cancelled) return
-      startTransition(() => {
-        setTodos(todoList)
-      })
-
-      const weatherPayload = await fetchGatewayWeather()
-      if (cancelled) return
-      startTransition(() => {
-        setWeather(weatherPayload.weather)
-      })
-
-      const loopsPayload = await fetchGatewayLoops()
-      if (cancelled) return
-      startTransition(() => {
-        setLoops(loopsPayload.loops)
-      })
-
-      const insightsPayload = await fetchGatewayInsights()
-      if (cancelled) return
-      startTransition(() => {
-        setInsights(insightsPayload.insights)
-      })
-
-      const promptsPayload = await fetchGatewayPrompts()
-      if (cancelled) return
-      startTransition(() => {
-        setPromptTemplates(promptsPayload)
-      })
-    })()
-
-    return () => {
-      cancelled = true
-    }
-  }, [gwReload])
+    if (!modelsQuery.data) return
+    const models = modelsQuery.data.models
+    setActiveModel(current => models.find(m => m.id === current.id) ?? models[0] ?? current)
+  }, [modelsQuery.data])
 
   useEffect(() => {
     if (!searchQuery) {
@@ -343,10 +295,14 @@ function KittyChatInner() {
   }, [input, isStreaming, activeChat, activeModel, updateChat])
 
   const retryGatewayBootstrap = useCallback(() => {
-    setModelGateway({ loaded: false, live: true, error: null })
-    setBriefGateway({ loaded: false, live: true, error: null })
-    setGwReload(n => n + 1)
-  }, [])
+    queryClient.invalidateQueries({ queryKey: ['models'] })
+    queryClient.invalidateQueries({ queryKey: ['brief'] })
+    queryClient.invalidateQueries({ queryKey: ['weather'] })
+    queryClient.invalidateQueries({ queryKey: ['todos'] })
+    queryClient.invalidateQueries({ queryKey: ['loops'] })
+    queryClient.invalidateQueries({ queryKey: ['insights'] })
+    queryClient.invalidateQueries({ queryKey: ['prompts'] })
+  }, [queryClient])
 
   const handlePrompt = useCallback((text: string) => {
     setInput(text)
@@ -358,18 +314,12 @@ function KittyChatInner() {
   }, [])
 
   const handleLoopToggle = useCallback((loopId: string) => {
-    void (async () => {
-      await toggleGatewayLoop(loopId)
-      setGwReload(n => n + 1)
-    })()
-  }, [])
+    toggleLoop.mutate(loopId)
+  }, [toggleLoop])
 
   const handleInsightDismiss = useCallback((insightId: string) => {
-    void (async () => {
-      await dismissGatewayInsight(insightId)
-      setInsights(prev => prev.filter(i => i.insight_id !== insightId))
-    })()
-  }, [])
+    dismissInsight.mutate(insightId)
+  }, [dismissInsight])
 
   const handleInsightAction = useCallback((_insightId: string, _actionId: string) => {
   }, [])
