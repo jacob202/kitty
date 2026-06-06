@@ -20,7 +20,7 @@ export function ChatMessage({ message, isStreaming, initials }: Props) {
   return (
     <div
       style={{
-        display: 'flex', gap: 16, padding: '16px 24px',
+        display: 'flex', gap: 12, padding: '10px 18px',
         alignItems: 'flex-start',
         borderBottom: '1px solid var(--border-dim)',
         background: isAI ? 'rgba(16, 20, 29, 0.4)' : 'transparent',

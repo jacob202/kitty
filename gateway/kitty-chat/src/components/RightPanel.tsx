@@ -40,7 +40,7 @@ export function RightPanel({
     }}>
       {/* Header */}
       <div style={{
-        padding: '18px 20px 12px',
+        padding: '12px 16px 8px',
         borderBottom: '1px solid var(--border)',
         display: 'flex',
         alignItems: 'center',
@@ -56,16 +56,16 @@ export function RightPanel({
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}>
+      <div style={{ flex: 1, padding: '8px 0', overflowY: 'auto' }}>
 
         {/* Quick stats strip */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
-          gap: 8,
-          padding: '0 16px 12px',
+          gap: 6,
+          padding: '0 12px 8px',
           borderBottom: '1px solid var(--border)',
-          marginBottom: 12,
+          marginBottom: 8,
         }}>
           <Stat label="Sessions" value={String(chats.length)} />
           <Stat label="Messages" value={String(msgCount)} />
@@ -192,8 +192,8 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div style={{
       background: 'var(--surface-low)',
       border: '1px solid var(--border)',
-      borderRadius: 8,
-      padding: '10px 12px',
+      borderRadius: 6,
+      padding: '6px 10px',
     }}>
       <div style={{
         fontFamily: 'var(--font-mono)',
@@ -201,11 +201,11 @@ function Stat({ label, value }: { label: string; value: string }) {
         color: 'var(--text-muted)',
         letterSpacing: '0.14em',
         textTransform: 'uppercase' as const,
-        marginBottom: 4,
+        marginBottom: 2,
       }}>{label}</div>
       <div style={{
         fontFamily: 'var(--font-mono)',
-        fontSize: 20,
+        fontSize: 16,
         fontWeight: 700,
         color: 'var(--text)',
         lineHeight: 1,
@@ -220,12 +220,12 @@ function PanelRow({ label, children }: {
 }) {
   return (
     <div style={{
-      padding: '10px 16px 10px 14px',
+      padding: '6px 12px 6px 10px',
       borderLeft: '2px solid var(--border-dim)',
-      marginLeft: 16,
-      marginBottom: 10,
+      marginLeft: 12,
+      marginBottom: 6,
     }}>
-      <div style={{ ...sectionLabel, marginBottom: 4 }}>{label}</div>
+      <div style={{ ...sectionLabel, marginBottom: 2 }}>{label}</div>
       {children}
     </div>
   )

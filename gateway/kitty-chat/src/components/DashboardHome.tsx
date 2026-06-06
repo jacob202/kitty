@@ -196,13 +196,13 @@ const greetingBarStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
-  padding: '24px 32px',
+  padding: '14px 20px',
   borderBottom: '1px solid var(--border)',
 }
 
 const greetingTitleStyle: CSSProperties = {
   fontFamily: 'var(--font-ui)',
-  fontSize: 28,
+  fontSize: 22,
   fontWeight: 600,
   color: 'var(--text)',
   lineHeight: 1.15,
@@ -210,13 +210,13 @@ const greetingTitleStyle: CSSProperties = {
 
 const greetingDateStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
-  fontSize: 12,
+  fontSize: 11,
   color: 'var(--text-muted)',
-  marginTop: 6,
+  marginTop: 4,
 }
 
 const sectionPadStyle: CSSProperties = {
-  padding: '24px 32px',
+  padding: '14px 20px',
 }
 
 const stripSkeletonStyle: CSSProperties = {
@@ -227,9 +227,9 @@ const stripSkeletonStyle: CSSProperties = {
 
 const gridStyle: CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(2, 1fr)',
-  gap: 16,
-  marginTop: 16,
+  gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+  gap: 12,
+  marginTop: 12,
   alignContent: 'start',
 }
 
