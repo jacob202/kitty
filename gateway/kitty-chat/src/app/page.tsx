@@ -14,6 +14,7 @@ import { RightPanel } from '@/components/RightPanel'
 import { TaskPanel } from '@/components/TaskPanel'
 import { TodoPanel } from '@/components/TodoPanel'
 import { TerminalStrip } from '@/components/TerminalStrip'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import {
   fetchGatewaySearch,
   type GatewaySearchSnapshot,
@@ -428,6 +429,7 @@ function KittyChatInner() {
         )}
 
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <ErrorBoundary name={activeView}>
           {activeView === 'tasks' ? (
             <div style={{
               flex: 1,
@@ -510,6 +512,7 @@ function KittyChatInner() {
               <span style={{ fontSize: 12, color: 'var(--text-ghost)' }}>coming soon</span>
             </div>
           )}
+          </ErrorBoundary>
         </div>
 
         {(activeView === 'home' || activeView === 'chat') && (
@@ -528,15 +531,17 @@ function KittyChatInner() {
         )}
       </main>
 
-      <RightPanel
-        chats={chats}
-        activeChat={activeChat}
-        isStreaming={isStreaming}
-        brief={brief}
-        search={searchSnapshot}
-        searchGatewayError={searchGateway.live ? null : searchGateway.error}
-        activeModelName={activeModel.name}
-      />
+      <ErrorBoundary name="RightPanel">
+        <RightPanel
+          chats={chats}
+          activeChat={activeChat}
+          isStreaming={isStreaming}
+          brief={brief}
+          search={searchSnapshot}
+          searchGatewayError={searchGateway.live ? null : searchGateway.error}
+          activeModelName={activeModel.name}
+        />
+      </ErrorBoundary>
     </div>
   )
 }
