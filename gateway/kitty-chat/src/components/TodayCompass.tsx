@@ -1,6 +1,7 @@
 'use client'
 import type { CSSProperties } from 'react'
 import { card, cardHeader, cardTitle, cardMeta, itemCard, emptyState } from '@/lib/ui'
+import { Skeleton } from './Skeleton'
 
 export interface PriorityItem {
   id: string | number
@@ -15,6 +16,7 @@ interface Props {
   items: PriorityItem[]
   title?: string
   compact?: boolean
+  isLoading?: boolean
   onItemSelect?: (item: PriorityItem) => void
 }
 
@@ -26,11 +28,12 @@ function priorityColor(priority: PriorityItem['priority']): string {
   }
 }
 
-export function TodayCompass({ 
-  items, 
-  title = "Today's Compass", 
+export function TodayCompass({
+  items,
+  title = "Today's Compass",
   compact = false,
-  onItemSelect 
+  isLoading = false,
+  onItemSelect,
 }: Props) {
   const sortedItems = [...items].sort((a, b) => {
     const order = { high: 0, medium: 1, low: 2 }
@@ -100,7 +103,15 @@ export function TodayCompass({
         ))}
       </div>
       {items.length === 0 && (
-        <div style={emptyStyle}>No priority items for today</div>
+        isLoading ? (
+          <div style={{ display: 'grid', gap: 10 }}>
+            <Skeleton height={56} />
+            <Skeleton height={56} />
+            <Skeleton height={56} />
+          </div>
+        ) : (
+          <div style={emptyStyle}>No priority items for today</div>
+        )
       )}
     </div>
   )

@@ -2,11 +2,13 @@
 import type { CSSProperties } from 'react'
 import type { GatewayLoop, LoopStatus } from '@/lib/gateway'
 import { card, cardHeader, cardTitle, cardMeta, itemCard, emptyState } from '@/lib/ui'
+import { Skeleton } from './Skeleton'
 
 interface Props {
   loops: GatewayLoop[]
   onToggle?: (loopId: string) => void
   title?: string
+  isLoading?: boolean
 }
 
 function statusColor(status: LoopStatus): string {
@@ -27,7 +29,7 @@ function statusLabel(status: LoopStatus): string {
   }
 }
 
-export function LoopWatch({ loops, onToggle, title = 'Loop Watch' }: Props) {
+export function LoopWatch({ loops, onToggle, title = 'Loop Watch', isLoading = false }: Props) {
   const sorted = [...loops].sort((a, b) => {
     const statusOrder = { running: 0, paused: 1, error: 2, idle: 3 }
     return (statusOrder[a.status] ?? 4) - (statusOrder[b.status] ?? 4)
@@ -90,7 +92,14 @@ export function LoopWatch({ loops, onToggle, title = 'Loop Watch' }: Props) {
           </div>
         ))}
         {loops.length === 0 && (
-          <div style={emptyStyle}>No loops configured</div>
+          isLoading ? (
+            <div style={{ display: 'grid', gap: 8 }}>
+              <Skeleton height={48} />
+              <Skeleton height={48} />
+            </div>
+          ) : (
+            <div style={emptyStyle}>No loops configured</div>
+          )
         )}
       </div>
     </div>

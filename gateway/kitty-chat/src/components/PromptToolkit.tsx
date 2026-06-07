@@ -1,6 +1,7 @@
 'use client'
 import type { CSSProperties } from 'react'
 import { card, cardHeader, cardTitle, cardMeta, itemCard, emptyState, sectionLabel } from '@/lib/ui'
+import { Skeleton } from './Skeleton'
 
 interface PromptTemplate {
   id: string | number
@@ -14,9 +15,10 @@ interface Props {
   templates: PromptTemplate[]
   onSelect?: (template: PromptTemplate) => void
   title?: string
+  isLoading?: boolean
 }
 
-export function PromptToolkit({ templates, onSelect, title = 'Prompt Toolkit' }: Props) {
+export function PromptToolkit({ templates, onSelect, title = 'Prompt Toolkit', isLoading = false }: Props) {
   const grouped = templates.reduce((acc, tpl) => {
     const cat = tpl.category || 'General'
     if (!acc[cat]) acc[cat] = []
@@ -73,7 +75,14 @@ export function PromptToolkit({ templates, onSelect, title = 'Prompt Toolkit' }:
           </div>
         ))}
         {templates.length === 0 && (
-          <div style={emptyStyle}>No prompt templates available</div>
+          isLoading ? (
+            <div style={{ display: 'grid', gap: 8 }}>
+              <Skeleton height={64} />
+              <Skeleton height={64} />
+            </div>
+          ) : (
+            <div style={emptyStyle}>No prompt templates available</div>
+          )
         )}
       </div>
     </div>

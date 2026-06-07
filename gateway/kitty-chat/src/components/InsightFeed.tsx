@@ -2,12 +2,14 @@
 import type { CSSProperties } from 'react'
 import type { GatewayInsight, InsightKind } from '@/lib/gateway'
 import { card, cardHeader, cardTitle, cardMeta, itemCard, emptyState } from '@/lib/ui'
+import { Skeleton } from './Skeleton'
 
 interface Props {
   insights: GatewayInsight[]
   onDismiss?: (insightId: string) => void
   onAction?: (insightId: string, actionId: string) => void
   title?: string
+  isLoading?: boolean
 }
 
 function kindColor(kind: InsightKind): string {
@@ -36,7 +38,7 @@ function timeAgo(ts: number): string {
   return `${Math.floor(diff / 86400)}d ago`
 }
 
-export function InsightFeed({ insights, onDismiss, onAction, title = 'Insights' }: Props) {
+export function InsightFeed({ insights, onDismiss, onAction, title = 'Insights', isLoading = false }: Props) {
   const sorted = [...insights].sort((a, b) => b.created_at - a.created_at)
 
   return (
@@ -96,7 +98,14 @@ export function InsightFeed({ insights, onDismiss, onAction, title = 'Insights' 
           </div>
         ))}
         {insights.length === 0 && (
-          <div style={emptyStyle}>No new insights</div>
+          isLoading ? (
+            <div style={{ display: 'grid', gap: 8 }}>
+              <Skeleton height={56} />
+              <Skeleton height={56} />
+            </div>
+          ) : (
+            <div style={emptyStyle}>No new insights</div>
+          )
         )}
       </div>
     </div>

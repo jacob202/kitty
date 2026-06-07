@@ -102,65 +102,61 @@ export function DashboardHome({
         )}
       </section>
 
-      {loading ? (
-        <section role="status" aria-label="loading dashboard" style={sectionPadStyle}>
-          <div style={{ ...stripSkeletonStyle, height: 72, opacity: 0.35 }} />
-          <div style={{ ...stripSkeletonStyle, height: 240, opacity: 0.25, marginTop: 16 }} />
-        </section>
-      ) : (
-        <section style={sectionPadStyle}>
-          <BriefStrip
-            intention={brief?.intention ?? null}
-            weather={weatherText}
-            overdueCount={openTodos.length}
-            focusText={focus?.content ?? null}
-          />
+      <section style={sectionPadStyle}>
+        <BriefStrip
+          intention={brief?.intention ?? null}
+          weather={weatherText}
+          overdueCount={openTodos.length}
+          focusText={focus?.content ?? null}
+        />
 
-          {brief?.summary_bullets && brief.summary_bullets.length > 0 && (
-            <div style={summaryCardStyle}>
-              <div style={summaryLabelStyle}>WHAT&apos;S INTERESTING TODAY</div>
-              <ul style={summaryListStyle}>
-                {brief.summary_bullets.map((line, i) => (
-                  <li key={i} style={summaryLineStyle}>{line}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <div style={gridStyle}>
-            <section style={sectionStyle}>
-              <TodayCompass
-                items={compassItems}
-                title="Today's Compass"
-                onItemSelect={item => {
-                  if (!item.onSelect) onPromptSelect?.(item.title)
-                }}
-              />
-            </section>
-
-            <section style={sectionStyle}>
-              <LoopWatch loops={loops} onToggle={onLoopToggle} title="Loop Watch" />
-            </section>
-
-            <section style={sectionStyle}>
-              <PromptToolkit
-                templates={promptTemplates}
-                onSelect={tpl => onPromptSelect?.(tpl.content)}
-                title="Prompt Toolkit"
-              />
-            </section>
-
-            <section style={sectionStyle}>
-              <InsightFeed
-                insights={insights}
-                onDismiss={onInsightDismiss}
-                onAction={onInsightAction}
-                title="Insights"
-              />
-            </section>
+        {brief?.summary_bullets && brief.summary_bullets.length > 0 && (
+          <div style={summaryCardStyle}>
+            <div style={summaryLabelStyle}>WHAT&apos;S INTERESTING TODAY</div>
+            <ul style={summaryListStyle}>
+              {brief.summary_bullets.map((line, i) => (
+                <li key={i} style={summaryLineStyle}>{line}</li>
+              ))}
+            </ul>
           </div>
-        </section>
-      )}
+        )}
+
+        <div style={gridStyle}>
+          <section style={sectionStyle}>
+            <TodayCompass
+              items={compassItems}
+              title="Today's Compass"
+              isLoading={loading}
+              onItemSelect={item => {
+                if (!item.onSelect) onPromptSelect?.(item.title)
+              }}
+            />
+          </section>
+
+          <section style={sectionStyle}>
+            <LoopWatch loops={loops} onToggle={onLoopToggle} title="Loop Watch" isLoading={loading} />
+          </section>
+
+          <section style={sectionStyle}>
+            <PromptToolkit
+              templates={promptTemplates}
+              onSelect={tpl => onPromptSelect?.(tpl.content)}
+              title="Prompt Toolkit"
+              isLoading={loading}
+            />
+          </section>
+
+          <section style={sectionStyle}>
+            <InsightFeed
+              insights={insights}
+              onDismiss={onInsightDismiss}
+              onAction={onInsightAction}
+              title="Insights"
+              isLoading={loading}
+            />
+          </section>
+        </div>
+      </section>
 
       {recentChats.length > 0 && (
         <section>
