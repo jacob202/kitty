@@ -2,6 +2,7 @@
 import { isValidElement, useRef, useState, type ReactNode, type CSSProperties } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import rehypeHighlight from 'rehype-highlight'
 import { Copy, Check } from 'lucide-react'
 import { Message, STREAMING_LABEL } from '@/lib/types'
 import { MoodAvatar } from './MoodAvatar'
@@ -108,6 +109,7 @@ function MessageContent({ content }: { content: string }) {
     <div style={bodyStyle}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        rehypePlugins={[[rehypeHighlight, { detect: true, ignoreMissing: true }]]}
         components={{
           p: ({ children }) => <p style={pStyle}>{children}</p>,
           h1: ({ children }) => <h1 style={h1Style}>{children}</h1>,
