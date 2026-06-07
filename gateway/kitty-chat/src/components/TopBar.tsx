@@ -7,6 +7,7 @@ import {
   MessageSquare,
   CheckSquare,
   Terminal,
+  Wrench,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -35,6 +36,7 @@ const VIEWS: Array<{ id: string; label: string; icon: ReactNode }> = [
   { id: 'home', label: 'Home', icon: <House size={14} /> },
   { id: 'chat', label: 'Chat', icon: <MessageSquare size={14} /> },
   { id: 'tasks', label: 'Tasks', icon: <CheckSquare size={14} /> },
+  { id: 'tools', label: 'Tools', icon: <Wrench size={14} /> },
   { id: 'terminal', label: 'Terminal', icon: <Terminal size={14} /> },
 ]
 

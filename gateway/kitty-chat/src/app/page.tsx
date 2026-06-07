@@ -14,6 +14,9 @@ import { RightPanel } from '@/components/RightPanel'
 import { TaskPanel } from '@/components/TaskPanel'
 import { TodoPanel } from '@/components/TodoPanel'
 import { TerminalStrip } from '@/components/TerminalStrip'
+import { AgentPanel } from '@/components/AgentPanel'
+import { MonitorPanel } from '@/components/MonitorPanel'
+import { ImageGenPanel } from '@/components/ImageGenPanel'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import {
   fetchGatewaySearch,
@@ -54,6 +57,34 @@ function getInitials(email?: string): string {
 }
 
 const USER_INITIALS = getInitials('jacobbrizinski@gmail.com')
+
+function ToolCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{
+      background: 'var(--surface-low)',
+      border: '1px solid var(--border)',
+      borderRadius: 10,
+      padding: 16,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 12,
+    }}>
+      <div style={{
+        fontFamily: 'var(--font-mono)',
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: '0.12em',
+        textTransform: 'uppercase',
+        color: 'var(--text-muted)',
+        paddingBottom: 8,
+        borderBottom: '1px solid var(--border-dim)',
+      }}>
+        {title}
+      </div>
+      {children}
+    </div>
+  )
+}
 
 function latestSearchQuery(chat: Chat | null): string {
   if (!chat) return ''
@@ -440,6 +471,19 @@ function KittyChatInner() {
             }}>
               <TaskPanel />
               <TodoPanel />
+            </div>
+          ) : activeView === 'tools' ? (
+            <div style={{
+              flex: 1,
+              padding: '20px 24px 40px',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+              gap: 20,
+              alignContent: 'start',
+            }}>
+              <ToolCard title="Agents"><AgentPanel /></ToolCard>
+              <ToolCard title="Monitors"><MonitorPanel /></ToolCard>
+              <ToolCard title="Image gen"><ImageGenPanel /></ToolCard>
             </div>
           ) : activeView === 'terminal' ? (
             <div style={{
