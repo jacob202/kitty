@@ -1,10 +1,8 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import type { CSSProperties } from 'react'
-import {
-  fetchAgentSessions, spawnAgent, stopAgent,
-  fetchAgentStatus, type AgentSession, type AgentType,
-} from '@/lib/gateway'
+import { fetchAgentStatus, type AgentSession, type AgentType } from '@/lib/gateway'
+import { useAgentSessions, useSpawnAgent, useStopAgent } from '@/lib/queries'
 
 const AGENT_TYPES: { id: AgentType; label: string; desc: string }[] = [
   { id: 'explorer',   label: 'explore',  desc: 'Wide research & discovery' },
@@ -15,46 +13,44 @@ const AGENT_TYPES: { id: AgentType; label: string; desc: string }[] = [
 ]
 
 export function AgentPanel() {
-  const [sessions, setSessions] = useState<AgentSession[]>([])
+  const sessionsQuery = useAgentSessions(8)
+  const spawnAgentMutation = useSpawnAgent()
+  const stopAgentMutation = useStopAgent()
+
+  const baseSessions = sessionsQuery.data ?? []
+  const spawning = spawnAgentMutation.isPending
+
   const [goal, setGoal] = useState('')
   const [agentType, setAgentType] = useState<AgentType>('explorer')
-  const [spawning, setSpawning] = useState(false)
   const [expanded, setExpanded] = useState<number | null>(null)
+  // On-demand richer detail for the currently-expanded session. Refreshed
+  // each time you expand; the periodic list-poll keeps everything else live.
+  const [expandedDetails, setExpandedDetails] = useState<Record<number, AgentSession>>({})
 
-  useEffect(() => {
-    void load()
-    const id = setInterval(() => void load(), 4000)
-    return () => clearInterval(id)
-  }, [])
+  const sessions = baseSessions.map(s =>
+    expandedDetails[s.session_id] ? { ...s, ...expandedDetails[s.session_id] } : s,
+  )
 
-  async function load() {
-    setSessions(await fetchAgentSessions(8))
-  }
-
-  async function handleSpawn() {
+  function handleSpawn() {
     const g = goal.trim()
     if (!g || spawning) return
-    setSpawning(true)
-    const sid = await spawnAgent(g, agentType)
-    setSpawning(false)
-    if (sid) {
-      setGoal('')
-      await load()
-    }
+    spawnAgentMutation.mutate(
+      { goal: g, agentType },
+      { onSuccess: sid => { if (sid) setGoal('') } },
+    )
   }
 
-  async function handleStop(sid: number) {
-    await stopAgent(sid)
-    await load()
+  function handleStop(sid: number) {
+    stopAgentMutation.mutate(sid)
   }
 
   async function handleExpand(sid: number) {
     if (expanded === sid) { setExpanded(null); return }
+    setExpanded(sid)
     const status = await fetchAgentStatus(sid)
     if (status) {
-      setSessions(prev => prev.map(s => s.session_id === sid ? { ...s, ...status } : s))
+      setExpandedDetails(prev => ({ ...prev, [sid]: status }))
     }
-    setExpanded(sid)
   }
 
   return (
@@ -83,12 +79,12 @@ export function AgentPanel() {
         <input
           value={goal}
           onChange={e => setGoal(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && void handleSpawn()}
+          onKeyDown={e => e.key === 'Enter' && handleSpawn()}
           placeholder="goal for the agent…"
           style={inputStyle}
         />
         <button
-          onClick={() => void handleSpawn()}
+          onClick={() => handleSpawn()}
           disabled={!goal.trim() || spawning}
           style={{ ...spawnBtnStyle, opacity: !goal.trim() || spawning ? 0.4 : 1 }}
         >
@@ -108,7 +104,7 @@ export function AgentPanel() {
                 </button>
                 <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
                   {(s.status === 'running' || s.status === 'queued') && (
-                    <button onClick={() => void handleStop(s.session_id)} style={stopBtnStyle} title="stop">■</button>
+                    <button onClick={() => handleStop(s.session_id)} style={stopBtnStyle} title="stop">■</button>
                   )}
                   <span style={statusBadgeStyle(s.status)}>{s.status}</span>
                 </div>
