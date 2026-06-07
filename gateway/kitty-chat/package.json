@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start -H 127.0.0.1 -p 4000",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "gen:api-types": "openapi-typescript http://127.0.0.1:5001/openapi.json -o src/lib/gen/gateway-schema.d.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.7",
@@ -30,6 +31,7 @@
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6.0.1",
     "jsdom": "^26.1.0",
+    "openapi-typescript": "^7.13.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^3.2.4"
