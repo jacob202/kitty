@@ -17,6 +17,7 @@ import { TerminalStrip } from '@/components/TerminalStrip'
 import { AgentPanel } from '@/components/AgentPanel'
 import { MonitorPanel } from '@/components/MonitorPanel'
 import { ImageGenPanel } from '@/components/ImageGenPanel'
+import { CommandPalette } from '@/components/CommandPalette'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import {
   fetchGatewaySearch,
@@ -586,6 +587,14 @@ function KittyChatInner() {
           activeModelName={activeModel.name}
         />
       </ErrorBoundary>
+
+      <CommandPalette
+        chats={chats}
+        onNewChat={handleNewChat}
+        onSelectChat={setActiveChatId}
+        onViewChange={setActiveView}
+        onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
+      />
     </div>
   )
 }
