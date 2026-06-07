@@ -116,6 +116,17 @@ export function DashboardHome({
             focusText={focus?.content ?? null}
           />
 
+          {brief?.summary_bullets && brief.summary_bullets.length > 0 && (
+            <div style={summaryCardStyle}>
+              <div style={summaryLabelStyle}>WHAT&apos;S INTERESTING TODAY</div>
+              <ul style={summaryListStyle}>
+                {brief.summary_bullets.map((line, i) => (
+                  <li key={i} style={summaryLineStyle}>{line}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <div style={gridStyle}>
             <section style={sectionStyle}>
               <TodayCompass
@@ -231,6 +242,38 @@ const gridStyle: CSSProperties = {
   gap: 12,
   marginTop: 12,
   alignContent: 'start',
+}
+
+const summaryCardStyle: CSSProperties = {
+  marginTop: 12,
+  padding: '12px 14px',
+  background: 'var(--surface-low)',
+  border: '1px solid var(--border)',
+  borderRadius: 10,
+}
+
+const summaryLabelStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  fontWeight: 700,
+  letterSpacing: '0.12em',
+  color: 'var(--text-muted)',
+  marginBottom: 8,
+}
+
+const summaryListStyle: CSSProperties = {
+  margin: 0,
+  paddingLeft: 18,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
+}
+
+const summaryLineStyle: CSSProperties = {
+  fontFamily: 'var(--font-ui)',
+  fontSize: 13,
+  lineHeight: 1.5,
+  color: 'var(--text)',
 }
 
 const sectionStyle: CSSProperties = {

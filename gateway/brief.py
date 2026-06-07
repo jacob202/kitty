@@ -239,12 +239,60 @@ def generate_brief_text(headlines: List[NewsHeadline], task_summary: str) -> str
     return f"Good morning, Jacob. Here's what's happening today:\n\n{news_summary}\n\nYour next action: {task_summary}"
 
 
+def summarize_headlines_to_bullets(headlines: List[NewsHeadline]) -> List[str]:
+    """Turn enriched headlines into 3–5 bullet 'what's interesting today' lines.
+
+    Requires at least some bodies to be present (i.e. BRIEF_ENRICH_ARTICLES=1).
+    Returns [] if there's no body content or the LLM call fails.
+    """
+    items_with_body = [h for h in headlines if h.body]
+    if not items_with_body:
+        return []
+
+    from gateway.llm_client import chat
+
+    rows = []
+    for h in items_with_body[:8]:
+        body = h.body.strip()
+        rows.append(f"- {h.title}\n  {body[:500]}")
+    article_block = "\n".join(rows)
+
+    prompt = (
+        "You're writing a one-screen morning brief for Jacob. Below are today's "
+        "top articles with extracted body text. Pick the 3–5 most genuinely "
+        "interesting items and write one tight, declarative bullet per item — "
+        "specific claim or finding, no hedging, no headlines that just rehash "
+        "the title. Keep each bullet under 24 words. Output ONLY the bullets, "
+        "one per line, each starting with '- '. No preamble, no headers.\n\n"
+        f"ARTICLES:\n{article_block}"
+    )
+
+    try:
+        raw = chat(
+            model="kitty-sonnet",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=400,
+            temperature=0.3,
+        )
+    except Exception as e:
+        logger.warning("Brief bullet summarization failed: %s", e)
+        return []
+
+    bullets: List[str] = []
+    for line in raw.splitlines():
+        line = line.strip().lstrip("-•*").strip()
+        if line:
+            bullets.append(line)
+    return bullets[:5]
+
+
 def _build_brief_result(
     *,
     today: str,
     headlines: List[NewsHeadline],
     memory: str,
     intention: str,
+    summary_bullets: Optional[List[str]] = None,
 ) -> dict:
     from contracts.brief_item import BriefItem
 
@@ -253,6 +301,7 @@ def _build_brief_result(
         headlines=headlines,
         memory_snippet=memory[:500] if memory else "",
         intention=intention,
+        summary_bullets=summary_bullets or [],
     )
     result = item.model_dump(mode="json")
     model_news = get_model_digest_section(limit=3)
@@ -306,12 +355,16 @@ def generate_brief() -> dict:
     memory = _fetch_memory_snippet()
 
     brief_text = synthesize_brief_with_llm(headlines, task_summary, memory)
+    # Only attempt bullet synthesis when enrichment is on — without bodies the
+    # model would just paraphrase headlines.
+    summary_bullets = summarize_headlines_to_bullets(headlines) if _ENRICH_ARTICLES else []
 
     result = _build_brief_result(
         today=today,
         headlines=headlines,
         memory=memory,
         intention=brief_text,
+        summary_bullets=summary_bullets,
     )
 
     # Push to phone if notify is configured
