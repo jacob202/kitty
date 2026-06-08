@@ -1,0 +1,7 @@
+{
+  "rootDirectory": "gateway/kitty-chat",
+  "framework": "nextjs",
+  "buildCommand": "next build",
+  "outputDirectory": ".next",
+  "installCommand": "npm install"
+}
