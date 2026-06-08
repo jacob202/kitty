@@ -1,0 +1,8 @@
+{
+  "builds": [
+    {
+      "src": "gateway/kitty-chat/package.json",
+      "use": "@vercel/next"
+    }
+  ]
+}

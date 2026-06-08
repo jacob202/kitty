@@ -1,0 +1,21 @@
+{
+  "name": "Jacob",
+  "preferred_name": "Jacob",
+  "timezone": "America/Chicago",
+  "interests": [
+    "AI systems",
+    "building things",
+    "music"
+  ],
+  "current_projects": [
+    "Kitty — personal AI companion system"
+  ],
+  "communication_style": "direct, informal, no fluff",
+  "things_kitty_should_know": "",
+  "dont_do": [
+    "over-explain obvious things",
+    "add unnecessary caveats",
+    "be overly formal"
+  ],
+  "last_updated": ""
+}
