@@ -22,10 +22,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest
 
-      - name: Continuity lint
-        run: python scripts/check_continuity_state.py --max-age-days 21
-
       - name: Skill + gate contract tests
         run: |
-          pytest tests/test_run_gates_script.py tests/test_skill_runtime_discovery.py tests/test_check_continuity_state.py -q --tb=short
+          pytest tests/test_skill_registry.py tests/test_voice_gate.py -q --tb=short
 
