@@ -54,6 +54,7 @@ class ChatRequest(BaseModel):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _last_user_message(messages: list[Message]) -> str:
+    """Return the content of the most recent user-role message, or empty string."""
     for m in reversed(messages):
         if m.role == "user":
             return m.content
@@ -61,6 +62,7 @@ def _last_user_message(messages: list[Message]) -> str:
 
 
 def _openai_chunk(content: str, model: str, finish: bool = False) -> str:
+    """Serialize a single SSE chunk in OpenAI streaming format."""
     chunk = {
         "id": f"chatcmpl-{uuid.uuid4().hex[:8]}",
         "object": "chat.completion.chunk",
@@ -76,6 +78,7 @@ def _openai_chunk(content: str, model: str, finish: bool = False) -> str:
 
 
 def _openai_response(content: str, model: str) -> dict:
+    """Build a non-streaming OpenAI-compatible chat completion response dict."""
     return {
         "id": f"chatcmpl-{uuid.uuid4().hex[:8]}",
         "object": "chat.completion",
@@ -93,6 +96,7 @@ def _openai_response(content: str, model: str) -> dict:
 # ── Core chat handler ─────────────────────────────────────────────────────────
 
 async def _stream_response(request: ChatRequest) -> AsyncIterator[str]:
+    """Yield SSE chunks for the Anthropic streaming response, then persist the exchange."""
     last_user_msg = _last_user_message(request.messages)
     specialist = classify(last_user_msg)
 
@@ -129,20 +133,23 @@ async def _stream_response(request: ChatRequest) -> AsyncIterator[str]:
     yield _openai_chunk("", model, finish=True)
     yield "data: [DONE]\n\n"
 
-    # Store the exchange in memory asynchronously
-    add_memory(
-        conversation=[
-            {"role": "user", "content": last_user_msg},
-            {"role": "assistant", "content": full_response},
-        ],
-        metadata={"specialist": specialist},
-    )
+    try:
+        add_memory(
+            conversation=[
+                {"role": "user", "content": last_user_msg},
+                {"role": "assistant", "content": full_response},
+            ],
+            metadata={"specialist": specialist},
+        )
+    except Exception:
+        pass  # memory persistence is best-effort; never break the stream
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @app.get("/v1/models")
 def list_models():
+    """List available Kitty model IDs in OpenAI format."""
     return {
         "object": "list",
         "data": [
@@ -155,8 +162,11 @@ def list_models():
 
 @app.post("/v1/chat/completions")
 async def chat(request: ChatRequest):
+    """OpenAI-compatible chat completions endpoint with streaming and non-streaming support."""
     if not request.messages:
         raise HTTPException(status_code=400, detail="messages required")
+    if not any(m.role == "user" for m in request.messages):
+        raise HTTPException(status_code=400, detail="at least one user message required")
 
     if request.stream:
         return StreamingResponse(
@@ -189,27 +199,33 @@ async def chat(request: ChatRequest):
         messages=anthropic_messages,
     )
     content = response.content[0].text
-    add_memory(
-        conversation=[
-            {"role": "user", "content": last_user_msg},
-            {"role": "assistant", "content": content},
-        ],
-        metadata={"specialist": specialist},
-    )
+    try:
+        add_memory(
+            conversation=[
+                {"role": "user", "content": last_user_msg},
+                {"role": "assistant", "content": content},
+            ],
+            metadata={"specialist": specialist},
+        )
+    except Exception:
+        pass  # memory persistence is best-effort
     return _openai_response(content, model)
 
 
 @app.get("/profile")
 def get_profile():
+    """Return the current user profile."""
     return get_user_profile()
 
 
 @app.patch("/profile")
 def patch_profile(updates: dict):
+    """Merge *updates* into the stored user profile and return the result."""
     update_user_profile(updates)
     return get_user_profile()
 
 
 @app.get("/health")
 def health():
+    """Liveness probe."""
     return {"status": "ok"}

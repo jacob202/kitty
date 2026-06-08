@@ -15,6 +15,13 @@ fi
 
 source .venv/bin/activate
 
+# shellcheck source=/dev/null
+source .env 2>/dev/null || true
+if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+  echo "Error: ANTHROPIC_API_KEY is not set in .env"
+  exit 1
+fi
+
 echo "Installing dependencies..."
 pip install -q -r requirements.txt
 

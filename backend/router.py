@@ -24,7 +24,7 @@ _SIGNALS: dict[str, list[str]] = {
     ],
     "researcher": [
         "research", "find", "look up", "search", "what is", "explain",
-        "how does", "why does", "summarize", "analyze", "compare",
+        "how does", "why does", "summarize", "compare",
         "difference between", "according to", "source", "citation",
     ],
     "creative": [
@@ -66,6 +66,9 @@ _MAX_TOKENS_MAP: dict[str, int] = {
 
 
 def _load(path: Path) -> str:
+    """Read a soul/specialist file; returns empty string if file is missing."""
+    if not path.exists():
+        return ""
     return path.read_text(encoding="utf-8")
 
 
@@ -98,8 +101,10 @@ def build_system_prompt(specialist: str, memory_block: str, profile_block: str) 
 
 
 def get_model(specialist: str) -> str:
+    """Return the Anthropic model ID for the given specialist."""
     return _MODEL_MAP.get(specialist, settings.sonnet_model)
 
 
 def get_max_tokens(specialist: str) -> int:
+    """Return the max-token budget for the given specialist."""
     return _MAX_TOKENS_MAP.get(specialist, settings.sonnet_max_tokens)

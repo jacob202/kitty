@@ -26,21 +26,28 @@ _PROFILE_PATH = Path(__file__).parent.parent / "config" / "user_profile.json"
 
 
 def _load_profile() -> dict:
-    if _PROFILE_PATH.exists():
+    """Load user profile JSON; returns empty dict on missing file or parse error."""
+    if not _PROFILE_PATH.exists():
+        return {}
+    try:
         return json.loads(_PROFILE_PATH.read_text())
-    return {}
+    except json.JSONDecodeError:
+        return {}
 
 
 def _save_profile(profile: dict) -> None:
+    """Persist the user profile JSON to disk."""
     _PROFILE_PATH.parent.mkdir(parents=True, exist_ok=True)
     _PROFILE_PATH.write_text(json.dumps(profile, indent=2))
 
 
 def get_user_profile() -> dict:
+    """Return the current structured user profile."""
     return _load_profile()
 
 
 def update_user_profile(updates: dict) -> None:
+    """Merge *updates* into the stored user profile and persist it."""
     profile = _load_profile()
     profile.update(updates)
     profile["last_updated"] = datetime.utcnow().isoformat()
@@ -48,6 +55,7 @@ def update_user_profile(updates: dict) -> None:
 
 
 def format_profile_injection(profile: dict) -> str:
+    """Format the user profile as a markdown block for system-prompt injection."""
     if not profile:
         return ""
     lines = ["## What Kitty knows about you"]
@@ -63,9 +71,12 @@ def search_memories(query: str, limit: int = 5) -> list[dict]:
     user_id = settings.user_id
 
     if MEM0_AVAILABLE and settings.mem0_api_key:
-        client = MemoryClient(api_key=settings.mem0_api_key)
-        results = client.search(query, user_id=user_id, limit=limit)
-        return results.get("results", [])
+        try:
+            client = MemoryClient(api_key=settings.mem0_api_key)
+            results = client.search(query, user_id=user_id, limit=limit)
+            return results.get("results", [])
+        except Exception:
+            pass  # fall through to local store on any mem0 error
 
     # Local fallback — simple recency-based retrieval (no semantic search)
     memories = _LOCAL_STORE.get(user_id, [])
@@ -77,9 +88,12 @@ def add_memory(conversation: list[dict], metadata: Optional[dict] = None) -> Non
     user_id = settings.user_id
 
     if MEM0_AVAILABLE and settings.mem0_api_key:
-        client = MemoryClient(api_key=settings.mem0_api_key)
-        client.add(conversation, user_id=user_id, metadata=metadata or {})
-        return
+        try:
+            client = MemoryClient(api_key=settings.mem0_api_key)
+            client.add(conversation, user_id=user_id, metadata=metadata or {})
+            return
+        except Exception:
+            pass  # fall through to local store on any mem0 error
 
     # Local fallback
     if user_id not in _LOCAL_STORE:
@@ -92,6 +106,7 @@ def add_memory(conversation: list[dict], metadata: Optional[dict] = None) -> Non
 
 
 def format_memory_injection(memories: list[dict]) -> str:
+    """Format retrieved memories as a markdown block for system-prompt injection."""
     if not memories:
         return ""
     lines = ["## Relevant memories from past conversations"]
