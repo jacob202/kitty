@@ -1,5 +1,13 @@
 {
   "sessionStart": "python3.11 -m pytest tests/ -q --tb=line 2>/dev/null | tail -1 || true",
   "autoSave": true,
-  "terminalIntegration": true
+  "terminalIntegration": true,
+  "permissions": {
+    "allow": [
+      "Bash(npm run build)",
+      "Bash(npm run test)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(git fetch *)"
+    ]
+  }
 }
