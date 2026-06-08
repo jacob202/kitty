@@ -2,6 +2,7 @@
 from __future__ import annotations
 import os
 import logging
+import threading
 from typing import Optional
 
 logger = logging.getLogger("kitty.memory")
@@ -27,6 +28,7 @@ except ImportError:
 
 _MEMORY_INSTANCE = None
 _MEMORY_INIT_FAILED = False
+_MEMORY_INIT_LOCK = threading.Lock()
 
 
 def _build_mem0_config() -> dict:
@@ -65,17 +67,22 @@ def _get_memory():
         return None
     if _MEMORY_INSTANCE is not None:
         return _MEMORY_INSTANCE
-    try:
-        MEM0_DATA_DIR.mkdir(parents=True, exist_ok=True)
-        config = _build_mem0_config()
-        _MEMORY_INSTANCE = _Mem0Memory.from_config(config)
-        return _MEMORY_INSTANCE
-    except Exception as e:
-        _MEMORY_INIT_FAILED = True
-        logger.warning(
-            "mem0 init failed (memory features disabled until restart): %s", e
-        )
-        return None
+    with _MEMORY_INIT_LOCK:
+        if _MEMORY_INSTANCE is not None:
+            return _MEMORY_INSTANCE
+        if _MEMORY_INIT_FAILED:
+            return None
+        try:
+            MEM0_DATA_DIR.mkdir(parents=True, exist_ok=True)
+            config = _build_mem0_config()
+            _MEMORY_INSTANCE = _Mem0Memory.from_config(config)
+            return _MEMORY_INSTANCE
+        except Exception as e:
+            _MEMORY_INIT_FAILED = True
+            logger.warning(
+                "mem0 init failed (memory features disabled until restart): %s", e
+            )
+            return None
 
 
 def add_memory(text: str, namespace: str = "facts", metadata: Optional[dict] = None) -> None:

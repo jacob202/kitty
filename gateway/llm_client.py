@@ -39,7 +39,7 @@ try:
     _retry_post = _tenacity_retry(
         stop=stop_after_attempt(2),
         wait=wait_exponential(multiplier=0.3, min=0.3, max=1.5),
-        retry=retry_if_exception_type((requests.ConnectionError, requests.Timeout)),
+        retry=retry_if_exception_type((requests.ConnectionError, requests.ConnectTimeout)),
         reraise=True,
     )
 except ImportError:  # pragma: no cover - optional dependency

@@ -28,7 +28,7 @@ export function AgentPanel() {
   const [expandedDetails, setExpandedDetails] = useState<Record<number, AgentSession>>({})
 
   const sessions = baseSessions.map(s =>
-    expandedDetails[s.session_id] ? { ...s, ...expandedDetails[s.session_id] } : s,
+    expandedDetails[s.session_id] ? { ...expandedDetails[s.session_id], ...s } : s,
   )
 
   function handleSpawn() {

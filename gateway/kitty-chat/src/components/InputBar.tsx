@@ -29,6 +29,11 @@ export function InputBar({
   const [recState, setRecState] = useState<RecState>('idle')
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
+  const valueRef = useRef<string>(value)
+
+  useEffect(() => {
+    valueRef.current = value
+  }, [value])
 
   useEffect(() => {
     if (!ref.current) return
@@ -85,7 +90,8 @@ export function InputBar({
       const json = await res.json()
       const text = (json?.text ?? '').trim()
       if (text) {
-        onChange(value ? `${value.trim()} ${text}` : text)
+        const currentValue = valueRef.current
+        onChange(currentValue ? `${currentValue.trim()} ${text}` : text)
         ref.current?.focus()
       }
     } catch (err) {

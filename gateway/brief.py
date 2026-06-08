@@ -112,23 +112,28 @@ def _extract_article_body(url: str) -> str:
         return ""
 
 
-def _enrich_with_bodies(headlines: List[NewsHeadline]) -> List[NewsHeadline]:
+def _enrich_with_bodies(headlines: List[NewsHeadline], remaining_budget: float = 30.0) -> List[NewsHeadline]:
     if not _ENRICH_ARTICLES or not HAS_TRAFILATURA or not headlines:
         return headlines
-    with ThreadPoolExecutor(max_workers=min(len(headlines), 6)) as pool:
+    max_workers = min(len(headlines), 6)
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
         future_to_headline = {pool.submit(_extract_article_body, h.url): h for h in headlines}
-        for fut in as_completed(future_to_headline):
+        from concurrent.futures import wait
+        done, pending = wait(future_to_headline.keys(), timeout=remaining_budget)
+        for fut in done:
             headline = future_to_headline[fut]
             try:
-                body = fut.result(timeout=_BODY_FETCH_TIMEOUT_SECONDS + 1)
+                body = fut.result(timeout=0.1)
                 if body:
                     headline.body = body
             except Exception:
                 pass
+        for fut in pending:
+            fut.cancel()
     return headlines
 
 
-def fetch_news(limit_per_feed: int = 3) -> List[NewsHeadline]:
+def fetch_news(limit_per_feed: int = 3, enrichment_budget: float = 30.0) -> List[NewsHeadline]:
     """Fetch headlines from all feeds in parallel, optionally enriched with article bodies."""
     all_headlines = []
     with ThreadPoolExecutor(max_workers=len(DEFAULT_FEEDS)) as pool:
@@ -138,7 +143,7 @@ def fetch_news(limit_per_feed: int = 3) -> List[NewsHeadline]:
         }
         for future in as_completed(futures):
             all_headlines.extend(future.result())
-    return _enrich_with_bodies(all_headlines)
+    return _enrich_with_bodies(all_headlines, enrichment_budget)
 
 
 def get_tasks_summary() -> str:
