@@ -1,7 +1,18 @@
 'use client'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { CSSProperties } from 'react'
 import { Chat, Model, STREAMING_LABEL } from '@/lib/types'
+import {
+  House,
+  MessageSquare,
+  CheckSquare,
+  Terminal,
+  Wrench,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  Sparkles,
+} from 'lucide-react'
 
 interface Props {
   activeModel: Model
@@ -21,12 +32,13 @@ interface Props {
   onToggleSidebar?: () => void
 }
 
-const VIEWS = [
-  { id: 'home', label: 'Home' },
-  { id: 'chat', label: 'Chat' },
-  { id: 'tasks', label: 'Tasks' },
-  { id: 'terminal', label: 'Terminal' },
-] as const
+const VIEWS: Array<{ id: string; label: string; icon: ReactNode }> = [
+  { id: 'home', label: 'Home', icon: <House size={14} /> },
+  { id: 'chat', label: 'Chat', icon: <MessageSquare size={14} /> },
+  { id: 'tasks', label: 'Tasks', icon: <CheckSquare size={14} /> },
+  { id: 'tools', label: 'Tools', icon: <Wrench size={14} /> },
+  { id: 'terminal', label: 'Terminal', icon: <Terminal size={14} /> },
+]
 
 const KITTY_MODES = [
   { id: 'default', name: 'Default' },
@@ -52,7 +64,6 @@ export function TopBar({
   sidebarCollapsed = false,
   onToggleSidebar,
 }: Props) {
-  const face = isStreaming ? '=^._.^=' : '=^•ﻌ•^='
   const title = activeChat?.messages.length ? activeChat.title : getGreeting() + '.'
 
   return (
@@ -71,13 +82,19 @@ export function TopBar({
       gap: 16,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
-        <span style={{
-          fontFamily: 'var(--font-ui)',
-          fontSize: 22,
-          flexShrink: 0,
-          color: isStreaming ? 'var(--tertiary)' : 'var(--primary)',
-          transition: 'color 0.3s ease',
-        }}>{face}</span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/kitty-mascot.svg"
+          alt="Kitty"
+          width={44}
+          height={44}
+          style={{
+            flexShrink: 0,
+            display: 'block',
+            filter: isStreaming ? 'saturate(1.35) brightness(1.08)' : 'none',
+            transition: 'filter 0.3s ease',
+          }}
+        />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           {onToggleSidebar && (
@@ -90,7 +107,7 @@ export function TopBar({
               }}
               title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
-              {sidebarCollapsed ? '▶' : '◀'}
+              {sidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
             </button>
           )}
           {VIEWS.map(view => (
@@ -118,7 +135,10 @@ export function TopBar({
                 }
               }}
             >
-              {view.label}
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                {view.icon}
+                {view.label}
+              </span>
             </button>
           ))}
         </div>
@@ -211,11 +231,9 @@ function KittyModeSelector({
           }
         }}
       >
-        <span style={{ color: 'var(--purple)', fontSize: 12 }}>◉</span>
+        <Sparkles size={12} color="var(--purple)" />
         <span>{current.name}</span>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5, marginLeft: 2, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }}>
-          <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
+        <ChevronDown size={12} style={{ opacity: 0.5, marginLeft: 2, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
       </button>
 
       {open && (
@@ -338,9 +356,7 @@ function ModelSelector({
           }}
         />
         <span style={{ color: modelFromGateway ? 'inherit' : 'var(--text-muted)' }}>{activeModel.name}</span>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5, marginLeft: 2, transform: showModelMenu ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }}>
-          <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
+        <ChevronDown size={12} style={{ opacity: 0.5, marginLeft: 2, transform: showModelMenu ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
       </button>
 
       {showModelMenu && (

@@ -1,45 +1,29 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import type { CSSProperties } from 'react'
-import { fetchGatewayTodos, addGatewayTodo, completeGatewayTodo, deleteGatewayTodo, type GatewayTodo } from '@/lib/gateway'
+import { useTodos, useAddTodo, useCompleteTodo, useDeleteTodo } from '@/lib/queries'
 
 export function TodoPanel() {
-  const [todos, setTodos] = useState<GatewayTodo[]>([])
+  const todosQuery = useTodos()
+  const addTodo = useAddTodo()
+  const completeTodo = useCompleteTodo()
+  const deleteTodo = useDeleteTodo()
   const [input, setInput] = useState('')
-  const [adding, setAdding] = useState(false)
 
-  useEffect(() => {
-    void load()
-  }, [])
-
-  async function load() {
-    setTodos(await fetchGatewayTodos())
-  }
-
-  async function handleAdd() {
-    const content = input.trim()
-    if (!content || adding) return
-    setAdding(true)
-    const todo = await addGatewayTodo(content)
-    setAdding(false)
-    if (todo) {
-      setInput('')
-      await load()
-    }
-  }
-
-  async function handleComplete(id: number) {
-    await completeGatewayTodo(id)
-    await load()
-  }
-
-  async function handleDelete(id: number) {
-    await deleteGatewayTodo(id)
-    await load()
-  }
-
+  const todos = todosQuery.data ?? []
+  const adding = addTodo.isPending
   const active = todos.filter(t => t.status === 'pending' || t.status === 'in_progress')
   const done = todos.filter(t => t.status === 'completed')
+
+  function handleAdd() {
+    const content = input.trim()
+    if (!content || adding) return
+    addTodo.mutate(content, {
+      onSuccess: result => {
+        if (result) setInput('')
+      },
+    })
+  }
 
   return (
     <div style={{ display: 'grid', gap: 6 }}>
@@ -47,14 +31,14 @@ export function TodoPanel() {
         <div style={{ display: 'grid', gap: 4 }}>
           {active.map(t => (
             <div key={t.id} style={rowStyle}>
-              <button onClick={() => void handleComplete(t.id)} style={checkStyle} title="complete">
+              <button onClick={() => completeTodo.mutate(t.id)} style={checkStyle} title="complete">
                 {t.status === 'in_progress' ? '▶' : '☐'}
               </button>
               <span style={{ ...labelStyle, flex: 1 }}>
                 {t.content}
                 {t.active_form && <em style={activeFormStyle}> — {t.active_form}</em>}
               </span>
-              <button onClick={() => void handleDelete(t.id)} style={removeStyle} title="delete">×</button>
+              <button onClick={() => deleteTodo.mutate(t.id)} style={removeStyle} title="delete">×</button>
             </div>
           ))}
         </div>
@@ -72,12 +56,12 @@ export function TodoPanel() {
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && void handleAdd()}
+          onKeyDown={e => e.key === 'Enter' && handleAdd()}
           placeholder="add todo…"
           style={inputStyle}
         />
         <button
-          onClick={() => void handleAdd()}
+          onClick={handleAdd}
           disabled={!input.trim() || adding}
           style={{ ...addBtnStyle, opacity: !input.trim() || adding ? 0.4 : 1 }}
         >

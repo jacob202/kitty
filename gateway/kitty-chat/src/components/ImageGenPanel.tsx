@@ -1,7 +1,7 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import type { CSSProperties } from 'react'
-import { fetchImageStatus, generateImage, fetchImageHistory, type ImageEntry } from '@/lib/gateway'
+import { useImageStatus, useImageHistory, useGenerateImage } from '@/lib/queries'
 
 const STYLE_CHIPS = [
   { label: 'portrait',    hint: 'portrait orientation' },
@@ -15,17 +15,17 @@ const STYLE_CHIPS = [
 type GenState = 'idle' | 'generating' | 'done' | 'error'
 
 export function ImageGenPanel() {
-  const [available, setAvailable] = useState<boolean | null>(null)
+  const statusQuery = useImageStatus()
+  const historyQuery = useImageHistory()
+  const generate = useGenerateImage()
+
+  const available = statusQuery.data?.available ?? null
+  const history = historyQuery.data ?? []
+
   const [prompt, setPrompt] = useState('')
   const [chips, setChips] = useState<string[]>([])
   const [state, setState] = useState<GenState>('idle')
   const [errMsg, setErrMsg] = useState('')
-  const [history, setHistory] = useState<ImageEntry[]>([])
-
-  useEffect(() => {
-    void fetchImageStatus().then(s => setAvailable(s.available))
-    void fetchImageHistory().then(setHistory)
-  }, [])
 
   function toggleChip(label: string) {
     setChips(prev =>
@@ -38,20 +38,25 @@ export function ImageGenPanel() {
     return extras ? `${prompt.trim()}, ${extras}` : prompt.trim()
   }
 
-  async function handleGenerate() {
+  function handleGenerate() {
     const full = buildPrompt()
     if (!full || state === 'generating') return
     setState('generating')
     setErrMsg('')
-    const result = await generateImage(full)
-    if (!result) {
-      setState('error')
-      setErrMsg('Generation failed — is ComfyUI running?')
-      return
-    }
-    setState('done')
-    const fresh = await fetchImageHistory()
-    setHistory(fresh)
+    generate.mutate(full, {
+      onSuccess: result => {
+        if (!result) {
+          setState('error')
+          setErrMsg('Generation failed — is ComfyUI running?')
+          return
+        }
+        setState('done')
+      },
+      onError: () => {
+        setState('error')
+        setErrMsg('Generation failed — is ComfyUI running?')
+      },
+    })
   }
 
   if (available === false) {
@@ -71,7 +76,7 @@ export function ImageGenPanel() {
       <textarea
         value={prompt}
         onChange={e => setPrompt(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleGenerate() } }}
+        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleGenerate() } }}
         placeholder="describe the image…"
         rows={2}
         style={textareaStyle}
@@ -98,7 +103,7 @@ export function ImageGenPanel() {
 
       {/* Generate button */}
       <button
-        onClick={() => void handleGenerate()}
+        onClick={handleGenerate}
         disabled={!prompt.trim() || state === 'generating'}
         style={{ ...genBtnStyle, opacity: !prompt.trim() || state === 'generating' ? 0.4 : 1 }}
       >

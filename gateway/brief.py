@@ -6,9 +6,40 @@ except ImportError:  # optional dependency — TTS/brief features degrade gracef
     feedparser = None  # type: ignore[assignment]
 import asyncio
 import logging
+import os
 import threading
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# Optional: trafilatura pulls clean article body text from a URL so the brief
+# can be more than headline-only. Opt-in via BRIEF_ENRICH_ARTICLES=1 because it
+# adds 2–4s of HTTP at brief refresh time.
+try:
+    import trafilatura
+
+    HAS_TRAFILATURA = True
+except ImportError:  # pragma: no cover - optional dependency
+    HAS_TRAFILATURA = False
+
+_ENRICH_ARTICLES = os.environ.get("BRIEF_ENRICH_ARTICLES", "0") == "1"
+_BODY_FETCH_TIMEOUT_SECONDS = 4.0
+_BODY_MAX_LEN = 800
+
+# Optional: tenacity gives the feed fetcher a tiny retry on transient
+# connection/timeout errors. If not installed, _retry_transient is a no-op.
+try:
+    from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
+
+    _retry_transient = retry(
+        stop=stop_after_attempt(2),
+        wait=wait_fixed(0.4),
+        retry=retry_if_exception_type((requests.ConnectionError, requests.Timeout)),
+        reraise=True,
+    )
+except ImportError:  # pragma: no cover - optional dependency
+
+    def _retry_transient(fn):  # type: ignore[misc]
+        return fn
 from datetime import datetime, timezone
 from typing import List, Optional
 from contracts.brief_item import NewsHeadline
@@ -24,10 +55,27 @@ DEFAULT_FEEDS = {
     "regina": "https://www.cbc.ca/cmlink/rss-canada-saskatchewan",
     "audiophile": "https://www.stereophile.com/rss.xml",
     "ai_research": "https://arxiv.org/rss/cs.AI",
-    "ai_news": "https://www.theverge.com/ai-artificial-intelligence/rss/index.xml",
+    # The Verge retired their AI subfeed; VentureBeat's AI category is a
+    # solid replacement and is still updated daily.
+    "ai_news": "https://venturebeat.com/category/ai/feed/",
     "high_signal": "https://news.ycombinator.com/rss",
     "world": "https://feeds.bbci.co.uk/news/world/rss.xml",
 }
+
+
+_RSS_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "application/rss+xml, application/xml, text/xml, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Cache-Control": "no-cache",
+}
+
+
+@_retry_transient
+def _fetch_feed_response(url: str) -> requests.Response:
+    response = requests.get(url, timeout=FEED_TIMEOUT_SECONDS, headers=_RSS_HEADERS)
+    response.raise_for_status()
+    return response
 
 
 def _fetch_single_feed(category: str, url: str, limit: int) -> List[NewsHeadline]:
@@ -35,17 +83,7 @@ def _fetch_single_feed(category: str, url: str, limit: int) -> List[NewsHeadline
     headlines = []
     logger.info("Fetching %s news from %s...", category, url)
     try:
-        response = requests.get(
-            url,
-            timeout=FEED_TIMEOUT_SECONDS,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-                "Accept": "application/rss+xml, application/xml, text/xml, */*",
-                "Accept-Language": "en-US,en;q=0.9",
-                "Cache-Control": "no-cache",
-            },
-        )
-        response.raise_for_status()
+        response = _fetch_feed_response(url)
         feed = feedparser.parse(response.content)
         for entry in feed.entries[:limit]:
             headlines.append(
@@ -60,8 +98,38 @@ def _fetch_single_feed(category: str, url: str, limit: int) -> List[NewsHeadline
     return headlines
 
 
+def _extract_article_body(url: str) -> str:
+    """Fetch and clean an article body via trafilatura. Returns "" on any failure."""
+    if not HAS_TRAFILATURA:
+        return ""
+    try:
+        resp = requests.get(url, timeout=_BODY_FETCH_TIMEOUT_SECONDS, headers=_RSS_HEADERS)
+        resp.raise_for_status()
+        text = trafilatura.extract(resp.text, favor_recall=False) or ""
+        return text.strip()[:_BODY_MAX_LEN]
+    except Exception as e:  # pragma: no cover - network paths
+        logger.debug("trafilatura extract failed for %s: %s", url, e)
+        return ""
+
+
+def _enrich_with_bodies(headlines: List[NewsHeadline]) -> List[NewsHeadline]:
+    if not _ENRICH_ARTICLES or not HAS_TRAFILATURA or not headlines:
+        return headlines
+    with ThreadPoolExecutor(max_workers=min(len(headlines), 6)) as pool:
+        future_to_headline = {pool.submit(_extract_article_body, h.url): h for h in headlines}
+        for fut in as_completed(future_to_headline):
+            headline = future_to_headline[fut]
+            try:
+                body = fut.result(timeout=_BODY_FETCH_TIMEOUT_SECONDS + 1)
+                if body:
+                    headline.body = body
+            except Exception:
+                pass
+    return headlines
+
+
 def fetch_news(limit_per_feed: int = 3) -> List[NewsHeadline]:
-    """Fetch headlines from all feeds in parallel."""
+    """Fetch headlines from all feeds in parallel, optionally enriched with article bodies."""
     all_headlines = []
     with ThreadPoolExecutor(max_workers=len(DEFAULT_FEEDS)) as pool:
         futures = {
@@ -70,7 +138,7 @@ def fetch_news(limit_per_feed: int = 3) -> List[NewsHeadline]:
         }
         for future in as_completed(futures):
             all_headlines.extend(future.result())
-    return all_headlines
+    return _enrich_with_bodies(all_headlines)
 
 
 def get_tasks_summary() -> str:
@@ -171,12 +239,60 @@ def generate_brief_text(headlines: List[NewsHeadline], task_summary: str) -> str
     return f"Good morning, Jacob. Here's what's happening today:\n\n{news_summary}\n\nYour next action: {task_summary}"
 
 
+def summarize_headlines_to_bullets(headlines: List[NewsHeadline]) -> List[str]:
+    """Turn enriched headlines into 3–5 bullet 'what's interesting today' lines.
+
+    Requires at least some bodies to be present (i.e. BRIEF_ENRICH_ARTICLES=1).
+    Returns [] if there's no body content or the LLM call fails.
+    """
+    items_with_body = [h for h in headlines if h.body]
+    if not items_with_body:
+        return []
+
+    from gateway.llm_client import chat
+
+    rows = []
+    for h in items_with_body[:8]:
+        body = h.body.strip()
+        rows.append(f"- {h.title}\n  {body[:500]}")
+    article_block = "\n".join(rows)
+
+    prompt = (
+        "You're writing a one-screen morning brief for Jacob. Below are today's "
+        "top articles with extracted body text. Pick the 3–5 most genuinely "
+        "interesting items and write one tight, declarative bullet per item — "
+        "specific claim or finding, no hedging, no headlines that just rehash "
+        "the title. Keep each bullet under 24 words. Output ONLY the bullets, "
+        "one per line, each starting with '- '. No preamble, no headers.\n\n"
+        f"ARTICLES:\n{article_block}"
+    )
+
+    try:
+        raw = chat(
+            model="kitty-sonnet",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=400,
+            temperature=0.3,
+        )
+    except Exception as e:
+        logger.warning("Brief bullet summarization failed: %s", e)
+        return []
+
+    bullets: List[str] = []
+    for line in raw.splitlines():
+        line = line.strip().lstrip("-•*").strip()
+        if line:
+            bullets.append(line)
+    return bullets[:5]
+
+
 def _build_brief_result(
     *,
     today: str,
     headlines: List[NewsHeadline],
     memory: str,
     intention: str,
+    summary_bullets: Optional[List[str]] = None,
 ) -> dict:
     from contracts.brief_item import BriefItem
 
@@ -185,6 +301,7 @@ def _build_brief_result(
         headlines=headlines,
         memory_snippet=memory[:500] if memory else "",
         intention=intention,
+        summary_bullets=summary_bullets or [],
     )
     result = item.model_dump(mode="json")
     model_news = get_model_digest_section(limit=3)
@@ -238,12 +355,16 @@ def generate_brief() -> dict:
     memory = _fetch_memory_snippet()
 
     brief_text = synthesize_brief_with_llm(headlines, task_summary, memory)
+    # Only attempt bullet synthesis when enrichment is on — without bodies the
+    # model would just paraphrase headlines.
+    summary_bullets = summarize_headlines_to_bullets(headlines) if _ENRICH_ARTICLES else []
 
     result = _build_brief_result(
         today=today,
         headlines=headlines,
         memory=memory,
         intention=brief_text,
+        summary_bullets=summary_bullets,
     )
 
     # Push to phone if notify is configured

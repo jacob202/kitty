@@ -14,6 +14,9 @@ export interface GatewayBrief {
   headlines: (string | GatewayHeadline)[]
   memory_snippet: string
   intention: string
+  /** 3–5 LLM bullets summarizing today's enriched headlines. Empty when
+   *  BRIEF_ENRICH_ARTICLES isn't set. */
+  summary_bullets?: string[]
   generated_at: string
   notification_sent: boolean
   error: string | null

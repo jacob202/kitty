@@ -1,11 +1,11 @@
 'use client'
 import { useState, useEffect } from 'react'
 import type { CSSProperties } from 'react'
+import { type CronScheduleType } from '@/lib/gateway'
 import {
-  fetchCronSchedules, fetchCronActions, createCronSchedule,
-  deleteCronSchedule, toggleCronSchedule,
-  type CronSchedule, type CronScheduleType,
-} from '@/lib/gateway'
+  useCronSchedules, useCronActions, useCreateCronSchedule,
+  useDeleteCronSchedule, useToggleCronSchedule,
+} from '@/lib/queries'
 
 function fmtLastRun(ts: number): string {
   if (!ts) return 'never'
@@ -29,45 +29,41 @@ function valuePlaceholder(t: CronScheduleType): string {
 }
 
 export function CronPanel() {
-  const [schedules, setSchedules] = useState<CronSchedule[]>([])
-  const [actions, setActions] = useState<string[]>([])
+  const schedulesQuery = useCronSchedules()
+  const actionsQuery = useCronActions()
+  const createSchedule = useCreateCronSchedule()
+  const deleteSchedule = useDeleteCronSchedule()
+  const toggleSchedule = useToggleCronSchedule()
+
+  const schedules = schedulesQuery.data ?? []
+  const actions = actionsQuery.data ?? []
+  const saving = createSchedule.isPending
+
   const [adding, setAdding] = useState(false)
   const [name, setName] = useState('')
   const [action, setAction] = useState('')
   const [schedType, setSchedType] = useState<CronScheduleType>('daily')
   const [schedVal, setSchedVal] = useState('07:00')
-  const [saving, setSaving] = useState(false)
 
+  // Default the action picker to the first known action once they load.
   useEffect(() => {
-    void load()
-  }, [])
+    if (!action && actions.length > 0) setAction(actions[0])
+  }, [actions, action])
 
-  async function load() {
-    const [s, a] = await Promise.all([fetchCronSchedules(), fetchCronActions()])
-    setSchedules(s)
-    setActions(a)
-    if (!action && a.length > 0) setAction(a[0])
-  }
-
-  async function handleAdd() {
+  function handleAdd() {
     if (!name.trim() || !action || !schedVal.trim() || saving) return
-    setSaving(true)
-    const id = await createCronSchedule(name.trim(), action, schedType, schedVal.trim())
-    setSaving(false)
-    if (id) {
-      setName(''); setSchedVal(valuePlaceholder(schedType)); setAdding(false)
-      await load()
-    }
-  }
-
-  async function handleDelete(id: string) {
-    await deleteCronSchedule(id)
-    await load()
-  }
-
-  async function handleToggle(id: string) {
-    await toggleCronSchedule(id)
-    await load()
+    createSchedule.mutate(
+      { name: name.trim(), action, scheduleType: schedType, scheduleValue: schedVal.trim() },
+      {
+        onSuccess: id => {
+          if (id) {
+            setName('')
+            setSchedVal(valuePlaceholder(schedType))
+            setAdding(false)
+          }
+        },
+      },
+    )
   }
 
   function handleTypeChange(t: CronScheduleType) {
@@ -94,14 +90,14 @@ export function CronPanel() {
                 </div>
                 <div style={{ display: 'flex', gap: 3, flexShrink: 0, alignItems: 'center' }}>
                   <button
-                    onClick={() => void handleToggle(s.id)}
+                    onClick={() => toggleSchedule.mutate(s.id)}
                     style={{ ...toggleBtnStyle, color: s.enabled ? 'var(--teal)' : 'var(--text-faint)' }}
                     title={s.enabled ? 'disable' : 'enable'}
                   >
                     {s.enabled ? '●' : '○'}
                   </button>
                   <button
-                    onClick={() => void handleDelete(s.id)}
+                    onClick={() => deleteSchedule.mutate(s.id)}
                     style={deleteBtnStyle}
                     title="delete"
                   >
@@ -162,7 +158,7 @@ export function CronPanel() {
           />
           <div style={{ display: 'flex', gap: 5 }}>
             <button
-              onClick={() => void handleAdd()}
+              onClick={handleAdd}
               disabled={!name.trim() || !action || !schedVal.trim() || saving}
               style={{ ...saveBtnStyle, flex: 1, opacity: !name.trim() || saving ? 0.4 : 1 }}
             >

@@ -154,3 +154,14 @@ button, input { font: inherit; }
 @keyframes blink {
   50% { opacity: 0; }
 }
+
+/* cmdk command palette — highlight the active item */
+[cmdk-item][data-selected="true"] {
+  background: var(--surface-mid);
+  color: var(--text);
+}
+[cmdk-item] { transition: background 0.08s linear; }
+[cmdk-group-heading] {
+  padding: 6px 10px 4px;
+  display: block;
+}

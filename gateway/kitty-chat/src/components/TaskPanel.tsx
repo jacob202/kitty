@@ -1,7 +1,8 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useRef } from 'react'
 import type { CSSProperties } from 'react'
-import { createGatewayTask, fetchGatewayTasks, cancelGatewayTask, type GatewayTask, type TaskType } from '@/lib/gateway'
+import { type GatewayTask, type TaskType } from '@/lib/gateway'
+import { useTasks, useCreateTask, useCancelTask } from '@/lib/queries'
 
 const TYPE_META: Record<TaskType, { label: string; description: string; color: string; example: string }> = {
   research: { label: 'Research', description: 'Deep dive on a topic',     color: 'var(--purple)', example: 'e.g. summarize recent LLM evals…' },
@@ -28,44 +29,32 @@ const STATUS_ICON: Record<string, string> = {
 }
 
 export function TaskPanel() {
-  const [tasks, setTasks]         = useState<GatewayTask[]>([])
-  const [goal, setGoal]           = useState('')
-  const [taskType, setTaskType]   = useState<TaskType>('research')
-  const [launching, setLaunching] = useState(false)
-  const inputRef                  = useRef<HTMLInputElement>(null)
+  const tasksQuery = useTasks(12)
+  const createTask = useCreateTask()
+  const cancelTask = useCancelTask()
 
-  useEffect(() => {
-    let alive = true
-    const poll = async () => {
-      const next = await fetchGatewayTasks(12)
-      if (alive) setTasks(next)
-    }
-    void poll()
-    const id = setInterval(() => { void poll() }, 3000)
-    return () => { alive = false; clearInterval(id) }
-  }, [])
+  const tasks = tasksQuery.data ?? []
+  const launching = createTask.isPending
+
+  const [goal, setGoal] = useState('')
+  const [taskType, setTaskType] = useState<TaskType>('research')
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const activeTasks = tasks.filter(t => t.status === 'queued' || t.status === 'running')
   const recentTasks = tasks.filter(t => t.status !== 'queued' && t.status !== 'running')
   const meta = TYPE_META[taskType]
 
-  async function handleLaunch() {
+  function handleLaunch() {
     const g = goal.trim()
     if (!g || launching) return
-    setLaunching(true)
-    const id = await createGatewayTask(g, taskType)
-    setLaunching(false)
-    if (id) {
-      setGoal('')
-      const next = await fetchGatewayTasks(12)
-      setTasks(next)
-    }
+    createTask.mutate(
+      { goal: g, taskType },
+      { onSuccess: id => { if (id) setGoal('') } },
+    )
   }
 
-  async function handleCancel(id: string) {
-    await cancelGatewayTask(id)
-    const next = await fetchGatewayTasks(12)
-    setTasks(next)
+  function handleCancel(id: string) {
+    cancelTask.mutate(id)
   }
 
   return (
@@ -164,7 +153,7 @@ export function TaskPanel() {
             ref={inputRef}
             value={goal}
             onChange={e => setGoal(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && void handleLaunch()}
+            onKeyDown={e => e.key === 'Enter' && handleLaunch()}
             placeholder={meta.example}
             style={{
               flex: 1,
@@ -180,7 +169,7 @@ export function TaskPanel() {
             }}
           />
           <button
-            onClick={() => void handleLaunch()}
+            onClick={handleLaunch}
             disabled={!goal.trim() || launching}
             style={{
               flexShrink: 0,

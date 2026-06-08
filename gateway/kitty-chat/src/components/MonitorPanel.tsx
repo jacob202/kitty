@@ -1,42 +1,36 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import type { CSSProperties } from 'react'
-import { fetchGatewayMonitors, addGatewayMonitor, removeGatewayMonitor, type GatewayMonitor } from '@/lib/gateway'
+import { useMonitors, useAddMonitor, useRemoveMonitor } from '@/lib/queries'
 
 export function MonitorPanel() {
-  const [monitors, setMonitors] = useState<GatewayMonitor[]>([])
+  const monitorsQuery = useMonitors()
+  const addMonitor = useAddMonitor()
+  const removeMonitor = useRemoveMonitor()
+
+  const monitors = monitorsQuery.data ?? []
+  const adding = addMonitor.isPending
+
   const [url, setUrl] = useState('')
   const [label, setLabel] = useState('')
-  const [adding, setAdding] = useState(false)
   const [showForm, setShowForm] = useState(false)
 
-  useEffect(() => {
-    void load()
-    const id = setInterval(() => void load(), 60000)
-    return () => clearInterval(id)
-  }, [])
-
-  async function load() {
-    const list = await fetchGatewayMonitors()
-    setMonitors(list)
-  }
-
-  async function handleAdd() {
+  function handleAdd() {
     const u = url.trim()
     const l = label.trim() || u
     if (!u || adding) return
-    setAdding(true)
-    const id = await addGatewayMonitor(u, l)
-    setAdding(false)
-    if (id) {
-      setUrl(''); setLabel(''); setShowForm(false)
-      await load()
-    }
-  }
-
-  async function handleRemove(id: string) {
-    await removeGatewayMonitor(id)
-    await load()
+    addMonitor.mutate(
+      { url: u, label: l },
+      {
+        onSuccess: id => {
+          if (id) {
+            setUrl('')
+            setLabel('')
+            setShowForm(false)
+          }
+        },
+      },
+    )
   }
 
   return (
@@ -53,7 +47,7 @@ export function MonitorPanel() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
                 <span style={urlStyle}>{m.url.replace(/^https?:\/\//, '').slice(0, 40)}</span>
-                <button onClick={() => void handleRemove(m.watch_id)} style={removeButtonStyle}>×</button>
+                <button onClick={() => removeMonitor.mutate(m.watch_id)} style={removeButtonStyle}>×</button>
               </div>
             </div>
           ))}
@@ -77,7 +71,7 @@ export function MonitorPanel() {
             style={inputStyle}
           />
           <div style={{ display: 'flex', gap: 5 }}>
-            <button onClick={() => void handleAdd()} disabled={!url.trim() || adding}
+            <button onClick={handleAdd} disabled={!url.trim() || adding}
               style={{ ...actionButtonStyle, opacity: !url.trim() || adding ? 0.4 : 1 }}>
               {adding ? '…' : 'add'}
             </button>
