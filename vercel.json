@@ -1,7 +1,8 @@
 {
-  "rootDirectory": "gateway/kitty-chat",
-  "framework": "nextjs",
-  "buildCommand": "next build",
-  "outputDirectory": ".next",
-  "installCommand": "npm install"
+  "builds": [
+    {
+      "src": "gateway/kitty-chat/package.json",
+      "use": "@vercel/next"
+    }
+  ]
 }
