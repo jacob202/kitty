@@ -9,6 +9,7 @@ Uses mem0 when API key is set, falls back to in-process dict for local dev.
 """
 
 import json
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -23,6 +24,7 @@ from .config import settings
 
 _LOCAL_STORE: dict[str, list[dict]] = {}
 _PROFILE_PATH = Path(__file__).parent.parent / "config" / "user_profile.json"
+_PROFILE_LOCK = threading.Lock()
 
 
 def _load_profile() -> dict:
@@ -47,11 +49,12 @@ def get_user_profile() -> dict:
 
 
 def update_user_profile(updates: dict) -> None:
-    """Merge *updates* into the stored user profile and persist it."""
-    profile = _load_profile()
-    profile.update(updates)
-    profile["last_updated"] = datetime.utcnow().isoformat()
-    _save_profile(profile)
+    """Merge *updates* into the stored user profile and persist it (thread-safe)."""
+    with _PROFILE_LOCK:
+        profile = _load_profile()
+        profile.update(updates)
+        profile["last_updated"] = datetime.utcnow().isoformat()
+        _save_profile(profile)
 
 
 def format_profile_injection(profile: dict) -> str:

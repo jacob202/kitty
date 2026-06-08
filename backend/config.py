@@ -1,11 +1,20 @@
-from pydantic_settings import BaseSettings
 from pathlib import Path
+
+from pydantic import field_validator
+from pydantic_settings import BaseSettings
 
 SOUL_DIR = Path(__file__).parent.parent / "soul"
 
 
 class Settings(BaseSettings):
     anthropic_api_key: str
+
+    @field_validator("anthropic_api_key")
+    @classmethod
+    def _require_non_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("ANTHROPIC_API_KEY must not be empty")
+        return v
     mem0_api_key: str = ""
     user_id: str = "default"
 
