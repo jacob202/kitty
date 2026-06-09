@@ -27,6 +27,7 @@ import uuid
 from pathlib import Path
 
 from gateway.paths import DATA_DIR
+from gateway import success_criteria
 
 logger = logging.getLogger("kitty.builder")
 
@@ -153,6 +154,10 @@ async def _run_pipeline(
         _update(build_id, current_stage="plan", stage_status=stages_status)
 
         plan = await _run_plan_stage(goal)
+        # Derive atomic success criteria (ISCs) up front so "done" is explicit.
+        criteria = await asyncio.to_thread(success_criteria.derive, goal)
+        if criteria:
+            plan = f"{plan}\n\n{success_criteria.format_block(criteria)}"
         stages_status["plan"] = "completed"
         _update(build_id, stage_status=stages_status, artifact=plan)
 
@@ -197,6 +202,19 @@ async def _run_pipeline(
         _update(build_id, current_stage="review", stage_status=stages_status)
 
         review = await _run_review_stage(goal, code, test_result)
+        # Check the build against the success criteria derived at PLAN (advisory).
+        if criteria:
+            evidence = (
+                f"Test output:\n{test_result.get('stdout', '')}\n\nCode:\n{code[:4000]}"
+            )
+            crit_results = await asyncio.to_thread(
+                success_criteria.check, goal, criteria, evidence
+            )
+            review = f"{review}\n\n{success_criteria.format_block(crit_results)}"
+            if not success_criteria.all_passed(crit_results):
+                logger.info(
+                    "Build %s: not all success criteria met (advisory)", build_id
+                )
         stages_status["review"] = "completed"
         _update(build_id, stage_status=stages_status, artifact=review)
 
