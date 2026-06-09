@@ -2,7 +2,23 @@
 
 **Date:** 2026-06-08
 **Subject:** Daniel Miessler's [Personal AI Infrastructure (PAI)](https://github.com/danielmiessler/Personal_AI_Infrastructure) compared against Kitty
-**Purpose:** Identify concrete ideas worth stealing from PAI, ranked by value. No code changes — this is a decision document.
+**Purpose:** Identify concrete ideas worth stealing from PAI, ranked by value.
+
+---
+
+## Update (2026-06-08): decision & what shipped
+
+**Strategic decision: lift PAI's patterns, do NOT fork it.** PAI is a TypeScript/Bun layer that runs *inside* Claude Code and is Anthropic-model-centric; Kitty is a standalone, model-agnostic, local-first Python app. Forking would inherit Anthropic lock-in and discard Kitty's working voice/telegram/integration code + tests. So we lift PAI's *portable markdown assets* and adapt them to Kitty's conventions (stripping PAI cruft: `~/.claude/PAI` paths, `localhost:31337` voice hooks, `{PRINCIPAL.NAME}` vars).
+
+**Shipped in this PR:**
+- **TELOS user-identity** (`config/USER/*.md` templates + `gateway/user_context.py`), injected into every system prompt via `context_builder.get_system_prompt()`. Closes the #1 gap (Kitty had no model of *who Jacob is*).
+- **8 reasoning/spec skills lifted verbatim** (cruft-stripped) into `.agents/skills/`: `first-principles`, `systems-thinking`, `red-team`, `iterative-depth`, `root-cause-analysis`, `extract-wisdom`, `science-method`, and `isa` (the Ideal State Artifact spec + examples). Auto-discovered by `skill_registry`.
+
+**Deferred to follow-up PRs (touch working code — need sign-off):** typed knowledge graph, ISA→verifier wiring, explicit Algorithm phases.
+
+### Adjacent tools evaluated
+- **TurboVec** (compressed ANN index): **DEFER.** Its win is RAM/latency at millions of docs; Kitty is personal-scale and ChromaDB already gives documents+metadata+persistence. Revisit behind `memory_graph`'s `StoreAdapter` only if the KB grows huge.
+- **MemPalace** (local-first semantic memory + typed knowledge graph w/ temporal validity): **strong candidate, Phase 4.** Recommended as the *vehicle* for the typed-knowledge-graph gap — embedded behind `memory_graph`'s `StoreAdapter`, not run as a separate sidecar service.
 
 ---
 
