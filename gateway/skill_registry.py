@@ -136,6 +136,34 @@ def search(query: str) -> list[dict]:
     return results
 
 
+def _triggers(skill: dict) -> list[str]:
+    """Extract trigger phrases from a skill's `USE WHEN ...` clause + when_to_use."""
+    desc = skill.get("description", "")
+    phrases: list[str] = []
+    m = re.search(r"USE WHEN[:\s]+(.*?)(?:NOT FOR|$)", desc, re.IGNORECASE | re.DOTALL)
+    if m:
+        phrases += [p.strip().strip(".").lower() for p in m.group(1).split(",")]
+    when = skill.get("when_to_use", "")
+    if when:
+        phrases += [p.strip().lower() for p in when.split(",")]
+    # Keep multi-word phrases — single words are too noisy to match on.
+    return [p for p in phrases if len(p.split()) >= 2]
+
+
+def suggest(message: str, limit: int = 1) -> list[dict]:
+    """Return skills whose trigger phrases appear in the message, best match first."""
+    if not message:
+        return []
+    lower = message.lower()
+    scored: list[tuple[int, dict]] = []
+    for skill in discover():
+        hits = sum(1 for phrase in _triggers(skill) if phrase in lower)
+        if hits:
+            scored.append((hits, skill))
+    scored.sort(key=lambda t: t[0], reverse=True)
+    return [s for _, s in scored[:limit]]
+
+
 def invoke(name: str, context: Optional[str] = None) -> dict:
     """Prepare a skill for invocation. Returns the skill data with a rendered prompt.
 
