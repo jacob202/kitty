@@ -26,9 +26,9 @@ A markdown file at one of:
 
 ## Procedure
 
-### Step 2 — Pick the canonical template
+### Step 1 — Pick the canonical template
 
-Always start by reading `~/.claude/skills/ISA/Examples/canonical-isa.md` for section headers and tone. For E1 reference, read `e1-minimal.md`. For E5 reference, read `e5-comprehensive.md`.
+Always start by reading `.agents/skills/isa/Examples/canonical-isa.md` for section headers and tone. For E1 reference, read `e1-minimal.md`. For E5 reference, read `e5-desktop-app.md` or `e5-enterprise.md`.
 
 ### Step 3 — Reverse-engineer the prompt
 

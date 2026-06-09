@@ -25,8 +25,8 @@ Every ISA may have up to twelve body sections. The tier completeness gate decide
 | 5 | `## Constraints` | Immovable architectural mandates that bound the solution space | OBSERVE |
 | 6 | `## Goal` | The hard-to-vary spine — 1–3 sentences naming verifiable done | OBSERVE |
 | 7 | `## Criteria` | Atomic ISCs (Ideal State Criteria) — one binary tool probe each, including derived `Anti:` ISCs | OBSERVE → EXECUTE |
-| 8 | `## Test Strategy` | Per-ISC verification approach — `isc | type | check | threshold | tool` | OBSERVE/PLAN |
-| 9 | `## Features` | Work breakdown — `name | description | satisfies: [ISC-N…] | depends_on: [feature…] | parallelizable: bool` | PLAN |
+| 8 | `## Test Strategy` | Per-ISC verification approach — `isc \| type \| check \| threshold \| tool` | OBSERVE/PLAN |
+| 9 | `## Features` | Work breakdown — `name \| description \| satisfies: [ISC-N…] \| depends_on: [feature…] \| parallelizable: bool` | PLAN |
 | 10 | `## Decisions` | Timestamped decision log including dead ends; `refined:` prefix for Goal/ISC restructures | any phase |
 | 11 | `## Changelog` | Conjecture / refuted-by / learned / criterion-now entries — Deutsch error-correction trail | LEARN |
 | 12 | `## Verification` | Evidence that each ISC passed — quoted command output, file content, screenshot path | VERIFY |
@@ -184,12 +184,4 @@ The Algorithm at OBSERVE invokes this skill to scaffold or read an ISA. The skil
 - PLAN: `Skill("ISA", "extract feature <name> as ephemeral file")` → ephemeral excerpt.
 - LEARN: `Skill("ISA", "reconcile <ephemeral-path> → <master-path>")` → deterministic merge.
 
-The Algorithm doctrine spec at `config/ALGORITHM/v6.2.0.md` (or LATEST) governs invocation cadence. This skill is invocation-agnostic — it works the same whether called by the Algorithm or directly by the user.
-
----
-
-## Format spec cross-reference
-
-The full ISA format spec lives at `config/DOCUMENTATION/IsaFormat.md`. This skill implements that spec; if there is ever a contradiction, the format spec wins and this skill is updated to match.
-
-The system-architecture doc — five identities, three-guardrail taxonomy, twelve-section body, six workflows, two homes, subsystem relationships — lives at `config/DOCUMENTATION/Isa/IsaSystem.md`. Read that for the conceptual frame; read this file (and `IsaFormat.md`) for the operational contract.
+This skill is invocation-agnostic — it works the same whether called by an orchestrating loop or directly by the user. (PAI's separate Algorithm-doctrine and IsaFormat/IsaSystem spec documents are not ported into Kitty; this SKILL.md is the self-contained operational contract.)

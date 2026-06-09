@@ -47,6 +47,15 @@ def test_update_section_rejects_unknown(user_dir):
     assert user_context.update_section("BOGUS", "x") is False
 
 
+def test_update_section_rejects_path_traversal(user_dir):
+    assert user_context.update_section("../evil", "x") is False
+    assert user_context.update_section("a/b", "x") is False
+
+
+def test_get_section_names_matches_order(user_dir):
+    assert user_context.get_section_names() == list(user_context._ORDER)
+
+
 def test_build_interview_prompt_targets_next_missing(user_dir):
     (user_dir / "MISSION.md").write_text("# Mission\nFilled.\n")
     prompt = user_context.build_interview_prompt("BASE")

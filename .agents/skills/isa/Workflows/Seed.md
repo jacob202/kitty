@@ -38,7 +38,7 @@ review_required: true
 
 ## Procedure
 
-### Step 2 — Refuse if ISA already exists
+### Step 1 — Refuse if ISA already exists
 
 If `<project_path>/ISA.md` exists, abort and emit `status: exists`. Seed never overwrites — the user uses Interview or Scaffold to deepen an existing project ISA.
 

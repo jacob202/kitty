@@ -18,7 +18,7 @@ class SectionUpdate(BaseModel):
 async def telos_status():
     """Report which TELOS sections are filled vs still empty/template."""
     missing = set(user_context.missing_sections())
-    sections = {name: (name not in missing) for name in user_context._ORDER}
+    sections = {name: (name not in missing) for name in user_context.get_section_names()}
     return {"sections": sections, "missing": sorted(missing)}
 
 

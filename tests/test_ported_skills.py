@@ -33,8 +33,9 @@ def test_skill_discovered_with_description(skills, name):
 def test_no_pai_cruft_left(name):
     """No PAI-specific paths, voice hooks, or template vars leaked through the lift."""
     skill_dir = PROJECT_ROOT / ".agents" / "skills" / name
-    cruft = ["localhost:31337", "localhost:8888", "~/.claude/PAI",
-             "PRINCIPAL.NAME", "DAIDENTITY", "SKILLCUSTOMIZATIONS"]
+    cruft = ["localhost:31337", "localhost:8888", "~/.claude",
+             "PRINCIPAL.NAME", "DAIDENTITY", "SKILLCUSTOMIZATIONS",
+             "config/MEMORY/SKILLS"]
     for md in skill_dir.rglob("*.md"):
         text = md.read_text(encoding="utf-8")
         for token in cruft:

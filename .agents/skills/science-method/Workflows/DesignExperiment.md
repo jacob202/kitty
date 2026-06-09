@@ -167,20 +167,11 @@ Ask:
 
 ### Prompt Experiments
 
-**Tool:** Evals Skill (MANDATORY)
+**Tool:** A prompt-evaluation harness (Kitty: `gateway/eval_runner.py`)
 
-**For ALL prompt experiments, invoke the Evals skill directly.**
+For prompt experiments, run an eval harness rather than eyeballing outputs. Don't reinvent evaluation — use a battle-tested methodology with statistical rigor.
 
-Evals implements the Science Protocol for prompt engineering. Don't reinvent evaluation - use the battle-tested methodology.
-
-**Invocation:**
-```
-→ Invoke Evals skill, ComparePrompts workflow
-→ Follow Evals' Science Protocol Alignment checklist
-→ Use Evals' statistical rigor (SEM, confidence intervals)
-```
-
-**What Evals Provides:**
+**What a good prompt-eval harness provides:**
 - Position swapping (mitigates LLM positional bias)
 - Multi-judge panels (reduces individual model quirks)
 - Statistical significance testing
@@ -199,7 +190,7 @@ Evals implements the Science Protocol for prompt engineering. Don't reinvent eva
 - variant-2: [Modified prompt B]
 - variant-3: [Modified prompt C - different direction]
 
-**Eval Method (via Evals skill):**
+**Eval Method:**
 - Run eval suite with each variant
 - N=100 samples per variant
 - Position swapping enabled
@@ -209,15 +200,6 @@ Evals implements the Science Protocol for prompt engineering. Don't reinvent eva
 - Variant exceeds baseline by > 5%
 - Statistical significance p < 0.05
 - No regression on secondary metrics
-```
-
-**CLI Quick Reference:**
-```bash
-# Run prompt comparison via Evals skill
-bun run ~/.claude/skills/Evals/EvalServer/cli-run.ts \
-  --use-case <name> \
-  --compare prompts/baseline.md prompts/variant-1.md \
-  --position-swap
 ```
 
 ### Feature Experiments

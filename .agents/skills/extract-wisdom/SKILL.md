@@ -54,7 +54,7 @@ The output should feel like your smartest friend watched/read the thing and is t
 
 ## Tone Rules (CRITICAL)
 
-**Canonical voice reference: `PAI/USER/WRITINGSTYLE.md`** — read this file for the full voice definition. The bullets should sound like the user telling a friend about it over coffee. Not compressed info nuggets. Not clever one-liners. Actual spoken observations.
+**Canonical voice reference: `config/SOUL.md`** — Kitty's voice definition. The bullets should sound like a friend telling you about it over coffee. Not compressed info nuggets. Not clever one-liners. Actual spoken observations.
 
 **THREE LEVELS — we're aiming for Level 3:**
 
@@ -246,13 +246,3 @@ User: "extract the key insights from this blog post"
 → Adapts sections to article format
 → Returns distilled wisdom with source attribution
 ```
-
-## Execution Log
-
-After completing any workflow, append a single JSONL entry:
-
-```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"ExtractWisdom","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> config/MEMORY/SKILLS/execution.jsonl
-```
-
-Replace `WORKFLOW_USED` with the workflow executed, `8_WORD_SUMMARY` with a brief input description, and `SECONDS` with approximate wall-clock time. Log `status: "error"` if the workflow failed.

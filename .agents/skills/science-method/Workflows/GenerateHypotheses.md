@@ -42,7 +42,7 @@ Techniques:
 [Generate 10-20 before filtering]
 ```
 
-**Use Council Skill** for multi-perspective brainstorming.
+**Use the `mcp-kitty-council` skill** for multi-perspective brainstorming.
 **Use parallel agents** to generate ideas from different angles.
 
 ### Step 2: Categorization Phase
@@ -146,7 +146,7 @@ Actively argue AGAINST your favorite hypothesis.
 For each hypothesis, ask: "What evidence would make me LESS confident?"
 
 ### 4. Red Team
-Use RedTeam skill to attack your hypotheses from 32 angles.
+Use the `red-team` skill to attack your hypotheses from 32 angles.
 
 ### 5. Consider the Null
 Always include: "Maybe nothing is wrong" or "Maybe the current approach is optimal"

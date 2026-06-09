@@ -68,7 +68,7 @@ def _skill_hint(message: str) -> str:
         return ""
     skill = matches[0]
     desc = (skill.get("description", "") or "").split(".")[0].strip()
-    return f"## Relevant skill\nConsider the **{skill['name']}** skill: {desc}."
+    return f"## Relevant skill\nConsider the **{skill.get('name', 'unknown')}** skill: {desc}."
 
 
 def build_worker_context(context_type: str, **kwargs) -> str:

@@ -132,11 +132,3 @@ User: "we're about to add a rate limit to stop abuse"
 ---
 
 **Attribution:** Frameworks drawn from Donella Meadows (*Thinking in Systems*, 2008; "Places to Intervene in a System," 1999), Peter Senge (*The Fifth Discipline*, 1990), Jay Forrester (*Industrial Dynamics*, 1961), Russell Ackoff (*Systems Thinking for Curious Managers*), Fritjof Capra (*The Web of Life*), and the System Dynamics Society tradition.
-
-## Execution Log
-
-After completing any workflow, append a single JSONL entry:
-
-```bash
-echo '{"ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","skill":"SystemsThinking","workflow":"WORKFLOW_USED","input":"8_WORD_SUMMARY","status":"ok|error","duration_s":SECONDS}' >> config/MEMORY/SKILLS/execution.jsonl
-```

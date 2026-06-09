@@ -38,7 +38,7 @@ Based on your deep read, pick 5-12 section names. Rules:
 ### Step 4: Extract Per Section
 
 For each section, extract 3-15 bullets. Apply tone rules from SKILL.md:
-- 8-20 words, flexible for clarity
+- 8-16 words per sentence, flexible for clarity (mix short and medium lengths)
 - Specific details, not vague summaries
 - Speaker's words when they're good
 - No hedging language

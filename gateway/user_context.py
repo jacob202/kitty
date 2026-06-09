@@ -97,6 +97,11 @@ def _is_filled(path) -> bool:
     return bool(text) and _TEMPLATE_MARKER not in text
 
 
+def get_section_names() -> list[str]:
+    """The ordered list of TELOS section filenames (public accessor for `_ORDER`)."""
+    return list(_ORDER)
+
+
 def missing_sections() -> list[str]:
     """Filenames of TELOS sections still empty or carrying the template marker."""
     return [name for name in _ORDER if not _is_filled(USER_DIR / name)]
@@ -110,6 +115,9 @@ def is_interview_trigger(message: str) -> bool:
 def update_section(name: str, content: str) -> bool:
     """Write a TELOS section file (creates USER_DIR if needed). Returns success."""
     fname = name if name.endswith(".md") else f"{name.upper()}.md"
+    # Defense-in-depth: reject any path separators before the whitelist check.
+    if "/" in fname or "\\" in fname:
+        return False
     if fname not in _ORDER and fname != "TELOS.md":
         return False
     try:
