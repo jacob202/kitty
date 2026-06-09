@@ -17,6 +17,7 @@ LOGS_DIR = ROOT / "logs"
 PROMPTS_DIR = ROOT / "prompts"
 KNOWLEDGE_DIR = DATA_DIR / "knowledge"
 CONFIG_DIR = ROOT / "config"
+USER_DIR = CONFIG_DIR / "USER"  # Jacob's TELOS identity files (mission/goals/etc.)
 
 LOG_FILE = LOGS_DIR / "gateway_trace.jsonl"
 

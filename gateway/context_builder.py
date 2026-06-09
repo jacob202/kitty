@@ -18,6 +18,7 @@ from gateway import (
     journal,
     parts,
     memory_graph,
+    user_context,
     voice_gate,
 )
 from gateway.context_enrichment import enrich_dynamic_context
@@ -38,6 +39,10 @@ async def get_system_prompt(
 
     if parts_mode or parts.should_surface_parts(message):
         system_prompt = parts.build_parts_system_prompt(system_prompt)
+
+    user_block = user_context.load_user_context()
+    if user_block:
+        system_prompt = f"{system_prompt}\n\n{user_block}"
 
     dynamic_context = await memory_graph.unified_context(message)
     dynamic_context = await enrich_dynamic_context(dynamic_context, message)
