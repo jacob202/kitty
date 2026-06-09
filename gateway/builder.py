@@ -62,6 +62,7 @@ def start(
     goal: str,
     target_dir: str = "",
     auto_approve: bool = False,
+    require_criteria: bool = False,
 ) -> str:
     """Start a new build pipeline. Returns build_id."""
     init_db()
@@ -82,7 +83,9 @@ def start(
     logger.info("Build started: %s goal=%s", build_id, goal[:80])
 
     # Launch pipeline in background
-    asyncio.create_task(_run_pipeline(build_id, goal, target, auto_approve))
+    asyncio.create_task(
+        _run_pipeline(build_id, goal, target, auto_approve, require_criteria)
+    )
 
     return build_id
 
@@ -143,10 +146,15 @@ def list_builds(limit: int = 10) -> list[dict]:
 
 
 async def _run_pipeline(
-    build_id: str, goal: str, target_dir: str, auto_approve: bool
+    build_id: str,
+    goal: str,
+    target_dir: str,
+    auto_approve: bool,
+    require_criteria: bool = False,
 ) -> None:
     """Execute all pipeline stages in sequence."""
     stages_status: dict[str, str] = {}
+    criteria_met = True
 
     try:
         # Stage 1: PLAN
@@ -211,12 +219,18 @@ async def _run_pipeline(
                 success_criteria.check, goal, criteria, evidence
             )
             review = f"{review}\n\n{success_criteria.format_block(crit_results)}"
-            if not success_criteria.all_passed(crit_results):
-                logger.info(
-                    "Build %s: not all success criteria met (advisory)", build_id
-                )
+            criteria_met = success_criteria.all_passed(crit_results)
+            if not criteria_met:
+                logger.info("Build %s: not all success criteria met", build_id)
         stages_status["review"] = "completed"
         _update(build_id, stage_status=stages_status, artifact=review)
+
+        # Optional hard gate: block commit unless every criterion passed.
+        if require_criteria and not criteria_met:
+            stages_status["commit"] = "blocked"
+            _update(build_id, status="failed", stage_status=stages_status)
+            logger.info("Build %s blocked: success criteria not met", build_id)
+            return
 
         # Stage 6: COMMIT — requires approval
         stages_status["commit"] = (
