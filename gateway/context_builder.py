@@ -18,6 +18,7 @@ from gateway import (
     journal,
     parts,
     memory_graph,
+    skill_registry,
     user_context,
     voice_gate,
 )
@@ -37,6 +38,9 @@ async def get_system_prompt(
     if journal.is_journal_trigger(message):
         system_prompt = journal.build_interview_system_prompt(system_prompt)
 
+    if user_context.is_interview_trigger(message):
+        system_prompt = user_context.build_interview_prompt(system_prompt)
+
     if parts_mode or parts.should_surface_parts(message):
         system_prompt = parts.build_parts_system_prompt(system_prompt)
 
@@ -44,10 +48,27 @@ async def get_system_prompt(
     if user_block:
         system_prompt = f"{system_prompt}\n\n{user_block}"
 
+    hint = _skill_hint(message)
+    if hint:
+        system_prompt = f"{system_prompt}\n\n{hint}"
+
     dynamic_context = await memory_graph.unified_context(message)
     dynamic_context = await enrich_dynamic_context(dynamic_context, message)
 
     return _assemble(system_prompt, dynamic_context)
+
+
+def _skill_hint(message: str) -> str:
+    """A one-line pointer to a reasoning skill whose triggers match the message."""
+    try:
+        matches = skill_registry.suggest(message, limit=1)
+    except Exception:
+        return ""
+    if not matches:
+        return ""
+    skill = matches[0]
+    desc = (skill.get("description", "") or "").split(".")[0].strip()
+    return f"## Relevant skill\nConsider the **{skill['name']}** skill: {desc}."
 
 
 def build_worker_context(context_type: str, **kwargs) -> str:
