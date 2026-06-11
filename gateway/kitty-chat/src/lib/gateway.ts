@@ -360,16 +360,12 @@ async function gfetch<T = unknown>(path: string, init?: RequestInit, timeoutMs =
 }
 
 export async function spawnAgent(goal: string, agentType: AgentType = 'explorer'): Promise<number | null> {
-  try {
-    const json = await gfetch<{ session_id?: number }>('/agent/spawn', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ goal, agent_type: agentType }),
-    })
-    return json.session_id ?? null
-  } catch {
-    return null
-  }
+  const json = await gfetch<{ session_id?: number }>('/agent/spawn', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ goal, agent_type: agentType }),
+  }, 30_000)
+  return json.session_id ?? null
 }
 
 export async function fetchAgentStatus(sessionId: number): Promise<AgentSession | null> {
@@ -381,21 +377,13 @@ export async function fetchAgentStatus(sessionId: number): Promise<AgentSession 
 }
 
 export async function fetchAgentSessions(limit = 10): Promise<AgentSession[]> {
-  try {
-    const json = await gfetch<{ agents?: AgentSession[] }>(`/agents?limit=${limit}`)
-    return json.agents ?? []
-  } catch {
-    return []
-  }
+  const json = await gfetch<{ agents?: AgentSession[] }>(`/agents?limit=${limit}`)
+  return json.agents ?? []
 }
 
 export async function stopAgent(sessionId: number): Promise<boolean> {
-  try {
-    await gfetch(`/agent/${sessionId}/stop`, { method: 'POST' })
-    return true
-  } catch {
-    return false
-  }
+  await gfetch(`/agent/${sessionId}/stop`, { method: 'POST' })
+  return true
 }
 
 // ── Todos ────────────────────────────────────────────────────────────────────
@@ -411,42 +399,26 @@ export interface GatewayTodo {
 }
 
 export async function fetchGatewayTodos(): Promise<GatewayTodo[]> {
-  try {
-    const json = await gfetch<{ todos?: GatewayTodo[] }>('/todos')
-    return json.todos ?? []
-  } catch {
-    return []
-  }
+  const json = await gfetch<{ todos?: GatewayTodo[] }>('/todos')
+  return json.todos ?? []
 }
 
 export async function addGatewayTodo(content: string): Promise<GatewayTodo | null> {
-  try {
-    return await gfetch<GatewayTodo>('/todos/add', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content }),
-    })
-  } catch {
-    return null
-  }
+  return await gfetch<GatewayTodo>('/todos/add', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  })
 }
 
 export async function completeGatewayTodo(id: number): Promise<boolean> {
-  try {
-    await gfetch(`/todos/${id}/complete`, { method: 'POST' })
-    return true
-  } catch {
-    return false
-  }
+  await gfetch(`/todos/${id}/complete`, { method: 'POST' })
+  return true
 }
 
 export async function deleteGatewayTodo(id: number): Promise<boolean> {
-  try {
-    await gfetch(`/todos/${id}`, { method: 'DELETE' })
-    return true
-  } catch {
-    return false
-  }
+  await gfetch(`/todos/${id}`, { method: 'DELETE' })
+  return true
 }
 
 // ── Prompt Templates ─────────────────────────────────────────────────────────
@@ -460,12 +432,8 @@ export interface GatewayPromptTemplate {
 }
 
 export async function fetchGatewayPrompts(): Promise<GatewayPromptTemplate[]> {
-  try {
-    const json = await gfetch<{ templates?: GatewayPromptTemplate[] }>('/prompts')
-    return json.templates ?? []
-  } catch {
-    return []
-  }
+  const json = await gfetch<{ templates?: GatewayPromptTemplate[] }>('/prompts')
+  return json.templates ?? []
 }
 
 // ── Tasks ────────────────────────────────────────────────────────────────────
@@ -483,37 +451,25 @@ export interface GatewayTask {
 }
 
 export async function fetchGatewayTasks(limit = 20): Promise<GatewayTask[]> {
-  try {
-    const json = await gfetch<{ tasks?: GatewayTask[] }>(`/tasks?limit=${limit}`)
-    return json.tasks ?? []
-  } catch {
-    return []
-  }
+  const json = await gfetch<{ tasks?: GatewayTask[] }>(`/tasks?limit=${limit}`)
+  return json.tasks ?? []
 }
 
 export async function createGatewayTask(
   goal: string,
   taskType: TaskType = 'research',
 ): Promise<string | null> {
-  try {
-    const json = await gfetch<{ task_id?: string }>('/task/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ goal, task_type: taskType }),
-    })
-    return json.task_id ?? null
-  } catch {
-    return null
-  }
+  const json = await gfetch<{ task_id?: string }>('/task/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ goal, task_type: taskType }),
+  }, 15_000)
+  return json.task_id ?? null
 }
 
 export async function cancelGatewayTask(taskId: string): Promise<boolean> {
-  try {
-    await gfetch(`/task/${taskId}/cancel`, { method: 'POST' })
-    return true
-  } catch {
-    return false
-  }
+  await gfetch(`/task/${taskId}/cancel`, { method: 'POST' })
+  return true
 }
 
 // ── Monitors ─────────────────────────────────────────────────────────────────
@@ -530,34 +486,22 @@ export interface GatewayMonitor {
 }
 
 export async function fetchGatewayMonitors(): Promise<GatewayMonitor[]> {
-  try {
-    const json = await gfetch<{ watches?: GatewayMonitor[] }>('/monitors')
-    return json.watches ?? []
-  } catch {
-    return []
-  }
+  const json = await gfetch<{ watches?: GatewayMonitor[] }>('/monitors')
+  return json.watches ?? []
 }
 
 export async function addGatewayMonitor(url: string, label: string): Promise<string | null> {
-  try {
-    const json = await gfetch<{ watch_id?: string }>('/monitor/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, label }),
-    })
-    return json.watch_id ?? null
-  } catch {
-    return null
-  }
+  const json = await gfetch<{ watch_id?: string }>('/monitor/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, label }),
+  })
+  return json.watch_id ?? null
 }
 
 export async function removeGatewayMonitor(watchId: string): Promise<boolean> {
-  try {
-    await gfetch(`/monitor/${watchId}`, { method: 'DELETE' })
-    return true
-  } catch {
-    return false
-  }
+  await gfetch(`/monitor/${watchId}`, { method: 'DELETE' })
+  return true
 }
 
 export async function fetchGatewaySearch(
@@ -634,12 +578,8 @@ export async function fetchGatewayLoops(): Promise<GatewayLoopsPayload> {
 }
 
 export async function toggleGatewayLoop(loopId: string): Promise<boolean> {
-  try {
-    await gfetch(`/loop/${loopId}/toggle`, { method: 'POST' })
-    return true
-  } catch {
-    return false
-  }
+  await gfetch(`/loop/${loopId}/toggle`, { method: 'POST' })
+  return true
 }
 
 // ── Insights Fetch ────────────────────────────────────────────────────────────
@@ -662,12 +602,8 @@ export async function fetchGatewayInsights(limit = 10): Promise<GatewayInsightsP
 }
 
 export async function dismissGatewayInsight(insightId: string): Promise<boolean> {
-  try {
-    await gfetch(`/insight/${insightId}/dismiss`, { method: 'POST' })
-    return true
-  } catch {
-    return false
-  }
+  await gfetch(`/insight/${insightId}/dismiss`, { method: 'POST' })
+  return true
 }
 
 // ── Cron Schedules ────────────────────────────────────────────────────────────
@@ -685,21 +621,13 @@ export interface CronSchedule {
 }
 
 export async function fetchCronSchedules(): Promise<CronSchedule[]> {
-  try {
-    const json = await gfetch<{ schedules?: CronSchedule[] }>('/cron/schedules')
-    return json.schedules ?? []
-  } catch {
-    return []
-  }
+  const json = await gfetch<{ schedules?: CronSchedule[] }>('/cron/schedules')
+  return json.schedules ?? []
 }
 
 export async function fetchCronActions(): Promise<string[]> {
-  try {
-    const json = await gfetch<{ actions?: string[] }>('/cron/actions')
-    return json.actions ?? []
-  } catch {
-    return []
-  }
+  const json = await gfetch<{ actions?: string[] }>('/cron/actions')
+  return json.actions ?? []
 }
 
 export async function createCronSchedule(
@@ -708,34 +636,22 @@ export async function createCronSchedule(
   scheduleType: CronScheduleType,
   scheduleValue: string,
 ): Promise<string | null> {
-  try {
-    const json = await gfetch<{ id?: string }>('/cron/schedule', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, action, schedule_type: scheduleType, schedule_value: scheduleValue }),
-    })
-    return json.id ?? null
-  } catch {
-    return null
-  }
+  const json = await gfetch<{ id?: string }>('/cron/schedule', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, action, schedule_type: scheduleType, schedule_value: scheduleValue }),
+  })
+  return json.id ?? null
 }
 
 export async function deleteCronSchedule(id: string): Promise<boolean> {
-  try {
-    await gfetch(`/cron/schedule/${id}`, { method: 'DELETE' })
-    return true
-  } catch {
-    return false
-  }
+  await gfetch(`/cron/schedule/${id}`, { method: 'DELETE' })
+  return true
 }
 
 export async function toggleCronSchedule(id: string): Promise<boolean> {
-  try {
-    await gfetch(`/cron/schedule/${id}/toggle`, { method: 'POST' })
-    return true
-  } catch {
-    return false
-  }
+  await gfetch(`/cron/schedule/${id}/toggle`, { method: 'POST' })
+  return true
 }
 
 // ── Image Generation ──────────────────────────────────────────────────────────
@@ -757,22 +673,15 @@ export async function fetchImageStatus(): Promise<{ available: boolean }> {
 }
 
 export async function generateImage(prompt: string): Promise<{ filename: string } | null> {
-  try {
-    return await gfetch<{ filename: string }>('/image/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt }),
-    })
-  } catch {
-    return null
-  }
+  // ComfyUI generation typically takes 5–15s; give it plenty of room.
+  return await gfetch<{ filename: string }>('/image/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt }),
+  }, 60_000)
 }
 
 export async function fetchImageHistory(limit = 20): Promise<ImageEntry[]> {
-  try {
-    const json = await gfetch<{ images?: ImageEntry[] }>(`/image/history?limit=${limit}`)
-    return json.images ?? []
-  } catch {
-    return []
-  }
+  const json = await gfetch<{ images?: ImageEntry[] }>(`/image/history?limit=${limit}`)
+  return json.images ?? []
 }

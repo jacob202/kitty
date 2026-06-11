@@ -29,11 +29,11 @@ export function InputBar({
   const [recState, setRecState] = useState<RecState>('idle')
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
+  // Mirror the latest value into a ref so transcribeAndInsert, which runs
+  // asynchronously after recording stops, doesn't overwrite anything the
+  // user typed during transcription.
   const valueRef = useRef<string>(value)
-
-  useEffect(() => {
-    valueRef.current = value
-  }, [value])
+  useEffect(() => { valueRef.current = value }, [value])
 
   useEffect(() => {
     if (!ref.current) return
