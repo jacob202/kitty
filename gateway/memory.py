@@ -80,7 +80,11 @@ def _get_memory():
 
 def add_memory(text: str, namespace: str = "facts", metadata: Optional[dict] = None) -> None:
     """Store a memory for Jacob. namespace: facts | patterns"""
-    mem = _get_memory()
+    try:
+        mem = _get_memory()
+    except Exception as e:
+        logger.warning("Memory add failed (non-fatal): %s", e)
+        return
     if mem is None:
         return
     try:
