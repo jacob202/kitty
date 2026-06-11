@@ -79,7 +79,16 @@ def _get_memory():
 
 
 def add_memory(text: str, namespace: str = "facts", metadata: Optional[dict] = None) -> None:
-    """Store a memory for Jacob. namespace: facts | patterns"""
+    """
+    Persist a memory entry for the module user.
+    
+    Attempts to store `text` in the memory backend under the given `namespace`. This is a best-effort operation: initialization or storage errors are logged as non-fatal warnings and the function returns without raising.
+    
+    Parameters:
+        text (str): The memory content to store.
+        namespace (str): Logical namespace for the memory (default: "facts").
+        metadata (Optional[dict]): Additional metadata to attach; merged into the stored metadata with the key `"namespace"` set to the provided `namespace`.
+    """
     try:
         mem = _get_memory()
     except Exception as e:
