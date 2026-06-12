@@ -10,6 +10,8 @@
 
 **Method:** All four documents were checked against the live repository. Verified true: `iter_chat_completions_stream()` calls LiteLLM directly with no fallback (`gateway/llm_client.py:813`); gateway health identity matches (`gateway/app.py:131`); `gateway/lib/load_env_safe.sh` and the start scripts exist; Next.js is 16.2.6; the proxy uses the exact env names the design assumes. New findings from the code are flagged inline.
 
+> **Status update (2026-06-12):** The auth fail-open finding below is **already fixed** in this same PR (`gateway/auth.py` now fails closed with 503 when `GATEWAY_SECRET` is unset, unless `KITTY_ENV=test`). Sections referencing it are kept as written for the record; where they say "fix," read "validate the fix under launchd."
+
 ---
 
 ## Verdict
@@ -36,7 +38,7 @@ Tear down the *delivery order*, keep the architecture.
 The dominant risk is not technical failure — it is **abandonment risk**: life interrupts at Task 8 of 15 and you are left with nothing usable. Re-cut the same work so every slice ends with something you use that same day:
 
 **Slice 0 — Spike day (half a day, throwaway branch).**
-The four Gate 0 proofs *plus the fifth*: one real streamed chat completion through a LaunchAgent-started LiteLLM after logout/login. Fix the proxy `:5001` default and the auth fail-open (see security section) while in there — both are minutes, both are mines. No committed scaffolds.
+The four Gate 0 proofs *plus the fifth*: one real streamed chat completion through a LaunchAgent-started LiteLLM after logout/login. Fix the proxy `:5001` default while in there, and validate that the auth fail-closed behavior (already fixed in `gateway/auth.py` in this PR — see security section) holds under launchd. No committed scaffolds.
 
 **Slice 1 — "Kitty survives reboot" (1–2 evenings). No Tauri.**
 Three LaunchAgents + wrapper scripts + a health CLI. Test by actually rebooting. The buried insight: **launchd is the product; Tauri is the polish.** Once the LaunchAgents exist, `localhost:4000` in a browser kills the Terminal-after-reboot pain — the entire stated motivation — on day two.
@@ -58,7 +60,7 @@ Failure injection, logout/login, reboot. Unchanged from the plan — this part i
 - **First run ends in delight, not logs.** The installer's last act: open the capture window with placeholder text — *"Tell me something to remember."* First contact is a capture, not terminal scroll.
 - **Status is invisible when healthy.** Surface health only on *transition to broken* (tray icon state change, notification). Don't design Jacob into a sysadmin role for his own companion.
 - **Kitty's voice in the chrome.** Tray copy, capture confirmations, errors — run them through SOUL.md. "Got it. It's safe with me." costs nothing and is the difference between product and utility.
-- **Define success as usage, not gates.** Phase 1 exit criterion: *one week where something was captured every day and Kitty mentioned at least one capture back unprompted.*
+- **Define success as usage, not gates.** Phase 1 exit criterion: *one week in which something was captured every day and Kitty mentioned at least one capture back unprompted.*
 
 ---
 
@@ -95,7 +97,7 @@ Failure injection, logout/login, reboot. Unchanged from the plan — this part i
 ## The security engineer
 
 - The Tauri capability design is genuinely strong — keep it exactly.
-- **`gateway/auth.py` fails open.** If `GATEWAY_SECRET` is unset and `KITTY_ENV` ≠ `prod`, every request bypasses auth. Concrete launchd failure mode: `load_env_safe.sh` fails silently → gateway runs unauthenticated on `:8000` → any local process can read Kitty's memory. Fix: the LaunchAgent wrapper sets `KITTY_ENV=prod` (or fails hard when the secret is missing), and Status reports "auth enforced: yes/no" as a first-class check.
+- **`gateway/auth.py` failed open** (fixed in this PR — `fix(auth): fail closed when GATEWAY_SECRET unset outside KITTY_ENV=test`). Previously, if `GATEWAY_SECRET` was unset and `KITTY_ENV` ≠ `prod`, every request bypassed auth. The concrete launchd failure mode it enabled: `load_env_safe.sh` fails silently → gateway runs unauthenticated on `:8000` → any local process can read Kitty's memory. The middleware now returns 503 when the secret is missing outside `KITTY_ENV=test`. Remaining work: the LaunchAgent wrapper must still fail hard when the secret is missing, and Status should report "auth enforced: yes/no" as a first-class check.
 - **Localhost is not a trust boundary.** Browsers will POST to `127.0.0.1:8000` from malicious websites (CSRF/DNS-rebinding against localhost). CORS in `app.py` allows credentials with a localhost origin list; add Host-header validation and confirm no state-changing route is reachable without the bearer token.
 - Both fixes are one evening each and matter more than the installer's rollback path.
 
@@ -121,7 +123,7 @@ Failure injection, logout/login, reboot. Unchanged from the plan — this part i
 
 # Synthesis — the Monday plan
 
-1. **Spike day** (Slice 0, throwaway): five proofs including real streamed chat under launchd. Fix the proxy `:5001` default and the auth fail-open.
+1. **Spike day** (Slice 0, throwaway): five proofs including real streamed chat under launchd. Fix the proxy `:5001` default; validate the auth fail-closed fix (already in `gateway/auth.py`) under launchd.
 2. **Slice 1 by midweek:** LaunchAgents live, reboot test passed, Terminal retired. The headline benefit is already real.
 3. **Slice 2 by the weekend:** capture (Raycast/Hammerspoon stopgap is fine) + InboxAdapter + brief resurfacing. **The loop closes here. This is the moment the product becomes worth keeping.**
 4. **Then decide on Tauri** with a week of real usage data, and build Slices 3–5 from the existing plan — slim Task 11, respec Task 1.

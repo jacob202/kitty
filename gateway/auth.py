@@ -13,9 +13,9 @@ EXEMPT_PATHS = {"/health"}
 class BearerAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         secret = os.environ.get("GATEWAY_SECRET", "")
-        # WARNING: if GATEWAY_SECRET is not set, ALL requests bypass auth.
-        # This is intentional for local dev/test, but MUST NOT occur in production.
-        # Set GATEWAY_SECRET in your environment before exposing this gateway externally.
+        # If GATEWAY_SECRET is unset this middleware FAILS CLOSED (503) unless
+        # KITTY_ENV is explicitly "test". This prevents a silent env-load
+        # failure (e.g. under launchd) from leaving the gateway open.
         if request.url.path in EXEMPT_PATHS:
             return await call_next(request)
         if not secret:
