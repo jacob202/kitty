@@ -17,6 +17,7 @@ Jacob is a curious generalist, not a software engineer. Messages may be short, v
 **Before building**
 1. Check the sources-of-truth table below for decisions already made. Settled decisions (palette, fonts, layout, architecture, library choices) stay settled until *Jacob* reopens them — never re-ask, never silently override.
 2. If the request is ambiguous on any axis that changes what you'd build, ask ONE round of structured multiple-choice questions BEFORE generating anything. Never build a guess and clarify after the rejection.
+   - Every question to Jacob goes through the **second-opinion skill** first (`.claude/skills/second-opinion/`): an independent model translates the question to plain English and recommends an answer, shown alongside your options. Jacob does this manually otherwise — automate it for him. Skip silently if no provider key is available.
 3. Restate your interpretation in one sentence before starting: "Building X that does Y, using Z."
 
 **While building**
