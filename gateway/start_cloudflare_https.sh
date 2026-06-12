@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-ROOT_DIR="/Users/jacobbrizinski/Projects/kitty"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOG_DIR="${ROOT_DIR}/logs/kitty_gateway"
 RUN_DIR="${ROOT_DIR}/kitty_gateway/.run"
 TARGET_URL="${CF_TUNNEL_TARGET_URL:-http://127.0.0.1:3000}"
@@ -18,13 +18,6 @@ if [[ -f "${ROOT_DIR}/.env" ]]; then
   source "${ROOT_DIR}/.env"
   set +a
 fi
-if [[ -f "${ROOT_DIR}/kitty_gateway/openwebui.env" ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  source "${ROOT_DIR}/kitty_gateway/openwebui.env"
-  set +a
-fi
-
 # Re-evaluate after env load.
 TARGET_URL="${CF_TUNNEL_TARGET_URL:-${TARGET_URL}}"
 TOKEN="${CF_TUNNEL_TOKEN:-${TOKEN}}"

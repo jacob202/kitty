@@ -19,9 +19,9 @@ Use this Orca workspace:
 - Open WebUI is a pip/venv-launched service, not a local Open WebUI source
   checkout.
 - Live Open WebUI was verified at `http://127.0.0.1:3001/health`.
-- Live Kitty Gateway was verified at `http://127.0.0.1:8000/health`.
+- Live Kitty Gateway was verified at `http://127.0.0.1:5001/health`.
 - `src/app/proxy/[...path]/route.ts` defaults to `http://127.0.0.1:5001`;
-  confirm whether to set `KITTY_GATEWAY_URL=http://127.0.0.1:8000` before
+  confirm whether to set `KITTY_GATEWAY_URL=http://127.0.0.1:5001` before
   using live gateway calls.
 
 ## Preflight Status

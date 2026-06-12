@@ -6,13 +6,13 @@ This file describes the **current** runnable Kitty brain and how Open WebUI (and
 
 | Role | Default host:port | Health check (from `start_all.sh`) |
 |------|-------------------|--------------------------------------|
-| Kitty Gateway (FastAPI) | `127.0.0.1:8000` | `http://127.0.0.1:8000/health` |
+| Kitty Gateway (FastAPI) | `127.0.0.1:5001` | `http://127.0.0.1:5001/health` |
 | LiteLLM proxy | `127.0.0.1:8001` | `http://127.0.0.1:8001/health` (with LiteLLM auth header) |
 | Open WebUI | `127.0.0.1:3000` | `http://127.0.0.1:3000/health` |
 
 Overrides:
 
-- Gateway: `GATEWAY_HOST`, `GATEWAY_PORT` in `kitty_gateway/start_gateway.sh` (defaults `127.0.0.1`, `8000`).
+- Gateway: `GATEWAY_HOST`, `GATEWAY_PORT` in `gateway/start_gateway.sh` (defaults `127.0.0.1`, `5001`).
 - LiteLLM: `LITELLM_HOST`, `LITELLM_PORT` in `kitty_gateway/start_litellm.sh` (defaults `127.0.0.1`, `8001`).
 
 Launch entrypoint for the full stack: **`kitty_gateway/start_all.sh`** (also invoked via `./kitty` — see `kitty` script for `KITTY_PORT`).

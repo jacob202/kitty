@@ -244,7 +244,7 @@ When conflicts arise:
 ## Known Gotchas
 
 - **Wrong folder:** Desktop backup is NOT canonical (`~/Desktop/kitty-system/kitty-app`)
-- **Wrong ports:** OpenWebUI `:3001`, LiteLLM `:8001`, Gateway `:8000`
+- **Wrong ports:** OpenWebUI `:3001`, LiteLLM `:8001`, Gateway `:5001`
 - **Storage routing:** KB → LightRAG, Journal → JournalDB (never swap)
 - **TokenCapture:** Never `print()` in backend (leaks to chat)
 - **Pre-commit:** Full test suite (~40-55s, 418+ tests)

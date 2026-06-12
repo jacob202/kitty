@@ -106,7 +106,7 @@ app.add_middleware(VoiceGateMiddleware)
 app.add_middleware(BearerAuthMiddleware)
 _webui_origin = os.environ.get("KITTY_WEBUI_ORIGIN")
 _cors_origins = [
-    o for o in ["http://localhost:3000", "http://localhost:8000", _webui_origin] if o
+    o for o in ["http://localhost:3000", "http://localhost:5001", _webui_origin] if o
 ]
 app.add_middleware(
     CORSMiddleware,

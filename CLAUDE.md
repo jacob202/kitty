@@ -61,7 +61,7 @@ data/             gitignored runtime data
 ```bash
 python3.11 -m pytest tests/ -q --tb=short
 ```
-Baseline: **449 passed, 2 skipped** (as of 2026-05-21). If your run differs, say so — don't round up to "passing."
+Baseline: **491 passed, 2 deselected** (as of 2026-06-12, bare command — no `--ignore` flags). If your run differs, say so — don't round up to "passing."
 
 ## Key files
 | File | Purpose |

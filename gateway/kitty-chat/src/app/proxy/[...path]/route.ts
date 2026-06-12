@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 
-const OWUI = process.env.KITTY_GATEWAY_URL    ?? 'http://127.0.0.1:5001'
+const GATEWAY = process.env.KITTY_GATEWAY_URL    ?? 'http://127.0.0.1:5001'
 const KEY  = process.env.KITTY_GATEWAY_SECRET ?? ''
 
 async function handler(
@@ -8,7 +8,7 @@ async function handler(
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   const { path } = await params
-  const target = `${OWUI}/${path.join('/')}${req.nextUrl.search}`
+  const target = `${GATEWAY}/${path.join('/')}${req.nextUrl.search}`
 
   const headers: Record<string, string> = {}
   if (KEY) headers['Authorization'] = `Bearer ${KEY}`

@@ -1,45 +1,35 @@
-# Kitty — Session Handoff (2026-05-21)
+# Kitty — Handoff
 
-## What Got Done
-- OpenWebUI integration Phases 1-5 (filter, docker terminal, code interpreter, workspace tools, actions)
-- Architecture cleanup (deleted orphaned tools, wired import scripts into bootstrap/start_all)
-- GITHUB_TOKEN renamed to GITHUB_PAT in .env (was shadowing gh keyring auth, causing 403 on push)
-- Design system committed and pushed (40 files, 9820 insertions)
-- 438 tests passing
+**Rule: this is the only handoff file.** Update it in place at the end of a session;
+move superseded versions to `docs/archive/` (see `docs/LESSONS.md` #9). Every number
+below must come from a command actually run.
 
-## Current State
-- All services STOPPED (gateway:8000, litellm:8001, openwebui:3001)
-- 24 KBs exist in OpenWebUI, 1848 files linked, vector search WORKS (tested electronics KB)
-- 90/92 remaining files failed to link (empty content / scanned PDFs with no extractable text)
-- Council graph built (librarian -> specialist -> synthesizer via LangGraph) but NOT tested end-to-end yet
-- search_client.py talks to OpenWebUI KB API — requires OpenWebUI running for council to work
+**Last updated:** 2026-06-12
 
-## Key Files
-- gateway/council_graph.py — LangGraph council (librarian, specialist, synthesis nodes)
-- gateway/search_client.py — OWUI KB vector search client (singleton: search_client)
-- gateway/domain_router.py — keyword classifier + specialist profiles
-- gateway/mcp_council_server.py — MCP server exposing consult_council tool
-- gateway/openwebui_filters/kitty_context_injector.py — inlet/outlet filter
-- gateway/openwebui_library_tools/ — workspace tools (filesystem, knowledge search, memory search)
-- gateway/actions/ — KB query, audio measurement, feeding schedule
-- scripts/curation/assign_kb_files.py — classifies + links files to KBs
-- kitty_gateway/openwebui.env — OWUI config (port, models, admin creds)
+## Current state
 
-## Startup
-1. bash gateway/start_litellm.sh (venv: ~/kitty-services/venv-litellm)
-2. bash gateway/start_openwebui.sh (venv: ~/kitty-services/venv, port 3001)
-3. bash gateway/start_gateway.sh (project venv, port 8000)
-4. Or: bash gateway/start_all.sh
+- **Stack:** Gateway (FastAPI `:5001`) + LiteLLM proxy (`:8001`) + kitty-chat UI
+  (Next.js `:3000`). Start with `bash gateway/start_all.sh`; check with
+  `bash gateway/status_all.sh`; stop with `bash gateway/stop_all.sh`.
+- **The abandoned Open WebUI path was removed** (2026-06-12): council graph,
+  MCP council server, OWUI filters/library tools/actions, doctor, OWUI shell
+  scripts, OWUI-coupled curation scripts, and the accidentally committed
+  `$HOME/` directory (which contained `webui.db` and a `.webui_secret` —
+  **rotate that secret if Open WebUI is ever used again**).
+- **Ports are reconciled:** the gateway is `:5001` everywhere (scripts, config,
+  docs). `GATEWAY_PORT` env var overrides.
+- **Tests:** run `python3.11 -m pytest tests/ -q --tb=short` — no `--ignore`
+  flags. CI runs the same bare command.
 
-## Next Steps
-1. Test council end-to-end (librarian routes query -> specialist searches KB -> synthesis)
-2. Verify admin panel shows 6 prompts, 4 tools, 1 filter, 3 actions
-3. Test chat context injection through the filter
-4. Bulk ingest more books from ~/Documents/Books/ (only 1923 of ~1110 files uploaded; many scanned PDFs need OCR)
-5. Fix empty-content files (90 failed) — likely need OCR pipeline for scanned PDFs
+## Open items
 
-## Known Issues
-- LiteLLM sometimes fails port 8001 bind (address in use) — kill stale processes first
-- Many PDFs are scanned images with no extractable text — need vision/OCR ingestion path
-- clinical & trauma KB has 0 files linked
-- GITHUB_PAT (was GITHUB_TOKEN) is a fine-grained PAT with limited scope — gh keyring token handles push fine
+- **Pre-existing frontend test failures** (verified present before the 2026-06-12
+  cleanup, not caused by it): `cd gateway/kitty-chat && npm test` → 66 passed,
+  **6 failed** (TerminalStrip ×3, gatewayIntegration RightPanel ×2,
+  DashboardHome ×1). TASKS.md's "36 passed" is stale — the suite has 72 tests now.
+
+- `scripts/curation/` retains the file-level book tooling (OCR, dedupe,
+  mapping); the OWUI-KB-coupled scripts were deleted. If book ingestion comes
+  back, it should target the gateway's ChromaDB knowledge store.
+- Current priority per `docs/DECISIONS_AND_ROADMAP.md`: reliability and
+  consolidation, not new features.

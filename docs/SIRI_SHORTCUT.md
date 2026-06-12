@@ -16,7 +16,7 @@ Add these actions in order:
 - Language: English
 
 2. `Get Contents of URL`
-- URL: `http://100.84.78.1:8000/ask`
+- URL: `http://100.84.78.1:5001/ask`
 - Method: `POST`
 - Request Body: `JSON`
 - JSON field: key `message`, value `Dictated Text`
@@ -37,6 +37,6 @@ Add these actions in order:
 Say: `Hey Siri, Ask Kitty`, then dictate a question and verify Kitty speaks the response.
 
 ## Troubleshooting
-- No response: open `http://100.84.78.1:8000/health` from your phone
+- No response: open `http://100.84.78.1:5001/health` from your phone
 - Connection refused: run `bash kitty_gateway/start_all.sh` on Mac
 - Timeout: make sure the Mac is awake and reachable on Tailscale

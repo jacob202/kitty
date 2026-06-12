@@ -14,9 +14,9 @@
 - `./kitty quick test` — run tests
 - `./kitty quick index <pattern>` — file search
 - `./kitty quick health` — API check
-- `bash kitty_gateway/status_all.sh` — Gateway `:8000` + LiteLLM `:8001` + WebUI health (same triangle as `docs/ARCHITECTURE.md`)
+- `bash gateway/status_all.sh` — Gateway `:5001` + LiteLLM `:8001` + kitty-chat UI `:3000` health (same triangle as `docs/ARCHITECTURE.md`)
 
-**Stack triangle (one line):** Browser **WebUI `:3000`** talks to **LiteLLM `:8001`** (`kitty-*` models); **Gateway `:8000`** is Kitty’s FastAPI app—not the same process as WebUI, same product when `openwebui.env` points chat at LiteLLM.
+**Stack triangle (one line):** Browser **kitty-chat UI `:3000`** talks to the **Gateway `:5001`** (Kitty’s FastAPI app), which routes models through **LiteLLM `:8001`** (`kitty-*` models).
 
 **Key docs (start here):**
 - `docs/UNIFIED_IMPLEMENTATION_PLAN.md` — phased feature roadmap (Phases 1–10)
@@ -243,5 +243,5 @@ The mission: "So that no one becomes themselves alone." The first person who mus
 **Proof:** `121 passed, 2 deselected` on main at `61855b4`.
 **Cleanup:** Removed all worktrees (phase-17, phase-11-backup, phase-9-pdf) and all stale branches (feature/phase-17, phase-11-backup, phase-9-pdf, parked/mcp-agent-bundle-20260429). Repo is clean — one branch, `main`.
 **Dirty:** Clean.
-**Next:** 1) Phase 18 candidates: model digest feed, specialist KB training, Honcho weekly mirror. 2) Wire journal into Open WebUI as a named model or shortcut.
+**Next:** 1) Phase 18 candidates: model digest feed, specialist KB training, Honcho weekly mirror. 2) Wire journal into kitty-chat as a named model or shortcut.
 **Learning:** Hooks rewrite files mid-session — always re-read before editing. Multi-agent conflict resolved by worktree isolation + AGENTS.md protocol. `brief.py` uses `chat()` not `call_llm()` — patch `gateway.llm_client.chat` in tests.

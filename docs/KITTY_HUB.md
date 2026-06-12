@@ -41,8 +41,8 @@ the active repo during context cleanup.
 - Loads recent session context from `SESSION_HANDOFF.md`.
 - Shows active task-boundary records from `data/task_boundaries.jsonl`.
 - Persists chat history to `data/kitty_hub_chats.jsonl`.
-- Sends chat messages to the Gateway at `http://localhost:8000/ask`.
-- Tries knowledge search through the Gateway at `http://localhost:8000/search`.
+- Sends chat messages to the Gateway at `http://localhost:5001/ask`.
+- Tries knowledge search through the Gateway at `http://localhost:5001/search`.
 - Shows service health for Gateway, Open WebUI on `:3000`, and LiteLLM.
 
 ## Start

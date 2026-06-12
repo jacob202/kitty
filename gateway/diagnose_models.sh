@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-ROOT_DIR="/Users/jacobbrizinski/Projects/kitty"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 
 if [[ -f "${ROOT_DIR}/.env" ]]; then
@@ -10,17 +10,10 @@ if [[ -f "${ROOT_DIR}/.env" ]]; then
   source "${ROOT_DIR}/.env"
   set +a
 fi
-if [[ -f "${ROOT_DIR}/kitty_gateway/openwebui.env" ]]; then
-  set -a
-  # shellcheck disable=SC1091
-  source "${ROOT_DIR}/kitty_gateway/openwebui.env"
-  set +a
-fi
-
 LITELLM_URL="${OPENAI_API_BASE_URL:-http://127.0.0.1:8001/v1}"
 LITELLM_BASE="${LITELLM_URL%/v1}"
 MASTER_KEY="${LITELLM_MASTER_KEY:-${OPENAI_API_KEY:-}}"
-OPENWEBUI_URL="${WEBUI_URL:-http://127.0.0.1:3000}"
+GATEWAY_URL="${KITTY_GATEWAY_URL:-http://127.0.0.1:5001}"
 
 ok() { echo "OK   - $*"; }
 warn() { echo "WARN - $*"; }
@@ -28,7 +21,7 @@ fail() { echo "FAIL - $*"; }
 
 echo "== Kitty Gateway Model Diagnostics =="
 echo "Litellm URL: ${LITELLM_URL}"
-echo "OpenWebUI:  ${OPENWEBUI_URL}"
+echo "Gateway:    ${GATEWAY_URL}"
 echo
 
 # Preflight: secrets + routing
@@ -45,10 +38,10 @@ else
   litellm_up=0
 fi
 
-if curl -fsS --max-time 2 "${OPENWEBUI_URL%/}/health" >/dev/null 2>&1; then
-  ok "OpenWebUI health endpoint is up (${OPENWEBUI_URL%/}/health)"
+if curl -fsS --max-time 2 "${GATEWAY_URL%/}/health" >/dev/null 2>&1; then
+  ok "Gateway health endpoint is up (${GATEWAY_URL%/}/health)"
 else
-  warn "OpenWebUI health endpoint is down (${OPENWEBUI_URL%/}/health)"
+  warn "Gateway health endpoint is down (${GATEWAY_URL%/}/health)"
 fi
 
 if curl -fsS --max-time 2 "http://127.0.0.1:8010/v1/models" >/dev/null 2>&1; then
