@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-12
 
-**Status:** Hardened after adversarial review
+**Status:** Approved architecture, re-cut for vertical delivery after hard-critic review
 
 ## Executive Decision
 
@@ -29,6 +29,12 @@ Tauri provides:
 Quick Capture writes directly to `data/inbox.jsonl` and therefore does not
 depend on LiteLLM, the gateway, the UI server, a network connection, or a model
 provider.
+
+The capture loop is not complete when the line is written. A deterministic,
+read-only `InboxAdapter` in `gateway/memory_graph.py` makes recent relevant
+captures available through the existing `unified_context()` path. This lets
+Kitty resurface captures in normal conversation and the morning brief without
+adding an agent, processor daemon, review ritual, or second source of truth.
 
 Mobile remains design-only in `docs/MOBILE_COMPANION_PHASE_1_5.md`.
 
@@ -61,6 +67,15 @@ After a reboot and macOS login:
 3. `Command+Shift+K` opens and focuses Kitty.
 4. Quick Capture saves locally even when AI chat is unavailable.
 5. Status explains failures and provides bounded recovery actions.
+6. Kitty can bring a useful capture back without requiring manual inbox review.
+
+The product loop is:
+
+```text
+capture instantly -> store durably -> retrieve selectively -> resurface helpfully
+```
+
+Phase 1 does not ship a capture writer without the deterministic reader.
 
 ## Success Criteria
 
@@ -69,11 +84,15 @@ After a reboot and macOS login:
 - The main Kitty interface uses the existing `gateway/kitty-chat` product.
 - Chat works after reboot, including the LiteLLM dependency.
 - Quick Capture creates durable, schema-valid JSONL records.
+- Recent relevant captures are available through `memory_graph.unified_context()`.
+- The morning brief can mention a useful unprocessed capture.
 - Window close leaves Kitty available in the menu bar.
 - Launch at login can be enabled and disabled from Kitty Desktop.
 - A failed service does not crash or disable Quick Capture.
 - The user can identify and restart a failed Kitty service without Terminal.
 - A real logout/login and reboot acceptance test passes.
+- Daily-use validation records seven consecutive days with at least one capture
+  per day and at least one useful Kitty-initiated resurfacing during the week.
 
 ## Non-Goals
 
@@ -90,6 +109,7 @@ After a reboot and macOS login:
 - TELOS, PAI, specialist, agent, or MCP expansion
 - Bundling Python, Node, LiteLLM, or model weights into a portable installer
 - Automatic background rebuilding after every repository change
+- A background inbox-processing agent or mandatory inbox-review ritual
 
 ## Current Runtime Facts
 
@@ -298,6 +318,9 @@ authority.
 - Access only to the named `save_quick_capture` command
 - Small, centered, always-on-top while visible
 - Hidden after successful save
+- Text field focused on open
+- Project and tags hidden from the primary capture flow
+- Target open-to-ready time below 300 ms on the target Mac
 
 ### Status Window
 
@@ -322,6 +345,7 @@ Tray menu:
 
 - Open Kitty
 - Quick Capture
+- What am I avoiding?
 - Status
 - Launch at Login
 - Restart LiteLLM
@@ -336,6 +360,9 @@ side effect of closing the desktop shell.
 
 `Command+Shift+K` shows, unminimizes, and focuses the main window. If the UI is
 unhealthy, it opens Status instead and provides a retry action.
+
+A second configurable shortcut opens Quick Capture directly. Shortcut
+registration failure is visible in Status and does not disable tray capture.
 
 ## Configuration
 
@@ -480,6 +507,28 @@ Example future receipt:
 This avoids in-place JSONL mutation and preserves the original mobile/desktop
 capture record.
 
+### Inbox Retrieval and Resurfacing
+
+Phase 1 adds `InboxAdapter` to `gateway/memory_graph.py`, following the existing
+`StoreAdapter` boundary.
+
+The adapter:
+
+- reads `data/inbox.jsonl` defensively
+- skips malformed lines without making all context retrieval fail
+- considers only recent records with `processed: false`
+- ranks by lexical relevance plus recency
+- returns at most three captures within a strict token/character budget
+- emits source metadata and capture ID
+- never modifies inbox records
+- never logs capture text
+
+The adapter is deterministic retrieval, not a new agent. It participates in
+`unified_context()` so existing chat context and morning-brief paths can use it.
+The brief prompt should treat captures as possible follow-ups, not commands.
+Distress-tagged captures receive sensitive copy on the next suitable Kitty
+opening; Phase 1 does not claim emergency monitoring or immediate response.
+
 ## Health Model
 
 Status combines:
@@ -502,6 +551,16 @@ Per-service state:
 - `not_loaded`
 - `port_conflict`
 - `configuration_error`
+
+Status also reports:
+
+- auth enforced: yes/no
+- recent restart/flap evidence when reliably available from `launchctl`
+- shortcut registration state
+- installed build freshness
+
+Healthy status stays quiet. The tray changes state and may notify only when the
+product transitions from healthy to broken or capture becomes unavailable.
 
 Overall product state:
 
@@ -543,7 +602,7 @@ process.
 
 ## Installation, Update, and Uninstall
 
-### Transactional Install
+### Idempotent Install
 
 `scripts/install_kitty_desktop.py` performs:
 
@@ -552,19 +611,19 @@ process.
 3. UI standalone build in a temporary staging directory
 4. Tauri build in staging
 5. app and configuration verification
-6. backup of currently installed app/plists
-7. atomic promotion into final locations
-8. LaunchAgent bootstrap
-9. app launch and health verification
+6. replace generated artifacts only after successful builds
+7. LaunchAgent bootstrap
+8. app launch and health verification
+9. open Quick Capture with first-run placeholder copy
 
-If build or verification fails before promotion, the current installation is
-untouched. If activation fails after promotion, restore the previous app and
-plists.
+The installer is safe to rerun. Phase 1 does not build a separate tested
+backup/rollback subsystem; a failed activation is repaired by correcting the
+reported cause and rerunning the idempotent installer.
 
 ### Refresh
 
 Run the same installer with `--refresh`. It rebuilds only after preflight and
-replaces the installed artifacts transactionally.
+replaces generated artifacts only after complete staged builds pass.
 
 ### Uninstall
 
@@ -601,9 +660,21 @@ Requirements:
 - no capture text
 - 5 MB rotation with one backup for each desktop log
 
+`launchd` does not rotate `StandardOutPath` files. Rotation is therefore owned
+by the service wrappers before process start and by the desktop logger during
+normal writes, not assumed to be provided by plist configuration.
+
+Each wrapper logs a redacted startup diagnostic containing executable paths,
+working directory, effective locale, and the names (not values) of required
+environment variables. This is specifically for GUI-login environment drift.
+
 ## Security
 
 - Bind all services to `127.0.0.1`.
+- Desktop service wrappers set `KITTY_ENV=prod` and fail before launch when
+  `GATEWAY_SECRET` is missing.
+- The gateway validates the expected loopback Host header in desktop mode.
+- Every state-changing gateway route remains bearer-authenticated.
 - Never grant Tauri IPC to the external main window.
 - Restrict privileged commands by window label and command allowlist.
 - Store no secrets in plist, app config, frontend JavaScript, or git.
@@ -614,9 +685,26 @@ Requirements:
 - Do not expose mobile ingress in Phase 1.
 - Treat a moved repo as a configuration error requiring refresh install.
 
+## Delivery Strategy
+
+The architecture is delivered as interruption-tolerant vertical slices. Every
+slice ends in usable or decision-changing evidence:
+
+1. **Spike:** disposable proof of five risky seams.
+2. **Always-on:** LaunchAgents make browser-based Kitty survive login/reboot.
+3. **Closed capture loop:** temporary capture surface plus InboxAdapter and
+   morning-brief resurfacing.
+4. **Native shell:** Tauri tray, windows, shortcuts, and least privilege.
+5. **Operations:** truthful status, slim idempotent install, failure handling.
+6. **Acceptance:** logout/login, reboot, failure injection, and daily-use week.
+
+Tauri remains the intended Phase 1 deliverable, but it starts only after the
+always-on and capture-loop value is running.
+
 ## Proof-First Gate 0
 
-Before full product work, build four disposable proofs:
+Before production scaffolding, use a throwaway branch or temporary files for
+five disposable proofs:
 
 1. LaunchAgent proof: login-domain job starts a harmless local test server and
    survives its first process exit.
@@ -626,6 +714,8 @@ Before full product work, build four disposable proofs:
    window while the external window has no IPC capability.
 4. Capture proof: with all services stopped, a locked and synced append creates
    one schema-valid inbox line.
+5. End-to-end chat proof: the real LaunchAgent-started LiteLLM and gateway serve
+   one streamed completion through the standalone UI proxy.
 
 Gate 0 is discarded after its findings are folded into tests and production
 code. Failure of any proof triggers design revision before feature buildout.
@@ -669,11 +759,12 @@ code. Failure of any proof triggers design revision before feature buildout.
 
 ### Gate 0: Assumptions
 
-All four proof experiments pass.
+All five proof experiments pass without committing production scaffolds.
 
 ### Gate 1: Capture
 
-Quick Capture survives complete stack failure and concurrent append testing.
+Capture survives complete stack failure and concurrent append testing, and
+InboxAdapter resurfaces a relevant record through `unified_context()`.
 
 ### Gate 2: Services
 
@@ -691,7 +782,8 @@ destroying user data.
 
 ### Gate 5: Daily Use
 
-Kitty opens, chats, captures, reports health, and recovers without Terminal.
+Kitty opens, chats, captures, resurfaces, reports health, and recovers without
+Terminal.
 
 ### Gate 6: Reboot
 
@@ -709,9 +801,14 @@ Capture saves successfully.
 7. **Next server deployment weight:** standalone output staged for runtime.
 8. **External webview privilege:** main window receives no Tauri IPC.
 9. **Stale UI after repo changes:** build manifest and refresh workflow.
-10. **Unsafe in-place install:** transactional promotion and rollback.
+10. **Overbuilt installer:** replaced tested rollback machinery with staged
+    builds and idempotent rerun.
 11. **No cleanup path:** explicit uninstall preserving data.
 12. **False completion risk:** logout/login and reboot are required evidence.
+13. **Write-only inbox:** deterministic InboxAdapter closes the product loop.
+14. **Payoff-at-the-end delivery:** vertical slices provide usable value early.
+15. **Gateway auth fail-open:** desktop wrappers force production auth.
+16. **Unbounded launchd logs:** wrappers own explicit rotation.
 
 ## Go/No-Go
 

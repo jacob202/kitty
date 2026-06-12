@@ -13,7 +13,8 @@ Desktop Phase 1 must prove daily use first:
 - Kitty starts after login.
 - `Command+Shift+K` opens it.
 - Quick Capture is dependable.
-- The local inbox is useful.
+- The local inbox is useful because Kitty resurfaces captures without a manual
+  review ritual.
 
 Mobile implementation starts only after those checks pass in normal use.
 
@@ -103,6 +104,10 @@ Create a normal inbox record:
 The first mobile version confirms capture. It does not start a live AI session,
 send a push notification, or claim to provide emergency support.
 
+This button is not implementation-ready until Desktop Phase 1 proves sensitive
+next-open resurfacing. A distress capture that is merely stored is a broken
+product contract, even if sync technically succeeds.
+
 ### What am I avoiding?
 
 Open a one-question capture screen:
@@ -157,8 +162,11 @@ LAN. Mobile Phase 1.5 must choose its transport before implementation:
 2. User-controlled relay or tunnel.
 3. Small hosted inbox relay containing captures only.
 
-No option is selected yet. Do not add cloud auth to Desktop Phase 1 in
-anticipation of this decision.
+For a single-user first implementation, a user-controlled tunnel such as
+Tailscale is the leading candidate because it avoids inventing public cloud
+identity and pairing infrastructure. This is a design preference, not a Phase
+1 commitment. Verify transport and threat model after desktop daily-use
+acceptance. Do not add cloud auth to Desktop Phase 1 in anticipation.
 
 ## Offline Behavior
 
@@ -184,7 +192,8 @@ Mobile implementation may begin only when:
 
 - Desktop Kitty has passed the reboot acceptance test.
 - Quick Capture has been used successfully in daily life.
-- The inbox processor has a clear use for incoming captures.
+- `InboxAdapter` and sensitive resurfacing behavior have proven useful for
+  incoming captures.
 - The sync transport and threat model have been explicitly chosen.
 
 Until then, mobile remains planned, not built.

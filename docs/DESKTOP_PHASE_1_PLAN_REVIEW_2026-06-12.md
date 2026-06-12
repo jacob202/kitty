@@ -16,9 +16,48 @@ integrity review
 The original direction was correct but the first implementation architecture
 was not strong enough for an always-on desktop product.
 
-The revised plan is suitable to implement after Gate 0. It now attacks the
-highest-risk assumptions before committing to the full build and uses macOS
-service management instead of a hand-built process supervisor.
+The `launchd` plus least-privilege Tauri architecture remains the right target.
+The original delivery order did not. It delayed all user value, shipped a
+write-only inbox, and overinvested in rollback machinery before proving daily
+use. The implementation plan is now re-cut into vertical slices.
+
+## Second-Pass Decision Record
+
+### Accepted
+
+- Ship capture and deterministic inbox retrieval in the same slice.
+- Add a fifth Gate 0 proof for a real streamed completion through the full
+  LaunchAgent chain.
+- Make Gate 0 genuinely disposable.
+- Deliver LaunchAgents before Tauri so startup friction is removed early.
+- Fix the stale proxy port assumption and desktop auth fail-open.
+- Add direct Quick Capture shortcut, first-run capture, quiet-when-healthy
+  status, explicit log rotation, and login-environment diagnostics.
+- Replace tested rollback machinery with staged builds and idempotent rerun.
+- Use seven-day capture/resurfacing behavior as the final product gate.
+
+### Modified
+
+- `InboxAdapter` is deterministic retrieval, not a background inbox agent.
+- It returns a small recent/relevant set, not every unprocessed capture.
+- A temporary shortcut capture surface may validate Slice 2, but Raycast or
+  Hammerspoon is not a required dependency.
+- Desktop wrappers force production auth; global development auth behavior is
+  not changed casually.
+- Restart-count status is included only if macOS exposes reliable evidence.
+- Tailscale remains a likely mobile transport candidate, not a Phase 1
+  decision.
+
+### Rejected
+
+- Do not use broad `git checkout --` cleanup instructions; they can destroy
+  unrelated local work.
+- Do not hard-code the review's stale `449 passed` count. Preserve the live
+  baseline recorded at execution time.
+- Do not describe resurfacing as the first "background agent"; agent expansion
+  remains outside Phase 1.
+- Do not demote Tauri from the accepted deliverable. It must earn its build
+  order, but Phase 1 still ends with the native shell.
 
 ## Critical Findings
 
@@ -90,15 +129,16 @@ frontend.
 ### 9. Repo updates could silently leave a stale installed UI
 
 **Resolution:** The installer writes a build manifest with source/dependency
-hashes. Status reports staleness and asks for a transactional refresh.
+hashes. Status reports staleness and asks for a staged, idempotent refresh.
 
-### 10. Installation lacked rollback
+### 10. Installation lacked a bounded repair contract
 
 An interrupted build or activation could leave the app, UI runtime, and
 LaunchAgents out of sync.
 
-**Resolution:** Build in staging, verify, back up current artifacts, promote
-atomically, and restore on activation failure.
+**Resolution:** Build in staging, replace only complete generated artifacts,
+and make the installer safe to rerun. A separate backup/rollback subsystem is
+not justified for a single-user Phase 1.
 
 ## Medium Findings
 
@@ -124,7 +164,18 @@ acceptance includes a streamed chat response, Quick Capture, and `ready` status.
 ### 14. The plan began with implementation instead of risk retirement
 
 **Resolution:** Gate 0 proves LaunchAgent behavior, standalone Next proxying,
-least-privilege Tauri external windows, and stack-independent durable capture.
+least-privilege Tauri external windows, stack-independent durable capture, and
+one real streamed completion through the LaunchAgent-managed stack.
+
+### 15. The inbox was write-only
+
+**Resolution:** Capture and a bounded `InboxAdapter` now ship together through
+the existing `memory_graph.unified_context()` seam.
+
+### 16. Delivery was fragile to interruption
+
+**Resolution:** Vertical slices provide usable outcomes after always-on
+services, after the closed capture loop, and after the native shell.
 
 ## Residual Risks
 
@@ -148,12 +199,16 @@ not undermine Quick Capture.
 3. Commit by lifecycle boundary, not by language.
 4. Require evidence before marking each gate complete.
 5. Do not broaden Phase 1 when a mobile or packaging idea appears.
-6. Treat installer, refresh, failure recovery, and uninstall as product
-   features rather than release chores.
+6. Treat repair and data preservation as product features, but do not
+   overbuild release engineering before usage proves the product loop.
 
 ## Final Recommendation
 
-Proceed with the revised `launchd` plus Tauri architecture.
+Proceed with the revised `launchd` plus Tauri architecture and the vertical
+slice implementation plan.
 
 Do not proceed with the original PID-supervisor architecture. It would create
 more future maintenance and failure modes than the desktop product needs.
+
+Do not perform another document-only hardening pass before Slice 0. The next
+reviewer must be running code, one login/reboot, and one week of actual use.
