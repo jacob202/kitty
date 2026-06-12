@@ -87,10 +87,10 @@ def _get_memory():
 
 def add_memory(text: str, namespace: str = "facts", metadata: Optional[dict] = None) -> None:
     """Store a memory for Jacob. namespace: facts | patterns"""
-    mem = _get_memory()
-    if mem is None:
-        return
     try:
+        mem = _get_memory()
+        if mem is None:
+            return
         meta = {"namespace": namespace, **(metadata or {})}
         mem.add(text, user_id=USER_ID, metadata=meta)
         logger.info("Memory stored [%s]: %s", namespace, text[:80])
@@ -100,10 +100,10 @@ def add_memory(text: str, namespace: str = "facts", metadata: Optional[dict] = N
 
 def search_memory(query: str, limit: int = 5, namespace: Optional[str] = None) -> list[dict]:
     """Search memories relevant to query. Returns list of {memory, score} dicts."""
-    mem = _get_memory()
-    if mem is None:
-        return []
     try:
+        mem = _get_memory()
+        if mem is None:
+            return []
         results = mem.search(query, filters={"user_id": USER_ID}, limit=limit)
         memories = results.get("results", []) if isinstance(results, dict) else results
         if namespace:
@@ -130,10 +130,10 @@ def get_context_block(query: str, limit: int = 5) -> str:
 
 def list_memories(namespace: Optional[str] = None, limit: int = 50) -> list[dict]:
     """List all stored memories. Optionally filter by namespace."""
-    mem = _get_memory()
-    if mem is None:
-        return []
     try:
+        mem = _get_memory()
+        if mem is None:
+            return []
         results = mem.get(user_id=USER_ID)
         memories = results.get("results", []) if isinstance(results, dict) else results
         if namespace:
@@ -146,10 +146,10 @@ def list_memories(namespace: Optional[str] = None, limit: int = 50) -> list[dict
 
 def delete_memory(memory_id: str) -> bool:
     """Delete a specific memory by ID."""
-    mem = _get_memory()
-    if mem is None:
-        return False
     try:
+        mem = _get_memory()
+        if mem is None:
+            return False
         mem.delete(memory_id=memory_id)
         logger.info("Memory deleted: %s", memory_id)
         return True
