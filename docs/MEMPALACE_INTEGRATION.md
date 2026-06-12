@@ -54,6 +54,18 @@ the most stable interface. **Confirm against your installed MemPalace version:**
 when the CLI is absent, JSON-shape tolerance, formatting/correlation, and that the
 adapter is registered only when the env flag is set.
 
+## Migrating mem0 → MemPalace
+
+When you're ready (on your machine, with the package installed), follow the
+copy-paste runbook: **`docs/MEMPALACE_MIGRATION_RUNBOOK.md`**. Tooling is ready:
+
+- `scripts/mempalace_preflight.py` — proves the read path + reveals the real CLI
+  ingest subcommand. **Run this first.**
+- `scripts/migrate_mem0_to_mempalace.py` — dry-run by default, non-destructive,
+  idempotent/resumable, backs up `data/mem0`, isolates the one unverified ingest
+  call behind `--ingest-cmd`.
+- `tests/test_mempalace_migration.py` — CI-safe (no package needed).
+
 ## Follow-on (not yet done)
 
 - Decide whether MemPalace should **replace** the `mem0`-based `memory.py` episodic
@@ -61,4 +73,4 @@ adapter is registered only when the env flag is set.
   local-first argument favours migration, but that's a separate change with its own
   data-migration step and tests.)
 - Surface MemPalace's temporal-validity metadata in `correlate()` once the query
-  shape is confirmed.
+  shape is confirmed (the preflight prints whether rows carry `related`/`relations`).
