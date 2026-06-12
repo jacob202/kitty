@@ -2,6 +2,9 @@
 
 Agents are LLM-driven workers with a goal, a preset type, and an iteration budget.
 They run in background asyncio tasks, recording progress to autonomy_state.db.
+By default each agent works its goal through Kitty's explicit reasoning loop
+(OBSERVE → ORIENT → DECIDE → ACT → VERIFY → LEARN; see ``algorithm.py``), and
+the detected phase is tagged onto each recorded step.
 
 Agent presets (inspired by free-code's builtInAgents):
 - explorer:   search and discover — wide research, finding sources, exploring topics
@@ -107,11 +110,15 @@ async def spawn(
     temperature: Optional[float] = None,
     extra_context: Optional[str] = None,
     metadata: Optional[dict[str, Any]] = None,
+    algorithm: bool = True,
 ) -> int:
     """Spawn an autonomous agent. Returns the session_id for tracking.
 
     The agent runs as a background asyncio task. Use get_status() to check
     progress and get_output() to retrieve results.
+
+    When ``algorithm`` is set (the default), the agent works the goal through
+    Kitty's explicit reasoning loop (OBSERVE → … → LEARN); see ``algorithm.py``.
     """
     preset = AGENT_PRESETS.get(agent_type)
     if not preset:
@@ -150,7 +157,13 @@ async def spawn(
     # Launch background task
     asyncio.create_task(
         _run_agent_loop(
-            session_id, goal, system_prompt, model, max_iterations, temperature
+            session_id,
+            goal,
+            system_prompt,
+            model,
+            max_iterations,
+            temperature,
+            algorithm,
         )
     )
 
@@ -167,10 +180,15 @@ async def _run_agent_loop(
     model: Optional[str],
     max_iterations: int,
     temperature: float,
+    use_algorithm: bool = True,
 ) -> None:
     """Core agent loop — runs in background, records all steps."""
     from gateway.llm_client import call_llm, route_model
     from gateway.autonomy_state import AutonomyState
+    from gateway import algorithm
+
+    if use_algorithm:
+        system_prompt = algorithm.frame_prompt(system_prompt)
 
     state = AutonomyState(session_id=session_id)
     messages: list[dict] = [
@@ -208,10 +226,15 @@ async def _run_agent_loop(
                 break
 
             elapsed = round((time.monotonic() - t_start) * 1000)
+            thinking = f"Iteration {iteration + 1}/{max_iterations}, {elapsed}ms"
+            if use_algorithm:
+                phase = algorithm.detect_phase(response)
+                if phase:
+                    thinking = f"[{phase}] {thinking}"
             state.record_step(
                 "assistant",
                 content=response,
-                thinking=f"Iteration {iteration + 1}/{max_iterations}, {elapsed}ms",
+                thinking=thinking,
             )
 
             messages.append({"role": "assistant", "content": response})

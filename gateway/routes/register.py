@@ -22,6 +22,7 @@ from gateway.routes import (
     monitors,
     prompts,
     search,
+    telos,
     voice,
 )
 
@@ -44,6 +45,7 @@ def register_routes(app: FastAPI) -> None:
         monitors,
         prompts,
         search,
+        telos,
         voice,
         extended,
     ):

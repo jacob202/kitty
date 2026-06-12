@@ -303,6 +303,28 @@ class TodosAdapter(StoreAdapter):
         return correlations
 
 
+# --- Adapter registry ---
+
+
+def _default_adapters() -> list[StoreAdapter]:
+    """The active store adapters. MemPalace is appended only when enabled."""
+    adapters: list[StoreAdapter] = [
+        MemoryAdapter(),
+        KnowledgeAdapter(),
+        JournalAdapter(),
+        TracesAdapter(),
+        TodosAdapter(),
+    ]
+    try:
+        from gateway.mempalace_adapter import MemPalaceAdapter
+
+        if MemPalaceAdapter.is_enabled():
+            adapters.append(MemPalaceAdapter())
+    except Exception as e:  # optional backend must never break the graph
+        logger.warning("MemPalace adapter unavailable: %s", e)
+    return adapters
+
+
 # --- Memory Graph Orchestrator ---
 
 
@@ -333,13 +355,7 @@ class GraphResult:
         return self._truncate(raw, cap)
 
     def _get_adapters(self) -> list[StoreAdapter]:
-        return [
-            MemoryAdapter(),
-            KnowledgeAdapter(),
-            JournalAdapter(),
-            TracesAdapter(),
-            TodosAdapter(),
-        ]
+        return _default_adapters()
 
     def _truncate(self, text: str, cap: int) -> str:
         if (len(text) // 4) <= cap:
@@ -355,13 +371,7 @@ class MemoryGraph:
     """
 
     def __init__(self, adapters: list[StoreAdapter] | None = None):
-        self._adapters = adapters or [
-            MemoryAdapter(),
-            KnowledgeAdapter(),
-            JournalAdapter(),
-            TracesAdapter(),
-            TodosAdapter(),
-        ]
+        self._adapters = adapters or _default_adapters()
 
     async def unified_context(self, query: str) -> str:
         """Get unified context from all stores.
