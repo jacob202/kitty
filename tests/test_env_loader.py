@@ -1,4 +1,5 @@
 import subprocess
+import sys
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -33,6 +34,9 @@ printf '%s\n' "$OPENROUTER_API_KEY|$LITELLM_MASTER_KEY|$OPENWEBUI_DATA_DIR"
         env={
             "HOME": str(fake_home),
             "PATH": "/usr/bin:/bin:/opt/homebrew/bin",
+            # Pin the loader to the interpreter running the tests so the test
+            # doesn't depend on a system python3.12 having python-dotenv.
+            "PYTHON_BIN": sys.executable,
         },
     )
 
