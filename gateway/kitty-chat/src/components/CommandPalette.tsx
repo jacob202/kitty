@@ -32,6 +32,12 @@ export function CommandPalette({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        // If the user is typing in an editable field (composer, search,
+        // any contenteditable), don't steal the keystroke unless the
+        // palette is already open (so Cmd+K can still close it).
+        const target = e.target as HTMLElement | null
+        const inEditable = !!target?.closest('input, textarea, [contenteditable="true"]')
+        if (inEditable && !open) return
         e.preventDefault()
         setOpen(prev => !prev)
       } else if (e.key === 'Escape') {
@@ -40,7 +46,7 @@ export function CommandPalette({
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [])
+  }, [open])
 
   const close = () => setOpen(false)
   const fire = (fn: () => void) => () => {
@@ -48,10 +54,11 @@ export function CommandPalette({
     close()
   }
 
-  // Recent chats first — only those with content.
+  // Recent chats first — only those with content. Coerce updatedAt
+  // defensively: hydrated-from-JSON chats can land here as strings.
   const recentChats = [...chats]
     .filter(c => c.messages.length > 0)
-    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+    .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))
     .slice(0, 8)
 
   if (!open) return null
