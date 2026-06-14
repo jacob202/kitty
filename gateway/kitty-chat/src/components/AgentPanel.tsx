@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { fetchAgentStatus, type AgentSession, type AgentType } from '@/lib/gateway'
 import { useAgentSessions, useSpawnAgent, useStopAgent } from '@/lib/queries'
 
@@ -12,24 +13,20 @@ const AGENT_TYPES: { id: AgentType; label: string; desc: string }[] = [
   { id: 'researcher', label: 'research', desc: 'Deep technical research' },
 ]
 
+const AGENTS_LIMIT = 8
+
 export function AgentPanel() {
-  const sessionsQuery = useAgentSessions(8)
+  const qc = useQueryClient()
+  const sessionsQuery = useAgentSessions(AGENTS_LIMIT)
   const spawnAgentMutation = useSpawnAgent()
   const stopAgentMutation = useStopAgent()
 
-  const baseSessions = sessionsQuery.data ?? []
+  const sessions = sessionsQuery.data ?? []
   const spawning = spawnAgentMutation.isPending
 
   const [goal, setGoal] = useState('')
   const [agentType, setAgentType] = useState<AgentType>('explorer')
   const [expanded, setExpanded] = useState<number | null>(null)
-  // On-demand richer detail for the currently-expanded session. Refreshed
-  // each time you expand; the periodic list-poll keeps everything else live.
-  const [expandedDetails, setExpandedDetails] = useState<Record<number, AgentSession>>({})
-
-  const sessions = baseSessions.map(s =>
-    expandedDetails[s.session_id] ? { ...expandedDetails[s.session_id], ...s } : s,
-  )
 
   function handleSpawn() {
     const g = goal.trim()
@@ -48,9 +45,12 @@ export function AgentPanel() {
     if (expanded === sid) { setExpanded(null); return }
     setExpanded(sid)
     const status = await fetchAgentStatus(sid)
-    if (status) {
-      setExpandedDetails(prev => ({ ...prev, [sid]: status }))
-    }
+    if (!status) return
+    // Merge the detailed status into the cached list so the next 4s poll
+    // doesn't blow it away and we don't grow a parallel state map forever.
+    qc.setQueryData<AgentSession[]>(['agents', AGENTS_LIMIT], (old) =>
+      old?.map((s) => (s.session_id === sid ? { ...s, ...status } : s)) ?? old
+    )
   }
 
   return (
