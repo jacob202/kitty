@@ -27,11 +27,24 @@ from .router import build_system_prompt, classify, get_max_tokens, get_model
 
 app = FastAPI(title="Kitty")
 
+# Restrict to localhost origins only — this server is not meant to be public.
+# Open WebUI typically runs on port 3000 or 8080; add others here as needed.
+_LOCALHOST_ORIGINS = [
+    "http://localhost",
+    "http://localhost:3000",
+    "http://localhost:8080",
+    "http://localhost:8000",
+    "http://127.0.0.1",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:8080",
+    "http://127.0.0.1:8000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=_LOCALHOST_ORIGINS,
+    allow_methods=["GET", "POST", "PATCH"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
