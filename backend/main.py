@@ -53,11 +53,15 @@ client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 # ── Request / response models (OpenAI-compatible subset) ──────────────────────
 
 class Message(BaseModel):
+    """A single chat message with a role and text content."""
+
     role: str
     content: str
 
 
 class ChatRequest(BaseModel):
+    """Incoming chat completion request (OpenAI-compatible subset)."""
+
     model: str = settings.sonnet_model
     messages: list[Message]
     stream: bool = True

@@ -1,3 +1,5 @@
+"""Kitty backend configuration — loaded once at import time from .env."""
+
 from pathlib import Path
 
 from pydantic import field_validator
@@ -7,11 +9,14 @@ SOUL_DIR = Path(__file__).parent.parent / "soul"
 
 
 class Settings(BaseSettings):
+    """Pydantic settings class; values are read from environment / .env file."""
+
     anthropic_api_key: str
 
     @field_validator("anthropic_api_key")
     @classmethod
     def _require_non_empty(cls, v: str) -> str:
+        """Reject blank API keys at startup rather than at first request."""
         if not v.strip():
             raise ValueError("ANTHROPIC_API_KEY must not be empty")
         return v

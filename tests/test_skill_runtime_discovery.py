@@ -15,6 +15,7 @@ _KEY_RE = re.compile(r"^(\w[\w_-]*):\s*(.*)$")
 
 
 def _parse_frontmatter(text: str) -> dict:
+    """Extract key/value pairs from YAML frontmatter delimited by --- lines."""
     m = _FRONTMATTER_RE.match(text)
     if not m:
         return {}
@@ -27,22 +28,30 @@ def _parse_frontmatter(text: str) -> dict:
 
 
 def _all_skill_files() -> list[Path]:
+    """Return all SKILL.md paths under the skills root, or an empty list."""
     if not SKILLS_ROOT.exists():
         return []
     return list(SKILLS_ROOT.rglob("SKILL.md"))
 
 
 class TestSkillDirectoryExists:
+    """Verify the .agents/skills/ directory exists and is populated."""
+
     def test_skills_root_exists(self):
+        """The skills root directory must be present."""
         assert SKILLS_ROOT.exists(), f".agents/skills/ not found at {SKILLS_ROOT}"
 
     def test_at_least_one_skill(self):
+        """At least one SKILL.md must exist under the skills root."""
         files = _all_skill_files()
         assert files, f"No SKILL.md files found under {SKILLS_ROOT}"
 
 
 class TestSkillFileStructure:
+    """Verify every SKILL.md has valid YAML frontmatter with required fields."""
+
     def test_each_skill_has_frontmatter(self):
+        """Every SKILL.md must open with a --- delimited YAML block."""
         bad = []
         for path in _all_skill_files():
             text = path.read_text(encoding="utf-8")
@@ -51,6 +60,7 @@ class TestSkillFileStructure:
         assert not bad, f"Skills missing YAML frontmatter: {bad}"
 
     def test_each_skill_has_name(self):
+        """Every SKILL.md frontmatter must contain a non-empty 'name' field."""
         bad = []
         for path in _all_skill_files():
             text = path.read_text(encoding="utf-8")
@@ -60,6 +70,7 @@ class TestSkillFileStructure:
         assert not bad, f"Skills missing 'name' field: {bad}"
 
     def test_each_skill_has_description(self):
+        """Every SKILL.md frontmatter must contain a non-empty 'description' field."""
         bad = []
         for path in _all_skill_files():
             text = path.read_text(encoding="utf-8")
@@ -80,6 +91,7 @@ class TestSkillFileStructure:
         assert not bad, f"Skill names not in slug format: {bad}"
 
     def test_skill_names_unique(self):
+        """No two skills may share the same name field."""
         names = []
         for path in _all_skill_files():
             text = path.read_text(encoding="utf-8")
@@ -96,6 +108,7 @@ class TestKnownSkills:
     EXPECTED = ["journal-entry"]
 
     def test_expected_skills_present(self):
+        """Each skill in EXPECTED must be discoverable by name."""
         found_names = set()
         for path in _all_skill_files():
             text = path.read_text(encoding="utf-8")

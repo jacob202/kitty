@@ -30,6 +30,7 @@ def extract_date(path: Path) -> date:
 
 
 def main() -> int:
+    """Parse args, read SESSION_HANDOFF.md, print result, and return exit code."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--max-age-days", type=int, default=21, metavar="N",
                         help="Maximum allowed age of SESSION_HANDOFF.md in days (default: 21)")
