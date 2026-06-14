@@ -3,6 +3,35 @@
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 
+
+# ── _post retry policy ───────────────────────────────────────────────────────
+
+
+def test_post_retries_server_errors():
+    from gateway.llm_client import _post
+
+    unavailable = MagicMock(status_code=503)
+    recovered = MagicMock(status_code=200)
+
+    with patch("gateway.llm_client.requests.post", side_effect=[unavailable, recovered]) as mock_post:
+        result = _post("https://example.test/chat")
+
+    assert result is recovered
+    assert mock_post.call_count == 2
+
+
+def test_post_does_not_retry_client_errors():
+    from gateway.llm_client import _post
+
+    unauthorized = MagicMock(status_code=401)
+
+    with patch("gateway.llm_client.requests.post", return_value=unauthorized) as mock_post:
+        result = _post("https://example.test/chat")
+
+    assert result is unauthorized
+    assert mock_post.call_count == 1
+
+
 # ── normalize_litellm_request_model ──────────────────────────────────────────
 
 
