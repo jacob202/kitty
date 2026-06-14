@@ -79,6 +79,8 @@ export function InputBar({
       const fd = new FormData()
       const ext = blob.type.includes('webm') ? 'webm' : blob.type.includes('ogg') ? 'ogg' : 'wav'
       fd.append('file', blob, `mic.${ext}`)
+      // OpenAI-compatible contract field; Kitty's local faster-whisper backend
+      // uses its configured model size and intentionally ignores this value.
       fd.append('model', 'whisper-1')
       const res = await fetch('/proxy/v1/audio/transcriptions', { method: 'POST', body: fd })
       if (!res.ok) throw new Error(`Transcription HTTP ${res.status}`)

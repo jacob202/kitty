@@ -25,9 +25,9 @@ from gateway.paths import LITELLM_BASE, LITELLM_KEY
 from gateway.token_usage_log import log_llm_usage, normalize_usage_payload
 from gateway.llm_utils import retry_with_backoff
 
-# Optional tenacity retry on transient network errors per provider call.
-# 4xx errors (auth, bad model) fall through immediately so the fallback chain
-# can take over.
+# Optional tenacity retry on transient network and upstream server errors.
+# 4xx errors (auth, bad model) return immediately so provider-specific handling
+# or the fallback chain can take over.
 try:
     from tenacity import (
         retry as _tenacity_retry,
@@ -39,7 +39,9 @@ try:
     _retry_post = _tenacity_retry(
         stop=stop_after_attempt(2),
         wait=wait_exponential(multiplier=0.3, min=0.3, max=1.5),
-        retry=retry_if_exception_type((requests.ConnectionError, requests.Timeout)),
+        retry=retry_if_exception_type(
+            (requests.ConnectionError, requests.Timeout, requests.HTTPError)
+        ),
         reraise=True,
     )
 except ImportError:  # pragma: no cover - optional dependency
@@ -50,8 +52,15 @@ except ImportError:  # pragma: no cover - optional dependency
 
 @_retry_post
 def _post(*args, **kwargs):
-    """requests.post wrapper with optional tenacity retry on transient errors."""
-    return requests.post(*args, **kwargs)
+    """POST once, retrying only transport failures and HTTP 5xx responses."""
+    response = requests.post(*args, **kwargs)
+    status_code = getattr(response, "status_code", None)
+    if isinstance(status_code, int) and 500 <= status_code <= 599:
+        raise requests.HTTPError(
+            f"Transient upstream server error: HTTP {status_code}",
+            response=response,
+        )
+    return response
 
 OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 

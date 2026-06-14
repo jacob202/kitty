@@ -34,6 +34,13 @@ interface Props {
   promptTemplates: Array<{ id: string | number; title: string; content: string; category?: string }>
   chats?: Chat[]
   loading?: boolean
+  // Per-card loading flags. Each card shows its skeleton based on its own
+  // query, not the brief query. Fall back to `loading` if unset (legacy).
+  briefLoading?: boolean
+  todosLoading?: boolean
+  loopsLoading?: boolean
+  insightsLoading?: boolean
+  promptsLoading?: boolean
   onSelectChat?: (id: string) => void
   onPromptSelect?: (content: string) => void
   onLoopToggle?: (loopId: string) => void
@@ -61,12 +68,23 @@ export function DashboardHome({
   promptTemplates,
   chats = [],
   loading = false,
+  briefLoading,
+  todosLoading,
+  loopsLoading,
+  insightsLoading,
+  promptsLoading,
   onSelectChat,
   onPromptSelect,
   onLoopToggle,
   onInsightDismiss,
   onInsightAction,
 }: Props) {
+  // Fall back to the legacy single `loading` flag if per-card flags aren't supplied.
+  const briefIsLoading = briefLoading ?? loading
+  const todosIsLoading = todosLoading ?? loading
+  const loopsIsLoading = loopsLoading ?? loading
+  const insightsIsLoading = insightsLoading ?? loading
+  const promptsIsLoading = promptsLoading ?? loading
   const live = gatewayBriefIsLive(brief)
   const dateStr = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })
   const openTodos = activeTodos(todos)
@@ -126,7 +144,7 @@ export function DashboardHome({
             <TodayCompass
               items={compassItems}
               title="Today's Compass"
-              isLoading={loading}
+              isLoading={todosIsLoading || briefIsLoading}
               onItemSelect={item => {
                 if (!item.onSelect) onPromptSelect?.(item.title)
               }}
@@ -134,7 +152,7 @@ export function DashboardHome({
           </section>
 
           <section style={sectionStyle}>
-            <LoopWatch loops={loops} onToggle={onLoopToggle} title="Loop Watch" isLoading={loading} />
+            <LoopWatch loops={loops} onToggle={onLoopToggle} title="Loop Watch" isLoading={loopsIsLoading} />
           </section>
 
           <section style={sectionStyle}>
@@ -142,7 +160,7 @@ export function DashboardHome({
               templates={promptTemplates}
               onSelect={tpl => onPromptSelect?.(tpl.content)}
               title="Prompt Toolkit"
-              isLoading={loading}
+              isLoading={promptsIsLoading}
             />
           </section>
 
@@ -152,7 +170,7 @@ export function DashboardHome({
               onDismiss={onInsightDismiss}
               onAction={onInsightAction}
               title="Insights"
-              isLoading={loading}
+              isLoading={insightsIsLoading}
             />
           </section>
         </div>

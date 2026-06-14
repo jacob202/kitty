@@ -278,6 +278,16 @@ def summarize_headlines_to_bullets(headlines: List[NewsHeadline]) -> List[str]:
         logger.warning("Brief bullet summarization failed: %s", e)
         return []
 
+    # chat() returns "" when the entire LLM fallback chain is exhausted;
+    # treat that as an explicit failure so it doesn't look like "no
+    # interesting bullets today" silently.
+    if not raw or not raw.strip():
+        logger.warning(
+            "Brief bullet summarization: LLM returned empty response "
+            "(fallback chain may be exhausted)"
+        )
+        return []
+
     bullets: List[str] = []
     for line in raw.splitlines():
         line = line.strip().lstrip("-•*").strip()
