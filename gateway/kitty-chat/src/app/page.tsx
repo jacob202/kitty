@@ -541,6 +541,11 @@ function KittyChatInner() {
               insights={insights}
               promptTemplates={promptTemplates}
               loading={!briefGateway.loaded}
+              briefLoading={briefQuery.isLoading}
+              todosLoading={todosQuery.isLoading}
+              loopsLoading={loopsQuery.isLoading}
+              insightsLoading={insightsQuery.isLoading}
+              promptsLoading={promptsQuery.isLoading}
               onLoopToggle={handleLoopToggle}
               onInsightDismiss={handleInsightDismiss}
               onInsightAction={handleInsightAction}
