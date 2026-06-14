@@ -3,6 +3,8 @@
 **Date:** 2026-06-11
 **Status:** Living document. Revisit each decision at the trigger listed in its "When to reconsider" row.
 
+> **Scope of this doc:** the *near-term, settled* plan (Phases A–E) for making Kitty a reliable single-user companion. For the long-range 10-year picture — what Kitty looks like as the #1 app, the backend that would require, and how that vision reverse-engineers back onto exactly the phases below — see `docs/FUTURE_VISION_AND_ROADMAP.md`. The two agree: the vision's "Horizon 1" *is* this roadmap.
+
 **Assumptions made in this document:**
 
 - Kitty runs on Jacob's Mac (the macOS-only integrations — AppleScript calendar, iMessage, ambient app detection, Apple Health — confirm this). Linux/Windows portability is a non-goal.
