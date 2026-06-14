@@ -9,10 +9,13 @@ Uses mem0 when API key is set, falls back to in-process dict for local dev.
 """
 
 import json
+import logging
 import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 try:
     from mem0 import MemoryClient
@@ -79,7 +82,7 @@ def search_memories(query: str, limit: int = 5) -> list[dict]:
             results = client.search(query, user_id=user_id, limit=limit)
             return results.get("results", [])
         except Exception:
-            pass  # fall through to local store on any mem0 error
+            logger.warning("mem0 search failed, falling back to local store", exc_info=True)
 
     # Local fallback — simple recency-based retrieval (no semantic search)
     memories = _LOCAL_STORE.get(user_id, [])
@@ -96,7 +99,7 @@ def add_memory(conversation: list[dict], metadata: Optional[dict] = None) -> Non
             client.add(conversation, user_id=user_id, metadata=metadata or {})
             return
         except Exception:
-            pass  # fall through to local store on any mem0 error
+            logger.warning("mem0 add failed, falling back to local store", exc_info=True)
 
     # Local fallback
     if user_id not in _LOCAL_STORE:

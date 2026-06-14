@@ -4,6 +4,7 @@ Point Open WebUI at http://localhost:8000 with any API key.
 """
 
 import json
+import logging
 import time
 import uuid
 from typing import AsyncIterator
@@ -13,6 +14,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 from .config import settings
 from .memory import (
@@ -47,7 +50,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
-client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
 
 # ── Request / response models (OpenAI-compatible subset) ──────────────────────
@@ -137,13 +140,13 @@ async def _stream_response(request: ChatRequest) -> AsyncIterator[str]:
 
     full_response = ""
 
-    with client.messages.stream(
+    async with client.messages.stream(
         model=model,
         max_tokens=max_tokens,
         system=system_prompt,
         messages=anthropic_messages,
     ) as stream:
-        for text in stream.text_stream:
+        async for text in stream.text_stream:
             full_response += text
             yield _openai_chunk(text, model)
 
@@ -159,7 +162,7 @@ async def _stream_response(request: ChatRequest) -> AsyncIterator[str]:
             metadata={"specialist": specialist},
         )
     except Exception:
-        pass  # memory persistence is best-effort; never break the stream
+        logger.warning("add_memory failed after streaming response", exc_info=True)
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -209,7 +212,7 @@ async def chat(request: ChatRequest):
         for m in request.messages
         if m.role in ("user", "assistant")
     ]
-    response = client.messages.create(
+    response = await client.messages.create(
         model=model,
         max_tokens=max_tokens,
         system=system_prompt,
@@ -225,7 +228,7 @@ async def chat(request: ChatRequest):
             metadata={"specialist": specialist},
         )
     except Exception:
-        pass  # memory persistence is best-effort
+        logger.warning("add_memory failed after non-streaming response", exc_info=True)
     return _openai_response(content, model)
 
 
