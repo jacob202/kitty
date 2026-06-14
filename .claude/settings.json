@@ -1,5 +1,5 @@
 {
-  "sessionStart": "python3.11 -m pytest tests/ -q --tb=line 2>/dev/null | tail -1 || true",
+  "sessionStart": "bash .claude/hooks/session_start.sh",
   "autoSave": true,
   "terminalIntegration": true,
   "permissions": {
