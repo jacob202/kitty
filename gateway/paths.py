@@ -41,8 +41,8 @@ def validate_env() -> None:
     log = logging.getLogger("kitty.startup")
     if not os.environ.get("GATEWAY_SECRET"):
         log.warning(
-            "GATEWAY_SECRET is not set — auth middleware is DISABLED. "
-            "This is fine for local dev but must never reach production."
+            "GATEWAY_SECRET is not set — authentication fails closed unless "
+            "KITTY_ENV=test. Configure a secret before desktop startup."
         )
 
 

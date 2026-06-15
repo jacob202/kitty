@@ -1,6 +1,10 @@
 import type { NextRequest } from 'next/server'
 
-const OWUI = process.env.KITTY_GATEWAY_URL    ?? 'http://127.0.0.1:5001'
+export function resolveGatewayUrl(configuredUrl: string | undefined): string {
+  return configuredUrl ?? 'http://127.0.0.1:8000'
+}
+
+const OWUI = resolveGatewayUrl(process.env.KITTY_GATEWAY_URL)
 const KEY  = process.env.KITTY_GATEWAY_SECRET ?? ''
 
 async function handler(
