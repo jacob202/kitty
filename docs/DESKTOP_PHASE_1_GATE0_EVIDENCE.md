@@ -1,7 +1,7 @@
 # Desktop Phase 1 Gate 0 Evidence
 
-**Date:** 2026-06-14  
-**Machine:** Jacob's MacBook Air  
+**Date:** 2026-06-14
+**Machine:** Jacob's MacBook Air
 **Result:** Passed with production follow-ups recorded below.
 
 Gate 0 used disposable files and temporary LaunchAgents. No Gate 0 service,
