@@ -21,9 +21,6 @@ def test_gateway_launcher_scripts_use_live_gateway_paths() -> None:
             'LITELLM_CONFIG="${LITELLM_CONFIG:-gateway/litellm_config.yaml}"',
             'LITELLM_REQUIREMENTS_FILE="${LITELLM_REQUIREMENTS_FILE:-gateway/requirements.litellm.txt}"',
         ],
-        "gateway/start_openwebui.sh": [
-            'source "gateway/lib/load_env_safe.sh"',
-        ],
         "gateway/start_tool_servers.sh": [
             'source "${ROOT_DIR}/gateway/lib/load_env_safe.sh"',
         ],
@@ -48,10 +45,8 @@ def test_start_all_and_runtime_manifest_point_at_live_gateway_scripts() -> None:
     start_all = _read_text("gateway/start_all.sh")
     for snippet in (
         'source "${ROOT_DIR}/gateway/lib/load_env_safe.sh"',
-        'source "${ROOT_DIR}/gateway/lib/openwebui_probe.sh"',
         "bash gateway/start_litellm.sh",
         "bash gateway/start_gateway.sh",
-        "bash gateway/start_openwebui.sh",
         "bash gateway/start_jupyter_exec.sh",
         "bash gateway/start_tool_servers.sh",
         "bash gateway/doctor.sh",
@@ -60,11 +55,9 @@ def test_start_all_and_runtime_manifest_point_at_live_gateway_scripts() -> None:
 
     manifest = json.loads(_read_text("gateway/runtime_manifest.json"))
     assert manifest["required_files"] == [
-        "kitty_gateway/openwebui.env",
         "gateway/start_all.sh",
-        "gateway/sync_openwebui_integrations.sh",
-        "gateway/import_openwebui_functions.sh",
-        "gateway/openwebui_filters/kitty_context_injector.py",
+        "gateway/start_gateway.sh",
+        "gateway/start_litellm.sh",
     ]
 
 
