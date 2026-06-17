@@ -1,10 +1,10 @@
 # Tasks
 
-Last updated: **2026-05-21**
+Last updated: **2026-06-17**
 
 ## Current test baseline
 
-`python3.11 -m pytest tests/ -q --tb=short --ignore=tests/test_council_graph.py --ignore=tests/test_mcp_council_server.py` → **449 passed, 2 skipped**
+`python3.11 -m pytest tests/ -q --tb=short --ignore=tests/test_council_graph.py --ignore=tests/test_mcp_council_server.py` → **493 passed, 2 deselected** (after Phase A A1+A4 cleanup)
 
 `cd gateway/kitty-chat && npm test` → **36 passed**
 
