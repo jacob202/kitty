@@ -22,3 +22,7 @@ pillow==11.3.0
 tenacity>=8.5.0,<10
 mem0ai>=0.1.50,<0.2
 trafilatura>=1.12,<3
+
+# testing
+pytest
+pytest-asyncio
