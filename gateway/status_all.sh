@@ -8,12 +8,6 @@ source "${ROOT_DIR}/gateway/lib/load_env_safe.sh"
 if [[ -f "${ROOT_DIR}/.env" ]]; then
   load_env_assignments "${ROOT_DIR}/.env"
 fi
-if [[ -f "${ROOT_DIR}/kitty_gateway/openwebui.env" ]]; then
-  load_env_assignments "${ROOT_DIR}/kitty_gateway/openwebui.env"
-fi
-
-OPENWEBUI_PORT="${OPENWEBUI_PORT:-3000}"
-OPENWEBUI_HEALTH_URL="$(echo "${WEBUI_URL:-http://127.0.0.1:${OPENWEBUI_PORT}}" | sed 's!/*$!!')/health"
 
 service_pattern() {
   local name="$1"
@@ -21,7 +15,6 @@ service_pattern() {
     mlx) echo "mlx_lm.server" ;;
     litellm) echo "venv-litellm/bin/litellm --config gateway/litellm_config.yaml" ;;
     gateway) echo "venv/bin/uvicorn gateway.app:app --host 127.0.0.1" ;;
-    openwebui) echo "venv/bin/open-webui serve" ;;
     jupyter) echo "venv/bin/jupyter.*lab.*--ip=127.0.0.1.*--port=8888" ;;
     cloudflare) echo "cloudflared tunnel" ;;
     openterminal) echo "venv/bin/open-terminal run --host 127.0.0.1 --port" ;;
@@ -73,7 +66,6 @@ check_http() {
 check_pid "mlx"
 check_pid "litellm"
 check_pid "gateway"
-check_pid "openwebui"
 check_pid "jupyter"
 check_pid "openterminal"
 check_pid "tool-filesystem"
@@ -83,8 +75,7 @@ check_pid "tool-weather"
 check_pid "cloudflare"
 echo
 check_http "litellm" "http://127.0.0.1:8001/health" "Authorization: Bearer ${LITELLM_MASTER_KEY:-kitty-local-key-change-me}" 8
-check_http "gateway" "http://127.0.0.1:8000/health"
-check_http "openwebui" "${OPENWEBUI_HEALTH_URL}"
+check_http "gateway" "http://127.0.0.1:5001/health"
 check_http "jupyter" "http://127.0.0.1:8888/api" "Authorization: token ${CODE_EXECUTION_JUPYTER_AUTH_TOKEN:-}"
 check_http "openterminal" "${OPEN_TERMINAL_URL:-http://127.0.0.1:9614}/health"
 check_http "tool-filesystem" "http://127.0.0.1:9721/openapi.json"
