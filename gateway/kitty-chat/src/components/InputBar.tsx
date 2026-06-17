@@ -84,7 +84,8 @@ export function InputBar({
       const fd = new FormData()
       const ext = blob.type.includes('webm') ? 'webm' : blob.type.includes('ogg') ? 'ogg' : 'wav'
       fd.append('file', blob, `mic.${ext}`)
-      fd.append('model', 'whisper-1')
+      // No model field: gateway/stt.py uses faster-whisper with its own
+      // configured size and ignores the OpenAI-style 'model' form value.
       const res = await fetch('/proxy/v1/audio/transcriptions', { method: 'POST', body: fd })
       if (!res.ok) throw new Error(`Transcription HTTP ${res.status}`)
       const json = await res.json()

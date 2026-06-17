@@ -26,8 +26,13 @@ from gateway.token_usage_log import log_llm_usage, normalize_usage_payload
 from gateway.llm_utils import retry_with_backoff
 
 # Optional tenacity retry on transient network errors per provider call.
-# 4xx errors (auth, bad model) fall through immediately so the fallback chain
-# can take over.
+# Retries cover socket-level errors AND 5xx responses; 4xx (auth, bad model)
+# bubbles immediately so the fallback chain can take over without burning
+# the retry budget on an unrecoverable error.
+class _TransientHTTPError(requests.HTTPError):
+    """Marker so tenacity picks out retryable HTTP statuses from the rest."""
+
+
 try:
     from tenacity import (
         retry as _tenacity_retry,
@@ -39,7 +44,9 @@ try:
     _retry_post = _tenacity_retry(
         stop=stop_after_attempt(2),
         wait=wait_exponential(multiplier=0.3, min=0.3, max=1.5),
-        retry=retry_if_exception_type((requests.ConnectionError, requests.ConnectTimeout)),
+        retry=retry_if_exception_type(
+            (requests.ConnectionError, requests.ConnectTimeout, _TransientHTTPError)
+        ),
         reraise=True,
     )
 except ImportError:  # pragma: no cover - optional dependency
@@ -50,8 +57,18 @@ except ImportError:  # pragma: no cover - optional dependency
 
 @_retry_post
 def _post(*args, **kwargs):
-    """requests.post wrapper with optional tenacity retry on transient errors."""
-    return requests.post(*args, **kwargs)
+    """requests.post wrapper with optional tenacity retry on transient errors.
+
+    Raises _TransientHTTPError on 5xx so tenacity retries; 4xx is returned
+    as-is for the caller's raise_for_status to translate into a normal
+    HTTPError that falls through to the next provider.
+    """
+    resp = requests.post(*args, **kwargs)
+    if 500 <= resp.status_code < 600:
+        raise _TransientHTTPError(
+            f"{resp.status_code} {resp.reason}", response=resp
+        )
+    return resp
 
 OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 
