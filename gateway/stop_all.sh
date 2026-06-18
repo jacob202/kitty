@@ -11,7 +11,6 @@ service_pattern() {
     mlx) echo "mlx_lm.server" ;;
     litellm) echo "venv-litellm/bin/litellm --config gateway/litellm_config.yaml" ;;
     gateway) echo "venv/bin/uvicorn gateway.app:app --host 127.0.0.1" ;;
-    openwebui) echo "venv/bin/open-webui serve" ;;
     jupyter) echo "venv/bin/jupyter.*lab.*--ip=127.0.0.1.*--port=8888" ;;
     cloudflare) echo "cloudflared tunnel" ;;
     openterminal) echo "venv/bin/open-terminal run --host 127.0.0.1 --port" ;;
@@ -28,7 +27,6 @@ service_session_name() {
   case "${name}" in
     litellm) echo "kitty-litellm" ;;
     gateway) echo "kitty-gateway" ;;
-    openwebui) echo "kitty-openwebui" ;;
     jupyter) echo "kitty-jupyter" ;;
     *) echo "" ;;
   esac
@@ -84,7 +82,6 @@ stop_service() {
 }
 
 stop_service "cloudflare"
-stop_service "openwebui"
 stop_service "litellm"
 stop_service "gateway"
 stop_service "jupyter"
