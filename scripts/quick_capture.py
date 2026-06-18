@@ -60,7 +60,7 @@ def main(argv: list[str] | None = None, stdin_text: str | None = None) -> int:
         print(f"Nothing captured: {exc}", file=sys.stderr)
         return 2
 
-    print(f"Captured {entry['id']} -> {args.inbox_file}")
+    print(f"Captured {entry['id']}")
     return 0
 
 

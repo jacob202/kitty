@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
+from typing import Any
 
 from scripts.quick_capture import main
 
 
-def _read_rows(path):
+def _read_rows(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
 
 
