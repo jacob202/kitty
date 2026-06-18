@@ -1,7 +1,6 @@
 {
   "version": 1,
   "services": [
-    { "id": "openwebui", "url": "http://127.0.0.1:3000/health", "required": true },
     { "id": "gateway", "url": "http://127.0.0.1:8000/health", "required": false },
     { "id": "litellm", "url": "http://127.0.0.1:8001/health", "required": false },
     { "id": "jupyter", "url": "http://127.0.0.1:8888/api", "required": false },
@@ -12,21 +11,9 @@
     { "id": "tool-time", "url": "http://127.0.0.1:9723/openapi.json", "required": false },
     { "id": "tool-weather", "url": "http://127.0.0.1:9724/openapi.json", "required": false }
   ],
-  "openwebui": {
-    "required_terminal_server_ids": ["open-terminal-local"],
-    "required_tool_server_ids": [
-      "community-filesystem-local",
-      "community-memory-local",
-      "community-time-local",
-      "community-weather-local"
-    ],
-    "min_functions": 4
-  },
   "required_files": [
-    "kitty_gateway/openwebui.env",
     "gateway/start_all.sh",
-    "gateway/sync_openwebui_integrations.sh",
-    "gateway/import_openwebui_functions.sh",
-    "gateway/openwebui_filters/kitty_context_injector.py"
+    "gateway/start_gateway.sh",
+    "gateway/start_litellm.sh"
   ]
 }

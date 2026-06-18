@@ -1,4 +1,4 @@
-"""Kitty Gateway — thin FastAPI brain between Open WebUI and LiteLLM."""
+"""Kitty Gateway — thin FastAPI brain between the kitty-chat UI and LiteLLM."""
 
 from __future__ import annotations
 

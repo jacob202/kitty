@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 # Load all environment files
 PROJECT_ROOT = Path(__file__).parent.parent
 load_dotenv(PROJECT_ROOT / ".env")
-load_dotenv(PROJECT_ROOT / "kitty_gateway/openwebui.env")
 
 # 1. Gateway Settings
 GATEWAY_HOST = os.environ.get("GATEWAY_HOST", "127.0.0.1")
