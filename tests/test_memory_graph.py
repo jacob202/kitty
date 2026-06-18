@@ -1,10 +1,12 @@
 """Tests for the unified memory graph."""
 
 import pytest
+import asyncio
 import json
 import time
 from unittest.mock import patch, AsyncMock
 
+import gateway.memory_graph as memory_graph_module
 from gateway.memory_graph import (
     unified_context,
     search_all,
@@ -16,6 +18,7 @@ from gateway.memory_graph import (
     JournalAdapter,
     TracesAdapter,
     TodosAdapter,
+    StoreAdapter,
     _fetch_traces,
 )
 
@@ -65,6 +68,44 @@ async def test_failure_isolation():
         assert results["memory"] == []
         assert len(results["knowledge"]) == 1
         assert results["knowledge"][0]["text"] == "found it"
+
+
+@pytest.mark.asyncio
+async def test_slow_optional_store_is_bounded(monkeypatch):
+    class SlowAdapter(StoreAdapter):
+        @property
+        def name(self):
+            return "slow"
+
+        async def fetch(self, query):
+            await asyncio.sleep(0.2)
+            return [{"text": query}]
+
+        def format_items(self, items):
+            return ""
+
+    monkeypatch.setattr(memory_graph_module, "STORE_FETCH_TIMEOUT_SECONDS", 0.01)
+    started = time.monotonic()
+    result = await MemoryGraph([SlowAdapter()]).search_all("hello")
+
+    assert time.monotonic() - started < 0.1
+    assert result.results["slow"] == []
+    assert result.errors == ["slow: timed out"]
+
+
+@pytest.mark.asyncio
+async def test_knowledge_adapter_does_not_block_event_loop(monkeypatch):
+    async def blocking_search(query, limit):
+        time.sleep(0.2)
+        return [{"text": query}]
+
+    monkeypatch.setattr("gateway.knowledge.search", blocking_search)
+    monkeypatch.setattr(memory_graph_module, "STORE_FETCH_TIMEOUT_SECONDS", 0.01)
+    started = time.monotonic()
+    result = await MemoryGraph([KnowledgeAdapter()]).search_all("hello")
+
+    assert time.monotonic() - started < 0.1
+    assert result.results["knowledge"] == []
 
 
 @pytest.mark.asyncio

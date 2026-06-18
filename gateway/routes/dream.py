@@ -6,6 +6,7 @@ import json
 import logging
 import time
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks
 from pydantic import BaseModel
@@ -66,6 +67,52 @@ def save_dream_insights(summary: str) -> None:
     logger.info("Saved %d dream insights", len(insights))
 
 
+def _normalize_created_at(value: object) -> float:
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            return 0.0
+    return 0.0
+
+
+def load_dream_insights(limit: int = 10) -> list[dict]:
+    """Load dream insights defensively for routes and dashboard tests."""
+    if not DREAM_INSIGHTS_FILE.exists():
+        return []
+    try:
+        raw = json.loads(DREAM_INSIGHTS_FILE.read_text(encoding="utf-8"))
+    except Exception as e:
+        logger.warning("Failed to read dream insights: %s", e)
+        return []
+
+    rows = raw if isinstance(raw, list) else []
+    normalized: list[dict] = []
+    for item in rows:
+        if not isinstance(item, dict):
+            continue
+        row = dict(item)
+        row["created_at"] = _normalize_created_at(row.get("created_at"))
+        normalized.append(row)
+
+    if limit <= 0:
+        return normalized
+    return normalized[:limit]
+
+
+def dismiss_dream_insight(insight_id: str) -> bool:
+    """Remove one insight card from the local dream insight file."""
+    rows = load_dream_insights(limit=0)
+    kept = [row for row in rows if row.get("insight_id") != insight_id]
+    if len(kept) == len(rows):
+        return False
+    DREAM_INSIGHTS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    DREAM_INSIGHTS_FILE.write_text(json.dumps(kept, indent=2), encoding="utf-8")
+    return True
+
+
 def _run_dream_task() -> None:
     """Background task: run nightly_dream, save insights, ensure cron action registered."""
     try:
@@ -117,12 +164,4 @@ async def dream_trigger(background_tasks: BackgroundTasks):
 
 @router.get("/dream/insights")
 async def dream_insights():
-    if not DREAM_INSIGHTS_FILE.exists():
-        return {"insights": []}
-    try:
-        raw = json.loads(DREAM_INSIGHTS_FILE.read_text())
-        insights = [GatewayInsight(**item) for item in raw]
-        return {"insights": [i.model_dump() for i in insights]}
-    except Exception as e:
-        logger.warning("Failed to read dream insights: %s", e)
-        return {"insights": []}
+    return {"insights": load_dream_insights()}

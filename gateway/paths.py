@@ -18,6 +18,10 @@ PROMPTS_DIR = ROOT / "prompts"
 KNOWLEDGE_DIR = DATA_DIR / "knowledge"
 CONFIG_DIR = ROOT / "config"
 USER_DIR = CONFIG_DIR / "USER"  # Jacob's TELOS identity files (mission/goals/etc.)
+DESKTOP_DIR = DATA_DIR / "desktop"
+INBOX_FILE = DATA_DIR / "inbox.jsonl"
+DESKTOP_LOG_FILE = LOGS_DIR / "desktop.log"
+DESKTOP_PID_DIR = DESKTOP_DIR / "run"
 
 LOG_FILE = LOGS_DIR / "gateway_trace.jsonl"
 
@@ -37,8 +41,11 @@ def validate_env() -> None:
     log = logging.getLogger("kitty.startup")
     if not os.environ.get("GATEWAY_SECRET"):
         log.warning(
-            "GATEWAY_SECRET is not set — auth middleware is DISABLED. "
-            "This is fine for local dev but must never reach production."
+            "GATEWAY_SECRET is not set — authentication fails closed unless "
+            "KITTY_ENV=test. Configure a secret before desktop startup."
+            "GATEWAY_SECRET is not set — auth fails closed for protected "
+            "routes unless "
+            "KITTY_ENV=test explicitly enables local test bypass."
         )
 
 

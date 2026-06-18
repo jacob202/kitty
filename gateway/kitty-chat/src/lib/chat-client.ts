@@ -1,8 +1,7 @@
 import { Message } from './types'
 
-// All OWUI calls go through the Next.js proxy route — avoids CORS and keeps key server-side
-const OPENWEBUI_BASE = '/proxy'
-const OPENWEBUI_KEY  = ''  // key is injected server-side by the proxy
+// All gateway calls go through the Next.js proxy route — avoids CORS and keeps key server-side
+const GATEWAY_BASE = '/proxy'
 
 export interface StreamChunk {
   content: string
@@ -14,12 +13,9 @@ export async function* streamChat(
   messages: Message[],
   signal?: AbortSignal
 ): AsyncGenerator<StreamChunk> {
-  const response = await fetch(`${OPENWEBUI_BASE}/api/chat/completions`, {
+  const response = await fetch(`${GATEWAY_BASE}/api/chat/completions`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(OPENWEBUI_KEY ? { Authorization: `Bearer ${OPENWEBUI_KEY}` } : {}),
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model,
       stream: true,
@@ -29,7 +25,7 @@ export async function* streamChat(
   })
 
   if (!response.ok) {
-    throw new Error(`OpenWebUI error ${response.status}: ${await response.text()}`)
+    throw new Error(`Gateway error ${response.status}: ${await response.text()}`)
   }
 
   const reader = response.body?.getReader()
@@ -61,9 +57,7 @@ export async function* streamChat(
 
 export async function fetchModels(): Promise<string[]> {
   try {
-    const res = await fetch(`${OPENWEBUI_BASE}/api/models`, {
-      headers: OPENWEBUI_KEY ? { Authorization: `Bearer ${OPENWEBUI_KEY}` } : {},
-    })
+    const res = await fetch(`${GATEWAY_BASE}/api/models`)
     if (!res.ok) return []
     const json = await res.json()
     return (json.data ?? []).map((m: { id: string }) => m.id)

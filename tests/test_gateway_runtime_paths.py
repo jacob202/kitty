@@ -15,6 +15,7 @@ def test_gateway_launcher_scripts_use_live_gateway_paths() -> None:
     expected_snippets = {
         "gateway/start_gateway.sh": [
             'source "${ROOT_DIR}/gateway/lib/load_env_safe.sh"',
+            'export KITTY_ENV="${KITTY_ENV:-prod}"',
         ],
         "gateway/start_litellm.sh": [
             'source "${ROOT_DIR}/gateway/lib/load_env_safe.sh"',
@@ -65,3 +66,4 @@ def test_start_all_and_runtime_manifest_point_at_live_gateway_scripts() -> None:
     service_ids = {svc["id"] for svc in manifest["services"]}
     assert "openwebui" not in service_ids
     assert "openwebui" not in manifest
+

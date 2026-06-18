@@ -2,7 +2,7 @@
 import { startTransition, useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Chat, Message, Model, MODELS, COLOR_CYCLE, ChatColor } from '@/lib/types'
-import { streamChat } from '@/lib/openwebui'
+import { streamChat } from '@/lib/chat-client'
 import { inferMood } from '@/lib/mood'
 import { TopBar } from '@/components/TopBar'
 import { ChatMessage } from '@/components/ChatMessage'

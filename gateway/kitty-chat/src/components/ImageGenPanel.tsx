@@ -72,6 +72,8 @@ export function ImageGenPanel() {
 
   return (
     <div style={{ display: 'grid', gap: 8 }}>
+      {available === true && <p style={onlineStyle}>comfyui online</p>}
+
       {/* Prompt input */}
       <textarea
         value={prompt}
@@ -233,4 +235,12 @@ const unavailableBodyStyle: CSSProperties = {
   fontSize: 10,
   color: 'var(--text-faint)',
   lineHeight: 1.5,
+}
+
+const onlineStyle: CSSProperties = {
+  margin: 0,
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  color: 'var(--teal)',
+  textTransform: 'lowercase',
 }

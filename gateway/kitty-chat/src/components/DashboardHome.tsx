@@ -97,7 +97,11 @@ export function DashboardHome({
   const recentChats = useMemo(() => recentChatsWithMessages(chats), [chats])
 
   return (
-    <div style={panelStyle}>
+    <div
+      style={panelStyle}
+      role={loading ? 'status' : undefined}
+      aria-label={loading ? 'loading dashboard' : undefined}
+    >
       <section style={greetingBarStyle}>
         <div>
           <div style={greetingTitleStyle}>{greetingTime()}, {USER_DISPLAY_NAME}.</div>
