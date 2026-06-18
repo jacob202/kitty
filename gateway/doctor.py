@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-"""Kitty gateway preflight/health doctor."""
+"""Kitty preflight / health doctor.
+
+Checks the real stack: gateway, LiteLLM, ChromaDB, mem0, Telegram token,
+disk space, venv. Exits non-zero when any required check fails.
+
+Usage:
+  python gateway/doctor.py              # human-readable table
+  python gateway/doctor.py --json       # JSON output
+  python gateway/doctor.py --strict     # fail on WARN too
+"""
 
 from __future__ import annotations
 
@@ -7,274 +16,200 @@ import argparse
 import json
 import os
 import pathlib
-import shlex
-import subprocess
+import shutil
 import ssl
-import urllib.error
-import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from typing import Any
 
 
-ROOT_DIR = pathlib.Path(__file__).resolve().parent.parent
-ENV_FILE = ROOT_DIR / "kitty_gateway" / "openwebui.env"
-MANIFEST_FILE = ROOT_DIR / "gateway" / "runtime_manifest.json"
+ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 
 @dataclass
-class CheckResult:
-    level: str  # PASS|WARN|FAIL
+class Check:
+    level: str  # PASS | WARN | FAIL
     name: str
     detail: str
 
 
-def parse_env(path: pathlib.Path) -> dict[str, str]:
-    data: dict[str, str] = {}
-    if not path.exists():
-        return data
-    keys: list[str] = []
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key = line.split("=", 1)[0].strip()
-        if key:
-            keys.append(key)
-
-    proc = subprocess.run(
-        [
-            "bash",
-            "-lc",
-            f"set -a; source {shlex.quote(str(path))}; env -0",
-        ],
-        capture_output=True,
-        check=True,
-        text=False,
-    )
-    raw_env = {}
-    for item in proc.stdout.split(b"\0"):
-        if b"=" not in item:
-            continue
-        key, value = item.split(b"=", 1)
-        raw_env[key.decode("utf-8", errors="ignore")] = value.decode("utf-8", errors="ignore")
-    for key in keys:
-        if key in raw_env:
-            data[key] = raw_env[key]
-    return data
+def _load_env() -> dict[str, str]:
+    env = dict(os.environ)
+    dotenv = ROOT / ".env"
+    if dotenv.exists():
+        for line in dotenv.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, val = line.partition("=")
+            env.setdefault(key.strip(), val.strip().strip('"').strip("'"))
+    return env
 
 
-def webui_base_url(env: dict[str, str]) -> str:
-    """Base URL for Open WebUI API and health — matches start_openwebui / openwebui.env."""
-    raw = (env.get("WEBUI_URL") or "").strip().rstrip("/")
-    if raw:
-        return raw
-    host = (env.get("OPENWEBUI_HOST") or "127.0.0.1").strip() or "127.0.0.1"
-    port = (env.get("OPENWEBUI_PORT") or "3000").strip() or "3000"
-    return f"http://{host}:{port}"
-
-
-def http_json(
-    url: str,
-    method: str = "GET",
-    body: dict[str, Any] | None = None,
-    headers: dict[str, str] | None = None,
-    timeout: float = 4.0,
-) -> tuple[int, dict[str, Any] | list[Any] | str]:
-    data = None
-    req_headers = {"Content-Type": "application/json"}
-    if headers:
-        req_headers.update(headers)
-    if body is not None:
-        data = json.dumps(body).encode("utf-8")
-    req = urllib.request.Request(url=url, data=data, headers=req_headers, method=method)
+def _http_ok(url: str, timeout: float = 3.0, headers: dict | None = None) -> bool:
+    req = urllib.request.Request(url, headers=headers or {})
     ctx = ssl.create_default_context()
-    with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
-        code = resp.getcode()
-        raw = resp.read().decode("utf-8", errors="replace")
-        if not raw:
-            return code, ""
-        try:
-            return code, json.loads(raw)
-        except json.JSONDecodeError:
-            return code, raw
-
-
-def http_ok(url: str, timeout: float = 3.0, headers: dict[str, str] | None = None) -> bool:
     try:
-        code, _ = http_json(url, timeout=timeout, headers=headers)
-        return 200 <= code < 400
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
+            return 200 <= r.getcode() < 400
     except Exception:
         return False
 
 
-def parse_json_env(key: str, value: str, results: list[CheckResult]) -> list[dict[str, Any]]:
-    if not value:
-        results.append(CheckResult("FAIL", key, "missing"))
-        return []
+def _check_env(env: dict) -> list[Check]:
+    out: list[Check] = []
+
+    dotenv = ROOT / ".env"
+    if dotenv.exists():
+        out.append(Check("PASS", "env:.env", str(dotenv)))
+    else:
+        out.append(Check("FAIL", "env:.env",
+                         f"missing — copy .env.example to {dotenv}"))
+        return out  # rest depend on .env
+
+    llm_keys = ["OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY"]
+    set_keys = [k for k in llm_keys if env.get(k, "").strip()]
+    if set_keys:
+        out.append(Check("PASS", "env:llm_key", f"{set_keys[0]} set"))
+    else:
+        out.append(Check("FAIL", "env:llm_key",
+                         f"none of {llm_keys} set — models will fail"))
+
+    if env.get("KITTY_GATEWAY_SECRET", "").strip() or env.get("GATEWAY_SECRET", "").strip():
+        out.append(Check("PASS", "env:gateway_secret", "set"))
+    else:
+        out.append(Check("WARN", "env:gateway_secret",
+                         "not set — auth fails closed for protected routes outside tests"))
+
+    if env.get("TELEGRAM_BOT_TOKEN", "").strip():
+        out.append(Check("PASS", "env:telegram_token", "set"))
+    else:
+        out.append(Check("WARN", "env:telegram_token",
+                         "not set — Telegram bot disabled"))
+
+    return out
+
+
+def _check_services(env: dict) -> list[Check]:
+    out: list[Check] = []
+
+    gw_port = env.get("GATEWAY_PORT", "5001")
+    gw_url = f"http://127.0.0.1:{gw_port}/health"
+    if _http_ok(gw_url):
+        out.append(Check("PASS", "service:gateway", gw_url))
+    else:
+        out.append(Check("FAIL", "service:gateway",
+                         f"unreachable: {gw_url} — run: kitty up"))
+
+    ll_port = env.get("LITELLM_PORT", "8001")
+    ll_key = env.get("LITELLM_MASTER_KEY", "kitty-local-key-change-me")
+    ll_url = f"http://127.0.0.1:{ll_port}/health/readiness"
+    if _http_ok(ll_url, timeout=5.0, headers={"Authorization": f"Bearer {ll_key}"}):
+        out.append(Check("PASS", "service:litellm", ll_url))
+    else:
+        out.append(Check("FAIL", "service:litellm",
+                         f"unreachable: {ll_url} — run: kitty up"))
+
+    return out
+
+
+def _check_chromadb() -> list[Check]:
     try:
-        parsed = json.loads(value)
-    except json.JSONDecodeError as exc:
-        results.append(CheckResult("FAIL", key, f"invalid JSON: {exc}"))
-        return []
-    if not isinstance(parsed, list):
-        results.append(CheckResult("FAIL", key, "must be a JSON list"))
-        return []
-    results.append(CheckResult("PASS", key, f"{len(parsed)} entries"))
-    return [item for item in parsed if isinstance(item, dict)]
+        import chromadb
+        data_dir = ROOT / "data" / "chromadb"
+        client = chromadb.PersistentClient(path=str(data_dir))
+        colls = client.list_collections()
+        return [Check("PASS", "store:chromadb",
+                      f"{len(colls)} collection(s) at {data_dir}")]
+    except ImportError:
+        return [Check("FAIL", "store:chromadb", "chromadb not installed")]
+    except Exception as exc:
+        return [Check("FAIL", "store:chromadb", f"error: {exc}")]
 
 
-def level_order(level: str) -> int:
+def _check_mem0(env: dict) -> list[Check]:
+    try:
+        if env.get("MEM0_API_KEY", "").strip():
+            return [Check("PASS", "store:mem0", "API key set")]
+        from mem0 import Memory
+        _ = Memory()
+        return [Check("PASS", "store:mem0", "local mode")]
+    except ImportError:
+        return [Check("FAIL", "store:mem0", "mem0 not installed")]
+    except Exception as exc:
+        return [Check("WARN", "store:mem0", f"local init: {exc}")]
+
+
+def _check_disk() -> list[Check]:
+    data_dir = ROOT / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    usage = shutil.disk_usage(data_dir)
+    free_gb = usage.free / (1024 ** 3)
+    if free_gb >= 2.0:
+        return [Check("PASS", "disk:data_dir",
+                      f"{free_gb:.1f} GB free at {data_dir}")]
+    elif free_gb >= 0.5:
+        return [Check("WARN", "disk:data_dir",
+                      f"only {free_gb:.1f} GB free")]
+    else:
+        return [Check("FAIL", "disk:data_dir",
+                      f"critically low: {free_gb:.1f} GB free")]
+
+
+def _check_venv() -> list[Check]:
+    venv = ROOT / "venv"
+    if (venv / "bin" / "python").exists():
+        return [Check("PASS", "runtime:venv", str(venv))]
+    return [Check("FAIL", "runtime:venv",
+                  f"no venv at {venv} — run: python3.11 -m venv venv && "
+                  "venv/bin/pip install -r requirements.txt")]
+
+
+def _level_order(level: str) -> int:
     return {"PASS": 0, "WARN": 1, "FAIL": 2}.get(level, 2)
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--strict", action="store_true", help="alias for --fail-on-warn")
-    parser.add_argument("--fail-on-warn", action="store_true", help="return non-zero on WARN/FAIL")
-    parser.add_argument("--json", action="store_true", help="emit JSON output")
+    parser = argparse.ArgumentParser(description="Kitty health check")
+    parser.add_argument("--json", action="store_true")
+    parser.add_argument("--strict", "--fail-on-warn", action="store_true")
     args = parser.parse_args()
 
-    results: list[CheckResult] = []
+    env = _load_env()
+    checks: list[Check] = (
+        _check_venv()
+        + _check_env(env)
+        + _check_services(env)
+        + _check_chromadb()
+        + _check_mem0(env)
+        + _check_disk()
+    )
 
-    if not MANIFEST_FILE.exists():
-        print(f"FAIL manifest missing: {MANIFEST_FILE}")
-        return 2
-    manifest = json.loads(MANIFEST_FILE.read_text(encoding="utf-8"))
-    env = dict(os.environ)
-    # Keep file parsing only as fallback when doctor.py is run directly.
-    for key, value in parse_env(ENV_FILE).items():
-        env.setdefault(key, value)
+    failures = [c for c in checks if c.level == "FAIL"]
+    warns    = [c for c in checks if c.level == "WARN"]
+    passes   = [c for c in checks if c.level == "PASS"]
 
-    if not ENV_FILE.exists():
-        results.append(CheckResult("FAIL", "openwebui.env", f"missing: {ENV_FILE}"))
-    else:
-        results.append(CheckResult("PASS", "openwebui.env", str(ENV_FILE)))
+    sorted_checks = sorted(checks, key=lambda c: (_level_order(c.level), c.name))
 
-    for rel in manifest.get("required_files", []):
-        path = ROOT_DIR / rel
-        if path.exists():
-            results.append(CheckResult("PASS", f"file:{rel}", "present"))
-        else:
-            results.append(CheckResult("FAIL", f"file:{rel}", "missing"))
-
-    data_dir = pathlib.Path(env.get("OPENWEBUI_DATA_DIR", str(pathlib.Path.home() / "kitty-services/open-webui-data")))
-    db_path = data_dir / "webui.db"
-    if db_path.exists():
-        results.append(CheckResult("PASS", "openwebui.db", str(db_path)))
-    else:
-        results.append(CheckResult("WARN", "openwebui.db", f"not found at {db_path}"))
-
-    _ = parse_json_env("TOOL_SERVER_CONNECTIONS", env.get("TOOL_SERVER_CONNECTIONS", ""), results)
-    _ = parse_json_env("TERMINAL_SERVER_CONNECTIONS", env.get("TERMINAL_SERVER_CONNECTIONS", ""), results)
-
-    for svc in manifest.get("services", []):
-        svc_id = svc.get("id", "unknown")
-        url = svc.get("url", "")
-        if svc_id == "openwebui":
-            url = f"{webui_base_url(env)}/health"
-        required = bool(svc.get("required", False))
-        headers = None
-        timeout = 3.0
-        if svc_id == "litellm":
-            headers = {"Authorization": f"Bearer {env.get('LITELLM_MASTER_KEY', 'kitty-local-key-change-me')}"}
-            timeout = 8.0
-        ok = bool(url) and http_ok(url, timeout=timeout, headers=headers)
-        if ok:
-            results.append(CheckResult("PASS", f"service:{svc_id}", url))
-        else:
-            lvl = "FAIL" if required else "WARN"
-            results.append(CheckResult(lvl, f"service:{svc_id}", f"unreachable: {url}"))
-
-    webui_url = webui_base_url(env)
-    email = env.get("WEBUI_ADMIN_EMAIL", "")
-    password = env.get("WEBUI_ADMIN_PASSWORD", "")
-    token = ""
-
-    try:
-        code, payload = http_json(
-            f"{webui_url}/api/v1/auths/signin",
-            method="POST",
-            body={"email": email, "password": password},
-            timeout=6.0,
-        )
-        if code >= 400 or not isinstance(payload, dict):
-            results.append(CheckResult("FAIL", "openwebui_auth", f"signin failed ({code})"))
-        else:
-            token = str(payload.get("token", "") or "")
-            if token:
-                results.append(CheckResult("PASS", "openwebui_auth", "admin auth ok"))
-            else:
-                results.append(CheckResult("FAIL", "openwebui_auth", "token missing in signin response"))
-    except urllib.error.URLError as exc:
-        results.append(CheckResult("FAIL", "openwebui_auth", f"signin error: {exc.reason}"))
-    except Exception as exc:
-        results.append(CheckResult("FAIL", "openwebui_auth", f"signin error: {exc}"))
-
-    if token:
-        headers = {"Authorization": f"Bearer {token}"}
-        try:
-            _, tool_cfg = http_json(f"{webui_url}/api/v1/configs/tool_servers", headers=headers, timeout=6.0)
-            _, term_cfg = http_json(f"{webui_url}/api/v1/configs/terminal_servers", headers=headers, timeout=6.0)
-            _, functions = http_json(f"{webui_url}/api/v1/functions/", headers=headers, timeout=6.0)
-        except Exception as exc:
-            results.append(CheckResult("FAIL", "openwebui_api", f"read config/function APIs failed: {exc}"))
-            tool_cfg = {}
-            term_cfg = {}
-            functions = []
-
-        tool_servers = []
-        if isinstance(tool_cfg, dict):
-            tool_servers = tool_cfg.get("TOOL_SERVER_CONNECTIONS", []) or []
-        terminal_servers = []
-        if isinstance(term_cfg, dict):
-            terminal_servers = term_cfg.get("TERMINAL_SERVER_CONNECTIONS", []) or []
-        fn_count = len(functions) if isinstance(functions, list) else 0
-
-        manifest_openwebui = manifest.get("openwebui", {})
-        req_tool_ids = set(manifest_openwebui.get("required_tool_server_ids", []))
-        req_term_ids = set(manifest_openwebui.get("required_terminal_server_ids", []))
-        min_functions = int(manifest_openwebui.get("min_functions", 0))
-
-        got_tool_ids = {str(item.get("id", "")) for item in tool_servers if isinstance(item, dict)}
-        got_term_ids = {str(item.get("id", "")) for item in terminal_servers if isinstance(item, dict)}
-
-        missing_tools = sorted(req_tool_ids - got_tool_ids)
-        missing_terms = sorted(req_term_ids - got_term_ids)
-
-        if missing_tools:
-            results.append(CheckResult("FAIL", "openwebui_tool_servers", f"missing: {', '.join(missing_tools)}"))
-        else:
-            results.append(CheckResult("PASS", "openwebui_tool_servers", f"{len(got_tool_ids)} configured"))
-        if missing_terms:
-            results.append(CheckResult("FAIL", "openwebui_terminal_servers", f"missing: {', '.join(missing_terms)}"))
-        else:
-            results.append(CheckResult("PASS", "openwebui_terminal_servers", f"{len(got_term_ids)} configured"))
-
-        if fn_count < min_functions:
-            results.append(CheckResult("WARN", "openwebui_functions", f"{fn_count} loaded, expected >= {min_functions}"))
-        else:
-            results.append(CheckResult("PASS", "openwebui_functions", f"{fn_count} loaded"))
-
-    failures = [r for r in results if r.level == "FAIL"]
-    warns = [r for r in results if r.level == "WARN"]
-
-    pass_count = len([r for r in results if r.level == "PASS"])
-    sorted_rows = sorted(results, key=lambda r: (level_order(r.level), r.name))
     if args.json:
-        payload = {
-            "summary": {"pass": pass_count, "warn": len(warns), "fail": len(failures)},
-            "checks": [{"level": r.level, "name": r.name, "detail": r.detail} for r in sorted_rows],
-        }
-        print(json.dumps(payload, indent=2))
+        print(json.dumps({
+            "summary": {"pass": len(passes), "warn": len(warns), "fail": len(failures)},
+            "checks": [{"level": c.level, "name": c.name, "detail": c.detail}
+                       for c in sorted_checks],
+        }, indent=2))
     else:
-        for row in sorted_rows:
-            print(f"{row.level:4} {row.name:<30} {row.detail}")
-        print(f"\nSummary: pass={pass_count} warn={len(warns)} fail={len(failures)}")
+        for c in sorted_checks:
+            print(f"{c.level:4}  {c.name:<28}  {c.detail}")
+        print()
+        if not failures and not warns:
+            print(f"All {len(passes)} checks passed ✓")
+        else:
+            print(f"pass={len(passes)}  warn={len(warns)}  fail={len(failures)}")
 
-    if args.strict or args.fail_on_warn:
-        return 2 if failures or warns else 0
-    return 1 if failures else 0
+    if failures:
+        return 1
+    if args.strict and warns:
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
