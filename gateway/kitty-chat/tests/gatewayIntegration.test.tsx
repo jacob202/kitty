@@ -1,4 +1,6 @@
 import { render, screen, cleanup } from '@testing-library/react'
+import type { ReactNode } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { vi, describe, expect, it, beforeEach, afterEach } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactElement } from 'react'
@@ -8,11 +10,11 @@ import { RightPanel } from '../src/components/RightPanel'
 import { TopBar } from '../src/components/TopBar'
 import { buildGatewayModels, fetchGatewaySearch, summarizeGatewaySearch } from '../src/lib/gateway'
 
-function renderWithQueryClient(ui: ReactElement) {
+function renderWithQueryClient(children: ReactNode) {
   const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
-  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
+  return render(<QueryClientProvider client={client}>{children}</QueryClientProvider>)
 }
 
 describe('gateway integration helpers', () => {
