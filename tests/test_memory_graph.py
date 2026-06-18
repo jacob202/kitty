@@ -18,6 +18,7 @@ from gateway.memory_graph import (
     JournalAdapter,
     TracesAdapter,
     TodosAdapter,
+    InboxAdapter,
     StoreAdapter,
     _fetch_traces,
 )
@@ -36,6 +37,8 @@ async def test_search_all_returns_all_keys():
         TracesAdapter, "fetch", new=AsyncMock(return_value=[])
     ), patch.object(
         TodosAdapter, "fetch", new=AsyncMock(return_value=[])
+    ), patch.object(
+        InboxAdapter, "fetch", new=AsyncMock(return_value=[])
     ):
         results = await search_all("test query")
         assert set(results.keys()) == {
@@ -44,6 +47,7 @@ async def test_search_all_returns_all_keys():
             "journal",
             "traces",
             "todos",
+            "inbox",
         }
         assert all(isinstance(v, list) for v in results.values())
 
@@ -63,6 +67,8 @@ async def test_failure_isolation():
         TracesAdapter, "fetch", new=AsyncMock(return_value=[])
     ), patch.object(
         TodosAdapter, "fetch", new=AsyncMock(return_value=[])
+    ), patch.object(
+        InboxAdapter, "fetch", new=AsyncMock(return_value=[])
     ):
         results = await search_all("test query")
         assert results["memory"] == []
@@ -117,6 +123,7 @@ async def test_unified_context_formatting():
         "journal": [{"entry": "today I felt happy"}],
         "traces": [{"user_request": "how are you", "domain_classified": "chat"}],
         "todos": [],
+        "inbox": [{"text": "remember to order bias trim pots", "created_at": "2026-06-18T12:00:00Z", "source": "desktop_quick_capture", "processed": False}],
     }
 
     with patch.object(
@@ -133,6 +140,8 @@ async def test_unified_context_formatting():
         assert "today I felt happy" in ctx
         assert "## Recent Activity" in ctx
         assert "[chat] how are you" in ctx
+        assert "## Recent Captures" in ctx
+        assert "remember to order bias trim pots" in ctx
 
 
 @pytest.mark.asyncio
@@ -145,6 +154,7 @@ async def test_token_budget_truncation():
         "journal": [],
         "traces": [],
         "todos": [],
+        "inbox": [],
     }
 
     with patch.object(
@@ -211,3 +221,78 @@ async def test_real_trace_fetch_smoke(tmp_path, monkeypatch):
     assert len(results) == 1
     assert results[0]["user_request"] == "fix the hvac"
     assert results[0]["domain_classified"] == "repair"
+
+
+@pytest.mark.asyncio
+async def test_inbox_adapter_resurfaces_unprocessed_captures_for_brief(tmp_path, monkeypatch):
+    """Brief queries should include recent unprocessed captures."""
+    inbox_file = tmp_path / "inbox.jsonl"
+    monkeypatch.setattr("gateway.memory_graph.INBOX_FILE", inbox_file)
+    inbox_file.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "id": "old",
+                        "created_at": "2026-06-17T12:00:00Z",
+                        "source": "desktop_quick_capture",
+                        "type": "text",
+                        "text": "processed thought",
+                        "processed": True,
+                        "project": None,
+                        "tags": [],
+                    }
+                ),
+                "not-json",
+                json.dumps(
+                    {
+                        "id": "new",
+                        "created_at": "2026-06-18T12:00:00Z",
+                        "source": "desktop_quick_capture",
+                        "type": "text",
+                        "text": "Ask Mike about the Ridgeline tires",
+                        "processed": False,
+                        "project": None,
+                        "tags": ["ridgeline"],
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    items = await InboxAdapter().fetch("morning brief")
+
+    assert [item["id"] for item in items] == ["new"]
+    formatted = InboxAdapter().format_items(items)
+    assert "## Recent Captures" in formatted
+    assert "Ask Mike about the Ridgeline tires" in formatted
+
+
+@pytest.mark.asyncio
+async def test_inbox_adapter_matches_capture_text_and_tags(tmp_path, monkeypatch):
+    inbox_file = tmp_path / "inbox.jsonl"
+    monkeypatch.setattr("gateway.memory_graph.INBOX_FILE", inbox_file)
+    inbox_file.write_text(
+        json.dumps(
+            {
+                "id": "capture-1",
+                "created_at": "2026-06-18T12:00:00Z",
+                "source": "desktop_quick_capture",
+                "type": "text",
+                "text": "Order replacement transistors",
+                "processed": False,
+                "project": None,
+                "tags": ["sansui"],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    by_text = await InboxAdapter().fetch("transistors")
+    by_tag = await InboxAdapter().fetch("sansui")
+
+    assert by_text[0]["id"] == "capture-1"
+    assert by_tag[0]["id"] == "capture-1"

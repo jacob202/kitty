@@ -20,6 +20,7 @@ SECTION_TO_KIND = {
     "knowledge": "knowledge",
     "journal": "journal",
     "todos": "todo",
+    "inbox": "capture",
 }
 
 RAW_TO_SECTION = {
@@ -28,6 +29,7 @@ RAW_TO_SECTION = {
     "knowledge": "knowledge",
     "journal": "journal",
     "todos": "todos",
+    "inbox": "inbox",
 }
 
 
@@ -97,6 +99,10 @@ def normalize_hit(kind: str, item: dict[str, Any]) -> dict[str, Any]:
         text = _first_text(item, ("text", "content", "title", "task"))
         source = _compact(item.get("source"), "todo")
         title = _compact(item.get("title")) or _short_title(text, "Todo")
+    elif kind == "capture":
+        text = _first_text(item, ("text", "content", "entry"))
+        source = _compact(item.get("source"), "inbox")
+        title = _compact(item.get("title")) or _short_title(text, "Capture")
     else:
         text = _first_text(item, ("text", "content", "entry", "memory"))
         source = _compact(item.get("source"), kind)
@@ -121,6 +127,7 @@ async def async_search(query: str, limit: int = 5) -> dict[str, Any]:
         "knowledge": [],
         "journal": [],
         "todos": [],
+        "inbox": [],
         "query": query,
     }
 

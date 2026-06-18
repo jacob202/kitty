@@ -4,14 +4,14 @@ This is a DEEP module. Callers should only use:
 - unified_context(query) -> str: High-leverage entry point for context building.
 - search_all(query) -> dict: Raw results from all stores for debugging.
 
-Internal store adapters (Memory, Knowledge, Journal, Traces, Todos) are
+Internal store adapters (Memory, Knowledge, Journal, Traces, Todos, Inbox) are
 implementation details. The module provides:
-1. Unified query interface across 5 stores
+1. Unified query interface across active stores
 2. Cross-store correlation (find related entities across stores)
 3. Concurrent fetching with graceful degradation
 4. Token-aware truncation
 
-Depth principle: A lot of behaviour (5 stores + correlation) behind a small
+Depth principle: A lot of behaviour (stores + correlation) behind a small
 interface (unified_context, search_all).
 """
 from __future__ import annotations
@@ -24,7 +24,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from gateway.paths import LOGS_DIR
+from gateway.paths import INBOX_FILE, LOGS_DIR
 
 logger = logging.getLogger("kitty.memory_graph")
 
@@ -308,6 +308,88 @@ class TodosAdapter(StoreAdapter):
         return correlations
 
 
+class InboxAdapter(StoreAdapter):
+    """Adapter for mobile-compatible quick captures."""
+
+    @property
+    def name(self) -> str:
+        return "inbox"
+
+    async def fetch(self, query: str) -> list[dict[str, Any]]:
+        try:
+            return await asyncio.to_thread(self._fetch_inbox, query)
+        except Exception as e:
+            logger.warning("Inbox fetch failed: %s", e)
+            return []
+
+    def _fetch_inbox(self, query: str) -> list[dict[str, Any]]:
+        if not INBOX_FILE.exists():
+            return []
+        rows: list[dict[str, Any]] = []
+        with INBOX_FILE.open("r", encoding="utf-8") as handle:
+            for raw_line in handle:
+                line = raw_line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(entry, dict):
+                    rows.append(entry)
+
+        rows = rows[-50:]
+        terms = [term for term in query.lower().split() if term]
+        brief_query = any(
+            term in {"brief", "morning", "today", "inbox", "capture", "captures"}
+            for term in terms
+        )
+
+        def searchable(entry: dict[str, Any]) -> str:
+            tags = entry.get("tags") if isinstance(entry.get("tags"), list) else []
+            return " ".join(
+                [
+                    str(entry.get("text") or ""),
+                    str(entry.get("source") or ""),
+                    str(entry.get("type") or ""),
+                    str(entry.get("project") or ""),
+                    " ".join(str(tag) for tag in tags),
+                ]
+            ).lower()
+
+        matches = []
+        for entry in reversed(rows):
+            if brief_query and entry.get("processed") is False:
+                matches.append(entry)
+            elif terms and any(term in searchable(entry) for term in terms):
+                matches.append(entry)
+            elif not terms:
+                matches.append(entry)
+            if len(matches) >= 5:
+                break
+        return matches
+
+    def format_items(self, items: list[dict[str, Any]]) -> str:
+        if not items:
+            return ""
+        lines = ["## Recent Captures"]
+        for entry in items[:5]:
+            created = entry.get("created_at", "unknown time")
+            text = str(entry.get("text") or "").strip()
+            source = entry.get("source", "capture")
+            if text:
+                lines.append(f"- [{created} | {source}] {text[:240]}")
+        return "\n".join(lines)
+
+    def correlate(
+        self, items: list[dict[str, Any]], all_results: dict[str, list[dict[str, Any]]]
+    ) -> list[str]:
+        unprocessed = [item for item in items if item.get("processed") is False]
+        if unprocessed:
+            return [f"{len(unprocessed)} unprocessed capture(s)"]
+        return []
+
+
 # --- Adapter registry ---
 
 
@@ -319,6 +401,7 @@ def _default_adapters() -> list[StoreAdapter]:
         JournalAdapter(),
         TracesAdapter(),
         TodosAdapter(),
+        InboxAdapter(),
     ]
     try:
         from gateway.mempalace_adapter import MemPalaceAdapter
