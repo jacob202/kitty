@@ -4,7 +4,7 @@ import type { CSSProperties } from 'react'
 import { type CronScheduleType } from '@/lib/gateway'
 import {
   useCronSchedules, useCronActions, useCreateCronSchedule,
-  useDeleteCronSchedule, useToggleCronSchedule,
+  useUpdateCronSchedule, useDeleteCronSchedule, useToggleCronSchedule,
 } from '@/lib/queries'
 
 function fmtLastRun(ts: number): string {
@@ -32,14 +32,17 @@ export function CronPanel() {
   const schedulesQuery = useCronSchedules()
   const actionsQuery = useCronActions()
   const createSchedule = useCreateCronSchedule()
+  const updateSchedule = useUpdateCronSchedule()
   const deleteSchedule = useDeleteCronSchedule()
   const toggleSchedule = useToggleCronSchedule()
 
   const schedules = schedulesQuery.data ?? []
   const actions = actionsQuery.data ?? []
-  const saving = createSchedule.isPending
+  const activeCount = schedules.filter(s => s.enabled).length
+  const saving = createSchedule.isPending || updateSchedule.isPending
 
   const [adding, setAdding] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [action, setAction] = useState('')
   const [schedType, setSchedType] = useState<CronScheduleType>('daily')
@@ -50,20 +53,39 @@ export function CronPanel() {
     if (!action && actions.length > 0) setAction(actions[0])
   }, [actions, action])
 
-  function handleAdd() {
+  function resetForm() {
+    setName('')
+    setSchedVal(valuePlaceholder(schedType))
+    setAdding(false)
+    setEditingId(null)
+  }
+
+  function handleSave() {
     if (!name.trim() || !action || !schedVal.trim() || saving) return
+    if (editingId) {
+      updateSchedule.mutate(
+        { id: editingId, name: name.trim(), action, scheduleType: schedType, scheduleValue: schedVal.trim() },
+        { onSuccess: resetForm },
+      )
+      return
+    }
     createSchedule.mutate(
       { name: name.trim(), action, scheduleType: schedType, scheduleValue: schedVal.trim() },
       {
         onSuccess: id => {
-          if (id) {
-            setName('')
-            setSchedVal(valuePlaceholder(schedType))
-            setAdding(false)
-          }
+          if (id) resetForm()
         },
       },
     )
+  }
+
+  function startEdit(schedule: typeof schedules[number]) {
+    setAdding(false)
+    setEditingId(schedule.id)
+    setName(schedule.name)
+    setAction(schedule.action)
+    setSchedType(schedule.schedule_type)
+    setSchedVal(schedule.schedule_value)
   }
 
   function handleTypeChange(t: CronScheduleType) {
@@ -71,8 +93,12 @@ export function CronPanel() {
     setSchedVal(valuePlaceholder(t))
   }
 
+  const formOpen = adding || editingId !== null
+
   return (
     <div style={{ display: 'grid', gap: 8 }}>
+      <p style={summaryStyle}>{activeCount}/{schedules.length} active</p>
+
       {/* Schedule list */}
       {schedules.length > 0 ? (
         <div style={{ display: 'grid', gap: 4 }}>
@@ -93,13 +119,23 @@ export function CronPanel() {
                     onClick={() => toggleSchedule.mutate(s.id)}
                     style={{ ...toggleBtnStyle, color: s.enabled ? 'var(--teal)' : 'var(--text-faint)' }}
                     title={s.enabled ? 'disable' : 'enable'}
+                    aria-label={s.enabled ? 'disable schedule' : 'enable schedule'}
                   >
                     {s.enabled ? '●' : '○'}
+                  </button>
+                  <button
+                    onClick={() => startEdit(s)}
+                    style={editBtnStyle}
+                    title="edit"
+                    aria-label="edit schedule"
+                  >
+                    ✎
                   </button>
                   <button
                     onClick={() => deleteSchedule.mutate(s.id)}
                     style={deleteBtnStyle}
                     title="delete"
+                    aria-label="delete schedule"
                   >
                     ×
                   </button>
@@ -113,7 +149,7 @@ export function CronPanel() {
       )}
 
       {/* Add form */}
-      {adding ? (
+      {formOpen ? (
         <div style={formStyle}>
           <input
             value={name}
@@ -158,13 +194,13 @@ export function CronPanel() {
           />
           <div style={{ display: 'flex', gap: 5 }}>
             <button
-              onClick={handleAdd}
+              onClick={handleSave}
               disabled={!name.trim() || !action || !schedVal.trim() || saving}
               style={{ ...saveBtnStyle, flex: 1, opacity: !name.trim() || saving ? 0.4 : 1 }}
             >
-              {saving ? 'saving…' : 'save'}
+              {saving ? 'saving…' : editingId ? 'update' : 'save'}
             </button>
-            <button onClick={() => setAdding(false)} style={cancelBtnStyle}>cancel</button>
+            <button onClick={resetForm} style={cancelBtnStyle}>cancel</button>
           </div>
         </div>
       ) : (
@@ -222,6 +258,23 @@ const deleteBtnStyle: CSSProperties = {
   fontSize: 13,
   padding: '1px 3px',
   lineHeight: 1,
+}
+
+const editBtnStyle: CSSProperties = {
+  background: 'transparent',
+  border: 'none',
+  color: 'var(--text-faint)',
+  cursor: 'pointer',
+  fontSize: 12,
+  padding: '1px 3px',
+  lineHeight: 1,
+}
+
+const summaryStyle: CSSProperties = {
+  margin: 0,
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  color: 'var(--text-faint)',
 }
 
 const emptyStyle: CSSProperties = {

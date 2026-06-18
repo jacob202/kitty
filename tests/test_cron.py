@@ -74,6 +74,25 @@ class TestToggle:
         assert toggle("ghost-id") is None
 
 
+class TestUpdate:
+    def test_update_existing_schedule(self):
+        _clear_db()
+        from gateway.cron import list_schedules, schedule, update
+
+        sid = schedule("Morning brief", "brief.refresh", "daily", "07:00")
+
+        assert update(sid, "Evening brief", "brief.refresh", "daily", "18:30") is True
+        row = next(r for r in list_schedules() if r["id"] == sid)
+        assert row["name"] == "Evening brief"
+        assert row["schedule_value"] == "18:30"
+
+    def test_update_missing_schedule_returns_false(self):
+        _clear_db()
+        from gateway.cron import update
+
+        assert update("missing", "Nope", "brief.refresh", "daily", "07:00") is False
+
+
 class TestGetActions:
     def test_get_actions_returns_list(self):
         from gateway.cron import get_actions

@@ -37,7 +37,10 @@ def test_fetch_news_returns_headlines_on_success():
     }.get(key, default)
     mock_feed = MagicMock()
     mock_feed.entries = [entry]
-    with patch.object(b.feedparser, "parse", return_value=mock_feed):
+    mock_response = MagicMock()
+    mock_response.content = b"<rss></rss>"
+    with patch.object(b, "_fetch_feed_response", return_value=mock_response), \
+         patch.object(b.feedparser, "parse", return_value=mock_feed):
         result = b.fetch_news(limit_per_feed=1)
     assert len(result) >= 1
     assert result[0].title == "Big AI news"
