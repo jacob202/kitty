@@ -43,6 +43,9 @@ def validate_env() -> None:
         log.warning(
             "GATEWAY_SECRET is not set — authentication fails closed unless "
             "KITTY_ENV=test. Configure a secret before desktop startup."
+            "GATEWAY_SECRET is not set — auth fails closed for protected "
+            "routes unless "
+            "KITTY_ENV=test explicitly enables local test bypass."
         )
 
 
