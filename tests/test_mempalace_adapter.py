@@ -49,7 +49,7 @@ def test_not_registered_by_default(monkeypatch):
     monkeypatch.delenv("KITTY_MEMPALACE_ENABLED", raising=False)
     names = [a.name for a in memory_graph._default_adapters()]
     assert "memory_palace" not in names
-    assert names == ["memory", "knowledge", "journal", "traces", "todos"]
+    assert names == ["memory", "knowledge", "journal", "traces", "todos", "inbox"]
 
 
 def test_registered_when_enabled(monkeypatch):

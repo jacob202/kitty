@@ -9,6 +9,7 @@ from gateway.memory_graph import (
     JournalAdapter,
     TracesAdapter,
     TodosAdapter,
+    InboxAdapter,
 )
 
 
@@ -36,6 +37,8 @@ async def test_unified_context_aggregation():
         ),
     ), patch.object(
         TodosAdapter, "fetch", new=AsyncMock(return_value=[])
+    ), patch.object(
+        InboxAdapter, "fetch", new=AsyncMock(return_value=[])
     ):
         ctx = await unified_context("test query")
 
@@ -63,6 +66,8 @@ async def test_search_all_structure():
         new=AsyncMock(return_value=[{"user_request": "trace test"}]),
     ), patch.object(
         TodosAdapter, "fetch", new=AsyncMock(return_value=[])
+    ), patch.object(
+        InboxAdapter, "fetch", new=AsyncMock(return_value=[])
     ):
         results = await search_all("test")
         assert "memory" in results
@@ -70,3 +75,4 @@ async def test_search_all_structure():
         assert "journal" in results
         assert "traces" in results
         assert "todos" in results
+        assert "inbox" in results
