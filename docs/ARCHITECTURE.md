@@ -73,7 +73,7 @@ The gateway is the product. Every client (browser, Telegram, Siri Shortcut, futu
 python3.11 -m pytest tests/ -q --tb=short
 ```
 
-**Current baseline:** 498 passed, 2 deselected (as of 2026-06-18, after Phase A A1+A4 cleanup, stale council tests removed, and doctor/auth/launcher regressions covered).
+**Current baseline:** 500 passed, 2 deselected (as of 2026-06-18, after Phase A A1+A4 cleanup, stale council tests removed, and doctor/auth/launcher regressions covered).
 
 ---
 

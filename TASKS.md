@@ -4,7 +4,7 @@ Last updated: **2026-06-18**
 
 ## Current test baseline
 
-`python3.11 -m pytest tests/ -q --tb=short` → **498 passed, 2 deselected** (after Phase A A1+A4 cleanup, stale council tests removed, and doctor/auth/launcher regressions covered)
+`python3.11 -m pytest tests/ -q --tb=short` → **500 passed, 2 deselected** (after Phase A A1+A4 cleanup, stale council tests removed, and doctor/auth/launcher regressions covered)
 
 `cd gateway/kitty-chat && npm test` → **36 passed**
 

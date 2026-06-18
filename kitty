@@ -184,7 +184,7 @@ cmd_status() {
     echo "  gateway   http://127.0.0.1:$GATEWAY_PORT  ✗  (not responding)"
   fi
 
-  if http_ok "http://127.0.0.1:$LITELLM_PORT/health" \
+  if http_ok "http://127.0.0.1:$LITELLM_PORT/health/readiness" \
        -H "Authorization: Bearer $LITELLM_MASTER_KEY"; then
     echo "  litellm   http://127.0.0.1:$LITELLM_PORT  ✓"
   else

@@ -102,7 +102,7 @@ def _check_services(env: dict) -> list[Check]:
 
     ll_port = env.get("LITELLM_PORT", "8001")
     ll_key = env.get("LITELLM_MASTER_KEY", "kitty-local-key-change-me")
-    ll_url = f"http://127.0.0.1:{ll_port}/health"
+    ll_url = f"http://127.0.0.1:{ll_port}/health/readiness"
     if _http_ok(ll_url, timeout=5.0, headers={"Authorization": f"Bearer {ll_key}"}):
         out.append(Check("PASS", "service:litellm", ll_url))
     else:

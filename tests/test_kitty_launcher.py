@@ -28,3 +28,9 @@ def test_launcher_uses_safe_dotenv_loader() -> None:
 
     assert 'source "$KITTY_ROOT/gateway/lib/load_env_safe.sh"' in launcher
     assert 'load_env_assignments "$KITTY_ROOT/.env"' in launcher
+
+
+def test_launcher_uses_litellm_readiness_for_status() -> None:
+    launcher = (ROOT / "kitty").read_text(encoding="utf-8")
+
+    assert 'http://127.0.0.1:$LITELLM_PORT/health/readiness' in launcher
