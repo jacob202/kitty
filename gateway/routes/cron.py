@@ -52,6 +52,22 @@ async def cron_delete_schedule(sid: str):
     return {"ok": ok}
 
 
+@router.patch("/cron/schedule/{sid}")
+async def cron_update_schedule(sid: str, payload: ScheduleRequest):
+    from gateway.cron import update
+
+    ok = update(
+        sid,
+        payload.name,
+        payload.action,
+        payload.schedule_type,
+        payload.schedule_value,
+    )
+    if not ok:
+        raise HTTPException(status_code=404, detail=f"Schedule not found: {sid}")
+    return {"ok": True}
+
+
 @router.post("/cron/schedule/{sid}/toggle")
 async def cron_toggle_schedule(sid: str):
     from gateway.cron import toggle

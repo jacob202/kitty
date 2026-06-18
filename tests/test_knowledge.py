@@ -111,6 +111,22 @@ def test_get_knowledge_block_formats_with_source():
     assert "Honda Civic" in result
 
 
+def test_query_embedding_uses_short_timeout():
+    from gateway import archivist
+
+    response = MagicMock()
+    response.json.return_value = {"embeddings": [[0.1]]}
+    archivist._embed_cached.cache_clear()
+
+    try:
+        with patch("requests.post", return_value=response) as post:
+            assert archivist._embed_cached("quick lookup") == (0.1,)
+    finally:
+        archivist._embed_cached.cache_clear()
+
+    assert post.call_args.kwargs["timeout"] == 5
+
+
 def test_extract_chatgpt_json_returns_text(tmp_path):
     import json
     from gateway.knowledge import _extract_chatgpt_json

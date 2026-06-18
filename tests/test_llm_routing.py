@@ -51,6 +51,8 @@ def test_call_llm_normalizes_legacy_deepseek_alias():
         "Resp",
         (),
         {
+            "status_code": 200,
+            "reason": "OK",
             "raise_for_status": lambda self: None,
             "json": lambda self: {
                 "choices": [{"message": {"content": "ok"}}],

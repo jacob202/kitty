@@ -35,6 +35,7 @@ import {
   fetchCronSchedules,
   fetchCronActions,
   createCronSchedule,
+  updateCronSchedule,
   deleteCronSchedule,
   toggleCronSchedule,
   type CronScheduleType,
@@ -312,6 +313,15 @@ export function useCreateCronSchedule() {
   return useMutation({
     mutationFn: (args: { name: string; action: string; scheduleType: CronScheduleType; scheduleValue: string }) =>
       createCronSchedule(args.name, args.action, args.scheduleType, args.scheduleValue),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['cron', 'schedules'] }),
+  })
+}
+
+export function useUpdateCronSchedule() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (args: { id: string; name: string; action: string; scheduleType: CronScheduleType; scheduleValue: string }) =>
+      updateCronSchedule(args.id, args.name, args.action, args.scheduleType, args.scheduleValue),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['cron', 'schedules'] }),
   })
 }
