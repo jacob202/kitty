@@ -20,6 +20,7 @@ import shutil
 import ssl
 import urllib.request
 from dataclasses import dataclass
+from typing import Any
 
 
 ROOT_DIR = pathlib.Path(__file__).resolve().parent.parent
@@ -48,6 +49,16 @@ def http_json(
     if body is not None:
         data = json.dumps(body).encode("utf-8")
     req = urllib.request.Request(url=url, data=data, headers=req_headers, method=method)
+
+    with urllib.request.urlopen(req, timeout=timeout) as response:
+        raw = response.read().decode("utf-8", errors="replace")
+        try:
+            payload = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            payload = raw
+        return response.getcode(), payload
+
+
 def _load_env() -> dict[str, str]:
     env = dict(os.environ)
     dotenv = ROOT / ".env"
@@ -104,35 +115,12 @@ def _check_env(env: dict) -> list[Check]:
         out.append(Check("WARN", "env:telegram_token",
                          "not set — Telegram bot disabled"))
 
-    if not MANIFEST_FILE.exists():
-        print(f"FAIL manifest missing: {MANIFEST_FILE}")
-        return 2
-    manifest = json.loads(MANIFEST_FILE.read_text(encoding="utf-8"))
-    env = dict(os.environ)
     return out
 
 
 def _check_services(env: dict) -> list[Check]:
     out: list[Check] = []
 
-    for svc in manifest.get("services", []):
-        svc_id = svc.get("id", "unknown")
-        url = svc.get("url", "")
-        required = bool(svc.get("required", False))
-        headers = None
-        timeout = 3.0
-        if svc_id == "litellm":
-            headers = {"Authorization": f"Bearer {env.get('LITELLM_MASTER_KEY', 'kitty-local-key-change-me')}"}
-            timeout = 8.0
-        ok = bool(url) and http_ok(url, timeout=timeout, headers=headers)
-        if ok:
-            results.append(CheckResult("PASS", f"service:{svc_id}", url))
-        else:
-            lvl = "FAIL" if required else "WARN"
-            results.append(CheckResult(lvl, f"service:{svc_id}", f"unreachable: {url}"))
-
-    failures = [r for r in results if r.level == "FAIL"]
-    warns = [r for r in results if r.level == "WARN"]
     gw_port = env.get("GATEWAY_PORT", "5001")
     gw_url = f"http://127.0.0.1:{gw_port}/health"
     if _http_ok(gw_url):
