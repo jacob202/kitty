@@ -52,6 +52,11 @@ duplicate_analysis_report.txt
 .kitty.pid
 .kittybuilder_session.json
 
+# Never commit a literal $HOME dir (script ran with unexpanded $HOME) or Open WebUI data
+/$HOME/
+**/open-webui-data/
+.webui_secret
+
 # IDE
 .kiro/
 

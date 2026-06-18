@@ -10,6 +10,8 @@ ENABLE_MLX="${ENABLE_MLX:-0}"
 ENABLE_LITELLM="${ENABLE_LITELLM:-1}"
 ENABLE_GATEWAY="${ENABLE_GATEWAY:-1}"
 ENABLE_JUPYTER="${ENABLE_JUPYTER:-1}"
+# Open Terminal (pip `open-terminal`) is for external tool/terminal integrations — not required
+# for Kitty chat. Leave off by default so `start_all` does not spawn extra services.
 ENABLE_OPEN_TERMINAL="${ENABLE_OPEN_TERMINAL:-0}"
 ENABLE_KITTY_DOCKER_TERMINAL="${ENABLE_KITTY_DOCKER_TERMINAL:-0}"
 ENABLE_COMMUNITY_TOOL_SERVERS="${ENABLE_COMMUNITY_TOOL_SERVERS:-1}"
@@ -193,6 +195,7 @@ if [[ "${ENABLE_CLOUDFLARE_HTTPS}" == "1" ]]; then
 fi
 
 [[ "${ENABLE_LITELLM}" == "1" ]] && wait_http "litellm" "http://127.0.0.1:8001/health" "Authorization: Bearer ${LITELLM_MASTER_KEY:-kitty-local-key-change-me}" 30 1 8 || true
+[[ "${ENABLE_GATEWAY}" == "1" ]] && wait_http "gateway" "http://127.0.0.1:8000/health" || true
 [[ "${ENABLE_GATEWAY}" == "1" ]] && wait_http "gateway" "http://127.0.0.1:5001/health" || true
 [[ "${ENABLE_JUPYTER}" == "1" ]] && wait_http "jupyter" "http://127.0.0.1:8888/api" "Authorization: token ${CODE_EXECUTION_JUPYTER_AUTH_TOKEN:-}" || true
 [[ "${ENABLE_OPEN_TERMINAL}" == "1" ]] && wait_http "openterminal" "${OPEN_TERMINAL_URL:-http://127.0.0.1:9614}/health" || true
@@ -218,6 +221,9 @@ fi
 
 echo
 echo "Stack launch complete."
+echo "Kitty chat UI (Next.js kitty-chat): http://127.0.0.1:3000"
+echo "  — use the single virtual model kitty-default (LiteLLM proxies at :8001)"
+echo "Kitty Gateway (FastAPI):     http://127.0.0.1:8000"
 echo "Kitty chat UI (kitty-chat):  http://127.0.0.1:3000"
 echo "Kitty Gateway (FastAPI):     http://127.0.0.1:5001"
 echo "LiteLLM proxy:               http://127.0.0.1:8001"

@@ -8,7 +8,7 @@
     "start": "next start -H 127.0.0.1 -p 4000",
     "test": "vitest run",
     "test:watch": "vitest",
-    "gen:api-types": "openapi-typescript http://127.0.0.1:5001/openapi.json -o src/lib/gen/gateway-schema.d.ts"
+    "gen:api-types": "openapi-typescript http://127.0.0.1:8000/openapi.json -o src/lib/gen/gateway-schema.d.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.7",

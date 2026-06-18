@@ -8,7 +8,7 @@ regenerated whenever the backend routes change. Don't edit it by hand.
 ```bash
 # In one terminal: start the gateway on its usual port
 cd ~/Projects/kitty
-GATEWAY_PORT=5001 ./gateway/start_gateway.sh
+GATEWAY_PORT=8000 ./gateway/start_gateway.sh
 
 # In another: regenerate the types
 cd gateway/kitty-chat

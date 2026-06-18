@@ -23,8 +23,8 @@
 # Full eval loop (pytest + route + regression detection):
 /opt/homebrew/bin/python3.12 scripts/eval_loop.py
 
-# Eval route directly (app must be running on 5001):
-curl -s -X POST http://localhost:5001/api/eval/run \
+# Eval route directly (app must be running on 8000):
+curl -s -X POST http://localhost:8000/api/eval/run \
   -H "Content-Type: application/json" \
   -d '{"suite":"smoke"}'
 ```

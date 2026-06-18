@@ -75,6 +75,7 @@ check_pid "tool-weather"
 check_pid "cloudflare"
 echo
 check_http "litellm" "http://127.0.0.1:8001/health" "Authorization: Bearer ${LITELLM_MASTER_KEY:-kitty-local-key-change-me}" 8
+check_http "gateway" "http://127.0.0.1:8000/health"
 check_http "gateway" "http://127.0.0.1:5001/health"
 check_http "jupyter" "http://127.0.0.1:8888/api" "Authorization: token ${CODE_EXECUTION_JUPYTER_AUTH_TOKEN:-}"
 check_http "openterminal" "${OPEN_TERMINAL_URL:-http://127.0.0.1:9614}/health"

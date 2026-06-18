@@ -28,7 +28,7 @@ Keep the shape you have. It is already right for a local-first single-user compa
 ┌─────────────────────────────────────────────────────────┐
 │  Jacob's Mac (everything below runs here)                │
 │                                                          │
-│  launchd ──supervises──► Kitty Gateway (FastAPI :5001)   │
+│  launchd ──supervises──► Kitty Gateway (FastAPI :8000)   │
 │                            │                             │
 │                            ├── LiteLLM proxy (:8001)     │
 │                            │     └── DeepSeek / Sonnet / │
@@ -84,7 +84,7 @@ Tasks sized for one agent session each, with acceptance criteria. Test gate for 
 | A1 | **Delete Open WebUI remnants**: `openwebui_filters/`, `openwebui_library_tools/`, `*_openwebui_*.sh`, `OPENWEBUI_ADMIN_SETTINGS.md`, related litellm config sections | Repo grep for `openwebui` returns only historical docs in `docs/archive/`; tests green |
 | A2 | **Single launcher**: one `kitty` CLI (or Makefile) with `up`, `down`, `status`, `doctor`, `logs` subcommands; remove hardcoded `ROOT_DIR=` from remaining shell scripts | Fresh clone + `.env` → `kitty up` works; no absolute paths outside `gateway/paths.py` |
 | A3 | **launchd service**: `com.kitty.gateway.plist` (+ LiteLLM) installed by `kitty install`; KeepAlive on crash; logs to `logs/` | Reboot Mac → gateway answers `/health` without manual action |
-| A4 | **Docs reconciliation**: rewrite `docs/ARCHITECTURE.md` against reality (port 5001, kitty-chat as the UI, no Open WebUI); fold stale handoff files into `docs/archive/` | One canonical doc; CLAUDE.md and ARCHITECTURE.md agree |
+| A4 | **Docs reconciliation**: rewrite `docs/ARCHITECTURE.md` against reality (port 8000 — see D10, kitty-chat as the UI, no Open WebUI); fold stale handoff files into `docs/archive/` | One canonical doc; CLAUDE.md and ARCHITECTURE.md agree |
 | A5 | **`kitty doctor` hardening**: extend existing `doctor.py` to check gateway, LiteLLM, ChromaDB readability, mem0 init, Telegram token, disk space for `data/` | `kitty doctor` exits non-zero with a named failing check when any dependency is broken |
 
 **Phase A progress (2026-06-18):**
@@ -223,6 +223,16 @@ Explicitly not in the plan: themes/customization, settings pages for things `.en
 | **Tradeoffs** | mem0 is an opinionated dependency for fact extraction; owning a bespoke fact store would be simpler conceptually but re-implements extraction/dedup it already does. Three layers means three things `kitty doctor` must check. |
 | **Risks** | The known failure mode is bypass: new code reading files directly instead of going through `memory_graph` (the CLAUDE.md rule exists because it happened). The `StorageRouter` closes the same hole on the write side. Second risk: unbounded context growth as stores fill — the C2 latency budget is the early-warning system. |
 | **When to reconsider** | If mem0's extraction quality or maintenance becomes a recurring problem, replace it with a `facts` table in `kitty.db` + an explicit extraction prompt — behind the same adapter, callers unchanged. Revisit the dream-loop after Phase C, when there's enough episodic data for consolidation to be worth anything. |
+
+### D10 — Canonical gateway port
+
+| | |
+|---|---|
+| **Recommendation** | **The gateway is `:8000`.** Every gateway reference — code, scripts, config templates, and docs — uses `8000`. `GATEWAY_PORT` (and the cloud path's `KITTY_GATEWAY_PORT`) default to `8000`; the kitty-chat proxy (`route.ts`) and `.env.example` `KITTY_GATEWAY_URL` point at `http://127.0.0.1:8000`. |
+| **Why** | This supersedes the earlier "port 5001" note in task A4. `8000` is what the code actually binds and answers on (`config.py`, `start_gateway.sh`, all backend/scripts/manifest); `5001` survived only in the frontend proxy default, `.env.example`, and `CLAUDE.md` — which meant the chat UI could silently POST to a dead port (flagged "high" in `docs/DESKTOP_PHASE_1_HARD_CRITIC_REVIEW.md`). Conforming the minority to reality is the lower-risk fix: it doesn't change the bind port of any running instance. |
+| **Tradeoffs** | `8000` is a common default (Django, generic uvicorn), so collisions with another local server are more likely than with `5001`; override via `GATEWAY_PORT`/`KITTY_GATEWAY_URL` if that bites. The standalone **Kitty Hub** launcher (`docs/KITTY_HUB.md`) is a *separate* service and keeps its own `:5001` — it is not the gateway. |
+| **Risks** | Any external bookmark/Siri shortcut hardcoded to the wrong port breaks; `docs/SIRI_SHORTCUT.md` already uses `:8000`. A future `GATEWAY_PORT` override must flow to both the gateway process and `KITTY_GATEWAY_URL`, or the dead-port class of bug returns. |
+| **When to reconsider** | Only if `8000` collides with something Jacob runs daily; then move both the gateway default and the proxy URL together, in one commit, grepping every port reference (the LESSONS #9 rule). |
 
 ---
 

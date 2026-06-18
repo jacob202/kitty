@@ -54,10 +54,16 @@ def test_start_all_and_runtime_manifest_point_at_live_gateway_scripts() -> None:
     ):
         assert snippet in start_all
 
+    # Open WebUI has been removed from the stack — start_all must not reference it.
+    assert "openwebui" not in start_all.lower()
+
     manifest = json.loads(_read_text("gateway/runtime_manifest.json"))
     assert manifest["required_files"] == [
         "gateway/start_all.sh",
         "gateway/start_gateway.sh",
         "gateway/start_litellm.sh",
     ]
+    service_ids = {svc["id"] for svc in manifest["services"]}
+    assert "openwebui" not in service_ids
+    assert "openwebui" not in manifest
 
