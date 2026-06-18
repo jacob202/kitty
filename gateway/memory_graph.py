@@ -390,6 +390,15 @@ class InboxAdapter(StoreAdapter):
         return []
 
 
+# Private aliases for callers/tests that treat concrete adapters as internals.
+_MemoryAdapter = MemoryAdapter
+_KnowledgeAdapter = KnowledgeAdapter
+_JournalAdapter = JournalAdapter
+_TracesAdapter = TracesAdapter
+_TodosAdapter = TodosAdapter
+_InboxAdapter = InboxAdapter
+
+
 # --- Adapter registry ---
 
 
@@ -422,11 +431,12 @@ class GraphResult:
     results: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     correlations: dict[str, list[str]] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
+    adapters: list[StoreAdapter] = field(default_factory=list)
 
     def formatted_context(self, cap: int = CONTEXT_TOKEN_CAP) -> str:
         """Format results as a single context string."""
         sections = []
-        adapters = self._get_adapters()
+        adapters = self.adapters or self._get_adapters()
 
         for adapter in adapters:
             items = self.results.get(adapter.name, [])
@@ -484,7 +494,7 @@ class MemoryGraph:
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        result = GraphResult()
+        result = GraphResult(adapters=list(self._adapters))
         for i, adapter in enumerate(self._adapters):
             res = results[i]
             if isinstance(res, Exception):
@@ -567,7 +577,6 @@ def search_entries(query: str) -> list[dict[str, Any]]:
 
 def _format_unified(results: dict[str, list[dict[str, Any]]]) -> str:
     """Format results for backward compatibility."""
-    # Create a dummy GraphResult for formatting
     result = GraphResult(results=results)
     return result.formatted_context()
 

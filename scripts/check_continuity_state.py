@@ -47,7 +47,7 @@ def main() -> int:
         return 1
 
     age_days = (date.today() - handoff_date).days
-    if age_days > args.max_age_days:
+    if age_days >= args.max_age_days:
         print(
             f"FAIL: SESSION_HANDOFF.md is {age_days} days old "
             f"(limit: {args.max_age_days} days, last updated: {handoff_date})"

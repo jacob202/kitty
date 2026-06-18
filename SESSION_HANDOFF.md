@@ -1,7 +1,10 @@
 # Session Handoff — Architectural Deepening Complete
 
-**Date:** 2026-05-21  
+**Date:** 2026-06-18  
 **Focus:** Codebase architecture improvement via deep module pattern
+
+**2026-06-18 maintenance note:** refreshed after local cleanup, inbox resurfacing,
+and quick-capture follow-up work so continuity checks reflect the current repo.
 
 ## What Was Done
 
