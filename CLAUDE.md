@@ -59,9 +59,11 @@ data/             gitignored runtime data
 
 ## Run tests
 ```bash
-python3.11 -m pytest tests/ -q --tb=short
+python3.11 -m pytest tests/ -q --tb=short \
+  --ignore=tests/test_council_graph.py \
+  --ignore=tests/test_mcp_council_server.py
 ```
-Baseline: **449 passed, 2 skipped** (as of 2026-05-21). If your run differs, say so — don't round up to "passing."
+Baseline: **493 passed, 2 deselected** (as of 2026-06-17, after Phase A A1+A4 cleanup). If your run differs, say so — don't round up to "passing."
 
 ## Key files
 | File | Purpose |

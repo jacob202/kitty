@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-ROOT_DIR="/Users/jacobbrizinski/Projects/kitty"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 source "${ROOT_DIR}/gateway/lib/load_env_safe.sh"
 
@@ -20,7 +20,7 @@ if ! command -v uvicorn >/dev/null 2>&1; then
 fi
 
 GATEWAY_HOST="${GATEWAY_HOST:-127.0.0.1}"
-GATEWAY_PORT="${GATEWAY_PORT:-8000}"
+GATEWAY_PORT="${GATEWAY_PORT:-5001}"
 GATEWAY_RELOAD="${GATEWAY_RELOAD:-0}"
 
 echo "Starting Kitty Gateway on ${GATEWAY_HOST}:${GATEWAY_PORT}..."
