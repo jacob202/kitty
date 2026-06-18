@@ -5,4 +5,8 @@
       "use": "@vercel/next"
     }
   ]
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": false
+  }
 }

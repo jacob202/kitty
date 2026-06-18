@@ -32,7 +32,7 @@ logger = logging.getLogger("kitty.task_runner")
 TASK_DB = DATA_DIR / "task_queue.db"
 TASK_OUTPUT_DIR = DATA_DIR / "task_outputs"
 
-VALID_TYPES = frozenset({"research", "ingest", "build", "cleanup", "dream"})
+VALID_TYPES = frozenset({"research", "ingest", "build", "cleanup", "dream", "wisdom"})
 VALID_STATUSES = frozenset({"queued", "running", "completed", "failed", "cancelled"})
 
 
@@ -171,6 +171,8 @@ async def _execute(task_id: str) -> None:
             output = await _run_cleanup(goal, task_id)
         elif task_type == "dream":
             output = await _run_dream(goal, task_id)
+        elif task_type == "wisdom":
+            output = await _run_wisdom(goal, task_id)
         else:
             output = f"Unknown task type: {task_type}"
 
@@ -277,6 +279,32 @@ async def _run_dream(goal: str, task_id: str) -> str:
         results.append(f"Ingestion queue failed: {e}")
 
     return "\n".join(results) if results else "Dream complete — nothing to do."
+
+
+async def _run_wisdom(goal: str, task_id: str) -> str:
+    """Wisdom task: run the lifted extract-wisdom skill over content (text or URL)."""
+    _update(task_id, progress="Extracting wisdom...")
+    from gateway import llm_client, skill_registry
+
+    skill = skill_registry.get("extract-wisdom")
+    system = (
+        skill["content"]
+        if skill
+        else "Extract the most valuable, surprising, and actionable wisdom from the content."
+    )
+    try:
+        return await asyncio.to_thread(
+            llm_client.chat,
+            llm_client.route_model("analyze extract wisdom"),
+            [
+                {"role": "system", "content": system},
+                {"role": "user", "content": goal},
+            ],
+            1500,
+            0.4,
+        )
+    except Exception as e:
+        return f"Wisdom extraction failed: {e}"
 
 
 # --- Helpers ---

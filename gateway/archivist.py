@@ -12,6 +12,8 @@ KNOWLEDGE_DB_PATH = DATA_DIR / "knowledge_db"
 COLLECTION_NAME = "kitty_knowledge"
 EMBED_MODEL = "nomic-embed-text:latest"
 OLLAMA_BASE = "http://localhost:11434"
+INGEST_EMBED_TIMEOUT_SECONDS = 120
+QUERY_EMBED_TIMEOUT_SECONDS = 5
 
 @lru_cache(maxsize=1)
 def _get_collection():
@@ -25,7 +27,10 @@ def _get_collection():
     )
 
 
-def _embed(texts: list[str]) -> list[list[float]]:
+def _embed(
+    texts: list[str],
+    timeout: float = INGEST_EMBED_TIMEOUT_SECONDS,
+) -> list[list[float]]:
     """Embed texts using nomic-embed-text via Ollama — batched to prevent timeouts."""
     import requests
     
@@ -38,7 +43,7 @@ def _embed(texts: list[str]) -> list[list[float]]:
             resp = requests.post(
                 f"{OLLAMA_BASE}/api/embed",
                 json={"model": EMBED_MODEL, "input": batch},
-                timeout=120,
+                timeout=timeout,
             )
             resp.raise_for_status()
             all_embeddings.extend(resp.json()["embeddings"])
@@ -52,7 +57,7 @@ def _embed(texts: list[str]) -> list[list[float]]:
 @lru_cache(maxsize=256)
 def _embed_cached(text: str) -> tuple[float, ...]:
     """Cache embeddings for individual query strings."""
-    result = _embed([text])[0]
+    result = _embed([text], timeout=QUERY_EMBED_TIMEOUT_SECONDS)[0]
     return tuple(result)
 
 

@@ -27,6 +27,7 @@ import uuid
 from pathlib import Path
 
 from gateway.paths import DATA_DIR
+from gateway import success_criteria
 
 logger = logging.getLogger("kitty.builder")
 
@@ -61,6 +62,7 @@ def start(
     goal: str,
     target_dir: str = "",
     auto_approve: bool = False,
+    require_criteria: bool = False,
 ) -> str:
     """Start a new build pipeline. Returns build_id."""
     init_db()
@@ -81,7 +83,9 @@ def start(
     logger.info("Build started: %s goal=%s", build_id, goal[:80])
 
     # Launch pipeline in background
-    asyncio.create_task(_run_pipeline(build_id, goal, target, auto_approve))
+    asyncio.create_task(
+        _run_pipeline(build_id, goal, target, auto_approve, require_criteria)
+    )
 
     return build_id
 
@@ -142,10 +146,15 @@ def list_builds(limit: int = 10) -> list[dict]:
 
 
 async def _run_pipeline(
-    build_id: str, goal: str, target_dir: str, auto_approve: bool
+    build_id: str,
+    goal: str,
+    target_dir: str,
+    auto_approve: bool,
+    require_criteria: bool = False,
 ) -> None:
     """Execute all pipeline stages in sequence."""
     stages_status: dict[str, str] = {}
+    criteria_met = True
 
     try:
         # Stage 1: PLAN
@@ -153,6 +162,10 @@ async def _run_pipeline(
         _update(build_id, current_stage="plan", stage_status=stages_status)
 
         plan = await _run_plan_stage(goal)
+        # Derive atomic success criteria (ISCs) up front so "done" is explicit.
+        criteria = await asyncio.to_thread(success_criteria.derive, goal)
+        if criteria:
+            plan = f"{plan}\n\n{success_criteria.format_block(criteria)}"
         stages_status["plan"] = "completed"
         _update(build_id, stage_status=stages_status, artifact=plan)
 
@@ -197,8 +210,27 @@ async def _run_pipeline(
         _update(build_id, current_stage="review", stage_status=stages_status)
 
         review = await _run_review_stage(goal, code, test_result)
+        # Check the build against the success criteria derived at PLAN (advisory).
+        if criteria:
+            evidence = (
+                f"Test output:\n{test_result.get('stdout', '')}\n\nCode:\n{code[:4000]}"
+            )
+            crit_results = await asyncio.to_thread(
+                success_criteria.check, goal, criteria, evidence
+            )
+            review = f"{review}\n\n{success_criteria.format_block(crit_results)}"
+            criteria_met = success_criteria.all_passed(crit_results)
+            if not criteria_met:
+                logger.info("Build %s: not all success criteria met", build_id)
         stages_status["review"] = "completed"
         _update(build_id, stage_status=stages_status, artifact=review)
+
+        # Optional hard gate: block commit unless every criterion passed.
+        if require_criteria and not criteria_met:
+            stages_status["commit"] = "blocked"
+            _update(build_id, status="failed", stage_status=stages_status)
+            logger.info("Build %s blocked: success criteria not met", build_id)
+            return
 
         # Stage 6: COMMIT — requires approval
         stages_status["commit"] = (

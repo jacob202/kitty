@@ -729,6 +729,21 @@ export async function deleteCronSchedule(id: string): Promise<boolean> {
   }
 }
 
+export async function updateCronSchedule(
+  id: string,
+  name: string,
+  action: string,
+  scheduleType: CronScheduleType,
+  scheduleValue: string,
+): Promise<boolean> {
+  await gfetch(`/cron/schedule/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, action, schedule_type: scheduleType, schedule_value: scheduleValue }),
+  })
+  return true
+}
+
 export async function toggleCronSchedule(id: string): Promise<boolean> {
   try {
     await gfetch(`/cron/schedule/${id}/toggle`, { method: 'POST' })
@@ -736,6 +751,42 @@ export async function toggleCronSchedule(id: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+// ── Dream / Performance ─────────────────────────────────────────────────────
+
+export interface DreamStatusPayload {
+  status: string
+  last_run: number | null
+  last_run_label?: string | null
+  next_run?: number | null
+  insights_count: number
+  never: boolean
+}
+
+export async function fetchDreamStatus(): Promise<DreamStatusPayload> {
+  return await gfetch<DreamStatusPayload>('/dream/status')
+}
+
+export async function triggerDreamConsolidation(): Promise<boolean> {
+  await gfetch('/dream/trigger', { method: 'POST' })
+  return true
+}
+
+export interface PerfStats {
+  window_hours: number
+  total_requests: number
+  avg_latency_ms: number
+  max_latency_ms: number
+  min_latency_ms: number
+  total_tokens: number
+  avg_tokens: number
+  active_schedules: number
+  schedules: CronSchedule[]
+}
+
+export async function fetchPerfStats(windowHours = 24): Promise<PerfStats> {
+  return await gfetch<PerfStats>(`/perf/stats?window_hours=${windowHours}`)
 }
 
 // ── Image Generation ──────────────────────────────────────────────────────────

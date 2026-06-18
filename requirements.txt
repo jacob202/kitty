@@ -1,5 +1,6 @@
 fastapi==0.136.1
 uvicorn==0.44.0
+python-multipart==0.0.32
 pydantic==2.12.5
 pydantic-settings==2.13.1
 python-dotenv==1.2.2
@@ -14,6 +15,7 @@ faster-whisper==1.2.1
 chromadb==1.5.8
 openai==2.30.0
 anthropic==0.92.0
+langgraph==1.2.2
 numpy==2.4.4
 pillow==11.3.0
 

@@ -35,6 +35,7 @@ import {
   fetchCronSchedules,
   fetchCronActions,
   createCronSchedule,
+  updateCronSchedule,
   deleteCronSchedule,
   toggleCronSchedule,
   type CronScheduleType,
@@ -42,6 +43,10 @@ import {
   fetchImageStatus,
   generateImage,
   fetchImageHistory,
+  // payload types used by optimistic updates
+  type GatewayTodo,
+  type GatewayLoopsPayload,
+  type GatewayInsightsPayload,
 } from '@/lib/gateway'
 
 // ── Dashboard payload queries ────────────────────────────────────────────────
@@ -98,7 +103,19 @@ export function useCompleteTodo() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => completeGatewayTodo(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['todos'] }),
+    // Optimistic: flip the row to completed instantly so the user sees feedback.
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ['todos'] })
+      const previous = qc.getQueryData<GatewayTodo[]>(['todos'])
+      qc.setQueryData<GatewayTodo[]>(['todos'], (old) =>
+        old?.map((t) => (t.id === id ? { ...t, status: 'completed' } : t)) ?? old
+      )
+      return { previous }
+    },
+    onError: (_err, _id, ctx) => {
+      if (ctx?.previous !== undefined) qc.setQueryData(['todos'], ctx.previous)
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['todos'] }),
   })
 }
 
@@ -106,7 +123,19 @@ export function useDeleteTodo() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => deleteGatewayTodo(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['todos'] }),
+    // Optimistic: drop the row from the list instantly.
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ['todos'] })
+      const previous = qc.getQueryData<GatewayTodo[]>(['todos'])
+      qc.setQueryData<GatewayTodo[]>(['todos'], (old) =>
+        old?.filter((t) => t.id !== id) ?? old
+      )
+      return { previous }
+    },
+    onError: (_err, _id, ctx) => {
+      if (ctx?.previous !== undefined) qc.setQueryData(['todos'], ctx.previous)
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['todos'] }),
   })
 }
 
@@ -124,7 +153,28 @@ export function useToggleLoop() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (loopId: string) => toggleGatewayLoop(loopId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['loops'] }),
+    // Optimistic: flip running ↔ paused immediately. Real status comes back on refetch.
+    onMutate: async (loopId) => {
+      await qc.cancelQueries({ queryKey: ['loops'] })
+      const previous = qc.getQueryData<GatewayLoopsPayload>(['loops'])
+      qc.setQueryData<GatewayLoopsPayload>(['loops'], (old) => {
+        if (!old) return old
+        return {
+          ...old,
+          loops: old.loops.map((l) => {
+            if (l.loop_id !== loopId) return l
+            if (l.status === 'running') return { ...l, status: 'paused' }
+            if (l.status === 'paused') return { ...l, status: 'running' }
+            return l
+          }),
+        }
+      })
+      return { previous }
+    },
+    onError: (_err, _id, ctx) => {
+      if (ctx?.previous !== undefined) qc.setQueryData(['loops'], ctx.previous)
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['loops'] }),
   })
 }
 
@@ -140,7 +190,23 @@ export function useDismissInsight() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => dismissGatewayInsight(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['insights'] }),
+    // Optimistic: drop the insight from the feed instantly. Patches every
+    // ['insights', limit] cache entry so any active limit picks it up.
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ['insights'] })
+      const previous = qc.getQueriesData<GatewayInsightsPayload>({ queryKey: ['insights'] })
+      qc.setQueriesData<GatewayInsightsPayload>({ queryKey: ['insights'] }, (old) => {
+        if (!old) return old
+        return { ...old, insights: old.insights.filter((i) => i.insight_id !== id) }
+      })
+      return { previous }
+    },
+    onError: (_err, _id, ctx) => {
+      ctx?.previous?.forEach(([key, value]) => {
+        if (value !== undefined) qc.setQueryData(key, value)
+      })
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['insights'] }),
   })
 }
 
@@ -247,6 +313,15 @@ export function useCreateCronSchedule() {
   return useMutation({
     mutationFn: (args: { name: string; action: string; scheduleType: CronScheduleType; scheduleValue: string }) =>
       createCronSchedule(args.name, args.action, args.scheduleType, args.scheduleValue),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['cron', 'schedules'] }),
+  })
+}
+
+export function useUpdateCronSchedule() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (args: { id: string; name: string; action: string; scheduleType: CronScheduleType; scheduleValue: string }) =>
+      updateCronSchedule(args.id, args.name, args.action, args.scheduleType, args.scheduleValue),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['cron', 'schedules'] }),
   })
 }

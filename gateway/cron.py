@@ -110,6 +110,29 @@ def toggle(sid: str) -> bool | None:
     return bool(new_val)
 
 
+def update(
+    sid: str,
+    name: str,
+    action: str,
+    schedule_type: str,
+    schedule_value: str,
+    metadata: Optional[dict] = None,
+) -> bool:
+    """Update a schedule by ID. Returns False when the schedule is missing."""
+    init_db()
+    with sqlite3.connect(CRON_DB) as conn:
+        cursor = conn.execute(
+            """
+            UPDATE schedules
+               SET name = ?, action = ?, schedule_type = ?, schedule_value = ?, metadata = ?
+             WHERE id = ?
+            """,
+            (name, action, schedule_type, schedule_value, json.dumps(metadata or {}), sid),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+
 def get_actions() -> list[str]:
     """Return names of all registered action functions."""
     return sorted(_actions.keys())

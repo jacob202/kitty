@@ -1,4 +1,4 @@
-import { render, screen, cleanup, act, waitFor } from '@testing-library/react'
+import { render, screen, cleanup, act } from '@testing-library/react'
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import { TerminalStrip } from '../src/components/TerminalStrip'
 
@@ -26,9 +26,7 @@ describe('TerminalStrip', () => {
       vi.advanceTimersByTime(3000)
     })
 
-    await waitFor(() => {
-      expect(screen.getByText(/\d{2}:\d{2}:\d{2}/)).toBeInTheDocument()
-    })
+    expect(screen.getByText(/\d{2}:\d{2}:\d{2}/)).toBeInTheDocument()
   })
 
   it('displays different log levels with colors', async () => {
@@ -38,9 +36,7 @@ describe('TerminalStrip', () => {
       vi.advanceTimersByTime(3000)
     })
 
-    await waitFor(() => {
-      expect(screen.getByText(/INFO|WARN|ERROR|DEBUG/)).toBeInTheDocument()
-    })
+    expect(screen.getByText(/INFO|WARN|ERROR|DEBUG/)).toBeInTheDocument()
   })
 
   it('respects maxLines prop', async () => {
@@ -50,10 +46,8 @@ describe('TerminalStrip', () => {
       vi.advanceTimersByTime(15000)
     })
 
-    await waitFor(() => {
-      const lines = screen.getAllByText(/\d{2}:\d{2}:\d{2}/)
-      expect(lines.length).toBeLessThanOrEqual(2)
-    })
+    const lines = screen.getAllByText(/\d{2}:\d{2}:\d{2}/)
+    expect(lines.length).toBeLessThanOrEqual(2)
   })
 
   it('renders default title when not provided', () => {

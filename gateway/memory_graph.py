@@ -29,6 +29,7 @@ from gateway.paths import LOGS_DIR
 logger = logging.getLogger("kitty.memory_graph")
 
 CONTEXT_TOKEN_CAP: int = 1200
+STORE_FETCH_TIMEOUT_SECONDS: float = 5.0
 GATEWAY_LOG = LOGS_DIR / "gateway_trace.jsonl"
 
 
@@ -89,7 +90,8 @@ class MemoryAdapter(StoreAdapter):
     async def fetch(self, query: str) -> list[dict[str, Any]]:
         try:
             from gateway.memory import search_memory
-            return search_memory(query, limit=5)
+
+            return await asyncio.to_thread(search_memory, query, 5)
         except Exception as e:
             logger.warning("Memory fetch failed: %s", e)
             return []
@@ -130,7 +132,10 @@ class KnowledgeAdapter(StoreAdapter):
     async def fetch(self, query: str) -> list[dict[str, Any]]:
         try:
             from gateway.knowledge import search
-            return await search(query, limit=3)
+
+            return await asyncio.to_thread(
+                lambda: asyncio.run(search(query, limit=3))
+            )
         except Exception as e:
             logger.warning("Knowledge fetch failed: %s", e)
             return []
@@ -303,6 +308,28 @@ class TodosAdapter(StoreAdapter):
         return correlations
 
 
+# --- Adapter registry ---
+
+
+def _default_adapters() -> list[StoreAdapter]:
+    """The active store adapters. MemPalace is appended only when enabled."""
+    adapters: list[StoreAdapter] = [
+        MemoryAdapter(),
+        KnowledgeAdapter(),
+        JournalAdapter(),
+        TracesAdapter(),
+        TodosAdapter(),
+    ]
+    try:
+        from gateway.mempalace_adapter import MemPalaceAdapter
+
+        if MemPalaceAdapter.is_enabled():
+            adapters.append(MemPalaceAdapter())
+    except Exception as e:  # optional backend must never break the graph
+        logger.warning("MemPalace adapter unavailable: %s", e)
+    return adapters
+
+
 # --- Memory Graph Orchestrator ---
 
 
@@ -333,13 +360,7 @@ class GraphResult:
         return self._truncate(raw, cap)
 
     def _get_adapters(self) -> list[StoreAdapter]:
-        return [
-            MemoryAdapter(),
-            KnowledgeAdapter(),
-            JournalAdapter(),
-            TracesAdapter(),
-            TodosAdapter(),
-        ]
+        return _default_adapters()
 
     def _truncate(self, text: str, cap: int) -> str:
         if (len(text) // 4) <= cap:
@@ -355,13 +376,7 @@ class MemoryGraph:
     """
 
     def __init__(self, adapters: list[StoreAdapter] | None = None):
-        self._adapters = adapters or [
-            MemoryAdapter(),
-            KnowledgeAdapter(),
-            JournalAdapter(),
-            TracesAdapter(),
-            TodosAdapter(),
-        ]
+        self._adapters = adapters or _default_adapters()
 
     async def unified_context(self, query: str) -> str:
         """Get unified context from all stores.
@@ -377,15 +392,25 @@ class MemoryGraph:
 
         Returns structured results for callers who want raw data.
         """
-        tasks = [adapter.fetch(query) for adapter in self._adapters]
+        tasks = [
+            asyncio.wait_for(
+                adapter.fetch(query),
+                timeout=STORE_FETCH_TIMEOUT_SECONDS,
+            )
+            for adapter in self._adapters
+        ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         result = GraphResult()
         for i, adapter in enumerate(self._adapters):
             res = results[i]
             if isinstance(res, Exception):
-                logger.warning(f"{adapter.name} fetch failed: {res}")
-                result.errors.append(f"{adapter.name}: {res}")
+                if isinstance(res, TimeoutError):
+                    logger.warning("%s fetch timed out", adapter.name)
+                    result.errors.append(f"{adapter.name}: timed out")
+                else:
+                    logger.warning("%s fetch failed: %s", adapter.name, res)
+                    result.errors.append(f"{adapter.name}: {res}")
                 result.results[adapter.name] = []
             else:
                 result.results[adapter.name] = res

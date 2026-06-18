@@ -9,17 +9,11 @@ TMUX_BIN="${TMUX_BIN:-$(command -v tmux || true)}"
 ENABLE_MLX="${ENABLE_MLX:-0}"
 ENABLE_LITELLM="${ENABLE_LITELLM:-1}"
 ENABLE_GATEWAY="${ENABLE_GATEWAY:-1}"
-ENABLE_OPENWEBUI="${ENABLE_OPENWEBUI:-1}"
 ENABLE_JUPYTER="${ENABLE_JUPYTER:-1}"
-# Open Terminal (pip `open-terminal`) is for WebUI tool/terminal integrations — not required
-# for Kitty chat. Leave off by default so `start_all` does not spawn extra services.
 ENABLE_OPEN_TERMINAL="${ENABLE_OPEN_TERMINAL:-0}"
 ENABLE_KITTY_DOCKER_TERMINAL="${ENABLE_KITTY_DOCKER_TERMINAL:-0}"
 ENABLE_COMMUNITY_TOOL_SERVERS="${ENABLE_COMMUNITY_TOOL_SERVERS:-1}"
 ENABLE_CLOUDFLARE_HTTPS="${ENABLE_CLOUDFLARE_HTTPS:-0}"
-AUTO_SYNC_OPENWEBUI_INTEGRATIONS="${AUTO_SYNC_OPENWEBUI_INTEGRATIONS:-1}"
-AUTO_IMPORT_OPENWEBUI_FUNCTIONS="${AUTO_IMPORT_OPENWEBUI_FUNCTIONS:-1}"
-AUTO_IMPORT_OPENWEBUI_PROMPTS="${AUTO_IMPORT_OPENWEBUI_PROMPTS:-1}"
 ASSERT_BASELINE_ON_BOOT="${ASSERT_BASELINE_ON_BOOT:-1}"
 ASSERT_FAIL_ON_WARN="${ASSERT_FAIL_ON_WARN:-0}"
 START_ALL_SMOKE="${START_ALL_SMOKE:-0}"
@@ -30,13 +24,6 @@ cd "${ROOT_DIR}"
 if [[ -f "${ROOT_DIR}/.env" ]]; then
   load_env_assignments "${ROOT_DIR}/.env"
 fi
-if [[ -f "${ROOT_DIR}/kitty_gateway/openwebui.env" ]]; then
-  load_env_assignments "${ROOT_DIR}/kitty_gateway/openwebui.env"
-fi
-
-source "${ROOT_DIR}/gateway/lib/openwebui_probe.sh"
-OPENWEBUI_HOST="${OPENWEBUI_HOST:-127.0.0.1}"
-OPENWEBUI_PORT="${OPENWEBUI_PORT:-3000}"
 
 service_pattern() {
   local name="$1"
@@ -45,7 +32,6 @@ service_pattern() {
     litellm) echo "venv-litellm/bin/litellm --config gateway/litellm_config.yaml" ;;
     # Port-agnostic so a custom GATEWAY_PORT (e.g. =5001) still matches pgrep.
     gateway) echo "venv/bin/uvicorn gateway.app:app --host 127.0.0.1" ;;
-    openwebui) echo "venv/bin/open-webui serve" ;;
     jupyter) echo "venv/bin/jupyter.*lab.*--ip=127.0.0.1.*--port=8888" ;;
     cloudflare) echo "cloudflared tunnel" ;;
     openterminal) echo "venv/bin/open-terminal run --host 127.0.0.1 --port" ;;
@@ -63,7 +49,6 @@ service_session_name() {
   case "${name}" in
     litellm) echo "kitty-litellm" ;;
     gateway) echo "kitty-gateway" ;;
-    openwebui) echo "kitty-openwebui" ;;
     jupyter) echo "kitty-jupyter" ;;
     *) echo "" ;;
   esac
@@ -74,7 +59,6 @@ service_session_command() {
   case "${name}" in
     litellm) echo "bash gateway/start_litellm.sh" ;;
     gateway) echo "bash gateway/start_gateway.sh" ;;
-    openwebui) echo "bash gateway/start_openwebui.sh" ;;
     jupyter) echo "bash gateway/start_jupyter_exec.sh" ;;
     *) echo "" ;;
   esac
@@ -112,9 +96,6 @@ start_service() {
   session_name="$(service_session_name "${name}")"
   session_cmd="$(service_session_command "${name}")"
   if [[ -n "${TMUX_BIN}" && -n "${session_name}" ]]; then
-    if [[ "${name}" == "openwebui" ]]; then
-      startup_retries=30
-    fi
     "${TMUX_BIN}" kill-session -t "${session_name}" >/dev/null 2>&1 || true
     "${TMUX_BIN}" new-session -d -s "${session_name}" "cd '${ROOT_DIR}' && ${session_cmd} >'${log_file}' 2>&1"
   else
@@ -174,33 +155,10 @@ wait_http() {
   return 1
 }
 
-wait_openwebui_http() {
-  local base out
-  base="$(canonical_openwebui_base_url)"
-  webui_warn_url_mismatch >/dev/null || true
-  local retries=45 delay=2 max_each=12
-  local i
-  for ((i=1; i<=retries; i++)); do
-    if out="$(probe_openwebui_http_once "${base}" "${max_each}")"; then
-      echo "openwebui: healthy (${out%%|*}) HTTP ${out##*|}"
-      return 0
-    fi
-    sleep "${delay}"
-  done
-  echo "openwebui: not healthy yet (${base} — tried /health /api/health /)"
-  return 1
-}
-
-if [[ ! -f "${ROOT_DIR}/kitty_gateway/openwebui.env" ]]; then
-  echo "Notice: kitty_gateway/openwebui.env not found."
-  echo "Copy kitty_gateway/openwebui.env.example to openwebui.env to set admin/image/search settings."
-fi
-
 if [[ "${START_ALL_SMOKE}" == "1" ]]; then
   [[ "${ENABLE_MLX}" == "1" ]] && MLX_SMOKE=1 bash gateway/start_mlx.sh
   [[ "${ENABLE_LITELLM}" == "1" ]] && LITELLM_SMOKE=1 bash gateway/start_litellm.sh
   [[ "${ENABLE_GATEWAY}" == "1" ]] && echo "Gateway smoke skipped (launcher is runtime-only)."
-  [[ "${ENABLE_OPENWEBUI}" == "1" ]] && OPENWEBUI_SMOKE=1 bash gateway/start_openwebui.sh
   [[ "${ENABLE_JUPYTER}" == "1" ]] && echo "Jupyter smoke skipped (launcher is runtime-only)."
   [[ "${ENABLE_OPEN_TERMINAL}" == "1" ]] && echo "Open Terminal smoke skipped (launcher is runtime-only)."
   [[ "${ENABLE_COMMUNITY_TOOL_SERVERS}" == "1" ]] && echo "Community tool servers smoke skipped (launcher is runtime-only)."
@@ -217,9 +175,6 @@ if [[ "${ENABLE_LITELLM}" == "1" ]]; then
 fi
 if [[ "${ENABLE_GATEWAY}" == "1" ]]; then
   start_service "gateway" "cd '${ROOT_DIR}' && bash gateway/start_gateway.sh"
-fi
-if [[ "${ENABLE_OPENWEBUI}" == "1" ]]; then
-  start_service "openwebui" "cd '${ROOT_DIR}' && bash gateway/start_openwebui.sh"
 fi
 if [[ "${ENABLE_JUPYTER}" == "1" ]]; then
   start_service "jupyter" "cd '${ROOT_DIR}' && bash gateway/start_jupyter_exec.sh"
@@ -238,8 +193,7 @@ if [[ "${ENABLE_CLOUDFLARE_HTTPS}" == "1" ]]; then
 fi
 
 [[ "${ENABLE_LITELLM}" == "1" ]] && wait_http "litellm" "http://127.0.0.1:8001/health" "Authorization: Bearer ${LITELLM_MASTER_KEY:-kitty-local-key-change-me}" 30 1 8 || true
-[[ "${ENABLE_GATEWAY}" == "1" ]] && wait_http "gateway" "http://127.0.0.1:8000/health" || true
-[[ "${ENABLE_OPENWEBUI}" == "1" ]] && wait_openwebui_http || true
+[[ "${ENABLE_GATEWAY}" == "1" ]] && wait_http "gateway" "http://127.0.0.1:5001/health" || true
 [[ "${ENABLE_JUPYTER}" == "1" ]] && wait_http "jupyter" "http://127.0.0.1:8888/api" "Authorization: token ${CODE_EXECUTION_JUPYTER_AUTH_TOKEN:-}" || true
 [[ "${ENABLE_OPEN_TERMINAL}" == "1" ]] && wait_http "openterminal" "${OPEN_TERMINAL_URL:-http://127.0.0.1:9614}/health" || true
 [[ "${ENABLE_KITTY_DOCKER_TERMINAL}" == "1" ]] && wait_http "kitty-docker-terminal" "${KITTY_DOCKER_TERMINAL_URL:-http://127.0.0.1:9615}/health" || true
@@ -248,16 +202,7 @@ fi
 [[ "${ENABLE_COMMUNITY_TOOL_SERVERS}" == "1" ]] && wait_http "tool-time" "http://127.0.0.1:9723/openapi.json" || true
 [[ "${ENABLE_COMMUNITY_TOOL_SERVERS}" == "1" ]] && wait_http "tool-weather" "http://127.0.0.1:9724/openapi.json" || true
 
-if [[ "${ENABLE_OPENWEBUI}" == "1" && "${AUTO_SYNC_OPENWEBUI_INTEGRATIONS}" == "1" ]]; then
-  bash gateway/sync_openwebui_integrations.sh || true
-fi
-if [[ "${ENABLE_OPENWEBUI}" == "1" && "${AUTO_IMPORT_OPENWEBUI_FUNCTIONS}" == "1" ]]; then
-  bash gateway/import_openwebui_functions.sh || true
-fi
-if [[ "${ENABLE_OPENWEBUI}" == "1" && "${AUTO_IMPORT_OPENWEBUI_PROMPTS}" == "1" ]]; then
-  ./venv/bin/python kitty_gateway/import_openwebui_prompts.py || true
-fi
-if [[ "${ENABLE_OPENWEBUI}" == "1" && "${ASSERT_BASELINE_ON_BOOT}" == "1" ]]; then
+if [[ "${ASSERT_BASELINE_ON_BOOT}" == "1" ]]; then
   if [[ "${ASSERT_FAIL_ON_WARN}" == "1" ]]; then
     bash gateway/doctor.sh --fail-on-warn || {
       echo "Baseline assertion failed (fail-on-warn enabled)."
@@ -273,16 +218,14 @@ fi
 
 echo
 echo "Stack launch complete."
-echo "Kitty chat UI (Open WebUI): $(canonical_openwebui_base_url)"
-echo "  — use the single virtual model kitty-default (LiteLLM proxies at :8001)"
-echo "Kitty Gateway (FastAPI):     http://127.0.0.1:8000"
+echo "Kitty chat UI (kitty-chat):  http://127.0.0.1:3000"
+echo "Kitty Gateway (FastAPI):     http://127.0.0.1:5001"
 echo "LiteLLM proxy:               http://127.0.0.1:8001"
-echo "MLX:                         http://127.0.0.1:8010"
 echo
 echo "Logs:"
 echo "  ${LOG_DIR}/mlx.log"
 echo "  ${LOG_DIR}/litellm.log"
-echo "  ${LOG_DIR}/openwebui.log"
+echo "  ${LOG_DIR}/gateway.log"
 echo "  ${LOG_DIR}/jupyter.log"
 echo "  ${LOG_DIR}/open-terminal.log"
 echo "  ${LOG_DIR}/tool-filesystem.log"
