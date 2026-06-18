@@ -78,7 +78,7 @@ def _check_env(env: dict) -> list[Check]:
         out.append(Check("PASS", "env:gateway_secret", "set"))
     else:
         out.append(Check("WARN", "env:gateway_secret",
-                         "not set — gateway accepts any request"))
+                         "not set — auth fails closed for protected routes outside tests"))
 
     if env.get("TELEGRAM_BOT_TOKEN", "").strip():
         out.append(Check("PASS", "env:telegram_token", "set"))
