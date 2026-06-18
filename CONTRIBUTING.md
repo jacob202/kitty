@@ -4,7 +4,7 @@ Applies to all agents (Claude Code, Gemini, Codex, Goose, etc.).
 
 ## Structure
 
-- Backend: `gateway/` (FastAPI + uvicorn, port 5001)
+- Backend: `gateway/` (FastAPI + uvicorn, port 8000)
 - Frontend: `gateway/kitty-chat/` (Next.js)
 - Tests: `tests/`
 

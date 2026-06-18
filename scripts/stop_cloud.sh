@@ -24,7 +24,7 @@ stop_pid "gateway" "gateway"
 stop_pid "ui" "nextjs"
 
 # Fallback: kill by port
-kill "$(lsof -ti:5001)" 2>/dev/null && echo "  gateway: killed by port" || true
+kill "$(lsof -ti:8000)" 2>/dev/null && echo "  gateway: killed by port" || true
 kill "$(lsof -ti:4000)" 2>/dev/null && echo "  ui: killed by port" || true
 
 echo "Done."

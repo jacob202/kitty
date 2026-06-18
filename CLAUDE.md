@@ -49,7 +49,7 @@ Jacob is a curious generalist, not a software engineer. Messages may be short, v
 
 ## Structure
 ```
-gateway/          FastAPI app (:5001), all backend logic
+gateway/          FastAPI app (:8000), all backend logic
 gateway/kitty-chat/  Next.js UI
 tests/            pytest suite
 config/           SOUL.md, SOUL_SCRATCHPAD.md

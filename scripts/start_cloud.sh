@@ -13,7 +13,7 @@ if [[ -f "${REPO}/.env" ]]; then
   set +a
 fi
 
-GW_PORT="${KITTY_GATEWAY_PORT:-5001}"
+GW_PORT="${KITTY_GATEWAY_PORT:-8000}"
 UI_PORT="${KITTY_UI_PORT:-4000}"
 LOG_DIR="${REPO}/logs"
 mkdir -p "${LOG_DIR}"
