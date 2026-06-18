@@ -78,7 +78,7 @@ def _check_env(env: dict) -> list[Check]:
         out.append(Check("PASS", "env:gateway_secret", "set"))
     else:
         out.append(Check("WARN", "env:gateway_secret",
-                         "not set — gateway accepts any request"))
+                         "not set — auth fails closed for protected routes outside tests"))
 
     if env.get("TELEGRAM_BOT_TOKEN", "").strip():
         out.append(Check("PASS", "env:telegram_token", "set"))
@@ -102,7 +102,7 @@ def _check_services(env: dict) -> list[Check]:
 
     ll_port = env.get("LITELLM_PORT", "8001")
     ll_key = env.get("LITELLM_MASTER_KEY", "kitty-local-key-change-me")
-    ll_url = f"http://127.0.0.1:{ll_port}/health"
+    ll_url = f"http://127.0.0.1:{ll_port}/health/readiness"
     if _http_ok(ll_url, timeout=5.0, headers={"Authorization": f"Bearer {ll_key}"}):
         out.append(Check("PASS", "service:litellm", ll_url))
     else:

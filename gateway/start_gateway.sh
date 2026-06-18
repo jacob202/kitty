@@ -9,6 +9,8 @@ if [[ -f "${ROOT_DIR}/.env" ]]; then
   load_env_assignments "${ROOT_DIR}/.env"
 fi
 
+export KITTY_ENV="${KITTY_ENV:-prod}"
+
 # AgentRouter credits live on the hosted API. Point to local 9router only by explicit override.
 export AGENTROUTER_API_BASE="${AGENTROUTER_API_BASE:-https://agentrouter.org/v1}"
 

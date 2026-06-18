@@ -1,8 +1,10 @@
 # tests/test_auth.py
 import os
+import logging
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 from gateway.app import app
+from gateway.paths import validate_env
 
 
 def test_health_always_accessible():
@@ -56,3 +58,14 @@ def test_no_secret_allows_when_kitty_env_test():
         client = TestClient(app)
         resp = client.get("/weekly")
     assert resp.status_code != 503
+
+
+def test_validate_env_describes_missing_secret_as_fail_closed(caplog):
+    with (
+        patch.dict(os.environ, {"GATEWAY_SECRET": ""}),
+        caplog.at_level(logging.WARNING, logger="kitty.startup"),
+    ):
+        validate_env()
+
+    assert "fails closed" in caplog.text
+    assert "auth middleware is DISABLED" not in caplog.text
