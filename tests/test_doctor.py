@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from gateway.doctor import _check_env
+def test_gateway_secret_warning_matches_fail_closed_auth(monkeypatch, tmp_path) -> None:
+    from gateway import doctor
 
+    monkeypatch.setattr(doctor, "ROOT", tmp_path)
+    (tmp_path / ".env").write_text("OPENROUTER_API_KEY=set\n", encoding="utf-8")
 
-def test_gateway_secret_warning_matches_fail_closed_auth() -> None:
-    checks = _check_env({"OPENROUTER_API_KEY": "set"})
+    checks = doctor._check_env({"OPENROUTER_API_KEY": "set"})
 
     gateway_secret = next(c for c in checks if c.name == "env:gateway_secret")
 
