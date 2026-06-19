@@ -20,11 +20,8 @@ import shutil
 import ssl
 import urllib.request
 from dataclasses import dataclass
-from typing import Any
 
 
-ROOT_DIR = pathlib.Path(__file__).resolve().parent.parent
-MANIFEST_FILE = ROOT_DIR / "gateway" / "runtime_manifest.json"
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 
@@ -33,30 +30,6 @@ class Check:
     level: str  # PASS | WARN | FAIL
     name: str
     detail: str
-
-
-def http_json(
-    url: str,
-    method: str = "GET",
-    body: dict[str, Any] | None = None,
-    headers: dict[str, str] | None = None,
-    timeout: float = 4.0,
-) -> tuple[int, dict[str, Any] | list[Any] | str]:
-    data = None
-    req_headers = {"Content-Type": "application/json"}
-    if headers:
-        req_headers.update(headers)
-    if body is not None:
-        data = json.dumps(body).encode("utf-8")
-    req = urllib.request.Request(url=url, data=data, headers=req_headers, method=method)
-
-    with urllib.request.urlopen(req, timeout=timeout) as response:
-        raw = response.read().decode("utf-8", errors="replace")
-        try:
-            payload = json.loads(raw) if raw else {}
-        except json.JSONDecodeError:
-            payload = raw
-        return response.getcode(), payload
 
 
 def _load_env() -> dict[str, str]:
@@ -82,8 +55,6 @@ def _http_ok(url: str, timeout: float = 3.0, headers: dict | None = None) -> boo
         return False
 
 
-def level_order(level: str) -> int:
-    return {"PASS": 0, "WARN": 1, "FAIL": 2}.get(level, 2)
 def _check_env(env: dict) -> list[Check]:
     out: list[Check] = []
 
@@ -121,7 +92,7 @@ def _check_env(env: dict) -> list[Check]:
 def _check_services(env: dict) -> list[Check]:
     out: list[Check] = []
 
-    gw_port = env.get("GATEWAY_PORT", "5001")
+    gw_port = env.get("GATEWAY_PORT", "8000")
     gw_url = f"http://127.0.0.1:{gw_port}/health"
     if _http_ok(gw_url):
         out.append(Check("PASS", "service:gateway", gw_url))

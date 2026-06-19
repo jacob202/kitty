@@ -22,7 +22,7 @@ if ! command -v uvicorn >/dev/null 2>&1; then
 fi
 
 GATEWAY_HOST="${GATEWAY_HOST:-127.0.0.1}"
-GATEWAY_PORT="${GATEWAY_PORT:-5001}"
+GATEWAY_PORT="${GATEWAY_PORT:-8000}"
 GATEWAY_RELOAD="${GATEWAY_RELOAD:-0}"
 
 echo "Starting Kitty Gateway on ${GATEWAY_HOST}:${GATEWAY_PORT}..."
