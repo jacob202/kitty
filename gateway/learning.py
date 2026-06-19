@@ -4,6 +4,7 @@ Tracks user absorption and triggers 'Knowledge Gates' to ensure
 Jacob is actually learning from the technical materials.
 """
 from __future__ import annotations
+import asyncio
 import json
 import logging
 from typing import Dict
@@ -82,7 +83,7 @@ async def generate_knowledge_gate_question(topic: str = "general") -> str:
         "temperature": 0.7
     }
     
-    return call_llm(**payload)
+    return await asyncio.to_thread(call_llm, **payload)
 
 def process_gate_answer(answer: str, question: str) -> bool:
     """Assess Jacob's answer to a knowledge gate question."""
