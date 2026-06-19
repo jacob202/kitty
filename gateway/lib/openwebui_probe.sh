@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared Open WebUI reachability helpers (used by start_all.sh, status_all.sh).
+# Shared Open WebUI reachability helpers (sourced by start_gateway.sh).
 # Probes use OPENWEBUI_HOST + OPENWEBUI_PORT so they match `open-webui serve`, not a stale WEBUI_URL.
 
 canonical_openwebui_base_url() {

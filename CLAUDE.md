@@ -61,7 +61,7 @@ data/             gitignored runtime data
 ```bash
 python3.11 -m pytest tests/ -q --tb=short
 ```
-Baseline: **500 passed, 2 deselected** (as of 2026-06-18, after stale council tests were removed and doctor/auth/launcher regressions were covered). If your run differs, say so — don't round up to "passing."
+Baseline: **498 passed, 2 deselected** (as of 2026-06-19, after Phase A A2 legacy launcher retirement). CI without feedparser shows 496+2 skipped — both counts are correct. If your run differs, say so — don't round up to "passing."
 
 ## Key files
 | File | Purpose |
