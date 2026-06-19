@@ -7,9 +7,9 @@ PROJECT_ROOT = Path(__file__).parent.parent
 load_dotenv(PROJECT_ROOT / ".env")
 
 # 1. Gateway Settings
-# Default 5001 — matches the kitty-chat Next.js proxy (KITTY_GATEWAY_URL ?? 'http://127.0.0.1:5001')
+# Default 8000 — the port the gateway actually binds (see gateway/start_gateway.sh)
 GATEWAY_HOST = os.environ.get("GATEWAY_HOST", "127.0.0.1")
-GATEWAY_PORT = int(os.environ.get("GATEWAY_PORT", "5001"))
+GATEWAY_PORT = int(os.environ.get("GATEWAY_PORT", "8000"))
 GATEWAY_BASE_URL = f"http://{GATEWAY_HOST}:{GATEWAY_PORT}"
 
 # 2. LiteLLM Proxy Settings

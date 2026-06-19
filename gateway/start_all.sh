@@ -196,7 +196,6 @@ fi
 
 [[ "${ENABLE_LITELLM}" == "1" ]] && wait_http "litellm" "http://127.0.0.1:8001/health" "Authorization: Bearer ${LITELLM_MASTER_KEY:-kitty-local-key-change-me}" 30 1 8 || true
 [[ "${ENABLE_GATEWAY}" == "1" ]] && wait_http "gateway" "http://127.0.0.1:8000/health" || true
-[[ "${ENABLE_GATEWAY}" == "1" ]] && wait_http "gateway" "http://127.0.0.1:5001/health" || true
 [[ "${ENABLE_JUPYTER}" == "1" ]] && wait_http "jupyter" "http://127.0.0.1:8888/api" "Authorization: token ${CODE_EXECUTION_JUPYTER_AUTH_TOKEN:-}" || true
 [[ "${ENABLE_OPEN_TERMINAL}" == "1" ]] && wait_http "openterminal" "${OPEN_TERMINAL_URL:-http://127.0.0.1:9614}/health" || true
 [[ "${ENABLE_KITTY_DOCKER_TERMINAL}" == "1" ]] && wait_http "kitty-docker-terminal" "${KITTY_DOCKER_TERMINAL_URL:-http://127.0.0.1:9615}/health" || true
@@ -224,8 +223,6 @@ echo "Stack launch complete."
 echo "Kitty chat UI (Next.js kitty-chat): http://127.0.0.1:3000"
 echo "  — use the single virtual model kitty-default (LiteLLM proxies at :8001)"
 echo "Kitty Gateway (FastAPI):     http://127.0.0.1:8000"
-echo "Kitty chat UI (kitty-chat):  http://127.0.0.1:3000"
-echo "Kitty Gateway (FastAPI):     http://127.0.0.1:5001"
 echo "LiteLLM proxy:               http://127.0.0.1:8001"
 echo
 echo "Logs:"

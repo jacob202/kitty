@@ -30,7 +30,7 @@ if [[ -f "$KITTY_ROOT/.env" ]]; then
   load_env_assignments "$KITTY_ROOT/.env"
 fi
 
-GATEWAY_PORT="${GATEWAY_PORT:-5001}"
+GATEWAY_PORT="${GATEWAY_PORT:-8000}"
 LITELLM_PORT="${LITELLM_PORT:-8001}"
 LITELLM_MASTER_KEY="${LITELLM_MASTER_KEY:-kitty-local-key-change-me}"
 
