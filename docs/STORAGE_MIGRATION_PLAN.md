@@ -11,7 +11,7 @@ Migrate behind stable APIs. Do not make the UI or clients care where state lives
 | Store | Path | Current shape | Phase B action | Layout |
 |---|---|---|---|---|
 | Quick Capture inbox | `data/inbox.jsonl` | JSONL append | Keep append-only (D4) | `data/` — stays |
-| Journal | `data/journal_entries.jsonl` | JSONL | **Phase C B next** (after chats lands) | moves to `data/kitty/` |
+| Journal | `data/journal_entries.jsonl` legacy, `data/kitty/kitty.db` current | JSONL → SQLite (normalized) | **Phase C B (shipped)** | `data/kitty/kitty.db`; JSONL file is never deleted |
 | Todos | `data/todos.db` legacy, `data/kitty/kitty.db` current | SQLite | **B3 first user-facing seam** (shipped) | moved to `data/kitty/kitty.db`; old file copied once and left untouched |
 | Chats | `data/kitty/chats.json` legacy, `data/kitty/kitty.db` current | JSON blob in SQLite | **Phase C chats (shipped)** | `data/kitty/kitty.db`; JSON file is never deleted |
 | Cron schedules | `data/cron_schedules.db` | SQLite | B3 episodic migration candidate | moves to `data/kitty/` |
@@ -133,3 +133,26 @@ The route (`gateway/routes/chats.py`) reads and writes through
 
 **Next user-facing store:** journal (Phase C B). Per the plan, journal
 needs its own compat + rollback section before any code lands.
+
+### Phase C B: Journal Migration (shipped)
+
+`data/journal_entries.jsonl` is now `data/kitty/kitty.db` (table
+`journal_entries`). The journal module (`gateway/journal.py`) reads
+and writes through `gateway/journal_store.py`. The wire contract
+(return shape of `save_journal_entry`) is unchanged.
+
+**Sequence (B0–B6, all shipped):**
+
+| Step | What | Where |
+|---|---|---|
+| B0 | Plan with explicit compat + rollback | `docs/PHASE_C_JOURNAL_PLAN.md` |
+| B1 | `journal_entries` table schema | `gateway/migrations/005_journal_entries.sql` |
+| B2 | Read/write module | `gateway/journal_store.py` |
+| B3 | Module migration (save, delete, search, recent) | `gateway/journal.py` |
+| B4 | One-time JSONL import | `journal_store._import_legacy_journal_once` |
+| B5 | Backup verification (no new code) | `scripts/kitty_backup.py` already covers kitty.db |
+| B6 | Rollback escape hatch (verified by test) | `journal_store` docstring + `TestLegacyImport.test_rollback_re_imports_from_intact_jsonl` |
+
+JOURNAL_LOG is still defined in `gateway/journal.py` because
+`gateway/sync.py` reads it directly for the kitty sync feature. The
+store's `LEGACY_JOURNAL_LOG` matches it for the one-time import.

@@ -26,3 +26,36 @@ Phase B is one storage story and one operating story. No mobile app, cloud sync,
 ## D6 - Borrow Patterns, Not Random Complexity
 
 Code sniping is encouraged when it maps to Kitty's current loop. Borrow proven UX and architecture patterns; do not import a repo's worldview wholesale.
+
+## D7 - StorageRouter Is A Thin Write-Side Seam, Not A Port
+
+`gateway/storage_router.py` (Phase B B4) is a deliberately thin write-side
+seam that mirrors the read rule in D3. Routes cross it for mutations; the
+underlying store modules do the actual work. The router does **not** try to
+abstract the storage substrate, define a generic adapter registry, or hide
+the backend.
+
+Why: every prior attempt to build a backend-agnostic port (per-store
+adapters, query language, hidden fallback) expanded the seam's surface
+without earning anything back. A thin wrapper buys us "every write goes
+through one module" at zero abstraction cost. The substrate can change
+later if a real migration needs it; the seam does not pre-pay for that.
+
+What this rules out:
+- New methods on `storage_router` for stores that don't currently have a
+  write seam (e.g. `desktop_store`, `token_usage_log`, `model_digest`).
+- Generic `append`/`upsert`/`read` verbs that hide which backend is used.
+- "Smart" router code that retries, caches, or falls back across backends.
+
+What this allows:
+- Wrapping any new write site in a one-line function that delegates to
+  the underlying store, as B4 did for todos and plugin settings.
+- Replacing the thin wrapper with a real port later if a migration needs
+  it (the migration would be local; consumers would only change at the
+  call site).
+
+The chats migration (Phase C C0–C6) and the journal migration (Phase C
+B0–B6) followed the same pattern but did **not** go through
+`storage_router` — those are new read/write modules of their own. The
+router is for legacy stores that already have a write API in
+`todo_store` / `plugin_registry`; new modules get their own.

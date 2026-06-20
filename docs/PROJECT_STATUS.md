@@ -44,10 +44,14 @@ Prepare Phase B: one storage story and one agent/documentation story. Do not add
 
 ## Next Best Step
 
-Phase B is fully shipped (B0–B5) and Phase C chats is shipped (C0–C6).
-Next: journal migration (Phase C B). Per `docs/PHASE_C_PLAN.md`, journal
-needs its own explicit compat + rollback section before any code lands;
-do not skip the plan.
+Phase B is fully shipped (B0–B5). Phase C chats (C0–C6) and journal
+(B0–B6) are both shipped. The next user-facing store is unclear; the
+remaining `data/` files (cron schedules, model digest, autonomy state,
+corrections) are not user-facing in the same way. Future work could
+be polish, deeper Phase C work, or planning for the next product
+phase. The thin `storage_router` (B4) is the only D7-decision-shaped
+write seam in place; new stores get their own module rather than
+expanding the router.
 
 ## Runtime Check (verified 2026-06-20, two states)
 

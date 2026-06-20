@@ -3,11 +3,11 @@
 **Date:** 2026-06-20
 **Branch:** `codex/phase-b-prep`
 **Base:** `c6accd0`
-**HEAD:** `e6a5712 docs+test(storage): rollback escape hatch (Phase C C5+C6)`
+**HEAD:** `b7b239d docs+test(storage): rollback escape hatch for journal (Phase C B5+B6)`
 
 ## What This Branch Is Doing
 
-Preparing Kitty for Phase B by consolidating canonical docs, adding an agent wrap-up loop, and landing the first storage slices. **Phase B is fully shipped (B0–B5).** **Phase C chats is shipped (C0–C6)** — `data/kitty/chats.json` now lives in `data/kitty/kitty.db` via `gateway/chats_store.py`; the route reads and writes through it. It has not migrated journal, memory, ChromaDB, mem0, or broad user-facing episodic data. Todos are the first B3 seam. B4 has a thin write-side storage router for todo and plugin mutations. B5 has a local backup/restore drill for `data/kitty/`.
+Preparing Kitty for Phase B by consolidating canonical docs, adding an agent wrap-up loop, and landing the first storage slices. **Phase B is fully shipped (B0–B5).** **Phase C chats (C0–C6) and journal (B0–B6) are both shipped** — both stores now live in `data/kitty/kitty.db` via their own dedicated read/write modules (`gateway/chats_store.py`, `gateway/journal_store.py`). The B4 `storage_router` is a thin write-side seam for legacy stores (todo, plugin settings) only — new modules get their own. B5 has a local backup/restore drill for `data/kitty/`. It has not migrated cron schedules, model digest, autonomy state, memory, ChromaDB, or mem0.
 
 ## Important Context
 
@@ -43,6 +43,9 @@ Preparing Kitty for Phase B by consolidating canonical docs, adding an agent wra
 - `gateway/chats_store.py`
 - `gateway/routes/chats.py`
 - `gateway/migrations/004_chats.sql`
+- `gateway/journal_store.py`
+- `gateway/journal.py`
+- `gateway/migrations/005_journal_entries.sql`
 - `scripts/kitty_backup.py`
 - `scripts/pre-commit.template`
 - `scripts/install-pre-commit.sh`
@@ -55,13 +58,21 @@ Preparing Kitty for Phase B by consolidating canonical docs, adding an agent wra
 - `tests/test_todo_store.py`
 - `tests/test_chats_store.py`
 - `tests/test_chats_route.py`
+- `tests/test_journal_store.py`
 - `scripts/agent_wrapup.py`
 
 ## Current Git State
 
 ```text
 ## codex/phase-b-prep
-e6a5712 (HEAD -> codex/phase-b-prep, origin/codex/phase-b-prep) docs+test(storage): rollback escape hatch (Phase C C5+C6)
+b7b239d (HEAD -> codex/phase-b-prep, origin/codex/phase-b-prep) docs+test(storage): rollback escape hatch for journal (Phase C B5+B6)
+53daa37 feat(storage): add journal_store + migrate save/delete/search/recent (Phase C B2-B4)
+3114b46 test(storage): tighten journal migration coverage
+25eaaca chore(claude): wire skill-aware workflow hooks
+fa54bb5 feat(storage): add journal_entries table migration (Phase C B1)
+20ccda0 docs(phase-c-journal): plan for migrating journal to kitty db
+c39c070 docs(refresh): align doc set with shipped Phase B + Phase C chats
+e6a5712 docs+test(storage): rollback escape hatch (Phase C C5+C6)
 200e18a feat(storage): add one-time JSON import to chats_store (Phase C C4)
 858a97d feat(routes): migrate /chats route to chats_store (Phase C C3)
 c92a264 feat(storage): add chats_store read/write module (Phase C C2)
@@ -89,25 +100,26 @@ python3.12 -m pytest tests/test_check_continuity_state.py tests/test_run_gates_s
 python3.12 -m pytest tests/ -q --tb=short
 ```
 
-Latest local verification (2026-06-20, after Phase C chats migration):
+Latest local verification (2026-06-20, after Phase C chats + journal migrations):
 
 - `python3.12 -m py_compile scripts/agent_wrapup.py` passed.
 - `python3.12 -m pytest tests/test_chats_store.py tests/test_chats_route.py -q --tb=short` passed: 21 tests.
-- `python3.12 -m pytest tests/test_db.py -q --tb=short` passed: 5 tests.
+- `python3.12 -m pytest tests/test_journal_store.py -q --tb=short` passed: 14 tests.
+- `python3.12 -m pytest tests/test_db.py -q --tb=short` passed: 8 tests.
 - `python3.12 -m pytest tests/test_kitty_backup.py tests/test_kitty_launcher.py -q --tb=short` passed: 11 tests.
 - `make agent-wrap` is available; generated logs in `.agent/session_logs/*.md` are ignored unless Jacob explicitly asks to commit one.
-- `python3.12 -m pytest tests/ -q --tb=short` passed: 654 passed, 2 deselected, 3 warnings.
+- `python3.12 -m pytest tests/ -q --tb=short` passed: 671 passed, 2 deselected, 3 warnings.
 
 ## Known Open Work
 
 - `codex/raycast-quick-capture` has useful unmerged Raycast wrapper work at `5a07744`.
 - Older stashes remain for LLM routing and memory graph experiments; do not drop them without review.
 - Pre-commit hook is now tracked via `scripts/pre-commit.template` and `scripts/install-pre-commit.sh`; the previously-unreachable code-review-graph block was removed. Resolved in `209e7cb`.
-- Phase B B5 has a local `data/kitty/` backup drill. Phase C chats is shipped (C0–C6). Next: journal migration (Phase C B). Do not skip the explicit compat + rollback plan per `docs/PHASE_C_PLAN.md`.
+- Phase B B5 has a local `data/kitty/` backup drill. Phase C chats (C0–C6) and journal (B0–B6) are both shipped. See `docs/DECISIONS.md` D7 for the storage_router thin-wrapper decision.
 
 ## Next Implementation Prompt
 
-Migrate journal to kitty.db (Phase C B) following the `docs/PHASE_C_PLAN.md` model: write a `docs/PHASE_C_JOURNAL_PLAN.md` with explicit compat + rollback before any code lands, then C1 schema, C2 read/write module, C3 route migration, C4 import, C5 backup verification, C6 rollback test. The chats migration (`5eaf699` through `e6a5712`) is the model.
+Phase C is fully shipped. Open user-facing stores in `data/` (cron schedules, model digest, autonomy state, corrections) are not user-facing in the same way as chats/journal; future work could be polish, deeper Phase C work, or planning for the next product phase. The `storage_router` is intentionally thin (D7) — new stores get their own module rather than expanding the router.
 
 ## Source-of-Truth Audit (2026-06-20)
 
