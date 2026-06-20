@@ -220,7 +220,7 @@ fi
 
 echo
 echo "Stack launch complete."
-echo "Kitty chat UI (Next.js kitty-chat): http://127.0.0.1:3000"
+echo "Kitty chat UI (Next.js kitty-chat): http://127.0.0.1:4000"
 echo "  — use the single virtual model kitty-default (LiteLLM proxies at :8001)"
 echo "Kitty Gateway (FastAPI):     http://127.0.0.1:8000"
 echo "LiteLLM proxy:               http://127.0.0.1:8001"

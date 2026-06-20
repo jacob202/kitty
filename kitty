@@ -192,7 +192,7 @@ cmd_status() {
   fi
 
   echo
-  echo "Frontend: http://localhost:3000 (run separately: cd gateway/kitty-chat && npm run dev)"
+  echo "Frontend: http://localhost:4000 (run separately: cd gateway/kitty-chat && npm run dev)"
 }
 
 cmd_doctor() {
