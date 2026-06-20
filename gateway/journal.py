@@ -15,6 +15,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
+from gateway import journal_store
 from gateway.paths import DATA_DIR
 from gateway.prompts import JOURNAL_INTERVIEW_PROMPT, JOURNAL_SYNTHESIS_PROMPT
 
@@ -26,13 +27,13 @@ JOURNAL_LOG = DATA_DIR / "journal_entries.jsonl"
 def save_journal_entry(
     entry: str, theme: str | None = None, session_id: str | None = None
 ) -> dict:
-    record = {"ts": time.time(), "theme": theme, "entry": entry}
-    if session_id:
-        record["session_id"] = session_id
-    JOURNAL_LOG.parent.mkdir(parents=True, exist_ok=True)
-    with JOURNAL_LOG.open("a") as f:
-        f.write(json.dumps(record) + "\n")
-    return record
+    """Append a journal entry via journal_store. Kept for callers; see journal_store.append_entry."""
+    return journal_store.append_entry(
+        ts=time.time(),
+        entry=entry,
+        theme=theme,
+        session_id=session_id,
+    )
 
 
 THEMES = ["recovery", "work", "mood", "relationships", "body", "creative", "reflection"]
@@ -158,119 +159,34 @@ def build_synthesis_prompt() -> str:
 def delete_journal_message(session_id: str, message_id: str) -> bool:
     """Delete a specific message from the journal by session_id and message_id.
 
-    Journal entries are stored as JSONL lines with fields: ts, theme, entry.
-    Since JSONL has no native delete, we rewrite the file excluding the target entry.
-    The message_id is compared against the 'ts' field (stored as the message timestamp).
+    The message_id is compared against the entry's 'ts' field. Backed by
+    journal_store (kitty.db) since Phase C B.
     """
-    if not JOURNAL_LOG.exists():
-        return False
-
-    target_ts = None
     try:
         target_ts = float(message_id)
     except (ValueError, TypeError):
         logger.warning("Invalid message_id for journal delete: %s", message_id)
         return False
 
-    tmp_path = None
-    try:
-        tmp_fd, tmp_path = tempfile.mkstemp(dir=JOURNAL_LOG.parent, suffix=".jsonl.tmp")
-        found = False
-        with open(JOURNAL_LOG, "r") as src, open(tmp_fd, "w") as dst:
-            for line in src:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    record = json.loads(line)
-                except json.JSONDecodeError:
-                    dst.write(line + "\n")
-                    continue
-                record_session_id = record.get("session_id")
-                if record_session_id and str(record_session_id) != session_id:
-                    dst.write(line + "\n")
-                    continue
-
-                if float(record.get("ts", 0)) == target_ts:
-                    found = True
-                    continue
-                dst.write(line + "\n")
-
-        if not found:
-            return False
-
-        # Atomic replace
-        with open(tmp_path, "r") as tmp_src:
-            content = tmp_src.read()
-        with open(JOURNAL_LOG, "w") as final_dst:
-            final_dst.write(content)
-
+    deleted = journal_store.delete_entry(ts=target_ts, session_id=session_id)
+    if deleted:
         logger.info("Journal message deleted: session=%s ts=%s", session_id, message_id)
-        return True
-
-    except Exception as e:
-        logger.warning("Journal delete failed (non-fatal): %s", e)
-        return False
-    finally:
-        if tmp_path and Path(tmp_path).exists():
-            Path(tmp_path).unlink(missing_ok=True)
+    return deleted
 
 
 def search_entries(query: str, limit: int = 5) -> list[dict]:
-    """Keyword search over journal entries for memory_graph / search."""
-    try:
-        if not JOURNAL_LOG.exists():
-            return []
-        terms = query.lower().split()
-        matches: list[dict] = []
-        with JOURNAL_LOG.open("r") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    entry = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                entry_text = entry.get("entry", "").lower()
-                score = sum(1 for t in terms if t in entry_text)
-                if score > 0:
-                    entry["_score"] = score
-                    matches.append(entry)
-        matches.sort(key=lambda x: x.get("_score", 0), reverse=True)
-        return matches[:limit]
-    except Exception as e:
-        logger.warning("Journal search failed: %s", e)
-        return []
+    """Keyword search over journal entries for memory_graph / search.
+
+    Backed by journal_store (kitty.db) since Phase C B.
+    """
+    return journal_store.search(query=query, limit=limit)
 
 
 def recent_entries(days: int = 14, limit: int = 20) -> list[dict]:
     """Return the most recent journal entries within the last `days` days.
 
     Used by the brief-context-shaping theme detector. Newest first.
-    Returns [] if the journal is empty, the log file is missing, or any
-    read error occurs. Failures are logged but never raised — the brief
-    is best-effort, and the caller treats [] as "no themes detected."
+    Returns [] on any read error. Backed by journal_store (kitty.db)
+    since Phase C B.
     """
-    try:
-        if not JOURNAL_LOG.exists():
-            return []
-        cutoff = time.time() - (days * 86400)
-        entries: list[dict] = []
-        with JOURNAL_LOG.open("r") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    entry = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                ts = entry.get("ts", 0)
-                if ts >= cutoff:
-                    entries.append(entry)
-        entries.sort(key=lambda e: e.get("ts", 0), reverse=True)
-        return entries[:limit]
-    except Exception as e:
-        logger.warning("Journal recent-entries failed: %s", e)
-        return []
+    return journal_store.list_recent(days=days, limit=limit)

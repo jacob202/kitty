@@ -271,13 +271,16 @@ def test_detect_research_themes_integration_with_real_journal(tmp_path, monkeypa
     """
     import json
 
-    from gateway import brief, journal
+    from gateway import brief, journal, journal_store
 
     log = tmp_path / "journal_entries.jsonl"
+    db_file = tmp_path / "kitty" / "kitty.db"
     log.parent.mkdir(parents=True, exist_ok=True)
     with log.open("w") as f:
         f.write(json.dumps({"ts": 1.0, "entry": "old, irrelevant entry"}) + "\n")
     monkeypatch.setattr(journal, "JOURNAL_LOG", log)
+    monkeypatch.setattr(journal_store, "JOURNAL_DB_FILE", db_file, raising=False)
+    monkeypatch.setattr(journal_store, "LEGACY_JOURNAL_LOG", log, raising=False)
     monkeypatch.setattr(brief, "recent_entries", journal.recent_entries)
 
     result = brief.detect_research_themes(lookback_days=14, limit=5)
