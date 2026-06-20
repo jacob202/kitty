@@ -88,6 +88,26 @@ def test_default_migrations_create_chats_table(tmp_path):
     assert columns == {"id", "payload", "updated_at"}
 
 
+def test_default_migrations_create_journal_entries_table(tmp_path):
+    """Phase C B1: 005_journal_entries.sql adds a normalized journal_entries table."""
+    db_file = tmp_path / "kitty.db"
+
+    applied = db.migrate(db_file=db_file)
+
+    assert "005_journal_entries.sql" in applied
+    with sqlite3.connect(db_file) as conn:
+        table = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' "
+            "AND name = 'journal_entries'"
+        ).fetchone()
+        columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(journal_entries)").fetchall()
+        }
+    assert table == ("journal_entries",)
+    assert columns == {"id", "ts", "theme", "entry", "session_id", "created_at"}
+
+
 def test_migrate_failure_names_file_and_database(tmp_path):
     db_file = tmp_path / "kitty.db"
     migrations_dir = tmp_path / "migrations"
