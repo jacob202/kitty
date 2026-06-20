@@ -206,28 +206,70 @@ def _import_legacy_journal_once() -> None:
             return
         try:
             entries = _read_legacy_entries()
+            for entry in entries:
+                _insert_entry_raw(target, entry)
         except (OSError, ValueError) as exc:
             raise RuntimeError(
                 f"Legacy journal import failed from {LEGACY_JOURNAL_LOG}: {exc}"
             ) from exc
-        for entry in entries:
-            _insert_entry_raw(target, entry)
         _mark_legacy_imported(target, str(LEGACY_JOURNAL_LOG))
 
 
 def _insert_entry_raw(conn: sqlite3.Connection, entry: dict) -> None:
+    validated = _validate_legacy_entry(entry)
     conn.execute(
         """
         INSERT INTO journal_entries (ts, theme, entry, session_id)
         VALUES (?, ?, ?, ?)
         """,
         (
-            entry.get("ts"),
-            entry.get("theme"),
-            entry.get("entry", ""),
-            entry.get("session_id"),
+            validated["ts"],
+            validated["theme"],
+            validated["entry"],
+            validated["session_id"],
         ),
     )
+
+
+def _validate_legacy_entry(entry: object) -> dict[str, object]:
+    if not isinstance(entry, dict):
+        raise ValueError(
+            f"Expected legacy journal record dict, got {type(entry).__name__}"
+        )
+
+    if "ts" not in entry:
+        raise ValueError(f"Legacy journal record missing required 'ts': {entry!r}")
+    if "entry" not in entry:
+        raise ValueError(f"Legacy journal record missing required 'entry': {entry!r}")
+
+    ts = entry["ts"]
+    if not isinstance(ts, (int, float)):
+        raise ValueError(f"Legacy journal record has non-numeric 'ts': {entry!r}")
+
+    entry_text = entry["entry"]
+    if not isinstance(entry_text, str):
+        raise ValueError(
+            f"Legacy journal record has non-string 'entry': {entry!r}"
+        )
+
+    theme = entry.get("theme")
+    if theme is not None and not isinstance(theme, str):
+        raise ValueError(
+            f"Legacy journal record has non-string 'theme': {entry!r}"
+        )
+
+    session_id = entry.get("session_id")
+    if session_id is not None and not isinstance(session_id, str):
+        raise ValueError(
+            f"Legacy journal record has non-string 'session_id': {entry!r}"
+        )
+
+    return {
+        "ts": float(ts),
+        "theme": theme,
+        "entry": entry_text,
+        "session_id": session_id,
+    }
 
 
 def _already_imported(conn: sqlite3.Connection) -> bool:

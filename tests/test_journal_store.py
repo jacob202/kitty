@@ -1,5 +1,6 @@
 """Tests for journal_store — normalized journal entry CRUD on kitty.db."""
 import json
+import time
 
 import pytest
 
@@ -77,6 +78,27 @@ def test_count_total_and_by_theme():
     assert journal_store.count_entries(theme="missing") == 0
 
 
+def test_list_recent_filters_by_cutoff():
+    now = time.time()
+    journal_store.append_entry(ts=now, entry="fresh")
+    journal_store.append_entry(ts=now - (30 * 86400), entry="stale")
+
+    result = journal_store.list_recent(days=14, limit=10)
+
+    assert [entry["entry"] for entry in result] == ["fresh"]
+
+
+def test_search_scores_and_limits_results():
+    journal_store.append_entry(ts=1.0, entry="quick brown fox")
+    journal_store.append_entry(ts=2.0, entry="quick dog")
+    journal_store.append_entry(ts=3.0, entry="dog only")
+
+    result = journal_store.search("quick dog", limit=2)
+
+    assert [entry["entry"] for entry in result] == ["quick dog", "dog only"]
+    assert result[0]["_score"] == 2
+
+
 class TestLegacyImport:
     """Phase C B4: one-time JSONL import for backward compat."""
 
@@ -148,6 +170,28 @@ class TestLegacyImport:
         legacy.write_text("not json\n", encoding="utf-8")
 
         with pytest.raises(RuntimeError, match="Legacy journal import failed"):
+            journal_store.list_entries()
+
+    def test_missing_required_entry_field_raises_runtime_error(self, tmp_path):
+        legacy = tmp_path / "journal_entries.jsonl"
+        legacy.parent.mkdir(parents=True, exist_ok=True)
+        legacy.write_text(
+            json.dumps({"ts": 1.0, "theme": "work"}) + "\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(RuntimeError, match="missing required 'entry'"):
+            journal_store.list_entries()
+
+    def test_non_numeric_ts_raises_runtime_error(self, tmp_path):
+        legacy = tmp_path / "journal_entries.jsonl"
+        legacy.parent.mkdir(parents=True, exist_ok=True)
+        legacy.write_text(
+            json.dumps({"ts": "not-a-number", "entry": "bad ts"}) + "\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(RuntimeError, match="non-numeric 'ts'"):
             journal_store.list_entries()
 
     def test_rollback_re_imports_from_intact_jsonl(self, tmp_path):

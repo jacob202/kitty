@@ -1,5 +1,6 @@
 """Tests for the journal interviewer and prompt generator."""
 import json
+import time
 import pytest
 from pathlib import Path
 from gateway.journal import (
@@ -207,3 +208,43 @@ def test_delete_journal_message_returns_false_on_missing_entry(tmp_path, monkeyp
 
     result = delete_journal_message("test_session", "1234567890.0")
     assert result is False
+
+
+def test_search_entries_reads_from_store(tmp_path, monkeypatch):
+    import gateway.journal as jmod
+    from gateway import journal_store
+
+    db_file = tmp_path / "kitty" / "kitty.db"
+    monkeypatch.setattr(jmod, "JOURNAL_LOG", tmp_path / "journal_entries.jsonl")
+    monkeypatch.setattr(journal_store, "JOURNAL_DB_FILE", db_file, raising=False)
+
+    journal_store.append_entry(ts=1.0, entry="the quick brown fox")
+    journal_store.append_entry(ts=2.0, entry="lazy dog jumps")
+    journal_store.append_entry(ts=3.0, entry="nothing here")
+
+    from gateway.journal import search_entries
+
+    results = search_entries("quick dog")
+
+    assert len(results) == 2
+    assert any("quick" in result["entry"] for result in results)
+    assert any("dog" in result["entry"] for result in results)
+
+
+def test_recent_entries_reads_from_store(tmp_path, monkeypatch):
+    import gateway.journal as jmod
+    from gateway import journal_store
+
+    db_file = tmp_path / "kitty" / "kitty.db"
+    monkeypatch.setattr(jmod, "JOURNAL_LOG", tmp_path / "journal_entries.jsonl")
+    monkeypatch.setattr(journal_store, "JOURNAL_DB_FILE", db_file, raising=False)
+
+    now = time.time()
+    journal_store.append_entry(ts=now, entry="fresh")
+    journal_store.append_entry(ts=now - (30 * 86400), entry="stale")
+
+    from gateway.journal import recent_entries
+
+    results = recent_entries(days=14, limit=10)
+
+    assert [result["entry"] for result in results] == ["fresh"]
