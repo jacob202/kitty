@@ -30,6 +30,8 @@ Make Kitty's app-owned state understandable, testable, and backup-friendly witho
 - Define the DB path in `gateway/paths.py`.
 - Tests: open DB, run migrations, fail loudly on migration error.
 
+Status 2026-06-20: implemented with `gateway/db.py`, `gateway/migrations/001_foundation.sql`, `KITTY_DB_FILE`, and `tests/test_db.py`. Uses stdlib `sqlite3` to avoid adding a dependency before async access is proven necessary.
+
 ### B2 - First Low-Risk Store
 
 - Migrate one small app-owned store first, preferably plugin settings or another non-chat store.

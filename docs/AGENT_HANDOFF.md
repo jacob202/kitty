@@ -29,6 +29,9 @@ Preparing Kitty for Phase B by consolidating canonical docs and adding an agent 
 - `docs/AGENT_RUNTIME.md`
 - `docs/LEARNINGS.md`
 - `docs/DECISIONS.md`
+- `gateway/db.py`
+- `gateway/migrations/001_foundation.sql`
+- `tests/test_db.py`
 - `scripts/agent_wrapup.py`
 
 ## Verification To Run Before Commit
@@ -44,9 +47,10 @@ Latest local verification:
 - `python3.12 -m py_compile scripts/agent_wrapup.py` passed.
 - `python3.12 -m pytest tests/test_check_continuity_state.py tests/test_run_gates_script.py -q --tb=short` passed: 23 tests.
 - `python3.12 -m pytest tests/test_memory_graph.py -q --tb=short` passed: 10 tests.
+- `python3.12 -m pytest tests/test_db.py -q --tb=short` passed: 4 tests.
 - `make agent-wrap` created `.agent/session_logs/20260620T012911Z-handoff.md`; generated logs are ignored.
-- `python3.12 -m pytest tests/ -q --tb=short` passed: 544 passed, 2 deselected, 3 warnings.
+- `python3.12 -m pytest tests/ -q --tb=short` passed: 548 passed, 2 deselected, 3 warnings.
 
 ## Next Implementation Prompt
 
-Implement Phase B B1 only: add a small SQLite foundation with explicit migrations, path constants, and tests. Do not migrate user data yet. Prove migration success and failure in tests.
+Implement Phase B B2 only: migrate one low-risk app-owned store, preferably plugin settings, behind the existing public API. Do not migrate chats/todos or user-facing episodic state yet.
