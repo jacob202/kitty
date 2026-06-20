@@ -70,6 +70,24 @@ def test_default_migrations_create_app_settings(tmp_path):
     assert table == ("app_settings",)
 
 
+def test_default_migrations_create_chats_table(tmp_path):
+    """Phase C C1: 004_chats.sql adds a chats table keyed by id with a JSON payload."""
+    db_file = tmp_path / "kitty.db"
+
+    applied = db.migrate(db_file=db_file)
+
+    assert "004_chats.sql" in applied
+    with sqlite3.connect(db_file) as conn:
+        table = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'chats'"
+        ).fetchone()
+        columns = {
+            row[1] for row in conn.execute("PRAGMA table_info(chats)").fetchall()
+        }
+    assert table == ("chats",)
+    assert columns == {"id", "payload", "updated_at"}
+
+
 def test_migrate_failure_names_file_and_database(tmp_path):
     db_file = tmp_path / "kitty.db"
     migrations_dir = tmp_path / "migrations"
