@@ -191,7 +191,7 @@ async def test_real_journal_fetch_smoke(tmp_path, monkeypatch):
 async def test_real_trace_fetch_smoke(tmp_path, monkeypatch):
     """Test the real _fetch_traces logic with a temporary file."""
     trace_file = tmp_path / "gateway_trace.jsonl"
-    monkeypatch.setattr("gateway.memory_graph.GATEWAY_LOG", trace_file)
+    monkeypatch.setattr("gateway.memory_graph.LOG_FILE", trace_file)
 
     now = time.time()
     with open(trace_file, "w") as f:

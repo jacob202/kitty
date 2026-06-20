@@ -16,21 +16,20 @@ import time
 from collections import Counter
 from datetime import datetime
 
-from gateway.paths import DATA_DIR, LOGS_DIR
+from gateway.paths import DATA_DIR, LOG_FILE, LOGS_DIR
 
 logger = logging.getLogger("kitty.patterns")
 
-GATEWAY_LOG = LOGS_DIR / "gateway_trace.jsonl"
 PATTERN_CACHE = DATA_DIR / "pattern_analysis.json"
 
 
 def _load_traces(days: int = 90) -> list[dict]:
     """Load gateway traces from the last N days."""
-    if not GATEWAY_LOG.exists():
+    if not LOG_FILE.exists():
         return []
     cutoff = time.time() - days * 86400
     traces = []
-    with GATEWAY_LOG.open("r", errors="ignore") as f:
+    with LOG_FILE.open("r", errors="ignore") as f:
         for line in f:
             if not line.strip():
                 continue

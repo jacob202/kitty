@@ -8,17 +8,17 @@ Migrate behind stable APIs. Do not make the UI or clients care where state lives
 
 ## Current Store Map
 
-| Store | Current shape | Phase B action |
-|---|---|---|
-| Quick Capture inbox | `data/inbox.jsonl` | Keep append-only for desktop/mobile compatibility |
-| Journal | JSONL via `gateway/journal.py` | Later episodic migration candidate |
-| Todos | SQLite via `gateway/todo_store.py` | Normalize under shared DB later |
-| Cron schedules | SQLite via `gateway/cron.py` | Normalize under shared DB later |
-| Plugin settings | JSON via `gateway/plugin_registry.py` | Good first low-risk migration |
-| Model digest | SQLite via `gateway/model_digest.py` | Leave until shared DB shape is proven |
-| ChromaDB | vector store | Do not migrate in Phase B |
-| mem0 | semantic memory | Do not migrate in Phase B |
-| Logs/feedback/traces | JSONL | Do not migrate unless product reads require it |
+| Store | Path | Current shape | Phase B action | Layout |
+|---|---|---|---|---|
+| Quick Capture inbox | `data/inbox.jsonl` | JSONL append | Keep append-only (D4) | `data/` — stays |
+| Journal | `data/journal_entries.jsonl` | JSONL | B3 episodic migration candidate | moves to `data/kitty/` |
+| Todos | `data/todos.db` | SQLite | B3 episodic migration candidate | moves to `data/kitty/` |
+| Cron schedules | `data/cron_schedules.db` | SQLite | B3 episodic migration candidate | moves to `data/kitty/` |
+| Plugin settings | `data/plugin_settings.json` | JSON | **B2 first migration** | moves to `data/kitty/kitty.db` |
+| Model digest | `data/model_digest.db` | SQLite | Leave until shared DB proven | stays (deferred) |
+| ChromaDB | `data/knowledge_db` | vector | Do not migrate in Phase B | stays |
+| mem0 | `data/mem0` | semantic memory | Do not migrate in Phase B | stays |
+| Logs/feedback/traces | `data/*.jsonl` | JSONL | Do not migrate unless reads require | stays |
 
 ## Migration Rules
 
@@ -41,3 +41,42 @@ Migrate behind stable APIs. Do not make the UI or clients care where state lives
 - `schema_migrations`
 
 Do not create all tables at once unless a migration needs them. The list is a map, not permission to overbuild.
+
+## Path Layout Policy
+
+Two locations serve two purposes:
+
+- `data/` — cross-substrate or external-compatibility stores. Currently just `inbox.jsonl` (D4: append-only for desktop and future mobile capture).
+- `data/kitty/` — app-owned episodic state. All Phase B SQLite migrations land here.
+
+The default for new stores is `data/kitty/`. A store stays in `data/` only if it satisfies one of:
+
+1. Cross-substrate compatibility (currently: inbox only).
+2. Operationally meaningful path pinned by other tools.
+3. Explicit operator decision recorded in the Current Store Map above.
+
+## Phase Order
+
+The seam work is layered. Each phase's output is the next phase's input.
+
+| Phase | Name | Depends on | Output |
+|---|---|---|---|
+| 0 | Path-seam discipline | — | `paths.py` is single source; path duplications resolved; `model_digest.py` hardcode fixed |
+| 1 | Policy doc (this section) | — | `data/` vs `data/kitty/` rule is explicit |
+| 2 | First store via `gateway/db.py` | Phase 0, 1 | `plugin_settings` writes through `db.py`; JSON readable during transition |
+| 3 | `StorageRouter` port | Phase 2 | Write-side seam mirrors `memory_graph`; one user-facing store migrated |
+
+## StorageRouter Port (Phase 3 sketch)
+
+The read side is `memory_graph` (D3). The write side has no equivalent — every writer imports its store directly. Phase 3 introduces a small port that mirrors the read seam.
+
+| Operation | Mirrors | Adapter concern |
+|---|---|---|
+| `read(name, query)` | `memory_graph.search_all` | SQLite or JSONL |
+| `append(name, value)` | — | JSONL append; SQLite INSERT |
+| `write(name, value)` | — | SQLite upsert; JSON full-file rewrite |
+| `subscribe(name)` | — | Optional, only if B5 backup needs it |
+
+Use `memory_graph.StoreAdapter` (`gateway/memory_graph.py:39`) as a template. Per-store adapters live behind the seam; the `desktop_store.append_inbox_entry(..., inbox_file: Path = INBOX_FILE)` pattern moves from per-call-site to per-store.
+
+Tests are local-substitutable per DEEPENING.md category 2 (use `tmp_path` SQLite). The interface is the test surface; adapter internals are not.

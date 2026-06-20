@@ -24,13 +24,12 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from gateway.paths import INBOX_FILE, LOGS_DIR
+from gateway.paths import INBOX_FILE, LOG_FILE, LOGS_DIR
 
 logger = logging.getLogger("kitty.memory_graph")
 
 CONTEXT_TOKEN_CAP: int = 1200
 STORE_FETCH_TIMEOUT_SECONDS: float = 5.0
-GATEWAY_LOG = LOGS_DIR / "gateway_trace.jsonl"
 
 
 # --- Store Adapter Interface ---
@@ -216,12 +215,12 @@ class TracesAdapter(StoreAdapter):
 
     def _fetch_traces(self, query: str) -> list[dict[str, Any]]:
         """Simple text-match search over recent gateway traces."""
-        if not GATEWAY_LOG.exists():
+        if not LOG_FILE.exists():
             return []
         cutoff = time.time() - 7 * 86400
         terms = query.lower().split()
         matches: list[dict[str, Any]] = []
-        with GATEWAY_LOG.open("r") as f:
+        with LOG_FILE.open("r") as f:
             for line in f:
                 line = line.strip()
                 if not line:

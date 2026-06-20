@@ -10,7 +10,7 @@ from unittest.mock import patch, MagicMock
 def test_check_no_log_returns_empty():
     """check() returns empty list when gateway log doesn't exist."""
     from gateway.nudge import check
-    with patch("gateway.nudge.GATEWAY_LOG", Path("/nonexistent/path.jsonl")):
+    with patch("gateway.nudge.LOG_FILE", Path("/nonexistent/path.jsonl")):
         with patch("gateway.nudge._check_milestones", return_value=[]):
             result = check()
     assert isinstance(result, list)
@@ -73,7 +73,7 @@ def test_repeated_research_nudge(tmp_path):
     ]
     log.write_text("\n".join(lines) + "\n")
 
-    with patch("gateway.nudge.GATEWAY_LOG", log):
+    with patch("gateway.nudge.LOG_FILE", log):
         nudges = _check_repeated_research()
 
     assert len(nudges) >= 1
@@ -93,7 +93,7 @@ def test_repeated_research_below_threshold(tmp_path):
     ]
     log.write_text("\n".join(lines) + "\n")
 
-    with patch("gateway.nudge.GATEWAY_LOG", log):
+    with patch("gateway.nudge.LOG_FILE", log):
         nudges = _check_repeated_research()
 
     assert len(nudges) == 0
@@ -123,6 +123,6 @@ def test_nudge_id_is_deterministic():
             for i in range(4)
         ]
         log.write_text("\n".join(lines) + "\n")
-        with patch("gateway.nudge.GATEWAY_LOG", log):
+        with patch("gateway.nudge.LOG_FILE", log):
             nudges = _check_repeated_research()
     assert nudges[0]["id"] == expected_id

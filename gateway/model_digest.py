@@ -8,9 +8,11 @@ from pathlib import Path
 
 import requests
 
+from gateway.paths import MODEL_DIGEST_DB
+
 logger = logging.getLogger("kitty.model_digest")
 
-DB_PATH = Path(__file__).parent.parent / "data" / "model_digest.db"
+DB_PATH = MODEL_DIGEST_DB
 OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
 PRICE_CHANGE_THRESHOLD = 0.10  # 10% change triggers an event
 

@@ -23,6 +23,8 @@ CONFIG_DIR = ROOT / "config"
 USER_DIR = CONFIG_DIR / "USER"  # Jacob's TELOS identity files (mission/goals/etc.)
 DESKTOP_DIR = DATA_DIR / "desktop"
 INBOX_FILE = DATA_DIR / "inbox.jsonl"
+KITTY_TOKEN_LOG_FILE = DATA_DIR / "kitty_token_log.jsonl"
+MODEL_DIGEST_DB = DATA_DIR / "model_digest.db"
 DESKTOP_LOG_FILE = LOGS_DIR / "desktop.log"
 DESKTOP_PID_DIR = DESKTOP_DIR / "run"
 
