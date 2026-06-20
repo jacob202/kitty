@@ -1,36 +1,22 @@
-"""Kitty-chat session persistence."""
+"""Kitty-chat session persistence — backed by kitty.db via chats_store.
 
+Phase C C3: the route reads and writes through chats_store instead of
+data/kitty/chats.json. The wire contract (paths, request/response
+shapes) is unchanged.
+"""
 from __future__ import annotations
-
-import json
 
 from fastapi import APIRouter, HTTPException, Request
 
-from gateway.paths import DATA_DIR
+from gateway import chats_store
 
 router = APIRouter(tags=["chats"])
-
-_CHATS_FILE = DATA_DIR / "kitty" / "chats.json"
-
-
-def _read_chats() -> list:
-    if not _CHATS_FILE.exists():
-        return []
-    try:
-        return json.loads(_CHATS_FILE.read_text())
-    except Exception:
-        return []
-
-
-def _write_chats(chats: list) -> None:
-    _CHATS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    _CHATS_FILE.write_text(json.dumps(chats, ensure_ascii=False))
 
 
 @router.get("/chats")
 async def get_chats():
     """Return all saved chat sessions."""
-    return {"chats": _read_chats()}
+    return {"chats": chats_store.list_chats()}
 
 
 @router.post("/chats")
@@ -39,15 +25,12 @@ async def upsert_chat(request: Request):
     chat = await request.json()
     if not chat.get("id"):
         raise HTTPException(status_code=400, detail="id required")
-    existing = _read_chats()
-    updated = [c for c in existing if c.get("id") != chat["id"]] + [chat]
-    _write_chats(updated)
+    chats_store.upsert_chat(chat)
     return {"ok": True}
 
 
 @router.delete("/chats/{chat_id}")
 async def delete_chat(chat_id: str):
     """Delete a chat session."""
-    existing = _read_chats()
-    _write_chats([c for c in existing if c.get("id") != chat_id])
+    chats_store.delete_chat(chat_id)
     return {"ok": True}
