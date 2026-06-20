@@ -7,6 +7,8 @@
 #   kitty status    Show what's running + health check
 #   kitty doctor    Full preflight check (gateway/doctor.py)
 #   kitty logs      Tail live logs for both services
+#   kitty backup    Back up app-owned data under data/backups/kitty/
+#   kitty restore-drill BACKUP_DIR RESTORE_DIR
 #   kitty install   Install launchd plists so the stack auto-starts on reboot
 #   kitty uninstall Remove launchd plists
 #   kitty run-fg    Run gateway in foreground (for debugging)
@@ -210,6 +212,14 @@ cmd_logs() {
     echo "No log files yet — run: kitty up"
 }
 
+cmd_backup() {
+  "$PYTHON_BIN" "$KITTY_ROOT/scripts/kitty_backup.py" backup "$@"
+}
+
+cmd_restore_drill() {
+  "$PYTHON_BIN" "$KITTY_ROOT/scripts/kitty_backup.py" restore-drill "$@"
+}
+
 cmd_install() {
   ensure_gateway_secret
   LAUNCH_AGENTS="$HOME/Library/LaunchAgents"
@@ -262,6 +272,8 @@ case "${1:-help}" in
   status)    cmd_status ;;
   doctor)    shift; cmd_doctor "$@" ;;
   logs)      cmd_logs ;;
+  backup)    shift; cmd_backup "$@" ;;
+  restore-drill) shift; cmd_restore_drill "$@" ;;
   install)   cmd_install ;;
   uninstall) cmd_uninstall ;;
   run-fg)    cmd_run_fg ;;

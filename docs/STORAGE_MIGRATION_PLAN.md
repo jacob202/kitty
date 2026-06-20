@@ -93,3 +93,19 @@ seam for writes, and storage errors propagate from the underlying store.
 
 Tests are local-substitutable per DEEPENING.md category 2. The interface is
 the test surface; adapter internals are not.
+
+## Backup Drill (Phase 5 - shipped)
+
+`./kitty backup` snapshots app-owned state from `data/kitty/` into
+`data/backups/kitty/<timestamp>/`. SQLite `.db` files are copied through
+SQLite's backup API; other files and directories are copied directly. The
+command writes `backup_manifest.json` with the source path and copied file
+names.
+
+`./kitty restore-drill BACKUP_DIR RESTORE_DIR` copies a backup into a new target
+directory so restore behavior can be verified without touching live data. It
+fails if the backup path is missing or the restore target already exists.
+
+This does not back up `data/inbox.jsonl`, ChromaDB, mem0, logs, traces, or raw
+knowledge stores. Those remain outside the Phase B app-owned SQLite story until
+a later explicit backup policy includes them.

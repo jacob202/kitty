@@ -7,7 +7,7 @@
 
 ## What This Branch Is Doing
 
-Preparing Kitty for Phase B by consolidating canonical docs, adding an agent wrap-up loop, and landing the first storage slices. It has not migrated chats, journal, memory, ChromaDB, mem0, or broad user-facing episodic data. Todos are the first B3 seam and now write through the Phase B Kitty DB with copy-only legacy import. B4 has started with a thin write-side storage router for todo and plugin mutations.
+Preparing Kitty for Phase B by consolidating canonical docs, adding an agent wrap-up loop, and landing the first storage slices. It has not migrated chats, journal, memory, ChromaDB, mem0, or broad user-facing episodic data. Todos are the first B3 seam and now write through the Phase B Kitty DB with copy-only legacy import. B4 has a thin write-side storage router for todo and plugin mutations. B5 has a local backup/restore drill for `data/kitty/`.
 
 ## Important Context
 
@@ -40,7 +40,11 @@ Preparing Kitty for Phase B by consolidating canonical docs, adding an agent wra
 - `gateway/todo_store.py`
 - `gateway/routes/extended.py`
 - `gateway/routes/integrations.py`
+- `scripts/kitty_backup.py`
+- `kitty`
 - `tests/test_db.py`
+- `tests/test_kitty_backup.py`
+- `tests/test_kitty_launcher.py`
 - `tests/test_plugin_registry.py`
 - `tests/test_storage_router.py`
 - `tests/test_todo_store.py`
@@ -78,19 +82,20 @@ Latest local verification:
 - `python3.12 -m pytest tests/test_plugin_registry.py -q --tb=short` passed: 3 tests.
 - `python3.12 -m pytest tests/test_todo_store.py tests/test_db.py tests/test_plugin_registry.py -q --tb=short` passed: 29 tests.
 - `python3.12 -m pytest tests/test_storage_router.py tests/test_todo_store.py tests/test_plugin_registry.py -q --tb=short` passed: 35 tests.
+- `python3.12 -m pytest tests/test_kitty_backup.py tests/test_kitty_launcher.py -q --tb=short` passed: 11 tests.
 - `make agent-wrap` created `.agent/session_logs/20260620T012911Z-handoff.md`; generated logs are ignored.
-- `python3.12 -m pytest tests/ -q --tb=short` passed: 564 passed, 2 deselected, 3 warnings.
+- `python3.12 -m pytest tests/ -q --tb=short` passed: 571 passed, 2 deselected, 3 warnings.
 
 ## Known Open Work
 
 - `codex/raycast-quick-capture` has useful unmerged Raycast wrapper work at `5a07744`.
 - Older stashes remain for LLM routing and memory graph experiments; do not drop them without review.
 - Pre-commit has an unreachable code-review-graph block after `exit 0`; fix separately if tooling cleanup resumes.
-- Phase B B4 has started with a thin write-side router. Do not migrate chats or journal without an explicit compatibility and rollback plan.
+- Phase B B5 has a local `data/kitty/` backup drill. Do not migrate chats or journal without an explicit compatibility and rollback plan.
 
 ## Next Implementation Prompt
 
-Review and commit the B4 storage router seam, then choose the next user-facing store deliberately. Prefer another small seam or compatibility wrapper before migrating chats or journal data.
+Review and commit the B5 backup drill, then choose the next user-facing store deliberately. Prefer another small seam or compatibility wrapper before migrating chats or journal data.
 
 ## Source-of-Truth Audit (2026-06-20)
 
