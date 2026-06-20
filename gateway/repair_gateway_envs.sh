@@ -3,7 +3,7 @@ set -euo pipefail
 
 OPENWEBUI_VENV="${OPENWEBUI_VENV:-$HOME/kitty-services/venv}"
 LITELLM_VENV="${LITELLM_VENV:-$HOME/kitty-services/venv-litellm}"
-ROOT_DIR="/Users/jacobbrizinski/Projects/kitty"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 echo "Using existing OpenWebUI venv: ${OPENWEBUI_VENV}"
 if [[ ! -x "${OPENWEBUI_VENV}/bin/open-webui" ]]; then

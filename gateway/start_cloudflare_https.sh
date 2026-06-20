@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-ROOT_DIR="/Users/jacobbrizinski/Projects/kitty"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOG_DIR="${ROOT_DIR}/logs/kitty_gateway"
 RUN_DIR="${ROOT_DIR}/kitty_gateway/.run"
 TARGET_URL="${CF_TUNNEL_TARGET_URL:-http://127.0.0.1:3000}"
