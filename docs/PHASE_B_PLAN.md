@@ -54,6 +54,8 @@ Status 2026-06-20: started with todos because they were already isolated behind 
 - Do not hide write failures.
 - Route modules should stop importing store internals directly as they migrate.
 
+Status 2026-06-20: implemented a deliberately thin `gateway/storage_router.py` seam for todo mutations and plugin enable/disable. `gateway/routes/extended.py` and `gateway/routes/integrations.py` now use the seam for those writes. Reads remain direct.
+
 ### B5 - Backup And Restore Drill
 
 - Add a local backup command for `data/kitty/`.

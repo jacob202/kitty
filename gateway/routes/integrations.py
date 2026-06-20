@@ -60,9 +60,9 @@ async def plugins_list():
 
 @router.post("/plugin/{name}/enable")
 async def plugin_enable(name: str):
-    from gateway.plugin_registry import enable
+    from gateway.storage_router import enable_plugin
 
-    ok = enable(name)
+    ok = enable_plugin(name)
     if not ok:
         raise HTTPException(status_code=404, detail=f"Plugin not found: {name}")
     return {"plugin": name, "enabled": True}
@@ -70,9 +70,9 @@ async def plugin_enable(name: str):
 
 @router.post("/plugin/{name}/disable")
 async def plugin_disable(name: str):
-    from gateway.plugin_registry import disable
+    from gateway.storage_router import disable_plugin
 
-    ok = disable(name)
+    ok = disable_plugin(name)
     if not ok:
         raise HTTPException(status_code=404, detail=f"Plugin not found: {name}")
     return {"plugin": name, "enabled": False}

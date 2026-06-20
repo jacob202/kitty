@@ -7,7 +7,7 @@
 
 ## Current Product State
 
-Kitty is a local-first companion with a FastAPI gateway, LiteLLM proxy, and Next.js UI. Phase A cleanup mostly landed. Quick Capture exists and writes mobile-compatible inbox entries. Inbox resurfacing exists through `memory_graph`. Phase B B1 has a SQLite migration seam, B2 migrated plugin settings behind the registry API, and B3 started with todos writing through the Phase B Kitty DB with copy-only legacy import. No chat or journal data has been migrated.
+Kitty is a local-first companion with a FastAPI gateway, LiteLLM proxy, and Next.js UI. Phase A cleanup mostly landed. Quick Capture exists and writes mobile-compatible inbox entries. Inbox resurfacing exists through `memory_graph`. Phase B B1 has a SQLite migration seam, B2 migrated plugin settings behind the registry API, B3 started with todos writing through the Phase B Kitty DB with copy-only legacy import, and B4 has a thin write-side storage router for todo and plugin mutations. No chat or journal data has been migrated.
 
 ## Current Priority
 
@@ -37,9 +37,10 @@ Prepare Phase B: one storage story and one agent/documentation story. Do not add
 - `python3.12 -m pytest tests/test_db.py -q --tb=short` passed: 4 tests.
 - `python3.12 -m pytest tests/test_plugin_registry.py -q --tb=short` passed: 3 tests.
 - `python3.12 -m pytest tests/test_todo_store.py tests/test_db.py tests/test_plugin_registry.py -q --tb=short` passed: 29 tests.
+- `python3.12 -m pytest tests/test_storage_router.py tests/test_todo_store.py tests/test_plugin_registry.py -q --tb=short` passed: 35 tests.
 - `make agent-wrap` created an ignored session log under `.agent/session_logs/`.
-- `python3.12 -m pytest tests/ -q --tb=short` passed: 554 passed, 2 deselected, 3 warnings.
+- `python3.12 -m pytest tests/ -q --tb=short` passed: 564 passed, 2 deselected, 3 warnings.
 
 ## Next Best Step
 
-Review and commit the B3 todo seam, then choose the next user-facing store deliberately. Do not migrate chats or journal without an explicit compatibility and rollback plan.
+Review and commit the B4 storage router seam, then choose the next user-facing store deliberately. Do not migrate chats or journal without an explicit compatibility and rollback plan.

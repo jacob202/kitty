@@ -28,6 +28,10 @@ from gateway import plugin_registry, todo_store
 # --- Todos ---
 
 
+def replace_todos(items: list[dict]) -> list[dict]:
+    return todo_store.update(items)
+
+
 def add_todo(content: str, status: str = "pending", active_form: str = "") -> dict:
     return todo_store.add(content, status=status, active_form=active_form)
 

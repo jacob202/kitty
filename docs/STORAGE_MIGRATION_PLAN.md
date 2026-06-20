@@ -67,17 +67,29 @@ The seam work is layered. Each phase's output is the next phase's input.
 | 3 | First user-facing seam | Phase 2 | `todos` writes through `db.py`; old `data/todos.db` untouched |
 | 4 | `StorageRouter` port | Phase 3 | Write-side seam mirrors `memory_graph` for future stores |
 
-## StorageRouter Port (Phase 3 sketch)
+## StorageRouter Port (Phase 4 - shipped)
 
-The read side is `memory_graph` (D3). The write side has no equivalent — every writer imports its store directly. Phase 3 introduces a small port that mirrors the read seam.
+The read side is `memory_graph` (D3). The write side had no equivalent: every writer imported its store directly. Phase 4 introduces a small port that mirrors the read seam.
 
-| Operation | Mirrors | Adapter concern |
+**Public surface** (thin mutation wrappers):
+
+| Function | Purpose | Backend |
 |---|---|---|
-| `read(name, query)` | `memory_graph.search_all` | SQLite or JSONL |
-| `append(name, value)` | — | JSONL append; SQLite INSERT |
-| `write(name, value)` | — | SQLite upsert; JSON full-file rewrite |
-| `subscribe(name)` | — | Optional, only if B5 backup needs it |
+| `replace_todos(items)` | Replace the model-maintained todo list | `todo_store.update` |
+| `add_todo(content, status, active_form)` | Append one todo | `todo_store.add` |
+| `complete_todo(todo_id)` | Complete one todo by id | `todo_store.complete_by_id` |
+| `delete_todo(todo_id)` | Delete one todo by id | `todo_store.delete_by_id` |
+| `clear_todos()` | Remove all todos | `todo_store.clear` |
+| `enable_plugin(name)` / `disable_plugin(name)` | Toggle plugin settings | `plugin_registry` |
 
-Use `memory_graph.StoreAdapter` (`gateway/memory_graph.py:39`) as a template. Per-store adapters live behind the seam; the `desktop_store.append_inbox_entry(..., inbox_file: Path = INBOX_FILE)` pattern moves from per-call-site to per-store.
+The router is intentionally boring right now: no generic adapter registry, no
+new query language, and no hidden fallback behavior. Route handlers cross this
+seam for writes, and storage errors propagate from the underlying store.
 
-Tests are local-substitutable per DEEPENING.md category 2 (use `tmp_path` SQLite). The interface is the test surface; adapter internals are not.
+**Current route coverage:**
+
+- `gateway/routes/extended.py`: todo mutations use `storage_router`.
+- `gateway/routes/integrations.py`: plugin enable/disable use `storage_router`.
+
+Tests are local-substitutable per DEEPENING.md category 2. The interface is
+the test surface; adapter internals are not.

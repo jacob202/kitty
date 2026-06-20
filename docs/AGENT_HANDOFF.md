@@ -3,11 +3,11 @@
 **Date:** 2026-06-19 21:11 CST / 2026-06-20 03:11 UTC
 **Branch:** `codex/phase-b-prep`
 **Base:** `c6accd0`
-**HEAD:** `d39920f feat(storage): persist plugin settings in sqlite`
+**HEAD:** `742243c style: auto-format gateway/db.py and gateway/plugin_registry.py`
 
 ## What This Branch Is Doing
 
-Preparing Kitty for Phase B by consolidating canonical docs, adding an agent wrap-up loop, and landing the first storage slices. It has not migrated chats, journal, memory, ChromaDB, mem0, or broad user-facing episodic data. Todos are the first B3 seam and now write through the Phase B Kitty DB with copy-only legacy import.
+Preparing Kitty for Phase B by consolidating canonical docs, adding an agent wrap-up loop, and landing the first storage slices. It has not migrated chats, journal, memory, ChromaDB, mem0, or broad user-facing episodic data. Todos are the first B3 seam and now write through the Phase B Kitty DB with copy-only legacy import. B4 has started with a thin write-side storage router for todo and plugin mutations.
 
 ## Important Context
 
@@ -15,7 +15,7 @@ Preparing Kitty for Phase B by consolidating canonical docs, adding an agent wra
 - Ignore stale app context pointing to `/Users/jacobbrizinski/Documents/Kitty`.
 - Raycast wrapper work is preserved separately on `codex/raycast-quick-capture`.
 - Dirty roadmap hunk was preserved in stash `phase-b-prep preserve roadmap deepening drift`.
-- Latest local commit stack above `origin/main`: `0b44932` docs/agent handoff prep, `ca200f2` port text fix to `4000`, `a919901` SQLite foundation, `d39920f` plugin settings SQLite migration.
+- Latest local commit stack above `origin/main`: `0b44932` docs/agent handoff prep, `ca200f2` port text fix to `4000`, `a919901` SQLite foundation, `d39920f` plugin settings SQLite migration, `9fca1c0` todo SQLite seam, `742243c` db/plugin_registry formatting.
 
 ## Current Files Of Interest
 
@@ -36,9 +36,13 @@ Preparing Kitty for Phase B by consolidating canonical docs, adding an agent wra
 - `gateway/migrations/002_plugin_settings.sql`
 - `gateway/migrations/003_todos.sql`
 - `gateway/plugin_registry.py`
+- `gateway/storage_router.py`
 - `gateway/todo_store.py`
+- `gateway/routes/extended.py`
+- `gateway/routes/integrations.py`
 - `tests/test_db.py`
 - `tests/test_plugin_registry.py`
+- `tests/test_storage_router.py`
 - `tests/test_todo_store.py`
 - `scripts/agent_wrapup.py`
 
@@ -46,7 +50,9 @@ Preparing Kitty for Phase B by consolidating canonical docs, adding an agent wra
 
 ```text
 ## codex/phase-b-prep
-d39920f (HEAD -> codex/phase-b-prep) feat(storage): persist plugin settings in sqlite
+742243c (HEAD -> codex/phase-b-prep, origin/codex/phase-b-prep) style: auto-format gateway/db.py and gateway/plugin_registry.py
+9fca1c0 feat(storage): move todos behind kitty db seam
+d39920f feat(storage): persist plugin settings in sqlite
 a919901 feat(storage): add phase b sqlite foundation
 ca200f2 fix(launcher): point UI references to actual dev port 4000
 0b44932 docs(phase-b): consolidate prep and agent handoff
@@ -71,19 +77,20 @@ Latest local verification:
 - `python3.12 -m pytest tests/test_db.py -q --tb=short` passed: 4 tests.
 - `python3.12 -m pytest tests/test_plugin_registry.py -q --tb=short` passed: 3 tests.
 - `python3.12 -m pytest tests/test_todo_store.py tests/test_db.py tests/test_plugin_registry.py -q --tb=short` passed: 29 tests.
+- `python3.12 -m pytest tests/test_storage_router.py tests/test_todo_store.py tests/test_plugin_registry.py -q --tb=short` passed: 35 tests.
 - `make agent-wrap` created `.agent/session_logs/20260620T012911Z-handoff.md`; generated logs are ignored.
-- `python3.12 -m pytest tests/ -q --tb=short` passed: 554 passed, 2 deselected, 3 warnings.
+- `python3.12 -m pytest tests/ -q --tb=short` passed: 564 passed, 2 deselected, 3 warnings.
 
 ## Known Open Work
 
 - `codex/raycast-quick-capture` has useful unmerged Raycast wrapper work at `5a07744`.
 - Older stashes remain for LLM routing and memory graph experiments; do not drop them without review.
 - Pre-commit has an unreachable code-review-graph block after `exit 0`; fix separately if tooling cleanup resumes.
-- Phase B B3 has started with the narrow todo seam. Do not migrate chats or journal without an explicit compatibility and rollback plan.
+- Phase B B4 has started with a thin write-side router. Do not migrate chats or journal without an explicit compatibility and rollback plan.
 
 ## Next Implementation Prompt
 
-Review and commit the B3 todo seam, then choose the next user-facing store deliberately. Prefer another small seam or compatibility wrapper before migrating chats or journal data.
+Review and commit the B4 storage router seam, then choose the next user-facing store deliberately. Prefer another small seam or compatibility wrapper before migrating chats or journal data.
 
 ## Source-of-Truth Audit (2026-06-20)
 
