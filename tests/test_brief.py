@@ -194,60 +194,110 @@ def test_calendar_today_text_sync_formats_events():
 
 
 def test_detect_research_themes_returns_list():
-    """detect_research_themes returns a list of theme dicts."""
+    """detect_research_themes returns a list of theme dicts from journal."""
     import gateway.brief as b
 
-    with patch("gateway.memory_graph.search_all", new=MagicMock(return_value={})):
-        with patch("gateway.brief.asyncio.run", side_effect=lambda coro: {}):
-            result = b.detect_research_themes(limit=5)
+    fake_entries = [
+        {"ts": 1.0, "entry": "Spent the morning on authentication systems for the new gateway."},
+        {"ts": 2.0, "entry": "More authentication systems work, plus a bit of performance optimization."},
+    ]
+    with patch("gateway.brief.recent_entries", return_value=fake_entries):
+        result = b.detect_research_themes(limit=5)
     assert isinstance(result, list)
     assert len(result) > 0
     assert "theme" in result[0]
     assert "mentions" in result[0]
-    assert "confidence" in result[0]
+    assert "source" in result[0]
+    assert result[0]["source"] == "journal"
 
 
 def test_detect_research_themes_extracts_keywords():
-    """detect_research_themes extracts multi-word themes from content."""
+    """detect_research_themes extracts multi-word themes from journal entries."""
     import gateway.brief as b
 
-    mock_result = {
-        "chats": [
-            {"content": "I'm learning about authentication systems"},
-            {"content": "performance optimization is key"},
-        ]
-    }
-    with patch("gateway.memory_graph.search_all", new=MagicMock(return_value=mock_result)):
-        with patch("gateway.brief.asyncio.run", side_effect=lambda coro: mock_result):
-            result = b.detect_research_themes(limit=5)
+    fake_entries = [
+        {"ts": 1.0, "entry": "I'm learning about authentication systems"},
+        {"ts": 2.0, "entry": "performance optimization is key for this project"},
+    ]
+    with patch("gateway.brief.recent_entries", return_value=fake_entries):
+        result = b.detect_research_themes(limit=5)
     assert len(result) > 0
-    # Themes should include extracted keywords
     theme_strings = [t["theme"] for t in result]
-    assert any("authentication" in t or "systems" in t for t in theme_strings)
+    assert any("authentication" in t for t in theme_strings)
 
 
-def test_detect_research_themes_handles_empty_memory():
-    """detect_research_themes gracefully handles empty memory."""
+def test_detect_research_themes_handles_empty_journal():
+    """detect_research_themes returns [] when the journal is empty."""
     import gateway.brief as b
 
-    with patch("gateway.memory_graph.search_all", new=MagicMock(return_value={})):
-        with patch("gateway.brief.asyncio.run", side_effect=lambda coro: {}):
-            result = b.detect_research_themes()
-    assert isinstance(result, list)
-    assert len(result) > 0
-    # Should return fallback theme
-    assert result[0]["theme"] == "general knowledge"
+    with patch("gateway.brief.recent_entries", return_value=[]):
+        result = b.detect_research_themes()
+    assert result == []
 
 
 def test_detect_research_themes_handles_exception():
-    """detect_research_themes returns fallback on any exception."""
+    """detect_research_themes returns [] when the journal raises."""
     import gateway.brief as b
 
-    with patch("gateway.memory_graph.search_all", side_effect=Exception("network error")):
-        with patch("gateway.brief.asyncio.run", side_effect=Exception("async error")):
-            result = b.detect_research_themes()
-    assert isinstance(result, list)
-    assert result[0]["theme"] == "general knowledge"
+    with patch("gateway.brief.recent_entries", side_effect=Exception("disk error")):
+        result = b.detect_research_themes()
+    assert result == []
+
+
+def test_detect_research_themes_filters_stopwords():
+    """detect_research_themes does not surface common words as themes."""
+    import gateway.brief as b
+
+    fake_entries = [
+        {"ts": 1.0, "entry": "the and for with that this have from are was but"},
+        {"ts": 2.0, "entry": "authentication systems and storage routers"},
+    ]
+    with patch("gateway.brief.recent_entries", return_value=fake_entries):
+        result = b.detect_research_themes(limit=10)
+    theme_strings = {t["theme"] for t in result}
+    assert "authentication systems" in theme_strings
+    assert "storage routers" in theme_strings
+    for stop in ("the and", "and for", "for with", "with that", "but not", "are was"):
+        assert stop not in theme_strings
+
+
+def test_detect_research_themes_integration_with_real_journal(tmp_path, monkeypatch):
+    """Integration: real recent_entries + real detect_research_themes, no mocks.
+
+    This is the test that proves the function does not fall back to a
+    fabricated "general knowledge" theme when there is no signal. If
+    you see "general knowledge" surface here, the empty-state
+    contract is broken (issue #30).
+    """
+    import json
+
+    from gateway import brief, journal
+
+    log = tmp_path / "journal_entries.jsonl"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    with log.open("w") as f:
+        f.write(json.dumps({"ts": 1.0, "entry": "old, irrelevant entry"}) + "\n")
+    monkeypatch.setattr(journal, "JOURNAL_LOG", log)
+    monkeypatch.setattr(brief, "recent_entries", journal.recent_entries)
+
+    result = brief.detect_research_themes(lookback_days=14, limit=5)
+    assert result == []
+
+
+def test_synthesize_brief_skips_theme_section_when_themes_empty():
+    """When no themes are detected, the prompt must not claim Jacob has been working on anything."""
+    import gateway.brief as b
+    from contracts.brief_item import NewsHeadline
+
+    headlines = [NewsHeadline(title="OAuth news", url="http://x", snippet="")]
+    with patch("gateway.context_enrichment.calendar_today_text_sync", return_value=""), \
+         patch("gateway.context_enrichment.weather_text_sync", return_value=""), \
+         patch("gateway.context_enrichment.todos_text_sync", return_value=""), \
+         patch("gateway.llm_client.chat", side_effect=lambda **kwargs: kwargs["messages"][0]["content"]):
+        prompt = b.synthesize_brief_with_llm(headlines, "Task", "Memory", themes=[], novelty={})
+
+    assert "YOUR RESEARCH INTERESTS" not in prompt
+    assert "general knowledge" not in prompt
 
 
 def test_rank_headlines_by_relevance_prioritizes_matches():

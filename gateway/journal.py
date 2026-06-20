@@ -268,3 +268,35 @@ def search_entries(query: str, limit: int = 5) -> list[dict]:
     except Exception as e:
         logger.warning("Journal search failed: %s", e)
         return []
+
+
+def recent_entries(days: int = 14, limit: int = 20) -> list[dict]:
+    """Return the most recent journal entries within the last `days` days.
+
+    Used by the brief-context-shaping theme detector. Newest first.
+    Returns [] if the journal is empty, the log file is missing, or any
+    read error occurs. Failures are logged but never raised — the brief
+    is best-effort, and the caller treats [] as "no themes detected."
+    """
+    try:
+        if not JOURNAL_LOG.exists():
+            return []
+        cutoff = time.time() - (days * 86400)
+        entries: list[dict] = []
+        with JOURNAL_LOG.open("r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                ts = entry.get("ts", 0)
+                if ts >= cutoff:
+                    entries.append(entry)
+        entries.sort(key=lambda e: e.get("ts", 0), reverse=True)
+        return entries[:limit]
+    except Exception as e:
+        logger.warning("Journal recent-entries failed: %s", e)
+        return []

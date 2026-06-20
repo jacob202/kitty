@@ -46,17 +46,40 @@ Prepare Phase B: one storage story and one agent/documentation story. Do not add
 
 Review and commit the B5 backup drill, then choose the next user-facing store deliberately. Do not migrate chats or journal without an explicit compatibility and rollback plan.
 
-## Runtime Check (verified 2026-06-20)
+## Runtime Check (verified 2026-06-20, two states)
 
-Checked current runtime state without running `./kitty up`, because `up` may
-generate or append gateway secrets in `.env`.
+**State 1 — services down** (initial, before `./kitty up`):
 
 - `./kitty status` -> gateway not running, LiteLLM not running.
 - `./kitty doctor --json` -> 7 PASS / 1 WARN / 2 FAIL.
-- PASS includes `env:.env`, `env:gateway_secret`, `env:llm_key`, `runtime:venv`, ChromaDB path, mem0 local mode, and disk space.
-- WARN is `env:telegram_token` not set, expected if Telegram is disabled.
-- FAIL is `service:gateway` unreachable at `http://127.0.0.1:8000/health` and `service:litellm` unreachable at `http://127.0.0.1:8001/health/readiness`.
+- FAIL is `service:gateway` and `service:litellm` unreachable.
 
-The launcher defaults are still gateway `8000` and LiteLLM `8001`. Do not claim
-a green runtime baseline until `./kitty up` is explicitly allowed and the live
-service checks are rerun.
+**State 2 — services up** (after `./kitty up`):
+
+- `./kitty up` -> both processes start; gateway binds 127.0.0.1:8000, LiteLLM binds 127.0.0.1:8001.
+- `./kitty doctor --json` -> **9 PASS / 1 WARN / 0 FAIL** (the 1 WARN is `env:telegram_token` not set, expected).
+- `curl http://127.0.0.1:8000/health` -> HTTP 200 in 0.10s.
+- `curl http://127.0.0.1:8001/health/readiness` -> HTTP 200 in 0.10s.
+- Authenticated: `GET /todos` and `GET /plugins` return real data.
+- **End-to-end through B3+B4 (storage_router):** `POST /todos/add` returns a new id, the row persists in `data/kitty/kitty.db` (`sqlite3` confirms it), `DELETE /todos/{id}` removes it.
+- `./kitty down` -> both processes stop cleanly.
+
+**Port state:** the runtime is on **8000/8001** (the launcher's defaults — `GATEWAY_PORT` and `LITELLM_PORT` are not set in `.env` or `.env.example`). The historical port-mismatch (older docs saying 5001) is **resolved** in the current state: `docs/ARCHITECTURE.md` says 8000, `.env.example` says 8000, the Next.js proxy at `gateway/kitty-chat/src/app/proxy/[...path]/route.ts` defaults to 8000, and `CLAUDE.md` does not name a port number. The 5001 references that remain are:
+- Historical archive (`docs/DECISIONS_AND_ROADMAP.md`, `docs/LESSONS.md`, the Phase 1 evidence docs) — correct to keep as history
+- `docs/KITTY_HUB.md` — a separate FastAPI service ("kitty hub") on its own 5001, unrelated to the main gateway
+- One unit test (`tests/test_doctor.py:29`) uses 5001 as a test input value for URL building; harmless and orthogonal
+- A historical `DESKTOP_PHASE_1_HARD_CRITIC_REVIEW.md` note that flagged the proxy default; the code has since been fixed to 8000
+
+If you ever want the runtime to bind 5001, set `GATEWAY_PORT=5001` in `.env` and the launcher will use it; current code does not need it.
+
+**External service note:** the gateway logs `Embedding batch failed at index 0: HTTPConnectionPool(host='localhost', port='11434'): Connection refused` on every startup — that's the local ollama embed service. It is not required for the gateway to start, but `memory_graph.unified_context()` falls back to no-embeddings when it's down. The morning brief still works (it uses RSS feeds, not embeddings). If you want embeddings to work, start ollama locally on 11434.
+
+## Issue #30 fix (verified 2026-06-20)
+
+Closed the brief-context-shaping follow-up from issue #30 in one commit:
+
+- **Real theme source:** `detect_research_themes()` now reads from `journal.recent_entries(days=14)` and ranks bigrams by mention count. Replaces the old `search_all("research learning pattern")` heuristic. Each returned theme has `{"theme", "mentions", "source": "journal"}`.
+- **Honest empty state:** when journal has no recent entries, the function returns `[]` instead of the fabricated `[{"theme": "general knowledge", ...}]` fallback. `synthesize_brief_with_llm` skips the "YOUR RESEARCH INTERESTS" prompt section when `themes == []`, so the LLM no longer gets told Jacob is working on "general knowledge."
+- **asyncio refactor:** introduced a module-level `_run_async(coro)` helper in `gateway/brief.py` and routed the one remaining `asyncio.run` call (`_fetch_memory_snippet`) through it. The original two call-site refactor the issue called for collapses to one call site now that `detect_research_themes` is sync.
+- **Integration test:** `test_detect_research_themes_integration_with_real_journal` exercises real `journal.recent_entries` against a temp `journal_entries.jsonl` and asserts `[]` on empty — proves the "no fake fallback" contract.
+- **Test count:** 6 new brief tests (27 brief total, up from 21). Full suite: **586 passed, 2 deselected, 4 warnings**.
