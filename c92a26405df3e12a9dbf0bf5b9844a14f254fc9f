@@ -1,0 +1,23 @@
+Scope correction: this commit bundles three uncommitted workstreams into
+one because codex (running in parallel) auto-committed the working tree.
+
+Actual content in this commit:
+  1. FastAPI exception handler for KittyError (gateway/app.py + handler
+     test). Migrated 3 HTTPException raises in gateway/routes/journal.py
+     to ValidationError / StorageNotFound as a worked example.
+  2. Prompt extraction (Lane E second half). gateway/prompts.py catalog
+     of JOURNAL_INTERVIEW_PROMPT, JOURNAL_SYNTHESIS_PROMPT,
+     PARTS_COUNCIL_PROMPT, INVENTORY_PHOTO_PROMPT. journal.py / parts.py
+     / inventory.py updated to import from gateway.prompts.
+  3. D9 #1 progress: deleted 6 module-level shims in memory_graph.py
+     (verified no external importers). DECISIONS_AND_ROADMAP.md updated
+     to reflect partial state.
+  4. .agent/stash_audit.md — audit of all 15 stashes with proposed
+     action; per AGENTS.md no stashes were dropped.
+  5. .kitty/checkpoints/ cleanup and a few .claude/ skill housekeeping
+     edits made by codex during its auto-commit pass.
+
+The headline message ("chats_store") refers to the codex-driven chats
+table work that landed in 9f6a6b4. The 633 → 642 test increase is
+accounted for by the 4 handler tests + 8 prompt tests + 9 chats_store
+tests added in this commit.
