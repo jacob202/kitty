@@ -12,13 +12,32 @@ Public API:
   list_entries(limit=50, theme=None) -> list[dict]
       Newest first. Optional theme filter.
 
+  list_recent(days=14, limit=20) -> list[dict]
+      Newer than `days` ago, newest first. Used by the brief.
+
+  search(query, limit=5) -> list[dict]
+      Keyword search. Each result carries an `_score`.
+
   count_entries(theme=None) -> int
       Total entries, optionally filtered by theme.
 
+  delete_entry(ts, session_id=None) -> bool
+      Remove one entry by ts (and optional session_id). True if a row was
+      deleted.
+
 Legacy import: on first access, if data/journal_entries.jsonl exists
 and the table is empty, the JSONL contents are imported. The JSONL
-file is never deleted. The import marker is stored in app_settings key
-'journal_legacy_imported'.
+file is never deleted. The import marker is stored in app_settings
+key 'journal_legacy_imported'.
+
+Rollback (documented escape hatch): if the SQLite layer needs to be
+abandoned, the JSONL file is still the source of truth. To roll back:
+  1. DROP TABLE journal_entries;
+  2. DELETE FROM app_settings WHERE key = 'journal_legacy_imported';
+  3. DELETE FROM schema_migrations WHERE name = '005_journal_entries.sql';
+  4. Re-run the gateway; migrate re-applies 005_journal_entries.sql,
+     then the import rebuilds the table from the JSONL file.
+This is verified by TestLegacyImport.test_rollback_re_imports_from_intact_jsonl.
 """
 from __future__ import annotations
 

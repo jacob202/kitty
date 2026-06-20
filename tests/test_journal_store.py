@@ -149,3 +149,42 @@ class TestLegacyImport:
 
         with pytest.raises(RuntimeError, match="Legacy journal import failed"):
             journal_store.list_entries()
+
+    def test_rollback_re_imports_from_intact_jsonl(self, tmp_path):
+        """Phase C B6: if the journal_entries table is lost, re-import from JSONL rebuilds it.
+
+        Documents the escape hatch: drop the table + clear both markers, the
+        next read re-runs the migration and the import rebuilds the table from
+        the JSONL file. The JSONL file is the source of truth.
+        """
+        import sqlite3
+
+        legacy = tmp_path / "journal_entries.jsonl"
+        legacy.parent.mkdir(parents=True, exist_ok=True)
+        legacy.write_text(
+            json.dumps({"ts": 1.0, "theme": "work", "entry": "from jsonl"})
+            + "\n",
+            encoding="utf-8",
+        )
+
+        # First import populates the table.
+        first = journal_store.list_entries()
+        assert first[0]["entry"] == "from jsonl"
+
+        # Simulate rollback: drop the table, clear the import marker, and
+        # clear the migration marker so migrate re-applies 005_journal_entries.sql.
+        with sqlite3.connect(journal_store.JOURNAL_DB_FILE) as conn:
+            conn.execute("DROP TABLE journal_entries")
+            conn.execute(
+                "DELETE FROM app_settings WHERE key = ?",
+                (journal_store.LEGACY_IMPORT_SETTING,),
+            )
+            conn.execute(
+                "DELETE FROM schema_migrations WHERE name = '005_journal_entries.sql'"
+            )
+            conn.commit()
+
+        # Re-import rebuilds the table from the still-intact JSONL file.
+        rebuilt = journal_store.list_entries()
+
+        assert rebuilt[0]["entry"] == "from jsonl"
