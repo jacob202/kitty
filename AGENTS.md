@@ -1,32 +1,36 @@
 # Repository Guidelines
 
-## Project Structure & Module Organization
+## Prime Directive
 
-Kitty is a local-first personal AI assistant centered on a Python FastAPI gateway and a Next.js chat UI. Core backend code lives in `gateway/`, with routes in `gateway/routes/`, service utilities in `gateway/lib/`, and launch helpers around `./kitty`. The primary web UI is `gateway/kitty-chat/`; treat older UI directories as non-canonical unless current docs say otherwise. Tests live in `tests/`; product and architecture notes live in `docs/`. Runtime data and logs belong under `data/` and `logs/` and should not be committed.
+Fail loud, never mask. Raise errors with clear causes; do not swallow exceptions, return fake defaults, or add silent fallbacks. External calls may retry with a visible warning, then must raise the real error with useful context.
 
-## Build, Test, and Development Commands
+## Project Structure
 
-- `./kitty install`: install local launchd services for the gateway and LiteLLM.
-- `./kitty start`: start Kitty services.
-- `./kitty status`: show service status and health.
-- `./kitty doctor --json`: run operational checks and report warnings/failures.
-- `python3.12 -m pytest tests/ -q --tb=short`: run the default Python test slice.
-- `cd gateway/kitty-chat && npm run dev`: run the chat UI on `127.0.0.1:4000`.
+Kitty is a local-first personal AI companion. Backend code lives in `gateway/`, with FastAPI routes under `gateway/routes/` and path constants in `gateway/paths.py`. The main UI is `gateway/kitty-chat/` (Next.js). Tests live in `tests/`. Product, architecture, and planning docs live in `docs/`. Runtime data and logs live in `data/` and `logs/` and must not be committed.
+
+## Commands
+
+- `./kitty up`: start Gateway and LiteLLM locally.
+- `./kitty down`: stop local services.
+- `./kitty status`: show process and health status.
+- `./kitty doctor --json`: run preflight checks.
+- `python3.12 -m pytest tests/ -q --tb=short`: run the default Python suite.
 - `cd gateway/kitty-chat && npm run build`: verify the production UI build.
-- `cd gateway/kitty-chat && npm test`: run Vitest frontend tests.
+- `cd gateway/kitty-chat && npm test`: run frontend tests.
+- `make agent-wrap`: write a session wrap-up template to `.agent/session_logs/`.
 
-## Coding Style & Naming Conventions
+## Style
 
-Follow surrounding style before introducing new patterns. Python uses 4-space indentation, typed helpers where useful, and small route/service functions with explicit error handling. TypeScript/React uses functional components, clear prop names, and colocated helpers under `src/`. Name Python tests `test_*.py`; place React tests near the feature they cover. Keep comments rare and explanatory.
+Match the existing file before introducing new patterns. Python uses 4-space indentation, explicit errors, and small readable functions. TypeScript/React uses functional components and clear prop names. Comment the why, not the obvious what. Keep diffs focused; do not reformat unrelated code.
 
-## Testing Guidelines
+## Testing
 
-Pytest is configured in `pytest.ini`; the default run excludes slow browser, merge-gate, and integration markers. Use targeted tests while developing, then run the default suite before pushing. For UI changes, run `npm test` and `npm run build` in `gateway/kitty-chat/`. If you touch launch, auth, ports, or env loading, also run `./kitty status` and `./kitty doctor --json`.
+Use targeted tests while developing, then run the relevant full slice before claiming completion. UI changes need `npm test` and `npm run build` in `gateway/kitty-chat/`. Launch, auth, port, or env changes also need `./kitty status` and `./kitty doctor --json`.
 
-## Commit & Pull Request Guidelines
+## Git and PRs
 
-Recent history uses conventional-style subjects such as `fix(phase-a): ...`, `test(doctor): ...`, and `chore(phase-a): ...`. Keep commits focused on one concern. PRs should explain the user-facing change, list verification, mention skipped checks, and link related roadmap or issue context. Include screenshots or recordings for visible UI changes.
+Use small Conventional Commit messages such as `fix(auth): fail closed`. Never push, force-push, rewrite history, delete files, touch secrets/auth/payments/env, or add heavy dependencies without explicit confirmation. PRs should state user-facing impact, verification, skipped checks, and screenshots for visible UI changes.
 
-## Security & Configuration Tips
+## Agent Rules
 
-Never print or commit `.env` values, API keys, launchd secrets, `data/`, or local logs. Gateway auth should fail closed when secrets are missing. Treat localhost as exposed to other local processes; preserve bearer-token checks and host validation when changing routes.
+Before multi-file work, give a short plan. Prefer editing existing files over creating new structure. Use `docs/PROJECT_STATUS.md`, `docs/DECISIONS.md`, `docs/LEARNINGS.md`, and `docs/AGENT_HANDOFF.md` as the current sources of truth.

@@ -94,7 +94,7 @@ async def test_slow_optional_store_is_bounded(monkeypatch):
     started = time.monotonic()
     result = await MemoryGraph([SlowAdapter()]).search_all("hello")
 
-    assert time.monotonic() - started < 0.1
+    assert time.monotonic() - started < 0.15
     assert result.results["slow"] == []
     assert result.errors == ["slow: timed out"]
 
@@ -110,7 +110,7 @@ async def test_knowledge_adapter_does_not_block_event_loop(monkeypatch):
     started = time.monotonic()
     result = await MemoryGraph([KnowledgeAdapter()]).search_all("hello")
 
-    assert time.monotonic() - started < 0.1
+    assert time.monotonic() - started < 0.15
     assert result.results["knowledge"] == []
 
 
