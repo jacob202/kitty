@@ -1,12 +1,13 @@
 # Agent Handoff
 
-**Date:** 2026-06-20
+**Date:** 2026-06-19 21:11 CST / 2026-06-20 03:11 UTC
 **Branch:** `codex/phase-b-prep`
 **Base:** `c6accd0`
+**HEAD:** `d39920f feat(storage): persist plugin settings in sqlite`
 
 ## What This Branch Is Doing
 
-Preparing Kitty for Phase B by consolidating canonical docs and adding an agent wrap-up loop. It is intentionally not refactoring app runtime code.
+Preparing Kitty for Phase B by consolidating canonical docs, adding an agent wrap-up loop, and landing the first two storage slices. It has not migrated chats, todos, journal, memory, ChromaDB, mem0, or user-facing episodic data.
 
 ## Important Context
 
@@ -14,6 +15,7 @@ Preparing Kitty for Phase B by consolidating canonical docs and adding an agent 
 - Ignore stale app context pointing to `/Users/jacobbrizinski/Documents/Kitty`.
 - Raycast wrapper work is preserved separately on `codex/raycast-quick-capture`.
 - Dirty roadmap hunk was preserved in stash `phase-b-prep preserve roadmap deepening drift`.
+- Latest local commit stack above `origin/main`: `0b44932` docs/agent handoff prep, `ca200f2` port text fix to `4000`, `a919901` SQLite foundation, `d39920f` plugin settings SQLite migration.
 
 ## Current Files Of Interest
 
@@ -37,6 +39,19 @@ Preparing Kitty for Phase B by consolidating canonical docs and adding an agent 
 - `tests/test_plugin_registry.py`
 - `scripts/agent_wrapup.py`
 
+## Current Git State
+
+```text
+## codex/phase-b-prep
+d39920f (HEAD -> codex/phase-b-prep) feat(storage): persist plugin settings in sqlite
+a919901 feat(storage): add phase b sqlite foundation
+ca200f2 fix(launcher): point UI references to actual dev port 4000
+0b44932 docs(phase-b): consolidate prep and agent handoff
+c6accd0 (origin/main, origin/HEAD, main) fix: repair broken-merge state on main (scrambled doctor.py + duplicated port) (#25)
+```
+
+Generated wrap-up logs under `.agent/session_logs/*.md` are ignored. Do not commit those generated logs unless Jacob explicitly asks.
+
 ## Verification To Run Before Commit
 
 ```bash
@@ -54,6 +69,13 @@ Latest local verification:
 - `python3.12 -m pytest tests/test_plugin_registry.py -q --tb=short` passed: 3 tests.
 - `make agent-wrap` created `.agent/session_logs/20260620T012911Z-handoff.md`; generated logs are ignored.
 - `python3.12 -m pytest tests/ -q --tb=short` passed: 551 passed, 2 deselected, 3 warnings.
+
+## Known Open Work
+
+- `codex/raycast-quick-capture` has useful unmerged Raycast wrapper work at `5a07744`.
+- Older stashes remain for LLM routing and memory graph experiments; do not drop them without review.
+- Pre-commit has an unreachable code-review-graph block after `exit 0`; fix separately if tooling cleanup resumes.
+- Phase B B3 is the first risky storage step because it touches user-facing stores. Do not migrate chats/todos/journal without an explicit compatibility and rollback plan.
 
 ## Next Implementation Prompt
 
