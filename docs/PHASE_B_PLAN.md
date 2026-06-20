@@ -38,6 +38,8 @@ Status 2026-06-20: implemented with `gateway/db.py`, `gateway/migrations/001_fou
 - Keep the public route/API unchanged.
 - Add an import/backup path that never deletes the old file automatically.
 
+Status 2026-06-20: plugin settings now persist through `gateway/db.py` and plugin settings migration `002`. The old `data/plugin_settings.json` file is imported and mirrored for compatibility with `gateway/sync.py`; it is not deleted.
+
 ### B3 - User-Facing Episodic Stores
 
 - Migrate chats, todos, loops, nudges, and buddy state only after B2 proves the seam.

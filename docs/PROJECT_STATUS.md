@@ -7,7 +7,7 @@
 
 ## Current Product State
 
-Kitty is a local-first companion with a FastAPI gateway, LiteLLM proxy, and Next.js UI. Phase A cleanup mostly landed. Quick Capture exists and writes mobile-compatible inbox entries. Inbox resurfacing exists through `memory_graph`.
+Kitty is a local-first companion with a FastAPI gateway, LiteLLM proxy, and Next.js UI. Phase A cleanup mostly landed. Quick Capture exists and writes mobile-compatible inbox entries. Inbox resurfacing exists through `memory_graph`. Phase B B1 has a SQLite migration seam, and B2 migrated plugin settings behind the registry API. No chat/todo/journal data has been migrated.
 
 ## Current Priority
 
@@ -34,9 +34,11 @@ Prepare Phase B: one storage story and one agent/documentation story. Do not add
 - `python3.12 -m py_compile scripts/agent_wrapup.py` passed.
 - `python3.12 -m pytest tests/test_check_continuity_state.py tests/test_run_gates_script.py -q --tb=short` passed: 23 tests.
 - `python3.12 -m pytest tests/test_memory_graph.py -q --tb=short` passed: 10 tests.
+- `python3.12 -m pytest tests/test_db.py -q --tb=short` passed: 4 tests.
+- `python3.12 -m pytest tests/test_plugin_registry.py -q --tb=short` passed: 3 tests.
 - `make agent-wrap` created an ignored session log under `.agent/session_logs/`.
-- `python3.12 -m pytest tests/ -q --tb=short` passed: 544 passed, 2 deselected, 3 warnings.
+- `python3.12 -m pytest tests/ -q --tb=short` passed: 551 passed, 2 deselected, 3 warnings.
 
 ## Next Best Step
 
-Implement Phase B foundation only: add a single SQLite/migration seam and tests, then migrate one low-risk store. Do not start with a broad storage rewrite.
+Implement Phase B B3 only after review: choose the next user-facing store deliberately. Prefer a small read/write seam or compatibility wrapper before migrating chats/todos/journal data.

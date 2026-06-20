@@ -31,7 +31,10 @@ Preparing Kitty for Phase B by consolidating canonical docs and adding an agent 
 - `docs/DECISIONS.md`
 - `gateway/db.py`
 - `gateway/migrations/001_foundation.sql`
+- `gateway/migrations/002_plugin_settings.sql`
+- `gateway/plugin_registry.py`
 - `tests/test_db.py`
+- `tests/test_plugin_registry.py`
 - `scripts/agent_wrapup.py`
 
 ## Verification To Run Before Commit
@@ -48,9 +51,10 @@ Latest local verification:
 - `python3.12 -m pytest tests/test_check_continuity_state.py tests/test_run_gates_script.py -q --tb=short` passed: 23 tests.
 - `python3.12 -m pytest tests/test_memory_graph.py -q --tb=short` passed: 10 tests.
 - `python3.12 -m pytest tests/test_db.py -q --tb=short` passed: 4 tests.
+- `python3.12 -m pytest tests/test_plugin_registry.py -q --tb=short` passed: 3 tests.
 - `make agent-wrap` created `.agent/session_logs/20260620T012911Z-handoff.md`; generated logs are ignored.
-- `python3.12 -m pytest tests/ -q --tb=short` passed: 548 passed, 2 deselected, 3 warnings.
+- `python3.12 -m pytest tests/ -q --tb=short` passed: 551 passed, 2 deselected, 3 warnings.
 
 ## Next Implementation Prompt
 
-Implement Phase B B2 only: migrate one low-risk app-owned store, preferably plugin settings, behind the existing public API. Do not migrate chats/todos or user-facing episodic state yet.
+Implement Phase B B3 only after review: choose the next user-facing store deliberately. Prefer a small read/write seam or compatibility wrapper before migrating chats/todos/journal data.

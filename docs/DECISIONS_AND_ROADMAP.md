@@ -132,6 +132,23 @@ Explicitly not in the plan: themes/customization, settings pages for things `.en
 
 ---
 
+### D9 — Five deepening candidates, sequenced
+
+Pulled from the architecture review on 2026-06-18 (the `improve-codebase-architecture` skill). Each is a cluster of shallow modules turned into a deep one. None contradict the existing decisions; they execute them.
+
+| # | Candidate | Status | Depends on |
+|---|---|---|---|
+| 1 | `memory_graph.py` shim collapse: rename 6 concrete adapters to `_XxxAdapter`, delete 8 module-level shims, fix `GraphResult` to carry the adapter list passed by `MemoryGraph.search_all` (today it re-asks `_default_adapters()`, breaking custom-adapter tests) | **PARTIAL** — shims and `GraphResult.formatted_context()` cleanup still open | — |
+| 2 | Write-side `StorageRouter` so direct store imports die in routes | Tracked as B4 | B1–B3 (SQLite migration) |
+| 3 | `context_enrichment` reads todos straight from `todo_store` while `memory_graph.unified_context` re-fetches them inside the same prompt build — the prompt gets todos twice and the order is order-of-call dependent | NEW | — |
+| 4 | `LLMProvider` port: 4 provider adapters + chained fallback (OpenAI, NVIDIA, AgentRouter, OpenRouter, Gemini) sit inside one 867-line `llm_client.py` with inline header gymnastics. Worth a real seam. | NEW | — |
+| 5 | Doc/code drift: `docs/ARCHITECTURE.md` says "all routes in `app.py`" but the actual layout is 21 files in `gateway/routes/` registered by `register.py`. `openwebui_filters/` and `openwebui_library_tools/` are empty shells that the doc claims were "deleted in Phase A." | A4 small re-pass | — |
+
+**Sequence:** 1 → 3 → 5 → (B1–B3) → 2 → 4. The dependency on the SQLite migration is the only structural wait.
+
+**Rule of thumb** (from the deep-module glossary in `LANGUAGE.md`): the deletion test must pass — deleting the module should re-spread its complexity across N callers, not vanish it. If it vanishes, the module was a pass-through. If it re-spreads, the module was earning its keep.
+
+
 ## 6. Decision log
 
 ### D1 — Tauri vs Electron
