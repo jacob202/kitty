@@ -19,12 +19,11 @@ import logging
 import time
 from collections import Counter
 
-from gateway.paths import DATA_DIR
+from gateway.paths import DATA_DIR, LOG_FILE
 
 logger = logging.getLogger("kitty.nudge")
 
 NUDGE_STORE = DATA_DIR / "nudge_state.json"
-GATEWAY_LOG = DATA_DIR.parent / "logs" / "gateway_trace.jsonl"
 
 
 def check() -> list[dict]:
@@ -62,12 +61,12 @@ def get_pending() -> list[dict]:
 def _check_repeated_research() -> list[dict]:
     """Detect topics researched 3+ times with no action."""
     try:
-        if not GATEWAY_LOG.exists():
+        if not LOG_FILE.exists():
             return []
 
         cutoff = time.time() - 14 * 86400  # last 2 weeks
         topics: Counter = Counter()
-        with GATEWAY_LOG.open("r") as f:
+        with LOG_FILE.open("r") as f:
             for line in f:
                 try:
                     entry = json.loads(line.strip())
@@ -97,13 +96,13 @@ def _check_repeated_research() -> list[dict]:
 def _check_dropped_threads() -> list[dict]:
     """Detect topics that were mentioned then dropped."""
     try:
-        if not GATEWAY_LOG.exists():
+        if not LOG_FILE.exists():
             return []
 
         now = time.time()
         threads: dict[str, dict] = {}
 
-        with GATEWAY_LOG.open("r") as f:
+        with LOG_FILE.open("r") as f:
             for line in f:
                 try:
                     entry = json.loads(line.strip())

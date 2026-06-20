@@ -10,7 +10,7 @@ from unittest.mock import patch, MagicMock
 def test_get_recent_traces_no_log():
     """Returns empty list when gateway log does not exist."""
     from gateway.honcho import get_recent_traces
-    with patch("gateway.honcho.GATEWAY_LOG", Path("/nonexistent/trace.jsonl")):
+    with patch("gateway.honcho.LOG_FILE", Path("/nonexistent/trace.jsonl")):
         result = get_recent_traces(days=7)
     assert result == []
 
@@ -25,7 +25,7 @@ def test_get_recent_traces_filters_old_entries(tmp_path):
     fresh = {"timestamp": now - 1 * 86400, "domain_classified": "code", "user_request": "fresh"}
     log.write_text(json.dumps(old) + "\n" + json.dumps(fresh) + "\n")
 
-    with patch("gateway.honcho.GATEWAY_LOG", log):
+    with patch("gateway.honcho.LOG_FILE", log):
         result = get_recent_traces(days=7)
 
     assert len(result) == 1
@@ -44,7 +44,7 @@ def test_get_recent_traces_includes_all_recent(tmp_path):
     ]
     log.write_text("\n".join(json.dumps(e) for e in entries) + "\n")
 
-    with patch("gateway.honcho.GATEWAY_LOG", log):
+    with patch("gateway.honcho.LOG_FILE", log):
         result = get_recent_traces(days=7)
 
     assert len(result) == 5
@@ -59,7 +59,7 @@ def test_get_recent_traces_skips_malformed_lines(tmp_path):
     good = {"timestamp": now - 3600, "domain_classified": "code", "user_request": "good"}
     log.write_text("not json\n" + json.dumps(good) + "\n{broken\n")
 
-    with patch("gateway.honcho.GATEWAY_LOG", log):
+    with patch("gateway.honcho.LOG_FILE", log):
         result = get_recent_traces(days=7)
 
     assert len(result) == 1
@@ -135,7 +135,7 @@ def test_get_weekly_mirror_regenerates_stale_cache(tmp_path):
     cache_path.write_text(json.dumps(stale))
 
     with patch("gateway.honcho.SIGNAL_CACHE", cache_path):
-        with patch("gateway.honcho.GATEWAY_LOG", Path("/nonexistent/trace.jsonl")):
+        with patch("gateway.honcho.LOG_FILE", Path("/nonexistent/trace.jsonl")):
             with patch("gateway.honcho.summarize_patterns", return_value="Fresh observation."):
                 result = get_weekly_mirror(days=7, use_cache=True)
 
@@ -151,7 +151,7 @@ def test_get_weekly_mirror_no_cache(tmp_path):
     cache_path.write_text(json.dumps(fresh))
 
     with patch("gateway.honcho.SIGNAL_CACHE", cache_path):
-        with patch("gateway.honcho.GATEWAY_LOG", Path("/nonexistent/trace.jsonl")):
+        with patch("gateway.honcho.LOG_FILE", Path("/nonexistent/trace.jsonl")):
             with patch("gateway.honcho.summarize_patterns", return_value="Regenerated."):
                 result = get_weekly_mirror(days=7, use_cache=False)
 
@@ -165,7 +165,7 @@ def test_get_weekly_mirror_structure(tmp_path):
     cache_path = tmp_path / "honcho_weekly.json"
 
     with patch("gateway.honcho.SIGNAL_CACHE", cache_path):
-        with patch("gateway.honcho.GATEWAY_LOG", Path("/nonexistent/trace.jsonl")):
+        with patch("gateway.honcho.LOG_FILE", Path("/nonexistent/trace.jsonl")):
             with patch("gateway.honcho.summarize_patterns", return_value="Weekly summary."):
                 result = get_weekly_mirror(days=7, use_cache=False)
 

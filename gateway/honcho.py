@@ -7,8 +7,7 @@ from collections import Counter
 
 logger = logging.getLogger("kitty.honcho")
 
-from gateway.paths import DATA_DIR, LOGS_DIR
-GATEWAY_LOG = LOGS_DIR / "gateway_trace.jsonl"
+from gateway.paths import DATA_DIR, LOG_FILE, LOGS_DIR
 SIGNAL_CACHE = DATA_DIR / "honcho_weekly.json"
 
 _FALLBACK_EMPTY = (
@@ -19,11 +18,11 @@ _FALLBACK_ERROR = "Kitty couldn't quite find the words this week — but she's w
 
 def get_recent_traces(days: int = 7) -> list[dict]:
     """Read gateway_trace.jsonl line-by-line and return entries from the last N days."""
-    if not GATEWAY_LOG.exists():
+    if not LOG_FILE.exists():
         return []
     cutoff = time.time() - days * 86400
     traces = []
-    with GATEWAY_LOG.open("r", errors="ignore") as f:
+    with LOG_FILE.open("r", errors="ignore") as f:
         for line in f:
             if not line.strip():
                 continue

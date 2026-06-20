@@ -15,11 +15,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from gateway.paths import DATA_DIR
+from gateway.paths import DATA_DIR, KITTY_TOKEN_LOG_FILE
 
 logger = logging.getLogger("kitty.token_usage_log")
 
-TOKEN_LOG_PATH: Path = DATA_DIR / "kitty_token_log.jsonl"
 _lock = threading.Lock()
 
 
@@ -73,7 +72,7 @@ def log_llm_usage(
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         line = json.dumps(row, ensure_ascii=False) + "\n"
         with _lock:
-            with TOKEN_LOG_PATH.open("a", encoding="utf-8") as f:
+            with KITTY_TOKEN_LOG_FILE.open("a", encoding="utf-8") as f:
                 f.write(line)
     except OSError as e:
         logger.warning("token log write failed: %s", e)

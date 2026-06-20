@@ -8,9 +8,8 @@ from datetime import date as date_cls
 from pathlib import Path
 from typing import Any
 
-from gateway.paths import DATA_DIR
+from gateway.paths import DATA_DIR, KITTY_TOKEN_LOG_FILE
 
-TOKEN_LOG_PATH = DATA_DIR / "kitty_token_log.jsonl"
 USD_TO_CAD = float(os.environ.get("KITTY_USD_TO_CAD", "1.3710"))
 FX_SNAPSHOT_DATE = os.environ.get("KITTY_USD_TO_CAD_DATE", "2026-05-12")
 
@@ -26,7 +25,7 @@ PRICE_REGISTRY_USD_PER_MTOKENS: dict[str, dict[str, float]] = {
 }
 
 
-def load_entries(path: Path = TOKEN_LOG_PATH) -> list[dict[str, Any]]:
+def load_entries(path: Path = KITTY_TOKEN_LOG_FILE) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
     if not path.exists():
         return entries

@@ -7,7 +7,68 @@
       "Bash(npm run build)",
       "Bash(npm run test)",
       "Bash(npx tsc --noEmit)",
-      "Bash(git fetch *)"
+      "Bash(git fetch *)",
+      "Bash(python3* -m pytest*)",
+      "Bash(uv *)",
+      "Bash(gh *)",
+      "Bash(cat ~/.claude/*)"
+    ],
+    "deny": [
+      "Bash(curl * | bash*)",
+      "Bash(wget * | bash*)",
+      "Bash(npm publish*)",
+      "Bash(git push --force *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/scan-secrets.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/block-dangerous-commands.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/scan-secrets.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/warn-large-files.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/notify.sh"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/session-start.sh"
+          }
+        ]
+      }
     ]
   }
 }

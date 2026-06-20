@@ -1,7 +1,7 @@
 """Plugin Registry — extensible capability system for Kitty.
 
 Plugins bundle skills, hooks, and MCP servers into toggleable units.
-Users enable/disable plugins via API, persisted to data/plugin_settings.json.
+Users enable/disable plugins via API, persisted to Kitty's Phase B SQLite DB.
 
 Pattern ported from free-code's plugins/builtinPlugins.ts.
 
@@ -12,21 +12,25 @@ Public API:
   disable(name) -> bool               Disable a plugin
   is_enabled(name) -> bool            Check if plugin is enabled
 """
+
 from __future__ import annotations
 
 import json
 import logging
 from typing import Optional, Callable
 
-from gateway.paths import DATA_DIR
+from gateway import db as kitty_db
+from gateway.paths import DATA_DIR, KITTY_DB_FILE
 
 logger = logging.getLogger("kitty.plugin_registry")
 
 PLUGIN_SETTINGS = DATA_DIR / "plugin_settings.json"
+PLUGIN_DB_FILE = KITTY_DB_FILE
 _registry: dict[str, dict] = {}
 
 
 # --- Plugin Definition ---
+
 
 def register(
     name: str,
@@ -73,20 +77,28 @@ def list_plugins(enabled_only: bool = False) -> list[dict]:
                 continue
 
         user_setting = settings.get(name)
-        enabled = user_setting if user_setting is not None else definition.get("default_enabled", True)
+        enabled = (
+            user_setting
+            if user_setting is not None
+            else definition.get("default_enabled", True)
+        )
 
         if enabled_only and not enabled:
             continue
 
-        plugins.append({
-            "name": name,
-            "description": definition["description"],
-            "version": definition["version"],
-            "enabled": enabled,
-            "skills": [s.get("name", "") for s in definition.get("skills", [])],
-            "mcp_servers": [m.get("name", "") for m in definition.get("mcp_servers", [])],
-            "has_hooks": bool(definition.get("hooks")),
-        })
+        plugins.append(
+            {
+                "name": name,
+                "description": definition["description"],
+                "version": definition["version"],
+                "enabled": enabled,
+                "skills": [s.get("name", "") for s in definition.get("skills", [])],
+                "mcp_servers": [
+                    m.get("name", "") for m in definition.get("mcp_servers", [])
+                ],
+                "has_hooks": bool(definition.get("hooks")),
+            }
+        )
 
     return plugins
 
@@ -167,19 +179,72 @@ def reset() -> None:
     _registry = {}
     if PLUGIN_SETTINGS.exists():
         PLUGIN_SETTINGS.unlink()
+    kitty_db.migrate(db_file=PLUGIN_DB_FILE)
+    with kitty_db.connect(PLUGIN_DB_FILE) as conn:
+        conn.execute("DELETE FROM plugin_settings")
 
 
 # --- Settings persistence ---
 
+
 def _load_settings() -> dict:
-    try:
-        if PLUGIN_SETTINGS.exists():
-            return json.loads(PLUGIN_SETTINGS.read_text())
-    except (json.JSONDecodeError, Exception):
-        pass
-    return {}
+    kitty_db.migrate(db_file=PLUGIN_DB_FILE)
+    settings = _load_db_settings()
+    legacy = _load_legacy_settings()
+    missing_from_db = {
+        name: enabled for name, enabled in legacy.items() if name not in settings
+    }
+    if missing_from_db:
+        settings.update(missing_from_db)
+        _save_db_settings(settings)
+        _save_legacy_settings(settings)
+    return settings
 
 
 def _save_settings(settings: dict) -> None:
+    kitty_db.migrate(db_file=PLUGIN_DB_FILE)
+    _save_db_settings(settings)
+    # Keep the legacy file as a compatibility mirror until sync.py migrates.
+    _save_legacy_settings(settings)
+
+
+def _load_db_settings() -> dict[str, bool]:
+    with kitty_db.connect(PLUGIN_DB_FILE) as conn:
+        rows = conn.execute(
+            "SELECT plugin_name, enabled FROM plugin_settings ORDER BY plugin_name"
+        ).fetchall()
+    return {row["plugin_name"]: bool(row["enabled"]) for row in rows}
+
+
+def _save_db_settings(settings: dict) -> None:
+    with kitty_db.connect(PLUGIN_DB_FILE) as conn:
+        conn.execute("DELETE FROM plugin_settings")
+        rows = [
+            (str(name), 1 if bool(enabled) else 0)
+            for name, enabled in sorted(settings.items())
+        ]
+        conn.executemany(
+            "INSERT INTO plugin_settings (plugin_name, enabled) VALUES (?, ?)",
+            rows,
+        )
+
+
+def _load_legacy_settings() -> dict[str, bool]:
+    if not PLUGIN_SETTINGS.exists():
+        return {}
+    try:
+        raw = json.loads(PLUGIN_SETTINGS.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"Invalid plugin settings JSON at {PLUGIN_SETTINGS}: {exc}"
+        ) from exc
+    if not isinstance(raw, dict):
+        raise RuntimeError(
+            f"Invalid plugin settings JSON at {PLUGIN_SETTINGS}: expected object"
+        )
+    return {str(name): bool(enabled) for name, enabled in raw.items()}
+
+
+def _save_legacy_settings(settings: dict) -> None:
     PLUGIN_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
-    PLUGIN_SETTINGS.write_text(json.dumps(settings, indent=2))
+    PLUGIN_SETTINGS.write_text(json.dumps(settings, indent=2), encoding="utf-8")

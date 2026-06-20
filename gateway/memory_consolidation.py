@@ -16,11 +16,10 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Optional
 
-from gateway.paths import DATA_DIR, LOGS_DIR
+from gateway.paths import DATA_DIR, LOG_FILE, LOGS_DIR
 
 logger = logging.getLogger("kitty.memory_consolidation")
 
-GATEWAY_LOG  = LOGS_DIR / "gateway_trace.jsonl"
 CONSOL_CACHE = DATA_DIR / "last_consolidation.json"
 PRUNE_KEEP_DAYS = 30
 MIN_TRACES_FOR_SUMMARY = 3
@@ -87,12 +86,12 @@ def consolidate_recent(days: int = 3) -> int:
 
 def prune_trace_log(keep_days: int = PRUNE_KEEP_DAYS) -> int:
     """Remove lines older than keep_days from the trace log. Returns pruned count."""
-    if not GATEWAY_LOG.exists():
+    if not LOG_FILE.exists():
         return 0
     cutoff = time.time() - keep_days * 86400
     kept: list[str] = []
     pruned = 0
-    with GATEWAY_LOG.open("r", errors="ignore") as f:
+    with LOG_FILE.open("r", errors="ignore") as f:
         for line in f:
             if not line.strip():
                 continue
@@ -105,7 +104,7 @@ def prune_trace_log(keep_days: int = PRUNE_KEEP_DAYS) -> int:
             except json.JSONDecodeError:
                 kept.append(line)
     if pruned:
-        GATEWAY_LOG.write_text("".join(kept))
+        LOG_FILE.write_text("".join(kept))
     return pruned
 
 

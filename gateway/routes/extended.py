@@ -85,9 +85,9 @@ class TodoUpdateRequest(BaseModel):
 @router.post("/todos")
 async def todos_update(payload: TodoUpdateRequest):
     """Replace the entire todo list. Model-invokable structured task tracking."""
-    from gateway.todo_store import update
+    from gateway.storage_router import replace_todos
 
-    return {"todos": update(payload.items)}
+    return {"todos": replace_todos(payload.items)}
 
 
 @router.get("/todos")
@@ -99,9 +99,9 @@ async def todos_get():
 
 @router.post("/todos/clear")
 async def todos_clear():
-    from gateway.todo_store import clear
+    from gateway.storage_router import clear_todos
 
-    clear()
+    clear_todos()
     return {"todos": []}
 
 
@@ -113,23 +113,23 @@ class TodoAddRequest(BaseModel):
 
 @router.post("/todos/add")
 async def todos_add(payload: TodoAddRequest):
-    from gateway.todo_store import add
+    from gateway.storage_router import add_todo
 
-    return add(payload.content, payload.status, payload.active_form)
+    return add_todo(payload.content, payload.status, payload.active_form)
 
 
 @router.post("/todos/{todo_id}/complete")
 async def todos_complete_by_id(todo_id: int):
-    from gateway.todo_store import complete_by_id
+    from gateway.storage_router import complete_todo
 
-    return {"completed": complete_by_id(todo_id), "id": todo_id}
+    return {"completed": complete_todo(todo_id), "id": todo_id}
 
 
 @router.delete("/todos/{todo_id}")
 async def todos_delete(todo_id: int):
-    from gateway.todo_store import delete_by_id
+    from gateway.storage_router import delete_todo
 
-    return {"deleted": delete_by_id(todo_id), "id": todo_id}
+    return {"deleted": delete_todo(todo_id), "id": todo_id}
 
 
 # --- Agent endpoints ---

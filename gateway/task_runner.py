@@ -241,13 +241,13 @@ async def _run_cleanup(goal: str, task_id: str) -> str:
     results = []
     # Compact old traces (keep last 30 days)
     try:
-        from gateway.honcho import GATEWAY_LOG
+        from gateway.paths import LOG_FILE
 
-        if GATEWAY_LOG.exists():
+        if LOG_FILE.exists():
             cutoff = time.time() - 30 * 86400
-            lines = GATEWAY_LOG.read_text().splitlines()
+            lines = LOG_FILE.read_text().splitlines()
             kept = [l for l in lines if _line_after_cutoff(l, cutoff)]
-            GATEWAY_LOG.write_text("\n".join(kept) + "\n")
+            LOG_FILE.write_text("\n".join(kept) + "\n")
             results.append(f"Traces compacted: {len(lines)} -> {len(kept)} lines")
     except Exception as e:
         results.append(f"Trace cleanup failed: {e}")
