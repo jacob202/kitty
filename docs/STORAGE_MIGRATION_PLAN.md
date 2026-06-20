@@ -11,10 +11,11 @@ Migrate behind stable APIs. Do not make the UI or clients care where state lives
 | Store | Path | Current shape | Phase B action | Layout |
 |---|---|---|---|---|
 | Quick Capture inbox | `data/inbox.jsonl` | JSONL append | Keep append-only (D4) | `data/` — stays |
-| Journal | `data/journal_entries.jsonl` | JSONL | B3 episodic migration candidate | moves to `data/kitty/` |
-| Todos | `data/todos.db` legacy, `data/kitty/kitty.db` current | SQLite | **B3 first user-facing seam** | moved to `data/kitty/kitty.db`; old file copied once and left untouched |
+| Journal | `data/journal_entries.jsonl` | JSONL | **Phase C B next** (after chats lands) | moves to `data/kitty/` |
+| Todos | `data/todos.db` legacy, `data/kitty/kitty.db` current | SQLite | **B3 first user-facing seam** (shipped) | moved to `data/kitty/kitty.db`; old file copied once and left untouched |
+| Chats | `data/kitty/chats.json` legacy, `data/kitty/kitty.db` current | JSON blob in SQLite | **Phase C chats (shipped)** | `data/kitty/kitty.db`; JSON file is never deleted |
 | Cron schedules | `data/cron_schedules.db` | SQLite | B3 episodic migration candidate | moves to `data/kitty/` |
-| Plugin settings | `data/plugin_settings.json` | JSON | **B2 first migration** | moves to `data/kitty/kitty.db` |
+| Plugin settings | `data/plugin_settings.json` | JSON | **B2 first migration** (shipped) | moves to `data/kitty/kitty.db` |
 | Model digest | `data/model_digest.db` | SQLite | Leave until shared DB proven | stays (deferred) |
 | ChromaDB | `data/knowledge_db` | vector | Do not migrate in Phase B | stays |
 | mem0 | `data/mem0` | semantic memory | Do not migrate in Phase B | stays |
@@ -58,6 +59,7 @@ The default for new stores is `data/kitty/`. A store stays in `data/` only if it
 ## Phase Order
 
 The seam work is layered. Each phase's output is the next phase's input.
+For the canonical B0-B5 sequence with status, see `docs/PHASE_B_PLAN.md`.
 
 | Phase | Name | Depends on | Output |
 |---|---|---|---|
@@ -65,7 +67,8 @@ The seam work is layered. Each phase's output is the next phase's input.
 | 1 | Policy doc (this section) | — | `data/` vs `data/kitty/` rule is explicit |
 | 2 | First store via `gateway/db.py` | Phase 0, 1 | `plugin_settings` writes through `db.py`; JSON readable during transition |
 | 3 | First user-facing seam | Phase 2 | `todos` writes through `db.py`; old `data/todos.db` untouched |
-| 4 | `StorageRouter` port | Phase 3 | Write-side seam mirrors `memory_graph` for future stores |
+| 4 | `StorageRouter` port (thin wrapper) | Phase 3 | Write-side seam mirrors `memory_graph` for future stores |
+| 5 | Backup drill | Phase 4 | `./kitty backup` / `restore-drill` for `data/kitty/` |
 
 ## StorageRouter Port (Phase 4 - shipped)
 
@@ -109,3 +112,24 @@ fails if the backup path is missing or the restore target already exists.
 This does not back up `data/inbox.jsonl`, ChromaDB, mem0, logs, traces, or raw
 knowledge stores. Those remain outside the Phase B app-owned SQLite story until
 a later explicit backup policy includes them.
+
+## Phase C: Chats Migration (shipped)
+
+`data/kitty/chats.json` is now `data/kitty/kitty.db` (table `chats`).
+The route (`gateway/routes/chats.py`) reads and writes through
+`gateway/chats_store.py`. The wire contract is unchanged.
+
+**Sequence (C0–C6, all shipped):**
+
+| Step | What | Where |
+|---|---|---|
+| C0 | Plan with explicit compat + rollback | `docs/PHASE_C_PLAN.md` |
+| C1 | `chats` table schema | `gateway/migrations/004_chats.sql` |
+| C2 | Read/write module | `gateway/chats_store.py` |
+| C3 | Route migration | `gateway/routes/chats.py` |
+| C4 | One-time JSON import | `chats_store._import_legacy_chats_once` |
+| C5 | Backup verification (no new code) | `scripts/kitty_backup.py` already covers kitty.db |
+| C6 | Rollback escape hatch (verified by test) | `chats_store` docstring + `TestLegacyImport.test_rollback_re_imports_from_intact_json` |
+
+**Next user-facing store:** journal (Phase C B). Per the plan, journal
+needs its own compat + rollback section before any code lands.

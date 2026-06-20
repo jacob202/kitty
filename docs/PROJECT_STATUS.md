@@ -44,7 +44,10 @@ Prepare Phase B: one storage story and one agent/documentation story. Do not add
 
 ## Next Best Step
 
-Review and commit the B5 backup drill, then choose the next user-facing store deliberately. Do not migrate chats or journal without an explicit compatibility and rollback plan.
+Phase B is fully shipped (B0–B5) and Phase C chats is shipped (C0–C6).
+Next: journal migration (Phase C B). Per `docs/PHASE_C_PLAN.md`, journal
+needs its own explicit compat + rollback section before any code lands;
+do not skip the plan.
 
 ## Runtime Check (verified 2026-06-20, two states)
 
