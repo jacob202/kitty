@@ -45,3 +45,18 @@ Prepare Phase B: one storage story and one agent/documentation story. Do not add
 ## Next Best Step
 
 Review and commit the B5 backup drill, then choose the next user-facing store deliberately. Do not migrate chats or journal without an explicit compatibility and rollback plan.
+
+## Runtime Check (verified 2026-06-20)
+
+Checked current runtime state without running `./kitty up`, because `up` may
+generate or append gateway secrets in `.env`.
+
+- `./kitty status` -> gateway not running, LiteLLM not running.
+- `./kitty doctor --json` -> 7 PASS / 1 WARN / 2 FAIL.
+- PASS includes `env:.env`, `env:gateway_secret`, `env:llm_key`, `runtime:venv`, ChromaDB path, mem0 local mode, and disk space.
+- WARN is `env:telegram_token` not set, expected if Telegram is disabled.
+- FAIL is `service:gateway` unreachable at `http://127.0.0.1:8000/health` and `service:litellm` unreachable at `http://127.0.0.1:8001/health/readiness`.
+
+The launcher defaults are still gateway `8000` and LiteLLM `8001`. Do not claim
+a green runtime baseline until `./kitty up` is explicitly allowed and the live
+service checks are rerun.
