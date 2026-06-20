@@ -12,6 +12,7 @@ Public API:
   disable(name) -> bool               Disable a plugin
   is_enabled(name) -> bool            Check if plugin is enabled
 """
+
 from __future__ import annotations
 
 import json
@@ -29,6 +30,7 @@ _registry: dict[str, dict] = {}
 
 
 # --- Plugin Definition ---
+
 
 def register(
     name: str,
@@ -75,20 +77,28 @@ def list_plugins(enabled_only: bool = False) -> list[dict]:
                 continue
 
         user_setting = settings.get(name)
-        enabled = user_setting if user_setting is not None else definition.get("default_enabled", True)
+        enabled = (
+            user_setting
+            if user_setting is not None
+            else definition.get("default_enabled", True)
+        )
 
         if enabled_only and not enabled:
             continue
 
-        plugins.append({
-            "name": name,
-            "description": definition["description"],
-            "version": definition["version"],
-            "enabled": enabled,
-            "skills": [s.get("name", "") for s in definition.get("skills", [])],
-            "mcp_servers": [m.get("name", "") for m in definition.get("mcp_servers", [])],
-            "has_hooks": bool(definition.get("hooks")),
-        })
+        plugins.append(
+            {
+                "name": name,
+                "description": definition["description"],
+                "version": definition["version"],
+                "enabled": enabled,
+                "skills": [s.get("name", "") for s in definition.get("skills", [])],
+                "mcp_servers": [
+                    m.get("name", "") for m in definition.get("mcp_servers", [])
+                ],
+                "has_hooks": bool(definition.get("hooks")),
+            }
+        )
 
     return plugins
 
@@ -176,6 +186,7 @@ def reset() -> None:
 
 # --- Settings persistence ---
 
+
 def _load_settings() -> dict:
     kitty_db.migrate(db_file=PLUGIN_DB_FILE)
     settings = _load_db_settings()
@@ -224,9 +235,13 @@ def _load_legacy_settings() -> dict[str, bool]:
     try:
         raw = json.loads(PLUGIN_SETTINGS.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
-        raise RuntimeError(f"Invalid plugin settings JSON at {PLUGIN_SETTINGS}: {exc}") from exc
+        raise RuntimeError(
+            f"Invalid plugin settings JSON at {PLUGIN_SETTINGS}: {exc}"
+        ) from exc
     if not isinstance(raw, dict):
-        raise RuntimeError(f"Invalid plugin settings JSON at {PLUGIN_SETTINGS}: expected object")
+        raise RuntimeError(
+            f"Invalid plugin settings JSON at {PLUGIN_SETTINGS}: expected object"
+        )
     return {str(name): bool(enabled) for name, enabled in raw.items()}
 
 

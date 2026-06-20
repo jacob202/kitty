@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from pathlib import Path
 
 from gateway.paths import DB_MIGRATIONS_DIR, KITTY_DB_FILE
+
+logger = logging.getLogger("kitty.db")
 
 
 def connect(db_file: Path = KITTY_DB_FILE) -> sqlite3.Connection:
@@ -32,26 +35,24 @@ def migrate(
     with connect(db_path) as conn:
         _ensure_schema_migrations(conn)
         applied = {
-            row["name"]
-            for row in conn.execute("SELECT name FROM schema_migrations")
+            row["name"] for row in conn.execute("SELECT name FROM schema_migrations")
         }
         for path in sorted(migration_path.glob("*.sql")):
             if path.name in applied:
                 continue
             _apply_migration(conn, path, db_path)
             applied_now.append(path.name)
+            logger.info("Applied migration: %s", path.name)
     return applied_now
 
 
 def _ensure_schema_migrations(conn: sqlite3.Connection) -> None:
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS schema_migrations (
             name TEXT PRIMARY KEY,
             applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
-        """
-    )
+        """)
 
 
 def _apply_migration(conn: sqlite3.Connection, path: Path, db_path: Path) -> None:
