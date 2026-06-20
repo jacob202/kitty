@@ -162,3 +162,40 @@ class TestLegacyImport:
 
         with pytest.raises(RuntimeError, match="Legacy chats import failed"):
             chats_store.list_chats()
+
+    def test_rollback_re_imports_from_intact_json(self, tmp_path):
+        """Phase C C6: if the chats table is lost, re-import from JSON rebuilds it.
+
+        Documents the escape hatch: drop the table + clear both markers, the
+        next read re-runs the migration and the import rebuilds the table from
+        the JSON file. The JSON file is the source of truth.
+        """
+        import sqlite3
+
+        legacy = tmp_path / "kitty" / "chats.json"
+        legacy.parent.mkdir(parents=True, exist_ok=True)
+        legacy.write_text(
+            json.dumps([{"id": "x", "title": "from json"}]), encoding="utf-8"
+        )
+
+        # First import populates the table.
+        first = chats_store.list_chats()
+        assert first == [{"id": "x", "title": "from json"}]
+
+        # Simulate rollback: drop the table, clear the import marker, and
+        # clear the migration marker so migrate re-applies 004_chats.sql.
+        with sqlite3.connect(chats_store.CHATS_DB_FILE) as conn:
+            conn.execute("DROP TABLE chats")
+            conn.execute(
+                "DELETE FROM app_settings WHERE key = ?",
+                (chats_store.LEGACY_IMPORT_SETTING,),
+            )
+            conn.execute(
+                "DELETE FROM schema_migrations WHERE name = '004_chats.sql'"
+            )
+            conn.commit()
+
+        # Re-import rebuilds the table from the still-intact JSON file.
+        rebuilt = chats_store.list_chats()
+
+        assert rebuilt == [{"id": "x", "title": "from json"}]

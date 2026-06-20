@@ -13,6 +13,16 @@ Legacy import: on first access, if data/kitty/chats.json exists and the
 chats table is empty, the JSON contents are imported into kitty.db. The
 JSON file is never deleted. The import marker is stored in app_settings
 key 'chats_legacy_imported' with a value describing the outcome.
+
+Rollback (documented escape hatch): if the SQLite layer needs to be
+abandoned, the JSON file is still the source of truth. To roll back:
+  1. DROP TABLE chats;
+  2. DELETE FROM app_settings WHERE key = 'chats_legacy_imported';
+  3. DELETE FROM schema_migrations WHERE name = '004_chats.sql';
+  4. Re-run the gateway; migrate re-applies 004_chats.sql (which is
+     CREATE TABLE IF NOT EXISTS chats ...), then the import rebuilds
+     the table from the JSON file.
+This is verified by TestLegacyImport.test_rollback_re_imports_from_intact_json.
 """
 from __future__ import annotations
 
