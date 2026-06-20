@@ -174,9 +174,17 @@ def _build_brief_worker_context(
 
 
 def synthesize_brief_with_llm(
-    headlines: List[NewsHeadline], task_summary: str, memory_snippet: str
+    headlines: List[NewsHeadline],
+    task_summary: str,
+    memory_snippet: str,
+    themes: list[dict] = None,
+    novelty: dict = None,
 ) -> str:
-    """Use LLM via LiteLLM to turn raw data into a warm, character-driven morning brief."""
+    """Use LLM via LiteLLM to turn raw data into a warm, character-driven morning brief.
+
+    If themes are provided, the brief will be shaped to highlight what's relevant to
+    those themes. novelty dict indicates which articles are new vs. repeated.
+    """
     from gateway.context_enrichment import (
         calendar_today_text_sync,
         todos_text_sync,
@@ -196,9 +204,20 @@ def synthesize_brief_with_llm(
     calendar_section = f"\n- Calendar:\n{calendar_text}" if calendar_text else ""
     weather_section = f"\n- Weather: {weather_text}" if weather_text else ""
     todos_section = f"\n- Active Todos:\n{todos_text}" if todos_text else ""
+
+    # Add theme context if available
+    theme_section = ""
+    if themes:
+        theme_list = ", ".join([f"{t['theme']}" for t in themes[:3]])
+        theme_section = f"\n- YOUR RESEARCH INTERESTS: You've been working on: {theme_list}"
+
+    novelty_section = ""
+    if novelty:
+        novelty_section = f"\n- NOVELTY: {novelty.get('summary', 'Different articles today')}"
+
     prompt = f"""GATHERED DATA FOR TODAY:
 - News Headlines:
-{news_text}{weather_section}{calendar_section}{todos_section}
+{news_text}{weather_section}{calendar_section}{todos_section}{theme_section}{novelty_section}
 {context_data}
 
 TASK:
@@ -207,7 +226,8 @@ Write a short, warm, and proactive morning greeting for Jacob (3-4 paragraphs).
 2. If there are calendar events, mention any that look important or time-sensitive.
 3. Mention the next action/task with a focus on 'Resume, don't restart'. Reference active todos if relevant.
 4. MANDATORY: Include a 'Boring Path' recommendation. This must be the most conservative, low-risk, and surgical way to handle the current top task, prioritizing reliability over speed.
-5. End with a supportive, 'friend who is paying attention' vibe.
+5. If you have context about Jacob's research interests, highlight articles that relate to those themes.
+6. End with a supportive, 'friend who is paying attention' vibe.
 
 Rules: Use contractions. No corporate filler. Be dry-funny if appropriate. Speak Canadian."""
 
@@ -357,21 +377,172 @@ def generate_fast_brief() -> dict:
     )
 
 
+def detect_research_themes(limit: int = 5) -> list[dict]:
+    """
+    Detect Jacob's current research themes from recent activity in memory graph.
+    Returns list of themes ranked by prominence, e.g.:
+    [
+        {"theme": "authentication systems", "mentions": 5, "confidence": 0.92},
+        {"theme": "performance optimization", "mentions": 3, "confidence": 0.85},
+    ]
+    """
+    import asyncio
+    from gateway.memory_graph import search_all
+    from collections import defaultdict
+    from datetime import timedelta
+
+    try:
+        # Generic search to get recent activity across all stores
+        # Search for common keywords that reveal research themes
+        result = asyncio.run(search_all("research learning pattern"))
+
+        theme_counts = defaultdict(int)
+
+        # Extract themes from different store results
+        if result and isinstance(result, dict):
+            for store_name, entries in result.items():
+                if not entries:
+                    continue
+                for entry in entries[:5]:  # Limit per store
+                    # Extract keywords from entry content
+                    if isinstance(entry, dict):
+                        content = entry.get("content", "") or entry.get("text", "") or entry.get("title", "")
+                        # Simple heuristic: extract 2-3 word phrases as themes
+                        # (In production, could use NLP for better extraction)
+                        if content:
+                            words = content.lower().split()
+                            for i in range(len(words) - 1):
+                                if len(words[i]) > 4:  # Filter out small words
+                                    theme = f"{words[i]} {words[i+1]}"
+                                    if not any(stop in theme for stop in ["the ", "and ", "for ", "is "]):
+                                        theme_counts[theme] += 1
+
+        # Rank themes and build result
+        sorted_themes = sorted(theme_counts.items(), key=lambda x: x[1], reverse=True)
+        themes = []
+        for theme, count in sorted_themes[:limit]:
+            themes.append({
+                "theme": theme,
+                "mentions": count,
+                "confidence": min(0.95, 0.7 + (count * 0.05)),  # Higher confidence for more mentions
+            })
+
+        return themes if themes else [{"theme": "general knowledge", "mentions": 1, "confidence": 0.5}]
+
+    except Exception as e:
+        logger.warning(f"Failed to detect research themes: {e}")
+        return [{"theme": "general knowledge", "mentions": 1, "confidence": 0.5}]
+
+
+def rank_headlines_by_relevance(headlines: List[NewsHeadline], themes: list[dict]) -> List[NewsHeadline]:
+    """
+    Rerank headlines by relevance to detected themes.
+    Returns headlines with relevance scores, prioritizing theme-matched content.
+    """
+    if not themes or not headlines:
+        return headlines
+
+    theme_keywords = set()
+    for theme_obj in themes:
+        theme = theme_obj.get("theme", "").lower()
+        theme_keywords.update(theme.split())
+
+    scored = []
+    for headline in headlines:
+        title_lower = headline.title.lower()
+        snippet_lower = headline.snippet.lower() if headline.snippet else ""
+        content = f"{title_lower} {snippet_lower}"
+
+        # Score based on theme keyword matches
+        matches = sum(1 for keyword in theme_keywords if keyword in content)
+        relevance = min(0.99, 0.3 + (matches * 0.15)) if matches > 0 else 0.0
+        scored.append((headline, relevance))
+
+    # Sort by relevance descending, then by original order for stability
+    scored.sort(key=lambda x: x[1], reverse=True)
+    return [h for h, _ in scored]
+
+
+def detect_brief_novelty(headlines: List[NewsHeadline], themes: list[dict]) -> dict:
+    """
+    Detect what's novel in today's headlines vs. recent briefs.
+    Returns dict with:
+    {
+        "new_count": N,
+        "repeated_count": N,
+        "novel_headlines": [...],
+        "summary": "X new articles on your themes today"
+    }
+    """
+    cached = get_cached_brief()
+
+    if not cached or "headlines" not in cached:
+        # No cache to compare against; everything is new
+        return {
+            "new_count": len(headlines),
+            "repeated_count": 0,
+            "novel_headlines": headlines[:3],  # Top 3
+            "summary": f"{min(len(headlines), 3)} articles on your research interests today",
+        }
+
+    # Get headlines from cached brief
+    cached_headlines = cached.get("headlines", [])
+    cached_titles = {h.get("title", "") for h in cached_headlines if isinstance(h, dict)}
+    cached_titles.update({str(h.title) for h in cached_headlines if isinstance(h, NewsHeadline)})
+
+    # Count novel headlines
+    novel = []
+    for headline in headlines:
+        if headline.title not in cached_titles:
+            novel.append(headline)
+
+    return {
+        "new_count": len(novel),
+        "repeated_count": len(headlines) - len(novel),
+        "novel_headlines": novel[:3],  # Top 3 novel
+        "summary": f"{len(novel)} new articles on your themes today" if novel else "Same themes as yesterday",
+    }
+
+
 def generate_brief() -> dict:
-    """Generate a morning brief. Returns a dict matching BriefItem schema."""
+    """Generate a morning brief. Returns a dict matching BriefItem schema.
+
+    Contextual brief generation:
+    1. Detect Jacob's current research themes from memory
+    2. Rank headlines by relevance to those themes
+    3. Identify novel vs. repeated content
+    4. Synthesize brief with theme/novelty context
+    """
     today = datetime.now(timezone.utc).date().isoformat()
     headlines = fetch_news()
     task_summary = get_tasks_summary()
     memory = _fetch_memory_snippet()
 
-    brief_text = synthesize_brief_with_llm(headlines, task_summary, memory)
+    # Phase 1: Detect research themes from Jacob's recent activity
+    themes = detect_research_themes(limit=5)
+
+    # Phase 2: Rerank headlines by relevance to detected themes
+    ranked_headlines = rank_headlines_by_relevance(headlines, themes)
+
+    # Phase 3: Detect what's novel vs. repeated
+    novelty = detect_brief_novelty(ranked_headlines, themes)
+
+    # Phase 4: Synthesize brief with theme and novelty context
+    brief_text = synthesize_brief_with_llm(
+        ranked_headlines,
+        task_summary,
+        memory,
+        themes=themes,
+        novelty=novelty,
+    )
+
     # Only attempt bullet synthesis when enrichment is on — without bodies the
     # model would just paraphrase headlines.
-    summary_bullets = summarize_headlines_to_bullets(headlines) if _ENRICH_ARTICLES else []
+    summary_bullets = summarize_headlines_to_bullets(ranked_headlines) if _ENRICH_ARTICLES else []
 
     result = _build_brief_result(
         today=today,
-        headlines=headlines,
+        headlines=ranked_headlines,
         memory=memory,
         intention=brief_text,
         summary_bullets=summary_bullets,

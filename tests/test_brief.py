@@ -191,3 +191,191 @@ def test_calendar_today_text_sync_formats_events():
         text = calendar_today_text_sync()
     assert "Today's Schedule:" in text
     assert "Standup" in text
+
+
+def test_detect_research_themes_returns_list():
+    """detect_research_themes returns a list of theme dicts."""
+    import gateway.brief as b
+
+    with patch("gateway.memory_graph.search_all", new=MagicMock(return_value={})):
+        with patch("gateway.brief.asyncio.run", side_effect=lambda coro: {}):
+            result = b.detect_research_themes(limit=5)
+    assert isinstance(result, list)
+    assert len(result) > 0
+    assert "theme" in result[0]
+    assert "mentions" in result[0]
+    assert "confidence" in result[0]
+
+
+def test_detect_research_themes_extracts_keywords():
+    """detect_research_themes extracts multi-word themes from content."""
+    import gateway.brief as b
+
+    mock_result = {
+        "chats": [
+            {"content": "I'm learning about authentication systems"},
+            {"content": "performance optimization is key"},
+        ]
+    }
+    with patch("gateway.memory_graph.search_all", new=MagicMock(return_value=mock_result)):
+        with patch("gateway.brief.asyncio.run", side_effect=lambda coro: mock_result):
+            result = b.detect_research_themes(limit=5)
+    assert len(result) > 0
+    # Themes should include extracted keywords
+    theme_strings = [t["theme"] for t in result]
+    assert any("authentication" in t or "systems" in t for t in theme_strings)
+
+
+def test_detect_research_themes_handles_empty_memory():
+    """detect_research_themes gracefully handles empty memory."""
+    import gateway.brief as b
+
+    with patch("gateway.memory_graph.search_all", new=MagicMock(return_value={})):
+        with patch("gateway.brief.asyncio.run", side_effect=lambda coro: {}):
+            result = b.detect_research_themes()
+    assert isinstance(result, list)
+    assert len(result) > 0
+    # Should return fallback theme
+    assert result[0]["theme"] == "general knowledge"
+
+
+def test_detect_research_themes_handles_exception():
+    """detect_research_themes returns fallback on any exception."""
+    import gateway.brief as b
+
+    with patch("gateway.memory_graph.search_all", side_effect=Exception("network error")):
+        with patch("gateway.brief.asyncio.run", side_effect=Exception("async error")):
+            result = b.detect_research_themes()
+    assert isinstance(result, list)
+    assert result[0]["theme"] == "general knowledge"
+
+
+def test_rank_headlines_by_relevance_prioritizes_matches():
+    """rank_headlines_by_relevance prioritizes headlines matching themes."""
+    import gateway.brief as b
+    from contracts.brief_item import NewsHeadline
+
+    headlines = [
+        NewsHeadline(title="Random tech news", url="http://x1", snippet=""),
+        NewsHeadline(title="New OAuth authentication system", url="http://x2", snippet=""),
+        NewsHeadline(title="React released", url="http://x3", snippet=""),
+    ]
+    themes = [
+        {"theme": "authentication systems", "mentions": 5, "confidence": 0.92},
+    ]
+    result = b.rank_headlines_by_relevance(headlines, themes)
+    assert len(result) == 3
+    # OAuth headline should be ranked higher (matches "authentication")
+    assert "OAuth" in result[0].title
+
+
+def test_rank_headlines_by_relevance_empty_themes():
+    """rank_headlines_by_relevance returns unranked headlines if no themes."""
+    import gateway.brief as b
+    from contracts.brief_item import NewsHeadline
+
+    headlines = [
+        NewsHeadline(title="Article A", url="http://x1", snippet=""),
+        NewsHeadline(title="Article B", url="http://x2", snippet=""),
+    ]
+    result = b.rank_headlines_by_relevance(headlines, [])
+    assert result == headlines
+
+
+def test_rank_headlines_returns_reordered_headlines():
+    """rank_headlines_by_relevance returns headlines in new order."""
+    import gateway.brief as b
+    from contracts.brief_item import NewsHeadline
+
+    headlines = [
+        NewsHeadline(title="Random article", url="http://x1", snippet=""),
+        NewsHeadline(title="Authentication system", url="http://x2", snippet=""),
+    ]
+    themes = [{"theme": "authentication", "mentions": 5, "confidence": 0.92}]
+    result = b.rank_headlines_by_relevance(headlines, themes)
+    assert len(result) == 2
+    assert result[0].title == "Authentication system"  # Matched theme should be first
+
+
+def test_detect_brief_novelty_no_cache():
+    """detect_brief_novelty marks everything as new when no cache exists."""
+    import gateway.brief as b
+    from contracts.brief_item import NewsHeadline
+
+    headlines = [
+        NewsHeadline(title="Article A", url="http://x1", snippet=""),
+        NewsHeadline(title="Article B", url="http://x2", snippet=""),
+    ]
+    with patch.object(b, "get_cached_brief", return_value=None):
+        result = b.detect_brief_novelty(headlines, [])
+    assert result["new_count"] == len(headlines)
+    assert result["repeated_count"] == 0
+    assert len(result["novel_headlines"]) > 0
+    assert "summary" in result
+
+
+def test_detect_brief_novelty_compares_against_cache():
+    """detect_brief_novelty detects novel headlines vs cached ones."""
+    import gateway.brief as b
+    from contracts.brief_item import NewsHeadline
+
+    headlines = [
+        NewsHeadline(title="New Article", url="http://x1", snippet=""),
+        NewsHeadline(title="Cached Article", url="http://x2", snippet=""),
+    ]
+    cached = {
+        "headlines": [
+            {"title": "Cached Article"},
+            {"title": "Old Article"},
+        ]
+    }
+    with patch.object(b, "get_cached_brief", return_value=cached):
+        result = b.detect_brief_novelty(headlines, [])
+    assert result["new_count"] == 1
+    assert result["repeated_count"] == 1
+    assert "New Article" in [h.title for h in result["novel_headlines"]]
+
+
+def test_generate_brief_orchestrates_context_functions():
+    """generate_brief calls detect_research_themes, rank_headlines, and detect_novelty."""
+    import gateway.brief as b
+    from contracts.brief_item import NewsHeadline
+
+    mock_headlines = [NewsHeadline(title="Test", url="http://x", snippet="")]
+    with patch.object(b, "fetch_news", return_value=mock_headlines), patch.object(
+        b, "_fetch_memory_snippet", return_value=""
+    ), patch.object(b, "get_tasks_summary", return_value="Task"), patch.object(
+        b, "detect_research_themes", return_value=[]
+    ) as mock_themes, patch.object(
+        b, "rank_headlines_by_relevance", return_value=mock_headlines
+    ) as mock_rank, patch.object(
+        b, "detect_brief_novelty", return_value={"summary": "new"}
+    ) as mock_novelty, patch(
+        "gateway.llm_client.chat", return_value="Brief text"
+    ):
+        result = b.generate_brief()
+    # Verify orchestration functions were called
+    mock_themes.assert_called_once()
+    mock_rank.assert_called_once()
+    mock_novelty.assert_called_once()
+    assert "intention" in result
+
+
+def test_synthesize_brief_includes_theme_context():
+    """synthesize_brief_with_llm includes theme context in prompt when provided."""
+    import gateway.brief as b
+    from contracts.brief_item import NewsHeadline
+
+    headlines = [NewsHeadline(title="OAuth news", url="http://x", snippet="")]
+    themes = [{"theme": "authentication", "mentions": 5, "confidence": 0.92}]
+    novelty = {"summary": "3 new articles"}
+
+    with patch("gateway.context_enrichment.calendar_today_text_sync", return_value=""), \
+         patch("gateway.context_enrichment.weather_text_sync", return_value=""), \
+         patch("gateway.context_enrichment.todos_text_sync", return_value=""), \
+         patch("gateway.llm_client.chat", side_effect=lambda **kwargs: kwargs["messages"][0]["content"]):
+        prompt = b.synthesize_brief_with_llm(headlines, "Task", "Memory", themes=themes, novelty=novelty)
+
+    # Verify theme and novelty context made it into the prompt
+    assert "authentication" in prompt
+    assert "3 new articles" in prompt
