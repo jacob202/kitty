@@ -26,12 +26,12 @@ import time
 import uuid
 from pathlib import Path
 
-from gateway.paths import DATA_DIR
+from gateway.paths import BUILDS_DB, DATA_DIR
 from gateway import success_criteria
 
 logger = logging.getLogger("kitty.builder")
 
-BUILD_DB = DATA_DIR / "builds.db"
+BUILD_DB = BUILDS_DB
 VALID_STAGES = ["plan", "scaffold", "implement", "test", "review", "commit"]
 STAGE_ORDER = {s: i for i, s in enumerate(VALID_STAGES)}
 
@@ -258,20 +258,16 @@ async def _run_pipeline(
 
 async def _run_plan_stage(goal: str) -> str:
     """Use planner agent to break goal into steps."""
-    from gateway.agent_runner import spawn, get_output, get_status
+    from gateway.agent_runner import spawn, get_output, await_completion
 
     session_id = await spawn(goal, agent_type="planner", max_iterations=3)
-    for _ in range(30):
-        await asyncio.sleep(3)
-        s = get_status(session_id)
-        if s["status"] in ("completed", "failed"):
-            break
+    await await_completion(session_id, poll=3.0, timeout=90.0)
     return get_output(session_id)
 
 
 async def _run_scaffold_stage(goal: str, plan: str, target_dir: str) -> str:
     """Generate file structure based on the plan."""
-    from gateway.agent_runner import spawn, get_output, get_status
+    from gateway.agent_runner import spawn, get_output, await_completion
 
     scaffold_goal = (
         f"Based on this plan, create the file and directory structure for the project.\n\n"
@@ -280,11 +276,7 @@ async def _run_scaffold_stage(goal: str, plan: str, target_dir: str) -> str:
         f"List every file and directory that needs to be created. Format as a tree."
     )
     session_id = await spawn(scaffold_goal, agent_type="planner", max_iterations=2)
-    for _ in range(20):
-        await asyncio.sleep(3)
-        s = get_status(session_id)
-        if s["status"] in ("completed", "failed"):
-            break
+    await await_completion(session_id, poll=3.0, timeout=60.0)
     return get_output(session_id)
 
 
@@ -292,7 +284,7 @@ async def _run_implement_stage(
     goal: str, plan: str, scaffold: str, target_dir: str
 ) -> str:
     """Write the actual code."""
-    from gateway.agent_runner import spawn, get_output, get_status
+    from gateway.agent_runner import spawn, get_output, await_completion
 
     impl_goal = (
         f"Implement the following project. Write complete, working code for every file.\n\n"
@@ -301,11 +293,7 @@ async def _run_implement_stage(
         f"Output the COMPLETE content of each file. Use markdown code blocks with file paths."
     )
     session_id = await spawn(impl_goal, agent_type="coder", max_iterations=5)
-    for _ in range(60):
-        await asyncio.sleep(5)
-        s = get_status(session_id)
-        if s["status"] in ("completed", "failed"):
-            break
+    await await_completion(session_id, poll=5.0, timeout=300.0)
     return get_output(session_id)
 
 
@@ -334,7 +322,7 @@ async def _run_test_stage(target_dir: str) -> dict:
 
 async def _run_review_stage(goal: str, code: str, test_result: dict) -> str:
     """Review the output for quality."""
-    from gateway.agent_runner import spawn, get_output, get_status
+    from gateway.agent_runner import spawn, get_output, await_completion
 
     review_goal = (
         f"Review this code implementation.\n\n"
@@ -344,11 +332,7 @@ async def _run_review_stage(goal: str, code: str, test_result: dict) -> str:
         f"Review for: correctness, completeness, edge cases, security, style. Be constructive."
     )
     session_id = await spawn(review_goal, agent_type="reviewer", max_iterations=2)
-    for _ in range(20):
-        await asyncio.sleep(3)
-        s = get_status(session_id)
-        if s["status"] in ("completed", "failed"):
-            break
+    await await_completion(session_id, poll=3.0, timeout=60.0)
     return get_output(session_id)
 
 
