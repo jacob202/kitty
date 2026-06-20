@@ -64,6 +64,16 @@ Ship the current changes through commit, push, and PR creation. Confirm with the
 - Only after confirmation: create the PR with `gh pr create`
 - Show the PR URL when done
 
+## Step 6: Handoff doc (Kitty-specific)
+
+After the PR is created or code is committed:
+- Append to `docs/AGENT_HANDOFF.md`:
+  - What shipped (commit SHA + one-line summary)
+  - What's next (unfinished work, open TODOs)
+  - Open questions or blockers
+- If any architecture decisions were made, record them in `docs/DECISIONS.md`
+- This step is non-blocking: if the user says skip, skip it
+
 ## Step 5: Branch cleanup (optional)
 
 After the PR is created (or if invoked when everything is already shipped), offer to clean up stale local branches:
