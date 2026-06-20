@@ -9,6 +9,7 @@ logger = logging.getLogger("kitty.inventory")
 
 from gateway.paths import DATA_DIR
 from gateway.llm_client import call_llm
+from gateway.prompts import INVENTORY_PHOTO_PROMPT
 
 INVENTORY_CSV = DATA_DIR / "inventory.csv"
 
@@ -24,16 +25,7 @@ def extract_parts_from_image(image_path: str | Path) -> List[Dict]:
             img_data = f.read()
         base64_img = base64.b64encode(img_data).decode("utf-8")
 
-        prompt = """Analyze this photo of electronic components (e.g., a parts bin, a bag of transistors, capacitors).
-        Identify the parts and extract them into a structured JSON array.
-        Return ONLY a raw JSON array of objects with these keys:
-        - "part_number" (e.g., "2SC1400", leave blank if unknown)
-        - "value" (e.g., "470uF 50V", "10k ohm 1/4W", leave blank if unknown)
-        - "type" (e.g., "Transistor", "Capacitor", "Resistor")
-        - "quantity" (integer, estimate if in a pile, exact if clearly countable)
-        - "notes" (e.g., "Nichicon Gold Tune", "SMD", "Through-hole")
-        
-        Do not wrap the output in markdown blocks. Return only the JSON."""
+        prompt = INVENTORY_PHOTO_PROMPT
 
         payload = {
             "messages": [

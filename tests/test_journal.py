@@ -3,8 +3,6 @@ import json
 import pytest
 from pathlib import Path
 from gateway.journal import (
-    INTERVIEW_SYSTEM_PROMPT,
-    SYNTHESIS_PROMPT,
     THEMES,
     build_interview_system_prompt,
     build_synthesis_prompt,
@@ -13,6 +11,10 @@ from gateway.journal import (
     get_random_prompt,
     is_journal_trigger,
     save_journal_entry,
+)
+from gateway.prompts import (
+    JOURNAL_INTERVIEW_PROMPT,
+    JOURNAL_SYNTHESIS_PROMPT,
 )
 
 
@@ -56,13 +58,13 @@ def test_build_interview_system_prompt_contains_base_and_interview():
     base = "You are Kitty."
     result = build_interview_system_prompt(base)
     assert base in result
-    assert INTERVIEW_SYSTEM_PROMPT in result
+    assert JOURNAL_INTERVIEW_PROMPT in result
 
 
 def test_build_interview_system_prompt_base_comes_first():
     base = "You are Kitty."
     result = build_interview_system_prompt(base)
-    assert result.index(base) < result.index(INTERVIEW_SYSTEM_PROMPT)
+    assert result.index(base) < result.index(JOURNAL_INTERVIEW_PROMPT)
 
 
 def test_build_interview_system_prompt_with_theme():
@@ -72,7 +74,7 @@ def test_build_interview_system_prompt_with_theme():
 
 def test_build_synthesis_prompt_returns_string():
     result = build_synthesis_prompt()
-    assert result == SYNTHESIS_PROMPT
+    assert result == JOURNAL_SYNTHESIS_PROMPT
     assert "Jacob" in result
     assert "first person" in result.lower() or "his voice" in result.lower()
 

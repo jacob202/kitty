@@ -138,7 +138,7 @@ Pulled from the architecture review on 2026-06-18 (the `improve-codebase-archite
 
 | # | Candidate | Status | Depends on |
 |---|---|---|---|
-| 1 | `memory_graph.py` shim collapse: rename 6 concrete adapters to `_XxxAdapter`, delete 8 module-level shims, fix `GraphResult` to carry the adapter list passed by `MemoryGraph.search_all` (today it re-asks `_default_adapters()`, breaking custom-adapter tests) | **PARTIAL** — shims and `GraphResult.formatted_context()` cleanup still open | — |
+| 1 | `memory_graph.py` shim collapse: rename 6 concrete adapters to `_XxxAdapter`, delete 8 module-level shims, fix `GraphResult` to carry the adapter list passed by `MemoryGraph.search_all` (today it re-asks `_default_adapters()`, breaking custom-adapter tests) | **PARTIAL** — 6 module-level shims deleted in this commit (`_MemoryAdapter` etc., no external importers); `GraphResult._get_adapters()` fall-through still open; the rename-to-underscore-prefix step (and the test that depends on the public names) is still open | — |
 | 2 | Write-side `StorageRouter` so direct store imports die in routes | Tracked as B4 | B1–B3 (SQLite migration) |
 | 3 | `context_enrichment` reads todos straight from `todo_store` while `memory_graph.unified_context` re-fetches them inside the same prompt build — the prompt gets todos twice and the order is order-of-call dependent | NEW | — |
 | 4 | `LLMProvider` port: 4 provider adapters + chained fallback (OpenAI, NVIDIA, AgentRouter, OpenRouter, Gemini) sit inside one 867-line `llm_client.py` with inline header gymnastics. Worth a real seam. | NEW | — |

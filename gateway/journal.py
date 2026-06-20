@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Optional
 
 from gateway.paths import DATA_DIR
+from gateway.prompts import JOURNAL_INTERVIEW_PROMPT, JOURNAL_SYNTHESIS_PROMPT
 
 logger = logging.getLogger("kitty.journal")
 
@@ -35,33 +36,6 @@ def save_journal_entry(
 
 
 THEMES = ["recovery", "work", "mood", "relationships", "body", "creative", "reflection"]
-
-# Kitty's interviewer persona — curious journalist, not therapist
-INTERVIEW_SYSTEM_PROMPT = """\
-You are conducting a journal interview with Jacob. Your job is to be a curious,
-attentive interviewer — not a therapist. You are not trying to fix anything.
-
-Rules:
-- Ask ONE question at a time. Only ever one.
-- Start casual and specific. Not "how are you feeling today."
-- Reference things you know about Jacob when you can.
-- Follow threads. If he mentions something interesting, go there first.
-- Never announce you're journaling or interviewing. Just talk.
-- When the conversation has enough material (typically 6–10 exchanges), close naturally."""
-
-# Synthesis prompt — turns transcript into a first-person entry in Jacob's voice
-SYNTHESIS_PROMPT = """\
-You have just conducted a journal interview with Jacob.
-Synthesize the conversation into a journal entry written from his perspective.
-
-Rules:
-- Write AS Jacob, first person, his voice and phrasing.
-- Capture specifics he actually said — not summaries or paraphrases.
-- Keep his exact wording where it's vivid.
-- One to three paragraphs, no headers, no bullet points.
-- End where the conversation ended. No forced resolution.
-- Do not add insights he didn't express himself.
-- Do not editorialize."""
 
 _OPENERS: dict[str, list[str]] = {
     "recovery": [
@@ -174,11 +148,11 @@ def build_interview_system_prompt(
     base_soul_prompt: str, theme: Optional[str] = None
 ) -> str:
     theme_line = f"\n\nFocus area for this session: {theme}." if theme else ""
-    return f"{base_soul_prompt}\n\n{INTERVIEW_SYSTEM_PROMPT}{theme_line}"
+    return f"{base_soul_prompt}\n\n{JOURNAL_INTERVIEW_PROMPT}{theme_line}"
 
 
 def build_synthesis_prompt() -> str:
-    return SYNTHESIS_PROMPT
+    return JOURNAL_SYNTHESIS_PROMPT
 
 
 def delete_journal_message(session_id: str, message_id: str) -> bool:

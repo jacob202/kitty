@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 
@@ -13,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from gateway.auth import BearerAuthMiddleware
 from gateway.constants import MAX_BODY_BYTES
+from gateway.errors import KittyError
 from gateway.paths import validate_dirs, validate_env
 from gateway.routes.register import register_routes
 from gateway.voice_middleware import VoiceGateMiddleware
@@ -124,6 +126,25 @@ async def body_size_guard(request: Request, call_next):
     if content_length and int(content_length) > MAX_BODY_BYTES:
         return Response(status_code=413, content="Request body too large")
     return await call_next(request)
+
+
+@app.exception_handler(KittyError)
+async def kitty_error_handler(request: Request, exc: KittyError):
+    """Translate ``KittyError`` subclasses to a consistent JSON error shape.
+
+    Falls through to FastAPI's default 500 for genuinely unexpected
+    exceptions — this handler only fires for errors the gateway
+    describes on purpose. The body shape is:
+
+    ``{"error": "<machine code>", "message": "...", "details": {...}}``
+    """
+    if exc.status_code >= 500:
+        logger.exception("kitty_error: %s %s", exc.code, exc.message)
+    return Response(
+        status_code=exc.status_code,
+        media_type="application/json",
+        content=json.dumps(exc.to_dict()),
+    )
 
 
 @app.get("/health")
