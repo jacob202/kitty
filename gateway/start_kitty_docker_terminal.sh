@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-ROOT_DIR="/Users/jacobbrizinski/Projects/kitty"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${ROOT_DIR}/kitty_gateway/openwebui.env"
 DOCKER_DIR="${ROOT_DIR}/gateway/docker_terminal"
 LOG_DIR="${ROOT_DIR}/logs/kitty_gateway"

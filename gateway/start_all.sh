@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-ROOT_DIR="/Users/jacobbrizinski/Projects/kitty"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUN_DIR="${ROOT_DIR}/kitty_gateway/.run"
 LOG_DIR="${ROOT_DIR}/logs/kitty_gateway"
 source "${ROOT_DIR}/gateway/lib/load_env_safe.sh"

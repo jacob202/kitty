@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-ROOT_DIR="/Users/jacobbrizinski/Projects/kitty"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOG_DIR="${ROOT_DIR}/logs/kitty_gateway"
 CHECKS_LOG="${LOG_DIR}/doctor_checks.jsonl"
 ALERT_LOG="${LOG_DIR}/doctor_alerts.log"
