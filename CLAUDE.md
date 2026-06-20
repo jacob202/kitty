@@ -68,3 +68,16 @@ make agent-wrap
 ```
 
 If a command fails, report the failure exactly. Do not round up to passing.
+
+## Voice Glossary
+
+- "the gateway" → `gateway/`
+- "the chat thing" / "the UI" → `gateway/kitty-chat/`
+- "the agent" → `gateway/agent.py`
+- "the storage thing" → `gateway/storage_router.py` + `gateway/memory_graph.py`
+- "the routing thing" → `gateway/llm_client.py`
+- "the journal thing" → `gateway/journal.py` + `gateway/journal_store.py`
+- "phase B" → `docs/PHASE_B_PLAN.md` (shipped)
+- "phase C" → storage migrations (chats done, journal next)
+- "Goose" → external chat tool, not part of kitty runtime
+- "Honcho" → external mirror service, not properly wired up
