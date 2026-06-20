@@ -46,6 +46,8 @@ Status 2026-06-20: plugin settings now persist through `gateway/db.py` and plugi
 - Keep old files readable during transition.
 - Emit explicit migration errors with file path and schema version.
 
+Status 2026-06-20: started with todos because they were already isolated behind `gateway/todo_store.py` and already SQLite. Todos now use `gateway/db.py`, `gateway/migrations/003_todos.sql`, and `data/kitty/kitty.db`. Existing `data/todos.db` is copied once if the new todos table is empty; it is not deleted or renamed.
+
 ### B4 - Write-Side Storage Router
 
 - Add a small write API that mirrors the existing `memory_graph` read rule.

@@ -7,7 +7,7 @@
 
 ## What This Branch Is Doing
 
-Preparing Kitty for Phase B by consolidating canonical docs, adding an agent wrap-up loop, and landing the first two storage slices. It has not migrated chats, todos, journal, memory, ChromaDB, mem0, or user-facing episodic data.
+Preparing Kitty for Phase B by consolidating canonical docs, adding an agent wrap-up loop, and landing the first storage slices. It has not migrated chats, journal, memory, ChromaDB, mem0, or broad user-facing episodic data. Todos are the first B3 seam and now write through the Phase B Kitty DB with copy-only legacy import.
 
 ## Important Context
 
@@ -34,9 +34,12 @@ Preparing Kitty for Phase B by consolidating canonical docs, adding an agent wra
 - `gateway/db.py`
 - `gateway/migrations/001_foundation.sql`
 - `gateway/migrations/002_plugin_settings.sql`
+- `gateway/migrations/003_todos.sql`
 - `gateway/plugin_registry.py`
+- `gateway/todo_store.py`
 - `tests/test_db.py`
 - `tests/test_plugin_registry.py`
+- `tests/test_todo_store.py`
 - `scripts/agent_wrapup.py`
 
 ## Current Git State
@@ -67,19 +70,20 @@ Latest local verification:
 - `python3.12 -m pytest tests/test_memory_graph.py -q --tb=short` passed: 10 tests.
 - `python3.12 -m pytest tests/test_db.py -q --tb=short` passed: 4 tests.
 - `python3.12 -m pytest tests/test_plugin_registry.py -q --tb=short` passed: 3 tests.
+- `python3.12 -m pytest tests/test_todo_store.py tests/test_db.py tests/test_plugin_registry.py -q --tb=short` passed: 29 tests.
 - `make agent-wrap` created `.agent/session_logs/20260620T012911Z-handoff.md`; generated logs are ignored.
-- `python3.12 -m pytest tests/ -q --tb=short` passed: 551 passed, 2 deselected, 3 warnings.
+- `python3.12 -m pytest tests/ -q --tb=short` passed: 554 passed, 2 deselected, 3 warnings.
 
 ## Known Open Work
 
 - `codex/raycast-quick-capture` has useful unmerged Raycast wrapper work at `5a07744`.
 - Older stashes remain for LLM routing and memory graph experiments; do not drop them without review.
 - Pre-commit has an unreachable code-review-graph block after `exit 0`; fix separately if tooling cleanup resumes.
-- Phase B B3 is the first risky storage step because it touches user-facing stores. Do not migrate chats/todos/journal without an explicit compatibility and rollback plan.
+- Phase B B3 has started with the narrow todo seam. Do not migrate chats or journal without an explicit compatibility and rollback plan.
 
 ## Next Implementation Prompt
 
-Implement Phase B B3 only after review: choose the next user-facing store deliberately. Prefer a small read/write seam or compatibility wrapper before migrating chats/todos/journal data.
+Review and commit the B3 todo seam, then choose the next user-facing store deliberately. Prefer another small seam or compatibility wrapper before migrating chats or journal data.
 
 ## Source-of-Truth Audit (2026-06-20)
 

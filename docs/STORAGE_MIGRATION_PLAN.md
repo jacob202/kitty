@@ -12,7 +12,7 @@ Migrate behind stable APIs. Do not make the UI or clients care where state lives
 |---|---|---|---|---|
 | Quick Capture inbox | `data/inbox.jsonl` | JSONL append | Keep append-only (D4) | `data/` — stays |
 | Journal | `data/journal_entries.jsonl` | JSONL | B3 episodic migration candidate | moves to `data/kitty/` |
-| Todos | `data/todos.db` | SQLite | B3 episodic migration candidate | moves to `data/kitty/` |
+| Todos | `data/todos.db` legacy, `data/kitty/kitty.db` current | SQLite | **B3 first user-facing seam** | moved to `data/kitty/kitty.db`; old file copied once and left untouched |
 | Cron schedules | `data/cron_schedules.db` | SQLite | B3 episodic migration candidate | moves to `data/kitty/` |
 | Plugin settings | `data/plugin_settings.json` | JSON | **B2 first migration** | moves to `data/kitty/kitty.db` |
 | Model digest | `data/model_digest.db` | SQLite | Leave until shared DB proven | stays (deferred) |
@@ -64,7 +64,8 @@ The seam work is layered. Each phase's output is the next phase's input.
 | 0 | Path-seam discipline | — | `paths.py` is single source; path duplications resolved; `model_digest.py` hardcode fixed |
 | 1 | Policy doc (this section) | — | `data/` vs `data/kitty/` rule is explicit |
 | 2 | First store via `gateway/db.py` | Phase 0, 1 | `plugin_settings` writes through `db.py`; JSON readable during transition |
-| 3 | `StorageRouter` port | Phase 2 | Write-side seam mirrors `memory_graph`; one user-facing store migrated |
+| 3 | First user-facing seam | Phase 2 | `todos` writes through `db.py`; old `data/todos.db` untouched |
+| 4 | `StorageRouter` port | Phase 3 | Write-side seam mirrors `memory_graph` for future stores |
 
 ## StorageRouter Port (Phase 3 sketch)
 
