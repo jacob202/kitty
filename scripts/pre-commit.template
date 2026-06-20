@@ -1,0 +1,32 @@
+#!/bin/sh
+# Kitty pre-commit hook.
+# Installed by scripts/install-pre-commit.sh; do not edit by hand.
+# Edit scripts/pre-commit.template and re-run the installer instead.
+
+# macOS metadata guard — refuse commits containing Finder artifacts.
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
+JUNK=""
+for f in $STAGED; do
+  base=$(basename "$f")
+  case "$base" in
+    .DS_Store) JUNK="$JUNK $f" ;;
+    ._'*') JUNK="$JUNK $f" ;;
+    Icon*) JUNK="$JUNK $f" ;;
+  esac
+done
+if [ -n "$JUNK" ]; then
+  echo "macOS metadata in staged files:$JUNK"
+  echo "Unstage them: git reset HEAD -- <files>"
+  exit 1
+fi
+
+echo "Running pre-commit tests..."
+/opt/homebrew/bin/python3.12 -m pytest tests/ -q --tb=short
+
+if [ $? -ne 0 ]; then
+  echo "Tests failed! Aborting commit."
+  echo "Please fix the failing tests before committing."
+  exit 1
+fi
+
+echo "Tests passed!"
