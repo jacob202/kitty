@@ -1,4 +1,6 @@
 """Tests for chats_store — keyed-by-id chat session CRUD on kitty.db."""
+import json
+
 import pytest
 
 from gateway import chats_store
@@ -8,7 +10,9 @@ from gateway import chats_store
 def isolate_chats_store(monkeypatch, tmp_path):
     """Keep chats tests away from live user data while exercising the Phase C path."""
     phase_b_db = tmp_path / "kitty" / "kitty.db"
+    legacy_json = tmp_path / "kitty" / "chats.json"
     monkeypatch.setattr(chats_store, "CHATS_DB_FILE", phase_b_db, raising=False)
+    monkeypatch.setattr(chats_store, "LEGACY_CHATS_FILE", legacy_json, raising=False)
 
 
 def test_list_chats_empty_when_no_data():
@@ -92,3 +96,69 @@ def test_upsert_supports_unicode_payload():
     result = chats_store.list_chats()
 
     assert result[0] == chat
+
+
+class TestLegacyImport:
+    """Phase C C4: one-time JSON import for backward compat."""
+
+    def test_imports_existing_json_file_on_first_read(self, tmp_path):
+        legacy = tmp_path / "kitty" / "chats.json"
+        legacy.parent.mkdir(parents=True, exist_ok=True)
+        legacy.write_text(
+            json.dumps(
+                [
+                    {"id": "old1", "title": "from json"},
+                    {"id": "old2", "messages": [{"role": "user", "text": "hi"}]},
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        result = chats_store.list_chats()
+
+        assert {c["id"] for c in result} == {"old1", "old2"}
+
+    def test_json_file_never_deleted_after_import(self, tmp_path):
+        legacy = tmp_path / "kitty" / "chats.json"
+        legacy.parent.mkdir(parents=True, exist_ok=True)
+        legacy.write_text(json.dumps([{"id": "x", "title": "stay"}]), encoding="utf-8")
+
+        chats_store.list_chats()
+
+        assert legacy.exists()
+
+    def test_does_not_reimport_on_second_call(self, tmp_path):
+        legacy = tmp_path / "kitty" / "chats.json"
+        legacy.parent.mkdir(parents=True, exist_ok=True)
+        legacy.write_text(json.dumps([{"id": "x", "title": "v1"}]), encoding="utf-8")
+
+        chats_store.list_chats()
+        # Mutate the JSON file on disk; second read should NOT pick this up.
+        legacy.write_text(json.dumps([{"id": "x", "title": "v2"}]), encoding="utf-8")
+        result = chats_store.list_chats()
+
+        assert result[0]["title"] == "v1"
+
+    def test_skips_import_when_table_already_has_data(self, tmp_path):
+        chats_store.upsert_chat({"id": "fresh", "title": "from sqlite"})
+        legacy = tmp_path / "kitty" / "chats.json"
+        legacy.write_text(json.dumps([{"id": "old", "title": "should not import"}]),
+                          encoding="utf-8")
+
+        result = chats_store.list_chats()
+
+        assert {c["id"] for c in result} == {"fresh"}
+
+    def test_marks_no_source_when_json_does_not_exist(self, tmp_path):
+        # The fixture's legacy path points at a tmp_path file that does not exist.
+        result = chats_store.list_chats()
+
+        assert result == []
+
+    def test_bad_json_raises_runtime_error(self, tmp_path):
+        legacy = tmp_path / "kitty" / "chats.json"
+        legacy.parent.mkdir(parents=True, exist_ok=True)
+        legacy.write_text("not json", encoding="utf-8")
+
+        with pytest.raises(RuntimeError, match="Legacy chats import failed"):
+            chats_store.list_chats()

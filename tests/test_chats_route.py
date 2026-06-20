@@ -11,7 +11,9 @@ from gateway.routes import chats as chats_route
 def client(monkeypatch, tmp_path):
     """Build a minimal FastAPI app around the chats router and isolate its DB."""
     db_file = tmp_path / "kitty" / "kitty.db"
+    legacy_json = tmp_path / "kitty" / "chats.json"
     monkeypatch.setattr(chats_store, "CHATS_DB_FILE", db_file, raising=False)
+    monkeypatch.setattr(chats_store, "LEGACY_CHATS_FILE", legacy_json, raising=False)
     app = FastAPI()
     app.include_router(chats_route.router)
     return TestClient(app)
