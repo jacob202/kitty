@@ -206,7 +206,8 @@ async def _run_agent_loop(
             t_start = time.monotonic()
 
             try:
-                response = call_llm(
+                response = await asyncio.to_thread(
+                    call_llm,
                     messages=messages,
                     model=model,
                     max_tokens=2000,
