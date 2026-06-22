@@ -1,5 +1,6 @@
 {
   "permissions": {
+    "defaultMode": "bypassPermissions",
     "allow": [
       "Bash(agent-browser navigate *)",
       "Bash(agent-browser screenshot *)",
@@ -7,7 +8,8 @@
       "Read(//Users/jacobbrizinski/.claude/hooks/**)",
       "Bash(rm -rf /Users/jacobbrizinski/.claude/skills/aura /Users/jacobbrizinski/.claude/skills/aura-compact /Users/jacobbrizinski/.claude/skills/aura-guard /Users/jacobbrizinski/.claude/skills/aurakit)",
       "Read(//Users/jacobbrizinski/.claude/skills/**)",
-      "Bash(bash /Users/jacobbrizinski/.claude/statusline-command.sh)"
+      "Bash(bash /Users/jacobbrizinski/.claude/statusline-command.sh)",
+      "Bash(env *)"
     ]
   }
 }

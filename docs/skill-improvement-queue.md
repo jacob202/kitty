@@ -1,4 +1,4 @@
-# Skill Improvement Queue — 2026-06-20
+# Skill Improvement Queue — 2026-06-22
 (run `/improve skill <name>` to fix top entry)
 
 - `agent-browser`: no ## Flow

@@ -5,7 +5,7 @@ set -euo pipefail
 KITTY="$HOME/Projects/kitty"
 OUT="$KITTY/docs/migration-health.md"
 DATE=$(date "+%Y-%m-%d")
-PYTHON="python3.12"
+PYTHON="$HOME/Projects/kitty/venv/bin/python3.12"
 
 cd "$KITTY"
 
