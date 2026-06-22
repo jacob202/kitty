@@ -25,12 +25,9 @@ import time
 import uuid
 from typing import Optional, Any
 
-from gateway.paths import DATA_DIR
+from gateway.paths import TASK_DB, TASK_OUTPUT_DIR
 
 logger = logging.getLogger("kitty.task_runner")
-
-TASK_DB = DATA_DIR / "task_queue.db"
-TASK_OUTPUT_DIR = DATA_DIR / "task_outputs"
 
 VALID_TYPES = frozenset({"research", "ingest", "build", "cleanup", "dream", "wisdom"})
 VALID_STATUSES = frozenset({"queued", "running", "completed", "failed", "cancelled"})

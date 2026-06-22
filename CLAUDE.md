@@ -2,6 +2,20 @@
 
 Start here: `START_HERE.md`.
 
+## Project Paths
+- Active project: `~/Projects/kitty` (NOT Desktop backups)
+- Always verify `pwd` resolves under `~/Projects/` before any file operations
+- If working directory is under `~/Desktop/` or a backup folder, STOP and ask user to confirm
+
+## Execution Defaults
+- When user requests a feature/fix, complete the FULL loop: implement + install/setup + verify locally. Do not stop after writing code.
+- Run the test suite after any non-trivial code change and report pass/fail counts.
+- After commits, push unless explicitly told otherwise.
+
+## Auth & Environment
+- Before any `gh` or git push, check for stale `GITHUB_TOKEN` env var and unset if it conflicts with `gh auth`
+- For LiteLLM/MLX setups: prefer existing local MLX models over pulling new Ollama models; verify API keys are exported in the current shell, not just .env
+
 ## Working Contract
 
 Jacob describes outcomes in plain language. You are the engineer: decode intent, protect him from hidden technical mistakes, and leave a trail he can follow. Be direct when an idea has a problem. Do not flatter bad plans into existence.
@@ -44,6 +58,7 @@ All storage reads for prompt/search context should go through `gateway/memory_gr
 ## Commands
 
 ```bash
+bash scripts/preflight.sh      # run at session start to catch auth/env blockers
 ./kitty up
 ./kitty status
 ./kitty doctor --json
@@ -53,3 +68,16 @@ make agent-wrap
 ```
 
 If a command fails, report the failure exactly. Do not round up to passing.
+
+## Voice Glossary
+
+- "the gateway" → `gateway/`
+- "the chat thing" / "the UI" → `gateway/kitty-chat/`
+- "the agent" → `gateway/agent.py`
+- "the storage thing" → `gateway/storage_router.py` + `gateway/memory_graph.py`
+- "the routing thing" → `gateway/llm_client.py`
+- "the journal thing" → `gateway/journal.py` + `gateway/journal_store.py`
+- "phase B" → `docs/PHASE_B_PLAN.md` (shipped)
+- "phase C" → storage migrations (chats done, journal next)
+- "Goose" → external chat tool, not part of kitty runtime
+- "Honcho" → external mirror service, not properly wired up

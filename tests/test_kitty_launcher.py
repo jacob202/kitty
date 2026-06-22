@@ -34,3 +34,14 @@ def test_launcher_uses_litellm_readiness_for_status() -> None:
     launcher = (ROOT / "kitty").read_text(encoding="utf-8")
 
     assert 'http://127.0.0.1:$LITELLM_PORT/health/readiness' in launcher
+
+
+def test_launcher_exposes_backup_and_restore_drill() -> None:
+    launcher = (ROOT / "kitty").read_text(encoding="utf-8")
+
+    assert "cmd_backup()" in launcher
+    assert "cmd_restore_drill()" in launcher
+    assert 'scripts/kitty_backup.py" backup' in launcher
+    assert 'scripts/kitty_backup.py" restore-drill' in launcher
+    assert "backup)    shift; cmd_backup" in launcher
+    assert "restore-drill) shift; cmd_restore_drill" in launcher

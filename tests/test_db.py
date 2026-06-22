@@ -70,6 +70,106 @@ def test_default_migrations_create_app_settings(tmp_path):
     assert table == ("app_settings",)
 
 
+def test_default_migrations_create_chats_table(tmp_path):
+    """Phase C C1: 004_chats.sql adds a chats table keyed by id with a JSON payload."""
+    db_file = tmp_path / "kitty.db"
+
+    applied = db.migrate(db_file=db_file)
+
+    assert "004_chats.sql" in applied
+    with sqlite3.connect(db_file) as conn:
+        table = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'chats'"
+        ).fetchone()
+        columns = {
+            row[1] for row in conn.execute("PRAGMA table_info(chats)").fetchall()
+        }
+    assert table == ("chats",)
+    assert columns == {"id", "payload", "updated_at"}
+
+
+def test_default_migrations_create_journal_entries_table(tmp_path):
+    """Phase C B1: 005_journal_entries.sql adds a normalized journal_entries table."""
+    db_file = tmp_path / "kitty.db"
+
+    applied = db.migrate(db_file=db_file)
+
+    assert "005_journal_entries.sql" in applied
+    with sqlite3.connect(db_file) as conn:
+        table = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' "
+            "AND name = 'journal_entries'"
+        ).fetchone()
+        columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(journal_entries)").fetchall()
+        }
+    assert table == ("journal_entries",)
+    assert columns == {"id", "ts", "theme", "entry", "session_id", "created_at"}
+
+
+def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_path):
+    """Phase C B1 should add journal_entries without disturbing earlier storage slices."""
+    db_file = tmp_path / "kitty.db"
+
+    db.migrate(db_file=db_file)
+
+    with sqlite3.connect(db_file) as conn:
+        tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+        applied = [
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM schema_migrations ORDER BY name"
+            ).fetchall()
+        ]
+
+    assert {"app_settings", "todos", "chats", "journal_entries"} <= tables
+    assert applied == [
+        "001_foundation.sql",
+        "002_plugin_settings.sql",
+        "003_todos.sql",
+        "004_chats.sql",
+        "005_journal_entries.sql",
+    ]
+
+
+def test_journal_entries_schema_matches_phase_c_contract(tmp_path):
+    """Phase C B1: column order, required fields, and default timestamp match the plan."""
+    db_file = tmp_path / "kitty.db"
+
+    db.migrate(db_file=db_file)
+
+    with sqlite3.connect(db_file) as conn:
+        columns = {
+            row[1]: {
+                "type": row[2],
+                "notnull": row[3],
+                "default": row[4],
+                "pk": row[5],
+            }
+            for row in conn.execute("PRAGMA table_info(journal_entries)").fetchall()
+        }
+
+    assert columns == {
+        "id": {"type": "INTEGER", "notnull": 0, "default": None, "pk": 1},
+        "ts": {"type": "REAL", "notnull": 1, "default": None, "pk": 0},
+        "theme": {"type": "TEXT", "notnull": 0, "default": None, "pk": 0},
+        "entry": {"type": "TEXT", "notnull": 1, "default": None, "pk": 0},
+        "session_id": {"type": "TEXT", "notnull": 0, "default": None, "pk": 0},
+        "created_at": {
+            "type": "TEXT",
+            "notnull": 1,
+            "default": "CURRENT_TIMESTAMP",
+            "pk": 0,
+        },
+    }
+
+
 def test_migrate_failure_names_file_and_database(tmp_path):
     db_file = tmp_path / "kitty.db"
     migrations_dir = tmp_path / "migrations"

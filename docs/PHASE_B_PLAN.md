@@ -62,6 +62,8 @@ Status 2026-06-20: implemented a deliberately thin `gateway/storage_router.py` s
 - Prove restore into a temporary directory.
 - Document exactly what is and is not backed up.
 
+Status 2026-06-20: implemented `scripts/kitty_backup.py` behind `./kitty backup` and `./kitty restore-drill`. Backups copy `data/kitty/` into `data/backups/kitty/<timestamp>/`, use SQLite's backup API for `.db` files, and restore only into a new target directory.
+
 ## Acceptance Criteria
 
 - A fresh checkout can run migrations without manual path edits.

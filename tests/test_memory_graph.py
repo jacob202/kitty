@@ -170,13 +170,18 @@ async def test_token_budget_truncation():
 @pytest.mark.asyncio
 async def test_real_journal_fetch_smoke(tmp_path, monkeypatch):
     """Test journal search_entries via the journal module with a temporary file."""
+    from gateway import journal_store
+
     journal_file = tmp_path / "journal_entries.jsonl"
+    db_file = tmp_path / "kitty" / "kitty.db"
     monkeypatch.setattr("gateway.journal.JOURNAL_LOG", journal_file)
+    monkeypatch.setattr(journal_store, "JOURNAL_DB_FILE", db_file, raising=False)
+    monkeypatch.setattr(journal_store, "LEGACY_JOURNAL_LOG", journal_file, raising=False)
 
     with open(journal_file, "w") as f:
-        f.write(json.dumps({"entry": "the quick brown fox"}) + "\n")
-        f.write(json.dumps({"entry": "lazy dog jumps"}) + "\n")
-        f.write(json.dumps({"entry": "nothing here"}) + "\n")
+        f.write(json.dumps({"ts": 1.0, "entry": "the quick brown fox"}) + "\n")
+        f.write(json.dumps({"ts": 2.0, "entry": "lazy dog jumps"}) + "\n")
+        f.write(json.dumps({"ts": 3.0, "entry": "nothing here"}) + "\n")
 
     from gateway.journal import search_entries
 

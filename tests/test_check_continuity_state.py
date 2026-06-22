@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / "scripts" / "check_continuity_state.py"
-HANDOFF = ROOT / "SESSION_HANDOFF.md"
+HANDOFF = ROOT / "docs" / "AGENT_HANDOFF.md"
 
 
 def _run(max_age_days: int) -> subprocess.CompletedProcess:
@@ -36,18 +36,18 @@ class TestScriptExists:
 
 
 class TestHandoffPresent:
-    """Verify SESSION_HANDOFF.md exists and contains a parseable date."""
+    """Verify docs/AGENT_HANDOFF.md exists and contains a parseable date."""
 
     def test_handoff_file_present(self):
-        """SESSION_HANDOFF.md must exist at the repo root."""
-        assert HANDOFF.exists(), f"SESSION_HANDOFF.md not found at {HANDOFF}"
+        """docs/AGENT_HANDOFF.md must exist at the repo root."""
+        assert HANDOFF.exists(), f"docs/AGENT_HANDOFF.md not found at {HANDOFF}"
 
     def test_handoff_contains_date(self):
-        """SESSION_HANDOFF.md must contain at least one ISO date."""
+        """docs/AGENT_HANDOFF.md must contain at least one ISO date."""
         import re
         text = HANDOFF.read_text(encoding="utf-8")
         dates = re.findall(r"\b\d{4}-\d{2}-\d{2}\b", text)
-        assert dates, "SESSION_HANDOFF.md contains no ISO date (YYYY-MM-DD)"
+        assert dates, "docs/AGENT_HANDOFF.md contains no ISO date (YYYY-MM-DD)"
 
 
 class TestScriptBehavior:
@@ -66,10 +66,10 @@ class TestScriptBehavior:
         assert "FAIL:" in result.stdout
 
     def test_current_handoff_within_21_days(self):
-        """Real CI gate: SESSION_HANDOFF.md must be less than 21 days old."""
+        """Real CI gate: docs/AGENT_HANDOFF.md must be less than 21 days old."""
         result = _run(max_age_days=21)
         assert result.returncode == 0, (
-            f"SESSION_HANDOFF.md is more than 21 days old — update it!\n"
+            f"docs/AGENT_HANDOFF.md is more than 21 days old — update it!\n"
             f"{result.stdout}{result.stderr}"
         )
 

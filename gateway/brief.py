@@ -1,4 +1,5 @@
 from gateway.paths import PROJECT_ROOT
+from gateway.journal import recent_entries
 
 try:
     import feedparser
@@ -248,9 +249,22 @@ def _fetch_memory_snippet() -> str:
     try:
         from gateway.memory_graph import unified_context
 
-        return asyncio.run(unified_context("morning brief"))
+        return _run_async(unified_context("morning brief"))
     except Exception:
         return ""
+
+
+def _run_async(coro):
+    """Run a coroutine from a sync context.
+
+    Single seam for any async helper in this module. The brief pipeline
+    is invoked from CLI and FastAPI handlers, so this hides the
+    asyncio.run pattern behind a named function — both so the call
+    sites read uniformly and so a future async refactor can swap the
+    implementation (e.g. nest_asyncio or an async entry point) without
+    touching every call.
+    """
+    return asyncio.run(coro)
 
 
 def generate_brief_text(headlines: List[NewsHeadline], task_summary: str) -> str:
@@ -377,61 +391,54 @@ def generate_fast_brief() -> dict:
     )
 
 
-def detect_research_themes(limit: int = 5) -> list[dict]:
+def detect_research_themes(limit: int = 5, lookback_days: int = 14) -> list[dict]:
+    """Detect Jacob's current research themes from recent journal entries.
+
+    Source: the last ``lookback_days`` of journal entries, ranked by
+    bigram frequency. This replaced the earlier "search_all + bigram"
+    heuristic that produced noise and lied to the LLM with a fake
+    "general knowledge" theme when memory was empty.
+
+    Returns a list of ``{"theme": str, "mentions": int, "source":
+    "journal"}`` dicts, ordered by mentions descending, capped at
+    ``limit``. Returns ``[]`` when there is no journal data (empty log
+    file, all entries older than ``lookback_days``, or read error).
+
+    The caller (``generate_brief``, ``synthesize_brief_with_llm``) is
+    responsible for treating ``[]`` honestly — i.e. NOT inserting a
+    fabricated theme into the LLM prompt.
     """
-    Detect Jacob's current research themes from recent activity in memory graph.
-    Returns list of themes ranked by prominence, e.g.:
-    [
-        {"theme": "authentication systems", "mentions": 5, "confidence": 0.92},
-        {"theme": "performance optimization", "mentions": 3, "confidence": 0.85},
-    ]
-    """
-    import asyncio
-    from gateway.memory_graph import search_all
-    from collections import defaultdict
-    from datetime import timedelta
+    from collections import Counter
+
+    STOPWORDS = {
+        "the", "and", "for", "with", "that", "this", "have", "from",
+        "are", "was", "but", "not", "you", "your", "they", "them",
+        "what", "when", "where", "which", "while", "would", "could",
+        "should", "about", "into", "than", "then", "just", "like",
+        "more", "some", "very", "been", "will", "their", "there",
+    }
 
     try:
-        # Generic search to get recent activity across all stores
-        # Search for common keywords that reveal research themes
-        result = asyncio.run(search_all("research learning pattern"))
-
-        theme_counts = defaultdict(int)
-
-        # Extract themes from different store results
-        if result and isinstance(result, dict):
-            for store_name, entries in result.items():
-                if not entries:
-                    continue
-                for entry in entries[:5]:  # Limit per store
-                    # Extract keywords from entry content
-                    if isinstance(entry, dict):
-                        content = entry.get("content", "") or entry.get("text", "") or entry.get("title", "")
-                        # Simple heuristic: extract 2-3 word phrases as themes
-                        # (In production, could use NLP for better extraction)
-                        if content:
-                            words = content.lower().split()
-                            for i in range(len(words) - 1):
-                                if len(words[i]) > 4:  # Filter out small words
-                                    theme = f"{words[i]} {words[i+1]}"
-                                    if not any(stop in theme for stop in ["the ", "and ", "for ", "is "]):
-                                        theme_counts[theme] += 1
-
-        # Rank themes and build result
-        sorted_themes = sorted(theme_counts.items(), key=lambda x: x[1], reverse=True)
-        themes = []
-        for theme, count in sorted_themes[:limit]:
-            themes.append({
-                "theme": theme,
-                "mentions": count,
-                "confidence": min(0.95, 0.7 + (count * 0.05)),  # Higher confidence for more mentions
-            })
-
-        return themes if themes else [{"theme": "general knowledge", "mentions": 1, "confidence": 0.5}]
-
+        entries = recent_entries(days=lookback_days, limit=200)
     except Exception as e:
-        logger.warning(f"Failed to detect research themes: {e}")
-        return [{"theme": "general knowledge", "mentions": 1, "confidence": 0.5}]
+        logger.warning("detect_research_themes: recent_entries failed: %s", e)
+        return []
+
+    counter: Counter = Counter()
+    for entry in entries:
+        text = (entry.get("entry") or "").lower()
+        if not text:
+            continue
+        words = [w.strip(".,!?;:\"'()[]") for w in text.split()]
+        for i in range(len(words) - 1):
+            w1, w2 = words[i], words[i + 1]
+            if len(w1) > 4 and len(w2) > 4 and w1 not in STOPWORDS and w2 not in STOPWORDS:
+                counter[f"{w1} {w2}"] += 1
+
+    themes: list[dict] = []
+    for theme, mentions in counter.most_common(limit):
+        themes.append({"theme": theme, "mentions": mentions, "source": "journal"})
+    return themes
 
 
 def rank_headlines_by_relevance(headlines: List[NewsHeadline], themes: list[dict]) -> List[NewsHeadline]:

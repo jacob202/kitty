@@ -7,20 +7,7 @@ Two modes:
 The parts are: Skeptic, Champion, Pragmatist, Observer.
 """
 
-PARTS_PROMPT = """
----
-## Parts mode active
-
-Before responding, work through your internal council:
-
-Skeptic: [what's missing, wrong, or the strongest counterargument]
-Champion: [the best case for Jacob's position or idea]
-Pragmatist: [the smallest real next step]
-Observer: [what's underneath — the emotional undercurrent, the thing under the question]
-Where I land: [your actual answer]
-
-Show all four parts, then your resolved position. Don't skip any.
-""".strip()
+from gateway.prompts import PARTS_COUNCIL_PROMPT
 
 # Triggers that suggest a parts-mode response adds value
 _HIGH_STAKES_TRIGGERS = [
@@ -59,4 +46,4 @@ def should_surface_parts(message: str) -> bool:
 
 def build_parts_system_prompt(base_prompt: str) -> str:
     """Append the parts debate instruction to an existing system prompt."""
-    return base_prompt + "\n\n" + PARTS_PROMPT
+    return base_prompt + "\n\n" + PARTS_COUNCIL_PROMPT

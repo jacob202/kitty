@@ -697,9 +697,12 @@ def _call_nvidia_direct(
 def chat(
     model: str, messages: list[dict], max_tokens: int = 500, temperature: float = 0.7
 ) -> str:
-    return call_llm(
-        messages, model=model, max_tokens=max_tokens, temperature=temperature
-    )
+    from gateway.observability import record_chat
+
+    with record_chat(model, operation="llm.chat") as _call:
+        return call_llm(
+            messages, model=model, max_tokens=max_tokens, temperature=temperature
+        )
 
 
 _REASONING_KEYWORDS = frozenset(

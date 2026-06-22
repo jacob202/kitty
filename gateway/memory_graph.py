@@ -389,15 +389,6 @@ class InboxAdapter(StoreAdapter):
         return []
 
 
-# Private aliases for callers/tests that treat concrete adapters as internals.
-_MemoryAdapter = MemoryAdapter
-_KnowledgeAdapter = KnowledgeAdapter
-_JournalAdapter = JournalAdapter
-_TracesAdapter = TracesAdapter
-_TodosAdapter = TodosAdapter
-_InboxAdapter = InboxAdapter
-
-
 # --- Adapter registry ---
 
 

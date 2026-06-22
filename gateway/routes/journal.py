@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
+from gateway.errors import StorageNotFound, ValidationError
 from gateway.llm_client import (
     chat_completions_non_stream,
     extract_assistant_text,
@@ -46,7 +47,7 @@ async def journal_synthesize(request: Request):
     body = await request.json()
     messages = body.get("messages", [])
     if not messages:
-        raise HTTPException(status_code=400, detail="messages required")
+        raise ValidationError("messages required")
 
     from gateway.journal import build_synthesis_prompt, save_journal_entry
 
@@ -71,7 +72,7 @@ async def journal_synthesize(request: Request):
 async def journal_chat(payload: JournalChatRequest):
     """Single journal interview turn — uses provided system_prompt, bypasses context_builder."""
     if not payload.messages:
-        raise HTTPException(status_code=400, detail="messages required")
+        raise ValidationError("messages required")
     model = route_model("")
     llm_messages: list[dict] = []
     if payload.system_prompt:
@@ -90,5 +91,5 @@ async def delete_message(session_id: str, message_id: str):
 
     success = delete_journal_message(session_id, message_id)
     if not success:
-        raise HTTPException(status_code=404, detail="Message not found")
+        raise StorageNotFound("Message not found")
     return {"deleted": success, "session_id": session_id, "message_id": message_id}
