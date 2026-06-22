@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import logging
+import time
 import requests
 from typing import Any
 
@@ -24,6 +25,13 @@ logger = logging.getLogger("kitty.llm_client")
 from gateway.paths import LITELLM_BASE, LITELLM_KEY
 from gateway.token_usage_log import log_llm_usage, normalize_usage_payload
 from gateway.llm_utils import retry_with_backoff
+
+# Cap how long a single provider may spend establishing a connection, and bound
+# the total wall-clock time the whole fallback chain may burn. Without these, six
+# providers each hanging ~60s could stall a call for minutes. Read at import; tests
+# may monkeypatch the module attribute.
+_PROVIDER_CONNECT_TIMEOUT = float(os.environ.get("KITTY_PROVIDER_CONNECT_TIMEOUT", "5"))
+_LLM_CHAIN_DEADLINE = float(os.environ.get("KITTY_LLM_CHAIN_DEADLINE", "90"))
 
 # Optional tenacity retry on transient network and upstream server errors.
 # 4xx errors (auth, bad model) return immediately so provider-specific handling
@@ -53,6 +61,13 @@ except ImportError:  # pragma: no cover - optional dependency
 @_retry_post
 def _post(*args, **kwargs):
     """POST once, retrying only transport failures and HTTP 5xx responses."""
+    # A scalar timeout makes requests use the same value for connect AND read,
+    # so a dead host hangs for the full read budget just to connect. Split it into
+    # a (connect, read) tuple that caps connect time while preserving the caller's
+    # read budget. Tuples/None passed through untouched.
+    timeout = kwargs.get("timeout")
+    if isinstance(timeout, (int, float)):
+        kwargs["timeout"] = (min(_PROVIDER_CONNECT_TIMEOUT, timeout), timeout)
     response = requests.post(*args, **kwargs)
     status_code = getattr(response, "status_code", None)
     if isinstance(status_code, int) and 500 <= status_code <= 599:
@@ -220,6 +235,17 @@ def call_llm(
 
     model = normalize_litellm_request_model(model)
 
+    # Bound the whole chain: a slow provider must not let us try every remaining
+    # one for the full per-provider timeout each.
+    deadline = time.monotonic() + _LLM_CHAIN_DEADLINE
+
+    def _budget_timeout() -> int | None:
+        """Remaining budget clamped to the per-call timeout; None if exhausted."""
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return None
+        return max(1, min(timeout, int(remaining)))
+
     try:
         payload = {
             "model": model,
@@ -254,11 +280,15 @@ def call_llm(
         )
 
         # 1. OpenAI direct. This is the current known-good paid fallback on this machine.
+        _at = _budget_timeout()
+        if _at is None:
+            logger.error("LLM fallback chain exceeded %.0fs deadline; giving up", _LLM_CHAIN_DEADLINE)
+            return ""
         out = _call_openai_direct(
             messages,
             max_tokens,
             temperature,
-            timeout,
+            _at,
             response_format,
             operation=operation,
             metadata=metadata,
@@ -268,11 +298,15 @@ def call_llm(
             return out
 
         # 2. NVIDIA NIM.
+        _at = _budget_timeout()
+        if _at is None:
+            logger.error("LLM fallback chain exceeded %.0fs deadline; giving up", _LLM_CHAIN_DEADLINE)
+            return ""
         out = _call_nvidia_direct(
             messages,
             max_tokens,
             temperature,
-            timeout,
+            _at,
             response_format,
             operation=operation,
             metadata=metadata,
@@ -286,11 +320,15 @@ def call_llm(
         )
         if disable_agentrouter not in ("1", "true", "yes"):
             # 3. AgentRouter when the hosted client auth lane is healthy.
+            _at = _budget_timeout()
+            if _at is None:
+                logger.error("LLM fallback chain exceeded %.0fs deadline; giving up", _LLM_CHAIN_DEADLINE)
+                return ""
             out = _call_agentrouter_direct(
                 messages,
                 max_tokens,
                 temperature,
-                timeout,
+                _at,
                 response_format,
                 operation=operation,
                 metadata=metadata,
@@ -301,12 +339,16 @@ def call_llm(
 
         # 4. OpenRouter direct (cheap/free slugs when key set).
         or_model = _openrouter_fallback_model(model)
+        _at = _budget_timeout()
+        if _at is None:
+            logger.error("LLM fallback chain exceeded %.0fs deadline; giving up", _LLM_CHAIN_DEADLINE)
+            return ""
         out = _call_openrouter_direct(
             messages,
             or_model,
             max_tokens,
             temperature,
-            timeout,
+            _at,
             response_format,
             operation=operation,
             metadata=metadata,
@@ -316,11 +358,15 @@ def call_llm(
             return out
 
         # 5. Gemini.
+        _at = _budget_timeout()
+        if _at is None:
+            logger.error("LLM fallback chain exceeded %.0fs deadline; giving up", _LLM_CHAIN_DEADLINE)
+            return ""
         out = _call_gemini_direct(
             messages,
             max_tokens,
             temperature,
-            timeout,
+            _at,
             response_format,
             operation=operation,
             metadata=metadata,
@@ -813,6 +859,11 @@ async def chat_completions_non_stream(payload: dict[str, Any]) -> dict[str, Any]
         },
     )
     resolved_model = model or _LITELLM_DEFAULT
+    if not (text or "").strip():
+        # The whole fallback chain produced nothing. Raise so the route's error
+        # path fires (visible error + buddy mood) instead of returning an empty
+        # assistant message that looks like success.
+        raise RuntimeError("All LLM providers failed")
     return {
         "choices": [{"message": {"role": "assistant", "content": text}}],
         "model": resolved_model,
