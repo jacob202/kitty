@@ -6,6 +6,8 @@ interface Props {
   value: string
   onChange: (v: string) => void
   onSend: () => void
+  onStop?: () => void
+  isStreaming?: boolean
   disabled?: boolean
   chatTitle?: string
   modelName?: string
@@ -18,7 +20,7 @@ interface Props {
 type RecState = 'idle' | 'recording' | 'transcribing'
 
 export function InputBar({
-  value, onChange, onSend, disabled,
+  value, onChange, onSend, onStop, isStreaming, disabled,
   chatTitle, modelName, modelColor = 'var(--purple)',
   tokenCount = 0, maxTokens = 200000,
   textareaRef,
@@ -179,28 +181,46 @@ export function InputBar({
             >
               {recState === 'recording' ? <Square size={16} fill="currentColor" /> : <Mic size={18} />}
             </button>
-            <button
-              onClick={onSend}
-              disabled={disabled || !value.trim()}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 36, height: 36, flexShrink: 0,
-                background: value.trim() ? 'var(--primary)' : 'var(--surface-high)',
-                border: 'none', borderRadius: 10, margin: '6px 8px 6px 0',
-                color: value.trim() ? '#fff' : 'var(--text-muted)',
-                cursor: disabled ? 'default' : 'pointer',
-                opacity: disabled ? 0.5 : 1,
-                transition: 'all 0.2s ease',
-              }}
-              onMouseEnter={e => { if (!disabled && value.trim()) (e.currentTarget as HTMLButtonElement).style.background = 'var(--orange-deep)' }}
-              onMouseLeave={e => { if (!disabled && value.trim()) (e.currentTarget as HTMLButtonElement).style.background = 'var(--primary)' }}
-              aria-label="Send message"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="19" x2="12" y2="5"></line>
-                <polyline points="5 12 12 5 19 12"></polyline>
-              </svg>
-            </button>
+            {isStreaming ? (
+              <button
+                onClick={onStop}
+                title="Stop generating"
+                aria-label="Stop generating"
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 36, height: 36, flexShrink: 0,
+                  background: 'var(--error)',
+                  border: 'none', borderRadius: 10, margin: '6px 8px 6px 0',
+                  color: '#fff', cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <Square size={16} fill="currentColor" />
+              </button>
+            ) : (
+              <button
+                onClick={onSend}
+                disabled={disabled || !value.trim()}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 36, height: 36, flexShrink: 0,
+                  background: value.trim() ? 'var(--primary)' : 'var(--surface-high)',
+                  border: 'none', borderRadius: 10, margin: '6px 8px 6px 0',
+                  color: value.trim() ? '#fff' : 'var(--text-muted)',
+                  cursor: disabled ? 'default' : 'pointer',
+                  opacity: disabled ? 0.5 : 1,
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={e => { if (!disabled && value.trim()) (e.currentTarget as HTMLButtonElement).style.background = 'var(--orange-deep)' }}
+                onMouseLeave={e => { if (!disabled && value.trim()) (e.currentTarget as HTMLButtonElement).style.background = 'var(--primary)' }}
+                aria-label="Send message"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="19" x2="12" y2="5"></line>
+                  <polyline points="5 12 12 5 19 12"></polyline>
+                </svg>
+              </button>
+            )}
           </div>
         </div>
 

@@ -313,6 +313,10 @@ function KittyChatInner() {
         ),
       }))
     } catch (err: unknown) {
+      // User pressed Stop — keep whatever streamed so far, don't show an error.
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return
+      }
       updateChat(activeChat.id, c => ({
         ...c,
         messages: c.messages.map(m =>
@@ -326,6 +330,10 @@ function KittyChatInner() {
       abortRef.current = null
     }
   }, [input, isStreaming, activeChat, activeModel, updateChat])
+
+  const handleStop = useCallback(() => {
+    abortRef.current?.abort()
+  }, [])
 
   const retryGatewayBootstrap = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['models'] })
@@ -570,6 +578,8 @@ function KittyChatInner() {
             value={input}
             onChange={setInput}
             onSend={handleSend}
+            onStop={handleStop}
+            isStreaming={isStreaming}
             disabled={isStreaming}
             chatTitle={activeChat?.title}
             modelName={activeModel.name}
