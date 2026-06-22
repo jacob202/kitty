@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 
 from contextlib import asynccontextmanager
 
@@ -106,10 +105,7 @@ app = FastAPI(title="Kitty Gateway", lifespan=lifespan)
 
 app.add_middleware(VoiceGateMiddleware)
 app.add_middleware(BearerAuthMiddleware)
-_webui_origin = os.environ.get("KITTY_WEBUI_ORIGIN")
-_cors_origins = [
-    o for o in ["http://localhost:3000", "http://localhost:8000", _webui_origin] if o
-]
+_cors_origins = ["http://localhost:3000", "http://localhost:8000"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,

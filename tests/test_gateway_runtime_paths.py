@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 
@@ -11,19 +12,29 @@ def _read_text(rel_path: str) -> str:
     return (ROOT / rel_path).read_text(encoding="utf-8")
 
 
+# Matches an absolute path assigned directly to ROOT_DIR: ROOT_DIR=/...,
+# ROOT_DIR="/...", or ROOT_DIR='/...'. The portable form is
+# ROOT_DIR="$(cd ... && pwd)", where the char after the quote is "$", not "/",
+# so this only fires on a hardcoded machine path — on any OS, not just macOS.
+_HARDCODED_ROOT_DIR = re.compile(r"""ROOT_DIR=['"]?/""")
+
+
 def test_no_shell_script_hardcodes_an_absolute_repo_path() -> None:
     """A2: launchers must resolve their own location, never hardcode a machine path.
 
     The repo has repeatedly regressed to ROOT_DIR="/Users/jacobbrizinski/..."
     which breaks any other clone. Shell scripts must derive ROOT_DIR from
-    BASH_SOURCE instead, so a fresh clone works without editing.
+    BASH_SOURCE instead, so a fresh clone works without editing. The pattern is
+    anchored on ROOT_DIR= (rather than a substring like "/Users/") so it also
+    catches a "/home/..." or "/opt/..." regression without false-positiving on
+    legitimate absolute paths elsewhere in the scripts (e.g. PATH entries).
     """
     offenders = []
     for sh in sorted(ROOT.glob("gateway/*.sh")):
         text = sh.read_text(encoding="utf-8")
-        if "/Users/" in text:
+        if _HARDCODED_ROOT_DIR.search(text):
             offenders.append(sh.name)
-    assert not offenders, f"hardcoded absolute paths in: {offenders}"
+    assert not offenders, f"hardcoded absolute ROOT_DIR in: {offenders}"
 
 
 def test_gateway_launcher_scripts_use_live_gateway_paths() -> None:
