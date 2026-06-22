@@ -128,13 +128,14 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
             ).fetchall()
         ]
 
-    assert {"app_settings", "todos", "chats", "journal_entries"} <= tables
+    assert {"app_settings", "todos", "chats", "journal_entries", "buddy_state"} <= tables
     assert applied == [
         "001_foundation.sql",
         "002_plugin_settings.sql",
         "003_todos.sql",
         "004_chats.sql",
         "005_journal_entries.sql",
+        "006_buddy_state.sql",
     ]
 
 

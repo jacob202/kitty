@@ -13,19 +13,15 @@ Mood transitions:
 """
 from __future__ import annotations
 
-import json
 import logging
 import time
-from pathlib import Path
 from typing import Literal, Optional
 
-from gateway.paths import DATA_DIR
+import gateway.buddy_store as _store
 
 logger = logging.getLogger("kitty.buddy")
 
 KittyMood = Literal["idle", "thinking", "success", "confused", "searching"]
-
-_STATE_FILE = DATA_DIR / "kitty" / "buddy_state.json"
 
 _state: dict = {
     "mood": "idle",
@@ -41,18 +37,16 @@ _SESSION_IDLE_SECONDS = 1800  # 30 min silence = reset session counters
 
 def _load() -> None:
     try:
-        if _STATE_FILE.exists():
-            saved = json.loads(_STATE_FILE.read_text())
-            _state.update(saved)
-            _state["mood"] = "idle"  # always start calm on restart
+        saved = _store.get_state()
+        _state.update(saved)
+        _state["mood"] = "idle"  # always start calm on restart
     except Exception:
         pass
 
 
 def _save() -> None:
     try:
-        _STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        _STATE_FILE.write_text(json.dumps(_state))
+        _store.save_state(_state)
     except Exception as exc:
         logger.debug("buddy state save failed: %s", exc)
 
