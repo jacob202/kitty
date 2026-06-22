@@ -22,10 +22,48 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-asyncio
+          pip install pytest pytest-asyncio pytest-cov
 
       - name: Run test suite
         run: |
           python -m pytest tests/ -q --tb=short \
             --ignore=tests/test_council_graph.py \
-            --ignore=tests/test_mcp_council_server.py
+            --ignore=tests/test_mcp_council_server.py \
+            --cov=gateway --cov-report=term-missing
+        # Coverage is reported (not gated) for now. Once the measured number is
+        # known, add --cov-fail-under=<measured-minus-4> in a follow-up.
+
+  lint:
+    runs-on: ubuntu-latest
+    # Non-blocking until the codebase is clean, then flip to a required check.
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Ruff
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+          ruff check gateway/ tests/
+
+  typecheck:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Mypy
+        run: |
+          python -m pip install --upgrade pip
+          pip install mypy
+          mypy gateway/

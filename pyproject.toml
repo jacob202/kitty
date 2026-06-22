@@ -1,0 +1,30 @@
+# Tool configuration only — this does NOT make the repo a Poetry/PEP-621 package.
+# The project is still requirements.txt-based; these tables just give ruff, mypy,
+# and coverage a home so CI and local runs agree.
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+# kitty-chat is the Next.js app; never lint it as Python.
+extend-exclude = ["gateway/kitty-chat"]
+
+[tool.ruff.lint]
+# Minimal, high-signal: pycodestyle errors, pyflakes, warnings, import sorting.
+# Deliberately not the opinionated sets (B/UP/...) yet — keep the signal clean.
+select = ["E", "F", "W", "I"]
+
+[tool.mypy]
+python_version = "3.11"
+# Lenient by design: ~84 modules with dict-shaped LLM payloads and dynamic env
+# reads. The goal is catching real bugs, not enforcing annotations.
+ignore_missing_imports = true
+check_untyped_defs = false
+warn_unused_ignores = true
+exclude = ["gateway/kitty-chat/", "tests/"]
+
+[tool.coverage.run]
+source = ["gateway"]
+omit = ["gateway/kitty-chat/*"]
+
+[tool.coverage.report]
+show_missing = true
