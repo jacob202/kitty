@@ -21,9 +21,15 @@ if [ -n "$JUNK" ]; then
 fi
 
 echo "Running pre-commit tests..."
-/opt/homebrew/bin/python3.12 -m pytest tests/ -q --tb=short
+TEST_OUT=$(/opt/homebrew/bin/python3.12 -m pytest tests/ -q --tb=short 2>&1)
+TEST_EXIT=$?
+echo "$TEST_OUT"
 
-if [ $? -ne 0 ]; then
+SUMMARY=$(echo "$TEST_OUT" | grep -E "passed|failed|error" | tail -1)
+mkdir -p "$(git rev-parse --show-toplevel)/data"
+printf '{"summary":"%s"}\n' "$SUMMARY" > "$(git rev-parse --show-toplevel)/data/test-status.json"
+
+if [ $TEST_EXIT -ne 0 ]; then
   echo "Tests failed! Aborting commit."
   echo "Please fix the failing tests before committing."
   exit 1
