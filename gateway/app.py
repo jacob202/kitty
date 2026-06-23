@@ -50,6 +50,8 @@ async def lifespan(app: FastAPI):
     except Exception:
         pass
     brief_task = asyncio.create_task(_brief_bg_loop())
+    from gateway.inbox_watcher import watch_loop as _inbox_watch
+    inbox_task = asyncio.create_task(_inbox_watch())
     try:
         from gateway.cron import register_action
         from gateway.cron import start as cron_start
@@ -87,6 +89,7 @@ async def lifespan(app: FastAPI):
         pass
     yield
     brief_task.cancel()
+    inbox_task.cancel()
     try:
         from gateway.http_client import _http_client
 
