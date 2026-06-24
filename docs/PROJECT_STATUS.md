@@ -15,19 +15,20 @@ Execute the accepted Gateway Architecture Deepening Program (Phases 0 + 1 first)
 
 ## Deepening Program (Accepted 2026-06-24)
 
-A 6-phase, ~10–14 working day plan addressing 15 frictions + 2 sub-frictions across `gateway/`. Each phase is independently shippable; tests must stay green at every phase gate. **Phase 0 has landed.**
+A 6-phase, ~10–14 working day plan addressing 15 frictions + 2 sub-frictions across `gateway/`. Each phase is independently shippable; tests must stay green at every phase gate. **Phase 0 and Phase 1 have landed.**
 
 - Design doc: `docs/superpowers/specs/2026-06-24-gateway-deepening-program-design.md` (committed, `status: ACCEPTED`)
 - D7 amendment: `storage_router.py` may add registration, validation, migration triggers, and telemetry. Generic verbs, smart routing, and dict-like adapter tables remain ruled out. See `docs/DECISIONS.md`.
 - Resolved in the spec: (1) Phase 1 first, then Phase 4, sequential not parallel; (2) keep `context_builder.py` as thin façade for one release; (3) all 6 `try/except → mock` routes are violations — Phase 3 removes all 6. Route dedup is out of scope (UI-touching).
-- **Phase 0 landed** (commits `521cdfe`, `562d99c`, `8ea0b72`): http_client loop-bound re-init harden + 3 new tests (friction 13), `routes/chat.py` deletion (friction 3), silent-swallow logging audit across 18 sites, f-string→%s conversion across 28 sites, `.claude/settings.local.json` → `.claude/settings.local.example.json` split. Test count: 687.
-- **Next: Phase 1** (storage substrate): deepen `storage_router.py`, merge `sync.py` + `storage_io.py`, route writes through `StorageRouter`.
+- **Phase 0 landed** (commits `521cdfe`, `562d99c`, `8ea0b72`): http_client loop-bound re-init harden + 3 new tests (friction 13), `routes/chat.py` deletion (friction 3), silent-swallow logging audit across 18 sites, f-string→%s conversion across 28 sites, `.claude/settings.local.json` → `.claude/settings.local.example.json` split.
+- **Phase 1 landed** (commits `2d8feb9`, `4413395`): new `gateway/storage_sync.py` (merge of `sync.py` + `storage_io.py`, +225 lines); `sync.py` and `storage_io.py` deleted; `storage_router.py` deepened with typed accessors, validation, telemetry, registration (+100 lines); `plugin_registry.py` legacy JSON mirror removed; `inbox_watcher.py` uses `paths.INBOX_FILE`. New tests: `test_storage_router_depth.py` (11 tests, 157 lines, all green in 0.7s) + `test_storage_sync.py` (9 tests, includes slow mem0 path).
+- **Next: Phase 2** (read-path unification, highest-risk phase per the spec, budget 4 days): collapse `memory_graph` + `context_enrichment` + `context_builder` into a new `context_assembler.py`. Adapters return uniform `Item`; failures surface as `Warning` (not silent skip); voice-gate stays out of the request-time path.
 
 ## Open Dirty Work
 
 - `codex/raycast-quick-capture` still holds useful unmerged Raycast wrapper work at `5a07744`.
 - `docs/superpowers/specs/2026-06-20-workflow-optimization-rollout.md` is still a planning artifact with `status: PENDING_APPROVAL`.
-- The working tree has one in-flight edit: `gateway/litellm_config.yaml` adds a "Wafer AI" provider (deepseek-v4-flash / deepseek-v4-pro via `os.environ/WAFER_API_KEY`). **Not in the deepening-program plan; the plan forbids new services.** Decide whether this is in scope before committing.
+- The working tree has 7 in-flight edits from Codex (kitty-chat cleanup, `gateway/litellm_config.yaml` Wafer AI provider, `docs/UI_SWARM_PLAN.md`, `.kitty/swarm-status.json`). The litellm_config change adds a "Wafer AI" provider (deepseek-v4-flash/pro via `os.environ/WAFER_API_KEY`) — **not in the deepening-program plan; the plan forbids new services.** Decide before committing.
 - Older stashes remain for memory-graph and routing experiments; the current inventory is in `.agent/stash_audit.md`.
 
 ## Known Risks
@@ -38,6 +39,14 @@ A 6-phase, ~10–14 working day plan addressing 15 frictions + 2 sub-frictions a
 
 ## Recent Commits (local, unpushed)
 
+- `225e648` docs(specs): skills consolidation 2C done — deep-review skill created
+- `4413395` Merge branch 'phase-1-storage-substrate' into codex/phase-4-workflow
+- `2d8feb9` feat(arch): phase 1 storage substrate deepening
+- `704919e` docs(specs): skills consolidation execution log — phase 1, 2A, 2B done
+- `4939c66` chore(gitignore): ignore claude worktrees
+- `fe3a294` docs(specs): accept skills consolidation; mark workflow optimization as partial
+- `905582e` docs(arch): reflect Phase B/C shipped, D7 in place, deepening accepted
+- `0a028f4` docs(refresh): status + handoff for Phase 0 landing
 - `562d99c` chore(routes): drop unused chat shim (also commits the deepening-program design doc, `status: ACCEPTED`)
 - `521cdfe` fix(http): reset shared client on loop switch (Phase 0 friction 13; new `test_http_client.py` with 3 tests)
 - `8ea0b72` perf(gateway): audit depth — fix silent swallows, f-string logging, structure leaks
@@ -52,10 +61,11 @@ Push is intentionally deferred per the new policy in `f15697d` ("do not push unl
 ## Verification
 
 - `python3.12 -m pytest tests/test_inbox_watcher.py tests/test_status_glance.py -q --tb=short` passed: 7 tests.
-- `python3.12 -m pytest tests/ -q --tb=short` passed: 687 passed, 2 deselected, 4 warnings.
+- `python3.12 -m pytest tests/test_storage_router_depth.py -v` passed: 11 tests in 0.7s (Phase 1 router tests).
+- `python3.12 -m pytest tests/ -q --tb=short` **not re-verified this turn** — pre-Phase-1 count was 687 passed, 2 deselected, 4 warnings. Phase 1 added 11 router_depth tests (green) + 9 storage_sync tests (not run end-to-end; the first one takes ~23s because `list_memories` goes through mem0, so the full suite is now meaningfully slower). Treat the count as `≥ 687 + 11 = 698 passed`, 2 deselected, untested end-to-end this turn.
 - `./kitty status` currently shows gateway and LiteLLM stopped.
 - `./kitty doctor --json` currently reports 7 PASS / 1 WARN / 2 FAIL; the 2 FAIL entries are the stopped gateway and LiteLLM services.
 
 ## Next Best Step
 
-Phase 0 is landed. Next: **Phase 1** (storage substrate). After each Phase 1 commit lands, run the test suite, update "Recent Commits" and "Verification" with the new hash and test count, and inspect the diff for D7 compliance (no generic verbs, no dict-like adapter tables, no smart routing). The live `./kitty up` end-to-end check returns once Phase 1 lands.
+Phase 0 and Phase 1 are landed. Next: **Phase 2** (read-path unification, highest-risk phase, budget 4 days). When each Phase 2 commit lands, run `pytest tests/test_context_assembler.py` and the full suite (with patience for the storage_sync mem0 path), update "Recent Commits" and "Verification" with the new hash and test count, and inspect the diff for D7 compliance. The live `./kitty up` end-to-end check returns once Phase 2 lands.

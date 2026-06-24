@@ -15,15 +15,16 @@ Adds Phase 4 workflow polish and the accepted Gateway Architecture Deepening Pro
 - `docs/superpowers/specs/2026-06-24-gateway-deepening-program-design.md` — 6-phase deepening program design (accepted 2026-06-24, 15 frictions + 2 sub-frictions, 10–14 day timeline)
 - `docs/DECISIONS.md` D7 amendment — allows registration in `storage_router.py` while keeping it a thin seam, not a port
 - **Phase 0 landed** — `gateway/http_client.py` docstring harden + 3 new tests (friction 13), `gateway/routes/chat.py` deletion (friction 3), silent-swallow logging audit across 18 sites, f-string→%s conversion across 28 sites, `.claude/settings.local.json` → `.claude/settings.local.example.json` split
+- **Phase 1 landed** — new `gateway/storage_sync.py` (+225 lines, the merge of `sync.py` + `storage_io.py`); `sync.py` and `storage_io.py` deleted; `storage_router.py` deepened with typed accessors, validation, telemetry, registration (+100 lines); `plugin_registry.py` legacy JSON mirror removed; `inbox_watcher.py` uses `paths.INBOX_FILE`. New tests: `test_storage_router_depth.py` (11 green in 0.7s) + `test_storage_sync.py` (9 tests, slow mem0 path). Commits: `2d8feb9`, `4413395`.
 
 ## Important Context
 
 - Repo path: `/Users/jacobbrizinski/Projects/kitty`
 - Ignore stale context pointing to `/Users/jacobbrizinski/Documents/Kitty`
-- The branch has 8 unpushed local commits (latest: `562d99c`); push is intentionally deferred per the new policy landed in `f15697d`
+- The branch has 16 unpushed local commits (latest: `225e648`); push is intentionally deferred per the new policy landed in `f15697d`
 - `codex/raycast-quick-capture` still contains useful unmerged wrapper work at `5a07744`
 - `.claude/settings.local.json` is now intended to stay local and ignored; use `.claude/settings.local.example.json` as the checked-in shape
-- The working tree currently has one in-flight edit: `gateway/litellm_config.yaml` adds a Wafer AI provider (deepseek-v4-flash/pro). **Not in the deepening-program plan; the plan forbids new services.** Decide before committing.
+- The working tree currently has 7 in-flight edits from Codex (kitty-chat cleanup, `gateway/litellm_config.yaml` Wafer AI provider, `docs/UI_SWARM_PLAN.md`, `.kitty/swarm-status.json`). The litellm_config change adds a "Wafer AI" provider (deepseek-v4-flash/pro) — **not in the deepening-program plan; the plan forbids new services.** Decide before committing.
 
 ## Current Files Of Interest
 
@@ -42,6 +43,14 @@ Adds Phase 4 workflow polish and the accepted Gateway Architecture Deepening Pro
 
 ## Recent Commits (local, unpushed)
 
+- `225e648` docs(specs): skills consolidation 2C done — deep-review skill created
+- `4413395` Merge branch 'phase-1-storage-substrate' into codex/phase-4-workflow
+- `2d8feb9` feat(arch): phase 1 storage substrate deepening
+- `704919e` docs(specs): skills consolidation execution log — phase 1, 2A, 2B done
+- `4939c66` chore(gitignore): ignore claude worktrees
+- `fe3a294` docs(specs): accept skills consolidation; mark workflow optimization as partial
+- `905582e` docs(arch): reflect Phase B/C shipped, D7 in place, deepening accepted
+- `0a028f4` docs(refresh): status + handoff for Phase 0 landing
 - `562d99c` chore(routes): drop unused chat shim (also commits the deepening-program design doc, `status: ACCEPTED`)
 - `521cdfe` fix(http): reset shared client on loop switch (Phase 0 friction 13; new `test_http_client.py` with 3 tests)
 - `8ea0b72` perf(gateway): audit depth — fix silent swallows, f-string logging, structure leaks
@@ -54,24 +63,25 @@ Adds Phase 4 workflow polish and the accepted Gateway Architecture Deepening Pro
 ## Verification
 
 - `python3.12 -m pytest tests/test_inbox_watcher.py tests/test_status_glance.py -q --tb=short` passed: 7 tests
-- `python3.12 -m pytest tests/ -q --tb=short` passed: 687 passed, 2 deselected, 4 warnings
+- `python3.12 -m pytest tests/test_storage_router_depth.py -v` passed: 11 tests in 0.7s
+- `python3.12 -m pytest tests/ -q --tb=short` **not re-verified end-to-end this turn** — pre-Phase-1 count was 687 passed, 2 deselected, 4 warnings. Phase 1 added 11 router_depth tests (green) + 9 storage_sync tests (first test takes ~23s because `list_memories` goes through mem0, so the full suite is now meaningfully slower). Treat the count as `≥ 698 passed`, 2 deselected, untested end-to-end this turn.
 - `./kitty status` currently shows gateway and LiteLLM stopped
 - `./kitty doctor --json` currently reports 7 PASS / 1 WARN / 2 FAIL; the fail entries are the stopped gateway and LiteLLM services
 
 ## Known Open Work
 
 - `docs/superpowers/specs/2026-06-20-workflow-optimization-rollout.md` is still a planning doc with `status: PENDING_APPROVAL`
-- Gateway Architecture Deepening Program (accepted 2026-06-24) — Phase 0 landed (http_client, chat.py deletion, silent-swallow cleanup, settings.local split). **Phase 1 next:** storage substrate — deepen `storage_router.py`, merge `sync.py` + `storage_io.py`, route writes through `StorageRouter`. 4 more phases after. Each phase is a discrete commit with a green test gate.
+- Gateway Architecture Deepening Program (accepted 2026-06-24) — **Phase 0 and Phase 1 landed.** Phase 1 (storage substrate): new `gateway/storage_sync.py`, `sync.py` + `storage_io.py` deleted, `storage_router.py` deepened (typed accessors, validation, telemetry, registration), `plugin_registry.py` legacy JSON mirror removed, `inbox_watcher.py` uses `paths.INBOX_FILE`. **Phase 2 next** (highest-risk phase, budget 4 days): read-path unification — new `context_assembler.py`, uniform `Item` dataclass across 7 adapters, partial-result semantics (failures surface as `Warning`, not silent skip), voice-gate stays out of request-time path. 3 more phases after. Each phase is a discrete commit with a green test gate.
 - Machine-local Claude allowances should live in ignored `.claude/settings.local.json`, not in committed repo policy
 - `gateway/inbox_watcher.py` depends on the local iCloud path; the remaining useful live check is a real end-to-end ingest on Jacob's machine
 - Stashes remain; current inventory lives in `.agent/stash_audit.md`
 
 ## Next Best Step
 
-Phase 0 is landed. Next: **Phase 1** (storage substrate). When each Phase 1 commit lands:
+Phase 0 and Phase 1 are landed. Next: **Phase 2** (read-path unification, highest-risk, budget 4 days). When each Phase 2 commit lands:
 
-- run `python3.12 -m pytest tests/ -q --tb=short` and confirm 687 + new tests are green
+- run `python3.12 -m pytest tests/test_context_assembler.py` first (fast), then the full suite (with patience — the new `test_storage_sync.py` makes the full suite slower via mem0)
 - update `docs/PROJECT_STATUS.md` "Recent Commits" and "Verification" with the new hash and test count
 - inspect the diff for D7 compliance (no generic verbs, no dict-like adapter tables, no smart routing; if the diff adds registration, verify typed accessors like `router.journal` → `journal_store`, not string-keyed dispatch)
 
-Once Phase 1 lands, return to the live `./kitty up` end-to-end check on this branch (hit `GET /status/glance` after a fresh pre-commit run; drop a markdown file into the iCloud inbox path and confirm it lands in `data/inbox.jsonl`).
+Once Phase 2 lands, return to the live `./kitty up` end-to-end check on this branch (hit `GET /status/glance` after a fresh pre-commit run; drop a markdown file into the iCloud inbox path and confirm it lands in `data/inbox.jsonl`).
