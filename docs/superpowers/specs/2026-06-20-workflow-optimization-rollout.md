@@ -1,7 +1,7 @@
 ---
 date: 2026-06-20
 topic: Workflow Optimization Rollout (15 items)
-status: PENDING_APPROVAL
+status: PARTIALLY_IMPLEMENTED
 ---
 
 # Plan — 15 workflow optimizations, sequenced
@@ -9,6 +9,32 @@ status: PENDING_APPROVAL
 Rolls out all 15 ideas from the brainstorm. Grouped by dependency and ROI so
 nothing blocks behind a decision. Each item: what it does, files touched,
 effort, dependencies, risks, exit criteria.
+
+## Status (as of 2026-06-24)
+
+Tracked against the commit log + `git status`. "Done" means the work landed;
+"Partial" means some parts landed; "Pending" means not started in this branch.
+
+| # | Item | Status | Where |
+|---|------|--------|-------|
+| 1.1 | Dotfiles repo for `~/.claude/` | Done | Prior session (out-of-repo) |
+| 1.2 | Handoff doc lifecycle cleanup | Partial | `.claude/HANDOFF.md` removed; catchup SKILL not yet updated |
+| 1.3 | Project profile lazy-loader | Partial | `.claude/profile.md` + `settings.json` wired in `f15697d` |
+| 2.1 | Cost circuit-breaker hook | Pending | — |
+| 2.2 | Voice glossary in CLAUDE.md | Done | `f15697d` |
+| 2.3 | `/spike` skill | Pending | — |
+| 3.1 | Daily morning brief | Pending | — |
+| 3.2 | MEMORY.md auto-prune | Partial | `docs/memory-stale.md` exists; cron not yet wired |
+| 3.3 | Self-improving skill loop | Partial | `docs/skill-improvement-queue.md` exists; script not yet written |
+| 3.4 | Migration audit cron | Done | `cd23197` |
+| 4.1 | Test-failure → ticket auto-creator | Pending | — |
+| 4.2 | GitHub Action: PR description checker | Done | `f480677` |
+| 4.3 | macOS `mods` integration | Partial | `f480677` mentions "mods" |
+| 4.4 | iOS Shortcut to send Kitty a note | Partial | `gateway/inbox_watcher.py` in `81262c4` |
+| 4.5 | Apple Watch kitty status glance | Done | `81262c4` + `GET /status/glance` |
+
+**Net status:** 5 done, 6 partial, 4 pending. The deepening program is now the
+priority; remaining items will be picked up after Phase 6.
 
 **Total estimated effort:** ~4-6 hours done well, ~2-3 hours quick-and-dirty.
 

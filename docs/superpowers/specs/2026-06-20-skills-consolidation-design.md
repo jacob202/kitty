@@ -1,7 +1,8 @@
 ---
 date: 2026-06-20
+accepted: 2026-06-24
 topic: Skills Consolidation
-status: PENDING_APPROVAL
+status: ACCEPTED
 ---
 
 # Skills Consolidation Plan
