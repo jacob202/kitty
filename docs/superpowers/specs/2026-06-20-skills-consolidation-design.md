@@ -16,7 +16,7 @@ Status against the sub-plan. "Done" means the work landed.
 | Phase 1 deletions (8 skills) | 1 | Done | `ship`, `pr-review`, `tune`, `autonomy_tune` + 4 MCP-conditional (`debug-issue`, `explore-codebase`, `refactor-safely`, `review-changes`) — all deleted |
 | 2A — `loop-tune` (create from scratch) | 2 | Done | `~/.claude/skills/loop-tune/SKILL.md` (this commit) |
 | 2B — `worktree` merge | 2 | Already done | `~/.claude/skills/worktree/SKILL.md` already has both `create` and `clean` modes + `## Flow` |
-| 2C — `deep-review` (create from scratch) | 2 | Pending | — |
+| 2C — `deep-review` (create from scratch) | 2 | Done | `~/.claude/skills/deep-review/SKILL.md` |
 | Phase 3 — `## Flow` sections | 3 | Partial | worktree has it; 3 others (tdd-loop, catchup, debug-fix) still need it; `phase-runner` doesn't exist |
 | Phase 4 — trigger keywords | 4 | Partial | catchup, tdd-loop already sharp; deep-review and phase-runner are N/A until they exist |
 | Phase 5 — global sync | 5 | Partial | 3 of 5 (`catchup`, `tdd-loop`, `second-opinion`) already global; 2 (`phase-runner`, `phase-swarm`) deleted and not re-created |
