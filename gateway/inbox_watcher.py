@@ -35,19 +35,36 @@ def _ingest(md_file: Path) -> None:
     logger.info("inbox: ingested %s (%d chars)", md_file.name, len(text))
 
 
+def _poll_once() -> None:
+    """Scan the inbox once. Retries each file once, then raises loudly."""
+    for md_file in sorted(ICLOUD_INBOX.glob("*.md")):
+        try:
+            _ingest(md_file)
+        except Exception as exc:
+            logger.warning("inbox: failed to ingest %s: %s; retrying once", md_file.name, exc)
+            try:
+                _ingest(md_file)
+            except Exception as retry_exc:
+                raise RuntimeError(
+                    f"inbox: failed to ingest {md_file.name} after retry: {retry_exc}"
+                ) from retry_exc
+
+
 async def watch_loop() -> None:
     """Poll iCloud inbox every POLL_INTERVAL seconds."""
-    if not ICLOUD_INBOX.exists():
-        logger.warning("inbox_watcher: iCloud inbox not found at %s — skipping", ICLOUD_INBOX)
-        return
+    warned_missing = False
     logger.info("inbox_watcher: watching %s", ICLOUD_INBOX)
     while True:
-        try:
-            for md_file in sorted(ICLOUD_INBOX.glob("*.md")):
-                try:
-                    _ingest(md_file)
-                except Exception as e:
-                    logger.warning("inbox: failed to ingest %s: %s", md_file.name, e)
-        except Exception as e:
-            logger.warning("inbox_watcher: poll error: %s", e)
+        if not ICLOUD_INBOX.exists():
+            if not warned_missing:
+                logger.warning(
+                    "inbox_watcher: iCloud inbox not found at %s — waiting",
+                    ICLOUD_INBOX,
+                )
+                warned_missing = True
+            await asyncio.sleep(POLL_INTERVAL)
+            continue
+
+        warned_missing = False
+        _poll_once()
         await asyncio.sleep(POLL_INTERVAL)
