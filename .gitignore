@@ -40,6 +40,7 @@ out/
 .cursor/
 .mcp.json
 .aura/
+.claude/settings.local.json
 
 # Misc
 *.sqlite

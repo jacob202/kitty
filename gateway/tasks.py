@@ -14,7 +14,7 @@ def sync_next_action(action_description: str) -> bool:
     This helps close the 'Execution Gap' by recording chat decisions immediately.
     """
     if not TASKS_PATH.exists():
-        logger.error(f"TASKS.md not found at {TASKS_PATH}")
+        logger.error("TASKS.md not found at %s", TASKS_PATH)
         return False
 
     try:
@@ -47,9 +47,9 @@ def sync_next_action(action_description: str) -> bool:
             )
 
         TASKS_PATH.write_text(new_content)
-        logger.info(f"Successfully synced next action: {action_description}")
+        logger.info("Successfully synced next action: %s", action_description)
         return True
 
     except Exception as e:
-        logger.error(f"Failed to sync task to TASKS.md: {e}")
+        logger.error("Failed to sync task to TASKS.md: %s", e)
         return False

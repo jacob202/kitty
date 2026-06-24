@@ -17,7 +17,7 @@ def extract_parts_from_image(image_path: str | Path) -> List[Dict]:
     """Uses Claude 3.7 Sonnet to extract electronic components from a photo."""
     path = Path(image_path)
     if not path.exists():
-        logger.error(f"Image not found: {path}")
+        logger.error("Image not found: %s", path)
         return []
 
     try:
@@ -52,7 +52,7 @@ def extract_parts_from_image(image_path: str | Path) -> List[Dict]:
         return parts if isinstance(parts, list) else []
 
     except Exception as e:
-        logger.error(f"Visual inventory extraction failed: {e}")
+        logger.error("Visual inventory extraction failed: %s", e)
         return []
 
 def append_to_inventory(parts: List[Dict]) -> bool:
@@ -83,10 +83,10 @@ def append_to_inventory(parts: List[Dict]) -> bool:
                     "date_added": today
                 }
                 writer.writerow(row)
-        logger.info(f"Successfully added {len(parts)} items to inventory.")
+        logger.info("Successfully added %d items to inventory.", len(parts))
         return True
     except Exception as e:
-        logger.error(f"Failed to write to inventory CSV: {e}")
+        logger.error("Failed to write to inventory CSV: %s", e)
         return False
 
 def process_inventory_image(image_path: str | Path) -> str:

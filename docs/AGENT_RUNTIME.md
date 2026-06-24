@@ -20,6 +20,7 @@ This doc covers the repo-owned agent surface that shapes a session before produc
 - `docs/PROJECT_STATUS.md` — live branch truth.
 - `docs/AGENT_HANDOFF.md` — latest continuation package.
 - `.claude/profile.md` — short Claude session-start context. Keep it durable; branch-specific details belong in `docs/PROJECT_STATUS.md`.
+- `.claude/settings.local.example.json` — checked-in shape for optional host-local Claude overrides.
 - `.claude/rules/code-quality.md` — concise style and anti-default guardrails.
 
 ## Hook Surface
@@ -33,7 +34,7 @@ Canonical repo config lives in `.claude/settings.json`.
 - `PostToolUse` for `Write|Edit|NotebookEdit` runs `notify.sh` plus a quick `ruff` check on edited Python files.
 - `PostToolUse` for `Bash` runs `suggest-on-test-fail.sh` for failing test commands.
 
-`.claude/settings.local.json` is machine-local and currently tracked. Treat it as host-specific, not canonical repo guidance.
+`.claude/settings.local.json` is now an ignored host-local override. Use `.claude/settings.local.example.json` as the checked-in shape, and keep machine-specific allowances out of canonical repo state.
 
 ## Repo-Local Skills
 

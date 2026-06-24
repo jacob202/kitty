@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from pathlib import Path
 
 logger = logging.getLogger("kitty.self_review")
 
@@ -145,7 +146,7 @@ def _energy_proxy(message: str) -> float:
     return len(message) + message.count("!") * 5 + message.count("?") * 3
 
 
-def log_session_arc(jacob_message: str, kitty_response: str) -> None:
+def log_session_arc(jacob_message: str, _kitty_response: str) -> None:
     """Track session energy from start to end. Writes arc record on session close."""
     sid = _get_session_id()
     count = _session_state.get("message_count", 0)

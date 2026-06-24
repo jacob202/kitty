@@ -263,7 +263,7 @@ async def invoke_tool(tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
                 "message": f"Available tools: {[t['name'] for t in ANTIGRAVITY_TOOLS]}",
             }
     except Exception as e:
-        logger.exception(f"Tool invocation failed: {tool_name}")
+        logger.exception("Tool invocation failed: %s", tool_name)
         return {
             "success": False,
             "error": str(e),

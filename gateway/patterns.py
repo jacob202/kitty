@@ -16,7 +16,7 @@ import time
 from collections import Counter
 from datetime import datetime
 
-from gateway.paths import DATA_DIR, LOG_FILE, LOGS_DIR
+from gateway.paths import DATA_DIR, LOG_FILE
 
 logger = logging.getLogger("kitty.patterns")
 
@@ -130,7 +130,7 @@ def annual_review() -> dict:
             result["journal_themes"] = themes.most_common(10)
             result["total_journal_entries"] = len(entries)
     except Exception:
-        pass
+        logger.debug("annual_review: journal read failed", exc_info=True)
 
     # Add memory stats
     try:
@@ -138,7 +138,7 @@ def annual_review() -> dict:
         memories = list_memories(limit=0)  # get count
         result["total_memories"] = len(memories) if isinstance(memories, list) else 0
     except Exception:
-        pass
+        logger.debug("annual_review: memory read failed", exc_info=True)
 
     return result
 

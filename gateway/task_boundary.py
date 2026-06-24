@@ -53,7 +53,7 @@ class TaskBoundary:
             "updates": [],
         }
         self._append(entry)
-        logger.info(f"Task boundary opened: {name}")
+        logger.info("Task boundary opened: %s", name)
         return entry
 
     def update(self, task_id: str, status: str, summary: str = ""):
@@ -73,7 +73,7 @@ class TaskBoundary:
             "summary": summary,
         })
         self._append(entry)
-        logger.info(f"Task {task_id} updated to {status}")
+        logger.info("Task %s updated to %s", task_id, status)
 
     def close(self, task_id: str, final_summary: str = "", success: bool = True):
         """Mark task completed or failed."""
@@ -90,7 +90,7 @@ class TaskBoundary:
             "summary": final_summary,
         })
         self._append(entry)
-        logger.info(f"Task {task_id} closed: {'success' if success else 'blocked'}")
+        logger.info("Task %s closed: %s", task_id, "success" if success else "blocked")
 
     def current_summary(self) -> str:
         """Return a human-readable summary of all active boundaries."""

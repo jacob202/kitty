@@ -103,7 +103,7 @@ async def _process_message(chat_id: int, text: str) -> None:
             from gateway.self_review import record_interaction
             record_interaction(text, reply)
         except Exception:
-            pass
+            logger.debug("telegram: failed to record interaction", exc_info=True)
 
     except Exception:
         logger.exception("Telegram message processing failed")
@@ -169,6 +169,7 @@ async def _handle_command(chat_id: int, text: str) -> None:
             intention = brief.get("intention", "")[:1500]
             await send_message(chat_id, intention or "Brief generated — check the desktop app for full details.")
         except Exception:
+            logger.exception("telegram: /brief command failed")
             await send_message(chat_id, "Brief generation failed — try again later.")
     elif cmd == "/stuck":
         from gateway.brief import get_tasks_summary

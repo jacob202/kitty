@@ -65,7 +65,7 @@ class CodebaseSearch:
         try:
             content = full_path.read_text(errors="ignore")
         except Exception as e:
-            logger.warning(f"Could not read {filepath}: {e}")
+            logger.warning("Could not read %s: %s", filepath, e)
             return False
         
         file_hash = hashlib.md5(content.encode()).hexdigest()
@@ -90,10 +90,10 @@ class CodebaseSearch:
                 )
                 indexed_count += 1
             except Exception as e:
-                logger.warning(f"Could not index chunk from {filepath}: {e}")
+                logger.warning("Could not index chunk from %s: %s", filepath, e)
         
         self.indexed_files[filepath] = file_hash
-        logger.info(f"Indexed {filepath}: {indexed_count} chunks")
+        logger.info("Indexed %s: %d chunks", filepath, indexed_count)
         return True
 
     def index_project(self, max_files: int = 200) -> int:
@@ -113,9 +113,9 @@ class CodebaseSearch:
                 if self.index_file(rel):
                     indexed += 1
             except Exception as e:
-                logger.warning(f"Could not index {rel}: {e}")
+                logger.warning("Could not index %s: %s", rel, e)
         
-        logger.info(f"Indexed {indexed}/{len(files)} files for semantic search.")
+        logger.info("Indexed %d/%d files for semantic search.", indexed, len(files))
         return indexed
 
     def search(self, query: str, top_k: int = 5) -> List[dict]:
@@ -139,7 +139,7 @@ class CodebaseSearch:
                 })
             return out
         except Exception as e:
-            logger.error(f"Search failed: {e}")
+            logger.error("Search failed: %s", e)
             return []
 
     def is_available(self) -> bool:

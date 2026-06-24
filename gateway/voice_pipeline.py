@@ -272,7 +272,7 @@ class VoicePipeline:
                     {"type": "error", "message": "Session error — reconnect to restart"}
                 )
             except Exception:
-                pass
+                logger.debug("voice: failed to send error to client", exc_info=True)
         finally:
             self._sessions.pop(ws, None)
 
@@ -346,13 +346,13 @@ class VoicePipeline:
         elapsed = round((time.monotonic() - t_start) * 1000)
         logger.info("Voice turn %d completed in %dms", session.turn_count, elapsed)
 
-        # Log interaction (already done in process_turn, but session logging here)
+        # Log interaction
         try:
             from gateway.self_review import record_interaction
 
             record_interaction(result.user_text, result.assistant_text)
         except Exception:
-            pass
+            logger.debug("voice: failed to record interaction", exc_info=True)
 
         await ws.send_json({"type": "done"})
 

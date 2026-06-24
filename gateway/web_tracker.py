@@ -50,7 +50,7 @@ class WebChangeTracker:
         try:
             emb = self.encoder.encode([content[:2000]])[0].tolist()
         except Exception as e:
-            logger.warning(f"Embedding failed: {e}")
+            logger.warning("Embedding failed: %s", e)
             emb = [0.0] * 384  # Fallback zero vector
         
         snapshot = {
@@ -60,7 +60,7 @@ class WebChangeTracker:
             "embedding": emb,
         }
         snapshot_file.write_text(json.dumps(snapshot, indent=2))
-        logger.info(f"Captured snapshot: {url}")
+        logger.info("Captured snapshot: %s", url)
         return str(snapshot_file)
 
     def compare(self, url: str) -> str:
@@ -103,7 +103,7 @@ class WebChangeTracker:
                 data = json.loads(snap_file.read_text())
                 result.append(data)
             except Exception as e:
-                logger.warning(f"Could not read snapshot {snap_file}: {e}")
+                logger.warning("Could not read snapshot %s: %s", snap_file, e)
         
         return result
 

@@ -27,7 +27,7 @@ class DeepResearcher:
         """
         Conducts deep technical research and optionally ingests the findings.
         """
-        logger.info(f"Starting deep technical dive: {topic}")
+        logger.info("Starting deep technical dive: %s", topic)
 
         # 1. Search for high-authority sources
         urls = await self._find_sources(topic)
@@ -69,7 +69,7 @@ class DeepResearcher:
             data = resp.json()
             return [r["url"] for r in data.get("results", [])]
         except Exception as e:
-            logger.error(f"Tavily search failed: {e}")
+            logger.error("Tavily search failed: %s", e)
             return []
 
     async def _scrape_sources(self, urls: List[str]) -> str:
@@ -81,7 +81,7 @@ class DeepResearcher:
         client = await self._get_client()
         for url in urls[:3]:
             try:
-                logger.info(f"Extracting context via Tavily: {url}")
+                logger.info("Extracting context via Tavily: %s", url)
                 resp = await client.post(
                     "https://api.tavily.com/search",
                     json={
@@ -100,7 +100,7 @@ class DeepResearcher:
                     if content:
                         results.append(f"### SOURCE: {url}\n{content[:6000]}")
             except Exception as e:
-                logger.warning(f"Tavily extraction failed for {url}: {e}")
+                logger.warning("Tavily extraction failed for %s: %s", url, e)
 
         return "\n\n---\n\n".join(results)
 
@@ -132,7 +132,7 @@ Rules: Short sentences. Use contractions. Speak Canadian."""
                 temperature=0.3,
             )
         except Exception as e:
-            logger.error(f"Synthesis failed: {e}")
+            logger.error("Synthesis failed: %s", e)
             return "I found the data, but couldn't synthesize it properly. Check the logs."
 
     async def _ingest_findings(self, topic: str, findings: str, summary: str):
@@ -151,9 +151,9 @@ Rules: Short sentences. Use contractions. Speak Canadian."""
                 doc_type="technical_research"
             )
             Path(tmp_path).unlink(missing_ok=True)
-            logger.info(f"Ingested research for: {topic}")
+            logger.info("Ingested research for: %s", topic)
         except Exception as e:
-            logger.error(f"Ingestion of research failed: {e}")
+            logger.error("Ingestion of research failed: %s", e)
 
 async def deep_dive(topic: str) -> str:
     """Convenience function for Gateway calling."""

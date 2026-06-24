@@ -46,5 +46,5 @@ Keep it under 4 sentences. Speak Canadian."""
             temperature=0.4,
         )
     except Exception as e:
-        logger.error(f"Troubleshooter synthesis failed: {e}")
+        logger.error("Troubleshooter synthesis failed: %s", e)
         return "I see some notes on that in the manual, but my processor tripped up. What's the first voltage check you want to run?"

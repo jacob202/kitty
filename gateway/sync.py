@@ -38,7 +38,7 @@ def export_snapshot() -> dict:
         from gateway.memory import list_memories
         snapshot["memories"] = list_memories(limit=1000)
     except Exception:
-        pass
+        logger.debug("sync: failed to export memories", exc_info=True)
 
     # Journal entries
     try:
@@ -53,14 +53,14 @@ def export_snapshot() -> dict:
                         continue
             snapshot["journal_entries"] = entries[-1000:]  # last 1000
     except Exception:
-        pass
+        logger.debug("sync: failed to export journal", exc_info=True)
 
     # Todos
     try:
         from gateway.todo_store import get
         snapshot["todos"] = get()
     except Exception:
-        pass
+        logger.debug("sync: failed to export todos", exc_info=True)
 
     # Plugin settings
     try:
@@ -68,7 +68,7 @@ def export_snapshot() -> dict:
         if PLUGIN_SETTINGS.exists():
             snapshot["plugin_settings"] = json.loads(PLUGIN_SETTINGS.read_text())
     except Exception:
-        pass
+        logger.debug("sync: failed to export plugin settings", exc_info=True)
 
     return snapshot
 
@@ -89,7 +89,7 @@ def import_snapshot(data: dict) -> int:
                 add_memory(text, namespace=mem.get("metadata", {}).get("namespace", "facts"))
                 merged += 1
         except Exception:
-            pass
+            logger.debug("sync: failed to import memory", exc_info=True)
 
     # Import journal entries
     for entry in data.get("journal_entries", []):
@@ -101,7 +101,7 @@ def import_snapshot(data: dict) -> int:
             )
             merged += 1
         except Exception:
-            pass
+            logger.debug("sync: failed to import journal entry", exc_info=True)
 
     # Import todos
     existing = data.get("todos", [])
@@ -111,7 +111,7 @@ def import_snapshot(data: dict) -> int:
             update(existing)
             merged += len(existing)
         except Exception:
-            pass
+            logger.debug("sync: failed to import todos", exc_info=True)
 
     # Import plugin settings
     ps = data.get("plugin_settings", {})
@@ -124,7 +124,7 @@ def import_snapshot(data: dict) -> int:
             PLUGIN_SETTINGS.write_text(json.dumps(current, indent=2))
             merged += 1
         except Exception:
-            pass
+            logger.debug("sync: failed to import plugin settings", exc_info=True)
 
     logger.info("Snapshot imported: %d items merged", merged)
     return merged
