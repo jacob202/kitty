@@ -28,23 +28,29 @@ from typing import Any, Callable, TypeVar
 from dotenv import load_dotenv
 
 from gateway.errors import ConfigError
+from gateway.settings import get_settings
 
 PROJECT_ROOT = Path(__file__).parent.parent
 load_dotenv(PROJECT_ROOT / ".env")
 
 T = TypeVar("T")
 
+# Import-time host/port now flow through the validated Settings model so type
+# coercion and defaults live in one place. The call-time get_setting/
+# require_setting helpers below still serve values that must re-read os.environ
+# (test overrides, runtime toggles).
+_settings = get_settings()
 
 # --- Gateway (process that this module is part of) ---
 
-GATEWAY_HOST: str = os.environ.get("GATEWAY_HOST", "127.0.0.1")
-GATEWAY_PORT: int = int(os.environ.get("GATEWAY_PORT", "8000"))
+GATEWAY_HOST: str = _settings.GATEWAY_HOST
+GATEWAY_PORT: int = _settings.GATEWAY_PORT
 GATEWAY_BASE_URL: str = f"http://{GATEWAY_HOST}:{GATEWAY_PORT}"
 
 # --- LiteLLM (separate proxy process) ---
 
-LITELLM_HOST: str = os.environ.get("LITELLM_HOST", "127.0.0.1")
-LITELLM_PORT: int = int(os.environ.get("LITELLM_PORT", "8001"))
+LITELLM_HOST: str = _settings.LITELLM_HOST
+LITELLM_PORT: int = _settings.LITELLM_PORT
 LITELLM_BASE_URL: str = f"http://{LITELLM_HOST}:{LITELLM_PORT}"
 
 
