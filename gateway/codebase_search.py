@@ -3,6 +3,7 @@
 This module implements semantic search across the codebase, similar to
 Antigravity's codebase_search tool.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -16,10 +17,11 @@ try:
     import chromadb
     from chromadb.config import Settings as ChromaSettings
     from sentence_transformers import SentenceTransformer
+
     CHROMA_AVAILABLE = True
 except Exception as exc:
     CHROMA_AVAILABLE = False
-    CHROMA_IMPORT_ERROR: Exception | None = exc
+    CHROMA_IMPORT_ERROR = exc
 else:
     CHROMA_IMPORT_ERROR = None
 
@@ -31,10 +33,29 @@ KITTY_DIR = DATA_DIR
 class CodebaseSearch:
     """Semantic code search across the project — like Antigravity's codebase_search."""
 
-    VALID_EXTENSIONS = frozenset({
-        ".py", ".js", ".ts", ".jsx", ".tsx", ".go", ".rs", ".java", ".rb",
-        ".c", ".cpp", ".h", ".sh", ".md", ".yaml", ".yml", ".json", ".html", ".css"
-    })
+    VALID_EXTENSIONS = frozenset(
+        {
+            ".py",
+            ".js",
+            ".ts",
+            ".jsx",
+            ".tsx",
+            ".go",
+            ".rs",
+            ".java",
+            ".rb",
+            ".c",
+            ".cpp",
+            ".h",
+            ".sh",
+            ".md",
+            ".yaml",
+            ".yml",
+            ".json",
+            ".html",
+            ".css",
+        }
+    )
 
     def __init__(self, project_root: str = "."):
         self.project_root = Path(project_root).resolve()
@@ -51,7 +72,9 @@ class CodebaseSearch:
             self.client = None
             self.collection = None
             self.encoder = None
-            logger.warning("ChromaDB not available - codebase search disabled: %s", CHROMA_IMPORT_ERROR)
+            logger.warning(
+                "ChromaDB not available - codebase search disabled: %s", CHROMA_IMPORT_ERROR
+            )
 
     def index_file(self, filepath: str) -> bool:
         """Index a single file for semantic search."""
@@ -65,7 +88,7 @@ class CodebaseSearch:
         try:
             content = full_path.read_text(errors="ignore")
         except Exception as e:
-            logger.warning(f"Could not read {filepath}: {e}")
+            logger.warning("Could not read %s: %s", filepath, e)
             return False
 
         file_hash = hashlib.md5(content.encode()).hexdigest()
@@ -90,10 +113,10 @@ class CodebaseSearch:
                 )
                 indexed_count += 1
             except Exception as e:
-                logger.warning(f"Could not index chunk from {filepath}: {e}")
+                logger.warning("Could not index chunk from %s: %s", filepath, e)
 
         self.indexed_files[filepath] = file_hash
-        logger.info(f"Indexed {filepath}: {indexed_count} chunks")
+        logger.info("Indexed %s: %d chunks", filepath, indexed_count)
         return True
 
     def index_project(self, max_files: int = 200) -> int:
@@ -113,9 +136,9 @@ class CodebaseSearch:
                 if self.index_file(rel):
                     indexed += 1
             except Exception as e:
-                logger.warning(f"Could not index {rel}: {e}")
+                logger.warning("Could not index %s: %s", rel, e)
 
-        logger.info(f"Indexed {indexed}/{len(files)} files for semantic search.")
+        logger.info("Indexed %d/%d files for semantic search.", indexed, len(files))
         return indexed
 
     def search(self, query: str, top_k: int = 5) -> List[dict]:
@@ -132,14 +155,16 @@ class CodebaseSearch:
             metas = results.get("metadatas", [[]])[0]
 
             for doc, meta in zip(docs, metas):
-                out.append({
-                    "source": meta.get("source", "unknown"),
-                    "content": doc[:500],
-                    "chunk": meta.get("chunk", 0),
-                })
+                out.append(
+                    {
+                        "source": meta.get("source", "unknown"),
+                        "content": doc[:500],
+                        "chunk": meta.get("chunk", 0),
+                    }
+                )
             return out
         except Exception as e:
-            logger.error(f"Search failed: {e}")
+            logger.error("Search failed: %s", e)
             return []
 
     def is_available(self) -> bool:

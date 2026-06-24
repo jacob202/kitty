@@ -8,6 +8,7 @@ Public API:
   export_snapshot() -> dict       Export all syncable state
   import_snapshot(data) -> int    Import state, returns items merged
 """
+
 from __future__ import annotations
 
 import json
@@ -36,13 +37,15 @@ def export_snapshot() -> dict:
     # Memories
     try:
         from gateway.memory import list_memories
+
         snapshot["memories"] = list_memories(limit=1000)
     except Exception:
-        pass
+        logger.debug("sync: failed to export memories", exc_info=True)
 
     # Journal entries
     try:
         from gateway.journal import JOURNAL_LOG
+
         if JOURNAL_LOG.exists():
             entries = []
             with JOURNAL_LOG.open("r") as f:
@@ -53,22 +56,24 @@ def export_snapshot() -> dict:
                         continue
             snapshot["journal_entries"] = entries[-1000:]  # last 1000
     except Exception:
-        pass
+        logger.debug("sync: failed to export journal", exc_info=True)
 
     # Todos
     try:
         from gateway.todo_store import get
+
         snapshot["todos"] = get()
     except Exception:
-        pass
+        logger.debug("sync: failed to export todos", exc_info=True)
 
     # Plugin settings
     try:
         from gateway.plugin_registry import PLUGIN_SETTINGS
+
         if PLUGIN_SETTINGS.exists():
             snapshot["plugin_settings"] = json.loads(PLUGIN_SETTINGS.read_text())
     except Exception:
-        pass
+        logger.debug("sync: failed to export plugin settings", exc_info=True)
 
     return snapshot
 
@@ -86,45 +91,49 @@ def import_snapshot(data: dict) -> int:
             text = mem.get("memory", mem.get("text", ""))
             if text:
                 from gateway.memory import add_memory
+
                 add_memory(text, namespace=mem.get("metadata", {}).get("namespace", "facts"))
                 merged += 1
         except Exception:
-            pass
+            logger.debug("sync: failed to import memory", exc_info=True)
 
     # Import journal entries
     for entry in data.get("journal_entries", []):
         try:
             from gateway.journal import save_journal_entry
+
             save_journal_entry(
                 entry=entry.get("entry", ""),
                 theme=entry.get("theme"),
             )
             merged += 1
         except Exception:
-            pass
+            logger.debug("sync: failed to import journal entry", exc_info=True)
 
     # Import todos
     existing = data.get("todos", [])
     if existing:
         try:
             from gateway.todo_store import update
+
             update(existing)
             merged += len(existing)
         except Exception:
-            pass
+            logger.debug("sync: failed to import todos", exc_info=True)
 
     # Import plugin settings
     ps = data.get("plugin_settings", {})
     if ps:
         try:
             from gateway.plugin_registry import PLUGIN_SETTINGS
+
             PLUGIN_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
             current = json.loads(PLUGIN_SETTINGS.read_text()) if PLUGIN_SETTINGS.exists() else {}
             current.update(ps)
             PLUGIN_SETTINGS.write_text(json.dumps(current, indent=2))
             merged += 1
         except Exception:
-            pass
+            logger.debug("sync: failed to import plugin settings", exc_info=True)
 
     logger.info("Snapshot imported: %d items merged", merged)
     return merged

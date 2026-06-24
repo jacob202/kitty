@@ -113,9 +113,7 @@ class STTAdapter:
 class TTSAdapter:
     """Text-to-speech adapter — wraps edge-tts."""
 
-    async def synthesize(
-        self, text: str, voice: str = "kitty", speed: float = 1.0
-    ) -> bytes:
+    async def synthesize(self, text: str, voice: str = "kitty", speed: float = 1.0) -> bytes:
         """Async synthesis — returns MP3 bytes."""
         from gateway.tts import synthesize_async
 
@@ -272,7 +270,7 @@ class VoicePipeline:
                     {"type": "error", "message": "Session error — reconnect to restart"}
                 )
             except Exception:
-                pass
+                logger.debug("voice: failed to send error to client", exc_info=True)
         finally:
             self._sessions.pop(ws, None)
 
@@ -336,9 +334,7 @@ class VoicePipeline:
             pass  # Error already sent
         else:
             try:
-                audio_out = await self._tts.synthesize(
-                    result.assistant_text, voice="kitty"
-                )
+                audio_out = await self._tts.synthesize(result.assistant_text, voice="kitty")
                 await ws.send_bytes(audio_out)
             except Exception as e:
                 logger.warning("TTS failed (non-fatal): %s", e)
@@ -346,13 +342,13 @@ class VoicePipeline:
         elapsed = round((time.monotonic() - t_start) * 1000)
         logger.info("Voice turn %d completed in %dms", session.turn_count, elapsed)
 
-        # Log interaction (already done in process_turn, but session logging here)
+        # Log interaction
         try:
             from gateway.self_review import record_interaction
 
             record_interaction(result.user_text, result.assistant_text)
         except Exception:
-            pass
+            logger.debug("voice: failed to record interaction", exc_info=True)
 
         await ws.send_json({"type": "done"})
 
