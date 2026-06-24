@@ -10,6 +10,10 @@ import { RightPanel } from '../src/components/RightPanel'
 import { TopBar } from '../src/components/TopBar'
 import { buildGatewayModels, fetchGatewaySearch, summarizeGatewaySearch } from '../src/lib/gateway'
 
+vi.mock('../src/components/CronPanel', () => ({
+  CronPanel: () => <div data-testid="cron-panel-stub" />,
+}))
+
 function renderWithQueryClient(children: ReactNode) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },

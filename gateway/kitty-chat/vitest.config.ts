@@ -8,6 +8,9 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./tests/setup.ts'],
     include: ['**/*.test.{ts,tsx}'],
+    // This suite thrashes under default worker fan-out on this machine/runtime.
+    // Keep frontend tests deterministic so `npm test` reflects real regressions.
+    maxWorkers: 1,
   },
   resolve: {
     alias: {
