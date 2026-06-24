@@ -19,7 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from gateway import storage_io  # noqa: E402
+from gateway import storage_sync  # noqa: E402
 
 
 def main(argv: list[str]) -> int:
@@ -30,7 +30,7 @@ def main(argv: list[str]) -> int:
     cmd = argv[1]
     if cmd == "export":
         path = Path(argv[2]) if len(argv) > 2 else None
-        written = storage_io.export_to_file(path)
+        written = storage_sync.export_to_file(path)
         snapshot = json.loads(written.read_text(encoding="utf-8"))
         counts = {k: len(v) if isinstance(v, (list, dict)) else 0 for k, v in snapshot["stores"].items()}
         print(f"exported → {written}")
@@ -46,7 +46,7 @@ def main(argv: list[str]) -> int:
             return 2
         path = Path(argv[2])
         try:
-            counts = storage_io.import_from_file(path)
+            counts = storage_sync.import_from_file(path)
         except (ValueError, FileNotFoundError) as exc:
             print(f"import failed: {exc}", file=sys.stderr)
             return 1
