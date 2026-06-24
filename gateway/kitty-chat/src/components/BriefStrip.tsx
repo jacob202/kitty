@@ -46,7 +46,7 @@ export function BriefStrip({
   ]
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
       {cards.map(c => (
         <div key={c.label} style={{ ...card, padding: '12px 14px' }}>
           <div style={{ ...sectionLabel, marginBottom: 6 }}>{c.label}</div>

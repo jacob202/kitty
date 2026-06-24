@@ -13,6 +13,7 @@ interface Props {
   tokenCount?: number
   maxTokens?: number
   textareaRef?: RefObject<HTMLTextAreaElement | null>
+  compact?: boolean
 }
 
 type RecState = 'idle' | 'recording' | 'transcribing'
@@ -22,6 +23,7 @@ export function InputBar({
   chatTitle, modelName, modelColor = 'var(--purple)',
   tokenCount = 0, maxTokens = 200000,
   textareaRef,
+  compact = false,
 }: Props) {
   const internalRef = useRef<HTMLTextAreaElement>(null)
   const ref = textareaRef ?? internalRef
@@ -119,15 +121,17 @@ export function InputBar({
   return (
     <div style={{
       position: 'absolute', bottom: 0, left: 0, right: 0,
-      padding: '16px 24px 20px',
+      padding: compact
+        ? '12px 12px calc(12px + env(safe-area-inset-bottom, 0px))'
+        : '16px 24px 20px',
       background: 'linear-gradient(to top, var(--bg) 60%, transparent)',
       pointerEvents: 'none',
       zIndex: 10,
     }}>
-      <div style={{ pointerEvents: 'auto', maxWidth: 840, margin: '0 auto' }}>
+      <div style={{ pointerEvents: 'auto', maxWidth: compact ? '100%' : 840, margin: '0 auto' }}>
         <div style={{
           border: '1px solid var(--border)',
-          borderRadius: 16,
+          borderRadius: compact ? 14 : 16,
           background: 'var(--surface-mid)',
           overflow: 'hidden',
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
@@ -155,8 +159,8 @@ export function InputBar({
               rows={1}
               style={{
                 flex: 1, background: 'none', border: 'none', outline: 'none',
-                color: 'var(--text)', fontFamily: 'var(--font-ui)', fontSize: 15,
-                padding: '14px 16px', resize: 'none',
+                color: 'var(--text)', fontFamily: 'var(--font-ui)', fontSize: compact ? 14 : 15,
+                padding: compact ? '12px 12px' : '14px 16px', resize: 'none',
                 minHeight: 48, maxHeight: 200, lineHeight: 1.5,
               }}
             />
@@ -167,7 +171,7 @@ export function InputBar({
               aria-label={recState === 'recording' ? 'Stop recording' : 'Start voice input'}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 36, height: 36, flexShrink: 0,
+                width: compact ? 34 : 36, height: compact ? 34 : 36, flexShrink: 0,
                 background: recState === 'recording' ? 'var(--error)' : 'transparent',
                 border: 'none', borderRadius: 10, margin: '6px 4px 6px 0',
                 color: recState === 'recording' ? '#fff' : 'var(--text-muted)',
@@ -184,7 +188,7 @@ export function InputBar({
               disabled={disabled || !value.trim()}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 36, height: 36, flexShrink: 0,
+                width: compact ? 34 : 36, height: compact ? 34 : 36, flexShrink: 0,
                 background: value.trim() ? 'var(--primary)' : 'var(--surface-high)',
                 border: 'none', borderRadius: 10, margin: '6px 8px 6px 0',
                 color: value.trim() ? '#fff' : 'var(--text-muted)',
@@ -205,7 +209,16 @@ export function InputBar({
         </div>
 
         <div style={{ marginTop: 8, fontFamily: 'var(--font-mono)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-ghost)', marginBottom: 4, padding: '0 4px' }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            rowGap: 4,
+            fontSize: 11,
+            color: 'var(--text-ghost)',
+            marginBottom: 4,
+            padding: '0 4px',
+          }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {chatTitle && (
                 <>

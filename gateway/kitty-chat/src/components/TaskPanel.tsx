@@ -61,7 +61,7 @@ export function TaskPanel() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', minHeight: 0 }}>
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20, flexShrink: 0 }}>
         <div>
           <div style={sectionLabelStyle}>task runner</div>
           <div style={{ fontFamily: 'var(--font-ui)', fontSize: 22, fontWeight: 700, color: 'var(--text)', lineHeight: 1.1, marginTop: 4 }}>
@@ -76,7 +76,7 @@ export function TaskPanel() {
       </div>
 
       {/* Type selector */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexShrink: 0 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: 16, flexShrink: 0 }}>
         {(Object.keys(TYPE_META) as TaskType[]).map(type => {
           const m = TYPE_META[type]
           const active = taskType === type
@@ -148,7 +148,7 @@ export function TaskPanel() {
             {meta.label} task
           </span>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <input
             ref={inputRef}
             value={goal}

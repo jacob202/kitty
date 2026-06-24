@@ -39,6 +39,8 @@ import {
   type GatewayChatPayload,
 } from '@/lib/queries'
 
+const MOBILE_BREAKPOINT = 900
+
 let chatCounter = 0
 function newChatId() { return `chat-${++chatCounter}-${Date.now()}` }
 function newMsgId()  { return `msg-${Date.now()}-${Math.random().toString(36).slice(2)}` }
@@ -145,6 +147,30 @@ function KittyChatInner() {
   const [chatPersistenceError, setChatPersistenceError] = useState<string | null>(null)
   const [kittyMode, setKittyMode] = useState('default')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const media = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`)
+    const syncViewport = () => setIsMobile(media.matches)
+
+    syncViewport()
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', syncViewport)
+      return () => media.removeEventListener('change', syncViewport)
+    }
+
+    media.addListener(syncViewport)
+    return () => media.removeListener(syncViewport)
+  }, [])
+
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileSidebarOpen(false)
+    }
+  }, [isMobile])
 
   // Chat persistence — load from backend on mount, save on changes.
   const chatsQuery = useChats()
@@ -286,6 +312,30 @@ function KittyChatInner() {
     setActiveChatId(chat.id)
     setInput('')
   }, [activeModel.id])
+
+  const handleToggleSidebar = useCallback(() => {
+    if (isMobile) {
+      setMobileSidebarOpen(open => !open)
+      return
+    }
+    setSidebarCollapsed(collapsed => !collapsed)
+  }, [isMobile])
+
+  const handleSelectChat = useCallback((id: string) => {
+    setActiveChatId(id)
+    setActiveView('chat')
+    if (isMobile) {
+      setMobileSidebarOpen(false)
+    }
+  }, [isMobile])
+
+  const handleSidebarNewChat = useCallback(() => {
+    handleNewChat()
+    setActiveView('chat')
+    if (isMobile) {
+      setMobileSidebarOpen(false)
+    }
+  }, [handleNewChat, isMobile])
 
   const handleCloseChat = useCallback((id: string) => {
     void deleteChatMut.mutateAsync(id)
@@ -436,28 +486,68 @@ function KittyChatInner() {
   return (
     <div className="app-canvas" style={{
       display: 'grid',
-      gridTemplateColumns: `var(--rail) ${sidebarCollapsed ? '60px' : 'var(--sidebar)'} minmax(520px, 1fr) var(--rightbar)`,
+      gridTemplateColumns: isMobile
+        ? '1fr'
+        : `var(--rail) ${sidebarCollapsed ? '60px' : 'var(--sidebar)'} minmax(520px, 1fr) var(--rightbar)`,
       transition: 'grid-template-columns 0.2s ease',
       height: '100vh', minHeight: 0, overflow: 'hidden',
+      position: 'relative',
     }}
       onClick={() => showModelMenu && setShowModelMenu(false)}
     >
-      <Rail activeView={activeView} onViewChange={setActiveView} />
+      {!isMobile && <Rail activeView={activeView} onViewChange={setActiveView} />}
 
-       <SessionSidebar
-         chats={chats}
-         activeChatId={activeChatId}
-         onSelectChat={setActiveChatId}
-         onNewChat={handleNewChat}
-         onCloseChat={handleCloseChat}
-         collapsed={sidebarCollapsed}
-       />
+      {!isMobile && (
+        <SessionSidebar
+          chats={chats}
+          activeChatId={activeChatId}
+          onSelectChat={handleSelectChat}
+          onNewChat={handleSidebarNewChat}
+          onCloseChat={handleCloseChat}
+          collapsed={sidebarCollapsed}
+        />
+      )}
+
+      {isMobile && mobileSidebarOpen && (
+        <>
+          <div
+            onClick={() => setMobileSidebarOpen(false)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0, 0, 0, 0.55)',
+              backdropFilter: 'blur(4px)',
+              zIndex: 40,
+            }}
+          />
+          <div
+            style={{
+              position: 'fixed',
+              inset: '0 auto 0 0',
+              width: 'min(320px, 84vw)',
+              height: '100vh',
+              zIndex: 50,
+              boxShadow: '0 24px 60px rgba(0, 0, 0, 0.45)',
+            }}
+          >
+            <SessionSidebar
+              chats={chats}
+              activeChatId={activeChatId}
+              onSelectChat={handleSelectChat}
+              onNewChat={handleSidebarNewChat}
+              onCloseChat={handleCloseChat}
+              collapsed={false}
+              width="min(320px, 84vw)"
+            />
+          </div>
+        </>
+      )}
 
       <main style={{
         position: 'relative', minWidth: 0,
         display: 'flex', flexDirection: 'column',
         minHeight: 0, overflow: 'hidden',
-        borderRight: '1px solid var(--border)',
+        borderRight: isMobile ? 'none' : '1px solid var(--border)',
       }}>
         <TopBar
           activeModel={activeModel}
@@ -473,7 +563,8 @@ function KittyChatInner() {
           kittyMode={kittyMode}
           onKittyModeChange={setKittyMode}
           sidebarCollapsed={sidebarCollapsed}
-          onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
+          onToggleSidebar={handleToggleSidebar}
+          isMobile={isMobile}
         />
 
         {modelGateway.loaded && !modelGateway.live && (
@@ -582,7 +673,7 @@ function KittyChatInner() {
           {activeView === 'tasks' ? (
             <div style={{
               flex: 1,
-              padding: '24px 32px 40px',
+              padding: isMobile ? '16px 12px 124px' : '24px 32px 40px',
               display: 'grid',
               gap: 24,
               alignContent: 'start',
@@ -593,9 +684,9 @@ function KittyChatInner() {
           ) : activeView === 'tools' ? (
             <div style={{
               flex: 1,
-              padding: '20px 24px 40px',
+              padding: isMobile ? '16px 12px 124px' : '20px 24px 40px',
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+              gridTemplateColumns: `repeat(auto-fit, minmax(${isMobile ? 280 : 340}px, 1fr))`,
               gap: 20,
               alignContent: 'start',
             }}>
@@ -606,14 +697,14 @@ function KittyChatInner() {
           ) : activeView === 'terminal' ? (
             <div style={{
               flex: 1,
-              padding: '24px 32px 40px',
+              padding: isMobile ? '16px 12px 124px' : '24px 32px 40px',
               display: 'flex',
               flexDirection: 'column',
             }}>
               <TerminalStrip title="Gateway Log" maxLines={100} />
             </div>
           ) : activeView === 'chat' && activeChat && activeChat.messages.length > 0 ? (
-            <div style={{ paddingBottom: 140 }}>
+            <div style={{ paddingBottom: isMobile ? 176 : 140 }}>
               {activeChat.messages.map((msg, i) => {
                 const isLast = i === activeChat.messages.length - 1
                 return (
@@ -649,7 +740,7 @@ function KittyChatInner() {
           ) : activeView === 'home' ? (
             <DashboardHome
               chats={chats}
-              onSelectChat={setActiveChatId}
+              onSelectChat={handleSelectChat}
               onPromptSelect={handlePrompt}
               brief={brief}
               todos={todos}
@@ -694,28 +785,31 @@ function KittyChatInner() {
             tokenCount={tokenCount}
             maxTokens={200000}
             textareaRef={textareaRef}
+            compact={isMobile}
           />
         )}
       </main>
 
-      <ErrorBoundary name="RightPanel">
-        <RightPanel
-          chats={chats}
-          activeChat={activeChat}
-          isStreaming={isStreaming}
-          brief={brief}
-          search={searchSnapshot}
-          searchGatewayError={searchGateway.live ? null : searchGateway.error}
-          activeModelName={activeModel.name}
-        />
-      </ErrorBoundary>
+      {!isMobile && (
+        <ErrorBoundary name="RightPanel">
+          <RightPanel
+            chats={chats}
+            activeChat={activeChat}
+            isStreaming={isStreaming}
+            brief={brief}
+            search={searchSnapshot}
+            searchGatewayError={searchGateway.live ? null : searchGateway.error}
+            activeModelName={activeModel.name}
+          />
+        </ErrorBoundary>
+      )}
 
       <CommandPalette
         chats={chats}
-        onNewChat={handleNewChat}
-        onSelectChat={setActiveChatId}
+        onNewChat={handleSidebarNewChat}
+        onSelectChat={handleSelectChat}
         onViewChange={setActiveView}
-        onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
+        onToggleSidebar={handleToggleSidebar}
       />
     </div>
   )
