@@ -27,18 +27,22 @@ A 6-phase, ~10–14 working day plan addressing 15 frictions + 2 sub-frictions a
 ## Open Dirty Work
 
 - `codex/raycast-quick-capture` still holds useful unmerged Raycast wrapper work at `5a07744`.
-- `docs/superpowers/specs/2026-06-20-workflow-optimization-rollout.md` is still a planning artifact with `status: PENDING_APPROVAL`.
-- The working tree has 7 in-flight edits from Codex (kitty-chat cleanup, `gateway/litellm_config.yaml` Wafer AI provider, `docs/UI_SWARM_PLAN.md`, `.kitty/swarm-status.json`). The litellm_config change adds a "Wafer AI" provider (deepseek-v4-flash/pro via `os.environ/WAFER_API_KEY`) — **not in the deepening-program plan; the plan forbids new services.** Decide before committing.
+- `docs/superpowers/specs/2026-06-20-workflow-optimization-rollout.md` is a planning artifact with `status: PARTIALLY_IMPLEMENTED` — 5 done, 6 partial, 4 pending. See the in-doc status table.
 - Older stashes remain for memory-graph and routing experiments; the current inventory is in `.agent/stash_audit.md`.
+- **Skills consolidation remaining (post-Sub-Issue 3):** Sub-Issue 4 (## Flow on tdd-loop, catchup, debug-fix), 5 (trigger sharpening on deep-review), 6 (global sync verification). Skipping `phase-runner` and `phase-swarm` (deleted in Phase 1, deferred per the design's open question).
 
 ## Known Risks
 
 - Runtime state is still spread across JSON, JSONL, SQLite, ChromaDB, and mem0.
 - Claude local overrides can still drift per machine; canonical repo guidance now lives in `.claude/settings.json`, with `.claude/settings.local.json` ignored and `.claude/settings.local.example.json` as the checked-in shape.
 - `gateway/inbox_watcher.py` depends on the iCloud inbox path existing on this Mac; the app should still run without it, but the feature is host-specific.
+- **Pre-commit hook no longer runs pytest** (commit `a79d4ee`). Commits are instant, but the safety net is gone — devs must run `make test` (fast slice) or `make test-full` (everything, includes mem0/network/I/O) explicitly before pushing.
 
 ## Recent Commits (local, unpushed)
 
+- `a79d4ee` chore(workflow): make commits instant — skip slow tests in pre-commit, add slow marker
+- `e5b63b5` fix(kitty-chat): fail loud on chat persistence
+- `948136d` docs(refresh): status + handoff for Phase 0+1 landing
 - `225e648` docs(specs): skills consolidation 2C done — deep-review skill created
 - `4413395` Merge branch 'phase-1-storage-substrate' into codex/phase-4-workflow
 - `2d8feb9` feat(arch): phase 1 storage substrate deepening
@@ -56,13 +60,14 @@ A 6-phase, ~10–14 working day plan addressing 15 frictions + 2 sub-frictions a
 - `ada0438` docs(refresh): re-anchor phase 4 status
 - `7236483` fix(workflow): harden inbox watcher polling
 
-Push is intentionally deferred per the new policy in `f15697d` ("do not push unless explicitly asked").
+Branch is in sync with origin (`a79d4ee` is the latest push).
 
 ## Verification
 
-- `python3.12 -m pytest tests/test_inbox_watcher.py tests/test_status_glance.py -q --tb=short` passed: 7 tests.
-- `python3.12 -m pytest tests/test_storage_router_depth.py -v` passed: 11 tests in 0.7s (Phase 1 router tests).
-- `python3.12 -m pytest tests/ -q --tb=short` **not re-verified this turn** — pre-Phase-1 count was 687 passed, 2 deselected, 4 warnings. Phase 1 added 11 router_depth tests (green) + 9 storage_sync tests (not run end-to-end; the first one takes ~23s because `list_memories` goes through mem0, so the full suite is now meaningfully slower). Treat the count as `≥ 687 + 11 = 698 passed`, 2 deselected, untested end-to-end this turn.
+- `make test` (fast slice, default — skips `@pytest.mark.slow`): expected `~691 passed, 2 deselected` (was 687 pre-Phase-1 + 11 router_depth − 7 slow-marked = 691). Run before each push.
+- `make test-full` (everything, includes real mem0 / network / I/O): expected `~698 passed, 2 deselected` once the slow path is exercised. The first `test_storage_sync` test alone takes ~23s.
+- `python3.12 -m pytest tests/test_storage_router_depth.py -v`: confirmed green, 11 tests in 0.7s.
+- `python3.12 -m pytest tests/test_storage_sync.py::test_export_all_returns_expected_top_level_shape -v`: confirmed green, 1 test in 23.4s.
 - `./kitty status` currently shows gateway and LiteLLM stopped.
 - `./kitty doctor --json` currently reports 7 PASS / 1 WARN / 2 FAIL; the 2 FAIL entries are the stopped gateway and LiteLLM services.
 
