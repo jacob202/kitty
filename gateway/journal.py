@@ -21,6 +21,12 @@ from gateway.prompts import JOURNAL_INTERVIEW_PROMPT, JOURNAL_SYNTHESIS_PROMPT
 
 logger = logging.getLogger("kitty.journal")
 
+# DEPRECATED: legacy read-only path for the JSONL fallback. SQLite
+# (kitty.db / journal_entries table, via journal_store) is the canonical
+# substrate. Retained only so the one-time legacy import in
+# journal_store._import_legacy_journal_once can find its source file.
+# New code MUST go through journal_store. Will be removed once Phase C
+# retirement completes.
 JOURNAL_LOG = DATA_DIR / "journal_entries.jsonl"
 
 

@@ -100,18 +100,18 @@ async def mcp_tools():
 
 @router.get("/sync/export")
 async def sync_export():
-    from gateway.sync import export_snapshot
+    from gateway.storage_sync import export_all
 
-    return export_snapshot()
+    return export_all()
 
 
 @router.post("/sync/import")
 async def sync_import(request: Request):
-    from gateway.sync import import_snapshot
+    from gateway.storage_sync import import_all
 
     body = await request.json()
-    merged = import_snapshot(body)
-    return {"merged": merged}
+    counts = import_all(body)
+    return {"imported": counts}
 
 
 # --- Search endpoint ---

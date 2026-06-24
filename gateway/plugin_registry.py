@@ -182,30 +182,24 @@ def reset() -> None:
     kitty_db.migrate(db_file=PLUGIN_DB_FILE)
     with kitty_db.connect(PLUGIN_DB_FILE) as conn:
         conn.execute("DELETE FROM plugin_settings")
+        conn.execute("DELETE FROM app_settings WHERE key = ?", (_MIGRATION_FLAG,))
 
 
 # --- Settings persistence ---
 
 
+_MIGRATION_FLAG = "plugin_legacy_imported"
+
+
 def _load_settings() -> dict:
     kitty_db.migrate(db_file=PLUGIN_DB_FILE)
-    settings = _load_db_settings()
-    legacy = _load_legacy_settings()
-    missing_from_db = {
-        name: enabled for name, enabled in legacy.items() if name not in settings
-    }
-    if missing_from_db:
-        settings.update(missing_from_db)
-        _save_db_settings(settings)
-        _save_legacy_settings(settings)
-    return settings
+    _migrate_legacy_settings_once()
+    return _load_db_settings()
 
 
 def _save_settings(settings: dict) -> None:
     kitty_db.migrate(db_file=PLUGIN_DB_FILE)
     _save_db_settings(settings)
-    # Keep the legacy file as a compatibility mirror until sync.py migrates.
-    _save_legacy_settings(settings)
 
 
 def _load_db_settings() -> dict[str, bool]:
@@ -229,6 +223,60 @@ def _save_db_settings(settings: dict) -> None:
         )
 
 
+def _migrate_legacy_settings_once() -> None:
+    """Import the legacy JSON file once, on first access.
+
+    Sets an ``app_settings`` flag (``plugin_legacy_imported``) so the
+    migration never re-runs. The JSON file is left in place read-only;
+    operators can delete it manually after verifying the import.
+
+    The mirror-on-write behavior was removed in Phase 1 of the gateway
+    deepening program — see
+    ``docs/superpowers/specs/2026-06-24-gateway-deepening-program-design.md``.
+    """
+    with kitty_db.connect(PLUGIN_DB_FILE) as conn:
+        flag = conn.execute(
+            "SELECT value FROM app_settings WHERE key = ?", (_MIGRATION_FLAG,)
+        ).fetchone()
+        if flag is not None:
+            return
+        db_count = conn.execute(
+            "SELECT COUNT(*) FROM plugin_settings"
+        ).fetchone()[0]
+        if db_count > 0:
+            _mark_legacy_migrated(conn, "skipped-target-not-empty")
+            return
+        if not PLUGIN_SETTINGS.exists():
+            _mark_legacy_migrated(conn, "no-source-file")
+            return
+
+    legacy = _load_legacy_settings()
+    if not legacy:
+        with kitty_db.connect(PLUGIN_DB_FILE) as conn:
+            _mark_legacy_migrated(conn, "empty-source")
+        return
+
+    _save_db_settings(legacy)
+    with kitty_db.connect(PLUGIN_DB_FILE) as conn:
+        _mark_legacy_migrated(conn, str(PLUGIN_SETTINGS))
+    logger.info(
+        "plugin_registry: imported %d setting(s) from %s into kitty.db",
+        len(legacy),
+        PLUGIN_SETTINGS,
+    )
+
+
+def _mark_legacy_migrated(conn, value: str) -> None:
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO app_settings (key, value, updated_at)
+        VALUES (?, ?, CURRENT_TIMESTAMP)
+        """,
+        (_MIGRATION_FLAG, value),
+    )
+    conn.commit()
+
+
 def _load_legacy_settings() -> dict[str, bool]:
     if not PLUGIN_SETTINGS.exists():
         return {}
@@ -243,8 +291,3 @@ def _load_legacy_settings() -> dict[str, bool]:
             f"Invalid plugin settings JSON at {PLUGIN_SETTINGS}: expected object"
         )
     return {str(name): bool(enabled) for name, enabled in raw.items()}
-
-
-def _save_legacy_settings(settings: dict) -> None:
-    PLUGIN_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
-    PLUGIN_SETTINGS.write_text(json.dumps(settings, indent=2), encoding="utf-8")
