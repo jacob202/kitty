@@ -32,6 +32,7 @@ def _isolate_plugin(tmp_path, monkeypatch):
     return db_file
 
 
+@pytest.mark.slow
 def test_export_all_returns_expected_top_level_shape(tmp_path, monkeypatch):
     _isolate_plugin(tmp_path, monkeypatch)
     _isolate(tmp_path, monkeypatch, "todo")
@@ -46,6 +47,7 @@ def test_export_all_returns_expected_top_level_shape(tmp_path, monkeypatch):
     assert "preferences" in snapshot["stores"]
 
 
+@pytest.mark.slow
 def test_export_includes_real_plugin_settings_and_todos(tmp_path, monkeypatch):
     _isolate_plugin(tmp_path, monkeypatch)
     _isolate(tmp_path, monkeypatch, "todo")
@@ -64,6 +66,7 @@ def test_export_includes_real_plugin_settings_and_todos(tmp_path, monkeypatch):
     assert {t["content"] for t in snapshot["stores"]["todos"]} == {"first todo", "second todo"}
 
 
+@pytest.mark.slow
 def test_round_trip_preserves_plugin_settings(tmp_path, monkeypatch):
     _isolate_plugin(tmp_path, monkeypatch)
     _isolate(tmp_path, monkeypatch, "todo")
@@ -81,6 +84,7 @@ def test_round_trip_preserves_plugin_settings(tmp_path, monkeypatch):
     assert plugin_registry._load_db_settings() == {"alpha": True, "beta": False}
 
 
+@pytest.mark.slow
 def test_round_trip_preserves_todos(tmp_path, monkeypatch):
     _isolate_plugin(tmp_path, monkeypatch)
     _isolate(tmp_path, monkeypatch, "todo")
@@ -109,6 +113,7 @@ def test_import_rejects_missing_stores_key():
         storage_sync.import_all({"format_version": storage_sync.FORMAT_VERSION})
 
 
+@pytest.mark.slow
 def test_import_rejects_unknown_store_keys(tmp_path, monkeypatch):
     _isolate_plugin(tmp_path, monkeypatch)
     _isolate(tmp_path, monkeypatch, "todo")
@@ -119,6 +124,7 @@ def test_import_rejects_unknown_store_keys(tmp_path, monkeypatch):
         storage_sync.import_all(snapshot)
 
 
+@pytest.mark.slow
 def test_import_rejects_wrong_payload_shape(tmp_path, monkeypatch):
     _isolate_plugin(tmp_path, monkeypatch)
     _isolate(tmp_path, monkeypatch, "todo")
@@ -130,6 +136,7 @@ def test_import_rejects_wrong_payload_shape(tmp_path, monkeypatch):
         storage_sync.import_all(snapshot)
 
 
+@pytest.mark.slow
 def test_export_to_file_and_import_from_file_round_trip(tmp_path, monkeypatch):
     _isolate_plugin(tmp_path, monkeypatch)
     _isolate(tmp_path, monkeypatch, "todo")

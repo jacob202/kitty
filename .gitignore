@@ -50,6 +50,7 @@ duplicate_analysis_report.txt
 .superpowers/
 
 # Ephemeral runtime state
+.kitty/
 .kitty.pid
 .kittybuilder_session.json
 .agent/session_logs/*.md

@@ -1,13 +1,19 @@
-# LiteLLM — Open WebUI + gateway public model surface
+# LiteLLM — Kitty model proxy
 #
-# Two routes:
-#   kitty-default  → DeepSeek V4 Flash (fast, cheap — most calls)
-#   kitty-sonnet   → Claude Sonnet (reasoning, architecture, review)
+# Routes:
+#   kitty-default      → DeepSeek V4 Flash (OpenRouter — fast, cheap, most calls)
+#   kitty-sonnet       → Claude Sonnet (Anthropic — reasoning, architecture, review)
+#   kitty-default-or   → Gemini 2.0 Flash (OpenRouter — free tier, fallback)
+#   kitty-default-gemini → Gemini 2.5 Flash (Google — direct)
+#   kitty-agentrouter  → GPT 5.4 Mini (AgentRouter — experimental)
+#   kitty-openai       → GPT 4o Mini (OpenAI — low-cost fallback)
+#   kitty-wafer-*      → Wafer AI (OpenAI-compatible, fast open models)
 #
 # Run the proxy:  bash gateway/start_litellm.sh
 #
-# Env: OPENROUTER_API_KEY, GEMINI_API_KEY, AGENTROUTER_API_KEY,
-#      ANTHROPIC_API_KEY, LITELLM_MASTER_KEY, LITELLM_MAX_BUDGET_USD
+# Env: OPENROUTER_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY,
+#      OPENAI_API_KEY, AGENTROUTER_API_KEY, WAFER_API_KEY,
+#      LITELLM_MASTER_KEY, LITELLM_MAX_BUDGET_USD
 
 model_list:
   - model_name: kitty-default
@@ -47,6 +53,29 @@ model_list:
       api_key: os.environ/OPENAI_API_KEY
       max_tokens: 8192
 
+  # Wafer AI — OpenAI-compatible inference provider (fast open models)
+  # Docs: https://pass.wafer.ai/v1
+  - model_name: kitty-wafer-default
+    litellm_params:
+      model: openai/deepseek-v4-flash
+      api_base: https://pass.wafer.ai/v1
+      api_key: os.environ/WAFER_API_KEY
+      max_tokens: 8192
+
+  - model_name: kitty-wafer-pro
+    litellm_params:
+      model: openai/deepseek-v4-pro
+      api_base: https://pass.wafer.ai/v1
+      api_key: os.environ/WAFER_API_KEY
+      max_tokens: 8192
+
+  - model_name: kitty-wafer-glm
+    litellm_params:
+      model: openai/GLM-5.1
+      api_base: https://pass.wafer.ai/v1
+      api_key: os.environ/WAFER_API_KEY
+      max_tokens: 8192
+
 router_settings:
   routing_strategy: simple-shuffle
   num_retries: 1
@@ -57,8 +86,8 @@ litellm_settings:
   set_verbose: false
   num_retries: 2
   fallbacks:
-    - kitty-default: [kitty-openai]
-    - kitty-sonnet: [kitty-openai]
+    - kitty-default: [kitty-wafer-default, kitty-openai]
+    - kitty-sonnet: [kitty-wafer-glm, kitty-openai]
 
 general_settings:
   max_budget: os.environ/LITELLM_MAX_BUDGET_USD
