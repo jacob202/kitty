@@ -1,6 +1,6 @@
 ---
 name: tdd-loop
-description: Run a failing test path through an autonomous fix-and-retry loop. Triggers on "/tdd-loop <test-path>", "iterate until green", "fix until tests pass".
+description: Run a failing test path through an autonomous fix-and-retry loop. Triggers on "make this test pass", "fix the failing test", "iterate until green", "fix until tests pass", "tests are red", "tests broke", "tests fail", "/tdd-loop <test-path>".
 argument-hint: "<test-path-or-pattern>"
 allowed-tools:
   - Read
@@ -47,3 +47,7 @@ up to 10 times. Escalates to user on repeated errors or large-scope changes.
 - Never add `# noqa`, `# type: ignore`, or `@pytest.mark.skip` to hide failures
 - Each iteration must produce a meaningful diff — no no-op retries
 - If a fix introduces a new test failure elsewhere, revert and try a different approach
+
+## Flow
+
+After escalation (stuck, >5 files touched, 10 iterations, or same-error-3x), suggest `/debug-fix` with the failing test path and the last 2 attempts in context. Don't re-try the loop — hand off.

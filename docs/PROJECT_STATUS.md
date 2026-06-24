@@ -29,7 +29,7 @@ A 6-phase, ~10–14 working day plan addressing 15 frictions + 2 sub-frictions a
 - `codex/raycast-quick-capture` still holds useful unmerged Raycast wrapper work at `5a07744`.
 - `docs/superpowers/specs/2026-06-20-workflow-optimization-rollout.md` is a planning artifact with `status: PARTIALLY_IMPLEMENTED` — 5 done, 6 partial, 4 pending. See the in-doc status table.
 - Older stashes remain for memory-graph and routing experiments; the current inventory is in `.agent/stash_audit.md`.
-- **Skills consolidation remaining (post-Sub-Issue 3):** Sub-Issue 4 (## Flow on tdd-loop, catchup, debug-fix), 5 (trigger sharpening on deep-review), 6 (global sync verification). Skipping `phase-runner` and `phase-swarm` (deleted in Phase 1, deferred per the design's open question).
+- **Skills consolidation:** design ACCEPTED, Phases 1-5 of the design landed (deletions, merges, ## Flow, trigger sharpening, global sync for catchup + tdd-loop). `second-opinion` is project-only — separate promotion task.
 
 ## Known Risks
 

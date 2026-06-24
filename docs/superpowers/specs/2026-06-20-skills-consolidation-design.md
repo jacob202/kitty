@@ -14,14 +14,12 @@ Status against the sub-plan. "Done" means the work landed.
 | Sub-issue | Phase | Status | Where |
 |---|---|---|---|
 | Phase 1 deletions (8 skills) | 1 | Done | `ship`, `pr-review`, `tune`, `autonomy_tune` + 4 MCP-conditional (`debug-issue`, `explore-codebase`, `refactor-safely`, `review-changes`) — all deleted |
-| 2A — `loop-tune` (create from scratch) | 2 | Done | `~/.claude/skills/loop-tune/SKILL.md` (this commit) |
+| 2A — `loop-tune` (create from scratch) | 2 | Done | `~/.claude/skills/loop-tune/SKILL.md` |
 | 2B — `worktree` merge | 2 | Already done | `~/.claude/skills/worktree/SKILL.md` already has both `create` and `clean` modes + `## Flow` |
 | 2C — `deep-review` (create from scratch) | 2 | Done | `~/.claude/skills/deep-review/SKILL.md` |
-| Phase 3 — `## Flow` sections | 3 | Partial | worktree has it; 3 others (tdd-loop, catchup, debug-fix) still need it; `phase-runner` doesn't exist |
-| Phase 4 — trigger keywords | 4 | Partial | catchup, tdd-loop already sharp; deep-review and phase-runner are N/A until they exist |
-| Phase 5 — global sync | 5 | Partial | 3 of 5 (`catchup`, `tdd-loop`, `second-opinion`) already global; 2 (`phase-runner`, `phase-swarm`) deleted and not re-created |
-
-**Open decision:** `phase-runner` and `phase-swarm` were deleted in Phase 1 but referenced in Phases 3, 4, 5. Three options: remove from the design, re-create from scratch, or defer (sub-issues 4-6 skip them). Defer chosen 2026-06-24.
+| Phase 3 — `## Flow` sections | 3 | Done | worktree already had it; tdd-loop, catchup, debug-fix all added |
+| Phase 4 — trigger keywords | 4 | Done | deep-review, tdd-loop, catchup all sharpened with the design's required trigger sets |
+| Phase 5 — global sync | 5 | Partial | `catchup` + `tdd-loop` synced project → global (md5 verified). `second-opinion` is project-only (separate promotion task) |
 
 ## Executive Summary
 
@@ -94,8 +92,7 @@ These are *hints*, not hard redirects — agent announces the suggestion, user d
 | Skill | Trigger condition | Suggested next |
 |-------|------------------|----------------|
 | `tdd-loop` | escalation (stuck / >5 files / 10 iters) | → `/debug-fix` with context |
-| `phase-runner` | all tasks `done` + gate green | → `/ship` |
-| `catchup` | detects in-progress phase in handoff | → `/phase-runner N` |
+| `catchup` | detects in-progress phase in handoff | → `/ship` |
 | `worktree` (create) | when `ship` completes on branch | → `/worktree clean` |
 | `debug-fix` | fix committed + tests green | → `/tdd-loop` to verify |
 | `audit` | all dimensions merged + gate green | → `/qg` full run |
@@ -111,7 +108,6 @@ have weak auto-fire:
 |-------|-------------|
 | `catchup` | `"what was I working on"`, `"just ran /clear"`, `"fresh session"`, `"catch me up"`, `"resume work"` |
 | `tdd-loop` | `"make this test pass"`, `"fix the failing test"`, `"iterate until green"` |
-| `phase-runner` | `"work on phase"`, `"resume phase"`, `"kick off phase N"`, `"checkpoint phase"` |
 | `deep-review` | `"pressure test this"`, `"challenge my approach"`, `"expert review"`, `"am I missing anything"` |
 
 ---
@@ -123,8 +119,6 @@ Promote 5 project-only skills to global so any future project gets them:
 | Skill | Why global |
 |-------|-----------|
 | `catchup` | Useful in any long-running project session |
-| `phase-runner` | Generic enough for any phased work |
-| `phase-swarm` | Generic parallel-worktree coordinator |
 | `tdd-loop` | Universal test-fix loop |
 | `second-opinion` | Already marked AUTOMATIC; should be everywhere |
 

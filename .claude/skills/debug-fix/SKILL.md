@@ -120,3 +120,7 @@ In `--fast` mode specifically:
 - NEVER commit secrets or unrelated changes.
 - If the user says "skip" at any step, skip and move on.
 - In `--fast` mode specifically: if the fix turns out to be complex, tell the user and suggest dropping `--fast` to use the careful path.
+
+## Flow
+
+After the fix is committed AND `make test` (or the targeted test) is green, suggest `/tdd-loop` to verify the fix doesn't break other tests. If the fix touched shared utilities, run the full fast suite first.

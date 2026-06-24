@@ -1,6 +1,6 @@
 ---
 name: catchup
-description: Rebuild working context fast after /clear or a fresh session — reads the handoff note and the branch's changes, then summarizes where work stands. Add `handoff` to write the note before stopping.
+description: Rebuild working context fast after /clear or a fresh session — reads the handoff note and the branch's changes, then summarizes where work stands. Triggers on "what was I working on", "what was I doing", "where am I", "where did I leave off", "just ran /clear", "fresh session", "catch me up", "resume work", "remind me", "what's the state", "pick up from where". Add `handoff` to write the note before stopping.
 argument-hint: "[handoff | focus area]"
 disable-model-invocation: true
 allowed-tools:
@@ -67,3 +67,7 @@ Show the note and confirm before writing. Overwrite any existing note (it descri
 - Catchup mode is strictly read-only.
 - Never paste large diffs into the summary — reference `file:line` and characterize.
 - The handoff captures decisions and dead ends, not narrative. "Tried X, broke Y, use Z instead" is the gold standard line.
+
+## Flow
+
+After catchup detects an in-progress phase in the handoff (uncommitted work + unpushed commits), suggest `/ship` to wrap. If the user wants to continue the phase, suggest `/catchup handoff` at end-of-session to record the new state.
