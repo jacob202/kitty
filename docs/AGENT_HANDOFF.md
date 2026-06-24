@@ -17,7 +17,7 @@ Adds Phase 4 workflow polish on top of a main branch that already includes the s
 
 - Repo path: `/Users/jacobbrizinski/Projects/kitty`
 - Ignore stale context pointing to `/Users/jacobbrizinski/Documents/Kitty`
-- The branch is clean as of this handoff
+- The branch has 3 unpushed local commits (`f15697d`, `ada0438`, `7236483`); push is intentionally deferred per the new policy landed in `f15697d`
 - `codex/raycast-quick-capture` still contains useful unmerged wrapper work at `5a07744`
 - `.claude/settings.local.json` is tracked and machine-specific; treat it as review-required config, not unquestioned source of truth
 
@@ -33,6 +33,12 @@ Adds Phase 4 workflow polish on top of a main branch that already includes the s
 - `tests/test_inbox_watcher.py`
 - `tests/test_status_glance.py`
 - `.claude/settings.local.json`
+
+## Recent Commits (local, unpushed)
+
+- `f15697d` chore(workflow): phase 4 doc + hook refresh
+- `ada0438` docs(refresh): re-anchor phase 4 status
+- `7236483` fix(workflow): harden inbox watcher polling
 
 ## Verification
 
