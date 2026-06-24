@@ -4,6 +4,8 @@
 
 set -euo pipefail
 
+INPUT="$(cat 2>/dev/null || true)"
+
 find_skill() {
   local skill_name="$1"
   local skill_path
@@ -20,6 +22,19 @@ find_skill() {
 
 OUTPUT="${CLAUDE_TOOL_OUTPUT:-}"
 [[ -z "$OUTPUT" ]] && exit 0
+
+COMMAND=""
+if command -v jq >/dev/null 2>&1 && [[ -n "$INPUT" ]]; then
+  COMMAND="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null || true)"
+fi
+
+case "$COMMAND" in
+  *pytest*|*"npm test"*|*"npm run test"*|*"pnpm test"*|*"bun test"*|*"vitest"*|*"jest"*)
+    ;;
+  *)
+    exit 0
+    ;;
+esac
 
 if grep -qE '(FAILED|ERROR|fail|^E\s|^[0-9]+ failed)' <<<"$OUTPUT"; then
   TDD_LOOP_SKILL="$(find_skill tdd-loop || true)"

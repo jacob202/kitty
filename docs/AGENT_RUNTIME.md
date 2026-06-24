@@ -1,14 +1,50 @@
 # Agent Runtime
 
-**Date:** 2026-06-20
+**Date:** 2026-06-24
+
+This doc covers the repo-owned agent surface that shapes a session before product code changes: front-door docs, Claude runtime files, hooks, and wrap-up artifacts.
 
 ## Entry Protocol
 
 1. Confirm repo: `/Users/jacobbrizinski/Projects/kitty`.
 2. Run `git status --short --branch`.
 3. Read `START_HERE.md` and `docs/PROJECT_STATUS.md`.
-4. If work may touch architecture, read `docs/DECISIONS.md`.
-5. If work may repeat a known mistake, read `docs/LEARNINGS.md`.
+4. If you are touching docs, hooks, or agent workflow, read `.claude/settings.json` and `.claude/profile.md`.
+5. Pull in `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`, `docs/LEARNINGS.md`, and any phase-plan doc only when the task needs them.
+
+## Front-Door Files
+
+- `AGENTS.md` — repo contract and safety gates. Highest priority.
+- `START_HERE.md` — single orientation entrypoint.
+- `CLAUDE.md` and `CODEX.md` — tool-specific wrappers. They may add nuance, but they must not contradict `AGENTS.md` or `START_HERE.md`.
+- `docs/PROJECT_STATUS.md` — live branch truth.
+- `docs/AGENT_HANDOFF.md` — latest continuation package.
+- `.claude/profile.md` — short Claude session-start context. Keep it durable; branch-specific details belong in `docs/PROJECT_STATUS.md`.
+- `.claude/rules/code-quality.md` — concise style and anti-default guardrails.
+
+## Hook Surface
+
+Canonical repo config lives in `.claude/settings.json`.
+
+- `sessionStart` prints `.claude/profile.md`.
+- `SessionStart` hooks run `.claude/hooks/session-start.sh` for live git context and `.claude/hooks/suggest-catchup.sh` for recent-handoff nudges.
+- `PreToolUse` for `Bash` runs `scan-secrets.sh` and `block-dangerous-commands.sh`.
+- `PreToolUse` for `Write|Edit|NotebookEdit` runs `scan-secrets.sh` and `warn-large-files.sh`.
+- `PostToolUse` for `Write|Edit|NotebookEdit` runs `notify.sh` plus a quick `ruff` check on edited Python files.
+- `PostToolUse` for `Bash` runs `suggest-on-test-fail.sh` for failing test commands.
+
+`.claude/settings.local.json` is machine-local and currently tracked. Treat it as host-specific, not canonical repo guidance.
+
+## Repo-Local Skills
+
+Repo-owned Claude skills currently live in `.claude/skills/`:
+
+- `catchup`
+- `debug-fix`
+- `second-opinion`
+- `tdd-loop`
+
+User-level/global skills may exist, but this doc should only list repo-owned runtime surfaces.
 
 ## Exit Protocol
 
@@ -26,68 +62,13 @@ Then fill in the generated session log with:
 - unresolved dirty work
 - next concrete action
 
-## Hooks And Tools
+## Other Runtime Artifacts
 
 - `.git/hooks/pre-commit` blocks staged macOS metadata and runs pytest.
-- The current pre-commit hook has an unreachable code-review-graph block after `exit 0`; fix in a dedicated tooling pass.
 - `.mcp.json` is local and ignored; do not commit absolute MCP paths.
 - `.agent/session_logs/` is for generated local wrap-up logs (gitignored).
-- Codex CLI runs concurrently from the desktop app. If `git status` shows files appearing or being modified while you are working, treat that as Codex mid-edit. Stash your work with a descriptive message and `git stash pop` after Codex lands its commit. Do not fight Codex for the same branch.
-
-## Active Skills (as of 2026-06-20)
-
-User-level skills are installed at `~/.claude/skills/` and symlinked to `~/.config/opencode/skills`, `~/.codex/skills`, and `~/.config/crush/skills` so they are available across tools. Single source of truth: `~/.claude/skills/`. New dotclaude skills came from `poshan0126/dotclaude` (cloned at `~/dotclaude`).
-
-### Code review, PR, and merge
-
-- `pr-review` — PR review with structured findings (recommended for new PRs).
-- `pr` — PR creation helper.
-- `merge` — merge workflow.
-- `rebase` — rebase workflow.
-- `commit` — commit message helper.
-- `qg` — quality gate runner.
-- `judge` — comparative judgement of options.
-
-### Audit family (read-only code audits)
-
-- `audit` (root), `audit-comments`, `audit-complexity`, `audit-correctness`, `audit-error-handling`, `audit-logs`, `audit-necessity`, `audit-patterns`, `audit-perf`, `audit-security`, `audit-structure`, `audit-tests`.
-- Use the most specific one for the question. `audit` is the entry point.
-
-### Plan, design, prompt
-
-- `plan` — there are two `plan` skills. The repo's own `~/.claude/skills/plan/SKILL.md` is the canonical one for Kitty. The dotclaude one is reachable only via `~/dotclaude/skills/plan/` and is not symlinked to avoid the conflict.
-- `design` — design exploration.
-- `prompt` — prompt iteration.
-- `refiner` — refine a draft.
-- `ux` — UX review.
-- `color-system` — color tokens.
-
-### Meta and project
-
-- `codemap` — project map.
-- `find-skills` — discover other skills.
-- `improve-skill` — iterate a skill.
-- `seo-geo` — SEO/GEO review.
-- `sparring` — adversarial sparring partner.
-- `timesheet` — time tracking.
-- `transformer` — content transformation.
-- `worktree`, `worktree-clean` — git worktree helpers.
-
-### Markdown reference docs (read directly, not a skill)
-
-- `audit-workflow.md` — how to use the audit family.
-- `conventional-commits.md` — commit message format.
-- `migration-reconciliation.md` — migration planning.
-
-### Plugins (Claude Code)
-
-- `setupdotclaude@dotclaude` from the `poshan0126/dotclaude` marketplace (scope: user). Restart Claude Code to load. Repo-level `make agent-wrap` is the canonical wrap path; this plugin is a supplement, not a replacement.
-
-### Disabled or superseded skills
-
-- None yet. When a skill proves underperforming in this repo, mark it superseded in `docs/archive/` and remove the symlink; do not delete the original.
+- Codex CLI can run concurrently from the desktop app. If `git status` changes underneath you, pause, re-check, and avoid fighting another agent for the same files.
 
 ## Agent Boundaries
 
 Agents may automate formatting, local tests, and focused bug fixes. Agents must ask before pushing, deleting, force-pushing, touching auth/secrets/env, or adding heavy dependencies.
-

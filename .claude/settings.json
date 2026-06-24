@@ -1,5 +1,5 @@
 {
-  "sessionStart": "python3.11 -m pytest tests/ -q --tb=line 2>/dev/null | tail -1 || true",
+  "sessionStart": "sed -n '1,80p' .claude/profile.md 2>/dev/null || true",
   "autoSave": true,
   "terminalIntegration": true,
   "permissions": {
@@ -51,6 +51,15 @@
     ],
     "PostToolUse": [
       {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/suggest-on-test-fail.sh"
+          }
+        ]
+      },
+      {
         "matcher": "Write|Edit|NotebookEdit",
         "hooks": [
           {
@@ -70,6 +79,10 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/session-start.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/suggest-catchup.sh"
           }
         ]
       }

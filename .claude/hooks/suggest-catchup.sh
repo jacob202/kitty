@@ -26,12 +26,12 @@ SHIP_SKILL="$(find_skill ship || true)"
 # Only suggest if handoff was updated in last 7 days
 if command -v find &>/dev/null && [[ -n "$(find "$HANDOFF" -mtime -7 2>/dev/null)" ]]; then
   echo ""
-  echo "[session] Found recent handoff at $HANDOFF"
   if [[ -n "$CATCHUP_SKILL" && -n "$SHIP_SKILL" ]]; then
-    echo "[tip] Run /catchup to pick up where you left off, or /ship to wrap and commit."
+    echo "[session] Recent handoff: $HANDOFF. /catchup to resume, /ship when ready."
+  elif [[ -n "$CATCHUP_SKILL" ]]; then
+    echo "[session] Recent handoff: $HANDOFF. /catchup to resume."
   else
-    echo "[session] Missing skill suggestion target(s): catchup=${CATCHUP_SKILL:-missing}, ship=${SHIP_SKILL:-missing}"
-    echo "[session] Expected local .claude/skills/<name>/SKILL.md or user-level ~/.claude/skills/<name>/SKILL.md."
+    echo "[session] Recent handoff: $HANDOFF."
   fi
 fi
 
@@ -39,10 +39,13 @@ fi
 if git -C . status --porcelain 2>/dev/null | grep -q .; then
   CHANGED=$(git -C . status --porcelain 2>/dev/null | wc -l | tr -d ' ')
   if [[ -n "$CATCHUP_SKILL" && -n "$SHIP_SKILL" ]]; then
-    echo "[session] $CHANGED uncommitted change(s) — /ship if ready, /catchup to review"
+    echo "[session] $CHANGED uncommitted change(s) — /catchup to review, /ship if ready."
+  elif [[ -n "$CATCHUP_SKILL" ]]; then
+    echo "[session] $CHANGED uncommitted change(s) — /catchup to review."
+  elif [[ -n "$SHIP_SKILL" ]]; then
+    echo "[session] $CHANGED uncommitted change(s) — /ship if ready."
   else
     echo "[session] $CHANGED uncommitted change(s)"
-    echo "[session] Missing skill suggestion target(s): catchup=${CATCHUP_SKILL:-missing}, ship=${SHIP_SKILL:-missing}"
   fi
 fi
 

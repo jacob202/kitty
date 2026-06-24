@@ -13,7 +13,7 @@ Start with `START_HERE.md`, then read `docs/PROJECT_STATUS.md` before making cha
 
 ## Current Priority
 
-Phase B prep: one storage story, one canonical documentation path, and a reliable agent handoff loop. Do not expand TELOS, PAI, agents, mobile, or cloud sync during this phase.
+Workflow polish and source-of-truth cleanup. Use `docs/PROJECT_STATUS.md` for live branch status, and treat Phase B/Phase C plan docs as reference material rather than default first reads. Do not add cloud auth, push notifications, new agent dashboards, or new storage systems while local workflow still has rough edges.
 
 ## Completion Standard
 

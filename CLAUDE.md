@@ -10,7 +10,7 @@ Start here: `START_HERE.md`.
 ## Execution Defaults
 - When user requests a feature/fix, complete the FULL loop: implement + install/setup + verify locally. Do not stop after writing code.
 - Run the test suite after any non-trivial code change and report pass/fail counts.
-- After commits, push unless explicitly told otherwise.
+- Do not push unless Jacob explicitly asks.
 
 ## Auth & Environment
 - Before any `gh` or git push, check for stale `GITHUB_TOKEN` env var and unset if it conflicts with `gh auth`
@@ -33,14 +33,13 @@ Jacob describes outcomes in plain language. You are the engineer: decode intent,
 | Need | File |
 |---|---|
 | Orientation | `START_HERE.md` |
-| Current status | `docs/PROJECT_STATUS.md` |
+| Live status | `docs/PROJECT_STATUS.md` |
+| Runtime rules | `docs/AGENT_RUNTIME.md` |
 | Architecture | `docs/ARCHITECTURE.md` |
-| Phase B plan | `docs/PHASE_B_PLAN.md` |
-| Storage migration | `docs/STORAGE_MIGRATION_PLAN.md` |
-| Agent/runtime rules | `docs/AGENT_RUNTIME.md` |
 | Decisions | `docs/DECISIONS.md` |
 | Lessons | `docs/LEARNINGS.md` |
 | Handoff | `docs/AGENT_HANDOFF.md` |
+| Phase/storage history (when relevant) | `docs/PHASE_B_PLAN.md`, `docs/PHASE_C_PLAN.md`, `docs/STORAGE_MIGRATION_PLAN.md` |
 | Voice/persona | `config/SOUL.md` |
 
 ## Runtime Shape
@@ -53,7 +52,7 @@ Kitty is a local-first single-user companion on Jacob's Mac:
 - Runtime data under `data/`
 - Logs under `logs/`
 
-All storage reads for prompt/search context should go through `gateway/memory_graph.py`. Direct store imports are acceptable for write paths until Phase B introduces a write-side storage router.
+Prefer existing store and module boundaries over direct filesystem access. If you touch persistence or migration behavior, read `docs/ARCHITECTURE.md` plus the relevant phase/storage plan before changing code.
 
 ## Commands
 
@@ -77,7 +76,8 @@ If a command fails, report the failure exactly. Do not round up to passing.
 - "the storage thing" → `gateway/storage_router.py` + `gateway/memory_graph.py`
 - "the routing thing" → `gateway/llm_client.py`
 - "the journal thing" → `gateway/journal.py` + `gateway/journal_store.py`
-- "phase B" → `docs/PHASE_B_PLAN.md` (shipped)
-- "phase C" → storage migrations (chats done, journal next)
+- "phase B" → storage foundation work (shipped)
+- "phase C" → user-facing storage migrations (chats and journal shipped)
+- "phase 4" → workflow polish and source-of-truth cleanup
 - "Goose" → external chat tool, not part of kitty runtime
 - "Honcho" → external mirror service, not properly wired up

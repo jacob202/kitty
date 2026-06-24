@@ -8,13 +8,18 @@ Kitty is Jacob's local-first AI companion. The near-term goal is not more specta
 
 ## Read In This Order
 
-1. `docs/PROJECT_STATUS.md` - current branch, status, dirty work, and verification.
-2. `docs/ARCHITECTURE.md` - current runnable stack.
-3. `docs/PHASE_B_PLAN.md` - next implementation plan.
-4. `docs/STORAGE_MIGRATION_PLAN.md` - storage migration details.
-5. `docs/DECISIONS.md` - current settled decisions.
-6. `docs/LEARNINGS.md` - hard lessons and guardrails.
-7. `docs/AGENT_HANDOFF.md` - latest continuation package.
+1. `docs/PROJECT_STATUS.md` - live branch truth, current priority, risks, and verification.
+2. `docs/AGENT_RUNTIME.md` - entry protocol, hook surface, and repo-owned agent runtime files.
+3. `docs/ARCHITECTURE.md` - current runnable stack.
+4. `docs/DECISIONS.md` - settled decisions that should not be re-litigated casually.
+5. `docs/LEARNINGS.md` - repeated mistakes and guardrails.
+6. `docs/AGENT_HANDOFF.md` - latest continuation package.
+
+Read only when relevant:
+
+- `docs/PHASE_B_PLAN.md`
+- `docs/PHASE_C_PLAN.md`
+- `docs/STORAGE_MIGRATION_PLAN.md`
 
 ## Default Commands
 
@@ -28,4 +33,4 @@ cd gateway/kitty-chat && npm test && npm run build
 
 ## Current Rule
 
-Do not build new mobile, cloud sync, agent dashboards, or extra memory systems in Phase B. Make the existing product boring, visible, and trustworthy first.
+Do not add cloud auth, push notifications, new agent dashboards, or new storage systems while the local workflow still has rough edges. Make the existing product boring, visible, and trustworthy first.
