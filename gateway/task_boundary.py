@@ -3,6 +3,7 @@
 This module implements structured task boundaries that group agent actions into
 named tasks with progress summaries, similar to Antigravity's task_boundary tool.
 """
+
 from __future__ import annotations
 
 import json
@@ -53,7 +54,7 @@ class TaskBoundary:
             "updates": [],
         }
         self._append(entry)
-        logger.info(f"Task boundary opened: {name}")
+        logger.info("Task boundary opened: %s", name)
         return entry
 
     def update(self, task_id: str, status: str, summary: str = ""):
@@ -67,13 +68,15 @@ class TaskBoundary:
 
         entry["status"] = status
         entry["progress_summary"] = summary
-        entry["updates"].append({
-            "timestamp": datetime.now().isoformat(),
-            "status": status,
-            "summary": summary,
-        })
+        entry["updates"].append(
+            {
+                "timestamp": datetime.now().isoformat(),
+                "status": status,
+                "summary": summary,
+            }
+        )
         self._append(entry)
-        logger.info(f"Task {task_id} updated to {status}")
+        logger.info("Task %s updated to %s", task_id, status)
 
     def close(self, task_id: str, final_summary: str = "", success: bool = True):
         """Mark task completed or failed."""
@@ -84,13 +87,15 @@ class TaskBoundary:
         entry["status"] = "completed" if success else "blocked"
         entry["progress_summary"] = final_summary
         entry["closed_at"] = datetime.now().isoformat()
-        entry["updates"].append({
-            "timestamp": datetime.now().isoformat(),
-            "status": entry["status"],
-            "summary": final_summary,
-        })
+        entry["updates"].append(
+            {
+                "timestamp": datetime.now().isoformat(),
+                "status": entry["status"],
+                "summary": final_summary,
+            }
+        )
         self._append(entry)
-        logger.info(f"Task {task_id} closed: {'success' if success else 'blocked'}")
+        logger.info("Task %s closed: %s", task_id, "success" if success else "blocked")
 
     def current_summary(self) -> str:
         """Return a human-readable summary of all active boundaries."""
@@ -101,7 +106,7 @@ class TaskBoundary:
                 "in_progress": "⚡",
                 "reviewing": "👀",
                 "completed": "✅",
-                "blocked": "❌"
+                "blocked": "❌",
             }.get(t["status"], "❓")
             lines.append(f" {icon} [{tid}] {t['name']} — {t['status']}")
             if t.get("progress_summary"):

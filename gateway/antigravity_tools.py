@@ -14,6 +14,7 @@ Usage:
     tools = get_tools()
     result = await invoke_tool("task_boundary", {"action": "open", "name": "My Task"})
 """
+
 from __future__ import annotations
 
 import logging
@@ -35,6 +36,7 @@ def get_task_boundary():
     global _task_boundary
     if _task_boundary is None:
         from gateway import task_boundary
+
         _task_boundary = task_boundary.task_boundary
     return _task_boundary
 
@@ -44,6 +46,7 @@ def get_async_feedback():
     global _async_feedback
     if _async_feedback is None:
         from gateway import async_feedback
+
         _async_feedback = async_feedback.async_feedback
     return _async_feedback
 
@@ -53,6 +56,7 @@ def get_codebase_search():
     global _codebase_search
     if _codebase_search is None:
         from gateway import codebase_search
+
         _codebase_search = codebase_search.codebase_search
     return _codebase_search
 
@@ -62,6 +66,7 @@ def get_web_tracker():
     global _web_tracker
     if _web_tracker is None:
         from gateway import web_tracker
+
         _web_tracker = web_tracker.web_tracker
     return _web_tracker
 
@@ -71,6 +76,7 @@ def get_team_protocol(task_list=None):
     global _team_protocol
     if _team_protocol is None:
         from gateway import team_protocol
+
         _team_protocol = team_protocol.get_team_protocol(task_list)
     return _team_protocol
 
@@ -263,7 +269,7 @@ async def invoke_tool(tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
                 "message": f"Available tools: {[t['name'] for t in ANTIGRAVITY_TOOLS]}",
             }
     except Exception as e:
-        logger.exception(f"Tool invocation failed: {tool_name}")
+        logger.exception("Tool invocation failed: %s", tool_name)
         return {
             "success": False,
             "error": str(e),
