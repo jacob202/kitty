@@ -5,17 +5,18 @@ from unittest.mock import patch
 
 
 def _fresh_buddy(tmp_path):
-    """Import buddy with a clean state file path."""
-    # Remove cached module so _load() runs fresh
+    """Import buddy with a clean in-memory state (buddy_store I/O patched out)."""
     for key in list(sys.modules.keys()):
-        if 'gateway.buddy' in key:
+        if key == 'gateway.buddy' or key.startswith('gateway.buddy.'):
             del sys.modules[key]
 
-    state_file = tmp_path / "kitty" / "buddy_state.json"
-    with patch('gateway.paths.DATA_DIR', tmp_path):
+    with patch('gateway.paths.DATA_DIR', tmp_path), \
+         patch('gateway.buddy_store.get_state', return_value={
+             "mood": "idle", "energy": 100, "session_turns": 0,
+             "total_turns": 0, "last_active_ts": 0.0, "drift_count": 0,
+         }), \
+         patch('gateway.buddy_store.save_state'):
         import gateway.buddy as b
-        # Patch the state file path directly
-        b._STATE_FILE = state_file
         b._state.update({
             "mood": "idle", "energy": 100, "session_turns": 0,
             "total_turns": 0, "last_active_ts": 0.0, "drift_count": 0,
@@ -66,10 +67,15 @@ def test_energy_does_not_go_below_zero(tmp_path):
     assert b.get_state()["energy"] == 0
 
 
-def test_state_persists_to_file(tmp_path):
-    import json
-    b = _fresh_buddy(tmp_path)
-    b.on_request_success()
-    assert b._STATE_FILE.exists()
-    saved = json.loads(b._STATE_FILE.read_text())
-    assert saved["mood"] == "success"
+def test_state_persists_via_store():
+    import gateway.buddy as b
+    import gateway.buddy_store as store
+    b._state.update({
+        "mood": "idle", "energy": 100, "session_turns": 0,
+        "total_turns": 0, "last_active_ts": 0.0, "drift_count": 0,
+    })
+    with patch.object(store, 'save_state') as mock_save:
+        b.on_request_success()
+    mock_save.assert_called_once()
+    saved_state = mock_save.call_args[0][0]
+    assert saved_state["mood"] == "success"

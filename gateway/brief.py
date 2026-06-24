@@ -143,35 +143,29 @@ def fetch_news(limit_per_feed: int = 3) -> List[NewsHeadline]:
 
 
 def get_tasks_summary() -> str:
-    """Read the 'Next Smallest Action' from TASKS.md."""
+    """Read the next priority from PROJECT_STATUS.md, falling back to TASKS.md."""
+    status_path = PROJECT_ROOT / "docs" / "PROJECT_STATUS.md"
+    try:
+        content = status_path.read_text()
+        for heading in ("## Next Best Step", "## Next Smallest Action", "## Next"):
+            if heading in content:
+                summary = content.split(heading)[1].strip().split("\n\n")[0]
+                if summary:
+                    return summary.strip()
+    except Exception as e:
+        logger.warning("Could not read PROJECT_STATUS.md: %s", e)
+
     tasks_path = PROJECT_ROOT / "TASKS.md"
     try:
         content = tasks_path.read_text()
-        if "## Next Smallest Action" in content:
-            summary = (
-                content.split("## Next Smallest Action")[1].strip().split("\n\n")[0]
-            )
-            return summary
+        for heading in ("## Next Smallest Action", "## Next"):
+            if heading in content:
+                summary = content.split(heading)[1].strip().split("\n\n")[0]
+                if summary:
+                    return summary.strip()
     except Exception as e:
         logger.warning("Could not read TASKS.md: %s", e)
-    return "No next action found. Check TASKS.md."
-
-
-def _build_brief_worker_context(
-    *, top_task: str, memory: str, tz: str = "America/Regina"
-) -> str:
-    parts_list = []
-    if top_task:
-        parts_list.append(f"Current Top Task: {top_task}")
-    if memory:
-        parts_list.append(
-            memory
-            if memory.startswith("Recent Memories:")
-            else f"Recent Memories: {memory}"
-        )
-    if tz:
-        parts_list.append(f"Timezone: {tz}")
-    return "\n".join(parts_list)
+    return ""
 
 
 def synthesize_brief_with_llm(
@@ -183,8 +177,9 @@ def synthesize_brief_with_llm(
 ) -> str:
     """Use LLM via LiteLLM to turn raw data into a warm, character-driven morning brief.
 
-    If themes are provided, the brief will be shaped to highlight what's relevant to
-    those themes. novelty dict indicates which articles are new vs. repeated.
+    When themes are present they are surfaced so the brief can connect news to
+    what Jacob's been working on. novelty is accepted for pipeline compatibility
+    but is no longer rendered into the prompt — it read as meta-noise.
     """
     from gateway.context_enrichment import (
         calendar_today_text_sync,
@@ -197,46 +192,44 @@ def synthesize_brief_with_llm(
     calendar_text = calendar_today_text_sync()
     weather_text = weather_text_sync()
     todos_text = todos_text_sync()
-    context_data = _build_brief_worker_context(
-        top_task=task_summary,
-        memory=memory_snippet,
-    )
+    recent_journal = _fetch_recent_journal_text(limit=3)
 
-    calendar_section = f"\n- Calendar:\n{calendar_text}" if calendar_text else ""
-    weather_section = f"\n- Weather: {weather_text}" if weather_text else ""
-    todos_section = f"\n- Active Todos:\n{todos_text}" if todos_text else ""
-
-    # Add theme context if available
-    theme_section = ""
+    sections: list[str] = [f"News:\n{news_text}"]
+    if weather_text:
+        sections.append(f"Weather: {weather_text}")
+    if calendar_text:
+        sections.append(f"Calendar:\n{calendar_text}")
+    if todos_text:
+        sections.append(f"Active todos:\n{todos_text}")
+    if task_summary:
+        sections.append(f"Next priority:\n{task_summary}")
+    if recent_journal:
+        sections.append(f"What Jacob wrote recently:\n{recent_journal}")
     if themes:
-        theme_list = ", ".join([f"{t['theme']}" for t in themes[:3]])
-        theme_section = f"\n- YOUR RESEARCH INTERESTS: You've been working on: {theme_list}"
+        theme_list = ", ".join(t["theme"] for t in themes[:3])
+        sections.append(f"Recurring themes in his notes: {theme_list}")
+    if memory_snippet:
+        sections.append(f"From memory:\n{memory_snippet[:400]}")
 
-    novelty_section = ""
-    if novelty:
-        novelty_section = f"\n- NOVELTY: {novelty.get('summary', 'Different articles today')}"
+    data_block = "\n\n".join(sections)
 
-    prompt = f"""GATHERED DATA FOR TODAY:
-- News Headlines:
-{news_text}{weather_section}{calendar_section}{todos_section}{theme_section}{novelty_section}
-{context_data}
+    prompt = f"""You're writing Jacob's morning brief. Here's today's data:
 
-TASK:
-Write a short, warm, and proactive morning greeting for Jacob (3-4 paragraphs).
-1. Acknowledge the start of the day. If weather is notable (cold, storm), mention it briefly.
-2. If there are calendar events, mention any that look important or time-sensitive.
-3. Mention the next action/task with a focus on 'Resume, don't restart'. Reference active todos if relevant.
-4. MANDATORY: Include a 'Boring Path' recommendation. This must be the most conservative, low-risk, and surgical way to handle the current top task, prioritizing reliability over speed.
-5. If you have context about Jacob's research interests, highlight articles that relate to those themes.
-6. End with a supportive, 'friend who is paying attention' vibe.
+{data_block}
 
-Rules: Use contractions. No corporate filler. Be dry-funny if appropriate. Speak Canadian."""
+Write 3–4 short paragraphs that feel like a smart friend catching him up, not a corporate digest.
+- Lead with anything time-sensitive (weather, calendar, urgent news).
+- Surface one concrete next step using what he's been working on — reference his own words if he wrote anything relevant recently.
+- Point out one news item that connects to his current interests, if any.
+- End warm but not sappy. Dry-funny is fine.
+
+No bullet points. No headers. No "Certainly!" or "Great question!". Contractions. Speak Canadian."""
 
     try:
         return chat(
             model="kitty-sonnet",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=800,
+            max_tokens=600,
             temperature=0.4,
         )
     except Exception as e:
@@ -252,6 +245,27 @@ def _fetch_memory_snippet() -> str:
         return _run_async(unified_context("morning brief"))
     except Exception:
         return ""
+
+
+def _fetch_recent_journal_text(limit: int = 3) -> str:
+    """Return the last few journal entries as plain text for the brief prompt."""
+    try:
+        entries = recent_entries(days=7, limit=limit)
+    except Exception:
+        return ""
+    if not entries:
+        return ""
+    lines = []
+    for e in entries[:limit]:
+        ts = e.get("ts", 0)
+        text = (e.get("entry") or "").strip()
+        if text:
+            try:
+                dt = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%a %b %-d")
+            except Exception:
+                dt = ""
+            lines.append(f"  [{dt}] {text[:200]}")
+    return "\n".join(lines)
 
 
 def _run_async(coro):

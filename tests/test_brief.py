@@ -421,14 +421,12 @@ def test_synthesize_brief_includes_theme_context():
 
     headlines = [NewsHeadline(title="OAuth news", url="http://x", snippet="")]
     themes = [{"theme": "authentication", "mentions": 5, "confidence": 0.92}]
-    novelty = {"summary": "3 new articles"}
 
     with patch("gateway.context_enrichment.calendar_today_text_sync", return_value=""), \
          patch("gateway.context_enrichment.weather_text_sync", return_value=""), \
          patch("gateway.context_enrichment.todos_text_sync", return_value=""), \
+         patch("gateway.brief._fetch_recent_journal_text", return_value=""), \
          patch("gateway.llm_client.chat", side_effect=lambda **kwargs: kwargs["messages"][0]["content"]):
-        prompt = b.synthesize_brief_with_llm(headlines, "Task", "Memory", themes=themes, novelty=novelty)
+        prompt = b.synthesize_brief_with_llm(headlines, "Task", "Memory", themes=themes)
 
-    # Verify theme and novelty context made it into the prompt
     assert "authentication" in prompt
-    assert "3 new articles" in prompt
