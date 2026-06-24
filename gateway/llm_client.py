@@ -25,13 +25,15 @@ logger = logging.getLogger("kitty.llm_client")
 from gateway.paths import LITELLM_BASE, LITELLM_KEY
 from gateway.token_usage_log import log_llm_usage, normalize_usage_payload
 from gateway.llm_utils import retry_with_backoff
+from gateway.settings import get_settings
 
 # Cap how long a single provider may spend establishing a connection, and bound
 # the total wall-clock time the whole fallback chain may burn. Without these, six
-# providers each hanging ~60s could stall a call for minutes. Read at import; tests
-# may monkeypatch the module attribute.
-_PROVIDER_CONNECT_TIMEOUT = float(os.environ.get("KITTY_PROVIDER_CONNECT_TIMEOUT", "5"))
-_LLM_CHAIN_DEADLINE = float(os.environ.get("KITTY_LLM_CHAIN_DEADLINE", "90"))
+# providers each hanging ~60s could stall a call for minutes. Read at import via
+# the validated Settings model; tests may still monkeypatch the module attribute.
+_chain_settings = get_settings()
+_PROVIDER_CONNECT_TIMEOUT = _chain_settings.KITTY_PROVIDER_CONNECT_TIMEOUT
+_LLM_CHAIN_DEADLINE = _chain_settings.KITTY_LLM_CHAIN_DEADLINE
 
 # Optional tenacity retry on transient network and upstream server errors.
 # 4xx errors (auth, bad model) return immediately so provider-specific handling
