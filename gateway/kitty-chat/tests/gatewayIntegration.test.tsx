@@ -2,13 +2,18 @@ import { render, screen, cleanup } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { vi, describe, expect, it, beforeEach, afterEach } from 'vitest'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import type { ReactElement } from 'react'
 
 import { DashboardHome } from '../src/components/DashboardHome'
 import { RightPanel } from '../src/components/RightPanel'
 import { TopBar } from '../src/components/TopBar'
-import { buildGatewayModels, fetchGatewaySearch, summarizeGatewaySearch } from '../src/lib/gateway'
+import {
+  buildGatewayModels,
+  deleteChat,
+  fetchChats,
+  fetchGatewaySearch,
+  summarizeGatewaySearch,
+  upsertChat,
+} from '../src/lib/gateway'
 
 function renderWithQueryClient(children: ReactNode) {
   const client = new QueryClient({
@@ -18,12 +23,55 @@ function renderWithQueryClient(children: ReactNode) {
 }
 
 describe('gateway integration helpers', () => {
+  afterEach(() => { vi.unstubAllGlobals() })
+
   it('buildGatewayModels prefers live gateway ids and keeps a fallback', () => {
     const models = buildGatewayModels(['kitty-smart', 'custom-model'])
 
     expect(models.map(model => model.id)).toEqual(['kitty-smart', 'custom-model'])
     expect(models[0].name).toBe('smart')
     expect(models[1].name).toBe('custom-model')
+  })
+
+  it('fetchChats throws a visible error when the gateway returns 500', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(null, { status: 500, statusText: 'Internal Server Error' })
+    ))
+    vi.stubGlobal('window', {
+      setTimeout: globalThis.setTimeout,
+      clearTimeout: globalThis.clearTimeout,
+    })
+
+    await expect(fetchChats()).rejects.toThrow('Loading chats failed: Gateway returned 500 Internal Server Error')
+  })
+
+  it('upsertChat throws a visible error when the gateway does not confirm the save', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: false }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    ))
+    vi.stubGlobal('window', {
+      setTimeout: globalThis.setTimeout,
+      clearTimeout: globalThis.clearTimeout,
+    })
+
+    await expect(upsertChat({
+      id: 'chat-1',
+      title: 'hello',
+      messages: [],
+      model: 'kitty-default',
+      color: 'teal',
+      createdAt: '2026-06-24T00:00:00.000Z',
+      updatedAt: '2026-06-24T00:00:00.000Z',
+    })).rejects.toThrow('Saving chat chat-1 failed: Gateway did not confirm chat save')
+  })
+
+  it('deleteChat throws a visible error when the gateway is unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('socket hang up')))
+    vi.stubGlobal('window', {
+      setTimeout: globalThis.setTimeout,
+      clearTimeout: globalThis.clearTimeout,
+    })
+    await expect(deleteChat('chat-1')).rejects.toThrow('Deleting chat chat-1 failed: socket hang up')
   })
 
   it('summarizeGatewaySearch returns the first non-empty result from each section', () => {

@@ -33,6 +33,10 @@ import {
   usePrompts,
   useToggleLoop,
   useDismissInsight,
+  useChats,
+  useUpsertChat,
+  useDeleteChat,
+  type GatewayChatPayload,
 } from '@/lib/queries'
 
 let chatCounter = 0
@@ -58,6 +62,23 @@ function getInitials(email?: string): string {
 }
 
 const USER_INITIALS = getInitials('jacobbrizinski@gmail.com')
+
+function messageFromError(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
+
+function toGatewayChatPayload(chat: Chat): GatewayChatPayload {
+  return {
+    ...chat,
+    createdAt: chat.createdAt.toISOString(),
+    updatedAt: chat.updatedAt.toISOString(),
+    messages: chat.messages.map(m => ({
+      ...m,
+      timestamp: m.timestamp instanceof Date ? m.timestamp.toISOString() : String(m.timestamp),
+      mood: m.mood,
+    })),
+  }
+}
 
 function ToolCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -107,7 +128,8 @@ export default function KittyChat() {
 }
 
 function KittyChatInner() {
-  const [chats, setChats] = useState<Chat[]>(() => [makeChat('teal')])
+  const [chats, setChats] = useState<Chat[]>(() => [])
+  const chatsLoaded = useRef(false)
   const [activeView, setActiveView] = useState('home')
   const [activeChatId, setActiveChatId] = useState<string | null>(() => null)
   const [input, setInput] = useState('')
@@ -120,8 +142,50 @@ function KittyChatInner() {
     live: boolean
     error: string | null
   }>({ live: true, error: null })
+  const [chatPersistenceError, setChatPersistenceError] = useState<string | null>(null)
   const [kittyMode, setKittyMode] = useState('default')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+
+  // Chat persistence — load from backend on mount, save on changes.
+  const chatsQuery = useChats()
+  const upsertChat = useUpsertChat()
+  const deleteChatMut = useDeleteChat()
+  const chatLoadError = chatsQuery.error instanceof Error ? chatsQuery.error.message : null
+
+  // Populate local state from backend on first successful load.
+  useEffect(() => {
+    if (chatsLoaded.current || !chatsQuery.data) return
+    chatsLoaded.current = true
+    const serverChats = chatsQuery.data.map(p => ({
+      ...p,
+      createdAt: new Date(p.createdAt),
+      updatedAt: new Date(p.updatedAt),
+      messages: p.messages.map(m => ({
+        ...m,
+        timestamp: new Date(m.timestamp),
+      })),
+    })) as Chat[]
+    if (serverChats.length > 0) {
+      setChats(serverChats)
+    } else {
+      setChats([makeChat('teal')])
+    }
+  }, [chatsQuery.data])
+
+  // Persist chats to backend when they change (debounced).
+  const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (!chatsLoaded.current || chats.length === 0) return
+    if (persistTimer.current) clearTimeout(persistTimer.current)
+    persistTimer.current = setTimeout(() => {
+      void Promise.all(chats.map(chat => upsertChat.mutateAsync(toGatewayChatPayload(chat))))
+        .then(() => setChatPersistenceError(null))
+        .catch(err => setChatPersistenceError(messageFromError(err)))
+    }, 2000)
+    return () => {
+      if (persistTimer.current) clearTimeout(persistTimer.current)
+    }
+  }, [chats, upsertChat])
 
   // Dashboard data — all via React Query (auto-retry, refetch on focus, cache).
   const queryClient = useQueryClient()
@@ -212,6 +276,8 @@ function KittyChatInner() {
   }, [activeChat?.messages])
 
   const handleNewChat = useCallback(() => {
+    chatsLoaded.current = true
+    setChatPersistenceError(null)
     const color = COLOR_CYCLE[colorIndexRef.current % COLOR_CYCLE.length]
     colorIndexRef.current++
     const chat = makeChat(color)
@@ -222,21 +288,26 @@ function KittyChatInner() {
   }, [activeModel.id])
 
   const handleCloseChat = useCallback((id: string) => {
-    setChats(prev => {
-      const next = prev.filter(c => c.id !== id)
-      if (next.length === 0) {
-        const fresh = makeChat(COLOR_CYCLE[colorIndexRef.current % COLOR_CYCLE.length])
-        colorIndexRef.current++
-        return [fresh]
-      }
-      return next
-    })
-    setActiveChatId(prev => {
-      if (prev !== id) return prev
-      const remaining = chats.filter(c => c.id !== id)
-      return remaining[remaining.length - 1]?.id ?? null
-    })
-  }, [chats])
+    void deleteChatMut.mutateAsync(id)
+      .then(() => {
+        setChatPersistenceError(null)
+        setChats(prev => {
+          const next = prev.filter(c => c.id !== id)
+          if (next.length === 0) {
+            const fresh = makeChat(COLOR_CYCLE[colorIndexRef.current % COLOR_CYCLE.length])
+            colorIndexRef.current++
+            return [fresh]
+          }
+          return next
+        })
+        setActiveChatId(prev => {
+          if (prev !== id) return prev
+          const remaining = chats.filter(c => c.id !== id)
+          return remaining[remaining.length - 1]?.id ?? null
+        })
+      })
+      .catch(err => setChatPersistenceError(messageFromError(err)))
+  }, [chats, deleteChatMut])
 
   const handleSelectModel = useCallback((m: Model) => {
     setActiveModel(m)
@@ -335,6 +406,11 @@ function KittyChatInner() {
     queryClient.invalidateQueries({ queryKey: ['loops'] })
     queryClient.invalidateQueries({ queryKey: ['insights'] })
     queryClient.invalidateQueries({ queryKey: ['prompts'] })
+  }, [queryClient])
+
+  const retryChatPersistence = useCallback(() => {
+    setChatPersistenceError(null)
+    queryClient.invalidateQueries({ queryKey: ['chats'] })
   }, [queryClient])
 
   const handlePrompt = useCallback((text: string) => {
@@ -460,6 +536,47 @@ function KittyChatInner() {
           </div>
         )}
 
+        {(chatLoadError || chatPersistenceError) && (
+          <div
+            role="alert"
+            style={{
+              padding: '6px 16px',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              color: 'var(--error)',
+              background: 'rgba(255, 180, 171, 0.08)',
+              borderBottom: '1px solid var(--border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+              flexShrink: 0,
+            }}
+          >
+            <span>{chatLoadError ?? chatPersistenceError}</span>
+            <button
+              type="button"
+              onClick={retryChatPersistence}
+              style={{
+                border: 'none',
+                borderRadius: 4,
+                padding: '2px 8px',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: 'transparent',
+                color: 'var(--text-muted)',
+                flexShrink: 0,
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)' }}
+            >
+              retry chats
+            </button>
+          </div>
+        )}
+
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <ErrorBoundary name={activeView}>
           {activeView === 'tasks' ? (
@@ -570,7 +687,7 @@ function KittyChatInner() {
             value={input}
             onChange={setInput}
             onSend={handleSend}
-            disabled={isStreaming}
+            disabled={isStreaming || !activeChat}
             chatTitle={activeChat?.title}
             modelName={activeModel.name}
             modelColor={activeModel.color}

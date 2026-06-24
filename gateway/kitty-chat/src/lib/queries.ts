@@ -43,11 +43,18 @@ import {
   fetchImageStatus,
   generateImage,
   fetchImageHistory,
+  // chat persistence
+  fetchChats,
+  upsertChat,
+  deleteChat,
+  type GatewayChatPayload,
   // payload types used by optimistic updates
   type GatewayTodo,
   type GatewayLoopsPayload,
   type GatewayInsightsPayload,
 } from '@/lib/gateway'
+
+export type { GatewayChatPayload } from '@/lib/gateway'
 
 // ── Dashboard payload queries ────────────────────────────────────────────────
 // These keep the existing payload shape ({data, fromLiveGateway, error}) so
@@ -361,5 +368,32 @@ export function useGenerateImage() {
   return useMutation({
     mutationFn: (prompt: string) => generateImage(prompt),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['image', 'history'] }),
+  })
+}
+
+// ── Chat persistence ────────────────────────────────────────────────────────
+
+export function useChats() {
+  return useQuery({
+    queryKey: ['chats'],
+    queryFn: fetchChats,
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  })
+}
+
+export function useUpsertChat() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (chat: GatewayChatPayload) => upsertChat(chat),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['chats'] }),
+  })
+}
+
+export function useDeleteChat() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (chatId: string) => deleteChat(chatId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['chats'] }),
   })
 }

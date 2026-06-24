@@ -798,6 +798,73 @@ export interface ImageEntry {
   created_at?: number
 }
 
+// ── Chat persistence ────────────────────────────────────────────────────────
+
+export interface GatewayChatPayload {
+  id: string
+  title: string
+  messages: Array<{
+    id: string
+    role: 'user' | 'assistant'
+    content: string
+    timestamp: string
+    model?: string
+    mood?: string
+    tags?: string[]
+  }>
+  model: string
+  color: string
+  createdAt: string
+  updatedAt: string
+}
+
+function wrapGatewayCallError(action: string, err: unknown): Error {
+  const detail = err instanceof Error ? err.message : String(err)
+  return new Error(`${action} failed: ${detail}`)
+}
+
+export async function fetchChats(): Promise<GatewayChatPayload[]> {
+  try {
+    const json = await gfetch<{ chats?: GatewayChatPayload[] }>('/chats', undefined, 5000)
+    if (!Array.isArray(json.chats)) {
+      throw new Error('Gateway returned malformed chats payload (missing chats array)')
+    }
+    return json.chats
+  } catch (err) {
+    throw wrapGatewayCallError('Loading chats', err)
+  }
+}
+
+export async function upsertChat(chat: GatewayChatPayload): Promise<void> {
+  try {
+    const json = await gfetch<{ ok?: boolean }>('/chats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(chat),
+    }, 5000)
+    if (json.ok !== true) {
+      throw new Error('Gateway did not confirm chat save')
+    }
+  } catch (err) {
+    throw wrapGatewayCallError(`Saving chat ${chat.id}`, err)
+  }
+}
+
+export async function deleteChat(chatId: string): Promise<void> {
+  try {
+    const json = await gfetch<{ ok?: boolean }>(
+      `/chats/${encodeURIComponent(chatId)}`,
+      { method: 'DELETE' },
+      5000,
+    )
+    if (json.ok !== true) {
+      throw new Error('Gateway did not confirm chat delete')
+    }
+  } catch (err) {
+    throw wrapGatewayCallError(`Deleting chat ${chatId}`, err)
+  }
+}
+
 export async function fetchImageStatus(): Promise<{ available: boolean }> {
   try {
     await gfetch('/image/status')
