@@ -15,17 +15,19 @@ Execute the accepted Gateway Architecture Deepening Program (Phases 0 + 1 first)
 
 ## Deepening Program (Accepted 2026-06-24)
 
-A 6-phase, ~7–10 working day plan addressing 17 frictions across `gateway/`. Each phase is independently shippable; 684 tests must stay green at every phase gate.
+A 6-phase, ~10–14 working day plan addressing 15 frictions + 2 sub-frictions across `gateway/`. Each phase is independently shippable; tests must stay green at every phase gate. **Phase 0 has landed.**
 
-- Design doc: `docs/superpowers/specs/2026-06-24-gateway-deepening-program-design.md`
+- Design doc: `docs/superpowers/specs/2026-06-24-gateway-deepening-program-design.md` (committed, `status: ACCEPTED`)
 - D7 amendment: `storage_router.py` may add registration, validation, migration triggers, and telemetry. Generic verbs, smart routing, and dict-like adapter tables remain ruled out. See `docs/DECISIONS.md`.
-- Open questions for Jacob (design doc line 386–391): (1) Phase 4 parallelization with Phase 1; (2) `context_builder.py` façade length; (3) confirm the 6 `try/except → mock` routes are not load-bearing.
+- Resolved in the spec: (1) Phase 1 first, then Phase 4, sequential not parallel; (2) keep `context_builder.py` as thin façade for one release; (3) all 6 `try/except → mock` routes are violations — Phase 3 removes all 6. Route dedup is out of scope (UI-touching).
+- **Phase 0 landed** (commits `521cdfe`, `562d99c`, `8ea0b72`): http_client loop-bound re-init harden + 3 new tests (friction 13), `routes/chat.py` deletion (friction 3), silent-swallow logging audit across 18 sites, f-string→%s conversion across 28 sites, `.claude/settings.local.json` → `.claude/settings.local.example.json` split. Test count: 687.
+- **Next: Phase 1** (storage substrate): deepen `storage_router.py`, merge `sync.py` + `storage_io.py`, route writes through `StorageRouter`.
 
 ## Open Dirty Work
 
 - `codex/raycast-quick-capture` still holds useful unmerged Raycast wrapper work at `5a07744`.
 - `docs/superpowers/specs/2026-06-20-workflow-optimization-rollout.md` is still a planning artifact with `status: PENDING_APPROVAL`.
-- The working tree is currently dirty with in-progress deepening-program gateway edits (Phases 0 + 1) plus the accepted design doc `docs/superpowers/specs/2026-06-24-gateway-deepening-program-design.md`; inspect before editing on this shared branch.
+- The working tree has one in-flight edit: `gateway/litellm_config.yaml` adds a "Wafer AI" provider (deepseek-v4-flash / deepseek-v4-pro via `os.environ/WAFER_API_KEY`). **Not in the deepening-program plan; the plan forbids new services.** Decide whether this is in scope before committing.
 - Older stashes remain for memory-graph and routing experiments; the current inventory is in `.agent/stash_audit.md`.
 
 ## Known Risks
@@ -36,6 +38,10 @@ A 6-phase, ~7–10 working day plan addressing 17 frictions across `gateway/`. E
 
 ## Recent Commits (local, unpushed)
 
+- `562d99c` chore(routes): drop unused chat shim (also commits the deepening-program design doc, `status: ACCEPTED`)
+- `521cdfe` fix(http): reset shared client on loop switch (Phase 0 friction 13; new `test_http_client.py` with 3 tests)
+- `8ea0b72` perf(gateway): audit depth — fix silent swallows, f-string logging, structure leaks
+- `599e08f` docs(refresh): D7 amendment + status/handoff for deepening program
 - `536731d` docs(refresh): handoff + status for f15697d
 - `f15697d` chore(workflow): phase 4 doc + hook refresh
 - `ada0438` docs(refresh): re-anchor phase 4 status
@@ -46,10 +52,10 @@ Push is intentionally deferred per the new policy in `f15697d` ("do not push unl
 ## Verification
 
 - `python3.12 -m pytest tests/test_inbox_watcher.py tests/test_status_glance.py -q --tb=short` passed: 7 tests.
-- `python3.12 -m pytest tests/ -q --tb=short` passed: 684 passed, 2 deselected, 3 warnings.
+- `python3.12 -m pytest tests/ -q --tb=short` passed: 687 passed, 2 deselected, 4 warnings.
 - `./kitty status` currently shows gateway and LiteLLM stopped.
 - `./kitty doctor --json` currently reports 7 PASS / 1 WARN / 2 FAIL; the 2 FAIL entries are the stopped gateway and LiteLLM services.
 
 ## Next Best Step
 
-Wait for Codex to land Phase 0 + Phase 1 of the deepening program as discrete commits (the D7 amendment is in place). After each phase lands, run the test suite, update "Recent Commits" and "Verification" with the new hash and test count, and inspect the diff before allowing the next phase to start. The live `./kitty up` end-to-end check returns once the deepening program has its first commit.
+Phase 0 is landed. Next: **Phase 1** (storage substrate). After each Phase 1 commit lands, run the test suite, update "Recent Commits" and "Verification" with the new hash and test count, and inspect the diff for D7 compliance (no generic verbs, no dict-like adapter tables, no smart routing). The live `./kitty up` end-to-end check returns once Phase 1 lands.
