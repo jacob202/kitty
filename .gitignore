@@ -69,3 +69,4 @@ kitty_gateway/
 .aider*
 
 .worktrees/
+.claude/worktrees/
