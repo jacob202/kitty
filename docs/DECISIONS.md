@@ -1,6 +1,6 @@
 # Decisions
 
-**Date:** 2026-06-20
+**Date:** 2026-06-24
 **Status:** Canonical forward-looking decision log. Historical detail remains in `docs/DECISIONS_AND_ROADMAP.md`.
 
 ## D1 - Local-First Single User
@@ -59,3 +59,44 @@ B0–B6) followed the same pattern but did **not** go through
 `storage_router` — those are new read/write modules of their own. The
 router is for legacy stores that already have a write API in
 `todo_store` / `plugin_registry`; new modules get their own.
+
+### D7 Amendment (2026-06-24) — Registration Is Allowed; Behavior Is Not
+
+The Gateway Architecture Deepening Program
+(`docs/superpowers/specs/2026-06-24-gateway-deepening-program-design.md`,
+Phase 1) requires `storage_router.py` to become the canonical import
+point for store modules. This amendment keeps D7's "thin seam, not a
+port" framing and clarifies what the deepening program may add without
+turning the router into a port.
+
+Still ruled out:
+
+- Generic `append` / `upsert` / `read` / `delete` verbs that hide the
+  backend. Routes call typed methods on the router, not string-keyed
+  dispatch.
+- "Smart" router code that retries, caches, or falls back across
+  backends. The router forwards; it does not decide.
+- A `dict` / `getattr` adapter table exposed to routes. Even if the
+  router holds a reference to every store, routes get typed accessors
+  (`router.journal` → `journal_store`), not a registry they can index
+  into.
+
+Now allowed:
+
+- A registration step in `storage_router.py` that each store module
+  calls at import time (e.g. `register(store_module)`). The router
+  holds the reference; routes consume typed accessors. The router is
+  the single import point, not a dispatcher.
+- Cross-cutting concerns that do not introduce port behavior:
+  - **Validation** at the router boundary — typed entry points reject
+    bad shapes before they reach a store.
+  - **Migration triggers** — when a store's underlying schema changes,
+    the router runs the migration before forwarding.
+  - **Telemetry** — every write logs to `data/storage_writes.jsonl`
+    with `{ts, store, op, key, ms}`, read by `/status/glance` for
+    observability.
+
+**Litmus test:** if the router would need to know about a *new backend*
+to handle a new store, it is a port. If the router just holds a
+reference and exposes a typed method, it is a seam. The amendment
+keeps it a seam.
