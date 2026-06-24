@@ -1,6 +1,6 @@
 # Kitty Architecture
 
-**Date:** 2026-06-20
+**Date:** 2026-06-24
 **Status:** Canonical current architecture
 
 ## Runtime
@@ -45,20 +45,20 @@ The gateway is the product. Clients should be thin views over gateway APIs.
 
 ## Storage
 
-Current storage is mixed:
+Storage is mixed. App-owned state (Phase B shipped 2026-06) is consolidated in a single SQLite database at `data/kitty/kitty.db`.
 
-- JSONL: inbox, journal, logs, feedback, traces
-- SQLite: todos, cron, model digest, task/build state, corrections
-- ChromaDB: reference knowledge vectors
-- mem0: semantic/personal memory
-- JSON: config and small state files
+- **SQLite** (`data/kitty/kitty.db`): todos, plugin_settings, chats, journal_entries, cron, model digest, task/build state, corrections
+- **JSONL**: inbox (append-only per D4), logs, feedback, traces; legacy `data/journal.jsonl` is read-only (sync-only, going away with deepening-program Phase 1)
+- **ChromaDB**: reference knowledge vectors
+- **mem0**: semantic/personal memory
+- **JSON**: config and small state files
 
-Phase B consolidates app-owned episodic state behind a single SQLite story. It does not migrate ChromaDB, mem0, imported raw knowledge, logs, or backups first.
+Phase B shipped 2026-06: app-owned episodic state consolidated behind a single SQLite story. It did not migrate ChromaDB, mem0, imported raw knowledge, logs, or backups. The accepted **Gateway Architecture Deepening Program** (`docs/superpowers/specs/2026-06-24-gateway-deepening-program-design.md`, `status: ACCEPTED`) further deepens this substrate in 6 phases without touching the out-of-scope stores.
 
 ## Architecture Rules
 
-- New context reads go through `memory_graph`.
-- Write paths may use direct stores until Phase B introduces `StorageRouter`.
+- New context reads go through `memory_graph` (`gateway/memory_graph.py`). After deepening-program **Phase 2** lands, the canonical read path is `gateway/context_assembler.py` and `memory_graph` becomes an internal seam.
+- Write paths go through `StorageRouter` (`gateway/storage_router.py`) for stores that have a registered adapter. Per **D7** (`docs/DECISIONS.md`), the router is a thin write-side seam, not a port — stores register themselves and routes consume typed accessors, never generic verbs.
 - Do not put product logic in clients.
-- Do not silently recover from storage or network failures; surface the failure clearly.
-- Do not add a new database, queue, cloud service, or mobile sync in Phase B.
+- Do not silently recover from storage or network failures; surface the failure clearly. (Deepening program Phases 2 and 3 enforce this.)
+- Do not add a new database, queue, cloud service, or mobile sync. The deepening program deepens existing modules only.
