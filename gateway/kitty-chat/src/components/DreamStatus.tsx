@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import { fetchDreamStatus, triggerDreamConsolidation, type DreamStatusPayload } from '@/lib/gateway'
 
@@ -17,13 +17,26 @@ function fmtLastRun(ts: number | null, label?: string | null): string {
 export function DreamStatus() {
   const [status, setStatus] = useState<DreamStatusPayload | null>(null)
   const [triggering, setTriggering] = useState(false)
+  const mountedRef = useRef(true)
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
+    mountedRef.current = true
     void loadStatus()
+
+    return () => {
+      mountedRef.current = false
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current)
+        refreshTimeoutRef.current = null
+      }
+    }
   }, [])
 
   async function loadStatus() {
-    setStatus(await fetchDreamStatus())
+    const nextStatus = await fetchDreamStatus()
+    if (!mountedRef.current) return
+    setStatus(nextStatus)
   }
 
   async function handleTrigger() {
@@ -31,9 +44,16 @@ export function DreamStatus() {
     setTriggering(true)
     const ok = await triggerDreamConsolidation()
     if (ok) {
-      await new Promise(resolve => setTimeout(resolve, 800))
+      await new Promise<void>(resolve => {
+        refreshTimeoutRef.current = setTimeout(() => {
+          refreshTimeoutRef.current = null
+          resolve()
+        }, 800)
+      })
+      if (!mountedRef.current) return
       await loadStatus()
     }
+    if (!mountedRef.current) return
     setTriggering(false)
   }
 
