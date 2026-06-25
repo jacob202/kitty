@@ -1,9 +1,12 @@
 """Unified LLM client — one Kitty route, then provider fallbacks.
 
 All backend LLM calls go through LiteLLM first for logging and proxy-level routing.
-When LiteLLM fails, ``call_llm`` falls back to OpenAI, then NVIDIA, then
-AgentRouter, OpenRouter, and Gemini. The Kitty side now keeps a single canonical route name
-(``kitty-default``) instead of the old ``kitty-agent`` / ``kitty-smart`` split.
+When LiteLLM fails, ``call_llm`` walks the ``PROVIDERS`` table in
+``PROVIDER_FALLBACK_ORDER`` and calls ``_call_provider`` for each entry.
+The dispatcher is generic: provider-specific behavior is data on
+``ProviderConfig`` (``static_headers``, ``model_resolver``,
+``request_mutator``, ``post_processor``). Adding a new provider is a
+new entry in the table — no new top-level function.
 
 Successful completions append one row to ``data/kitty_token_log.jsonl`` via
 ``gateway.token_usage_log`` when the API returns a ``usage`` object.
@@ -14,8 +17,9 @@ from __future__ import annotations
 import json
 import os
 import logging
-import requests
-from typing import Any
+import httpx
+from dataclasses import dataclass, field
+from typing import Any, Callable
 
 from dotenv import load_dotenv
 
@@ -40,7 +44,7 @@ try:
         stop=stop_after_attempt(2),
         wait=wait_exponential(multiplier=0.3, min=0.3, max=1.5),
         retry=retry_if_exception_type(
-            (requests.ConnectionError, requests.Timeout, requests.HTTPError)
+            (httpx.ConnectError, httpx.TimeoutException, httpx.HTTPStatusError)
         ),
         reraise=True,
     )
@@ -52,22 +56,22 @@ except ImportError:  # pragma: no cover - optional dependency
 
 @_retry_post
 def _post(*args, **kwargs):
-    """POST once, retrying only transport failures and HTTP 5xx responses."""
-    response = requests.post(*args, **kwargs)
+    """POST once via ``httpx``, retrying only transport failures and HTTP 5xx responses."""
+    response = httpx.post(*args, **kwargs)
     status_code = getattr(response, "status_code", None)
     if isinstance(status_code, int) and 500 <= status_code <= 599:
-        raise requests.HTTPError(
+        raise httpx.HTTPStatusError(
             f"Transient upstream server error: HTTP {status_code}",
+            request=response.request,
             response=response,
         )
     return response
+
 
 OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 
 # LiteLLM virtual name (gateway/litellm_config.yaml) — valid toward localhost:8001 only.
 _LITELLM_DEFAULT = "kitty-default"
-
-# OpenRouter-direct slugs when LiteLLM returns errors (must be valid OpenRouter model IDs).
 
 
 def _env_slug(name: str, default: str) -> str:
@@ -196,6 +200,316 @@ def _finalize_openai_shape_response(
     return text
 
 
+# --- Provider dispatcher ------------------------------------------------------
+#
+# Each of the 5 LLM providers becomes one row in ``PROVIDERS``. The dispatcher
+# is generic: API-key resolution, model resolution, header building, HTTP POST,
+# and response extraction are all driven by the table. Provider-specific
+# behavior (e.g. AgentRouter's alt-UA retry) is data on the row.
+
+
+@dataclass(frozen=True)
+class ProviderConfig:
+    """One row in the ``PROVIDERS`` table.
+
+    Adding a new provider is a new entry here, not new code in this file.
+    For providers with special behavior, supply a ``request_mutator`` and/or
+    ``post_processor``. Most providers need neither.
+    """
+
+    name: str
+    route: str
+    base_url: str
+    api_key_env: tuple[str, ...] = ()
+    model_default: str = ""
+    model_env: str | None = None
+    static_headers: dict[str, str] = field(default_factory=dict)
+    # Optional overrides for providers whose key/model resolution needs special
+    # handling (e.g. AgentRouter's multi-line .env guard). When None, the
+    # generic resolver is used.
+    key_resolver: Callable[[], str] | None = None
+    model_resolver: Callable[[str | None], str] | None = None
+    request_mutator: Callable[[dict, dict, str | None], tuple[dict, dict]] | None = None
+    post_processor: Callable[[httpx.Response, dict], httpx.Response] | None = None
+
+
+def _agentrouter_client_rejected(resp: httpx.Response | None) -> bool:
+    if resp is None or resp.status_code != 401:
+        return False
+    body = (resp.text or "").lower()
+    return "unauthorized client" in body
+
+
+# AgentRouter's hosted API rejects generic clients before token validation. These
+# defaults match its Codex integration path and can be overridden from env.
+_AGENTROUTER_DEFAULT_ORIGINATOR = "codex_cli_rs"
+_AGENTROUTER_DEFAULT_VERSION = "0.101.0"
+_AGENTROUTER_DEFAULT_USER_AGENT = (
+    "codex_cli_rs/0.101.0 (Mac OS 26.0.1; arm64) Apple_Terminal/464"
+)
+
+# Browser-like UA used only if AgentRouter rejects the primary client fingerprint (401 unauthorized_client).
+_AGENTROUTER_ALT_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+)
+
+
+def _agentrouter_request_mutator(
+    payload: dict, headers: dict, request_model: str | None
+) -> tuple[dict, dict]:
+    """Add AgentRouter-specific headers (User-Agent, Originator, Version, optional JSON extras)."""
+    load_dotenv(override=True)
+    ua = os.environ.get("KITTY_AGENTROUTER_USER_AGENT", "").strip()
+    primary_ua = ua or _AGENTROUTER_DEFAULT_USER_AGENT
+
+    extra = {
+        "Accept": "application/json",
+        "Originator": os.environ.get(
+            "KITTY_AGENTROUTER_ORIGINATOR", _AGENTROUTER_DEFAULT_ORIGINATOR
+        ).strip(),
+        "Version": os.environ.get(
+            "KITTY_AGENTROUTER_VERSION", _AGENTROUTER_DEFAULT_VERSION
+        ).strip(),
+    }
+    extra = {k: v for k, v in extra.items() if v}
+
+    raw_extras = os.environ.get("KITTY_AGENTROUTER_EXTRA_HEADERS_JSON", "").strip()
+    if raw_extras:
+        try:
+            blob = json.loads(raw_extras)
+            if isinstance(blob, dict):
+                for k, v in blob.items():
+                    if isinstance(k, str) and isinstance(v, str):
+                        extra[str(k)] = str(v)
+        except json.JSONDecodeError:
+            logger.warning(
+                "KITTY_AGENTROUTER_EXTRA_HEADERS_JSON must be JSON object — ignoring."
+            )
+
+    headers = {**headers, **extra, "User-Agent": primary_ua}
+    return payload, headers
+
+
+def _agentrouter_post_processor(resp: httpx.Response, ctx: dict) -> httpx.Response:
+    """Retry once with alt User-Agent if AgentRouter rejects the primary client fingerprint."""
+    if (
+        not resp.ok
+        and _agentrouter_client_rejected(resp)
+        and os.environ.get("KITTY_AGENTROUTER_NO_ALT_UA_RETRY", "").strip().lower()
+        not in ("1", "true", "yes")
+    ):
+        logger.warning(
+            "AgentRouter rejected client fingerprint — retrying once with alternate User-Agent"
+        )
+        alt_headers = {**ctx["headers"], "User-Agent": _AGENTROUTER_ALT_USER_AGENT}
+        return _post(
+            ctx["url"],
+            headers=alt_headers,
+            json=ctx["payload"],
+            timeout=ctx["timeout"],
+        )
+    return resp
+
+
+def _resolve_provider_api_key(envs: tuple[str, ...]) -> str:
+    """Read API key from the first matching env var in the table entry.
+
+    The env var *name* lives in the table (read once at import); the *value*
+    is read on each call. Callers are responsible for having loaded ``.env``
+    (``_call_provider`` does this once up front) so changes take effect without
+    a restart. Providers that need richer key handling (e.g. AgentRouter's
+    multi-line guard) supply a ``key_resolver`` instead.
+    """
+    for env_name in envs:
+        v = os.environ.get(env_name, "")
+        if not isinstance(v, str):
+            continue
+        v = v.strip().strip('"').strip("'")
+        if v:
+            return v
+    return ""
+
+
+def _resolve_provider_model(
+    provider: ProviderConfig, request_model: str | None
+) -> str:
+    """Pick the upstream model id. ``model_resolver`` wins over env/default."""
+    if provider.model_resolver is not None:
+        return provider.model_resolver(request_model)
+    if provider.model_env:
+        env_val = os.environ.get(provider.model_env, "").strip()
+        if env_val:
+            return env_val
+    return provider.model_default
+
+
+PROVIDERS: dict[str, ProviderConfig] = {
+    "openai": ProviderConfig(
+        name="openai",
+        route="openai_direct",
+        base_url="https://api.openai.com/v1",
+        api_key_env=("OPENAI_API_KEY",),
+        model_default="gpt-4o-mini",
+        model_env="KITTY_OPENAI_FALLBACK_MODEL",
+    ),
+    "nvidia": ProviderConfig(
+        name="nvidia",
+        route="nvidia_direct",
+        base_url="https://integrate.api.nvidia.com/v1",
+        api_key_env=("NVIDIA_API_KEY",),
+        model_default="deepseek-ai/deepseek-v4-pro",
+        model_env="NVIDIA_CHAT_MODEL",
+    ),
+    "agentrouter": ProviderConfig(
+        name="agentrouter",
+        route="agentrouter_direct",
+        base_url=normalize_agentrouter_api_base(
+            os.environ.get("AGENTROUTER_API_BASE", "https://agentrouter.org/v1")
+        ),
+        api_key_env=("AGENTROUTER_API_KEY", "AGENT_ROUTER_TOKEN"),
+        model_default="gpt-5.4-mini",
+        # AgentRouter .env values are prone to multi-line paste errors; the
+        # dedicated resolver warns and takes the first line instead of silently
+        # shipping a corrupt Bearer token.
+        key_resolver=resolve_agentrouter_api_key,
+        model_resolver=lambda request_model: agentrouter_model_for_request(request_model),
+        request_mutator=_agentrouter_request_mutator,
+        post_processor=_agentrouter_post_processor,
+    ),
+    "openrouter": ProviderConfig(
+        name="openrouter",
+        route="openrouter_direct",
+        base_url=OPENROUTER_BASE,
+        api_key_env=("OPENROUTER_API_KEY",),
+        model_default="",
+        model_resolver=lambda request_model: _openrouter_fallback_model(
+            request_model or _LITELLM_DEFAULT
+        ),
+        static_headers={
+            "HTTP-Referer": "https://github.com/jacobbrizinski/kitty",
+            "X-Title": "Kitty Gateway",
+        },
+    ),
+    "gemini": ProviderConfig(
+        name="gemini",
+        route="gemini_direct",
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai",
+        api_key_env=("GEMINI_API_KEY",),
+        model_default="gemini-2.5-flash-image",
+        model_env="KITTY_GEMINI_MODEL",
+    ),
+}
+
+# Fallback order: OpenAI (known-good paid), NVIDIA, AgentRouter (opt-in),
+# OpenRouter (cheap/free), Gemini. Matches the order used by the prior 5
+# direct functions.
+PROVIDER_FALLBACK_ORDER: tuple[str, ...] = (
+    "openai",
+    "nvidia",
+    "agentrouter",
+    "openrouter",
+    "gemini",
+)
+
+
+def _is_agentrouter_disabled() -> bool:
+    return (
+        os.environ.get("KITTY_DISABLE_AGENTROUTER", "").strip().lower()
+        in ("1", "true", "yes")
+    )
+
+
+@retry_with_backoff
+def _call_provider(
+    provider: ProviderConfig,
+    messages: list[dict],
+    max_tokens: int,
+    temperature: float,
+    timeout: int,
+    response_format: dict | None = None,
+    operation: str = "llm.call",
+    metadata: dict[str, Any] | None = None,
+    request_model: str | None = None,
+) -> str:
+    """Generic provider dispatch. The 5 prior direct functions collapse into this."""
+    # Reload .env each call so key/model changes take effect without a restart,
+    # matching the per-function ``load_dotenv()`` the old direct callers did.
+    # ``load_dotenv()`` (no override) is right for the generic providers;
+    # AgentRouter's ``key_resolver`` does its own ``load_dotenv(override=True)``.
+    load_dotenv()
+
+    if provider.key_resolver is not None:
+        api_key = provider.key_resolver()
+    else:
+        api_key = _resolve_provider_api_key(provider.api_key_env)
+    if not api_key:
+        return ""
+
+    model = _resolve_provider_model(provider, request_model)
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        **provider.static_headers,
+    }
+
+    payload: dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+    }
+    if response_format:
+        payload["response_format"] = response_format
+
+    if provider.request_mutator is not None:
+        payload, headers = provider.request_mutator(payload, headers, request_model)
+
+    url = f"{provider.base_url}/chat/completions"
+
+    try:
+        resp = _post(url, headers=headers, json=payload, timeout=timeout)
+
+        if provider.post_processor is not None:
+            ctx = {
+                "url": url,
+                "payload": payload,
+                "timeout": timeout,
+                "headers": headers,
+            }
+            new_resp = provider.post_processor(resp, ctx)
+            if new_resp is not None:
+                resp = new_resp
+
+        if not resp.ok:
+            snippet = (resp.text or "")[:900]
+            logger.error(
+                "%s HTTP %s on POST %s (model=%r): %s",
+                provider.name,
+                resp.status_code,
+                url,
+                model,
+                snippet,
+            )
+            return ""
+
+        data = resp.json()
+        mlog = data.get("model") or model
+        return _finalize_openai_shape_response(
+            data,
+            provider=provider.name,
+            model_logged=str(mlog),
+            operation=operation,
+            route=provider.route,
+            request_model=request_model,
+            metadata=metadata,
+        )
+    except Exception as e:
+        logger.error("%s direct call failed: %s", provider.name, e)
+        return ""
+
+
 def call_llm(
     messages: list[dict],
     model: str = None,
@@ -208,7 +522,7 @@ def call_llm(
 ) -> str:
     """
     Centralized hub for all LLM calls.
-    Tries LiteLLM proxy first; on failure → AgentRouter → OpenRouter direct → Gemini → NVIDIA.
+    Tries LiteLLM proxy first; on failure walks ``PROVIDER_FALLBACK_ORDER``.
     """
     if model is None:
         user_msg = ""
@@ -253,40 +567,11 @@ def call_llm(
             "LLM call failed via LiteLLM (%s), trying fallbacks: %s", model, e
         )
 
-        # 1. OpenAI direct. This is the current known-good paid fallback on this machine.
-        out = _call_openai_direct(
-            messages,
-            max_tokens,
-            temperature,
-            timeout,
-            response_format,
-            operation=operation,
-            metadata=metadata,
-            request_model=model,
-        )
-        if out:
-            return out
-
-        # 2. NVIDIA NIM.
-        out = _call_nvidia_direct(
-            messages,
-            max_tokens,
-            temperature,
-            timeout,
-            response_format,
-            operation=operation,
-            metadata=metadata,
-            request_model=model,
-        )
-        if out:
-            return out
-
-        disable_agentrouter = (
-            os.environ.get("KITTY_DISABLE_AGENTROUTER", "").strip().lower()
-        )
-        if disable_agentrouter not in ("1", "true", "yes"):
-            # 3. AgentRouter when the hosted client auth lane is healthy.
-            out = _call_agentrouter_direct(
+        for provider_name in PROVIDER_FALLBACK_ORDER:
+            if provider_name == "agentrouter" and _is_agentrouter_disabled():
+                continue
+            out = _call_provider(
+                PROVIDERS[provider_name],
                 messages,
                 max_tokens,
                 temperature,
@@ -299,398 +584,6 @@ def call_llm(
             if out:
                 return out
 
-        # 4. OpenRouter direct (cheap/free slugs when key set).
-        or_model = _openrouter_fallback_model(model)
-        out = _call_openrouter_direct(
-            messages,
-            or_model,
-            max_tokens,
-            temperature,
-            timeout,
-            response_format,
-            operation=operation,
-            metadata=metadata,
-            request_model=model,
-        )
-        if out:
-            return out
-
-        # 5. Gemini.
-        out = _call_gemini_direct(
-            messages,
-            max_tokens,
-            temperature,
-            timeout,
-            response_format,
-            operation=operation,
-            metadata=metadata,
-            request_model=model,
-        )
-        if out:
-            return out
-
-        return ""
-
-
-@retry_with_backoff
-def _call_openai_direct(
-    messages: list[dict],
-    max_tokens: int,
-    temperature: float,
-    timeout: int,
-    response_format: dict = None,
-    operation: str = "llm.call",
-    metadata: dict[str, Any] | None = None,
-    request_model: str | None = None,
-) -> str:
-    """Direct call to OpenAI for the current known-good paid fallback."""
-    load_dotenv()
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        return ""
-
-    model = (
-        os.environ.get("KITTY_OPENAI_FALLBACK_MODEL", "gpt-4o-mini").strip()
-        or "gpt-4o-mini"
-    )
-    base = os.environ.get("OPENAI_API_BASE", "https://api.openai.com/v1").rstrip("/")
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": model,
-        "messages": messages,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-    }
-    if response_format:
-        payload["response_format"] = response_format
-
-    try:
-        resp = _post(
-            f"{base}/chat/completions", headers=headers, json=payload, timeout=timeout
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        mlog = data.get("model") or model
-        return _finalize_openai_shape_response(
-            data,
-            provider="openai",
-            model_logged=str(mlog),
-            operation=operation,
-            route="openai_direct",
-            request_model=request_model,
-            metadata=metadata,
-        )
-    except Exception as e:
-        logger.error("OpenAI direct call failed: %s", e)
-        return ""
-
-
-@retry_with_backoff
-def _call_gemini_direct(
-    messages: list[dict],
-    max_tokens: int,
-    temperature: float,
-    timeout: int,
-    response_format: dict = None,
-    operation: str = "llm.call",
-    metadata: dict[str, Any] | None = None,
-    request_model: str | None = None,
-) -> str:
-    """Direct call to Google Gemini using the configured flash model."""
-    load_dotenv()
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        return ""
-
-    model = _GEMINI_MODEL
-    base = "https://generativelanguage.googleapis.com/v1beta/openai"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": model,
-        "messages": messages,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-    }
-    if response_format:
-        payload["response_format"] = response_format
-
-    try:
-        resp = _post(
-            f"{base}/chat/completions", headers=headers, json=payload, timeout=timeout
-        )
-        if resp.status_code != 200:
-            logger.error(
-                "Gemini call failed (%d): %s", resp.status_code, resp.text[:500]
-            )
-            return ""
-        data = resp.json()
-        mlog = data.get("model") or model
-        return _finalize_openai_shape_response(
-            data,
-            provider="gemini",
-            model_logged=str(mlog),
-            operation=operation,
-            route="gemini_direct",
-            request_model=request_model,
-            metadata=metadata,
-        )
-    except Exception as e:
-        logger.error("Gemini call failed: %s", e)
-        return ""
-
-
-@retry_with_backoff
-def _call_openrouter_direct(
-    messages: list[dict],
-    model: str,
-    max_tokens: int,
-    temperature: float,
-    timeout: int,
-    response_format: dict = None,
-    operation: str = "llm.call",
-    metadata: dict[str, Any] | None = None,
-    request_model: str | None = None,
-) -> str:
-    """Direct call to OpenRouter with explicit env loading."""
-    load_dotenv()
-    api_key = os.environ.get("OPENROUTER_API_KEY")
-    if not api_key:
-        logger.error("No OPENROUTER_API_KEY found for direct call.")
-        return ""
-
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "HTTP-Referer": "https://github.com/jacobbrizinski/kitty",
-        "X-Title": "Kitty Gateway",
-        "Content-Type": "application/json",
-    }
-
-    payload = {
-        "model": model,
-        "messages": messages,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-    }
-    if response_format:
-        payload["response_format"] = response_format
-
-    try:
-        resp = _post(
-            f"{OPENROUTER_BASE}/chat/completions",
-            headers=headers,
-            json=payload,
-            timeout=timeout,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        mlog = data.get("model") or model
-        return _finalize_openai_shape_response(
-            data,
-            provider="openrouter",
-            model_logged=str(mlog),
-            operation=operation,
-            route="openrouter_direct",
-            request_model=request_model,
-            metadata=metadata,
-        )
-    except Exception as e:
-        logger.error("OpenRouter direct call failed: %s", e)
-        return ""
-
-
-# AgentRouter's hosted API rejects generic clients before token validation. These
-# defaults match its Codex integration path and can be overridden from env.
-_AGENTROUTER_DEFAULT_ORIGINATOR = "codex_cli_rs"
-_AGENTROUTER_DEFAULT_VERSION = "0.101.0"
-_AGENTROUTER_DEFAULT_USER_AGENT = (
-    "codex_cli_rs/0.101.0 (Mac OS 26.0.1; arm64) Apple_Terminal/464"
-)
-
-# Browser-like UA used only if AgentRouter rejects the primary client fingerprint (401 unauthorized_client).
-_AGENTROUTER_ALT_USER_AGENT = (
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-)
-
-
-def _agentrouter_client_rejected(resp: requests.Response | None) -> bool:
-    if resp is None or resp.status_code != 401:
-        return False
-    body = (resp.text or "").lower()
-    return "unauthorized client" in body
-
-
-@retry_with_backoff
-def _call_agentrouter_direct(
-    messages: list[dict],
-    max_tokens: int,
-    temperature: float,
-    timeout: int,
-    response_format: dict = None,
-    operation: str = "llm.call",
-    metadata: dict[str, Any] | None = None,
-    request_model: str | None = None,
-) -> str:
-    load_dotenv(override=True)
-    api_key = resolve_agentrouter_api_key()
-    base_raw = os.environ.get("AGENTROUTER_API_BASE", "https://agentrouter.org/v1")
-    base = normalize_agentrouter_api_base(base_raw)
-
-    ar_model = agentrouter_model_for_request(request_model)
-
-    if not api_key:
-        logger.debug(
-            "AgentRouter skipped: set AGENTROUTER_API_KEY or AGENT_ROUTER_TOKEN"
-        )
-        return ""
-
-    ua = os.environ.get("KITTY_AGENTROUTER_USER_AGENT", "").strip()
-
-    base_headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "Originator": os.environ.get(
-            "KITTY_AGENTROUTER_ORIGINATOR", _AGENTROUTER_DEFAULT_ORIGINATOR
-        ).strip(),
-        "Version": os.environ.get(
-            "KITTY_AGENTROUTER_VERSION", _AGENTROUTER_DEFAULT_VERSION
-        ).strip(),
-    }
-    base_headers = {k: v for k, v in base_headers.items() if v}
-
-    raw_extras = os.environ.get("KITTY_AGENTROUTER_EXTRA_HEADERS_JSON", "").strip()
-    if raw_extras:
-        try:
-            blob = json.loads(raw_extras)
-            if isinstance(blob, dict):
-                for k, v in blob.items():
-                    if isinstance(k, str) and isinstance(v, str):
-                        base_headers[str(k)] = str(v)
-        except json.JSONDecodeError:
-            logger.warning(
-                "KITTY_AGENTROUTER_EXTRA_HEADERS_JSON must be JSON object — ignoring."
-            )
-
-    def build_headers(user_agent: str) -> dict[str, str]:
-        h = {**base_headers, "User-Agent": user_agent}
-        return h
-
-    # Primary: optional custom UA, else AgentRouter's Codex-compatible client identity.
-    primary_ua = ua or _AGENTROUTER_DEFAULT_USER_AGENT
-    payload = {
-        "model": ar_model,
-        "messages": messages,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-    }
-    if response_format:
-        payload["response_format"] = response_format
-
-    try:
-        url = f"{base}/chat/completions"
-        headers = build_headers(primary_ua)
-        resp = _post(url, headers=headers, json=payload, timeout=timeout)
-
-        if (
-            not resp.ok
-            and _agentrouter_client_rejected(resp)
-            and os.environ.get("KITTY_AGENTROUTER_NO_ALT_UA_RETRY", "").strip().lower()
-            not in ("1", "true", "yes")
-        ):
-            logger.warning(
-                "AgentRouter rejected client fingerprint — retrying once with alternate User-Agent"
-            )
-            resp = _post(
-                url,
-                headers=build_headers(_AGENTROUTER_ALT_USER_AGENT),
-                json=payload,
-                timeout=timeout,
-            )
-
-        if not resp.ok:
-            snippet = (resp.text or "")[:900]
-            logger.error(
-                "AgentRouter HTTP %s on POST %s (model=%r): %s",
-                resp.status_code,
-                url,
-                ar_model,
-                snippet,
-            )
-            return ""
-        data = resp.json()
-        mlog = data.get("model") or ar_model
-        return _finalize_openai_shape_response(
-            data,
-            provider="agentrouter",
-            model_logged=str(mlog),
-            operation=operation,
-            route="agentrouter_direct",
-            request_model=request_model,
-            metadata=metadata,
-        )
-    except Exception as e:
-        logger.error("AgentRouter direct call failed: %s", e)
-        return ""
-
-
-@retry_with_backoff
-def _call_nvidia_direct(
-    messages: list[dict],
-    max_tokens: int,
-    temperature: float,
-    timeout: int,
-    response_format: dict = None,
-    operation: str = "llm.call",
-    metadata: dict[str, Any] | None = None,
-    request_model: str | None = None,
-) -> str:
-    load_dotenv()
-    api_key = os.environ.get("NVIDIA_API_KEY")
-    if not api_key:
-        return ""
-
-    base = os.environ.get(
-        "NVIDIA_API_BASE", "https://integrate.api.nvidia.com/v1"
-    ).rstrip("/")
-    nv_model = os.environ.get("NVIDIA_CHAT_MODEL", "deepseek-ai/deepseek-v4-pro")
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": nv_model,
-        "messages": messages,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-    }
-    if response_format:
-        payload["response_format"] = response_format
-
-    try:
-        resp = _post(
-            f"{base}/chat/completions", headers=headers, json=payload, timeout=timeout
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        mlog = data.get("model") or nv_model
-        return _finalize_openai_shape_response(
-            data,
-            provider="nvidia",
-            model_logged=str(mlog),
-            operation=operation,
-            route="nvidia_direct",
-            request_model=request_model,
-            metadata=metadata,
-        )
-    except Exception as e:
-        logger.error("NVIDIA direct call failed: %s", e)
         return ""
 
 

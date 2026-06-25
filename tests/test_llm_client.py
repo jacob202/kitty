@@ -13,7 +13,7 @@ def test_post_retries_server_errors():
     unavailable = MagicMock(status_code=503)
     recovered = MagicMock(status_code=200)
 
-    with patch("gateway.llm_client.requests.post", side_effect=[unavailable, recovered]) as mock_post:
+    with patch("gateway.llm_client.httpx.post", side_effect=[unavailable, recovered]) as mock_post:
         result = _post("https://example.test/chat")
 
     assert result is recovered
@@ -25,7 +25,7 @@ def test_post_does_not_retry_client_errors():
 
     unauthorized = MagicMock(status_code=401)
 
-    with patch("gateway.llm_client.requests.post", return_value=unauthorized) as mock_post:
+    with patch("gateway.llm_client.httpx.post", return_value=unauthorized) as mock_post:
         result = _post("https://example.test/chat")
 
     assert result is unauthorized
@@ -249,7 +249,7 @@ def test_call_llm_returns_content_on_success():
         "choices": [{"message": {"role": "assistant", "content": "Hello, Jacob."}}],
         "model": "kitty-default",
     }
-    with patch("requests.post", return_value=fake_response):
+    with patch("gateway.llm_client.httpx.post", return_value=fake_response):
         result = call_llm(
             messages=[{"role": "user", "content": "hello"}],
             model="kitty-default",
@@ -258,18 +258,15 @@ def test_call_llm_returns_content_on_success():
 
 
 def test_call_llm_falls_back_on_litellm_error():
-    """call_llm falls back gracefully when LiteLLM connection is refused."""
+    """call_llm falls back via the provider dispatcher when LiteLLM fails."""
     from gateway.llm_client import call_llm
-    import requests as req
 
-    with patch("requests.post", side_effect=req.exceptions.ConnectionError("refused")):
-        with patch(
-            "gateway.llm_client._call_openai_direct", return_value="Fallback response"
-        ):
-            result = call_llm(
-                messages=[{"role": "user", "content": "hello"}],
-                model="kitty-default",
-            )
+    with patch("gateway.llm_client._post", side_effect=Exception("litellm down")), \
+         patch("gateway.llm_client._call_provider", return_value="Fallback response"):
+        result = call_llm(
+            messages=[{"role": "user", "content": "hello"}],
+            model="kitty-default",
+        )
     assert result == "Fallback response"
 
 
