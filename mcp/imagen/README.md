@@ -4,37 +4,36 @@ Photorealistic image generation and editing inside Claude Code. Default engine i
 Google's **Nano Banana** (`gemini-2.5-flash-image`) — state-of-the-art photorealism plus
 natural-language editing. Imagen 4, DALL-E 3, and local ComfyUI are opt-in alternatives.
 
-Every tool **renders the image inline in the chat** and saves a copy to
-`~/Pictures/kitty-gen/`, so the loop is: generate → look → "change X" → `edit_image`.
+Every tool returns the image to the model (Claude can describe and judge it)
+and saves a copy to `~/Pictures/kitty-gen/`, so the loop is: generate → ask
+Claude what it made → "change X" → `edit_image`. The terminal does not render
+the image — open the file from `~/Pictures/kitty-gen/` in Finder or Preview.
 
-## Setup
+## Install
 
 ```bash
-cd mcp/imagen
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+./mcp/imagen/install.sh
 ```
 
-## Add to Claude Code (`~/.claude/settings.json`)
+The script creates a venv, installs requirements, and registers the `imagen`
+server in two places:
 
-```json
-{
-  "mcpServers": {
-    "imagen": {
-      "command": "/Users/jacobbrizinski/Projects/kitty/mcp/imagen/.venv/bin/python",
-      "args": ["/Users/jacobbrizinski/Projects/kitty/mcp/imagen/server.py"],
-      "env": {
-        "GEMINI_API_KEY": "your-gemini-key",
-        "OPENAI_API_KEY": "your-openai-key"
-      }
-    }
-  }
-}
+- `.mcp.json` at the repo root (primary; relative paths, portable, zero-config
+  for contributors)
+- `~/.claude/settings.json` (fallback for global installs; absolute paths)
+
+It is idempotent — re-running is a no-op when nothing has changed. Set
+`GEMINI_API_KEY` in your shell profile or copy `.env.example` to `.env` and
+fill it in.
+
+To uninstall:
+
+```bash
+./mcp/imagen/install.sh --uninstall
 ```
 
-Drop a key from `env` if it's already exported in your shell. Restart Claude Code, then
-just ask: *"generate a photo of a misty harbor at dawn"* or *"edit that — make it night."*
+Restart Claude Code, then ask: *"generate a photo of a misty harbor at dawn"*
+or *"edit that — make it night."*
 
 ## Tools
 
@@ -98,3 +97,13 @@ IMAGEN_MODEL=imagen-4.0-ultra-generate-001
 
 `realistic`/`photo`/`sdxl`/`photonic` → SDXL · `explicit`/`erect`/`cock` → explicit LoRA ·
 `portrait`/`landscape` → aspect · `detailed` → more steps · `more bear`/`less bear` → LoRA strength
+
+## Starting ComfyUI
+
+The `generate_image_comfy` tool needs a local ComfyUI server:
+
+```bash
+cd ~/Projects/imagegen/ComfyUI && python main.py &
+```
+
+If that path doesn't exist, edit the line above to point at your ComfyUI checkout.

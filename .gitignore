@@ -39,6 +39,7 @@ out/
 .vscode/
 .cursor/
 .mcp.json
+!.mcp.json
 .aura/
 
 # Misc
