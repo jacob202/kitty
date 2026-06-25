@@ -21,7 +21,6 @@ import ssl
 import urllib.request
 from dataclasses import dataclass
 
-
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 

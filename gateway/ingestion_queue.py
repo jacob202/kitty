@@ -28,7 +28,7 @@ import logging
 import sqlite3
 import time
 from pathlib import Path
-from typing import Optional, Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 from gateway.paths import DATA_DIR
 

@@ -1,8 +1,9 @@
 import logging
 import os
-import httpx
 from pathlib import Path
 from typing import List
+
+import httpx
 
 logger = logging.getLogger("kitty.researcher")
 
@@ -137,16 +138,17 @@ Rules: Short sentences. Use contractions. Speak Canadian."""
 
     async def _ingest_findings(self, topic: str, findings: str, summary: str):
         """Saves findings to a temp file and triggers the ingestion pipeline."""
-        from gateway.knowledge import ingest_file
         import tempfile
-        
+
+        from gateway.knowledge import ingest_file
+
         try:
             with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
                 f.write(f"# Deep Research: {topic}\n\n## Summary\n{summary}\n\n## Raw Findings\n{findings}")
                 tmp_path = f.name
-                
+
             await ingest_file(
-                tmp_path, 
+                tmp_path,
                 source_label=f"research_{topic.replace(' ', '_')}",
                 doc_type="technical_research"
             )

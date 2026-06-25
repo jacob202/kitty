@@ -1,15 +1,15 @@
 """Tests for calendar — AppleScript bridge (mock-safe)."""
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
+
 from gateway.calendar_integration import (
     _parse_event_lines,
     _run_applescript,
+    create,
     get_today,
     get_upcoming,
-    create,
-    is_available,
     get_upcoming_text,
+    is_available,
 )
 
 

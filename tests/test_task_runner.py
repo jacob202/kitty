@@ -1,15 +1,16 @@
 """Tests for task_runner — create, get, list, cancel, output."""
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 from gateway.task_runner import (
+    VALID_TYPES,
+    cancel,
     create,
     get,
-    list_tasks,
     get_output,
-    cancel,
-    VALID_TYPES,
     init_db,
+    list_tasks,
 )
 
 

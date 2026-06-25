@@ -1,14 +1,14 @@
+import base64
 import csv
 import json
-import base64
 import logging
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict, List
 
 logger = logging.getLogger("kitty.inventory")
 
-from gateway.paths import DATA_DIR
 from gateway.llm_client import call_llm
+from gateway.paths import DATA_DIR
 from gateway.prompts import INVENTORY_PHOTO_PROMPT
 
 INVENTORY_CSV = DATA_DIR / "inventory.csv"
@@ -43,11 +43,11 @@ def extract_parts_from_image(image_path: str | Path) -> List[Dict]:
         content = call_llm(model="anthropic/claude-3.7-sonnet", **payload, timeout=45)
         if not content:
             return []
-            
+
         # Clean up if the model wrapped it in markdown anyway
         if content.startswith("```json"):
             content = content.replace("```json", "").replace("```", "").strip()
-            
+
         parts = json.loads(content)
         return parts if isinstance(parts, list) else []
 
@@ -62,7 +62,7 @@ def append_to_inventory(parts: List[Dict]) -> bool:
 
     INVENTORY_CSV.parent.mkdir(parents=True, exist_ok=True)
     file_exists = INVENTORY_CSV.exists()
-    
+
     fieldnames = ["part_number", "value", "type", "quantity", "notes", "date_added"]
     from datetime import datetime
     today = datetime.now().strftime("%Y-%m-%d")
@@ -72,7 +72,7 @@ def append_to_inventory(parts: List[Dict]) -> bool:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             if not file_exists:
                 writer.writeheader()
-            
+
             for part in parts:
                 row = {
                     "part_number": part.get("part_number", ""),
@@ -94,7 +94,7 @@ def process_inventory_image(image_path: str | Path) -> str:
     parts = extract_parts_from_image(image_path)
     if not parts:
         return "I couldn't identify any parts clearly in that photo."
-    
+
     success = append_to_inventory(parts)
     if success:
         items = "\n".join([f"- {p.get('quantity', 1)}x {p.get('part_number') or p.get('value')} ({p.get('type')})" for p in parts])

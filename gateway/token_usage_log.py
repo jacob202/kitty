@@ -12,7 +12,6 @@ import logging
 import threading
 import time
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 from gateway.paths import DATA_DIR, KITTY_TOKEN_LOG_FILE

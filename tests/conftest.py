@@ -1,4 +1,5 @@
 import os
+
 import pytest
 
 # Ensure gateway auth uses test bypass when GATEWAY_SECRET is unset during pytest runs.

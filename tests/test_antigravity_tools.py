@@ -1,9 +1,10 @@
 """Tests for antigravity/Orca-style tools."""
+
 import pytest
-from pathlib import Path
-from gateway.antigravity_tools import invoke_tool, get_tools
-from gateway.task_boundary import task_boundary
+
+from gateway.antigravity_tools import get_tools, invoke_tool
 from gateway.async_feedback import async_feedback
+from gateway.task_boundary import task_boundary
 
 
 class TestAntigravityTools:
@@ -48,7 +49,7 @@ class TestAntigravityTools:
             "summary": "Testing updates"
         })
         task_id = open_result["task_id"]
-        
+
         # Update it
         result = await invoke_tool("task_boundary", {
             "action": "update",
@@ -68,7 +69,7 @@ class TestAntigravityTools:
             "summary": "Testing close"
         })
         task_id = open_result["task_id"]
-        
+
         # Close it
         result = await invoke_tool("task_boundary", {
             "action": "close",
@@ -192,10 +193,10 @@ class TestAsyncFeedbackModule:
         """Should add and retrieve feedback."""
         import uuid
         artifact = str(tmp_path / f"test_{uuid.uuid4().hex[:8]}.md")
-        
+
         # Add feedback
         async_feedback.add_feedback(artifact, "Test comment")
-        
+
         # Check feedback
         comments = async_feedback.check_feedback(artifact)
         assert len(comments) >= 1

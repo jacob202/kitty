@@ -2,8 +2,7 @@
 import json
 import time
 from pathlib import Path
-from unittest.mock import patch, MagicMock
-
+from unittest.mock import patch
 
 # ── get_recent_traces ────────────────────────────────────────────────────────
 
@@ -70,7 +69,7 @@ def test_get_recent_traces_skips_malformed_lines(tmp_path):
 
 def test_summarize_patterns_empty_list():
     """Returns fallback string when no traces provided."""
-    from gateway.honcho import summarize_patterns, _FALLBACK_EMPTY
+    from gateway.honcho import _FALLBACK_EMPTY, summarize_patterns
     result = summarize_patterns([])
     assert result == _FALLBACK_EMPTY
 
@@ -92,7 +91,7 @@ def test_summarize_patterns_calls_llm():
 
 def test_summarize_patterns_llm_failure_returns_fallback():
     """LLM failure returns the error fallback string instead of raising."""
-    from gateway.honcho import summarize_patterns, _FALLBACK_ERROR
+    from gateway.honcho import _FALLBACK_ERROR, summarize_patterns
 
     traces = [{"domain_classified": "code", "user_request": "x", "timestamp": time.time()}]
     with patch("gateway.llm_client.call_llm", side_effect=Exception("timeout")):

@@ -144,7 +144,7 @@ def get_upcoming_text(days: int = 7) -> str:
 def is_available() -> bool:
     """Check if Calendar integration is available (macOS only)."""
     try:
-        subprocess.run(["osascript", "-e", 'tell application "Calendar" to get name'], 
+        subprocess.run(["osascript", "-e", 'tell application "Calendar" to get name'],
                        capture_output=True, timeout=5)
         return True
     except Exception:

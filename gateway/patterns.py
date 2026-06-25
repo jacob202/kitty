@@ -16,7 +16,7 @@ import time
 from collections import Counter
 from datetime import datetime
 
-from gateway.paths import DATA_DIR, LOG_FILE, LOGS_DIR
+from gateway.paths import DATA_DIR, LOG_FILE
 
 logger = logging.getLogger("kitty.patterns")
 

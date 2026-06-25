@@ -1,11 +1,12 @@
 """Tests for telegram_bot — polling, message sending, commands."""
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import patch, AsyncMock
 
 from gateway.telegram_bot import (
+    _handle_command,
     is_configured,
     send_message,
-    _handle_command,
 )
 
 

@@ -1,7 +1,8 @@
 """Tests for voice_session — WebSocket voice conversation loop."""
 import json
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 
 from gateway.voice_session import VoiceSession, _handle_text_message
 

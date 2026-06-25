@@ -15,14 +15,14 @@ import asyncio
 import logging
 import time
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 
 from contracts.knowledge_pipeline import (
-    LibrarianReport,
-    KnowledgeMetadata,
     IngestionResult,
+    KnowledgeMetadata,
+    LibrarianReport,
 )
-from gateway import clerk, librarian, archivist
+from gateway import archivist, clerk, librarian
 
 logger = logging.getLogger("kitty.knowledge")
 
@@ -344,6 +344,7 @@ async def search_knowledge(*args, **kwargs):
 
 # Backwards-compat re-exports so existing tests can import/patch these names directly
 # on the knowledge module rather than on the sub-modules.
+from gateway.archivist import _chunk_text, _embed, _get_collection  # noqa: E402, F401
 from gateway.clerk import (  # noqa: E402, F401
     _extract_chatgpt_json,
     _extract_jsonl_session,
@@ -351,7 +352,6 @@ from gateway.clerk import (  # noqa: E402, F401
     _extract_text,
 )
 from gateway.librarian import detect_doc_type  # noqa: E402, F401
-from gateway.archivist import _chunk_text, _embed, _get_collection  # noqa: E402, F401
 
 
 def get_knowledge_block(query: str, limit: int = 5) -> str:

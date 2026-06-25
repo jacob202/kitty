@@ -1,17 +1,17 @@
 """Tests for agent_runner — spawn, status, listing, stopping."""
 
-import time
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
 
 from gateway.agent_runner import (
     AGENT_PRESETS,
     _is_finished,
-    get_status,
+    await_completion,
     get_output,
+    get_status,
     list_agents,
     stop,
-    await_completion,
 )
 
 
@@ -80,8 +80,9 @@ class TestGetStatusNotFound:
 @pytest.mark.asyncio
 class TestSpawnAndRun:
     async def test_spawn_explorer_creates_session(self):
+        from unittest.mock import patch
+
         from gateway.agent_runner import spawn as agent_spawn
-        from unittest.mock import AsyncMock, patch
 
         # Mock the background task so it doesn't actually call LLMs
         with patch("gateway.agent_runner._run_agent_loop", new=_noop_agent_loop):
@@ -94,8 +95,9 @@ class TestSpawnAndRun:
             assert session_id > 0
 
     async def test_spawn_with_extra_context(self):
-        from gateway.agent_runner import spawn as agent_spawn
         from unittest.mock import patch
+
+        from gateway.agent_runner import spawn as agent_spawn
 
         with patch("gateway.agent_runner._run_agent_loop", new=_noop_agent_loop):
             session_id = await agent_spawn(
@@ -107,8 +109,9 @@ class TestSpawnAndRun:
             assert session_id > 0
 
     async def test_spawn_all_preset_types(self):
-        from gateway.agent_runner import spawn as agent_spawn
         from unittest.mock import patch
+
+        from gateway.agent_runner import spawn as agent_spawn
 
         with patch("gateway.agent_runner._run_agent_loop", new=_noop_agent_loop):
             for agent_type in AGENT_PRESETS:

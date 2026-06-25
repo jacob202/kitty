@@ -1,6 +1,7 @@
 """Smoke test: verify litellm_config.yaml structure and fallback chains."""
-import yaml
 from pathlib import Path
+
+import yaml
 
 CONFIG_PATH = Path(__file__).resolve().parents[1] / "gateway" / "litellm_config.yaml"
 

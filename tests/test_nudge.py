@@ -1,10 +1,10 @@
 """Tests for gateway/nudge.py — proactive nudge engine."""
-import json
-import time
 import hashlib
+import json
 import tempfile
+import time
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 
 def test_check_no_log_returns_empty():
@@ -18,7 +18,7 @@ def test_check_no_log_returns_empty():
 
 def test_dismiss_marks_nudge_dismissed(tmp_path):
     """dismiss() persists nudge id so it won't reappear."""
-    from gateway.nudge import dismiss, _load_dismissed
+    from gateway.nudge import _load_dismissed, dismiss
     store = tmp_path / "nudge_state.json"
     with patch("gateway.nudge.NUDGE_STORE", store):
         dismiss("test-nudge-id")
@@ -112,10 +112,11 @@ def test_nudge_id_is_deterministic():
     """Repeated research nudge ID is deterministic for the same topic."""
     topic = "test topic for id stability"
     expected_id = hashlib.md5(f"repeat_{topic}".encode()).hexdigest()[:12]
-    from gateway.nudge import _check_repeated_research
     import time
+
+    from gateway.nudge import _check_repeated_research
     now = time.time()
-    import tempfile, json
+    import json
     with tempfile.TemporaryDirectory() as d:
         log = Path(d) / "trace.jsonl"
         lines = [

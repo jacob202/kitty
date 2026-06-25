@@ -276,7 +276,7 @@ async def _handle_task_boundary(args: Dict[str, Any]) -> Dict[str, Any]:
     tb = get_task_boundary()
     action = args.get("action", "update")
     task_id = args.get("task_id", str(uuid.uuid4().hex[:8]))
-    
+
     if action == "open":
         name = args.get("name", "Unnamed")
         description = args.get("summary", "")
@@ -286,7 +286,7 @@ async def _handle_task_boundary(args: Dict[str, Any]) -> Dict[str, Any]:
             "task_id": task_id,
             "message": f"Task boundary opened: {name}",
         }
-    
+
     elif action == "update":
         status = args.get("status", "in_progress")
         summary = args.get("summary", "")
@@ -296,7 +296,7 @@ async def _handle_task_boundary(args: Dict[str, Any]) -> Dict[str, Any]:
             "task_id": task_id,
             "message": f"Task {task_id} updated to {status}",
         }
-    
+
     elif action == "close":
         summary = args.get("summary", "")
         success = args.get("success", True)
@@ -306,7 +306,7 @@ async def _handle_task_boundary(args: Dict[str, Any]) -> Dict[str, Any]:
             "task_id": task_id,
             "message": f"Task {task_id} closed",
         }
-    
+
     return {
         "success": False,
         "error": f"Unknown action: {action}",
@@ -319,10 +319,10 @@ async def _handle_notify_user(args: Dict[str, Any]) -> Dict[str, Any]:
     message = args.get("message", "")
     artifact_path = args.get("artifact_path", "")
     priority = args.get("priority", "info")
-    
+
     if not message:
         return {"success": False, "error": "Message is required"}
-    
+
     feedback.notify(message, artifact_path, priority)
     return {
         "success": True,
@@ -334,10 +334,10 @@ async def _handle_check_feedback(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle check_feedback tool calls."""
     feedback = get_async_feedback()
     artifact_path = args.get("artifact_path", "")
-    
+
     if not artifact_path:
         return {"success": False, "error": "artifact_path is required"}
-    
+
     comments = feedback.check_feedback(artifact_path)
     return {
         "success": True,
@@ -351,18 +351,18 @@ async def _handle_codebase_search(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle codebase_search tool calls."""
     query = args.get("query", "")
     top_k = args.get("top_k", 5)
-    
+
     if not query:
         return {"success": False, "error": "Query is required"}
 
     search = get_codebase_search()
-    
+
     if not search.is_available():
         return {
             "success": False,
             "error": "Codebase search not available (missing dependencies)",
         }
-    
+
     results = search.search(query, top_k)
     return {
         "success": True,
@@ -377,10 +377,10 @@ async def _handle_web_capture(args: Dict[str, Any]) -> Dict[str, Any]:
     tracker = get_web_tracker()
     url = args.get("url", "")
     content = args.get("content", "")
-    
+
     if not url or not content:
         return {"success": False, "error": "url and content are required"}
-    
+
     snapshot_path = tracker.capture(url, content)
     return {
         "success": True,
@@ -394,10 +394,10 @@ async def _handle_web_compare(args: Dict[str, Any]) -> Dict[str, Any]:
     """Handle web_compare tool calls."""
     tracker = get_web_tracker()
     url = args.get("url", "")
-    
+
     if not url:
         return {"success": False, "error": "url is required"}
-    
+
     comparison = tracker.compare(url)
     return {
         "success": True,
@@ -412,10 +412,10 @@ async def _handle_share_discovery(args: Dict[str, Any]) -> Dict[str, Any]:
     discovery = args.get("discovery", "")
     tags = args.get("tags", [])
     agent_name = args.get("agent_name", "unknown")
-    
+
     if not discovery:
         return {"success": False, "error": "discovery is required"}
-    
+
     tp.share_discovery(agent_name, discovery, tags)
     return {
         "success": True,
@@ -428,7 +428,7 @@ async def _handle_get_discoveries(args: Dict[str, Any]) -> Dict[str, Any]:
     tp = get_team_protocol()
     agent_filter = args.get("agent_filter")
     tags = args.get("tags")
-    
+
     discoveries = tp.get_discoveries(agent_filter, tags)
     return {
         "success": True,

@@ -71,7 +71,7 @@ async def verify_with_review(
 
     # Spawn reviewer for qualitative feedback
     try:
-        from gateway.agent_runner import spawn, get_output, get_status
+        from gateway.agent_runner import get_output, get_status, spawn
         review_goal = (
             f"Review this verification result for a build.\n\n"
             f"Goal: {goal}\n\n"

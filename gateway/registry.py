@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 
-
 SPECIALIST_REGISTRY = {
     "electronics": "4dd4a44d-6ec1-4378-8126-06cae382d0c2",
     "audio_repair": "ac05f7c1-f341-449c-b520-80882fda3a8e",

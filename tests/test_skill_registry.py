@@ -1,15 +1,11 @@
 """Tests for skill_registry — discover, get, search, invoke."""
-import pytest
-from unittest.mock import patch, MagicMock
-from pathlib import Path
 
 from gateway.skill_registry import (
     _yaml_frontmatter,
-    _parse_skill_file,
     discover,
     get,
-    search,
     invoke,
+    search,
 )
 
 

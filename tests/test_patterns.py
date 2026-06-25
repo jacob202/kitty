@@ -1,7 +1,5 @@
 """Tests for gateway/patterns.py — longitudinal behavioral analysis."""
-import json
 import time
-from pathlib import Path
 from unittest.mock import patch
 
 
@@ -99,8 +97,9 @@ def test_get_insight_text_has_content():
 
 def test_analyze_peak_hour():
     """peak_hour identifies the most common interaction hour."""
-    from gateway.patterns import analyze
     import datetime as dt
+
+    from gateway.patterns import analyze
 
     # Build traces all at hour 14 (2pm)
     base = time.mktime(dt.datetime.now().replace(hour=14, minute=0, second=0).timetuple())

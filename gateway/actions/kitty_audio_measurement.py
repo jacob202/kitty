@@ -7,7 +7,6 @@ type: action
 
 import math
 from datetime import datetime
-from typing import Optional
 
 
 class Action:

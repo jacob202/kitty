@@ -138,7 +138,7 @@ def generate_source_summary(source_name: str, text_preview: str, doc_type: str) 
 
     try:
         data = json.loads(response_text)
-        
+
         # Normalize authority_score if it's on a 1-5 scale
         if "authority_score" in data:
             try:

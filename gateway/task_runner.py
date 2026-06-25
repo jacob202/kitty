@@ -23,7 +23,7 @@ import logging
 import sqlite3
 import time
 import uuid
-from typing import Optional, Any
+from typing import Any, Optional
 
 from gateway.paths import TASK_DB, TASK_OUTPUT_DIR
 
@@ -188,7 +188,8 @@ async def _execute(task_id: str) -> None:
 async def _run_research(goal: str, task_id: str) -> str:
     """Research task: use an explorer agent to investigate and report."""
     _update(task_id, progress="Running explorer agent...")
-    from gateway.agent_runner import spawn, get_output as agent_output, await_completion
+    from gateway.agent_runner import await_completion, spawn
+    from gateway.agent_runner import get_output as agent_output
 
     session_id = await spawn(goal, agent_type="researcher", max_iterations=4)
     _update(task_id, progress=f"Agent spawned (session {session_id}), running...")
@@ -218,7 +219,8 @@ async def _run_ingest(goal: str, task_id: str) -> str:
 async def _run_build(goal: str, task_id: str) -> str:
     """Build task: use a coder agent to generate code."""
     _update(task_id, progress="Running coder agent...")
-    from gateway.agent_runner import spawn, get_output as agent_output, await_completion
+    from gateway.agent_runner import await_completion, spawn
+    from gateway.agent_runner import get_output as agent_output
 
     session_id = await spawn(goal, agent_type="coder", max_iterations=5)
     _update(task_id, progress=f"Coder agent running (session {session_id})...")

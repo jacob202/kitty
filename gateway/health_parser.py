@@ -170,8 +170,10 @@ def ingest_to_knowledge(xml_path: str | Path) -> int:
     text = _format_summary_for_ingestion(summary)
 
     try:
+        import asyncio
+        import tempfile
+
         from gateway.knowledge import ingest
-        import tempfile, asyncio
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write(text)
             tmp_path = f.name

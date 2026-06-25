@@ -1,12 +1,14 @@
 """Mem0 memory wrapper for Kitty Gateway."""
 from __future__ import annotations
-import os
+
 import logging
+import os
 from typing import Optional
 
 logger = logging.getLogger("kitty.memory")
 
 from gateway.paths import DATA_DIR
+
 MEM0_DATA_DIR = DATA_DIR / "mem0"
 USER_ID = "jacob"
 

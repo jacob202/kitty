@@ -1,15 +1,16 @@
-import pytest
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
 from gateway.memory_graph import (
-    unified_context,
-    search_all,
-    MemoryAdapter,
-    KnowledgeAdapter,
-    JournalAdapter,
-    TracesAdapter,
-    TodosAdapter,
     InboxAdapter,
+    JournalAdapter,
+    KnowledgeAdapter,
+    MemoryAdapter,
+    TodosAdapter,
+    TracesAdapter,
+    search_all,
+    unified_context,
 )
 
 

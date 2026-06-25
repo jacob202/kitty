@@ -2,10 +2,9 @@ import os
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-from starlette.datastructures import Headers
 
-from gateway.constants import MAX_BODY_BYTES
 from gateway.app import app
+from gateway.constants import MAX_BODY_BYTES
 
 
 def _client():

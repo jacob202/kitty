@@ -22,9 +22,9 @@ import logging
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any
 
-from gateway.paths import INBOX_FILE, LOG_FILE, LOGS_DIR
+from gateway.paths import INBOX_FILE, LOG_FILE
 
 logger = logging.getLogger("kitty.memory_graph")
 

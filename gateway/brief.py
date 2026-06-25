@@ -1,5 +1,5 @@
-from gateway.paths import PROJECT_ROOT
 from gateway.journal import recent_entries
+from gateway.paths import PROJECT_ROOT
 
 try:
     import feedparser
@@ -9,8 +9,9 @@ import asyncio
 import logging
 import os
 import threading
-import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import requests
 
 # Optional: trafilatura pulls clean article body text from a URL so the brief
 # can be more than headline-only. Opt-in via BRIEF_ENRICH_ARTICLES=1 because it
@@ -29,7 +30,7 @@ _BODY_MAX_LEN = 800
 # Optional: tenacity gives the feed fetcher a tiny retry on transient
 # connection/timeout errors. If not installed, _retry_transient is a no-op.
 try:
-    from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
+    from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 
     _retry_transient = retry(
         stop=stop_after_attempt(2),
@@ -43,6 +44,7 @@ except ImportError:  # pragma: no cover - optional dependency
         return fn
 from datetime import datetime, timezone
 from typing import List, Optional
+
 from contracts.brief_item import NewsHeadline
 from gateway.model_digest import get_model_digest_section
 
@@ -571,7 +573,7 @@ def generate_brief() -> dict:
 
     # Push to phone if notify is configured
     try:
-        from gateway.notify import send_brief, is_configured
+        from gateway.notify import is_configured, send_brief
 
         if is_configured():
             send_brief(brief_text)

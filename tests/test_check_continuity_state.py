@@ -1,7 +1,6 @@
 """Contract tests for scripts/check_continuity_state.py."""
 import subprocess
 import sys
-from datetime import date, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent

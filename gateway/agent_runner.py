@@ -26,7 +26,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Optional, Any, Callable
+from typing import Any, Callable, Optional
 
 logger = logging.getLogger("kitty.agent_runner")
 
@@ -183,9 +183,9 @@ async def _run_agent_loop(
     use_algorithm: bool = True,
 ) -> None:
     """Core agent loop — runs in background, records all steps."""
-    from gateway.llm_client import call_llm, route_model
-    from gateway.autonomy_state import AutonomyState
     from gateway import algorithm
+    from gateway.autonomy_state import AutonomyState
+    from gateway.llm_client import call_llm, route_model
 
     if use_algorithm:
         system_prompt = algorithm.frame_prompt(system_prompt)
@@ -285,6 +285,7 @@ def get_status(session_id: int) -> dict[str, Any]:
 
     # Find session row
     import sqlite3
+
     from gateway.autonomy_state import STATE_DB
 
     with sqlite3.connect(STATE_DB) as conn:
@@ -330,6 +331,7 @@ def get_output(session_id: int) -> str:
 def list_agents(limit: int = 20) -> list[dict[str, Any]]:
     """List recent agents, newest first."""
     import sqlite3
+
     from gateway.autonomy_state import STATE_DB, init_db
 
     init_db()
@@ -359,6 +361,7 @@ def list_agents(limit: int = 20) -> list[dict[str, Any]]:
 def stop(session_id: int) -> bool:
     """Request an agent to stop. Returns True if it was running."""
     import sqlite3
+
     from gateway.autonomy_state import STATE_DB
 
     with sqlite3.connect(STATE_DB) as conn:

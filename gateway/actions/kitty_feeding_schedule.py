@@ -6,7 +6,6 @@ type: action
 """
 
 from datetime import datetime
-from typing import Optional
 
 
 class Action:
