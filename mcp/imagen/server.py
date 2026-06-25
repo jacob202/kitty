@@ -29,6 +29,7 @@ import shutil
 import time
 from pathlib import Path
 
+from mcp.imagen import aspects, metadata
 from mcp.server.fastmcp import FastMCP, Image
 
 OUTPUT_DIR = Path.home() / "Pictures" / "kitty-gen"
@@ -52,14 +53,19 @@ mcp = FastMCP(
     instructions=(
         "Generate and edit photorealistic images. Default to generate_image (Nano "
         "Banana) for new images and edit_image to refine them — both render inline and "
-        "save to ~/Pictures/kitty-gen/. The generate→look→edit loop is the intended "
+        "save to ~/Pictures/kitty-gen/ (a .json sidecar + manifest.jsonl entry are "
+        "written alongside). The generate→look→edit loop is the intended "
         "workflow: make an image, the user reacts, call edit_image with their change. "
         "To keep a subject consistent or composite images, use generate_with_reference. "
         "set_avatar pins a recurring character for generate_with_avatar. refine_image "
         "runs the generate→critique→edit loop automatically. variations makes alternates, "
         "make_gallery builds a browsable contact sheet. "
         "Use generate_image_imagen for batches of 1-4, generate_image_dalle for "
-        "illustrative/text-heavy prompts, generate_image_comfy for explicit NSFW."
+        "illustrative/text-heavy prompts, generate_image_comfy for explicit NSFW. "
+        "Aspect ratios accept aliases (cinemascope, portrait_phone, instagram_square, "
+        "etc.) — they resolve to the engine-native shape. "
+        "read_image_metadata / read_manifest / regenerate / open_in_viewer let you "
+        "recall past generations and re-roll with the same seed (ComfyUI only)."
     ),
 )
 
@@ -84,10 +90,19 @@ def _openai_client():
     return OpenAI(api_key=api_key)
 
 
-def _save(image_bytes: bytes, prefix: str) -> Path:
+def _save(image_bytes: bytes, prefix: str, *, sidecar: dict | None = None) -> Path:
+    """Save an image, optionally writing a sidecar + manifest entry.
+
+    If `sidecar` is provided, it's forwarded to `metadata.write_sidecar`
+    and the manifest is appended. Sidecar/manifest failures are logged
+    at WARNING but never raise — the gen still completes.
+    """
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     path = OUTPUT_DIR / f"{prefix}_{int(time.time() * 1000)}.png"
     path.write_bytes(image_bytes)
+    if sidecar is not None:
+        sc = metadata.write_sidecar(path, **sidecar)
+        metadata.append_manifest(path, sc)
     return path
 
 
@@ -243,13 +258,14 @@ def generate_image(
 
     full_prompt = prompt + (PHOTOREAL_SUFFIX if photorealistic else "")
     client = _gemini_client()
+    resolved_aspect = aspects.resolve(aspect_ratio, "nano_banana")
 
     response = client.models.generate_content(
         model=GEMINI_IMAGE_MODEL,
         contents=full_prompt,
         config=types.GenerateContentConfig(
             response_modalities=["IMAGE"],
-            image_config=types.ImageConfig(aspect_ratio=aspect_ratio),
+            image_config=types.ImageConfig(aspect_ratio=resolved_aspect),
         ),
     )
 
@@ -257,7 +273,16 @@ def generate_image(
     if data is None:
         return [f"No image generated. Model said: {_refusal_text(response)}"]
 
-    path = _save(data, "nano")
+    path = _save(
+        data,
+        "nano",
+        sidecar={
+            "prompt": full_prompt,
+            "engine": "nano_banana",
+            "model": GEMINI_IMAGE_MODEL,
+            "params": {"aspect_ratio": resolved_aspect, "photorealistic": photorealistic},
+        },
+    )
     return [
         Image(data=data, format="png"),
         f"Saved to: {path}\n(pass this path to edit_image to refine it)",
@@ -302,7 +327,17 @@ def edit_image(image_path: str, edit_prompt: str) -> list:
     if data is None:
         return [f"Edit produced no image. Model said: {_refusal_text(response)}"]
 
-    path = _save(data, "edit")
+    path = _save(
+        data,
+        "edit",
+        sidecar={
+            "prompt": edit_prompt,
+            "engine": "nano_banana",
+            "model": GEMINI_IMAGE_MODEL,
+            "parent_path": str(src),
+            "params": {"source_mime": mime},
+        },
+    )
     return [
         Image(data=data, format="png"),
         f"Saved to: {path}\n(pass this path back to edit_image to keep refining)",
@@ -331,12 +366,13 @@ def generate_image_imagen(
     from google.genai import types
 
     client = _gemini_client()
+    resolved_aspect = aspects.resolve(aspect_ratio, "imagen4")
     response = client.models.generate_images(
         model=IMAGEN_MODEL,
         prompt=prompt,
         config=types.GenerateImagesConfig(
             number_of_images=max(1, min(count, 4)),
-            aspect_ratio=aspect_ratio,
+            aspect_ratio=resolved_aspect,
             person_generation="ALLOW_ADULT",
         ),
     )
@@ -344,7 +380,16 @@ def generate_image_imagen(
     out: list = []
     for img in response.generated_images or []:
         data = img.image.image_bytes
-        path = _save(data, "imagen")
+        path = _save(
+            data,
+            "imagen",
+            sidecar={
+                "prompt": prompt,
+                "engine": "imagen4",
+                "model": IMAGEN_MODEL,
+                "params": {"aspect_ratio": resolved_aspect, "count": count},
+            },
+        )
         out.append(Image(data=data, format="png"))
         out.append(f"Saved to: {path}")
 
@@ -373,10 +418,11 @@ def generate_image_dalle(
     import httpx
 
     client = _openai_client()
+    resolved_size = aspects.resolve(size, "dalle")
     response = client.images.generate(
         model="dall-e-3",
         prompt=prompt,
-        size=size,  # type: ignore[arg-type]
+        size=resolved_size,  # type: ignore[arg-type]
         quality=quality,  # type: ignore[arg-type]
         n=1,
     )
@@ -386,7 +432,16 @@ def generate_image_dalle(
         return ["DALL-E returned no image URL."]
 
     data = httpx.get(url, timeout=60).content
-    path = _save(data, "dalle")
+    path = _save(
+        data,
+        "dalle",
+        sidecar={
+            "prompt": prompt,
+            "engine": "dalle",
+            "model": "dall-e-3",
+            "params": {"size": resolved_size, "quality": quality},
+        },
+    )
     result = [Image(data=data, format="png"), f"Saved to: {path}"]
 
     revised = response.data[0].revised_prompt
@@ -396,7 +451,7 @@ def generate_image_dalle(
 
 
 @mcp.tool()
-async def generate_image_comfy(prompt: str) -> list:
+async def generate_image_comfy(prompt: str, seed: int | None = None) -> list:
     """Generate an image using local ComfyUI (SD1.5 / SDXL). The only backend that allows
     full explicit NSFW; uses the LoRAs already configured in your ComfyUI. No API cost.
     Requires ComfyUI running at COMFY_URL (default http://127.0.0.1:8188). Renders inline.
@@ -410,6 +465,9 @@ async def generate_image_comfy(prompt: str) -> list:
 
     Args:
         prompt: Text description. Model and LoRA selection is automatic from keywords.
+        seed: Optional int. ComfyUI is the only engine with deterministic seeds —
+              same prompt + same seed produces byte-identical output (modulo any
+              randomness in the LoRA loaders). Default: random seed.
 
     Returns:
         The generated image (inline) plus its ComfyUI filename.
@@ -418,6 +476,10 @@ async def generate_image_comfy(prompt: str) -> list:
 
     p = _parse_comfy(prompt)
     workflow = _wf_sdxl(prompt, p) if p["sdxl"] else _wf_sd15(prompt, p)
+    if seed is not None:
+        # KSampler is keyed by node id "6" (SD15) or "5" (SDXL).
+        sampler_id = "5" if p["sdxl"] else "6"
+        workflow[sampler_id]["inputs"]["seed"] = int(seed)
 
     async with httpx.AsyncClient(timeout=30) as client:
         try:
@@ -450,7 +512,17 @@ async def generate_image_comfy(prompt: str) -> list:
         )
         data = view.content
 
-    _save(data, "comfy")
+    _save(
+        data,
+        "comfy",
+        sidecar={
+            "prompt": prompt,
+            "engine": "comfyui",
+            "model": "SDXL" if p["sdxl"] else "SD1.5",
+            "seed": int(seed) if seed is not None else None,
+            "params": {k: v for k, v in p.items() if k != "neg"},
+        },
+    )
     return [Image(data=data, format="png"), f"ComfyUI file: {filename}"]
 
 
@@ -489,7 +561,16 @@ def generate_with_reference(
     if data is None:
         return [f"No image generated. Model said: {refusal}"]
 
-    path = _save(data, "ref")
+    path = _save(
+        data,
+        "ref",
+        sidecar={
+            "prompt": prompt,
+            "engine": "nano_banana",
+            "model": GEMINI_IMAGE_MODEL,
+            "params": {"reference_paths": [str(p) for p in refs]},
+        },
+    )
     return [Image(data=data, format="png"), f"Saved to: {path}"]
 
 
@@ -533,7 +614,17 @@ def generate_with_avatar(prompt: str) -> list:
     if data is None:
         return [f"No image generated. Model said: {refusal}"]
 
-    path = _save(data, "avatar")
+    path = _save(
+        data,
+        "avatar",
+        sidecar={
+            "prompt": prompt,
+            "engine": "nano_banana",
+            "model": GEMINI_IMAGE_MODEL,
+            "parent_path": str(AVATAR_PATH),
+            "params": {"uses_avatar": True},
+        },
+    )
     return [Image(data=data, format="png"), f"Saved to: {path}"]
 
 
@@ -567,7 +658,17 @@ def variations(image_path: str, count: int = 3) -> list:
         if data is None:
             out.append(f"A variation failed: {refusal}")
             continue
-        path = _save(data, "var")
+        path = _save(
+            data,
+            "var",
+            sidecar={
+                "prompt": vary_prompt,
+                "engine": "nano_banana",
+                "model": GEMINI_IMAGE_MODEL,
+                "parent_path": str(src),
+                "params": {"variation_of": str(src)},
+            },
+        )
         out.append(Image(data=data, format="png"))
         out.append(f"Saved to: {path}")
 
@@ -630,7 +731,16 @@ def refine_image(prompt: str, target: str = "", max_rounds: int = 3) -> list:
             break
         data = new_data
 
-    path = _save(data, "refined")
+    path = _save(
+        data,
+        "refined",
+        sidecar={
+            "prompt": prompt,
+            "engine": "nano_banana",
+            "model": GEMINI_IMAGE_MODEL,
+            "params": {"target": goal, "rounds": len(trail)},
+        },
+    )
     return [
         Image(data=data, format="png"),
         f"Saved to: {path}\n\nCritique trail:\n" + "\n".join(trail),
@@ -672,6 +782,99 @@ def make_gallery() -> str:
     gallery = OUTPUT_DIR / "gallery.html"
     gallery.write_text(doc, encoding="utf-8")
     return f"Gallery written to {gallery} ({len(pngs)} images). Open it in a browser."
+
+
+# ---------------------------------------------------------------------------
+# Metadata tools (PR 4)
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+def read_image_metadata(path: str) -> dict | str:
+    """Read the sidecar JSON for a saved image. Returns the dict, or a
+    human-readable string if the sidecar is missing or unreadable.
+
+    Args:
+        path: Absolute path to the image file (the .json sidecar is loaded
+              from the same path + ".json").
+
+    Returns:
+        The sidecar dict (prompt, engine, model, seed, params, ts, parent_path,
+        tags) or a string message if no sidecar exists.
+    """
+    return metadata.read_image_metadata(path)
+
+
+@mcp.tool()
+def read_manifest(
+    engine: str | None = None,
+    since: float | None = None,
+    limit: int = 50,
+) -> list[dict]:
+    """Query the generation manifest. Returns the most recent `limit`
+    entries, optionally filtered by engine and `since` (epoch seconds).
+
+    The manifest is a denormalized cache for fast query; the sidecar
+    JSON files in `~/Pictures/kitty-gen/` are the source of truth.
+
+    Args:
+        engine: Filter to a specific engine ("nano_banana", "imagen4",
+                "dalle", "comfyui"). None for all.
+        since:  Lower bound on the generation timestamp (epoch seconds).
+                None for no lower bound.
+        limit:  Max rows to return. Default 50.
+
+    Returns:
+        List of manifest rows, newest first.
+    """
+    return metadata.read_manifest(engine=engine, since=since, limit=limit)
+
+
+@mcp.tool()
+def regenerate(
+    path: str,
+    prompt_override: str | None = None,
+    engine_override: str | None = None,
+) -> list:
+    """Re-run a generation from a saved image's metadata. Reads the
+    sidecar, then calls the appropriate engine with the saved prompt +
+    params. Useful for "I want a slight variation of the harbor image"
+    or "regenerate this with the same seed."
+
+    ComfyUI is the only engine with deterministic seeds. For others, the
+    seed is dropped and you get a non-reproducible re-roll (logged at
+    WARNING).
+
+    Args:
+        path: Absolute path to the saved image whose sidecar to re-run.
+        prompt_override: Replace the saved prompt with this string.
+        engine_override: Switch engines (risky — same prompt may produce
+                         very different results).
+
+    Returns:
+        New image path(s) and sidecar location(s), or a string error
+        message.
+    """
+    return metadata.regenerate(
+        path,
+        prompt_override=prompt_override,
+        engine_override=engine_override,
+    )
+
+
+@mcp.tool()
+def open_in_viewer(path: str) -> str:
+    """Open an image in the system viewer. macOS only — uses `open`
+    (Preview.app). On other platforms, returns a message saying so and
+    the user should open the file manually.
+
+    Args:
+        path: Absolute path to the image.
+
+    Returns:
+        A string status message.
+    """
+    return metadata.open_in_viewer(path)
 
 
 if __name__ == "__main__":
