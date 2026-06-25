@@ -1,5 +1,6 @@
 """Speech-to-text for Kitty Gateway — wraps faster-whisper."""
 from __future__ import annotations
+
 import io
 import logging
 from functools import lru_cache

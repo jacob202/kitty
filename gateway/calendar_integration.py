@@ -41,7 +41,7 @@ def _run_applescript(script: str) -> tuple[bool, str]:
 def _parse_event_lines(output: str) -> list[dict]:
     """Parse AppleScript output: each event is 3 lines: title, start, end."""
     events = []
-    lines = [l.strip() for l in output.split("\n") if l.strip()]
+    lines = [line.strip() for line in output.split("\n") if line.strip()]
     for i in range(0, len(lines), 3):
         if i + 2 < len(lines):
             events.append({
@@ -144,7 +144,7 @@ def get_upcoming_text(days: int = 7) -> str:
 def is_available() -> bool:
     """Check if Calendar integration is available (macOS only)."""
     try:
-        subprocess.run(["osascript", "-e", 'tell application "Calendar" to get name'], 
+        subprocess.run(["osascript", "-e", 'tell application "Calendar" to get name'],
                        capture_output=True, timeout=5)
         return True
     except Exception:

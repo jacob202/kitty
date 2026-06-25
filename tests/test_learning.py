@@ -1,9 +1,6 @@
 """Tests for gateway/learning.py — Socratic absorption tracking."""
 import json
-import time
-from pathlib import Path
 from unittest.mock import patch
-
 
 # ── init_stats ────────────────────────────────────────────────────────────────
 
@@ -104,7 +101,7 @@ def test_record_interaction_increments_absorption(tmp_path):
 
 def test_record_interaction_gate_triggers_at_5(tmp_path):
     """Returns True when tool_calls_since_gate reaches 5."""
-    from gateway.learning import init_stats, update_stats, record_interaction
+    from gateway.learning import init_stats, record_interaction, update_stats
     stats_file = tmp_path / "user_learning_stats.json"
 
     with patch("gateway.learning.STATS_FILE", stats_file):
@@ -129,7 +126,7 @@ def test_record_interaction_no_gate_below_5(tmp_path):
 
 def test_record_interaction_caps_absorption_at_100(tmp_path):
     """absorption_score doesn't exceed 100."""
-    from gateway.learning import init_stats, update_stats, record_interaction
+    from gateway.learning import init_stats, record_interaction, update_stats
     stats_file = tmp_path / "user_learning_stats.json"
 
     with patch("gateway.learning.STATS_FILE", stats_file):
@@ -159,7 +156,7 @@ def test_record_interaction_no_effect_without_flags(tmp_path):
 
 def test_process_gate_answer_correct_increments_gates_passed(tmp_path):
     """Correct gate answer increments gates_passed and resets tool counter."""
-    from gateway.learning import init_stats, update_stats, process_gate_answer
+    from gateway.learning import init_stats, process_gate_answer, update_stats
     stats_file = tmp_path / "user_learning_stats.json"
 
     llm_response = json.dumps({"correct": True, "feedback": "Good!", "level_up": False})

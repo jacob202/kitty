@@ -7,6 +7,9 @@ import os
 import re
 from pathlib import Path
 
+from contracts.knowledge_pipeline import VisualExtraction
+from gateway import vision
+
 logger = logging.getLogger("kitty.knowledge.clerk")
 
 
@@ -24,10 +27,6 @@ def preprocess_text(text: str) -> str:
 def _get_content_hash(text: str) -> str:
     """Generate SHA-256 hash of text."""
     return hashlib.sha256(text.encode("utf-8", errors="ignore")).hexdigest()
-
-
-from gateway import vision
-from contracts.knowledge_pipeline import VisualExtraction
 
 
 def _extract_visual_descriptions(path: Path) -> list[VisualExtraction]:
@@ -112,12 +111,12 @@ def _extract_rtf(path: Path) -> str:
 def _extract_epub(path: Path) -> str:
     """Extract text from EPUB files using ebooklib and BeautifulSoup."""
     try:
-        import ebooklib
-        from ebooklib import epub
-        from bs4 import BeautifulSoup
-
         # Suppress ebooklib warnings about non-standard EPUBs
         import warnings
+
+        import ebooklib
+        from bs4 import BeautifulSoup
+        from ebooklib import epub
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -145,9 +144,10 @@ def _extract_epub(path: Path) -> str:
 def _extract_mobi(path: Path) -> str:
     """Extract text from MOBI/AZW3 files using mobi and BeautifulSoup."""
     try:
-        import mobi
         import shutil
         import tempfile
+
+        import mobi
         from bs4 import BeautifulSoup
 
         with tempfile.TemporaryDirectory():

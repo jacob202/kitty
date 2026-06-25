@@ -103,13 +103,13 @@ async def check_now(watch_id: str) -> dict:
     with sqlite3.connect(MONITOR_DB) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute("SELECT * FROM watches WHERE id = ?", (watch_id,)).fetchone()
-    
+
     if not row:
         return {"error": "Watch not found"}
-    
+
     watch = _row_to_dict(row)
     result = await _check_watch(watch)
-    
+
     if result.get("changed"):
         _notify_match(watch, result)
 
@@ -129,7 +129,7 @@ async def _poll_loop() -> None:
         try:
             watches = list_watches()
             enabled = [w for w in watches if w.get("enabled")]
-            
+
             for watch in enabled:
                 try:
                     interval = watch.get("interval_minutes", 30) * 60
@@ -140,15 +140,15 @@ async def _poll_loop() -> None:
                             _notify_match(watch, result)
                 except Exception:
                     logger.exception("Watch check failed for %s", watch.get("id"))
-                
+
                 await asyncio.sleep(2)  # small gap between checks
-            
+
         except asyncio.CancelledError:
             logger.info("Web monitor polling stopped")
             return
         except Exception:
             logger.exception("Web monitor poll cycle error")
-        
+
         await asyncio.sleep(CHECK_INTERVAL_SECONDS)
 
 

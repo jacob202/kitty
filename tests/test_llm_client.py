@@ -1,8 +1,6 @@
 """Tests for gateway/llm_client.py — model routing and normalization helpers."""
 
-import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
-
+from unittest.mock import AsyncMock, MagicMock, patch
 
 # ── _post retry policy ───────────────────────────────────────────────────────
 
@@ -259,8 +257,9 @@ def test_call_llm_returns_content_on_success():
 
 def test_call_llm_falls_back_on_litellm_error():
     """call_llm falls back gracefully when LiteLLM connection is refused."""
-    from gateway.llm_client import call_llm
     import requests as req
+
+    from gateway.llm_client import call_llm
 
     with patch("requests.post", side_effect=req.exceptions.ConnectionError("refused")):
         with patch(

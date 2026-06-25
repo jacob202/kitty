@@ -7,6 +7,22 @@ natural-language editing. Imagen 4, DALL-E 3, and local ComfyUI are opt-in alter
 Every tool **renders the image inline in the chat** and saves a copy to
 `~/Pictures/kitty-gen/`, so the loop is: generate → look → "change X" → `edit_image`.
 
+## What's new (PR 3)
+
+- **Unified `generate`** — one tool replaces `generate_image`, `generate_image_imagen`,
+  `generate_image_dalle`, `generate_image_comfy`. Pass `engine="nano_banana"` (default),
+  `"imagen4"`, `"dalle"`, or `"comfyui"`.
+- **`batch_generate`** — N prompts in parallel via `asyncio.gather`. 10x speedup for
+  "generate these three scenes: a, b, c". Concurrency-limited (default 10) with a
+  semaphore to avoid rate-limiting.
+- **SHA256 cache** — identical `(prompt, engine, params)` calls return the cached path
+  instantly. Cache lives at `~/Pictures/kitty-gen/.cache/`. Clear it with
+  `rm -rf ~/Pictures/kitty-gen/.cache`.
+- **Retry with backoff** — all engine calls wrap in tenacity (3 attempts, exponential
+  backoff 1–10s). A single 429 from Gemini no longer fails the whole call.
+- **Structured refusals** — when a safety filter blocks a prompt, the tool returns
+  `{"blocked": True, "reason": "..."}` so the LLM can rephrase programmatically.
+
 ## Setup
 
 ```bash
@@ -47,11 +63,12 @@ just ask: *"generate a photo of a misty harbor at dawn"* or *"edit that — make
 
 | Tool | Engine | NSFW | Best for |
 |---|---|---|---|
-| `generate_image` | Nano Banana | Tasteful | **Default.** Photorealism. |
-| `edit_image` | Nano Banana | Tasteful | Refining an existing image by sentence |
-| `generate_with_reference` | Nano Banana | Tasteful | Keep a subject consistent across scenes; composite multiple images |
-| `refine_image` | Nano Banana + vision | Tasteful | Autonomous generate → critique → edit until it matches |
-| `variations` | Nano Banana | Tasteful | "More like this one" — alternate pose/angle/lighting |
+| `generate` | nano_banana (default) | Tasteful | **Default.** Photorealism. Pass `engine=` to switch. |
+| `edit_image` | nano_banana | Tasteful | Refining an existing image by sentence |
+| `batch_generate` | any | varies | N prompts in parallel |
+| `generate_with_reference` | nano_banana | Tasteful | Keep a subject consistent; composite images |
+| `refine_image` | nano_banana + vision | Tasteful | Autonomous generate → critique → edit loop |
+| `variations` | nano_banana | Tasteful | "More like this one" — alternate pose/angle/lighting |
 
 **Persistent character**
 
@@ -60,7 +77,7 @@ just ask: *"generate a photo of a misty harbor at dawn"* or *"edit that — make
 | `set_avatar` | Pin a reference image as a recurring character |
 | `generate_with_avatar` | Drop that character into any new scene |
 
-**Alternate engines & utilities**
+**Engines (pass as `engine=` to `generate` or `batch_generate`)**
 
 | Tool | Engine | NSFW | Best for |
 |---|---|---|---|
@@ -71,6 +88,16 @@ just ask: *"generate a photo of a misty harbor at dawn"* or *"edit that — make
 | `generate_image_dalle` | DALL-E 3 | ✗ | Creative/illustrative, text-in-image |
 | `generate_image_comfy` | ComfyUI (local) | Full/explicit | Explicit NSFW, custom LoRAs, $0 |
 | `make_gallery` | — | — | Browsable HTML contact sheet of all outputs |
+| Engine | NSFW | Best for |
+|---|---|---|
+| `nano_banana` (default) | Tasteful | Photorealism + editing + reference consistency |
+| `imagen4` | Tasteful (adults) | High-fidelity alternative |
+| `dalle` | ✗ | Creative/illustrative, text-in-image |
+| `comfyui` | Full/explicit | Explicit NSFW, custom LoRAs, $0 (needs ComfyUI running) |
+
+| Utility | Best for |
+|---|---|
+| `make_gallery` | Browsable HTML contact sheet of all outputs |
 
 ### The standout: consistency & compositing
 
@@ -87,11 +114,34 @@ just ask: *"generate a photo of a misty harbor at dawn"* or *"edit that — make
 result against `target` and either approves it or returns one concrete edit — applied and
 re-checked until it matches or rounds run out. You get the final image plus the critique trail.
 
+### Batch generation
+
+`batch_generate(["prompt a", "prompt b", "prompt c"], engine="nano_banana")` fires all
+three concurrently. Individual failures surface as error strings in the result list; the
+batch continues. Concurrency is limited to 10 by default (override with
+`concurrency_limit=`).
+
 ## Photorealism
 
-`generate_image` has `photorealistic=True` by default, which appends photographic cues
+`generate` has `photorealistic=True` by default, which appends photographic cues
 (DSLR, 85mm lens, natural lighting, depth of field) to your prompt. Set it `False` for
 illustrations, paintings, or cartoons.
+
+## Cache
+
+Identical `(prompt, engine, params)` calls hit a SHA256-keyed cache at
+`~/Pictures/kitty-gen/.cache/`. The cache key includes `model_name` so engine version
+changes implicitly invalidate. Clear it:
+
+```bash
+rm -rf ~/Pictures/kitty-gen/.cache
+```
+
+Disable it entirely:
+
+```bash
+IMAGEN_CACHE_ENABLED=0
+```
 
 ## Model drift
 

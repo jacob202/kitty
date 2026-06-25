@@ -1,7 +1,9 @@
 """Eval: does gateway inject memory and knowledge context into system prompt?"""
 
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
+
 from fastapi.testclient import TestClient
+
 from gateway.domain_router import classify_domain
 
 
@@ -18,7 +20,7 @@ def test_memory_and_knowledge_injected_into_system_prompt() -> None:
     with patch("gateway.prompt_loader.load_prompt", return_value="BASE SYSTEM"), \
          patch("gateway.context_builder.memory_graph.unified_context", new=AsyncMock(return_value="## Memory\n- Jacob lives in Regina\n\n## Knowledge\nRegina weather context")), \
          patch("httpx.AsyncClient.post", new=AsyncMock(return_value=mock_resp)) as mock_post:
-        
+
         from gateway.app import app
         with TestClient(app) as client:
             response = client.post(

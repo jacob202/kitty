@@ -1,5 +1,4 @@
 """Tests for the TELOS interview flow (user_context additions)."""
-import importlib
 
 import pytest
 

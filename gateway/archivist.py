@@ -4,9 +4,9 @@ import logging
 import re
 from functools import lru_cache
 
-logger = logging.getLogger("kitty.knowledge.archivist")
-
 from gateway.paths import DATA_DIR
+
+logger = logging.getLogger("kitty.knowledge.archivist")
 
 KNOWLEDGE_DB_PATH = DATA_DIR / "knowledge_db"
 COLLECTION_NAME = "kitty_knowledge"
@@ -33,10 +33,10 @@ def _embed(
 ) -> list[list[float]]:
     """Embed texts using nomic-embed-text via Ollama — batched to prevent timeouts."""
     import requests
-    
+
     batch_size = 50
     all_embeddings = []
-    
+
     for i in range(0, len(texts), batch_size):
         batch = texts[i : i + batch_size]
         try:
@@ -50,7 +50,7 @@ def _embed(
         except Exception as e:
             logger.error("Embedding batch failed at index %d: %s", i, e)
             raise
-            
+
     return all_embeddings
 
 
@@ -82,22 +82,22 @@ def is_high_quality(text: str) -> bool:
     """Heuristic check for chunk quality. Rejects junk/OCR noise."""
     if len(text) < 50:
         return False # Too short to be useful context
-    
+
     # Check for excessive non-alphanumeric characters (typical of OCR garble)
     alnum_count = sum(c.isalnum() for c in text)
     if alnum_count / len(text) < 0.6:
         return False
-        
+
     # Check for repetitive patterns (like navigation menus or page numbers)
     if text.count("\n") > (len(text) / 20):
         return False # Too many short lines
-        
+
     return True
 
 
 def _chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
     """Robust text chunking strategy.
-    
+
     Tries to split by paragraphs first, then falls back to word count.
     Ensures structural integrity where possible.
     """
@@ -106,28 +106,28 @@ def _chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
 
     # Try splitting by paragraph double-newlines
     paragraphs = re.split(r"\n\n+", text)
-    
+
     final_chunks = []
     current_chunk_words = []
-    
+
     for para in paragraphs:
         para_words = para.split()
         if not para_words:
             continue
-            
+
         # If adding this paragraph exceeds chunk size, and we already have words, emit current chunk
         if len(current_chunk_words) + len(para_words) > chunk_size and current_chunk_words:
             final_chunks.append(" ".join(current_chunk_words))
             # Keep overlap words from the end
             current_chunk_words = current_chunk_words[-overlap:] if overlap < len(current_chunk_words) else current_chunk_words
-            
+
         # If the paragraph itself is larger than chunk size, split it by words
         if len(para_words) > chunk_size:
             # First, add what we have
             if current_chunk_words:
                 final_chunks.append(" ".join(current_chunk_words))
                 current_chunk_words = []
-                
+
             # Then split the giant paragraph
             i = 0
             while i < len(para_words):
@@ -136,8 +136,8 @@ def _chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
                 i += chunk_size - overlap
         else:
             current_chunk_words.extend(para_words)
-            
+
     if current_chunk_words:
         final_chunks.append(" ".join(current_chunk_words))
-        
+
     return [c for c in final_chunks if c.strip()]

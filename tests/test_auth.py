@@ -1,8 +1,10 @@
 # tests/test_auth.py
-import os
 import logging
+import os
 from unittest.mock import patch
+
 from fastapi.testclient import TestClient
+
 from gateway.app import app
 from gateway.paths import validate_env
 

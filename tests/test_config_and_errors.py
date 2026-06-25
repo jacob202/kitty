@@ -6,7 +6,6 @@ import pytest
 
 from gateway import config, errors
 
-
 # --- config: env-var helpers ---
 
 

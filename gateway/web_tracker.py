@@ -14,8 +14,8 @@ from typing import List
 from gateway.paths import DATA_DIR
 
 try:
-    from sentence_transformers import SentenceTransformer
     import numpy as np
+    from sentence_transformers import SentenceTransformer
     TRACKER_AVAILABLE = True
 except Exception as exc:
     TRACKER_AVAILABLE = False
@@ -43,16 +43,16 @@ class WebChangeTracker:
         if not TRACKER_AVAILABLE:
             logger.warning("Tracker not available - using mock capture")
             return str(self.tracker_dir / "mock_snapshot.json")
-        
+
         url_hash = hashlib.md5(url.encode()).hexdigest()[:12]
         snapshot_file = self.tracker_dir / f"{url_hash}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        
+
         try:
             emb = self.encoder.encode([content[:2000]])[0].tolist()
         except Exception as e:
             logger.warning(f"Embedding failed: {e}")
             emb = [0.0] * 384  # Fallback zero vector
-        
+
         snapshot = {
             "url": url,
             "timestamp": datetime.now().isoformat(),
@@ -70,22 +70,22 @@ class WebChangeTracker:
 
         url_hash = hashlib.md5(url.encode()).hexdigest()[:12]
         snapshots = sorted(self.tracker_dir.glob(f"{url_hash}_*.json"))
-        
+
         if len(snapshots) < 2:
             return "No previous snapshot to compare against."
-        
+
         prev = json.loads(snapshots[-2].read_text())
         curr = json.loads(snapshots[-1].read_text())
-        
+
         # Compute cosine similarity
         prev_emb = np.array(prev.get("embedding", []))
         curr_emb = np.array(curr.get("embedding", []))
-        
+
         if len(prev_emb) == 0 or len(curr_emb) == 0:
             return "No embedding data available for comparison."
-        
+
         similarity = np.dot(prev_emb, curr_emb) / (np.linalg.norm(prev_emb) * np.linalg.norm(curr_emb) + 1e-9)
-        
+
         return (
             f"Content similarity: {similarity:.2%}\n\n"
             f"Previous ({prev['timestamp']}):\n{prev['content_preview'][:500]}\n\n"
@@ -96,7 +96,7 @@ class WebChangeTracker:
         """Get all snapshots for a URL."""
         url_hash = hashlib.md5(url.encode()).hexdigest()[:12]
         snapshots = sorted(self.tracker_dir.glob(f"{url_hash}_*.json"))
-        
+
         result = []
         for snap_file in snapshots:
             try:
@@ -104,7 +104,7 @@ class WebChangeTracker:
                 result.append(data)
             except Exception as e:
                 logger.warning(f"Could not read snapshot {snap_file}: {e}")
-        
+
         return result
 
     def list_tracked_urls(self) -> List[str]:

@@ -1,9 +1,10 @@
 """Tests for voice_gate — SOUL.md compliance filtering before response delivery."""
 import pytest
+
 from gateway.voice_gate import (
+    VoiceGateResult,
     check,
     filter_response,
-    VoiceGateResult,
     get_drift_nudge,
     record_drift,
     reset_drift_counter,

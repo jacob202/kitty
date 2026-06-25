@@ -1,7 +1,5 @@
 """Tests for gateway STT and TTS modules."""
-import io
 from unittest.mock import MagicMock, patch
-
 
 # ── STT ──────────────────────────────────────────────────────────────────────
 
@@ -120,8 +118,9 @@ def test_synthesize_default_speed_is_zero_pct():
 # ── Gateway endpoints ─────────────────────────────────────────────────────────
 
 def test_stt_endpoint_returns_text():
-    import gateway.stt as stt
     from fastapi.testclient import TestClient
+
+    import gateway.stt as stt
     from gateway.app import app
     stt._get_model.cache_clear()
 
@@ -147,9 +146,9 @@ def test_stt_endpoint_returns_text():
 
 
 def test_tts_endpoint_returns_audio():
-    import asyncio
-    import gateway.tts as t
     from fastapi.testclient import TestClient
+
+    import gateway.tts as t
     from gateway.app import app
 
     async def fake_synthesize(*args, **kwargs):
@@ -169,6 +168,7 @@ def test_tts_endpoint_returns_audio():
 
 def test_tts_endpoint_empty_input():
     from fastapi.testclient import TestClient
+
     from gateway.app import app
     client = TestClient(app)
     resp = client.post(

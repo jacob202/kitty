@@ -1,26 +1,27 @@
 """Tests for the unified memory graph."""
 
-import pytest
 import asyncio
 import json
 import time
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock, patch
+
+import pytest
 
 import gateway.memory_graph as memory_graph_module
 from gateway.memory_graph import (
-    unified_context,
-    search_all,
     CONTEXT_TOKEN_CAP,
-    MemoryGraph,
     GraphResult,
-    MemoryAdapter,
-    KnowledgeAdapter,
-    JournalAdapter,
-    TracesAdapter,
-    TodosAdapter,
     InboxAdapter,
+    JournalAdapter,
+    KnowledgeAdapter,
+    MemoryAdapter,
+    MemoryGraph,
     StoreAdapter,
+    TodosAdapter,
+    TracesAdapter,
     _fetch_traces,
+    search_all,
+    unified_context,
 )
 
 

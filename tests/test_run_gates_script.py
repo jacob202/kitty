@@ -2,8 +2,6 @@
 Gate contract tests — verify that the project's required files and structural
 invariants are in place. These run in CI with only pytest installed (no gateway deps).
 """
-import os
-import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent

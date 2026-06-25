@@ -19,7 +19,7 @@ import logging
 import sqlite3
 import time
 import uuid
-from typing import Optional, Callable, Awaitable
+from typing import Awaitable, Callable, Optional
 
 from gateway.paths import DATA_DIR
 

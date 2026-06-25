@@ -37,7 +37,7 @@ class AsyncFeedback:
         }
         with open(self.notify_file, "a") as f:
             f.write(json.dumps(entry) + "\n")
-        
+
         # Terminal notification
         print(f"\a🔔 Kitty: {message}")
         logger.info(f"Notification: {message}")
@@ -47,7 +47,7 @@ class AsyncFeedback:
         feedback_file = self.feedback_dir / f"{Path(artifact_path).stem}_feedback.jsonl"
         if not feedback_file.exists():
             return []
-        
+
         comments = []
         with open(feedback_file) as f:
             for line in f:
@@ -72,20 +72,20 @@ class AsyncFeedback:
         """Get recent notifications."""
         if not self.notify_file.exists():
             return []
-        
+
         notifications = []
         with open(self.notify_file) as f:
             for line in f:
                 entry = json.loads(line.strip())
                 notifications.append(entry)
-        
+
         return notifications[-limit:]
 
     def mark_acknowledged(self, artifact_path: str):
         """Mark all notifications for an artifact as acknowledged."""
         if not self.notify_file.exists():
             return
-        
+
         entries = []
         with open(self.notify_file) as f:
             for line in f:
@@ -93,7 +93,7 @@ class AsyncFeedback:
                 if entry.get("artifact") == artifact_path:
                     entry["acknowledged"] = True
                 entries.append(entry)
-        
+
         with open(self.notify_file, "w") as f:
             for entry in entries:
                 f.write(json.dumps(entry) + "\n")

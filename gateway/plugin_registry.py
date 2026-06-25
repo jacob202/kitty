@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Optional, Callable
+from typing import Callable, Optional
 
 from gateway import db as kitty_db
 from gateway.paths import DATA_DIR, KITTY_DB_FILE

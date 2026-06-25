@@ -4,6 +4,7 @@ Default backend: keyword scorer. Drop in an embedding-based or LLM-based
 classifier by passing a ``DomainClassifier`` instance to ``classify_domain()``.
 """
 from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from functools import lru_cache
 from typing import Optional

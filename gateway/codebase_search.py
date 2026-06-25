@@ -40,7 +40,7 @@ class CodebaseSearch:
         self.project_root = Path(project_root).resolve()
         self.chroma_dir = KITTY_DIR / "codebase_index"
         self.indexed_files: Dict[str, str] = {}  # path → hash
-        
+
         if CHROMA_AVAILABLE:
             self.client = chromadb.Client(
                 ChromaSettings(persist_directory=str(self.chroma_dir), anonymized_telemetry=False)
@@ -57,28 +57,28 @@ class CodebaseSearch:
         """Index a single file for semantic search."""
         if not CHROMA_AVAILABLE:
             return False
-            
+
         full_path = self.project_root / filepath
         if not full_path.exists() or full_path.suffix not in self.VALID_EXTENSIONS:
             return False
-        
+
         try:
             content = full_path.read_text(errors="ignore")
         except Exception as e:
             logger.warning(f"Could not read {filepath}: {e}")
             return False
-        
+
         file_hash = hashlib.md5(content.encode()).hexdigest()
         if filepath in self.indexed_files and self.indexed_files[filepath] == file_hash:
             return True  # Already indexed and unchanged
-        
+
         # Chunk by function/class boundaries (simple: split by double newline)
         chunks = content.split("\n\n")
         indexed_count = 0
         for i, chunk in enumerate(chunks):
             if len(chunk.strip()) < 20:
                 continue
-            
+
             chunk_id = f"{filepath}:{i}"
             try:
                 emb = self.encoder.encode([chunk])[0].tolist()
@@ -91,7 +91,7 @@ class CodebaseSearch:
                 indexed_count += 1
             except Exception as e:
                 logger.warning(f"Could not index chunk from {filepath}: {e}")
-        
+
         self.indexed_files[filepath] = file_hash
         logger.info(f"Indexed {filepath}: {indexed_count} chunks")
         return True
@@ -101,11 +101,11 @@ class CodebaseSearch:
         if not CHROMA_AVAILABLE:
             logger.warning("Cannot index - ChromaDB not available")
             return 0
-        
+
         files = list(self.project_root.rglob("*"))
         files = [f for f in files if f.is_file() and f.suffix in self.VALID_EXTENSIONS]
         files = files[:max_files]
-        
+
         indexed = 0
         for fp in files:
             rel = str(fp.relative_to(self.project_root))
@@ -114,7 +114,7 @@ class CodebaseSearch:
                     indexed += 1
             except Exception as e:
                 logger.warning(f"Could not index {rel}: {e}")
-        
+
         logger.info(f"Indexed {indexed}/{len(files)} files for semantic search.")
         return indexed
 
@@ -122,15 +122,15 @@ class CodebaseSearch:
         """Semantic search across indexed code."""
         if not CHROMA_AVAILABLE:
             return []
-        
+
         try:
             q_emb = self.encoder.encode([query])[0].tolist()
             results = self.collection.query(query_embeddings=[q_emb], n_results=top_k)
-            
+
             out = []
             docs = results.get("documents", [[]])[0]
             metas = results.get("metadatas", [[]])[0]
-            
+
             for doc, meta in zip(docs, metas):
                 out.append({
                     "source": meta.get("source", "unknown"),

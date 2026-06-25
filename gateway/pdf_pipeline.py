@@ -4,6 +4,7 @@ Inline image vision is opt-in because the main knowledge pipeline already has a
 separate vision-enrichment stage for manuals and other high-value PDFs.
 """
 from __future__ import annotations
+
 import logging
 import os
 from pathlib import Path

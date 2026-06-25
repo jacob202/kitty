@@ -38,9 +38,9 @@ async def create_monitor(url: str, interval: int = 300):
 
     # Try to register with web_monitor
     try:
-        from gateway.web_monitor import create_watch
-        watch = create_watch(url, interval)
-        return watch
+        from gateway.web_monitor import add_watch
+        new_monitor["watch_id"] = add_watch(url, interval_minutes=interval)
+        return new_monitor
     except (ImportError, AttributeError):
         return new_monitor
 
@@ -52,8 +52,8 @@ async def delete_monitor(monitor_id: str):
     _monitors = [m for m in _monitors if m.get("watch_id") != monitor_id]
 
     try:
-        from gateway.web_monitor import delete_watch
-        delete_watch(monitor_id)
+        from gateway.web_monitor import remove_watch
+        remove_watch(monitor_id)
     except (ImportError, AttributeError):
         pass
 

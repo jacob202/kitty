@@ -1,12 +1,13 @@
 """Tests for gateway.brief and gateway.notify."""
 
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 
 def test_brief_item_contract():
-    from contracts.brief_item import BriefItem, NewsHeadline
     from datetime import datetime
+
+    from contracts.brief_item import BriefItem, NewsHeadline
 
     item = BriefItem(
         date="2026-05-09",
@@ -24,6 +25,7 @@ def test_brief_item_contract():
 
 def test_fetch_news_returns_headlines_on_success():
     import pytest
+
     import gateway.brief as b
 
     if b.feedparser is None:
@@ -49,6 +51,7 @@ def test_fetch_news_returns_headlines_on_success():
 
 def test_fetch_news_handles_feed_error():
     import pytest
+
     import gateway.brief as b
 
     if b.feedparser is None:

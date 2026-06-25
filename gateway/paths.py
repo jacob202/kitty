@@ -44,8 +44,8 @@ LITELLM_KEY = _os.environ.get("LITELLM_KEY", "kitty-local-key-change-me")
 
 def validate_env() -> None:
     """Warn at startup if security-critical env vars are missing."""
-    import os
     import logging
+    import os
     log = logging.getLogger("kitty.startup")
     if not os.environ.get("GATEWAY_SECRET"):
         log.warning(

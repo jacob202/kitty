@@ -1,5 +1,4 @@
 """The PAI-derived reasoning skills are discoverable and clean."""
-from pathlib import Path
 
 import pytest
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+
 from fastapi import APIRouter, HTTPException
 
 router = APIRouter(tags=["loops"])
@@ -88,7 +89,7 @@ async def delete_loop(loop_id: str):
     """Delete a loop."""
     global _loops
     initial_len = len(_loops)
-    _loops = [l for l in _loops if l["loop_id"] != loop_id]
+    _loops = [loop for loop in _loops if loop["loop_id"] != loop_id]
     if len(_loops) == initial_len:
         raise HTTPException(status_code=404, detail="Loop not found")
     return {"deleted": loop_id}

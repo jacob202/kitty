@@ -1,12 +1,14 @@
 """Tests for Kitty memory layer."""
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 
 def test_memory_event_schema():
     """MemoryEvent validates correctly."""
-    from contracts.memory_event import MemoryEvent, MemoryNamespace, MemorySensitivity
     from datetime import datetime
+
+    from contracts.memory_event import MemoryEvent, MemoryNamespace, MemorySensitivity
     event = MemoryEvent(
         text="Jacob owns a 2010 Honda Civic",
         namespace=MemoryNamespace.FACTS,
@@ -38,8 +40,8 @@ def test_get_context_block_empty_on_no_results():
         mock_instance = MagicMock()
         mock_instance.search.return_value = {"results": []}
         mock_mem.return_value = mock_instance
-        from gateway.memory import get_context_block
         import gateway.memory
+        from gateway.memory import get_context_block
         gateway.memory._get_memory.cache_clear()  # clear lru_cache
         with patch("gateway.memory._get_memory", return_value=mock_instance):
             result = get_context_block("test query")

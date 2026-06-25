@@ -15,7 +15,6 @@ from gateway.domain_router import classify_domain
 from gateway.http_client import get_http_client
 from gateway.llm_client import (
     chat_completions_non_stream,
-    extract_assistant_text,
     iter_chat_completions_stream,
     log_chat_trace,
     route_model,
@@ -33,7 +32,12 @@ class CloseSessionRequest(BaseModel):
 
 @router.post("/v1/chat/completions")
 async def chat_completions(request: Request):
-    from gateway.buddy import on_request_start, on_request_success, on_request_error, on_context_fetch
+    from gateway.buddy import (
+        on_context_fetch,
+        on_request_error,
+        on_request_start,
+        on_request_success,
+    )
 
     content_length = request.headers.get("content-length")
     if content_length and int(content_length) > MAX_BODY_BYTES:

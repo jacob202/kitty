@@ -1,12 +1,11 @@
 """Tests for gateway/cron.py — schedule CRUD and toggle."""
 import time
-import pytest
-from unittest.mock import AsyncMock, patch
 
 
 def _clear_db():
-    from gateway.cron import CRON_DB, init_db
     import sqlite3
+
+    from gateway.cron import CRON_DB, init_db
     init_db()
     with sqlite3.connect(CRON_DB) as conn:
         conn.execute("DELETE FROM schedules")
@@ -22,14 +21,14 @@ class TestSchedule:
 
     def test_schedule_appears_in_list(self):
         _clear_db()
-        from gateway.cron import schedule, list_schedules
+        from gateway.cron import list_schedules, schedule
         schedule("my job", "nudges.check", "interval", "60")
         rows = list_schedules()
         assert any(r["name"] == "my job" for r in rows)
 
     def test_schedule_defaults(self):
         _clear_db()
-        from gateway.cron import schedule, list_schedules
+        from gateway.cron import list_schedules, schedule
         schedule("default-test", "brief.refresh")
         row = list_schedules()[0]
         assert row["schedule_type"] == "daily"
@@ -40,7 +39,7 @@ class TestSchedule:
 class TestRemove:
     def test_remove_existing(self):
         _clear_db()
-        from gateway.cron import schedule, remove, list_schedules
+        from gateway.cron import list_schedules, remove, schedule
         sid = schedule("to remove", "brief.refresh")
         assert remove(sid) is True
         assert not any(r["id"] == sid for r in list_schedules())
@@ -54,7 +53,7 @@ class TestRemove:
 class TestToggle:
     def test_toggle_disables(self):
         _clear_db()
-        from gateway.cron import schedule, toggle, list_schedules
+        from gateway.cron import list_schedules, schedule, toggle
         sid = schedule("toggle-me", "nudges.check")
         state = toggle(sid)
         assert state is False
@@ -100,7 +99,7 @@ class TestGetActions:
         assert isinstance(result, list)
 
     def test_register_and_get(self):
-        from gateway.cron import register_action, get_actions
+        from gateway.cron import get_actions, register_action
         async def _noop(): pass
         register_action("test.noop", _noop)
         assert "test.noop" in get_actions()

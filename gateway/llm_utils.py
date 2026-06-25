@@ -1,5 +1,5 @@
-import time
 import logging
+import time
 from typing import Callable
 
 logger = logging.getLogger("kitty.llm_utils")
@@ -19,7 +19,7 @@ def retry_with_backoff(func: Callable, max_retries: int = 3, base_delay: float =
                         is_429 = True
                 elif "429" in str(e):
                     is_429 = True
-                
+
                 if is_429 and retries < max_retries:
                     delay = min(base_delay * (2 ** retries), max_delay)
                     logger.warning("LLM rate limit (429) hit. Retrying in %.1fs (attempt %d/%d)...", delay, retries + 1, max_retries)

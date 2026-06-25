@@ -1,15 +1,11 @@
 """Tests for skill_registry — discover, get, search, invoke."""
-import pytest
-from unittest.mock import patch, MagicMock
-from pathlib import Path
 
 from gateway.skill_registry import (
     _yaml_frontmatter,
-    _parse_skill_file,
     discover,
     get,
-    search,
     invoke,
+    search,
 )
 
 
@@ -47,7 +43,7 @@ class TestDiscover:
         assert s1 == s2  # same content from cache
 
     def test_discover_force_refresh(self):
-        s1 = discover()
+        discover()
         s2 = discover(force_refresh=True)
         assert len(s2) >= 1
 

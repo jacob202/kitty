@@ -28,7 +28,7 @@ def parse_agents_md(content: str) -> Dict[str, dict]:
     agents = {}
     current_role = None
     current_content = []
-    
+
     for line in content.split("\n"):
         # Check for role header: ## @rolename
         if line.startswith("## ") and "@" in line:
@@ -44,14 +44,14 @@ def parse_agents_md(content: str) -> Dict[str, dict]:
             current_content = []
         elif current_role:
             current_content.append(line)
-    
+
     # Don't forget the last role
     if current_role:
         agents[current_role] = {
             "role": current_role,
             "prompt": "\n".join(current_content).strip(),
         }
-    
+
     return agents
 
 

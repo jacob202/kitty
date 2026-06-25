@@ -60,11 +60,11 @@ class TaskBoundary:
         """Update task progress — like task_boundary update."""
         if status not in VALID_STATUSES:
             raise ValueError(f"Invalid status: {status}. Valid: {VALID_STATUSES}")
-        
+
         entry = self.active_tasks.get(task_id, {})
         if not entry:
             raise ValueError(f"Task not found: {task_id}")
-        
+
         entry["status"] = status
         entry["progress_summary"] = summary
         entry["updates"].append({
@@ -80,7 +80,7 @@ class TaskBoundary:
         entry = self.active_tasks.get(task_id, {})
         if not entry:
             raise ValueError(f"Task not found: {task_id}")
-        
+
         entry["status"] = "completed" if success else "blocked"
         entry["progress_summary"] = final_summary
         entry["closed_at"] = datetime.now().isoformat()

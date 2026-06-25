@@ -1,7 +1,7 @@
 """Tests for imessage — AppleScript bridge."""
-import pytest
 from unittest.mock import patch
-from gateway.imessage import send, read_recent, is_available, _run_applescript
+
+from gateway.imessage import is_available, read_recent, send
 
 
 class TestSend:

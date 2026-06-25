@@ -1,5 +1,5 @@
 """Tests for the three self-review signals."""
-from gateway.self_review import log_drift, log_reaction, _classify_signal
+from gateway.self_review import _classify_signal, log_drift, log_reaction
 
 
 def test_drift_passes_clean_response():

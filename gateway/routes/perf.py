@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import json
 import time
-from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List
 
 from fastapi import APIRouter
 
@@ -31,10 +30,10 @@ def log_perf_stat(stat: Dict[str, Any]) -> None:
 async def get_perf_stats(window_hours: int = 24) -> Dict[str, Any]:
     """Get performance statistics for the last N hours."""
     from gateway.cron import list_schedules
-    
+
     # Get cron status
     schedules = list_schedules()
-    
+
     # Read recent perf logs
     stats: List[Dict[str, Any]] = []
     if PERF_LOG.exists():
@@ -50,11 +49,11 @@ async def get_perf_stats(window_hours: int = 24) -> Dict[str, Any]:
                         continue
         except Exception:
             pass
-    
+
     # Calculate aggregates
     latencies = [s.get("latency_ms", 0) for s in stats if "latency_ms" in s]
     token_usages = [s.get("tokens", 0) for s in stats if "tokens" in s]
-    
+
     return {
         "window_hours": window_hours,
         "total_requests": len(stats),
@@ -83,5 +82,5 @@ async def get_recent_stats(limit: int = 50) -> Dict[str, Any]:
                         continue
         except Exception:
             pass
-    
+
     return {"stats": stats[:limit], "count": len(stats)}
