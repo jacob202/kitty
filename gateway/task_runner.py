@@ -206,11 +206,11 @@ async def _run_research(goal: str, task_id: str) -> str:
 async def _run_ingest(goal: str, task_id: str) -> str:
     """Ingest task: queue documents for knowledge base ingestion."""
     _update(task_id, progress="Queueing ingestion...")
-    from gateway.ingestion_queue import enqueue
+    from gateway.ingestion_queue import enqueue_file
 
     try:
         # goal is a file path or directory path to ingest
-        enqueue(goal)
+        enqueue_file(goal)
         return f"Ingestion queued for: {goal}"
     except Exception as e:
         return f"Ingestion failed: {e}"
