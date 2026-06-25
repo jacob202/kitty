@@ -20,12 +20,12 @@ from typing import Any
 import requests
 from dotenv import load_dotenv
 
-logger = logging.getLogger("kitty.llm_client")
-
 from gateway.llm_utils import retry_with_backoff
 from gateway.paths import LITELLM_BASE, LITELLM_KEY
 from gateway.settings import get_settings
 from gateway.token_usage_log import log_llm_usage, normalize_usage_payload
+
+logger = logging.getLogger("kitty.llm_client")
 
 # Cap how long a single provider may spend establishing a connection, and bound
 # the total wall-clock time the whole fallback chain may burn. Without these, six

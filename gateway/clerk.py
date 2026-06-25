@@ -7,6 +7,9 @@ import os
 import re
 from pathlib import Path
 
+from contracts.knowledge_pipeline import VisualExtraction
+from gateway import vision
+
 logger = logging.getLogger("kitty.knowledge.clerk")
 
 
@@ -24,10 +27,6 @@ def preprocess_text(text: str) -> str:
 def _get_content_hash(text: str) -> str:
     """Generate SHA-256 hash of text."""
     return hashlib.sha256(text.encode("utf-8", errors="ignore")).hexdigest()
-
-
-from contracts.knowledge_pipeline import VisualExtraction
-from gateway import vision
 
 
 def _extract_visual_descriptions(path: Path) -> list[VisualExtraction]:

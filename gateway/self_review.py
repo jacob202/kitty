@@ -12,11 +12,12 @@ from __future__ import annotations
 import json
 import logging
 import time
-
-logger = logging.getLogger("kitty.self_review")
+from pathlib import Path
 
 from gateway.paths import CONFIG_DIR
 from gateway.paths import DATA_DIR as _GATEWAY_DATA_DIR
+
+logger = logging.getLogger("kitty.self_review")
 
 DATA_DIR = _GATEWAY_DATA_DIR / "kitty"
 DRIFT_LOG = DATA_DIR / "drift_log.jsonl"

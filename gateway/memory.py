@@ -5,9 +5,9 @@ import logging
 import os
 from typing import Optional
 
-logger = logging.getLogger("kitty.memory")
-
 from gateway.paths import DATA_DIR
+
+logger = logging.getLogger("kitty.memory")
 
 MEM0_DATA_DIR = DATA_DIR / "mem0"
 USER_ID = "jacob"
@@ -83,9 +83,9 @@ def _get_memory():
 def add_memory(text: str, namespace: str = "facts", metadata: Optional[dict] = None) -> None:
     """
     Persist a memory entry for the module user.
-    
+
     Attempts to store `text` in the memory backend under the given `namespace`. This is a best-effort operation: initialization or storage errors are logged as non-fatal warnings and the function returns without raising.
-    
+
     Parameters:
         text (str): The memory content to store.
         namespace (str): Logical namespace for the memory (default: "facts").

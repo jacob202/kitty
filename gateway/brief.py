@@ -1,4 +1,9 @@
+from datetime import datetime, timezone
+from typing import List, Optional
+
+from contracts.brief_item import NewsHeadline
 from gateway.journal import recent_entries
+from gateway.model_digest import get_model_digest_section
 from gateway.paths import PROJECT_ROOT
 
 try:
@@ -42,11 +47,7 @@ except ImportError:  # pragma: no cover - optional dependency
 
     def _retry_transient(fn):  # type: ignore[misc]
         return fn
-from datetime import datetime, timezone
-from typing import List, Optional
 
-from contracts.brief_item import NewsHeadline
-from gateway.model_digest import get_model_digest_section
 
 logger = logging.getLogger("kitty.brief")
 FEED_TIMEOUT_SECONDS = 1.25

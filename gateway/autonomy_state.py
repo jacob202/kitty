@@ -1,6 +1,6 @@
 """Autonomy State Layer for Kitty.
 
-Provides persistent memory of 'thinking' and tool execution history 
+Provides persistent memory of 'thinking' and tool execution history
 across long reasoning cycles (10+ turns).
 """
 from __future__ import annotations

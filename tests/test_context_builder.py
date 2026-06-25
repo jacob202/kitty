@@ -10,6 +10,7 @@ from gateway.context_builder import (
     build_worker_context,
     get_system_prompt,
 )
+from gateway.memory_graph import _format_unified, _truncate
 
 # ---------------------------------------------------------------------------
 # Unit tests — pure functions
@@ -79,8 +80,6 @@ async def test_enrich_dynamic_context_appends_block():
 # ---------------------------------------------------------------------------
 # Unified memory_graph unit tests
 # ---------------------------------------------------------------------------
-
-from gateway.memory_graph import _format_unified, _truncate
 
 
 def test_truncate_short_text_unchanged():

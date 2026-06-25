@@ -5,9 +5,10 @@ import os
 import re
 from pathlib import Path
 
-logger = logging.getLogger("kitty.knowledge.librarian")
-
+from contracts.knowledge_pipeline import LibrarianReport
 from gateway.llm_client import call_llm
+
+logger = logging.getLogger("kitty.knowledge.librarian")
 
 # Chunk sizes tuned per document type
 _CHUNK_PROFILES = {
@@ -62,8 +63,6 @@ def detect_doc_type(path: Path, text_preview: str = "") -> str:
     return "general"
 
 
-from contracts.knowledge_pipeline import LibrarianReport
-
 _FAST_PATH_TYPES = {"session_log", "data_table"}
 
 
@@ -85,22 +84,22 @@ def generate_source_summary(source_name: str, text_preview: str, doc_type: str) 
         return LibrarianReport(**default_data)
 
     prompt = f"""Analyze this source preview for a high-leverage personal knowledge base.
-    
+
     SOURCE NAME: {source_name}
     TYPE: {doc_type}
     CONTENT PREVIEW:
     {text_preview[:4000]}
-    
+
     TASK 1: SUMMARY
     Write a 2-3 sentence 'Source Brief' explaining what this is and its primary purpose.
-    
+
     TASK 2: TASTE CHECK (Knowledge Quality & Safety)
     Assess the content against modern engineering and safety standards:
     1. AUTHORITY: Is this a gold-standard reference (e.g. factory service manual, academic textbook), or secondary/informal? (Score 0.0-1.0)
     2. RECENCY: Is the knowledge likely outdated or superseded?
     3. SAFETY CRITICAL: Does this document contain high-voltage warnings, hazardous material handling, or safety-critical procedures?
     4. POLLUTION RISK: Does this contain outdated theories that could lead to incorrect or dangerous repair actions today?
-    
+
     Respond in JSON format:
     {{
       "summary": "...",

@@ -5,11 +5,11 @@ import logging
 from pathlib import Path
 from typing import Dict, List
 
-logger = logging.getLogger("kitty.inventory")
-
 from gateway.llm_client import call_llm
 from gateway.paths import DATA_DIR
 from gateway.prompts import INVENTORY_PHOTO_PROMPT
+
+logger = logging.getLogger("kitty.inventory")
 
 INVENTORY_CSV = DATA_DIR / "inventory.csv"
 

@@ -6,9 +6,9 @@ import logging
 import time
 from collections import Counter
 
-logger = logging.getLogger("kitty.honcho")
-
 from gateway.paths import DATA_DIR, LOG_FILE
+
+logger = logging.getLogger("kitty.honcho")
 
 SIGNAL_CACHE = DATA_DIR / "honcho_weekly.json"
 

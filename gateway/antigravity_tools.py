@@ -10,7 +10,7 @@ This module provides tool definitions and handlers for:
 
 Usage:
     from gateway.antigravity_tools import get_tools, invoke_tool
-    
+
     tools = get_tools()
     result = await invoke_tool("task_boundary", {"action": "open", "name": "My Task"})
 """

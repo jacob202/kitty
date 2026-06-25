@@ -4,9 +4,9 @@ import logging
 import re
 from functools import lru_cache
 
-logger = logging.getLogger("kitty.knowledge.archivist")
-
 from gateway.paths import DATA_DIR
+
+logger = logging.getLogger("kitty.knowledge.archivist")
 
 KNOWLEDGE_DB_PATH = DATA_DIR / "knowledge_db"
 COLLECTION_NAME = "kitty_knowledge"
@@ -97,7 +97,7 @@ def is_high_quality(text: str) -> bool:
 
 def _chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
     """Robust text chunking strategy.
-    
+
     Tries to split by paragraphs first, then falls back to word count.
     Ensures structural integrity where possible.
     """

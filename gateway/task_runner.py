@@ -245,7 +245,7 @@ async def _run_cleanup(goal: str, task_id: str) -> str:
         if LOG_FILE.exists():
             cutoff = time.time() - 30 * 86400
             lines = LOG_FILE.read_text().splitlines()
-            kept = [l for l in lines if _line_after_cutoff(l, cutoff)]
+            kept = [line for line in lines if _line_after_cutoff(line, cutoff)]
             LOG_FILE.write_text("\n".join(kept) + "\n")
             results.append(f"Traces compacted: {len(lines)} -> {len(kept)} lines")
     except Exception as e:

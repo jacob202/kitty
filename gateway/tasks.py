@@ -1,9 +1,9 @@
 import logging
 import re
 
-logger = logging.getLogger("kitty.tasks")
-
 from gateway.paths import PROJECT_ROOT
+
+logger = logging.getLogger("kitty.tasks")
 
 TASKS_PATH = PROJECT_ROOT / "TASKS.md"
 

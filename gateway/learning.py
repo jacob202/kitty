@@ -1,6 +1,6 @@
 """Socratic Layer for Kitty.
 
-Tracks user absorption and triggers 'Knowledge Gates' to ensure 
+Tracks user absorption and triggers 'Knowledge Gates' to ensure
 Jacob is actually learning from the technical materials.
 """
 from __future__ import annotations
@@ -63,15 +63,15 @@ async def generate_knowledge_gate_question(topic: str = "general") -> str:
     context = "\n\n".join([c["text"] for c in chunks])
 
     prompt = f"""You are the Socratic Librarian. Jacob has reached a 'Knowledge Gate.'
-    
+
     CONTEXT FROM RECENTLY INGESTED MATERIALS:
     {context}
-    
+
     TASK:
     Based on the context, ask Jacob ONE technical question that helps build intuition about how things work.
-    
+
     Rules for Jacob's level (Curious Generalist):
-    - Do not assume professional expertise in Software, Hardware, or Cars. 
+    - Do not assume professional expertise in Software, Hardware, or Cars.
     - He knows "a tiny bit about a lot of things," so connect new concepts to basic physical or logical principles.
     - Avoid jargon. If you must use a technical term, explain it briefly in context.
     - Focus on the "Why" (e.g., 'If we didn't have this component, what would happen?').
@@ -91,12 +91,12 @@ def process_gate_answer(answer: str, question: str) -> bool:
     from gateway.llm_client import call_llm
 
     prompt = f"""Jacob is answering a Knowledge Gate question.
-    
+
     QUESTION: {question}
     JACOB'S ANSWER: {answer}
-    
+
     TASK:
-    Is this answer technically correct? 
+    Is this answer technically correct?
     Respond in JSON format:
     {{
       "correct": true/false,

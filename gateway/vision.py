@@ -4,9 +4,9 @@ import base64
 import logging
 from pathlib import Path
 
-logger = logging.getLogger("kitty.vision")
-
 from gateway.llm_client import call_llm
+
+logger = logging.getLogger("kitty.vision")
 
 
 def analyze_file(path: Path) -> str:

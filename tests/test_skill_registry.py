@@ -43,7 +43,7 @@ class TestDiscover:
         assert s1 == s2  # same content from cache
 
     def test_discover_force_refresh(self):
-        s1 = discover()
+        discover()
         s2 = discover(force_refresh=True)
         assert len(s2) >= 1
 

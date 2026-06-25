@@ -330,7 +330,7 @@ def test_main_strict_fails_on_warn(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
     (tmp_path / ".env").write_text("OPENROUTER_API_KEY=sk\n", encoding="utf-8")
 
-    warn_check = doctor.Check("WARN", "env:gateway_secret", "not set")
+    doctor.Check("WARN", "env:gateway_secret", "not set")
     pass_check = doctor.Check("PASS", "x", "ok")
     monkeypatch.setattr(doctor, "_check_services", lambda _e: [pass_check])
     monkeypatch.setattr(doctor, "_check_chromadb", lambda: [pass_check])
