@@ -15,7 +15,7 @@ import logging
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from gateway.paths import DATA_DIR
 
@@ -100,7 +100,7 @@ def get_weekly_summary(records: Optional[list[dict]] = None) -> dict:
     now = datetime.now()
     week_ago = now - timedelta(days=7)
 
-    summary = {
+    summary: dict[str, Any] = {
         "period": f"{week_ago.date()} to {now.date()}",
         "generated_at": now.isoformat(),
         "sleep": {"avg_hours": 0, "count": 0},
