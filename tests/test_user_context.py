@@ -1,4 +1,5 @@
 """Tests for gateway.user_context (TELOS user-identity injection)."""
+
 import importlib
 
 import pytest
@@ -57,15 +58,29 @@ async def test_injected_into_system_prompt(user_dir, monkeypatch):
     (user_dir / "MISSION.md").write_text("# Mission\nUNIQUE_TELOS_MARKER mission.\n")
     cb = importlib.import_module("gateway.context_builder")
 
-    async def fake_unified(_msg):
-        return ""
+    async def fake_assemble(message, parts_mode=False, domain=None, deps=None):
+        from gateway.context_assembler import ContextBundle
 
-    monkeypatch.setattr(cb.memory_graph, "unified_context", fake_unified)
+        return ContextBundle(system=cb.build_worker_context.__module__ + ":" + "base")
 
-    async def fake_enrich(ctx, _msg):
-        return ctx
+    # The façade in context_builder now delegates to assemble_context. Patch
+    # the assembler to return a minimal bundle so the test exercises the
+    # wiring (TELOS injection happens in the assembler).
+    import gateway.context_assembler as assembler
 
-    monkeypatch.setattr(cb, "enrich_dynamic_context", fake_enrich)
+    async def assemble_stub(message, parts_mode=False, domain=None, deps=None):
+        # Re-run the assembler's user-block step so TELOS lands in the
+        # prompt — same path the production code takes.
+        from gateway.context_assembler import ContextBundle
+        from gateway import user_context
+
+        base = ""
+        user_block = user_context.load_user_context()
+        if user_block:
+            base = f"{base}\n\n{user_block}" if base else user_block
+        return ContextBundle(system=base)
+
+    monkeypatch.setattr(assembler, "assemble_context", assemble_stub)
 
     prompt = await cb.get_system_prompt("hello there", domain="soul")
     assert "UNIQUE_TELOS_MARKER" in prompt

@@ -1,6 +1,25 @@
 """Live-state enrichment appended after memory_graph unified context.
 
-Each source fails silently — optional macOS integrations must not break prompts.
+Phase 2 deepening (per
+``docs/superpowers/specs/2026-06-24-gateway-deepening-program-design.md``):
+the assembler owns the read path. This module exposes two surfaces:
+
+- :func:`run_enrichments` — the orchestrator-friendly entry point. Runs
+  every enrichment in :data:`DEFAULT_ENRICHMENTS` against ``message``,
+  catches per-source failures, and returns ``(blocks, warnings)``.
+  Each warning is a human-readable string the assembler surfaces on the
+  ``ContextBundle``. Failures are no longer silent (line 118 of the
+  pre-Phase 2 code used ``logger.debug``; that is now ``logger.warning``
+  and the warning propagates).
+
+- :func:`enrich_dynamic_context` — legacy single-string return shape,
+  kept for backward compatibility with any caller that still imports
+  it. New code should use :func:`run_enrichments`.
+
+The voice-gate drift nudge is intentionally absent here — it is a
+*response-time* concern, not request-time. It belongs in
+``routes/completions.py`` after the LLM reply, not in the context
+assembler.
 """
 
 from __future__ import annotations
@@ -105,29 +124,74 @@ _ENRICHMENTS: tuple[EnrichmentFn, ...] = (
     _nudges_block,
 )
 
+# Public alias used by ``gateway.context_assembler``.
+DEFAULT_ENRICHMENTS: tuple[EnrichmentFn, ...] = _ENRICHMENTS
+
+
+async def run_enrichments(
+    enrichments: tuple[EnrichmentFn, ...], message: str
+) -> tuple[list[str], list[str]]:
+    """Run every enrichment in ``enrichments`` against ``message``.
+
+    Returns ``(blocks, warnings)``. ``blocks`` is the list of non-empty
+    text blocks (in input order, with ``None`` blocks dropped). Each
+    per-source failure produces a warning string of the form
+    ``{fn_name}: {exc_type}: {message}``. The assembler copies the
+    warnings onto the :class:`ContextBundle`.
+
+    Per-source failures never raise. The orchestrator is the only place
+    that decides whether a partial result is fatal.
+    """
+    blocks: list[str] = []
+    warnings: list[str] = []
+    tasks = [asyncio.create_task(fn(message)) for fn in enrichments]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    for fn, res in zip(enrichments, results):
+        if isinstance(res, Exception):
+            logger.warning("enrichment failed: %s: %s", fn.__name__, res)
+            warnings.append(f"{fn.__name__}: {type(res).__name__}: {res}")
+            continue
+        if res:
+            blocks.append(res)
+    return blocks, warnings
+
 
 async def enrich_dynamic_context(base: str, message: str) -> str:
-    """Append live-state blocks to unified memory_graph context."""
+    """Append live-state blocks to ``base`` (legacy single-string return).
+
+    Kept for backward compatibility with ``context_builder.get_system_prompt``
+    and any caller that imports it directly. New code should use
+    :func:`run_enrichments` via the assembler.
+
+    The voice-gate drift nudge was removed from this function in Phase 2:
+    it is a response-time concern, called by ``routes.completions`` after
+    the LLM reply. Keeping it here would couple the request-time read
+    path to a response-time helper.
+    """
     dynamic_context = base
-    for fetch in _ENRICHMENTS:
-        try:
-            block = await fetch(message)
-            if block:
-                join = "\n" if fetch is _weather_block else "\n\n"
-                dynamic_context = _append(dynamic_context, block, join=join)
-        except Exception as exc:
-            logger.debug("Enrichment skipped: %s", exc)
-
-    from gateway import voice_gate
-
-    nudge = voice_gate.get_drift_nudge()
-    if nudge:
-        dynamic_context = (dynamic_context + nudge) if dynamic_context else nudge
-
+    blocks, _warnings = await run_enrichments(_ENRICHMENTS, message)
+    for block in blocks:
+        # Preserve the original join style: weather joined with a single
+        # newline, the rest with a blank line.
+        join = "\n" if block.startswith("[weather]") or _looks_like_weather_block(block) else "\n\n"
+        dynamic_context = _append(dynamic_context, block, join=join)
     return dynamic_context
 
 
+def _looks_like_weather_block(block: str) -> bool:
+    """Best-effort detector: weather enrichments start with city/temp phrasing.
+
+    Used to preserve the legacy newline-join for the weather block. This is
+    the only divergence in join style in the legacy function; the assembler
+    joins uniformly with ``\\n\\n``.
+    """
+    lowered = block.lower()
+    return "regina" in lowered or "°" in block or lowered.startswith("weather")
+
+
 # Sync helpers for brief synthesis (same sources as async enrichment blocks)
+
+
 def weather_text_sync() -> str:
     try:
         from gateway.weather import get_weather_text

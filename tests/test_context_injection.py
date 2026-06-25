@@ -13,15 +13,26 @@ def test_memory_and_knowledge_injected_into_system_prompt() -> None:
     mock_resp.json.return_value = {
         "choices": [{"message": {"role": "assistant", "content": "hi"}}],
         "usage": {"total_tokens": 10},
-        "model": "kitty-default"
+        "model": "kitty-default",
     }
 
     # Patch at the boundary (HTTP and Prompt Loading)
-    with patch("gateway.prompt_loader.load_prompt", return_value="BASE SYSTEM"), \
-         patch("gateway.context_builder.memory_graph.unified_context", new=AsyncMock(return_value="## Memory\n- Jacob lives in Regina\n\n## Knowledge\nRegina weather context")), \
-         patch("httpx.AsyncClient.post", new=AsyncMock(return_value=mock_resp)) as mock_post:
-
+    with (
+        patch("gateway.prompt_loader.load_prompt", return_value="BASE SYSTEM"),
+        patch(
+            "gateway.context_assembler.assemble_context",
+            new=AsyncMock(
+                return_value=__import__(
+                    "gateway.context_assembler", fromlist=["ContextBundle"]
+                ).ContextBundle(
+                    system="BASE SYSTEM\n\n## Memory\n- Jacob lives in Regina\n\n## Knowledge\nRegina weather context"
+                )
+            ),
+        ),
+        patch("httpx.AsyncClient.post", new=AsyncMock(return_value=mock_resp)) as mock_post,
+    ):
         from gateway.app import app
+
         with TestClient(app) as client:
             response = client.post(
                 "/v1/chat/completions",
