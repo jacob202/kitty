@@ -59,3 +59,15 @@ B0–B6) followed the same pattern but did **not** go through
 `storage_router` — those are new read/write modules of their own. The
 router is for legacy stores that already have a write API in
 `todo_store` / `plugin_registry`; new modules get their own.
+
+## D8 - Lint Is High-Signal Only; E501 Not Enforced
+
+Ruff runs `select = ["E", "F", "W", "I"]` but ignores `E501` (line-too-long).
+The repo runs no autoformatter, and ~87% of E501 violations are unwrappable
+string literals (LLM prompts, URLs, error/log text); wrapping them hurts
+readability for the lowest-signal rule in the set. The genuinely useful checks
+(undefined names, unused imports, import order, ambiguous names) stay enforced.
+
+Why: enforcing line length without a formatter produces churn, not safety. If a
+formatter (`ruff format`) is adopted later, re-enable `E501` — the formatter
+will handle the code lines and string literals can take targeted `# noqa`.

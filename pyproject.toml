@@ -12,6 +12,10 @@ extend-exclude = ["gateway/kitty-chat"]
 # Minimal, high-signal: pycodestyle errors, pyflakes, warnings, import sorting.
 # Deliberately not the opinionated sets (B/UP/...) yet — keep the signal clean.
 select = ["E", "F", "W", "I"]
+# E501 (line-too-long) is not enforced: this repo runs no autoformatter, and ~87%
+# of violations are unwrappable string literals (LLM prompts, URLs, error/log text).
+# Wrapping them hurts readability for the lowest-signal rule. See docs/DECISIONS.md.
+ignore = ["E501"]
 
 [tool.mypy]
 python_version = "3.11"
