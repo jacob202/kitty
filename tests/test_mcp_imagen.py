@@ -12,12 +12,42 @@ import pytest
 
 
 # ---------------------------------------------------------------------------
-# Stub out google.genai so tests run without the real SDK installed
+# Stub out mcp and google.genai so tests run without the real SDKs installed
 # ---------------------------------------------------------------------------
 
+class _Image:
+    """Minimal Image stand-in so isinstance checks work without the real mcp package."""
+    def __init__(self, data: bytes, format: str) -> None:
+        self.data = data
+        self.format = format
+
+
+class _FastMCPStub:
+    """FastMCP stub whose tool() decorator is transparent (returns the function unchanged)."""
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def tool(self, *args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
+
+    def run(self):
+        pass
+
+
 @pytest.fixture(autouse=True)
-def _google_stub():
-    """Inject a minimal google.genai stub into sys.modules for the duration of each test."""
+def _sdk_stubs():
+    """Inject mcp.server.fastmcp and google.genai stubs into sys.modules."""
+    # --- mcp stubs ---
+    stub_fastmcp_mod = _types.ModuleType("mcp.server.fastmcp")
+    stub_fastmcp_mod.FastMCP = _FastMCPStub  # type: ignore[attr-defined]
+    stub_fastmcp_mod.Image = _Image  # type: ignore[attr-defined]
+
+    stub_server_mod = _types.ModuleType("mcp.server")
+    stub_mcp_mod = _types.ModuleType("mcp")
+
+    # --- google.genai stubs ---
     stub_types = MagicMock(name="google.genai.types")
     stub_types.Part = MagicMock()
     stub_types.Part.from_bytes = MagicMock(return_value=MagicMock())
@@ -33,12 +63,19 @@ def _google_stub():
     stub_google = _types.ModuleType("google")
     stub_google.genai = stub_genai  # type: ignore[attr-defined]
 
-    prev = {k: sys.modules.get(k) for k in ("google", "google.genai", "google.genai.types")}
+    keys = (
+        "mcp", "mcp.server", "mcp.server.fastmcp",
+        "google", "google.genai", "google.genai.types",
+    )
+    prev = {k: sys.modules.get(k) for k in keys}
+    sys.modules["mcp"] = stub_mcp_mod
+    sys.modules["mcp.server"] = stub_server_mod
+    sys.modules["mcp.server.fastmcp"] = stub_fastmcp_mod
     sys.modules["google"] = stub_google
     sys.modules["google.genai"] = stub_genai
     sys.modules["google.genai.types"] = stub_types
 
-    yield stub_types  # tests can access types stub if needed
+    yield
 
     for k, v in prev.items():
         if v is None:
@@ -269,7 +306,7 @@ def test_generate_image_returns_image_and_path(srv, tmp_path):
     ):
         result = srv.generate_image("a misty harbor")
 
-    assert any(isinstance(r, srv.Image) for r in result)
+    assert any(isinstance(r, _Image) for r in result)
     assert any("Saved to:" in str(r) for r in result)
 
 
@@ -308,7 +345,7 @@ def test_edit_image_success(srv, tmp_path):
     ):
         result = srv.edit_image(str(src), "make it nighttime")
 
-    assert any(isinstance(r, srv.Image) for r in result)
+    assert any(isinstance(r, _Image) for r in result)
 
 
 # ---------------------------------------------------------------------------
@@ -333,7 +370,7 @@ def test_generate_with_reference_success(srv, tmp_path):
     ):
         result = srv.generate_with_reference([str(ref)], "in Paris at night")
 
-    assert any(isinstance(r, srv.Image) for r in result)
+    assert any(isinstance(r, _Image) for r in result)
 
 
 # ---------------------------------------------------------------------------
