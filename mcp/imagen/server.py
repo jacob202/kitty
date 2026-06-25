@@ -2,7 +2,7 @@
 
 Default engine is Google's "Nano Banana" (gemini-2.5-flash-image), which does both
 generation and natural-language editing with strong photorealism. Imagen 4, DALL-E 3,
-and local ComfyUI are available as opt-in alternatives.
+fal.ai FLUX, and local ComfyUI are available as opt-in alternatives.
 
 Every tool returns the image inline (it renders directly in the chat) AND saves a
 copy to ~/Pictures/kitty-gen/ so you can pass the path back to edit_image to refine it.
@@ -18,6 +18,8 @@ Tools:
   generate_image_imagen — Imagen 4: alternative high-fidelity generation, 1-4 at once
   generate_image_dalle  — DALL-E 3: creative/illustrative prompts, text-in-image
   generate_image_comfy  — local ComfyUI: full NSFW incl. explicit (needs ComfyUI running)
+  generate_image_fal    — fal.ai FLUX Pro Ultra: high-quality, permissive safety
+  generate_with_face_fal — fal.ai PuLID: face-identity-consistent generation from a photo
 """
 
 from __future__ import annotations
@@ -39,6 +41,8 @@ AVATAR_PATH = OUTPUT_DIR / "_avatar.png"
 GEMINI_IMAGE_MODEL = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
 GEMINI_VISION_MODEL = os.environ.get("GEMINI_VISION_MODEL", "gemini-2.5-flash")
 IMAGEN_MODEL = os.environ.get("IMAGEN_MODEL", "imagen-4.0-generate-001")
+FAL_FLUX_MODEL = os.environ.get("FAL_FLUX_MODEL", "fal-ai/flux-pro/v1.1-ultra")
+FAL_PULID_MODEL = os.environ.get("FAL_PULID_MODEL", "fal-ai/flux-pulid")
 
 # Appended to a prompt when photorealistic=True. Photographic cues measurably push
 # Nano Banana toward realism; toggle off for illustration/painting styles.
@@ -59,7 +63,10 @@ mcp = FastMCP(
         "runs the generate→critique→edit loop automatically. variations makes alternates, "
         "make_gallery builds a browsable contact sheet. "
         "Use generate_image_imagen for batches of 1-4, generate_image_dalle for "
-        "illustrative/text-heavy prompts, generate_image_comfy for explicit NSFW."
+        "illustrative/text-heavy prompts, generate_image_comfy for explicit NSFW. "
+        "Use generate_image_fal for FLUX Pro Ultra quality with permissive safety filters. "
+        "Use generate_with_face_fal when you have a reference photo and need the exact "
+        "same face in a new scene — PuLID preserves identity better than prompt alone."
     ),
 )
 
@@ -672,6 +679,126 @@ def make_gallery() -> str:
     gallery = OUTPUT_DIR / "gallery.html"
     gallery.write_text(doc, encoding="utf-8")
     return f"Gallery written to {gallery} ({len(pngs)} images). Open it in a browser."
+
+
+# ---------------------------------------------------------------------------
+# fal.ai — FLUX Pro Ultra + PuLID face-consistent generation
+# ---------------------------------------------------------------------------
+
+def _fal_client():
+    import fal_client  # noqa: PLC0415
+    key = os.environ.get("FAL_KEY") or os.environ.get("FAL_API_KEY")
+    if not key:
+        raise RuntimeError("Set FAL_KEY (or FAL_API_KEY) in your environment")
+    os.environ["FAL_KEY"] = key
+    return fal_client
+
+
+def _fal_upload(path: Path) -> str:
+    """Upload a local file to fal CDN and return its URL."""
+    fc = _fal_client()
+    return fc.upload_file(str(path))
+
+
+def _fal_download(url: str) -> bytes:
+    import httpx
+    return httpx.get(url, timeout=60, follow_redirects=True).content
+
+
+@mcp.tool()
+def generate_image_fal(
+    prompt: str,
+    aspect_ratio: str = "3:4",
+    safety_tolerance: str = "5",
+    num_images: int = 1,
+) -> list:
+    """Generate an image using fal.ai FLUX Pro Ultra. Higher quality ceiling than
+    Nano Banana and a more permissive safety tolerance (1 = strictest, 6 = most
+    permissive). Does not support editing or reference images — use
+    generate_with_face_fal for face-consistent shots.
+
+    Args:
+        prompt: What to generate. Be explicit and descriptive.
+        aspect_ratio: 1:1, 3:4, 4:3, 9:16, 16:9, 21:9. Default 3:4 (portrait).
+        safety_tolerance: "1"–"6". Default "5" (permissive). Use "6" for nudity.
+        num_images: 1–4. Default 1.
+
+    Returns:
+        Each generated image (inline) plus its saved path.
+    """
+    fc = _fal_client()
+    result = fc.subscribe(
+        FAL_FLUX_MODEL,
+        arguments={
+            "prompt": prompt,
+            "aspect_ratio": aspect_ratio,
+            "num_images": max(1, min(num_images, 4)),
+            "output_format": "png",
+            "safety_tolerance": safety_tolerance,
+        },
+    )
+
+    out: list = []
+    for img in result.get("images", []):
+        data = _fal_download(img["url"])
+        path = _save(data, "fal")
+        out.append(Image(data=data, format="png"))
+        out.append(f"Saved to: {path}")
+
+    return out or ["fal.ai returned no images — prompt may have been blocked."]
+
+
+@mcp.tool()
+def generate_with_face_fal(
+    reference_image_path: str,
+    prompt: str,
+    id_weight: float = 1.0,
+    num_images: int = 1,
+) -> list:
+    """Generate a new image of the person in the reference photo using fal.ai PuLID.
+    PuLID locks the face identity from the reference and places that person in a new
+    scene — more reliable than prompting alone. Best for model shots, outfit changes,
+    or putting someone in a new setting while keeping the face exact.
+
+    Args:
+        reference_image_path: Absolute path to a clear face photo (PNG or JPEG).
+        prompt: What scene to place them in. Describe pose, setting, clothing, lighting.
+        id_weight: How tightly to lock the identity (0.0–2.0). Default 1.0. Raise to
+                   ~1.5 for stronger likeness, lower for more creative freedom.
+        num_images: Number of results (1–4). Default 1.
+
+    Returns:
+        Each generated image (inline) plus its saved path.
+    """
+    src = Path(reference_image_path).expanduser()
+    if not src.exists():
+        return [f"Reference file not found: {reference_image_path}"]
+
+    fc = _fal_client()
+
+    ref_url = _fal_upload(src)
+    result = fc.subscribe(
+        FAL_PULID_MODEL,
+        arguments={
+            "prompt": prompt,
+            "reference_image_url": ref_url,
+            "id_weight": id_weight,
+            "num_images": max(1, min(num_images, 4)),
+            "num_inference_steps": 28,
+            "guidance_scale": 4.0,
+            "true_cfg": 1.0,
+            "output_format": "png",
+        },
+    )
+
+    out: list = []
+    for img in result.get("images", []):
+        data = _fal_download(img["url"])
+        path = _save(data, "pulid")
+        out.append(Image(data=data, format="png"))
+        out.append(f"Saved to: {path}")
+
+    return out or ["PuLID returned no images — prompt may have been blocked."]
 
 
 if __name__ == "__main__":
