@@ -1,35 +1,52 @@
-"""Imagen MCP server — Gemini Imagen 3, DALL-E 3, and ComfyUI in one place.
+"""Imagen MCP server — photorealistic image generation and editing for Claude Code.
+
+Default engine is Google's "Nano Banana" (gemini-2.5-flash-image), which does both
+generation and natural-language editing with strong photorealism. Imagen 4, DALL-E 3,
+and local ComfyUI are available as opt-in alternatives.
+
+Every tool returns the image inline (it renders directly in the chat) AND saves a
+copy to ~/Pictures/kitty-gen/ so you can pass the path back to edit_image to refine it.
 
 Tools:
-  generate_image        — Gemini Imagen 3 (photorealistic, tasteful NSFW ok)
-  edit_image            — Gemini 2.0 Flash image editing
-  batch_generate        — parallel Imagen 3 (up to 10 prompts)
-  generate_image_dalle  — DALL-E 3 (creative, strong prompt adherence)
-  generate_image_comfy  — ComfyUI local (full NSFW including explicit, needs ComfyUI running)
+  generate_image        — Nano Banana: photorealistic generation (the default)
+  edit_image            — Nano Banana: natural-language edits to an existing image
+  generate_image_imagen — Imagen 4: alternative high-fidelity generation, 1-4 at once
+  generate_image_dalle  — DALL-E 3: creative/illustrative prompts, text-in-image
+  generate_image_comfy  — local ComfyUI: full NSFW incl. explicit (needs ComfyUI running)
 """
 
 from __future__ import annotations
 
 import asyncio
-import base64
 import os
 import time
 from pathlib import Path
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP, Image
 
 OUTPUT_DIR = Path.home() / "Pictures" / "kitty-gen"
+
+# Overridable so model-name drift never bricks the server — bump via env if Google
+# ships a newer image model (e.g. GEMINI_IMAGE_MODEL=gemini-3.1-flash-image).
+GEMINI_IMAGE_MODEL = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
+IMAGEN_MODEL = os.environ.get("IMAGEN_MODEL", "imagen-4.0-generate-001")
+
+# Appended to a prompt when photorealistic=True. Photographic cues measurably push
+# Nano Banana toward realism; toggle off for illustration/painting styles.
+PHOTOREAL_SUFFIX = (
+    ", photorealistic, shot on a full-frame DSLR, 85mm lens, natural lighting, "
+    "shallow depth of field, sharp focus, high detail, true-to-life color"
+)
 
 mcp = FastMCP(
     "imagen",
     instructions=(
-        "Generate and edit images using three backends:\n"
-        "• generate_image — Gemini Imagen 3: best photorealism, tasteful NSFW ok\n"
-        "• generate_image_dalle — DALL-E 3: great at complex creative prompts, no NSFW\n"
-        "• generate_image_comfy — ComfyUI local: full NSFW including explicit, SD1.5/SDXL\n"
-        "• edit_image — Gemini 2.0 Flash: natural-language edits to existing images\n"
-        "• batch_generate — multiple prompts in parallel via Imagen 3\n"
-        "All images saved to ~/Pictures/kitty-gen/."
+        "Generate and edit photorealistic images. Default to generate_image (Nano "
+        "Banana) for new images and edit_image to refine them — both render inline and "
+        "save to ~/Pictures/kitty-gen/. The generate→look→edit loop is the intended "
+        "workflow: make an image, the user reacts, call edit_image with their change. "
+        "Use generate_image_imagen for batches of 1-4, generate_image_dalle for "
+        "illustrative/text-heavy prompts, generate_image_comfy for explicit NSFW."
     ),
 )
 
@@ -41,7 +58,7 @@ mcp = FastMCP(
 def _gemini_client():
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not api_key:
-        raise RuntimeError("Set GEMINI_API_KEY or GOOGLE_API_KEY in your environment")
+        raise RuntimeError("Set GEMINI_API_KEY (or GOOGLE_API_KEY) in your environment")
     from google import genai
     return genai.Client(api_key=api_key)
 
@@ -54,15 +71,35 @@ def _openai_client():
     return OpenAI(api_key=api_key)
 
 
-def _save(image_bytes: bytes, prefix: str = "gen") -> Path:
+def _save(image_bytes: bytes, prefix: str) -> Path:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     path = OUTPUT_DIR / f"{prefix}_{int(time.time() * 1000)}.png"
     path.write_bytes(image_bytes)
     return path
 
 
+def _first_image_bytes(response) -> bytes | None:
+    """Pull raw image bytes out of a generate_content response, or None if the model
+    returned only text (usually a safety refusal explaining why)."""
+    for candidate in response.candidates or []:
+        for part in candidate.content.parts or []:
+            inline = getattr(part, "inline_data", None)
+            if inline and inline.data:
+                return inline.data
+    return None
+
+
+def _refusal_text(response) -> str:
+    texts = []
+    for candidate in response.candidates or []:
+        for part in candidate.content.parts or []:
+            if getattr(part, "text", None):
+                texts.append(part.text)
+    return " ".join(texts) if texts else "no image and no explanation returned"
+
+
 # ---------------------------------------------------------------------------
-# ComfyUI helpers (mirrors gateway/image_gen.py without the gateway dep)
+# ComfyUI helpers (mirrors gateway/image_gen.py without the gateway dependency)
 # ---------------------------------------------------------------------------
 
 COMFY_URL = os.environ.get("COMFY_URL", "http://127.0.0.1:8188")
@@ -152,129 +189,133 @@ def _wf_sdxl(prompt: str, p: dict) -> dict:
 def generate_image(
     prompt: str,
     aspect_ratio: str = "1:1",
-    count: int = 1,
-    negative_prompt: str = "",
-) -> str:
-    """Generate photorealistic images using Gemini Imagen 3. Good for: portraits,
-    landscapes, product shots, tasteful NSFW (artistic nudity, suggestive).
+    photorealistic: bool = True,
+) -> list:
+    """Generate an image from a text description using Nano Banana (gemini-2.5-flash-image).
+    This is the default, best-quality engine for photorealism. The image renders inline
+    and is saved to ~/Pictures/kitty-gen/ — pass that path to edit_image to refine it.
 
     Args:
-        prompt: What to generate. Be descriptive — lighting, style, subject, setting.
-        aspect_ratio: "1:1", "16:9", "9:16", "4:3", or "3:4". Default 1:1.
-        count: Number of images (1–4). Default 1.
-        negative_prompt: Elements to avoid.
+        prompt: What to generate. Be specific about subject, setting, lighting, mood.
+        aspect_ratio: 1:1, 3:2, 2:3, 3:4, 4:3, 4:5, 5:4, 9:16, 16:9, or 21:9. Default 1:1.
+        photorealistic: When True (default), appends photographic quality cues to the
+                        prompt. Set False for illustrations, paintings, or cartoons.
 
     Returns:
-        File paths for each generated image, one per line.
+        The generated image (inline) plus the saved file path.
     """
     from google.genai import types
 
+    full_prompt = prompt + (PHOTOREAL_SUFFIX if photorealistic else "")
     client = _gemini_client()
-    cfg = types.GenerateImagesConfig(
-        number_of_images=max(1, min(count, 4)),
-        aspect_ratio=aspect_ratio,
-    )
-    if negative_prompt:
-        cfg.negative_prompt = negative_prompt
 
-    response = client.models.generate_images(
-        model="imagen-3.0-generate-001",
-        prompt=prompt,
-        config=cfg,
+    response = client.models.generate_content(
+        model=GEMINI_IMAGE_MODEL,
+        contents=full_prompt,
+        config=types.GenerateContentConfig(
+            response_modalities=["IMAGE"],
+            image_config=types.ImageConfig(aspect_ratio=aspect_ratio),
+        ),
     )
 
-    paths: list[str] = []
-    for img in response.generated_images:
-        p = _save(img.image.image_bytes, "imagen")
-        paths.append(str(p))
+    data = _first_image_bytes(response)
+    if data is None:
+        return [f"No image generated. Model said: {_refusal_text(response)}"]
 
-    if not paths:
-        return "No images generated — prompt may have been blocked by Imagen's safety filters."
-    return "Generated:\n" + "\n".join(paths)
+    path = _save(data, "nano")
+    return [
+        Image(data=data, format="png"),
+        f"Saved to: {path}\n(pass this path to edit_image to refine it)",
+    ]
 
 
 @mcp.tool()
-def edit_image(image_path: str, edit_prompt: str) -> str:
-    """Edit an existing image with natural language using Gemini 2.0 Flash.
+def edit_image(image_path: str, edit_prompt: str) -> list:
+    """Edit an existing image with natural-language instructions using Nano Banana.
+    Keeps the rest of the image consistent and only changes what you ask for. The result
+    renders inline and is saved as a new file (the original is untouched).
 
     Args:
         image_path: Absolute path to the source image (PNG or JPEG).
-        edit_prompt: What to change, e.g. "make the background a sunset" or
-                     "add a coffee cup on the desk".
+        edit_prompt: What to change, e.g. "make the background a sunset over the ocean",
+                     "give her a red dress", "remove the car", "make it nighttime".
 
     Returns:
-        File path to the edited image.
+        The edited image (inline) plus the saved file path.
     """
-    from google import genai
+    from google import genai  # noqa: F401  (ensures package present for clear error)
     from google.genai import types
 
     src = Path(image_path).expanduser()
     if not src.exists():
-        return f"File not found: {image_path}"
+        return [f"File not found: {image_path}"]
 
     raw = src.read_bytes()
     mime = "image/jpeg" if src.suffix.lower() in (".jpg", ".jpeg") else "image/png"
     client = _gemini_client()
 
     response = client.models.generate_content(
-        model="gemini-2.0-flash-exp",
-        contents=[types.Content(role="user", parts=[
+        model=GEMINI_IMAGE_MODEL,
+        contents=[
             types.Part.from_bytes(data=raw, mime_type=mime),
             types.Part.from_text(text=edit_prompt),
-        ])],
-        config=types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"]),
+        ],
+        config=types.GenerateContentConfig(response_modalities=["IMAGE"]),
     )
 
-    for part in response.candidates[0].content.parts:
-        if part.inline_data and part.inline_data.mime_type.startswith("image/"):
-            p = _save(part.inline_data.data, "edit")
-            return f"Edited image saved to: {p}"
+    data = _first_image_bytes(response)
+    if data is None:
+        return [f"Edit produced no image. Model said: {_refusal_text(response)}"]
 
-    text_parts = [p.text for p in response.candidates[0].content.parts if p.text]
-    reason = " ".join(text_parts) if text_parts else "unknown"
-    return f"Edit produced no image. Model said: {reason}"
+    path = _save(data, "edit")
+    return [
+        Image(data=data, format="png"),
+        f"Saved to: {path}\n(pass this path back to edit_image to keep refining)",
+    ]
 
 
 @mcp.tool()
-async def batch_generate(prompts: list[str], aspect_ratio: str = "1:1") -> str:
-    """Generate multiple images in parallel from a list of prompts using Imagen 3.
+def generate_image_imagen(
+    prompt: str,
+    aspect_ratio: str = "1:1",
+    count: int = 1,
+) -> list:
+    """Generate 1-4 images at once using Imagen 4 (imagen-4.0-generate-001). An alternative
+    to generate_image when you want several variations of the same prompt in one call.
+    Allows tasteful adult imagery (person_generation=ALLOW_ADULT); explicit content is
+    blocked — use generate_image_comfy for that. All images render inline and are saved.
 
     Args:
-        prompts: Up to 10 text prompts, one image each.
-        aspect_ratio: "1:1", "16:9", "9:16", "4:3", or "3:4". Default 1:1.
+        prompt: What to generate.
+        aspect_ratio: 1:1, 3:4, 4:3, 9:16, or 16:9. Default 1:1.
+        count: Number of variations (1-4). Default 1.
 
     Returns:
-        Each prompt mapped to its output file path.
+        Each generated image (inline) plus its saved file path.
     """
     from google.genai import types
 
-    if not prompts:
-        return "No prompts provided."
-    prompts = prompts[:10]
     client = _gemini_client()
-
-    async def _one(prompt: str, idx: int) -> tuple[int, str, str]:
-        cfg = types.GenerateImagesConfig(number_of_images=1, aspect_ratio=aspect_ratio)
-        try:
-            response = await asyncio.to_thread(
-                client.models.generate_images,
-                model="imagen-3.0-generate-001",
-                prompt=prompt,
-                config=cfg,
-            )
-            imgs = response.generated_images
-            if imgs:
-                p = _save(imgs[0].image.image_bytes, f"batch{idx:02d}")
-                return idx, prompt, str(p)
-            return idx, prompt, "BLOCKED"
-        except Exception as e:
-            return idx, prompt, f"ERROR: {e}"
-
-    results = sorted(
-        await asyncio.gather(*[_one(p, i) for i, p in enumerate(prompts)]),
-        key=lambda r: r[0],
+    response = client.models.generate_images(
+        model=IMAGEN_MODEL,
+        prompt=prompt,
+        config=types.GenerateImagesConfig(
+            number_of_images=max(1, min(count, 4)),
+            aspect_ratio=aspect_ratio,
+            person_generation="ALLOW_ADULT",
+        ),
     )
-    return "\n".join(f"{r[1]!r} → {r[2]}" for r in results)
+
+    out: list = []
+    for img in response.generated_images or []:
+        data = img.image.image_bytes
+        path = _save(data, "imagen")
+        out.append(Image(data=data, format="png"))
+        out.append(f"Saved to: {path}")
+
+    if not out:
+        return ["No images generated — the prompt was likely blocked by Imagen's safety filters."]
+    return out
 
 
 @mcp.tool()
@@ -282,17 +323,17 @@ def generate_image_dalle(
     prompt: str,
     size: str = "1024x1024",
     quality: str = "hd",
-) -> str:
-    """Generate an image using DALL-E 3. Good for: creative/illustrative prompts,
-    text in images, abstract concepts. No NSFW.
+) -> list:
+    """Generate an image using DALL-E 3. Best for creative/illustrative prompts, rendering
+    text inside the image, and strong instruction-following. No NSFW. Renders inline + saved.
 
     Args:
-        prompt: What to generate. DALL-E 3 is good at following complex instructions.
-        size: "1024x1024", "1792x1024" (landscape), or "1024x1792" (portrait).
-        quality: "hd" (default, more detail) or "standard" (faster).
+        prompt: What to generate. DALL-E 3 follows complex multi-part instructions well.
+        size: 1024x1024, 1792x1024 (landscape), or 1024x1792 (portrait).
+        quality: "hd" (default, more detail) or "standard" (faster, cheaper).
 
     Returns:
-        File path to the generated image.
+        The generated image (inline) plus the saved file path, and any prompt revision.
     """
     import httpx
 
@@ -307,35 +348,36 @@ def generate_image_dalle(
 
     url = response.data[0].url
     if not url:
-        return "DALL-E returned no image URL."
+        return ["DALL-E returned no image URL."]
 
-    image_bytes = httpx.get(url, timeout=60).content
-    p = _save(image_bytes, "dalle")
+    data = httpx.get(url, timeout=60).content
+    path = _save(data, "dalle")
+    result = [Image(data=data, format="png"), f"Saved to: {path}"]
+
     revised = response.data[0].revised_prompt
-    result = f"Generated: {p}"
-    if revised and revised != prompt:
-        result += f"\nDALL-E revised your prompt to: {revised}"
+    if revised and revised.strip() != prompt.strip():
+        result.append(f"DALL-E revised your prompt to: {revised}")
     return result
 
 
 @mcp.tool()
-async def generate_image_comfy(prompt: str) -> str:
-    """Generate an image using local ComfyUI (SD1.5 or SDXL). Good for: full NSFW
-    including explicit content, custom LoRAs, local generation with no API cost.
-    Requires ComfyUI running at COMFY_URL (default http://127.0.0.1:8188).
+async def generate_image_comfy(prompt: str) -> list:
+    """Generate an image using local ComfyUI (SD1.5 / SDXL). The only backend that allows
+    full explicit NSFW; uses the LoRAs already configured in your ComfyUI. No API cost.
+    Requires ComfyUI running at COMFY_URL (default http://127.0.0.1:8188). Renders inline.
 
-    Prompt keywords:
-      • "realistic" / "photo" / "sdxl" / "photonic" → SDXL model
-      • "explicit" / "erect" / "cock" etc → explicit LoRA
-      • "portrait" / "landscape" → aspect ratio
-      • "detailed" → more steps
-      • "more bear" / "less bear" → bear LoRA strength
+    Prompt keywords drive model/LoRA selection automatically:
+      realistic / photo / sdxl / photonic → SDXL model
+      explicit / erect / cock / etc        → explicit LoRA
+      portrait / landscape                 → aspect ratio
+      detailed                             → more sampling steps
+      more bear / less bear                → bear LoRA strength
 
     Args:
-        prompt: Text description. LoRA and model selection is automatic from keywords.
+        prompt: Text description. Model and LoRA selection is automatic from keywords.
 
     Returns:
-        Filename of the generated image (served by ComfyUI at /view?filename=...).
+        The generated image (inline) plus its ComfyUI filename.
     """
     import httpx
 
@@ -346,12 +388,13 @@ async def generate_image_comfy(prompt: str) -> str:
         try:
             r = await client.post(f"{COMFY_URL}/prompt", json={"prompt": workflow})
         except httpx.ConnectError:
-            return f"Could not reach ComfyUI at {COMFY_URL}. Is it running?"
+            return [f"Could not reach ComfyUI at {COMFY_URL}. Is it running?"]
         if r.status_code != 200:
-            return f"ComfyUI rejected prompt: {r.text}"
+            return [f"ComfyUI rejected the prompt: {r.text}"]
         prompt_id = r.json()["prompt_id"]
 
         deadline = time.monotonic() + 360
+        filename = None
         while time.monotonic() < deadline:
             await asyncio.sleep(4)
             hist = (await client.get(f"{COMFY_URL}/history/{prompt_id}")).json()
@@ -360,10 +403,20 @@ async def generate_image_comfy(prompt: str) -> str:
             for out in hist[prompt_id].get("outputs", {}).values():
                 for img in out.get("images", []):
                     filename = img["filename"]
-                    view_url = f"{COMFY_URL}/view?filename={filename}&type=output"
-                    return f"Generated: {filename}\nView: {view_url}"
+                    break
+            if filename:
+                break
 
-    return "ComfyUI timed out after 6 minutes."
+        if not filename:
+            return ["ComfyUI timed out after 6 minutes."]
+
+        view = await client.get(
+            f"{COMFY_URL}/view", params={"filename": filename, "type": "output"}
+        )
+        data = view.content
+
+    _save(data, "comfy")
+    return [Image(data=data, format="png"), f"ComfyUI file: {filename}"]
 
 
 if __name__ == "__main__":

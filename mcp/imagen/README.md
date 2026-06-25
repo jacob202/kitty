@@ -1,6 +1,11 @@
 # Imagen MCP Server
 
-Generate and edit images inside Claude Code with three backends.
+Photorealistic image generation and editing inside Claude Code. Default engine is
+Google's **Nano Banana** (`gemini-2.5-flash-image`) — state-of-the-art photorealism plus
+natural-language editing. Imagen 4, DALL-E 3, and local ComfyUI are opt-in alternatives.
+
+Every tool **renders the image inline in the chat** and saves a copy to
+`~/Pictures/kitty-gen/`, so the loop is: generate → look → "change X" → `edit_image`.
 
 ## Setup
 
@@ -28,24 +33,35 @@ pip install -r requirements.txt
 }
 ```
 
-Drop keys from `env` if they're already in your shell profile. `COMFY_URL` defaults to `http://127.0.0.1:8188`.
+Drop a key from `env` if it's already exported in your shell. Restart Claude Code, then
+just ask: *"generate a photo of a misty harbor at dawn"* or *"edit that — make it night."*
 
 ## Tools
 
-| Tool | Backend | NSFW | Notes |
+| Tool | Engine | NSFW | Best for |
 |---|---|---|---|
-| `generate_image` | Gemini Imagen 3 | Tasteful ✓ | Best photorealism |
-| `edit_image` | Gemini 2.0 Flash | Tasteful ✓ | Natural-language edits to existing images |
-| `batch_generate` | Gemini Imagen 3 | Tasteful ✓ | Up to 10 prompts in parallel |
-| `generate_image_dalle` | DALL-E 3 | ✗ | Best at complex/creative prompts, text in images |
-| `generate_image_comfy` | ComfyUI (local) | Full ✓ | Needs ComfyUI running; explicit LoRA built in |
+| `generate_image` | Nano Banana | Tasteful | **Default.** Photorealism. |
+| `edit_image` | Nano Banana | Tasteful | Refining an existing image by sentence |
+| `generate_image_imagen` | Imagen 4 | Tasteful (adults) | 1–4 variations in one call |
+| `generate_image_dalle` | DALL-E 3 | ✗ | Creative/illustrative, text-in-image |
+| `generate_image_comfy` | ComfyUI (local) | Full/explicit | Explicit NSFW, custom LoRAs, $0 |
 
-All images saved to `~/Pictures/kitty-gen/`.
+## Photorealism
+
+`generate_image` has `photorealistic=True` by default, which appends photographic cues
+(DSLR, 85mm lens, natural lighting, depth of field) to your prompt. Set it `False` for
+illustrations, paintings, or cartoons.
+
+## Model drift
+
+Image model names move fast. Override without touching code:
+
+```bash
+GEMINI_IMAGE_MODEL=gemini-3.1-flash-image
+IMAGEN_MODEL=imagen-4.0-ultra-generate-001
+```
 
 ## ComfyUI prompt keywords
 
-- `realistic` / `photo` / `sdxl` / `photonic` → SDXL model
-- `explicit` / `erect` / `cock` etc → explicit LoRA
-- `portrait` / `landscape` → aspect ratio
-- `detailed` → more steps
-- `more bear` / `less bear` → bear LoRA strength
+`realistic`/`photo`/`sdxl`/`photonic` → SDXL · `explicit`/`erect`/`cock` → explicit LoRA ·
+`portrait`/`landscape` → aspect · `detailed` → more steps · `more bear`/`less bear` → LoRA strength
