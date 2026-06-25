@@ -19,10 +19,12 @@ import { MonitorPanel } from '@/components/MonitorPanel'
 import { ImageGenPanel } from '@/components/ImageGenPanel'
 import { CommandPalette } from '@/components/CommandPalette'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { PwaInstallBanner } from '@/components/PwaInstallBanner'
 import {
   fetchGatewaySearch,
   type GatewaySearchSnapshot,
 } from '@/lib/gateway'
+import { usePwaInstall } from '@/lib/pwa'
 import {
   useGatewayBrief,
   useGatewayModels,
@@ -149,6 +151,7 @@ function KittyChatInner() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+  const pwaInstall = usePwaInstall()
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -483,6 +486,12 @@ function KittyChatInner() {
   const handleInsightAction = useCallback((_insightId: string, _actionId: string) => {
   }, [])
 
+  const handlePwaInstall = useCallback(() => {
+    void pwaInstall.install().catch(error => {
+      console.error('Kitty install failed:', error)
+    })
+  }, [pwaInstall])
+
   return (
     <div className="app-canvas" style={{
       display: 'grid',
@@ -565,6 +574,13 @@ function KittyChatInner() {
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={handleToggleSidebar}
           isMobile={isMobile}
+        />
+
+        <PwaInstallBanner
+          state={pwaInstall.state}
+          error={pwaInstall.error}
+          installing={pwaInstall.installing}
+          onInstall={handlePwaInstall}
         />
 
         {modelGateway.loaded && !modelGateway.live && (

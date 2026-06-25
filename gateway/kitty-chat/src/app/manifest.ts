@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
+    id: '/',
     name: 'Kitty',
     short_name: 'Kitty',
     description: 'Your personal AI companion',
@@ -10,19 +11,29 @@ export default function manifest(): MetadataRoute.Manifest {
     display: 'standalone',
     background_color: '#0f0f14',
     theme_color: '#0f0f14',
-    orientation: 'portrait',
+    categories: ['productivity', 'utilities'],
     icons: [
       {
-        src: '/mascots/kitty-mission.png',
-        sizes: '1024x1024',
+        src: '/app-icons/kitty-192.png',
+        sizes: '192x192',
+        type: 'image/png',
+      },
+      {
+        src: '/app-icons/kitty-192.png',
+        sizes: '192x192',
         type: 'image/png',
         purpose: 'maskable',
       },
       {
-        src: '/kitty-mark.svg',
-        sizes: '64x64',
-        type: 'image/svg+xml',
-        purpose: 'any',
+        src: '/app-icons/kitty-512.png',
+        sizes: '512x512',
+        type: 'image/png',
+      },
+      {
+        src: '/app-icons/kitty-512.png',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'maskable',
       },
     ],
   }

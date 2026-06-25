@@ -15,11 +15,12 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/mascots/kitty-mission.png", sizes: "1024x1024", type: "image/png" },
+      { url: "/app-icons/kitty-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/app-icons/kitty-512.png", sizes: "512x512", type: "image/png" },
       { url: "/kitty-mark.svg", type: "image/svg+xml" },
     ],
     apple: [
-      { url: "/mascots/kitty-mission.png", sizes: "1024x1024", type: "image/png" },
+      { url: "/app-icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
     ],
     shortcut: ["/kitty-mark.svg"],
   },
