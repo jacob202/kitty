@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "imagen": {
+      "type": "stdio",
+      "command": "./mcp/imagen/.venv/bin/python",
+      "args": ["./mcp/imagen/server.py"]
+    }
+  }
+}

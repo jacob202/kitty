@@ -29,7 +29,10 @@ import shutil
 import time
 from pathlib import Path
 
+from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP, Image
+
+load_dotenv(Path(__file__).parent / ".env")
 
 OUTPUT_DIR = Path.home() / "Pictures" / "kitty-gen"
 AVATAR_PATH = OUTPUT_DIR / "_avatar.png"
