@@ -29,7 +29,7 @@ A 6-phase, ~10–14 working day plan addressing 15 frictions + 2 sub-frictions a
 - `codex/raycast-quick-capture` still holds useful unmerged Raycast wrapper work at `5a07744`.
 - `docs/superpowers/specs/2026-06-20-workflow-optimization-rollout.md` is a planning artifact with `status: PARTIALLY_IMPLEMENTED` — 5 done, 6 partial, 4 pending. See the in-doc status table.
 - Older stashes remain for memory-graph and routing experiments; the current inventory is in `.agent/stash_audit.md`.
-- **Skills consolidation:** design ACCEPTED, Phases 1-5 of the design landed (deletions, merges, ## Flow, trigger sharpening, global sync for catchup + tdd-loop). `second-opinion` is project-only — separate promotion task.
+- **Skills consolidation:** design ACCEPTED, Phases 1-5 of the design landed (deletions, merges, ## Flow, trigger sharpening, global sync for catchup + tdd-loop + second-opinion). All 3 promoted-to-global skills are now in `~/.claude/skills/` (md5 verified).
 
 ## Known Risks
 
@@ -40,6 +40,8 @@ A 6-phase, ~10–14 working day plan addressing 15 frictions + 2 sub-frictions a
 
 ## Recent Commits (local, unpushed)
 
+- `2ce3fe7` feat(kitty-chat): add mobile web app shell
+- `4d10296` fix(kitty-chat): stabilize frontend checks
 - `a79d4ee` chore(workflow): make commits instant — skip slow tests in pre-commit, add slow marker
 - `e5b63b5` fix(kitty-chat): fail loud on chat persistence
 - `948136d` docs(refresh): status + handoff for Phase 0+1 landing
@@ -64,8 +66,9 @@ Branch is in sync with origin (`a79d4ee` is the latest push).
 
 ## Verification
 
-- `make test` (fast slice, default — skips `@pytest.mark.slow`): expected `~691 passed, 2 deselected` (was 687 pre-Phase-1 + 11 router_depth − 7 slow-marked = 691). Run before each push.
-- `make test-full` (everything, includes real mem0 / network / I/O): expected `~698 passed, 2 deselected` once the slow path is exercised. The first `test_storage_sync` test alone takes ~23s.
+- `make test` (fast slice, default — skips `@pytest.mark.slow`): **692 passed, 9 deselected in 82.27s** (confirmed this turn). 9 deselected = 7 marked slow + 2 from prior slow cohort.
+- `make test-full` (everything, includes real mem0 / network / I/O): expected `~701 passed, 9 deselected`. The first `test_storage_sync` test alone takes ~23s.
+- **Note:** if `pytest` hangs with no output, pass `-p no:cacheprovider`. The cache plugin occasionally gets stuck on `test_storage_sync.py`'s mem0 import.
 - `python3.12 -m pytest tests/test_storage_router_depth.py -v`: confirmed green, 11 tests in 0.7s.
 - `python3.12 -m pytest tests/test_storage_sync.py::test_export_all_returns_expected_top_level_shape -v`: confirmed green, 1 test in 23.4s.
 - `./kitty status` currently shows gateway and LiteLLM stopped.

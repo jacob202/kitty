@@ -43,6 +43,8 @@ Adds Phase 4 workflow polish and the accepted Gateway Architecture Deepening Pro
 
 ## Recent Commits (local, unpushed)
 
+- `2ce3fe7` feat(kitty-chat): add mobile web app shell
+- `4d10296` fix(kitty-chat): stabilize frontend checks
 - `a79d4ee` chore(workflow): make commits instant — skip slow tests in pre-commit, add slow marker
 - `e5b63b5` fix(kitty-chat): fail loud on chat persistence
 - `948136d` docs(refresh): status + handoff for Phase 0+1 landing
@@ -65,8 +67,9 @@ Adds Phase 4 workflow polish and the accepted Gateway Architecture Deepening Pro
 
 ## Verification
 
-- `make test` (fast slice, default — skips `@pytest.mark.slow`): expected `~691 passed, 2 deselected` (was 687 pre-Phase-1 + 11 router_depth − 7 slow-marked = 691). Run before each push.
-- `make test-full` (everything, includes real mem0 / network / I/O): expected `~698 passed, 2 deselected` once the slow path is exercised. The first `test_storage_sync` test alone takes ~23s.
+- `make test` (fast slice, default — skips `@pytest.mark.slow`): **692 passed, 9 deselected in 82.27s** (confirmed this turn).
+- `make test-full` (everything, includes real mem0 / network / I/O): expected `~701 passed, 9 deselected`. The first `test_storage_sync` test alone takes ~23s.
+- **Note:** if `pytest` hangs with no output, pass `-p no:cacheprovider`. The cache plugin occasionally gets stuck on `test_storage_sync.py`'s mem0 import.
 - `python3.12 -m pytest tests/test_storage_router_depth.py -v`: confirmed green, 11 tests in 0.7s.
 - `python3.12 -m pytest tests/test_storage_sync.py::test_export_all_returns_expected_top_level_shape -v`: confirmed green, 1 test in 23.4s.
 - `./kitty status` currently shows gateway and LiteLLM stopped
@@ -76,7 +79,7 @@ Adds Phase 4 workflow polish and the accepted Gateway Architecture Deepening Pro
 
 - `docs/superpowers/specs/2026-06-20-workflow-optimization-rollout.md` is a planning doc with `status: PARTIALLY_IMPLEMENTED` — 5 done, 6 partial, 4 pending. See the in-doc status table.
 - Gateway Architecture Deepening Program (accepted 2026-06-24) — **Phase 0 and Phase 1 landed.** Phase 1 (storage substrate): new `gateway/storage_sync.py`, `sync.py` + `storage_io.py` deleted, `storage_router.py` deepened (typed accessors, validation, telemetry, registration), `plugin_registry.py` legacy JSON mirror removed, `inbox_watcher.py` uses `paths.INBOX_FILE`. **Phase 2 next** (highest-risk phase, budget 4 days): read-path unification — new `context_assembler.py`, uniform `Item` dataclass across 7 adapters, partial-result semantics (failures surface as `Warning`, not silent skip), voice-gate stays out of request-time path. 3 more phases after. Each phase is a discrete commit with a green test gate.
-- **Skills consolidation:** design ACCEPTED, Phases 1-5 of the design landed (deletions, merges, ## Flow, trigger sharpening, global sync for catchup + tdd-loop). Out-of-repo skills created: `~/.claude/skills/loop-tune/SKILL.md` (108 lines), `~/.claude/skills/deep-review/SKILL.md` (159 lines). `second-opinion` is project-only (not yet promoted to global — separate task).
+- **Skills consolidation:** design ACCEPTED, Phases 1-5 of the design landed (deletions, merges, ## Flow, trigger sharpening, global sync for catchup + tdd-loop + second-opinion). Out-of-repo skills created: `~/.claude/skills/loop-tune/SKILL.md` (108 lines), `~/.claude/skills/deep-review/SKILL.md` (159 lines). All 3 promoted-to-global skills (catchup, tdd-loop, second-opinion) are in sync project ↔ global (md5 verified).
 - Machine-local Claude allowances should live in ignored `.claude/settings.local.json`, not in committed repo policy
 - `gateway/inbox_watcher.py` depends on the local iCloud path; the remaining useful live check is a real end-to-end ingest on Jacob's machine
 - Stashes remain; current inventory lives in `.agent/stash_audit.md`
