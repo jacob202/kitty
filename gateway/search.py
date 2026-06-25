@@ -131,17 +131,39 @@ async def async_search(query: str, limit: int = 5) -> dict[str, Any]:
         "query": query,
     }
 
-    for raw_key, items in raw.items():
+    for raw_key, items in raw.results.items():
         section = RAW_TO_SECTION.get(raw_key)
         if not section or not isinstance(items, list):
             continue
         kind = SECTION_TO_KIND[section]
         results[section] = [
-            normalize_hit(kind, item)
+            _item_to_hit(kind, item)
             for item in items[:limit]
-            if isinstance(item, dict)
+            if isinstance(item, memory_graph.Item)
         ]
     return results
+
+
+def _item_to_hit(kind: str, item: memory_graph.Item) -> dict[str, Any]:
+    """Convert a memory_graph.Item into the stable search hit shape."""
+    source = str(item.source)
+    if kind == "knowledge":
+        title = item.metadata.get("source", source)
+    elif kind == "journal":
+        title = str(item.ts) if item.ts else "Journal entry"
+    elif kind in ("todo", "capture"):
+        text = item.text
+        title = (text[:80] + "\u2026") if len(text) > 80 else text
+    else:
+        title = source
+    return {
+        "kind": kind,
+        "source": source,
+        "title": title,
+        "text": item.text,
+        "score": item.score,
+        "metadata": item.metadata,
+    }
 
 
 def search(query: str, limit: int = 5) -> dict[str, Any]:

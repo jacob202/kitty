@@ -8,21 +8,33 @@ import pytest
 from fastapi.testclient import TestClient
 
 from gateway.app import app
+from gateway.memory_graph import GraphResult, Item, Source
 
 
 @pytest.mark.asyncio
 async def test_async_search_normalizes_grouped_store_hits() -> None:
     from gateway.search import async_search
 
-    raw = {
-        "memory": [{"memory": "Jacob likes concise plans", "source": "facts", "_score": 3}],
-        "knowledge": [{"text": "MOSFET bias notes", "source": "sansui.pdf", "score": 0.87}],
-        "journal": [{"entry": "Felt focused after the short work block.", "ts": "2026-05-18"}],
-        "todos": [{"content": "Recheck gateway search", "id": "todo-1", "done": False}],
-        "inbox": [{"text": "Capture the Sansui bias setting", "source": "desktop_quick_capture"}],
+    items = {
+        Source.MEMORY.value: [
+            Item(text="Jacob likes concise plans", source=Source.MEMORY, score=3, metadata={"source": "facts"})
+        ],
+        Source.KNOWLEDGE.value: [
+            Item(text="MOSFET bias notes", source=Source.KNOWLEDGE, score=0.87, metadata={"source": "sansui.pdf"})
+        ],
+        Source.JOURNAL.value: [
+            Item(text="Felt focused after the short work block.", source=Source.JOURNAL)
+        ],
+        Source.TODOS.value: [
+            Item(text="Recheck gateway search", source=Source.TODOS, metadata={"id": "todo-1", "done": False})
+        ],
+        Source.INBOX.value: [
+            Item(text="Capture the Sansui bias setting", source=Source.INBOX, metadata={"source": "desktop_quick_capture"})
+        ],
     }
+    mock_result = GraphResult(results=items)
 
-    with patch("gateway.search.memory_graph.search_all", new=AsyncMock(return_value=raw)):
+    with patch("gateway.search.memory_graph.search_all", new=AsyncMock(return_value=mock_result)):
         result = await async_search("gateway search", limit=3)
 
     assert result["query"] == "gateway search"

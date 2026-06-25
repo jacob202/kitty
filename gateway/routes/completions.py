@@ -62,11 +62,12 @@ async def chat_completions(request: Request):
     else:
         model = route_model(user_text)
 
-    from gateway.context_builder import get_system_prompt
+    from gateway.context_assembler import assemble_context
 
     try:
         on_context_fetch()
-        system_prompt = await get_system_prompt(user_text, parts_mode=False, domain=domain)
+        bundle = await assemble_context(user_text, parts_mode=False, domain=domain)
+        system_prompt = bundle.system
     except Exception:
         on_request_error()
         raise

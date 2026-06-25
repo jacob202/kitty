@@ -4,6 +4,7 @@ import asyncio
 import pytest
 
 from gateway import memory_graph
+from gateway.memory_graph import Item, Source
 from gateway.mempalace_adapter import MemPalaceAdapter
 
 
@@ -30,19 +31,15 @@ def test_fetch_empty_when_cli_missing(monkeypatch):
 
 def test_parse_handles_list_and_dict_and_garbage():
     a = MemPalaceAdapter._parse('[{"text": "hello", "related": ["a", "b"]}]')
-    assert a == [{"text": "hello", "related": ["a", "b"]}]
+    assert len(a) == 1
+    assert a[0].text == "hello"
+    assert a[0].source == Source.MEMORY_PALACE
+    assert a[0].metadata == {"related": ["a", "b"]}
     b = MemPalaceAdapter._parse('{"results": [{"content": "hi"}]}')
-    assert b == [{"text": "hi", "related": []}]
+    assert len(b) == 1
+    assert b[0].text == "hi"
     assert MemPalaceAdapter._parse("not json") == []
     assert MemPalaceAdapter._parse('[{"related": ["x"]}]') == []  # no text -> dropped
-
-
-def test_format_and_correlate():
-    items = [{"text": "fact one", "related": ["r1"]}, {"text": "fact two", "related": []}]
-    out = MemPalaceAdapter().format_items(items)
-    assert "## Memory Palace" in out and "- fact one" in out
-    assert MemPalaceAdapter().correlate(items, {}) == ["1 typed relationships"]
-    assert MemPalaceAdapter().format_items([]) == ""
 
 
 def test_not_registered_by_default(monkeypatch):

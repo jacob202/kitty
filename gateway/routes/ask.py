@@ -33,15 +33,16 @@ async def ask(payload: AskRequest):
         on_request_start,
         on_request_success,
     )
-    from gateway.context_builder import get_system_prompt
+    from gateway.context_assembler import assemble_context
 
     on_request_start()
     try:
         domain = classify_domain(message)
         on_context_fetch()
-        system_prompt = await get_system_prompt(
+        bundle = await assemble_context(
             message, parts_mode=payload.parts_mode, domain=domain
         )
+        system_prompt = bundle.system
 
         model = route_model(message)
         llm_payload = {
