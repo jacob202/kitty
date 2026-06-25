@@ -10,6 +10,11 @@ copy to ~/Pictures/kitty-gen/ so you can pass the path back to edit_image to ref
 Tools:
   generate_image        — Nano Banana: photorealistic generation (the default)
   edit_image            — Nano Banana: natural-language edits to an existing image
+  generate_with_reference — Nano Banana: keep a subject consistent / composite images
+  refine_image          — auto loop: generate → vision-critique → edit until it matches
+  variations            — several alternates of an existing image
+  set_avatar / generate_with_avatar — a persistent character you can drop into scenes
+  make_gallery          — HTML contact sheet of everything generated
   generate_image_imagen — Imagen 4: alternative high-fidelity generation, 1-4 at once
   generate_image_dalle  — DALL-E 3: creative/illustrative prompts, text-in-image
   generate_image_comfy  — local ComfyUI: full NSFW incl. explicit (needs ComfyUI running)
@@ -18,17 +23,21 @@ Tools:
 from __future__ import annotations
 
 import asyncio
+import html
 import os
+import shutil
 import time
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP, Image
 
 OUTPUT_DIR = Path.home() / "Pictures" / "kitty-gen"
+AVATAR_PATH = OUTPUT_DIR / "_avatar.png"
 
 # Overridable so model-name drift never bricks the server — bump via env if Google
 # ships a newer image model (e.g. GEMINI_IMAGE_MODEL=gemini-3.1-flash-image).
 GEMINI_IMAGE_MODEL = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
+GEMINI_VISION_MODEL = os.environ.get("GEMINI_VISION_MODEL", "gemini-2.5-flash")
 IMAGEN_MODEL = os.environ.get("IMAGEN_MODEL", "imagen-4.0-generate-001")
 
 # Appended to a prompt when photorealistic=True. Photographic cues measurably push
@@ -45,6 +54,10 @@ mcp = FastMCP(
         "Banana) for new images and edit_image to refine them — both render inline and "
         "save to ~/Pictures/kitty-gen/. The generate→look→edit loop is the intended "
         "workflow: make an image, the user reacts, call edit_image with their change. "
+        "To keep a subject consistent or composite images, use generate_with_reference. "
+        "set_avatar pins a recurring character for generate_with_avatar. refine_image "
+        "runs the generate→critique→edit loop automatically. variations makes alternates, "
+        "make_gallery builds a browsable contact sheet. "
         "Use generate_image_imagen for batches of 1-4, generate_image_dalle for "
         "illustrative/text-heavy prompts, generate_image_comfy for explicit NSFW."
     ),
@@ -96,6 +109,28 @@ def _refusal_text(response) -> str:
             if getattr(part, "text", None):
                 texts.append(part.text)
     return " ".join(texts) if texts else "no image and no explanation returned"
+
+
+def _image_part(path: Path):
+    """Build a Gemini image Part from a file on disk."""
+    from google.genai import types
+
+    raw = path.read_bytes()
+    mime = "image/jpeg" if path.suffix.lower() in (".jpg", ".jpeg") else "image/png"
+    return types.Part.from_bytes(data=raw, mime_type=mime)
+
+
+def _nano_image(contents) -> tuple[bytes | None, str]:
+    """Run a Nano Banana generate_content call, return (image_bytes, refusal_text)."""
+    from google.genai import types
+
+    client = _gemini_client()
+    response = client.models.generate_content(
+        model=GEMINI_IMAGE_MODEL,
+        contents=contents,
+        config=types.GenerateContentConfig(response_modalities=["IMAGE"]),
+    )
+    return _first_image_bytes(response), _refusal_text(response)
 
 
 # ---------------------------------------------------------------------------
@@ -417,6 +452,226 @@ async def generate_image_comfy(prompt: str) -> list:
 
     _save(data, "comfy")
     return [Image(data=data, format="png"), f"ComfyUI file: {filename}"]
+
+
+@mcp.tool()
+def generate_with_reference(
+    reference_paths: list[str],
+    prompt: str,
+) -> list:
+    """Generate an image conditioned on one or more reference images using Nano Banana.
+    This is the standout capability no other engine has:
+
+      • One reference → keep that subject CONSISTENT in a new scene
+        ("the person in this photo, now sitting in a Paris cafe at night").
+      • Multiple references → COMPOSITE them
+        ("put the person from image 1 in the room from image 2",
+         "dress the model in image 1 in the outfit from image 2").
+
+    Args:
+        reference_paths: 1-3 absolute paths to reference images (PNG/JPEG).
+        prompt: What to make using those references.
+
+    Returns:
+        The generated image (inline) plus the saved file path.
+    """
+    refs = [Path(p).expanduser() for p in reference_paths]
+    missing = [str(p) for p in refs if not p.exists()]
+    if missing:
+        return ["Reference file(s) not found: " + ", ".join(missing)]
+
+    from google.genai import types
+
+    contents = [_image_part(p) for p in refs[:3]]
+    contents.append(types.Part.from_text(text=prompt))
+
+    data, refusal = _nano_image(contents)
+    if data is None:
+        return [f"No image generated. Model said: {refusal}"]
+
+    path = _save(data, "ref")
+    return [Image(data=data, format="png"), f"Saved to: {path}"]
+
+
+@mcp.tool()
+def set_avatar(image_path: str) -> str:
+    """Pin a reference image as the persistent avatar/character. Once set, use
+    generate_with_avatar to drop this exact subject into any scene without re-uploading.
+
+    Args:
+        image_path: Absolute path to the image to use as the persistent character.
+
+    Returns:
+        Confirmation and where it was stored.
+    """
+    src = Path(image_path).expanduser()
+    if not src.exists():
+        return f"File not found: {image_path}"
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(src, AVATAR_PATH)
+    return f"Avatar set from {src.name}. Use generate_with_avatar to place this character in scenes."
+
+
+@mcp.tool()
+def generate_with_avatar(prompt: str) -> list:
+    """Generate an image of the pinned avatar character (see set_avatar) in a new scene,
+    keeping the character consistent. Convenience wrapper over generate_with_reference.
+
+    Args:
+        prompt: The scene/action, e.g. "on a snowy mountain trail, golden hour".
+
+    Returns:
+        The generated image (inline) plus the saved file path.
+    """
+    if not AVATAR_PATH.exists():
+        return ["No avatar set yet. Call set_avatar with an image path first."]
+
+    from google.genai import types
+
+    contents = [_image_part(AVATAR_PATH), types.Part.from_text(text=prompt)]
+    data, refusal = _nano_image(contents)
+    if data is None:
+        return [f"No image generated. Model said: {refusal}"]
+
+    path = _save(data, "avatar")
+    return [Image(data=data, format="png"), f"Saved to: {path}"]
+
+
+@mcp.tool()
+def variations(image_path: str, count: int = 3) -> list:
+    """Produce several alternates of an existing image — same subject, varied pose,
+    angle, and lighting. Good for "give me more like this one."
+
+    Args:
+        image_path: Absolute path to the source image.
+        count: How many variations (1-4). Default 3.
+
+    Returns:
+        Each variation (inline) plus its saved path.
+    """
+    src = Path(image_path).expanduser()
+    if not src.exists():
+        return [f"File not found: {image_path}"]
+
+    from google.genai import types
+
+    vary_prompt = (
+        "Create a variation of this image. Keep the same subject and overall style, "
+        "but change the pose, camera angle, and lighting. Photorealistic."
+    )
+
+    out: list = []
+    for _ in range(max(1, min(count, 4))):
+        contents = [_image_part(src), types.Part.from_text(text=vary_prompt)]
+        data, refusal = _nano_image(contents)
+        if data is None:
+            out.append(f"A variation failed: {refusal}")
+            continue
+        path = _save(data, "var")
+        out.append(Image(data=data, format="png"))
+        out.append(f"Saved to: {path}")
+
+    return out or ["No variations were produced."]
+
+
+@mcp.tool()
+def refine_image(prompt: str, target: str = "", max_rounds: int = 3) -> list:
+    """Generate an image, then automatically critique and re-edit it until it matches —
+    the autonomous generate → analyze → fix loop. Each round a vision model checks the
+    result against `target` (or `prompt`) and either approves it or hands back one
+    concrete edit, which is applied before the next check.
+
+    Args:
+        prompt: What to generate initially.
+        target: The success criteria to judge against. Defaults to `prompt`.
+        max_rounds: Max critique/edit rounds (1-5). Default 3.
+
+    Returns:
+        The final image (inline), the saved path, and the round-by-round critique trail.
+    """
+    from google.genai import types
+
+    goal = target.strip() or prompt
+    client = _gemini_client()
+
+    data, refusal = _nano_image(prompt + PHOTOREAL_SUFFIX)
+    if data is None:
+        return [f"Initial generation failed. Model said: {refusal}"]
+
+    trail: list[str] = []
+    rounds = max(1, min(max_rounds, 5))
+
+    for i in range(rounds):
+        critique = client.models.generate_content(
+            model=GEMINI_VISION_MODEL,
+            contents=[
+                types.Part.from_bytes(data=data, mime_type="image/png"),
+                types.Part.from_text(text=(
+                    f"Target: {goal}\n\n"
+                    "Judge whether this image matches the target. If it is a good match, "
+                    "reply with exactly the word DONE. Otherwise reply with ONE specific, "
+                    "actionable edit instruction (and nothing else) to bring it closer."
+                )),
+            ],
+        )
+        verdict = (_refusal_text(critique) or "").strip()
+
+        if verdict.upper().startswith("DONE") or not verdict:
+            trail.append(f"Round {i + 1}: approved.")
+            break
+
+        trail.append(f"Round {i + 1}: {verdict}")
+        new_data, edit_refusal = _nano_image([
+            types.Part.from_bytes(data=data, mime_type="image/png"),
+            types.Part.from_text(text=verdict),
+        ])
+        if new_data is None:
+            trail.append(f"Round {i + 1}: edit failed ({edit_refusal}); keeping previous.")
+            break
+        data = new_data
+
+    path = _save(data, "refined")
+    return [
+        Image(data=data, format="png"),
+        f"Saved to: {path}\n\nCritique trail:\n" + "\n".join(trail),
+    ]
+
+
+@mcp.tool()
+def make_gallery() -> str:
+    """Build an HTML contact sheet of every image in ~/Pictures/kitty-gen, newest first,
+    so you can browse past generations. Returns the path to the gallery file.
+
+    Returns:
+        Path to the generated gallery.html (open it in a browser).
+    """
+    if not OUTPUT_DIR.exists():
+        return "No images yet — generate something first."
+
+    pngs = sorted(
+        (p for p in OUTPUT_DIR.glob("*.png") if p.name != AVATAR_PATH.name),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    if not pngs:
+        return "No images yet — generate something first."
+
+    cards = "\n".join(
+        f'<figure><img src="{html.escape(p.name)}" loading="lazy">'
+        f'<figcaption>{html.escape(p.name)}</figcaption></figure>'
+        for p in pngs
+    )
+    doc = (
+        "<!doctype html><meta charset=utf-8><title>kitty-gen gallery</title>"
+        "<style>body{background:#111;color:#eee;font-family:system-ui;margin:1rem}"
+        "main{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}"
+        "figure{margin:0}img{width:100%;border-radius:8px;display:block}"
+        "figcaption{font-size:11px;color:#888;word-break:break-all;margin-top:4px}</style>"
+        f"<h1>kitty-gen — {len(pngs)} images</h1><main>{cards}</main>"
+    )
+    gallery = OUTPUT_DIR / "gallery.html"
+    gallery.write_text(doc, encoding="utf-8")
+    return f"Gallery written to {gallery} ({len(pngs)} images). Open it in a browser."
 
 
 if __name__ == "__main__":

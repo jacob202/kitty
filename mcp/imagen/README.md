@@ -38,13 +38,46 @@ just ask: *"generate a photo of a misty harbor at dawn"* or *"edit that — make
 
 ## Tools
 
+**Core**
+
 | Tool | Engine | NSFW | Best for |
 |---|---|---|---|
 | `generate_image` | Nano Banana | Tasteful | **Default.** Photorealism. |
 | `edit_image` | Nano Banana | Tasteful | Refining an existing image by sentence |
+| `generate_with_reference` | Nano Banana | Tasteful | Keep a subject consistent across scenes; composite multiple images |
+| `refine_image` | Nano Banana + vision | Tasteful | Autonomous generate → critique → edit until it matches |
+| `variations` | Nano Banana | Tasteful | "More like this one" — alternate pose/angle/lighting |
+
+**Persistent character**
+
+| Tool | Best for |
+|---|---|
+| `set_avatar` | Pin a reference image as a recurring character |
+| `generate_with_avatar` | Drop that character into any new scene |
+
+**Alternate engines & utilities**
+
+| Tool | Engine | NSFW | Best for |
+|---|---|---|---|
 | `generate_image_imagen` | Imagen 4 | Tasteful (adults) | 1–4 variations in one call |
 | `generate_image_dalle` | DALL-E 3 | ✗ | Creative/illustrative, text-in-image |
 | `generate_image_comfy` | ComfyUI (local) | Full/explicit | Explicit NSFW, custom LoRAs, $0 |
+| `make_gallery` | — | — | Browsable HTML contact sheet of all outputs |
+
+### The standout: consistency & compositing
+
+`generate_with_reference` is the capability DALL-E and Imagen can't match:
+
+- **One reference** → same subject, new scene: *"the person in this photo, now on a Tokyo street at night"*
+- **Multiple references** → composite: *"put the person from image 1 in the room from image 2"*, *"dress the model in image 1 in the outfit from image 2"*
+
+`set_avatar` + `generate_with_avatar` turn that into a persistent character you place into scenes without re-uploading each time.
+
+### The autonomous loop
+
+`refine_image(prompt, target, max_rounds)` generates, then a vision model critiques the
+result against `target` and either approves it or returns one concrete edit — applied and
+re-checked until it matches or rounds run out. You get the final image plus the critique trail.
 
 ## Photorealism
 
