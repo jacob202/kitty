@@ -1,8 +1,6 @@
 """Unit tests for the model router (LiteLLM virtual ids sent to the proxy)."""
 from unittest.mock import patch
 
-import requests
-
 from gateway.llm_client import call_llm, route_model
 
 
@@ -18,13 +16,12 @@ def test_route_model_sends_reasoning_to_sonnet():
 
 
 def test_litellm_fallback_prefers_openai_before_other_providers():
-    """When LiteLLM is down, OpenAI should be tried before the dead provider lanes."""
-    with patch("gateway.llm_client.requests.post", side_effect=requests.RequestException("down")), \
-         patch("gateway.llm_client._call_openai_direct", return_value="openai"), \
-         patch("gateway.llm_client._call_nvidia_direct", return_value="nvidia"), \
-         patch("gateway.llm_client._call_agentrouter_direct", return_value="agentrouter"), \
-         patch("gateway.llm_client._call_openrouter_direct", return_value="openrouter"), \
-         patch("gateway.llm_client._call_gemini_direct", return_value="gemini"):
+    """When LiteLLM is down, OpenAI is tried before the other provider lanes."""
+    with patch("gateway.llm_client._post", side_effect=Exception("down")), \
+         patch(
+             "gateway.llm_client._call_provider",
+             side_effect=lambda provider, *args, **kwargs: provider.name,
+         ):
         result = call_llm([{"role": "user", "content": "hello"}], model="kitty-default")
 
     assert result == "openai"
@@ -32,36 +29,31 @@ def test_litellm_fallback_prefers_openai_before_other_providers():
 
 def test_disable_agentrouter_env_skips_agentrouter_fallback(monkeypatch):
     monkeypatch.setenv("KITTY_DISABLE_AGENTROUTER", "1")
-    with patch("gateway.llm_client.requests.post", side_effect=requests.RequestException("down")), \
-         patch("gateway.llm_client._call_openai_direct", return_value=""), \
-         patch("gateway.llm_client._call_nvidia_direct", return_value="nvidia") as mock_nvidia, \
-         patch("gateway.llm_client._call_agentrouter_direct", return_value="agentrouter") as mock_agent, \
-         patch("gateway.llm_client._call_openrouter_direct", return_value="openrouter") as mock_openrouter, \
-         patch("gateway.llm_client._call_gemini_direct", return_value="gemini"):
+    called = []
+
+    def fake_provider(provider, *args, **kwargs):
+        called.append(provider.name)
+        return "" if provider.name == "openai" else provider.name
+
+    with patch("gateway.llm_client._post", side_effect=Exception("down")), \
+         patch("gateway.llm_client._call_provider", side_effect=fake_provider):
         result = call_llm([{"role": "user", "content": "hello"}], model="kitty-default")
 
     assert result == "nvidia"
-    mock_nvidia.assert_called_once()
-    mock_agent.assert_not_called()
-    mock_openrouter.assert_not_called()
+    # openai is tried first (returns ""), agentrouter is skipped, nvidia wins.
+    assert called == ["openai", "nvidia"]
 
 
 def test_call_llm_normalizes_legacy_deepseek_alias():
-    mock_response = type(
-        "Resp",
-        (),
-        {
-            "status_code": 200,
-            "reason": "OK",
-            "raise_for_status": lambda self: None,
-            "json": lambda self: {
-                "choices": [{"message": {"content": "ok"}}],
-                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
-                "model": "kitty-default",
-            },
-        },
-    )()
-    with patch("gateway.llm_client.requests.post", return_value=mock_response) as mock_post:
+    from unittest.mock import MagicMock
+
+    mock_response = MagicMock(status_code=200)
+    mock_response.json.return_value = {
+        "choices": [{"message": {"content": "ok"}}],
+        "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        "model": "kitty-default",
+    }
+    with patch("gateway.llm_client.httpx.post", return_value=mock_response) as mock_post:
         result = call_llm(
             [{"role": "user", "content": "hello"}],
             model="deepseek/deepseek-v4-flash",
