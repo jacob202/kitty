@@ -1,10 +1,8 @@
 # tests/test_model_digest.py
 """Tests for AI model digest — mocked HTTP, real SQLite (in-memory)."""
-import os
-import sqlite3
-from unittest.mock import patch, MagicMock
-import gateway.model_digest as digest_module
+from unittest.mock import MagicMock, patch
 
+import gateway.model_digest as digest_module
 
 FAKE_MODELS_RESPONSE = {
     "data": [

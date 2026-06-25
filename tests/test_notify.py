@@ -1,7 +1,7 @@
 """Tests for notify — Pushover integration."""
-import pytest
-from unittest.mock import patch, MagicMock
-from gateway.notify import send, send_brief, send_alert, is_configured, _get_keys
+from unittest.mock import patch
+
+from gateway.notify import _get_keys, is_configured, send, send_brief
 
 
 class TestGetKeys:

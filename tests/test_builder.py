@@ -1,6 +1,7 @@
 """Tests for builder, verifier, eval_runner."""
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import patch, AsyncMock
 
 
 class TestBuilder:
@@ -15,7 +16,7 @@ class TestBuilder:
         assert status("nonexist") == {"id": "nonexist", "status": "not_found"}
 
     def test_list_builds(self):
-        from gateway.builder import list_builds, init_db
+        from gateway.builder import init_db, list_builds
         init_db()
         builds = list_builds(limit=5)
         assert isinstance(builds, list)

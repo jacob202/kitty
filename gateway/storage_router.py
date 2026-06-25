@@ -24,7 +24,6 @@ from __future__ import annotations
 
 from gateway import plugin_registry, todo_store
 
-
 # --- Todos ---
 
 

@@ -13,10 +13,9 @@ import json
 import logging
 import time
 from collections import defaultdict
-from pathlib import Path
 from typing import Optional
 
-from gateway.paths import DATA_DIR, LOG_FILE, LOGS_DIR
+from gateway.paths import DATA_DIR, LOG_FILE
 
 logger = logging.getLogger("kitty.memory_consolidation")
 

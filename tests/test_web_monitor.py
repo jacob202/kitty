@@ -1,7 +1,9 @@
 """Tests for web_monitor — URL watching and keyword matching."""
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import patch, AsyncMock
-from gateway.web_monitor import add_watch, remove_watch, list_watches, init_db
+
+from gateway.web_monitor import add_watch, init_db, list_watches, remove_watch
 
 
 class TestCRUD:

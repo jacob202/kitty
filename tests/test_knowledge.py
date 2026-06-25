@@ -1,12 +1,13 @@
 """Tests for Kitty knowledge base."""
+from unittest.mock import MagicMock, patch
+
 import pytest
-from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 
 def test_knowledge_chunk_schema():
-    from contracts.knowledge_chunk import KnowledgeChunk
     from datetime import datetime
+
+    from contracts.knowledge_chunk import KnowledgeChunk
     chunk = KnowledgeChunk(
         chunk_id="test__chunk_0",
         text="This is a test document about Jacob's car.",
@@ -70,8 +71,9 @@ def test_detect_doc_type_general_fallback(tmp_path):
 
 
 def test_extract_jsonl_session(tmp_path):
-    from gateway.knowledge import _extract_jsonl_session
     import json
+
+    from gateway.knowledge import _extract_jsonl_session
     f = tmp_path / "session.jsonl"
     lines = [
         json.dumps({"role": "user", "content": "How do I fix my car?"}),
@@ -129,6 +131,7 @@ def test_query_embedding_uses_short_timeout():
 
 def test_extract_chatgpt_json_returns_text(tmp_path):
     import json
+
     from gateway.knowledge import _extract_chatgpt_json
     conv = {
         "title": "Test Chat",
@@ -153,6 +156,7 @@ def test_extract_chatgpt_json_returns_text(tmp_path):
 
 def test_extract_chatgpt_json_skips_empty_parts(tmp_path):
     import json
+
     from gateway.knowledge import _extract_chatgpt_json
     conv = {
         "title": "Empty",
@@ -171,6 +175,7 @@ def test_extract_chatgpt_json_skips_empty_parts(tmp_path):
 
 def test_extract_sqlite_journal_returns_text(tmp_path):
     import sqlite3
+
     from gateway.knowledge import _extract_sqlite_journal
     db_path = tmp_path / "journal.db"
     conn = sqlite3.connect(str(db_path))
@@ -186,6 +191,7 @@ def test_extract_sqlite_journal_returns_text(tmp_path):
 
 def test_extract_text_dispatches_chatgpt_json(tmp_path):
     import json
+
     from gateway.knowledge import _extract_text
     conv = {
         "title": "Dispatch test",
@@ -224,7 +230,7 @@ def test_librarian_defaults_to_free_ingest_lane(monkeypatch):
 @pytest.mark.integration
 def test_ingest_and_search_roundtrip(tmp_path):
     """Write a text file, ingest it, search for it. Requires Ollama."""
-    from gateway.knowledge import ingest_file, search_knowledge, _get_collection
+    from gateway.knowledge import _get_collection, ingest_file, search_knowledge
     _get_collection.cache_clear()
 
     test_file = tmp_path / "test_roundtrip.txt"

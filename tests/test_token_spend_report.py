@@ -1,4 +1,3 @@
-import json
 
 
 def test_summarize_usage_groups_paid_and_recent_activity():

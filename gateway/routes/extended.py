@@ -28,7 +28,7 @@ async def notify_send(payload: NotifyRequest):
 
 @router.get("/notify/test")
 async def notify_test():
-    from gateway.notify import send, is_configured
+    from gateway.notify import is_configured, send
 
     if not is_configured():
         return {
@@ -161,7 +161,7 @@ async def agent_spawn(payload: AgentSpawnRequest):
 
 @router.get("/agent/{session_id}")
 async def agent_status(session_id: int):
-    from gateway.agent_runner import get_status, get_output
+    from gateway.agent_runner import get_output, get_status
 
     status = get_status(session_id)
     if status.get("status") == "not_found":
@@ -284,8 +284,9 @@ async def image_generate(req: ImageGenRequest):
 async def image_view(filename: str):
     """Proxy an output image from ComfyUI (works with both local and Colab tunnel URLs)."""
     import httpx
-    from gateway.image_gen import COMFY_URL
     from fastapi.responses import Response
+
+    from gateway.image_gen import COMFY_URL
 
     url = f"{COMFY_URL}/view?filename={filename}&subfolder=&type=output"
     try:

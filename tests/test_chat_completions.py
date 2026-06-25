@@ -1,6 +1,7 @@
 """Integration-style tests for Open WebUI / LiteLLM chat path."""
 
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
+
 from fastapi.testclient import TestClient
 
 
@@ -118,7 +119,7 @@ def test_chat_completions_non_stream_logs_usage():
 
 
 def test_close_session_uses_typed_payload() -> None:
-    with patch("gateway.memory.consolidate_session") as mock_consolidate:
+    with patch("gateway.memory.consolidate_session"):
         from gateway.app import app
 
         client = TestClient(app)

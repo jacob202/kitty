@@ -14,13 +14,12 @@ from typing import Optional
 
 from gateway import (
     domain_router,
-    prompt_loader,
     journal,
-    parts,
     memory_graph,
+    parts,
+    prompt_loader,
     skill_registry,
     user_context,
-    voice_gate,
 )
 from gateway.context_enrichment import enrich_dynamic_context
 

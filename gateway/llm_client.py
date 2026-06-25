@@ -12,20 +12,20 @@ Successful completions append one row to ``data/kitty_token_log.jsonl`` via
 from __future__ import annotations
 
 import json
-import os
 import logging
+import os
 import time
-import requests
 from typing import Any
 
+import requests
 from dotenv import load_dotenv
 
-logger = logging.getLogger("kitty.llm_client")
-
-from gateway.paths import LITELLM_BASE, LITELLM_KEY
-from gateway.token_usage_log import log_llm_usage, normalize_usage_payload
 from gateway.llm_utils import retry_with_backoff
+from gateway.paths import LITELLM_BASE, LITELLM_KEY
 from gateway.settings import get_settings
+from gateway.token_usage_log import log_llm_usage, normalize_usage_payload
+
+logger = logging.getLogger("kitty.llm_client")
 
 # Cap how long a single provider may spend establishing a connection, and bound
 # the total wall-clock time the whole fallback chain may burn. Without these, six
@@ -41,9 +41,11 @@ _LLM_CHAIN_DEADLINE = _chain_settings.KITTY_LLM_CHAIN_DEADLINE
 try:
     from tenacity import (
         retry as _tenacity_retry,
+    )
+    from tenacity import (
+        retry_if_exception_type,
         stop_after_attempt,
         wait_exponential,
-        retry_if_exception_type,
     )
 
     _retry_post = _tenacity_retry(
@@ -877,7 +879,6 @@ async def chat_completions_non_stream(payload: dict[str, Any]) -> dict[str, Any]
 
 async def iter_chat_completions_stream(payload: dict[str, Any]):
     """Stream SSE chunks from LiteLLM. Streaming does not use the fallback chain."""
-    import json
 
     from gateway.http_client import get_http_client
 

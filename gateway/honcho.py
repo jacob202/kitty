@@ -1,13 +1,15 @@
 """Weekly pattern mirror — surfaces behavioral themes from recent gateway traces."""
 from __future__ import annotations
+
 import json
 import logging
 import time
 from collections import Counter
 
+from gateway.paths import DATA_DIR, LOG_FILE
+
 logger = logging.getLogger("kitty.honcho")
 
-from gateway.paths import DATA_DIR, LOG_FILE, LOGS_DIR
 SIGNAL_CACHE = DATA_DIR / "honcho_weekly.json"
 
 _FALLBACK_EMPTY = (

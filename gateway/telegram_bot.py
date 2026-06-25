@@ -69,10 +69,10 @@ async def _process_message(chat_id: int, text: str) -> None:
     try:
         from gateway.context_builder import get_system_prompt
         from gateway.domain_router import classify_domain
-        from gateway.llm_client import route_model
-        from gateway.routes.completions import (
-            _non_stream_response,
+        from gateway.llm_client import (
+            chat_completions_non_stream,
             extract_assistant_text,
+            route_model,
         )
         from gateway.voice_gate import filter_response
 
@@ -89,7 +89,7 @@ async def _process_message(chat_id: int, text: str) -> None:
             ],
         }
 
-        data = await _non_stream_response(payload)
+        data = await chat_completions_non_stream(payload)
         reply = extract_assistant_text(data)
 
         gate = filter_response(reply)

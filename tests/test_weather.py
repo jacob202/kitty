@@ -1,6 +1,7 @@
 """Tests for weather module — wttr.in fetch with caching."""
 import time
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 import gateway.weather as wx
 
 

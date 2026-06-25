@@ -1,6 +1,7 @@
 """Tests for dream insights loading and dismiss."""
 
 import json
+
 import pytest
 
 

@@ -12,9 +12,8 @@ import json
 
 import pytest
 
-from gateway import plugin_registry, storage_io, todo_store
 from gateway import db as kitty_db
-from gateway.paths import DATA_DIR
+from gateway import plugin_registry, storage_io, todo_store
 
 
 def _isolate(tmp_path, monkeypatch, name):

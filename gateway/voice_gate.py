@@ -119,10 +119,10 @@ def filter_response(text: str) -> VoiceGateResult:
     cleaned = re.sub(r"  +", " ", cleaned)
     cleaned = re.sub(r"^[,\s]+", "", cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
-    
+
     # Strip lonely punctuation at the end (e.g., a '?' left over from 'How can I assist you?')
     cleaned = re.sub(r"\s+[?.!,]+$", "", cleaned)
-    
+
     cleaned = cleaned.strip()
 
     # If we stripped everything, fall back to original (better than empty)

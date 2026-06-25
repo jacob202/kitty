@@ -28,7 +28,6 @@ from typing import Any
 from gateway import plugin_registry, todo_store
 from gateway.paths import DATA_DIR
 
-
 FORMAT_VERSION = 1
 EXPORT_FILENAME = "kitty-storage-export.json"
 

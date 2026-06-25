@@ -5,8 +5,6 @@ version: 0.1
 type: action
 """
 
-import json
-from typing import Optional
 
 import httpx
 

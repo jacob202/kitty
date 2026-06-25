@@ -1,5 +1,4 @@
 """Tests for gateway.buddy — persistent mood state."""
-import importlib
 import sys
 from unittest.mock import patch
 

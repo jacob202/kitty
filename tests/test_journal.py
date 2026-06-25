@@ -1,8 +1,6 @@
 """Tests for the journal interviewer and prompt generator."""
-import json
 import time
-import pytest
-from pathlib import Path
+
 from gateway.journal import (
     THEMES,
     build_interview_system_prompt,

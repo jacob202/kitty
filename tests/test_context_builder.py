@@ -1,14 +1,16 @@
 """Tests for context_builder — unified context via memory_graph, assembly."""
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import patch, AsyncMock
 
 from gateway import context_enrichment
 from gateway.context_builder import (
     _assemble,
-    get_system_prompt,
     build_worker_context,
+    get_system_prompt,
 )
+from gateway.memory_graph import _format_unified, _truncate
 
 # ---------------------------------------------------------------------------
 # Unit tests — pure functions
@@ -78,8 +80,6 @@ async def test_enrich_dynamic_context_appends_block():
 # ---------------------------------------------------------------------------
 # Unified memory_graph unit tests
 # ---------------------------------------------------------------------------
-
-from gateway.memory_graph import _format_unified, _truncate
 
 
 def test_truncate_short_text_unchanged():

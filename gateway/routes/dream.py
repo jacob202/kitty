@@ -125,14 +125,16 @@ def _run_dream_task() -> None:
 
     # Register memory.consolidate cron action if not already present
     try:
-        from gateway.cron import get_actions, register_action
         import asyncio
+
+        from gateway.cron import get_actions, register_action
 
         if "memory.consolidate" not in get_actions():
 
             async def _action_memory_consolidate():
-                from gateway.memory_consolidation import nightly_dream as _dream
                 import asyncio as _asyncio
+
+                from gateway.memory_consolidation import nightly_dream as _dream
 
                 await _asyncio.to_thread(_dream)
 

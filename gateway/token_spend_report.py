@@ -8,7 +8,7 @@ from datetime import date as date_cls
 from pathlib import Path
 from typing import Any
 
-from gateway.paths import DATA_DIR, KITTY_TOKEN_LOG_FILE
+from gateway.paths import KITTY_TOKEN_LOG_FILE
 
 USD_TO_CAD = float(os.environ.get("KITTY_USD_TO_CAD", "1.3710"))
 FX_SNAPSHOT_DATE = os.environ.get("KITTY_USD_TO_CAD_DATE", "2026-05-12")

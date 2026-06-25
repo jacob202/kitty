@@ -186,9 +186,9 @@ def test_check_mem0_fails_on_import_error() -> None:
 
 
 def test_check_mem0_warns_on_init_exception() -> None:
-    from gateway import doctor
-
     import mem0 as _mem0
+
+    from gateway import doctor
     with patch.object(_mem0, "Memory", side_effect=RuntimeError("config error")):
         checks = doctor._check_mem0({})
     assert checks[0].level == "WARN"
@@ -196,9 +196,9 @@ def test_check_mem0_warns_on_init_exception() -> None:
 
 
 def test_check_mem0_passes_local_mode() -> None:
-    from gateway import doctor
-
     import mem0 as _mem0
+
+    from gateway import doctor
     with patch.object(_mem0, "Memory", return_value=MagicMock()):
         checks = doctor._check_mem0({})
     assert checks[0].level == "PASS"
@@ -214,8 +214,9 @@ def _fake_disk_usage(free_bytes: int):
 
 
 def test_check_disk_passes_when_sufficient(monkeypatch, tmp_path) -> None:
-    from gateway import doctor
     import shutil
+
+    from gateway import doctor
 
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
     monkeypatch.setattr(shutil, "disk_usage", _fake_disk_usage(10 << 30))
@@ -224,8 +225,9 @@ def test_check_disk_passes_when_sufficient(monkeypatch, tmp_path) -> None:
 
 
 def test_check_disk_warns_when_low(monkeypatch, tmp_path) -> None:
-    from gateway import doctor
     import shutil
+
+    from gateway import doctor
 
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
     monkeypatch.setattr(shutil, "disk_usage", _fake_disk_usage(int(1.0 * 1024 ** 3)))
@@ -234,8 +236,9 @@ def test_check_disk_warns_when_low(monkeypatch, tmp_path) -> None:
 
 
 def test_check_disk_fails_when_critically_low(monkeypatch, tmp_path) -> None:
-    from gateway import doctor
     import shutil
+
+    from gateway import doctor
 
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
     monkeypatch.setattr(shutil, "disk_usage", _fake_disk_usage(int(0.2 * 1024 ** 3)))
@@ -327,7 +330,7 @@ def test_main_strict_fails_on_warn(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
     (tmp_path / ".env").write_text("OPENROUTER_API_KEY=sk\n", encoding="utf-8")
 
-    warn_check = doctor.Check("WARN", "env:gateway_secret", "not set")
+    doctor.Check("WARN", "env:gateway_secret", "not set")
     pass_check = doctor.Check("PASS", "x", "ok")
     monkeypatch.setattr(doctor, "_check_services", lambda _e: [pass_check])
     monkeypatch.setattr(doctor, "_check_chromadb", lambda: [pass_check])

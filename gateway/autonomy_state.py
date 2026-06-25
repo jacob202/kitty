@@ -1,14 +1,15 @@
 """Autonomy State Layer for Kitty.
 
-Provides persistent memory of 'thinking' and tool execution history 
+Provides persistent memory of 'thinking' and tool execution history
 across long reasoning cycles (10+ turns).
 """
 from __future__ import annotations
-import sqlite3
-import time
+
 import json
 import logging
-from typing import Optional, List, Dict, Any
+import sqlite3
+import time
+from typing import Any, Dict, List, Optional
 
 from gateway.paths import DATA_DIR
 
@@ -49,7 +50,7 @@ class AutonomyState:
         init_db()
         self.session_id = session_id
         self.current_turn = 0
-        
+
         if self.session_id:
             # Resume existing session
             with sqlite3.connect(STATE_DB) as conn:
@@ -69,7 +70,7 @@ class AutonomyState:
             conn.commit()
         return cls(session_id=session_id)
 
-    def record_step(self, role: str, content: str = "", thinking: str = "", 
+    def record_step(self, role: str, content: str = "", thinking: str = "",
                     tool_name: str = None, tool_args: Any = None, tool_result: str = None):
         """Record a single step in the autonomy loop."""
         if not self.session_id:
@@ -87,14 +88,14 @@ class AutonomyState:
             ))
             conn.execute("UPDATE autonomy_sessions SET updated_at = ? WHERE id = ?", (now, self.session_id))
             conn.commit()
-        
+
         self.current_turn += 1
 
     def get_history(self) -> List[Dict]:
         """Fetch the full history of the current session."""
         if not self.session_id:
             return []
-            
+
         with sqlite3.connect(STATE_DB) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
@@ -107,7 +108,7 @@ class AutonomyState:
         """Mark the session as finished."""
         if not self.session_id:
             return
-            
+
         now = time.time()
         with sqlite3.connect(STATE_DB) as conn:
             conn.execute("UPDATE autonomy_sessions SET status = ?, updated_at = ? WHERE id = ?", (status, now, self.session_id))

@@ -26,8 +26,8 @@ import time
 import uuid
 from pathlib import Path
 
-from gateway.paths import BUILDS_DB, DATA_DIR
 from gateway import success_criteria
+from gateway.paths import BUILDS_DB, DATA_DIR
 
 logger = logging.getLogger("kitty.builder")
 
@@ -258,7 +258,7 @@ async def _run_pipeline(
 
 async def _run_plan_stage(goal: str) -> str:
     """Use planner agent to break goal into steps."""
-    from gateway.agent_runner import spawn, get_output, await_completion
+    from gateway.agent_runner import await_completion, get_output, spawn
 
     session_id = await spawn(goal, agent_type="planner", max_iterations=3)
     await await_completion(session_id, poll=3.0, timeout=90.0)
@@ -267,7 +267,7 @@ async def _run_plan_stage(goal: str) -> str:
 
 async def _run_scaffold_stage(goal: str, plan: str, target_dir: str) -> str:
     """Generate file structure based on the plan."""
-    from gateway.agent_runner import spawn, get_output, await_completion
+    from gateway.agent_runner import await_completion, get_output, spawn
 
     scaffold_goal = (
         f"Based on this plan, create the file and directory structure for the project.\n\n"
@@ -284,7 +284,7 @@ async def _run_implement_stage(
     goal: str, plan: str, scaffold: str, target_dir: str
 ) -> str:
     """Write the actual code."""
-    from gateway.agent_runner import spawn, get_output, await_completion
+    from gateway.agent_runner import await_completion, get_output, spawn
 
     impl_goal = (
         f"Implement the following project. Write complete, working code for every file.\n\n"
@@ -322,7 +322,7 @@ async def _run_test_stage(target_dir: str) -> dict:
 
 async def _run_review_stage(goal: str, code: str, test_result: dict) -> str:
     """Review the output for quality."""
-    from gateway.agent_runner import spawn, get_output, await_completion
+    from gateway.agent_runner import await_completion, get_output, spawn
 
     review_goal = (
         f"Review this code implementation.\n\n"

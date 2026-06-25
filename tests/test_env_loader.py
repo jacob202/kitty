@@ -8,7 +8,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 def test_safe_env_loader_ignores_stray_commands_and_expands_env_vars(tmp_path):
     """
     Verifies that load_env_assignments ignores stray non-assignment lines and expands `$HOME` inside quoted values.
-    
+
     Creates a temporary `.env` containing two valid assignments, one stray command line, and a quoted path referencing `$HOME`; sources `load_env_safe.sh`, invokes `load_env_assignments` on that file with `HOME` set to a fake directory, and asserts the loaded values match the assignments with `$HOME` expanded.
     """
     env_file = tmp_path / ".env"

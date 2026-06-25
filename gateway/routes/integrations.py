@@ -19,7 +19,7 @@ class iMessageSendRequest(BaseModel):
 
 @router.post("/imessage/send")
 async def imessage_send(payload: iMessageSendRequest):
-    from gateway.imessage import send, is_available
+    from gateway.imessage import is_available, send
 
     if not is_available():
         raise HTTPException(
@@ -31,7 +31,7 @@ async def imessage_send(payload: iMessageSendRequest):
 
 @router.get("/imessage/recent")
 async def imessage_recent(limit: int = 10):
-    from gateway.imessage import read_recent, is_available
+    from gateway.imessage import is_available, read_recent
 
     if not is_available():
         return {"available": False, "messages": []}

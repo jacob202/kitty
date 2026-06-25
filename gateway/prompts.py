@@ -84,7 +84,7 @@ INVENTORY_PHOTO_PROMPT = """Analyze this photo of electronic components (e.g., a
         - "type" (e.g., "Transistor", "Capacitor", "Resistor")
         - "quantity" (integer, estimate if in a pile, exact if clearly countable)
         - "notes" (e.g., "Nichicon Gold Tune", "SMD", "Through-hole")
-        
+
         Do not wrap the output in markdown blocks. Return only the JSON."""
 
 

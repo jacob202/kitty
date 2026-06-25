@@ -1,8 +1,6 @@
 """Tests for the optional MemPalace StoreAdapter and its registration."""
 import asyncio
 
-import pytest
-
 from gateway import memory_graph
 from gateway.mempalace_adapter import MemPalaceAdapter
 

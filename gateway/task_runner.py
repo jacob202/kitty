@@ -23,7 +23,7 @@ import logging
 import sqlite3
 import time
 import uuid
-from typing import Optional, Any
+from typing import Any, Optional
 
 from gateway.paths import TASK_DB, TASK_OUTPUT_DIR
 
@@ -188,7 +188,8 @@ async def _execute(task_id: str) -> None:
 async def _run_research(goal: str, task_id: str) -> str:
     """Research task: use an explorer agent to investigate and report."""
     _update(task_id, progress="Running explorer agent...")
-    from gateway.agent_runner import spawn, get_output as agent_output, await_completion
+    from gateway.agent_runner import await_completion, spawn
+    from gateway.agent_runner import get_output as agent_output
 
     session_id = await spawn(goal, agent_type="researcher", max_iterations=4)
     _update(task_id, progress=f"Agent spawned (session {session_id}), running...")
@@ -205,11 +206,11 @@ async def _run_research(goal: str, task_id: str) -> str:
 async def _run_ingest(goal: str, task_id: str) -> str:
     """Ingest task: queue documents for knowledge base ingestion."""
     _update(task_id, progress="Queueing ingestion...")
-    from gateway.ingestion_queue import enqueue
+    from gateway.ingestion_queue import enqueue_file
 
     try:
         # goal is a file path or directory path to ingest
-        enqueue(goal)
+        enqueue_file(goal)
         return f"Ingestion queued for: {goal}"
     except Exception as e:
         return f"Ingestion failed: {e}"
@@ -218,7 +219,8 @@ async def _run_ingest(goal: str, task_id: str) -> str:
 async def _run_build(goal: str, task_id: str) -> str:
     """Build task: use a coder agent to generate code."""
     _update(task_id, progress="Running coder agent...")
-    from gateway.agent_runner import spawn, get_output as agent_output, await_completion
+    from gateway.agent_runner import await_completion, spawn
+    from gateway.agent_runner import get_output as agent_output
 
     session_id = await spawn(goal, agent_type="coder", max_iterations=5)
     _update(task_id, progress=f"Coder agent running (session {session_id})...")
@@ -243,7 +245,7 @@ async def _run_cleanup(goal: str, task_id: str) -> str:
         if LOG_FILE.exists():
             cutoff = time.time() - 30 * 86400
             lines = LOG_FILE.read_text().splitlines()
-            kept = [l for l in lines if _line_after_cutoff(l, cutoff)]
+            kept = [line for line in lines if _line_after_cutoff(line, cutoff)]
             LOG_FILE.write_text("\n".join(kept) + "\n")
             results.append(f"Traces compacted: {len(lines)} -> {len(kept)} lines")
     except Exception as e:

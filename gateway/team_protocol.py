@@ -32,20 +32,20 @@ class TeamProtocol:
         if not self.task_list:
             logger.warning("No task list available for claiming")
             return None
-        
+
         # Find next pending task
         pending = None
         for task in self.task_list.list_all():
             if task.get("status") == "pending":
                 pending = task
                 break
-        
+
         if pending:
             task_id = pending.get("id")
             self.task_list.update(task_id, claimed_by=agent_name, status="claimed")
             logger.info(f"Agent '{agent_name}' claimed task: {task_id}")
             return task_id
-        
+
         return None
 
     def share_discovery(self, agent_name: str, discovery: str, tags: List[str] = None):
@@ -64,7 +64,7 @@ class TeamProtocol:
         """Get all shared discoveries, optionally filtered."""
         if not self.discoveries_file.exists():
             return []
-        
+
         discoveries = []
         with open(self.discoveries_file) as f:
             for line in f:
@@ -74,7 +74,7 @@ class TeamProtocol:
                 if tags and not any(tag in entry.get("tags", []) for tag in tags):
                     continue
                 discoveries.append(entry)
-        
+
         return discoveries
 
     def challenge(self, agent_name: str, target_agent: str, challenge_text: str, artifact_path: str = None):
@@ -87,7 +87,7 @@ class TeamProtocol:
             "timestamp": datetime.now().isoformat(),
             "status": "open",
         }
-        
+
         challenge_file = self.challenges_dir / f"challenge_{target_agent}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         challenge_file.write_text(json.dumps(entry, indent=2))
         logger.info(f"Challenge issued: {agent_name} → {target_agent}")
