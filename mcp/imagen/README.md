@@ -1,6 +1,6 @@
 # Imagen MCP Server
 
-Generate and edit photorealistic images inside Claude Code using Gemini Imagen 3.
+Generate and edit images inside Claude Code with three backends.
 
 ## Setup
 
@@ -11,38 +11,41 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Add to Claude Code
-
-Add this block to `~/.claude/settings.json` under `mcpServers`:
+## Add to Claude Code (`~/.claude/settings.json`)
 
 ```json
 {
   "mcpServers": {
     "imagen": {
-      "command": "/path/to/kitty/mcp/imagen/.venv/bin/python",
-      "args": ["/path/to/kitty/mcp/imagen/server.py"],
+      "command": "/Users/jacobbrizinski/Projects/kitty/mcp/imagen/.venv/bin/python",
+      "args": ["/Users/jacobbrizinski/Projects/kitty/mcp/imagen/server.py"],
       "env": {
-        "GEMINI_API_KEY": "your-key-here"
+        "GEMINI_API_KEY": "your-gemini-key",
+        "OPENAI_API_KEY": "your-openai-key"
       }
     }
   }
 }
 ```
 
-Replace `/path/to/kitty` with the real path (e.g. `/Users/jacobbrizinski/Projects/kitty`).
-
-If `GEMINI_API_KEY` is already in your shell environment, you can omit the `env` block.
+Drop keys from `env` if they're already in your shell profile. `COMFY_URL` defaults to `http://127.0.0.1:8188`.
 
 ## Tools
 
-| Tool | Description |
-|---|---|
-| `generate_image(prompt, aspect_ratio, count, negative_prompt)` | Text → image(s) via Imagen 3 |
-| `edit_image(image_path, edit_prompt)` | Edit an existing image via Gemini 2.0 Flash |
-| `batch_generate(prompts, aspect_ratio)` | Multiple prompts in parallel |
+| Tool | Backend | NSFW | Notes |
+|---|---|---|---|
+| `generate_image` | Gemini Imagen 3 | Tasteful ✓ | Best photorealism |
+| `edit_image` | Gemini 2.0 Flash | Tasteful ✓ | Natural-language edits to existing images |
+| `batch_generate` | Gemini Imagen 3 | Tasteful ✓ | Up to 10 prompts in parallel |
+| `generate_image_dalle` | DALL-E 3 | ✗ | Best at complex/creative prompts, text in images |
+| `generate_image_comfy` | ComfyUI (local) | Full ✓ | Needs ComfyUI running; explicit LoRA built in |
 
-All images are saved to `~/Pictures/kitty-gen/`.
+All images saved to `~/Pictures/kitty-gen/`.
 
-## Aspect ratios
+## ComfyUI prompt keywords
 
-`1:1` · `16:9` · `9:16` · `4:3` · `3:4`
+- `realistic` / `photo` / `sdxl` / `photonic` → SDXL model
+- `explicit` / `erect` / `cock` etc → explicit LoRA
+- `portrait` / `landscape` → aspect ratio
+- `detailed` → more steps
+- `more bear` / `less bear` → bear LoRA strength
