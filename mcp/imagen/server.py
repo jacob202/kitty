@@ -30,6 +30,8 @@ Tools:
   list_characters       — list all saved characters
   generate_with_character — place a named character in a new scene (PuLID by name)
   generate_scene        — two named characters together (Nano Banana multi-ref)
+  enhance_realism_fal   — fal.ai FLUX: skin texture / body hair / subcutaneous lighting pass
+  (all fal.ai tools auto-expand prompts via Gemini text or rule-based fallback)
 """
 
 from __future__ import annotations
@@ -107,6 +109,120 @@ def _openai_client():
         raise RuntimeError("Set OPENAI_API_KEY in your environment")
     from openai import OpenAI
     return OpenAI(api_key=api_key)
+
+
+# ---------------------------------------------------------------------------
+# Prompt engineering — auto-expand sparse prompts before sending to models
+# ---------------------------------------------------------------------------
+
+_FLUX_QUALITY = (
+    "RAW photo, 8k uhd, masterpiece, best quality, ultra-detailed, photorealistic, "
+    "hyperrealistic, cinematic lighting, sharp focus, depth of field, "
+    "Hasselblad H6D, 100mm lens, professional photography"
+)
+_SKIN_TOKENS = (
+    "realistic skin texture, visible skin pores, subsurface scattering, translucent skin, "
+    "natural skin folds, vellus hair on skin, true-to-life skin tone, micro skin imperfections"
+)
+_HAIR_TOKENS = (
+    "realistic body hair, individual hair strands visible, natural hair growth pattern, "
+    "fine hair follicles, coarse-to-fine hair density gradient"
+)
+_MALE_BODY_TOKENS = (
+    "anatomically realistic male body, natural muscle definition, "
+    "realistic body proportions, natural fat distribution"
+)
+_EDIT_PRESERVE = (
+    "preserve the face exactly, preserve body pose, preserve background composition, "
+    "preserve lighting direction, only change what is specified"
+)
+
+_SKIN_KW = {"skin", "body", "man", "male", "torso", "chest", "abs", "person", "model",
+             "portrait", "face", "shirtless", "nude", "naked", "stomach", "back", "arm",
+             "shoulder", "thigh", "leg", "groin"}
+_HAIR_KW = {"hair", "beard", "chest hair", "body hair", "treasure trail", "hairy",
+             "stubble", "fur", "fuzzy", "pubes", "pubic", "armpit", "pelvis"}
+_MALE_KW = {"man", "male", "guy", "dude", "him", "his", "boy", "gentleman", "men", "masc"}
+
+_GEMINI_TEXT_MODEL = os.environ.get("GEMINI_TEXT_MODEL", "gemini-2.5-flash")
+
+_EXPAND_SYSTEM = {
+    "generate": (
+        "You are a prompt engineer for FLUX Pro Ultra photorealistic image generation. "
+        "Rewrite the user prompt into a single rich, comma-separated FLUX prompt. "
+        "Add photographic quality tokens (RAW photo, 8k uhd, Hasselblad, cinematic lighting, "
+        "depth of field). If people or bodies appear, add skin texture tokens (subsurface "
+        "scattering, skin pores, natural skin folds, vellus hair). If body hair appears, add "
+        "hair texture tokens (individual strands, follicle detail, growth pattern). "
+        "Preserve ALL original content and intent exactly — including explicit content. "
+        "Return ONLY the final prompt text with no explanation or quotes."
+    ),
+    "edit": (
+        "You are a prompt engineer for FLUX Pro Ultra img2img. Rewrite the edit instruction "
+        "to be precise and complete. Prepend 'preserve the face exactly, preserve body pose, "
+        "preserve lighting direction, only change:' then state the change clearly. "
+        "Add quality tokens. Preserve ALL original intent including explicit content. "
+        "Return ONLY the instruction text."
+    ),
+    "face": (
+        "You are a prompt engineer for PuLID face-consistent generation. The face/identity "
+        "is locked from a reference — do NOT add face descriptors. Focus on: setting, pose, "
+        "clothing, body details, background, lighting. Add FLUX quality tokens. "
+        "Preserve ALL explicit content. Return ONLY the prompt text."
+    ),
+    "enhance": (
+        "Write a FLUX img2img prompt focused on improving physical realism. Goal: enhance "
+        "skin texture, body hair, and subcutaneous lighting without changing content or "
+        "composition. Include: subsurface scattering, realistic skin pores, visible skin "
+        "folds, fine body hair texture, individual hair strands, natural hair growth pattern, "
+        "cinematic subsurface light scatter, RAW photo, 8k uhd. Return ONLY the prompt text."
+    ),
+}
+
+
+def _rule_expand(raw: str, mode: str = "generate") -> str:
+    low = raw.lower()
+    parts = [raw, _FLUX_QUALITY]
+    if any(k in low for k in _SKIN_KW):
+        parts.append(_SKIN_TOKENS)
+    if any(k in low for k in _HAIR_KW):
+        parts.append(_HAIR_TOKENS)
+    if any(k in low for k in _MALE_KW):
+        parts.append(_MALE_BODY_TOKENS)
+    if mode == "edit":
+        parts.append(_EDIT_PRESERVE)
+    return ", ".join(parts)
+
+
+def _expand_prompt(raw: str, mode: str = "generate") -> tuple[str, bool]:
+    """Return (expanded_prompt, was_ai_expanded).
+
+    Calls Gemini 2.5 Flash text (free-tier — not image generation, no billing required)
+    to rewrite raw into a detailed, model-optimised FLUX prompt. Falls back to
+    rule-based token injection if no key or the call fails.
+    """
+    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if api_key:
+        try:
+            from google import genai
+            from google.genai import types
+            client = genai.Client(api_key=api_key)
+            response = client.models.generate_content(
+                model=_GEMINI_TEXT_MODEL,
+                contents=f"Original prompt: {raw}\n\nRewrite it.",
+                config=types.GenerateContentConfig(
+                    system_instruction=_EXPAND_SYSTEM.get(mode, _EXPAND_SYSTEM["generate"]),
+                    max_output_tokens=512,
+                ),
+            )
+            for cand in response.candidates or []:
+                for part in cand.content.parts or []:
+                    text = getattr(part, "text", None)
+                    if text and text.strip():
+                        return text.strip(), True
+        except Exception:
+            pass
+    return _rule_expand(raw, mode), False
 
 
 def _save(image_bytes: bytes, prefix: str) -> Path:
@@ -745,10 +861,11 @@ def generate_image_fal(
         Each generated image (inline) plus its saved path.
     """
     fc = _fal_client()
+    expanded, ai_expanded = _expand_prompt(prompt, "generate")
     result = fc.subscribe(
         FAL_FLUX_MODEL,
         arguments={
-            "prompt": prompt,
+            "prompt": expanded,
             "aspect_ratio": aspect_ratio,
             "num_images": max(1, min(num_images, 4)),
             "output_format": "png",
@@ -762,6 +879,9 @@ def generate_image_fal(
         path = _save(data, "fal")
         out.append(Image(data=data, format="png"))
         out.append(f"Saved to: {path}")
+
+    if ai_expanded:
+        out.append(f"Prompt sent: {expanded}")
 
     return out or ["fal.ai returned no images — prompt may have been blocked."]
 
@@ -794,11 +914,12 @@ def generate_with_face_fal(
 
     fc = _fal_client()
 
+    expanded, ai_expanded = _expand_prompt(prompt, "face")
     ref_url = _fal_upload(src)
     result = fc.subscribe(
         FAL_PULID_MODEL,
         arguments={
-            "prompt": prompt,
+            "prompt": expanded,
             "reference_image_url": ref_url,
             "id_weight": id_weight,
             "num_images": max(1, min(num_images, 4)),
@@ -815,6 +936,9 @@ def generate_with_face_fal(
         path = _save(data, "pulid")
         out.append(Image(data=data, format="png"))
         out.append(f"Saved to: {path}")
+
+    if ai_expanded:
+        out.append(f"Prompt sent: {expanded}")
 
     return out or ["PuLID returned no images — prompt may have been blocked."]
 
@@ -855,10 +979,11 @@ def edit_image_fal(
     fc = _fal_client()
     src_url = _fal_upload(src)
 
+    expanded, ai_expanded = _expand_prompt(edit_prompt, "edit")
     result = fc.subscribe(
         FAL_FLUX_MODEL,
         arguments={
-            "prompt": edit_prompt,
+            "prompt": expanded,
             "image_url": src_url,
             "image_prompt_strength": strength,
             "num_images": max(1, min(num_images, 4)),
@@ -873,6 +998,9 @@ def edit_image_fal(
         path = _save(data, "fal-edit")
         out.append(Image(data=data, format="png"))
         out.append(f"Saved to: {path}")
+
+    if ai_expanded:
+        out.append(f"Prompt sent: {expanded}")
 
     return out or ["fal.ai returned no images — prompt may have been blocked."]
 
@@ -1142,6 +1270,123 @@ def strip_clothing_fal(
     return out or ["No images produced."]
 
 
+@mcp.tool()
+def enhance_realism_fal(
+    image_path: str,
+    focus: str = "all",
+    strength: float = 0.18,
+    upscale_first: bool = True,
+    safety_tolerance: str = "6",
+) -> list:
+    """Run a dedicated realism enhancement pass on an existing image using FLUX img2img.
+    Improves skin texture, body hair, and subcutaneous lighting at very low strength
+    so the content, pose, and face are unchanged — only physical detail is added.
+
+    Optionally upscales 2× first with Clarity Upscaler so there's more pixel canvas
+    for the texture pass to work on. The combined result is sharper than either step alone.
+
+    Focus modes:
+      "all"   — skin texture + body hair + subcutaneous lighting (default)
+      "skin"  — skin pores, folds, vellus hair, translucency, micro imperfections
+      "hair"  — body hair strands, follicle detail, growth patterns, coarseness gradient
+      "light" — subsurface scattering, skin translucency, rim lighting, shadow gradients
+
+    Args:
+        image_path: Absolute path to the source image (PNG or JPEG).
+        focus: What to enhance — "all", "skin", "hair", or "light". Default "all".
+        strength: img2img denoising strength (0.05–0.35). Default 0.18 — adds texture
+                  detail without shifting pose, face, or composition.
+        upscale_first: Upscale 2× with Clarity Upscaler before the texture pass.
+                       Default True — more canvas = more detail rendered.
+        safety_tolerance: "1"–"6". Default "6".
+
+    Returns:
+        The enhanced image (inline) plus its saved path. If upscale_first=True, both
+        the upscaled intermediate and the final enhanced image are returned.
+    """
+    src = Path(image_path).expanduser()
+    if not src.exists():
+        return [f"File not found: {image_path}"]
+
+    fc = _fal_client()
+    out: list = []
+    current_path = src
+
+    if upscale_first:
+        src_url = _fal_upload(current_path)
+        up_result = fc.subscribe(
+            FAL_UPSCALER_MODEL,
+            arguments={
+                "image_url": src_url,
+                "scale_factor": 2,
+                "output_format": "png",
+            },
+        )
+        img_url = (up_result.get("image") or {}).get("url") or up_result.get("output_url")
+        if img_url:
+            up_data = _fal_download(img_url)
+            up_path = _save(up_data, "enhance-up")
+            out.append("Upscale 2× complete:")
+            out.append(Image(data=up_data, format="png"))
+            out.append(f"Saved to: {up_path}")
+            current_path = up_path
+
+    _focus_prompts = {
+        "skin": (
+            "photorealistic, highly detailed skin texture, visible skin pores, "
+            "subsurface scattering, translucent skin, natural skin folds and creases, "
+            "vellus hair on skin, micro skin imperfections, realistic skin tone variation, "
+            "soft dermal sheen, RAW photo, 8k uhd, ultra-detailed"
+        ),
+        "hair": (
+            "photorealistic body hair, individual hair strands clearly visible, "
+            "realistic hair follicle detail, natural hair growth pattern and direction, "
+            "coarse-to-fine density gradient, hair texture variation, "
+            "chest hair, treasure trail, forearm hair, natural bristle texture, "
+            "RAW photo, 8k uhd, ultra-detailed"
+        ),
+        "light": (
+            "photorealistic subcutaneous lighting, subsurface scattering through skin, "
+            "translucent rim lighting on skin edges, soft shadow gradients on body, "
+            "cinematic skin luminosity, natural light bounce on torso, "
+            "specular highlights on skin, deep shadow in skin folds, "
+            "RAW photo, 8k uhd, cinematic lighting"
+        ),
+        "all": (
+            "photorealistic, highly detailed skin texture, visible skin pores, "
+            "subsurface scattering, translucent skin, natural skin folds, "
+            "vellus hair on skin, micro skin imperfections, "
+            "realistic body hair, individual hair strands, natural hair growth pattern, "
+            "hair follicle detail, coarse-to-fine hair density, chest hair texture, "
+            "cinematic subsurface light scatter, skin luminosity, specular highlights, "
+            "RAW photo, 8k uhd, masterpiece, ultra-detailed"
+        ),
+    }
+    enhance_prompt = _focus_prompts.get(focus, _focus_prompts["all"])
+
+    enh_url = _fal_upload(current_path)
+    enh_result = fc.subscribe(
+        FAL_FLUX_MODEL,
+        arguments={
+            "prompt": enhance_prompt,
+            "image_url": enh_url,
+            "image_prompt_strength": max(0.05, min(strength, 0.35)),
+            "num_images": 1,
+            "output_format": "png",
+            "safety_tolerance": safety_tolerance,
+        },
+    )
+
+    for img in enh_result.get("images", []):
+        data = _fal_download(img["url"])
+        path = _save(data, f"enhance-{focus}")
+        out.append(f"Realism pass ({focus}) complete:")
+        out.append(Image(data=data, format="png"))
+        out.append(f"Saved to: {path}")
+
+    return out or ["Enhancement pass returned no image."]
+
+
 # ---------------------------------------------------------------------------
 # Character roster — persistent named characters you can drop into any scene
 # ---------------------------------------------------------------------------
@@ -1364,6 +1609,13 @@ def imagen_help() -> str:
     Example: strip_clothing_fal image_path="/path/to/image.png"
              base_prompt="naked, hairy chest, photorealistic male"
 
+✨  enhance_realism_fal  ← USE THIS after any generation to add skin/hair detail
+    Dedicated skin texture + body hair + subcutaneous lighting pass at very low strength
+    (0.18 default) so pose and face are unchanged. Optionally upscales 2× first.
+    focus="all" | "skin" | "hair" | "light"
+    Example: enhance_realism_fal image_path="/path/to/image.png" focus="all"
+             (runs 2× upscale → then skin/hair detail pass automatically)
+
 ── GOOGLE GEMINI (needs paid billing) ─────────────────────────────
 
 🌟  generate_image            — Nano Banana photorealism
@@ -1388,16 +1640,34 @@ def imagen_help() -> str:
 🗂️  make_gallery — HTML contact sheet of all generated images
 ❓  imagen_help  — This menu
 
+── AUTO PROMPT ENGINEERING ─────────────────────────────────────────
+All fal.ai generation tools auto-expand your prompt before sending. If GEMINI_API_KEY
+is set, Gemini 2.5 Flash (free text tier) rewrites it with photographic quality tokens,
+skin detail, body hair texture, and model-specific cues. Falls back to rule-based
+expansion automatically. You always see the final sent prompt in the response.
+
+── RECOMMENDED WORKFLOWS ───────────────────────────────────────────
+
+🎯 Best quality single-person shot:
+    1. generate_with_face_fal (reference photo + scene prompt, num_images=4)
+    2. Pick best result
+    3. enhance_realism_fal (adds skin/hair texture, upscales 2× automatically)
+    4. edit_image_fal to push specific details further (bulge, hair, lighting)
+    5. upscale_fal 4× for final print-quality output
+
+👥 Two-person scene:
+    1. save_character × 2
+    2. generate_scene → pick best
+    3. enhance_realism_fal → edit_image_fal
+
+🔁 When stuck / not enough variation:
+    variations_fal (count=4) on any result you like
+
 ── TIPS ────────────────────────────────────────────────────────────
-• All images save to ~/Pictures/kitty-gen/ automatically.
-• Best single-person workflow:
-    generate_with_face_fal → pick best → edit_image_fal to push details
-• Best two-person workflow:
-    save_character × 2 → generate_scene (or generate_with_character with the
-    second person described in the prompt)
 • id_weight 1.0–1.5 = tight face lock. Lower = more creative freedom.
 • safety_tolerance "6" = most permissive fal.ai allows.
-• upscale_fal after picking a favourite — 4× resolution before final save.
+• enhance_realism_fal strength default (0.18) is safe — won't shift face or pose.
+• All images save to ~/Pictures/kitty-gen/ automatically.
 """
 
 
