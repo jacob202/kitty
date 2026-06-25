@@ -10,11 +10,11 @@ Kitty is Jacob's local-first AI companion. The near-term goal is not more specta
 
 1. `docs/PROJECT_STATUS.md` - current branch, status, dirty work, and verification.
 2. `docs/ARCHITECTURE.md` - current runnable stack.
-3. `docs/PHASE_B_PLAN.md` - next implementation plan.
-4. `docs/STORAGE_MIGRATION_PLAN.md` - storage migration details.
-5. `docs/DECISIONS.md` - current settled decisions.
-6. `docs/LEARNINGS.md` - hard lessons and guardrails.
-7. `docs/AGENT_HANDOFF.md` - latest continuation package.
+3. `docs/DECISIONS.md` - settled architecture decisions.
+4. `docs/LEARNINGS.md` - hard lessons and guardrails.
+5. `docs/AGENT_HANDOFF.md` - latest continuation package.
+
+For the full tagged doc index (🟢 canonical / 🔵 active / 📘 guide / 🗄️ historical / ⚙️ generated), see `docs/README.md`.
 
 ## Default Commands
 
@@ -28,4 +28,4 @@ cd gateway/kitty-chat && npm test && npm run build
 
 ## Current Rule
 
-Do not build new mobile, cloud sync, agent dashboards, or extra memory systems in Phase B. Make the existing product boring, visible, and trustworthy first.
+Phase B and C are shipped. Do not build new mobile, cloud sync, agent dashboards, or extra memory systems. Make the existing product boring, visible, and trustworthy first.
