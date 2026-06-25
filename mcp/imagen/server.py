@@ -20,6 +20,7 @@ Tools:
   generate_image_comfy  — local ComfyUI: full NSFW incl. explicit (needs ComfyUI running)
   generate_image_fal    — fal.ai FLUX Pro Ultra: high-quality, permissive safety
   generate_with_face_fal — fal.ai PuLID: face-identity-consistent generation from a photo
+  edit_image_fal        — fal.ai FLUX Pro Ultra img2img: edit an existing image by description
 """
 
 from __future__ import annotations
@@ -799,6 +800,64 @@ def generate_with_face_fal(
         out.append(f"Saved to: {path}")
 
     return out or ["PuLID returned no images — prompt may have been blocked."]
+
+
+@mcp.tool()
+def edit_image_fal(
+    image_path: str,
+    edit_prompt: str,
+    strength: float = 0.4,
+    safety_tolerance: str = "6",
+    num_images: int = 2,
+) -> list:
+    """Edit an existing image using fal.ai FLUX Pro Ultra img2img. Describe what to
+    change in plain language — the model rewrites those parts while keeping everything
+    else. Lower strength preserves more of the original; higher strength makes bigger
+    changes.
+
+    Great workflow: generate_with_face_fal → pick best result → edit_image_fal to push
+    it further (more body hair, adjust bulge, change background, tweak lighting, etc.)
+
+    Args:
+        image_path: Absolute path to the source image (PNG or JPEG).
+        edit_prompt: Full description of the desired result. Describe the whole image,
+                     not just the change — e.g. "same man, same pose, but make the
+                     pubic hair more visible above the waistband and the bulge fuller."
+        strength: How much to change (0.1 = tiny tweak, 0.9 = almost new image).
+                  Default 0.4 — changes what you ask for while preserving pose and face.
+        safety_tolerance: "1"–"6". Default "6" (most permissive).
+        num_images: Number of edited variants to return (1–4). Default 2.
+
+    Returns:
+        Each edited image (inline) plus its saved path.
+    """
+    src = Path(image_path).expanduser()
+    if not src.exists():
+        return [f"File not found: {image_path}"]
+
+    fc = _fal_client()
+    src_url = _fal_upload(src)
+
+    result = fc.subscribe(
+        FAL_FLUX_MODEL,
+        arguments={
+            "prompt": edit_prompt,
+            "image_url": src_url,
+            "image_prompt_strength": strength,
+            "num_images": max(1, min(num_images, 4)),
+            "output_format": "png",
+            "safety_tolerance": safety_tolerance,
+        },
+    )
+
+    out: list = []
+    for img in result.get("images", []):
+        data = _fal_download(img["url"])
+        path = _save(data, "fal-edit")
+        out.append(Image(data=data, format="png"))
+        out.append(f"Saved to: {path}")
+
+    return out or ["fal.ai returned no images — prompt may have been blocked."]
 
 
 if __name__ == "__main__":

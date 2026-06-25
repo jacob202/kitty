@@ -66,6 +66,7 @@ just ask: *"generate a photo of a misty harbor at dawn"* or *"edit that — make
 |---|---|---|---|
 | `generate_image_fal` | fal.ai FLUX Pro Ultra | Permissive (tol 1–6) | High quality, looser safety than Gemini |
 | `generate_with_face_fal` | fal.ai PuLID | Permissive | **Face-consistent** — same person in new scenes |
+| `edit_image_fal` | fal.ai FLUX Pro Ultra img2img | Permissive | Edit a generated image by describing the change |
 | `generate_image_imagen` | Imagen 4 | Tasteful (adults) | 1–4 variations in one call |
 | `generate_image_dalle` | DALL-E 3 | ✗ | Creative/illustrative, text-in-image |
 | `generate_image_comfy` | ComfyUI (local) | Full/explicit | Explicit NSFW, custom LoRAs, $0 |
