@@ -99,6 +99,44 @@ def test_plist_path_lives_in_launchagents():
     assert path.name == "com.kitty.desktop.gateway.plist"
 
 
+def test_install_root_accepts_canonical_checkout(tmp_path):
+    root = tmp_path / "kitty"
+    root.mkdir()
+    (root / ".git").mkdir()
+
+    ld.validate_install_root(root)
+
+
+def test_install_root_rejects_linked_worktree_without_override(tmp_path):
+    root = tmp_path / "kitty-worktree"
+    root.mkdir()
+    (root / ".git").write_text("gitdir: /tmp/main/.git/worktrees/kitty-worktree\n")
+
+    with pytest.raises(RuntimeError, match="Refusing to install LaunchAgents"):
+        ld.validate_install_root(root)
+
+
+def test_install_root_accepts_linked_worktree_with_explicit_override(tmp_path):
+    root = tmp_path / "kitty-worktree"
+    root.mkdir()
+    (root / ".git").write_text("gitdir: /tmp/main/.git/worktrees/kitty-worktree\n")
+
+    ld.validate_install_root(root, allow_worktree_install=True)
+
+
+def test_install_cli_rejects_worktree_without_traceback(tmp_path, monkeypatch, capsys):
+    root = tmp_path / "kitty-worktree"
+    root.mkdir()
+    (root / ".git").write_text("gitdir: /tmp/main/.git/worktrees/kitty-worktree\n")
+    monkeypatch.setattr(ld, "repo_root_default", lambda: root)
+
+    assert ld.main(["install"]) == 1
+
+    captured = capsys.readouterr()
+    assert "Refusing to install LaunchAgents" in captured.err
+    assert "Traceback" not in captured.err
+
+
 def test_resolve_targets_all_is_ordered():
     assert ld.resolve_targets("all") == ld.SERVICE_ORDER
 

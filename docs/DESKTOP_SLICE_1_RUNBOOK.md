@@ -62,6 +62,10 @@ python3.11 scripts/kitty_desktop_launchd.py generate | less
 plutil -lint ~/Library/LaunchAgents/com.kitty.desktop.gateway.plist
 ```
 
+The installer refuses linked git worktrees by default because launchd stores
+absolute paths. Run it from the canonical checkout (`~/Projects/kitty`) so the
+login services do not point at a disposable branch worktree.
+
 ## Daily commands
 
 ```bash
