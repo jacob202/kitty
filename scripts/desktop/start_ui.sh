@@ -2,9 +2,9 @@
 # Start the Kitty Next.js UI for the desktop service stack (launchd-managed).
 #
 # Binds loopback only and points the server-side /proxy route at the gateway.
-# This wrapper exports KITTY_GATEWAY_URL explicitly so the UI never falls back
-# to the stale :5001 default baked into the proxy route. Secrets (the gateway
-# bearer) come from .env via load_env_safe; none are hard-coded here.
+# This wrapper exports KITTY_GATEWAY_URL explicitly so launchd always targets
+# the canonical local gateway. Secrets (the gateway bearer) come from .env via
+# load_env_safe; none are hard-coded here.
 set -euo pipefail
 
 # Resolve repo root from this script's location (scripts/desktop -> root) so the

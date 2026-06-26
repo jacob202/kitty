@@ -92,11 +92,11 @@ healthy, the suspect is LiteLLM under launchd's reduced environment — check
   the two `--ignore` lines in `.github/workflows/tests.yml`
   (`test_council_graph.py`, `test_mcp_council_server.py`) are redundant and can
   be dropped so those tests run in CI.
-- **Proxy default:** `gateway/kitty-chat/src/app/proxy/[...path]/route.ts` still
-  defaults `KITTY_GATEWAY_URL` to `:5001`. The UI wrapper exports the correct
-  `:8000` so launchd is unaffected, but the source default should be fixed (or
-  made to fail loudly) in the UI slice. CLAUDE.md's `:5001` reference is also
-  stale — the gateway runs on `:8000`.
+- **Proxy default:** resolved by the app-shell branch. The UI proxy now defaults
+  to `127.0.0.1:8000`, can read the repo `.env`, and returns a loud `503` when
+  no gateway secret is available. The UI wrapper still exports
+  `KITTY_GATEWAY_URL=http://127.0.0.1:8000` so launchd never depends on a
+  fallback.
 - **Standalone UI runtime:** this slice uses `next start`. The design's
   `output: 'standalone'` runtime is a later hardening (Tauri slice).
 - **Status surface / "restarted N times" diagnostic** belongs with the Tauri
