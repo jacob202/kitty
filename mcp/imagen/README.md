@@ -41,6 +41,7 @@ pip install -r requirements.txt
       "command": "/Users/jacobbrizinski/Projects/kitty/mcp/imagen/.venv/bin/python",
       "args": ["/Users/jacobbrizinski/Projects/kitty/mcp/imagen/server.py"],
       "env": {
+        "FAL_KEY": "your-fal-key",
         "GEMINI_API_KEY": "your-gemini-key",
         "OPENAI_API_KEY": "your-openai-key"
       }
@@ -48,6 +49,10 @@ pip install -r requirements.txt
   }
 }
 ```
+
+Only `FAL_KEY` is required to use `generate_image_fal` and `generate_with_face_fal`.
+Drop keys you don't have — the server starts fine without them and only errors when
+you call a tool that needs a missing key.
 
 Drop a key from `env` if it's already exported in your shell. Restart Claude Code, then
 just ask: *"generate a photo of a misty harbor at dawn"* or *"edit that — make it night."*
@@ -74,6 +79,15 @@ just ask: *"generate a photo of a misty harbor at dawn"* or *"edit that — make
 
 **Engines (pass as `engine=` to `generate` or `batch_generate`)**
 
+| Tool | Engine | NSFW | Best for |
+|---|---|---|---|
+| `generate_image_fal` | fal.ai FLUX Pro Ultra | Permissive (tol 1–6) | High quality, looser safety than Gemini |
+| `generate_with_face_fal` | fal.ai PuLID | Permissive | **Face-consistent** — same person in new scenes |
+| `edit_image_fal` | fal.ai FLUX Pro Ultra img2img | Permissive | Edit a generated image by describing the change |
+| `generate_image_imagen` | Imagen 4 | Tasteful (adults) | 1–4 variations in one call |
+| `generate_image_dalle` | DALL-E 3 | ✗ | Creative/illustrative, text-in-image |
+| `generate_image_comfy` | ComfyUI (local) | Full/explicit | Explicit NSFW, custom LoRAs, $0 |
+| `make_gallery` | — | — | Browsable HTML contact sheet of all outputs |
 | Engine | NSFW | Best for |
 |---|---|---|
 | `nano_banana` (default) | Tasteful | Photorealism + editing + reference consistency |
