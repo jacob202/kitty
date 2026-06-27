@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import os
 import plistlib
+import shlex
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -183,7 +184,16 @@ def _domain_target(label: str) -> str:
 
 def _run(args: list[str]) -> subprocess.CompletedProcess:
     _require_macos()
-    return subprocess.run(args, capture_output=True, text=True, check=False)
+    process = subprocess.run(args, capture_output=True, text=True, check=False)
+    if process.returncode != 0:
+        stdout = process.stdout.strip() or "<empty>"
+        stderr = process.stderr.strip() or "<empty>"
+        raise RuntimeError(
+            f"Command failed with exit {process.returncode}: {shlex.join(args)}\n"
+            f"stdout: {stdout}\n"
+            f"stderr: {stderr}"
+        )
+    return process
 
 
 def install(

@@ -157,3 +157,26 @@ def test_launchctl_commands_refuse_to_run_off_macos():
     for fn in (ld.bootstrap, ld.bootout, ld.restart):
         with pytest.raises(RuntimeError, match="macOS-only"):
             fn("gateway")
+
+
+def test_launchctl_failure_raises_with_command_and_output(monkeypatch):
+    monkeypatch.setattr(ld.sys, "platform", "darwin")
+    monkeypatch.setattr(
+        ld.subprocess,
+        "run",
+        lambda *args, **kwargs: ld.subprocess.CompletedProcess(
+            args[0],
+            17,
+            stdout="launchctl output",
+            stderr="permission denied",
+        ),
+    )
+
+    with pytest.raises(RuntimeError) as exc_info:
+        ld._run(["launchctl", "kickstart", "-k", "gui/501/com.kitty.desktop.gateway"])
+
+    message = str(exc_info.value)
+    assert "launchctl kickstart -k gui/501/com.kitty.desktop.gateway" in message
+    assert "exit 17" in message
+    assert "stdout: launchctl output" in message
+    assert "stderr: permission denied" in message
