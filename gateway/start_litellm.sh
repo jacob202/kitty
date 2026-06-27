@@ -23,6 +23,21 @@ LITELLM_AUTO_REPAIR="${LITELLM_AUTO_REPAIR:-0}"
 export LITELLM_MASTER_KEY="${LITELLM_MASTER_KEY:-kitty-local-key-change-me}"
 export LITELLM_MAX_BUDGET_USD="${LITELLM_MAX_BUDGET_USD:-2.00}"
 
+if [[ "${LITELLM_CONFIG}" = /* ]]; then
+  LITELLM_CONFIG_PATH="${LITELLM_CONFIG}"
+else
+  LITELLM_CONFIG_PATH="${ROOT_DIR}/${LITELLM_CONFIG}"
+fi
+
+if [[ ! -f "${LITELLM_CONFIG_PATH}" ]]; then
+  echo "Error: LiteLLM config not found at ${LITELLM_CONFIG_PATH}."
+  exit 1
+fi
+
+# LiteLLM has its own isolated environment. An inherited Kitty PYTHONPATH makes
+# the repo's mcp/ package shadow LiteLLM's installed MCP SDK.
+unset PYTHONPATH
+
 if ! command -v litellm >/dev/null 2>&1; then
   echo "Error: litellm CLI not found in ${LITELLM_VENV}."
   exit 1
@@ -65,7 +80,7 @@ if [[ -z "${OPENROUTER_API_KEY:-}" ]]; then
 fi
 
 echo "Starting LiteLLM proxy on ${LITELLM_HOST}:${LITELLM_PORT}..."
-echo "Config: ${LITELLM_CONFIG}"
+echo "Config: ${LITELLM_CONFIG_PATH}"
 echo "Daily budget (USD): ${LITELLM_MAX_BUDGET_USD}"
 
 if [[ "${LITELLM_SMOKE:-0}" == "1" ]]; then
@@ -73,4 +88,7 @@ if [[ "${LITELLM_SMOKE:-0}" == "1" ]]; then
   exit 0
 fi
 
-litellm --config "${LITELLM_CONFIG}" --port "${LITELLM_PORT}" --host "${LITELLM_HOST}"
+# Starting outside the repo prevents Kitty's local mcp/ package from shadowing
+# the MCP SDK imported by LiteLLM's proxy runtime.
+cd "${LITELLM_VENV}"
+litellm --config "${LITELLM_CONFIG_PATH}" --port "${LITELLM_PORT}" --host "${LITELLM_HOST}"

@@ -31,6 +31,7 @@ def test_secret_keys_are_masked_and_unwrappable(monkeypatch: pytest.MonkeyPatch)
     assert s.OPENAI_API_KEY.get_secret_value() == "sk-secret-value"
 
 
-def test_unset_secret_is_none(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_unset_secret_is_none(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
     assert get_settings().NVIDIA_API_KEY is None

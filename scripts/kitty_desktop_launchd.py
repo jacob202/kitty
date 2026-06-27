@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import os
 import plistlib
+import shlex
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -92,6 +93,22 @@ def repo_root_default() -> Path:
 
 def launchagents_dir() -> Path:
     return Path.home() / "Library" / "LaunchAgents"
+
+
+def is_linked_git_worktree(repo_root: Path) -> bool:
+    """Linked git worktrees use a .git file that points at another git dir."""
+    return (repo_root / ".git").is_file()
+
+
+def validate_install_root(repo_root: Path, *, allow_worktree_install: bool = False) -> None:
+    """Refuse launchd installs from disposable worktrees unless made explicit."""
+    root = repo_root.resolve()
+    if is_linked_git_worktree(root) and not allow_worktree_install:
+        raise RuntimeError(
+            "Refusing to install LaunchAgents from a linked git worktree at "
+            f"{root}. Run from the canonical repo checkout or pass "
+            "--allow-worktree-install if this path is intentionally permanent."
+        )
 
 
 def plist_path(name: str) -> Path:
@@ -167,12 +184,24 @@ def _domain_target(label: str) -> str:
 
 def _run(args: list[str]) -> subprocess.CompletedProcess:
     _require_macos()
-    return subprocess.run(args, capture_output=True, text=True, check=False)
+    process = subprocess.run(args, capture_output=True, text=True, check=False)
+    if process.returncode != 0:
+        stdout = process.stdout.strip() or "<empty>"
+        stderr = process.stderr.strip() or "<empty>"
+        raise RuntimeError(
+            f"Command failed with exit {process.returncode}: {shlex.join(args)}\n"
+            f"stdout: {stdout}\n"
+            f"stderr: {stderr}"
+        )
+    return process
 
 
-def install(repo_root: Path | None = None) -> list[Path]:
+def install(
+    repo_root: Path | None = None, *, allow_worktree_install: bool = False
+) -> list[Path]:
     """Write all plists and ensure the log directory exists. Idempotent."""
     root = (repo_root or repo_root_default()).resolve()
+    validate_install_root(root, allow_worktree_install=allow_worktree_install)
     launchagents_dir().mkdir(parents=True, exist_ok=True)
     (root / "logs" / "desktop").mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
@@ -220,7 +249,12 @@ def _build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("generate", help="print plists to stdout (no writes)")
-    sub.add_parser("install", help="write plists to ~/Library/LaunchAgents")
+    install_parser = sub.add_parser("install", help="write plists to ~/Library/LaunchAgents")
+    install_parser.add_argument(
+        "--allow-worktree-install",
+        action="store_true",
+        help="allow plists to point at a linked git worktree path",
+    )
 
     targets = list(SERVICE_ORDER) + ["all"]
     for cmd, help_text in [
@@ -243,9 +277,13 @@ def main(argv: list[str] | None = None) -> int:
             print(render_plist_bytes(name).decode("utf-8"))
         return 0
     if args.command == "install":
-        for path in install():
-            print(f"wrote {path}")
-        return 0
+        try:
+            for path in install(allow_worktree_install=args.allow_worktree_install):
+                print(f"wrote {path}")
+            return 0
+        except RuntimeError as error:
+            print(f"Error: {error}", file=sys.stderr)
+            return 1
     if args.command == "bootstrap":
         bootstrap(args.target)
     elif args.command == "bootout":

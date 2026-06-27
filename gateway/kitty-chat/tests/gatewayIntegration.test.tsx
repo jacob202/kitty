@@ -181,6 +181,14 @@ describe('TopBar', () => {
     render(<TopBar {...baseProps} modelFromGateway={true} />)
     expect(screen.queryByTitle('Using offline model list')).not.toBeInTheDocument()
   })
+
+  it('reserves the iOS status-bar safe area in mobile mode', () => {
+    const { container } = render(<TopBar {...baseProps} isMobile />)
+
+    expect((container.firstElementChild as HTMLElement).style.padding).toContain(
+      'safe-area-inset-top'
+    )
+  })
 })
 
 describe('DashboardHome', () => {
