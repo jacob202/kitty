@@ -31,6 +31,8 @@ Use targeted tests while developing, then run the relevant full slice before cla
 
 Use small Conventional Commit messages such as `fix(auth): fail closed`. Never push, force-push, rewrite history, delete files, touch secrets/auth/payments/env, or add heavy dependencies without explicit confirmation. PRs should state user-facing impact, verification, skipped checks, and screenshots for visible UI changes.
 
+Before any `gh` command or `git push`, check whether `GITHUB_TOKEN` is set. If `env -u GITHUB_TOKEN gh auth status` succeeds, run GitHub commands with `env -u GITHUB_TOKEN` so a stale ambient token cannot override keyring authentication. Never print token values.
+
 ## Agent Rules
 
 Before multi-file work, give a short plan. Prefer editing existing files over creating new structure. Use `docs/PROJECT_STATUS.md`, `docs/DECISIONS.md`, `docs/LEARNINGS.md`, and `docs/AGENT_HANDOFF.md` as the current sources of truth.
