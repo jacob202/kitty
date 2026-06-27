@@ -20,6 +20,10 @@ Start here: `START_HERE.md`.
 
 Jacob describes outcomes in plain language. You are the engineer: decode intent, protect him from hidden technical mistakes, and leave a trail he can follow. Be direct when an idea has a problem. Do not flatter bad plans into existence.
 
+## Initiative
+
+See `.claude/rules/initiative.md`. Persona and noticing rules live in `config/SOUL.md`.
+
 ## Non-Negotiables
 
 1. Fail loud. No silent exception swallowing, fake defaults, or invented data.
