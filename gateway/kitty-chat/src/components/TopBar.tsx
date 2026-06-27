@@ -8,6 +8,7 @@ import {
   CheckSquare,
   Terminal,
   Wrench,
+  PanelLeft,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -30,6 +31,7 @@ interface Props {
   kittyModes?: Array<{ id: string; name: string }>
   sidebarCollapsed?: boolean
   onToggleSidebar?: () => void
+  isMobile?: boolean
 }
 
 const VIEWS: Array<{ id: string; label: string; icon: ReactNode }> = [
@@ -63,8 +65,138 @@ export function TopBar({
   kittyModes = KITTY_MODES,
   sidebarCollapsed = false,
   onToggleSidebar,
+  isMobile = false,
 }: Props) {
-  const title = activeChat?.messages.length ? activeChat.title : getGreeting() + '.'
+  const activeViewMeta = VIEWS.find(view => view.id === activeView)
+  const title = activeChat?.messages.length
+    ? activeChat.title
+    : activeView === 'home'
+      ? getGreeting() + '.'
+      : activeViewMeta?.label ?? 'Kitty'
+
+  if (isMobile) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+        padding: 'calc(10px + env(safe-area-inset-top, 0px)) 12px 8px',
+        flexShrink: 0,
+        borderBottom: '1px solid var(--border)',
+        background: 'rgba(16, 20, 29, 0.82)',
+        backdropFilter: 'blur(10px)',
+        position: 'relative',
+        zIndex: 10,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/kitty-mascot.svg"
+              alt="Kitty"
+              width={34}
+              height={34}
+              style={{
+                flexShrink: 0,
+                display: 'block',
+                filter: isStreaming ? 'saturate(1.35) brightness(1.08)' : 'none',
+                transition: 'filter 0.3s ease',
+              }}
+            />
+            <div style={{ minWidth: 0 }}>
+              <div style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 12,
+                fontWeight: 700,
+                color: 'var(--text)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                letterSpacing: '0.02em',
+              }}>{title}</div>
+              <div style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                color: isStreaming ? 'var(--tertiary)' : 'var(--text-muted)',
+                marginTop: 2,
+              }}>
+                {isStreaming
+                  ? STREAMING_LABEL
+                  : modelFromGateway
+                    ? activeModel.name
+                    : `${activeModel.name} · offline models`}
+              </div>
+            </div>
+          </div>
+
+          {onToggleSidebar && (
+            <button
+              onClick={onToggleSidebar}
+              style={{
+                ...iconBtnStyle,
+                width: 36,
+                height: 36,
+                background: 'var(--surface-low)',
+                color: 'var(--text-dim)',
+                flexShrink: 0,
+              }}
+              title="Open sessions"
+            >
+              <PanelLeft size={16} />
+            </button>
+          )}
+        </div>
+
+        <div style={{
+          display: 'flex',
+          gap: 6,
+          overflowX: 'auto',
+          paddingBottom: 2,
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        }}>
+          {VIEWS.map(view => (
+            <button
+              key={view.id}
+              onClick={() => onViewChange(view.id)}
+              style={{
+                ...tabStyle,
+                padding: '8px 10px',
+                flexShrink: 0,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                background: activeView === view.id ? 'var(--surface-mid)' : 'transparent',
+                color: activeView === view.id ? 'var(--text)' : 'var(--text-muted)',
+                borderBottom: activeView === view.id ? '2px solid var(--primary)' : '2px solid transparent',
+              }}
+            >
+              {view.icon}
+              {view.label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 8 }}>
+          <KittyModeSelector
+            mode={kittyMode}
+            modes={kittyModes}
+            onChange={onKittyModeChange}
+            compact={true}
+          />
+          <ModelSelector
+            activeModel={activeModel}
+            models={models}
+            onSelectModel={onSelectModel}
+            showModelMenu={showModelMenu}
+            setShowModelMenu={setShowModelMenu}
+            modelFromGateway={modelFromGateway}
+            compact={true}
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{
@@ -163,7 +295,7 @@ export function TopBar({
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-        < KittyModeSelector
+        <KittyModeSelector
           mode={kittyMode}
           modes={kittyModes}
           onChange={onKittyModeChange}
@@ -198,13 +330,15 @@ function KittyModeSelector({
   const current = modes.find(m => m.id === mode) ?? modes[0]
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div style={{ position: 'relative', width: compact ? '100%' : undefined }}>
       <button
         onClick={() => setOpen(!open)}
         style={{
           display: 'flex',
           alignItems: 'center',
+          justifyContent: compact ? 'space-between' : undefined,
           gap: 6,
+          width: compact ? '100%' : undefined,
           border: `1px solid ${open ? 'var(--border)' : 'transparent'}`,
           borderRadius: 8,
           padding: compact ? '4px 8px' : '6px 12px',
@@ -284,7 +418,6 @@ function KittyModeSelector({
                 el.style.color = 'var(--text-dim)'
               } }}
             >
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: m.id === mode ? 'var(--purple)' : 'var(--text-muted)', flexShrink: 0 }} /            >
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: m.id === mode ? 'var(--purple)' : 'var(--text-muted)', flexShrink: 0 }} />
               {m.name}
             </button>
@@ -302,6 +435,7 @@ function ModelSelector({
   showModelMenu,
   setShowModelMenu,
   modelFromGateway,
+  compact = false,
 }: {
   activeModel: Model
   models: Model[]
@@ -309,22 +443,25 @@ function ModelSelector({
   showModelMenu: boolean
   setShowModelMenu: (v: boolean) => void
   modelFromGateway?: boolean
+  compact?: boolean
 }) {
   return (
-    <div style={{ position: 'relative' }}>
+    <div style={{ position: 'relative', width: compact ? '100%' : undefined }}>
       <button
         onClick={() => setShowModelMenu(!showModelMenu)}
         style={{
           display: 'flex',
           alignItems: 'center',
+          justifyContent: compact ? 'space-between' : undefined,
           gap: 8,
+          width: compact ? '100%' : undefined,
           border: `1px solid ${showModelMenu ? 'var(--border)' : 'transparent'}`,
           borderRadius: 8,
-          padding: '6px 12px',
+          padding: compact ? '4px 8px' : '6px 12px',
           background: showModelMenu ? 'var(--surface-mid)' : 'var(--surface-low)',
           cursor: 'pointer',
           fontFamily: 'var(--font-mono)',
-          fontSize: 12,
+          fontSize: compact ? 10 : 12,
           fontWeight: 600,
           color: 'var(--text-dim)',
           transition: 'all 0.2s ease',
@@ -407,9 +544,11 @@ function ModelSelector({
                 el.style.color = 'var(--text-dim)'
               } }}
             >
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: m.color, flexShrink: 0 }} /            >
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: m.color, flexShrink: 0 }} />
-              {m.name}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
+                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name}</span>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 500 }}>{m.id}</span>
+              </div>
             </button>
           ))}
         </div>
@@ -418,36 +557,39 @@ function ModelSelector({
   )
 }
 
-function getGreeting(): string {
-  const h = new Date().getHours()
-  if (h < 5) return 'still up'
-  if (h < 12) return 'good morning'
-  if (h < 17) return 'good afternoon'
-  if (h < 21) return 'good evening'
-  return 'late night'
+function getGreeting() {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'good morning'
+  if (hour < 18) return 'good afternoon'
+  return 'good evening'
 }
 
 const tabStyle: CSSProperties = {
-  padding: '8px 16px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 6,
+  height: 36,
+  padding: '0 12px',
+  border: 'none',
   borderRadius: 8,
+  background: 'transparent',
+  color: 'var(--text-muted)',
   cursor: 'pointer',
   fontFamily: 'var(--font-mono)',
   fontSize: 12,
   fontWeight: 600,
   transition: 'all 0.2s ease',
-  border: 'none',
-  borderBottom: '2px solid transparent',
-  background: 'transparent',
-  marginBottom: '-2px',
 }
 
 const iconBtnStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
   width: 32,
   height: 32,
-  display: 'grid',
-  placeItems: 'center',
+  border: 'none',
   borderRadius: 8,
   cursor: 'pointer',
-  fontSize: 12,
   transition: 'all 0.2s ease',
 }

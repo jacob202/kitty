@@ -8,6 +8,7 @@ interface Props {
   onNewChat: () => void
   onCloseChat: (id: string) => void
   collapsed?: boolean
+  width?: string | number
 }
 
 function timeAgo(date: Date): string {
@@ -19,7 +20,7 @@ function timeAgo(date: Date): string {
   return Math.floor(diff / 86400) + 'd'
 }
 
-export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, onCloseChat, collapsed = false }: Props) {
+export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, onCloseChat, collapsed = false, width }: Props) {
   const sorted = [...chats].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
   const cutoff = Date.now() - 24 * 3600 * 1000
   const today = sorted.filter(c => c.updatedAt.getTime() > cutoff)
@@ -27,7 +28,7 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
 
   return (
     <aside style={{
-      width: collapsed ? '60px' : 'var(--sidebar)',
+      width: collapsed ? '60px' : (width ?? 'var(--sidebar)'),
       padding: collapsed ? '16px 12px' : '24px 16px',
       overflowY: 'auto',
       borderRight: '1px solid var(--border)',

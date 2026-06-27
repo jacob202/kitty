@@ -2,6 +2,13 @@
 
 > a personal AI assistant with terminal-rapper energy and an 8-bit cat for a face
 
+> **Start with the *why*:** [`../PHILOSOPHY.md`](../PHILOSOPHY.md) is the reason
+> this thing looks like anything at all — the audience-of-one premise, the
+> settled decisions, and the personality the visuals are dressing. This file is
+> the *what* (tokens, rules); the philosophy is what it answers to. Note: the
+> type/palette below predate the matured `Space Grotesk × Space Mono` direction
+> in `colors_and_type.css` — see the philosophy's "three systems" note.
+
 **Project context:** This is the design system for **Kitty** (formal name: *Lumpy Space Princess*, but everyone calls her Kitty). Kitty is an in-progress personal AI assistant — currently a concept, not a shipped product. There is no existing codebase, Figma, or prior brand to reference; everything here is invented from the brief.
 
 **Brief from user:**
