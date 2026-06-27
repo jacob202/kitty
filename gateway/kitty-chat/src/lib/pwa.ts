@@ -129,9 +129,9 @@ export function usePwaInstall(): UsePwaInstallResult {
     try {
       await installPrompt.prompt()
       const choice = await installPrompt.userChoice
+      setInstallPrompt(null)
       if (choice.outcome === 'accepted') {
         setIsInstalled(true)
-        setInstallPrompt(null)
       }
     } catch (installError) {
       const message = `Install prompt failed: ${messageFromError(installError)}`

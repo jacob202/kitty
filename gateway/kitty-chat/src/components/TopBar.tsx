@@ -80,7 +80,7 @@ export function TopBar({
         display: 'flex',
         flexDirection: 'column',
         gap: 10,
-        padding: '10px 12px 8px',
+        padding: 'calc(10px + env(safe-area-inset-top, 0px)) 12px 8px',
         flexShrink: 0,
         borderBottom: '1px solid var(--border)',
         background: 'rgba(16, 20, 29, 0.82)',
