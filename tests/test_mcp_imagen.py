@@ -10,7 +10,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Stub out mcp and google.genai so tests run without the real SDKs installed
 # ---------------------------------------------------------------------------
@@ -360,7 +359,6 @@ def test_generate_with_reference_missing_file(srv):
 def test_generate_with_reference_success(srv, tmp_path):
     ref = tmp_path / "ref.png"
     ref.write_bytes(b"fake-png")
-    fake_resp = _fake_response(has_image=True)
     mock_nano = MagicMock(return_value=(b"generated-bytes", ""))
 
     with (
@@ -397,7 +395,7 @@ def test_variations_count_clamp(srv, tmp_path):
         patch.object(srv, "_save", return_value=tmp_path / "var_123.png"),
         patch.object(srv, "_image_part", return_value=MagicMock()),
     ):
-        result = srv.variations(str(src), count=10)
+        srv.variations(str(src), count=10)
 
     assert len(calls) == 4  # clamped to max 4
 

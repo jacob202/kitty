@@ -70,19 +70,7 @@ FAL_FACESWAP_MODEL = os.environ.get("FAL_FACESWAP_MODEL", "fal-ai/inswapper")
 PHOTOREAL_SUFFIX = (
     ", photorealistic, shot on a full-frame DSLR, 85mm lens, natural lighting, "
     "shallow depth of field, sharp focus, high detail, true-to-life color"
-from mcp.imagen import engines
-from mcp.imagen.logging import log
-from mcp.imagen.tools.batch import batch_generate
-from mcp.imagen.tools.gallery import make_gallery
-from mcp.imagen.tools.generate import edit_image, generate
-from mcp.imagen.tools.reference import (
-    generate_with_avatar,
-    generate_with_reference,
-    set_avatar,
 )
-from mcp.imagen.tools.refine import refine_image
-from mcp.imagen.tools.variations import variations
-from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP(
     "imagen",
@@ -834,24 +822,6 @@ def make_gallery() -> str:
     gallery = OUTPUT_DIR / "gallery.html"
     gallery.write_text(doc, encoding="utf-8")
     return f"Gallery written to {gallery} ({len(pngs)} images). Open it in a browser."
-        "make_gallery builds a browsable contact sheet."
-    ),
-)
-
-# Register all tools on the FastMCP instance. Each function is decorated here
-# (not in the tool modules) so the tool modules stay testable without a live
-# FastMCP server.
-mcp.tool()(generate)
-mcp.tool()(edit_image)
-mcp.tool()(batch_generate)
-mcp.tool()(refine_image)
-mcp.tool()(variations)
-mcp.tool()(generate_with_reference)
-mcp.tool()(set_avatar)
-mcp.tool()(generate_with_avatar)
-mcp.tool()(make_gallery)
-
-log.debug("imagen MCP server ready — engines: %s", ", ".join(engines.available()))
 
 
 # ---------------------------------------------------------------------------
