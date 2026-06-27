@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -67,6 +69,54 @@ def test_gateway_launcher_scripts_use_live_gateway_paths() -> None:
             assert snippet in contents, f"{rel_path} is missing {snippet!r}"
 
 
+def test_litellm_launcher_avoids_repo_package_shadowing(tmp_path: Path) -> None:
+    fake_venv = tmp_path / "venv-litellm"
+    fake_bin = fake_venv / "bin"
+    fake_bin.mkdir(parents=True)
+    capture_path = tmp_path / "litellm-launch.txt"
+
+    (fake_bin / "activate").write_text(
+        f'export PATH="{fake_bin}:$PATH"\n',
+        encoding="utf-8",
+    )
+    for name, body in {
+        "python": "#!/bin/bash\nexit 0\n",
+        "litellm": (
+            "#!/bin/bash\n"
+            'printf "%s\\n" "$PWD" >"$LITELLM_CAPTURE"\n'
+            'printf "PYTHONPATH=%s\\n" "${PYTHONPATH-}" >>"$LITELLM_CAPTURE"\n'
+            'printf "%s\\n" "$@" >>"$LITELLM_CAPTURE"\n'
+        ),
+    }.items():
+        executable = fake_bin / name
+        executable.write_text(body, encoding="utf-8")
+        executable.chmod(0o755)
+
+    env = {
+        **os.environ,
+        "LITELLM_CAPTURE": str(capture_path),
+        "LITELLM_VENV": str(fake_venv),
+        "PYTHONPATH": str(ROOT),
+    }
+    result = subprocess.run(
+        ["bash", str(ROOT / "gateway/start_litellm.sh")],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    launch = capture_path.read_text(encoding="utf-8").splitlines()
+    assert launch[0] == str(fake_venv.resolve())
+    assert launch[1] == "PYTHONPATH="
+    config_index = launch.index("--config")
+    assert launch[config_index + 1] == str(
+        (ROOT / "gateway/litellm_config.yaml").resolve()
+    )
+
+
 def test_start_all_and_runtime_manifest_point_at_live_gateway_scripts() -> None:
     start_all = _read_text("gateway/start_all.sh")
     for snippet in (
@@ -91,4 +141,3 @@ def test_start_all_and_runtime_manifest_point_at_live_gateway_scripts() -> None:
     service_ids = {svc["id"] for svc in manifest["services"]}
     assert "openwebui" not in service_ids
     assert "openwebui" not in manifest
-
