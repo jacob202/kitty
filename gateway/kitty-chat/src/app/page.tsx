@@ -1,30 +1,27 @@
-'use client'
-import { startTransition, useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { Chat, Message, Model, MODELS, COLOR_CYCLE, ChatColor } from '@/lib/types'
-import { streamChat } from '@/lib/chat-client'
-import { inferMood } from '@/lib/mood'
-import { TopBar } from '@/components/TopBar'
-import { ChatMessage } from '@/components/ChatMessage'
-import { InputBar } from '@/components/InputBar'
-import { DashboardHome } from '@/components/DashboardHome'
-import { Rail } from '@/components/Rail'
-import { SessionSidebar } from '@/components/SessionSidebar'
-import { RightPanel } from '@/components/RightPanel'
-import { TaskPanel } from '@/components/TaskPanel'
-import { TodoPanel } from '@/components/TodoPanel'
-import { TerminalStrip } from '@/components/TerminalStrip'
-import { AgentPanel } from '@/components/AgentPanel'
-import { MonitorPanel } from '@/components/MonitorPanel'
-import { ImageGenPanel } from '@/components/ImageGenPanel'
-import { CommandPalette } from '@/components/CommandPalette'
-import { ErrorBoundary } from '@/components/ErrorBoundary'
-import { PwaInstallBanner } from '@/components/PwaInstallBanner'
-import {
-  fetchGatewaySearch,
-  type GatewaySearchSnapshot,
-} from '@/lib/gateway'
-import { usePwaInstall } from '@/lib/pwa'
+'use client';
+import { startTransition, useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { Chat, Message, Model, MODELS, COLOR_CYCLE, ChatColor } from '@/lib/types';
+import { streamChat } from '@/lib/chat-client';
+import { inferMood } from '@/lib/mood';
+import { TopBar } from '@/components/TopBar';
+import { ChatMessage } from '@/components/ChatMessage';
+import { InputBar } from '@/components/InputBar';
+import { DashboardHome } from '@/components/DashboardHome';
+import { Rail } from '@/components/Rail';
+import { SessionSidebar } from '@/components/SessionSidebar';
+import { RightPanel } from '@/components/RightPanel';
+import { TaskPanel } from '@/components/TaskPanel';
+import { TodoPanel } from '@/components/TodoPanel';
+import { TerminalStrip } from '@/components/TerminalStrip';
+import { AgentPanel } from '@/components/AgentPanel';
+import { MonitorPanel } from '@/components/MonitorPanel';
+import { ImageGenPanel } from '@/components/ImageGenPanel';
+import { CommandPalette } from '@/components/CommandPalette';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { PwaInstallBanner } from '@/components/PwaInstallBanner';
+import { fetchGatewaySearch, type GatewaySearchSnapshot } from '@/lib/gateway';
+import { usePwaInstall } from '@/lib/pwa';
 import {
   useGatewayBrief,
   useGatewayModels,
@@ -35,13 +32,17 @@ import {
   usePrompts,
   useToggleLoop,
   useDismissInsight,
-} from '@/lib/queries'
+} from '@/lib/queries';
 
-const MOBILE_BREAKPOINT = 900
+const MOBILE_BREAKPOINT = 900;
 
-let chatCounter = 0
-function newChatId() { return `chat-${++chatCounter}-${Date.now()}` }
-function newMsgId()  { return `msg-${Date.now()}-${Math.random().toString(36).slice(2)}` }
+let chatCounter = 0;
+function newChatId() {
+  return `chat-${++chatCounter}-${Date.now()}`;
+}
+function newMsgId() {
+  return `msg-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 function makeChat(color: ChatColor): Chat {
   return {
@@ -52,388 +53,460 @@ function makeChat(color: ChatColor): Chat {
     color,
     createdAt: new Date(),
     updatedAt: new Date(),
-  }
+  };
 }
 
 function getInitials(email?: string): string {
-  if (!email) return 'JB'
-  const parts = email.replace(/@.*/, '').split(/[._-]/)
-  return parts.slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('') || 'ME'
+  if (!email) return 'JB';
+  const parts = email.replace(/@.*/, '').split(/[._-]/);
+  return (
+    parts
+      .slice(0, 2)
+      .map((p) => p[0]?.toUpperCase() ?? '')
+      .join('') || 'ME'
+  );
 }
 
-const USER_INITIALS = getInitials('jacobbrizinski@gmail.com')
+const USER_INITIALS = getInitials('jacobbrizinski@gmail.com');
 
 function ToolCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{
-      background: 'var(--surface-low)',
-      border: '1px solid var(--border)',
-      borderRadius: 10,
-      padding: 16,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 12,
-    }}>
-      <div style={{
-        fontFamily: 'var(--font-mono)',
-        fontSize: 10,
-        fontWeight: 700,
-        letterSpacing: '0.12em',
-        textTransform: 'uppercase',
-        color: 'var(--text-muted)',
-        paddingBottom: 8,
-        borderBottom: '1px solid var(--border-dim)',
-      }}>
+    <div
+      style={{
+        background: 'var(--surface-low)',
+        border: '1px solid var(--border)',
+        borderRadius: 10,
+        padding: 16,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+      }}
+    >
+      <div
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          color: 'var(--text-muted)',
+          paddingBottom: 8,
+          borderBottom: '1px solid var(--border-dim)',
+        }}
+      >
         {title}
       </div>
       {children}
     </div>
-  )
+  );
 }
 
 function latestSearchQuery(chat: Chat | null): string {
-  if (!chat) return ''
-  const lastUser = [...chat.messages].reverse().find(message => message.role === 'user')?.content?.trim()
-  if (lastUser) return lastUser
-  if (chat.title !== 'new chat') return chat.title.trim()
-  return ''
+  if (!chat) return '';
+  const lastUser = [...chat.messages]
+    .reverse()
+    .find((message) => message.role === 'user')
+    ?.content?.trim();
+  if (lastUser) return lastUser;
+  if (chat.title !== 'new chat') return chat.title.trim();
+  return '';
 }
 
 export default function KittyChat() {
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   if (!mounted) {
-    return <div style={{ height: '100vh', background: 'var(--bg)' }} />
+    return <div style={{ height: '100vh', background: 'var(--bg)' }} />;
   }
 
-  return <KittyChatInner />
+  return <KittyChatInner />;
 }
 
 function KittyChatInner() {
-  const [chats, setChats] = useState<Chat[]>(() => [makeChat('teal')])
-  const [activeView, setActiveView] = useState('home')
-  const [activeChatId, setActiveChatId] = useState<string | null>(() => null)
-  const [input, setInput] = useState('')
-  const [isStreaming, setIsStreaming] = useState(false)
-  const [activeModel, setActiveModel] = useState<Model>(MODELS[0])
-  const [showModelMenu, setShowModelMenu] = useState(false)
-  const [tokenCount, setTokenCount] = useState(0)
-  const [searchSnapshot, setSearchSnapshot] = useState<GatewaySearchSnapshot | null>(null)
+  const [chats, setChats] = useState<Chat[]>(() => [makeChat('teal')]);
+  const [activeView, setActiveView] = useState('home');
+  const [activeChatId, setActiveChatId] = useState<string | null>(() => null);
+  const [input, setInput] = useState('');
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [activeModel, setActiveModel] = useState<Model>(MODELS[0]);
+  const [showModelMenu, setShowModelMenu] = useState(false);
+  const [tokenCount, setTokenCount] = useState(0);
+  const [searchSnapshot, setSearchSnapshot] = useState<GatewaySearchSnapshot | null>(null);
   const [searchGateway, setSearchGateway] = useState<{
-    live: boolean
-    error: string | null
-  }>({ live: true, error: null })
-  const [kittyMode, setKittyMode] = useState('default')
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [isMobile, setIsMobile] = useState(false)
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
-  const pwaInstall = usePwaInstall()
+    live: boolean;
+    error: string | null;
+  }>({ live: true, error: null });
+  const [kittyMode, setKittyMode] = useState('default');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const pwaInstall = usePwaInstall();
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    fetch('/proxy/chats')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const saved: Chat[] = d?.chats ?? [];
+        if (saved.length) {
+          setChats(
+            saved.map((c: Chat) => ({
+              ...c,
+              createdAt: new Date(c.createdAt),
+              updatedAt: new Date(c.updatedAt),
+              messages: (c.messages ?? []).map((m: Message) => ({
+                ...m,
+                timestamp: new Date(m.timestamp),
+              })),
+            })),
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
 
-    const media = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`)
-    const syncViewport = () => setIsMobile(media.matches)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
 
-    syncViewport()
+    const media = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`);
+    const syncViewport = () => setIsMobile(media.matches);
+
+    syncViewport();
     if (typeof media.addEventListener === 'function') {
-      media.addEventListener('change', syncViewport)
-      return () => media.removeEventListener('change', syncViewport)
+      media.addEventListener('change', syncViewport);
+      return () => media.removeEventListener('change', syncViewport);
     }
 
-    media.addListener(syncViewport)
-    return () => media.removeListener(syncViewport)
-  }, [])
+    media.addListener(syncViewport);
+    return () => media.removeListener(syncViewport);
+  }, []);
 
   useEffect(() => {
     if (!isMobile) {
-      setMobileSidebarOpen(false)
+      setMobileSidebarOpen(false);
     }
-  }, [isMobile])
+  }, [isMobile]);
 
   // Dashboard data — all via React Query (auto-retry, refetch on focus, cache).
-  const queryClient = useQueryClient()
-  const modelsQuery = useGatewayModels()
-  const briefQuery = useGatewayBrief()
-  const todosQuery = useTodos()
-  const weatherQuery = useGatewayWeather()
-  const loopsQuery = useLoops()
-  const insightsQuery = useInsights()
-  const promptsQuery = usePrompts()
-  const toggleLoop = useToggleLoop()
-  const dismissInsight = useDismissInsight()
+  const queryClient = useQueryClient();
+  const modelsQuery = useGatewayModels();
+  const briefQuery = useGatewayBrief();
+  const todosQuery = useTodos();
+  const weatherQuery = useGatewayWeather();
+  const loopsQuery = useLoops();
+  const insightsQuery = useInsights();
+  const promptsQuery = usePrompts();
+  const toggleLoop = useToggleLoop();
+  const dismissInsight = useDismissInsight();
 
-  const availableModels = modelsQuery.data?.models ?? MODELS
-  const brief = briefQuery.data?.brief ?? null
-  const todos = todosQuery.data ?? []
-  const weather = weatherQuery.data?.weather ?? null
-  const loops = loopsQuery.data?.loops ?? []
-  const insights = insightsQuery.data?.insights ?? []
-  const promptTemplates = promptsQuery.data ?? []
+  const availableModels = modelsQuery.data?.models ?? MODELS;
+  const brief = briefQuery.data?.brief ?? null;
+  const todos = todosQuery.data ?? [];
+  const weather = weatherQuery.data?.weather ?? null;
+  const loops = loopsQuery.data?.loops ?? [];
+  const insights = insightsQuery.data?.insights ?? [];
+  const promptTemplates = promptsQuery.data ?? [];
   const modelGateway = {
     loaded: modelsQuery.isFetched,
     live: modelsQuery.data?.fromLiveGateway ?? true,
     error: modelsQuery.data?.error ?? null,
-  }
+  };
   const briefGateway = {
     loaded: briefQuery.isFetched,
     live: briefQuery.data?.fromLiveGateway ?? true,
     error: briefQuery.data?.error ?? null,
-  }
+  };
 
-  const abortRef = useRef<AbortController | null>(null)
-  const bottomRef = useRef<HTMLDivElement>(null)
-  const colorIndexRef = useRef(0)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const abortRef = useRef<AbortController | null>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const colorIndexRef = useRef(0);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const activeChat = chats.find(c => c.id === activeChatId) ?? chats[0] ?? null
-  const userMessageCount = activeChat?.messages.filter(m => m.role === 'user').length ?? 0
+  const activeChat = chats.find((c) => c.id === activeChatId) ?? chats[0] ?? null;
+  const userMessageCount = activeChat?.messages.filter((m) => m.role === 'user').length ?? 0;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const searchQuery = useMemo(() => latestSearchQuery(activeChat), [activeChatId, userMessageCount])
+  const searchQuery = useMemo(
+    () => latestSearchQuery(activeChat),
+    [activeChatId, userMessageCount],
+  );
 
   useEffect(() => {
     if (chats.length > 0 && !activeChatId) {
-      setActiveChatId(chats[0].id)
+      setActiveChatId(chats[0].id);
     }
-  }, [chats, activeChatId])
+  }, [chats, activeChatId]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [activeChat?.messages.length, isStreaming])
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [activeChat?.messages.length, isStreaming]);
 
   // Sync activeModel with the models list once it loads (or after retry).
   useEffect(() => {
-    if (!modelsQuery.data) return
-    const models = modelsQuery.data.models
-    setActiveModel(current => models.find(m => m.id === current.id) ?? models[0] ?? current)
-  }, [modelsQuery.data])
+    if (!modelsQuery.data) return;
+    const models = modelsQuery.data.models;
+    setActiveModel((current) => models.find((m) => m.id === current.id) ?? models[0] ?? current);
+  }, [modelsQuery.data]);
 
   useEffect(() => {
     if (!searchQuery) {
-      setSearchSnapshot(null)
-      setSearchGateway({ live: true, error: null })
-      return
+      setSearchSnapshot(null);
+      setSearchGateway({ live: true, error: null });
+      return;
     }
 
-    const controller = new AbortController()
+    const controller = new AbortController();
 
     const timeoutId = window.setTimeout(async () => {
-      const payload = await fetchGatewaySearch(searchQuery, 3, controller.signal)
-      if (controller.signal.aborted) return
+      const payload = await fetchGatewaySearch(searchQuery, 3, controller.signal);
+      if (controller.signal.aborted) return;
       startTransition(() => {
-        setSearchSnapshot(payload.snapshot)
-        setSearchGateway({ live: payload.fromLiveGateway, error: payload.error })
-      })
-    }, 400)
+        setSearchSnapshot(payload.snapshot);
+        setSearchGateway({ live: payload.fromLiveGateway, error: payload.error });
+      });
+    }, 400);
 
     return () => {
-      clearTimeout(timeoutId)
-      controller.abort()
-    }
-  }, [searchQuery])
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [searchQuery]);
 
   // rough token estimate: ~4 chars per token
   useEffect(() => {
-    if (!activeChat) return
-    const chars = activeChat.messages.reduce((sum, m) => sum + m.content.length, 0)
-    setTokenCount(Math.round(chars / 4))
-  }, [activeChat?.messages])
+    if (!activeChat) return;
+    const chars = activeChat.messages.reduce((sum, m) => sum + m.content.length, 0);
+    setTokenCount(Math.round(chars / 4));
+  }, [activeChat?.messages]);
 
   const handleNewChat = useCallback(() => {
-    const color = COLOR_CYCLE[colorIndexRef.current % COLOR_CYCLE.length]
-    colorIndexRef.current++
-    const chat = makeChat(color)
-    chat.model = activeModel.id
-    setChats(prev => [...prev, chat])
-    setActiveChatId(chat.id)
-    setInput('')
-  }, [activeModel.id])
+    const color = COLOR_CYCLE[colorIndexRef.current % COLOR_CYCLE.length];
+    colorIndexRef.current++;
+    const chat = makeChat(color);
+    chat.model = activeModel.id;
+    setChats((prev) => [...prev, chat]);
+    setActiveChatId(chat.id);
+    setInput('');
+  }, [activeModel.id]);
 
   const handleToggleSidebar = useCallback(() => {
     if (isMobile) {
-      setMobileSidebarOpen(open => !open)
-      return
+      setMobileSidebarOpen((open) => !open);
+      return;
     }
-    setSidebarCollapsed(collapsed => !collapsed)
-  }, [isMobile])
+    setSidebarCollapsed((collapsed) => !collapsed);
+  }, [isMobile]);
 
-  const handleSelectChat = useCallback((id: string) => {
-    setActiveChatId(id)
-    setActiveView('chat')
-    if (isMobile) {
-      setMobileSidebarOpen(false)
-    }
-  }, [isMobile])
+  const handleSelectChat = useCallback(
+    (id: string) => {
+      setActiveChatId(id);
+      setActiveView('chat');
+      if (isMobile) {
+        setMobileSidebarOpen(false);
+      }
+    },
+    [isMobile],
+  );
 
   const handleSidebarNewChat = useCallback(() => {
-    handleNewChat()
-    setActiveView('chat')
+    handleNewChat();
+    setActiveView('chat');
     if (isMobile) {
-      setMobileSidebarOpen(false)
+      setMobileSidebarOpen(false);
     }
-  }, [handleNewChat, isMobile])
+  }, [handleNewChat, isMobile]);
 
-  const handleCloseChat = useCallback((id: string) => {
-    setChats(prev => {
-      const next = prev.filter(c => c.id !== id)
-      if (next.length === 0) {
-        const fresh = makeChat(COLOR_CYCLE[colorIndexRef.current % COLOR_CYCLE.length])
-        colorIndexRef.current++
-        return [fresh]
+  const handleCloseChat = useCallback(
+    (id: string) => {
+      setChats((prev) => {
+        const next = prev.filter((c) => c.id !== id);
+        if (next.length === 0) {
+          const fresh = makeChat(COLOR_CYCLE[colorIndexRef.current % COLOR_CYCLE.length]);
+          colorIndexRef.current++;
+          return [fresh];
+        }
+        return next;
+      });
+      setActiveChatId((prev) => {
+        if (prev !== id) return prev;
+        const remaining = chats.filter((c) => c.id !== id);
+        return remaining[remaining.length - 1]?.id ?? null;
+      });
+    },
+    [chats],
+  );
+
+  const handleSelectModel = useCallback(
+    (m: Model) => {
+      setActiveModel(m);
+      if (activeChat) {
+        setChats((prev) => prev.map((c) => (c.id === activeChat.id ? { ...c, model: m.id } : c)));
       }
-      return next
-    })
-    setActiveChatId(prev => {
-      if (prev !== id) return prev
-      const remaining = chats.filter(c => c.id !== id)
-      return remaining[remaining.length - 1]?.id ?? null
-    })
-  }, [chats])
-
-  const handleSelectModel = useCallback((m: Model) => {
-    setActiveModel(m)
-    if (activeChat) {
-      setChats(prev => prev.map(c => c.id === activeChat.id ? { ...c, model: m.id } : c))
-    }
-  }, [activeChat])
+    },
+    [activeChat],
+  );
 
   const updateChat = useCallback((id: string, updater: (c: Chat) => Chat) => {
-    setChats(prev => prev.map(c => c.id === id ? updater(c) : c))
-  }, [])
+    setChats((prev) => prev.map((c) => (c.id === id ? updater(c) : c)));
+  }, []);
 
   const handleSend = useCallback(async () => {
-    const text = input.trim()
-    if (!text || isStreaming || !activeChat) return
+    const text = input.trim();
+    if (!text || isStreaming || !activeChat) return;
 
     const userMsg: Message = {
       id: newMsgId(),
       role: 'user',
       content: text,
       timestamp: new Date(),
-    }
+    };
 
     // derive title from first message
-    const isFirst = activeChat.messages.length === 0
-    const title = isFirst ? text.slice(0, 32) + (text.length > 32 ? '…' : '') : activeChat.title
+    const isFirst = activeChat.messages.length === 0;
+    const title = isFirst ? text.slice(0, 32) + (text.length > 32 ? '…' : '') : activeChat.title;
 
-    updateChat(activeChat.id, c => ({
+    updateChat(activeChat.id, (c) => ({
       ...c,
       title,
       messages: [...c.messages, userMsg],
       updatedAt: new Date(),
-    }))
-    setInput('')
-    setActiveView('chat')
-    setIsStreaming(true)
+    }));
+    setInput('');
+    setActiveView('chat');
+    setIsStreaming(true);
 
-    const aiMsgId = newMsgId()
+    const aiMsgId = newMsgId();
     const aiMsg: Message = {
       id: aiMsgId,
       role: 'assistant',
       content: '',
       timestamp: new Date(),
       model: activeModel.name,
-    }
+    };
 
-    updateChat(activeChat.id, c => ({ ...c, messages: [...c.messages, aiMsg] }))
+    updateChat(activeChat.id, (c) => ({ ...c, messages: [...c.messages, aiMsg] }));
 
-    const abort = new AbortController()
-    abortRef.current = abort
+    const abort = new AbortController();
+    abortRef.current = abort;
 
     try {
-      const history = [...activeChat.messages, userMsg]
-      let accumulated = ''
+      const history = [...activeChat.messages, userMsg];
+      let accumulated = '';
 
       for await (const chunk of streamChat(activeModel.id, history, abort.signal)) {
-        if (chunk.done) break
-        accumulated += chunk.content
-        const content = accumulated
-        updateChat(activeChat.id, c => ({
+        if (chunk.done) break;
+        accumulated += chunk.content;
+        const content = accumulated;
+        updateChat(activeChat.id, (c) => ({
           ...c,
-          messages: c.messages.map(m =>
-            m.id === aiMsgId ? { ...m, content } : m
-          ),
-        }))
+          messages: c.messages.map((m) => (m.id === aiMsgId ? { ...m, content } : m)),
+        }));
       }
 
-      const mood = inferMood(accumulated, 'assistant')
-      updateChat(activeChat.id, c => ({
+      const mood = inferMood(accumulated, 'assistant');
+      updateChat(activeChat.id, (c) => ({
         ...c,
         updatedAt: new Date(),
-        messages: c.messages.map(m =>
-          m.id === aiMsgId ? { ...m, content: accumulated, mood } : m
+        messages: c.messages.map((m) =>
+          m.id === aiMsgId ? { ...m, content: accumulated, mood } : m,
         ),
-      }))
+      }));
+
+      // Persist to SQLite — fire and forget, React state is the source of truth
+      fetch('/proxy/chats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: activeChat.id,
+          title,
+          model: activeModel.id,
+          color: activeChat.color,
+          createdAt: activeChat.createdAt,
+          updatedAt: new Date(),
+          messages: [...activeChat.messages, userMsg, { ...aiMsg, content: accumulated, mood }],
+        }),
+      }).catch(() => {});
     } catch (err: unknown) {
       // User pressed Stop — keep whatever streamed so far, don't show an error.
       if (err instanceof DOMException && err.name === 'AbortError') {
-        return
+        return;
       }
-      updateChat(activeChat.id, c => ({
+      updateChat(activeChat.id, (c) => ({
         ...c,
-        messages: c.messages.map(m =>
+        messages: c.messages.map((m) =>
           m.id === aiMsgId
-            ? { ...m, content: `⚠ ${err instanceof Error ? err.message : 'Error connecting to gateway'}`, mood: 'confused' as const }
-            : m
+            ? {
+                ...m,
+                content: `⚠ ${err instanceof Error ? err.message : 'Error connecting to gateway'}`,
+                mood: 'confused' as const,
+              }
+            : m,
         ),
-      }))
+      }));
     } finally {
-      setIsStreaming(false)
-      abortRef.current = null
+      setIsStreaming(false);
+      abortRef.current = null;
     }
-  }, [input, isStreaming, activeChat, activeModel, updateChat])
+  }, [input, isStreaming, activeChat, activeModel, updateChat]);
 
   const handleStop = useCallback(() => {
-    abortRef.current?.abort()
-  }, [])
+    abortRef.current?.abort();
+  }, []);
 
   const retryGatewayBootstrap = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['models'] })
-    queryClient.invalidateQueries({ queryKey: ['brief'] })
-    queryClient.invalidateQueries({ queryKey: ['weather'] })
-    queryClient.invalidateQueries({ queryKey: ['todos'] })
-    queryClient.invalidateQueries({ queryKey: ['loops'] })
-    queryClient.invalidateQueries({ queryKey: ['insights'] })
-    queryClient.invalidateQueries({ queryKey: ['prompts'] })
-  }, [queryClient])
+    queryClient.invalidateQueries({ queryKey: ['models'] });
+    queryClient.invalidateQueries({ queryKey: ['brief'] });
+    queryClient.invalidateQueries({ queryKey: ['weather'] });
+    queryClient.invalidateQueries({ queryKey: ['todos'] });
+    queryClient.invalidateQueries({ queryKey: ['loops'] });
+    queryClient.invalidateQueries({ queryKey: ['insights'] });
+    queryClient.invalidateQueries({ queryKey: ['prompts'] });
+  }, [queryClient]);
 
   const handlePrompt = useCallback((text: string) => {
-    setInput(text)
+    setInput(text);
     setTimeout(() => {
-      textareaRef.current?.focus()
-      const ta = textareaRef.current
-      if (ta) ta.selectionStart = ta.selectionEnd = ta.value.length
-    }, 0)
-  }, [])
+      textareaRef.current?.focus();
+      const ta = textareaRef.current;
+      if (ta) ta.selectionStart = ta.selectionEnd = ta.value.length;
+    }, 0);
+  }, []);
 
-  const handleLoopToggle = useCallback((loopId: string) => {
-    toggleLoop.mutate(loopId)
-  }, [toggleLoop])
+  const handleLoopToggle = useCallback(
+    (loopId: string) => {
+      toggleLoop.mutate(loopId);
+    },
+    [toggleLoop],
+  );
 
-  const handleInsightDismiss = useCallback((insightId: string) => {
-    dismissInsight.mutate(insightId)
-  }, [dismissInsight])
+  const handleInsightDismiss = useCallback(
+    (insightId: string) => {
+      dismissInsight.mutate(insightId);
+    },
+    [dismissInsight],
+  );
 
-  const handleInsightAction = useCallback((_insightId: string, _actionId: string) => {
-  }, [])
+  const handleInsightAction = useCallback((_insightId: string, _actionId: string) => {}, []);
 
   const handlePwaInstall = useCallback(() => {
-    void pwaInstall.install().catch(error => {
-      console.error('Kitty install failed:', error)
-    })
-  }, [pwaInstall])
+    void pwaInstall.install().catch((error) => {
+      console.error('Kitty install failed:', error);
+    });
+  }, [pwaInstall]);
 
   return (
-    <div className="app-canvas" style={{
-      display: 'grid',
-      gridTemplateColumns: isMobile
-        ? '1fr'
-        : `var(--rail) ${sidebarCollapsed ? '60px' : 'var(--sidebar)'} minmax(520px, 1fr) var(--rightbar)`,
-      transition: 'grid-template-columns 0.2s ease',
-      height: '100vh', minHeight: 0, overflow: 'hidden',
-      position: 'relative',
-    }}
+    <div
+      className="app-canvas"
+      style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile
+          ? '1fr'
+          : `var(--rail) ${sidebarCollapsed ? '60px' : 'var(--sidebar)'} minmax(520px, 1fr) var(--rightbar)`,
+        transition: 'grid-template-columns 0.2s ease',
+        height: '100vh',
+        minHeight: 0,
+        overflow: 'hidden',
+        position: 'relative',
+      }}
       onClick={() => showModelMenu && setShowModelMenu(false)}
     >
       {!isMobile && <Rail activeView={activeView} onViewChange={setActiveView} />}
@@ -484,12 +557,17 @@ function KittyChatInner() {
         </>
       )}
 
-      <main style={{
-        position: 'relative', minWidth: 0,
-        display: 'flex', flexDirection: 'column',
-        minHeight: 0, overflow: 'hidden',
-        borderRight: isMobile ? 'none' : '1px solid var(--border)',
-      }}>
+      <main
+        style={{
+          position: 'relative',
+          minWidth: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
+          overflow: 'hidden',
+          borderRight: isMobile ? 'none' : '1px solid var(--border)',
+        }}
+      >
         <TopBar
           activeModel={activeModel}
           models={availableModels}
@@ -532,7 +610,16 @@ function KittyChatInner() {
             }}
           >
             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--error)', flexShrink: 0, display: 'inline-block' }} />
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: 'var(--error)',
+                  flexShrink: 0,
+                  display: 'inline-block',
+                }}
+              />
               gateway offline
             </span>
             <button
@@ -550,8 +637,12 @@ function KittyChatInner() {
                 color: 'var(--text-muted)',
                 flexShrink: 0,
               }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)' }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.color = 'var(--text)';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)';
+              }}
             >
               retry
             </button>
@@ -575,108 +666,149 @@ function KittyChatInner() {
           </div>
         )}
 
-        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <div
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: 0,
+          }}
+        >
           <ErrorBoundary name={activeView}>
-          {activeView === 'tasks' ? (
-            <div style={{
-              flex: 1,
-              padding: isMobile ? '16px 12px 124px' : '24px 32px 40px',
-              display: 'grid',
-              gap: 24,
-              alignContent: 'start',
-            }}>
-              <TaskPanel />
-              <TodoPanel />
-            </div>
-          ) : activeView === 'tools' ? (
-            <div style={{
-              flex: 1,
-              padding: isMobile ? '16px 12px 124px' : '20px 24px 40px',
-              display: 'grid',
-              gridTemplateColumns: `repeat(auto-fit, minmax(${isMobile ? 280 : 340}px, 1fr))`,
-              gap: 20,
-              alignContent: 'start',
-            }}>
-              <ToolCard title="Agents"><AgentPanel /></ToolCard>
-              <ToolCard title="Monitors"><MonitorPanel /></ToolCard>
-              <ToolCard title="Image gen"><ImageGenPanel /></ToolCard>
-            </div>
-          ) : activeView === 'terminal' ? (
-            <div style={{
-              flex: 1,
-              padding: isMobile ? '16px 12px 124px' : '24px 32px 40px',
-              display: 'flex',
-              flexDirection: 'column',
-            }}>
-              <TerminalStrip title="Gateway Log" maxLines={100} />
-            </div>
-          ) : activeView === 'chat' && activeChat && activeChat.messages.length > 0 ? (
-            <div style={{ paddingBottom: isMobile ? 176 : 140 }}>
-              {activeChat.messages.map((msg, i) => {
-                const isLast = i === activeChat.messages.length - 1
-                return (
-                  <ChatMessage
-                    key={msg.id}
-                    message={msg}
-                    isStreaming={isStreaming && isLast && msg.role === 'assistant'}
-                    initials={USER_INITIALS}
-                  />
-                )
-              })}
-              <div ref={bottomRef} />
-            </div>
-          ) : activeView === 'chat' ? (
-            <div style={{
-              flex: 1, display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center',
-              gap: 16, paddingBottom: 100,
-            }}>
-              <span style={{
-                fontFamily: 'var(--font-ui)',
-                fontSize: 28,
-                color: 'var(--primary)',
-                opacity: 0.35,
-                userSelect: 'none',
-              }}>{'=^•ﻌ•^='}</span>
-              <span style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 13,
-                color: 'var(--text-ghost)',
-              }}>start a conversation</span>
-            </div>
-          ) : activeView === 'home' ? (
-            <DashboardHome
-              chats={chats}
-              onSelectChat={handleSelectChat}
-              onPromptSelect={handlePrompt}
-              brief={brief}
-              todos={todos}
-              weather={weather}
-              loops={loops}
-              insights={insights}
-              promptTemplates={promptTemplates}
-              loading={!briefGateway.loaded}
-              briefLoading={briefQuery.isLoading}
-              todosLoading={todosQuery.isLoading}
-              loopsLoading={loopsQuery.isLoading}
-              insightsLoading={insightsQuery.isLoading}
-              promptsLoading={promptsQuery.isLoading}
-              onLoopToggle={handleLoopToggle}
-              onInsightDismiss={handleInsightDismiss}
-              onInsightAction={handleInsightAction}
-            />
-          ) : (
-            <div style={{
-              flex: 1, display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center',
-              gap: 12, fontFamily: 'var(--font-mono)',
-              color: 'var(--text-muted)', fontSize: 14,
-            }}>
-              <span style={{ fontSize: 32, opacity: 0.3 }}>?</span>
-              <span>{activeView.charAt(0).toUpperCase() + activeView.slice(1)} view</span>
-              <span style={{ fontSize: 12, color: 'var(--text-ghost)' }}>coming soon</span>
-            </div>
-          )}
+            {activeView === 'tasks' ? (
+              <div
+                style={{
+                  flex: 1,
+                  padding: isMobile ? '16px 12px 124px' : '24px 32px 40px',
+                  display: 'grid',
+                  gap: 24,
+                  alignContent: 'start',
+                }}
+              >
+                <TaskPanel />
+                <TodoPanel />
+              </div>
+            ) : activeView === 'tools' ? (
+              <div
+                style={{
+                  flex: 1,
+                  padding: isMobile ? '16px 12px 124px' : '20px 24px 40px',
+                  display: 'grid',
+                  gridTemplateColumns: `repeat(auto-fit, minmax(${isMobile ? 280 : 340}px, 1fr))`,
+                  gap: 20,
+                  alignContent: 'start',
+                }}
+              >
+                <ToolCard title="Agents">
+                  <AgentPanel />
+                </ToolCard>
+                <ToolCard title="Monitors">
+                  <MonitorPanel />
+                </ToolCard>
+                <ToolCard title="Image gen">
+                  <ImageGenPanel />
+                </ToolCard>
+              </div>
+            ) : activeView === 'terminal' ? (
+              <div
+                style={{
+                  flex: 1,
+                  padding: isMobile ? '16px 12px 124px' : '24px 32px 40px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <TerminalStrip title="Gateway Log" maxLines={100} />
+              </div>
+            ) : activeView === 'chat' && activeChat && activeChat.messages.length > 0 ? (
+              <div style={{ paddingBottom: isMobile ? 176 : 140 }}>
+                {activeChat.messages.map((msg, i) => {
+                  const isLast = i === activeChat.messages.length - 1;
+                  return (
+                    <ChatMessage
+                      key={msg.id}
+                      message={msg}
+                      isStreaming={isStreaming && isLast && msg.role === 'assistant'}
+                      initials={USER_INITIALS}
+                    />
+                  );
+                })}
+                <div ref={bottomRef} />
+              </div>
+            ) : activeView === 'chat' ? (
+              <div
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 16,
+                  paddingBottom: 100,
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: 'var(--font-ui)',
+                    fontSize: 28,
+                    color: 'var(--primary)',
+                    opacity: 0.35,
+                    userSelect: 'none',
+                  }}
+                >
+                  {'=^•ﻌ•^='}
+                </span>
+                <span
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 13,
+                    color: 'var(--text-ghost)',
+                  }}
+                >
+                  start a conversation
+                </span>
+              </div>
+            ) : activeView === 'home' ? (
+              <DashboardHome
+                chats={chats}
+                onSelectChat={handleSelectChat}
+                onPromptSelect={handlePrompt}
+                brief={brief}
+                todos={todos}
+                weather={weather}
+                loops={loops}
+                insights={insights}
+                promptTemplates={promptTemplates}
+                loading={!briefGateway.loaded}
+                briefLoading={briefQuery.isLoading}
+                todosLoading={todosQuery.isLoading}
+                loopsLoading={loopsQuery.isLoading}
+                insightsLoading={insightsQuery.isLoading}
+                promptsLoading={promptsQuery.isLoading}
+                onLoopToggle={handleLoopToggle}
+                onInsightDismiss={handleInsightDismiss}
+                onInsightAction={handleInsightAction}
+              />
+            ) : (
+              <div
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 12,
+                  fontFamily: 'var(--font-mono)',
+                  color: 'var(--text-muted)',
+                  fontSize: 14,
+                }}
+              >
+                <span style={{ fontSize: 32, opacity: 0.3 }}>?</span>
+                <span>{activeView.charAt(0).toUpperCase() + activeView.slice(1)} view</span>
+                <span style={{ fontSize: 12, color: 'var(--text-ghost)' }}>coming soon</span>
+              </div>
+            )}
           </ErrorBoundary>
         </div>
 
@@ -721,5 +853,5 @@ function KittyChatInner() {
         onToggleSidebar={handleToggleSidebar}
       />
     </div>
-  )
+  );
 }

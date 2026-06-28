@@ -133,12 +133,18 @@ cmd_up() {
     echo "  Gateway  started (pid $!)"
   fi
 
-  # Brief health check after a couple of seconds
+  # Poll up to 15 seconds for gateway to be healthy
   echo "  Waiting for gateway..."
-  sleep 3
-  if http_ok "http://127.0.0.1:$GATEWAY_PORT/health"; then
-    echo "  Gateway  healthy ✓  http://127.0.0.1:$GATEWAY_PORT"
-  else
+  _i=0
+  while [ $_i -lt 15 ]; do
+    if http_ok "http://127.0.0.1:$GATEWAY_PORT/health"; then
+      echo "  Gateway  healthy ✓  http://127.0.0.1:$GATEWAY_PORT"
+      break
+    fi
+    sleep 1
+    _i=$((_i + 1))
+  done
+  if [ $_i -ge 15 ]; then
     echo "  Gateway  not responding yet — check: kitty logs"
   fi
 }
