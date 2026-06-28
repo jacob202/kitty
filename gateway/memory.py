@@ -20,7 +20,7 @@ try:
 
     _MEM0_IMPORT_OK = True
 except ImportError:
-    _Mem0Memory = None  # type: ignore[assignment]
+    _Mem0Memory = None
     _MEM0_IMPORT_OK = False
     logger.info(
         "mem0ai not installed — memory features disabled. "

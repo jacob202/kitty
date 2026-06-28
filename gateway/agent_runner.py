@@ -127,7 +127,7 @@ async def spawn(
         )
 
     model = model or preset["model"]
-    max_iterations = max_iterations or preset["max_iterations"]
+    max_iterations = int(max_iterations or preset["max_iterations"])
     temperature = temperature or preset["temperature"]
     system_prompt = preset["system_prompt"]
 
@@ -139,6 +139,8 @@ async def spawn(
 
     state = AutonomyState.start_new(f"[agent:{agent_type}] {goal}")
     session_id = state.session_id
+    if session_id is None:
+        raise RuntimeError("AutonomyState.start_new did not allocate a session_id")
 
     # Record metadata
     state.record_step(
@@ -382,7 +384,7 @@ def stop(session_id: int) -> bool:
 async def await_completion(
     session_id: int,
     *,
-    timeout: int = AGENT_TIMEOUT_SECONDS,
+    timeout: float = AGENT_TIMEOUT_SECONDS,
     poll: float = 5.0,
     on_poll: Optional[Callable[[dict[str, Any]], None]] = None,
 ) -> dict[str, Any]:

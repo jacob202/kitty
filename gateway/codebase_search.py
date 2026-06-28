@@ -19,7 +19,7 @@ try:
     CHROMA_AVAILABLE = True
 except Exception as exc:
     CHROMA_AVAILABLE = False
-    CHROMA_IMPORT_ERROR = exc
+    CHROMA_IMPORT_ERROR: Exception | None = exc
 else:
     CHROMA_IMPORT_ERROR = None
 

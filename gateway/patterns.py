@@ -53,7 +53,7 @@ def analyze(days: int = 90) -> dict:
     avg_elapsed = sum(t.get("elapsed_ms", 0) for t in traces) / max(total, 1)
 
     # Time-of-day distribution
-    hours = Counter()
+    hours: Counter = Counter()
     for t in traces:
         ts = t.get("timestamp", 0)
         if ts:
@@ -63,7 +63,7 @@ def analyze(days: int = 90) -> dict:
     peak_hour = hours.most_common(1)[0][0] if hours else 0
 
     # Day-of-week
-    days_of_week = Counter()
+    days_of_week: Counter = Counter()
     day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     for t in traces:
         ts = t.get("timestamp", 0)

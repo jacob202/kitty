@@ -27,7 +27,7 @@ def parse_agents_md(content: str) -> Dict[str, dict]:
     """Parse agents.md format: ## @rolename ... content."""
     agents = {}
     current_role = None
-    current_content = []
+    current_content: list[str] = []
 
     for line in content.split("\n"):
         # Check for role header: ## @rolename

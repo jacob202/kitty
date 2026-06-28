@@ -84,8 +84,8 @@ async def get_feedback_stats() -> Dict[str, Any]:
 
     # Count by type
     feedback_types: Dict[str, int] = {}
-    for f in feedbacks:
-        ftype = f.get("type", "unknown")
+    for fb in feedbacks:
+        ftype = fb.get("type", "unknown")
         feedback_types[ftype] = feedback_types.get(ftype, 0) + 1
 
     error_types: Dict[str, int] = {}

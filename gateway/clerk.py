@@ -31,7 +31,10 @@ def _get_content_hash(text: str) -> str:
 
 def _extract_visual_descriptions(path: Path) -> list[VisualExtraction]:
     """Render PDF pages or process image files to get LLM technical descriptions."""
-    return vision.analyze_file(path)
+    description = vision.analyze_file(path)
+    if not description:
+        return []
+    return [VisualExtraction(text=description)]
 
 
 def _extract_pdf_pages(path: Path) -> list[tuple[int, str]]:

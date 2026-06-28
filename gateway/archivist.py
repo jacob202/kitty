@@ -108,7 +108,7 @@ def _chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
     paragraphs = re.split(r"\n\n+", text)
 
     final_chunks = []
-    current_chunk_words = []
+    current_chunk_words: list[str] = []
 
     for para in paragraphs:
         para_words = para.split()

@@ -19,7 +19,7 @@ try:
     TRACKER_AVAILABLE = True
 except Exception as exc:
     TRACKER_AVAILABLE = False
-    TRACKER_IMPORT_ERROR = exc
+    TRACKER_IMPORT_ERROR: Exception | None = exc
 else:
     TRACKER_IMPORT_ERROR = None
 

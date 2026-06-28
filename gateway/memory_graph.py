@@ -345,7 +345,8 @@ class InboxAdapter(StoreAdapter):
         )
 
         def searchable(entry: dict[str, Any]) -> str:
-            tags = entry.get("tags") if isinstance(entry.get("tags"), list) else []
+            _tags = entry.get("tags")
+            tags = _tags if isinstance(_tags, list) else []
             return " ".join(
                 [
                     str(entry.get("text") or ""),
@@ -487,7 +488,7 @@ class MemoryGraph:
         result = GraphResult(adapters=list(self._adapters))
         for i, adapter in enumerate(self._adapters):
             res = results[i]
-            if isinstance(res, Exception):
+            if isinstance(res, BaseException):
                 if isinstance(res, TimeoutError):
                     logger.warning("%s fetch timed out", adapter.name)
                     result.errors.append(f"{adapter.name}: timed out")

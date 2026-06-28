@@ -9,7 +9,7 @@ from gateway.paths import PROJECT_ROOT
 try:
     import feedparser
 except ImportError:  # optional dependency — TTS/brief features degrade gracefully
-    feedparser = None  # type: ignore[assignment]
+    feedparser = None
 import asyncio
 import logging
 import os
@@ -45,7 +45,7 @@ try:
     )
 except ImportError:  # pragma: no cover - optional dependency
 
-    def _retry_transient(fn):  # type: ignore[misc]
+    def _retry_transient(fn):
         return fn
 
 
@@ -175,8 +175,8 @@ def synthesize_brief_with_llm(
     headlines: List[NewsHeadline],
     task_summary: str,
     memory_snippet: str,
-    themes: list[dict] = None,
-    novelty: dict = None,
+    themes: list[dict] | None = None,
+    novelty: dict | None = None,
 ) -> str:
     """Use LLM via LiteLLM to turn raw data into a warm, character-driven morning brief.
 

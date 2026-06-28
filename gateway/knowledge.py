@@ -193,7 +193,7 @@ def get_inventory() -> Dict[str, int]:
             return {}
 
         metas = collection.get(include=["metadatas"])["metadatas"]
-        inventory = {}
+        inventory: dict[str, int] = {}
         for m in metas:
             name = m.get("source", "unknown")
             inventory[name] = inventory.get(name, 0) + 1
