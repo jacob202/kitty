@@ -117,7 +117,7 @@ def get_prompt_version(name: str) -> str:
     return CATALOG[name][1]
 
 
-def list_prompts() -> list[dict[str, str]]:
+def list_prompts() -> list[dict[str, str | int]]:
     """Return a summary of every cataloged prompt."""
     return [
         {"name": name, "version": version, "chars": len(text)}

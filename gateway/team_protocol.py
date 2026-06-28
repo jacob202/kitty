@@ -48,7 +48,7 @@ class TeamProtocol:
 
         return None
 
-    def share_discovery(self, agent_name: str, discovery: str, tags: List[str] = None):
+    def share_discovery(self, agent_name: str, discovery: str, tags: List[str] | None = None):
         """Agent shares a finding that may help others."""
         entry = {
             "agent": agent_name,
@@ -60,7 +60,7 @@ class TeamProtocol:
             f.write(json.dumps(entry) + "\n")
         logger.info(f"Discovery shared by {agent_name}: {discovery[:50]}...")
 
-    def get_discoveries(self, agent_filter: str = None, tags: List[str] = None) -> List[dict]:
+    def get_discoveries(self, agent_filter: str | None = None, tags: List[str] | None = None) -> List[dict]:
         """Get all shared discoveries, optionally filtered."""
         if not self.discoveries_file.exists():
             return []
@@ -77,7 +77,7 @@ class TeamProtocol:
 
         return discoveries
 
-    def challenge(self, agent_name: str, target_agent: str, challenge_text: str, artifact_path: str = None):
+    def challenge(self, agent_name: str, target_agent: str, challenge_text: str, artifact_path: str | None = None):
         """One agent challenges another's finding — peer review protocol."""
         entry = {
             "challenger": agent_name,

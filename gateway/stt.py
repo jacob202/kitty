@@ -15,7 +15,7 @@ _WHISPER_COMPUTE = "int8"
 try:
     from faster_whisper import WhisperModel
 except ImportError:
-    WhisperModel = None  # type: ignore
+    WhisperModel = None
 
 
 @lru_cache(maxsize=1)

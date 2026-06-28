@@ -4,6 +4,7 @@ import logging
 import os
 import re
 from pathlib import Path
+from typing import Any
 
 from contracts.knowledge_pipeline import LibrarianReport
 from gateway.llm_client import call_llm
@@ -112,7 +113,7 @@ def generate_source_summary(source_name: str, text_preview: str, doc_type: str) 
     }}
     """
 
-    payload = {
+    payload: dict[str, Any] = {
         "messages": [{"role": "user", "content": prompt}],
         "response_format": {"type": "json_object"},
         "max_tokens": 800,

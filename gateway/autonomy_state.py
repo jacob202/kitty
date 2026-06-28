@@ -71,7 +71,7 @@ class AutonomyState:
         return cls(session_id=session_id)
 
     def record_step(self, role: str, content: str = "", thinking: str = "",
-                    tool_name: str = None, tool_args: Any = None, tool_result: str = None):
+                    tool_name: str | None = None, tool_args: Any = None, tool_result: str | None = None):
         """Record a single step in the autonomy loop."""
         if not self.session_id:
             logger.warning("No session_id set for AutonomyState. Step not recorded.")

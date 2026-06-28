@@ -19,7 +19,7 @@ MIN_IMAGE_BYTES = 1024  # skip tiny images (icons, logos)
 try:
     from llama_cloud import LlamaCloud
 except ImportError:
-    LlamaCloud = None  # type: ignore
+    LlamaCloud = None
 
 
 def extract_pdf_enhanced(path: Path) -> list[PdfChunk]:

@@ -3,7 +3,7 @@ import csv
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from gateway.llm_client import call_llm
 from gateway.paths import DATA_DIR
@@ -27,7 +27,7 @@ def extract_parts_from_image(image_path: str | Path) -> List[Dict]:
 
         prompt = INVENTORY_PHOTO_PROMPT
 
-        payload = {
+        payload: dict[str, Any] = {
             "messages": [
                 {
                     "role": "user",

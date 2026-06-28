@@ -58,7 +58,7 @@ try:
     )
 except ImportError:  # pragma: no cover - optional dependency
 
-    def _retry_post(fn):  # type: ignore[misc]
+    def _retry_post(fn):
         return fn
 
 
@@ -217,11 +217,11 @@ def _finalize_openai_shape_response(
 
 def call_llm(
     messages: list[dict],
-    model: str = None,
+    model: str | None = None,
     max_tokens: int = 1500,
     temperature: float = 0.7,
     timeout: int = 60,
-    response_format: dict = None,
+    response_format: dict | None = None,
     operation: str = "llm.call",
     metadata: dict[str, Any] | None = None,
 ) -> str:
@@ -237,7 +237,7 @@ def call_llm(
                 break
         model = route_model(user_msg)
 
-    model = normalize_litellm_request_model(model)
+    model = normalize_litellm_request_model(model) or model
 
     # Bound the whole chain: a slow provider must not let us try every remaining
     # one for the full per-provider timeout each.
@@ -251,7 +251,7 @@ def call_llm(
         return max(1, min(timeout, int(remaining)))
 
     try:
-        payload = {
+        payload: dict[str, Any] = {
             "model": model,
             "messages": messages,
             "max_tokens": max_tokens,
@@ -388,7 +388,7 @@ def _call_openai_direct(
     max_tokens: int,
     temperature: float,
     timeout: int,
-    response_format: dict = None,
+    response_format: dict | None = None,
     operation: str = "llm.call",
     metadata: dict[str, Any] | None = None,
     request_model: str | None = None,
@@ -444,7 +444,7 @@ def _call_gemini_direct(
     max_tokens: int,
     temperature: float,
     timeout: int,
-    response_format: dict = None,
+    response_format: dict | None = None,
     operation: str = "llm.call",
     metadata: dict[str, Any] | None = None,
     request_model: str | None = None,
@@ -502,7 +502,7 @@ def _call_openrouter_direct(
     max_tokens: int,
     temperature: float,
     timeout: int,
-    response_format: dict = None,
+    response_format: dict | None = None,
     operation: str = "llm.call",
     metadata: dict[str, Any] | None = None,
     request_model: str | None = None,
@@ -582,7 +582,7 @@ def _call_agentrouter_direct(
     max_tokens: int,
     temperature: float,
     timeout: int,
-    response_format: dict = None,
+    response_format: dict | None = None,
     operation: str = "llm.call",
     metadata: dict[str, Any] | None = None,
     request_model: str | None = None,
@@ -696,7 +696,7 @@ def _call_nvidia_direct(
     max_tokens: int,
     temperature: float,
     timeout: int,
-    response_format: dict = None,
+    response_format: dict | None = None,
     operation: str = "llm.call",
     metadata: dict[str, Any] | None = None,
     request_model: str | None = None,

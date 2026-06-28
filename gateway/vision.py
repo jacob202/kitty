@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import logging
 from pathlib import Path
+from typing import Any
 
 from gateway.llm_client import call_llm
 
@@ -28,7 +29,7 @@ def describe_schematic(image_bytes: bytes, media_type: str = "image/png") -> str
     try:
         b64 = base64.standard_b64encode(image_bytes).decode()
 
-        payload = {
+        payload: dict[str, Any] = {
             "messages": [
                 {
                     "role": "user",

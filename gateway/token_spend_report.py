@@ -60,7 +60,7 @@ def _is_paid(entry: dict[str, Any]) -> bool:
 
 
 def _sorted_rows(counter: dict[str, dict[str, int]], key_name: str) -> list[dict[str, int | str]]:
-    rows = [{key_name: key, **value} for key, value in counter.items()]
+    rows: list[dict[str, int | str]] = [{key_name: key, **value} for key, value in counter.items()]
     return sorted(rows, key=lambda row: (int(row["tokens"]), int(row["calls"])), reverse=True)
 
 
@@ -95,7 +95,8 @@ def _estimate_entry_cost_usd(entry: dict[str, Any]) -> float:
     if not pricing:
         return 0.0
 
-    usage = entry.get("usage") if isinstance(entry.get("usage"), dict) else {}
+    _usage = entry.get("usage")
+    usage = _usage if isinstance(_usage, dict) else {}
     prompt = int(usage.get("prompt_tokens", 0) or 0)
     completion = int(usage.get("completion_tokens", 0) or 0)
     cached = int(usage.get("cached_tokens", 0) or 0)
@@ -138,7 +139,8 @@ def summarize_usage(
         provider = str(entry.get("provider") or "unknown")
         operation = str(entry.get("operation") or "unknown")
         date = str(entry.get("date") or "unknown")
-        metadata = entry.get("metadata") if isinstance(entry.get("metadata"), dict) else {}
+        _metadata = entry.get("metadata")
+        metadata = _metadata if isinstance(_metadata, dict) else {}
         route = str(metadata.get("route") or "unknown")
 
         for bucket, key in (

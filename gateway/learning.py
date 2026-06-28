@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Dict
+from typing import Any, Dict
 
 from gateway.paths import DATA_DIR
 
@@ -78,7 +78,7 @@ async def generate_knowledge_gate_question(topic: str = "general") -> str:
     - Speak like a helpful partner exploring a new hobby together.
     """
 
-    payload = {
+    payload: dict[str, Any] = {
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": 300,
         "temperature": 0.7
@@ -86,7 +86,7 @@ async def generate_knowledge_gate_question(topic: str = "general") -> str:
 
     return await asyncio.to_thread(call_llm, **payload)
 
-def process_gate_answer(answer: str, question: str) -> bool:
+def process_gate_answer(answer: str, question: str) -> dict[str, Any]:
     """Assess Jacob's answer to a knowledge gate question."""
     from gateway.llm_client import call_llm
 
@@ -105,7 +105,7 @@ def process_gate_answer(answer: str, question: str) -> bool:
     }}
     """
 
-    payload = {
+    payload: dict[str, Any] = {
         "messages": [{"role": "user", "content": prompt}],
         "response_format": {"type": "json_object"},
         "max_tokens": 300,
