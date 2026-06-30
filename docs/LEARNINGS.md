@@ -89,6 +89,64 @@
 - **Promotion target:** none.
 - **Notes:** The script is fine; this is just a usage note.
 
+## Candidate Lessons (memory-loop + imagen-recovery session 2026-06-28)
+
+### L-CAND-6 — Merging on the combined commit `status` without checking the separate `check_runs` let a non-compiling file reach `main`
+
+- **Status:** candidate
+- **Date:** 2026-06-28
+- **Source session:** memory-loop + imagen reconstruction
+- **Problem:** PR #46 was merged after confirming the combined commit `status` was green (only CodeRabbit reports there). The blocking-looking `check_runs` (lint/typecheck/pytest) were never inspected and were already red. A `mcp/imagen/server.py` that never compiled reached `main`.
+- **Evidence:** `mcp/imagen/server.py` had `SyntaxError: unmatched ')'` at line 839 on `main` (commit 2a4708e); the same file was byte-identical and broken on the source branch. `pull_request_read get_status` returned only the CodeRabbit context; `get_check_runs` returned lint/typecheck/pytest, all failing.
+- **Scope:** any agent merging a PR via API or `gh`.
+- **Lesson:** `status` and `check_runs` are different GitHub surfaces. A green `status` says nothing about Actions check runs. Always read `get_check_runs` (or the Actions tab) before merging.
+- **Action for future agents:** Before any merge, fetch check runs explicitly and confirm each required job is `success`. Do not infer green from a single combined status.
+- **Confidence:** high
+- **Review trigger:** next PR merge.
+- **Promotion target:** `docs/AGENT_RUNTIME.md` (operating rule) if it recurs.
+
+### L-CAND-7 — CI coverage gap: `mcp/` is linted and type-checked by nothing
+
+- **Status:** candidate
+- **Date:** 2026-06-28
+- **Source session:** memory-loop + imagen reconstruction
+- **Problem:** The imagen server was broken for multiple commits and no check caught it. Ruff lints only `gateway/ tests/`; mypy runs only `gateway/`. The pytest job hit a collection error in `tests/test_imagen/` and died before reaching the tests that import `mcp/imagen/server.py`, so the syntax error stayed invisible.
+- **Evidence:** `.github/workflows/tests.yml` runs `ruff check gateway/ tests/` and `mypy gateway/`. The lint job was green while `server.py` did not compile. CI pytest reported "2 deselected, 1 error" (collection) without running the imagen server tests.
+- **Scope:** anything under `mcp/` (and any path outside `gateway/`/`tests/`).
+- **Lesson:** A directory outside the lint/type globs has zero static safety net. New top-level code trees need to be added to the CI globs, or they rot silently.
+- **Action for future agents:** When adding code under a new top-level dir, extend the `ruff`/`mypy` targets in `tests.yml` to cover it. A collection error masks every test after it — treat collection errors as P0.
+- **Confidence:** high
+- **Review trigger:** next change under `mcp/`.
+- **Promotion target:** none yet.
+
+### L-CAND-8 — A non-blocking check allowed to stay red forever is theater
+
+- **Status:** candidate
+- **Date:** 2026-06-28
+- **Source session:** memory-loop + imagen reconstruction
+- **Problem:** The `typecheck` job was `continue-on-error: true`. 80 mypy errors accreted across many PRs because the red was cosmetic and never blocked anything.
+- **Evidence:** `mypy gateway/` reported 80 errors in 27 files; the job had been non-blocking since introduction. One was a real latent crash (`clerk._extract_visual_descriptions` returned `str` but was typed and consumed as `list[VisualExtraction]`).
+- **Scope:** any `continue-on-error` / advisory check.
+- **Lesson:** Echoes Durable Lesson 7 (hooks must not be theater). A check that can stay red indefinitely trains everyone to ignore it, and real bugs hide in the noise. Flip advisory checks to blocking the moment they are clean.
+- **Action for future agents:** When you make an advisory check pass, drop `continue-on-error` in the same PR so it cannot rot again. (Done for `typecheck` in #51.)
+- **Confidence:** high
+- **Review trigger:** next time an advisory check is made green.
+- **Promotion target:** `docs/AGENT_RUNTIME.md`.
+
+### L-CAND-9 — Squash-merging an old-base branch against a refactored `main` produced a franken-file
+
+- **Status:** candidate
+- **Date:** 2026-06-28
+- **Source session:** memory-loop + imagen reconstruction
+- **Problem:** The imagen branch was cut from an old `main`. Between then and merge, `#44` refactored `mcp/imagen/` from a monolith into modules. The squash merge spliced the new modular shim into the middle of the monolith's unclosed string tuple and left orphaned fragments — multiple syntax errors.
+- **Evidence:** `server.py` on `main` mixed `from mcp.imagen.tools.* import ...` (modular) with inline `@mcp.tool()` monolith definitions of the same tools, plus a duplicated `FastMCP(instructions=...)` tail after `make_gallery`.
+- **Scope:** long-lived branches merged after the base was restructured.
+- **Lesson:** Rebase a long-lived branch onto current `main` (resolving conflicts deliberately) before merging, and confirm the merged file compiles. A clean squash does not mean a clean result when both sides rewrote the same file.
+- **Action for future agents:** After any non-trivial merge, run a compile/import check on the touched files before declaring done.
+- **Confidence:** medium
+- **Review trigger:** next merge of a branch older than a refactor on its base.
+- **Promotion target:** none yet.
+
 ## Candidate Lessons (rejected or not promoted)
 
 Empty — nothing rejected this session that was strong enough to mention. The five above are the full candidate set.

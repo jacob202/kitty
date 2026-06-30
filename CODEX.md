@@ -18,3 +18,5 @@ Phase B prep: one storage story, one canonical documentation path, and a reliabl
 ## Completion Standard
 
 Before saying work is complete, run the smallest command that proves the claim and include the result. If verification is blocked, say what blocked it and what remains unproven.
+
+Before merging a PR, read the Actions check runs and confirm each required job passed — not just the combined commit status (they are different surfaces; a green status can hide failing check runs). After any non-trivial merge, compile/import the touched files before declaring done. See `docs/LEARNINGS.md` L-CAND-6/7/8.

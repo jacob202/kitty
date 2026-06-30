@@ -33,6 +33,8 @@ Use small Conventional Commit messages such as `fix(auth): fail closed`. Never p
 
 Before any `gh` command or `git push`, check whether `GITHUB_TOKEN` is set. If `env -u GITHUB_TOKEN gh auth status` succeeds, run GitHub commands with `env -u GITHUB_TOKEN` so a stale ambient token cannot override keyring authentication. Never print token values.
 
+Before merging a PR, read the Actions **check runs** and confirm each required job is `success` — not just the combined commit `status`. They are different GitHub surfaces; a green `status` (e.g. a review bot) can hide failing lint/typecheck/pytest check runs. A broken file reached `main` this way once (see `docs/LEARNINGS.md` L-CAND-6). After any non-trivial merge, compile/import the touched files before declaring done.
+
 ## Agent Rules
 
 Before multi-file work, give a short plan. Prefer editing existing files over creating new structure. Use `docs/PROJECT_STATUS.md`, `docs/DECISIONS.md`, `docs/LEARNINGS.md`, and `docs/AGENT_HANDOFF.md` as the current sources of truth.
