@@ -35,18 +35,18 @@ interface Props {
 }
 
 const VIEWS: Array<{ id: string; label: string; icon: ReactNode }> = [
-  { id: 'home', label: 'home', icon: <House size={14} /> },
-  { id: 'chat', label: 'chat', icon: <MessageSquare size={14} /> },
-  { id: 'tasks', label: 'tasks', icon: <CheckSquare size={14} /> },
-  { id: 'tools', label: 'tools', icon: <Wrench size={14} /> },
-  { id: 'terminal', label: 'terminal', icon: <Terminal size={14} /> },
+  { id: 'home', label: 'Home', icon: <House size={14} /> },
+  { id: 'chat', label: 'Chat', icon: <MessageSquare size={14} /> },
+  { id: 'tasks', label: 'Tasks', icon: <CheckSquare size={14} /> },
+  { id: 'tools', label: 'Tools', icon: <Wrench size={14} /> },
+  { id: 'terminal', label: 'Terminal', icon: <Terminal size={14} /> },
 ]
 
 const KITTY_MODES = [
-  { id: 'default', name: 'default' },
-  { id: 'focus', name: 'focus' },
-  { id: 'explore', name: 'explore' },
-  { id: 'create', name: 'create' },
+  { id: 'default', name: 'Default' },
+  { id: 'focus', name: 'Focus' },
+  { id: 'explore', name: 'Explore' },
+  { id: 'create', name: 'Create' },
 ]
 
 export function TopBar({
@@ -72,7 +72,7 @@ export function TopBar({
     ? activeChat.title
     : activeView === 'home'
       ? getGreeting() + '.'
-      : activeViewMeta?.label ?? 'kitty'
+      : activeViewMeta?.label ?? 'Kitty'
 
   if (isMobile) {
     return (
@@ -83,25 +83,23 @@ export function TopBar({
         padding: 'calc(10px + env(safe-area-inset-top, 0px)) 12px 8px',
         flexShrink: 0,
         borderBottom: '1px solid var(--border)',
-        background: 'rgba(26, 20, 16, 0.92)',
+        background: 'var(--glass)',
+        backdropFilter: 'blur(10px)',
         position: 'relative',
         zIndex: 10,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/kitty-mascot.svg"
-              alt="Kitty"
-              width={34}
-              height={34}
-              style={{
-                flexShrink: 0,
-                display: 'block',
-                filter: isStreaming ? 'saturate(1.35) brightness(1.08)' : 'none',
-                transition: 'filter 0.3s ease',
-              }}
-            />
+            <span style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: 20,
+              fontWeight: 800,
+              color: isStreaming ? 'var(--primary)' : 'var(--ink)',
+              letterSpacing: '-0.03em',
+              flexShrink: 0,
+              transition: 'color 0.3s ease',
+              userSelect: 'none',
+            }}>kitty</span>
             <div style={{ minWidth: 0 }}>
               <div style={{
                 fontFamily: 'var(--font-mono)',
@@ -206,25 +204,23 @@ export function TopBar({
       padding: '0 16px',
       flexShrink: 0,
       borderBottom: '1px solid var(--border)',
-      background: 'rgba(26, 20, 16, 0.92)',
+      background: 'var(--glass)',
+      backdropFilter: 'blur(10px)',
       position: 'relative',
       zIndex: 10,
       gap: 16,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/kitty-mascot.svg"
-          alt="Kitty"
-          width={44}
-          height={44}
-          style={{
-            flexShrink: 0,
-            display: 'block',
-            filter: isStreaming ? 'saturate(1.35) brightness(1.08)' : 'none',
-            transition: 'filter 0.3s ease',
-          }}
-        />
+        <span style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: 22,
+          fontWeight: 800,
+          color: isStreaming ? 'var(--primary)' : 'var(--ink)',
+          letterSpacing: '-0.03em',
+          flexShrink: 0,
+          transition: 'color 0.3s ease',
+          userSelect: 'none',
+        }}>kitty</span>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           {onToggleSidebar && (
@@ -338,7 +334,7 @@ function KittyModeSelector({
           gap: 6,
           width: compact ? '100%' : undefined,
           border: `1px solid ${open ? 'var(--border)' : 'transparent'}`,
-          borderRadius: 4,
+          borderRadius: 8,
           padding: compact ? '4px 8px' : '6px 12px',
           background: open ? 'var(--surface-mid)' : 'var(--surface-low)',
           cursor: 'pointer',
@@ -375,11 +371,11 @@ function KittyModeSelector({
           left: 0,
           background: 'var(--surface-high)',
           border: '1px solid var(--border)',
-          borderRadius: 4,
+          borderRadius: 12,
           overflow: 'hidden',
           minWidth: 140,
           zIndex: 100,
-          boxShadow: '4px 4px 0 var(--ink-deep)',
+          boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4)',
           padding: 6,
           display: 'flex',
           flexDirection: 'column',
@@ -395,7 +391,7 @@ function KittyModeSelector({
                 gap: 10,
                 width: '100%',
                 padding: '8px 12px',
-                borderRadius: 4,
+                borderRadius: 8,
                 background: m.id === mode ? 'var(--surface-mid)' : 'transparent',
                 border: 'none',
                 cursor: 'pointer',
@@ -454,7 +450,7 @@ function ModelSelector({
           gap: 8,
           width: compact ? '100%' : undefined,
           border: `1px solid ${showModelMenu ? 'var(--border)' : 'transparent'}`,
-          borderRadius: 4,
+          borderRadius: 8,
           padding: compact ? '4px 8px' : '6px 12px',
           background: showModelMenu ? 'var(--surface-mid)' : 'var(--surface-low)',
           cursor: 'pointer',
@@ -501,11 +497,11 @@ function ModelSelector({
           right: 0,
           background: 'var(--surface-high)',
           border: '1px solid var(--border)',
-          borderRadius: 4,
+          borderRadius: 12,
           overflow: 'hidden',
           minWidth: 200,
           zIndex: 100,
-          boxShadow: '4px 4px 0 var(--ink-deep)',
+          boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4)',
           padding: 6,
           display: 'flex',
           flexDirection: 'column',
@@ -521,7 +517,7 @@ function ModelSelector({
                 gap: 10,
                 width: '100%',
                 padding: '8px 12px',
-                borderRadius: 4,
+                borderRadius: 8,
                 background: m.id === activeModel.id ? 'var(--surface-mid)' : 'transparent',
                 border: 'none',
                 cursor: 'pointer',
@@ -570,7 +566,7 @@ const tabStyle: CSSProperties = {
   height: 36,
   padding: '0 12px',
   border: 'none',
-  borderRadius: 4,
+  borderRadius: 8,
   background: 'transparent',
   color: 'var(--text-muted)',
   cursor: 'pointer',
@@ -587,7 +583,7 @@ const iconBtnStyle: CSSProperties = {
   width: 32,
   height: 32,
   border: 'none',
-  borderRadius: 4,
+  borderRadius: 8,
   cursor: 'pointer',
   transition: 'all 0.2s ease',
 }

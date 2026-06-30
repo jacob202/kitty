@@ -132,22 +132,22 @@ export function InputBar({
     }}>
       <div style={{ pointerEvents: 'auto', maxWidth: compact ? '100%' : 840, margin: '0 auto' }}>
         <div style={{
-          border: '1px solid var(--border)',
-          borderRadius: 4,
-          background: 'var(--surface-mid)',
+          border: '2px solid var(--line)',
+          borderRadius: compact ? 14 : 16,
+          background: 'var(--surface)',
           overflow: 'hidden',
-          boxShadow: '4px 4px 0 var(--ink-deep)',
+          boxShadow: 'var(--shadow-soft)',
           transition: 'border-color 0.2s, box-shadow 0.2s',
           display: 'flex',
           flexDirection: 'column',
         }}
           onFocusCapture={e => {
             e.currentTarget.style.borderColor = 'var(--primary)'
-            e.currentTarget.style.boxShadow = '4px 4px 0 var(--tabby-deep)'
+            e.currentTarget.style.boxShadow = 'var(--input-glow)'
           }}
           onBlurCapture={e => {
-            e.currentTarget.style.borderColor = 'var(--border)'
-            e.currentTarget.style.boxShadow = '4px 4px 0 var(--ink-deep)'
+            e.currentTarget.style.borderColor = 'var(--line)'
+            e.currentTarget.style.boxShadow = 'none'
           }}
         >
           <div style={{ display: 'flex', alignItems: 'flex-end', padding: '4px' }}>
@@ -169,14 +169,14 @@ export function InputBar({
             <button
               onClick={onMicClick}
               disabled={recState === 'transcribing'}
-              title={recState === 'recording' ? 'stop recording' : recState === 'transcribing' ? 'transcribing…' : 'voice input'}
-              aria-label={recState === 'recording' ? 'stop recording' : 'start voice input'}
+              title={recState === 'recording' ? 'Stop recording' : recState === 'transcribing' ? 'Transcribing…' : 'Voice input'}
+              aria-label={recState === 'recording' ? 'Stop recording' : 'Start voice input'}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 width: compact ? 34 : 36, height: compact ? 34 : 36, flexShrink: 0,
                 background: recState === 'recording' ? 'var(--error)' : 'transparent',
-                border: 'none', borderRadius: 4, margin: '6px 4px 6px 0',
-                color: recState === 'recording' ? 'var(--cream)' : 'var(--text-muted)',
+                border: 'none', borderRadius: 10, margin: '6px 4px 6px 0',
+                color: recState === 'recording' ? '#fff' : 'var(--text-muted)',
                 cursor: 'pointer',
                 transition: 'background 0.15s ease, color 0.15s ease',
                 animation: recState === 'recording' ? 'blink 1.4s infinite' : 'none',
@@ -194,8 +194,8 @@ export function InputBar({
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   width: compact ? 34 : 36, height: compact ? 34 : 36, flexShrink: 0,
                   background: 'var(--error)',
-                  border: 'none', borderRadius: 4, margin: '6px 8px 6px 0',
-                  color: 'var(--cream)', cursor: 'pointer',
+                  border: 'none', borderRadius: 10, margin: '6px 8px 6px 0',
+                  color: '#fff', cursor: 'pointer',
                   transition: 'all 0.2s ease',
                 }}
               >
@@ -209,13 +209,13 @@ export function InputBar({
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   width: compact ? 34 : 36, height: compact ? 34 : 36, flexShrink: 0,
                   background: value.trim() ? 'var(--primary)' : 'var(--surface-high)',
-                  border: 'none', borderRadius: 4, margin: '6px 8px 6px 0',
-                  color: value.trim() ? 'var(--cream)' : 'var(--text-muted)',
+                  border: 'none', borderRadius: 10, margin: '6px 8px 6px 0',
+                  color: value.trim() ? '#fff' : 'var(--text-muted)',
                   cursor: disabled ? 'default' : 'pointer',
                   opacity: disabled ? 0.5 : 1,
                   transition: 'all 0.2s ease',
                 }}
-                onMouseEnter={e => { if (!disabled && value.trim()) (e.currentTarget as HTMLButtonElement).style.background = 'var(--orange-deep)' }}
+                onMouseEnter={e => { if (!disabled && value.trim()) (e.currentTarget as HTMLButtonElement).style.background = 'var(--primary-deep)' }}
                 onMouseLeave={e => { if (!disabled && value.trim()) (e.currentTarget as HTMLButtonElement).style.background = 'var(--primary)' }}
                 aria-label="Send message"
               >
