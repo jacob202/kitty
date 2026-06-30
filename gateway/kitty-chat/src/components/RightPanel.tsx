@@ -156,7 +156,7 @@ export function RightPanel({
                   .filter(([, v]) => Boolean(v))
                   .map(([label, v]) => (
                     <div key={label}>
-                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.12em', textTransform: 'uppercase' as const }}>{label}</div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.12em', textTransform: 'lowercase' as const }}>{label}</div>
                       <div style={valueStyle}>{v}</div>
                     </div>
                   ))}
@@ -192,7 +192,7 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div style={{
       background: 'var(--surface-low)',
       border: '1px solid var(--border)',
-      borderRadius: 6,
+      borderRadius: 4,
       padding: '6px 10px',
     }}>
       <div style={{
@@ -200,7 +200,7 @@ function Stat({ label, value }: { label: string; value: string }) {
         fontSize: 9,
         color: 'var(--text-muted)',
         letterSpacing: '0.14em',
-        textTransform: 'uppercase' as const,
+        textTransform: 'lowercase' as const,
         marginBottom: 2,
       }}>{label}</div>
       <div style={{

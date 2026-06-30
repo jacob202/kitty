@@ -25,12 +25,12 @@ export function ChatMessage({ message, isStreaming, initials }: Props) {
         display: 'flex', gap: 12, padding: '10px 18px',
         alignItems: 'flex-start',
         borderBottom: '1px solid var(--border-dim)',
-        background: isAI ? 'rgba(16, 20, 29, 0.4)' : 'transparent',
+        background: isAI ? 'rgba(26, 20, 16, 0.4)' : 'transparent',
         transition: 'background 0.2s',
         animation: 'fadeSlideUp 0.3s ease',
       }}
-      onMouseEnter={e => (e.currentTarget.style.background = isAI ? 'rgba(16, 20, 29, 0.8)' : 'rgba(16, 20, 29, 0.3)')}
-      onMouseLeave={e => (e.currentTarget.style.background = isAI ? 'rgba(16, 20, 29, 0.4)' : 'transparent')}
+      onMouseEnter={e => (e.currentTarget.style.background = isAI ? 'rgba(26, 20, 16, 0.8)' : 'rgba(26, 20, 16, 0.3)')}
+      onMouseLeave={e => (e.currentTarget.style.background = isAI ? 'rgba(26, 20, 16, 0.4)' : 'transparent')}
     >
       {/* Avatar */}
       {isAI ? (
@@ -56,7 +56,7 @@ export function ChatMessage({ message, isStreaming, initials }: Props) {
             fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600,
             color: isAI ? 'var(--text)' : 'var(--text-dim)',
           }}>
-            {isAI ? 'Kitty' : 'You'}
+            {isAI ? 'kitty' : 'you'}
           </span>
           <span style={{
             fontSize: 10,
@@ -226,7 +226,7 @@ const tableWrapStyle: CSSProperties = {
   margin: '8px 0 12px',
   overflowX: 'auto',
   border: '1px solid var(--border)',
-  borderRadius: 6,
+  borderRadius: 4,
 }
 const tableStyle: CSSProperties = {
   width: '100%',
@@ -253,7 +253,7 @@ const codeBoxStyle: CSSProperties = {
   margin: '8px 0 12px',
   background: 'var(--surface-low)',
   border: '1px solid var(--border)',
-  borderRadius: 8,
+  borderRadius: 4,
   overflow: 'hidden',
 }
 const codeBoxHeaderStyle: CSSProperties = {

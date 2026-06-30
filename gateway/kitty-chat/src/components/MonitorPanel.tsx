@@ -91,7 +91,7 @@ const rowStyle: CSSProperties = {
   padding: '6px 8px',
   background: 'var(--recessed)',
   border: '1px solid var(--border-dim)',
-  borderRadius: 5,
+  borderRadius: 4,
   display: 'grid',
   gap: 3,
 }
@@ -105,7 +105,7 @@ const labelStyle: CSSProperties = {
 const statusStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 9,
-  textTransform: 'uppercase',
+  textTransform: 'lowercase',
   letterSpacing: '0.08em',
 }
 
@@ -132,7 +132,7 @@ const removeButtonStyle: CSSProperties = {
 const inputStyle: CSSProperties = {
   background: 'var(--recessed)',
   border: '1px solid var(--border-dim)',
-  borderRadius: 5,
+  borderRadius: 4,
   padding: '5px 8px',
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
@@ -145,7 +145,7 @@ const actionButtonStyle: CSSProperties = {
   padding: '5px 10px',
   background: 'rgba(232,120,69,0.15)',
   border: '1px solid rgba(232,120,69,0.3)',
-  borderRadius: 5,
+  borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
   color: 'var(--orange-2)',
@@ -156,7 +156,7 @@ const cancelButtonStyle: CSSProperties = {
   padding: '5px 10px',
   background: 'transparent',
   border: '1px solid var(--border-dim)',
-  borderRadius: 5,
+  borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
   color: 'var(--text-muted)',
@@ -166,7 +166,7 @@ const cancelButtonStyle: CSSProperties = {
 const addButtonStyle: CSSProperties = {
   background: 'transparent',
   border: '1px solid var(--border-dim)',
-  borderRadius: 5,
+  borderRadius: 4,
   padding: '5px 10px',
   fontFamily: 'var(--font-mono)',
   fontSize: 11,

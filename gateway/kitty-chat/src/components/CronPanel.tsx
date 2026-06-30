@@ -215,7 +215,7 @@ function rowStyle(enabled: number): CSSProperties {
     padding: '5px 7px',
     background: enabled ? 'var(--recessed)' : 'transparent',
     border: `1px solid ${enabled ? 'var(--border-dim)' : 'var(--border-dim)'}`,
-    borderRadius: 5,
+    borderRadius: 4,
     opacity: enabled ? 1 : 0.5,
   }
 }
@@ -224,7 +224,7 @@ function typeBadgeStyle(type: string): CSSProperties {
   const color = type === 'daily' ? 'var(--teal)'
     : type === 'interval' ? 'var(--indigo)'
     : 'var(--orange-2)'
-  return { fontFamily: 'var(--font-mono)', fontSize: 9, color, textTransform: 'uppercase', letterSpacing: '0.06em' }
+  return { fontFamily: 'var(--font-mono)', fontSize: 9, color, textTransform: 'lowercase', letterSpacing: '0.06em' }
 }
 
 const nameStyle: CSSProperties = {
@@ -290,7 +290,7 @@ const formStyle: CSSProperties = {
   padding: '8px 10px',
   background: 'var(--recessed)',
   border: '1px solid var(--border-dim)',
-  borderRadius: 6,
+  borderRadius: 4,
 }
 
 const inputStyle: CSSProperties = {
@@ -307,7 +307,7 @@ const inputStyle: CSSProperties = {
 const typeChipStyle: CSSProperties = {
   padding: '2px 7px',
   border: '1px solid var(--border-dim)',
-  borderRadius: 10,
+  borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 9,
   cursor: 'pointer',
@@ -317,7 +317,7 @@ const saveBtnStyle: CSSProperties = {
   padding: '5px 10px',
   background: 'rgba(102,119,204,0.12)',
   border: '1px solid rgba(102,119,204,0.3)',
-  borderRadius: 5,
+  borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
   color: 'var(--indigo)',
@@ -328,7 +328,7 @@ const cancelBtnStyle: CSSProperties = {
   padding: '5px 10px',
   background: 'transparent',
   border: '1px solid var(--border-dim)',
-  borderRadius: 5,
+  borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
   color: 'var(--text-muted)',
@@ -339,7 +339,7 @@ const addBtnStyle: CSSProperties = {
   padding: '4px 8px',
   background: 'transparent',
   border: '1px dashed var(--border-dim)',
-  borderRadius: 5,
+  borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
   color: 'var(--text-faint)',

@@ -148,7 +148,7 @@ function statusBadgeStyle(status: string): CSSProperties {
     : status === 'completed' ? 'var(--text-muted)'
     : status === 'failed' ? 'var(--orange)'
     : 'var(--text-faint)'
-  return { fontFamily: 'var(--font-mono)', fontSize: 9, color, textTransform: 'uppercase', letterSpacing: '0.06em' }
+  return { fontFamily: 'var(--font-mono)', fontSize: 9, color, textTransform: 'lowercase', letterSpacing: '0.06em' }
 }
 
 const typeRowStyle: CSSProperties = {
@@ -160,7 +160,7 @@ const typeRowStyle: CSSProperties = {
 const typeChipStyle: CSSProperties = {
   padding: '3px 8px',
   border: '1px solid var(--border-dim)',
-  borderRadius: 12,
+  borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
   cursor: 'pointer',
@@ -170,7 +170,7 @@ const inputStyle: CSSProperties = {
   flex: 1,
   background: 'var(--recessed)',
   border: '1px solid var(--border-dim)',
-  borderRadius: 5,
+  borderRadius: 4,
   padding: '5px 8px',
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
@@ -183,7 +183,7 @@ const spawnBtnStyle: CSSProperties = {
   padding: '5px 10px',
   background: 'rgba(102,119,204,0.12)',
   border: '1px solid rgba(102,119,204,0.3)',
-  borderRadius: 5,
+  borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 13,
   color: 'var(--indigo)',
@@ -195,7 +195,7 @@ const sessionRowStyle: CSSProperties = {
   padding: '5px 7px',
   background: 'var(--recessed)',
   border: '1px solid var(--border-dim)',
-  borderRadius: 5,
+  borderRadius: 4,
   display: 'grid',
   gap: 4,
 }
@@ -243,7 +243,7 @@ const metaLineStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 9,
   color: 'var(--text-faint)',
-  textTransform: 'uppercase',
+  textTransform: 'lowercase',
   letterSpacing: '0.06em',
 }
 

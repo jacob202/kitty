@@ -2,10 +2,10 @@
 import { GlyphIcon, type GlyphId } from '@/components/GlyphIcon'
 
 const NAV_ITEMS: { glyph: GlyphId; label: string; view: string }[] = [
-  { glyph: 'g-home', label: 'Home', view: 'home' },
-  { glyph: 'g-chat', label: 'Chat', view: 'chat' },
-  { glyph: 'g-check', label: 'Tasks', view: 'tasks' },
-  { glyph: 'g-terminal', label: 'Terminal', view: 'terminal' },
+  { glyph: 'g-home', label: 'home', view: 'home' },
+  { glyph: 'g-chat', label: 'chat', view: 'chat' },
+  { glyph: 'g-check', label: 'tasks', view: 'tasks' },
+  { glyph: 'g-terminal', label: 'terminal', view: 'terminal' },
 ]
 
 export function Rail({ activeView = 'home', onViewChange }: { activeView?: string, onViewChange?: (view: string) => void }) {
@@ -18,8 +18,7 @@ export function Rail({ activeView = 'home', onViewChange }: { activeView?: strin
       padding: '16px 10px',
       gap: 16,
       borderRight: '1px solid var(--border)',
-      background: 'rgba(16, 20, 29, 0.74)',
-      backdropFilter: 'blur(10px)',
+      background: 'rgba(26, 20, 16, 0.85)',
       flexShrink: 0,
     }}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -38,7 +37,7 @@ export function Rail({ activeView = 'home', onViewChange }: { activeView?: strin
               onClick={() => onViewChange?.(view)}
               style={{
                 width: 44, height: 44,
-                borderRadius: 12,
+                borderRadius: 4,
                 display: 'grid',
                 placeItems: 'center',
                 color: active ? 'var(--primary-bright)' : 'var(--text-muted)',
@@ -75,11 +74,11 @@ export function Rail({ activeView = 'home', onViewChange }: { activeView?: strin
 
       <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', marginBottom: 8 }}>
         <button
-          aria-label="Settings"
+          aria-label="settings"
           onClick={() => onViewChange?.('settings')}
           style={{
             width: 38, height: 38,
-            borderRadius: 10,
+            borderRadius: 4,
             display: 'grid',
             placeItems: 'center',
             color: activeView === 'settings' ? 'var(--primary-bright)' : 'var(--text-muted)',

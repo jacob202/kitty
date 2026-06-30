@@ -75,7 +75,7 @@ function ToolCard({ title, children }: { title: string; children: React.ReactNod
       style={{
         background: 'var(--surface-low)',
         border: '1px solid var(--border)',
-        borderRadius: 10,
+        borderRadius: 4,
         padding: 16,
         display: 'flex',
         flexDirection: 'column',
@@ -88,7 +88,7 @@ function ToolCard({ title, children }: { title: string; children: React.ReactNod
           fontSize: 10,
           fontWeight: 700,
           letterSpacing: '0.12em',
-          textTransform: 'uppercase',
+          textTransform: 'lowercase',
           color: 'var(--text-muted)',
           paddingBottom: 8,
           borderBottom: '1px solid var(--border-dim)',
@@ -529,8 +529,7 @@ function KittyChatInner() {
             style={{
               position: 'fixed',
               inset: 0,
-              background: 'rgba(0, 0, 0, 0.55)',
-              backdropFilter: 'blur(4px)',
+              background: 'rgba(0, 0, 0, 0.6)',
               zIndex: 40,
             }}
           />
@@ -541,7 +540,7 @@ function KittyChatInner() {
               width: 'min(320px, 84vw)',
               height: '100vh',
               zIndex: 50,
-              boxShadow: '0 24px 60px rgba(0, 0, 0, 0.45)',
+              boxShadow: '4px 4px 0 var(--ink-deep)',
             }}
           >
             <SessionSidebar
@@ -657,7 +656,7 @@ function KittyChatInner() {
               fontFamily: 'var(--font-mono)',
               fontSize: 11,
               color: 'var(--text-dim)',
-              background: 'rgba(16, 20, 29, 0.5)',
+              background: 'rgba(26, 20, 16, 0.5)',
               borderBottom: '1px solid var(--border)',
               flexShrink: 0,
             }}
@@ -805,7 +804,7 @@ function KittyChatInner() {
                 }}
               >
                 <span style={{ fontSize: 32, opacity: 0.3 }}>?</span>
-                <span>{activeView.charAt(0).toUpperCase() + activeView.slice(1)} view</span>
+                <span>{activeView} view</span>
                 <span style={{ fontSize: 12, color: 'var(--text-ghost)' }}>coming soon</span>
               </div>
             )}
