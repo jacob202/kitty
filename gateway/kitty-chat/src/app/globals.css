@@ -1,174 +1,195 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-:root {
-  /* ── Canonical tokens (source: design-system/project/colors_and_type.css) ── */
+/* ── DAY: manila paper ── */
+[data-theme="day"], :root {
+  /* v2 core tokens */
+  --bg:           #F3EAD6;
+  --surface:      #FBF5E9;
+  --surface2:     #EBE0C9;
+  --line:         #DACBA9;
+  --ink:          #3E3527;
+  --ink2:         #897C64;
+  --primary:      #5B7FBF;
+  --on-primary:   #FFFFFF;
+  --primary-deep: #3E5E97;
+  --primary-fade: rgba(91,127,191,.16);
+  --cat-ginger:   #E68A47;
+  --cat-green:    #7FA85F;
+  --cat-pink:     #E5869A;
+  --cat-outline:  #4A3D2C;
+  --ginger-fade:  rgba(230,138,71,.16);
+  --c-red:        #DC6657;
+  --c-green:      #6E9B52;
+  --c-yellow:     #D6A93E;
+  --c-purple:     #A988C2;
+  --c-blue:       #5B7FBF;
+  --btn-shadow:   0 3px 0 var(--primary-deep), 0 6px 14px rgba(0,0,0,.10);
+  --input-glow:   0 0 0 4px var(--ginger-fade);
+  --grain-opacity: 0.048;
+  --grain-blend:  multiply;
+  --glass:        rgba(251,245,233,.88);
 
-  /* Surfaces — warm dark */
-  --ink:          #1a1410;
-  --ink-soft:     #251c17;
-  --ink-deep:     #0e0a08;
-  --ink-line:     #3a2e25;
+  /* backward-compat aliases (existing components keep working) */
+  --canvas:       var(--bg);
+  --panel:        var(--surface);
+  --bg-raised:    var(--surface);
+  --panel-2:      var(--surface2);
+  --bg-card:      var(--surface2);
+  --recessed:     var(--bg);
+  --bg-deep:      var(--bg);
+  --border:       var(--line);
+  --border-dim:   rgba(218,203,169,.65);
+  --border-soft:  rgba(91,127,191,.18);
+  --text:         var(--ink);
+  --text-dim:     var(--ink2);
+  --text-muted:   var(--ink2);
+  --text-faint:   rgba(137,124,100,.55);
+  --text-ghost:   rgba(137,124,100,.32);
+  --orange:       var(--cat-ginger);
+  --orange-2:     #F0A050;
+  --orange-deep:  #C96A2A;
+  --indigo:       var(--primary);
+  --pink-blue:    var(--primary);
+  --teal:         var(--c-green);
+  --teal-dim:     rgba(110,155,82,.10);
+  --mint:         var(--c-green);
+  --mint-dim:     rgba(110,155,82,.10);
+  --blue:         var(--c-blue);
+  --yellow:       var(--c-yellow);
+  --warning:      var(--c-yellow);
+  --purple:       var(--c-purple);
+  --purple-2:     #C4A8DA;
+  --purple-dim:   rgba(169,136,194,.12);
+  --purple-glow:  rgba(169,136,194,.30);
+  --surface-low:  var(--surface);
+  --surface-mid:  var(--surface2);
+  --surface-high: #F5EDD8;
+  --primary-bright: #7FA0D9;
+  --secondary:    var(--c-blue);
+  --secondary-dim: rgba(91,127,191,.14);
+  --tertiary:     var(--c-purple);
+  --error:        var(--c-red);
+  --error-bg:     rgba(220,102,87,.14);
+  --outline:      var(--cat-outline);
+  --outline-dim:  rgba(74,61,44,.18);
+  --shadow:       0 4px 16px rgba(62,53,39,.10);
+  --shadow-soft:  0 2px 8px rgba(62,53,39,.06);
 
-  /* Text */
-  --cream:        #f5ead3;
-  --cream-dim:    #bdb19a;
-  --cream-faint:  #7a7160;
+  /* fonts */
+  --font-display: 'Bricolage Grotesque', sans-serif;
+  --font-ui:      'Hanken Grotesk', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', monospace;
+  --background:   var(--bg);
+  --foreground:   var(--ink);
 
-  /* Brand */
-  --tabby:        #ff7a1a;
-  --tabby-deep:   #cc4f00;
-  --tabby-glow:   #ffb066;
+  /* layout */
+  --rail:               60px;
+  --sidebar:            268px;
+  --sidebar-collapsed:  60px;
+  --rightbar:           220px;
+  --topbar:             48px;
+  --terminal:           130px;
+  --radius:             16px;
+  --radius-sm:          12px;
+}
 
-  /* Co-stars */
-  --teal:         #21bdd9;
-  --teal-deep:    #0e7a8f;
-  --teal-glow:    #6cdcef;
-  --grape:        #a884ff;
-  --grape-deep:   #7748e6;
-  --grape-glow:   #cab8ff;
+/* ── NIGHT: chalkboard ── */
+[data-theme="night"] {
+  --bg:           #272D2B;
+  --surface:      #2F3633;
+  --surface2:     #39423E;
+  --line:         #4A534D;
+  --ink:          #F1ECDD;
+  --ink2:         #A6AEA4;
+  --primary:      #88ABDA;
+  --on-primary:   #23282E;
+  --primary-deep: #5E84B8;
+  --primary-fade: rgba(136,171,218,.20);
+  --cat-ginger:   #F0A463;
+  --cat-green:    #9DC07E;
+  --cat-pink:     #F0A0B4;
+  --cat-outline:  #F1ECDD;
+  --ginger-fade:  rgba(240,164,99,.18);
+  --c-red:        #EC8576;
+  --c-green:      #9DC07E;
+  --c-yellow:     #F0D06A;
+  --c-purple:     #C0A4DA;
+  --c-blue:       #88ABDA;
+  --btn-shadow:   0 3px 0 var(--primary-deep), 0 6px 14px rgba(0,0,0,.30);
+  --input-glow:   0 0 0 4px var(--ginger-fade);
+  --grain-opacity: 0.050;
+  --grain-blend:  screen;
+  --glass:        rgba(47,54,51,.88);
 
-  /* Spice */
-  --maple:        #ff5577;
-  --lemon:        #f4c542;
-  --sky:          #6ec1ff;
-  --mint:         #9be86b;
-  --blush:        #ff8aa6;
+  --canvas:       var(--bg);
+  --panel:        var(--surface);
+  --bg-raised:    var(--surface);
+  --panel-2:      var(--surface2);
+  --bg-card:      var(--surface2);
+  --recessed:     #1E2422;
+  --bg-deep:      #1E2422;
+  --border:       var(--line);
+  --border-dim:   rgba(74,83,77,.70);
+  --border-soft:  rgba(136,171,218,.18);
+  --text:         var(--ink);
+  --text-dim:     var(--ink2);
+  --text-muted:   var(--ink2);
+  --text-faint:   rgba(166,174,164,.50);
+  --text-ghost:   rgba(166,174,164,.30);
+  --orange:       var(--cat-ginger);
+  --orange-2:     #F5BC82;
+  --orange-deep:  #D08042;
+  --indigo:       var(--primary);
+  --pink-blue:    var(--primary);
+  --teal:         var(--c-green);
+  --teal-dim:     rgba(157,192,126,.10);
+  --mint:         var(--c-green);
+  --mint-dim:     rgba(157,192,126,.10);
+  --blue:         var(--c-blue);
+  --yellow:       var(--c-yellow);
+  --warning:      var(--c-yellow);
+  --purple:       var(--c-purple);
+  --purple-2:     #D0B8EA;
+  --purple-dim:   rgba(192,164,218,.12);
+  --purple-glow:  rgba(192,164,218,.28);
+  --surface-low:  var(--surface);
+  --surface-mid:  var(--surface2);
+  --surface-high: #424E49;
+  --primary-bright: #AACCF0;
+  --secondary:    var(--c-blue);
+  --secondary-dim: rgba(136,171,218,.16);
+  --tertiary:     var(--c-purple);
+  --error:        var(--c-red);
+  --error-bg:     rgba(236,133,118,.14);
+  --outline:      var(--cat-outline);
+  --outline-dim:  rgba(241,236,221,.14);
+  --shadow:       0 4px 16px rgba(0,0,0,.28);
+  --shadow-soft:  0 2px 8px rgba(0,0,0,.18);
 
-  /* Light mode (secondary skin) */
-  --paper:        #f5ead3;
-  --paper-soft:   #ebdfc4;
-  --paper-line:   #d5c7a8;
-
-  /* Type */
-  --font-display: 'Space Grotesk', system-ui, sans-serif;
-  --font-body:    'Space Mono', 'SF Mono', 'Consolas', monospace;
-
-  /* Type scale */
-  --t-hero:    4.5rem;
-  --t-display: 3rem;
-  --t-h1:      2rem;
-  --t-h2:      1.375rem;
-  --t-h3:      1.125rem;
-  --t-body:    0.9375rem;
-  --t-small:   0.8125rem;
-  --t-tiny:    0.6875rem;
-
-  --lh-display: 1.1;
-  --lh-body:    1.5;
-  --ls-display: -0.01em;
-  --ls-body:    0;
-  --ls-caps:    0.08em;
-
-  /* Spacing (8px base) */
-  --s-1: 4px;
-  --s-2: 8px;
-  --s-3: 12px;
-  --s-4: 16px;
-  --s-5: 24px;
-  --s-6: 32px;
-  --s-7: 48px;
-  --s-8: 64px;
-
-  /* Radii (small on purpose) */
-  --r-0: 0;
-  --r-1: 2px;
-  --r-2: 4px;
-  --r-pill: 999px;
-
-  /* Borders */
-  --border-thin: 1px solid var(--ink-line);
-  --border-block: 2px solid var(--cream);
-
-  /* Shadows */
-  --shadow-block: 4px 4px 0 var(--ink-deep);
-  --shadow-block-tabby: 4px 4px 0 var(--tabby-deep);
-  --shadow-glow: 0 0 24px rgba(255, 122, 26, 0.35);
-
-  /* Motion */
-  --ease-step: steps(4, end);
-  --ease-out:  cubic-bezier(0.2, 0.7, 0.2, 1);
-  --dur-fast:  120ms;
-  --dur-base:  200ms;
-  --dur-slow:  360ms;
-
-  /* ── Backward-compatible aliases (components still reference these) ── */
-  --canvas:      var(--ink);
-  --bg:          var(--ink);
-  --panel:       var(--ink-soft);
-  --bg-raised:   var(--ink-soft);
-  --panel-2:     var(--ink-soft);
-  --bg-card:     var(--ink-soft);
-  --recessed:    var(--ink-deep);
-  --bg-deep:     var(--ink-deep);
-  --background:  var(--ink);
-  --foreground:  var(--cream);
-
-  --border:      var(--ink-line);
-  --border-dim:  #2e241d;
-  --border-soft: rgba(122, 113, 96, 0.22);
-
-  --text:        var(--cream);
-  --text-dim:    var(--cream-dim);
-  --text-muted:  var(--cream-faint);
-  --text-faint:  #564d42;
-  --text-ghost:  #3a3229;
-
-  --orange:      var(--tabby);
-  --orange-2:    var(--tabby-glow);
-  --orange-deep: var(--tabby-deep);
-
-  --indigo:      var(--grape);
-  --pink-blue:   var(--grape-glow);
-  --purple:      var(--grape);
-  --purple-2:    var(--grape-glow);
-  --purple-dim:  #1a1210;
-  --purple-glow: rgba(168, 132, 255, 0.33);
-  --teal-dim:    #0e1412;
-  --mint-dim:    #0e1a0d;
-  --blue:        var(--sky);
-  --yellow:      var(--lemon);
-  --warning:     var(--maple);
-
-  --surface:         var(--ink);
-  --surface-low:     var(--ink);
-  --surface-mid:     var(--ink-soft);
-  --surface-high:    #3a2e25;
-  --primary:         var(--tabby);
-  --primary-bright:  var(--tabby-glow);
-  --secondary:       var(--grape-glow);
-  --secondary-dim:   var(--grape-deep);
-  --tertiary:        var(--grape-glow);
-  --error:           var(--maple);
-  --error-bg:        #3a1210;
-  --outline:         var(--cream-faint);
-  --outline-dim:     rgba(122, 113, 96, 0.25);
-
-  --font-ui:     var(--font-display);
-  --font-mono:   var(--font-body);
-
-  /* Layout */
-  --rail:        44px;
-  --sidebar:     220px;
-  --sidebar-collapsed: 0px;
-  --rightbar:    220px;
-  --topbar:      40px;
-  --terminal:    130px;
-
-  /* Misc */
-  --shadow:    var(--shadow-block);
-  --radius:    4px;
-  --radius-sm: 2px;
+  --font-display: 'Bricolage Grotesque', sans-serif;
+  --font-ui:      'Hanken Grotesk', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', monospace;
+  --background:   var(--bg);
+  --foreground:   var(--ink);
+  --rail:               60px;
+  --sidebar:            268px;
+  --sidebar-collapsed:  60px;
+  --rightbar:           220px;
+  --topbar:             48px;
+  --terminal:           130px;
+  --radius:             16px;
+  --radius-sm:          12px;
 }
 
 html, body {
   height: 100%;
   width: 100%;
   overflow: hidden;
-  background: var(--ink);
-  color: var(--cream);
-  font-family: var(--font-display);
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ui);
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
   letter-spacing: -0.01em;
@@ -179,46 +200,73 @@ button, input { font: inherit; }
 
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #3a2e25; border-radius: 999px; }
-::-webkit-scrollbar-thumb:hover { background: #564d42; }
-::selection { background: var(--tabby); color: var(--ink-deep); }
-* { caret-color: var(--tabby); scrollbar-width: thin; scrollbar-color: #3a2e25 transparent; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--ink2); }
+::selection { background: var(--cat-ginger); color: #fff; }
+* { caret-color: var(--primary); scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+input::placeholder { color: var(--ink2); opacity: .8; }
 
-/* Pixel kitty logo — used via className="pixel-kitty" */
+/* Cat mark — used in Rail */
+.cat-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--ginger-fade);
+  border: 1.5px solid var(--cat-ginger);
+  color: var(--cat-outline);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+/* Pixel kitty logo — kept for backward compat but updated colors */
 .pixel-kitty {
   position: relative;
   width: 40px;
   height: 40px;
   image-rendering: pixelated;
-  border-radius: 4px;
+  border-radius: 10px;
   background:
-    linear-gradient(var(--tabby), var(--tabby)) 8px 8px / 4px 4px no-repeat,
-    linear-gradient(var(--tabby), var(--tabby)) 28px 8px / 4px 4px no-repeat,
-    linear-gradient(var(--tabby), var(--tabby)) 4px 12px / 32px 20px no-repeat,
-    linear-gradient(var(--tabby), var(--tabby)) 8px 32px / 24px 4px no-repeat,
-    linear-gradient(var(--ink), var(--ink)) 12px 20px / 4px 4px no-repeat,
-    linear-gradient(var(--ink), var(--ink)) 24px 20px / 4px 4px no-repeat,
-    linear-gradient(var(--ink), var(--ink)) 16px 28px / 8px 4px no-repeat;
-  box-shadow: 0 0 0 1px rgba(255, 122, 26, 0.26), var(--shadow-block);
+    linear-gradient(var(--cat-ginger), var(--cat-ginger)) 8px 8px / 4px 4px no-repeat,
+    linear-gradient(var(--cat-ginger), var(--cat-ginger)) 28px 8px / 4px 4px no-repeat,
+    linear-gradient(var(--cat-ginger), var(--cat-ginger)) 4px 12px / 32px 20px no-repeat,
+    linear-gradient(var(--cat-ginger), var(--cat-ginger)) 8px 32px / 24px 4px no-repeat,
+    linear-gradient(var(--bg), var(--bg)) 12px 20px / 4px 4px no-repeat,
+    linear-gradient(var(--bg), var(--bg)) 24px 20px / 4px 4px no-repeat,
+    linear-gradient(var(--bg), var(--bg)) 16px 28px / 8px 4px no-repeat;
+  box-shadow: 0 0 0 1px var(--ginger-fade), 0 8px 22px var(--ginger-fade);
   animation: kitty-bob 3.8s ease-in-out infinite;
   flex-shrink: 0;
 }
-
 .pixel-kitty::before, .pixel-kitty::after {
   content: "";
   position: absolute;
   top: 4px;
   width: 12px;
   height: 12px;
-  background: var(--tabby);
+  background: var(--cat-ginger);
   clip-path: polygon(50% 0, 100% 100%, 0 100%);
 }
 .pixel-kitty::before { left: 4px; }
 .pixel-kitty::after { right: 4px; }
 
-/* Radial background glow */
-.app-canvas {
-  background: var(--ink);
+.app-canvas { background: var(--bg); }
+
+/* cmdk command palette */
+[cmdk-item][data-selected="true"] {
+  background: var(--surface-mid);
+  color: var(--text);
+}
+[cmdk-item] { transition: background 0.08s linear; }
+[cmdk-group-heading] {
+  padding: 6px 10px 4px;
+  display: block;
 }
 
 @keyframes bounce {
@@ -236,14 +284,7 @@ button, input { font: inherit; }
 @keyframes blink {
   50% { opacity: 0; }
 }
-
-/* cmdk command palette — highlight the active item */
-[cmdk-item][data-selected="true"] {
-  background: var(--ink-soft);
-  color: var(--cream);
-}
-[cmdk-item] { transition: background 0.08s linear; }
-[cmdk-group-heading] {
-  padding: 6px 10px 4px;
-  display: block;
-}
+@keyframes v2-bob   { 0%,100%{transform:translateY(0) rotate(-1.5deg)} 50%{transform:translateY(-6px) rotate(1.5deg)} }
+@keyframes v2-throb { 0%,100%{transform:scale(1) rotate(-1deg)} 50%{transform:scale(.93) rotate(1deg)} }
+@keyframes v2-hop   { 0%,100%{transform:translateY(0) rotate(-1.5deg)} 30%{transform:translateY(-14px) rotate(3deg)} 55%{transform:translateY(0) rotate(-2deg)} }
+@keyframes v2-pop   { 0%{opacity:0;transform:scale(.2) translateY(4px) rotate(-20deg)} 30%{opacity:1;transform:scale(1) translateY(-8px) rotate(8deg)} 100%{opacity:0;transform:scale(.5) translateY(-32px) rotate(20deg)} }

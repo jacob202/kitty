@@ -75,7 +75,7 @@ function ToolCard({ title, children }: { title: string; children: React.ReactNod
       style={{
         background: 'var(--surface-low)',
         border: '1px solid var(--border)',
-        borderRadius: 4,
+        borderRadius: 10,
         padding: 16,
         display: 'flex',
         flexDirection: 'column',
@@ -88,7 +88,7 @@ function ToolCard({ title, children }: { title: string; children: React.ReactNod
           fontSize: 10,
           fontWeight: 700,
           letterSpacing: '0.12em',
-          textTransform: 'lowercase',
+          textTransform: 'uppercase',
           color: 'var(--text-muted)',
           paddingBottom: 8,
           borderBottom: '1px solid var(--border-dim)',
@@ -124,6 +124,7 @@ export default function KittyChat() {
 }
 
 function KittyChatInner() {
+  const [theme, setTheme] = useState<'day' | 'night'>('day');
   const [chats, setChats] = useState<Chat[]>(() => [makeChat('teal')]);
   const [activeView, setActiveView] = useState('home');
   const [activeChatId, setActiveChatId] = useState<string | null>(() => null);
@@ -277,6 +278,14 @@ function KittyChatInner() {
     const chars = activeChat.messages.reduce((sum, m) => sum + m.content.length, 0);
     setTokenCount(Math.round(chars / 4));
   }, [activeChat?.messages]);
+
+  const handleThemeToggle = useCallback(() => {
+    setTheme(t => {
+      const next = t === 'day' ? 'night' : 'day';
+      document.documentElement.setAttribute('data-theme', next);
+      return next;
+    });
+  }, []);
 
   const handleNewChat = useCallback(() => {
     const color = COLOR_CYCLE[colorIndexRef.current % COLOR_CYCLE.length];
@@ -509,7 +518,7 @@ function KittyChatInner() {
       }}
       onClick={() => showModelMenu && setShowModelMenu(false)}
     >
-      {!isMobile && <Rail activeView={activeView} onViewChange={setActiveView} />}
+      {!isMobile && <Rail activeView={activeView} onViewChange={setActiveView} theme={theme} onThemeToggle={handleThemeToggle} />}
 
       {!isMobile && (
         <SessionSidebar
@@ -529,7 +538,8 @@ function KittyChatInner() {
             style={{
               position: 'fixed',
               inset: 0,
-              background: 'rgba(0, 0, 0, 0.6)',
+              background: 'rgba(0, 0, 0, 0.55)',
+              backdropFilter: 'blur(4px)',
               zIndex: 40,
             }}
           />
@@ -540,7 +550,7 @@ function KittyChatInner() {
               width: 'min(320px, 84vw)',
               height: '100vh',
               zIndex: 50,
-              boxShadow: '4px 4px 0 var(--ink-deep)',
+              boxShadow: '0 24px 60px rgba(0, 0, 0, 0.45)',
             }}
           >
             <SessionSidebar
@@ -564,7 +574,7 @@ function KittyChatInner() {
           flexDirection: 'column',
           minHeight: 0,
           overflow: 'hidden',
-          borderRight: isMobile ? 'none' : '1px solid var(--border)',
+          borderRight: isMobile ? 'none' : '1px solid var(--line)',
         }}
       >
         <TopBar
@@ -656,7 +666,7 @@ function KittyChatInner() {
               fontFamily: 'var(--font-mono)',
               fontSize: 11,
               color: 'var(--text-dim)',
-              background: 'rgba(26, 20, 16, 0.5)',
+              background: 'var(--surface)',
               borderBottom: '1px solid var(--border)',
               flexShrink: 0,
             }}
@@ -804,7 +814,7 @@ function KittyChatInner() {
                 }}
               >
                 <span style={{ fontSize: 32, opacity: 0.3 }}>?</span>
-                <span>{activeView} view</span>
+                <span>{activeView.charAt(0).toUpperCase() + activeView.slice(1)} view</span>
                 <span style={{ fontSize: 12, color: 'var(--text-ghost)' }}>coming soon</span>
               </div>
             )}
