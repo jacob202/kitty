@@ -1,0 +1,62 @@
+/* ============================================================
+   KITTY v2 — foundation theme (SCOPED to .v2-root)
+   Ported 1:1 from the Claude Design prototype (Kitty UI v2.dc.html).
+   All theme tokens live on .v2-root[data-theme] so they never leak
+   into the current app, whose globals.css reuses some of the same
+   names (--bg, --primary, --surface). Layout is inline-styled in
+   page.tsx (matching the prototype); this file holds the tokens,
+   keyframes, and animation classes the prototype defines globally.
+   Spec: design-system/KITTY.md + design-system/tokens.css
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ── DAY: manila paper ── */
+.v2-root[data-theme='day'] {
+  --bg:#F3EAD6; --surface:#FBF5E9; --surface2:#EBE0C9; --line:#DACBA9;
+  --ink:#3E3527; --ink2:#897C64;
+  --primary:#5B7FBF; --on-primary:#FFFFFF; --primary-deep:#3E5E97;
+  --cat-ginger:#E68A47; --cat-green:#7FA85F; --cat-pink:#E5869A; --cat-outline:#4A3D2C; --ginger-fade:rgba(230,138,71,.16);
+  --c-red:#DC6657; --c-green:#6E9B52; --c-yellow:#D6A93E; --c-purple:#A988C2; --c-blue:#5B7FBF;
+  --btn-shadow:0 3px 0 var(--primary-deep),0 6px 14px rgba(0,0,0,.10);
+  --input-glow:0 0 0 4px var(--ginger-fade);
+  --grain-opacity:0.067; --grain-blend:multiply;
+}
+
+/* ── NIGHT: chalkboard ── */
+.v2-root[data-theme='night'] {
+  --bg:#272D2B; --surface:#2F3633; --surface2:#39423E; --line:#4A534D;
+  --ink:#F1ECDD; --ink2:#A6AEA4;
+  --primary:#88ABDA; --on-primary:#23282E; --primary-deep:#5E84B8;
+  --cat-ginger:#F0A463; --cat-green:#9DC07E; --cat-pink:#F0A0B4; --cat-outline:#F1ECDD; --ginger-fade:rgba(240,164,99,.18);
+  --c-red:#EC8576; --c-green:#9DC07E; --c-yellow:#F0D06A; --c-purple:#C0A4DA; --c-blue:#88ABDA;
+  --btn-shadow:0 3px 0 var(--primary-deep),0 6px 14px rgba(0,0,0,.30);
+  --input-glow:0 0 0 4px var(--ginger-fade);
+  --grain-opacity:0.056; --grain-blend:screen;
+}
+
+.v2-root { font-family: 'Hanken Grotesk', sans-serif; -webkit-font-smoothing: antialiased; }
+.v2-root *, .v2-root *::before, .v2-root *::after { box-sizing: border-box; margin: 0; padding: 0; }
+.v2-root input::placeholder { color: var(--ink2); opacity: .8; }
+.v2-root ::-webkit-scrollbar { width: 5px; }
+.v2-root ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 99px; }
+.v2-root ::-webkit-scrollbar-track { background: transparent; }
+
+/* ── keyframes (verbatim from the prototype) ── */
+@keyframes v2-bob   { 0%,100%{transform:translateY(0) rotate(-1.5deg)} 50%{transform:translateY(-6px) rotate(1.5deg)} }
+@keyframes v2-throb { 0%,100%{transform:scale(1) rotate(-1deg)} 50%{transform:scale(.93) rotate(1deg)} }
+@keyframes v2-hop   { 0%,100%{transform:translateY(0) rotate(-1.5deg)} 30%{transform:translateY(-14px) rotate(3deg)} 55%{transform:translateY(0) rotate(-2deg)} }
+@keyframes v2-msg-in{ from{transform:translateY(7px)} to{transform:translateY(0)} }
+@keyframes v2-dot1  { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)} }
+@keyframes v2-dot2  { 0%,60%,100%{transform:translateY(0)} 40%{transform:translateY(-5px)} }
+@keyframes v2-dot3  { 0%,60%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+@keyframes v2-pop   { 0%{opacity:0;transform:scale(.2) translateY(4px) rotate(-20deg)} 30%{opacity:1;transform:scale(1) translateY(-8px) rotate(8deg)} 100%{opacity:0;transform:scale(.5) translateY(-32px) rotate(20deg)} }
+
+.v2-root .cat-idle    { animation: v2-bob 4.2s ease-in-out infinite; }
+.v2-root .cat-working { animation: v2-throb 1.1s ease-in-out infinite; }
+.v2-root .cat-done    { animation: v2-hop 1.1s ease-in-out; }
+.v2-root .cat-broke   { animation: none; filter: saturate(.55); }
+.v2-root .msg-in      { animation: v2-msg-in .22s ease both; }
+.v2-root .dot1 { animation: v2-dot1 1.2s ease-in-out infinite; }
+.v2-root .dot2 { animation: v2-dot2 1.2s ease-in-out infinite; }
+.v2-root .dot3 { animation: v2-dot3 1.2s ease-in-out infinite; }

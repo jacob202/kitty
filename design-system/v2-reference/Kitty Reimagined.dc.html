@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0}
+  ::selection{background:var(--primary);color:#fff}
+  @keyframes kt-bob{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-7px) rotate(1deg)}}
+  @keyframes kt-blink{0%,92%,100%{opacity:1}96%{opacity:.15}}
+  .kt-cat{animation:kt-bob 5s ease-in-out infinite}
+</style>
+</helmet>
+<div style="{{ rootStyle }}">
+
+  <div style="max-width:1080px;margin:0 auto;padding:0 40px;display:flex;flex-direction:column">
+
+    <!-- ============ HERO ============ -->
+    <header style="padding:88px 0 64px;display:grid;grid-template-columns:1fr auto;gap:48px;align-items:center;border-bottom:1px solid var(--line)">
+      <div style="display:flex;flex-direction:column;gap:22px">
+        <div style="display:flex;align-items:center;gap:12px;font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--primary)">
+          <span style="width:8px;height:8px;border-radius:99px;background:var(--primary);display:inline-block;box-shadow:0 0 0 4px var(--primary-fade)"></span>
+          the reimagining — draft 02
+        </div>
+        <h1 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:128px;line-height:.82;letter-spacing:-.04em;color:var(--ink)">kitty</h1>
+        <p style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:500;font-size:25px;line-height:1.25;color:var(--ink);max-width:560px;letter-spacing:-.01em">
+          a calm command center. <span style="color:var(--primary)">with a kiss of magic.</span>
+        </p>
+        <p style="margin:0;font-size:16px;line-height:1.6;color:var(--ink2);max-width:520px">
+          and a cat someone clearly drew in crayon. that part's on purpose.
+        </p>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:14px">
+        <div class="kt-cat" style="color:var(--ink)">
+          <svg viewBox="0 0 280 210" style="width:var(--catW);height:auto;display:block">
+            <defs><filter id="wob" x="-20%" y="-20%" width="140%" height="140%"><feTurbulence type="fractalNoise" baseFrequency="0.018 0.022" numOctaves="2" seed="7" result="n"></feTurbulence><feDisplacementMap in="SourceGraphic" in2="n" scale="6" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap></filter></defs>
+            <g filter="url(#wob)" stroke="currentColor" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <ellipse cx="168" cy="128" rx="62" ry="46"></ellipse>
+              <circle cx="80" cy="102" r="44"></circle>
+              <path d="M54 66 L44 24 L88 58"></path>
+              <path d="M98 58 L118 24 L122 64"></path>
+              <circle cx="64" cy="96" r="5" fill="currentColor" stroke="none"></circle>
+              <path d="M38 104 L52 100 L49 112 Z"></path>
+              <path d="M44 113 Q58 126 74 116"></path>
+              <path d="M36 100 Q20 96 8 102 M38 114 Q22 116 10 124"></path>
+              <path d="M120 168 q-4 18 6 20 M152 172 q-2 18 7 20 M188 170 q0 18 8 19 M214 160 q5 16 12 17"></path>
+              <path d="M226 122 Q262 112 256 70 Q254 48 236 58"></path>
+            </g>
+          </svg>
+        </div>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.1em;color:var(--ink2);opacity:var(--play)">drawn at age ~6, allegedly</span>
+      </div>
+    </header>
+
+    <!-- ============ THE TURN ============ -->
+    <section style="padding:64px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:34px">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2)">01 — what changed</span>
+        <h2 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:38px;letter-spacing:-.02em;color:var(--ink);max-width:680px">we kept the soul and threw out the skin</h2>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px">
+
+        <div style="background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:14px">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--coral)">was</span>
+          <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:9px;font-size:14px;line-height:1.45;color:var(--ink2)">
+            <li>warm-CRT terminal, 8-bit everything</li>
+            <li>orange-on-dark, forever</li>
+            <li>mono + pixel type, generic now</li>
+            <li>every screen, the same rhythm</li>
+          </ul>
+        </div>
+
+        <div style="background:var(--surface);border:2px solid var(--primary);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:14px;box-shadow:var(--shadow)">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--primary)">now</span>
+          <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:9px;font-size:14px;line-height:1.45;color:var(--ink)">
+            <li>bone-bright by day, deep-indigo by night</li>
+            <li>electric cobalt runs the show</li>
+            <li>type with a spine — bricolage + hanken</li>
+            <li>tactile, weighty, a thing you touch</li>
+          </ul>
+        </div>
+
+        <div style="background:var(--surface2);border:1px solid var(--line);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:14px">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--mint)">kept</span>
+          <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:9px;font-size:14px;line-height:1.45;color:var(--ink2)">
+            <li>the four states — idle/working/done/broke</li>
+            <li>the deadpan, lowercase voice</li>
+            <li>the cat is an instrument, not a portrait</li>
+            <li>built for an audience of one</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============ PALETTE ============ -->
+    <section style="padding:64px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:34px">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2)">02 — color</span>
+        <h2 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:38px;letter-spacing:-.02em;color:var(--ink)">two skins, one mood</h2>
+        <p style="margin:6px 0 0;font-size:15px;line-height:1.6;color:var(--ink2);max-width:620px">light by day, a real moody dark by night. cobalt is the protagonist — one element per screen owns it. coral and lemon are spice, never structure.</p>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:22px">
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2)">day · bone</span>
+          <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px">
+            <sc-for list="{{ dayChips }}" as="c" hint-placeholder-count="6">
+              <div style="border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface)">
+                <div style="height:64px;background:{{ c.hex }}"></div>
+                <div style="padding:10px 12px;display:flex;flex-direction:column;gap:2px">
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink)">{{ c.hex }}</span>
+                  <span style="font-size:11px;color:var(--ink2)">{{ c.role }}</span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink2)">night · indigo</span>
+          <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px">
+            <sc-for list="{{ nightChips }}" as="c" hint-placeholder-count="6">
+              <div style="border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface)">
+                <div style="height:64px;background:{{ c.hex }}"></div>
+                <div style="padding:10px 12px;display:flex;flex-direction:column;gap:2px">
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink)">{{ c.hex }}</span>
+                  <span style="font-size:11px;color:var(--ink2)">{{ c.role }}</span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ TYPE ============ -->
+    <section style="padding:64px 0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start">
+      <div style="display:flex;flex-direction:column;gap:18px">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2)">03 — type</span>
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:104px;line-height:.86;letter-spacing:-.04em;color:var(--ink)">Aa</div>
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:22px;color:var(--ink)">Bricolage Grotesque</span>
+          <span style="font-size:14px;color:var(--ink2)">display · headers · the wordmark. confident, a little oddball, takes a stance.</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:18px;padding-top:36px">
+        <p style="margin:0;font-size:18px;line-height:1.6;color:var(--ink)">Hanken Grotesk carries everything else — paragraphs, chat, buttons, labels. it's clean and warm and gets out of the way, so the display face and the color can do the talking.</p>
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:22px;color:var(--ink)">Hanken Grotesk</span>
+          <span style="font-size:14px;color:var(--ink2)">body · ui · 400 / 500 / 600 / 700.</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:4px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--ink2)">
+          <span style="border:1px solid var(--line);border-radius:6px;padding:4px 8px;color:var(--ink)">JetBrains Mono</span>
+          <span>— used only for hotkeys + system echoes. a wink at the terminal past.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ THE FACE ============ -->
+    <section style="padding:64px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:34px">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2)">04 — the face</span>
+        <h2 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:38px;letter-spacing:-.02em;color:var(--ink);max-width:680px">embrace the ugly</h2>
+        <p style="margin:6px 0 0;font-size:15px;line-height:1.6;color:var(--ink2);max-width:640px">she's still a gauge with a face — her pose reads system state. but the face looks hand-drawn on purpose. it's the one thing a polished AI would never do, so it's exactly the thing kitty does.</p>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+        <sc-for list="{{ states }}" as="s" hint-placeholder-count="4">
+          <div style="background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:24px 20px;display:flex;flex-direction:column;gap:16px;align-items:center;box-shadow:var(--shadow)">
+            <div style="font-family:'JetBrains Mono',monospace;font-size:34px;font-weight:500;color:{{ s.color }}">{{ s.face }}</div>
+            <div style="display:flex;flex-direction:column;gap:3px;align-items:center;text-align:center">
+              <span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:17px;color:var(--ink)">{{ s.name }}</span>
+              <span style="font-size:13px;line-height:1.4;color:var(--ink2)">{{ s.note }}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- ============ VOICE ============ -->
+    <section style="padding:64px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:28px">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2)">05 — voice</span>
+        <h2 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:38px;letter-spacing:-.02em;color:var(--ink)">talks like a friend in your terminal</h2>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <sc-for list="{{ voice }}" as="v" hint-placeholder-count="4">
+          <div style="display:flex;gap:14px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px">
+            <span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:20px;color:var(--mint);flex:none;width:22px">✓</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--ink);flex:1">{{ v.good }}</span>
+            <span style="font-size:13px;color:var(--ink2);text-decoration:line-through;opacity:var(--play)">{{ v.bad }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- ============ IN SITU ============ -->
+    <section style="padding:64px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:28px">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2)">06 — in situ</span>
+        <h2 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:38px;letter-spacing:-.02em;color:var(--ink)">the command center</h2>
+        <p style="margin:6px 0 0;font-size:15px;line-height:1.6;color:var(--ink2);max-width:620px">a first read on the surface itself. calm by default, the cat in the corner, one cobalt thing pulling your eye. (rendered hero object, jupi-style, drops into the empty slot.)</p>
+      </div>
+
+      <div style="border-radius:22px;overflow:hidden;border:1px solid var(--line);box-shadow:var(--shadow-soft);background:var(--surface)">
+        <!-- window bar -->
+        <div style="display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--surface2)">
+          <span style="width:11px;height:11px;border-radius:99px;background:var(--coral)"></span>
+          <span style="width:11px;height:11px;border-radius:99px;background:var(--lemon)"></span>
+          <span style="width:11px;height:11px;border-radius:99px;background:var(--mint)"></span>
+          <span style="margin-left:10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--ink2)">kitty — home</span>
+        </div>
+        <div style="display:grid;grid-template-columns:64px 1fr;min-height:420px">
+          <!-- rail -->
+          <div style="border-right:1px solid var(--line);background:var(--surface2);display:flex;flex-direction:column;align-items:center;gap:18px;padding:20px 0">
+            <span style="width:30px;height:30px;border-radius:10px;background:var(--primary)"></span>
+            <span style="width:30px;height:30px;border-radius:10px;border:1px solid var(--line)"></span>
+            <span style="width:30px;height:30px;border-radius:10px;border:1px solid var(--line)"></span>
+            <span style="width:30px;height:30px;border-radius:10px;border:1px solid var(--line)"></span>
+          </div>
+          <!-- main -->
+          <div style="padding:34px 40px;display:flex;flex-direction:column;gap:24px;position:relative">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start">
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:34px;letter-spacing:-.02em;color:var(--ink)">hey :3</span>
+                <span style="font-size:15px;color:var(--ink2)">what are we doing today</span>
+              </div>
+              <div class="kt-cat" style="color:var(--primary);opacity:var(--play)">
+                <svg viewBox="0 0 280 210" style="width:96px;height:auto;display:block">
+                  <g filter="url(#wob)" stroke="currentColor" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <ellipse cx="168" cy="128" rx="62" ry="46"></ellipse>
+                    <circle cx="80" cy="102" r="44"></circle>
+                    <path d="M54 66 L44 24 L88 58"></path>
+                    <path d="M98 58 L118 24 L122 64"></path>
+                    <circle cx="64" cy="96" r="5" fill="currentColor" stroke="none"></circle>
+                    <path d="M38 104 L52 100 L49 112 Z"></path>
+                    <path d="M44 113 Q58 126 74 116"></path>
+                    <path d="M36 100 Q20 96 8 102 M38 114 Q22 116 10 124"></path>
+                    <path d="M226 122 Q262 112 256 70 Q254 48 236 58"></path>
+                  </g>
+                </svg>
+              </div>
+            </div>
+
+            <!-- command bar -->
+            <div style="display:flex;align-items:center;gap:12px;background:var(--surface2);border:1.5px solid var(--primary);border-radius:14px;padding:16px 18px;box-shadow:0 0 0 4px var(--primary-fade)">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:15px;color:var(--primary)">→</span>
+              <span style="font-family:'JetBrains Mono',monospace;font-size:15px;color:var(--ink)">ask kitty anything</span>
+              <span style="width:2px;height:18px;background:var(--primary);animation:kt-blink 1.2s steps(1) infinite"></span>
+              <span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink2);border:1px solid var(--line);border-radius:6px;padding:3px 7px">⌘K</span>
+            </div>
+
+            <!-- cards -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+              <div style="background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:10px;box-shadow:var(--shadow)">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--primary)">in progress</span>
+                <span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:18px;color:var(--ink)">pulling your week together</span>
+                <div style="height:6px;border-radius:99px;background:var(--surface2);overflow:hidden"><div style="width:62%;height:100%;background:var(--primary)"></div></div>
+              </div>
+              <div style="background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:10px;box-shadow:var(--shadow)">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mint)">done</span>
+                <span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:18px;color:var(--ink)">3 emails, drafted &amp; sent</span>
+                <span style="font-size:13px;color:var(--ink2)">there you go. anything else</span>
+              </div>
+            </div>
+
+            <!-- empty hero-object slot -->
+            <div style="margin-top:4px;border:2px dashed var(--line);border-radius:16px;min-height:96px;display:flex;align-items:center;justify-content:center;gap:10px;color:var(--ink2)">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.04em">[ rendered hero object — tactile, weighty, a little wondrous ]</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ HANDOFF ============ -->
+    <section style="padding:64px 0 96px;display:flex;flex-direction:column;gap:28px">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink2)">07 — handoff</span>
+        <h2 style="margin:0;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:38px;letter-spacing:-.02em;color:var(--ink)">what to hand claude code</h2>
+      </div>
+      <div style="background:var(--ink);border-radius:20px;padding:38px 40px;display:grid;grid-template-columns:1fr 1fr;gap:30px 40px">
+        <sc-for list="{{ handoff }}" as="h" hint-placeholder-count="4">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--primary-on-ink)">{{ h.k }}</span>
+            <span style="font-size:15px;line-height:1.55;color:var(--ink-inv)">{{ h.v }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <p style="margin:4px 0 0;font-size:14px;line-height:1.6;color:var(--ink2);max-width:640px">flip the theme + accent + personality controls above to feel the range before you commit. nothing here is locked — it's a direction, not a verdict.</p>
+    </section>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;$preview&quot;: { &quot;width&quot;: 1080, &quot;height&quot;: 1400 },
+  &quot;theme&quot;: {
+    &quot;editor&quot;: &quot;enum&quot;,
+    &quot;options&quot;: [&quot;day&quot;, &quot;night&quot;],
+    &quot;default&quot;: &quot;day&quot;,
+    &quot;tsType&quot;: &quot;\&quot;day\&quot; | \&quot;night\&quot;&quot;,
+    &quot;section&quot;: &quot;Feel&quot;
+  },
+  &quot;accent&quot;: {
+    &quot;editor&quot;: &quot;enum&quot;,
+    &quot;options&quot;: [&quot;cobalt&quot;, &quot;coral&quot;],
+    &quot;default&quot;: &quot;cobalt&quot;,
+    &quot;tsType&quot;: &quot;\&quot;cobalt\&quot; | \&quot;coral\&quot;&quot;,
+    &quot;section&quot;: &quot;Feel&quot;
+  },
+  &quot;personality&quot;: {
+    &quot;editor&quot;: &quot;range&quot;,
+    &quot;default&quot;: 85,
+    &quot;min&quot;: 0,
+    &quot;max&quot;: 100,
+    &quot;step&quot;: 5,
+    &quot;unit&quot;: &quot;%&quot;,
+    &quot;tsType&quot;: &quot;number&quot;,
+    &quot;section&quot;: &quot;Feel&quot;
+  }
+}">
+class Component extends DCLogic {
+  renderVals() {
+    const theme = this.props.theme ?? 'day';
+    const accent = this.props.accent ?? 'cobalt';
+    const p = (this.props.personality ?? 85) / 100;
+
+    const T = theme === 'night' ? {
+      bg:'#0E1330', surface:'#161B3D', surface2:'#1E2552', line:'#2C3366',
+      ink:'#F1EEE6', ink2:'#A6A9C8', inkInv:'#0E1330', inkBlock:'#080B1F',
+      cobalt:'#4D82FF', cobaltDeep:'#2060D8', coral:'#F0617A', lemon:'#FFD23F', mint:'#3FD2A0',
+      shadow:'6px 6px 0 rgba(0,0,0,.30)',
+      shadowSoft:'0 30px 70px -28px rgba(0,0,0,.65)',
+    } : {
+      bg:'#F0EDE4', surface:'#FAF8F2', surface2:'#EAE4D8', line:'#D8D1C2',
+      ink:'#16161D', ink2:'#605E6B', inkInv:'#F0EDE4', inkBlock:'#16161D',
+      cobalt:'#2060D8', cobaltDeep:'#154FBD', coral:'#F05570', lemon:'#E8AC00', mint:'#18A06B',
+      shadow:'6px 6px 0 rgba(22,22,29,.07)',
+      shadowSoft:'0 30px 70px -30px rgba(22,22,29,.28)',
+    };
+
+    const primary = accent === 'coral' ? T.coral : T.cobalt;
+    const primaryDeep = accent === 'coral' ? '#E0481F' : T.cobaltDeep;
+    const primaryFade = accent === 'coral'
+      ? (theme === 'night' ? 'rgba(255,122,82,.20)' : 'rgba(255,106,61,.16)')
+      : (theme === 'night' ? 'rgba(91,121,255,.22)' : 'rgba(44,75,224,.14)');
+    // accent legible sitting on the dark ink handoff block
+    const primaryOnInk = accent === 'coral' ? '#FF8C66' : '#7E99FF';
+
+    const playOpacity = (0.18 + 0.82 * p).toFixed(2);
+    const catW = Math.round(150 + 110 * p) + 'px';
+
+    const vars = {
+      '--bg':T.bg, '--surface':T.surface, '--surface2':T.surface2, '--line':T.line,
+      '--ink':T.ink, '--ink2':T.ink2, '--ink-inv':T.inkInv,
+      '--primary':primary, '--primary-deep':primaryDeep, '--primary-fade':primaryFade, '--primary-on-ink':primaryOnInk,
+      '--coral':T.coral, '--lemon':T.lemon, '--mint':T.mint,
+      '--shadow':T.shadow, '--shadow-soft':T.shadowSoft,
+      '--play':playOpacity, '--catW':catW,
+    };
+    const varStr = Object.entries(vars).map(([k,v]) => `${k}:${v}`).join(';');
+    const rootStyle = `min-height:100vh;background-color:var(--bg);color:var(--ink);font-family:'Hanken Grotesk',sans-serif;-webkit-font-smoothing:antialiased;transition:background-color .4s ease,color .4s ease;${varStr}`;
+
+    const dayChips = [
+      { hex:'#F0EDE4', role:'bg · bone' },
+      { hex:'#16161D', role:'ink' },
+      { hex:'#2060D8', role:'cobalt · primary' },
+      { hex:'#F05570', role:'coral · spice' },
+      { hex:'#E8AC00', role:'lemon · pop' },
+      { hex:'#18A06B', role:'mint · ok' },
+    ];
+    const nightChips = [
+      { hex:'#0E1330', role:'bg · indigo' },
+      { hex:'#F1EEE6', role:'cream' },
+      { hex:'#4D82FF', role:'cobalt · primary' },
+      { hex:'#F0617A', role:'coral · spice' },
+      { hex:'#FFD23F', role:'lemon · pop' },
+      { hex:'#3FD2A0', role:'mint · ok' },
+    ];
+
+    const states = [
+      { face:'._.',  name:'idle',    note:'awake, waiting. blinks now and then.', color:T.mint },
+      { face:'o_o', name:'working', note:'heads-down. don\u2019t bug her.',          color:primary },
+      { face:'^_^', name:'done',    note:'pleased with herself.',                color:T.lemon },
+      { face:':[',  name:'broke',   note:'something\u2019s off. owns it.',          color:T.coral },
+    ];
+
+    const voice = [
+      { good:'hey. what are we doing today', bad:'Hello! How can I help you?' },
+      { good:'ok, pulling that up \u2192',         bad:'Certainly! Right away.' },
+      { good:'that broke. trying again',     bad:'An error occurred. Please retry.' },
+      { good:'done. anything else',          bad:'Task completed successfully ✅' },
+    ];
+
+    const handoff = [
+      { k:'tokens', v:'a tokens file with both skins — day (bone) + night (indigo). cobalt is --primary, coral + lemon are spice, mint is ok-states.' },
+      { k:'type', v:'bricolage grotesque for display, hanken grotesk for ui/body, jetbrains mono only for hotkeys + system echoes.' },
+      { k:'components', v:'command bar, task cards, the rail, pill buttons, state chips — all tactile: chunky offset shadow, small radii on controls, generous radii on surfaces.' },
+      { k:'the cat', v:'kid-cat.svg is the mascot, in four poses bound to state. embrace the wobble — never clean her up. she is a gauge, not a logo.' },
+    ];
+
+    return { rootStyle, dayChips, nightChips, states, voice, handoff };
+  }
+}
+</script>
+</body>
+</html>
