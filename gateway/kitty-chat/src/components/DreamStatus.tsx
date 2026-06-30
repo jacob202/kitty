@@ -79,7 +79,7 @@ const sectionLabelStyle: CSSProperties = {
   fontWeight: 700,
   color: 'var(--text-ghost)',
   letterSpacing: '0.16em',
-  textTransform: 'uppercase',
+  textTransform: 'lowercase',
 }
 
 const countStyle: CSSProperties = {
@@ -100,7 +100,7 @@ const metaLabelStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 9,
   color: 'var(--text-faint)',
-  textTransform: 'uppercase',
+  textTransform: 'lowercase',
   letterSpacing: '0.06em',
 }
 
@@ -116,7 +116,7 @@ const triggerBtnStyle: CSSProperties = {
   padding: '5px 10px',
   background: 'rgba(102,119,204,0.12)',
   border: '1px solid rgba(102,119,204,0.3)',
-  borderRadius: 5,
+  borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
   color: 'var(--indigo)',

@@ -143,7 +143,7 @@ export function ImageGenPanel() {
 const textareaStyle: CSSProperties = {
   background: 'var(--recessed)',
   border: '1px solid var(--border-dim)',
-  borderRadius: 5,
+  borderRadius: 4,
   padding: '6px 8px',
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
@@ -162,7 +162,7 @@ const chipsRowStyle: CSSProperties = {
 const chipStyle: CSSProperties = {
   padding: '3px 8px',
   border: '1px solid var(--border-dim)',
-  borderRadius: 12,
+  borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
   cursor: 'pointer',
@@ -172,7 +172,7 @@ const genBtnStyle: CSSProperties = {
   padding: '6px 12px',
   background: 'rgba(232,120,69,0.12)',
   border: '1px solid rgba(232,120,69,0.3)',
-  borderRadius: 5,
+  borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
   color: 'var(--orange-2)',
@@ -189,7 +189,7 @@ const gridStyle: CSSProperties = {
 const thumbWrapStyle: CSSProperties = {
   aspectRatio: '1',
   overflow: 'hidden',
-  borderRadius: 5,
+  borderRadius: 4,
   border: '1px solid var(--border-dim)',
   background: 'var(--recessed)',
 }
@@ -219,7 +219,7 @@ const unavailableStyle: CSSProperties = {
   padding: '10px 12px',
   background: 'var(--recessed)',
   border: '1px solid var(--border-dim)',
-  borderRadius: 6,
+  borderRadius: 4,
 }
 
 const unavailableTitleStyle: CSSProperties = {

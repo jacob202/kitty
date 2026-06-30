@@ -146,7 +146,7 @@ const priorityBadgeStyle: CSSProperties = {
   fontSize: 9,
   fontWeight: 700,
   letterSpacing: '0.08em',
-  textTransform: 'uppercase',
+  textTransform: 'lowercase',
   border: '1px solid',
   borderRadius: 4,
   padding: '2px 6px',

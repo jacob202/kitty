@@ -79,7 +79,7 @@ const rowStyle: CSSProperties = {
   padding: '4px 6px',
   background: 'var(--recessed)',
   border: '1px solid var(--border-dim)',
-  borderRadius: 5,
+  borderRadius: 4,
 }
 
 const labelStyle: CSSProperties = {
@@ -122,7 +122,7 @@ const inputStyle: CSSProperties = {
   flex: 1,
   background: 'var(--recessed)',
   border: '1px solid var(--border-dim)',
-  borderRadius: 5,
+  borderRadius: 4,
   padding: '4px 8px',
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
@@ -135,7 +135,7 @@ const addBtnStyle: CSSProperties = {
   padding: '4px 10px',
   background: 'rgba(78,201,176,0.12)',
   border: '1px solid rgba(78,201,176,0.25)',
-  borderRadius: 5,
+  borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 13,
   color: 'var(--teal)',

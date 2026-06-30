@@ -111,7 +111,7 @@ export function DashboardHome({
           <div style={{
             fontFamily: 'var(--font-mono)',
             fontSize: 10,
-            textTransform: 'uppercase' as const,
+            textTransform: 'lowercase' as const,
             letterSpacing: '0.08em',
             color: 'var(--mint)',
             display: 'flex',
@@ -250,7 +250,7 @@ const sectionPadStyle: CSSProperties = {
 
 const stripSkeletonStyle: CSSProperties = {
   background: 'var(--surface-mid)',
-  borderRadius: 10,
+  borderRadius: 4,
   border: '1px solid var(--border)',
 }
 
@@ -267,7 +267,7 @@ const summaryCardStyle: CSSProperties = {
   padding: '12px 14px',
   background: 'var(--surface-low)',
   border: '1px solid var(--border)',
-  borderRadius: 10,
+  borderRadius: 4,
 }
 
 const summaryLabelStyle: CSSProperties = {
@@ -302,7 +302,7 @@ const sectionLabelStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
   fontWeight: 700,
-  textTransform: 'uppercase',
+  textTransform: 'lowercase',
   letterSpacing: '0.12em',
   color: 'var(--text-muted)',
   padding: '24px 32px 12px',

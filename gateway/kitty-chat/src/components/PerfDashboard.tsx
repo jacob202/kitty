@@ -83,7 +83,7 @@ const titleStyle: CSSProperties = {
   fontWeight: 700,
   color: 'var(--text-ghost)',
   letterSpacing: '0.16em',
-  textTransform: 'uppercase',
+  textTransform: 'lowercase',
   marginBottom: '12px',
 }
 
@@ -93,7 +93,7 @@ const subtitleStyle: CSSProperties = {
   fontWeight: 600,
   color: 'var(--text-ghost)',
   letterSpacing: '0.12em',
-  textTransform: 'uppercase',
+  textTransform: 'lowercase',
   marginTop: '16px',
   marginBottom: '8px',
 }
@@ -117,7 +117,7 @@ const statLabelStyle: CSSProperties = {
   fontSize: '8px',
   color: 'var(--text-ghost)',
   letterSpacing: '0.14em',
-  textTransform: 'uppercase',
+  textTransform: 'lowercase',
   marginBottom: '4px',
 }
 

@@ -7,7 +7,7 @@ import type { CSSProperties } from 'react'
 export const card: CSSProperties = {
   background: 'var(--surface-low)',
   border: '1px solid var(--border)',
-  borderRadius: 10,
+  borderRadius: 4,
   padding: 16,
 }
 
@@ -45,7 +45,7 @@ export const sectionLabel: CSSProperties = {
   fontSize: 10,
   fontWeight: 700,
   letterSpacing: '0.12em',
-  textTransform: 'uppercase',
+  textTransform: 'lowercase',
   color: 'var(--text-muted)',
 }
 
@@ -53,7 +53,7 @@ export const sectionLabel: CSSProperties = {
 export const itemCard: CSSProperties = {
   background: 'var(--surface)',
   border: '1px solid var(--border)',
-  borderRadius: 8,
+  borderRadius: 4,
   padding: '12px 14px',
   transition: 'background 0.15s ease, border-color 0.15s ease',
 }

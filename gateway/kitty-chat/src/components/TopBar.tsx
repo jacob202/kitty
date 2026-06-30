@@ -35,18 +35,18 @@ interface Props {
 }
 
 const VIEWS: Array<{ id: string; label: string; icon: ReactNode }> = [
-  { id: 'home', label: 'Home', icon: <House size={14} /> },
-  { id: 'chat', label: 'Chat', icon: <MessageSquare size={14} /> },
-  { id: 'tasks', label: 'Tasks', icon: <CheckSquare size={14} /> },
-  { id: 'tools', label: 'Tools', icon: <Wrench size={14} /> },
-  { id: 'terminal', label: 'Terminal', icon: <Terminal size={14} /> },
+  { id: 'home', label: 'home', icon: <House size={14} /> },
+  { id: 'chat', label: 'chat', icon: <MessageSquare size={14} /> },
+  { id: 'tasks', label: 'tasks', icon: <CheckSquare size={14} /> },
+  { id: 'tools', label: 'tools', icon: <Wrench size={14} /> },
+  { id: 'terminal', label: 'terminal', icon: <Terminal size={14} /> },
 ]
 
 const KITTY_MODES = [
-  { id: 'default', name: 'Default' },
-  { id: 'focus', name: 'Focus' },
-  { id: 'explore', name: 'Explore' },
-  { id: 'create', name: 'Create' },
+  { id: 'default', name: 'default' },
+  { id: 'focus', name: 'focus' },
+  { id: 'explore', name: 'explore' },
+  { id: 'create', name: 'create' },
 ]
 
 export function TopBar({
@@ -72,7 +72,7 @@ export function TopBar({
     ? activeChat.title
     : activeView === 'home'
       ? getGreeting() + '.'
-      : activeViewMeta?.label ?? 'Kitty'
+      : activeViewMeta?.label ?? 'kitty'
 
   if (isMobile) {
     return (
@@ -83,8 +83,7 @@ export function TopBar({
         padding: 'calc(10px + env(safe-area-inset-top, 0px)) 12px 8px',
         flexShrink: 0,
         borderBottom: '1px solid var(--border)',
-        background: 'rgba(16, 20, 29, 0.82)',
-        backdropFilter: 'blur(10px)',
+        background: 'rgba(26, 20, 16, 0.92)',
         position: 'relative',
         zIndex: 10,
       }}>
@@ -207,8 +206,7 @@ export function TopBar({
       padding: '0 16px',
       flexShrink: 0,
       borderBottom: '1px solid var(--border)',
-      background: 'rgba(16, 20, 29, 0.74)',
-      backdropFilter: 'blur(10px)',
+      background: 'rgba(26, 20, 16, 0.92)',
       position: 'relative',
       zIndex: 10,
       gap: 16,
@@ -340,7 +338,7 @@ function KittyModeSelector({
           gap: 6,
           width: compact ? '100%' : undefined,
           border: `1px solid ${open ? 'var(--border)' : 'transparent'}`,
-          borderRadius: 8,
+          borderRadius: 4,
           padding: compact ? '4px 8px' : '6px 12px',
           background: open ? 'var(--surface-mid)' : 'var(--surface-low)',
           cursor: 'pointer',
@@ -377,11 +375,11 @@ function KittyModeSelector({
           left: 0,
           background: 'var(--surface-high)',
           border: '1px solid var(--border)',
-          borderRadius: 12,
+          borderRadius: 4,
           overflow: 'hidden',
           minWidth: 140,
           zIndex: 100,
-          boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4)',
+          boxShadow: '4px 4px 0 var(--ink-deep)',
           padding: 6,
           display: 'flex',
           flexDirection: 'column',
@@ -397,7 +395,7 @@ function KittyModeSelector({
                 gap: 10,
                 width: '100%',
                 padding: '8px 12px',
-                borderRadius: 8,
+                borderRadius: 4,
                 background: m.id === mode ? 'var(--surface-mid)' : 'transparent',
                 border: 'none',
                 cursor: 'pointer',
@@ -456,7 +454,7 @@ function ModelSelector({
           gap: 8,
           width: compact ? '100%' : undefined,
           border: `1px solid ${showModelMenu ? 'var(--border)' : 'transparent'}`,
-          borderRadius: 8,
+          borderRadius: 4,
           padding: compact ? '4px 8px' : '6px 12px',
           background: showModelMenu ? 'var(--surface-mid)' : 'var(--surface-low)',
           cursor: 'pointer',
@@ -503,11 +501,11 @@ function ModelSelector({
           right: 0,
           background: 'var(--surface-high)',
           border: '1px solid var(--border)',
-          borderRadius: 12,
+          borderRadius: 4,
           overflow: 'hidden',
           minWidth: 200,
           zIndex: 100,
-          boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4)',
+          boxShadow: '4px 4px 0 var(--ink-deep)',
           padding: 6,
           display: 'flex',
           flexDirection: 'column',
@@ -523,7 +521,7 @@ function ModelSelector({
                 gap: 10,
                 width: '100%',
                 padding: '8px 12px',
-                borderRadius: 8,
+                borderRadius: 4,
                 background: m.id === activeModel.id ? 'var(--surface-mid)' : 'transparent',
                 border: 'none',
                 cursor: 'pointer',
@@ -572,7 +570,7 @@ const tabStyle: CSSProperties = {
   height: 36,
   padding: '0 12px',
   border: 'none',
-  borderRadius: 8,
+  borderRadius: 4,
   background: 'transparent',
   color: 'var(--text-muted)',
   cursor: 'pointer',
@@ -589,7 +587,7 @@ const iconBtnStyle: CSSProperties = {
   width: 32,
   height: 32,
   border: 'none',
-  borderRadius: 8,
+  borderRadius: 4,
   cursor: 'pointer',
   transition: 'all 0.2s ease',
 }

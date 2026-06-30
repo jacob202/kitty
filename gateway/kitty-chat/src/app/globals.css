@@ -1,70 +1,152 @@
-@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  /* Canvas / surfaces — warm dark */
-  --canvas:      #0f0f14;
-  --bg:          #0f0f14;
-  --panel:       #131318;
-  --bg-raised:   #131318;
-  --panel-2:     #1a1a22;
-  --bg-card:     #1a1a22;
-  --recessed:    #0b0b10;
-  --bg-deep:     #0b0b10;
+  /* ── Canonical tokens (source: design-system/project/colors_and_type.css) ── */
 
-  /* Borders */
-  --border:      #222230;
-  --border-dim:  #1a1a28;
-  --border-soft: rgba(102, 119, 204, 0.22);
+  /* Surfaces — warm dark */
+  --ink:          #1a1410;
+  --ink-soft:     #251c17;
+  --ink-deep:     #0e0a08;
+  --ink-line:     #3a2e25;
 
   /* Text */
-  --text:        #E6E8EF;
-  --text-dim:    #A7ADBB;
-  --text-muted:  #727A8C;
-  --text-faint:  #3A4255;
-  --text-ghost:  #272E40;
+  --cream:        #f5ead3;
+  --cream-dim:    #bdb19a;
+  --cream-faint:  #7a7160;
 
-  /* Orange brand */
-  --orange:      #E87845;
-  --orange-2:    #F09060;
-  --orange-deep: #C45E30;
+  /* Brand */
+  --tabby:        #ff7a1a;
+  --tabby-deep:   #cc4f00;
+  --tabby-glow:   #ffb066;
 
-  /* Accents */
-  --indigo:      #6677CC;
-  --pink-blue:   #8DA2FF;
-  --teal:        #35B7A6;
-  --teal-dim:    #061C18;
-  --purple:      #B89CFF;
-  --purple-2:    #CDB4FF;
-  --purple-dim:  #160D2A;
-  --purple-glow: rgba(184, 156, 255, 0.33);
-  --mint:        #73D99F;
-  --mint-dim:    #0A1F0D;
-  --blue:        #4D9FFF;
-  --yellow:      #F0D77A;
-  --warning:     #E06C75;
+  /* Co-stars */
+  --teal:         #21bdd9;
+  --teal-deep:    #0e7a8f;
+  --teal-glow:    #6cdcef;
+  --grape:        #a884ff;
+  --grape-deep:   #7748e6;
+  --grape-glow:   #cab8ff;
 
-  /* New surface tokens */
-  --surface:         #121416;
-  --surface-low:     #1a1c1e;
-  --surface-mid:     #1e2022;
-  --surface-high:    #282a2c;
-  --primary:         #e07a5f;
-  --primary-bright:  #ffb4a1;
-  --secondary:       #b9c3ff;
-  --secondary-dim:   #364486;
-  --tertiary:        #cfbdff;
-  --error:           #ffb4ab;
-  --error-bg:        #93000a;
-  --outline:         #a38b86;
-  --outline-dim:     rgba(163, 139, 134, 0.25);
+  /* Spice */
+  --maple:        #ff5577;
+  --lemon:        #f4c542;
+  --sky:          #6ec1ff;
+  --mint:         #9be86b;
+  --blush:        #ff8aa6;
 
-  /* Fonts */
-  --font-ui:     'Hanken Grotesk', system-ui, sans-serif;
-  --font-mono:   'JetBrains Mono', ui-monospace, monospace;
-  --background:  #0f0f14;
-  --foreground:  #E6E8EF;
+  /* Light mode (secondary skin) */
+  --paper:        #f5ead3;
+  --paper-soft:   #ebdfc4;
+  --paper-line:   #d5c7a8;
+
+  /* Type */
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body:    'Space Mono', 'SF Mono', 'Consolas', monospace;
+
+  /* Type scale */
+  --t-hero:    4.5rem;
+  --t-display: 3rem;
+  --t-h1:      2rem;
+  --t-h2:      1.375rem;
+  --t-h3:      1.125rem;
+  --t-body:    0.9375rem;
+  --t-small:   0.8125rem;
+  --t-tiny:    0.6875rem;
+
+  --lh-display: 1.1;
+  --lh-body:    1.5;
+  --ls-display: -0.01em;
+  --ls-body:    0;
+  --ls-caps:    0.08em;
+
+  /* Spacing (8px base) */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+
+  /* Radii (small on purpose) */
+  --r-0: 0;
+  --r-1: 2px;
+  --r-2: 4px;
+  --r-pill: 999px;
+
+  /* Borders */
+  --border-thin: 1px solid var(--ink-line);
+  --border-block: 2px solid var(--cream);
+
+  /* Shadows */
+  --shadow-block: 4px 4px 0 var(--ink-deep);
+  --shadow-block-tabby: 4px 4px 0 var(--tabby-deep);
+  --shadow-glow: 0 0 24px rgba(255, 122, 26, 0.35);
+
+  /* Motion */
+  --ease-step: steps(4, end);
+  --ease-out:  cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur-fast:  120ms;
+  --dur-base:  200ms;
+  --dur-slow:  360ms;
+
+  /* ── Backward-compatible aliases (components still reference these) ── */
+  --canvas:      var(--ink);
+  --bg:          var(--ink);
+  --panel:       var(--ink-soft);
+  --bg-raised:   var(--ink-soft);
+  --panel-2:     var(--ink-soft);
+  --bg-card:     var(--ink-soft);
+  --recessed:    var(--ink-deep);
+  --bg-deep:     var(--ink-deep);
+  --background:  var(--ink);
+  --foreground:  var(--cream);
+
+  --border:      var(--ink-line);
+  --border-dim:  #2e241d;
+  --border-soft: rgba(122, 113, 96, 0.22);
+
+  --text:        var(--cream);
+  --text-dim:    var(--cream-dim);
+  --text-muted:  var(--cream-faint);
+  --text-faint:  #564d42;
+  --text-ghost:  #3a3229;
+
+  --orange:      var(--tabby);
+  --orange-2:    var(--tabby-glow);
+  --orange-deep: var(--tabby-deep);
+
+  --indigo:      var(--grape);
+  --pink-blue:   var(--grape-glow);
+  --purple:      var(--grape);
+  --purple-2:    var(--grape-glow);
+  --purple-dim:  #1a1210;
+  --purple-glow: rgba(168, 132, 255, 0.33);
+  --teal-dim:    #0e1412;
+  --mint-dim:    #0e1a0d;
+  --blue:        var(--sky);
+  --yellow:      var(--lemon);
+  --warning:     var(--maple);
+
+  --surface:         var(--ink);
+  --surface-low:     var(--ink);
+  --surface-mid:     var(--ink-soft);
+  --surface-high:    #3a2e25;
+  --primary:         var(--tabby);
+  --primary-bright:  var(--tabby-glow);
+  --secondary:       var(--grape-glow);
+  --secondary-dim:   var(--grape-deep);
+  --tertiary:        var(--grape-glow);
+  --error:           var(--maple);
+  --error-bg:        #3a1210;
+  --outline:         var(--cream-faint);
+  --outline-dim:     rgba(122, 113, 96, 0.25);
+
+  --font-ui:     var(--font-display);
+  --font-mono:   var(--font-body);
 
   /* Layout */
   --rail:        44px;
@@ -75,18 +157,18 @@
   --terminal:    130px;
 
   /* Misc */
-  --shadow:    0 18px 60px rgba(0, 0, 0, 0.34);
-  --radius:    18px;
-  --radius-sm: 12px;
+  --shadow:    var(--shadow-block);
+  --radius:    4px;
+  --radius-sm: 2px;
 }
 
 html, body {
   height: 100%;
   width: 100%;
   overflow: hidden;
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-ui);
+  background: var(--ink);
+  color: var(--cream);
+  font-family: var(--font-display);
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
   letter-spacing: -0.01em;
@@ -97,10 +179,10 @@ button, input { font: inherit; }
 
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #252C3A; border-radius: 999px; }
-::-webkit-scrollbar-thumb:hover { background: #3A4255; }
-::selection { background: var(--orange); color: #000; }
-* { caret-color: var(--orange); scrollbar-width: thin; scrollbar-color: #252C3A transparent; }
+::-webkit-scrollbar-thumb { background: #3a2e25; border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: #564d42; }
+::selection { background: var(--tabby); color: var(--ink-deep); }
+* { caret-color: var(--tabby); scrollbar-width: thin; scrollbar-color: #3a2e25 transparent; }
 
 /* Pixel kitty logo — used via className="pixel-kitty" */
 .pixel-kitty {
@@ -108,16 +190,16 @@ button, input { font: inherit; }
   width: 40px;
   height: 40px;
   image-rendering: pixelated;
-  border-radius: 10px;
+  border-radius: 4px;
   background:
-    linear-gradient(var(--orange), var(--orange)) 8px 8px / 4px 4px no-repeat,
-    linear-gradient(var(--orange), var(--orange)) 28px 8px / 4px 4px no-repeat,
-    linear-gradient(var(--orange), var(--orange)) 4px 12px / 32px 20px no-repeat,
-    linear-gradient(var(--orange), var(--orange)) 8px 32px / 24px 4px no-repeat,
-    linear-gradient(var(--bg), var(--bg)) 12px 20px / 4px 4px no-repeat,
-    linear-gradient(var(--bg), var(--bg)) 24px 20px / 4px 4px no-repeat,
-    linear-gradient(var(--bg), var(--bg)) 16px 28px / 8px 4px no-repeat;
-  box-shadow: 0 0 0 1px rgba(232, 120, 69, 0.26), 0 8px 22px rgba(232, 120, 69, 0.16);
+    linear-gradient(var(--tabby), var(--tabby)) 8px 8px / 4px 4px no-repeat,
+    linear-gradient(var(--tabby), var(--tabby)) 28px 8px / 4px 4px no-repeat,
+    linear-gradient(var(--tabby), var(--tabby)) 4px 12px / 32px 20px no-repeat,
+    linear-gradient(var(--tabby), var(--tabby)) 8px 32px / 24px 4px no-repeat,
+    linear-gradient(var(--ink), var(--ink)) 12px 20px / 4px 4px no-repeat,
+    linear-gradient(var(--ink), var(--ink)) 24px 20px / 4px 4px no-repeat,
+    linear-gradient(var(--ink), var(--ink)) 16px 28px / 8px 4px no-repeat;
+  box-shadow: 0 0 0 1px rgba(255, 122, 26, 0.26), var(--shadow-block);
   animation: kitty-bob 3.8s ease-in-out infinite;
   flex-shrink: 0;
 }
@@ -128,7 +210,7 @@ button, input { font: inherit; }
   top: 4px;
   width: 12px;
   height: 12px;
-  background: var(--orange);
+  background: var(--tabby);
   clip-path: polygon(50% 0, 100% 100%, 0 100%);
 }
 .pixel-kitty::before { left: 4px; }
@@ -136,7 +218,7 @@ button, input { font: inherit; }
 
 /* Radial background glow */
 .app-canvas {
-  background: var(--canvas);
+  background: var(--ink);
 }
 
 @keyframes bounce {
@@ -157,8 +239,8 @@ button, input { font: inherit; }
 
 /* cmdk command palette — highlight the active item */
 [cmdk-item][data-selected="true"] {
-  background: var(--surface-mid);
-  color: var(--text);
+  background: var(--ink-soft);
+  color: var(--cream);
 }
 [cmdk-item] { transition: background 0.08s linear; }
 [cmdk-group-heading] {

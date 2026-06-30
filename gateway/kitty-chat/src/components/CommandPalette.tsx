@@ -13,11 +13,11 @@ interface Props {
 }
 
 const VIEW_COMMANDS: Array<{ id: string; label: string; icon: LucideIcon }> = [
-  { id: 'home', label: 'Home', icon: House },
-  { id: 'chat', label: 'Chat', icon: MessageSquare },
-  { id: 'tasks', label: 'Tasks', icon: CheckSquare },
-  { id: 'tools', label: 'Tools', icon: Wrench },
-  { id: 'terminal', label: 'Terminal', icon: Terminal },
+  { id: 'home', label: 'home', icon: House },
+  { id: 'chat', label: 'chat', icon: MessageSquare },
+  { id: 'tasks', label: 'tasks', icon: CheckSquare },
+  { id: 'tools', label: 'tools', icon: Wrench },
+  { id: 'terminal', label: 'terminal', icon: Terminal },
 ]
 
 export function CommandPalette({
@@ -69,8 +69,7 @@ export function CommandPalette({
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(0, 0, 0, 0.55)',
-        backdropFilter: 'blur(4px)',
+        background: 'rgba(0, 0, 0, 0.6)',
         zIndex: 1000,
         display: 'flex',
         alignItems: 'flex-start',
@@ -85,8 +84,8 @@ export function CommandPalette({
           maxWidth: 'calc(100vw - 40px)',
           background: 'var(--surface)',
           border: '1px solid var(--border)',
-          borderRadius: 10,
-          boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
+          borderRadius: 4,
+          boxShadow: '4px 4px 0 var(--ink-deep)',
           overflow: 'hidden',
         }}
       >
@@ -182,7 +181,7 @@ const groupStyle: React.CSSProperties = {
   fontSize: 10,
   letterSpacing: '0.1em',
   color: 'var(--text-muted)',
-  textTransform: 'uppercase',
+  textTransform: 'lowercase',
 }
 
 const itemStyle: React.CSSProperties = {
@@ -193,7 +192,7 @@ const itemStyle: React.CSSProperties = {
   fontFamily: 'var(--font-ui)',
   fontSize: 13,
   color: 'var(--text)',
-  borderRadius: 6,
+  borderRadius: 4,
   cursor: 'pointer',
 }
 

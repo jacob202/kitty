@@ -137,7 +137,7 @@ const badgeStyle: CSSProperties = {
   fontSize: 9,
   fontWeight: 700,
   letterSpacing: '0.08em',
-  textTransform: 'uppercase',
+  textTransform: 'lowercase',
   border: '1px solid',
   borderRadius: 4,
   padding: '2px 6px',
@@ -147,7 +147,7 @@ const badgeStyle: CSSProperties = {
 const toggleBtnStyle = (isRunning: boolean): CSSProperties => ({
   background: 'var(--surface-mid)',
   border: '1px solid var(--border)',
-  borderRadius: 6,
+  borderRadius: 4,
   width: 28,
   height: 24,
   display: 'grid',

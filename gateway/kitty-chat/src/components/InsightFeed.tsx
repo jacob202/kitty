@@ -137,7 +137,7 @@ const kindBadgeStyle = (base: CSSProperties, color: string): CSSProperties => ({
   fontSize: 9,
   fontWeight: 700,
   letterSpacing: '0.08em',
-  textTransform: 'uppercase',
+  textTransform: 'lowercase',
   border: `1px solid ${color}`,
   borderRadius: 4,
   padding: '2px 6px',
@@ -181,7 +181,7 @@ const actionsStyle: CSSProperties = {
 const actionBtnStyle: CSSProperties = {
   background: 'var(--surface-mid)',
   border: '1px solid var(--border)',
-  borderRadius: 6,
+  borderRadius: 4,
   padding: '4px 10px',
   fontFamily: 'var(--font-mono)',
   fontSize: 10,

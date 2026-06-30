@@ -87,7 +87,7 @@ export function TaskPanel() {
               style={{
                 flex: 1,
                 padding: '10px 10px 10px',
-                borderRadius: 10,
+                borderRadius: 4,
                 border: `1px solid ${active ? m.color : 'var(--border)'}`,
                 background: active ? `${m.color}1a` : 'var(--surface-low)',
                 cursor: 'pointer',
@@ -132,7 +132,7 @@ export function TaskPanel() {
       <div style={{
         background: 'var(--surface-low)',
         border: `1px solid ${meta.color}50`,
-        borderRadius: 12,
+        borderRadius: 4,
         padding: '16px',
         marginBottom: 20,
         flexShrink: 0,
@@ -144,7 +144,7 @@ export function TaskPanel() {
           marginBottom: 10,
         }}>
           <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: meta.color, flexShrink: 0 }} />
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: meta.color, letterSpacing: '0.14em', textTransform: 'uppercase' as const, fontWeight: 700 }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: meta.color, letterSpacing: '0.14em', textTransform: 'lowercase' as const, fontWeight: 700 }}>
             {meta.label} task
           </span>
         </div>
@@ -159,7 +159,7 @@ export function TaskPanel() {
               flex: 1,
               background: 'var(--surface-mid)',
               border: '1px solid var(--border)',
-              borderRadius: 8,
+              borderRadius: 4,
               padding: '10px 14px',
               fontFamily: 'var(--font-mono)',
               fontSize: 12,
@@ -176,7 +176,7 @@ export function TaskPanel() {
               padding: '10px 20px',
               background: !goal.trim() || launching ? 'var(--surface-mid)' : `${meta.color}22`,
               border: `1px solid ${!goal.trim() || launching ? 'var(--border)' : meta.color}`,
-              borderRadius: 8,
+              borderRadius: 4,
               fontFamily: 'var(--font-mono)',
               fontSize: 12,
               fontWeight: 700,
@@ -235,13 +235,13 @@ function StatChip({ label, value, color }: { label: string; value: string; color
     <div style={{
       background: 'var(--surface-low)',
       border: '1px solid var(--border)',
-      borderRadius: 8,
+      borderRadius: 4,
       padding: '8px 14px',
       textAlign: 'center',
       minWidth: 48,
     }}>
       <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color, lineHeight: 1 }}>{value}</div>
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-ghost)', letterSpacing: '0.1em', textTransform: 'uppercase' as const, marginTop: 3 }}>{label}</div>
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-ghost)', letterSpacing: '0.1em', textTransform: 'lowercase' as const, marginTop: 3 }}>{label}</div>
     </div>
   )
 }
@@ -287,7 +287,7 @@ function TaskCard({ task, onCancel }: { task: GatewayTask; onCancel: (id: string
                 color: typeColor,
                 fontWeight: 700,
                 letterSpacing: '0.1em',
-                textTransform: 'uppercase' as const,
+                textTransform: 'lowercase' as const,
               }}>{task.task_type}</span>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-ghost)', letterSpacing: '0.06em' }}>{task.status}</span>
               {task.created_at && (
@@ -305,7 +305,7 @@ function TaskCard({ task, onCancel }: { task: GatewayTask; onCancel: (id: string
               flexShrink: 0,
               background: 'transparent',
               border: '1px solid var(--border-dim)',
-              borderRadius: 5,
+              borderRadius: 4,
               fontFamily: 'var(--font-mono)',
               fontSize: 9,
               color: 'var(--text-muted)',
@@ -325,7 +325,7 @@ function TaskCard({ task, onCancel }: { task: GatewayTask; onCancel: (id: string
           lineHeight: 1.4,
           padding: '6px 8px',
           background: 'rgba(255,85,119,0.06)',
-          borderRadius: 5,
+          borderRadius: 4,
         }}>
           {task.error.slice(0, 120)}
         </div>
@@ -340,5 +340,5 @@ const sectionLabelStyle: CSSProperties = {
   fontWeight: 700,
   color: 'var(--text-ghost)',
   letterSpacing: '0.18em',
-  textTransform: 'uppercase',
+  textTransform: 'lowercase',
 }

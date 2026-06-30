@@ -50,7 +50,7 @@ export function PwaInstallBanner({
         fontSize: 11,
         color: 'var(--text-dim)',
         borderBottom: '1px solid var(--border)',
-        background: 'rgba(16, 20, 29, 0.5)',
+        background: 'rgba(26, 20, 16, 0.5)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -74,7 +74,7 @@ export function PwaInstallBanner({
           disabled={installing}
           style={{
             border: 'none',
-            borderRadius: 8,
+            borderRadius: 4,
             padding: '6px 10px',
             fontFamily: 'var(--font-mono)',
             fontSize: 10,

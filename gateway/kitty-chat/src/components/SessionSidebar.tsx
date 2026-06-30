@@ -32,8 +32,7 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
       padding: collapsed ? '16px 12px' : '24px 16px',
       overflowY: 'auto',
       borderRight: '1px solid var(--border)',
-      background: 'rgba(16, 20, 29, 0.74)',
-      backdropFilter: 'blur(10px)',
+      background: 'rgba(26, 20, 16, 0.85)',
       flexShrink: 0,
       transition: 'width 0.2s ease, padding 0.2s ease',
     }}>
@@ -47,20 +46,20 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
         {!collapsed && (
           <span style={{
             fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
-            color: 'var(--text-muted)', letterSpacing: '0.14em', textTransform: 'uppercase',
+            color: 'var(--text-muted)', letterSpacing: '0.14em', textTransform: 'lowercase',
           }}>sessions</span>
         )}
         <button
           onClick={onNewChat}
           style={{
             background: 'var(--primary)',
-            color: '#fff',
+            color: 'var(--cream)',
             padding: collapsed ? '6px' : '6px 12px',
-            borderRadius: 8,
+            borderRadius: 4,
             fontFamily: 'var(--font-mono)',
             fontWeight: 700,
             fontSize: 11,
-            boxShadow: '0 4px 12px rgba(232, 120, 69, 0.15)',
+            boxShadow: '4px 4px 0 var(--tabby-deep)',
             cursor: 'pointer',
             transition: 'background 0.2s',
             width: collapsed ? 32 : 'auto',
@@ -69,7 +68,7 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
             alignItems: 'center',
             justifyContent: collapsed ? 'center' : 'space-between',
           }}
-          title={collapsed ? 'New chat' : undefined}
+          title={collapsed ? 'new chat' : undefined}
           onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--orange-deep)' }}
           onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--primary)' }}
         >
@@ -81,7 +80,7 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
         <>
           {today.length > 0 && (
             <>
-              <GroupLabel>Today</GroupLabel>
+              <GroupLabel>today</GroupLabel>
               {today.map(c => (
                 <SessionItem key={c.id} chat={c} active={c.id === activeChatId} onSelect={onSelectChat} onClose={onCloseChat} />
               ))}
@@ -90,7 +89,7 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
 
           {older.length > 0 && (
             <>
-              <GroupLabel>Earlier</GroupLabel>
+              <GroupLabel>earlier</GroupLabel>
               {older.map(c => (
                 <SessionItem key={c.id} chat={c} active={c.id === activeChatId} onSelect={onSelectChat} onClose={onCloseChat} />
               ))}
@@ -120,7 +119,7 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
                 display: 'grid',
                 placeItems: 'center',
                 fontSize: 10,
-                color: '#fff',
+                color: 'var(--cream)',
                 fontWeight: 600,
                 cursor: 'pointer',
                 border: c.id === activeChatId ? '2px solid var(--primary)' : '2px solid transparent',
@@ -140,7 +139,7 @@ function GroupLabel({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
       fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
-      color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase',
+      color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'lowercase',
       margin: '24px 0 8px', paddingLeft: 4,
     }}>{children}</div>
   )
@@ -165,7 +164,7 @@ function SessionItem({ chat, active, onSelect, onClose }: {
         gap: 12,
         alignItems: 'center',
         padding: '10px 12px',
-        borderRadius: 10,
+        borderRadius: 4,
         color: active ? 'var(--text)' : 'var(--text-dim)',
         background: active ? 'var(--surface-mid)' : 'transparent',
         border: `1px solid ${active ? 'var(--border)' : 'transparent'}`,
