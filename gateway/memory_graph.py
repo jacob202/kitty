@@ -425,11 +425,19 @@ class GraphResult:
     adapters: list[StoreAdapter] = field(default_factory=list)
 
     def formatted_context(self, cap: int = CONTEXT_TOKEN_CAP) -> str:
-        """Format results as a single context string."""
-        sections = []
-        adapters = self.adapters or self._get_adapters()
+        """Format results as a single context string.
 
-        for adapter in adapters:
+        GraphResult carries the adapter list used for the query so formatting
+        stays local to the same memory_graph seam. Rebuilding default adapters
+        here would hide dependencies, drop caller-supplied test adapters, and
+        make optional adapters affect formatting after the search has finished.
+        """
+        if not self.adapters:
+            raise ValueError("GraphResult.formatted_context requires adapters")
+
+        sections = []
+
+        for adapter in self.adapters:
             items = self.results.get(adapter.name, [])
             if items:
                 formatted = adapter.format_items(items)
@@ -442,9 +450,6 @@ class GraphResult:
 
         raw = "\n\n".join(sections)
         return self._truncate(raw, cap)
-
-    def _get_adapters(self) -> list[StoreAdapter]:
-        return _default_adapters()
 
     def _truncate(self, text: str, cap: int) -> str:
         if (len(text) // 4) <= cap:
@@ -568,7 +573,7 @@ def search_entries(query: str) -> list[dict[str, Any]]:
 
 def _format_unified(results: dict[str, list[dict[str, Any]]]) -> str:
     """Format results for backward compatibility."""
-    result = GraphResult(results=results)
+    result = GraphResult(results=results, adapters=_default_adapters())
     return result.formatted_context()
 
 
