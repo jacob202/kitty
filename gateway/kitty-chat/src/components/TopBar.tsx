@@ -1,19 +1,8 @@
 'use client'
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Chat, Model, STREAMING_LABEL } from '@/lib/types'
-import {
-  House,
-  MessageSquare,
-  CheckSquare,
-  Terminal,
-  Wrench,
-  PanelLeft,
-  ChevronLeft,
-  ChevronRight,
-  ChevronDown,
-  Sparkles,
-} from 'lucide-react'
+import { StateBadge, type CatState } from './CrayonCat'
 
 interface Props {
   activeModel: Model
@@ -32,22 +21,9 @@ interface Props {
   sidebarCollapsed?: boolean
   onToggleSidebar?: () => void
   isMobile?: boolean
+  catState?: CatState
+  onCommandPalette?: () => void
 }
-
-const VIEWS: Array<{ id: string; label: string; icon: ReactNode }> = [
-  { id: 'home', label: 'Home', icon: <House size={14} /> },
-  { id: 'chat', label: 'Chat', icon: <MessageSquare size={14} /> },
-  { id: 'tasks', label: 'Tasks', icon: <CheckSquare size={14} /> },
-  { id: 'tools', label: 'Tools', icon: <Wrench size={14} /> },
-  { id: 'terminal', label: 'Terminal', icon: <Terminal size={14} /> },
-]
-
-const KITTY_MODES = [
-  { id: 'default', name: 'Default' },
-  { id: 'focus', name: 'Focus' },
-  { id: 'explore', name: 'Explore' },
-  { id: 'create', name: 'Create' },
-]
 
 export function TopBar({
   activeModel,
@@ -56,245 +32,75 @@ export function TopBar({
   showModelMenu,
   setShowModelMenu,
   isStreaming,
-  activeChat,
   modelFromGateway = true,
-  activeView,
-  onViewChange,
-  kittyMode,
-  onKittyModeChange,
-  kittyModes = KITTY_MODES,
-  sidebarCollapsed = false,
-  onToggleSidebar,
+  catState = 'idle',
+  onCommandPalette,
   isMobile = false,
+  onToggleSidebar,
 }: Props) {
-  const activeViewMeta = VIEWS.find(view => view.id === activeView)
-  const title = activeChat?.messages.length
-    ? activeChat.title
-    : activeView === 'home'
-      ? getGreeting() + '.'
-      : activeViewMeta?.label ?? 'Kitty'
 
   if (isMobile) {
     return (
       <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 10,
-        padding: 'calc(10px + env(safe-area-inset-top, 0px)) 12px 8px',
-        flexShrink: 0,
-        borderBottom: '1px solid var(--border)',
-        background: 'var(--glass)',
-        backdropFilter: 'blur(10px)',
-        position: 'relative',
-        zIndex: 10,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: 'calc(10px + env(safe-area-inset-top, 0px)) 16px 10px',
+        borderBottom: '1.5px solid var(--line)',
+        background: 'var(--surface)', flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-            <span style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 20,
-              fontWeight: 800,
-              color: isStreaming ? 'var(--primary)' : 'var(--ink)',
-              letterSpacing: '-0.03em',
-              flexShrink: 0,
-              transition: 'color 0.3s ease',
-              userSelect: 'none',
-            }}>kitty</span>
-            <div style={{ minWidth: 0 }}>
-              <div style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 12,
-                fontWeight: 700,
-                color: 'var(--text)',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                letterSpacing: '0.02em',
-              }}>{title}</div>
-              <div style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 10,
-                color: isStreaming ? 'var(--tertiary)' : 'var(--text-muted)',
-                marginTop: 2,
-              }}>
-                {isStreaming
-                  ? STREAMING_LABEL
-                  : modelFromGateway
-                    ? activeModel.name
-                    : `${activeModel.name} · offline models`}
-              </div>
-            </div>
-          </div>
-
+        <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
           {onToggleSidebar && (
-            <button
-              onClick={onToggleSidebar}
-              style={{
-                ...iconBtnStyle,
-                width: 36,
-                height: 36,
-                background: 'var(--surface-low)',
-                color: 'var(--text-dim)',
-                flexShrink: 0,
-              }}
-              title="Open sessions"
-            >
-              <PanelLeft size={16} />
+            <button onClick={onToggleSidebar} style={iconBtnStyle}>
+              <svg viewBox="0 0 24 24" style={{ width: 18, height: 18 }}>
+                <path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
+              </svg>
             </button>
           )}
+          <span style={{
+            fontFamily: 'var(--font-display)', fontWeight: 800,
+            fontSize: 20, letterSpacing: '-0.02em', color: 'var(--ink)',
+          }}>kitty</span>
+          <StateBadge state={catState} />
         </div>
-
-        <div style={{
-          display: 'flex',
-          gap: 6,
-          overflowX: 'auto',
-          paddingBottom: 2,
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none',
-        }}>
-          {VIEWS.map(view => (
-            <button
-              key={view.id}
-              onClick={() => onViewChange(view.id)}
-              style={{
-                ...tabStyle,
-                padding: '8px 10px',
-                flexShrink: 0,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                background: activeView === view.id ? 'var(--surface-mid)' : 'transparent',
-                color: activeView === view.id ? 'var(--text)' : 'var(--text-muted)',
-                borderBottom: activeView === view.id ? '2px solid var(--primary)' : '2px solid transparent',
-              }}
-            >
-              {view.icon}
-              {view.label}
-            </button>
-          ))}
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 8 }}>
-          <KittyModeSelector
-            mode={kittyMode}
-            modes={kittyModes}
-            onChange={onKittyModeChange}
-            compact={true}
-          />
-          <ModelSelector
-            activeModel={activeModel}
-            models={models}
-            onSelectModel={onSelectModel}
-            showModelMenu={showModelMenu}
-            setShowModelMenu={setShowModelMenu}
-            modelFromGateway={modelFromGateway}
-            compact={true}
-          />
-        </div>
+        <ModelSelector
+          activeModel={activeModel}
+          models={models}
+          onSelectModel={onSelectModel}
+          showModelMenu={showModelMenu}
+          setShowModelMenu={setShowModelMenu}
+          modelFromGateway={modelFromGateway}
+        />
       </div>
     )
   }
 
   return (
     <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      height: 60,
-      padding: '0 16px',
-      flexShrink: 0,
-      borderBottom: '1px solid var(--border)',
-      background: 'var(--glass)',
-      backdropFilter: 'blur(10px)',
-      position: 'relative',
-      zIndex: 10,
-      gap: 16,
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      padding: '0 26px', height: 58,
+      borderBottom: '1.5px solid var(--line)',
+      background: 'var(--surface)', flexShrink: 0,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
         <span style={{
-          fontFamily: 'var(--font-display)',
-          fontSize: 22,
-          fontWeight: 800,
-          color: isStreaming ? 'var(--primary)' : 'var(--ink)',
-          letterSpacing: '-0.03em',
-          flexShrink: 0,
-          transition: 'color 0.3s ease',
-          userSelect: 'none',
+          fontFamily: 'var(--font-display)', fontWeight: 800,
+          fontSize: 23, letterSpacing: '-0.02em', color: 'var(--ink)',
         }}>kitty</span>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          {onToggleSidebar && (
-            <button
-              onClick={onToggleSidebar}
-              style={{
-                ...iconBtnStyle,
-                background: 'transparent',
-                color: 'var(--text-muted)',
-              }}
-              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            >
-              {sidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-            </button>
-          )}
-          {VIEWS.map(view => (
-            <button
-              key={view.id}
-              onClick={() => onViewChange(view.id)}
-              style={{
-                ...tabStyle,
-                background: activeView === view.id ? 'var(--surface-mid)' : 'transparent',
-                color: activeView === view.id ? 'var(--text)' : 'var(--text-muted)',
-                borderBottom: activeView === view.id ? `2px solid var(--primary)` : '2px solid transparent',
-              }}
-              onMouseEnter={e => {
-                if (activeView !== view.id) {
-                  const el = e.currentTarget as HTMLButtonElement
-                  el.style.background = 'var(--surface-low)'
-                  el.style.color = 'var(--text)'
-                }
-              }}
-              onMouseLeave={e => {
-                if (activeView !== view.id) {
-                  const el = e.currentTarget as HTMLButtonElement
-                  el.style.background = 'transparent'
-                  el.style.color = 'var(--text-muted)'
-                }
-              }}
-            >
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                {view.icon}
-                {view.label}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        <div style={{ minWidth: 0 }}>
-          <div style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 13,
-            fontWeight: 700,
-            color: 'var(--text)',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            letterSpacing: '0.02em',
-          }}>{title}</div>
-          {isStreaming && (
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--tertiary)', marginTop: 2 }}>
-              {STREAMING_LABEL}
-            </div>
-          )}
-        </div>
+        <StateBadge state={catState} />
+        {isStreaming && (
+          <span style={{
+            fontFamily: 'var(--font-mono)', fontSize: 11,
+            color: 'var(--c-yellow)',
+          }}>{STREAMING_LABEL}</span>
+        )}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-        <KittyModeSelector
-          mode={kittyMode}
-          modes={kittyModes}
-          onChange={onKittyModeChange}
-          compact={false}
-        />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button
+          onClick={onCommandPalette}
+          style={chipBtnStyle}
+        >⌘K</button>
+        <button style={{ ...chipBtnStyle, color: 'var(--c-green)' }}>^_^ done</button>
+        <button style={{ ...chipBtnStyle, color: 'var(--c-red)' }}>:[ broke</button>
 
         <ModelSelector
           activeModel={activeModel}
@@ -309,110 +115,59 @@ export function TopBar({
   )
 }
 
-function KittyModeSelector({
-  mode,
-  modes,
-  onChange,
-  compact = false,
+function ModelSelector({
+  activeModel,
+  models,
+  onSelectModel,
+  showModelMenu,
+  setShowModelMenu,
+  modelFromGateway,
 }: {
-  mode: string
-  modes: Array<{ id: string; name: string }>
-  onChange: (id: string) => void
-  compact?: boolean
+  activeModel: Model
+  models: Model[]
+  onSelectModel: (m: Model) => void
+  showModelMenu: boolean
+  setShowModelMenu: (v: boolean) => void
+  modelFromGateway?: boolean
 }) {
-  const [open, setOpen] = useState(false)
-  const current = modes.find(m => m.id === mode) ?? modes[0]
-
   return (
-    <div style={{ position: 'relative', width: compact ? '100%' : undefined }}>
+    <div style={{ position: 'relative' }}>
       <button
-        onClick={() => setOpen(!open)}
+        onClick={() => setShowModelMenu(!showModelMenu)}
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: compact ? 'space-between' : undefined,
-          gap: 6,
-          width: compact ? '100%' : undefined,
-          border: `1px solid ${open ? 'var(--border)' : 'transparent'}`,
-          borderRadius: 8,
-          padding: compact ? '4px 8px' : '6px 12px',
-          background: open ? 'var(--surface-mid)' : 'var(--surface-low)',
-          cursor: 'pointer',
-          fontFamily: 'var(--font-mono)',
-          fontSize: compact ? 10 : 12,
-          fontWeight: 600,
-          color: 'var(--text-dim)',
-          transition: 'all 0.2s ease',
-        }}
-        onMouseEnter={e => {
-          if (!open) {
-            const el = e.currentTarget as HTMLButtonElement
-            el.style.background = 'var(--surface-mid)'
-            el.style.color = 'var(--text)'
-          }
-        }}
-        onMouseLeave={e => {
-          if (!open) {
-            const el = e.currentTarget as HTMLButtonElement
-            el.style.background = 'var(--surface-low)'
-            el.style.color = 'var(--text-dim)'
-          }
+          ...chipBtnStyle,
+          display: 'flex', alignItems: 'center', gap: 6,
         }}
       >
-        <Sparkles size={12} color="var(--purple)" />
-        <span>{current.name}</span>
-        <ChevronDown size={12} style={{ opacity: 0.5, marginLeft: 2, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
+        <span style={{
+          width: 7, height: 7, borderRadius: 99,
+          background: modelFromGateway ? activeModel.color : 'var(--c-red)',
+        }} />
+        {activeModel.name}
       </button>
 
-      {open && (
+      {showModelMenu && (
         <div style={{
-          position: 'absolute',
-          top: 'calc(100% + 6px)',
-          left: 0,
-          background: 'var(--surface-high)',
-          border: '1px solid var(--border)',
-          borderRadius: 12,
-          overflow: 'hidden',
-          minWidth: 140,
-          zIndex: 100,
-          boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4)',
-          padding: 6,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 2,
+          position: 'absolute', top: 'calc(100% + 6px)', right: 0,
+          background: 'var(--surface)', border: '1.5px solid var(--line)',
+          borderRadius: 12, minWidth: 200, zIndex: 100,
+          boxShadow: 'var(--shadow)', padding: 6,
+          display: 'flex', flexDirection: 'column', gap: 2,
         }}>
-          {modes.map(m => (
+          {models.map(m => (
             <button
               key={m.id}
-              onClick={() => { onChange(m.id); setOpen(false) }}
+              onClick={() => { onSelectModel(m); setShowModelMenu(false) }}
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                width: '100%',
-                padding: '8px 12px',
-                borderRadius: 8,
-                background: m.id === mode ? 'var(--surface-mid)' : 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                fontFamily: 'var(--font-mono)',
-                fontSize: 12,
-                fontWeight: 600,
-                color: m.id === mode ? 'var(--text)' : 'var(--text-dim)',
-                transition: 'background 0.15s, color 0.15s',
+                display: 'flex', alignItems: 'center', gap: 10,
+                width: '100%', padding: '8px 12px', borderRadius: 8,
+                background: m.id === activeModel.id ? 'var(--ginger-fade)' : 'transparent',
+                border: 'none', cursor: 'pointer',
+                fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
+                color: 'var(--ink)',
               }}
-              onMouseEnter={e => { if (m.id !== mode) {
-                const el = e.currentTarget as HTMLButtonElement
-                el.style.background = 'var(--surface-mid)'
-                el.style.color = 'var(--text)'
-              } }}
-              onMouseLeave={e => { if (m.id !== mode) {
-                const el = e.currentTarget as HTMLButtonElement
-                el.style.background = 'transparent'
-                el.style.color = 'var(--text-dim)'
-              } }}
             >
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: m.id === mode ? 'var(--purple)' : 'var(--text-muted)', flexShrink: 0 }} />
+              <span style={{ width: 7, height: 7, borderRadius: 99, background: m.color, flexShrink: 0 }} />
               {m.name}
             </button>
           ))}
@@ -422,168 +177,19 @@ function KittyModeSelector({
   )
 }
 
-function ModelSelector({
-  activeModel,
-  models,
-  onSelectModel,
-  showModelMenu,
-  setShowModelMenu,
-  modelFromGateway,
-  compact = false,
-}: {
-  activeModel: Model
-  models: Model[]
-  onSelectModel: (m: Model) => void
-  showModelMenu: boolean
-  setShowModelMenu: (v: boolean) => void
-  modelFromGateway?: boolean
-  compact?: boolean
-}) {
-  return (
-    <div style={{ position: 'relative', width: compact ? '100%' : undefined }}>
-      <button
-        onClick={() => setShowModelMenu(!showModelMenu)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: compact ? 'space-between' : undefined,
-          gap: 8,
-          width: compact ? '100%' : undefined,
-          border: `1px solid ${showModelMenu ? 'var(--border)' : 'transparent'}`,
-          borderRadius: 8,
-          padding: compact ? '4px 8px' : '6px 12px',
-          background: showModelMenu ? 'var(--surface-mid)' : 'var(--surface-low)',
-          cursor: 'pointer',
-          fontFamily: 'var(--font-mono)',
-          fontSize: compact ? 10 : 12,
-          fontWeight: 600,
-          color: 'var(--text-dim)',
-          transition: 'all 0.2s ease',
-        }}
-        onMouseEnter={e => {
-          if (!showModelMenu) {
-            const el = e.currentTarget as HTMLButtonElement
-            el.style.background = 'var(--surface-mid)'
-            el.style.color = 'var(--text)'
-          }
-        }}
-        onMouseLeave={e => {
-          if (!showModelMenu) {
-            const el = e.currentTarget as HTMLButtonElement
-            el.style.background = 'var(--surface-low)'
-            el.style.color = 'var(--text-dim)'
-          }
-        }}
-      >
-        <span
-          title={modelFromGateway ? undefined : 'Using offline model list'}
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            background: modelFromGateway ? activeModel.color : 'var(--error)',
-            flexShrink: 0,
-            transition: 'background 0.3s',
-          }}
-        />
-        <span style={{ color: modelFromGateway ? 'inherit' : 'var(--text-muted)' }}>{activeModel.name}</span>
-        <ChevronDown size={12} style={{ opacity: 0.5, marginLeft: 2, transform: showModelMenu ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
-      </button>
-
-      {showModelMenu && (
-        <div style={{
-          position: 'absolute',
-          top: 'calc(100% + 6px)',
-          right: 0,
-          background: 'var(--surface-high)',
-          border: '1px solid var(--border)',
-          borderRadius: 12,
-          overflow: 'hidden',
-          minWidth: 200,
-          zIndex: 100,
-          boxShadow: '0 12px 40px rgba(0, 0, 0, 0.4)',
-          padding: 6,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 2,
-        }}>
-          {models.map(m => (
-            <button
-              key={m.id}
-              onClick={() => { onSelectModel(m); setShowModelMenu(false) }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                width: '100%',
-                padding: '8px 12px',
-                borderRadius: 8,
-                background: m.id === activeModel.id ? 'var(--surface-mid)' : 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                fontFamily: 'var(--font-mono)',
-                fontSize: 12,
-                fontWeight: 600,
-                color: m.id === activeModel.id ? 'var(--text)' : 'var(--text-dim)',
-                transition: 'background 0.15s, color 0.15s',
-              }}
-              onMouseEnter={e => { if (m.id !== activeModel.id) {
-                const el = e.currentTarget as HTMLButtonElement
-                el.style.background = 'var(--surface-mid)'
-                el.style.color = 'var(--text)'
-              } }}
-              onMouseLeave={e => { if (m.id !== activeModel.id) {
-                const el = e.currentTarget as HTMLButtonElement
-                el.style.background = 'transparent'
-                el.style.color = 'var(--text-dim)'
-              } }}
-            >
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: m.color, flexShrink: 0 }} />
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
-                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name}</span>
-                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 500 }}>{m.id}</span>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function getGreeting() {
-  const hour = new Date().getHours()
-  if (hour < 12) return 'good morning'
-  if (hour < 18) return 'good afternoon'
-  return 'good evening'
-}
-
-const tabStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 6,
-  height: 36,
-  padding: '0 12px',
-  border: 'none',
-  borderRadius: 8,
-  background: 'transparent',
-  color: 'var(--text-muted)',
-  cursor: 'pointer',
+const chipBtnStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
-  fontSize: 12,
-  fontWeight: 600,
-  transition: 'all 0.2s ease',
+  fontSize: 11,
+  color: 'var(--ink-2)',
+  border: '1.5px solid var(--line)',
+  borderRadius: 8,
+  padding: '4px 9px',
+  background: 'transparent',
+  cursor: 'pointer',
 }
 
 const iconBtnStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  width: 32,
-  height: 32,
-  border: 'none',
-  borderRadius: 8,
-  cursor: 'pointer',
-  transition: 'all 0.2s ease',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  width: 36, height: 36, border: 'none', borderRadius: 12,
+  background: 'transparent', color: 'var(--ink-2)', cursor: 'pointer',
 }

@@ -1,163 +1,102 @@
 'use client'
-import { GlyphIcon, type GlyphId } from '@/components/GlyphIcon'
+import { CatMark } from './CrayonCat'
 
-const NAV_ITEMS: { glyph: GlyphId; label: string; view: string }[] = [
-  { glyph: 'g-home', label: 'Home', view: 'home' },
-  { glyph: 'g-chat', label: 'Chat', view: 'chat' },
-  { glyph: 'g-check', label: 'Tasks', view: 'tasks' },
-  { glyph: 'g-terminal', label: 'Terminal', view: 'terminal' },
+const NAV_ITEMS: { label: string; view: string; d: string }[] = [
+  { label: 'home',  view: 'home',  d: 'M3 11 L12 3 L21 11 M6 9 V20 H18 V9' },
+  { label: 'chats', view: 'chat',  d: 'M4 5 H20 V15 H10 L5 19 V15 H4 Z' },
+  { label: 'tasks', view: 'tasks', d: 'M5 5 H19 V19 H5 Z M8 12 l3 3 l5 -6' },
+  { label: 'files', view: 'files', d: 'M4 7 H10 L12 5 H20 V18 H4 Z' },
+  { label: 'about', view: 'about', d: 'M12 4 V20 M4 12 H20 M7 7 L17 17 M17 7 L7 17' },
 ]
 
 interface Props {
   activeView?: string
   onViewChange?: (view: string) => void
   theme?: 'day' | 'night'
-  onThemeToggle?: () => void
+  onToggleTheme?: () => void
 }
 
-export function Rail({ activeView = 'home', onViewChange, theme = 'day', onThemeToggle }: Props) {
+export function Rail({ activeView = 'home', onViewChange, theme = 'day', onToggleTheme }: Props) {
+  const themeIconPath = theme === 'night'
+    ? 'M12 3 V5 M12 19 V21 M3 12 H5 M19 12 H21 M5.5 5.5 L7 7 M17 17 L18.5 18.5 M18.5 5.5 L17 7 M7 17 L5.5 18.5 M12 8 a4 4 0 1 0 0 8 a4 4 0 0 0 0 -8'
+    : 'M19 13 a8 8 0 1 1 -8 -10 a6 6 0 0 0 8 10 Z'
+
   return (
-    <aside style={{
-      width: 'var(--rail)',
+    <nav style={{
+      width: 94,
+      background: 'var(--surface-2)',
+      borderRight: '1.5px solid var(--line)',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      padding: '16px 10px',
-      gap: 16,
-      borderRight: '1px solid var(--line)',
-      background: 'var(--glass)',
-      backdropFilter: 'blur(10px)',
+      padding: '18px 0 14px',
       flexShrink: 0,
     }}>
-      {/* Cat mark */}
-      <div className="cat-mark" aria-label="Kitty">
-        <svg viewBox="0 0 28 22" width="28" height="22" fill="none" stroke="var(--cat-outline)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-          <ellipse cx="19" cy="14" rx="7" ry="5" />
-          <circle cx="9" cy="11" r="5" />
-          <path d="M6 8 L4 3 L10 7" />
-          <path d="M11 7 L13 3 L14 8" />
-          <circle cx="7" cy="10.5" r=".8" fill="var(--cat-outline)" stroke="none" />
-          <path d="M5 13 Q9 16 12.5 13" />
-          <path d="M24 14 Q29 12 28 8 Q27.5 6 26 7" />
-        </svg>
+      <div style={{ marginBottom: 22, color: 'var(--cat-ginger)' }}>
+        <CatMark />
       </div>
 
-      <nav style={{
-        display: 'flex', flexDirection: 'column', gap: 10,
-        width: '100%', alignItems: 'center', marginTop: 8,
+      <div style={{
+        display: 'flex', flexDirection: 'column', gap: 4,
+        width: '100%', alignItems: 'center', flex: 1,
       }}>
-        {NAV_ITEMS.map(({ glyph, label, view }) => {
+        {NAV_ITEMS.map(({ label, view, d }) => {
           const active = activeView === view
           return (
             <button
               key={view}
-              aria-label={label}
               onClick={() => onViewChange?.(view)}
               style={{
-                width: 44, height: 44,
-                borderRadius: 12,
-                display: 'grid',
-                placeItems: 'center',
-                color: active ? 'var(--primary)' : 'var(--ink2)',
-                background: active ? 'var(--primary-fade)' : 'transparent',
-                border: `1.5px solid ${active ? 'var(--primary)' : 'transparent'}`,
-                transition: 'background 0.15s, color 0.15s, border-color 0.15s',
+                width: 62,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 5,
+                padding: '9px 0',
+                border: 'none',
+                borderRadius: 14,
                 cursor: 'pointer',
-              }}
-              onMouseEnter={e => {
-                if (!active) {
-                  const el = e.currentTarget as HTMLButtonElement
-                  el.style.color = 'var(--ink)'
-                  el.style.background = 'var(--surface2)'
-                }
-              }}
-              onMouseLeave={e => {
-                if (!active) {
-                  const el = e.currentTarget as HTMLButtonElement
-                  el.style.color = 'var(--ink2)'
-                  el.style.background = 'transparent'
-                }
+                background: active ? 'var(--ginger-fade)' : 'transparent',
+                color: active ? 'var(--cat-ginger)' : 'var(--ink-2)',
               }}
             >
-              <GlyphIcon id={glyph} size={18} />
+              <svg viewBox="0 0 24 24" style={{ width: 23, height: 23 }}>
+                <path d={d} stroke="currentColor" strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" filter="url(#wob)" />
+              </svg>
+              <span style={{ fontSize: 10, letterSpacing: '0.02em', fontWeight: 600 }}>{label}</span>
             </button>
           )
         })}
-      </nav>
-
-      <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center', marginBottom: 8 }}>
-        {/* Day/night toggle */}
-        <button
-          aria-label={theme === 'day' ? 'Switch to night mode' : 'Switch to day mode'}
-          onClick={onThemeToggle}
-          style={{
-            width: 38, height: 38,
-            borderRadius: 10,
-            display: 'grid',
-            placeItems: 'center',
-            color: 'var(--ink2)',
-            background: 'transparent',
-            border: '1.5px solid transparent',
-            cursor: 'pointer',
-            fontSize: 16,
-            transition: 'background 0.15s, color 0.15s',
-          }}
-          onMouseEnter={e => {
-            const el = e.currentTarget as HTMLButtonElement
-            el.style.background = 'var(--surface2)'
-            el.style.color = 'var(--ink)'
-          }}
-          onMouseLeave={e => {
-            const el = e.currentTarget as HTMLButtonElement
-            el.style.background = 'transparent'
-            el.style.color = 'var(--ink2)'
-          }}
-        >
-          {theme === 'day' ? '☽' : '☀'}
-        </button>
-
-        {/* Settings */}
-        <button
-          aria-label="Settings"
-          onClick={() => onViewChange?.('settings')}
-          style={{
-            width: 38, height: 38,
-            borderRadius: 10,
-            display: 'grid',
-            placeItems: 'center',
-            color: activeView === 'settings' ? 'var(--primary)' : 'var(--ink2)',
-            background: activeView === 'settings' ? 'var(--primary-fade)' : 'transparent',
-            border: `1.5px solid ${activeView === 'settings' ? 'var(--primary)' : 'transparent'}`,
-            transition: 'background 0.15s, color 0.15s',
-            cursor: 'pointer',
-          }}
-          onMouseEnter={e => {
-            if (activeView !== 'settings') {
-              const el = e.currentTarget as HTMLButtonElement
-              el.style.color = 'var(--ink)'
-              el.style.background = 'var(--surface2)'
-            }
-          }}
-          onMouseLeave={e => {
-            if (activeView !== 'settings') {
-              const el = e.currentTarget as HTMLButtonElement
-              el.style.color = 'var(--ink2)'
-              el.style.background = 'transparent'
-            }
-          }}
-        >
-          <GlyphIcon id="g-cog" size={16} />
-        </button>
-
-        {/* Online dot */}
-        <span style={{
-          width: 8, height: 8,
-          borderRadius: '50%',
-          background: 'var(--c-green)',
-          boxShadow: '0 0 8px var(--c-green)',
-          display: 'block',
-        }} aria-label="Online" />
       </div>
-    </aside>
+
+      <button
+        onClick={onToggleTheme}
+        title="day / night"
+        style={{
+          width: 46, height: 46, borderRadius: 12,
+          border: 'none', background: 'transparent',
+          cursor: 'pointer', display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+          color: 'var(--ink-2)',
+        }}
+      >
+        <svg viewBox="0 0 24 24" style={{ width: 21, height: 21 }}>
+          <path d={themeIconPath} stroke="currentColor" strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" filter="url(#wob)" />
+        </svg>
+      </button>
+
+      <div style={{
+        width: 38, height: 38, borderRadius: 99,
+        background: 'var(--c-purple)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        marginTop: 6,
+        color: '#fff',
+        fontFamily: 'var(--font-display)',
+        fontWeight: 800, fontSize: 16,
+        boxShadow: 'var(--btn-shadow)',
+      }}>
+        j
+      </div>
+    </nav>
   )
 }

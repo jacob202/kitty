@@ -10,7 +10,6 @@ import { InputBar } from '@/components/InputBar';
 import { DashboardHome } from '@/components/DashboardHome';
 import { Rail } from '@/components/Rail';
 import { SessionSidebar } from '@/components/SessionSidebar';
-import { RightPanel } from '@/components/RightPanel';
 import { TaskPanel } from '@/components/TaskPanel';
 import { TodoPanel } from '@/components/TodoPanel';
 import { TerminalStrip } from '@/components/TerminalStrip';
@@ -20,6 +19,8 @@ import { ImageGenPanel } from '@/components/ImageGenPanel';
 import { CommandPalette } from '@/components/CommandPalette';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PwaInstallBanner } from '@/components/PwaInstallBanner';
+import { WobFilters, PaperGrain } from '@/components/WobFilters';
+import { CatCorner, CatBody, type CatState } from '@/components/CrayonCat';
 import { fetchGatewaySearch, type GatewaySearchSnapshot } from '@/lib/gateway';
 import { usePwaInstall } from '@/lib/pwa';
 import {
@@ -73,9 +74,9 @@ function ToolCard({ title, children }: { title: string; children: React.ReactNod
   return (
     <div
       style={{
-        background: 'var(--surface-low)',
-        border: '1px solid var(--border)',
-        borderRadius: 10,
+        background: 'var(--surface)',
+        border: '1.5px solid var(--line)',
+        borderRadius: 12,
         padding: 16,
         display: 'flex',
         flexDirection: 'column',
@@ -88,10 +89,10 @@ function ToolCard({ title, children }: { title: string; children: React.ReactNod
           fontSize: 10,
           fontWeight: 700,
           letterSpacing: '0.12em',
-          textTransform: 'uppercase',
-          color: 'var(--text-muted)',
+          textTransform: 'lowercase',
+          color: 'var(--ink-2)',
           paddingBottom: 8,
-          borderBottom: '1px solid var(--border-dim)',
+          borderBottom: '1px solid var(--line)',
         }}
       >
         {title}
@@ -124,7 +125,6 @@ export default function KittyChat() {
 }
 
 function KittyChatInner() {
-  const [theme, setTheme] = useState<'day' | 'night'>('day');
   const [chats, setChats] = useState<Chat[]>(() => [makeChat('teal')]);
   const [activeView, setActiveView] = useState('home');
   const [activeChatId, setActiveChatId] = useState<string | null>(() => null);
@@ -142,7 +142,10 @@ function KittyChatInner() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [theme, setTheme] = useState<'day' | 'night'>('day');
   const pwaInstall = usePwaInstall();
+
+  const catState: CatState = isStreaming ? 'working' : 'idle';
 
   useEffect(() => {
     fetch('/proxy/chats')
@@ -279,14 +282,6 @@ function KittyChatInner() {
     setTokenCount(Math.round(chars / 4));
   }, [activeChat?.messages]);
 
-  const handleThemeToggle = useCallback(() => {
-    setTheme(t => {
-      const next = t === 'day' ? 'night' : 'day';
-      document.documentElement.setAttribute('data-theme', next);
-      return next;
-    });
-  }, []);
-
   const handleNewChat = useCallback(() => {
     const color = COLOR_CYCLE[colorIndexRef.current % COLOR_CYCLE.length];
     colorIndexRef.current++;
@@ -296,6 +291,14 @@ function KittyChatInner() {
     setActiveChatId(chat.id);
     setInput('');
   }, [activeModel.id]);
+
+  const handleToggleTheme = useCallback(() => {
+    setTheme(t => {
+      const next = t === 'day' ? 'night' : 'day';
+      document.documentElement.setAttribute('data-theme', next);
+      return next;
+    });
+  }, []);
 
   const handleToggleSidebar = useCallback(() => {
     if (isMobile) {
@@ -504,21 +507,28 @@ function KittyChatInner() {
 
   return (
     <div
-      className="app-canvas"
       style={{
-        display: 'grid',
-        gridTemplateColumns: isMobile
-          ? '1fr'
-          : `var(--rail) ${sidebarCollapsed ? '60px' : 'var(--sidebar)'} minmax(520px, 1fr) var(--rightbar)`,
-        transition: 'grid-template-columns 0.2s ease',
+        display: 'flex',
         height: '100vh',
-        minHeight: 0,
+        width: '100vw',
         overflow: 'hidden',
         position: 'relative',
+        background: 'var(--bg)',
+        color: 'var(--ink)',
+        fontFamily: 'var(--font-body)',
       }}
       onClick={() => showModelMenu && setShowModelMenu(false)}
     >
-      {!isMobile && <Rail activeView={activeView} onViewChange={setActiveView} theme={theme} onThemeToggle={handleThemeToggle} />}
+      <WobFilters />
+
+      {!isMobile && (
+        <Rail
+          activeView={activeView}
+          onViewChange={setActiveView}
+          theme={theme}
+          onToggleTheme={handleToggleTheme}
+        />
+      )}
 
       {!isMobile && (
         <SessionSidebar
@@ -538,8 +548,7 @@ function KittyChatInner() {
             style={{
               position: 'fixed',
               inset: 0,
-              background: 'rgba(0, 0, 0, 0.55)',
-              backdropFilter: 'blur(4px)',
+              background: 'rgba(0, 0, 0, 0.6)',
               zIndex: 40,
             }}
           />
@@ -550,7 +559,7 @@ function KittyChatInner() {
               width: 'min(320px, 84vw)',
               height: '100vh',
               zIndex: 50,
-              boxShadow: '0 24px 60px rgba(0, 0, 0, 0.45)',
+              boxShadow: 'var(--shadow)',
             }}
           >
             <SessionSidebar
@@ -568,13 +577,13 @@ function KittyChatInner() {
 
       <main
         style={{
-          position: 'relative',
+          flex: 1,
           minWidth: 0,
           display: 'flex',
           flexDirection: 'column',
           minHeight: 0,
           overflow: 'hidden',
-          borderRight: isMobile ? 'none' : '1px solid var(--line)',
+          background: 'var(--bg)',
         }}
       >
         <TopBar
@@ -593,6 +602,7 @@ function KittyChatInner() {
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={handleToggleSidebar}
           isMobile={isMobile}
+          catState={catState}
         />
 
         <PwaInstallBanner
@@ -666,7 +676,7 @@ function KittyChatInner() {
               fontFamily: 'var(--font-mono)',
               fontSize: 11,
               color: 'var(--text-dim)',
-              background: 'var(--surface)',
+              background: 'rgba(26, 20, 16, 0.5)',
               borderBottom: '1px solid var(--border)',
               flexShrink: 0,
             }}
@@ -731,15 +741,23 @@ function KittyChatInner() {
                 <TerminalStrip title="Gateway Log" maxLines={100} />
               </div>
             ) : activeView === 'chat' && activeChat && activeChat.messages.length > 0 ? (
-              <div style={{ paddingBottom: isMobile ? 176 : 140 }}>
+              <div style={{ padding: '30px 44px 16px', display: 'flex', flexDirection: 'column', gap: 18, paddingBottom: isMobile ? 176 : 140 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, opacity: 0.7 }}>
+                  <span style={{ flex: 1, height: 1.5, background: 'var(--line)' }} />
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-2)' }}>today</span>
+                  <span style={{ flex: 1, height: 1.5, background: 'var(--line)' }} />
+                </div>
                 {activeChat.messages.map((msg, i) => {
                   const isLast = i === activeChat.messages.length - 1;
+                  const prev = i > 0 ? activeChat.messages[i - 1] : null;
+                  const isFirstInRun = !prev || prev.role !== msg.role;
                   return (
                     <ChatMessage
                       key={msg.id}
                       message={msg}
                       isStreaming={isStreaming && isLast && msg.role === 'assistant'}
-                      initials={USER_INITIALS}
+                      isFirstInRun={isFirstInRun}
+                      catState={catState}
                     />
                   );
                 })}
@@ -753,30 +771,63 @@ function KittyChatInner() {
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: 16,
+                  gap: 30,
                   paddingBottom: 100,
+                  maxWidth: 420,
+                  margin: '0 auto',
+                  textAlign: 'center',
+                  padding: 40,
                 }}
               >
-                <span
+                <div className="cat-idle" style={{ position: 'relative' }}>
+                  <CatBody size={140} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
+                  <h1 style={{
+                    fontFamily: 'var(--font-display)', fontWeight: 800,
+                    fontSize: 64, letterSpacing: '-0.035em',
+                    color: 'var(--ink)', lineHeight: 0.86,
+                  }}>hey.</h1>
+                  <p style={{
+                    fontSize: 16, lineHeight: 1.6,
+                    color: 'var(--ink-2)', maxWidth: 300,
+                  }}>
+                    {"i'm kitty. drawn by a six-year-old, allegedly. here when you need me — let's get things done."}
+                  </p>
+                </div>
+                <button
+                  onClick={() => { textareaRef.current?.focus() }}
                   style={{
-                    fontFamily: 'var(--font-ui)',
-                    fontSize: 28,
-                    color: 'var(--primary)',
-                    opacity: 0.35,
-                    userSelect: 'none',
+                    background: 'var(--primary)',
+                    color: 'var(--on-primary)',
+                    border: 'none',
+                    borderRadius: 14,
+                    padding: '14px 40px',
+                    fontFamily: 'var(--font-body)',
+                    fontSize: 16,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    boxShadow: 'var(--btn-shadow)',
+                    letterSpacing: '-0.01em',
                   }}
                 >
-                  {'=^•ﻌ•^='}
-                </span>
-                <span
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 13,
-                    color: 'var(--text-ghost)',
-                  }}
-                >
-                  start a conversation
-                </span>
+                  {"let's go →"}
+                </button>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9, justifyContent: 'center', marginTop: 8 }}>
+                  {['plan my week', 'draft a reply', "what's on today", 'summarise a doc'].map(chip => (
+                    <button
+                      key={chip}
+                      onClick={() => { setInput(chip); textareaRef.current?.focus() }}
+                      style={{
+                        fontFamily: 'var(--font-body)', fontSize: 13,
+                        color: 'var(--ink)', background: 'var(--surface)',
+                        border: '1.5px solid var(--line)', borderRadius: 12,
+                        padding: '8px 16px', cursor: 'pointer',
+                      }}
+                    >{chip}</button>
+                  ))}
+                </div>
               </div>
             ) : activeView === 'home' ? (
               <DashboardHome
@@ -814,7 +865,7 @@ function KittyChatInner() {
                 }}
               >
                 <span style={{ fontSize: 32, opacity: 0.3 }}>?</span>
-                <span>{activeView.charAt(0).toUpperCase() + activeView.slice(1)} view</span>
+                <span>{activeView} view</span>
                 <span style={{ fontSize: 12, color: 'var(--text-ghost)' }}>coming soon</span>
               </div>
             )}
@@ -840,19 +891,8 @@ function KittyChatInner() {
         )}
       </main>
 
-      {!isMobile && (
-        <ErrorBoundary name="RightPanel">
-          <RightPanel
-            chats={chats}
-            activeChat={activeChat}
-            isStreaming={isStreaming}
-            brief={brief}
-            search={searchSnapshot}
-            searchGatewayError={searchGateway.live ? null : searchGateway.error}
-            activeModelName={activeModel.name}
-          />
-        </ErrorBoundary>
-      )}
+      <CatCorner state={catState} />
+      <PaperGrain />
 
       <CommandPalette
         chats={chats}

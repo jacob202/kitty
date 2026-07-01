@@ -22,8 +22,6 @@ type RecState = 'idle' | 'recording' | 'transcribing'
 
 export function InputBar({
   value, onChange, onSend, onStop, isStreaming, disabled,
-  chatTitle, modelName, modelColor = 'var(--purple)',
-  tokenCount = 0, maxTokens = 200000,
   textareaRef,
   compact = false,
 }: Props) {
@@ -40,7 +38,6 @@ export function InputBar({
     ref.current.style.height = Math.min(ref.current.scrollHeight, 200) + 'px'
   }, [value])
 
-  // Stop the mic stream if the input unmounts mid-recording.
   useEffect(() => () => {
     if (recorderRef.current && recorderRef.current.state !== 'inactive') {
       recorderRef.current.stop()
@@ -62,7 +59,6 @@ export function InputBar({
       recorderRef.current = rec
       setRecState('recording')
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error('mic permission / start failed', err)
       setRecState('idle')
     }
@@ -83,8 +79,6 @@ export function InputBar({
       const fd = new FormData()
       const ext = blob.type.includes('webm') ? 'webm' : blob.type.includes('ogg') ? 'ogg' : 'wav'
       fd.append('file', blob, `mic.${ext}`)
-      // OpenAI-compatible contract field; Kitty's local faster-whisper backend
-      // uses its configured model size and intentionally ignores this value.
       fd.append('model', 'whisper-1')
       const res = await fetch('/proxy/v1/audio/transcriptions', { method: 'POST', body: fd })
       if (!res.ok) throw new Error(`Transcription HTTP ${res.status}`)
@@ -95,7 +89,6 @@ export function InputBar({
         ref.current?.focus()
       }
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.error('transcription failed', err)
     } finally {
       setRecState('idle')
@@ -110,149 +103,120 @@ export function InputBar({
 
   const handleKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey || !e.shiftKey)) {
-      if (e.shiftKey) return // allow Shift+Enter for new line
+      if (e.shiftKey) return
       e.preventDefault()
       if (!disabled && value.trim()) onSend()
     }
   }
 
-  const pct = Math.min((tokenCount / maxTokens) * 100, 100)
-  const barColor = pct < 50 ? 'var(--mint)' : pct < 80 ? 'var(--yellow)' : 'var(--error)'
-  const countColor = pct < 80 ? 'var(--text-ghost)' : 'var(--warning)'
-
   return (
     <div style={{
-      position: 'absolute', bottom: 0, left: 0, right: 0,
-      padding: compact
-        ? '12px 12px calc(12px + env(safe-area-inset-bottom, 0px))'
-        : '16px 24px 20px',
-      background: 'linear-gradient(to top, var(--bg) 60%, transparent)',
-      pointerEvents: 'none',
-      zIndex: 10,
+      padding: '14px 26px 20px',
+      flexShrink: 0,
+      background: 'var(--bg)',
     }}>
-      <div style={{ pointerEvents: 'auto', maxWidth: compact ? '100%' : 840, margin: '0 auto' }}>
-        <div style={{
-          border: '2px solid var(--line)',
-          borderRadius: compact ? 14 : 16,
-          background: 'var(--surface)',
-          overflow: 'hidden',
-          boxShadow: 'var(--shadow-soft)',
-          transition: 'border-color 0.2s, box-shadow 0.2s',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-          onFocusCapture={e => {
-            e.currentTarget.style.borderColor = 'var(--primary)'
-            e.currentTarget.style.boxShadow = 'var(--input-glow)'
-          }}
-          onBlurCapture={e => {
-            e.currentTarget.style.borderColor = 'var(--line)'
-            e.currentTarget.style.boxShadow = 'none'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'flex-end', padding: '4px' }}>
-            <textarea
-              ref={ref}
-              value={value}
-              onChange={e => onChange(e.target.value)}
-              onKeyDown={handleKey}
-              disabled={disabled}
-              placeholder="Ask kitty anything..."
-              rows={1}
-              style={{
-                flex: 1, background: 'none', border: 'none', outline: 'none',
-                color: 'var(--text)', fontFamily: 'var(--font-ui)', fontSize: compact ? 14 : 15,
-                padding: compact ? '12px 12px' : '14px 16px', resize: 'none',
-                minHeight: 48, maxHeight: 200, lineHeight: 1.5,
-              }}
-            />
-            <button
-              onClick={onMicClick}
-              disabled={recState === 'transcribing'}
-              title={recState === 'recording' ? 'Stop recording' : recState === 'transcribing' ? 'Transcribing…' : 'Voice input'}
-              aria-label={recState === 'recording' ? 'Stop recording' : 'Start voice input'}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: compact ? 34 : 36, height: compact ? 34 : 36, flexShrink: 0,
-                background: recState === 'recording' ? 'var(--error)' : 'transparent',
-                border: 'none', borderRadius: 10, margin: '6px 4px 6px 0',
-                color: recState === 'recording' ? '#fff' : 'var(--text-muted)',
-                cursor: 'pointer',
-                transition: 'background 0.15s ease, color 0.15s ease',
-                animation: recState === 'recording' ? 'blink 1.4s infinite' : 'none',
-                opacity: recState === 'transcribing' ? 0.5 : 1,
-              }}
-            >
-              {recState === 'recording' ? <Square size={16} fill="currentColor" /> : <Mic size={18} />}
-            </button>
-            {isStreaming ? (
-              <button
-                onClick={onStop}
-                title="Stop generating"
-                aria-label="Stop generating"
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  width: compact ? 34 : 36, height: compact ? 34 : 36, flexShrink: 0,
-                  background: 'var(--error)',
-                  border: 'none', borderRadius: 10, margin: '6px 8px 6px 0',
-                  color: '#fff', cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                <Square size={16} fill="currentColor" />
-              </button>
-            ) : (
-              <button
-                onClick={onSend}
-                disabled={disabled || !value.trim()}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  width: compact ? 34 : 36, height: compact ? 34 : 36, flexShrink: 0,
-                  background: value.trim() ? 'var(--primary)' : 'var(--surface-high)',
-                  border: 'none', borderRadius: 10, margin: '6px 8px 6px 0',
-                  color: value.trim() ? '#fff' : 'var(--text-muted)',
-                  cursor: disabled ? 'default' : 'pointer',
-                  opacity: disabled ? 0.5 : 1,
-                  transition: 'all 0.2s ease',
-                }}
-                onMouseEnter={e => { if (!disabled && value.trim()) (e.currentTarget as HTMLButtonElement).style.background = 'var(--primary-deep)' }}
-                onMouseLeave={e => { if (!disabled && value.trim()) (e.currentTarget as HTMLButtonElement).style.background = 'var(--primary)' }}
-                aria-label="Send message"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="12" y1="19" x2="12" y2="5"></line>
-                  <polyline points="5 12 12 5 19 12"></polyline>
-                </svg>
-              </button>
-            )}
-          </div>
-        </div>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 11,
+        background: 'var(--surface)',
+        border: '2px solid var(--primary)',
+        borderRadius: 16,
+        padding: '12px 16px',
+        boxShadow: 'var(--input-glow)',
+        maxWidth: compact ? '100%' : undefined,
+      }}>
+        <span style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 15,
+          color: 'var(--primary)',
+          flexShrink: 0,
+        }}>→</span>
 
-        <div style={{ marginTop: 8, fontFamily: 'var(--font-mono)' }}>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            rowGap: 4,
-            fontSize: 11,
-            color: 'var(--text-ghost)',
-            marginBottom: 4,
-            padding: '0 4px',
-          }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              {chatTitle && (
-                <>
-                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: modelColor, display: 'inline-block' }} />
-                  {chatTitle}
-                  {modelName && <span style={{ color: 'var(--text-ghost)' }}> · {modelName}</span>}
-                </>
-              )}
-            </span>
-            <span style={{ color: countColor }}>
-              {tokenCount > 0 ? `${(tokenCount / 1000).toFixed(1)}k / ${(maxTokens / 1000).toFixed(0)}k` : 'Enter to send'}
-            </span>
-          </div>
-        </div>
+        <textarea
+          ref={ref}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          onKeyDown={handleKey}
+          disabled={disabled}
+          placeholder="ask kitty anything"
+          rows={1}
+          style={{
+            flex: 1, background: 'none', border: 'none', outline: 'none',
+            color: 'var(--ink)', fontFamily: 'var(--font-body)', fontSize: 15,
+            resize: 'none', minHeight: 24, maxHeight: 200, lineHeight: 1.5,
+            padding: 0,
+          }}
+        />
+
+        {recState !== 'idle' && (
+          <button
+            onClick={onMicClick}
+            disabled={recState === 'transcribing'}
+            title={recState === 'recording' ? 'stop recording' : 'transcribing...'}
+            aria-label={recState === 'recording' ? 'stop recording' : 'transcribing'}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 36, height: 36, flexShrink: 0,
+              background: recState === 'recording' ? 'var(--c-red)' : 'transparent',
+              border: 'none', borderRadius: 99,
+              color: recState === 'recording' ? 'var(--on-primary)' : 'var(--ink-2)',
+              cursor: 'pointer',
+              animation: recState === 'recording' ? 'blink 1.4s infinite' : 'none',
+              opacity: recState === 'transcribing' ? 0.5 : 1,
+            }}
+          >
+            {recState === 'recording' ? <Square size={14} fill="currentColor" /> : <Mic size={16} />}
+          </button>
+        )}
+
+        {isStreaming ? (
+          <button
+            onClick={onStop}
+            title="stop generating"
+            aria-label="stop generating"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 36, height: 36, flexShrink: 0,
+              background: 'var(--c-red)',
+              border: 'none', borderRadius: 99,
+              color: '#fff', cursor: 'pointer',
+            }}
+          >
+            <Square size={14} fill="currentColor" />
+          </button>
+        ) : value.trim() ? (
+          <button
+            onClick={onSend}
+            disabled={disabled}
+            aria-label="send message"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 36, height: 36, flexShrink: 0,
+              background: 'var(--primary)',
+              border: 'none', borderRadius: 99,
+              color: 'var(--on-primary)', cursor: 'pointer',
+              boxShadow: 'var(--btn-shadow)',
+            }}
+          >
+            <span style={{ fontSize: 18, fontWeight: 700, lineHeight: 1 }}>↑</span>
+          </button>
+        ) : !recState.startsWith('rec') ? (
+          <button
+            onClick={onMicClick}
+            title="voice input"
+            aria-label="start voice input"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 36, height: 36, flexShrink: 0,
+              background: 'transparent',
+              border: 'none', borderRadius: 99,
+              color: 'var(--ink-2)', cursor: 'pointer',
+            }}
+          >
+            <Mic size={16} />
+          </button>
+        ) : null}
       </div>
     </div>
   )

@@ -1,5 +1,6 @@
 'use client'
-import { Chat, CHAT_COLORS } from '@/lib/types'
+import { useState } from 'react'
+import { Chat } from '@/lib/types'
 
 interface Props {
   chats: Chat[]
@@ -16,204 +17,170 @@ function timeAgo(date: Date): string {
   if (diff < 60) return 'now'
   if (diff < 3600) return Math.floor(diff / 60) + 'm'
   if (diff < 86400) return Math.floor(diff / 3600) + 'h'
-  if (diff < 86400 * 7) return 'yday'
+  if (diff < 86400 * 2) return '1d'
   return Math.floor(diff / 86400) + 'd'
 }
 
-export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, onCloseChat, collapsed = false, width }: Props) {
+const SECTION_COLORS: Record<string, string> = {
+  pinned: 'var(--c-red)',
+  today: 'var(--c-blue)',
+  yesterday: 'var(--c-green)',
+  earlier: 'var(--c-purple)',
+}
+
+export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, onCloseChat }: Props) {
+  const [search, setSearch] = useState('')
+
   const sorted = [...chats].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
-  const cutoff = Date.now() - 24 * 3600 * 1000
-  const today = sorted.filter(c => c.updatedAt.getTime() > cutoff)
-  const older = sorted.filter(c => c.updatedAt.getTime() <= cutoff)
+  const now = Date.now()
+  const dayMs = 86400 * 1000
+
+  const today = sorted.filter(c => (now - c.updatedAt.getTime()) < dayMs)
+  const yesterday = sorted.filter(c => (now - c.updatedAt.getTime()) >= dayMs && (now - c.updatedAt.getTime()) < dayMs * 2)
+  const earlier = sorted.filter(c => (now - c.updatedAt.getTime()) >= dayMs * 2)
+
+  const q = search.trim().toLowerCase()
+  const groups: { key: string; label: string; items: Chat[] }[] = q
+    ? [{ key: 'results', label: sorted.filter(c => c.title.toLowerCase().includes(q)).length ? 'results' : 'nothing here', items: sorted.filter(c => c.title.toLowerCase().includes(q)) }]
+    : [
+        ...(today.length ? [{ key: 'today', label: 'today', items: today }] : []),
+        ...(yesterday.length ? [{ key: 'yesterday', label: 'yesterday', items: yesterday }] : []),
+        ...(earlier.length ? [{ key: 'earlier', label: 'earlier', items: earlier }] : []),
+      ]
 
   return (
     <aside style={{
-      width: collapsed ? '60px' : (width ?? 'var(--sidebar)'),
-      padding: collapsed ? '16px 12px' : '24px 16px',
-      overflowY: 'auto',
-      borderRight: '1px solid var(--line)',
-      background: 'var(--glass)',
-      backdropFilter: 'blur(10px)',
+      width: 268,
+      background: 'var(--surface)',
+      borderRight: '1.5px solid var(--line)',
+      display: 'flex',
+      flexDirection: 'column',
       flexShrink: 0,
-      transition: 'width 0.2s ease, padding 0.2s ease',
     }}>
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: collapsed ? 'center' : 'space-between',
-        marginBottom: 20,
-        minHeight: 32,
-      }}>
-        {!collapsed && (
-          <span style={{
-            fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
-            color: 'var(--text-muted)', letterSpacing: '0.14em', textTransform: 'uppercase',
-          }}>sessions</span>
-        )}
+      <div style={{ padding: '16px 14px 10px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         <button
           onClick={onNewChat}
           style={{
-            background: 'var(--primary)',
-            color: '#fff',
-            padding: collapsed ? '6px' : '6px 12px',
-            borderRadius: 8,
-            fontFamily: 'var(--font-mono)',
-            fontWeight: 700,
-            fontSize: 11,
-            boxShadow: '0 4px 12px var(--primary-fade)',
+            width: '100%', border: 'none', borderRadius: 12,
+            background: 'var(--primary)', color: 'var(--on-primary)',
+            padding: 11,
+            fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: 14,
             cursor: 'pointer',
-            transition: 'background 0.2s',
-            width: collapsed ? 32 : 'auto',
-            height: collapsed ? 32 : 'auto',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: collapsed ? 'center' : 'space-between',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+            boxShadow: 'var(--btn-shadow)',
           }}
-          title={collapsed ? 'New chat' : undefined}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--primary-deep)' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--primary)' }}
         >
-          {collapsed ? '+' : '+ new'}
+          <span style={{ fontSize: 18, lineHeight: 1 }}>+</span> new chat
         </button>
+
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: 'var(--surface-2)', border: '1.5px solid var(--line)',
+          borderRadius: 11, padding: '8px 11px',
+        }}>
+          <svg viewBox="0 0 24 24" style={{ width: 15, height: 15, color: 'var(--ink-2)', flexShrink: 0 }}>
+            <path d="M11 4 a7 7 0 1 0 0 14 a7 7 0 0 0 0 -14 M16 16 L21 21" stroke="currentColor" strokeWidth={2} fill="none" strokeLinecap="round" filter="url(#wob)" />
+          </svg>
+          <input
+            type="text"
+            placeholder="search chats"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{
+              flex: 1, border: 'none', background: 'transparent',
+              fontFamily: 'var(--font-body)', fontSize: 13,
+              color: 'var(--ink)', outline: 'none',
+            }}
+          />
+        </div>
       </div>
 
-      {!collapsed && (
-        <>
-          {today.length > 0 && (
-            <>
-              <GroupLabel>Today</GroupLabel>
-              {today.map(c => (
-                <SessionItem key={c.id} chat={c} active={c.id === activeChatId} onSelect={onSelectChat} onClose={onCloseChat} />
-              ))}
-            </>
-          )}
-
-          {older.length > 0 && (
-            <>
-              <GroupLabel>Earlier</GroupLabel>
-              {older.map(c => (
-                <SessionItem key={c.id} chat={c} active={c.id === activeChatId} onSelect={onSelectChat} onClose={onCloseChat} />
-              ))}
-            </>
-          )}
-
-          {chats.length === 0 && (
-            <div style={{ textAlign: 'center', color: 'var(--text-faint)', fontSize: 12, fontStyle: 'italic', marginTop: 20 }}>
-              no sessions yet
+      <div style={{ overflowY: 'auto', flex: 1, padding: '2px 10px 12px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {groups.map(g => (
+          <div key={g.key} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1, padding: '0 4px', marginBottom: 2 }}>
+              <span style={{
+                fontFamily: 'var(--font-mono)', fontSize: 10,
+                letterSpacing: '0.12em', textTransform: 'uppercase',
+                color: 'var(--ink-2)',
+              }}>{g.label}</span>
+              <svg viewBox="0 0 80 7" preserveAspectRatio="none" style={{ width: 46, height: 6 }}>
+                <path d="M2 5 Q22 1 40 4 T78 3.5" stroke={SECTION_COLORS[g.key] ?? 'var(--c-blue)'} strokeWidth={2.4} fill="none" strokeLinecap="round" filter="url(#wob)" />
+              </svg>
             </div>
-          )}
-        </>
-      )}
+            {g.items.map(chat => (
+              <SessionRow
+                key={chat.id}
+                chat={chat}
+                active={chat.id === activeChatId}
+                dotColor={SECTION_COLORS[g.key] ?? 'var(--c-blue)'}
+                onSelect={onSelectChat}
+                onClose={onCloseChat}
+              />
+            ))}
+          </div>
+        ))}
 
-      {collapsed && chats.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
-          {chats.slice(0, 5).map(c => (
-            <div
-              key={c.id}
-              onClick={() => onSelectChat(c.id)}
-              title={c.title}
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: '50%',
-                background: CHAT_COLORS[c.color]?.tab || 'var(--indigo)',
-                display: 'grid',
-                placeItems: 'center',
-                fontSize: 10,
-                color: '#fff',
-                fontWeight: 600,
-                cursor: 'pointer',
-                border: c.id === activeChatId ? '2px solid var(--primary)' : '2px solid transparent',
-                transition: 'border-color 0.2s ease',
-              }}
-            >
-              {c.title.charAt(0).toUpperCase()}
-            </div>
-          ))}
-        </div>
-      )}
+        {chats.length === 0 && (
+          <div style={{ textAlign: 'center', color: 'var(--ink-2)', fontSize: 12, marginTop: 20 }}>
+            nothing here yet
+          </div>
+        )}
+      </div>
+
+      <div style={{
+        padding: '11px 14px',
+        borderTop: '1.5px solid var(--line)',
+        display: 'flex', alignItems: 'center', gap: 8,
+      }}>
+        <span style={{ width: 7, height: 7, borderRadius: 99, background: 'var(--c-green)' }} />
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)' }}>
+          all synced · audience of one
+        </span>
+      </div>
     </aside>
   )
 }
 
-function GroupLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{
-      fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700,
-      color: 'var(--text-faint)', letterSpacing: '0.1em', textTransform: 'uppercase',
-      margin: '24px 0 8px', paddingLeft: 4,
-    }}>{children}</div>
-  )
-}
-
-function SessionItem({ chat, active, onSelect, onClose }: {
+function SessionRow({ chat, active, dotColor, onSelect, onClose }: {
   chat: Chat
   active: boolean
+  dotColor: string
   onSelect: (id: string) => void
   onClose: (id: string) => void
 }) {
-  const dotColor = CHAT_COLORS[chat.color]?.tab ?? 'var(--indigo)'
   const lastMsg = chat.messages.at(-1)
-  const meta = lastMsg?.role === 'assistant' ? 'kitty' : lastMsg ? 'you' : 'new'
+  const preview = lastMsg?.content?.slice(0, 40) || 'new chat'
 
   return (
     <button
       onClick={() => onSelect(chat.id)}
       style={{
-        display: 'grid',
-        gridTemplateColumns: '7px 1fr auto',
-        gap: 12,
-        alignItems: 'center',
-        padding: '10px 12px',
-        borderRadius: 10,
-        color: active ? 'var(--text)' : 'var(--text-dim)',
-        background: active ? 'var(--surface-mid)' : 'transparent',
-        border: `1px solid ${active ? 'var(--border)' : 'transparent'}`,
-        width: '100%',
+        width: '100%', display: 'flex', alignItems: 'flex-start', gap: 9,
+        border: 'none', borderRadius: 10,
+        padding: '8px 9px', cursor: 'pointer',
+        background: active ? 'var(--ginger-fade)' : 'transparent',
         textAlign: 'left',
-        cursor: 'pointer',
-        transition: 'background 0.2s ease, border-color 0.2s ease',
-        marginBottom: 4,
-      }}
-      onMouseEnter={e => {
-        if (!active) {
-          const el = e.currentTarget as HTMLButtonElement
-          el.style.background = 'var(--surface-low)'
-          el.style.borderColor = 'var(--border-dim)'
-        }
-      }}
-      onMouseLeave={e => {
-        if (!active) {
-          const el = e.currentTarget as HTMLButtonElement
-          el.style.background = 'transparent'
-          el.style.borderColor = 'transparent'
-        }
       }}
     >
       <span style={{
-        width: 7, height: 24, borderRadius: 999,
-        background: active ? 'var(--primary)' : dotColor,
-        display: 'block', flexShrink: 0,
+        width: 9, height: 9, borderRadius: 3,
+        background: dotColor, flexShrink: 0, marginTop: 4,
       }} />
-      <span style={{ minWidth: 0 }}>
+      <span style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0, flex: 1 }}>
         <span style={{
-          fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600,
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          display: 'block', color: active ? 'var(--text)' : 'var(--text-dim)',
+          fontSize: 13, fontWeight: 600, color: 'var(--ink)',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>{chat.title}</span>
-        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', fontSize: 10 }}>{meta}</span>
+        <span style={{
+          fontSize: 11.5, color: 'var(--ink-2)',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>{preview}</span>
       </span>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', fontSize: 10 }}>
-          {timeAgo(chat.updatedAt)}
-        </span>
-        <span
-          onClick={e => { e.stopPropagation(); onClose(chat.id) }}
-          style={{ color: 'var(--text-ghost)', fontSize: 11, cursor: 'pointer', padding: '0 4px', visibility: active ? 'visible' : 'hidden' }}
-          onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-muted)')}
-          onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-ghost)')}
-        >✕</span>
-      </div>
+      <span style={{
+        fontFamily: 'var(--font-mono)', fontSize: 10,
+        color: 'var(--ink-2)', flexShrink: 0, marginTop: 3,
+      }}>{timeAgo(chat.updatedAt)}</span>
     </button>
   )
 }
