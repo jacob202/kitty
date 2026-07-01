@@ -878,25 +878,52 @@ async def chat_completions_non_stream(payload: dict[str, Any]) -> dict[str, Any]
 
 
 async def iter_chat_completions_stream(payload: dict[str, Any]):
-    """Stream SSE chunks from LiteLLM. Streaming does not use the fallback chain."""
+    """Stream SSE chunks from LiteLLM, falling back to the sync chain on failure.
+
+    When LiteLLM is unreachable the fallback chain runs a non-streaming call and
+    the result is emitted as synthetic SSE so the frontend still gets a response.
+    """
 
     from gateway.http_client import get_http_client
 
-    client = await get_http_client()
-    async with client.stream(
-        "POST",
-        f"{LITELLM_BASE}/v1/chat/completions",
-        json=payload,
-        headers={"Authorization": f"Bearer {LITELLM_KEY}"},
-    ) as resp:
-        async for chunk in resp.aiter_lines():
-            if not chunk or not chunk.startswith("data: "):
-                continue
-            raw_data = chunk[6:].strip()
-            if raw_data == "[DONE]":
+    try:
+        client = await get_http_client()
+        async with client.stream(
+            "POST",
+            f"{LITELLM_BASE}/v1/chat/completions",
+            json=payload,
+            headers={"Authorization": f"Bearer {LITELLM_KEY}"},
+        ) as resp:
+            resp.raise_for_status()
+            async for chunk in resp.aiter_lines():
+                if not chunk or not chunk.startswith("data: "):
+                    continue
+                raw_data = chunk[6:].strip()
+                if raw_data == "[DONE]":
+                    yield chunk.encode("utf-8") + b"\n\n"
+                    break
                 yield chunk.encode("utf-8") + b"\n\n"
-                break
-            yield chunk.encode("utf-8") + b"\n\n"
+            return
+    except Exception as e:
+        logger.warning("LiteLLM stream failed (%s), falling back to sync chain", e)
+
+    try:
+        result = await chat_completions_non_stream({**payload, "stream": False})
+        text = extract_assistant_text(result)
+        model = result.get("model", payload.get("model", "unknown"))
+    except Exception as e:
+        logger.error("Stream fallback also failed: %s", e)
+        text = f"All providers failed — is your .env configured? ({e})"
+        model = "error"
+
+    import json as _json
+
+    chunk_data = _json.dumps({
+        "choices": [{"delta": {"content": text}, "index": 0}],
+        "model": model,
+    })
+    yield f"data: {chunk_data}\n\n".encode("utf-8")
+    yield b"data: [DONE]\n\n"
 
 
 def log_chat_trace(
