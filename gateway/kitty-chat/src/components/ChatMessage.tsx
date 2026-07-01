@@ -4,109 +4,53 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import { Copy, Check } from 'lucide-react'
-import { Message, STREAMING_LABEL } from '@/lib/types'
-import { MoodAvatar } from './MoodAvatar'
-import { inferMood } from '@/lib/mood'
+import { Message } from '@/lib/types'
+import { CatFaceBadge, type CatState } from './CrayonCat'
 
 interface Props {
   message: Message
   isStreaming?: boolean
-  initials: string
+  isFirstInRun?: boolean
+  catState?: CatState
 }
 
-export function ChatMessage({ message, isStreaming, initials }: Props) {
-  const isAI = message.role === 'assistant'
-  const mood = isStreaming ? 'thinking' : (message.mood ?? inferMood(message.content, message.role))
-  const time = message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+export function ChatMessage({ message, isStreaming, catState = 'idle' }: Props) {
+  const isUser = message.role === 'user'
+  const isKitty = !isUser
 
   return (
-    <div
-      style={{
-        display: 'flex', gap: 12, padding: '10px 18px',
-        alignItems: 'flex-start',
-        borderBottom: '1px solid var(--border-dim)',
-        background: isAI ? 'var(--surface)' : 'transparent',
-        transition: 'background 0.2s',
-        animation: 'fadeSlideUp 0.3s ease',
-      }}
-      onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface2)')}
-      onMouseLeave={e => (e.currentTarget.style.background = isAI ? 'var(--surface)' : 'transparent')}
-    >
-      {/* Avatar */}
-      {isAI ? (
-        <MoodAvatar mood={mood} size={36} />
-      ) : (
-        <div style={{
-          width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'var(--surface-mid)',
-          border: '1px solid var(--border)',
-          fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: 'var(--text-muted)',
-          letterSpacing: '0.5px',
-        }}>
-          {initials}
-        </div>
-      )}
+    <div className="msg-in" style={{
+      display: 'flex',
+      alignItems: 'flex-end',
+      gap: 10,
+      flexDirection: isKitty ? 'row' : 'row-reverse',
+    }}>
+      {isKitty && <CatFaceBadge state={catState} />}
 
-      {/* Body */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6 }}>
-          <span style={{
-            fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600,
-            color: isAI ? 'var(--text)' : 'var(--text-dim)',
-          }}>
-            {isAI ? 'Kitty' : 'You'}
-          </span>
-          <span style={{
-            fontSize: 10,
-            color: isStreaming ? 'var(--primary)' : 'var(--text-ghost)',
-            fontFamily: 'var(--font-mono)',
-          }}>
-            {isStreaming ? STREAMING_LABEL : time}
-          </span>
-          {isAI && message.model && !isStreaming && (
-            <span style={{
-              fontSize: 10, color: 'var(--text-muted)',
-              fontFamily: 'var(--font-mono)',
-              border: '1px solid var(--border)',
-              borderRadius: 4, padding: '1px 6px', background: 'var(--surface-low)',
-            }}>
-              {message.model}
-            </span>
-          )}
-        </div>
-
-        {/* Content */}
+      <div style={{
+        maxWidth: 560,
+        borderRadius: isKitty ? '5px 17px 17px 17px' : '17px 5px 17px 17px',
+        padding: '11px 16px',
+        background: isKitty ? 'var(--surface)' : 'var(--primary)',
+        border: isKitty ? '1.5px solid var(--line)' : 'none',
+        boxShadow: 'var(--shadow-soft)',
+      }}>
         {isStreaming && !message.content ? (
           <TypingDots />
         ) : (
-          <MessageContent content={message.content} />
-        )}
-
-        {/* Tags */}
-        {message.tags && message.tags.length > 0 && (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12 }}>
-            {message.tags.map(tag => (
-              <span key={tag} style={{
-                borderRadius: 4, padding: '3px 8px',
-                fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600,
-                background: 'var(--surface-high)', border: '1px solid var(--border)',
-                color: 'var(--text-dim)',
-              }}>
-                {tag}
-              </span>
-            ))}
-          </div>
+          <MessageContent content={message.content} isUser={isUser} />
         )}
       </div>
     </div>
   )
 }
 
-function MessageContent({ content }: { content: string }) {
+function MessageContent({ content, isUser }: { content: string; isUser: boolean }) {
   return (
-    <div style={bodyStyle}>
+    <div style={{
+      ...bodyStyle,
+      color: isUser ? 'var(--on-primary)' : 'var(--ink)',
+    }}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[[rehypeHighlight, { detect: true, ignoreMissing: true }]]}
@@ -148,8 +92,6 @@ function CodeBlock({ children }: { children: ReactNode }) {
   const [copied, setCopied] = useState(false)
   const preRef = useRef<HTMLPreElement>(null)
 
-  // The remark-gfm AST renders <pre><code className="language-xxx">…</code></pre>;
-  // sniff the language off the first child to label the block.
   let lang = ''
   if (isValidElement<{ className?: string }>(children)) {
     const cls = children.props.className ?? ''
@@ -169,10 +111,10 @@ function CodeBlock({ children }: { children: ReactNode }) {
   return (
     <div style={codeBoxStyle}>
       <div style={codeBoxHeaderStyle}>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)', letterSpacing: '0.05em' }}>
           {lang || 'code'}
         </span>
-        <button onClick={copy} style={copyBtnStyle} title="Copy">
+        <button onClick={copy} style={copyBtnStyle} title="copy">
           {copied ? <Check size={11} /> : <Copy size={11} />}
           <span>{copied ? 'copied' : 'copy'}</span>
         </button>
@@ -184,120 +126,74 @@ function CodeBlock({ children }: { children: ReactNode }) {
 
 function TypingDots() {
   return (
-    <div style={{ display: 'inline-flex', gap: 4, alignItems: 'center', padding: '4px 0' }}>
-      {[0, 1, 2].map(i => (
-        <span key={i} style={{
-          width: 6, height: 6, borderRadius: '50%', background: 'var(--primary)',
-          display: 'inline-block', opacity: 0.6,
-          animation: `bounce 1.4s infinite ease-in-out ${i * 0.16}s`,
-        }} />
-      ))}
-    </div>
+    <span style={{ display: 'flex', gap: 5, alignItems: 'center', height: 16 }}>
+      <span style={{ width: 6, height: 6, borderRadius: 99, background: 'var(--ink-2)', animation: 'dot1 1.2s ease-in-out infinite' }} />
+      <span style={{ width: 6, height: 6, borderRadius: 99, background: 'var(--ink-2)', animation: 'dot2 1.2s ease-in-out infinite' }} />
+      <span style={{ width: 6, height: 6, borderRadius: 99, background: 'var(--ink-2)', animation: 'dot3 1.2s ease-in-out infinite' }} />
+    </span>
   )
 }
 
-// --- Markdown component styles ---
-
 const bodyStyle: CSSProperties = {
-  fontFamily: 'var(--font-ui)',
-  fontSize: 15,
-  lineHeight: 1.6,
-  color: 'var(--text)',
+  fontFamily: 'var(--font-body)',
+  fontSize: 14.5,
+  lineHeight: 1.5,
   wordBreak: 'break-word',
 }
-const pStyle: CSSProperties = { margin: '0 0 10px' }
-const h1Style: CSSProperties = { fontSize: 20, fontWeight: 700, margin: '14px 0 8px' }
-const h2Style: CSSProperties = { fontSize: 17, fontWeight: 700, margin: '14px 0 8px' }
-const h3Style: CSSProperties = { fontSize: 15, fontWeight: 700, margin: '12px 0 6px' }
+const pStyle: CSSProperties = { margin: '0 0 8px' }
+const h1Style: CSSProperties = { fontSize: 18, fontWeight: 700, margin: '14px 0 8px' }
+const h2Style: CSSProperties = { fontSize: 16, fontWeight: 700, margin: '14px 0 8px' }
+const h3Style: CSSProperties = { fontSize: 14.5, fontWeight: 700, margin: '12px 0 6px' }
 const ulStyle: CSSProperties = { margin: '0 0 10px', paddingLeft: 22 }
 const olStyle: CSSProperties = { margin: '0 0 10px', paddingLeft: 22 }
 const liStyle: CSSProperties = { margin: '2px 0' }
 const linkStyle: CSSProperties = { color: 'var(--primary)', textDecoration: 'underline', textUnderlineOffset: 2 }
 const quoteStyle: CSSProperties = {
-  margin: '8px 0',
-  padding: '6px 12px',
-  borderLeft: '3px solid var(--border)',
-  color: 'var(--text-dim)',
-  background: 'var(--surface-low)',
-  borderRadius: '0 4px 4px 0',
+  margin: '8px 0', padding: '6px 12px',
+  borderLeft: '3px solid var(--line)', color: 'var(--ink-2)',
+  background: 'var(--surface-2)', borderRadius: '0 6px 6px 0',
 }
-const hrStyle: CSSProperties = { border: 0, borderTop: '1px solid var(--border-dim)', margin: '12px 0' }
+const hrStyle: CSSProperties = { border: 0, borderTop: '1px solid var(--line)', margin: '12px 0' }
 const tableWrapStyle: CSSProperties = {
-  margin: '8px 0 12px',
-  overflowX: 'auto',
-  border: '1px solid var(--border)',
-  borderRadius: 6,
+  margin: '8px 0 12px', overflowX: 'auto',
+  border: '1.5px solid var(--line)', borderRadius: 8,
 }
-const tableStyle: CSSProperties = {
-  width: '100%',
-  borderCollapse: 'collapse',
-  fontSize: 13,
-}
+const tableStyle: CSSProperties = { width: '100%', borderCollapse: 'collapse', fontSize: 13 }
 const thStyle: CSSProperties = {
-  textAlign: 'left',
-  padding: '6px 10px',
-  background: 'var(--surface-mid)',
-  borderBottom: '1px solid var(--border)',
-  fontFamily: 'var(--font-mono)',
-  fontSize: 11,
-  fontWeight: 700,
-  letterSpacing: '0.03em',
-  color: 'var(--text)',
+  textAlign: 'left', padding: '6px 10px',
+  background: 'var(--surface-2)', borderBottom: '1px solid var(--line)',
+  fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700,
+  letterSpacing: '0.03em', color: 'var(--ink)',
 }
 const tdStyle: CSSProperties = {
-  padding: '6px 10px',
-  borderTop: '1px solid var(--border-dim)',
-  color: 'var(--text-dim)',
+  padding: '6px 10px', borderTop: '1px solid var(--line)', color: 'var(--ink-2)',
 }
 const codeBoxStyle: CSSProperties = {
-  margin: '8px 0 12px',
-  background: 'var(--surface-low)',
-  border: '1px solid var(--border)',
-  borderRadius: 8,
-  overflow: 'hidden',
+  margin: '8px 0 12px', background: 'var(--surface-2)',
+  border: '1.5px solid var(--line)', borderRadius: 8, overflow: 'hidden',
 }
 const codeBoxHeaderStyle: CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  padding: '4px 10px',
-  background: 'var(--surface-mid)',
-  borderBottom: '1px solid var(--border)',
+  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+  padding: '4px 10px', background: 'var(--surface-2)',
+  borderBottom: '1px solid var(--line)',
 }
 const copyBtnStyle: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 4,
-  background: 'transparent',
-  border: 'none',
-  padding: '2px 4px',
-  color: 'var(--text-muted)',
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  cursor: 'pointer',
-  borderRadius: 4,
-  transition: 'color 0.15s ease',
+  display: 'inline-flex', alignItems: 'center', gap: 4,
+  background: 'transparent', border: 'none', padding: '2px 4px',
+  color: 'var(--ink-2)', fontFamily: 'var(--font-mono)',
+  fontSize: 10, cursor: 'pointer', borderRadius: 4,
 }
 const preStyle: CSSProperties = {
-  margin: 0,
-  padding: '12px 14px',
-  overflowX: 'auto',
-  fontFamily: 'var(--font-mono)',
-  fontSize: 13,
-  lineHeight: 1.5,
+  margin: 0, padding: '12px 14px', overflowX: 'auto',
+  fontFamily: 'var(--font-mono)', fontSize: 13, lineHeight: 1.5,
 }
 const blockCodeStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 13,
-  color: 'var(--text)',
-  background: 'transparent',
+  fontFamily: 'var(--font-mono)', fontSize: 13,
+  color: 'var(--ink)', background: 'transparent',
 }
 const inlineCodeStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 12,
-  padding: '1px 6px',
-  borderRadius: 4,
-  background: 'var(--surface-low)',
-  border: '1px solid var(--border-dim)',
-  color: 'var(--primary-bright)',
+  fontFamily: 'var(--font-mono)', fontSize: 12,
+  padding: '1px 6px', borderRadius: 4,
+  background: 'var(--surface-2)', border: '1px solid var(--line)',
+  color: 'var(--primary)',
 }
