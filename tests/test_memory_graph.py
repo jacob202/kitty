@@ -100,6 +100,39 @@ async def test_slow_optional_store_is_bounded(monkeypatch):
     assert result.errors == ["slow: timed out"]
 
 
+def test_graph_result_does_not_rebuild_default_adapters():
+    class SingleAdapter(StoreAdapter):
+        @property
+        def name(self):
+            return "custom"
+
+        async def fetch(self, query):
+            return []
+
+        def format_items(self, items):
+            return "## Custom\n- " + items[0]["text"]
+
+    result = GraphResult(
+        results={
+            "custom": [{"text": "kept local"}],
+            "memory": [{"memory": "ignored"}],
+        },
+        adapters=[SingleAdapter()],
+    )
+
+    ctx = result.formatted_context()
+
+    assert "kept local" in ctx
+    assert "ignored" not in ctx
+
+
+def test_graph_result_requires_adapter_seam():
+    result = GraphResult(results={"memory": [{"memory": "hidden dependency"}]})
+
+    with pytest.raises(ValueError, match="requires adapters"):
+        result.formatted_context()
+
+
 @pytest.mark.asyncio
 async def test_knowledge_adapter_does_not_block_event_loop(monkeypatch):
     async def blocking_search(query, limit):
@@ -124,13 +157,31 @@ async def test_unified_context_formatting():
         "journal": [{"entry": "today I felt happy"}],
         "traces": [{"user_request": "how are you", "domain_classified": "chat"}],
         "todos": [],
-        "inbox": [{"text": "remember to order bias trim pots", "created_at": "2026-06-18T12:00:00Z", "source": "desktop_quick_capture", "processed": False}],
+        "inbox": [
+            {
+                "text": "remember to order bias trim pots",
+                "created_at": "2026-06-18T12:00:00Z",
+                "source": "desktop_quick_capture",
+                "processed": False,
+            }
+        ],
     }
+
+    adapters = [
+        MemoryAdapter(),
+        KnowledgeAdapter(),
+        JournalAdapter(),
+        TracesAdapter(),
+        TodosAdapter(),
+        InboxAdapter(),
+    ]
 
     with patch.object(
         MemoryGraph,
         "search_all",
-        new=AsyncMock(return_value=GraphResult(results=mock_results)),
+        new=AsyncMock(
+            return_value=GraphResult(results=mock_results, adapters=adapters)
+        ),
     ):
         ctx = await unified_context("hello")
         assert "## Memory" in ctx
@@ -158,10 +209,21 @@ async def test_token_budget_truncation():
         "inbox": [],
     }
 
+    adapters = [
+        MemoryAdapter(),
+        KnowledgeAdapter(),
+        JournalAdapter(),
+        TracesAdapter(),
+        TodosAdapter(),
+        InboxAdapter(),
+    ]
+
     with patch.object(
         MemoryGraph,
         "search_all",
-        new=AsyncMock(return_value=GraphResult(results=mock_results)),
+        new=AsyncMock(
+            return_value=GraphResult(results=mock_results, adapters=adapters)
+        ),
     ):
         ctx = await unified_context("hello")
         assert len(ctx) <= (CONTEXT_TOKEN_CAP * 4) + 5
