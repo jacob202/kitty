@@ -378,52 +378,40 @@ class SignalsAdapter(StoreAdapter):
     def name(self) -> str:
         return "signals"
 
-    async def fetch(self, query: str) -> list[dict[str, Any]]:
+    async def fetch(self, query: str) -> list[Item]:
         try:
             from gateway.signal_store import list_recent
 
-            # Recent signals are always relevant for "what changed" / state queries.
             signals = await asyncio.to_thread(list_recent, 20)
             terms = [term for term in query.lower().split() if term]
-            if not terms:
-                return signals
-
-            matches = []
-            for s in signals:
-                text = " ".join(
-                    [
+            chosen = signals if not terms else [
+                s for s in signals
+                if any(
+                    term in " ".join([
                         str(s.get("source") or ""),
                         str(s.get("kind") or ""),
                         str(s.get("payload") or ""),
-                    ]
-                ).lower()
-                if any(term in text for term in terms):
-                    matches.append(s)
-            return matches[:5]
+                    ]).lower()
+                    for term in terms
+                )
+            ]
+            items: list[Item] = []
+            for s in chosen[:5]:
+                payload = s.get("payload") or {}
+                summary = str(payload.get("message") or payload.get("label") or s.get("kind", ""))
+                seen = "seen" if s.get("processed_at") else "unseen"
+                source = s.get("source", "unknown")
+                items.append(Item(
+                    text=f"[{source} | {seen}] {summary[:200]}",
+                    source=Source.TRACES,
+                    score=None,
+                    ts=None,
+                    metadata={k: v for k, v in s.items() if k not in {"payload"}},
+                ))
+            return items
         except Exception as e:
             logger.warning("Signals fetch failed: %s", e)
             return []
-
-    def format_items(self, items: list[dict[str, Any]]) -> str:
-        if not items:
-            return ""
-        lines = ["## Signals"]
-        for s in items[:5]:
-            source = s.get("source", "unknown")
-            kind = s.get("kind", "event")
-            payload = s.get("payload") or {}
-            summary = str(payload.get("message") or payload.get("label") or kind)
-            seen = "seen" if s.get("processed_at") else "unseen"
-            lines.append(f"- [{source} | {seen}] {summary[:200]}")
-        return "\n".join(lines)
-
-    def correlate(
-        self, items: list[dict[str, Any]], all_results: dict[str, list[dict[str, Any]]]
-    ) -> list[str]:
-        unprocessed = [s for s in items if not s.get("processed_at")]
-        if unprocessed:
-            return [f"{len(unprocessed)} unseen signal(s)"]
-        return []
 
 
 # --- Adapter registry ---
