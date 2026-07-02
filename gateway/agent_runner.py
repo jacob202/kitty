@@ -3,8 +3,8 @@
 Agents are LLM-driven workers with a goal, a preset type, and an iteration budget.
 They run in background asyncio tasks, recording progress to autonomy_state.db.
 By default each agent works its goal through Kitty's explicit reasoning loop
-(OBSERVE → ORIENT → DECIDE → ACT → VERIFY → LEARN; see ``algorithm.py``), and
-the detected phase is tagged onto each recorded step.
+(OBSERVE → ORIENT → DECIDE → ACT → VERIFY → LEARN), and the detected phase
+is tagged onto each recorded step.
 
 Agent presets (inspired by free-code's builtInAgents):
 - explorer:   search and discover — wide research, finding sources, exploring topics
@@ -25,13 +25,94 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
+from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
 logger = logging.getLogger("kitty.agent_runner")
 
 DEFAULT_MAX_ITERATIONS: int = 5
 AGENT_TIMEOUT_SECONDS: int = 300  # 5 min hard cap per agent
+
+# --- The Algorithm (reasoning loop, formerly gateway/algorithm.py) ---
+
+
+@dataclass(frozen=True)
+class Phase:
+    """One step of the Algorithm: a name, the question it answers, what to do."""
+
+    name: str
+    intent: str
+    guidance: str
+
+
+PHASES: tuple[Phase, ...] = (
+    Phase(
+        "OBSERVE",
+        "What is actually being asked?",
+        "Restate the goal in your own words and gather the raw facts and "
+        "context. No solutions yet.",
+    ),
+    Phase(
+        "ORIENT",
+        "What does it mean?",
+        "Frame the problem: constraints, unknowns, assumptions, and what success would look like.",
+    ),
+    Phase(
+        "DECIDE",
+        "What's the plan?",
+        "Choose one approach and list the concrete steps. Name the success "
+        "criteria you'll check later.",
+    ),
+    Phase(
+        "ACT", "Do it.", "Execute the chosen step. Show the work — code, commands, or reasoning."
+    ),
+    Phase(
+        "VERIFY",
+        "Did it work?",
+        "Check the result against the success criteria from DECIDE. Be honest about gaps.",
+    ),
+    Phase(
+        "LEARN",
+        "What's worth keeping?",
+        "Capture the one durable lesson or note, then give your final answer.",
+    ),
+)
+
+PHASE_NAMES: tuple[str, ...] = tuple(p.name for p in PHASES)
+
+_PHASE_MARKER = re.compile(r"PHASE:\s*([A-Za-z]+)", re.IGNORECASE)
+
+
+def frame_prompt(base: str) -> str:
+    """Append the Algorithm phase guide to a base system prompt."""
+    lines = [
+        base,
+        "",
+        "## The Algorithm",
+        "Work the goal through these phases in order. Label each section with a "
+        "`## PHASE: NAME` heading so your progress is legible:",
+    ]
+    for i, p in enumerate(PHASES, 1):
+        lines.append(f"{i}. **{p.name}** — {p.intent} {p.guidance}")
+    lines.append(
+        "Skip a phase only if it genuinely doesn't apply. Loop back to an "
+        "earlier phase if VERIFY surfaces a problem."
+    )
+    return "\n".join(lines)
+
+
+def detect_phase(text: str) -> str | None:
+    """Best-guess the phase from agent output. Last explicit PHASE: marker wins."""
+    if not text:
+        return None
+    for name in reversed(_PHASE_MARKER.findall(text)):
+        upper = name.upper()
+        if upper in PHASE_NAMES:
+            return upper
+    return None
+
 
 # --- Agent Preset Definitions ---
 
@@ -122,9 +203,7 @@ async def spawn(
     """
     preset = AGENT_PRESETS.get(agent_type)
     if not preset:
-        raise ValueError(
-            f"Unknown agent type: {agent_type}. Available: {list(AGENT_PRESETS)}"
-        )
+        raise ValueError(f"Unknown agent type: {agent_type}. Available: {list(AGENT_PRESETS)}")
 
     model = model or preset["model"]
     max_iterations = int(max_iterations or preset["max_iterations"])
@@ -169,9 +248,7 @@ async def spawn(
         )
     )
 
-    logger.info(
-        "Agent spawned: type=%s session=%d goal=%s", agent_type, session_id, goal[:80]
-    )
+    logger.info("Agent spawned: type=%s session=%d goal=%s", agent_type, session_id, goal[:80])
     return session_id
 
 
@@ -185,12 +262,11 @@ async def _run_agent_loop(
     use_algorithm: bool = True,
 ) -> None:
     """Core agent loop — runs in background, records all steps."""
-    from gateway import algorithm
     from gateway.autonomy_state import AutonomyState
     from gateway.llm_client import call_llm, route_model
 
     if use_algorithm:
-        system_prompt = algorithm.frame_prompt(system_prompt)
+        system_prompt = frame_prompt(system_prompt)
 
     state = AutonomyState(session_id=session_id)
     messages: list[dict] = [
@@ -218,9 +294,7 @@ async def _run_agent_loop(
                     operation=f"agent.{session_id}",
                 )
             except Exception as e:
-                logger.error(
-                    "Agent %d iteration %d failed: %s", session_id, iteration, e
-                )
+                logger.error("Agent %d iteration %d failed: %s", session_id, iteration, e)
                 state.record_step(
                     "error",
                     content=f"LLM call failed: {e}",
@@ -231,7 +305,7 @@ async def _run_agent_loop(
             elapsed = round((time.monotonic() - t_start) * 1000)
             thinking = f"Iteration {iteration + 1}/{max_iterations}, {elapsed}ms"
             if use_algorithm:
-                phase = algorithm.detect_phase(response)
+                phase = detect_phase(response)
                 if phase:
                     thinking = f"[{phase}] {thinking}"
             state.record_step(
@@ -244,9 +318,7 @@ async def _run_agent_loop(
 
             # Check if the agent signals completion
             if _is_finished(response):
-                logger.info(
-                    "Agent %d finished after %d iterations", session_id, iteration + 1
-                )
+                logger.info("Agent %d finished after %d iterations", session_id, iteration + 1)
                 break
 
         state.finish("completed")
@@ -292,9 +364,7 @@ def get_status(session_id: int) -> dict[str, Any]:
 
     with sqlite3.connect(STATE_DB) as conn:
         conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT * FROM autonomy_sessions WHERE id = ?", (session_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM autonomy_sessions WHERE id = ?", (session_id,)).fetchone()
 
     status = row["status"] if row else "unknown"
     goal = row["goal"] if row else ""
