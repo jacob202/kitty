@@ -25,6 +25,9 @@ Rules for executors (any model or human):
 | 005 | Mail read-only connector | Codex/Claude Code + Jacob (credentials) | blocked on §16.2 decision |
 | 006 | Project resume | Claude Code | blocked on 001 |
 | 007 | Delegation packet generator | strongest model (template) + Codex (plumbing) | blocked on 003 |
+| 008 | Knowledge library + expert retrieval | Claude Code / Codex | blocked on 002–004 unless Jacob reprioritizes |
 
 Packets 004–007 are specified in `docs/OPERATOR_STRATEGY.md` §15; author
-their packet files from that spec when their blockers clear.
+their packet files from that spec when their blockers clear. Packet 008 is a
+planning packet for productizing the existing knowledge pipeline after the core
+state/action spine packets land, unless Jacob explicitly reprioritizes it.
