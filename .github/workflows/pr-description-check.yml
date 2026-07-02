@@ -26,6 +26,11 @@ jobs:
 
             const summaryMatch = body.match(/## Summary\s*([\s\S]*?)(?=##|$)/);
             const testMatch = body.match(/## Test plan\s*([\s\S]*?)(?=##|$)/);
+            console.log('DEBUG summaryMatch:', !!summaryMatch);
+            if (summaryMatch) {
+              console.log('DEBUG summary captured:', JSON.stringify(summaryMatch[1].trim().slice(0, 60)));
+              console.log('DEBUG summary bullet test:', /^-\s/m.test(summaryMatch[1].trim()));
+            }
             if (summaryMatch && !summaryMatch[1].trim().match(/^-\s/m)) missing.push('at least one bullet under `## Summary`');
             if (testMatch && !testMatch[1].trim().match(/^-\s|\[.]/m)) missing.push('at least one bullet or checklist item under `## Test plan`');
 
