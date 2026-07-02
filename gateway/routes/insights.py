@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import time
-
 from fastapi import APIRouter, HTTPException
 
 from gateway.memory_consolidation import get_last_run_info
