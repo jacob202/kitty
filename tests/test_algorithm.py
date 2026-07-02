@@ -3,7 +3,7 @@ into the agent runner."""
 
 import pytest
 
-from gateway import algorithm
+from gateway import agent_runner as algorithm
 
 
 def test_phase_order_is_canonical():
@@ -79,9 +79,7 @@ def _wire_loop(monkeypatch, response):
 
     monkeypatch.setattr("gateway.llm_client.call_llm", fake_call_llm)
     monkeypatch.setattr("gateway.llm_client.route_model", lambda goal: "test-model")
-    monkeypatch.setattr(
-        "gateway.autonomy_state.AutonomyState", lambda session_id: state
-    )
+    monkeypatch.setattr("gateway.autonomy_state.AutonomyState", lambda session_id: state)
     return captured, state
 
 

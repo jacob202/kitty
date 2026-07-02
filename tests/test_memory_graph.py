@@ -1,4 +1,4 @@
-"""Tests for the unified memory graph."""
+"""Tests for the unified memory graph (Phase 2: ``list[Item]`` shape)."""
 
 import asyncio
 import json
@@ -12,37 +12,35 @@ from gateway.memory_graph import (
     CONTEXT_TOKEN_CAP,
     GraphResult,
     InboxAdapter,
+    Item,
     JournalAdapter,
     KnowledgeAdapter,
     MemoryAdapter,
     MemoryGraph,
+    Source,
     StoreAdapter,
-    TodosAdapter,
     TracesAdapter,
+    TodosAdapter,
     _fetch_traces,
-    search_all,
     unified_context,
 )
 
 
 @pytest.mark.asyncio
 async def test_search_all_returns_all_keys():
-    """search_all should always return the five canonical keys."""
-    with patch.object(
-        MemoryAdapter, "fetch", new=AsyncMock(return_value=[])
-    ), patch.object(
-        KnowledgeAdapter, "fetch", new=AsyncMock(return_value=[])
-    ), patch.object(
-        JournalAdapter, "fetch", new=AsyncMock(return_value=[])
-    ), patch.object(
-        TracesAdapter, "fetch", new=AsyncMock(return_value=[])
-    ), patch.object(
-        TodosAdapter, "fetch", new=AsyncMock(return_value=[])
-    ), patch.object(
-        InboxAdapter, "fetch", new=AsyncMock(return_value=[])
+    """``MemoryGraph.search_all`` should always return the six canonical keys
+    and each value should be a ``list[Item]``."""
+    with (
+        patch.object(MemoryAdapter, "fetch", new=AsyncMock(return_value=[])),
+        patch.object(KnowledgeAdapter, "fetch", new=AsyncMock(return_value=[])),
+        patch.object(JournalAdapter, "fetch", new=AsyncMock(return_value=[])),
+        patch.object(TracesAdapter, "fetch", new=AsyncMock(return_value=[])),
+        patch.object(TodosAdapter, "fetch", new=AsyncMock(return_value=[])),
+        patch.object(InboxAdapter, "fetch", new=AsyncMock(return_value=[])),
     ):
-        results = await search_all("test query")
-        assert set(results.keys()) == {
+        graph = MemoryGraph()
+        result = await graph.search_all("test query")
+        assert set(result.results.keys()) == {
             "memory",
             "knowledge",
             "journal",
@@ -50,31 +48,27 @@ async def test_search_all_returns_all_keys():
             "todos",
             "inbox",
         }
-        assert all(isinstance(v, list) for v in results.values())
+        assert all(isinstance(v, list) for v in result.results.values())
+        assert all(isinstance(it, Item) for v in result.results.values() for it in v)
 
 
 @pytest.mark.asyncio
 async def test_failure_isolation():
     """A failure in one store should not prevent others from returning results."""
-    with patch.object(
-        MemoryAdapter, "fetch", new=AsyncMock(side_effect=RuntimeError("Store down"))
-    ), patch.object(
-        KnowledgeAdapter,
-        "fetch",
-        new=AsyncMock(return_value=[{"text": "found it"}]),
-    ), patch.object(
-        JournalAdapter, "fetch", new=AsyncMock(return_value=[])
-    ), patch.object(
-        TracesAdapter, "fetch", new=AsyncMock(return_value=[])
-    ), patch.object(
-        TodosAdapter, "fetch", new=AsyncMock(return_value=[])
-    ), patch.object(
-        InboxAdapter, "fetch", new=AsyncMock(return_value=[])
+    ok_item = Item(text="found it", source=Source.KNOWLEDGE)
+    with (
+        patch.object(MemoryAdapter, "fetch", new=AsyncMock(side_effect=RuntimeError("Store down"))),
+        patch.object(KnowledgeAdapter, "fetch", new=AsyncMock(return_value=[ok_item])),
+        patch.object(JournalAdapter, "fetch", new=AsyncMock(return_value=[])),
+        patch.object(TracesAdapter, "fetch", new=AsyncMock(return_value=[])),
+        patch.object(TodosAdapter, "fetch", new=AsyncMock(return_value=[])),
+        patch.object(InboxAdapter, "fetch", new=AsyncMock(return_value=[])),
     ):
-        results = await search_all("test query")
-        assert results["memory"] == []
-        assert len(results["knowledge"]) == 1
-        assert results["knowledge"][0]["text"] == "found it"
+        result = await MemoryGraph().search_all("test query")
+        assert result.results["memory"] == []
+        assert len(result.results["knowledge"]) == 1
+        assert result.results["knowledge"][0].text == "found it"
+        assert any("RuntimeError" in e for e in result.errors)
 
 
 @pytest.mark.asyncio
@@ -86,10 +80,7 @@ async def test_slow_optional_store_is_bounded(monkeypatch):
 
         async def fetch(self, query):
             await asyncio.sleep(0.2)
-            return [{"text": query}]
-
-        def format_items(self, items):
-            return ""
+            return [Item(text=query, source=Source.MEMORY)]
 
     monkeypatch.setattr(memory_graph_module, "STORE_FETCH_TIMEOUT_SECONDS", 0.01)
     started = time.monotonic()
@@ -97,45 +88,12 @@ async def test_slow_optional_store_is_bounded(monkeypatch):
 
     assert time.monotonic() - started < 0.15
     assert result.results["slow"] == []
-    assert result.errors == ["slow: timed out"]
-
-
-def test_graph_result_does_not_rebuild_default_adapters():
-    class SingleAdapter(StoreAdapter):
-        @property
-        def name(self):
-            return "custom"
-
-        async def fetch(self, query):
-            return []
-
-        def format_items(self, items):
-            return "## Custom\n- " + items[0]["text"]
-
-    result = GraphResult(
-        results={
-            "custom": [{"text": "kept local"}],
-            "memory": [{"memory": "ignored"}],
-        },
-        adapters=[SingleAdapter()],
-    )
-
-    ctx = result.formatted_context()
-
-    assert "kept local" in ctx
-    assert "ignored" not in ctx
-
-
-def test_graph_result_requires_adapter_seam():
-    result = GraphResult(results={"memory": [{"memory": "hidden dependency"}]})
-
-    with pytest.raises(ValueError, match="requires adapters"):
-        result.formatted_context()
+    assert any("TimeoutError" in e and "timed out" in e for e in result.errors)
 
 
 @pytest.mark.asyncio
 async def test_knowledge_adapter_does_not_block_event_loop(monkeypatch):
-    async def blocking_search(query, limit):
+    def blocking_search(query, limit):
         time.sleep(0.2)
         return [{"text": query}]
 
@@ -150,58 +108,61 @@ async def test_knowledge_adapter_does_not_block_event_loop(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_unified_context_formatting():
-    """unified_context should return a formatted string with sections."""
+    """``unified_context`` returns a formatted string with sections per source."""
     mock_results = {
-        "memory": [{"memory": "remembered this"}],
-        "knowledge": [{"text": "learned this", "source": "book.pdf"}],
-        "journal": [{"entry": "today I felt happy"}],
-        "traces": [{"user_request": "how are you", "domain_classified": "chat"}],
+        "memory": [Item(text="remembered this", source=Source.MEMORY)],
+        "knowledge": [
+            Item(
+                text="learned this",
+                source=Source.KNOWLEDGE,
+                metadata={"source": "book.pdf"},
+            )
+        ],
+        "journal": [Item(text="today I felt happy", source=Source.JOURNAL)],
+        "traces": [
+            Item(
+                text="how are you",
+                source=Source.TRACES,
+                metadata={"domain_classified": "chat"},
+            )
+        ],
         "todos": [],
         "inbox": [
-            {
-                "text": "remember to order bias trim pots",
-                "created_at": "2026-06-18T12:00:00Z",
-                "source": "desktop_quick_capture",
-                "processed": False,
-            }
+            Item(
+                text="remember to order bias trim pots",
+                source=Source.INBOX,
+                metadata={
+                    "created_at": "2026-06-18T12:00:00Z",
+                    "source": "desktop_quick_capture",
+                },
+            )
         ],
     }
-
-    adapters = [
-        MemoryAdapter(),
-        KnowledgeAdapter(),
-        JournalAdapter(),
-        TracesAdapter(),
-        TodosAdapter(),
-        InboxAdapter(),
-    ]
 
     with patch.object(
         MemoryGraph,
         "search_all",
-        new=AsyncMock(
-            return_value=GraphResult(results=mock_results, adapters=adapters)
-        ),
+        new=AsyncMock(return_value=GraphResult(results=mock_results)),
     ):
         ctx = await unified_context("hello")
         assert "## Memory" in ctx
         assert "remembered this" in ctx
         assert "## Knowledge" in ctx
         assert "learned this" in ctx
-        assert "## Recent Journal" in ctx
+        assert "## Journal" in ctx
         assert "today I felt happy" in ctx
-        assert "## Recent Activity" in ctx
-        assert "[chat] how are you" in ctx
-        assert "## Recent Captures" in ctx
+        assert "## Traces" in ctx
+        assert "how are you" in ctx
+        assert "## Inbox" in ctx
         assert "remember to order bias trim pots" in ctx
 
 
 @pytest.mark.asyncio
 async def test_token_budget_truncation():
-    """unified_context should truncate output according to CONTEXT_TOKEN_CAP."""
+    """``unified_context`` truncates output according to ``CONTEXT_TOKEN_CAP``."""
     long_text = "A" * (CONTEXT_TOKEN_CAP * 5)
     mock_results = {
-        "memory": [{"memory": long_text}],
+        "memory": [Item(text=long_text, source=Source.MEMORY)],
         "knowledge": [],
         "journal": [],
         "traces": [],
@@ -209,21 +170,10 @@ async def test_token_budget_truncation():
         "inbox": [],
     }
 
-    adapters = [
-        MemoryAdapter(),
-        KnowledgeAdapter(),
-        JournalAdapter(),
-        TracesAdapter(),
-        TodosAdapter(),
-        InboxAdapter(),
-    ]
-
     with patch.object(
         MemoryGraph,
         "search_all",
-        new=AsyncMock(
-            return_value=GraphResult(results=mock_results, adapters=adapters)
-        ),
+        new=AsyncMock(return_value=GraphResult(results=mock_results)),
     ):
         ctx = await unified_context("hello")
         assert len(ctx) <= (CONTEXT_TOKEN_CAP * 4) + 5
@@ -232,7 +182,7 @@ async def test_token_budget_truncation():
 
 @pytest.mark.asyncio
 async def test_real_journal_fetch_smoke(tmp_path, monkeypatch):
-    """Test journal search_entries via the journal module with a temporary file."""
+    """JournalAdapter fetches via journal.search_entries (SQLite-backed)."""
     from gateway import journal_store
 
     journal_file = tmp_path / "journal_entries.jsonl"
@@ -246,18 +196,19 @@ async def test_real_journal_fetch_smoke(tmp_path, monkeypatch):
         f.write(json.dumps({"ts": 2.0, "entry": "lazy dog jumps"}) + "\n")
         f.write(json.dumps({"ts": 3.0, "entry": "nothing here"}) + "\n")
 
-    from gateway.journal import search_entries
+    items = await JournalAdapter().fetch("quick dog")
 
-    results = search_entries("quick dog")
-
-    assert len(results) == 2
-    assert any("quick" in r["entry"] for r in results)
-    assert any("dog" in r["entry"] for r in results)
+    assert len(items) == 2
+    assert all(isinstance(it, Item) for it in items)
+    assert all(it.source == Source.JOURNAL for it in items)
+    texts = [it.text for it in items]
+    assert any("quick" in t for t in texts)
+    assert any("dog" in t for t in texts)
 
 
 @pytest.mark.asyncio
 async def test_real_trace_fetch_smoke(tmp_path, monkeypatch):
-    """Test the real _fetch_traces logic with a temporary file."""
+    """TracesAdapter._fetch_traces returns ``list[Item]`` from the trace log."""
     trace_file = tmp_path / "gateway_trace.jsonl"
     monkeypatch.setattr("gateway.memory_graph.LOG_FILE", trace_file)
 
@@ -284,16 +235,17 @@ async def test_real_trace_fetch_smoke(tmp_path, monkeypatch):
             + "\n"
         )
 
-    results = _fetch_traces("hvac")
+    items = _fetch_traces("hvac")
 
-    assert len(results) == 1
-    assert results[0]["user_request"] == "fix the hvac"
-    assert results[0]["domain_classified"] == "repair"
+    assert len(items) == 1
+    assert all(isinstance(it, Item) for it in items)
+    assert items[0].text == "fix the hvac"
+    assert items[0].metadata.get("domain_classified") == "repair"
 
 
 @pytest.mark.asyncio
 async def test_inbox_adapter_resurfaces_unprocessed_captures_for_brief(tmp_path, monkeypatch):
-    """Brief queries should include recent unprocessed captures."""
+    """Brief queries should include recent unprocessed captures as ``Item``."""
     inbox_file = tmp_path / "inbox.jsonl"
     monkeypatch.setattr("gateway.memory_graph.INBOX_FILE", inbox_file)
     inbox_file.write_text(
@@ -332,10 +284,9 @@ async def test_inbox_adapter_resurfaces_unprocessed_captures_for_brief(tmp_path,
 
     items = await InboxAdapter().fetch("morning brief")
 
-    assert [item["id"] for item in items] == ["new"]
-    formatted = InboxAdapter().format_items(items)
-    assert "## Recent Captures" in formatted
-    assert "Ask Mike about the Ridgeline tires" in formatted
+    assert [item.metadata["id"] for item in items] == ["new"]
+    assert items[0].source == Source.INBOX
+    assert "Ask Mike about the Ridgeline tires" in items[0].text
 
 
 @pytest.mark.asyncio
@@ -362,5 +313,5 @@ async def test_inbox_adapter_matches_capture_text_and_tags(tmp_path, monkeypatch
     by_text = await InboxAdapter().fetch("transistors")
     by_tag = await InboxAdapter().fetch("sansui")
 
-    assert by_text[0]["id"] == "capture-1"
-    assert by_tag[0]["id"] == "capture-1"
+    assert by_text[0].metadata["id"] == "capture-1"
+    assert by_tag[0].metadata["id"] == "capture-1"

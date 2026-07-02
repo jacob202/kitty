@@ -1,19 +1,28 @@
 """Unified Memory Graph — deep module for cross-store context retrieval.
 
-This is a DEEP module. Callers should only use:
-- unified_context(query) -> str: High-leverage entry point for context building.
-- search_all(query) -> dict: Raw results from all stores for debugging.
+Phase 2 deepening (per
+``docs/superpowers/specs/2026-06-24-gateway-deepening-program-design.md``):
+the read path now exposes one entry point (``gateway.context_assembler``)
+and one item shape (``Item``). The adapters return ``list[Item]``; the
+``format_items`` and ``correlate`` methods are gone from the adapter
+contract — formatting lives in the assembler, not in the stores. This
+module still owns the per-store retrieval and the concurrent fan-in.
 
-Internal store adapters (Memory, Knowledge, Journal, Traces, Todos, Inbox) are
-implementation details. The module provides:
-1. Unified query interface across active stores
-2. Cross-store correlation (find related entities across stores)
-3. Concurrent fetching with graceful degradation
-4. Token-aware truncation
+Public surface:
 
-Depth principle: A lot of behaviour (stores + correlation) behind a small
-interface (unified_context, search_all).
+- :class:`Item` — the uniform result shape every adapter returns.
+- :class:`Source` — enum of store sources, used in :attr:`Item.source`.
+- :class:`StoreAdapter` — abstract base. Subclasses implement
+  :meth:`name` and :meth:`fetch`. The legacy ``format_items`` and
+  ``correlate`` are removed.
+- :class:`GraphResult` — what :meth:`MemoryGraph.search_all` returns.
+- :func:`unified_context` — convenience wrapper around
+  :class:`MemoryGraph` returning a formatted string.
+- :func:`_format_unified_items` — free function used by the assembler
+  to render a :class:`GraphResult` as the memory section.
+- :func:`_truncate_text` — token-cap aware truncation.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -22,6 +31,8 @@ import logging
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from enum import Enum
 from typing import Any
 
 from gateway.paths import INBOX_FILE, LOG_FILE
@@ -32,48 +43,73 @@ CONTEXT_TOKEN_CAP: int = 1200
 STORE_FETCH_TIMEOUT_SECONDS: float = 5.0
 
 
+# --- Uniform item shape ---
+
+
+class Source(str, Enum):
+    """Which store an :class:`Item` came from. Stable identifier; the string
+    value is what callers see in :attr:`Item.source`."""
+
+    MEMORY = "memory"
+    KNOWLEDGE = "knowledge"
+    JOURNAL = "journal"
+    TRACES = "traces"
+    TODOS = "todos"
+    INBOX = "inbox"
+    MEMORY_PALACE = "memory_palace"
+
+    def __str__(self) -> str:  # pragma: no cover - trivial
+        return self.value
+
+
+@dataclass
+class Item:
+    """The uniform shape every adapter returns.
+
+    Attributes:
+        text: The displayable text. The assembler uses this directly.
+        source: Where the item came from.
+        score: Optional relevance score from the underlying store. ``None``
+            when the store didn't compute one.
+        ts: Optional timestamp. ``None`` when the store has no concept
+            of time for the item.
+        metadata: Optional store-specific fields. The assembler doesn't
+            read this; it's for future debugging and store-specific
+            rendering. Always a dict, never ``None``.
+    """
+
+    text: str
+    source: Source
+    score: float | None = None
+    ts: datetime | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
 # --- Store Adapter Interface ---
 
 
 class StoreAdapter(ABC):
-    """Abstract base for all memory graph stores.
+    """Abstract base for memory graph stores.
 
-    Each store implements:
-    - fetch(query): Get relevant items from this store
-    - format(items): Format items for context injection
-    - correlate(items, other_stores): Find cross-store relationships
+    After Phase 2 the only contract is :attr:`name` and
+    :meth:`fetch`. Formatting and cross-store correlation live in
+    :func:`gateway.context_assembler.assemble_context` and its helpers,
+    not in the adapters.
     """
 
     @property
     @abstractmethod
     def name(self) -> str:
-        """Human-readable store name."""
+        """Human-readable store name. Matches the value of one of the
+        :class:`Source` enum members."""
         pass
 
     @abstractmethod
-    async def fetch(self, query: str) -> list[dict[str, Any]]:
-        """Fetch items matching query."""
+    async def fetch(self, query: str) -> list[Item]:
+        """Fetch items matching ``query``. Returns ``[]`` (not raises) on
+        no data; raises on infrastructure failure so the orchestrator
+        can convert it into a warning."""
         pass
-
-    @abstractmethod
-    def format_items(self, items: list[dict[str, Any]]) -> str:
-        """Format items for context injection."""
-        pass
-
-    def correlate(
-        self, items: list[dict[str, Any]], all_results: dict[str, list[dict[str, Any]]]
-    ) -> list[str]:
-        """Find cross-store correlations.
-
-        Args:
-            items: This store's fetched items
-            all_results: Results from all stores (for cross-reference)
-
-        Returns:
-            List of correlation notes (e.g., "3 related journal entries found")
-        """
-        # Default: no correlation
-        return []
 
 
 # --- Store Adapters ---
@@ -84,41 +120,29 @@ class MemoryAdapter(StoreAdapter):
 
     @property
     def name(self) -> str:
-        return "memory"
+        return Source.MEMORY.value
 
-    async def fetch(self, query: str) -> list[dict[str, Any]]:
-        try:
-            from gateway.memory import search_memory
+    async def fetch(self, query: str) -> list[Item]:
+        from gateway.memory import search_memory
 
-            return await asyncio.to_thread(search_memory, query, 5)
-        except Exception as e:
-            logger.warning("Memory fetch failed: %s", e)
-            return []
-
-    def format_items(self, items: list[dict[str, Any]]) -> str:
-        if not items:
-            return ""
-        lines = ["## Memory"]
-        for m in items[:5]:
-            text = m.get("memory", m.get("text", ""))
-            if text:
-                lines.append(f"- {text}")
-        return "\n".join(lines)
-
-    def correlate(
-        self, items: list[dict[str, Any]], all_results: dict[str, list[dict[str, Any]]]
-    ) -> list[str]:
-        """Find correlations with journal and knowledge."""
-        correlations = []
-        if items and all_results.get("journal"):
-            count = len(all_results["journal"])
-            if count > 0:
-                correlations.append(f"{count} related journal entries")
-        if items and all_results.get("knowledge"):
-            count = len(all_results["knowledge"])
-            if count > 0:
-                correlations.append(f"{count} related knowledge chunks")
-        return correlations
+        rows = await asyncio.to_thread(search_memory, query, 5)
+        items: list[Item] = []
+        for m in rows:
+            if not isinstance(m, dict):
+                continue
+            text = m.get("memory") or m.get("text") or ""
+            if not text:
+                continue
+            items.append(
+                Item(
+                    text=text,
+                    source=Source.MEMORY,
+                    score=m.get("_score"),
+                    ts=None,
+                    metadata={k: v for k, v in m.items() if k not in {"memory", "text", "_score"}},
+                )
+            )
+        return items
 
 
 class KnowledgeAdapter(StoreAdapter):
@@ -126,77 +150,65 @@ class KnowledgeAdapter(StoreAdapter):
 
     @property
     def name(self) -> str:
-        return "knowledge"
+        return Source.KNOWLEDGE.value
 
-    async def fetch(self, query: str) -> list[dict[str, Any]]:
-        try:
-            from gateway.knowledge import search
+    async def fetch(self, query: str) -> list[Item]:
+        from gateway.knowledge import search
 
-            return await asyncio.to_thread(
-                lambda: asyncio.run(search(query, limit=3))
+        rows = await asyncio.to_thread(lambda: asyncio.run(search(query, limit=3)))
+        items: list[Item] = []
+        for c in rows:
+            if not isinstance(c, dict):
+                continue
+            text = c.get("text") or ""
+            if not text:
+                continue
+            items.append(
+                Item(
+                    text=text[:400],
+                    source=Source.KNOWLEDGE,
+                    score=c.get("_score"),
+                    ts=None,
+                    metadata={k: v for k, v in c.items() if k not in {"text", "_score"}},
+                )
             )
-        except Exception as e:
-            logger.warning("Knowledge fetch failed: %s", e)
-            return []
-
-    def format_items(self, items: list[dict[str, Any]]) -> str:
-        if not items:
-            return ""
-        lines = ["## Knowledge"]
-        for c in items[:3]:
-            src = c.get("source", "unknown")
-            dtype = c.get("doc_type", "general")
-            text = (c.get("text") or "")[:400]
-            lines.append(f"[{src} | {dtype}]\n{text}")
-        return "\n".join(lines)
-
-    def correlate(
-        self, items: list[dict[str, Any]], all_results: dict[str, list[dict[str, Any]]]
-    ) -> list[str]:
-        """Find correlations with memory and traces."""
-        correlations = []
-        if items and all_results.get("memory"):
-            count = len(all_results["memory"])
-            if count > 0:
-                correlations.append(f"Supported by {count} memory entries")
-        return correlations
+        return items
 
 
 class JournalAdapter(StoreAdapter):
-    """Adapter for journal entries (JSONL-based)."""
+    """Adapter for journal entries (SQLite-backed via journal_store)."""
 
     @property
     def name(self) -> str:
-        return "journal"
+        return Source.JOURNAL.value
 
-    async def fetch(self, query: str) -> list[dict[str, Any]]:
-        try:
-            from gateway.journal import search_entries
-            # Run in executor since it's synchronous
-            return await asyncio.to_thread(search_entries, query)
-        except Exception as e:
-            logger.warning("Journal fetch failed: %s", e)
-            return []
+    async def fetch(self, query: str) -> list[Item]:
+        from gateway.journal import search_entries
 
-    def format_items(self, items: list[dict[str, Any]]) -> str:
-        if not items:
-            return ""
-        lines = ["## Recent Journal"]
-        for entry in items[:3]:
-            lines.append(f"- {entry.get('entry', '')[:200]}")
-        return "\n".join(lines)
-
-    def correlate(
-        self, items: list[dict[str, Any]], all_results: dict[str, list[dict[str, Any]]]
-    ) -> list[str]:
-        """Find correlations with traces (same timestamp range)."""
-        correlations = []
-        if items and all_results.get("traces"):
-            # Check for temporal correlation
-            traces = all_results["traces"]
-            if traces:
-                correlations.append(f"Concurrent with {len(traces)} activity traces")
-        return correlations
+        rows = await asyncio.to_thread(search_entries, query)
+        items: list[Item] = []
+        for entry in rows:
+            if not isinstance(entry, dict):
+                continue
+            text = entry.get("entry", "")
+            if not text:
+                continue
+            ts_raw = entry.get("ts")
+            ts = (
+                datetime.fromtimestamp(float(ts_raw), tz=timezone.utc)
+                if isinstance(ts_raw, (int, float))
+                else None
+            )
+            items.append(
+                Item(
+                    text=text[:200],
+                    source=Source.JOURNAL,
+                    score=entry.get("_score"),
+                    ts=ts,
+                    metadata={k: v for k, v in entry.items() if k not in {"entry", "ts", "_score"}},
+                )
+            )
+        return items
 
 
 class TracesAdapter(StoreAdapter):
@@ -204,22 +216,18 @@ class TracesAdapter(StoreAdapter):
 
     @property
     def name(self) -> str:
-        return "traces"
+        return Source.TRACES.value
 
-    async def fetch(self, query: str) -> list[dict[str, Any]]:
-        try:
-            return await asyncio.to_thread(self._fetch_traces, query)
-        except Exception as e:
-            logger.warning("Trace fetch failed: %s", e)
-            return []
+    async def fetch(self, query: str) -> list[Item]:
+        return await asyncio.to_thread(self._fetch_traces, query)
 
-    def _fetch_traces(self, query: str) -> list[dict[str, Any]]:
+    def _fetch_traces(self, query: str) -> list[Item]:
         """Simple text-match search over recent gateway traces."""
         if not LOG_FILE.exists():
             return []
         cutoff = time.time() - 7 * 86400
         terms = query.lower().split()
-        matches: list[dict[str, Any]] = []
+        matches: list[Item] = []
         with LOG_FILE.open("r") as f:
             for line in f:
                 line = line.strip()
@@ -231,34 +239,26 @@ class TracesAdapter(StoreAdapter):
                     continue
                 if trace.get("timestamp", 0) < cutoff:
                     continue
-                request_text = trace.get("user_request", "").lower()
+                request_text = str(trace.get("user_request", "")).lower()
                 score = sum(1 for t in terms if t in request_text)
-                if score > 0:
-                    trace["_score"] = score
-                    matches.append(trace)
-        matches.sort(key=lambda x: x.get("_score", 0), reverse=True)
+                if score <= 0:
+                    continue
+                text = str(trace.get("user_request", ""))[:120]
+                if not text:
+                    continue
+                matches.append(
+                    Item(
+                        text=text,
+                        source=Source.TRACES,
+                        score=float(score),
+                        ts=None,
+                        metadata={
+                            k: v for k, v in trace.items() if k not in {"user_request", "timestamp"}
+                        },
+                    )
+                )
+        matches.sort(key=lambda i: i.score or 0.0, reverse=True)
         return matches[:5]
-
-    def format_items(self, items: list[dict[str, Any]]) -> str:
-        if not items:
-            return ""
-        lines = ["## Recent Activity"]
-        for trace in items[:3]:
-            text = trace.get("user_request", "")[:120]
-            domain = trace.get("domain_classified", "")
-            lines.append(f"- [{domain}] {text}")
-        return "\n".join(lines)
-
-    def correlate(
-        self, items: list[dict[str, Any]], all_results: dict[str, list[dict[str, Any]]]
-    ) -> list[str]:
-        """Find correlations with knowledge (domain-based)."""
-        correlations = []
-        if items and all_results.get("knowledge"):
-            domains = set(t.get("domain_classified", "") for t in items if t.get("domain_classified"))
-            if domains:
-                correlations.append(f"Domains: {', '.join(domains)}")
-        return correlations
 
 
 class TodosAdapter(StoreAdapter):
@@ -266,45 +266,36 @@ class TodosAdapter(StoreAdapter):
 
     @property
     def name(self) -> str:
-        return "todos"
+        return Source.TODOS.value
 
-    async def fetch(self, query: str) -> list[dict[str, Any]]:
-        try:
-            from gateway.todo_store import get
-            todos = await asyncio.to_thread(get)
-            terms = [term for term in query.lower().split() if term]
-            if not terms:
-                return todos[:5]
-            def _content(todo: dict[str, Any]) -> str:
-                return str(todo.get("content") or "").lower()
-            matches = [
-                todo for todo in todos if any(term in _content(todo) for term in terms)
-            ]
-            return matches[:5]
-        except Exception as e:
-            logger.warning("Todo fetch failed: %s", e)
-            return []
+    async def fetch(self, query: str) -> list[Item]:
+        from gateway.todo_store import get
 
-    def format_items(self, items: list[dict[str, Any]]) -> str:
-        if not items:
-            return ""
-        lines = ["## Todos"]
-        for todo in items[:5]:
-            content = todo.get("content", "")
-            status = todo.get("status", "pending")
-            lines.append(f"- [{status}] {content}")
-        return "\n".join(lines)
+        todos = await asyncio.to_thread(get)
+        terms = [term for term in query.lower().split() if term]
 
-    def correlate(
-        self, items: list[dict[str, Any]], all_results: dict[str, list[dict[str, Any]]]
-    ) -> list[str]:
-        """Find correlations with journal (completed todos)."""
-        correlations = []
-        if items:
-            completed = [t for t in items if t.get("status") == "completed"]
-            if completed:
-                correlations.append(f"{len(completed)} completed, rest pending")
-        return correlations
+        def _content(todo: dict[str, Any]) -> str:
+            return str(todo.get("content") or "").lower()
+
+        if not terms:
+            chosen = todos[:5]
+        else:
+            chosen = [t for t in todos if any(term in _content(t) for term in terms)][:5]
+        items: list[Item] = []
+        for todo in chosen:
+            text = str(todo.get("content") or "")
+            if not text:
+                continue
+            items.append(
+                Item(
+                    text=text,
+                    source=Source.TODOS,
+                    score=None,
+                    ts=None,
+                    metadata={k: v for k, v in todo.items() if k != "content"},
+                )
+            )
+        return items
 
 
 class InboxAdapter(StoreAdapter):
@@ -312,16 +303,12 @@ class InboxAdapter(StoreAdapter):
 
     @property
     def name(self) -> str:
-        return "inbox"
+        return Source.INBOX.value
 
-    async def fetch(self, query: str) -> list[dict[str, Any]]:
-        try:
-            return await asyncio.to_thread(self._fetch_inbox, query)
-        except Exception as e:
-            logger.warning("Inbox fetch failed: %s", e)
-            return []
+    async def fetch(self, query: str) -> list[Item]:
+        return await asyncio.to_thread(self._fetch_inbox, query)
 
-    def _fetch_inbox(self, query: str) -> list[dict[str, Any]]:
+    def _fetch_inbox(self, query: str) -> list[Item]:
         if not INBOX_FILE.exists():
             return []
         rows: list[dict[str, Any]] = []
@@ -340,13 +327,11 @@ class InboxAdapter(StoreAdapter):
         rows = rows[-50:]
         terms = [term for term in query.lower().split() if term]
         brief_query = any(
-            term in {"brief", "morning", "today", "inbox", "capture", "captures"}
-            for term in terms
+            term in {"brief", "morning", "today", "inbox", "capture", "captures"} for term in terms
         )
 
         def searchable(entry: dict[str, Any]) -> str:
-            _tags = entry.get("tags")
-            tags = _tags if isinstance(_tags, list) else []
+            tags = entry.get("tags") if isinstance(entry.get("tags"), list) else []
             return " ".join(
                 [
                     str(entry.get("text") or ""),
@@ -357,37 +342,32 @@ class InboxAdapter(StoreAdapter):
                 ]
             ).lower()
 
-        matches = []
+        items: list[Item] = []
         for entry in reversed(rows):
+            include = False
             if brief_query and entry.get("processed") is False:
-                matches.append(entry)
+                include = True
             elif terms and any(term in searchable(entry) for term in terms):
-                matches.append(entry)
+                include = True
             elif not terms:
-                matches.append(entry)
-            if len(matches) >= 5:
+                include = True
+            if not include:
+                continue
+            text = str(entry.get("text") or "")
+            if not text:
+                continue
+            items.append(
+                Item(
+                    text=text[:240],
+                    source=Source.INBOX,
+                    score=None,
+                    ts=None,
+                    metadata={k: v for k, v in entry.items() if k != "text"},
+                )
+            )
+            if len(items) >= 5:
                 break
-        return matches
-
-    def format_items(self, items: list[dict[str, Any]]) -> str:
-        if not items:
-            return ""
-        lines = ["## Recent Captures"]
-        for entry in items[:5]:
-            created = entry.get("created_at", "unknown time")
-            text = str(entry.get("text") or "").strip()
-            source = entry.get("source", "capture")
-            if text:
-                lines.append(f"- [{created} | {source}] {text[:240]}")
-        return "\n".join(lines)
-
-    def correlate(
-        self, items: list[dict[str, Any]], all_results: dict[str, list[dict[str, Any]]]
-    ) -> list[str]:
-        unprocessed = [item for item in items if item.get("processed") is False]
-        if unprocessed:
-            return [f"{len(unprocessed)} unprocessed capture(s)"]
-        return []
+        return items
 
 
 # --- Adapter registry ---
@@ -418,68 +398,44 @@ def _default_adapters() -> list[StoreAdapter]:
 
 @dataclass
 class GraphResult:
-    """Result of a unified graph query."""
-    results: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
-    correlations: dict[str, list[str]] = field(default_factory=dict)
+    """Result of a unified graph query.
+
+    After Phase 2, ``results`` is keyed by adapter name (string) and the
+    values are ``list[Item]``. ``errors`` carries per-adapter failure
+    messages for the assembler to surface as ``ContextBundle.warnings``.
+    """
+
+    results: dict[str, list[Item]] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
-    adapters: list[StoreAdapter] = field(default_factory=list)
-
-    def formatted_context(self, cap: int = CONTEXT_TOKEN_CAP) -> str:
-        """Format results as a single context string.
-
-        GraphResult carries the adapter list used for the query so formatting
-        stays local to the same memory_graph seam. Rebuilding default adapters
-        here would hide dependencies, drop caller-supplied test adapters, and
-        make optional adapters affect formatting after the search has finished.
-        """
-        if not self.adapters:
-            raise ValueError("GraphResult.formatted_context requires adapters")
-
-        sections = []
-
-        for adapter in self.adapters:
-            items = self.results.get(adapter.name, [])
-            if items:
-                formatted = adapter.format_items(items)
-                if formatted:
-                    sections.append(formatted)
-                    # Add correlation notes
-                    corr_notes = adapter.correlate(items, self.results)
-                    if corr_notes:
-                        sections[-1] += f"\n→ {', '.join(corr_notes)}"
-
-        raw = "\n\n".join(sections)
-        return self._truncate(raw, cap)
-
-    def _truncate(self, text: str, cap: int) -> str:
-        if (len(text) // 4) <= cap:
-            return text
-        return text[: cap * 4] + "…"
 
 
 class MemoryGraph:
     """Deep memory graph module.
 
-    High-leverage entry point for all context retrieval.
-    Internal store adapters are implementation details.
+    High-leverage entry point for all context retrieval. The store
+    adapters are implementation details; the only thing callers touch is
+    :meth:`search_all` (returning a :class:`GraphResult`) and
+    :meth:`unified_context` (returning a formatted string).
     """
 
     def __init__(self, adapters: list[StoreAdapter] | None = None):
         self._adapters = adapters or _default_adapters()
 
     async def unified_context(self, query: str) -> str:
-        """Get unified context from all stores.
+        """Get unified context from all stores as a formatted string.
 
-        This is the DEEP entry point. Callers don't need to know about
-        individual stores — they just get relevant context.
+        Kept for callers that want the legacy single-string return shape.
+        The new assemblers use :meth:`search_all` directly.
         """
         result = await self.search_all(query)
-        return result.formatted_context()
+        return _format_unified_items(result.results)
 
     async def search_all(self, query: str) -> GraphResult:
         """Search all stores concurrently.
 
-        Returns structured results for callers who want raw data.
+        Returns structured :class:`GraphResult`. Per-adapter failures
+        become entries in ``GraphResult.errors`` so the caller can
+        surface them; no exception escapes for store-level failures.
         """
         tasks = [
             asyncio.wait_for(
@@ -490,16 +446,16 @@ class MemoryGraph:
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        result = GraphResult(adapters=list(self._adapters))
+        result = GraphResult()
         for i, adapter in enumerate(self._adapters):
             res = results[i]
-            if isinstance(res, BaseException):
+            if isinstance(res, Exception):
                 if isinstance(res, TimeoutError):
                     logger.warning("%s fetch timed out", adapter.name)
-                    result.errors.append(f"{adapter.name}: timed out")
+                    result.errors.append(f"{adapter.name}: {type(res).__name__}: timed out")
                 else:
                     logger.warning("%s fetch failed: %s", adapter.name, res)
-                    result.errors.append(f"{adapter.name}: {res}")
+                    result.errors.append(f"{adapter.name}: {type(res).__name__}: {res}")
                 result.results[adapter.name] = []
             else:
                 result.results[adapter.name] = res
@@ -522,63 +478,80 @@ def _get_graph() -> MemoryGraph:
 # --- Public API (backward compatible) ---
 
 
+async def search_all(query: str) -> GraphResult:
+    """Public module-level entry point for cross-store search. Returns GraphResult."""
+    return await _get_graph().search_all(query)
+
+
 async def unified_context(query: str) -> str:
-    """Return unified context from all stores."""
+    """Return unified context from all stores as a formatted string."""
     return await _get_graph().unified_context(query)
 
 
-async def search_all(query: str) -> dict[str, list[dict[str, Any]]]:
-    """Search all stores, return raw results."""
-    result = await _get_graph().search_all(query)
-    return result.results
+# --- Free functions used by the assembler ---
 
 
-# --- Legacy shims for backward compatibility ---
-# These exist only for tests that patch internal functions.
-# New code should use the adapter pattern directly.
+def _truncate_text(text: str, cap: int) -> str:
+    """Truncate ``text`` to a rough token cap. Used by the assembler to keep
+    the memory section under budget."""
+    if (len(text) // 4) <= cap:
+        return text
+    return text[: cap * 4] + "…"
 
 
-async def _fetch_memory(query: str) -> list[dict[str, Any]]:
-    """Legacy shim for tests."""
+def _format_unified_items(results: dict[str, list[Item]], cap: int = CONTEXT_TOKEN_CAP) -> str:
+    """Render ``results`` (keyed by adapter name) as the memory section.
+
+    Each non-empty source gets a heading and up to 3 lines. The output
+    is truncated to a token cap. Used by the assembler.
+    """
+    sections: list[str] = []
+    for source_name, items in results.items():
+        if not items:
+            continue
+        try:
+            heading = f"## {Source(source_name).name.title().replace('_', ' ')}"
+        except ValueError:
+            heading = f"## {source_name.title()}"
+        lines = [heading]
+        for item in items[:3]:
+            text = item.text.strip()
+            if text:
+                lines.append(f"- {text}")
+        if len(lines) > 1:
+            sections.append("\n".join(lines))
+    if not sections:
+        return ""
+    return _truncate_text("\n\n".join(sections), cap)
+
+
+# --- Legacy shims for backward compatibility (tests) ---
+
+
+async def _fetch_memory(query: str) -> list[Item]:
     return await MemoryAdapter().fetch(query)
 
 
-async def _fetch_knowledge(query: str) -> list[dict[str, Any]]:
-    """Legacy shim for tests."""
+async def _fetch_knowledge(query: str) -> list[Item]:
     return await KnowledgeAdapter().fetch(query)
 
 
-async def _fetch_todos(query: str) -> list[dict[str, Any]]:
-    """Legacy shim for tests."""
+async def _fetch_todos(query: str) -> list[Item]:
     return await TodosAdapter().fetch(query)
 
 
-def _fetch_traces(query: str) -> list[dict[str, Any]]:
-    """Legacy shim for tests."""
-    adapter = TracesAdapter()
-    return adapter._fetch_traces(query)
+def _fetch_traces(query: str) -> list[Item]:
+    return TracesAdapter()._fetch_traces(query)
 
 
-async def _fetch_all_stores(query: str) -> dict[str, list[dict[str, Any]]]:
+async def _fetch_all_stores(query: str) -> dict[str, list[Item]]:
     """Legacy shim for tests."""
     result = await MemoryGraph().search_all(query)
     return result.results
 
 
 def search_entries(query: str) -> list[dict[str, Any]]:
-    """Legacy shim for tests - delegates to journal."""
+    """Legacy shim for tests — delegates to journal."""
     from gateway.journal import search_entries as journal_search
+
     return journal_search(query)
-
-
-def _format_unified(results: dict[str, list[dict[str, Any]]]) -> str:
-    """Format results for backward compatibility."""
-    result = GraphResult(results=results, adapters=_default_adapters())
-    return result.formatted_context()
-
-
-def _truncate(text: str, cap: int) -> str:
-    """Truncate text to token cap."""
-    if (len(text) // 4) <= cap:
-        return text
-    return text[: cap * 4] + "…"

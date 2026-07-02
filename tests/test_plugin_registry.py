@@ -18,7 +18,8 @@ def _isolate_plugin_registry(monkeypatch, tmp_path):
     return db_file, legacy_file
 
 
-def test_plugin_setting_persists_to_sqlite_and_legacy_mirror(monkeypatch, tmp_path):
+def test_plugin_setting_persists_to_sqlite_only(monkeypatch, tmp_path):
+    """Phase 1: writes go to kitty.db only. The legacy JSON is not mirrored."""
     db_file, legacy_file = _isolate_plugin_registry(monkeypatch, tmp_path)
     plugin_registry.register("sample", default_enabled=False)
 
@@ -31,11 +32,44 @@ def test_plugin_setting_persists_to_sqlite_and_legacy_mirror(monkeypatch, tmp_pa
         ).fetchone()
 
     assert dict(row) == {"plugin_name": "sample", "enabled": 1}
-    assert json.loads(legacy_file.read_text(encoding="utf-8")) == {"sample": True}
+    assert not legacy_file.exists(), "Phase 1: legacy JSON must not be written"
 
     plugin_registry._registry = {}
     plugin_registry.register("sample", default_enabled=False)
     assert plugin_registry.is_enabled("sample") is True
+
+
+def test_legacy_json_is_imported_once_then_ignored(monkeypatch, tmp_path):
+    """Phase 1: legacy JSON is read once on first access, then never re-read.
+
+    After the one-shot import, the DB is canonical. Subsequent changes to
+    the legacy file are not picked up. The migration flag in app_settings
+    ensures the import runs at most once.
+    """
+    db_file, legacy_file = _isolate_plugin_registry(monkeypatch, tmp_path)
+    legacy_file.write_text(json.dumps({"legacy-only": True}), encoding="utf-8")
+    plugin_registry.register("legacy-only", default_enabled=False)
+
+    assert plugin_registry.is_enabled("legacy-only") is True
+    with db.connect(db_file) as conn:
+        row = conn.execute(
+            "SELECT enabled FROM plugin_settings WHERE plugin_name = ?",
+            ("legacy-only",),
+        ).fetchone()
+    assert row["enabled"] == 1
+
+    # The flag should now be set, so the legacy file is dead weight.
+    with db.connect(db_file) as conn:
+        flag = conn.execute(
+            "SELECT value FROM app_settings WHERE key = ?",
+            (plugin_registry._MIGRATION_FLAG,),
+        ).fetchone()
+    assert flag is not None
+
+    # Mutate the legacy file. The DB is canonical; the change is ignored.
+    legacy_file.write_text(json.dumps({"legacy-only": False, "ghost": True}), encoding="utf-8")
+    assert plugin_registry.is_enabled("legacy-only") is True
+    assert plugin_registry.is_enabled("ghost") is False
 
 
 def test_legacy_plugin_settings_import_without_deleting_file(monkeypatch, tmp_path):

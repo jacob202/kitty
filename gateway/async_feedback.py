@@ -3,6 +3,7 @@
 This module implements asynchronous feedback where agents post notifications
 and users can comment on artifacts without interrupting the agent loop.
 """
+
 from __future__ import annotations
 
 import json
@@ -40,7 +41,7 @@ class AsyncFeedback:
 
         # Terminal notification
         print(f"\a🔔 Kitty: {message}")
-        logger.info(f"Notification: {message}")
+        logger.info("Notification: %s", message)
 
     def check_feedback(self, artifact_path: str) -> List[str]:
         """Agent polls this to check for user comments on an artifact."""
@@ -65,7 +66,7 @@ class AsyncFeedback:
         }
         with open(feedback_file, "a") as f:
             f.write(json.dumps(entry) + "\n")
-        logger.info(f"Feedback saved for {artifact_path}: {comment[:50]}...")
+        logger.info("Feedback saved for %s: %.50s...", artifact_path, comment)
         print(f"✅ Feedback saved for {artifact_path}")
 
     def get_notifications(self, limit: int = 20) -> List[dict]:

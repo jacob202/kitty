@@ -1,77 +1,58 @@
-"""Context Control Plane — orchestrates prompt assembly and context retrieval.
+"""Context Control Plane — thin façade for backward compatibility.
 
-This is a DEEP module. Callers (like app.py) should only use:
-- get_system_prompt(): The high-leverage entry point for chat sessions.
-- build_worker_context(): For specialized non-chat tasks.
+Phase 2 of the gateway deepening program (per
+``docs/superpowers/specs/2026-06-24-gateway-deepening-program-design.md``)
+moved all read-path orchestration into
+:mod:`gateway.context_assembler`. This module is kept for one release as
+a façade so existing callers (``routes.completions``, ``routes.ask``,
+``app.py``, ``buddy``, and any test that imported
+``get_system_prompt`` or ``build_worker_context``) keep working
+unchanged.
 
-Implementation details (domain routing, prompt loading, dynamic context) are private.
+Do NOT add new logic here. Add it to ``gateway.context_assembler`` and
+have the new callers import from there. This module will be deleted in
+the release after ``context_assembler`` has proven stable.
 """
 
 from __future__ import annotations
 
-import logging
 from typing import Optional
 
-from gateway import (
-    domain_router,
-    journal,
-    memory_graph,
-    parts,
-    prompt_loader,
-    skill_registry,
-    user_context,
+from gateway.context_assembler import (
+    ContextBundle,
+    assemble_context,
+    assert_not_total_failure,
 )
-from gateway.context_enrichment import enrich_dynamic_context
 
-logger = logging.getLogger("kitty.context_builder")
+__all__ = [
+    "ContextBundle",
+    "assemble_context",
+    "assert_not_total_failure",
+    "get_system_prompt",
+    "build_worker_context",
+]
 
 
 async def get_system_prompt(
     message: str, parts_mode: bool = False, domain: Optional[str] = None
 ) -> str:
-    """The deep entry point for Kitty's reasoning setup."""
-    if domain is None:
-        domain = domain_router.classify_domain(message)
-    system_prompt = prompt_loader.load_prompt(domain)
+    """Back-compat shim. Returns the joined system prompt string.
 
-    if journal.is_journal_trigger(message):
-        system_prompt = journal.build_interview_system_prompt(system_prompt)
-
-    if user_context.is_interview_trigger(message):
-        system_prompt = user_context.build_interview_prompt(system_prompt)
-
-    if parts_mode or parts.should_surface_parts(message):
-        system_prompt = parts.build_parts_system_prompt(system_prompt)
-
-    user_block = user_context.load_user_context()
-    if user_block:
-        system_prompt = f"{system_prompt}\n\n{user_block}"
-
-    hint = _skill_hint(message)
-    if hint:
-        system_prompt = f"{system_prompt}\n\n{hint}"
-
-    dynamic_context = await memory_graph.unified_context(message)
-    dynamic_context = await enrich_dynamic_context(dynamic_context, message)
-
-    return _assemble(system_prompt, dynamic_context)
-
-
-def _skill_hint(message: str) -> str:
-    """A one-line pointer to a reasoning skill whose triggers match the message."""
-    try:
-        matches = skill_registry.suggest(message, limit=1)
-    except Exception:
-        return ""
-    if not matches:
-        return ""
-    skill = matches[0]
-    desc = (skill.get("description", "") or "").split(".")[0].strip()
-    return f"## Relevant skill\nConsider the **{skill.get('name', 'unknown')}** skill: {desc}."
+    Equivalent to ``(await assemble_context(message, parts_mode, domain)).system``.
+    This is the same string the assembler would build; the only
+    difference is the return type (string here, ``ContextBundle`` in
+    the new path).
+    """
+    bundle = await assemble_context(message, parts_mode=parts_mode, domain=domain)
+    return bundle.system
 
 
 def build_worker_context(context_type: str, **kwargs) -> str:
-    """Build a plain-text context block for synchronous worker tasks."""
+    """Build a plain-text context block for synchronous worker tasks.
+
+    Unchanged from pre-Phase 2. This is independent of the read path
+    and has no caller in the assembler.
+    """
     if context_type in ("learning", "reset", "troubleshooter"):
         return kwargs.get("task_desc", "")
 
@@ -82,9 +63,3 @@ def build_worker_context(context_type: str, **kwargs) -> str:
         return f"{header}\n\n{chunks or ''}".strip()
 
     return ""
-
-
-def _assemble(base: str, dynamic_context: str) -> str:
-    if dynamic_context:
-        return f"{base}\n\n{dynamic_context}"
-    return base
