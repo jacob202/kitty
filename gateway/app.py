@@ -48,6 +48,9 @@ async def lifespan(app: FastAPI):
     except Exception:
         pass
     brief_task = asyncio.create_task(_brief_bg_loop())
+    from gateway.brief_scheduler import start_brief_scheduler
+
+    brief_scheduler_task = start_brief_scheduler()
     try:
         from gateway.cron import register_action
         from gateway.cron import start as cron_start
@@ -91,6 +94,8 @@ async def lifespan(app: FastAPI):
         pass
     yield
     brief_task.cancel()
+    if brief_scheduler_task is not None:
+        brief_scheduler_task.cancel()
     try:
         from gateway.http_client import _http_client
 
