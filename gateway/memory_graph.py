@@ -331,7 +331,8 @@ class InboxAdapter(StoreAdapter):
         )
 
         def searchable(entry: dict[str, Any]) -> str:
-            tags = entry.get("tags") if isinstance(entry.get("tags"), list) else []
+            raw_tags = entry.get("tags")
+            tags: list[Any] = raw_tags if isinstance(raw_tags, list) else []
             return " ".join(
                 [
                     str(entry.get("text") or ""),
@@ -514,7 +515,7 @@ class MemoryGraph:
                     result.errors.append(f"{adapter.name}: {type(res).__name__}: {res}")
                 result.results[adapter.name] = []
             else:
-                result.results[adapter.name] = res
+                result.results[adapter.name] = res  # type: ignore[assignment]
 
         return result
 

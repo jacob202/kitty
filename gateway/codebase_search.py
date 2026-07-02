@@ -21,7 +21,7 @@ try:
     CHROMA_AVAILABLE = True
 except Exception as exc:
     CHROMA_AVAILABLE = False
-    CHROMA_IMPORT_ERROR = exc
+    CHROMA_IMPORT_ERROR: Exception | None = exc
 else:
     CHROMA_IMPORT_ERROR = None
 
@@ -69,8 +69,8 @@ class CodebaseSearch:
             self.collection = self.client.get_or_create_collection("codebase")
             self.encoder = SentenceTransformer("all-MiniLM-L6-v2")
         else:
-            self.client = None
-            self.collection = None
+            self.client = None  # type: ignore[assignment]
+            self.collection = None  # type: ignore[assignment]
             self.encoder = None
             logger.warning(
                 "ChromaDB not available - codebase search disabled: %s", CHROMA_IMPORT_ERROR
@@ -151,8 +151,8 @@ class CodebaseSearch:
             results = self.collection.query(query_embeddings=[q_emb], n_results=top_k)
 
             out = []
-            docs = results.get("documents", [[]])[0]
-            metas = results.get("metadatas", [[]])[0]
+            docs = (results.get("documents") or [[]])[0]
+            metas = (results.get("metadatas") or [[]])[0]
 
             for doc, meta in zip(docs, metas):
                 out.append(

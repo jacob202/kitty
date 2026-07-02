@@ -144,10 +144,10 @@ async def run_enrichments(
     """
     blocks: list[str] = []
     warnings: list[str] = []
-    tasks = [asyncio.create_task(fn(message)) for fn in enrichments]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    for fn, res in zip(enrichments, results):
-        if isinstance(res, Exception):
+    coros = [fn(message) for fn in enrichments]
+    raw = await asyncio.gather(*coros, return_exceptions=True)
+    for fn, res in zip(enrichments, raw):
+        if isinstance(res, BaseException):
             logger.warning("enrichment failed: %s: %s", fn.__name__, res)
             warnings.append(f"{fn.__name__}: {type(res).__name__}: {res}")
             continue

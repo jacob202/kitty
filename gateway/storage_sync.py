@@ -25,7 +25,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from gateway import db as kitty_db
 from gateway import journal_store, plugin_registry, todo_store
@@ -135,7 +135,9 @@ def import_journal_entries(payload: list[dict]) -> int:
                 session_id=session_id,
             )
         else:
+            import time as _time
             journal_store.append_entry(
+                ts=_time.time(),
                 entry=entry_text,
                 theme=theme,
                 session_id=session_id,
@@ -173,7 +175,7 @@ def import_preferences(payload: dict) -> int:
     return len(payload)
 
 
-_IMPORTERS = {
+_IMPORTERS: dict[str, Callable[..., int]] = {
     "memories": import_memories,
     "journal_entries": import_journal_entries,
     "todos": import_todos,

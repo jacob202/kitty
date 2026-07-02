@@ -24,8 +24,6 @@ from typing import Any, Callable
 import httpx
 from dotenv import load_dotenv
 
-logger = logging.getLogger("kitty.llm_client")
-
 from gateway.paths import LITELLM_BASE, LITELLM_KEY
 from gateway.settings import get_settings
 from gateway.token_usage_log import log_llm_usage, normalize_usage_payload
@@ -91,7 +89,7 @@ try:
     )
 except ImportError:  # pragma: no cover - optional dependency
 
-    def _retry_post(fn):  # type: ignore[misc]
+    def _retry_post(fn):
         return fn
 
 
@@ -336,7 +334,7 @@ def _agentrouter_request_mutator(
 def _agentrouter_post_processor(resp: httpx.Response, ctx: dict) -> httpx.Response:
     """Retry once with alt User-Agent if AgentRouter rejects the primary client fingerprint."""
     if (
-        not resp.ok
+        not resp.is_success
         and _agentrouter_client_rejected(resp)
         and os.environ.get("KITTY_AGENTROUTER_NO_ALT_UA_RETRY", "").strip().lower()
         not in ("1", "true", "yes")
@@ -550,7 +548,7 @@ def _call_provider(
             if new_resp is not None:
                 resp = new_resp
 
-        if not resp.ok:
+        if not resp.is_success:
             snippet = (resp.text or "")[:900]
             logger.error(
                 "%s HTTP %s on POST %s (model=%r): %s",
@@ -580,11 +578,11 @@ def _call_provider(
 
 def call_llm(
     messages: list[dict],
-    model: str = None,
+    model: str | None = None,
     max_tokens: int = 1500,
     temperature: float = 0.7,
     timeout: int = 60,
-    response_format: dict = None,
+    response_format: dict[str, Any] | None = None,
     operation: str = "llm.call",
     metadata: dict[str, Any] | None = None,
     privacy_tier: str = "local",
@@ -606,7 +604,7 @@ def call_llm(
                 break
         model = route_model(user_msg)
 
-    model = normalize_litellm_request_model(model)
+    model = normalize_litellm_request_model(model) or route_model("")
 
     try:
         payload = {
@@ -786,7 +784,7 @@ async def chat_completions_non_stream(
         logger.warning("Async LiteLLM chat failed (%s), using sync fallback", e)
 
     messages = payload.get("messages") or []
-    model = normalize_litellm_request_model(payload.get("model"))
+    model = normalize_litellm_request_model(payload.get("model")) or route_model("")
     text = await asyncio.to_thread(
         call_llm,
         messages,
