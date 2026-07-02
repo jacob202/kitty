@@ -7,6 +7,7 @@ import { TodayCompass } from '@/components/TodayCompass'
 import { LoopWatch } from '@/components/LoopWatch'
 import { PromptToolkit } from '@/components/PromptToolkit'
 import { InsightFeed } from '@/components/InsightFeed'
+import { CapturePanel } from '@/components/CapturePanel'
 import type {
   GatewayBrief,
   GatewayTodo,
@@ -176,6 +177,10 @@ export function DashboardHome({
               title="Insights"
               isLoading={insightsIsLoading}
             />
+          </section>
+
+          <section style={sectionStyle}>
+            <CapturePanel />
           </section>
         </div>
       </section>
