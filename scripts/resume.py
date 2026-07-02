@@ -96,7 +96,9 @@ def packet_state() -> tuple[str, list[str]]:
 
 
 def branch_state() -> tuple[str, bool]:
-    br = run(["git", "branch", "--show-current"], 5).stdout.strip() or "(detached)"
+    # --abbrev-ref returns the literal "HEAD" in detached state, so the output
+    # is a stable string callers (and tests) can assert on.
+    br = run(["git", "rev-parse", "--abbrev-ref", "HEAD"], 5).stdout.strip() or "HEAD"
     dirty = bool(run(["git", "status", "--porcelain"], 5).stdout.strip())
     return br, dirty
 
