@@ -18,7 +18,7 @@ def test_memory_and_knowledge_injected_into_system_prompt() -> None:
 
     # Patch at the boundary (HTTP and Prompt Loading)
     with (
-        patch("gateway.prompt_loader.load_prompt", return_value="BASE SYSTEM"),
+        patch("gateway.prompts.load_prompt", return_value="BASE SYSTEM"),
         patch(
             "gateway.context_assembler.assemble_context",
             new=AsyncMock(

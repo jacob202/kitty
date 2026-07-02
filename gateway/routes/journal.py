@@ -34,7 +34,7 @@ async def journal_prompt(theme: Optional[str] = None):
 async def journal_start(theme: Optional[str] = None):
     """Begin a journal interview session. Returns Kitty's opening question."""
     from gateway.journal import build_interview_system_prompt, get_opener
-    from gateway.prompt_loader import load_prompt
+    from gateway.prompts import load_prompt
 
     opener = get_opener(theme)
     system_prompt = build_interview_system_prompt(load_prompt("general"), theme)

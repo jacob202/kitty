@@ -3,11 +3,10 @@ domain modules.
 
 Why this exists: a handful of short system / user prompts lived inside
 the modules that use them (``journal.py``, ``parts.py``,
-``inventory.py``). The versioned, on-disk prompts (soul, repair,
-health, research, code) already have their own loader
-(``gateway.prompt_loader.load_prompt``). This module is the parallel
-catalog for the inline ones — one place to find them, edit them,
-and (later) version them.
+``inventory.py``). This module is also the home for loading versioned,
+on-disk prompts (soul, repair, health, research, code) via
+``load_prompt`` — previously a separate ``prompt_loader`` module that
+was a 25-line pass-through.
 
 Why not promote them to disk files immediately: every inline prompt
 here is short (one paragraph or a few lines), and keeping them as
@@ -19,6 +18,36 @@ string at the call site — change it here so the change is one diff.
 """
 
 from __future__ import annotations
+
+from functools import lru_cache
+
+from gateway.paths import PROMPTS_DIR
+
+# -----------------------------------------------------------------------------
+# On-disk versioned prompts (formerly gateway/prompt_loader.py)
+# -----------------------------------------------------------------------------
+
+DOMAIN_TO_FILE = {
+    "soul": "soul_v1.md",
+    "repair": "repair_v1.md",
+    "health": "health_v1.md",
+    "research": "research_v1.md",
+    "code": "code_v1.md",
+}
+
+
+@lru_cache(maxsize=10)
+def load_prompt(domain: str) -> str:
+    """Load and cache a versioned system prompt from /prompts/."""
+    filename = DOMAIN_TO_FILE.get(domain, "soul_v1.md")
+    path = PROMPTS_DIR / filename
+    if not path.exists():
+        fallback = PROMPTS_DIR / "soul_v1.md"
+        if fallback.exists():
+            return fallback.read_text()
+        return "You are Kitty, a personal AI for Jacob Brizinski."
+    return path.read_text()
+
 
 # -----------------------------------------------------------------------------
 # Journal prompts (formerly gateway/journal.py)

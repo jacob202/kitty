@@ -39,7 +39,7 @@ from gateway import (
     domain_router,
     journal,
     parts,
-    prompt_loader,
+    prompts,
     skill_registry,
     user_context,
 )
@@ -110,7 +110,7 @@ def _domain_prompt(message: str, domain: str | None) -> str:
     """Load the per-domain system prompt. Apply domain-specific mutations."""
     if domain is None:
         domain = domain_router.classify_domain(message)
-    prompt = prompt_loader.load_prompt(domain)
+    prompt = prompts.load_prompt(domain)
 
     if journal.is_journal_trigger(message):
         prompt = journal.build_interview_system_prompt(prompt)
@@ -181,13 +181,9 @@ async def assemble_context(
     graph_result = await graph.search_all(message)
     warnings.extend(f"memory_graph:{err}" for err in graph_result.errors)
 
-    memory_block = _format_memory_block(
-        graph_result.results, CONTEXT_TOKEN_CAP
-    )
+    memory_block = _format_memory_block(graph_result.results, CONTEXT_TOKEN_CAP)
 
-    enrichment_blocks, enrichment_warnings = await run_enrichments(
-        deps.enrichments, message
-    )
+    enrichment_blocks, enrichment_warnings = await run_enrichments(deps.enrichments, message)
     warnings.extend(enrichment_warnings)
 
     system = _join_blocks(
@@ -214,9 +210,7 @@ def _looks_like_total_failure(bundle: ContextBundle) -> bool:
     """
     has_memory = bool(bundle.memory_items)
     has_live = bool(bundle.live_blocks)
-    has_memory_warnings = any(
-        w.startswith("memory_graph:") for w in bundle.warnings
-    )
+    has_memory_warnings = any(w.startswith("memory_graph:") for w in bundle.warnings)
     return not has_memory and not has_live and has_memory_warnings
 
 
@@ -230,8 +224,7 @@ def assert_not_total_failure(bundle: ContextBundle) -> ContextBundle:
     """
     if _looks_like_total_failure(bundle):
         raise RuntimeError(
-            "context assembler: total infrastructure failure "
-            f"(warnings={bundle.warnings!r})"
+            f"context assembler: total infrastructure failure (warnings={bundle.warnings!r})"
         )
     return bundle
 

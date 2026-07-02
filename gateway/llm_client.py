@@ -26,7 +26,6 @@ from dotenv import load_dotenv
 
 logger = logging.getLogger("kitty.llm_client")
 
-from gateway.llm_utils import retry_with_backoff
 from gateway.paths import LITELLM_BASE, LITELLM_KEY
 from gateway.settings import get_settings
 from gateway.token_usage_log import log_llm_usage, normalize_usage_payload
@@ -456,6 +455,37 @@ PROVIDER_FALLBACK_ORDER: tuple[str, ...] = (
 
 def _is_agentrouter_disabled() -> bool:
     return os.environ.get("KITTY_DISABLE_AGENTROUTER", "").strip().lower() in ("1", "true", "yes")
+
+
+def retry_with_backoff(
+    func, max_retries: int = 3, base_delay: float = 1.0, max_delay: float = 10.0
+):
+    """Retry on 429 rate-limit errors with exponential backoff. All other errors re-raise immediately."""
+
+    def wrapper(*args, **kwargs):
+        retries = 0
+        while True:
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                resp = getattr(e, "response", None)
+                is_429 = (
+                    resp is not None and getattr(resp, "status_code", None) == 429
+                ) or "429" in str(e)
+                if is_429 and retries < max_retries:
+                    delay = min(base_delay * (2**retries), max_delay)
+                    logger.warning(
+                        "LLM rate limit (429). Retrying in %.1fs (attempt %d/%d)...",
+                        delay,
+                        retries + 1,
+                        max_retries,
+                    )
+                    time.sleep(delay)
+                    retries += 1
+                else:
+                    raise
+
+    return wrapper
 
 
 @retry_with_backoff
