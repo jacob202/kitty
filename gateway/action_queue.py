@@ -33,6 +33,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+import uuid
 from typing import Any, Callable
 
 from gateway import calendar_integration, storage_router
@@ -104,7 +105,9 @@ def _exec_note_draft(payload: dict[str, Any]) -> str:
     content = str(payload["content"])
     title = (str(payload.get("title") or "").strip()) or "draft"
     DRAFTS_DIR.mkdir(parents=True, exist_ok=True)
-    path = DRAFTS_DIR / f"{int(time.time())}-{_slug(title)}.md"
+    # uuid suffix so two same-title drafts in the same second cannot collide and
+    # silently overwrite each other while both report success.
+    path = DRAFTS_DIR / f"{int(time.time())}-{_slug(title)}-{uuid.uuid4().hex[:8]}.md"
     path.write_text(f"# {title}\n\n{content}\n", encoding="utf-8")
     # T1 contract: produce the local artifact, transmit nothing.
     return f"draft written to {path}"
@@ -233,16 +236,11 @@ def execute(action_id: int) -> dict[str, Any]:
     """
     action = _require(action_id)
     status = action["status"]
-    tier = action["risk_tier"]
     kind = action["kind"]
 
-    if status == "executed":
-        raise ActionStateError(f"action {action_id} already executed")
-    if status in ("rejected", "failed"):
-        raise ActionStateError(f"cannot execute a {status} action")
-    if tier not in _AUTO_EXECUTE_TIERS and status != "approved":
-        raise TierViolation(
-            f"{tier} action {action_id} requires approval before execution"
+    if status not in ("proposed", "approved"):
+        raise ActionStateError(
+            f"cannot execute action {action_id} in status {status!r}"
         )
 
     registry = _registry()
@@ -250,8 +248,24 @@ def execute(action_id: int) -> dict[str, Any]:
         # Kind was disabled or removed from the tier file after this row was
         # proposed — refuse rather than dispatch something no longer sanctioned.
         raise UnknownActionKind(f"no executor registered for kind {kind!r}")
-    _, fn = registry[kind]
+    # Enforce the tier the signed sheet carries *now*, not the tier stamped on
+    # the row at propose time — an escalation (e.g. T0 → T2) must gate a queued
+    # action, not be bypassed by its stale risk_tier.
+    tier, fn = registry[kind]
+    if tier not in _AUTO_EXECUTE_TIERS and status != "approved":
+        raise TierViolation(
+            f"{tier} action {action_id} requires approval before execution"
+        )
+
     _validate_payload(kind, action["payload"])
+
+    # Claim the row atomically before any side effect: a concurrent /execute
+    # (double-click, client retry) that already claimed it finds no matching
+    # row here and is refused, so one action dispatches exactly once.
+    if not _claim_for_execution(action_id, status):
+        raise ActionStateError(
+            f"action {action_id} is no longer {status!r} — already claimed"
+        )
 
     try:
         result = fn(action["payload"])
@@ -259,6 +273,18 @@ def execute(action_id: int) -> dict[str, Any]:
         logger.warning("action %s (%s) failed: %s", action_id, kind, exc)
         return _finish(action_id, "failed", f"{type(exc).__name__}: {exc}")
     return _finish(action_id, "executed", result)
+
+
+def _claim_for_execution(action_id: int, expected_status: str) -> bool:
+    """Atomically move proposed/approved → executing. False if already claimed."""
+    init_db()
+    with kitty_db.connect(ACTIONS_DB_FILE) as conn:
+        cursor = conn.execute(
+            "UPDATE actions SET status = 'executing' WHERE id = ? AND status = ?",
+            (action_id, expected_status),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
 
 
 def get(action_id: int) -> dict[str, Any] | None:
@@ -298,11 +324,18 @@ def _decide(action_id: int, new_status: str) -> dict[str, Any]:
         )
     init_db()
     with kitty_db.connect(ACTIONS_DB_FILE) as conn:
-        conn.execute(
-            "UPDATE actions SET status = ?, decided_at = ? WHERE id = ?",
+        # Condition on proposed + check rowcount so a racing approve/reject
+        # cannot overwrite an already-recorded decision.
+        cursor = conn.execute(
+            "UPDATE actions SET status = ?, decided_at = ? "
+            "WHERE id = ? AND status = 'proposed'",
             (new_status, time.time(), action_id),
         )
         conn.commit()
+        if cursor.rowcount == 0:
+            raise ActionStateError(
+                f"action {action_id} was already decided by a concurrent request"
+            )
     return _require(action_id)
 
 
