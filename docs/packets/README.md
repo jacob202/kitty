@@ -18,8 +18,8 @@ Rules for executors (any model or human):
 
 | # | Packet | Best executor | Status |
 |---|---|---|---|
-| 001 | State spine: signals, snapshots, /state/now | Claude Code / Codex | shipped (this PR) |
-| 002 | Inbox triage | Codex / Claude Code | ready |
+| 001 | State spine: signals, snapshots, /state/now | Claude Code / Codex | shipped |
+| 002 | Inbox triage | Codex / Claude Code | shipped (this PR) |
 | 003 | Action queue with enforced tiers | Claude Code | ready — needs Jacob's tier sheet sign-off first |
 | 004 | State home surface | Claude Code | blocked on 001–003 merge + Jacob's §16.1 decision |
 | 005 | Mail read-only connector | Codex/Claude Code + Jacob (credentials) | blocked on §16.2 decision |
