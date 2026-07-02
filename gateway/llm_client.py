@@ -27,6 +27,34 @@ from gateway.token_usage_log import log_llm_usage, normalize_usage_payload
 
 logger = logging.getLogger("kitty.llm_client")
 
+# D10 — Privacy boundary. Content classes that must NEVER be sent to cloud
+# models unless a future explicit opt-in flag is set per-request. The route
+# layer catches the resulting error and returns 400 with a reason.
+PRIVACY_LOCAL_ONLY: frozenset[str] = frozenset({"journal", "mail_body", "health_admin"})
+
+
+class PrivacyBoundaryError(RuntimeError):
+    """Raised when a cloud-tier call carries content that must stay local (D10)."""
+
+    code = "privacy.boundary"
+
+
+def enforce_privacy_boundary(
+    privacy_tier: str, content_class: str | None
+) -> None:
+    """Reject cloud routing for content classes that D10 marks local-only.
+
+    Routes that handle private content must tag ``content_class`` AND pick
+    ``privacy_tier="local"`` (the default). Routes that pass
+    ``content_class=None`` retain the prior permissive behavior so existing
+    call sites are not broken; new private-data call sites must opt in.
+    """
+    if content_class in PRIVACY_LOCAL_ONLY and privacy_tier == "cloud_ok":
+        raise PrivacyBoundaryError(
+            f"content_class={content_class!r} is local-only (D10); "
+            f"privacy_tier={privacy_tier!r} is not allowed"
+        )
+
 # Cap how long a single provider may spend establishing a connection, and bound
 # the total wall-clock time the whole fallback chain may burn. Without these, six
 # providers each hanging ~60s could stall a call for minutes. Read at import via
@@ -224,11 +252,17 @@ def call_llm(
     response_format: dict | None = None,
     operation: str = "llm.call",
     metadata: dict[str, Any] | None = None,
+    privacy_tier: str = "local",
+    content_class: str | None = None,
 ) -> str:
     """
     Centralized hub for all LLM calls.
     Tries LiteLLM proxy first; on failure → AgentRouter → OpenRouter direct → Gemini → NVIDIA.
+
+    D10: ``privacy_tier`` and ``content_class`` are enforced at the boundary.
+    Routes handling journal / mail_body / health_admin content MUST tag both.
     """
+    enforce_privacy_boundary(privacy_tier, content_class)
     if model is None:
         user_msg = ""
         for m in reversed(messages):
@@ -818,8 +852,17 @@ def extract_assistant_text(data: object) -> str:
     return content if isinstance(content, str) else ""
 
 
-async def chat_completions_non_stream(payload: dict[str, Any]) -> dict[str, Any]:
-    """Async chat completion — LiteLLM first, sync fallback chain on failure."""
+async def chat_completions_non_stream(
+    payload: dict[str, Any],
+    *,
+    privacy_tier: str = "local",
+    content_class: str | None = None,
+) -> dict[str, Any]:
+    """Async chat completion — LiteLLM first, sync fallback chain on failure.
+
+    D10: privacy boundary is enforced before any provider is contacted.
+    """
+    enforce_privacy_boundary(privacy_tier, content_class)
     import asyncio
 
     from gateway.http_client import get_http_client
@@ -864,6 +907,8 @@ async def chat_completions_non_stream(payload: dict[str, Any]) -> dict[str, Any]
             "route": "gateway_chat_fallback",
             "request_model": payload.get("model"),
         },
+        privacy_tier=privacy_tier,
+        content_class=content_class,
     )
     resolved_model = model or _LITELLM_DEFAULT
     if not (text or "").strip():
