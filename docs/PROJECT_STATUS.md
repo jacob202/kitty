@@ -19,26 +19,25 @@
 
 ## Open PR
 
-**PR #65** — autonomous action queue + calendar write + tier sheet
-
-- `action_queue.py`, `routes/actions.py`, `009_actions.sql`
-- `calendar.event.create` T2 executor
-- `config/action_tiers.json` (Jacob's tier sign-off is the merge blocker)
-- Packets 004 and 007 are both stacked on this PR
+None. The 2026-07-02 swarm merged #70–#77 (gateway deepening, resume script,
+privacy boundary, knowledge routes, capture, de-fake, brief scheduler, signal
+wiring). PR #78 was closed unmerged as obsolete. Main CI is green.
 
 ## Test State (2026-07-02)
 
 ```
-803 passed, 4 failed, 1 skipped, 2 deselected, 4 warnings
+CI (main @ e536a47): pytest / lint / typecheck all green
+Local: ~927 passed, 2 failed, 1 skipped, 2 deselected
 ```
 
-Known failures:
+Known local-only failures (pass on CI — tests leak real local `data/` state):
 
-- `tests/test_check_continuity_state.py` — 4 tests fail when `docs/AGENT_HANDOFF.md` has a stale or missing date. Fixed by updating the handoff doc.
+- `tests/test_action_queue.py::test_t0_executes_from_proposed_and_records_result`
+- `tests/test_state_composer.py::test_real_sources_compose_against_isolated_stores`
 
 Known collection error:
 
-- `tests/test_llm_client_alt_ua.py` — 1 file fails to collect; skip with `--ignore` or fix the import.
+- `tests/test_llm_client_alt_ua.py` — untracked file importing a function that doesn't exist; skip with `--ignore` or delete.
 
 ## Runtime Shape
 
@@ -49,21 +48,24 @@ Known collection error:
 
 ## Active Technical Debt
 
-| Issue                                        | Location                                                      | Priority                          |
-| -------------------------------------------- | ------------------------------------------------------------- | --------------------------------- |
-| Fake data in loops + insights routes         | `gateway/routes/loops.py:12`, `gateway/routes/insights.py:12` | High — violates non-negotiable #1 |
-| `test_llm_client_alt_ua.py` collection error | `tests/`                                                      | Medium                            |
-| SIRI_SHORTCUT.md references dead launcher    | `docs/SIRI_SHORTCUT.md`                                       | Low — tombstone it                |
-| Local-only branches not pushed to origin     | `codex/raycast-quick-capture`, `backup-local-main-0628`       | Medium — at risk of loss          |
+| Issue                                          | Location                                                      | Priority                          |
+| ---------------------------------------------- | ------------------------------------------------------------- | --------------------------------- |
+| `test_llm_client_alt_ua.py` collection error   | `tests/` (untracked)                                          | Medium — delete or fix            |
+| Test isolation leaks (2 tests read real data/) | `tests/test_action_queue.py`, `tests/test_state_composer.py`  | Medium — red locally, green on CI |
+| Stale worktrees + branches for merged PRs      | `.claude/worktrees/feat-*`, `.worktrees/gateway-deepening`    | Low — prune                       |
+| Uncommitted workflow configs                   | `.pre-commit-config.yaml`, `.prettierrc`, `dependabot.yml`, … | Medium — commit or discard        |
+| Nested foreign repo                            | `hermes-webui/`                                               | Medium — move out of kitty        |
+| SIRI_SHORTCUT.md references dead launcher      | `docs/SIRI_SHORTCUT.md`                                       | Low — tombstone it                |
+| Local-only branch not pushed to origin         | `backup-local-main-0628`                                      | Medium — at risk of loss          |
 
 ## What's Next
 
-See `docs/packets/README.md` for the packet queue (001–013). The immediate sequence:
+See `docs/packets/README.md` for the packet queue (001–013). Remaining:
 
-1. Jacob signs tier sheet → merge PR #65 (packet 003)
-2. Packet 004: mascot state + de-fake loops/insights
-3. Packet 006: project resume (drafted — see `docs/packets/006-project-resume.md`)
-4. Packet 008: GitHub read-only connector (can start anytime)
+1. Packet 004: state home surface (spec-complete, unblocked)
+2. Packet 007: delegation packet generator (unblocked — 003 + 012 shipped)
+3. Packet 008 remainder: expert retrieval (routes landed in #73)
+4. Packet 005: mail connector — blocked on Jacob's §16.2 decision (Apple Mail vs Gmail API)
 
 ## Sources of Truth
 

@@ -8,20 +8,39 @@
 
 ## Where Things Stand
 
-Phase B (storage consolidation), Phase C (chat + journal SQLite migration), and Phase E (PWA seam) are all shipped to main. The codebase compiles clean: 80 mypy errors cleared (#51), typecheck is now a blocking CI gate. Session persistence is wired (#765caa3 — sessions survive restart, SOUL is read from the real config file, stream errors are detected).
+The 2026-07-02 swarm landed everything it set out to do. PRs #70–#77 are all
+merged and main CI is green (pytest, lint, typecheck all pass on `e536a47`):
 
-**Open PR #65** is the current gate: autonomous action queue (`action_queue.py` + `routes/actions.py` + `009_actions.sql`), calendar write (`calendar.event.create` T2 executor), and the tier sheet (`config/action_tiers.json`). Jacob's sign-off on the tier sheet is the only blocker.
+| PR  | What landed                                                        | Packet        |
+| --- | ------------------------------------------------------------------ | ------------- |
+| #70 | Gateway deepening — storage seam, LLM dispatcher, read path        | —             |
+| #71 | `./kitty resume` subcommand                                        | 006           |
+| #72 | Privacy boundary (D10) enforced in `llm_client`                    | 012           |
+| #73 | `/knowledge/{ingest,sources,search}` routes                        | 008 (partial) |
+| #74 | `POST /capture/file` + UI drop zone                                | 010           |
+| #75 | Loops + insights routes de-faked (real sources, no hardcoded data) | 009           |
+| #76 | Daily brief scheduler                                              | 011           |
+| #77 | web_monitor + nudges wired to signal store                         | 013           |
+
+PR #78 was closed unmerged on 2026-07-02: it was cut from a stale
+`insights.py` and would have removed imports that are now load-bearing.
+
+**No open PRs.** The packet queue's unblocked work: 004 (state home surface,
+spec-complete), 007 (delegation packet generator), 008 remainder (expert
+retrieval). 005 (mail connector) still blocked on Jacob's §16.2 decision.
 
 ## Known Issues (do not hide, do not "fix" without reading first)
 
-| Issue                                                        | File                                                          | Status                                                                                                                                    |
-| ------------------------------------------------------------ | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Fake data: loops and insights routes return hardcoded arrays | `gateway/routes/loops.py:12`, `gateway/routes/insights.py:12` | Still live on main — violates non-negotiable #1                                                                                           |
-| Collection error in test suite                               | `tests/test_llm_client_alt_ua.py`                             | 1 file fails to collect; ~803 tests still run                                                                                             |
-| `AGENT_HANDOFF.md` staleness gate                            | `tests/test_check_continuity_state.py`                        | Green when this doc has a fresh ISO date; update date on each handoff                                                                     |
-| Local-only branches                                          | `codex/raycast-quick-capture`, `backup-local-main-0628`       | On Jacob's Mac only — not on origin. Will be lost on disk failure.                                                                        |
-| SIRI_SHORTCUT.md                                             | `docs/SIRI_SHORTCUT.md`                                       | References a retired launcher (`kitty_gateway/start_all.sh`) and a hardcoded Tailscale IP. Tombstone or rewrite before anyone follows it. |
-| Fake-data panels not in 004 acceptance criteria              | packet queue                                                  | 004's spec covers the UI side; the backend routes also need deleting/binding                                                              |
+| Issue                               | Where                                                                                                                                                              | Status                                                                                                                                                                                                     |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Broken untracked test file          | `tests/test_llm_client_alt_ua.py`                                                                                                                                  | Imports `_agentrouter_post_processor` which doesn't exist; fails collection. Untracked — delete or fix.                                                                                                    |
+| Local-only test failures (CI green) | `tests/test_action_queue.py::test_t0_executes_from_proposed_and_records_result`, `tests/test_state_composer.py::test_real_sources_compose_against_isolated_stores` | Tests leak real local `data/` state (todo store, signal stores) instead of isolating. Pass on CI where data/ is empty. Test-isolation bug, not a code bug.                                                 |
+| macOS `Icon\r` Finder artifacts     | every directory in the repo                                                                                                                                        | Broke pytest collection inside `venv/` (cleaned 2026-07-02). Repo-level ones left in place — may be intentional folder icons. If pytest breaks with `NotADirectoryError … Icon`, delete them from `venv/`. |
+| Untracked workflow configs          | `.pre-commit-config.yaml`, `.prettierrc`, `.prettierignore`, `.github/dependabot.yml`, `gateway/kitty-chat/eslint.config.mjs`                                      | From the workflow-optimization session — never committed. Commit or discard.                                                                                                                               |
+| Nested foreign repo                 | `hermes-webui/`                                                                                                                                                    | Separate project with its own `.git` sitting inside kitty. Move out of the repo.                                                                                                                           |
+| Stale worktrees + branches          | `.claude/worktrees/feat-*` (7), `.worktrees/gateway-deepening`                                                                                                     | All correspond to merged PRs. Safe to `git worktree remove` + delete branches.                                                                                                                             |
+| Stale swarm state                   | `.kitty/swarm-status.json`                                                                                                                                         | References phase-2/3/4 worktrees that no longer exist. Delete.                                                                                                                                             |
+| Local-only branches                 | `codex/raycast-quick-capture`, `backup-local-main-0628`                                                                                                            | Raycast capture merged as #69; backup branch still holds unlanded history.                                                                                                                                 |
 
 ## Services
 
@@ -30,50 +49,24 @@ Phase B (storage consolidation), Phase C (chat + journal SQLite migration), and 
 | Gateway (FastAPI) | 8000 | `./kitty up`  |
 | LiteLLM proxy     | 8001 | `./kitty up`  |
 
-`./kitty doctor --json` is the health oracle. Run it before claiming anything is broken or working.
-
-## Gateway Layout
-
-```
-gateway/
-├── app.py                 FastAPI app, lifespan, middleware, /health, /mood
-├── chats_store.py         Chat session SQLite CRUD (sessions persist)
-├── journal_store.py       Journal SQLite CRUD
-├── memory_graph.py        Unified context retrieval — ALL reads go through here (D3)
-├── context_builder.py     Prompt assembly
-├── context_enrichment.py  Live-state enrichment (calendar/weather/todos/…)
-├── llm_client.py          Model routing (domain_router → LiteLLM)
-├── brief.py               Daily brief (RSS + journal themes; no fake fallback)
-├── knowledge.py           Ingestion orchestration → Clerk → Librarian → Archivist
-├── pdf_pipeline.py        PDF parsing (LlamaCloud → PyMuPDF fallback)
-├── ingestion_queue.py     Background worker with circuit-breaker
-├── archivist.py           ChromaDB vector store + embeddings
-├── notify.py              Pushover push (complete module — currently no scheduler calls it)
-├── nudge.py               Initiative engine (computes nudges; output currently orphaned)
-├── action_queue.py        Autonomous action queue (in PR #65)
-├── routes/
-│   ├── chats.py           Chat CRUD
-│   ├── completions.py     LiteLLM proxy + streaming
-│   ├── actions.py         Action queue surface (in PR #65)
-│   ├── loops.py           FAKE DATA — hardcoded arrays (fix before trusting)
-│   ├── insights.py        FAKE DATA — hardcoded arrays (fix before trusting)
-│   └── ...
-└── kitty-chat/            Next.js frontend (PWA-ready, sessions rehydrate on load)
-```
+`./kitty doctor --json` is the health oracle. Run it before claiming anything
+is broken or working.
 
 ## Packet Queue
 
-Work is organised into numbered packets in `docs/packets/`. Read `docs/packets/README.md` for the queue state (001–007 + 008–013 proposed).
-
-**Current blocker:** Jacob's tier-sheet sign-off on PR #65 (packet 003). Packets 004 and 007 are stack-waiting.
+Work is organised into numbered packets in `docs/packets/`. Read
+`docs/packets/README.md` for the queue state. As of 2026-07-02: 001–003, 006,
+009–013 shipped; 004/007/008-remainder unblocked; 005 blocked on Jacob.
 
 ## Decisions in Force
 
-See `docs/DECISIONS.md`. D1–D8 are settled. Most relevant to new work:
+See `docs/DECISIONS.md`. Most relevant to new work:
 
 - **D3**: All context reads go through `memory_graph.py`. Do not bypass.
 - **D7**: `storage_router.py` is a thin write seam only. Do not expand it.
 - **D8**: Ruff enforces E/F/W/I but not E501.
+- **D10**: Privacy boundary in the router — private-tagged content must not
+  route to cloud models (shipped in #72).
 
 ## Verification
 
@@ -85,4 +78,6 @@ cd gateway/kitty-chat && npm test && npm run build
 python3.12 -m mypy gateway/ --ignore-missing-imports --no-error-summary 2>&1 | tail -1
 ```
 
-Expected: ≥803 passed, 0 failed (excluding the known collection error file), mypy clean.
+Expected local: ~927 passed, 2 failed (the two data-leak tests above — they
+pass on CI). Before merging any PR, check **check_runs**, not the combined
+status.
