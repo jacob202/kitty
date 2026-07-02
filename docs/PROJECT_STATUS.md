@@ -1,92 +1,79 @@
 # Project Status
 
-**Date:** 2026-06-20
+**Date:** 2026-07-02
+**Branch:** `main`
 **Canonical repo:** `/Users/jacobbrizinski/Projects/kitty`
-**Current branch:** `codex/phase-b-prep`
-**Base:** `c6accd0`
 
-## Current Product State
+## What's Shipped
 
-Kitty is a local-first companion with a FastAPI gateway, LiteLLM proxy, and Next.js UI. Phase A cleanup mostly landed. Quick Capture exists and writes mobile-compatible inbox entries. Inbox resurfacing exists through `memory_graph`. Phase B B1 has a SQLite migration seam, B2 migrated plugin settings behind the registry API, B3 started with todos writing through the Phase B Kitty DB with copy-only legacy import, B4 has a thin write-side storage router for todo and plugin mutations, and B5 has a local backup/restore drill for `data/kitty/`. No chat or journal data has been migrated.
+| Phase                   | Description                                                  | Status               |
+| ----------------------- | ------------------------------------------------------------ | -------------------- |
+| Phase B (B0–B5)         | Storage consolidation, SQLite seam, storage router           | ✓ Shipped            |
+| Phase C chats (C0–C6)   | Chat sessions migrated to SQLite                             | ✓ Shipped            |
+| Phase C journal (B0–B6) | Journal migrated to SQLite                                   | ✓ Shipped            |
+| Phase E                 | PWA seam (manifest, service worker, install banner)          | ✓ Shipped            |
+| Memory loop             | Session stop hook + recall-thread readback + /remember skill | ✓ Shipped (#48)      |
+| Mypy gate               | 80 gateway mypy errors cleared; typecheck now blocks CI      | ✓ Shipped (#51)      |
+| Session persistence     | Chat sessions survive restart; SOUL reads real config        | ✓ Shipped (#765caa3) |
+| Startup preflight       | Reliable preflight runs on `./kitty up`                      | ✓ Shipped (#50)      |
 
-## Current Priority
+## Open PR
 
-Prepare Phase B: one storage story and one agent/documentation story. Do not add mobile sync, cloud auth, push notifications, agent dashboards, or new TELOS/PAI expansion.
+**PR #65** — autonomous action queue + calendar write + tier sheet
 
-## Included Test Hygiene
+- `action_queue.py`, `routes/actions.py`, `009_actions.sql`
+- `calendar.event.create` T2 executor
+- `config/action_tiers.json` (Jacob's tier sign-off is the merge blocker)
+- Packets 004 and 007 are both stacked on this PR
 
-- `tests/test_memory_graph.py` now allows 150ms for timeout-bound async tests instead of 100ms. The previous 100ms cutoff flaked during the commit hook at 102ms while still proving a 200ms blocking call was bounded.
+## Test State (2026-07-02)
 
-## Open Dirty Work
+```
+803 passed, 4 failed, 1 skipped, 2 deselected, 4 warnings
+```
 
-- `codex/raycast-quick-capture` contains a useful unmerged Raycast wrapper commit: `5a07744`.
-- A roadmap hunk was preserved in stash `phase-b-prep preserve roadmap deepening drift`.
-- Several older stashes contain prior memory/LLM routing experiments and need review before deletion.
+Known failures:
 
-## Known Risks
+- `tests/test_check_continuity_state.py` — 4 tests fail when `docs/AGENT_HANDOFF.md` has a stale or missing date. Fixed by updating the handoff doc.
 
-- Runtime state is spread across JSON, JSONL, SQLite, ChromaDB, and mem0.
-- Root `HANDOFF.md` and `SESSION_HANDOFF.md` are stale compatibility artifacts; use `docs/AGENT_HANDOFF.md` going forward.
-- Pre-commit has an unreachable code-review-graph block after `exit 0`.
+Known collection error:
 
-## Verification
+- `tests/test_llm_client_alt_ua.py` — 1 file fails to collect; skip with `--ignore` or fix the import.
 
-- `python3.12 -m py_compile scripts/agent_wrapup.py` passed.
-- `python3.12 -m pytest tests/test_check_continuity_state.py tests/test_run_gates_script.py -q --tb=short` passed: 23 tests.
-- `python3.12 -m pytest tests/test_memory_graph.py -q --tb=short` passed: 10 tests.
-- `python3.12 -m pytest tests/test_db.py -q --tb=short` passed: 4 tests.
-- `python3.12 -m pytest tests/test_plugin_registry.py -q --tb=short` passed: 3 tests.
-- `python3.12 -m pytest tests/test_todo_store.py tests/test_db.py tests/test_plugin_registry.py -q --tb=short` passed: 29 tests.
-- `python3.12 -m pytest tests/test_storage_router.py tests/test_todo_store.py tests/test_plugin_registry.py -q --tb=short` passed: 35 tests.
-- `python3.12 -m pytest tests/test_kitty_backup.py tests/test_kitty_launcher.py -q --tb=short` passed: 11 tests.
-- `make agent-wrap` created an ignored session log under `.agent/session_logs/`.
-- `python3.12 -m pytest tests/ -q --tb=short` passed: 571 passed, 2 deselected, 3 warnings.
+## Runtime Shape
 
-## Next Best Step
+- Gateway: FastAPI on `127.0.0.1:8000`
+- LiteLLM proxy: `127.0.0.1:8001`
+- Data: `data/kitty/kitty.db` (SQLite), `data/chroma/` (vectors), `data/inbox.jsonl` (capture)
+- Start: `./kitty up` | Stop: `./kitty down` | Health: `./kitty doctor --json`
 
-Phase B is fully shipped (B0–B5). Phase C chats (C0–C6) and journal
-(B0–B6) are both shipped. The next user-facing store is unclear; the
-remaining `data/` files (cron schedules, model digest, autonomy state,
-corrections) are not user-facing in the same way. Future work could
-be polish, deeper Phase C work, or planning for the next product
-phase. The thin `storage_router` (B4) is the only D7-decision-shaped
-write seam in place; new stores get their own module rather than
-expanding the router.
+## Active Technical Debt
 
-## Runtime Check (verified 2026-06-20, two states)
+| Issue                                        | Location                                                      | Priority                          |
+| -------------------------------------------- | ------------------------------------------------------------- | --------------------------------- |
+| Fake data in loops + insights routes         | `gateway/routes/loops.py:12`, `gateway/routes/insights.py:12` | High — violates non-negotiable #1 |
+| `test_llm_client_alt_ua.py` collection error | `tests/`                                                      | Medium                            |
+| SIRI_SHORTCUT.md references dead launcher    | `docs/SIRI_SHORTCUT.md`                                       | Low — tombstone it                |
+| Local-only branches not pushed to origin     | `codex/raycast-quick-capture`, `backup-local-main-0628`       | Medium — at risk of loss          |
 
-**State 1 — services down** (initial, before `./kitty up`):
+## What's Next
 
-- `./kitty status` -> gateway not running, LiteLLM not running.
-- `./kitty doctor --json` -> 7 PASS / 1 WARN / 2 FAIL.
-- FAIL is `service:gateway` and `service:litellm` unreachable.
+See `docs/packets/README.md` for the packet queue (001–013). The immediate sequence:
 
-**State 2 — services up** (after `./kitty up`):
+1. Jacob signs tier sheet → merge PR #65 (packet 003)
+2. Packet 004: mascot state + de-fake loops/insights
+3. Packet 006: project resume (drafted — see `docs/packets/006-project-resume.md`)
+4. Packet 008: GitHub read-only connector (can start anytime)
 
-- `./kitty up` -> both processes start; gateway binds 127.0.0.1:8000, LiteLLM binds 127.0.0.1:8001.
-- `./kitty doctor --json` -> **9 PASS / 1 WARN / 0 FAIL** (the 1 WARN is `env:telegram_token` not set, expected).
-- `curl http://127.0.0.1:8000/health` -> HTTP 200 in 0.10s.
-- `curl http://127.0.0.1:8001/health/readiness` -> HTTP 200 in 0.10s.
-- Authenticated: `GET /todos` and `GET /plugins` return real data.
-- **End-to-end through B3+B4 (storage_router):** `POST /todos/add` returns a new id, the row persists in `data/kitty/kitty.db` (`sqlite3` confirms it), `DELETE /todos/{id}` removes it.
-- `./kitty down` -> both processes stop cleanly.
+## Sources of Truth
 
-**Port state:** the runtime is on **8000/8001** (the launcher's defaults — `GATEWAY_PORT` and `LITELLM_PORT` are not set in `.env` or `.env.example`). The historical port-mismatch (older docs saying 5001) is **resolved** in the current state: `docs/ARCHITECTURE.md` says 8000, `.env.example` says 8000, the Next.js proxy at `gateway/kitty-chat/src/app/proxy/[...path]/route.ts` defaults to 8000, and `CLAUDE.md` does not name a port number. The 5001 references that remain are:
-- Historical archive (`docs/DECISIONS_AND_ROADMAP.md`, `docs/LESSONS.md`, the Phase 1 evidence docs) — correct to keep as history
-- `docs/KITTY_HUB.md` — a separate FastAPI service ("kitty hub") on its own 5001, unrelated to the main gateway
-- One unit test (`tests/test_doctor.py:29`) uses 5001 as a test input value for URL building; harmless and orthogonal
-- A historical `DESKTOP_PHASE_1_HARD_CRITIC_REVIEW.md` note that flagged the proxy default; the code has since been fixed to 8000
-
-If you ever want the runtime to bind 5001, set `GATEWAY_PORT=5001` in `.env` and the launcher will use it; current code does not need it.
-
-**External service note:** the gateway logs `Embedding batch failed at index 0: HTTPConnectionPool(host='localhost', port='11434'): Connection refused` on every startup — that's the local ollama embed service. It is not required for the gateway to start, but `memory_graph.unified_context()` falls back to no-embeddings when it's down. The morning brief still works (it uses RSS feeds, not embeddings). If you want embeddings to work, start ollama locally on 11434.
-
-## Issue #30 fix (verified 2026-06-20)
-
-Closed the brief-context-shaping follow-up from issue #30 in one commit:
-
-- **Real theme source:** `detect_research_themes()` now reads from `journal.recent_entries(days=14)` and ranks bigrams by mention count. Replaces the old `search_all("research learning pattern")` heuristic. Each returned theme has `{"theme", "mentions", "source": "journal"}`.
-- **Honest empty state:** when journal has no recent entries, the function returns `[]` instead of the fabricated `[{"theme": "general knowledge", ...}]` fallback. `synthesize_brief_with_llm` skips the "YOUR RESEARCH INTERESTS" prompt section when `themes == []`, so the LLM no longer gets told Jacob is working on "general knowledge."
-- **asyncio refactor:** introduced a module-level `_run_async(coro)` helper in `gateway/brief.py` and routed the one remaining `asyncio.run` call (`_fetch_memory_snippet`) through it. The original two call-site refactor the issue called for collapses to one call site now that `detect_research_themes` is sync.
-- **Integration test:** `test_detect_research_themes_integration_with_real_journal` exercises real `journal.recent_entries` against a temp `journal_entries.jsonl` and asserts `[]` on empty — proves the "no fake fallback" contract.
-- **Test count:** 6 new brief tests (27 brief total, up from 21). Full suite: **586 passed, 2 deselected, 4 warnings**.
+| Need                | File                     |
+| ------------------- | ------------------------ |
+| Orientation         | `START_HERE.md`          |
+| Architecture        | `docs/ARCHITECTURE.md`   |
+| Settled decisions   | `docs/DECISIONS.md`      |
+| Hard lessons        | `docs/LEARNINGS.md`      |
+| Handoff             | `docs/AGENT_HANDOFF.md`  |
+| Work queue          | `docs/packets/README.md` |
+| Voice/persona       | `config/SOUL.md`         |
+| Agent/runtime rules | `docs/AGENT_RUNTIME.md`  |
