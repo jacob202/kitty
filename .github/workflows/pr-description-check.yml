@@ -30,6 +30,8 @@ jobs:
             console.log('DEBUG does s match newline:', /\s/.test('\n'));
             console.log('DEBUG does s* consume newlines:', '## Summary\n\n- x'.match(/## Summary\s*(.*)/)?.[1]);
             console.log('DEBUG actual prefix match:', body.slice(0, 40).match(/## Summary\s*(.*)/)?.[1]);
+            const prefix = body.slice(0, 30);
+            console.log('DEBUG prefix bytes:', Array.from(prefix).map(c => c.charCodeAt(0)));
             const summaryMatch = body.match(summaryRe);
             const testMatch = body.match(testRe);
             console.log('DEBUG summaryMatch:', !!summaryMatch);
