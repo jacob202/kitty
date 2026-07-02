@@ -11,12 +11,9 @@ registration order changes.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
 from gateway import dream_insights, insights
-
-from gateway.memory_consolidation import get_last_run_info
-from gateway.routes.dream import dismiss_dream_insight, load_dream_insights
 
 router = APIRouter(tags=["insights"])
 
