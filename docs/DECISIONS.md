@@ -71,3 +71,28 @@ readability for the lowest-signal rule in the set. The genuinely useful checks
 Why: enforcing line length without a formatter produces churn, not safety. If a
 formatter (`ruff format`) is adopted later, re-enable `E501` — the formatter
 will handle the code lines and string literals can take targeted `# noqa`.
+
+## D9 - Kitty Is A Personal Operating Layer
+
+Adopted 2026-07-01 from `docs/OPERATOR_STRATEGY.md` (merged in #59).
+
+Kitty's product identity is a personal operating layer: a state store,
+capture-and-triage loop, action queue with enforced approval tiers, and
+model-delegation router — worn with the SOUL persona. Chat is one interface
+to that layer, not the product. The near-term build order is the state +
+action spine (packets in `docs/packets/`), not further consolidation,
+memory expansion, or UI polish.
+
+What this rules out until the spine ships:
+- New memory substrates, typed knowledge graphs, event buses.
+- Autonomous outbound actions of any kind (draft-only until the action
+  queue has audit history).
+- Panels or endpoints that serve fabricated data; state surfaces bind to
+  real rows or do not ship.
+
+What this commits to:
+- New state-spine stores (signals, triage, actions, projects) are each
+  their own module over `kitty.db` migrations, per D7.
+- External feeds are cron-polled connectors that emit deduped signal rows.
+- Every action Kitty takes is a recorded row with a preview and a result;
+  approval tiers are enforced in the executor registry, in code.
