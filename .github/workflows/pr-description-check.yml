@@ -29,6 +29,7 @@ jobs:
             console.log('DEBUG summaryRe source:', summaryRe.source);
             console.log('DEBUG does s match newline:', /\s/.test('\n'));
             console.log('DEBUG does s* consume newlines:', '## Summary\n\n- x'.match(/## Summary\s*(.*)/)?.[1]);
+            console.log('DEBUG actual prefix match:', body.slice(0, 40).match(/## Summary\s*(.*)/)?.[1]);
             const summaryMatch = body.match(summaryRe);
             const testMatch = body.match(testRe);
             console.log('DEBUG summaryMatch:', !!summaryMatch);
