@@ -827,3 +827,24 @@ export async function fetchImageHistory(limit = 20): Promise<ImageEntry[]> {
     return []
   }
 }
+
+// ── File Capture ─────────────────────────────────────────────────────────────
+
+export interface CaptureResult {
+  capture_id: string
+  status: string
+  message: string
+}
+
+export async function uploadCaptureFile(file: File): Promise<CaptureResult | null> {
+  const formData = new FormData()
+  formData.append('file', file)
+  try {
+    return await gfetch<CaptureResult>('/capture/file', {
+      method: 'POST',
+      body: formData,
+    })
+  } catch {
+    return null
+  }
+}
