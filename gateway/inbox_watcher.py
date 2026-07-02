@@ -3,17 +3,15 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-from datetime import datetime, timezone
 from pathlib import Path
 
-from gateway.paths import DATA_DIR
+from gateway import desktop_store
+from gateway.paths import INBOX_FILE
 
 logger = logging.getLogger("kitty.inbox_watcher")
 
 ICLOUD_INBOX = Path.home() / "Library/Mobile Documents/com~apple~CloudDocs/inbox"
-INBOX_JSONL = DATA_DIR / "inbox.jsonl"
 POLL_INTERVAL = 30  # seconds
 
 
@@ -22,15 +20,13 @@ def _ingest(md_file: Path) -> None:
     if not text:
         md_file.unlink(missing_ok=True)
         return
-    entry = {
-        "id": md_file.stem,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "source": "icloud-inbox",
-        "text": text,
-    }
-    INBOX_JSONL.parent.mkdir(parents=True, exist_ok=True)
-    with INBOX_JSONL.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(entry) + "\n")
+    entry = desktop_store.make_inbox_entry(
+        text=text,
+        source="icloud-inbox",
+        capture_type="voice_note",
+    )
+    entry["id"] = md_file.stem
+    desktop_store.append_inbox_entry(entry, inbox_file=INBOX_FILE)
     md_file.unlink(missing_ok=True)
     logger.info("inbox: ingested %s (%d chars)", md_file.name, len(text))
 
