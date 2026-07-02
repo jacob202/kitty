@@ -224,3 +224,54 @@ def test_operations_on_missing_action_raise_not_found():
     for op in (action_queue.approve, action_queue.reject, action_queue.execute):
         with pytest.raises(action_queue.ActionNotFound):
             op(999999)
+
+
+# --- hardening: concurrency + live-tier enforcement (Codex review) ---------
+
+
+def test_execute_refuses_a_row_already_claimed():
+    """A concurrent /execute that claimed the row first blocks the second."""
+    action = _propose("todo.create", {"content": "x"})
+    assert action_queue._claim_for_execution(action["id"], "proposed") is True
+
+    # Row is now 'executing'; a second execute must not dispatch again.
+    with pytest.raises(action_queue.ActionStateError):
+        action_queue.execute(action["id"])
+
+
+def test_execute_enforces_current_registry_tier_not_the_stored_one(monkeypatch, tmp_path):
+    """A kind escalated in the sheet after propose must gate the queued action."""
+    action = _propose("todo.create", {"content": "x"})  # stamped T0 at propose
+    assert action["risk_tier"] == "T0"
+
+    escalated = tmp_path / "tiers.json"
+    escalated.write_text(
+        json.dumps(
+            {
+                "todo.create": "T2",
+                "note.draft": "T1",
+                "calendar.event.create": "T2",
+                "_disabled_v1": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(action_queue, "ACTION_TIERS_FILE", escalated, raising=False)
+    action_queue.reload_registry()
+
+    # Now T2 per the live sheet — auto-execution from proposed must be refused.
+    with pytest.raises(action_queue.TierViolation):
+        action_queue.execute(action["id"])
+
+
+def test_note_draft_filenames_are_unique_for_same_title():
+    a = _propose("note.draft", {"title": "Same Title", "content": "first"})
+    b = _propose("note.draft", {"title": "Same Title", "content": "second"})
+    action_queue.execute(a["id"])
+    action_queue.execute(b["id"])
+
+    files = list(action_queue.DRAFTS_DIR.glob("*.md"))
+    assert len(files) == 2
+    bodies = sorted(f.read_text(encoding="utf-8") for f in files)
+    assert any("first" in b for b in bodies)
+    assert any("second" in b for b in bodies)
