@@ -16,18 +16,24 @@ Rules for executors (any model or human):
 
 ## Registry
 
-| # | Packet | Best executor | Status |
-|---|---|---|---|
-| 001 | State spine: signals, snapshots, /state/now | Claude Code / Codex | shipped |
-| 002 | Inbox triage | Codex / Claude Code | shipped |
-| 003 | Action queue with enforced tiers | Claude Code | shipped (this PR) |
-| 004 | State home surface | Claude Code | spec-complete (§16.1 decided: console home) — blocked on 003 merge |
-| 005 | Mail read-only connector | Codex/Claude Code + Jacob (credentials) | blocked on §16.2 decision |
-| 006 | Project resume | Claude Code | blocked on 001 |
-| 007 | Delegation packet generator | strongest model (template) + Codex (plumbing) | blocked on 003 |
-| 008 | Knowledge library + expert retrieval | Claude Code / Codex | blocked on 002–004 unless Jacob reprioritizes |
+**Updated:** 2026-07-02
 
-Packets 004–007 are specified in `docs/OPERATOR_STRATEGY.md` §15; author
-their packet files from that spec when their blockers clear. Packet 008 is a
-planning packet for productizing the existing knowledge pipeline after the core
-state/action spine packets land, unless Jacob explicitly reprioritizes it.
+| #   | Packet                                                        | Best executor                                  | Status                                                             |
+| --- | ------------------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------ |
+| 001 | State spine: signals, snapshots, /state/now                   | Claude Code / Codex                            | ✓ shipped                                                          |
+| 002 | Inbox triage                                                  | Codex / Claude Code                            | ✓ shipped                                                          |
+| 003 | Action queue with enforced tiers                              | Claude Code                                    | ✓ shipped (#65 + #67)                                              |
+| 004 | State home surface                                            | Claude Code                                    | 📋 spec-complete (§16.1: console home) — **unblocked**             |
+| 005 | Mail read-only connector                                      | Codex/Claude Code + Jacob (credentials)        | ⛔ blocked on Jacob's §16.2 decision (Apple Mail vs Gmail API)     |
+| 006 | Project resume                                                | Claude Code                                    | ✏️ spec written — **unblocked** (see `006-project-resume.md`)     |
+| 007 | Delegation packet generator                                   | strongest model (template) + Codex (plumbing) | ✏️ **unblocked** (003 shipped)                                    |
+| 008 | Knowledge library + expert retrieval                          | Claude Code / Codex                            | 📋 spec-complete (see `008-knowledge-library-expert-retrieval.md`) |
+| 009 | De-fake loops/insights (backend routes)                       | Claude Code                                    | ✏️ can fold into 004 or do standalone                             |
+| 010 | Capture-to-knowledge (file/PDF/screenshot → inbox → pipeline) | Claude Code                                    | ✏️ pipeline exists (5 modules); needs route + UI                  |
+| 011 | Brief v2 + push delivery (state-diff open + scheduler)        | Claude Code                                    | ✏️ `notify.py` exists but has no scheduler                        |
+| 012 | Privacy boundary in router (§17.3)                            | Claude Code                                    | ✏️ must land **before** 005 and 007                               |
+| 013 | Nudges + web_monitor → signal emitters                        | Claude Code                                    | ✏️ initiative engine output currently dies unseen                 |
+
+Packets 004–007 are specified in `docs/OPERATOR_STRATEGY.md` §15; author their packet files from that spec when ready. Packets 009–013 were identified in a 2026-07-02 codebase audit; see `docs/AGENT_HANDOFF.md` for rationale.
+
+**Priority note:** Packet 012 (privacy boundary) should land before 005 and 007 — mail bodies and journal entries will flow to cloud models once drafting or delegation ships, and the routing boundary must be enforced first.
