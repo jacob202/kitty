@@ -18,6 +18,8 @@ jobs:
               pull_number: context.payload.pull_request.number,
             });
             const body = pr.body || '';
+            console.log('DEBUG body length:', body.length);
+            console.log('DEBUG body:', JSON.stringify(body));
             const missing = [];
             if (!body.includes('## Summary')) missing.push('`## Summary` section');
             if (!body.includes('## Test plan')) missing.push('`## Test plan` section');
