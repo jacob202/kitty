@@ -18,12 +18,16 @@ from gateway.prompts import JOURNAL_INTERVIEW_PROMPT, JOURNAL_SYNTHESIS_PROMPT
 
 logger = logging.getLogger("kitty.journal")
 
+# DEPRECATED: legacy read-only path for the JSONL fallback. SQLite
+# (kitty.db / journal_entries table, via journal_store) is the canonical
+# substrate. Retained only so the one-time legacy import in
+# journal_store._import_legacy_journal_once can find its source file.
+# New code MUST go through journal_store. Will be removed once Phase C
+# retirement completes.
 JOURNAL_LOG = DATA_DIR / "journal_entries.jsonl"
 
 
-def save_journal_entry(
-    entry: str, theme: str | None = None, session_id: str | None = None
-) -> dict:
+def save_journal_entry(entry: str, theme: str | None = None, session_id: str | None = None) -> dict:
     """Append a journal entry via journal_store. Kept for callers; see journal_store.append_entry."""
     return journal_store.append_entry(
         ts=time.time(),
@@ -142,9 +146,7 @@ def get_random_prompt(theme: Optional[str] = None) -> dict:
     return {"theme": theme, "prompt": random.choice(_PROMPTS[theme])}
 
 
-def build_interview_system_prompt(
-    base_soul_prompt: str, theme: Optional[str] = None
-) -> str:
+def build_interview_system_prompt(base_soul_prompt: str, theme: Optional[str] = None) -> str:
     theme_line = f"\n\nFocus area for this session: {theme}." if theme else ""
     return f"{base_soul_prompt}\n\n{JOURNAL_INTERVIEW_PROMPT}{theme_line}"
 
