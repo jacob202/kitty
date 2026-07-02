@@ -204,7 +204,7 @@ async def _check_watch(watch: dict) -> dict:
 
 
 def _notify_match(watch: dict, result: dict) -> None:
-    """Send notification when a watch finds a match."""
+    """Send notification and emit a signal when a watch finds a match."""
     try:
         from gateway.notify import send
         label = watch.get("label", watch.get("url", ""))
@@ -218,6 +218,23 @@ def _notify_match(watch: dict, result: dict) -> None:
         )
     except Exception:
         logger.exception("Failed to send watch notification")
+
+    try:
+        from gateway.signal_store import emit
+
+        emit(
+            source="web_monitor",
+            kind="watch_match",
+            payload={
+                "watch_id": watch.get("id"),
+                "label": watch.get("label"),
+                "url": watch.get("url"),
+                "keyword_matches": result.get("keyword_matches", []),
+                "changed": result.get("changed", False),
+            },
+        )
+    except Exception:
+        logger.exception("Failed to emit web_monitor signal")
 
 
 def _row_to_dict(row: sqlite3.Row) -> dict:

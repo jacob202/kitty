@@ -48,10 +48,32 @@ The gateway is the product. Clients should be thin views over gateway APIs.
 Current storage is mixed:
 
 - JSONL: inbox, journal, logs, feedback, traces
-- SQLite: todos, cron, model digest, task/build state, corrections
+- SQLite: todos, cron, model digest, task/build state, corrections, signals
 - ChromaDB: reference knowledge vectors
 - mem0: semantic/personal memory
 - JSON: config and small state files
+
+### Signals
+
+`gateway/signal_store.py` is the append table for connector and system events (P1). It lives in the main Kitty SQLite database and is consumed by `gateway/memory_graph.py` via `SignalsAdapter`.
+
+Signal shape:
+
+```json
+{
+  "id": 1,
+  "ts": 1719900000.0,
+  "source": "web_monitor",
+  "kind": "watch_match",
+  "payload": {"watch_id": "abc123", "label": "Example"},
+  "seen": false
+}
+```
+
+`seen` is derived from the SQLite `processed_at` column (`seen` is true when `processed_at` is non-null). Emitters include:
+
+- `gateway/web_monitor.py` — emits a `web_monitor` signal on content change or keyword match.
+- `gateway/nudge.py` — emits a `nudge` signal for each active nudge, deduped by nudge id.
 
 Phase B consolidates app-owned episodic state behind a single SQLite story. It does not migrate ChromaDB, mem0, imported raw knowledge, logs, or backups first.
 
