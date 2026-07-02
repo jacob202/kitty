@@ -1,5 +1,4 @@
 """Tests for the /knowledge routes (packet 008)."""
-
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
