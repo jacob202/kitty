@@ -11,7 +11,7 @@ def test_post_retries_server_errors():
     unavailable = MagicMock(status_code=503)
     recovered = MagicMock(status_code=200)
 
-    with patch("gateway.llm_client.requests.post", side_effect=[unavailable, recovered]) as mock_post:
+    with patch("gateway.llm_client.httpx.post", side_effect=[unavailable, recovered]) as mock_post:
         result = _post("https://example.test/chat")
 
     assert result is recovered
@@ -23,7 +23,7 @@ def test_post_does_not_retry_client_errors():
 
     unauthorized = MagicMock(status_code=401)
 
-    with patch("gateway.llm_client.requests.post", return_value=unauthorized) as mock_post:
+    with patch("gateway.llm_client.httpx.post", return_value=unauthorized) as mock_post:
         result = _post("https://example.test/chat")
 
     assert result is unauthorized
@@ -192,8 +192,9 @@ def test_route_model_case_insensitive():
 def test_resolve_agentrouter_key_from_env():
     from gateway.llm_client import resolve_agentrouter_api_key
 
-    with patch("gateway.llm_client.load_dotenv"), patch.dict(
-        "os.environ", {"AGENTROUTER_API_KEY": "sk-test-key"}
+    with (
+        patch("gateway.llm_client.load_dotenv"),
+        patch.dict("os.environ", {"AGENTROUTER_API_KEY": "sk-test-key"}),
     ):
         key = resolve_agentrouter_api_key()
     assert key == "sk-test-key"
@@ -202,8 +203,9 @@ def test_resolve_agentrouter_key_from_env():
 def test_resolve_agentrouter_key_strips_quotes():
     from gateway.llm_client import resolve_agentrouter_api_key
 
-    with patch("gateway.llm_client.load_dotenv"), patch.dict(
-        "os.environ", {"AGENTROUTER_API_KEY": '"sk-test-key"'}
+    with (
+        patch("gateway.llm_client.load_dotenv"),
+        patch.dict("os.environ", {"AGENTROUTER_API_KEY": '"sk-test-key"'}),
     ):
         key = resolve_agentrouter_api_key()
     assert key == "sk-test-key"
@@ -213,8 +215,9 @@ def test_resolve_agentrouter_key_multiline_uses_first():
     """Multi-line key uses only the first line."""
     from gateway.llm_client import resolve_agentrouter_api_key
 
-    with patch("gateway.llm_client.load_dotenv"), patch.dict(
-        "os.environ", {"AGENTROUTER_API_KEY": "sk-line1\nsk-line2"}
+    with (
+        patch("gateway.llm_client.load_dotenv"),
+        patch.dict("os.environ", {"AGENTROUTER_API_KEY": "sk-line1\nsk-line2"}),
     ):
         key = resolve_agentrouter_api_key()
     assert key == "sk-line1"
@@ -223,9 +226,7 @@ def test_resolve_agentrouter_key_multiline_uses_first():
 def test_resolve_agentrouter_key_missing_returns_empty():
     from gateway.llm_client import resolve_agentrouter_api_key
 
-    with patch("gateway.llm_client.load_dotenv"), patch.dict(
-        "os.environ", {}, clear=True
-    ):
+    with patch("gateway.llm_client.load_dotenv"), patch.dict("os.environ", {}, clear=True):
         import os
 
         os.environ.pop("AGENTROUTER_API_KEY", None)
@@ -247,7 +248,7 @@ def test_call_llm_returns_content_on_success():
         "choices": [{"message": {"role": "assistant", "content": "Hello, Jacob."}}],
         "model": "kitty-default",
     }
-    with patch("requests.post", return_value=fake_response):
+    with patch("gateway.llm_client.httpx.post", return_value=fake_response):
         result = call_llm(
             messages=[{"role": "user", "content": "hello"}],
             model="kitty-default",
@@ -256,19 +257,17 @@ def test_call_llm_returns_content_on_success():
 
 
 def test_call_llm_falls_back_on_litellm_error():
-    """call_llm falls back gracefully when LiteLLM connection is refused."""
-    import requests as req
-
+    """call_llm falls back via the provider dispatcher when LiteLLM fails."""
     from gateway.llm_client import call_llm
 
-    with patch("requests.post", side_effect=req.exceptions.ConnectionError("refused")):
-        with patch(
-            "gateway.llm_client._call_openai_direct", return_value="Fallback response"
-        ):
-            result = call_llm(
-                messages=[{"role": "user", "content": "hello"}],
-                model="kitty-default",
-            )
+    with (
+        patch("gateway.llm_client._post", side_effect=Exception("litellm down")),
+        patch("gateway.llm_client._call_provider", return_value="Fallback response"),
+    ):
+        result = call_llm(
+            messages=[{"role": "user", "content": "hello"}],
+            model="kitty-default",
+        )
     assert result == "Fallback response"
 
 
@@ -285,10 +284,13 @@ def test_chat_completions_non_stream_falls_back_on_http_failure():
     mock_client.post = AsyncMock(side_effect=Exception("connection refused"))
 
     async def run_test():
-        with patch(
-            "gateway.http_client.get_http_client",
-            new=AsyncMock(return_value=mock_client),
-        ), patch("gateway.llm_client.call_llm", return_value="Fallback reply"):
+        with (
+            patch(
+                "gateway.http_client.get_http_client",
+                new=AsyncMock(return_value=mock_client),
+            ),
+            patch("gateway.llm_client.call_llm", return_value="Fallback reply"),
+        ):
             return await chat_completions_non_stream(
                 {
                     "model": "kitty-default",

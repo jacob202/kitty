@@ -36,7 +36,7 @@ Rules: Use contractions. No fluff. Focus on 'Resume, don't restart'. Speak Canad
             operation="nightly.reset",
         )
     except Exception as e:
-        logger.error(f"Nightly Reset Prompt generation failed: {e}")
+        logger.error("Nightly Reset Prompt generation failed: %s", e)
         return "Hey Jacob. What was the proof we built today? What's the one move for tomorrow?"
 
 

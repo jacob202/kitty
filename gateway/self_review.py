@@ -7,6 +7,7 @@ Three logs written to data/kitty/:
 
 These feed SOUL_SCRATCHPAD.md. Kitty reads them to understand what's working.
 """
+
 from __future__ import annotations
 
 import json
@@ -70,6 +71,7 @@ def _append(path: Path, record: dict) -> None:
 # T17 — Kitty drift tracking
 # ---------------------------------------------------------------------------
 
+
 def log_drift(kitty_response: str) -> dict:
     """Check Kitty's response against SOUL.md behavioral rules. Log result."""
     text = kitty_response.lower()
@@ -97,6 +99,7 @@ def log_drift(kitty_response: str) -> dict:
 # ---------------------------------------------------------------------------
 # T18 — Jacob reaction quality
 # ---------------------------------------------------------------------------
+
 
 def _classify_signal(message: str) -> str:
     text = message.lower()
@@ -178,6 +181,7 @@ def log_session_arc(jacob_message: str, kitty_response: str) -> None:
 def _append_scratchpad(note: str) -> None:
     """Append a timestamped note to SOUL_SCRATCHPAD.md."""
     import datetime
+
     ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     SOUL_SCRATCHPAD.parent.mkdir(parents=True, exist_ok=True)
     with SOUL_SCRATCHPAD.open("a") as f:

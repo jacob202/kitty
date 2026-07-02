@@ -51,6 +51,9 @@ async def lifespan(app: FastAPI):
     from gateway.brief_scheduler import start_brief_scheduler
 
     brief_scheduler_task = start_brief_scheduler()
+    from gateway.inbox_watcher import watch_loop as _inbox_watch
+
+    inbox_task = asyncio.create_task(_inbox_watch())
     try:
         from gateway.cron import register_action
         from gateway.cron import start as cron_start
@@ -96,6 +99,7 @@ async def lifespan(app: FastAPI):
     brief_task.cancel()
     if brief_scheduler_task is not None:
         brief_scheduler_task.cancel()
+    inbox_task.cancel()
     try:
         from gateway.http_client import _http_client
 

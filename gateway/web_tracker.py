@@ -3,6 +3,7 @@
 This module tracks changes to web content across visits, similar to Orca's
 change tracking functionality.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -16,6 +17,7 @@ from gateway.paths import DATA_DIR
 try:
     import numpy as np
     from sentence_transformers import SentenceTransformer
+
     TRACKER_AVAILABLE = True
 except Exception as exc:
     TRACKER_AVAILABLE = False
@@ -45,12 +47,14 @@ class WebChangeTracker:
             return str(self.tracker_dir / "mock_snapshot.json")
 
         url_hash = hashlib.md5(url.encode()).hexdigest()[:12]
-        snapshot_file = self.tracker_dir / f"{url_hash}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        snapshot_file = (
+            self.tracker_dir / f"{url_hash}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        )
 
         try:
             emb = self.encoder.encode([content[:2000]])[0].tolist()
         except Exception as e:
-            logger.warning(f"Embedding failed: {e}")
+            logger.warning("Embedding failed: %s", e)
             emb = [0.0] * 384  # Fallback zero vector
 
         snapshot = {
@@ -60,7 +64,7 @@ class WebChangeTracker:
             "embedding": emb,
         }
         snapshot_file.write_text(json.dumps(snapshot, indent=2))
-        logger.info(f"Captured snapshot: {url}")
+        logger.info("Captured snapshot: %s", url)
         return str(snapshot_file)
 
     def compare(self, url: str) -> str:
@@ -84,7 +88,9 @@ class WebChangeTracker:
         if len(prev_emb) == 0 or len(curr_emb) == 0:
             return "No embedding data available for comparison."
 
-        similarity = np.dot(prev_emb, curr_emb) / (np.linalg.norm(prev_emb) * np.linalg.norm(curr_emb) + 1e-9)
+        similarity = np.dot(prev_emb, curr_emb) / (
+            np.linalg.norm(prev_emb) * np.linalg.norm(curr_emb) + 1e-9
+        )
 
         return (
             f"Content similarity: {similarity:.2%}\n\n"
@@ -103,7 +109,7 @@ class WebChangeTracker:
                 data = json.loads(snap_file.read_text())
                 result.append(data)
             except Exception as e:
-                logger.warning(f"Could not read snapshot {snap_file}: {e}")
+                logger.warning("Could not read snapshot %s: %s", snap_file, e)
 
         return result
 

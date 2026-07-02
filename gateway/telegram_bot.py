@@ -12,6 +12,7 @@ Public API:
 
 Env: TELEGRAM_BOT_TOKEN
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -101,9 +102,10 @@ async def _process_message(chat_id: int, text: str) -> None:
         # Log interaction
         try:
             from gateway.self_review import record_interaction
+
             record_interaction(text, reply)
         except Exception:
-            pass
+            logger.debug("telegram: failed to record interaction", exc_info=True)
 
     except Exception:
         logger.exception("Telegram message processing failed")
@@ -161,26 +163,37 @@ async def _handle_command(chat_id: int, text: str) -> None:
     cmd = text.lower().split()[0]
 
     if cmd == "/start":
-        await send_message(chat_id, "Hey! I'm Kitty. Ask me anything — I'm connected to the same brain as the desktop app.")
+        await send_message(
+            chat_id,
+            "Hey! I'm Kitty. Ask me anything — I'm connected to the same brain as the desktop app.",
+        )
     elif cmd == "/brief":
         from gateway.brief import generate_brief
+
         try:
             brief = generate_brief()
             intention = brief.get("intention", "")[:1500]
-            await send_message(chat_id, intention or "Brief generated — check the desktop app for full details.")
+            await send_message(
+                chat_id, intention or "Brief generated — check the desktop app for full details."
+            )
         except Exception:
+            logger.exception("telegram: /brief command failed")
             await send_message(chat_id, "Brief generation failed — try again later.")
     elif cmd == "/stuck":
         from gateway.brief import get_tasks_summary
+
         await send_message(chat_id, get_tasks_summary())
     elif cmd == "/help":
-        await send_message(chat_id, (
-            "Kitty Telegram Commands:\n"
-            "/brief — Morning brief\n"
-            "/stuck — What to work on next\n"
-            "/help — This message\n\n"
-            "Or just chat — I'll respond like normal."
-        ))
+        await send_message(
+            chat_id,
+            (
+                "Kitty Telegram Commands:\n"
+                "/brief — Morning brief\n"
+                "/stuck — What to work on next\n"
+                "/help — This message\n\n"
+                "Or just chat — I'll respond like normal."
+            ),
+        )
     else:
         await _process_message(chat_id, text)
 

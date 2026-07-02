@@ -8,6 +8,7 @@ Public API:
   weekly() -> dict         Weekly pattern summary
   annual_review() -> dict  Year-over-year perspective
 """
+
 from __future__ import annotations
 
 import json
@@ -82,8 +83,8 @@ def analyze(days: int = 90) -> dict:
     weekly_trend = sorted(weeks.items())[-12:]  # last 12 weeks
     trend_direction = "stable"
     if len(weekly_trend) >= 4:
-        first_half = sum(c for _, c in weekly_trend[:len(weekly_trend)//2])
-        second_half = sum(c for _, c in weekly_trend[len(weekly_trend)//2:])
+        first_half = sum(c for _, c in weekly_trend[: len(weekly_trend) // 2])
+        second_half = sum(c for _, c in weekly_trend[len(weekly_trend) // 2 :])
         if second_half > first_half * 1.2:
             trend_direction = "increasing"
         elif second_half < first_half * 0.8:
@@ -115,6 +116,7 @@ def annual_review() -> dict:
     # Add journal insights if available
     try:
         from gateway.journal import JOURNAL_LOG
+
         if JOURNAL_LOG.exists():
             entries = []
             cutoff = time.time() - 365 * 86400
@@ -130,15 +132,16 @@ def annual_review() -> dict:
             result["journal_themes"] = themes.most_common(10)
             result["total_journal_entries"] = len(entries)
     except Exception:
-        pass
+        logger.debug("annual_review: journal read failed", exc_info=True)
 
     # Add memory stats
     try:
         from gateway.memory import list_memories
+
         memories = list_memories(limit=0)  # get count
         result["total_memories"] = len(memories) if isinstance(memories, list) else 0
     except Exception:
-        pass
+        logger.debug("annual_review: memory read failed", exc_info=True)
 
     return result
 
@@ -150,7 +153,9 @@ def get_insight_text(days: int = 30) -> str:
         return ""
 
     lines = ["## Your Patterns"]
-    lines.append(f"Last {days} days: {data['total_interactions']} interactions, avg {data['avg_response_ms']}ms response")
+    lines.append(
+        f"Last {days} days: {data['total_interactions']} interactions, avg {data['avg_response_ms']}ms response"
+    )
 
     top = data.get("top_domains", [])
     if top:
