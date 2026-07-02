@@ -16,6 +16,7 @@ from gateway.memory_graph import (
     KnowledgeAdapter,
     MemoryAdapter,
     MemoryGraph,
+    SignalsAdapter,
     StoreAdapter,
     TodosAdapter,
     TracesAdapter,
@@ -27,7 +28,7 @@ from gateway.memory_graph import (
 
 @pytest.mark.asyncio
 async def test_search_all_returns_all_keys():
-    """search_all should always return the five canonical keys."""
+    """search_all should always return the canonical store keys."""
     with patch.object(
         MemoryAdapter, "fetch", new=AsyncMock(return_value=[])
     ), patch.object(
@@ -40,6 +41,8 @@ async def test_search_all_returns_all_keys():
         TodosAdapter, "fetch", new=AsyncMock(return_value=[])
     ), patch.object(
         InboxAdapter, "fetch", new=AsyncMock(return_value=[])
+    ), patch.object(
+        SignalsAdapter, "fetch", new=AsyncMock(return_value=[])
     ):
         results = await search_all("test query")
         assert set(results.keys()) == {
@@ -49,6 +52,7 @@ async def test_search_all_returns_all_keys():
             "traces",
             "todos",
             "inbox",
+            "signals",
         }
         assert all(isinstance(v, list) for v in results.values())
 

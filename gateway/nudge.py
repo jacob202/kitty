@@ -39,8 +39,29 @@ def check() -> list[dict]:
 
     if active:
         logger.info("Nudge engine: %d active nudges", len(active))
+        _emit_nudge_signals(active)
 
     return active
+
+
+def _emit_nudge_signals(nudges: list[dict]) -> None:
+    """Write each active nudge to the signal store so downstream consumers see it."""
+    try:
+        from gateway.signal_store import emit
+
+        for nudge in nudges:
+            emit(
+                source="nudge",
+                kind=nudge.get("type", "nudge"),
+                payload={
+                    "nudge_id": nudge.get("id"),
+                    "message": nudge.get("message"),
+                    "priority": nudge.get("priority"),
+                },
+                dedupe_key=nudge.get("id"),
+            )
+    except Exception:
+        logger.exception("Failed to emit nudge signals")
 
 
 def dismiss(nudge_id: str) -> bool:

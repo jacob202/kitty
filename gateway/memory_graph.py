@@ -390,6 +390,61 @@ class InboxAdapter(StoreAdapter):
         return []
 
 
+class SignalsAdapter(StoreAdapter):
+    """Adapter for the P1 signal store (connector and system events)."""
+
+    @property
+    def name(self) -> str:
+        return "signals"
+
+    async def fetch(self, query: str) -> list[dict[str, Any]]:
+        try:
+            from gateway.signal_store import list_recent
+
+            # Recent signals are always relevant for "what changed" / state queries.
+            signals = await asyncio.to_thread(list_recent, 20)
+            terms = [term for term in query.lower().split() if term]
+            if not terms:
+                return signals
+
+            matches = []
+            for s in signals:
+                text = " ".join(
+                    [
+                        str(s.get("source") or ""),
+                        str(s.get("kind") or ""),
+                        str(s.get("payload") or ""),
+                    ]
+                ).lower()
+                if any(term in text for term in terms):
+                    matches.append(s)
+            return matches[:5]
+        except Exception as e:
+            logger.warning("Signals fetch failed: %s", e)
+            return []
+
+    def format_items(self, items: list[dict[str, Any]]) -> str:
+        if not items:
+            return ""
+        lines = ["## Signals"]
+        for s in items[:5]:
+            source = s.get("source", "unknown")
+            kind = s.get("kind", "event")
+            payload = s.get("payload") or {}
+            summary = str(payload.get("message") or payload.get("label") or kind)
+            seen = "seen" if s.get("processed_at") else "unseen"
+            lines.append(f"- [{source} | {seen}] {summary[:200]}")
+        return "\n".join(lines)
+
+    def correlate(
+        self, items: list[dict[str, Any]], all_results: dict[str, list[dict[str, Any]]]
+    ) -> list[str]:
+        unprocessed = [s for s in items if not s.get("processed_at")]
+        if unprocessed:
+            return [f"{len(unprocessed)} unseen signal(s)"]
+        return []
+
+
 # --- Adapter registry ---
 
 
@@ -402,6 +457,7 @@ def _default_adapters() -> list[StoreAdapter]:
         TracesAdapter(),
         TodosAdapter(),
         InboxAdapter(),
+        SignalsAdapter(),
     ]
     try:
         from gateway.mempalace_adapter import MemPalaceAdapter
