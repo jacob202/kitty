@@ -1,6 +1,6 @@
 # Decisions
 
-**Date:** 2026-06-20
+**Date:** 2026-07-02
 **Status:** Canonical forward-looking decision log. Historical detail remains in `docs/DECISIONS_AND_ROADMAP.md`.
 
 ## D1 - Local-First Single User
@@ -96,3 +96,51 @@ What this commits to:
 - External feeds are cron-polled connectors that emit deduped signal rows.
 - Every action Kitty takes is a recorded row with a preview and a result;
   approval tiers are enforced in the executor registry, in code.
+
+## D10 - Privacy Boundary In The LLM Router
+
+Adopted 2026-07-02 from `docs/OPERATOR_STRATEGY.md` §17.3, via packet 012.
+
+Local-first is the product thesis. That is not enforceable by convention once
+cloud models do drafting — it has to be enforced in code at the call site
+where journal, mail, and health/admin content enters the LLM pipeline.
+
+**Data classes:**
+
+| Class            | Default privacy | Examples                                           |
+| ---------------- | --------------- | -------------------------------------------------- |
+| `journal`        | local-only      | journal entries, interview turns, dream synthesis  |
+| `mail_body`      | local-only      | full email body, replies, attachments              |
+| `health_admin`   | local-only      | SAID/CDB/DTC docs, benefits letters, medical forms |
+| `calendar`       | cloud-permitted | event titles, times, locations                     |
+| `todo`           | cloud-permitted | todo text, action queue payloads                   |
+| `chat`           | cloud-permitted | persona chat, triage classification                |
+
+**Enforcement in `gateway/llm_client.py`:**
+
+- `call_llm(..., privacy_tier: Literal["local","cloud_ok"] = "local",
+  content_class: str | None = None)`
+- If `content_class` is in `PRIVACY_LOCAL_ONLY` and `privacy_tier == "cloud_ok"`,
+  raise `PrivacyBoundaryError` with a reason. The route layer translates that
+  to HTTP 400.
+- Journal route tags `content_class="journal"` and defaults `privacy_tier="local"`.
+- Any future route carrying private content MUST tag both fields. Routes
+  that pass `content_class=None` keep the previous permissive behavior (any
+  cloud model is acceptable) so existing call sites don't break, but new
+  private-data call sites must opt in explicitly.
+
+**What this rules out:**
+
+- Mail and journal routes silently using cloud models.
+- Bypassing the boundary by calling providers directly instead of through
+  `call_llm`. The packet's audit found ~20 modules importing `llm_client`;
+  a follow-up packet should grep for direct provider HTTP calls and route
+  them through `call_llm`.
+
+**What this commits to:**
+
+- `gateway/llm_client.call_llm` is the only sanctioned entry point for LLM
+  calls that may carry private content. New routes for mail, journal, and
+  health/admin MUST go through it.
+- `tests/test_llm_privacy_boundary.py` exists and asserts the journal case
+  raises on cloud and the chat case does not.
