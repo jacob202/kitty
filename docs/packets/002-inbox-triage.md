@@ -1,6 +1,6 @@
 # Packet 002 — Inbox triage
 
-- **Status:** ready
+- **Status:** shipped (implemented in the same PR that flipped this line)
 - **Best executor:** Codex or Claude Code
 - **Purpose:** Make capture come back. Decide, for every inbox entry and
   unprocessed signal, whether it matters now, later, never, or needs Jacob.

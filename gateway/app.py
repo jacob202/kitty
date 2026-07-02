@@ -76,10 +76,16 @@ async def lifespan(app: FastAPI):
 
             await asyncio.to_thread(nightly_dream)
 
+        async def _action_triage_inbox():
+            from gateway import triage
+
+            await asyncio.to_thread(triage.run_pass)
+
         register_action("brief.refresh", _action_refresh_brief)
         register_action("nudges.check", _action_check_nudges)
         register_action("monitors.check", _action_check_monitors)
         register_action("memory.consolidate", _action_memory_consolidate)
+        register_action("inbox.triage", _action_triage_inbox)
         cron_start()
     except Exception:
         pass
