@@ -79,8 +79,6 @@ def test_call_llm_rejects_journal_cloud_at_boundary(monkeypatch):
 
 def test_call_llm_passes_through_when_local():
     """Journal content + privacy_tier=local must reach the provider chain."""
-    import gateway.llm_client as llm
-
     captured: dict = {}
 
     def _fake_post(url, **kwargs):
