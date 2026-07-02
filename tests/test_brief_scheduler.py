@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -68,13 +68,6 @@ class TestBriefScheduler:
         monkeypatch.setattr(brief_scheduler, "USER_PROFILE_PATH", profile)
 
         today = datetime.now(timezone.utc).date().isoformat()
-        fake_brief = {
-            "date": today,
-            "intention": "Ship the scheduler",
-            "headlines": [{"title": "Something worth knowing"}],
-            "inbox_items": [],
-            "signals": [],
-        }
 
         delivered: list[str] = []
 
