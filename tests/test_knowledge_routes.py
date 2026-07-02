@@ -9,7 +9,6 @@ from fastapi.testclient import TestClient
 
 from gateway.routes import knowledge as knowledge_route
 
-
 # --- Fixtures ---
 
 

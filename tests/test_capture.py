@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,9 +10,8 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    from gateway.app import app
-
     from gateway import paths
+    from gateway.app import app
     from gateway.routes import capture
 
     monkeypatch.setattr(paths, "DATA_DIR", tmp_path / "data")
