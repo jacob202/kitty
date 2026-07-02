@@ -1,8 +1,17 @@
 # Packet 003 — Action queue with enforced tiers
 
-- **Status:** ready — **blocked on Jacob signing the tier sheet** (below)
+- **Status:** shipped (this PR). Tier sheet signed off by Jacob 2026-07-02
+  with one change: `_T3_never` renamed to `_disabled_v1` and the disabled list
+  expanded (below).
 - **Best executor:** Claude Code (tier enforcement deserves the strongest
   code executor); tier config reviewed by the strongest model + Jacob
+
+## Tier semantics (as signed)
+
+- **T0** may execute automatically from `proposed`; every execution is recorded.
+- **T1** may create *local* draft artifacts automatically from `proposed`;
+  transmits nothing and performs no external side effect.
+- **T2** requires explicit per-action approval before execution.
 - **Purpose:** The safe path from "Kitty thinks X should happen" to
   "X happened, recorded." No external effect may exist outside this queue.
 
@@ -52,9 +61,18 @@
      "todo.create": "T0",
      "note.draft": "T1",
      "calendar.event.create": "T2",
-     "_T3_never": ["payments", "data.delete", "secrets", "bulk.outbound", "email.send"]
+     "_disabled_v1": [
+       "payments", "data.delete", "secrets", "bulk.outbound",
+       "email.send", "email.archive", "email.delete",
+       "github.merge", "github.push", "external.purchase", "account.change"
+     ]
    }
    ```
+
+   `_disabled_v1` kinds are disabled for this packet: they must not exist as
+   executors now. Some may return as their own explicitly-approved future
+   packets; none is reachable today. Registration fails loudly if an executor
+   is ever added for a disabled kind.
 
 4. New `gateway/routes/actions.py`: `GET /actions?status=`,
    `POST /actions/propose`, `POST /actions/{id}/approve`,
