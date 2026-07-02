@@ -1,6 +1,6 @@
 # Kitty Architecture
 
-**Date:** 2026-06-20
+**Date:** 2026-07-02
 **Status:** Canonical current architecture
 
 ## Runtime
@@ -19,10 +19,10 @@ The `./kitty` launcher is the preferred local entrypoint. Older shell scripts re
 
 ```text
 Browser / Raycast / Telegram / Siri
-  -> Gateway routes in gateway/routes/
-  -> context_builder
-  -> memory_graph + live enrichment
-  -> llm_client
+  -> Gateway routes in gateway/routes/ (thin handlers)
+  -> context_assembler (deep prompt-assembly pipeline)
+  -> memory_graph + context_enrichment (read fan-in)
+  -> llm_client (table-driven provider dispatcher + fallback chain)
   -> LiteLLM and provider fallback chain
 ```
 
@@ -34,21 +34,42 @@ The gateway is the product. Clients should be thin views over gateway APIs.
 |---|---|
 | `gateway/app.py` | FastAPI app setup, middleware, lifespan |
 | `gateway/routes/register.py` | Route registration |
-| `gateway/routes/` | API route modules |
+| `gateway/routes/` | API route modules (thin — delegate to domain modules) |
 | `gateway/paths.py` | Path constants |
-| `gateway/context_builder.py` | Prompt/context assembly |
-| `gateway/memory_graph.py` | Unified read path across memory stores |
+| `gateway/context_assembler.py` | Deep prompt/context assembly pipeline (10-step) |
+| `gateway/context_builder.py` | Thin re-export facade over `context_assembler` |
+| `gateway/memory_graph.py` | Unified read path across memory stores (adapters, `Item`, `GraphResult`) |
+| `gateway/llm_client.py` | Table-driven provider dispatcher + 6-provider fallback chain |
+| `gateway/storage_router.py` | Write seam for app-state stores |
+| `gateway/storage_sync.py` | Export/import snapshot for app-state (replaces former `storage_io` + `sync`) |
+| `gateway/domain_router.py` | Keyword domain classifier (soul/repair/health/research/code) |
+| `gateway/prompts.py` | Inline prompt catalog + on-disk prompt loader (`load_prompt`) |
+| `gateway/agent_runner.py` | Background agent loop + Algorithm reasoning phases |
 | `gateway/desktop_store.py` | Quick Capture inbox writer/status helper |
-| `gateway/llm_client.py` | Model routing and provider fallback |
 | `gateway/cron.py` | Local scheduled actions |
 | `gateway/kitty-chat/` | Next.js UI |
+
+## Domain Modules (route islands)
+
+Route files are thin handlers that delegate product logic to domain modules:
+
+| Domain module | Route file |
+|---|---|
+| `gateway/dream_insights.py` | `routes/dream.py` |
+| `gateway/feedback.py` | `routes/feedback.py` |
+| `gateway/insights.py` | `routes/insights.py` |
+| `gateway/loops.py` | `routes/loops.py` |
+| `gateway/monitors.py` | `routes/monitors.py` |
+| `gateway/perf.py` | `routes/perf.py` |
+| `gateway/prompts_catalog.py` | `routes/prompts.py` |
 
 ## Storage
 
 Current storage is mixed:
 
 - JSONL: inbox, journal, logs, feedback, traces
-- SQLite: todos, cron, model digest, task/build state, corrections
+- SQLite (`KITTY_DB_FILE`): todos, chats, journal_entries, buddy_state, plugin_settings — via `gateway/db.py`
+- SQLite (subsystem DBs): cron, builds, task_queue, ingestion, web_monitors, autonomy, model_digest — each module manages its own connection (see ADR-0001)
 - ChromaDB: reference knowledge vectors
 - mem0: semantic/personal memory
 - JSON: config and small state files
@@ -58,7 +79,19 @@ Phase B consolidates app-owned episodic state behind a single SQLite story. It d
 ## Architecture Rules
 
 - New context reads go through `memory_graph`.
-- Write paths may use direct stores until Phase B introduces `StorageRouter`.
-- Do not put product logic in clients.
+- App-state writes go through `storage_router`. Subsystem writes may use direct stores.
+- Do not put product logic in route files — delegate to domain modules.
 - Do not silently recover from storage or network failures; surface the failure clearly.
-- Do not add a new database, queue, cloud service, or mobile sync in Phase B.
+- Do not add a new database, queue, cloud service, or mobile sync without an ADR.
+
+## Removed Modules
+
+The following shallow modules were deleted (deepening pass, 2026-07-02):
+
+- `gateway/llm_utils.py` — one retry function, sole caller was `llm_client`; inlined.
+- `gateway/prompt_loader.py` — 25-line pass-through; folded into `prompts.py`.
+- `gateway/algorithm.py` — leaf helper with one consumer; folded into `agent_runner.py`.
+- `gateway/agents.py` — orphaned persona loader; never imported by any module.
+- `gateway/storage_io.py` — backup/restore; merged into `storage_sync.py`.
+- `gateway/sync.py` — export logic; merged into `storage_sync.py`.
+- `gateway/domain_router.py` ABC layer — `DomainClassifier`/`_classify_cached`/`classifier` param; dead (no second implementation).
