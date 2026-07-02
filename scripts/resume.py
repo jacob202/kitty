@@ -64,7 +64,7 @@ def doctor_summary() -> str:
     try:
         data = json.loads(r.stdout)
     except json.JSONDecodeError:
-        return f"doctor: bad JSON"
+        return "doctor: bad JSON"
     s = data.get("summary", {})
     return f"pass={s.get('pass', 0)} warn={s.get('warn', 0)} fail={s.get('fail', 0)}"
 
