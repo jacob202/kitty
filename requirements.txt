@@ -22,4 +22,4 @@ pillow==11.3.0
 # retry + memory + article extraction (for brief enrichment)
 tenacity>=8.5.0,<10
 mem0ai>=0.1.50,<0.2
-trafilatura>=1.12,<3
+trafilatura>=2.1.0,<3
