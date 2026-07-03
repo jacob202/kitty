@@ -37,6 +37,34 @@ spec-complete — active phase, see
 connector — §16.2 decided 2026-07-02: Gmail API read-only, D11), 007
 (delegation packet generator), 008 remainder (expert retrieval).
 
+## Active Task — full packet authoring (started 2026-07-03, Jacob directed)
+
+Jacob wants the strongest model to author executor-ready packets for the
+**entire remaining road**, so cheap executors can run them. Checklist:
+
+- [ ] **Packet 014 (new)** — "make the gates honest": fix 6 UI tests, add a
+      kitty-chat CI job (vitest + next build), Makefile targets for the
+      direct-bin invocations, fix the 2 Python test-isolation leaks.
+      **Diagnosis already done:** the UI tests fail on stale text matchers —
+      they expect pre-v2 copy (`sessions`, `Today`, `✕`, `+ new`, TopBar
+      offline text) that the v2 design migration (#56/#57) renamed. The
+      component is the deliberate source of truth; update the tests to
+      current copy, don't revert the UI.
+- [ ] **Packet 005 (new file)** — Gmail API read-only connector, per D11 +
+      OPERATOR_STRATEGY §15 P5 + §17.2 connector shape. Jacob personally
+      owns OAuth/credential setup (never an agent task; keys in `.env`).
+- [ ] **Packet 007 (new file)** — delegation packet generator, per §15 P7.
+- [ ] **Packet 004** — refresh stale status header (says "blocked on
+      001–003"; all shipped — approve/reject is live from day one).
+- [ ] **Packet 008** — add remainder note: routes shipped in #73; remainder
+      = collections/tags, expert retrieval modes, privacy wiring.
+- [ ] **Registry README** — add execution order (014 → 004 → 005 → 007 →
+      008-remainder) + what Jacob personally owns (Gmail OAuth, 004
+      screenshot review, first generated packet review).
+
+Console-home phase plan (already written, GO):
+`docs/superpowers/specs/2026-07-02-console-home-phase-design.md`.
+
 ## Known Issues (do not hide, do not "fix" without reading first)
 
 | Issue                               | Where                                                                                                                                                              | Status                                                                                                                                                                                                  |
