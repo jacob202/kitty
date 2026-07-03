@@ -129,6 +129,17 @@ Then update the "Commands" section of `CLAUDE.md` root file: replace
    (import `signal_store` alongside the other stores; mirror the existing
    patch style in that test).
 
+### E. Fix the DreamStatus async test race discovered during verification
+
+The independent post-worker `make ui-test` run reproduced a seventh failure:
+`DreamStatus > renders dream loop status` sometimes asserted `3 insights`
+before the mocked `fetchDreamStatus()` promise had updated component state.
+The test waited on the always-present `dream loop` heading, so its wait did
+not prove the async result had rendered.
+
+Replace that wait with `await screen.findByText('3 insights')`. This is a
+test-only timing fix; do not change `DreamStatus.tsx`.
+
 ## Files likely touched
 
 - `gateway/kitty-chat/tests/SessionSidebar.test.tsx`
@@ -137,6 +148,7 @@ Then update the "Commands" section of `CLAUDE.md` root file: replace
 - `.github/workflows/tests.yml`
 - `Makefile`, `CLAUDE.md` (Commands section only)
 - `tests/test_action_queue.py`, `tests/test_state_composer.py` (fixtures only)
+- `gateway/kitty-chat/tests/DreamStatus.test.tsx` (async wait only)
 
 ## Files not to touch
 
@@ -154,7 +166,8 @@ packet 004 decides their fate.
 
 ## Acceptance criteria
 
-- `make ui-test` → 0 failures locally.
+- `make ui-test` → 94 tests, 0 failures locally, including repeated runs of
+  `DreamStatus.test.tsx`.
 - `make ui-build` → exits 0 locally.
 - `python3.12 -m pytest tests/test_action_queue.py tests/test_state_composer.py -q`
   → 0 failures **on Jacob's machine with real `data/` present** (that's the

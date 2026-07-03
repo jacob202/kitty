@@ -66,3 +66,24 @@ jobs:
           python -m pip install --upgrade pip
           pip install mypy types-requests
           mypy gateway/
+
+  kitty-chat:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gateway/kitty-chat
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: gateway/kitty-chat/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Test
+        run: ./node_modules/.bin/vitest run
+      - name: Build
+        run: node node_modules/next/dist/bin/next build

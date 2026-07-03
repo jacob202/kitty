@@ -4,6 +4,7 @@ Tier enforcement is proven here, not by convention: an unapproved T2 must fail,
 unknown and disabled kinds must fail, a kind absent from the tier file must fail
 registration, and every execution must record a result.
 """
+
 import json
 
 import pytest
@@ -18,6 +19,9 @@ def isolate(monkeypatch, tmp_path):
     monkeypatch.setattr(action_queue, "ACTIONS_DB_FILE", db_file, raising=False)
     monkeypatch.setattr(action_queue, "DRAFTS_DIR", tmp_path / "drafts", raising=False)
     monkeypatch.setattr(todo_store, "TODO_DB_FILE", db_file, raising=False)
+    # Point the legacy todo import at a path that does not exist so init_db()
+    # never reads the real on-disk data/todos.db into the temp kitty.db.
+    monkeypatch.setattr(todo_store, "TODO_DB", tmp_path / "todos-legacy-absent.db", raising=False)
     action_queue.reload_registry()
     yield
     # Some tests point ACTION_TIERS_FILE at a deliberately-broken file; restore

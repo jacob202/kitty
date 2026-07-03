@@ -67,7 +67,7 @@ bash scripts/preflight.sh      # run at session start to catch auth/env blockers
 ./kitty status
 ./kitty doctor --json
 python3.12 -m pytest tests/ -q --tb=short
-cd gateway/kitty-chat && npm test && npm run build
+make ui-test && make ui-build   # npm run is broken on this machine (exit 194)
 make agent-wrap
 ```
 
