@@ -139,10 +139,13 @@ function ModelSelector({
           display: 'flex', alignItems: 'center', gap: 6,
         }}
       >
-        <span style={{
-          width: 7, height: 7, borderRadius: 99,
-          background: modelFromGateway ? activeModel.color : 'var(--c-red)',
-        }} />
+        <span
+          title={modelFromGateway ? undefined : 'Using offline model list'}
+          style={{
+            width: 7, height: 7, borderRadius: 99,
+            background: modelFromGateway ? activeModel.color : 'var(--c-red)',
+          }}
+        />
         {activeModel.name}
       </button>
 

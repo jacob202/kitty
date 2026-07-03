@@ -32,10 +32,9 @@ describe('DreamStatus', () => {
 
   it('renders dream loop status', async () => {
     render(<DreamStatus />)
-    await waitFor(() => {
-      expect(screen.getByText('dream loop')).toBeInTheDocument()
-    })
-    expect(screen.getByText('3 insights')).toBeInTheDocument()
+    // The heading renders before fetchDreamStatus resolves, so waiting on it
+    // raced the async state update under full-suite load.
+    expect(await screen.findByText('3 insights')).toBeInTheDocument()
     expect(screen.getByText('2026-05-20T03:00:00')).toBeInTheDocument()
   })
 

@@ -1,4 +1,5 @@
 """Tests for state_composer — composed now-state, snapshots, mechanical diff (P1)."""
+
 import time
 
 import pytest
@@ -146,14 +147,15 @@ def test_real_sources_compose_against_isolated_stores(monkeypatch, tmp_path):
 
     db_file = tmp_path / "kitty" / "kitty.db"
     monkeypatch.setattr(todo_store, "TODO_DB_FILE", db_file, raising=False)
+    # Point the legacy todo import at a path that does not exist so init_db()
+    # never reads the real on-disk data/todos.db into the temp kitty.db.
+    monkeypatch.setattr(todo_store, "TODO_DB", tmp_path / "todos-legacy-absent.db", raising=False)
     monkeypatch.setattr(chats_store, "CHATS_DB_FILE", db_file, raising=False)
     monkeypatch.setattr(journal_store, "JOURNAL_DB_FILE", db_file, raising=False)
     monkeypatch.setattr(
         journal_store, "LEGACY_JOURNAL_LOG", tmp_path / "journal.jsonl", raising=False
     )
-    monkeypatch.setattr(
-        chats_store, "LEGACY_CHATS_FILE", tmp_path / "chats.json", raising=False
-    )
+    monkeypatch.setattr(chats_store, "LEGACY_CHATS_FILE", tmp_path / "chats.json", raising=False)
     inbox_file = tmp_path / "inbox.jsonl"
     monkeypatch.setattr(desktop_store, "INBOX_FILE", inbox_file, raising=False)
     # read_inbox/count take default args bound to the constant at def time,

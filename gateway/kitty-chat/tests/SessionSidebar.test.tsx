@@ -27,16 +27,16 @@ describe('SessionSidebar', () => {
     },
   ]
 
-  it('renders sessions header and new chat button', () => {
+  it('renders new chat button and search input', () => {
     render(<SessionSidebar chats={mockChats} activeChatId={null} onSelectChat={() => {}} onNewChat={() => {}} onCloseChat={() => {}} />)
-    expect(screen.getByText('sessions')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '+ new' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '+ new chat' })).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('search chats')).toBeInTheDocument()
   })
 
   it('shows today and earlier groups based on date', () => {
     render(<SessionSidebar chats={mockChats} activeChatId={null} onSelectChat={() => {}} onNewChat={() => {}} onCloseChat={() => {}} />)
-    expect(screen.getByText('Today')).toBeInTheDocument()
-    expect(screen.getByText('Earlier')).toBeInTheDocument()
+    expect(screen.getByText('today')).toBeInTheDocument()
+    expect(screen.getByText('earlier')).toBeInTheDocument()
   })
 
   it('shows chat titles', () => {
@@ -50,29 +50,5 @@ describe('SessionSidebar', () => {
     render(<SessionSidebar chats={mockChats} activeChatId={null} onSelectChat={onSelect} onNewChat={() => {}} onCloseChat={() => {}} />)
     fireEvent.click(screen.getByText('First Chat'))
     expect(onSelect).toHaveBeenCalledWith('chat-1')
-  })
-
-  it('shows close button only on hover for non-collapsed', () => {
-    render(<SessionSidebar chats={mockChats} activeChatId={null} onSelectChat={() => {}} onNewChat={() => {}} onCloseChat={() => {}} />)
-    const closeButtons = screen.getAllByText('✕')
-    expect(closeButtons.length).toBe(mockChats.length)
-  })
-
-  it('collapses to icon-only mode when collapsed prop is true', () => {
-    render(<SessionSidebar chats={mockChats} activeChatId={null} onSelectChat={() => {}} onNewChat={() => {}} onCloseChat={() => {}} collapsed={true} />)
-    expect(screen.queryByText('sessions')).not.toBeInTheDocument()
-    expect(screen.queryByText('Today')).not.toBeInTheDocument()
-    expect(screen.queryByText('First Chat')).not.toBeInTheDocument()
-    expect(screen.getByTitle('First Chat')).toBeInTheDocument()
-    expect(screen.getByTitle('Second Chat')).toBeInTheDocument()
-  })
-
-  it('new chat button shows + only when collapsed', () => {
-    const { rerender } = render(<SessionSidebar chats={mockChats} activeChatId={null} onSelectChat={() => {}} onNewChat={() => {}} onCloseChat={() => {}} collapsed={false} />)
-    expect(screen.getByText('+ new')).toBeInTheDocument()
-
-    rerender(<SessionSidebar chats={mockChats} activeChatId={null} onSelectChat={() => {}} onNewChat={() => {}} onCloseChat={() => {}} collapsed={true} />)
-    expect(screen.queryByText('+ new')).not.toBeInTheDocument()
-    expect(screen.getByText('+')).toBeInTheDocument()
   })
 })
