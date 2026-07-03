@@ -37,4 +37,10 @@ Before merging a PR, read the Actions **check runs** and confirm each required j
 
 ## Agent Rules
 
-Before multi-file work, give a short plan. Prefer editing existing files over creating new structure. Use `docs/PROJECT_STATUS.md`, `docs/DECISIONS.md`, `docs/LEARNINGS.md`, and `docs/AGENT_HANDOFF.md` as the current sources of truth.
+Before multi-file work, give a short plan. Prefer editing existing files over creating new structure.
+
+### Session state (read on start, update before stopping)
+
+- Read `.claude/HANDOFF.md` and `.claude/STATE.md` at the start of every session.
+- Update `.claude/STATE.md` before stopping with: current branch, done items, in-flight work, blockers, and next actions.
+- Write `.claude/HANDOFF.md` at the end of any session that leaves unfinished work.

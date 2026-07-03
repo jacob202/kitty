@@ -3,16 +3,19 @@
 Start here: `START_HERE.md`.
 
 ## Project Paths
+
 - Active project: `~/Projects/kitty` (NOT Desktop backups)
 - Always verify `pwd` resolves under `~/Projects/` before any file operations
 - If working directory is under `~/Desktop/` or a backup folder, STOP and ask user to confirm
 
 ## Execution Defaults
+
 - When user requests a feature/fix, complete the FULL loop: implement + install/setup + verify locally. Do not stop after writing code.
 - Run the test suite after any non-trivial code change and report pass/fail counts.
 - After commits, push unless explicitly told otherwise.
 
 ## Auth & Environment
+
 - Before any `gh` or git push, check for stale `GITHUB_TOKEN` env var and unset if it conflicts with `gh auth`
 - For LiteLLM/MLX setups: prefer existing local MLX models over pulling new Ollama models; verify API keys are exported in the current shell, not just .env
 
@@ -32,20 +35,25 @@ See `.claude/rules/initiative.md`. Persona and noticing rules live in `config/SO
 4. Do not push, force-push, rewrite history, delete files, touch secrets/auth/env, or add heavy dependencies without explicit confirmation.
 5. New durable architecture decisions go in `docs/DECISIONS.md`; workflow lessons go in `docs/LEARNINGS.md`.
 
+## Session State
+
+Read `.claude/HANDOFF.md` and `.claude/STATE.md` at the start of every session. Update `.claude/STATE.md` before stopping; write `.claude/HANDOFF.md` at the end of any session that leaves unfinished work.
+
 ## Current Sources Of Truth
 
-| Need | File |
-|---|---|
-| Orientation | `START_HERE.md` |
-| Current status | `docs/PROJECT_STATUS.md` |
-| Architecture | `docs/ARCHITECTURE.md` |
-| Phase B plan | `docs/PHASE_B_PLAN.md` |
-| Storage migration | `docs/STORAGE_MIGRATION_PLAN.md` |
-| Agent/runtime rules | `docs/AGENT_RUNTIME.md` |
-| Decisions | `docs/DECISIONS.md` |
-| Lessons | `docs/LEARNINGS.md` |
-| Handoff | `docs/AGENT_HANDOFF.md` |
-| Voice/persona | `config/SOUL.md` |
+| Need                | File                             |
+| ------------------- | -------------------------------- |
+| Orientation         | `START_HERE.md`                  |
+| Current status      | `docs/PROJECT_STATUS.md`         |
+| Architecture        | `docs/ARCHITECTURE.md`           |
+| Phase B plan        | `docs/PHASE_B_PLAN.md`           |
+| Storage migration   | `docs/STORAGE_MIGRATION_PLAN.md` |
+| Agent/runtime rules | `docs/AGENT_RUNTIME.md`          |
+| Decisions           | `docs/DECISIONS.md`              |
+| Lessons             | `docs/LEARNINGS.md`              |
+| Handoff             | `.claude/HANDOFF.md`             |
+| State               | `.claude/STATE.md`               |
+| Voice/persona       | `config/SOUL.md`                 |
 
 ## Runtime Shape
 

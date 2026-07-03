@@ -17,6 +17,9 @@ select = ["E", "F", "W", "I"]
 # Wrapping them hurts readability for the lowest-signal rule. See docs/DECISIONS.md.
 ignore = ["E501"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["gateway"]
+
 [tool.mypy]
 python_version = "3.11"
 # Lenient by design: ~84 modules with dict-shaped LLM payloads and dynamic env
