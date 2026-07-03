@@ -1,0 +1,52 @@
+name: PR Review Pipeline
+
+# Runs every 2 hours (offset from :00 to avoid the global cron thundering herd)
+# plus on-demand via the Actions tab for testing. Reviews every open PR:
+# risk assessment (via Anthropic API, if ANTHROPIC_API_KEY is set), the same
+# test/lint/typecheck gate as tests.yml, and a conflict-vs-main check.
+#
+# Hard safety boundary, enforced by GitHub itself (not just by the script):
+# `contents: read` means the GITHUB_TOKEN this workflow gets cannot push,
+# merge, or write any file, no matter what the script attempts. The only
+# writes this workflow can make are PR comments and labels.
+on:
+  schedule:
+    - cron: "17 */2 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: pr-review-pipeline
+  cancel-in-progress: false
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov ruff mypy types-requests requests
+
+      - name: Run review pipeline
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python scripts/pr_review_pipeline.py
