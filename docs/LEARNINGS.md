@@ -147,6 +147,36 @@
 - **Review trigger:** next merge of a branch older than a refactor on its base.
 - **Promotion target:** none yet.
 
+## Candidate Lessons (post-swarm reconcile session 2026-07-02)
+
+### L-CAND-10 — #70 merged with red check runs and broke main; L-CAND-6/9 repeated exactly
+
+- **Status:** candidate
+- **Date:** 2026-07-02
+- **Source session:** post-swarm reconcile (PR #79)
+- **Problem:** #70 (gateway deepening, 17-commit refactor) merged with pytest/lint/typecheck all failing, _after_ #75/#77 had landed on its refactored files. Main got a startup ImportError, re-seeded fake loop rows, and a broken adapter contract. This is L-CAND-6 (merged without checking check runs) + L-CAND-9 (old-base branch vs restructured main) happening again three weeks later.
+- **Evidence:** `gh api .../commits/d349f4f/check-runs` → all failure; `routes/insights.py` importing names deleted from `routes/dream.py`; fixed in #79.
+- **Scope:** any multi-agent swarm where PRs merge concurrently.
+- **Lesson:** Red check runs are a hard merge-stop, no matter who or what merges. When two merged PRs rewrote the same file, the reconciliation is a deliberate decision (which semantic wins), not a mechanical rebase.
+- **Action for future agents:** Before merging: check check_runs. After any merge into main: verify main's own check_runs went green before starting anything else.
+- **Confidence:** high
+- **Review trigger:** next swarm session with >2 concurrent PRs.
+- **Promotion target:** already a rule in AGENTS.md/CODEX.md — repeat offense suggests promoting to a branch-protection setting (require green checks) instead of prose.
+
+### L-CAND-11 — kitty-chat tests are invisible: not in CI, and `npm run` is silently broken locally
+
+- **Status:** candidate
+- **Date:** 2026-07-02
+- **Source session:** post-swarm reconcile / console-home planning preflight
+- **Problem:** 6 UI tests fail on main (`SessionSidebar` ×5, `TopBar` ×1) and nobody knew: CI has no kitty-chat job, and on Jacob's Mac `npm run <script>` exits 194 with zero output (node 26.4.0 / npm 11.17.0, repo-specific — clean dirs work), so local runs printed a banner and died silently.
+- **Evidence:** `./node_modules/.bin/vitest run` → 91 passed / 6 failed; `npm run test` → exit 194, empty stderr.
+- **Scope:** every UI change since the last green vitest run.
+- **Lesson:** A test suite that no gate executes is documentation, not protection. Silent runner death (exit >128, no output) means bypass the runner (`./node_modules/.bin/vitest run`, `node node_modules/next/dist/bin/next build`) and treat the runner itself as broken.
+- **Action for future agents:** Use the direct invocations until `npm run` is fixed; console-home phase step 0 adds a kitty-chat CI job.
+- **Confidence:** high
+- **Review trigger:** console-home phase step 0.
+- **Promotion target:** CI workflow change (kitty-chat job), not prose.
+
 ## Candidate Lessons (rejected or not promoted)
 
 Empty — nothing rejected this session that was strong enough to mention. The five above are the full candidate set.
@@ -156,4 +186,3 @@ Empty — nothing rejected this session that was strong enough to mention. The f
 - Promote to `docs/AGENT_RUNTIME.md` only if: repeated, high-risk, repo-wide, clearly useful as an operating rule.
 - Promote to `docs/DECISIONS.md` only if: actual architecture or workflow decision, alternatives were considered, rationale and tradeoffs recorded.
 - Archive a learning if: stale, contradicted by current code, too narrow, duplicates another lesson, caused agent over-correction.
-
