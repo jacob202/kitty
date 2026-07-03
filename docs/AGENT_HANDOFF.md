@@ -1,125 +1,45 @@
-# Agent Handoff
+# Session Handoff
 
-**Date: 2026-07-02**
-**Branch:** `main`
-**Canonical repo:** `/Users/jacobbrizinski/Projects/kitty`
+- Timestamp: 2026-07-03T11:31:09Z
+- Session: 33301552-0042-490a-8599-44de424529b1
+- Original request: Review swarm progress (PRs #70–#77, reconcile fix #79) and have the strongest model plan/author executor-ready packets for the entire remaining road; Jacob then asked to compact/clear the chat before the planning work continues.
+- Current branch: main
 
----
+## Completed
 
-## Where Things Stand
+- [x] Diagnosed the 6 failing kitty-chat UI tests: `tests/SessionSidebar.test.tsx` (×5) and `tests/gatewayIntegration.test.tsx` (×1) fail on stale text matchers expecting pre-v2 copy (`sessions`, `Today`, `✕`, `+ new`, TopBar offline text) that the v2 design migration (#56/#57) renamed. Fix direction: update tests to current copy, do not revert the UI.
+- [x] Banked full task state into `docs/AGENT_HANDOFF.md` — new "Active Task — full packet authoring" section with the complete packet checklist and the UI test diagnosis.
+- [x] Committed and pushed: `5eb53dc docs(handoff): bank packet-authoring task state + UI test diagnosis before compact` → origin/main (e83b81f..5eb53dc).
+- [x] Told Jacob how to compact (he chose option 1, `/compact`; must type it himself — session is about to be compacted).
 
-The 2026-07-02 swarm landed everything it set out to do. PRs #70–#77 are all
-merged. **Caveat:** #70 merged with red checks _after_ #75/#77, overwriting
-`routes/dream.py`, `routes/loops.py`, and the `SignalsAdapter` contract and
-breaking main (gateway startup ImportError + red CI). The reconcile fix
-restored #75's cron-backed loops, rewired `/insights` to
-`gateway/dream_insights.py`, removed the duplicate `gateway/loops.py` (which
-re-seeded the fake `daily-brief` rows #75 deleted), and updated the signals
-tests to the new `Item` adapter contract.
+## In progress
 
-| PR  | What landed                                                        | Packet        |
-| --- | ------------------------------------------------------------------ | ------------- |
-| #70 | Gateway deepening — storage seam, LLM dispatcher, read path        | —             |
-| #71 | `./kitty resume` subcommand                                        | 006           |
-| #72 | Privacy boundary (D10) enforced in `llm_client`                    | 012           |
-| #73 | `/knowledge/{ingest,sources,search}` routes                        | 008 (partial) |
-| #74 | `POST /capture/file` + UI drop zone                                | 010           |
-| #75 | Loops + insights routes de-faked (real sources, no hardcoded data) | 009           |
-| #76 | Daily brief scheduler                                              | 011           |
-| #77 | web_monitor + nudges wired to signal store                         | 013           |
+- [x] Packet authoring checklist — **COMPLETE 2026-07-03:**
+  - [x] Packet 014 authored: `docs/packets/014-make-the-gates-honest.md` (6 UI test fixes pre-decided per-test, kitty-chat CI job YAML included, Makefile ui-test/ui-build targets, both isolation-leak fixes diagnosed).
+  - [x] Packet 005 authored: `docs/packets/005-mail-connector.md` (Gmail API read-only per D11; google-auth + requests, no discovery client; snippet-only signals, `mail_body` local-only; Jacob owns OAuth).
+  - [x] Packet 007 authored: `docs/packets/007-delegation-packet-generator.md` (template embedded in the packet — the "strongest model" half is done; remainder is plumbing).
+  - [x] Packet 004 refreshed: status ready (do 014 first), approve/reject live in v1, make ui-test/ui-build verification, gateway-down + PWA manual checks.
+  - [x] Packet 008: remainder note added (items 1–3 shipped #73; remainder = items 4–6).
+  - [x] Registry README: 014 row, execution order **014 → 004 → 005 → 007 → 008-remainder**, Jacob's personal queue (Gmail OAuth, 004 screenshot review, 007 sign-offs).
+  - [x] PROJECT_STATUS "What's Next" updated to match.
+- [x] SOUL_SCRATCHPAD thread note under `## 2026-07-03` written.
 
-PR #78 was closed unmerged on 2026-07-02: it was cut from a stale
-`insights.py` and would have removed imports that are now load-bearing.
+## Verification status
 
-**No open PRs.** The packet queue's unblocked work: 004 (state home surface,
-spec-complete — active phase, see
-`docs/superpowers/specs/2026-07-02-console-home-phase-design.md`), 005 (mail
-connector — §16.2 decided 2026-07-02: Gmail API read-only, D11), 007
-(delegation packet generator), 008 remainder (expert retrieval).
+- Tests: Python ~1010 passed, 2 failed locally (`test_action_queue.py::test_t0_executes_from_proposed_and_records_result`, `test_state_composer.py::test_real_sources_compose_against_isolated_stores` — data-leak isolation bugs, green on CI). UI: 6 failing (stale matchers, diagnosed above). `npm run` broken on this machine (exit 194) — use `./node_modules/.bin/vitest run` and `node node_modules/next/dist/bin/next build` directly.
+- Lint: not run this session.
+- Build: not run this session (last known good via direct next bin).
 
-## Active Task — full packet authoring (started 2026-07-03, Jacob directed)
+## Key decisions
 
-Jacob wants the strongest model to author executor-ready packets for the
-**entire remaining road**, so cheap executors can run them. Checklist:
+- D11: mail connector = Gmail API read-only (decided 2026-07-02).
+- UI tests get updated to the v2 copy; the component is the source of truth — never revert the UI to satisfy tests.
+- Packet execution order fixed: 014 → 004 → 005 → 007 → 008-remainder.
+- Handoff state lives in `docs/AGENT_HANDOFF.md` on main so packet authoring survives compact/clear; startup hooks read it back.
+- Console-home phase plan already written and approved (GO): `docs/superpowers/specs/2026-07-02-console-home-phase-design.md`.
+- Before merging any PR, check check_runs, not combined status (#70 merged red — that's why).
 
-- [ ] **Packet 014 (new)** — "make the gates honest": fix 6 UI tests, add a
-      kitty-chat CI job (vitest + next build), Makefile targets for the
-      direct-bin invocations, fix the 2 Python test-isolation leaks.
-      **Diagnosis already done:** the UI tests fail on stale text matchers —
-      they expect pre-v2 copy (`sessions`, `Today`, `✕`, `+ new`, TopBar
-      offline text) that the v2 design migration (#56/#57) renamed. The
-      component is the deliberate source of truth; update the tests to
-      current copy, don't revert the UI.
-- [ ] **Packet 005 (new file)** — Gmail API read-only connector, per D11 +
-      OPERATOR_STRATEGY §15 P5 + §17.2 connector shape. Jacob personally
-      owns OAuth/credential setup (never an agent task; keys in `.env`).
-- [ ] **Packet 007 (new file)** — delegation packet generator, per §15 P7.
-- [ ] **Packet 004** — refresh stale status header (says "blocked on
-      001–003"; all shipped — approve/reject is live from day one).
-- [ ] **Packet 008** — add remainder note: routes shipped in #73; remainder
-      = collections/tags, expert retrieval modes, privacy wiring.
-- [ ] **Registry README** — add execution order (014 → 004 → 005 → 007 →
-      008-remainder) + what Jacob personally owns (Gmail OAuth, 004
-      screenshot review, first generated packet review).
+## Next action
 
-Console-home phase plan (already written, GO):
-`docs/superpowers/specs/2026-07-02-console-home-phase-design.md`.
-
-## Known Issues (do not hide, do not "fix" without reading first)
-
-| Issue                               | Where                                                                                                                                                              | Status                                                                                                                                                                                                  |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm run` broken on Jacob's Mac     | `gateway/kitty-chat` (repo-wide)                                                                                                                                   | Exits 194 silently (node 26.4/npm 11.17, repo-specific, un-root-caused). Use `./node_modules/.bin/vitest run` and `node node_modules/next/dist/bin/next build` directly.                                |
-| 6 UI test failures on main          | `tests/SessionSidebar.test.tsx` (×5), `tests/gatewayIntegration.test.tsx` (×1)                                                                                     | Invisible until 2026-07-02: kitty-chat tests run in no CI job and `npm run` was broken. Console-home phase step 0 fixes tests + adds the CI job.                                                        |
-| Local-only test failures (CI green) | `tests/test_action_queue.py::test_t0_executes_from_proposed_and_records_result`, `tests/test_state_composer.py::test_real_sources_compose_against_isolated_stores` | Tests leak real local `data/` state (todo store, signal stores) instead of isolating. Pass on CI where data/ is empty. Test-isolation bug, not a code bug.                                              |
-| macOS `Icon\r` Finder artifacts     | every directory in the repo                                                                                                                                        | Broke pytest collection in `venv/` and `git fetch` (`.git/refs/Icon` read as a corrupt ref). Cleaned from `venv/` + `.git/` 2026-07-02; they may regenerate. Fix: `find <dir> -name $'Icon\r' -delete`. |
-
-Resolved 2026-07-02 (hygiene batch, Jacob signed off): broken
-`tests/test_llm_client_alt_ua.py` deleted · empty `tests/fakes/` deleted ·
-stale `.kitty/swarm-status.json` deleted · orphaned `data/loops.db` deleted ·
-workflow configs committed · `hermes-webui/` moved to `~/Projects/hermes-webui`
-· 8 merged worktrees + local/remote branches pruned · `backup-local-main-0628`
-confirmed already on origin.
-
-## Services
-
-| Service           | Port | Start command |
-| ----------------- | ---- | ------------- |
-| Gateway (FastAPI) | 8000 | `./kitty up`  |
-| LiteLLM proxy     | 8001 | `./kitty up`  |
-
-`./kitty doctor --json` is the health oracle. Run it before claiming anything
-is broken or working.
-
-## Packet Queue
-
-Work is organised into numbered packets in `docs/packets/`. Read
-`docs/packets/README.md` for the queue state. As of 2026-07-02: 001–003, 006,
-009–013 shipped; 004 (active phase), 005 (D11: Gmail API read-only), 007, and
-008-remainder all unblocked.
-
-## Decisions in Force
-
-See `docs/DECISIONS.md`. Most relevant to new work:
-
-- **D3**: All context reads go through `memory_graph.py`. Do not bypass.
-- **D7**: `storage_router.py` is a thin write seam only. Do not expand it.
-- **D8**: Ruff enforces E/F/W/I but not E501.
-- **D10**: Privacy boundary in the router — private-tagged content must not
-  route to cloud models (shipped in #72).
-
-## Verification
-
-Run these before calling anything done:
-
-```bash
-python3.12 -m pytest tests/ -q --tb=short
-# npm run is broken on this machine (exit 194) — use the direct binaries:
-cd gateway/kitty-chat && ./node_modules/.bin/vitest run && node node_modules/next/dist/bin/next build
-python3.12 -m mypy gateway/ --ignore-missing-imports --no-error-summary 2>&1 | tail -1
-```
-
-Expected local: ~1010 passed, 2 failed (the two data-leak tests above — they
-pass on CI). Before merging any PR, check **check_runs**, not the combined
-status — #70 merged red and broke main; that's the failure mode this rule
-exists for.
+- Packet authoring is done. Next: **execute packet 014** (`docs/packets/014-make-the-gates-honest.md`) — mechanical, any executor. Then 004 per the execution order in `docs/packets/README.md`.
+- Separate, unactioned: Jacob started to say something about being "over the aurakit" rules but was cut off — do NOT touch `~/.claude/rules/aurakit-security.md` without his explicit instruction.

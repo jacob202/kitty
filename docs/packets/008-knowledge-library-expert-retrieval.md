@@ -1,6 +1,10 @@
 # Packet 008 — Knowledge library + expert retrieval
 
-- **Status:** blocked until after packets 002–004 unless Jacob explicitly reprioritizes it
+- **Status:** ◐ partially shipped — PR #73 (2026-07-02) landed scope items
+  1–3: `/knowledge/ingest`, `/knowledge/sources`, `/knowledge/search` routes
+  with ingest status, inventory metadata, and cited search results. The
+  **remainder** is scope items 4–6: collections/tags, expert retrieval
+  modes, and the expert-path privacy wiring. Scheduled after 004/005/007.
 - **Best executor:** Claude Code or Codex
 - **Purpose:** Turn Kitty's existing knowledge pipeline into a real user-facing feature: Jacob can upload or locally import documents, books, PDFs, manuals, notes, and reference files; Kitty indexes them; expert modes can answer using those sources with visible citations.
 
@@ -14,6 +18,12 @@ Do not rebuild the knowledge stack from scratch. This packet exists because the 
 - `soul/specialists/researcher.md` — researcher specialist prompt that already names document retrieval from the user's knowledge base.
 
 ## Exact scope
+
+> **Remainder note (2026-07-03):** items 1–3 shipped in #73
+> (`gateway/routes/knowledge.py` + tests). An executor picking this packet
+> up implements items 4–6 only, building on the shipped routes — do not
+> rewrite them. Acceptance criteria for 1–3 are already met; verify they
+> still pass, then satisfy the rest.
 
 1. Document import surface:
    - Add an upload route or local-import route for PDFs, books, manuals, notes, and reference files.

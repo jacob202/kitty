@@ -1,9 +1,10 @@
 # Packet 004 — State home surface
 
-- **Status:** blocked on 001–003 merge (001 merged; 002 in PR #63; 003 pending).
-  The §16.1 identity decision is now **made** (below), so this packet is
-  spec-complete and unblocks the moment 003 lands.
-- **Best executor:** Claude Code (UI + design-system taste), after P1–P3 merge.
+- **Status:** ready — 001–003 all shipped, §16.1 decided. **Do packet 014
+  first** (the UI test suite and CI gate this packet's acceptance criteria
+  depend on are broken until then). Execution plan:
+  `docs/superpowers/specs/2026-07-02-console-home-phase-design.md` (GO).
+- **Best executor:** Claude Code (UI + design-system taste).
 - **Purpose:** Make the front door show the operating layer instead of a chat
   box. The home screen answers "what changed, what needs me, what's open"
   the instant it opens.
@@ -22,14 +23,15 @@ return. "Needs you" outranks every visualization. If a section can't offer an
 action, it earns its place only as honest context (Today, What changed), never
 as filler.
 
-**Phasing (do not build the full console before 003 gives it buttons):**
+**Phasing (updated 2026-07-03 — 003 shipped, so no split needed):**
+
 - **v1 (this packet):** console home wired to `/state/now` and
-  `/state/changes`, the `needs_jacob` triage bucket as a real queue, capture
-  input, chat in the drawer. The action cards render but their approve/reject
-  only light up once 003's `/actions` endpoints exist.
-- **After 003 merges:** "Needs you" binds to `/actions?status=proposed` with
-  approve/reject wired. Revisit drawer-vs-split-pane for chat only then, when
-  there's a real console to judge against.
+  `/state/changes`, "Needs you" bound to `/actions?status=proposed` with
+  **approve/reject live from day one**, the `needs_jacob` triage bucket as a
+  real queue, capture input, chat in the drawer.
+- **If it drags, v0 first:** Needs you + Capture + chat drawer only — the
+  half that carries verbs (per the phase plan's grill).
+- Revisit drawer-vs-split-pane for chat only after v1 exists to judge against.
 
 ## Exact scope (as specified in OPERATOR_STRATEGY §15 P4)
 
@@ -62,7 +64,8 @@ as filler.
 
 ## Acceptance criteria
 
-- `npm test` and `npm run build` green.
+- `make ui-test` and `make ui-build` green (`npm run` exits 194 on Jacob's
+  machine — the Makefile targets from packet 014 are the invocation path).
 - Home renders with the gateway up; shows honest empty / error states with the
   gateway down (no spinners-forever, no fabricated rows).
 - Zero hardcoded data anywhere in the view.
@@ -71,8 +74,12 @@ as filler.
 ## Verification
 
 ```bash
-cd gateway/kitty-chat && npm test && npm run build
+make ui-test && make ui-build
 # manual: ./kitty up, open the app, walk What changed / Needs you / capture
+# manual: stop the gateway, reload — every card must show an honest error
+#         state, no spinners-forever
+# manual: verify PWA manifest start_url + cached shell still resolve after
+#         the default-route swap (phase plan grill #5)
 ```
 
 ## Risks / rollback

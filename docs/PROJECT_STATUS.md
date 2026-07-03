@@ -57,12 +57,14 @@ Known collection error:
 
 ## What's Next
 
-Active phase: **console home (packet 004)** — plan at
-`docs/superpowers/specs/2026-07-02-console-home-phase-design.md`. Then:
+All open work has authored, executor-ready packets (2026-07-03). Execution
+order per `docs/packets/README.md`: **014 → 004 → 005 → 007 → 008-remainder.**
 
-1. Packet 005: mail connector — §16.2 decided 2026-07-02: Gmail API read-only (D11)
-2. Packet 007: delegation packet generator (unblocked — 003 + 012 shipped)
-3. Packet 008 remainder: expert retrieval (routes landed in #73)
+1. Packet 014: make the gates honest (UI tests, CI job, isolation leaks) — mechanical, do first
+2. Packet 004: console home — active phase, plan at `docs/superpowers/specs/2026-07-02-console-home-phase-design.md`
+3. Packet 005: Gmail read-only connector (D11) — Jacob owns the OAuth setup
+4. Packet 007: delegation packet generator
+5. Packet 008 remainder: collections/tags + expert retrieval (items 1–3 landed in #73)
 
 ## Sources of Truth
 
