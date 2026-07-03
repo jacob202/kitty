@@ -1,0 +1,12 @@
+node_modules/
+.next/
+dist/
+build/
+*.safetensors
+*.bin
+*.onnx
+*.pt
+*.pth
+package-lock.json
+pnpm-lock.yaml
+CHANGELOG.md

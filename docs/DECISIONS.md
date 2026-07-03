@@ -42,12 +42,14 @@ through one module" at zero abstraction cost. The substrate can change
 later if a real migration needs it; the seam does not pre-pay for that.
 
 What this rules out:
+
 - New methods on `storage_router` for stores that don't currently have a
   write seam (e.g. `desktop_store`, `token_usage_log`, `model_digest`).
 - Generic `append`/`upsert`/`read` verbs that hide which backend is used.
 - "Smart" router code that retries, caches, or falls back across backends.
 
 What this allows:
+
 - Wrapping any new write site in a one-line function that delegates to
   the underlying store, as B4 did for todos and plugin settings.
 - Replacing the thin wrapper with a real port later if a migration needs
@@ -84,6 +86,7 @@ action spine (packets in `docs/packets/`), not further consolidation,
 memory expansion, or UI polish.
 
 What this rules out until the spine ships:
+
 - New memory substrates, typed knowledge graphs, event buses.
 - Autonomous outbound actions of any kind (draft-only until the action
   queue has audit history).
@@ -91,6 +94,7 @@ What this rules out until the spine ships:
   real rows or do not ship.
 
 What this commits to:
+
 - New state-spine stores (signals, triage, actions, projects) are each
   their own module over `kitty.db` migrations, per D7.
 - External feeds are cron-polled connectors that emit deduped signal rows.
@@ -107,19 +111,19 @@ where journal, mail, and health/admin content enters the LLM pipeline.
 
 **Data classes:**
 
-| Class            | Default privacy | Examples                                           |
-| ---------------- | --------------- | -------------------------------------------------- |
-| `journal`        | local-only      | journal entries, interview turns, dream synthesis  |
-| `mail_body`      | local-only      | full email body, replies, attachments              |
-| `health_admin`   | local-only      | SAID/CDB/DTC docs, benefits letters, medical forms |
-| `calendar`       | cloud-permitted | event titles, times, locations                     |
-| `todo`           | cloud-permitted | todo text, action queue payloads                   |
-| `chat`           | cloud-permitted | persona chat, triage classification                |
+| Class          | Default privacy | Examples                                           |
+| -------------- | --------------- | -------------------------------------------------- |
+| `journal`      | local-only      | journal entries, interview turns, dream synthesis  |
+| `mail_body`    | local-only      | full email body, replies, attachments              |
+| `health_admin` | local-only      | SAID/CDB/DTC docs, benefits letters, medical forms |
+| `calendar`     | cloud-permitted | event titles, times, locations                     |
+| `todo`         | cloud-permitted | todo text, action queue payloads                   |
+| `chat`         | cloud-permitted | persona chat, triage classification                |
 
 **Enforcement in `gateway/llm_client.py`:**
 
 - `call_llm(..., privacy_tier: Literal["local","cloud_ok"] = "local",
-  content_class: str | None = None)`
+content_class: str | None = None)`
 - If `content_class` is in `PRIVACY_LOCAL_ONLY` and `privacy_tier == "cloud_ok"`,
   raise `PrivacyBoundaryError` with a reason. The route layer translates that
   to HTTP 400.
@@ -144,3 +148,30 @@ where journal, mail, and health/admin content enters the LLM pipeline.
   health/admin MUST go through it.
 - `tests/test_llm_privacy_boundary.py` exists and asserts the journal case
   raises on cloud and the chat case does not.
+
+## D11 - Mail Connector Uses The Gmail API, Read-Only
+
+Decided by Jacob 2026-07-02 (§16.2 in `docs/OPERATOR_STRATEGY.md`).
+
+The mail connector (packet 005) uses the **Gmail API, read-only scope** —
+not Apple Mail via AppleScript.
+
+**Why Gmail over AppleScript:** robust and scriptable vs brittle and
+Mac-only. The tradeoff accepted: Google OAuth and a cloud API sit in the
+read path.
+
+**What this commits to:**
+
+- Read-only scope (`gmail.readonly`). Sending stays off the table until the
+  action queue has earned trust (per §16.2 — draft-only regardless of
+  transport).
+- Mail **bodies are `mail_body` class = local-only** under D10. The Gmail
+  API fetches them, but they must not be routed to cloud LLMs. Fetching via
+  Google was accepted; processing stays local.
+- Connector shape follows §17.2: cron-polled adapter emitting deduped signal
+  rows. No webhooks, no push.
+
+**What this rules out:**
+
+- AppleScript/Apple Mail integration for mail.
+- Any write scope in v1 (send, label, archive, delete).

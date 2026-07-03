@@ -48,24 +48,21 @@ Known collection error:
 
 ## Active Technical Debt
 
-| Issue                                          | Location                                                      | Priority                          |
-| ---------------------------------------------- | ------------------------------------------------------------- | --------------------------------- |
-| `test_llm_client_alt_ua.py` collection error   | `tests/` (untracked)                                          | Medium — delete or fix            |
-| Test isolation leaks (2 tests read real data/) | `tests/test_action_queue.py`, `tests/test_state_composer.py`  | Medium — red locally, green on CI |
-| Stale worktrees + branches for merged PRs      | `.claude/worktrees/feat-*`, `.worktrees/gateway-deepening`    | Low — prune                       |
-| Uncommitted workflow configs                   | `.pre-commit-config.yaml`, `.prettierrc`, `dependabot.yml`, … | Medium — commit or discard        |
-| Nested foreign repo                            | `hermes-webui/`                                               | Medium — move out of kitty        |
-| SIRI_SHORTCUT.md references dead launcher      | `docs/SIRI_SHORTCUT.md`                                       | Low — tombstone it                |
-| Local-only branch not pushed to origin         | `backup-local-main-0628`                                      | Medium — at risk of loss          |
+| Issue                                          | Location                                                       | Priority                                   |
+| ---------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------ |
+| `npm run` exits 194 silently                   | `gateway/kitty-chat` (node 26.4/npm 11.17)                     | High — use direct bins (see AGENT_HANDOFF) |
+| 6 UI test failures, no kitty-chat CI job       | `tests/SessionSidebar.test.tsx`, `tests/gatewayIntegration...` | High — console-home phase step 0           |
+| Test isolation leaks (2 tests read real data/) | `tests/test_action_queue.py`, `tests/test_state_composer.py`   | Medium — red locally, green on CI          |
+| SIRI_SHORTCUT.md references dead launcher      | `docs/SIRI_SHORTCUT.md`                                        | Low — tombstone it                         |
 
 ## What's Next
 
-See `docs/packets/README.md` for the packet queue (001–013). Remaining:
+Active phase: **console home (packet 004)** — plan at
+`docs/superpowers/specs/2026-07-02-console-home-phase-design.md`. Then:
 
-1. Packet 004: state home surface (spec-complete, unblocked)
+1. Packet 005: mail connector — §16.2 decided 2026-07-02: Gmail API read-only (D11)
 2. Packet 007: delegation packet generator (unblocked — 003 + 012 shipped)
 3. Packet 008 remainder: expert retrieval (routes landed in #73)
-4. Packet 005: mail connector — blocked on Jacob's §16.2 decision (Apple Mail vs Gmail API)
 
 ## Sources of Truth
 

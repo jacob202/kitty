@@ -32,21 +32,26 @@ PR #78 was closed unmerged on 2026-07-02: it was cut from a stale
 `insights.py` and would have removed imports that are now load-bearing.
 
 **No open PRs.** The packet queue's unblocked work: 004 (state home surface,
-spec-complete), 007 (delegation packet generator), 008 remainder (expert
-retrieval). 005 (mail connector) still blocked on Jacob's §16.2 decision.
+spec-complete — active phase, see
+`docs/superpowers/specs/2026-07-02-console-home-phase-design.md`), 005 (mail
+connector — §16.2 decided 2026-07-02: Gmail API read-only, D11), 007
+(delegation packet generator), 008 remainder (expert retrieval).
 
 ## Known Issues (do not hide, do not "fix" without reading first)
 
-| Issue                               | Where                                                                                                                                                              | Status                                                                                                                                                                                                     |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Broken untracked test file          | `tests/test_llm_client_alt_ua.py`                                                                                                                                  | Imports `_agentrouter_post_processor` which doesn't exist; fails collection. Untracked — delete or fix.                                                                                                    |
-| Local-only test failures (CI green) | `tests/test_action_queue.py::test_t0_executes_from_proposed_and_records_result`, `tests/test_state_composer.py::test_real_sources_compose_against_isolated_stores` | Tests leak real local `data/` state (todo store, signal stores) instead of isolating. Pass on CI where data/ is empty. Test-isolation bug, not a code bug.                                                 |
-| macOS `Icon\r` Finder artifacts     | every directory in the repo                                                                                                                                        | Broke pytest collection inside `venv/` (cleaned 2026-07-02). Repo-level ones left in place — may be intentional folder icons. If pytest breaks with `NotADirectoryError … Icon`, delete them from `venv/`. |
-| Untracked workflow configs          | `.pre-commit-config.yaml`, `.prettierrc`, `.prettierignore`, `.github/dependabot.yml`, `gateway/kitty-chat/eslint.config.mjs`                                      | From the workflow-optimization session — never committed. Commit or discard.                                                                                                                               |
-| Nested foreign repo                 | `hermes-webui/`                                                                                                                                                    | Separate project with its own `.git` sitting inside kitty. Move out of the repo.                                                                                                                           |
-| Stale worktrees + branches          | `.claude/worktrees/feat-*` (7), `.worktrees/gateway-deepening`                                                                                                     | All correspond to merged PRs. Safe to `git worktree remove` + delete branches.                                                                                                                             |
-| Stale swarm state                   | `.kitty/swarm-status.json`                                                                                                                                         | References phase-2/3/4 worktrees that no longer exist. Delete.                                                                                                                                             |
-| Local-only branches                 | `codex/raycast-quick-capture`, `backup-local-main-0628`                                                                                                            | Raycast capture merged as #69; backup branch still holds unlanded history.                                                                                                                                 |
+| Issue                               | Where                                                                                                                                                              | Status                                                                                                                                                                                                  |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run` broken on Jacob's Mac     | `gateway/kitty-chat` (repo-wide)                                                                                                                                   | Exits 194 silently (node 26.4/npm 11.17, repo-specific, un-root-caused). Use `./node_modules/.bin/vitest run` and `node node_modules/next/dist/bin/next build` directly.                                |
+| 6 UI test failures on main          | `tests/SessionSidebar.test.tsx` (×5), `tests/gatewayIntegration.test.tsx` (×1)                                                                                     | Invisible until 2026-07-02: kitty-chat tests run in no CI job and `npm run` was broken. Console-home phase step 0 fixes tests + adds the CI job.                                                        |
+| Local-only test failures (CI green) | `tests/test_action_queue.py::test_t0_executes_from_proposed_and_records_result`, `tests/test_state_composer.py::test_real_sources_compose_against_isolated_stores` | Tests leak real local `data/` state (todo store, signal stores) instead of isolating. Pass on CI where data/ is empty. Test-isolation bug, not a code bug.                                              |
+| macOS `Icon\r` Finder artifacts     | every directory in the repo                                                                                                                                        | Broke pytest collection in `venv/` and `git fetch` (`.git/refs/Icon` read as a corrupt ref). Cleaned from `venv/` + `.git/` 2026-07-02; they may regenerate. Fix: `find <dir> -name $'Icon\r' -delete`. |
+
+Resolved 2026-07-02 (hygiene batch, Jacob signed off): broken
+`tests/test_llm_client_alt_ua.py` deleted · empty `tests/fakes/` deleted ·
+stale `.kitty/swarm-status.json` deleted · orphaned `data/loops.db` deleted ·
+workflow configs committed · `hermes-webui/` moved to `~/Projects/hermes-webui`
+· 8 merged worktrees + local/remote branches pruned · `backup-local-main-0628`
+confirmed already on origin.
 
 ## Services
 
@@ -62,7 +67,8 @@ is broken or working.
 
 Work is organised into numbered packets in `docs/packets/`. Read
 `docs/packets/README.md` for the queue state. As of 2026-07-02: 001–003, 006,
-009–013 shipped; 004/007/008-remainder unblocked; 005 blocked on Jacob.
+009–013 shipped; 004 (active phase), 005 (D11: Gmail API read-only), 007, and
+008-remainder all unblocked.
 
 ## Decisions in Force
 
@@ -79,8 +85,9 @@ See `docs/DECISIONS.md`. Most relevant to new work:
 Run these before calling anything done:
 
 ```bash
-python3.12 -m pytest tests/ -q --tb=short --ignore=tests/test_llm_client_alt_ua.py
-cd gateway/kitty-chat && npm test && npm run build
+python3.12 -m pytest tests/ -q --tb=short
+# npm run is broken on this machine (exit 194) — use the direct binaries:
+cd gateway/kitty-chat && ./node_modules/.bin/vitest run && node node_modules/next/dist/bin/next build
 python3.12 -m mypy gateway/ --ignore-missing-imports --no-error-summary 2>&1 | tail -1
 ```
 
