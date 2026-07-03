@@ -87,7 +87,7 @@ class TestMemoryGraphReadsSignals:
 
         adapter = SignalsAdapter()
         items = await adapter.fetch("")
-        sources = {s["source"] for s in items}
+        sources = {item.metadata["source"] for item in items}
         assert "web_monitor" in sources
         assert "nudge" in sources
 
@@ -99,11 +99,11 @@ class TestMemoryGraphReadsSignals:
             payload={"message": "Keep shipping"},
         )
 
-        from gateway.memory_graph import SignalsAdapter
+        from gateway.memory_graph import SignalsAdapter, _format_unified_items
 
         adapter = SignalsAdapter()
         items = await adapter.fetch("")
-        formatted = adapter.format_items(items)
+        formatted = _format_unified_items({"signals": items})
         assert "## Signals" in formatted
         assert "unseen" in formatted
         assert "Keep shipping" in formatted

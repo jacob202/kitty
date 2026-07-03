@@ -176,8 +176,9 @@ class TestStatus:
         assert status["insights_count"] == 0
 
     def test_counts_persisted_insights(self, isolated_file: Path) -> None:
-        from gateway import memory_consolidation
         import unittest.mock as mock
+
+        from gateway import memory_consolidation
 
         dream_insights.save_dream_insights("Consolidated 1 cluster\nPruned 2 old entries")
         with mock.patch.object(

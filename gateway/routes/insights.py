@@ -11,32 +11,29 @@ registration order changes.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
-from gateway import dream_insights, insights
-
-from gateway.memory_consolidation import get_last_run_info
-from gateway.routes.dream import dismiss_dream_insight, load_dream_insights
+from gateway import dream_insights
 
 router = APIRouter(tags=["insights"])
 
 
 @router.get("/insights")
 async def get_insights(limit: int = 10) -> dict:
-    """Get recent user insights from the real dream insight store."""
-    return {"insights": insights.list_insights(limit=limit)}
+    """Get recent insights from the real dream insight store."""
+    return {"insights": dream_insights.load_dream_insights(limit=limit)}
 
 
 @router.get("/dream/insights")
 async def get_dream_insights(limit: int = 10) -> dict:
     """Alias for /insights for backward compatibility."""
-    return {"insights": insights.list_insights(limit=limit)}
+    return {"insights": dream_insights.load_dream_insights(limit=limit)}
 
 
 @router.post("/insight/{insight_id}/dismiss")
 async def dismiss_insight(insight_id: str) -> dict:
     """Dismiss an insight."""
-    insights.dismiss_insight(insight_id)
+    dream_insights.dismiss_dream_insight(insight_id)
     return {"dismissed": insight_id}
 
 
