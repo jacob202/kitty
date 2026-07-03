@@ -1,2 +1,2 @@
 litellm
-openai==2.24.0
+openai==2.44.0
