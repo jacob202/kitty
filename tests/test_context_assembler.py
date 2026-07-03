@@ -14,7 +14,6 @@ to live in ``test_context_builder.py`` — that function is now the assembler's
 memory renderer.
 """
 
-
 import pytest
 
 from gateway.context_assembler import (
@@ -35,7 +34,6 @@ from gateway.memory_graph import (
     _format_unified_items,
     _truncate_text,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fake adapters — the test surface for "Kitty knows what's in my X"
@@ -171,21 +169,14 @@ async def test_voice_gate_is_not_called_by_assembler(monkeypatch):
 async def test_partial_result_returns_bundle_with_warnings():
     """12 of 15 sources succeed, 3 fail — bundle returned, prompt non-empty."""
     ok_adapters = [
-        FakeAdapter(
-            f"ok-{i}", items=[Item(text=f"item-{i}", source=Source.MEMORY)]
-        )
+        FakeAdapter(f"ok-{i}", items=[Item(text=f"item-{i}", source=Source.MEMORY)])
         for i in range(6)
     ]
     bad_adapters = [
-        FakeAdapter(f"bad-{i}", items=[], exc=ConnectionError("store down"))
-        for i in range(3)
+        FakeAdapter(f"bad-{i}", items=[], exc=ConnectionError("store down")) for i in range(3)
     ]
-    ok_enrichments = tuple(
-        _fake_enrichment(f"block-{i}") for i in range(6)
-    )
-    bad_enrichments = tuple(
-        _fake_enrichment("ignored", exc=OSError("net err")) for _ in range(3)
-    )
+    ok_enrichments = tuple(_fake_enrichment(f"block-{i}") for i in range(6))
+    bad_enrichments = tuple(_fake_enrichment("ignored", exc=OSError("net err")) for _ in range(3))
 
     dep = _AssemblerDeps(
         adapters=ok_adapters + bad_adapters,
@@ -213,12 +204,9 @@ async def test_partial_result_returns_bundle_with_warnings():
 async def test_total_failure_raises_via_guard():
     """All sources fail; base call still returns a bundle, the guard raises."""
     bad_adapters = [
-        FakeAdapter(f"store-{i}", items=[], exc=ConnectionError("down"))
-        for i in range(8)
+        FakeAdapter(f"store-{i}", items=[], exc=ConnectionError("down")) for i in range(8)
     ]
-    bad_enrichments = tuple(
-        _fake_enrichment("ignored", exc=OSError("nope")) for _ in range(7)
-    )
+    bad_enrichments = tuple(_fake_enrichment("ignored", exc=OSError("nope")) for _ in range(7))
 
     dep = _AssemblerDeps(
         adapters=bad_adapters,
@@ -246,9 +234,7 @@ async def test_partial_result_does_not_trigger_total_guard():
     """Enrichment failures alone do not constitute total failure."""
     dep = _AssemblerDeps(
         adapters=[FakeAdapter("memory", items=[Item(text="x", source=Source.MEMORY)])],
-        enrichments=(
-            _fake_enrichment("ignored", exc=OSError("net err")),
-        ),
+        enrichments=(_fake_enrichment("ignored", exc=OSError("net err")),),
     )
     bundle = await assemble_context("hello", deps=dep)
 
@@ -322,11 +308,7 @@ def test_format_unified_empty_results_returns_empty():
 
 
 def test_format_unified_memory_only():
-    results = {
-        Source.MEMORY.value: [
-            Item(text="Jacob owns a 2010 Honda", source=Source.MEMORY)
-        ]
-    }
+    results = {Source.MEMORY.value: [Item(text="Jacob owns a 2010 Honda", source=Source.MEMORY)]}
     formatted = _format_unified_items(results)
     assert "## Memory" in formatted
     assert "2010 Honda" in formatted
@@ -342,9 +324,7 @@ def test_format_unified_all_sections():
                 metadata={"source": "test.txt", "doc_type": "general"},
             )
         ],
-        Source.JOURNAL.value: [
-            Item(text="test journal entry", source=Source.JOURNAL)
-        ],
+        Source.JOURNAL.value: [Item(text="test journal entry", source=Source.JOURNAL)],
         Source.TRACES.value: [
             Item(
                 text="test request",
@@ -361,11 +341,7 @@ def test_format_unified_all_sections():
 
 
 def test_format_unified_respects_token_cap():
-    results = {
-        Source.MEMORY.value: [
-            Item(text="x" * 10000, source=Source.MEMORY)
-        ]
-    }
+    results = {Source.MEMORY.value: [Item(text="x" * 10000, source=Source.MEMORY)]}
     formatted = _format_unified_items(results)
     assert len(formatted) < 10000
 
@@ -397,9 +373,5 @@ def test_real_adapter_classes_have_fetch_only():
         instance = cls()
         assert hasattr(instance, "name")
         assert callable(getattr(instance, "fetch", None))
-        assert "format_items" not in cls.__dict__, (
-            f"{cls.__name__} should not define format_items"
-        )
-        assert "correlate" not in cls.__dict__, (
-            f"{cls.__name__} should not define correlate"
-        )
+        assert "format_items" not in cls.__dict__, f"{cls.__name__} should not define format_items"
+        assert "correlate" not in cls.__dict__, f"{cls.__name__} should not define correlate"

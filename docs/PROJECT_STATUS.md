@@ -21,13 +21,13 @@
 
 None. The 2026-07-02 swarm merged #70–#77 (gateway deepening, resume script,
 privacy boundary, knowledge routes, capture, de-fake, brief scheduler, signal
-wiring). PR #78 was closed unmerged as obsolete. Main CI is green.
+wiring). #70 merged with red checks after #75/#77 and broke main; the
+reconcile fix repaired it. PR #78 was closed unmerged as obsolete.
 
 ## Test State (2026-07-02)
 
 ```
-CI (main @ e536a47): pytest / lint / typecheck all green
-Local: ~927 passed, 2 failed, 1 skipped, 2 deselected
+Local: ~1010 passed, 2 failed, 1 skipped, 2 deselected
 ```
 
 Known local-only failures (pass on CI — tests leak real local `data/` state):

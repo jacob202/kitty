@@ -10,14 +10,13 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    from gateway import cron
+    from gateway import cron, dream_insights
     from gateway.app import app
-    from gateway.routes import dream
 
     # Keep cron/insights data inside the test temp dir so tests are isolated.
     monkeypatch.setattr(cron, "CRON_DB", tmp_path / "cron_schedules.db")
     monkeypatch.setattr(
-        dream, "DREAM_INSIGHTS_FILE", tmp_path / "data" / "dream_insights.json"
+        dream_insights, "DREAM_INSIGHTS_FILE", tmp_path / "data" / "dream_insights.json"
     )
 
     return TestClient(app)
@@ -41,12 +40,15 @@ class TestLoopsNotFake:
             assert loop.get("description") != "Generates morning brief at 7am"
 
     def test_create_loop_then_toggle_then_delete(self, client):
-        create_resp = client.post("/loops", json={
-            "name": "Test Loop",
-            "description": "A test loop",
-            "interval_minutes": 30,
-            "action": "noop",
-        })
+        create_resp = client.post(
+            "/loops",
+            json={
+                "name": "Test Loop",
+                "description": "A test loop",
+                "interval_minutes": 30,
+                "action": "noop",
+            },
+        )
         assert create_resp.status_code == 200
         loop = create_resp.json()
         assert loop["name"] == "Test Loop"
@@ -86,7 +88,7 @@ class TestInsightsNotFake:
         assert "milestone-100-chats" not in ids
 
     def test_insights_loaded_from_dream_store(self, client, tmp_path):
-        from gateway.routes.dream import DREAM_INSIGHTS_FILE
+        from gateway.dream_insights import DREAM_INSIGHTS_FILE
 
         DREAM_INSIGHTS_FILE.parent.mkdir(parents=True, exist_ok=True)
         DREAM_INSIGHTS_FILE.write_text(

@@ -9,7 +9,13 @@
 ## Where Things Stand
 
 The 2026-07-02 swarm landed everything it set out to do. PRs #70–#77 are all
-merged and main CI is green (pytest, lint, typecheck all pass on `e536a47`):
+merged. **Caveat:** #70 merged with red checks _after_ #75/#77, overwriting
+`routes/dream.py`, `routes/loops.py`, and the `SignalsAdapter` contract and
+breaking main (gateway startup ImportError + red CI). The reconcile fix
+restored #75's cron-backed loops, rewired `/insights` to
+`gateway/dream_insights.py`, removed the duplicate `gateway/loops.py` (which
+re-seeded the fake `daily-brief` rows #75 deleted), and updated the signals
+tests to the new `Item` adapter contract.
 
 | PR  | What landed                                                        | Packet        |
 | --- | ------------------------------------------------------------------ | ------------- |
@@ -78,6 +84,7 @@ cd gateway/kitty-chat && npm test && npm run build
 python3.12 -m mypy gateway/ --ignore-missing-imports --no-error-summary 2>&1 | tail -1
 ```
 
-Expected local: ~927 passed, 2 failed (the two data-leak tests above — they
+Expected local: ~1010 passed, 2 failed (the two data-leak tests above — they
 pass on CI). Before merging any PR, check **check_runs**, not the combined
-status.
+status — #70 merged red and broke main; that's the failure mode this rule
+exists for.

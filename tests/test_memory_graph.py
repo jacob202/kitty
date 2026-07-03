@@ -20,8 +20,8 @@ from gateway.memory_graph import (
     SignalsAdapter,
     Source,
     StoreAdapter,
-    TracesAdapter,
     TodosAdapter,
+    TracesAdapter,
     _fetch_traces,
     unified_context,
 )

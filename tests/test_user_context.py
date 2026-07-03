@@ -71,8 +71,8 @@ async def test_injected_into_system_prompt(user_dir, monkeypatch):
     async def assemble_stub(message, parts_mode=False, domain=None, deps=None):
         # Re-run the assembler's user-block step so TELOS lands in the
         # prompt — same path the production code takes.
-        from gateway.context_assembler import ContextBundle
         from gateway import user_context
+        from gateway.context_assembler import ContextBundle
 
         base = ""
         user_block = user_context.load_user_context()

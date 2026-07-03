@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import logging
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from gateway.paths import DATA_DIR
 
@@ -63,14 +63,16 @@ class CodebaseSearch:
         self.indexed_files: Dict[str, str] = {}  # path → hash
 
         if CHROMA_AVAILABLE:
-            self.client = chromadb.Client(
+            # Any: chromadb is optional and absent on CI, so mypy sees
+            # different types per environment unless these stay untyped.
+            self.client: Any = chromadb.Client(
                 ChromaSettings(persist_directory=str(self.chroma_dir), anonymized_telemetry=False)
             )
-            self.collection = self.client.get_or_create_collection("codebase")
-            self.encoder = SentenceTransformer("all-MiniLM-L6-v2")
+            self.collection: Any = self.client.get_or_create_collection("codebase")
+            self.encoder: Any = SentenceTransformer("all-MiniLM-L6-v2")
         else:
-            self.client = None  # type: ignore[assignment]
-            self.collection = None  # type: ignore[assignment]
+            self.client = None
+            self.collection = None
             self.encoder = None
             logger.warning(
                 "ChromaDB not available - codebase search disabled: %s", CHROMA_IMPORT_ERROR

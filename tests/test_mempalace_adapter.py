@@ -3,7 +3,7 @@
 import asyncio
 
 from gateway import memory_graph
-from gateway.memory_graph import Item, Source
+from gateway.memory_graph import Source
 from gateway.mempalace_adapter import MemPalaceAdapter
 
 
