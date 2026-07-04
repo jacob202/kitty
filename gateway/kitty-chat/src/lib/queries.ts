@@ -43,6 +43,12 @@ import {
   fetchImageStatus,
   generateImage,
   fetchImageHistory,
+  // state / actions / inbox
+  fetchStateChanges,
+  fetchActions,
+  approveAction,
+  rejectAction,
+  fetchNeedsJacob,
   // payload types used by optimistic updates
   type GatewayTodo,
   type GatewayLoopsPayload,
@@ -361,5 +367,50 @@ export function useGenerateImage() {
   return useMutation({
     mutationFn: (prompt: string) => generateImage(prompt),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['image', 'history'] }),
+  })
+}
+
+export function useStateChanges() {
+  return useQuery({
+    queryKey: ['state', 'changes'],
+    queryFn: fetchStateChanges,
+    refetchInterval: 60_000,
+    retry: false,
+  })
+}
+
+export function useActions(status?: string) {
+  return useQuery({
+    queryKey: ['actions', status ?? 'all'],
+    queryFn: () => fetchActions(status),
+    refetchInterval: 30_000,
+    retry: false,
+  })
+}
+
+export function useApproveAction() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => approveAction(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['actions'] }),
+  })
+}
+
+export function useRejectAction() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => rejectAction(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['actions'] }),
+  })
+}
+
+// ── Inbox triage (needs_jacob) ────────────────────────────────────────────────
+
+export function useNeedsJacob() {
+  return useQuery({
+    queryKey: ['inbox', 'needs_jacob'],
+    queryFn: () => fetchNeedsJacob(),
+    refetchInterval: 60_000,
+    retry: false,
   })
 }

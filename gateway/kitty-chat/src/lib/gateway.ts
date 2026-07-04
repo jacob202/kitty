@@ -828,6 +828,93 @@ export async function fetchImageHistory(limit = 20): Promise<ImageEntry[]> {
   }
 }
 
+// ── State / Actions ──────────────────────────────────────────────────────────
+
+export interface StateChange {
+  section: string
+  field: string
+  before: unknown
+  after: unknown
+}
+
+export interface StateChangesPayload {
+  baseline_ts: number | null
+  current_ts: number
+  changes: StateChange[]
+  new_signals: Array<Record<string, unknown>>
+  note?: string
+}
+
+export interface GatewayAction {
+  id: number
+  created_at: string
+  source_kind: string
+  source_id: string | null
+  kind: string
+  title: string
+  preview: string
+  payload: Record<string, unknown>
+  risk_tier: number
+  status: string
+  result: string | null
+  decided_at: string | null
+  executed_at: string | null
+}
+
+export async function fetchStateChanges(): Promise<StateChangesPayload> {
+  return gfetch<StateChangesPayload>('/state/changes')
+}
+
+export async function fetchActions(status?: string): Promise<GatewayAction[]> {
+  const url = status ? `/actions?status=${status}` : '/actions'
+  const json = await gfetch<{ actions: GatewayAction[] }>(url)
+  return json.actions ?? []
+}
+
+export async function approveAction(id: number): Promise<void> {
+  await gfetch(`/actions/${id}/approve`, { method: 'POST' })
+}
+
+export async function rejectAction(id: number): Promise<void> {
+  await gfetch(`/actions/${id}/reject`, { method: 'POST' })
+}
+
+// ── Inbox triage (needs_jacob bucket) ────────────────────────────────────────
+
+export interface GatewayTriageEntry {
+  inbox_id: string
+  ts: number
+  bucket: string
+  confidence: number
+  rationale: string
+  model?: string
+}
+
+export interface GatewayNeedsJacobPayload {
+  entries: GatewayTriageEntry[]
+  fromLiveGateway: boolean
+  error: string | null
+}
+
+export async function fetchNeedsJacob(limit = 20): Promise<GatewayNeedsJacobPayload> {
+  try {
+    const json = await gfetch<{ entries?: GatewayTriageEntry[] }>(
+      `/inbox/triaged?bucket=needs_jacob&limit=${limit}`,
+    )
+    return {
+      entries: json.entries ?? [],
+      fromLiveGateway: true,
+      error: null,
+    }
+  } catch (err) {
+    return {
+      entries: [],
+      fromLiveGateway: false,
+      error: describeFetchError(err, null),
+    }
+  }
+}
+
 // ── File Capture ─────────────────────────────────────────────────────────────
 
 export interface CaptureResult {
