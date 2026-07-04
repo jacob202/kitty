@@ -1,102 +1,67 @@
-# Session Handoff
+# Session Handoff — 2026-07-04 (two parallel sessions)
 
-- Timestamp: 2026-07-04T~12:00Z
-- Session: opencode (2026-07-04) — claimed 005 + 007
-- Original request: "Start nailing off the packets. Mark them done so multiple agents don't duplicate."
-- Current branch: main
+## Session A: Fable plan session
 
-## Completed this session
+- Branch: `claude/kitty-app-packet-plan-gs7ccc`, PR #97
+- Request: "Plan the entire rest of the kitty app as packets" — done via
+  live Q&A with Jacob, not doc archaeology.
 
-- [x] **Claim 005 + 007** for this opencode session — pushed to main as
-      `5a5c2d1 chore(packets): claim 005 + 007 for this session`. Other
-      agents see the claim in `docs/packets/README.md` and `.claude/STATE.md`
-      and pick a different packet.
-- [x] **Packet 005** (Gmail read-only connector) — implementation, tests,
-      commit, push, PR opened.
-  - Branch: `feat/packet-005-mail-connector`
-  - PR: https://github.com/jacob202/kitty/pull/99
-  - Files: `gateway/connectors/{__init__,mail}.py` (new), `gateway/app.py`
-    (one `register_action` line), `gateway/doctor.py` (`connector:mail`
-    check with three states), `requirements.txt` (google-auth +
-    google-auth-oauthlib — no google-api-python-client, just two REST
-    endpoints), `.env.example` (GMAIL_CLIENT_SECRET_FILE +
-    GMAIL_TOKEN_FILE), `tests/test_mail_connector.py` (25 mocked-transport
-    tests), `tests/test_doctor.py` (4 new tests for the three doctor states).
-  - D10 (mail_body local-only) enforced: payload carries only
-    `{message_id, from, subject, snippet, internal_date}`; `fetch_body`
-    returns the full body but never lands in a signal row. Test asserts
-    `"body"` not in any emitted payload and the body never appears in the
-    payload JSON.
-  - Fail-loud: missing token, expired-no-refresh, transport non-200 all
-    raise typed errors. `poll_now` on a not-yet-configured install logs
-    a warning and returns a `{skipped: "unconfigured"}` dict — does not
-    crash the cron runner.
-  - Verification: 100/100 tests pass across
-    `test_mail_connector.py`, `test_doctor.py`, `test_cron.py`,
-    `test_action_queue.py`, `test_signal_store.py`. Ruff check + format
-    clean.
-- [x] **Packet 007** (delegation packet generator) — already on main
-      when I started, committed by Jacob as `eb3afad feat(actions):
-packet.delegate generator`. My 007 worktree was discarded to avoid
-      a competing PR (this is exactly the "mark done so multiple agents
-      don't duplicate" outcome the user asked for).
-- [x] **Registry update** — 005 → 🔎 PR #99; 007 → ✓ shipped (Jacob).
-      In `docs/packets/README.md` + `.claude/STATE.md`.
-- [x] **Worktree 007 cleaned up** — `git worktree remove` + `git branch -D`
-      so the unused worktree doesn't linger.
+### Done
 
-## In progress
+- Packets 015–020 authored (`docs/packets/`): 015 phone channel
+  (executor-ready, includes live-verified iMessage `participant` syntax),
+  016 next-step navigator, 017 benefits rails + urgent-thing sweep,
+  018 expert packs, 019 job search (⏸ parked), 020 GitHub connector.
+- `docs/packets/README.md` rewritten: status legend (📋 spec ≠ ✅ built),
+  the **move-in bar**, wave order 0–5.
+- `docs/DECISIONS.md`: D12 (phone-first delivery + move-in bar).
+- Walked Jacob through Wave 0 live: ethernet verified, Automation
+  permission granted, iMessage-to-self proven end-to-end.
 
-- (nothing — both packets this session touched are landed or in PR)
+### Gotchas
 
-## Blocked on Jacob
+- Jacob believes things are "done" when a spec exists — answer status
+  questions with the README legend's words (built vs spec'd).
+- All review artifacts must be PUSHED to his phone (D12); never ask him
+  to go look at anything.
+- Read `.claude/STATE.md` "Facts from Jacob" before talking to him — it
+  explains the tone this project now requires.
 
-- **005 live verification** needs Gmail OAuth setup (packet 005 §"Jacob's
-  personal setup task"). Per the packet, the PR merges on mocked-transport
-  tests; live poll is verified post-merge on Jacob's machine.
-- **004 screenshot review** is still pending from before this session —
-  unrelated to 005/007, carried over from the registry.
+## Session B: opencode (claimed 005 + 007)
 
-## Verification status
+- Original request: "Start nailing off the packets. Mark them done so
+  multiple agents don't duplicate."
+- Branch: main (claims), `feat/packet-005-mail-connector` (code)
 
-- Tests: `tests/test_mail_connector.py` 25/25; `tests/test_doctor.py`
-  31/31; `tests/test_cron.py`, `test_action_queue.py`, `test_signal_store.py`
-  100/100 across the affected modules. Full suite not re-run (was green
-  before this session, no shared-path changes).
-- Lint: `ruff check` + `ruff format` clean on every file the PR touches.
-- Pre-commit (prettier, ruff, macOS metadata guard): passed on the
-  005 commit.
+### Done
 
-## Key decisions
-
-- **The "mark done" mechanism** is a two-row update in
-  `docs/packets/README.md` and `.claude/STATE.md`, pushed to main FIRST
-  before any code work. Other agents reading either file see the claim
-  before they pick the same packet. This is the lightweight coordination
-  primitive the user asked for.
-- **Claim 007 was discarded without merge conflict** because Jacob
-  shipped the exact packet this session was about to start, directly
-  to main. The 007 worktree was deleted (`git worktree remove -f` +
-  `git branch -D`); the only artifact preserved is the registry update
-  in `docs/packets/README.md` and the STATE note. This is the desired
-  outcome of the "mark done" mechanism — without the claim, a competing
-  PR would have followed.
+- **Claim mechanism**: two-row update in `docs/packets/README.md` +
+  `.claude/STATE.md`, pushed to main FIRST before code work.
+- **Packet 005** built — PR #99 (`gateway/connectors/{__init__,mail}.py`,
+  doctor `connector:mail` check, google-auth + google-auth-oauthlib in
+  requirements, 25 mocked-transport tests + 4 doctor-state tests).
+  - D10 enforced: signal payload carries only
+    `{message_id, from, subject, snippet, internal_date}`; body never
+    lands in a signal row (asserted by test).
+  - Fail-loud: missing token / expired-no-refresh / non-200 raise typed
+    errors; unconfigured `poll_now` returns `{skipped: "unconfigured"}`.
+  - Verification: 100/100 across affected modules; ruff check+format clean.
+- **Packet 007** — shipped by Jacob directly to main (eb3afad) while the
+  session ran; the 007 worktree was discarded to avoid a competing PR
+  (the claim mechanism working as intended).
 - **Did not modify `docs/AGENT_HANDOFF.md`** — the global hook
-  `~/.claude/hooks/handoff-snapshot.sh` keeps rewriting it, and the
-  dual-source mismatch flagged in the prior session is still unfixed.
-  Handled the coordination via `STATE.md` + the registry instead, which
-  are under the agent's control.
+  `~/.claude/hooks/handoff-snapshot.sh` keeps rewriting it; dual-source
+  mismatch still unfixed. Coordination via STATE.md + registry instead.
 
-## Next action
+## Next actions (combined)
 
-1. **Review PR #99** (005) when Jacob is ready; merge after CI green.
-2. **Mark 005 shipped** in `docs/packets/README.md` (chore commit on
-   main after merge, per the one-PR-per-packet convention).
-3. **Set up Jacob's Gmail OAuth** (personal queue) so the live poll can
-   be verified on his machine.
-4. **Move to 008-remainder** or 015 (phone channel) — Codex is currently
-   working in `.worktrees/packet-008-expert-retrieval` on 008; check
-   `git worktree list` before claiming.
-5. **Optional / awaiting Jacob's go-ahead:** fix the
-   `~/.claude/hooks/handoff-snapshot.sh` dual-source mismatch flagged
-   in the prior session.
+1. Review PR #99 (005); merge after green check runs; mark shipped in
+   registry (chore commit on main).
+2. Merge PR #97 (the plan) once CI green and Jacob approves.
+3. Jacob's Wave-0 tail: `PUSH_IMESSAGE_RECIPIENT` in `.env`,
+   `./kitty up` + `./kitty doctor`, confirm `data/gmail_token.json`.
+4. First free executor builds **015** (claim in STATE.md first). Codex is
+   on 008-remainder in `.worktrees/packet-008-expert-retrieval` — check
+   `git worktree list` before claiming anything.
+5. Optional / awaiting Jacob: fix the handoff-snapshot.sh dual-source
+   mismatch.
