@@ -10,30 +10,50 @@ import {
   useTodos,
   useLoops,
   useNeedsJacob,
+  useSnapshotState,
+  useRunInboxTriage,
+  useStateNow,
 } from '@/lib/queries';
-import type { GatewayAction, StateChange } from '@/lib/gateway';
+import type { GatewayAction, GatewayTriageEntry, StateChange } from '@/lib/gateway';
 
 // ── shared micro-components ──────────────────────────────────────────────────
 
 function SectionCard({
   title,
   count,
+  action,
   children,
 }: {
   title: string;
   count?: number | string;
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={cardHeader}>
         <span style={cardTitle}>{title}</span>
-        {count !== undefined && <span style={cardMeta}>{count}</span>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {count !== undefined && <span style={cardMeta}>{count}</span>}
+          {action}
+        </div>
       </div>
       {children}
     </div>
   );
 }
+
+const actionButtonStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  fontWeight: 700,
+  padding: '2px 8px',
+  borderRadius: 4,
+  border: '1px solid var(--border)',
+  cursor: 'pointer',
+  background: 'var(--surface)',
+  color: 'var(--text-muted)',
+};
 
 function ErrorCard({ message }: { message: string }) {
   return (
@@ -50,6 +70,18 @@ function ErrorCard({ message }: { message: string }) {
 
 function WhatChanged() {
   const { data, isError, isPending } = useStateChanges();
+  const snapshot = useSnapshotState();
+
+  const markPoint = (
+    <button
+      type="button"
+      disabled={snapshot.isPending}
+      onClick={() => snapshot.mutate()}
+      style={actionButtonStyle}
+    >
+      {snapshot.isPending ? '…' : 'mark point'}
+    </button>
+  );
 
   if (isPending) {
     return (
@@ -73,7 +105,7 @@ function WhatChanged() {
   const count = changes.length + new_signals.length;
 
   return (
-    <SectionCard title="what changed" count={count || undefined}>
+    <SectionCard title="what changed" count={count || undefined} action={markPoint}>
       {note && !changes.length && !new_signals.length ? <div style={emptyState}>{note}</div> : null}
       {changes.map((c: StateChange, i: number) => (
         <div key={i} style={itemCard}>
@@ -114,14 +146,15 @@ function WhatChanged() {
 
 // ── Needs you (action queue) ─────────────────────────────────────────────────
 
-function NeedsYou() {
+function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEntry) => void }) {
   const { data: actions = [], isError, isPending } = useActions('proposed');
+  const needsJacob = useNeedsJacob();
   const approve = useApproveAction();
   const reject = useRejectAction();
   // Track which action is in-flight to disable its buttons and prevent races.
   const [pendingId, setPendingId] = useState<number | null>(null);
 
-  if (isPending) {
+  if (isPending || needsJacob.isPending) {
     return (
       <SectionCard title="needs you">
         <div role="status" style={emptyState}>
@@ -138,6 +171,9 @@ function NeedsYou() {
       </SectionCard>
     );
   }
+
+  const needsJacobEntries = needsJacob.data?.entries ?? [];
+  const total = actions.length + needsJacobEntries.length;
 
   const handleApprove = async (id: number) => {
     setPendingId(id);
@@ -162,8 +198,8 @@ function NeedsYou() {
   };
 
   return (
-    <SectionCard title="needs you" count={actions.length || undefined}>
-      {actions.length === 0 ? (
+    <SectionCard title="needs you" count={total || undefined}>
+      {total === 0 ? (
         <div style={emptyState}>nothing waiting for you</div>
       ) : (
         actions.map((action: GatewayAction) => {
@@ -251,6 +287,49 @@ function NeedsYou() {
           );
         })
       )}
+      {needsJacobEntries.map((entry) => (
+        <div
+          key={entry.inbox_id}
+          style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 8 }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <span
+              style={{
+                fontFamily: 'var(--font-ui)',
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--text)',
+              }}
+            >
+              needs a decision
+            </span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+              {Math.round(entry.confidence * 100)}% confident
+            </span>
+          </div>
+          {entry.text && <div style={{ ...bodyText, fontSize: 12 }}>{entry.text.slice(0, 160)}</div>}
+          {entry.rationale && (
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+              {entry.rationale}
+            </div>
+          )}
+          <div>
+            <button
+              type="button"
+              onClick={() => onDecideInChat(entry)}
+              style={actionButtonStyle}
+            >
+              decide in chat
+            </button>
+          </div>
+        </div>
+      ))}
     </SectionCard>
   );
 }
@@ -261,8 +340,11 @@ function OpenLoops() {
   const actionsQuery = useActions('proposed');
   const needsJacobQuery = useNeedsJacob();
   const loopsQuery = useLoops();
+  const stateNowQuery = useStateNow();
+  const runTriage = useRunInboxTriage();
 
-  const isLoading = actionsQuery.isPending || needsJacobQuery.isPending || loopsQuery.isPending;
+  const isLoading =
+    actionsQuery.isPending || needsJacobQuery.isPending || loopsQuery.isPending || stateNowQuery.isPending;
   // Actions query throws on gateway error; loops silently returns fromLiveGateway: false.
   const hasError =
     actionsQuery.isError || (loopsQuery.isFetched && loopsQuery.data?.fromLiveGateway === false);
@@ -288,7 +370,21 @@ function OpenLoops() {
   const proposedCount = actionsQuery.data?.length ?? 0;
   const needsJacobCount = needsJacobQuery.data?.entries?.length ?? 0;
   const errorLoopsCount = loopsQuery.data?.loops?.filter((l) => l.status === 'error').length ?? 0;
-  const total = proposedCount + needsJacobCount + errorLoopsCount;
+  const inboxSection = stateNowQuery.data?.sections.inbox;
+  const untriagedCount =
+    inboxSection?.ok && typeof inboxSection.untriaged_count === 'number' ? inboxSection.untriaged_count : 0;
+  const total = proposedCount + needsJacobCount + errorLoopsCount + untriagedCount;
+
+  const triageNow = untriagedCount > 0 && (
+    <button
+      type="button"
+      disabled={runTriage.isPending}
+      onClick={() => runTriage.mutate(undefined)}
+      style={actionButtonStyle}
+    >
+      {runTriage.isPending ? '…' : 'triage now'}
+    </button>
+  );
 
   if (total === 0) {
     return (
@@ -299,7 +395,29 @@ function OpenLoops() {
   }
 
   return (
-    <SectionCard title="open loops" count={total}>
+    <SectionCard title="open loops" count={total} action={triageNow || undefined}>
+      {untriagedCount > 0 && (
+        <div
+          style={{
+            ...itemCard,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <span style={bodyText}>untriaged inbox</span>
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontWeight: 700,
+              fontSize: 14,
+              color: 'var(--primary)',
+            }}
+          >
+            {untriagedCount}
+          </span>
+        </div>
+      )}
       {proposedCount > 0 && (
         <div
           style={{
@@ -372,9 +490,10 @@ function OpenLoops() {
 
 // ── Today (todos) ────────────────────────────────────────────────────────────
 
-function TodayPanel() {
-  // useTodos silently returns [] when the gateway is down — no separate error
-  // state; treat as genuinely empty rather than showing a misleading error.
+function TodayPanel({ gatewayError }: { gatewayError: string | null }) {
+  // fetchGatewayTodos swallows its own errors into `[]`, so an empty list
+  // here is ambiguous between "nothing today" and "gateway's down." The
+  // caller passes down a sibling query's error (brief) as the tie-breaker.
   const { data: todos = [], isPending } = useTodos();
 
   const open = todos.filter((t) => t.status === 'pending' || t.status === 'active');
@@ -385,6 +504,14 @@ function TodayPanel() {
         <div role="status" style={emptyState}>
           loading…
         </div>
+      </SectionCard>
+    );
+  }
+
+  if (open.length === 0 && gatewayError) {
+    return (
+      <SectionCard title="today">
+        <ErrorCard message={`gateway offline — ${gatewayError}`} />
       </SectionCard>
     );
   }
@@ -478,9 +605,12 @@ function ChatHint() {
 
 interface Props {
   compact?: boolean;
+  /** Sibling-query error (brief) used only to disambiguate Today's empty state — see TodayPanel. */
+  gatewayError?: string | null;
+  onDecideInChat?: (entry: GatewayTriageEntry) => void;
 }
 
-export function HomeState({ compact = false }: Props) {
+export function HomeState({ compact = false, gatewayError = null, onDecideInChat = () => {} }: Props) {
   return (
     <div
       style={{
@@ -494,9 +624,9 @@ export function HomeState({ compact = false }: Props) {
       }}
     >
       <WhatChanged />
-      <NeedsYou />
+      <NeedsYou onDecideInChat={onDecideInChat} />
       <OpenLoops />
-      <TodayPanel />
+      <TodayPanel gatewayError={gatewayError} />
       <CaptureSection />
       <ChatHint />
     </div>

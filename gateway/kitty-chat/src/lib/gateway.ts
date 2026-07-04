@@ -854,11 +854,11 @@ export interface GatewayAction {
   title: string
   preview: string
   payload: Record<string, unknown>
-  risk_tier: number
+  risk_tier: 'T0' | 'T1' | 'T2'
   status: string
   result: string | null
-  decided_at: string | null
-  executed_at: string | null
+  decided_at: number | null
+  executed_at: number | null
 }
 
 export async function fetchStateChanges(): Promise<StateChangesPayload> {
@@ -879,6 +879,29 @@ export async function rejectAction(id: number): Promise<void> {
   await gfetch(`/actions/${id}/reject`, { method: 'POST' })
 }
 
+export async function snapshotState(): Promise<void> {
+  await gfetch('/state/snapshot', { method: 'POST' })
+}
+
+export interface GatewayStateSection {
+  ok: boolean
+  error?: string
+  [key: string]: unknown
+}
+
+export interface GatewayStateNow {
+  ts: number
+  sections: Record<string, GatewayStateSection>
+}
+
+export async function fetchStateNow(): Promise<GatewayStateNow> {
+  return gfetch<GatewayStateNow>('/state/now')
+}
+
+export async function runInboxTriage(limit = 25): Promise<void> {
+  await gfetch(`/inbox/triage?limit=${limit}`, { method: 'POST' })
+}
+
 // ── Inbox triage (needs_jacob bucket) ────────────────────────────────────────
 
 export interface GatewayTriageEntry {
@@ -888,6 +911,8 @@ export interface GatewayTriageEntry {
   confidence: number
   rationale: string
   model?: string
+  text: string | null
+  created_at: string | null
 }
 
 export interface GatewayNeedsJacobPayload {
