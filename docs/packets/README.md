@@ -16,6 +16,34 @@ Rules for executors (any model or human):
 - **Claims:** check `.claude/STATE.md` before picking up a packet — it is
   the live claim board. Claim before you build.
 
+## Packet intake gate
+
+Packets are for executor-ready work, not raw excitement. A new idea does not
+become active work just because it sounds good in a planning chat.
+
+Before authoring or activating a packet, classify it as exactly one of:
+
+| Class | Meaning | Allowed next move |
+| --- | --- | --- |
+| `idea_seed` | Interesting spark, not scoped yet | Capture in notes / idea mine only |
+| `decision` | A choice Jacob made that future work should respect | Record in `docs/DECISIONS.md` or the relevant packet |
+| `spec_candidate` | Could become a packet after shaping | Author a draft/spec PR, keep out of execution order |
+| `active_packet` | Executor-ready and approved to compete for build time | Add to registry + execution order |
+| `after_move_in` | Valuable, but not needed before H1 move-in | Park behind move-in bar |
+| `parked` | Explicitly not active until Jacob says the trigger words | Mark ⏸ and name the activation trigger |
+| `reject` | Cool maybe, but not worth carrying | Do not preserve as work |
+
+A packet may enter the execution order only when it has:
+
+1. A clear activation class (`active_packet`, `after_move_in`, or `parked`).
+2. A visible demo contract: what Jacob can see or run after it lands.
+3. A scope budget: expected diff size and stop/split conditions.
+4. Privacy/sensitivity notes when touching mail, journal, health/admin,
+   benefits, recovery/support, memory, or chat logs.
+5. Acceptance criteria with concrete verification commands or review artifacts.
+
+Default bias: protect the move-in bar. New packets serve H1 or wait their turn.
+
 ## Status legend (read this, it has bitten us twice)
 
 | Mark | Means                                                              |
