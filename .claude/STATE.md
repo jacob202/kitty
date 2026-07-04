@@ -10,43 +10,28 @@ Execute open implementation packets without duplicate agent work.
 
 main
 
-## Session
-
-- 2026-07-04 — opencode session claiming **005** + **007**. Order:
-  005 first (per registry), then 007. Each on its own worktree off
-  `origin/main`. This row exists so other agents can see the claim
-  before they pick the same packet.
-
 ## Packet claims
 
-| Packet        | Claimed by          | Status                         |
-| ------------- | ------------------- | ------------------------------ |
-| 005           | opencode 2026-07-04 | 🚧 in progress (worktree soon) |
-| 007           | opencode 2026-07-04 | 🚧 in progress (after 005)     |
-| 008-remainder | —                   | available                      |
-
-**Rule for other agents:** if the status above is anything other than
-`available`, the packet is taken. Pick another. If you need to release a
-claim, edit this row to `available` and commit to `main`.
+| Packet        | Claimed by            | Status                   |
+| ------------- | --------------------- | ------------------------ |
+| 005           | opencode 2026-07-04   | 🚧 in progress           |
+| 007           | Claude (this session) | ✅ done — pushed to main |
+| 008-remainder | —                     | available                |
 
 ## Done this session
 
+- [2026-07-04] Packet 007 — delegation packet generator implemented,
+  tested, and pushed.
+
 ## In flight
 
-- 005 — implementing `gateway/connectors/mail.py`, cron registration,
-  doctor check, mocked-transport tests. No code yet on disk.
+- 005 — opencode.
 
 ## Blocked on Jacob
 
-- 005 live verification needs Gmail OAuth setup. Per packet, the PR
-  merges on mocked-transport tests; live poll is post-merge on Jacob's
-  machine.
+- 005 live verification needs Gmail OAuth setup.
 
 ## Next actions
 
-1. Create worktree `feat/packet-005-mail-connector` off `origin/main`.
-2. Implement 005.
-3. Push branch + open PR.
-4. Merge, then mark 005 shipped in registry (chore commit on main).
-5. Repeat steps 1–4 for 007.
-6. Write `.claude/HANDOFF.md` end-of-session.
+1. opencode continues 005.
+2. After 005 ships, pick 008-remainder or next packet.

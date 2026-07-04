@@ -13,6 +13,7 @@
 #   kitty uninstall Remove launchd plists
 #   kitty run-fg    Run gateway in foreground (for debugging)
 #   kitty resume    Print one-screen orientation block (branch, PRs, tests, services, packets)
+#   kitty delegate <action-id>  Generate a docs/packets/NNN-slug.md file from an action
 #
 # Environment: reads .env from the repo root if present. All overrides
 # (GATEWAY_PORT, LITELLM_PORT, LITELLM_VENV, …) live in .env, never here.
@@ -277,6 +278,15 @@ cmd_resume() {
   fi
 }
 
+cmd_delegate() {
+  local action_id="${1:-}"
+  if [[ -z "$action_id" ]]; then
+    echo "Usage: kitty delegate <action-id>" >&2
+    exit 1
+  fi
+  "$PYTHON_BIN" -m gateway.delegation "$action_id"
+}
+
 cmd_help() {
   grep '^#' "$0" | grep -v '#!/' | sed 's/^# //' | head -12
 }
@@ -294,6 +304,7 @@ case "${1:-help}" in
   uninstall) cmd_uninstall ;;
   run-fg)    cmd_run_fg ;;
   resume)    cmd_resume ;;
+  delegate)  shift; cmd_delegate "$1" ;;
   help|--help|-h) cmd_help ;;
   *)
     echo "Unknown command: ${1}" >&2

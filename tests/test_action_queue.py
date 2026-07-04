@@ -132,7 +132,14 @@ def test_disabled_v1_kinds_cannot_be_proposed(kind):
 def test_kind_absent_from_tier_file_fails_registration(monkeypatch, tmp_path):
     partial = tmp_path / "tiers.json"
     partial.write_text(
-        json.dumps({"todo.create": "T0", "note.draft": "T1", "_disabled_v1": []}),
+        json.dumps(
+            {
+                "todo.create": "T0",
+                "note.draft": "T1",
+                "packet.delegate": "T1",
+                "_disabled_v1": [],
+            }
+        ),
         encoding="utf-8",
     )
     monkeypatch.setattr(action_queue, "ACTION_TIERS_FILE", partial, raising=False)
@@ -148,6 +155,7 @@ def test_executor_listed_as_disabled_fails_registration(monkeypatch, tmp_path):
         json.dumps(
             {
                 "note.draft": "T1",
+                "packet.delegate": "T1",
                 "calendar.event.create": "T2",
                 "_disabled_v1": ["todo.create"],
             }
@@ -254,6 +262,7 @@ def test_execute_enforces_current_registry_tier_not_the_stored_one(monkeypatch, 
             {
                 "todo.create": "T2",
                 "note.draft": "T1",
+                "packet.delegate": "T1",
                 "calendar.event.create": "T2",
                 "_disabled_v1": [],
             }
