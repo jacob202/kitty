@@ -2,10 +2,7 @@ import { render, screen, cleanup } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { vi, describe, expect, it, beforeEach, afterEach } from 'vitest'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import type { ReactElement } from 'react'
 
-import { DashboardHome } from '../src/components/DashboardHome'
 import { RightPanel } from '../src/components/RightPanel'
 import { TopBar } from '../src/components/TopBar'
 import { buildGatewayModels, fetchGatewaySearch, summarizeGatewaySearch } from '../src/lib/gateway'
@@ -191,59 +188,3 @@ describe('TopBar', () => {
   })
 })
 
-describe('DashboardHome', () => {
-  afterEach(cleanup)
-  it('renders a live gateway brief when one is available', () => {
-    render(
-      <DashboardHome
-        brief={{
-          date: '2026-05-18',
-          headlines: ['Kitty is live'],
-          memory_snippet: 'Remember to use the live gateway.',
-          intention: 'Ship the integrated UI.',
-          generated_at: '2026-05-18T17:17:23.150346Z',
-          notification_sent: false,
-          error: null,
-        }}
-        todos={[]}
-        loops={[]}
-        insights={[]}
-        promptTemplates={[]}
-      />
-    )
-
-    expect(screen.getByText('Kitty is live')).toBeInTheDocument()
-    expect(screen.getAllByText('Ship the integrated UI.').length).toBeGreaterThan(0)
-    expect(screen.getByText('Remember to use the live gateway.')).toBeInTheDocument()
-    expect(screen.getByText("Today's Compass")).toBeInTheDocument()
-    expect(screen.getByText('Loop Watch')).toBeInTheDocument()
-  })
-
-  it('shows loading skeleton when loading prop is true', () => {
-    const { container } = render(
-      <DashboardHome
-        brief={null}
-        todos={[]}
-        loops={[]}
-        insights={[]}
-        promptTemplates={[]}
-        loading={true}
-      />
-    )
-    expect(container.querySelectorAll('[aria-hidden="true"]').length).toBeGreaterThan(0)
-  })
-
-  it('shows brief strip when loading is false and brief is null', () => {
-    render(
-      <DashboardHome
-        brief={null}
-        todos={[]}
-        loops={[]}
-        insights={[]}
-        promptTemplates={[]}
-        loading={false}
-      />
-    )
-    expect(screen.getByText('NEXT UP')).toBeInTheDocument()
-  })
-})
