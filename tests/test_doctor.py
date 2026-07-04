@@ -38,6 +38,7 @@ def test_doctor_uses_litellm_readiness_endpoint(monkeypatch) -> None:
 
 # --- _check_env ---
 
+
 def test_check_env_fails_when_no_dotenv(monkeypatch, tmp_path) -> None:
     from gateway import doctor
 
@@ -91,6 +92,7 @@ def test_check_env_passes_when_telegram_token_set(monkeypatch, tmp_path) -> None
 
 # --- _check_services ---
 
+
 def test_check_services_fails_when_gateway_unreachable(monkeypatch) -> None:
     from gateway import doctor
 
@@ -132,6 +134,7 @@ def test_check_services_fails_when_litellm_unreachable(monkeypatch) -> None:
 
 # --- _check_chromadb ---
 
+
 def test_check_chromadb_fails_on_import_error(monkeypatch) -> None:
     from gateway import doctor
 
@@ -147,6 +150,7 @@ def test_check_chromadb_fails_on_client_exception(monkeypatch, tmp_path) -> None
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
 
     import chromadb as _chroma
+
     with patch.object(_chroma, "PersistentClient", side_effect=RuntimeError("locked")):
         checks = doctor._check_chromadb()
     assert checks[0].level == "FAIL"
@@ -159,6 +163,7 @@ def test_check_chromadb_passes_when_working(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
 
     import chromadb as _chroma
+
     fake_client = MagicMock()
     fake_client.list_collections.return_value = ["col1", "col2"]
     with patch.object(_chroma, "PersistentClient", return_value=fake_client):
@@ -168,6 +173,7 @@ def test_check_chromadb_passes_when_working(monkeypatch, tmp_path) -> None:
 
 
 # --- _check_mem0 ---
+
 
 def test_check_mem0_passes_when_api_key_set() -> None:
     from gateway import doctor
@@ -189,6 +195,7 @@ def test_check_mem0_warns_on_init_exception() -> None:
     import mem0 as _mem0
 
     from gateway import doctor
+
     with patch.object(_mem0, "Memory", side_effect=RuntimeError("config error")):
         checks = doctor._check_mem0({})
     assert checks[0].level == "WARN"
@@ -199,6 +206,7 @@ def test_check_mem0_passes_local_mode() -> None:
     import mem0 as _mem0
 
     from gateway import doctor
+
     with patch.object(_mem0, "Memory", return_value=MagicMock()):
         checks = doctor._check_mem0({})
     assert checks[0].level == "PASS"
@@ -207,8 +215,10 @@ def test_check_mem0_passes_local_mode() -> None:
 
 # --- _check_disk ---
 
+
 def _fake_disk_usage(free_bytes: int):
     from collections import namedtuple
+
     DU = namedtuple("DU", ["total", "used", "free"])
     return lambda _: DU(total=100 << 30, used=(100 << 30) - free_bytes, free=free_bytes)
 
@@ -230,7 +240,7 @@ def test_check_disk_warns_when_low(monkeypatch, tmp_path) -> None:
     from gateway import doctor
 
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
-    monkeypatch.setattr(shutil, "disk_usage", _fake_disk_usage(int(1.0 * 1024 ** 3)))
+    monkeypatch.setattr(shutil, "disk_usage", _fake_disk_usage(int(1.0 * 1024**3)))
     checks = doctor._check_disk()
     assert checks[0].level == "WARN"
 
@@ -241,12 +251,13 @@ def test_check_disk_fails_when_critically_low(monkeypatch, tmp_path) -> None:
     from gateway import doctor
 
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
-    monkeypatch.setattr(shutil, "disk_usage", _fake_disk_usage(int(0.2 * 1024 ** 3)))
+    monkeypatch.setattr(shutil, "disk_usage", _fake_disk_usage(int(0.2 * 1024**3)))
     checks = doctor._check_disk()
     assert checks[0].level == "FAIL"
 
 
 # --- _check_venv ---
+
 
 def test_check_venv_passes_when_exists(monkeypatch, tmp_path) -> None:
     from gateway import doctor
@@ -269,6 +280,7 @@ def test_check_venv_fails_when_missing(monkeypatch, tmp_path) -> None:
 
 # --- main() exit codes ---
 
+
 def test_main_exits_nonzero_on_failure(monkeypatch, tmp_path) -> None:
     """main() returns 1 when any FAIL check exists."""
     from gateway import doctor
@@ -279,12 +291,19 @@ def test_main_exits_nonzero_on_failure(monkeypatch, tmp_path) -> None:
         return [doctor.Check("PASS", "service:gateway", "ok")]
 
     monkeypatch.setattr(doctor, "_check_services", _all_pass)
-    monkeypatch.setattr(doctor, "_check_chromadb", lambda: [doctor.Check("PASS", "store:chromadb", "ok")])
-    monkeypatch.setattr(doctor, "_check_mem0", lambda _e: [doctor.Check("PASS", "store:mem0", "ok")])
-    monkeypatch.setattr(doctor, "_check_disk", lambda: [doctor.Check("PASS", "disk:data_dir", "ok")])
+    monkeypatch.setattr(
+        doctor, "_check_chromadb", lambda: [doctor.Check("PASS", "store:chromadb", "ok")]
+    )
+    monkeypatch.setattr(
+        doctor, "_check_mem0", lambda _e: [doctor.Check("PASS", "store:mem0", "ok")]
+    )
+    monkeypatch.setattr(
+        doctor, "_check_disk", lambda: [doctor.Check("PASS", "disk:data_dir", "ok")]
+    )
     monkeypatch.setattr(doctor, "_check_venv", lambda: [doctor.Check("PASS", "runtime:venv", "ok")])
 
     import sys
+
     sys_argv_orig = sys.argv
     sys.argv = ["doctor"]
     try:
@@ -313,6 +332,7 @@ def test_main_exits_zero_on_all_pass(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(doctor, "_check_venv", lambda: [doctor.Check("PASS", "runtime:venv", "ok")])
 
     import sys
+
     sys_argv_orig = sys.argv
     sys.argv = ["doctor"]
     try:
@@ -339,6 +359,7 @@ def test_main_strict_fails_on_warn(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(doctor, "_check_venv", lambda: [doctor.Check("PASS", "runtime:venv", "ok")])
 
     import sys
+
     sys_argv_orig = sys.argv
     sys.argv = ["doctor", "--strict"]
     try:
@@ -368,6 +389,7 @@ def test_main_json_output_shape(monkeypatch, tmp_path, capsys) -> None:
     monkeypatch.setattr(doctor, "_check_venv", lambda: [doctor.Check("PASS", "runtime:venv", "ok")])
 
     import sys
+
     sys_argv_orig = sys.argv
     sys.argv = ["doctor", "--json"]
     try:
@@ -386,3 +408,65 @@ def test_main_json_output_shape(monkeypatch, tmp_path, capsys) -> None:
         assert "level" in c
         assert "name" in c
         assert "detail" in c
+
+
+# --- _check_mail_connector (P3, docs/packets/005) ---
+
+
+def test_check_mail_connector_warn_when_token_missing(monkeypatch, tmp_path):
+    from gateway import doctor
+
+    monkeypatch.setattr(doctor, "ROOT", tmp_path)
+    checks = doctor._check_mail_connector({})
+    assert len(checks) == 1
+    assert checks[0].level == "WARN"
+    assert checks[0].name == "connector:mail"
+    assert "not present" in checks[0].detail
+
+
+def test_check_mail_connector_fail_when_token_unreadable(monkeypatch, tmp_path):
+    from gateway import doctor
+    from gateway.connectors import mail as mail_module
+
+    token = tmp_path / "broken.json"
+    token.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(doctor, "ROOT", tmp_path)
+    monkeypatch.setenv("GMAIL_TOKEN_FILE", str(token))
+
+    def _raise():
+        raise mail_module.MailAuthError("malformed token")
+
+    monkeypatch.setattr(mail_module, "_load_credentials", _raise)
+    checks = doctor._check_mail_connector({"GMAIL_TOKEN_FILE": str(token)})
+    assert checks[0].level == "FAIL"
+    assert "unreadable" in checks[0].detail
+
+
+def test_check_mail_connector_pass_when_token_loadable(monkeypatch, tmp_path):
+    from gateway import doctor
+    from gateway.connectors import mail as mail_module
+
+    token = tmp_path / "ok.json"
+    token.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(doctor, "ROOT", tmp_path)
+    monkeypatch.setenv("GMAIL_TOKEN_FILE", str(token))
+    fake_creds = type("FakeCreds", (), {"valid": True, "expired": False, "refresh_token": "r"})()
+    monkeypatch.setattr(mail_module, "_load_credentials", lambda: fake_creds)
+    checks = doctor._check_mail_connector({"GMAIL_TOKEN_FILE": str(token)})
+    assert checks[0].level == "PASS"
+    assert "ok.json" in checks[0].detail
+
+
+def test_check_mail_connector_fail_when_expired_no_refresh(monkeypatch, tmp_path):
+    from gateway import doctor
+    from gateway.connectors import mail as mail_module
+
+    token = tmp_path / "expired.json"
+    token.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(doctor, "ROOT", tmp_path)
+    monkeypatch.setenv("GMAIL_TOKEN_FILE", str(token))
+    fake_creds = type("FakeCreds", (), {"valid": False, "expired": True, "refresh_token": None})()
+    monkeypatch.setattr(mail_module, "_load_credentials", lambda: fake_creds)
+    checks = doctor._check_mail_connector({"GMAIL_TOKEN_FILE": str(token)})
+    assert checks[0].level == "FAIL"
+    assert "re-authorize" in checks[0].detail
