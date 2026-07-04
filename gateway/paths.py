@@ -4,6 +4,7 @@ All directory paths live here. Callers import from this module rather than
 constructing paths inline. Call validate_dirs() once at startup to fail fast
 if any essential directory is missing.
 """
+
 import os as _os
 from pathlib import Path
 
@@ -22,6 +23,8 @@ DB_MIGRATIONS_DIR = ROOT / "gateway" / "migrations"
 CONFIG_DIR = ROOT / "config"
 USER_DIR = CONFIG_DIR / "USER"  # Jacob's TELOS identity files (mission/goals/etc.)
 ACTION_TIERS_FILE = CONFIG_DIR / "action_tiers.json"  # signed risk-tier sheet (P3)
+PACKET_DIR = ROOT / "docs" / "packets"
+PACKETS_README = PACKET_DIR / "README.md"
 DESKTOP_DIR = DATA_DIR / "desktop"
 DRAFTS_DIR = DATA_DIR / "drafts"  # local-only artifacts from note.draft actions (P3)
 INBOX_FILE = DATA_DIR / "inbox.jsonl"
@@ -48,6 +51,7 @@ def validate_env() -> None:
     """Warn at startup if security-critical env vars are missing."""
     import logging
     import os
+
     log = logging.getLogger("kitty.startup")
     if not os.environ.get("GATEWAY_SECRET"):
         log.warning(

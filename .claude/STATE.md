@@ -10,34 +10,35 @@ Execute open implementation packets without duplicate agent work.
 
 main
 
-## Sessions
+## Sessions (2026-07-04)
 
-- 2026-07-04 — opencode session claiming **005** + **007**. Order:
-  005 first (per registry), then 007. Each on its own worktree off
-  `origin/main`. This row exists so other agents can see the claim
-  before they pick the same packet.
-- 2026-07-04 — Fable plan session (branch
-  `claude/kitty-app-packet-plan-gs7ccc`, PR #97): H1 close-out plan,
-  packets 015–020, move-in bar, D12. Also walked Jacob through Wave 0
-  live — see "Facts from Jacob" below.
+- opencode — claimed 005 + 007; 005 built and in PR #99; 007 claim
+  released (Jacob shipped it to main directly as eb3afad).
+- Fable plan session (branch `claude/kitty-app-packet-plan-gs7ccc`,
+  PR #97) — H1 close-out plan, packets 015–020, move-in bar, D12; walked
+  Jacob through Wave 0 live. See "Facts from Jacob" below.
+- Codex — 008-remainder, in `.worktrees/packet-008-expert-retrieval`.
 
 ## Packet claims
 
-| Packet        | Claimed by          | Status                         |
-| ------------- | ------------------- | ------------------------------ |
-| 005           | opencode 2026-07-04 | 🚧 in progress (worktree soon) |
-| 007           | opencode 2026-07-04 | 🚧 in progress (after 005)     |
-| 008-remainder | —                   | available                      |
+| Packet        | Claimed by          | Status                                              |
+| ------------- | ------------------- | ---------------------------------------------------- |
+| 005           | opencode 2026-07-04 | 🔎 PR #99 open — ready for review                    |
+| 007           | Jacob (eb3afad)     | ✅ done — Jacob committed to main while session ran  |
+| 008-remainder | Codex 2026-07-04    | 🚧 in `.worktrees/packet-008-expert-retrieval`       |
 | 015           | —                   | available — **next priority** (D12: phone channel before features) |
 
 **Rule for other agents:** if the status above is anything other than
 `available`, the packet is taken. Pick another. If you need to release a
 claim, edit this row to `available` and commit to `main`.
 
-## Done this session
+## Done today
 
 - 004 shipped (#98) — HomeState console replaces DashboardHome.
-- Plan PR #97 (packets 015–020 + D12 + move-in bar).
+- 007 shipped (eb3afad, Jacob) — packet.delegate generator.
+- 005 built (opencode) — PR #99; 25 mocked-transport tests + 4
+  doctor-state tests green; D10 body-out-of-signal asserted.
+- Plan PR #97 (packets 015–020 + D12 + move-in bar), Fable session.
 - Wave 0 (Jacob, live): ethernet in + verified; Automation permission
   granted; **iMessage-to-self proven end-to-end** — `participant … of
   (1st account whose service type = iMessage)` works, `buddy` fails
@@ -45,8 +46,9 @@ claim, edit this row to `available` and commit to `main`.
 
 ## In flight
 
-- 005 — implementing `gateway/connectors/mail.py`, cron registration,
-  doctor check, mocked-transport tests. No code yet on disk.
+- 008-remainder (Codex worktree).
+- PR #99 (005) awaiting review + merge.
+- PR #97 (plan) awaiting CI + merge.
 
 ## Blocked on Jacob
 
@@ -54,6 +56,7 @@ claim, edit this row to `available` and commit to `main`.
   `./kitty doctor`, confirm `data/gmail_token.json` exists (he reports
   the OAuth flow was completed the morning of 2026-07-04 — the `ls` is
   the verification, don't re-run the flow blind).
+- 005 live poll on the Air after PR #99 merges.
 
 ## Facts from Jacob (2026-07-04, load-bearing — read before talking to him)
 
@@ -77,8 +80,7 @@ claim, edit this row to `available` and commit to `main`.
 
 ## Next actions
 
-1. opencode: worktree `feat/packet-005-mail-connector` off `origin/main`,
-   implement, PR, merge, mark shipped; then same for 007.
+1. Review PR #99 (005); merge when check runs green; mark shipped.
 2. Merge PR #97 (the plan) once CI is green and Jacob approves.
 3. First free executor: build 015 (claim it here first).
-4. Write `.claude/HANDOFF.md` end-of-session.
+4. Codex: finish 008-remainder in its worktree.

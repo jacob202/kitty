@@ -28,6 +28,7 @@ Public API:
   list_actions(status=None, limit=50) -> list[dict]
   reload_registry() -> None   # test seam; rebuilds from ACTION_TIERS_FILE
 """
+
 from __future__ import annotations
 
 import json
@@ -36,7 +37,7 @@ import time
 import uuid
 from typing import Any, Callable
 
-from gateway import calendar_integration, storage_router
+from gateway import calendar_integration, delegation, storage_router
 from gateway import db as kitty_db
 from gateway.paths import ACTION_TIERS_FILE, DRAFTS_DIR, KITTY_DB_FILE
 
@@ -53,6 +54,7 @@ _AUTO_EXECUTE_TIERS = frozenset({"T0", "T1"})
 _PAYLOAD_REQUIRED: dict[str, str] = {
     "todo.create": "content",
     "note.draft": "content",
+    "packet.delegate": "title",
     "calendar.event.create": "title",
 }
 
@@ -113,6 +115,14 @@ def _exec_note_draft(payload: dict[str, Any]) -> str:
     return f"draft written to {path}"
 
 
+def _exec_packet_delegate(payload: dict[str, Any]) -> str:
+    # The action row itself carries id/title; the payload carries the packet
+    # body fields. Build a minimal action-shaped dict for the renderer.
+    action = {"payload": payload}
+    path = delegation.write_packet(action)
+    return f"packet written to {path}"
+
+
 def _exec_calendar_create(payload: dict[str, Any]) -> str:
     title = str(payload["title"]).strip()
     ok = calendar_integration.create(
@@ -122,15 +132,14 @@ def _exec_calendar_create(payload: dict[str, Any]) -> str:
         notes=payload.get("notes", ""),
     )
     if not ok:
-        raise RuntimeError(
-            "calendar create failed (osascript unavailable or Calendar rejected it)"
-        )
+        raise RuntimeError("calendar create failed (osascript unavailable or Calendar rejected it)")
     return f"calendar event created: {title}"
 
 
 _EXECUTORS: dict[str, Callable[[dict[str, Any]], str]] = {
     "todo.create": _exec_todo_create,
     "note.draft": _exec_note_draft,
+    "packet.delegate": _exec_packet_delegate,
     "calendar.event.create": _exec_calendar_create,
 }
 
@@ -164,9 +173,7 @@ def _build_registry() -> dict[str, tuple[str, Callable[[dict[str, Any]], str]]]:
                 f"executor {kind!r} is in _disabled_v1 — it must not be registered"
             )
         if kind not in tiers:
-            raise ActionConfigError(
-                f"executor {kind!r} has no tier in {ACTION_TIERS_FILE.name}"
-            )
+            raise ActionConfigError(f"executor {kind!r} has no tier in {ACTION_TIERS_FILE.name}")
         registry[kind] = (tiers[kind], fn)
     return registry
 
@@ -239,9 +246,7 @@ def execute(action_id: int) -> dict[str, Any]:
     kind = action["kind"]
 
     if status not in ("proposed", "approved"):
-        raise ActionStateError(
-            f"cannot execute action {action_id} in status {status!r}"
-        )
+        raise ActionStateError(f"cannot execute action {action_id} in status {status!r}")
 
     registry = _registry()
     if kind not in registry:
@@ -253,9 +258,7 @@ def execute(action_id: int) -> dict[str, Any]:
     # action, not be bypassed by its stale risk_tier.
     tier, fn = registry[kind]
     if tier not in _AUTO_EXECUTE_TIERS and status != "approved":
-        raise TierViolation(
-            f"{tier} action {action_id} requires approval before execution"
-        )
+        raise TierViolation(f"{tier} action {action_id} requires approval before execution")
 
     _validate_payload(kind, action["payload"])
 
@@ -263,9 +266,7 @@ def execute(action_id: int) -> dict[str, Any]:
     # (double-click, client retry) that already claimed it finds no matching
     # row here and is refused, so one action dispatches exactly once.
     if not _claim_for_execution(action_id, status):
-        raise ActionStateError(
-            f"action {action_id} is no longer {status!r} — already claimed"
-        )
+        raise ActionStateError(f"action {action_id} is no longer {status!r} — already claimed")
 
     try:
         result = fn(action["payload"])
@@ -290,9 +291,7 @@ def _claim_for_execution(action_id: int, expected_status: str) -> bool:
 def get(action_id: int) -> dict[str, Any] | None:
     init_db()
     with kitty_db.connect(ACTIONS_DB_FILE) as conn:
-        row = conn.execute(
-            f"SELECT {_COLUMNS} FROM actions WHERE id = ?", (action_id,)
-        ).fetchone()
+        row = conn.execute(f"SELECT {_COLUMNS} FROM actions WHERE id = ?", (action_id,)).fetchone()
     return _row_to_action(row) if row else None
 
 
@@ -305,8 +304,7 @@ def list_actions(status: str | None = None, limit: int = 50) -> list[dict[str, A
             ).fetchall()
         else:
             rows = conn.execute(
-                f"SELECT {_COLUMNS} FROM actions WHERE status = ? "
-                "ORDER BY id DESC LIMIT ?",
+                f"SELECT {_COLUMNS} FROM actions WHERE status = ? ORDER BY id DESC LIMIT ?",
                 (status, limit),
             ).fetchall()
     return [_row_to_action(r) for r in rows]
@@ -319,16 +317,14 @@ def _decide(action_id: int, new_status: str) -> dict[str, Any]:
     action = _require(action_id)
     if action["status"] != "proposed":
         raise ActionStateError(
-            f"only proposed actions can be {new_status}; "
-            f"action {action_id} is {action['status']}"
+            f"only proposed actions can be {new_status}; action {action_id} is {action['status']}"
         )
     init_db()
     with kitty_db.connect(ACTIONS_DB_FILE) as conn:
         # Condition on proposed + check rowcount so a racing approve/reject
         # cannot overwrite an already-recorded decision.
         cursor = conn.execute(
-            "UPDATE actions SET status = ?, decided_at = ? "
-            "WHERE id = ? AND status = 'proposed'",
+            "UPDATE actions SET status = ?, decided_at = ? WHERE id = ? AND status = 'proposed'",
             (new_status, time.time(), action_id),
         )
         conn.commit()
@@ -365,9 +361,7 @@ def _validate_payload(kind: str, payload: Any) -> None:
         return
     value = payload.get(field)
     if not isinstance(value, str) or not value.strip():
-        raise ActionPayloadError(
-            f"{kind} payload requires a non-empty {field!r}"
-        )
+        raise ActionPayloadError(f"{kind} payload requires a non-empty {field!r}")
 
 
 def _slug(text: str) -> str:
