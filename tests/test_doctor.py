@@ -470,3 +470,53 @@ def test_check_mail_connector_fail_when_expired_no_refresh(monkeypatch, tmp_path
     checks = doctor._check_mail_connector({"GMAIL_TOKEN_FILE": str(token)})
     assert checks[0].level == "FAIL"
     assert "re-authorize" in checks[0].detail
+
+
+# --- _check_push_channel (P3, docs/packets/015) ---
+
+
+def test_check_push_channel_warn_when_nothing_configured(monkeypatch, tmp_path):
+    from gateway import doctor, push
+
+    monkeypatch.setattr(push, "PUSH_LOG_FILE", tmp_path / "push_log.jsonl")
+    checks = doctor._check_push_channel({})
+    assert checks[0].level == "WARN"
+    assert "no channel configured" in checks[0].detail
+
+
+def test_check_push_channel_pass_when_configured_with_no_attempts(monkeypatch, tmp_path):
+    from gateway import doctor, push
+
+    monkeypatch.setattr(push, "PUSH_LOG_FILE", tmp_path / "push_log.jsonl")
+    checks = doctor._check_push_channel({"PUSH_IMESSAGE_RECIPIENT": "+15551234567"})
+    assert checks[0].level == "PASS"
+    assert "no attempts logged yet" in checks[0].detail
+
+
+def test_check_push_channel_pass_when_last_attempt_succeeded(monkeypatch, tmp_path):
+    from gateway import doctor, push
+
+    log = tmp_path / "push_log.jsonl"
+    log.write_text(
+        '{"ts": 1, "kind": "info", "title": "Kitty", "channel": "imessage", "ok": false, "dedupe_key": null}\n'
+        '{"ts": 2, "kind": "info", "title": "Kitty", "channel": "pushover", "ok": true, "dedupe_key": null}\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(push, "PUSH_LOG_FILE", log)
+    checks = doctor._check_push_channel({"PUSHOVER_USER_KEY": "u", "PUSHOVER_API_TOKEN": "t"})
+    assert checks[0].level == "PASS"
+    assert "pushover" in checks[0].detail
+
+
+def test_check_push_channel_fail_when_last_attempt_failed(monkeypatch, tmp_path):
+    from gateway import doctor, push
+
+    log = tmp_path / "push_log.jsonl"
+    log.write_text(
+        '{"ts": 1, "kind": "info", "title": "Kitty", "channel": "imessage", "ok": false, "dedupe_key": null}\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(push, "PUSH_LOG_FILE", log)
+    checks = doctor._check_push_channel({"PUSH_IMESSAGE_RECIPIENT": "+15551234567"})
+    assert checks[0].level == "FAIL"
+    assert "imessage" in checks[0].detail

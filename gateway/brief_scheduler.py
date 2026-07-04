@@ -91,12 +91,15 @@ def generate_and_deliver_brief() -> str:
     # Deliver to stdout/log for now
     logger.info("Daily brief delivered:\n%s", text)
 
-    # Push to phone only when Pushover is configured
+    # Push to Jacob's phone via the push façade (iMessage first, Pushover fallback).
     try:
-        from gateway.notify import is_configured, send_brief
+        from gateway.push import push_to_jacob
 
-        if is_configured():
-            send_brief(text)
+        if not push_to_jacob(text, kind="info", title="Kitty Morning Brief"):
+            logger.warning(
+                "Brief push not delivered — no configured channel accepted it "
+                "(set PUSH_IMESSAGE_RECIPIENT or PUSHOVER_USER_KEY/PUSHOVER_API_TOKEN)"
+            )
     except Exception as e:
         logger.warning("Brief push notification failed: %s", e)
 

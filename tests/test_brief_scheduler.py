@@ -51,13 +51,27 @@ class TestBriefScheduler:
         }
 
         with patch("gateway.brief.generate_brief", return_value=fake_brief):
-            with patch("gateway.notify.is_configured", return_value=False):
+            with patch("gateway.push.push_to_jacob", return_value=False):
                 text = brief_scheduler.generate_and_deliver_brief()
 
         assert f"Brief for {today}" in text
         bullets = [line for line in text.splitlines() if line.startswith("- ")]
         assert len(bullets) >= 1
         assert any("Review PR #42" in line for line in bullets)
+
+    def test_generate_and_deliver_brief_reaches_push_facade_exactly_once(self, monkeypatch):
+        from gateway import brief_scheduler
+
+        fake_brief = {"date": "2026-07-04", "intention": "Ship the phone channel"}
+        with patch("gateway.brief.generate_brief", return_value=fake_brief):
+            with patch("gateway.push.push_to_jacob", return_value=True) as mock_push:
+                text = brief_scheduler.generate_and_deliver_brief()
+
+        mock_push.assert_called_once()
+        args, kwargs = mock_push.call_args
+        assert args[0] == text
+        assert kwargs["kind"] == "info"
+        assert kwargs["title"] == "Kitty Morning Brief"
 
     @pytest.mark.asyncio
     async def test_scheduler_triggers_and_generates_brief(self, tmp_path, monkeypatch):
