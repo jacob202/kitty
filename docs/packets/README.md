@@ -18,22 +18,22 @@ Rules for executors (any model or human):
 
 **Updated:** 2026-07-03
 
-| #   | Packet                                                        | Best executor                                 | Status                                                 |
-| --- | ------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------ |
-| 001 | State spine: signals, snapshots, /state/now                   | Claude Code / Codex                           | ✓ shipped                                              |
-| 002 | Inbox triage                                                  | Codex / Claude Code                           | ✓ shipped                                              |
-| 003 | Action queue with enforced tiers                              | Claude Code                                   | ✓ shipped (#65 + #67)                                  |
-| 004 | State home surface                                            | Claude Code                                   | ✓ shipped (#98)                                        |
-| 005 | Mail read-only connector                                      | Codex/Claude Code + Jacob (credentials)       | 📋 ready — packet authored 2026-07-03 (Gmail API, D11) |
-| 006 | Project resume                                                | Claude Code                                   | ✓ shipped (#71)                                        |
-| 007 | Delegation packet generator                                   | strongest model (template) + Codex (plumbing) | 📋 ready — packet + template authored 2026-07-03       |
-| 008 | Knowledge library + expert retrieval                          | Claude Code / Codex                           | ◐ items 1–3 shipped (#73); remainder = items 4–6       |
-| 009 | De-fake loops/insights (backend routes)                       | Claude Code                                   | ✓ shipped (#75)                                        |
-| 010 | Capture-to-knowledge (file/PDF/screenshot → inbox → pipeline) | Claude Code                                   | ✓ shipped (#74)                                        |
-| 011 | Brief v2 + push delivery (state-diff open + scheduler)        | Claude Code                                   | ✓ shipped (#76)                                        |
-| 012 | Privacy boundary in router (§17.3)                            | Claude Code                                   | ✓ shipped (#72)                                        |
-| 013 | Nudges + web_monitor → signal emitters                        | Claude Code                                   | ✓ shipped (#77)                                        |
-| 014 | Make the gates honest (UI tests, CI job, isolation leaks)     | any competent model — mechanical              | ✓ shipped (#94)                                        |
+| #   | Packet                                                        | Best executor                                 | Status                                                  |
+| --- | ------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------- |
+| 001 | State spine: signals, snapshots, /state/now                   | Claude Code / Codex                           | ✓ shipped                                               |
+| 002 | Inbox triage                                                  | Codex / Claude Code                           | ✓ shipped                                               |
+| 003 | Action queue with enforced tiers                              | Claude Code                                   | ✓ shipped (#65 + #67)                                   |
+| 004 | State home surface                                            | Claude Code                                   | ✓ shipped (#98)                                         |
+| 005 | Mail read-only connector                                      | Codex/Claude Code + Jacob (credentials)       | 🚧 in progress — opencode 2026-07-04 (worktree pending) |
+| 006 | Project resume                                                | Claude Code                                   | ✓ shipped (#71)                                         |
+| 007 | Delegation packet generator                                   | strongest model (template) + Codex (plumbing) | 🚧 in progress — opencode 2026-07-04 (after 005)        |
+| 008 | Knowledge library + expert retrieval                          | Claude Code / Codex                           | ◐ items 1–3 shipped (#73); remainder = items 4–6        |
+| 009 | De-fake loops/insights (backend routes)                       | Claude Code                                   | ✓ shipped (#75)                                         |
+| 010 | Capture-to-knowledge (file/PDF/screenshot → inbox → pipeline) | Claude Code                                   | ✓ shipped (#74)                                         |
+| 011 | Brief v2 + push delivery (state-diff open + scheduler)        | Claude Code                                   | ✓ shipped (#76)                                         |
+| 012 | Privacy boundary in router (§17.3)                            | Claude Code                                   | ✓ shipped (#72)                                         |
+| 013 | Nudges + web_monitor → signal emitters                        | Claude Code                                   | ✓ shipped (#77)                                         |
+| 014 | Make the gates honest (UI tests, CI job, isolation leaks)     | any competent model — mechanical              | ✓ shipped (#94)                                         |
 
 Every open packet now has an authored file in this directory; nothing remains spec-only.
 
