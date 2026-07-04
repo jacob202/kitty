@@ -7,7 +7,7 @@ import { inferMood } from '@/lib/mood';
 import { TopBar } from '@/components/TopBar';
 import { ChatMessage } from '@/components/ChatMessage';
 import { InputBar } from '@/components/InputBar';
-import { DashboardHome } from '@/components/DashboardHome';
+import { HomeState } from '@/components/HomeState';
 import { Rail } from '@/components/Rail';
 import { SessionSidebar } from '@/components/SessionSidebar';
 import { TaskPanel } from '@/components/TaskPanel';
@@ -23,17 +23,7 @@ import { WobFilters, PaperGrain } from '@/components/WobFilters';
 import { CatCorner, CatBody, type CatState } from '@/components/CrayonCat';
 import { fetchGatewaySearch, type GatewaySearchSnapshot } from '@/lib/gateway';
 import { usePwaInstall } from '@/lib/pwa';
-import {
-  useGatewayBrief,
-  useGatewayModels,
-  useGatewayWeather,
-  useTodos,
-  useLoops,
-  useInsights,
-  usePrompts,
-  useToggleLoop,
-  useDismissInsight,
-} from '@/lib/queries';
+import { useGatewayBrief, useGatewayModels } from '@/lib/queries';
 
 const MOBILE_BREAKPOINT = 900;
 
@@ -191,25 +181,12 @@ function KittyChatInner() {
     }
   }, [isMobile]);
 
-  // Dashboard data — all via React Query (auto-retry, refetch on focus, cache).
+  // Gateway status queries — models for TopBar, brief for the offline banner.
   const queryClient = useQueryClient();
   const modelsQuery = useGatewayModels();
   const briefQuery = useGatewayBrief();
-  const todosQuery = useTodos();
-  const weatherQuery = useGatewayWeather();
-  const loopsQuery = useLoops();
-  const insightsQuery = useInsights();
-  const promptsQuery = usePrompts();
-  const toggleLoop = useToggleLoop();
-  const dismissInsight = useDismissInsight();
 
   const availableModels = modelsQuery.data?.models ?? MODELS;
-  const brief = briefQuery.data?.brief ?? null;
-  const todos = todosQuery.data ?? [];
-  const weather = weatherQuery.data?.weather ?? null;
-  const loops = loopsQuery.data?.loops ?? [];
-  const insights = insightsQuery.data?.insights ?? [];
-  const promptTemplates = promptsQuery.data ?? [];
   const modelGateway = {
     loaded: modelsQuery.isFetched,
     live: modelsQuery.data?.fromLiveGateway ?? true,
@@ -293,7 +270,7 @@ function KittyChatInner() {
   }, [activeModel.id]);
 
   const handleToggleTheme = useCallback(() => {
-    setTheme(t => {
+    setTheme((t) => {
       const next = t === 'day' ? 'night' : 'day';
       document.documentElement.setAttribute('data-theme', next);
       return next;
@@ -467,37 +444,11 @@ function KittyChatInner() {
   const retryGatewayBootstrap = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['models'] });
     queryClient.invalidateQueries({ queryKey: ['brief'] });
-    queryClient.invalidateQueries({ queryKey: ['weather'] });
+    queryClient.invalidateQueries({ queryKey: ['state'] });
+    queryClient.invalidateQueries({ queryKey: ['actions'] });
     queryClient.invalidateQueries({ queryKey: ['todos'] });
-    queryClient.invalidateQueries({ queryKey: ['loops'] });
-    queryClient.invalidateQueries({ queryKey: ['insights'] });
-    queryClient.invalidateQueries({ queryKey: ['prompts'] });
+    queryClient.invalidateQueries({ queryKey: ['inbox'] });
   }, [queryClient]);
-
-  const handlePrompt = useCallback((text: string) => {
-    setInput(text);
-    setTimeout(() => {
-      textareaRef.current?.focus();
-      const ta = textareaRef.current;
-      if (ta) ta.selectionStart = ta.selectionEnd = ta.value.length;
-    }, 0);
-  }, []);
-
-  const handleLoopToggle = useCallback(
-    (loopId: string) => {
-      toggleLoop.mutate(loopId);
-    },
-    [toggleLoop],
-  );
-
-  const handleInsightDismiss = useCallback(
-    (insightId: string) => {
-      dismissInsight.mutate(insightId);
-    },
-    [dismissInsight],
-  );
-
-  const handleInsightAction = useCallback((_insightId: string, _actionId: string) => {}, []);
 
   const handlePwaInstall = useCallback(() => {
     void pwaInstall.install().catch((error) => {
@@ -741,10 +692,28 @@ function KittyChatInner() {
                 <TerminalStrip title="Gateway Log" maxLines={100} />
               </div>
             ) : activeView === 'chat' && activeChat && activeChat.messages.length > 0 ? (
-              <div style={{ padding: '30px 44px 16px', display: 'flex', flexDirection: 'column', gap: 18, paddingBottom: isMobile ? 176 : 140 }}>
+              <div
+                style={{
+                  padding: '30px 44px 16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 18,
+                  paddingBottom: isMobile ? 176 : 140,
+                }}
+              >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, opacity: 0.7 }}>
                   <span style={{ flex: 1, height: 1.5, background: 'var(--line)' }} />
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-2)' }}>today</span>
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 10,
+                      letterSpacing: '0.1em',
+                      textTransform: 'uppercase',
+                      color: 'var(--ink-2)',
+                    }}
+                  >
+                    today
+                  </span>
                   <span style={{ flex: 1, height: 1.5, background: 'var(--line)' }} />
                 </div>
                 {activeChat.messages.map((msg, i) => {
@@ -782,21 +751,43 @@ function KittyChatInner() {
                 <div className="cat-idle" style={{ position: 'relative' }}>
                   <CatBody size={140} />
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
-                  <h1 style={{
-                    fontFamily: 'var(--font-display)', fontWeight: 800,
-                    fontSize: 64, letterSpacing: '-0.035em',
-                    color: 'var(--ink)', lineHeight: 0.86,
-                  }}>hey.</h1>
-                  <p style={{
-                    fontSize: 16, lineHeight: 1.6,
-                    color: 'var(--ink-2)', maxWidth: 300,
-                  }}>
-                    {"i'm kitty. drawn by a six-year-old, allegedly. here when you need me — let's get things done."}
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 12,
+                    alignItems: 'center',
+                  }}
+                >
+                  <h1
+                    style={{
+                      fontFamily: 'var(--font-display)',
+                      fontWeight: 800,
+                      fontSize: 64,
+                      letterSpacing: '-0.035em',
+                      color: 'var(--ink)',
+                      lineHeight: 0.86,
+                    }}
+                  >
+                    hey.
+                  </h1>
+                  <p
+                    style={{
+                      fontSize: 16,
+                      lineHeight: 1.6,
+                      color: 'var(--ink-2)',
+                      maxWidth: 300,
+                    }}
+                  >
+                    {
+                      "i'm kitty. drawn by a six-year-old, allegedly. here when you need me — let's get things done."
+                    }
                   </p>
                 </div>
                 <button
-                  onClick={() => { textareaRef.current?.focus() }}
+                  onClick={() => {
+                    textareaRef.current?.focus();
+                  }}
                   style={{
                     background: 'var(--primary)',
                     color: 'var(--on-primary)',
@@ -814,42 +805,42 @@ function KittyChatInner() {
                   {"let's go →"}
                 </button>
 
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9, justifyContent: 'center', marginTop: 8 }}>
-                  {['plan my week', 'draft a reply', "what's on today", 'summarise a doc'].map(chip => (
-                    <button
-                      key={chip}
-                      onClick={() => { setInput(chip); textareaRef.current?.focus() }}
-                      style={{
-                        fontFamily: 'var(--font-body)', fontSize: 13,
-                        color: 'var(--ink)', background: 'var(--surface)',
-                        border: '1.5px solid var(--line)', borderRadius: 12,
-                        padding: '8px 16px', cursor: 'pointer',
-                      }}
-                    >{chip}</button>
-                  ))}
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 9,
+                    justifyContent: 'center',
+                    marginTop: 8,
+                  }}
+                >
+                  {['plan my week', 'draft a reply', "what's on today", 'summarise a doc'].map(
+                    (chip) => (
+                      <button
+                        key={chip}
+                        onClick={() => {
+                          setInput(chip);
+                          textareaRef.current?.focus();
+                        }}
+                        style={{
+                          fontFamily: 'var(--font-body)',
+                          fontSize: 13,
+                          color: 'var(--ink)',
+                          background: 'var(--surface)',
+                          border: '1.5px solid var(--line)',
+                          borderRadius: 12,
+                          padding: '8px 16px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {chip}
+                      </button>
+                    ),
+                  )}
                 </div>
               </div>
             ) : activeView === 'home' ? (
-              <DashboardHome
-                chats={chats}
-                onSelectChat={handleSelectChat}
-                onPromptSelect={handlePrompt}
-                brief={brief}
-                todos={todos}
-                weather={weather}
-                loops={loops}
-                insights={insights}
-                promptTemplates={promptTemplates}
-                loading={!briefGateway.loaded}
-                briefLoading={briefQuery.isLoading}
-                todosLoading={todosQuery.isLoading}
-                loopsLoading={loopsQuery.isLoading}
-                insightsLoading={insightsQuery.isLoading}
-                promptsLoading={promptsQuery.isLoading}
-                onLoopToggle={handleLoopToggle}
-                onInsightDismiss={handleInsightDismiss}
-                onInsightAction={handleInsightAction}
-              />
+              <HomeState compact={isMobile} />
             ) : (
               <div
                 style={{
@@ -872,7 +863,7 @@ function KittyChatInner() {
           </ErrorBoundary>
         </div>
 
-        {(activeView === 'home' || activeView === 'chat') && (
+        {activeView === 'chat' && (
           <InputBar
             value={input}
             onChange={setInput}

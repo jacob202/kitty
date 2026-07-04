@@ -13,12 +13,15 @@ Rules for executors (any model or human):
   keep going.
 - Before merge: full CI green on check runs (not combined status), reviewer
   pass on the diff, Jacob's review where the packet names it.
+- **Claims:** check `.claude/STATE.md` before picking up a packet — it is
+  the live claim board. Claim before you build.
 
 ## Status legend (read this, it has bitten us twice)
 
 | Mark | Means                                                              |
 | ---- | ------------------------------------------------------------------ |
 | ✅    | **Built and merged.** Code exists on main. You can see it.         |
+| 🚧   | **In progress.** An agent has claimed it and is building now.      |
 | 📋   | **Spec authored, NOT built.** A markdown file, zero shipped code.  |
 | 🧭   | **Planned.** Scoped here, needs an authoring pass before hand-off. |
 | ⏸    | **Parked** by Jacob's explicit call. Activates only when he says.  |
@@ -49,52 +52,49 @@ move-in. It does not delay move-in.
 
 ## Registry
 
-**Updated:** 2026-07-04
+**Updated:** 2026-07-04 (merged: plan session + opencode claims + #98)
 
-| #   | Packet                                                        | Best executor                        | Status                                          |
-| --- | ------------------------------------------------------------- | ------------------------------------ | ------------------------------------------------ |
-| 001 | State spine: signals, snapshots, /state/now                   | Claude Code / Codex                  | ✅ shipped                                       |
-| 002 | Inbox triage                                                  | Codex / Claude Code                  | ✅ shipped                                       |
-| 003 | Action queue with enforced tiers                              | Claude Code                          | ✅ shipped (#65 + #67)                           |
-| 004 | State home surface                                            | Claude Code                          | 📋 spec authored, not built — active            |
-| 005 | Mail read-only connector (Gmail, D11)                         | Codex/Claude Code + Jacob (OAuth)    | 📋 spec authored, not built                     |
-| 006 | Project resume                                                | Claude Code                          | ✅ shipped (#71)                                 |
-| 007 | Delegation packet generator                                   | Codex / Claude Code (template done)  | 📋 spec authored, not built                     |
-| 008 | Knowledge library + expert retrieval                          | Claude Code / Codex                  | ◐ items 1–3 shipped (#73); remainder items 4–6  |
-| 009 | De-fake loops/insights (backend routes)                       | Claude Code                          | ✅ shipped (#75)                                 |
-| 010 | Capture-to-knowledge (file/PDF/screenshot → inbox → pipeline) | Claude Code                          | ✅ shipped (#74)                                 |
-| 011 | Brief v2 + push delivery (state-diff open + scheduler)        | Claude Code                          | ✅ shipped (#76)                                 |
-| 012 | Privacy boundary in router (§17.3, D10)                       | Claude Code                          | ✅ shipped (#72)                                 |
-| 013 | Nudges + web_monitor → signal emitters                        | Claude Code                          | ✅ shipped (#77)                                 |
-| 014 | Make the gates honest (UI tests, CI job, isolation leaks)     | any competent model                  | ✅ shipped (#94)                                 |
-| 015 | Phone channel: Kitty reaches Jacob (iMessage/Pushover)        | Claude Code / Codex                  | 📋 spec authored 2026-07-04, not built — next up |
-| 016 | Next-step navigator ("just tell me what B is")                | Claude Code + strongest-model prompt | 🧭 planned                                       |
-| 017 | Benefits/admin rails + urgent-thing sweep                     | Claude Code (privacy care)           | 🧭 planned                                       |
-| 018 | Expert packs: car, body, proactive headlines                  | Claude Code / Codex                  | 🧭 planned — gated on 008-remainder             |
-| 019 | Job search scaffold                                           | Claude Code / Codex                  | ⏸ parked — Jacob: "plan it, don't build it"     |
-| 020 | GitHub read-only connector                                    | Codex / Claude Code                  | 🧭 planned — pattern rides 005                  |
+| #   | Packet                                                        | Best executor                        | Status                                            |
+| --- | ------------------------------------------------------------- | ------------------------------------ | -------------------------------------------------- |
+| 001 | State spine: signals, snapshots, /state/now                   | Claude Code / Codex                  | ✅ shipped                                         |
+| 002 | Inbox triage                                                  | Codex / Claude Code                  | ✅ shipped                                         |
+| 003 | Action queue with enforced tiers                              | Claude Code                          | ✅ shipped (#65 + #67)                             |
+| 004 | State home surface                                            | Claude Code                          | ✅ shipped (#98)                                   |
+| 005 | Mail read-only connector (Gmail, D11)                         | Codex/Claude Code + Jacob (OAuth)    | 🚧 in progress — opencode 2026-07-04              |
+| 006 | Project resume                                                | Claude Code                          | ✅ shipped (#71)                                   |
+| 007 | Delegation packet generator                                   | Codex / Claude Code (template done)  | 🚧 in progress — opencode 2026-07-04 (after 005)  |
+| 008 | Knowledge library + expert retrieval                          | Claude Code / Codex                  | ◐ items 1–3 shipped (#73); remainder items 4–6    |
+| 009 | De-fake loops/insights (backend routes)                       | Claude Code                          | ✅ shipped (#75)                                   |
+| 010 | Capture-to-knowledge (file/PDF/screenshot → inbox → pipeline) | Claude Code                          | ✅ shipped (#74)                                   |
+| 011 | Brief v2 + push delivery (state-diff open + scheduler)        | Claude Code                          | ✅ shipped (#76)                                   |
+| 012 | Privacy boundary in router (§17.3, D10)                       | Claude Code                          | ✅ shipped (#72)                                   |
+| 013 | Nudges + web_monitor → signal emitters                        | Claude Code                          | ✅ shipped (#77)                                   |
+| 014 | Make the gates honest (UI tests, CI job, isolation leaks)     | any competent model                  | ✅ shipped (#94)                                   |
+| 015 | Phone channel: Kitty reaches Jacob (iMessage/Pushover)        | Claude Code / Codex                  | 📋 spec authored 2026-07-04, not built — next up  |
+| 016 | Next-step navigator ("just tell me what B is")                | Claude Code + strongest-model prompt | 🧭 planned                                         |
+| 017 | Benefits/admin rails + urgent-thing sweep                     | Claude Code (privacy care)           | 🧭 planned                                         |
+| 018 | Expert packs: car, body, proactive headlines                  | Claude Code / Codex                  | 🧭 planned — gated on 008-remainder               |
+| 019 | Job search scaffold                                           | Claude Code / Codex                  | ⏸ parked — Jacob: "plan it, don't build it"       |
+| 020 | GitHub read-only connector                                    | Codex / Claude Code                  | 🧭 planned — pattern rides 005                    |
 
 ## Execution order (set 2026-07-04, supersedes 2026-07-03)
 
-**Wave 0 — Kitty gets a house (Jacob, ~1 hour, no agent).**
-Progress 2026-07-04: ethernet adapter bought ✅, Tailscale already on the
-phone + computer ✅. Remaining, in one sit-down at the Air: plug in
-ethernet and confirm internet; sign into Messages (Apple ID) and trigger
-the one-time osascript→Messages Automation permission dialog while the
-screen still works (015 needs it); set `PUSH_IMESSAGE_RECIPIENT` in
-`.env`; run `./kitty up` + `./kitty doctor`; confirm the Gmail token:
-`ls ~/Projects/kitty/data/gmail_token.json`.
+**Wave 0 — Kitty gets a house (Jacob, nearly done 2026-07-04).**
+Ethernet in and verified (0% packet loss) ✅. Tailscale on phone + Mac ✅.
+osascript→Messages Automation permission granted ✅. **iMessage-to-self
+verified live end-to-end** (the `participant` form; see 015) ✅.
+Remaining: `PUSH_IMESSAGE_RECIPIENT` line in `.env`, `./kitty up` +
+`./kitty doctor`, confirm `data/gmail_token.json` exists.
 
 **Wave 1 — Kitty reaches the phone: 015.**
-Before any more features: without a channel to a phone-first user, every
-feature ships into a void. This also fixes the review loop — artifacts
-(like 004's screenshot) get pushed TO Jacob.
+Next unclaimed build. The transport is proven; this is the façade, quiet
+hours, brief wiring, doctor check. Review artifacts (screenshots, reports)
+start flowing TO Jacob per D12.
 
-**Wave 2 — Front door + mail: 004, then 005** (independent; parallel-ok if
-capacity exists). 004's screenshot review goes through 015.
+**Wave 2 — Front door + mail: ~~004~~ ✅ (#98), 005 🚧 (opencode).**
 
-**Wave 3 — The collaborator: 016, then 007.** 020 (GitHub) is optional
-here and enriches 016 for code projects.
+**Wave 3 — The collaborator: 016, then 007 (🚧 claimed).** 020 (GitHub) is
+optional here and enriches 016 for code projects.
 
 **Wave 4 — The safety net: 017.** Needs 005's mail signals for the sweep
 to have teeth. **End of Wave 4 = move-in day.**
@@ -106,8 +106,11 @@ explicitly asks — see 018).
 
 ## Jacob's personal queue (not agent tasks)
 
-1. **Wave 0 hardware hour** (above) — the only thing between the plan and
-   execution. Everything else was cleared: tier sheet signed 2026-07-02,
-   Gmail OAuth done 2026-07-04 (verify with the `ls` above).
-2. That's it. Reviews (004 screenshot, first Bs, sweep report) come to
-   your phone; you answer them there.
+1. **Finish Wave 0** (three commands, listed above — five minutes).
+2. **Look at the new console** (004 shipped): with the gateway up on the
+   Air, open the UI once — that's the layout-approval round, and the first
+   time the front door has been real. Until 015 ships, this one requires
+   going and looking; it's the last thing that ever will.
+3. **007 sign-off when its PR opens:** the `packet.delegate` T1 line on
+   the tier sheet, and the first generated packet reviewed against a
+   hand-written one.
