@@ -15,6 +15,25 @@ class TestSend:
             mock.return_value = (False, "error")
             assert send("+1234567890", "hello") is False
 
+    def test_targets_participant_not_buddy(self):
+        with patch("gateway.imessage._run_applescript") as mock:
+            mock.return_value = (True, "")
+            send("+1234567890", "hello")
+        script = mock.call_args[0][0]
+        assert "participant" in script
+        assert "buddy" not in script
+        assert "service type = iMessage" in script
+
+    def test_two_line_message_uses_real_linefeed_join_not_literal_backslash_n(self):
+        with patch("gateway.imessage._run_applescript") as mock:
+            mock.return_value = (True, "")
+            send("+1234567890", "line one\nline two")
+        script = mock.call_args[0][0]
+        assert "\\n" not in script
+        assert "& return &" in script
+        assert '"line one"' in script
+        assert '"line two"' in script
+
 
 class TestReadRecent:
     def test_parses_messages(self):

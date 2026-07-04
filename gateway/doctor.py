@@ -18,10 +18,19 @@ import os
 import pathlib
 import shutil
 import ssl
+import sys
 import urllib.request
 from dataclasses import dataclass
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+
+# Run as a script (`python gateway/doctor.py`, which is how `kitty doctor`
+# invokes it), sys.path[0] is this file's own directory, not the repo root —
+# so `from gateway...` imports (connector:mail, push:channel) fail with
+# "No module named 'gateway'" regardless of cwd. Put the repo root on the
+# path so lazy `gateway.*` imports resolve the same as under pytest.
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 
 @dataclass
@@ -189,6 +198,45 @@ def _check_mail_connector(env: dict) -> list[Check]:
     return [Check("PASS", "connector:mail", detail)]
 
 
+def _check_push_channel(env: dict) -> list[Check]:
+    """PASS when a channel is configured and the last logged attempt (if any)
+    succeeded; WARN when nothing is configured; FAIL when the last attempt
+    failed."""
+    from gateway import push
+
+    channels = [c.strip() for c in env.get("PUSH_CHANNELS", "imessage,pushover").split(",") if c.strip()]
+    imessage_ready = bool(env.get("PUSH_IMESSAGE_RECIPIENT", "").strip())
+    pushover_ready = bool(env.get("PUSHOVER_USER_KEY", "").strip()) and bool(
+        env.get("PUSHOVER_API_TOKEN", "").strip()
+    )
+    configured = ("imessage" in channels and imessage_ready) or ("pushover" in channels and pushover_ready)
+
+    if not configured:
+        return [
+            Check(
+                "WARN",
+                "push:channel",
+                "no channel configured — set PUSH_IMESSAGE_RECIPIENT or "
+                "PUSHOVER_USER_KEY/PUSHOVER_API_TOKEN",
+            )
+        ]
+
+    entries = push._recent_log_entries()
+    if not entries:
+        return [Check("PASS", "push:channel", f"configured ({', '.join(channels)}) — no attempts logged yet")]
+
+    last = entries[-1]
+    if last.get("ok"):
+        return [Check("PASS", "push:channel", f"last attempt via {last.get('channel')} succeeded")]
+    return [
+        Check(
+            "FAIL",
+            "push:channel",
+            f"last attempt via {last.get('channel')} failed — check logs/push_log.jsonl",
+        )
+    ]
+
+
 def _check_venv() -> list[Check]:
     venv = ROOT / "venv"
     if (venv / "bin" / "python").exists():
@@ -222,6 +270,7 @@ def main() -> int:
         + _check_mem0(env)
         + _check_disk()
         + _check_mail_connector(env)
+        + _check_push_channel(env)
     )
 
     failures = [c for c in checks if c.level == "FAIL"]

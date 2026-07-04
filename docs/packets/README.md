@@ -53,7 +53,7 @@ move-in. It does not delay move-in.
 
 ## Registry
 
-**Updated:** 2026-07-04 (evening — merged plan session, #98, #99, 007)
+**Updated:** 2026-07-04 (evening — #98, #99, #100, 007 all merged; Wave 2 clear)
 
 | #   | Packet                                                        | Best executor                        | Status                                                              |
 | --- | ------------------------------------------------------------- | ------------------------------------ | -------------------------------------------------------------------- |
@@ -61,7 +61,7 @@ move-in. It does not delay move-in.
 | 002 | Inbox triage                                                  | Codex / Claude Code                  | ✅ shipped                                                           |
 | 003 | Action queue with enforced tiers                              | Claude Code                          | ✅ shipped (#65 + #67)                                               |
 | 004 | State home surface                                            | Claude Code                          | ✅ shipped (#98)                                                     |
-| 005 | Mail read-only connector (Gmail, D11)                         | Codex/Claude Code + Jacob (OAuth)    | 🔎 PR #99 — mocked tests green; live poll after merge on Jacob's Mac |
+| 005 | Mail read-only connector (Gmail, D11)                         | Codex/Claude Code + Jacob (OAuth)    | ✅ shipped (#99) — live poll pending Jacob's OAuth setup             |
 | 006 | Project resume                                                | Claude Code                          | ✅ shipped (#71)                                                     |
 | 007 | Delegation packet generator                                   | —                                    | ✅ shipped (eb3afad, Jacob direct to main)                           |
 | 008 | Knowledge library + expert retrieval                          | Claude Code / Codex                  | ◐ items 1–3 shipped (#73); remainder 🚧 Codex (worktree)             |
@@ -92,8 +92,8 @@ Next unclaimed build. The transport is proven; this is the façade, quiet
 hours, brief wiring, doctor check. Review artifacts (screenshots, reports)
 start flowing TO Jacob per D12.
 
-**Wave 2 — Front door + mail: ~~004~~ ✅ (#98), 005 🔎 (PR #99 — review,
-merge on green check runs, then live-verify on the Air).**
+**Wave 2 — Front door + mail: ~~004~~ ✅ (#98, gaps closed in #100),
+~~005~~ ✅ (#99) — live-verify on the Air pending Jacob's OAuth setup.**
 
 **Wave 3 — The collaborator: 016 (~~007~~ ✅ shipped).** 020 (GitHub) is
 optional here and enriches 016 for code projects.
