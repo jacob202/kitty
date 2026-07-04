@@ -67,7 +67,7 @@ move-in. It does not delay move-in.
 | 012 | Privacy boundary in router (§17.3, D10)                       | Claude Code                          | ✅ shipped (#72)                                 |
 | 013 | Nudges + web_monitor → signal emitters                        | Claude Code                          | ✅ shipped (#77)                                 |
 | 014 | Make the gates honest (UI tests, CI job, isolation leaks)     | any competent model                  | ✅ shipped (#94)                                 |
-| 015 | Phone channel: Kitty reaches Jacob (iMessage/Pushover)        | Claude Code / Codex                  | 🧭 planned — top of the new wave                |
+| 015 | Phone channel: Kitty reaches Jacob (iMessage/Pushover)        | Claude Code / Codex                  | 📋 spec authored 2026-07-04, not built — next up |
 | 016 | Next-step navigator ("just tell me what B is")                | Claude Code + strongest-model prompt | 🧭 planned                                       |
 | 017 | Benefits/admin rails + urgent-thing sweep                     | Claude Code (privacy care)           | 🧭 planned                                       |
 | 018 | Expert packs: car, body, proactive headlines                  | Claude Code / Codex                  | 🧭 planned — gated on 008-remainder             |
@@ -77,11 +77,13 @@ move-in. It does not delay move-in.
 ## Execution order (set 2026-07-04, supersedes 2026-07-03)
 
 **Wave 0 — Kitty gets a house (Jacob, ~1 hour, no agent).**
-Ethernet adapter for the broken-screen MacBook Air → it becomes the
-headless always-on server. Sign into Messages + grant Automation perms
-while a screen is attached (015 needs it). Install Tailscale on the Air +
-iPhone. Verify `./kitty up` + `./kitty doctor`. Confirm the Gmail token
-from the July 4 OAuth walkthrough: `ls ~/Projects/kitty/data/gmail_token.json`.
+Progress 2026-07-04: ethernet adapter bought ✅, Tailscale already on the
+phone + computer ✅. Remaining, in one sit-down at the Air: plug in
+ethernet and confirm internet; sign into Messages (Apple ID) and trigger
+the one-time osascript→Messages Automation permission dialog while the
+screen still works (015 needs it); set `PUSH_IMESSAGE_RECIPIENT` in
+`.env`; run `./kitty up` + `./kitty doctor`; confirm the Gmail token:
+`ls ~/Projects/kitty/data/gmail_token.json`.
 
 **Wave 1 — Kitty reaches the phone: 015.**
 Before any more features: without a channel to a phone-first user, every
