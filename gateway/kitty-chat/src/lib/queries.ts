@@ -43,10 +43,20 @@ import {
   fetchImageStatus,
   generateImage,
   fetchImageHistory,
+  // state / actions / triage (packet 004)
+  fetchGatewayStateChanges,
+  fetchGatewayStateNow,
+  snapshotGatewayState,
+  fetchGatewayActions,
+  approveGatewayAction,
+  rejectGatewayAction,
+  fetchGatewayTriaged,
+  runGatewayInboxTriage,
   // payload types used by optimistic updates
   type GatewayTodo,
   type GatewayLoopsPayload,
   type GatewayInsightsPayload,
+  type GatewayActionsPayload,
 } from '@/lib/gateway'
 
 // ── Dashboard payload queries ────────────────────────────────────────────────
@@ -361,5 +371,97 @@ export function useGenerateImage() {
   return useMutation({
     mutationFn: (prompt: string) => generateImage(prompt),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['image', 'history'] }),
+  })
+}
+
+// ── State / actions / triage (packet 004 — console home) ────────────────────
+
+export function useStateChanges() {
+  return useQuery({
+    queryKey: ['state', 'changes'],
+    queryFn: fetchGatewayStateChanges,
+    refetchInterval: 60_000,
+  })
+}
+
+export function useStateNow() {
+  return useQuery({
+    queryKey: ['state', 'now'],
+    queryFn: fetchGatewayStateNow,
+    refetchInterval: 60_000,
+  })
+}
+
+export function useSnapshotState() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => snapshotGatewayState(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['state'] }),
+  })
+}
+
+export function useProposedActions() {
+  return useQuery({
+    queryKey: ['actions', 'proposed'],
+    queryFn: () => fetchGatewayActions('proposed'),
+    refetchInterval: 30_000,
+  })
+}
+
+export function useApproveAction() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (actionId: number) => approveGatewayAction(actionId),
+    // Optimistic: drop the action from the proposed list instantly.
+    onMutate: async (actionId) => {
+      await qc.cancelQueries({ queryKey: ['actions', 'proposed'] })
+      const previous = qc.getQueryData<GatewayActionsPayload>(['actions', 'proposed'])
+      qc.setQueryData<GatewayActionsPayload>(['actions', 'proposed'], (old) =>
+        old ? { ...old, actions: old.actions.filter((a) => a.id !== actionId) } : old,
+      )
+      return { previous }
+    },
+    onError: (_err, _id, ctx) => {
+      if (ctx?.previous !== undefined) qc.setQueryData(['actions', 'proposed'], ctx.previous)
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['actions'] }),
+  })
+}
+
+export function useRejectAction() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (actionId: number) => rejectGatewayAction(actionId),
+    onMutate: async (actionId) => {
+      await qc.cancelQueries({ queryKey: ['actions', 'proposed'] })
+      const previous = qc.getQueryData<GatewayActionsPayload>(['actions', 'proposed'])
+      qc.setQueryData<GatewayActionsPayload>(['actions', 'proposed'], (old) =>
+        old ? { ...old, actions: old.actions.filter((a) => a.id !== actionId) } : old,
+      )
+      return { previous }
+    },
+    onError: (_err, _id, ctx) => {
+      if (ctx?.previous !== undefined) qc.setQueryData(['actions', 'proposed'], ctx.previous)
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['actions'] }),
+  })
+}
+
+export function useNeedsJacobTriage() {
+  return useQuery({
+    queryKey: ['triage', 'needs_jacob'],
+    queryFn: () => fetchGatewayTriaged('needs_jacob'),
+    refetchInterval: 60_000,
+  })
+}
+
+export function useRunInboxTriage() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => runGatewayInboxTriage(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['state'] })
+      qc.invalidateQueries({ queryKey: ['triage'] })
+    },
   })
 }

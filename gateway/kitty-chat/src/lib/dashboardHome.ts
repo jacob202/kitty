@@ -1,8 +1,5 @@
-import type { Chat } from '@/lib/types'
-import type { GatewayBrief, GatewayHeadline, GatewayTodo, GatewayWeather } from '@/lib/gateway'
+import type { GatewayBrief, GatewayHeadline, GatewayTodo } from '@/lib/gateway'
 import type { PriorityItem } from '@/components/TodayCompass'
-
-export const USER_DISPLAY_NAME = 'jacob'
 
 export function greetingTime(): string {
   const h = new Date().getHours()
@@ -19,37 +16,6 @@ export function headlineText(h: string | GatewayHeadline): string {
 
 export function activeTodos(todos: GatewayTodo[]): GatewayTodo[] {
   return todos.filter(t => t.status === 'pending' || t.status === 'in_progress')
-}
-
-export function focusTodo(todos: GatewayTodo[]): GatewayTodo | undefined {
-  const open = activeTodos(todos)
-  return open.find(t => t.status === 'in_progress') ?? open[0]
-}
-
-export function weatherFromHeadlines(headlines: GatewayBrief['headlines'] | undefined): string | null {
-  if (!headlines?.length) return null
-  const match = headlines.find(h => {
-    const text = headlineText(h).toLowerCase()
-    return text.includes('weather') || text.includes('forecast') || text.includes('°')
-  })
-  return match ? headlineText(match) : null
-}
-
-export function formatGatewayWeather(weather: GatewayWeather | null | undefined): string | null {
-  if (!weather || weather.error) return null
-  const desc = weather.description?.trim()
-  const temp = weather.temp_c
-  if (desc && temp != null) return `${desc}, ${temp}°C`
-  if (desc) return desc
-  if (temp != null) return `${temp}°C`
-  return null
-}
-
-export function resolveWeatherText(
-  liveWeather: GatewayWeather | null | undefined,
-  brief: GatewayBrief | null | undefined,
-): string | null {
-  return formatGatewayWeather(liveWeather) ?? weatherFromHeadlines(brief?.headlines)
 }
 
 export function buildCompassItems(
@@ -95,17 +61,4 @@ export function buildCompassItems(
   })
 
   return items
-}
-
-export function gatewayBriefIsLive(brief: GatewayBrief | null | undefined): boolean {
-  if (!brief) return false
-  if (brief.error) return false
-  return true
-}
-
-export function recentChatsWithMessages(chats: Chat[]): Chat[] {
-  return [...chats]
-    .filter(c => c.messages.length > 0)
-    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
-    .slice(0, 6)
 }

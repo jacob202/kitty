@@ -17,6 +17,7 @@ interface Props {
   title?: string
   compact?: boolean
   isLoading?: boolean
+  error?: string | null
   onItemSelect?: (item: PriorityItem) => void
 }
 
@@ -33,6 +34,7 @@ export function TodayCompass({
   title = "Today's Compass",
   compact = false,
   isLoading = false,
+  error = null,
   onItemSelect,
 }: Props) {
   const sortedItems = [...items].sort((a, b) => {
@@ -103,7 +105,9 @@ export function TodayCompass({
         ))}
       </div>
       {items.length === 0 && (
-        isLoading ? (
+        error ? (
+          <div style={errorStyle} role="alert">Can&apos;t reach the gateway ({error}).</div>
+        ) : isLoading ? (
           <div style={{ display: 'grid', gap: 10 }}>
             <Skeleton height={56} />
             <Skeleton height={56} />
@@ -170,3 +174,10 @@ const descriptionStyle: CSSProperties = {
 }
 
 const emptyStyle: CSSProperties = emptyState
+
+const errorStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  color: 'var(--error)',
+  padding: '8px 0',
+}

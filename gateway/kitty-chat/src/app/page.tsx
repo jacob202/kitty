@@ -7,7 +7,10 @@ import { inferMood } from '@/lib/mood';
 import { TopBar } from '@/components/TopBar';
 import { ChatMessage } from '@/components/ChatMessage';
 import { InputBar } from '@/components/InputBar';
-import { DashboardHome } from '@/components/DashboardHome';
+import { HomeState } from '@/components/HomeState';
+import { LoopWatch } from '@/components/LoopWatch';
+import { InsightFeed } from '@/components/InsightFeed';
+import { PromptToolkit } from '@/components/PromptToolkit';
 import { Rail } from '@/components/Rail';
 import { SessionSidebar } from '@/components/SessionSidebar';
 import { TaskPanel } from '@/components/TaskPanel';
@@ -26,13 +29,20 @@ import { usePwaInstall } from '@/lib/pwa';
 import {
   useGatewayBrief,
   useGatewayModels,
-  useGatewayWeather,
   useTodos,
   useLoops,
   useInsights,
   usePrompts,
   useToggleLoop,
   useDismissInsight,
+  useStateChanges,
+  useStateNow,
+  useSnapshotState,
+  useProposedActions,
+  useApproveAction,
+  useRejectAction,
+  useNeedsJacobTriage,
+  useRunInboxTriage,
 } from '@/lib/queries';
 
 const MOBILE_BREAKPOINT = 900;
@@ -196,17 +206,23 @@ function KittyChatInner() {
   const modelsQuery = useGatewayModels();
   const briefQuery = useGatewayBrief();
   const todosQuery = useTodos();
-  const weatherQuery = useGatewayWeather();
   const loopsQuery = useLoops();
   const insightsQuery = useInsights();
   const promptsQuery = usePrompts();
   const toggleLoop = useToggleLoop();
   const dismissInsight = useDismissInsight();
+  const stateChangesQuery = useStateChanges();
+  const stateNowQuery = useStateNow();
+  const snapshotState = useSnapshotState();
+  const proposedActionsQuery = useProposedActions();
+  const approveAction = useApproveAction();
+  const rejectAction = useRejectAction();
+  const needsJacobQuery = useNeedsJacobTriage();
+  const runInboxTriage = useRunInboxTriage();
 
   const availableModels = modelsQuery.data?.models ?? MODELS;
   const brief = briefQuery.data?.brief ?? null;
   const todos = todosQuery.data ?? [];
-  const weather = weatherQuery.data?.weather ?? null;
   const loops = loopsQuery.data?.loops ?? [];
   const insights = insightsQuery.data?.insights ?? [];
   const promptTemplates = promptsQuery.data ?? [];
@@ -220,6 +236,15 @@ function KittyChatInner() {
     live: briefQuery.data?.fromLiveGateway ?? true,
     error: briefQuery.data?.error ?? null,
   };
+
+  const proposedActions = proposedActionsQuery.data?.actions ?? [];
+  const needsJacob = needsJacobQuery.data?.entries ?? [];
+  const stateChanges = stateChangesQuery.data?.data?.changes ?? [];
+  const newSignals = stateChangesQuery.data?.data?.new_signals ?? [];
+  const hasBaseline = stateChangesQuery.data?.data?.baseline_ts != null;
+  const inboxSection = stateNowQuery.data?.data?.sections.inbox;
+  const untriagedCount =
+    inboxSection?.ok && typeof inboxSection.untriaged_count === 'number' ? inboxSection.untriaged_count : 0;
 
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -467,7 +492,6 @@ function KittyChatInner() {
   const retryGatewayBootstrap = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['models'] });
     queryClient.invalidateQueries({ queryKey: ['brief'] });
-    queryClient.invalidateQueries({ queryKey: ['weather'] });
     queryClient.invalidateQueries({ queryKey: ['todos'] });
     queryClient.invalidateQueries({ queryKey: ['loops'] });
     queryClient.invalidateQueries({ queryKey: ['insights'] });
@@ -498,6 +522,34 @@ function KittyChatInner() {
   );
 
   const handleInsightAction = useCallback((_insightId: string, _actionId: string) => {}, []);
+
+  const busyActionId = approveAction.isPending
+    ? (approveAction.variables ?? null)
+    : rejectAction.isPending
+      ? (rejectAction.variables ?? null)
+      : null;
+
+  const handleApproveAction = useCallback(
+    (actionId: number) => {
+      approveAction.mutate(actionId);
+    },
+    [approveAction],
+  );
+
+  const handleRejectAction = useCallback(
+    (actionId: number) => {
+      rejectAction.mutate(actionId);
+    },
+    [rejectAction],
+  );
+
+  const handleSnapshotState = useCallback(() => {
+    snapshotState.mutate();
+  }, [snapshotState]);
+
+  const handleRunTriage = useCallback(() => {
+    runInboxTriage.mutate();
+  }, [runInboxTriage]);
 
   const handlePwaInstall = useCallback(() => {
     void pwaInstall.install().catch((error) => {
@@ -728,6 +780,18 @@ function KittyChatInner() {
                 <ToolCard title="Image gen">
                   <ImageGenPanel />
                 </ToolCard>
+                <LoopWatch loops={loops} onToggle={handleLoopToggle} isLoading={loopsQuery.isLoading} />
+                <InsightFeed
+                  insights={insights}
+                  onDismiss={handleInsightDismiss}
+                  onAction={handleInsightAction}
+                  isLoading={insightsQuery.isLoading}
+                />
+                <PromptToolkit
+                  templates={promptTemplates}
+                  onSelect={(tpl) => handlePrompt(tpl.content)}
+                  isLoading={promptsQuery.isLoading}
+                />
               </div>
             ) : activeView === 'terminal' ? (
               <div
@@ -830,25 +894,33 @@ function KittyChatInner() {
                 </div>
               </div>
             ) : activeView === 'home' ? (
-              <DashboardHome
-                chats={chats}
-                onSelectChat={handleSelectChat}
-                onPromptSelect={handlePrompt}
+              <HomeState
                 brief={brief}
                 todos={todos}
-                weather={weather}
-                loops={loops}
-                insights={insights}
-                promptTemplates={promptTemplates}
-                loading={!briefGateway.loaded}
                 briefLoading={briefQuery.isLoading}
                 todosLoading={todosQuery.isLoading}
-                loopsLoading={loopsQuery.isLoading}
-                insightsLoading={insightsQuery.isLoading}
-                promptsLoading={promptsQuery.isLoading}
-                onLoopToggle={handleLoopToggle}
-                onInsightDismiss={handleInsightDismiss}
-                onInsightAction={handleInsightAction}
+                todayError={!briefGateway.live ? briefGateway.error : null}
+                proposedActions={proposedActions}
+                proposedActionsLoading={proposedActionsQuery.isLoading}
+                proposedActionsError={proposedActionsQuery.data?.error ?? null}
+                busyActionId={busyActionId}
+                onApproveAction={handleApproveAction}
+                onRejectAction={handleRejectAction}
+                needsJacob={needsJacob}
+                needsJacobLoading={needsJacobQuery.isLoading}
+                needsJacobError={needsJacobQuery.data?.error ?? null}
+                stateChanges={stateChanges}
+                newSignals={newSignals}
+                stateChangesNote={stateChangesQuery.data?.data?.note}
+                hasBaseline={hasBaseline}
+                stateChangesLoading={stateChangesQuery.isLoading}
+                stateChangesError={stateChangesQuery.data?.error ?? null}
+                onSnapshot={handleSnapshotState}
+                snapshotBusy={snapshotState.isPending}
+                untriagedCount={untriagedCount}
+                triageBusy={runInboxTriage.isPending}
+                onRunTriage={handleRunTriage}
+                onPromptSelect={handlePrompt}
               />
             ) : (
               <div

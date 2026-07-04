@@ -848,3 +848,174 @@ export async function uploadCaptureFile(file: File): Promise<CaptureResult | nul
     return null
   }
 }
+
+// ── State (packet 001/004) ───────────────────────────────────────────────────
+
+export interface GatewayStateChange {
+  section: string
+  field: string
+  before: unknown
+  after: unknown
+}
+
+export interface GatewaySignal {
+  id: number
+  ts: number
+  source: string
+  kind: string
+  payload: Record<string, unknown>
+  dedupe_key: string | null
+  processed_at: number | null
+  created_at: number
+}
+
+export interface GatewayStateChanges {
+  baseline_ts: number | null
+  current_ts: number
+  changes: GatewayStateChange[]
+  new_signals: GatewaySignal[]
+  note?: string
+}
+
+export type GatewayStateChangesPayload = {
+  data: GatewayStateChanges | null
+  fromLiveGateway: boolean
+  error: string | null
+}
+
+export async function fetchGatewayStateChanges(): Promise<GatewayStateChangesPayload> {
+  try {
+    const data = await gfetch<GatewayStateChanges>('/state/changes')
+    return { data, fromLiveGateway: true, error: null }
+  } catch (err) {
+    return { data: null, fromLiveGateway: false, error: describeFetchError(err, null) }
+  }
+}
+
+export async function snapshotGatewayState(): Promise<boolean> {
+  try {
+    await gfetch('/state/snapshot', { method: 'POST' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+export interface GatewayStateSection {
+  ok: boolean
+  error?: string
+  [key: string]: unknown
+}
+
+export interface GatewayStateNow {
+  ts: number
+  sections: Record<string, GatewayStateSection>
+}
+
+export type GatewayStateNowPayload = {
+  data: GatewayStateNow | null
+  fromLiveGateway: boolean
+  error: string | null
+}
+
+export async function fetchGatewayStateNow(): Promise<GatewayStateNowPayload> {
+  try {
+    const data = await gfetch<GatewayStateNow>('/state/now')
+    return { data, fromLiveGateway: true, error: null }
+  } catch (err) {
+    return { data: null, fromLiveGateway: false, error: describeFetchError(err, null) }
+  }
+}
+
+// ── Actions (packet 003 UI) ──────────────────────────────────────────────────
+
+export type ActionStatus = 'proposed' | 'approved' | 'rejected' | 'executing' | 'executed' | 'failed'
+export type ActionRiskTier = 'T0' | 'T1' | 'T2'
+
+export interface GatewayAction {
+  id: number
+  created_at: number
+  source_kind: string
+  source_id: string | null
+  kind: string
+  title: string
+  preview: string
+  payload: Record<string, unknown>
+  risk_tier: ActionRiskTier
+  status: ActionStatus
+  result: string | null
+  decided_at: number | null
+  executed_at: number | null
+}
+
+export type GatewayActionsPayload = {
+  actions: GatewayAction[]
+  fromLiveGateway: boolean
+  error: string | null
+}
+
+export async function fetchGatewayActions(status?: string, limit = 50): Promise<GatewayActionsPayload> {
+  try {
+    const qs = status ? `?status=${encodeURIComponent(status)}&limit=${limit}` : `?limit=${limit}`
+    const json = await gfetch<{ actions?: GatewayAction[] }>(`/actions${qs}`)
+    return { actions: json.actions ?? [], fromLiveGateway: true, error: null }
+  } catch (err) {
+    return { actions: [], fromLiveGateway: false, error: describeFetchError(err, null) }
+  }
+}
+
+export async function approveGatewayAction(actionId: number): Promise<boolean> {
+  try {
+    await gfetch(`/actions/${actionId}/approve`, { method: 'POST' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function rejectGatewayAction(actionId: number): Promise<boolean> {
+  try {
+    await gfetch(`/actions/${actionId}/reject`, { method: 'POST' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+// ── Inbox triage (packet 002 UI) ─────────────────────────────────────────────
+
+export interface GatewayTriageEntry {
+  inbox_id: string
+  ts: number
+  bucket: string
+  confidence: number
+  rationale: string
+  model: string
+  text: string | null
+  created_at: number | null
+}
+
+export type GatewayTriagedPayload = {
+  entries: GatewayTriageEntry[]
+  fromLiveGateway: boolean
+  error: string | null
+}
+
+export async function fetchGatewayTriaged(bucket?: string, limit = 50): Promise<GatewayTriagedPayload> {
+  try {
+    const qs = bucket ? `?bucket=${encodeURIComponent(bucket)}&limit=${limit}` : `?limit=${limit}`
+    const json = await gfetch<{ entries?: GatewayTriageEntry[] }>(`/inbox/triaged${qs}`)
+    return { entries: json.entries ?? [], fromLiveGateway: true, error: null }
+  } catch (err) {
+    return { entries: [], fromLiveGateway: false, error: describeFetchError(err, null) }
+  }
+}
+
+export async function runGatewayInboxTriage(limit = 25): Promise<boolean> {
+  try {
+    await gfetch(`/inbox/triage?limit=${limit}`, { method: 'POST' })
+    return true
+  } catch {
+    return false
+  }
+}
