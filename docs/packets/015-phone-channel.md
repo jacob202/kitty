@@ -45,13 +45,29 @@
    - Every attempt appended to `logs/push_log.jsonl`:
      `{ts, kind, title, channel, ok, dedupe_key}`. No silent failure: if
      all channels fail, log at ERROR and return False.
-2. **Fix the iMessage newline bug while wiring it:** `imessage.send()`
-   escapes `\n` as the two-character sequence `\\n`, which AppleScript
-   renders literally. Multi-line pushes (the brief!) need real linefeeds —
-   build the AppleScript string with `& return &` joins, or pass the text
-   as an `osascript` argv argument (`on run argv`). Add a unit test with a
-   stubbed `subprocess.run` asserting the generated script for a two-line
-   message contains no literal `\n` sequence.
+2. **Use the verified targeting, and fix the newline bug.** Verified live
+   on Jacob's Air 2026-07-04: the existing `imessage.send()` `buddy`
+   targeting **fails silently** (exit 0, no message). This works:
+
+   ```applescript
+   tell application "Messages"
+       set s to 1st account whose service type = iMessage
+       send "hello from kitty" to participant "+1306…" of s
+   end tell
+   ```
+
+   Two conditions, both already satisfied on the Air: Messages signed in,
+   and a conversation with the recipient already exists (one manual
+   self-text creates it — done during Wave 0). Rewrite `imessage.send()`
+   to this shape.
+
+   Separately, `imessage.send()` escapes `\n` as the two-character
+   sequence `\\n`, which AppleScript renders literally. Multi-line pushes
+   (the brief!) need real linefeeds — build the AppleScript string with
+   `& return &` joins, or pass the text as an `osascript` argv argument
+   (`on run argv`). Add a unit test with a stubbed `subprocess.run`
+   asserting the generated script for a two-line message contains no
+   literal `\n` sequence and uses `participant`, not `buddy`.
 3. **Wire the brief:** in `gateway/brief_scheduler.generate_and_deliver_brief`,
    replace the direct `notify.is_configured()/send_brief()` block with
    `push.push_to_jacob(text, kind="info", title="Kitty Morning Brief")`.
@@ -111,14 +127,12 @@
 
 ## Risks
 
-- **AppleScript `buddy` targeting is brittle on modern macOS** (Messages
-  may want `participant` / a chat, varies by version). If iMessage send
-  fails on Jacob's macOS after ~1 hour of fighting, stop patching
-  AppleScript: Pushover is already coded, costs ~US$5 once, and the façade
-  makes the swap a config change. Budget is math.
-- **Automation permission:** the first osascript → Messages call needs a
-  one-time approval dialog — must happen while the Air still has a
-  working-enough screen (in Jacob's Wave-0 checklist).
+- ~~AppleScript targeting brittleness~~ **resolved 2026-07-04:** the
+  `participant … of (1st account whose service type = iMessage)` form is
+  verified working on Jacob's Air (see scope item 2); `buddy` fails
+  silently. Pushover remains the coded fallback if macOS updates break it.
+- ~~Automation permission~~ **done 2026-07-04:** osascript → Messages
+  permission already granted on the Air.
 - **Notification spam kills the channel.** The façade ships with only the
   brief wired. 017's escalations and needs-you summaries arrive with their
   own packets and rate rules.
