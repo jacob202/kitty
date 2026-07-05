@@ -77,6 +77,13 @@ def _format_brief_text(brief: dict) -> str:
     if intention:
         lines.append(f"- Intention: {intention[:120]}")
 
+    # What's B — each active project's curated next step (P4, 016)
+    for next_step in (brief.get("next_steps") or [])[:3]:
+        name = str(next_step.get("project_name") or "").strip()
+        step = str(next_step.get("step") or "").strip()
+        if name and step:
+            lines.append(f"- {name}: {step[:120]}")
+
     # Cap at 5 bullets (date line + up to 4 bullets)
     return "\n".join(lines[:5])
 
