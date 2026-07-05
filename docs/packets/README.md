@@ -81,7 +81,7 @@ move-in. It does not delay move-in.
 
 ## Registry
 
-**Updated:** 2026-07-05 (021 merged (#106); 016 built (#107), awaiting a week of real Bs before close-out)
+**Updated:** 2026-07-05 (021 merged (#106); 016 merged (#107), awaiting a week of real Bs before close-out)
 
 | #   | Packet                                                        | Best executor                        | Status                                                              |
 | --- | ------------------------------------------------------------- | ------------------------------------ | -------------------------------------------------------------------- |
@@ -100,7 +100,7 @@ move-in. It does not delay move-in.
 | 013 | Nudges + web_monitor → signal emitters                        | Claude Code                          | ✅ shipped (#77)                                                     |
 | 014 | Make the gates honest (UI tests, CI job, isolation leaks)     | any competent model                  | ✅ shipped (#94)                                                     |
 | 015 | Phone channel: Kitty reaches Jacob (iMessage/Pushover)        | Claude Code / Codex                  | ✅ shipped (#103) — Jacob live-verified and merged                   |
-| 016 | Next-step navigator ("just tell me what B is")                | Claude Code + strongest-model prompt | 🔎 built (#107) — first LLM-content packet; closes out after a week of Jacob judging real Bs, not on CI green |
+| 016 | Next-step navigator ("just tell me what B is")                | Claude Code + strongest-model prompt | ✅ shipped (#107) — first LLM-content packet; closes out after a week of Jacob judging real Bs, not on merge alone |
 | 017 | Benefits/admin rails + urgent-thing sweep                     | Claude Code (privacy care)           | 🧭 planned                                                           |
 | 018 | Expert packs: car, body, proactive headlines                  | Claude Code / Codex                  | 🧭 planned — gated on 008-remainder (🚧)                             |
 | 019 | Job search scaffold                                           | Claude Code / Codex                  | ⏸ parked — Jacob: "plan it, don't build it"                          |
@@ -122,10 +122,10 @@ Remaining: `PUSH_IMESSAGE_RECIPIENT` line in `.env`, `./kitty up` +
 **Wave 2 — Front door + mail: ~~004~~ ✅ (#98, gaps closed in #100),
 ~~005~~ ✅ (#99) — live-verify on the Air pending Jacob's OAuth setup.**
 
-**Wave 3 — The collaborator: ~~021~~ ✅ (#106) → 016 🔎 (built, #107).**
+**Wave 3 — The collaborator: ~~021~~ ✅ (#106) → ~~016~~ ✅ (#107).**
 016 is the first packet whose output is LLM-generated content Jacob has
 to judge, not mechanical composition — the review loop (a week of real
-Bs) is what actually closes it out, not CI green.
+Bs) is what actually closes it out, not merging the code.
 020 (GitHub) is optional here and enriches 016 for code projects.
 
 **Wave 4 — The safety net: 017.** Needs 005's mail signals for the sweep
