@@ -59,6 +59,21 @@ class TestBriefScheduler:
         assert len(bullets) >= 1
         assert any("Review PR #42" in line for line in bullets)
 
+    def test_format_brief_text_includes_whats_b_bullets(self):
+        from gateway import brief_scheduler
+
+        today = datetime.now(timezone.utc).date().isoformat()
+        fake_brief = {
+            "date": today,
+            "next_steps": [
+                {"project_id": 1, "project_name": "kitty", "step": "write the migration", "why": "unblocks the rest"},
+            ],
+        }
+
+        text = brief_scheduler._format_brief_text(fake_brief)
+
+        assert "- kitty: write the migration" in text
+
     def test_generate_and_deliver_brief_reaches_push_facade_exactly_once(self, monkeypatch):
         from gateway import brief_scheduler
 

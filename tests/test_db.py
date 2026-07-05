@@ -139,6 +139,7 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "inbox_triage",
         "actions",
         "projects",
+        "project_next_steps",
     } <= tables
     assert applied == [
         "001_foundation.sql",
@@ -151,6 +152,7 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "008_inbox_triage.sql",
         "009_actions.sql",
         "010_projects.sql",
+        "011_project_next_steps.sql",
     ]
 
 

@@ -347,6 +347,37 @@ def summarize_headlines_to_bullets(headlines: List[NewsHeadline]) -> List[str]:
     return bullets[:5]
 
 
+def get_next_steps_section(limit: int = 3) -> list[dict]:
+    """The "What's B" section: each active project's curated next step (P4, 016).
+
+    Ordered by last_touched ascending — the projects that have gone
+    quietest surface first, since those are the ones most likely to have
+    slipped Jacob's attention. Skips projects with no stored step (never
+    refreshed under this packet) rather than fabricating one.
+    """
+    from gateway import next_step, project_store
+
+    projects = [p for p in project_store.list_projects() if p["status"] == "active"]
+    projects.sort(key=lambda p: p["last_touched"] or 0)
+
+    section: list[dict] = []
+    for project in projects:
+        step = next_step.get(project["id"])
+        if step is None:
+            continue
+        section.append(
+            {
+                "project_id": project["id"],
+                "project_name": project["name"],
+                "step": step["step"],
+                "why": step["why"],
+            }
+        )
+        if len(section) >= limit:
+            break
+    return section
+
+
 def _build_brief_result(
     *,
     today: str,
@@ -368,6 +399,9 @@ def _build_brief_result(
     model_news = get_model_digest_section(limit=3)
     if model_news:
         result["model_news"] = model_news
+    next_steps = get_next_steps_section()
+    if next_steps:
+        result["next_steps"] = next_steps
     return result
 
 

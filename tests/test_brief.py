@@ -433,3 +433,33 @@ def test_synthesize_brief_includes_theme_context():
         prompt = b.synthesize_brief_with_llm(headlines, "Task", "Memory", themes=themes)
 
     assert "authentication" in prompt
+
+
+def test_get_next_steps_section_orders_by_staleness_and_skips_ungenerated(tmp_path, monkeypatch):
+    """P4/016: 'What's B' surfaces the quietest active projects with a stored step."""
+    import gateway.brief as b
+    from gateway import next_step, project_store
+
+    db_file = tmp_path / "kitty" / "kitty.db"
+    monkeypatch.setattr(project_store, "PROJECTS_DB_FILE", db_file, raising=False)
+    monkeypatch.setattr(next_step, "NEXT_STEP_DB_FILE", db_file, raising=False)
+
+    stale = project_store.create("stale project", "code")
+    fresh = project_store.create("fresh project", "code")
+    never_refreshed = project_store.create("no step yet", "code")
+    project_store.update_fields(stale["id"], last_touched=1.0)
+    project_store.update_fields(fresh["id"], last_touched=2.0)
+    project_store.update_fields(never_refreshed["id"], last_touched=0.5)
+
+    import json
+
+    def llm(prompt, privacy_tier, content_class):
+        return json.dumps({"step": "s", "why": "w", "delegable": False})
+
+    next_step.generate(stale["id"], llm_fn=llm)
+    next_step.generate(fresh["id"], llm_fn=llm)
+
+    section = b.get_next_steps_section()
+
+    names = [item["project_name"] for item in section]
+    assert names == ["stale project", "fresh project"]
