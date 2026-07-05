@@ -53,7 +53,7 @@ move-in. It does not delay move-in.
 
 ## Registry
 
-**Updated:** 2026-07-04 (night — 015 merged (#103), 016 split off 021, registry corrected)
+**Updated:** 2026-07-05 (021 merged (#106); 016 authoring pass done, ready to build)
 
 | #   | Packet                                                        | Best executor                        | Status                                                              |
 | --- | ------------------------------------------------------------- | ------------------------------------ | -------------------------------------------------------------------- |
@@ -72,12 +72,12 @@ move-in. It does not delay move-in.
 | 013 | Nudges + web_monitor → signal emitters                        | Claude Code                          | ✅ shipped (#77)                                                     |
 | 014 | Make the gates honest (UI tests, CI job, isolation leaks)     | any competent model                  | ✅ shipped (#94)                                                     |
 | 015 | Phone channel: Kitty reaches Jacob (iMessage/Pushover)        | Claude Code / Codex                  | ✅ shipped (#103) — Jacob live-verified and merged                   |
-| 016 | Next-step navigator ("just tell me what B is")                | Claude Code + strongest-model prompt | 🧭 planned — **blocked on 021** (its premise was wrong; see that packet's correction) |
+| 016 | Next-step navigator ("just tell me what B is")                | Claude Code + strongest-model prompt | 📋 spec authored 2026-07-05 — first LLM-content packet, ready to build |
 | 017 | Benefits/admin rails + urgent-thing sweep                     | Claude Code (privacy care)           | 🧭 planned                                                           |
 | 018 | Expert packs: car, body, proactive headlines                  | Claude Code / Codex                  | 🧭 planned — gated on 008-remainder (🚧)                             |
 | 019 | Job search scaffold                                           | Claude Code / Codex                  | ⏸ parked — Jacob: "plan it, don't build it"                          |
 | 020 | GitHub read-only connector                                    | Codex / Claude Code                  | 🧭 planned — pattern rides 005                                       |
-| 021 | Project registry + resume (the real P6 — projects table, git/memory/signal composer) | Claude Code          | 📋 spec authored 2026-07-04 — foundation for 016, unblocks Wave 3    |
+| 021 | Project registry + resume (the real P6 — projects table, git/memory/signal composer) | Claude Code          | ✅ shipped (#106)                                                    |
 
 ## Execution order (set 2026-07-04, supersedes 2026-07-03)
 
@@ -93,12 +93,11 @@ Remaining: `PUSH_IMESSAGE_RECIPIENT` line in `.env`, `./kitty up` +
 **Wave 2 — Front door + mail: ~~004~~ ✅ (#98, gaps closed in #100),
 ~~005~~ ✅ (#99) — live-verify on the Air pending Jacob's OAuth setup.**
 
-**Wave 3 — The collaborator: 021 (new — build first) → 016.**
-016 assumed the project registry/composer from `OPERATOR_STRATEGY.md`
-§10/P6 already existed; it doesn't. 021 builds it (projects table,
-`refresh()`/`resume()`); 016 is its consumer, unchanged otherwise
-(~~007~~ ✅ shipped). 020 (GitHub) is optional here and enriches 016 for
-code projects once both land.
+**Wave 3 — The collaborator: ~~021~~ ✅ (#106) → 016 📋 (authored, ready
+to build).** 016 is the first packet whose output is LLM-generated content
+Jacob has to judge, not mechanical composition — build it, but the review
+loop (a week of real Bs) is what actually closes it out, not CI green.
+020 (GitHub) is optional here and enriches 016 for code projects.
 
 **Wave 4 — The safety net: 017.** Needs 005's mail signals for the sweep
 to have teeth. **End of Wave 4 = move-in day.**
