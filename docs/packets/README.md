@@ -78,6 +78,7 @@ move-in. It does not delay move-in.
 | 019 | Job search scaffold                                           | Claude Code / Codex                  | ⏸ parked — Jacob: "plan it, don't build it"                          |
 | 020 | GitHub read-only connector                                    | Codex / Claude Code                  | 🧭 planned — pattern rides 005                                       |
 | 021 | Project registry + resume (the real P6 — projects table, git/memory/signal composer) | Claude Code          | ✅ shipped (#106)                                                    |
+| 022 | Magic Kitty: cross-project insight synthesis (D13)            | strongest-model prompt + Claude Code | 🧭 planned — named, not authored. Look across *all* projects' `resume()` state for non-obvious connections; the "huh, these are related" moment. Comes after 016, not inside it. |
 
 ## Execution order (set 2026-07-04, supersedes 2026-07-03)
 
