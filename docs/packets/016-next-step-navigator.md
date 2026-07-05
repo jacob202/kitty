@@ -1,6 +1,8 @@
 # Packet 016 — Next-step navigator ("just tell me what B is")
 
 - **Status:** 🧭 planned — needs an executor-ready authoring pass.
+  **Blocked on 021** (see correction below); do not author or build until
+  021 ships.
 - **Best executor:** Claude Code; the next-step prompt itself is
   strongest-model work, reviewed against real projects.
 - **Purpose:** Jacob's own words (2026-07-04): *"I want to go from A to Z,
@@ -10,11 +12,25 @@
   feature: not a dashboard of everything, one clear B, plus a line of
   encouragement about what's already done (SOUL: honest, never flattering).
 
+## Correction (2026-07-04) — the line below was wrong
+
+This packet originally claimed *"Project resume shipped in #71
+(`gateway/project_store.py`, `project_resume.py`)."* That's false: #71
+shipped `./kitty resume` / `scripts/resume.py`, a dev-tool that summarizes
+**the kitty repo's own state** (branch, PRs, tests) for picking up a coding
+session — nothing to do with tracking Jacob's real-world projects. The
+actual foundation (a `projects` table + git/memory/signal composer,
+designed in `OPERATOR_STRATEGY.md` §10/P6) was never built. It's now its
+own packet: **021 — Project registry + resume**. This packet is a consumer
+of 021's `refresh()`/`resume()`, same as originally intended — the target
+just didn't exist yet.
+
 ## What already exists (do not rebuild)
 
-- Project resume shipped in #71 (`gateway/project_store.py`,
-  `project_resume.py`): refresh/resume composition from git, memory, todos,
-  signals. The navigator is a consumer of `resume()`, not a rewrite.
+- **021 (once shipped)** — `gateway/project_store.py` /
+  `gateway/project_resume.py`: `refresh(id)`/`resume(id)` composition from
+  git, memory, signals (todos not yet composed — see 021's own notes).
+  The navigator is a consumer of `resume()`, not a rewrite.
 - Action queue (003) — a next step that's actionable can be proposed as a
   T0/T1 action directly.
 - Brief scheduler + phone channel (015) for delivery.
@@ -36,8 +52,10 @@
 
 ## Dependencies
 
-- 006 (shipped), 015 for delivery. 020 (GitHub connector) later enriches
-  code projects with PR/CI state but is not required.
+- **021 (blocking — not yet built)** for `refresh()`/`resume()`. 015
+  (shipped, PR #103) for delivery. 020 (GitHub connector) later enriches
+  code projects with PR/CI state but is not required. 006's `./kitty
+  resume` is unrelated — do not confuse the two (see correction above).
 
 ## Acceptance sketch
 
