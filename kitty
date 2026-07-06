@@ -317,6 +317,15 @@ sys.exit(0 if ok else 1)
 ' "$message" "$kind"
 }
 
+cmd_sweep() {
+  PYTHONPATH="$KITTY_ROOT${PYTHONPATH:+:$PYTHONPATH}" "$PYTHON_BIN" -c '
+import json
+from gateway.deadline_sweep import sweep
+report = sweep(push_fn=None)
+print(json.dumps(report, indent=2, default=str))
+'
+}
+
 cmd_project() {
   local sub="${1:-}"
   shift || true
@@ -460,6 +469,7 @@ case "${1:-help}" in
   resume)    cmd_resume ;;
   delegate)  shift; cmd_delegate "$1" ;;
   push)      shift; cmd_push "$@" ;;
+  sweep)     cmd_sweep ;;
   project)   shift; cmd_project "$@" ;;
   help|--help|-h) cmd_help ;;
   *)

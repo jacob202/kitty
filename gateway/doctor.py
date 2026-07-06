@@ -272,6 +272,31 @@ def _check_push_channel(env: dict) -> list[Check]:
     ]
 
 
+def _check_deadlines() -> list[Check]:
+    """PASS when deadlines are being watched and last push succeeded; WARN when none watched; FAIL on last push failure."""
+    from gateway import deadline_store, push
+
+    open_deadlines = deadline_store.list_open(status="open")
+    if not open_deadlines:
+        return [Check("WARN", "deadlines:watch", "no open deadlines being watched")]
+
+    entries = push._recent_log_entries()
+    deadline_entries = [e for e in entries if e.get("dedupe_key", "").startswith("deadline-")]
+    if not deadline_entries:
+        return [Check("PASS", "deadlines:watch", f"{len(open_deadlines)} open deadline(s) — no pushes yet")]
+
+    last = deadline_entries[-1]
+    if last.get("ok"):
+        return [Check("PASS", "deadlines:watch", f"{len(open_deadlines)} open deadline(s); last push via {last.get('channel')} succeeded")]
+    return [
+        Check(
+            "FAIL",
+            "deadlines:watch",
+            f"last deadline push via {last.get('channel')} failed — check logs/push_log.jsonl",
+        )
+    ]
+
+
 def _check_venv() -> list[Check]:
     venv = ROOT / "venv"
     if (venv / "bin" / "python").exists():
@@ -306,6 +331,7 @@ def main() -> int:
         + _check_disk()
         + _check_mail_connector(env)
         + _check_push_channel(env)
+        + _check_deadlines()
     )
 
     failures = [c for c in checks if c.level == "FAIL"]

@@ -13,18 +13,27 @@ def isolate_project_store(monkeypatch, tmp_path):
 
 def test_init_seeds_kitty_as_project_one():
     project_store.init_db()
-    projects = project_store.list_projects()
-    assert len(projects) == 1
-    assert projects[0]["name"] == "kitty"
-    assert projects[0]["kind"] == "code"
-    assert projects[0]["paths"] == [str(project_store.PROJECT_ROOT)]
+    projects = {p["name"]: p for p in project_store.list_projects()}
+    assert "kitty" in projects
+    assert projects["kitty"]["kind"] == "code"
+    assert projects["kitty"]["paths"] == [str(project_store.PROJECT_ROOT)]
+
+
+def test_init_seeds_benefits_admin_project():
+    project_store.init_db()
+    projects = {p["name"]: p for p in project_store.list_projects()}
+    assert "benefits-admin" in projects
+    assert projects["benefits-admin"]["kind"] == "admin"
+    assert projects["benefits-admin"]["status"] == "active"
 
 
 def test_seed_is_idempotent_across_repeated_init():
     project_store.init_db()
     project_store.init_db()
     project_store.init_db()
-    assert len(project_store.list_projects()) == 1
+    projects = project_store.list_projects()
+    assert len(projects) == 2
+    assert {p["name"] for p in projects} == {"kitty", "benefits-admin"}
 
 
 def test_create_returns_project_with_id():
