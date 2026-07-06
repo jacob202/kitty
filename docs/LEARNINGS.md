@@ -1,6 +1,6 @@
 # Learnings
 
-**Date:** 2026-06-20
+**Date:** 2026-07-06
 
 ## Durable Lessons
 

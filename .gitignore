@@ -41,6 +41,8 @@ out/
 .mcp.json
 .aura/
 .claude/settings.local.json
+.claude/handoff-archive/
+reflection-notes.md
 
 # Misc
 *.sqlite

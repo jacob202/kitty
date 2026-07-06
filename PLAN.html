@@ -1,0 +1,819 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Kitty — Fix & Deepen Master Plan</title>
+    <style>
+      :root {
+        --fg: #1a1a1a;
+        --muted: #5a5a5a;
+        --bg: #fafaf7;
+        --card: #ffffff;
+        --border: #e6e3da;
+        --accent: #c2410c;
+        --good: #15803d;
+        --warn: #b45309;
+        --bad: #b91c1c;
+        --code-bg: #f4f1e8;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        line-height: 1.55;
+        color: var(--fg);
+        background: var(--bg);
+        max-width: 920px;
+        margin: 0 auto;
+        padding: 2rem 1.5rem 5rem;
+      }
+      h1 {
+        font-size: 1.9rem;
+        margin: 0 0 0.4rem;
+      }
+      h2 {
+        font-size: 1.45rem;
+        margin: 2.5rem 0 1rem;
+        padding-top: 0.5rem;
+        border-top: 1px solid var(--border);
+      }
+      h3 {
+        font-size: 1.15rem;
+        margin: 1.8rem 0 0.6rem;
+      }
+      h4 {
+        font-size: 1rem;
+        margin: 1.2rem 0 0.4rem;
+        color: var(--muted);
+      }
+      p {
+        margin: 0.6rem 0;
+      }
+      code {
+        font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+        font-size: 0.9em;
+        background: var(--code-bg);
+        padding: 0.1em 0.35em;
+        border-radius: 3px;
+      }
+      pre {
+        background: var(--code-bg);
+        padding: 0.9rem 1rem;
+        border-radius: 6px;
+        overflow-x: auto;
+        font-size: 0.85rem;
+      }
+      ul,
+      ol {
+        padding-left: 1.4rem;
+      }
+      li {
+        margin: 0.25rem 0;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 1rem 0;
+        font-size: 0.93rem;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 0.55rem 0.7rem;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      th {
+        background: var(--code-bg);
+        font-weight: 600;
+      }
+      blockquote {
+        border-left: 3px solid var(--accent);
+        margin: 1rem 0;
+        padding: 0.4rem 1rem;
+        color: var(--muted);
+        background: #fff8f0;
+      }
+      .meta {
+        color: var(--muted);
+        font-size: 0.92rem;
+        margin-bottom: 1.5rem;
+      }
+      .toc {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem 1.2rem;
+        margin: 1.5rem 0 2rem;
+      }
+      .toc h2 {
+        font-size: 1rem;
+        margin: 0 0 0.6rem;
+        border: 0;
+        padding: 0;
+      }
+      .toc ol {
+        margin: 0;
+        padding-left: 1.2rem;
+      }
+      .track-badge {
+        display: inline-block;
+        background: var(--accent);
+        color: white;
+        font-weight: 600;
+        font-size: 0.78rem;
+        padding: 0.2em 0.65em;
+        border-radius: 999px;
+        vertical-align: middle;
+        margin-right: 0.5rem;
+      }
+      .step {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-left: 4px solid var(--accent);
+        border-radius: 6px;
+        padding: 1rem 1.2rem;
+        margin: 1rem 0;
+      }
+      .step h3 {
+        margin-top: 0;
+      }
+      .step .who {
+        color: var(--muted);
+        font-size: 0.9rem;
+        margin-bottom: 0.6rem;
+      }
+      .step .who strong {
+        color: var(--fg);
+      }
+      .step .verify {
+        background: #f0f7ed;
+        border: 1px solid #c5e0b9;
+        border-radius: 4px;
+        padding: 0.5rem 0.8rem;
+        margin-top: 0.6rem;
+        font-size: 0.92rem;
+      }
+      .step .verify::before {
+        content: '✓ verify  ';
+        color: var(--good);
+        font-weight: 600;
+      }
+      .files {
+        font-size: 0.88rem;
+        color: var(--muted);
+        margin: 0.4rem 0;
+      }
+      .files code {
+        font-size: 0.85em;
+      }
+      .op-only {
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .healthy {
+        color: var(--good);
+      }
+      .broken {
+        color: var(--bad);
+      }
+      .neutral {
+        color: var(--warn);
+      }
+      .checklist {
+        list-style: none;
+        padding-left: 0;
+      }
+      .checklist li {
+        padding: 0.35rem 0;
+        padding-left: 1.6rem;
+        position: relative;
+      }
+      .checklist li::before {
+        content: '☐';
+        position: absolute;
+        left: 0;
+        color: var(--muted);
+      }
+      .stop {
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        border-radius: 6px;
+        padding: 0.8rem 1rem;
+        margin: 0.6rem 0;
+      }
+      .nav {
+        position: sticky;
+        top: 0;
+        background: var(--bg);
+        padding: 0.6rem 0;
+        border-bottom: 1px solid var(--border);
+        font-size: 0.9rem;
+        margin-bottom: 1.5rem;
+      }
+      .nav a {
+        margin-right: 1.2rem;
+        color: var(--accent);
+        text-decoration: none;
+      }
+      .nav a:hover {
+        text-decoration: underline;
+      }
+      .plain {
+        background: #f4f1e8;
+        border-radius: 6px;
+        padding: 1rem 1.2rem;
+        margin: 1.5rem 0;
+      }
+      .plain h3 {
+        margin-top: 0;
+        color: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Kitty — Fix &amp; Deepen Master Plan</h1>
+    <p class="meta">2026-07-05 · main branch · You (operator-only) + opencode (implementation)</p>
+
+    <div class="nav">
+      <a href="#why">Why</a>
+      <a href="#state">State</a>
+      <a href="#track-a">A — Move-in</a>
+      <a href="#track-b">B — Debt</a>
+      <a href="#track-c">C — Deepen</a>
+      <a href="#checklist">Checklist</a>
+      <a href="#risks">Risks</a>
+      <a href="#stops">Stops</a>
+      <a href="#plain">In plain English</a>
+    </div>
+
+    <h2 id="why">Why this plan</h2>
+
+    <p>The Kitty codebase has three "fix and deepen" problems mixed together:</p>
+    <ol>
+      <li>
+        <strong>Move-in prep.</strong> The app is mostly built but not quite usable day-to-day.
+        Three small things on your personal queue.
+      </li>
+      <li>
+        <strong>Tech debt.</strong> Documented loose ends: leftover tool residue, a literal
+        <code>$HOME/</code> folder, stale runtime state, broken UI tests, missing CI.
+      </li>
+      <li>
+        <strong>Architecture deepening.</strong> The "shallow module" pass that already removed 6
+        files needs to keep going. Plus consolidate 9 SQLite DBs into 1, audit stale shims, and
+        write a real codemap so you can read instead of ask.
+      </li>
+    </ol>
+
+    <blockquote>
+      Recommended sequence is A → B → C. A makes the app usable so B and C have a real user. B
+      clears debt so C deepens a stable surface. C is the long arc — without A and B done, you can't
+      tell if deepening helps or just looks nicer.
+    </blockquote>
+
+    <h2 id="state">Current state (2026-07-05)</h2>
+
+    <table>
+      <tr>
+        <th>Area</th>
+        <th>State</th>
+      </tr>
+      <tr>
+        <td>Packets shipped</td>
+        <td>18 of 22 <span class="healthy">✓</span></td>
+      </tr>
+      <tr>
+        <td>Active PRs</td>
+        <td>1 (next-step navigator #107, awaiting your real-Bs review)</td>
+      </tr>
+      <tr>
+        <td>Local tests</td>
+        <td>~1010 pass, 2 fail (pass on CI — data-leak)</td>
+      </tr>
+      <tr>
+        <td>UI tests</td>
+        <td>6 failing, no CI job <span class="broken">✗</span></td>
+      </tr>
+      <tr>
+        <td>Move-in day</td>
+        <td>Wave 4 (017) is the gate; not blocked, just queued</td>
+      </tr>
+      <tr>
+        <td>Personal queue</td>
+        <td>3 items, ~5 minutes of work</td>
+      </tr>
+    </table>
+
+    <h3>What's actually broken today</h3>
+    <ul>
+      <li><code>Icon\r</code> files — chronic; we just installed auto-purge + pre-commit block.</li>
+      <li>
+        <code>$HOME/</code> literal folder at repo root (5.6MB) — from a script that ran with
+        unexpanded <code>$HOME</code>.
+      </li>
+      <li><code>.aider*</code> residue (3 files, ~32KB) — abandoned tooling.</li>
+      <li>
+        <code>.kitty.log</code> (187KB), <code>.kitty.pid</code> (stale),
+        <code>.kittybuilder_session.json</code> (16KB) — old runtime state.
+      </li>
+      <li>
+        <code>docs/SIRI_SHORTCUT.md</code> — references dead shell launcher; should be tombstoned.
+      </li>
+      <li><code>npm run</code> exits 194 silently (per <code>PROJECT_STATUS.md</code>).</li>
+      <li>Two <code>openwebui/open-webui</code> data dirs (5.4MB) — abandoned path.</li>
+      <li>
+        <code>data/builds/</code> 43MB, <code>data/imports/</code> 182MB,
+        <code>data/knowledge_db/</code> 228MB — storage sprawl.
+      </li>
+    </ul>
+
+    <h3>What looks healthy</h3>
+    <ul>
+      <li class="healthy">18 packets shipped, 14 in <code>docs/packets/</code>.</li>
+      <li class="healthy">Architecture docs are dated, specific, and load-bearing.</li>
+      <li class="healthy">
+        <code>docs/LEARNINGS.md</code> and <code>docs/AGENT_HANDOFF.md</code> are real (not
+        theater).
+      </li>
+      <li class="healthy">Pre-commit framework is now wired (Icon blocking included).</li>
+      <li class="healthy">6 worktrees, only 1 active locally; others are external.</li>
+    </ul>
+
+    <!-- ─── Track A ─── -->
+
+    <h2 id="track-a"><span class="track-badge">A</span>Move-in prep</h2>
+
+    <p>
+      <strong>Your time:</strong> ~30 min, all operator. &nbsp; <strong>My time:</strong> ~5 min
+      (just the 007 comparison). &nbsp; <strong>Outcome:</strong> Kitty usable on a random Tuesday,
+      with mail + phone + capture.
+    </p>
+
+    <div class="step">
+      <h3>A1 — Finish Wave 0</h3>
+      <div class="who"><span class="op-only">YOU</span> · 5 min</div>
+      <p>From <code>docs/packets/README.md:113-118</code>:</p>
+      <ol>
+        <li>
+          Add <code>PUSH_IMESSAGE_RECIPIENT=&lt;your phone number or iMessage address&gt;</code> to
+          <code>.env</code>.
+        </li>
+        <li>Run <code>./kitty up</code>.</li>
+        <li>Run <code>./kitty doctor --json</code> and confirm <code>"status": "ok"</code>.</li>
+        <li>Confirm <code>data/gmail_token.json</code> exists. (If not, see A2.)</li>
+      </ol>
+      <div class="files">Files touched: <code>.env</code> (you)</div>
+      <div class="verify">
+        <code>./kitty doctor --json</code> returns <code>status: ok</code> and the iMessage
+        recipient is listed.
+      </div>
+    </div>
+
+    <div class="step">
+      <h3>A2 — Gmail OAuth (optional)</h3>
+      <div class="who"><span class="op-only">YOU</span> · 10 min</div>
+      <p>
+        Per <code>docs/packets/005-mail-connector.md</code>, packet 005 is shipped but live
+        verification needs your OAuth setup. Skip this if you don't want mail yet — the move-in bar
+        (Wave 4) requires mail, so this is a soft prerequisite.
+      </p>
+      <div class="verify">
+        <code>./kitty doctor --json</code> shows <code>gmail_token: present</code>.
+      </div>
+    </div>
+
+    <div class="step">
+      <h3>A3 — Visual UI approval</h3>
+      <div class="who"><span class="op-only">YOU</span> · 10 min</div>
+      <ol>
+        <li>With the gateway up, open <code>http://127.0.0.1:4000</code> in your browser.</li>
+        <li>Per <code>docs/packets/004-state-home.md</code>, the new console layout is shipped.</li>
+        <li>Approve or request changes. Only packet that needs your eyes, not CI.</li>
+      </ol>
+      <div class="verify">You sign off in <code>.claude/STATE.md</code> (or tell me to).</div>
+    </div>
+
+    <div class="step">
+      <h3>A4 — 007 sign-off</h3>
+      <div class="who"><span class="op-only">YOU</span> + me · 5 min</div>
+      <p>Per <code>docs/packets/README.md:144-147</code>:</p>
+      <ol>
+        <li>
+          I show you the <code>packet.delegate</code> T1 line in
+          <code>config/action_tiers.json</code>.
+        </li>
+        <li>
+          I show you a hand-written packet (e.g.
+          <code>docs/packets/014-make-the-gates-honest.md</code>).
+        </li>
+        <li>
+          You read the T1 line and confirm the generated packet reads as well as a hand-written one.
+          If it doesn't, that's a real signal.
+        </li>
+      </ol>
+      <div class="verify">You sign off (or file a fix request).</div>
+    </div>
+
+    <!-- ─── Track B ─── -->
+
+    <h2 id="track-b"><span class="track-badge">B</span>Tech debt cleanup</h2>
+
+    <p>
+      <strong>My time:</strong> ~2-3 hours. &nbsp; <strong>Your time:</strong> zero, except 15 min
+      for B10 sign-off. &nbsp; <strong>Outcome:</strong> Clean root, working test suite, CI on the
+      UI, no stale runtime state.
+    </p>
+
+    <div class="step">
+      <h3>B1 — Remove <code>$HOME/</code> literal folder</h3>
+      <div class="who">me · 5 min</div>
+      <p>
+        The folder is from a script that ran with unexpanded <code>$HOME</code> (per
+        <code>docs/LEARNINGS.md</code> security learnings and <code>AGENTS.md:58-61</code>). It only
+        contains <code>$HOME/kitty-services/venv-litellm/</code>.
+      </p>
+      <div class="files">
+        [<code>DEL</code>] <code>$HOME/</code> (whole tree) · [<code>MOD</code>]
+        <code>.gitignore</code> — guard for any future literal <code>$HOME</code> dirs
+      </div>
+      <div class="verify">
+        <code>ls '$HOME' 2>&1</code> returns "No such file"; <code>git status</code> doesn't show
+        it.
+      </div>
+    </div>
+
+    <div class="step">
+      <h3>B2 — Clean up <code>.aider*</code> residue</h3>
+      <div class="who">me · 5 min</div>
+      <p>Three files, all from an abandoned session. Repo moved on.</p>
+      <div class="files">
+        [<code>DEL</code>] <code>.aider.chat.history.md</code>, <code>.aider.conf.yml</code>,
+        <code>.aider.tags.cache.v4/</code>
+      </div>
+      <div class="verify">
+        <code>ls .aider*</code> returns nothing; <code>git status</code> clean.
+      </div>
+    </div>
+
+    <div class="step">
+      <h3>B3 — Remove stale runtime state</h3>
+      <div class="who">me · 5 min</div>
+      <p>
+        <code>.kitty.log</code>, <code>.kitty.pid</code>,
+        <code>.kittybuilder_session.json</code> are all from May.
+      </p>
+      <div class="files">
+        [<code>DEL</code>] <code>.kitty.log</code>, <code>.kitty.pid</code>,
+        <code>.kittybuilder_session.json</code> · [<code>VERIFY</code>]
+        <code>.gitignore</code> covers them
+      </div>
+      <div class="verify">None of these exist at root; <code>.gitignore</code> covers them.</div>
+    </div>
+
+    <div class="step">
+      <h3>B4 — Tombstone <code>docs/SIRI_SHORTCUT.md</code></h3>
+      <div class="who">me · 5 min</div>
+      <p>
+        Per <code>PROJECT_STATUS.md:56</code>, this references the dead shell launcher. Either
+        delete or update to <code>./kitty</code>.
+      </p>
+      <div class="files">
+        [<code>MOD</code>] or [<code>DEL</code>] <code>docs/SIRI_SHORTCUT.md</code>
+      </div>
+      <div class="verify">
+        No mentions of the dead launcher (<code>scripts/up.sh</code>, etc.) anywhere in the repo.
+      </div>
+    </div>
+
+    <div class="step">
+      <h3>B5 — Fix the 2 local-failing tests</h3>
+      <div class="who">me · 30 min</div>
+      <p>From <code>PROJECT_STATUS.md:33-36</code>:</p>
+      <ul>
+        <li>
+          <code>tests/test_action_queue.py::test_t0_executes_from_proposed_and_records_result</code>
+        </li>
+        <li>
+          <code
+            >tests/test_state_composer.py::test_real_sources_compose_against_isolated_stores</code
+          >
+        </li>
+      </ul>
+      <p>
+        Both leak real <code>data/</code> state. Fix is to use a <code>tmp_path</code> fixture and
+        seed their own state. Pattern already exists in the suite.
+      </p>
+      <div class="files">
+        [<code>MOD</code>] <code>tests/test_action_queue.py</code>,
+        <code>tests/test_state_composer.py</code>
+      </div>
+      <div class="verify">
+        <code>python3.12 -m pytest tests/test_action_queue.py tests/test_state_composer.py -q</code>
+        returns all pass.
+      </div>
+    </div>
+
+    <div class="step">
+      <h3>B6 — Fix the 6 UI test failures</h3>
+      <div class="who">me · 1-2 hours</div>
+      <p>
+        Per <code>PROJECT_STATUS.md:54</code>: <code>tests/SessionSidebar.test.tsx</code>,
+        <code>tests/gatewayIntegration...</code>. Likely the console-home refactor (packet 004)
+        changed components and tests didn't follow.
+      </p>
+      <div class="files">[<code>MOD</code>] <code>gateway/kitty-chat/tests/*.test.tsx</code></div>
+      <div class="verify">
+        <code>cd gateway/kitty-chat &amp;&amp; npm test</code> returns 0 failures.
+      </div>
+    </div>
+
+    <div class="step">
+      <h3>B7 — Fix <code>npm run</code> 194</h3>
+      <div class="who">me · 15 min</div>
+      <p>
+        Per <code>PROJECT_STATUS.md:53</code>, suggested fix is "use direct bins" (per
+        <code>docs/AGENT_HANDOFF.md</code>). The 194 is a Node 26.4 / npm 11.17 issue.
+      </p>
+      <div class="files">
+        [<code>MOD</code>] <code>gateway/kitty-chat/package.json</code> (scripts) ·
+        [<code>MOD</code>] any workflow / AGENTS.md that says <code>npm run</code>
+      </div>
+      <div class="verify"><code>cd gateway/kitty-chat &amp;&amp; npm run build</code> exits 0.</div>
+    </div>
+
+    <div class="step">
+      <h3>B8 — Add kitty-chat CI job</h3>
+      <div class="who">me · 30 min</div>
+      <p>
+        Per <code>PROJECT_STATUS.md:54</code>, no UI test job in CI. Add one that runs
+        <code>npm test</code> on PRs touching <code>gateway/kitty-chat/</code>.
+      </p>
+      <div class="files">[<code>MOD</code>] <code>.github/workflows/*.yml</code></div>
+      <div class="verify">Open a no-op PR; CI runs the UI test job and reports status.</div>
+    </div>
+
+    <div class="step">
+      <h3>B9 — Remove dead <code>openwebui/open-webui</code> data dirs</h3>
+      <div class="who">me · 15 min</div>
+      <p>
+        Two parallel dirs (<code>data/openwebui/</code>, <code>data/open-webui/</code>) per
+        <code>docs/LEARNINGS.md:3</code>. One is active, one is abandoned. Find which and delete the
+        other. Both are in <code>.gitignore</code>.
+      </p>
+      <div class="files">[<code>DEL</code>] the abandoned one (I'll confirm before deleting)</div>
+      <div class="verify">Disk usage goes down; <code>./kitty up</code> still works.</div>
+    </div>
+
+    <div class="step">
+      <h3>
+        B10 — Triage <code>data/builds/</code>, <code>data/imports/</code>,
+        <code>data/knowledge_db/</code>
+      </h3>
+      <div class="who">me + 15 min from you</div>
+      <p>
+        43MB / 182MB / 228MB. I'll inspect each, show you the breakdown, and let you decide.
+        <strong>No deletions without your sign-off.</strong>
+      </p>
+      <div class="files">depends on findings</div>
+      <div class="verify">
+        Disk usage reduced by at least 200MB without losing anything load-bearing.
+      </div>
+    </div>
+
+    <div class="step">
+      <h3>B11 — Add an ADR directory</h3>
+      <div class="who">me · 30 min</div>
+      <p>
+        <code>docs/DECISIONS.md</code> exists but no formal ADR dir. Move top 10 decisions into
+        proper ADRs so they're discoverable per-decision, not as one giant file.
+      </p>
+      <div class="files">
+        [<code>NEW</code>] <code>docs/adr/</code> with template · [<code>MOD</code>] migrate 10
+        decisions from <code>docs/DECISIONS.md</code> · [<code>MOD</code>]
+        <code>docs/DECISIONS.md</code> → index linking to ADRs
+      </div>
+      <div class="verify">
+        Each existing decision in <code>DECISIONS.md</code> has a link to an ADR.
+      </div>
+    </div>
+
+    <!-- ─── Track C ─── -->
+
+    <h2 id="track-c"><span class="track-badge">C</span>Architecture deepening</h2>
+
+    <p>
+      <strong>My time:</strong> ~1-2 days. &nbsp; <strong>Your time:</strong> zero. &nbsp;
+      <strong>Outcome:</strong> Modules are deep, not shallow. AI agents can navigate. Storage is
+      one story. You can read a codemap instead of asking me.
+    </p>
+
+    <div class="step">
+      <h3>C1 — Apply the "Removed Modules" pattern to the rest of the gateway</h3>
+      <div class="who">me · 2-3 hours</div>
+      <p>
+        <code>docs/ARCHITECTURE.md:111-118</code> lists 6 modules just removed for being shallow.
+        I'll walk every file in <code>gateway/</code> and find more pass-throughs, orphans, and
+        single-adapter shims. Expect ~3-5 more removals or fold-ins.
+      </p>
+      <div class="files">varies</div>
+      <div class="verify">
+        <code>docs/ARCHITECTURE.md</code> "Removed Modules" section grows;
+        <code>pytest tests/</code> still passes.
+      </div>
+    </div>
+
+    <div class="step">
+      <h3>C2 — Audit and fix the <code>memory_graph.py</code> shims</h3>
+      <div class="who">me · 1 hour</div>
+      <p>
+        <code>docs/LEARNINGS.md</code> L-CAND-2 calls this out: 6 module-level
+        <code>_XxxAdapter</code> shims are still present in
+        <code>gateway/memory_graph.py:393-399</code> despite a "DONE 2026-06-18" label. Either the
+        shims are needed (then make them primary) or they're not (then remove them).
+      </p>
+      <div class="files">[<code>MOD</code>] <code>gateway/memory_graph.py</code></div>
+      <div class="verify">
+        Module compiles; tests pass; L-CAND-2 can be promoted to a closed lesson.
+      </div>
+    </div>
+
+    <div class="step">
+      <h3>C3 — Consolidate the 8+ subsystem SQLite DBs</h3>
+      <div class="who">me · 2-4 hours</div>
+      <p>
+        Per <code>docs/ARCHITECTURE.md:72</code>: cron, builds, task_queue, ingestion, web_monitors,
+        autonomy, model_digest, signals — each its own SQLite. Plus main <code>kitty.db</code>.
+        That's 9+ separate files. Consolidate into one.
+      </p>
+      <div class="files">
+        [<code>MOD</code>] 8 subsystem modules · [<code>NEW</code>] or [<code>VERIFY</code>]
+        <code>gateway/db.py</code>
+      </div>
+      <div class="verify">
+        <code>data/*.db</code> is reduced to 1 file; <code>pytest tests/</code> passes;
+        <code>./kitty doctor</code> shows clean state.
+      </div>
+    </div>
+
+    <div class="step">
+      <h3>C4 — Generate a real codemap</h3>
+      <div class="who">me · 2-3 hours</div>
+      <p>
+        Per the <code>codemap</code> skill, deliver five lens docs (overview, capabilities,
+        dataflow, codemap, domain). This is the doc that lets you read the architecture instead of
+        asking me. Output is human-readable.
+      </p>
+      <div class="files">[<code>NEW</code>] <code>docs/codemap/README.md</code> + 4 lens files</div>
+      <div class="verify">
+        You can open <code>docs/codemap/README.md</code> and answer "what does Kitty do?" in 60
+        seconds.
+      </div>
+    </div>
+
+    <div class="step">
+      <h3>C5 — Audit <code>context_assembler.py</code></h3>
+      <div class="who">me · 1 hour</div>
+      <p>
+        <code>docs/ARCHITECTURE.md:39</code> calls it a "10-step prompt/context assembly pipeline."
+        10 steps is a lot. I'll read it end-to-end, find shallow steps, and propose either a
+        tightening or a doc note about why the 10 are earned.
+      </p>
+      <div class="files">
+        [<code>MOD</code>] <code>gateway/context_assembler.py</code> (if tightening helps) ·
+        [<code>NEW</code>] ADR if shape is load-bearing
+      </div>
+      <div class="verify">Pipeline is shorter or documented as load-bearing; tests pass.</div>
+    </div>
+
+    <div class="step">
+      <h3>C6 — Reduce doc sprawl</h3>
+      <div class="who">me · 1 hour</div>
+      <p>
+        36 markdown files in <code>docs/</code>. Propose: ~10 load-bearing at top level, dated
+        phases in <code>docs/phases/</code>, retired audits in <code>docs/retired/</code>. No
+        content deletion, just relocation.
+      </p>
+      <div class="files">structural moves</div>
+      <div class="verify"><code>ls docs/</code> returns ~10 load-bearing files at top level.</div>
+    </div>
+
+    <div class="step">
+      <h3>C7 — Add a real <code>tests/codemap_test.py</code></h3>
+      <div class="who">me · 30 min</div>
+      <p>
+        Smoke test for the architecture: imports the public API of every gateway module and asserts
+        it loads. Cheap insurance against import-time breakage (which bit you in L-CAND-6 with
+        <code>mcp/imagen/server.py</code>).
+      </p>
+      <div class="files">[<code>NEW</code>] <code>tests/codemap_test.py</code></div>
+      <div class="verify">
+        <code>pytest tests/codemap_test.py</code> passes; fails fast if any module's public API
+        breaks.
+      </div>
+    </div>
+
+    <!-- ─── Operator checklist ─── -->
+
+    <h2 id="checklist">Your operator checklist</h2>
+
+    <p>Across all three tracks, the only things you need to do:</p>
+
+    <ul class="checklist">
+      <li>
+        <strong>A1</strong> — add <code>PUSH_IMESSAGE_RECIPIENT</code> to <code>.env</code> (5 min)
+      </li>
+      <li><strong>A2</strong> — Gmail OAuth (10 min, only if you want mail)</li>
+      <li><strong>A3</strong> — visual UI approval (10 min)</li>
+      <li>
+        <strong>A4</strong> — read <code>config/action_tiers.json</code> and a sample packet, sign
+        off (5 min)
+      </li>
+      <li>
+        <strong>B10</strong> — confirm what to keep in <code>data/builds/</code>,
+        <code>data/imports/</code>, <code>data/knowledge_db/</code> (15 min, only if I find anything
+        to delete)
+      </li>
+      <li><strong>B11</strong> — name any decision you want me to skip (none if you trust me)</li>
+    </ul>
+
+    <p><strong>Total your-time: ~30 min if you skip mail, ~45 min with mail.</strong></p>
+
+    <!-- ─── Risks ─── -->
+
+    <h2 id="risks">Risks</h2>
+
+    <table>
+      <tr>
+        <th>Risk</th>
+        <th>Likelihood</th>
+        <th>Impact</th>
+        <th>Mitigation</th>
+      </tr>
+      <tr>
+        <td>Track C reveals the codebase needs a larger refactor than 2 days</td>
+        <td>Medium</td>
+        <td><span class="broken">High</span></td>
+        <td>Stop at C1; write a C-prime plan; do not push past 2 days.</td>
+      </tr>
+      <tr>
+        <td>B6 (UI tests) turns out to require re-writing components</td>
+        <td>Medium</td>
+        <td><span class="neutral">Medium</span></td>
+        <td>Stop and ask. The alternative (<code>&lt;skip&gt;</code>) hides the problem.</td>
+      </tr>
+      <tr>
+        <td>B10 (data triage) reveals you actually needed what I delete</td>
+        <td>Low</td>
+        <td><span class="broken">High</span></td>
+        <td>No deletions without your sign-off.</td>
+      </tr>
+      <tr>
+        <td>C3 (DB consolidation) loses state during migration</td>
+        <td>Low</td>
+        <td><span class="broken">High</span></td>
+        <td>
+          Dry-run first; back up to <code>data/backups/&lt;date&gt;/</code> before each subsystem.
+        </td>
+      </tr>
+    </table>
+
+    <!-- ─── Stops ─── -->
+
+    <h2 id="stops">When to stop</h2>
+
+    <div class="stop">
+      <strong>Stop after Track A</strong> if you want to use the app for a week before doing more
+      work.
+    </div>
+    <div class="stop">
+      <strong>Stop after Track B</strong> if C feels too big and you want to do it later.
+    </div>
+    <div class="stop">
+      <strong>Stop in the middle of Track C</strong> if any single step takes more than 4 hours, or
+      if a step is making the code more complex rather than less — that's a signal to stop and
+      re-plan.
+    </div>
+
+    <!-- ─── Plain English ─── -->
+
+    <div class="plain" id="plain">
+      <h3>What gets shipped, in plain English</h3>
+      <p>
+        <strong>Track A:</strong> You can text Kitty. Kitty can text you. The app boots clean. The
+        new console UI has your sign-off.
+      </p>
+      <p>
+        <strong>Track B:</strong> The repo root has no leftover tool residue, no stale runtime
+        state, no dead launchers. All tests pass. CI catches UI regressions. ADRs are first-class.
+      </p>
+      <p>
+        <strong>Track C:</strong> Someone can read <code>docs/codemap/README.md</code> and
+        understand the app in 60 seconds. The 9 SQLite DBs are 1. The "shallow module" pattern is
+        applied consistently. The context assembler is either shorter or documented as earned
+        complexity.
+      </p>
+    </div>
+  </body>
+</html>
