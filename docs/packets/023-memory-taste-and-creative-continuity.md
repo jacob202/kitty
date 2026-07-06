@@ -1,4 +1,8 @@
-# 021 — Memory Taste + Creative Continuity
+# 023 — Memory Taste + Creative Continuity
+
+> Renumbered from 021 on 2026-07-05: that number was already assigned by the
+> registry to the shipped project registry packet (#106). The README registry
+> table owns packet numbering — check it before naming a new packet file.
 
 **Status:** 📋 spec authored, not built
 **Best executor:** Claude Code / Codex with Jacob review

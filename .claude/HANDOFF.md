@@ -1,67 +1,54 @@
-# Session Handoff — 2026-07-04 (two parallel sessions)
+# Session Handoff — 2026-07-05 (Fable overnight/day session)
 
-## Session A: Fable plan session
+## What happened (in order)
 
-- Branch: `claude/kitty-app-packet-plan-gs7ccc`, PR #97
-- Request: "Plan the entire rest of the kitty app as packets" — done via
-  live Q&A with Jacob, not doc archaeology.
+1. **Shipped the packet run:** 015 phone channel (#103), 021 project
+   registry (#106), 016 next-step navigator (#107) — each built, tested,
+   manually verified against a real gateway, PR'd, merged.
+2. **Jacob went live.** First time Kitty actually ran for him:
+   - Fixed his stale local main (two macOS `Icon\r` files inside `.git/`
+     broke pulls — `find .git -type f -iname 'Icon*' -delete`).
+   - LiteLLM wouldn't start: `~/kitty-services/venv-litellm` was missing
+     the proxy extras → `pip install 'litellm[proxy]'` fixed it (plus its
+     cold start is now slow — doctor can race it; re-run doctor).
+   - Another `Icon\r` inside the project venv broke chromadb — same fix.
+   - Gmail OAuth completed (Desktop-app client), `PUSH_IMESSAGE_RECIPIENT`
+     set. **Doctor: pass=11 warn=1 fail=0.** First real B generated.
+3. **Wave-3 hardening from watching him live** — PR #109: refresh degrades
+   instead of 500ing when the model is down (D9 shape), PATCH /projects,
+   `./kitty project add|list|refresh|next|set-path`, doctor `env:parse`
+   (his `.env` line 1 has a stray quote — still there, cosmetic), source
+   timeout 5→10s.
+4. **Docs close-out + wave 4 open** — this PR: 016 flipped to shipped;
+   021/022 numbering collision from #101/#102 fixed (files renumbered
+   023/024, registered, L-CAND-12 written, intake gate now names the
+   rule); **017 authored executor-ready** (Wave 4 = move-in day);
+   **025 authored** (imagegen v2 — Jacob's explicit request).
 
-### Done
+## Live warnings for the next session
 
-- Packets 015–020 authored (`docs/packets/`): 015 phone channel
-  (executor-ready, includes live-verified iMessage `participant` syntax),
-  016 next-step navigator, 017 benefits rails + urgent-thing sweep,
-  018 expert packs, 019 job search (⏸ parked), 020 GitHub connector.
-- `docs/packets/README.md` rewritten: status legend (📋 spec ≠ ✅ built),
-  the **move-in bar**, wave order 0–5.
-- `docs/DECISIONS.md`: D12 (phone-first delivery + move-in bar).
-- Walked Jacob through Wave 0 live: ethernet verified, Automation
-  permission granted, iMessage-to-self proven end-to-end.
+- **Jacob pasted his entire `.env` (all API keys) into chat twice.**
+  Advised rotating GITHUB_PAT + legacy token at minimum. Not done as of
+  handoff — worth a gentle check-in, not a lecture.
+- His live imagen checkout is under `~/Projects/`, NOT this repo's
+  `mcp/imagen/` copy ("it's in projects not kitty") — 025 step 0 covers
+  the reconciliation. Do not build imagen features into this repo's copy
+  without doing that preflight.
+- `python-dotenv could not parse statement starting at line 1` on every
+  command on his Mac = the stray quote, not a real failure. #109's doctor
+  check names it; the fix is deleting one character in `.env` line 1.
+- Codex's 008-remainder worktree claim is from 2026-07-04 and hasn't been
+  heard from — verify before treating it as taken.
 
-### Gotchas
+## The thread (D13 context, do not lose)
 
-- Jacob believes things are "done" when a spec exists — answer status
-  questions with the README legend's words (built vs spec'd).
-- All review artifacts must be PUSHED to his phone (D12); never ask him
-  to go look at anything.
-- Read `.claude/STATE.md` "Facts from Jacob" before talking to him — it
-  explains the tone this project now requires.
+Jacob's sequencing, his words: build the basic thing, verify it works,
+THEN "magic kitty" — cross-project insight (packet 022). 016's week of
+real Bs is the verification step. Magic comes next, not never, and not
+smuggled into 016.
 
-## Session B: opencode (claimed 005 + 007)
+## Open PRs at handoff
 
-- Original request: "Start nailing off the packets. Mark them done so
-  multiple agents don't duplicate."
-- Branch: main (claims), `feat/packet-005-mail-connector` (code)
-
-### Done
-
-- **Claim mechanism**: two-row update in `docs/packets/README.md` +
-  `.claude/STATE.md`, pushed to main FIRST before code work.
-- **Packet 005** built — PR #99 (`gateway/connectors/{__init__,mail}.py`,
-  doctor `connector:mail` check, google-auth + google-auth-oauthlib in
-  requirements, 25 mocked-transport tests + 4 doctor-state tests).
-  - D10 enforced: signal payload carries only
-    `{message_id, from, subject, snippet, internal_date}`; body never
-    lands in a signal row (asserted by test).
-  - Fail-loud: missing token / expired-no-refresh / non-200 raise typed
-    errors; unconfigured `poll_now` returns `{skipped: "unconfigured"}`.
-  - Verification: 100/100 across affected modules; ruff check+format clean.
-- **Packet 007** — shipped by Jacob directly to main (eb3afad) while the
-  session ran; the 007 worktree was discarded to avoid a competing PR
-  (the claim mechanism working as intended).
-- **Did not modify `docs/AGENT_HANDOFF.md`** — the global hook
-  `~/.claude/hooks/handoff-snapshot.sh` keeps rewriting it; dual-source
-  mismatch still unfixed. Coordination via STATE.md + registry instead.
-
-## Next actions (combined)
-
-1. Review PR #99 (005); merge after green check runs; mark shipped in
-   registry (chore commit on main).
-2. Merge PR #97 (the plan) once CI green and Jacob approves.
-3. Jacob's Wave-0 tail: `PUSH_IMESSAGE_RECIPIENT` in `.env`,
-   `./kitty up` + `./kitty doctor`, confirm `data/gmail_token.json`.
-4. First free executor builds **015** (claim in STATE.md first). Codex is
-   on 008-remainder in `.worktrees/packet-008-expert-retrieval` — check
-   `git worktree list` before claiming anything.
-5. Optional / awaiting Jacob: fix the handoff-snapshot.sh dual-source
-   mismatch.
+- #109 wave-3 hardening (CI was running; merge when green)
+- wave-4 docs PR (this branch)
+- #108 registry flip — superseded by the docs PR; close it
