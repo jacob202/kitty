@@ -1,6 +1,6 @@
 # ADR-0001: db.py is the SQLite seam for app-state stores only
 
-**Date:** 2026-07-02  
+**Date:** 2026-07-02
 **Status:** Accepted
 
 ## Context
