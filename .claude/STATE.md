@@ -4,59 +4,47 @@
 
 ## Goal
 
-Execute open implementation packets without duplicate agent work.
+Ship open implementation packets and keep gateway/docs clean as the codebase evolves.
 
 ## Branch
 
 main
 
-## Sessions (2026-07-04)
+## Sessions (2026-07-06)
 
-- opencode — claimed 005 + 007; 005 built and in PR #99; 007 claim
-  released (Jacob shipped it to main directly as eb3afad).
-- Fable plan session (branch `claude/kitty-app-packet-plan-gs7ccc`,
-  PR #97) — H1 close-out plan, packets 015–020, move-in bar, D12; walked
-  Jacob through Wave 0 live. See "Facts from Jacob" below.
-- Codex — 008-remainder, in `.worktrees/packet-008-expert-retrieval`.
+- opencode — cleaned stale worktrees, shipped packet 008 (#111), applied Track C C1/C5/C6.
 
 ## Packet claims
 
 | Packet        | Claimed by          | Status                                                             |
 | ------------- | ------------------- | ------------------------------------------------------------------ |
-| 005           | opencode 2026-07-04 | ✅ shipped (#99) — live poll pending Jacob's OAuth setup           |
-| 007           | Jacob (eb3afad)     | ✅ done — Jacob committed to main while session ran                |
-| 008-remainder | Codex 2026-07-04    | ✅ shipped (#111) — claim released                                 |
+| 005           | opencode 2026-07-04 | ✅ shipped (#99)                                                   |
+| 007           | Jacob (eb3afad)     | ✅ done                                                            |
+| 008-remainder | Codex / opencode    | ✅ shipped (#111) — claim released                                 |
 | 015           | —                   | available — **next priority** (D12: phone channel before features) |
 
 **Rule for other agents:** if the status above is anything other than
 `available`, the packet is taken. Pick another. If you need to release a
 claim, edit this row to `available` and commit to `main`.
 
-## Done today
+## Done recently
 
 - 004 shipped (#98) — HomeState console replaces DashboardHome.
+- 005 shipped (#99).
 - 007 shipped (eb3afad, Jacob) — packet.delegate generator.
-- 005 built (opencode) — PR #99; 25 mocked-transport tests + 4
-  doctor-state tests green; D10 body-out-of-signal asserted.
-- Plan PR #97 (packets 015–020 + D12 + move-in bar), Fable session.
-- Wave 0 (Jacob, live): ethernet in + verified; Automation permission
-  granted; **iMessage-to-self proven end-to-end** — `participant … of
-(1st account whose service type = iMessage)` works, `buddy` fails
-  silently. Banked in packet 015.
+- 008 shipped (#111) — expert retrieval; worktree cleaned.
+- Track C C1 — Removed Modules pattern applied to 6 gateway modules.
+- Track C C5 — `context_assembler.py` tightened; folded `parts.py`.
+- Track C C6 — doc sprawl reduced; docs reorganized into `docs/phases/`, `docs/retired/`, and `docs/plans/`.
+- Stale worktrees cleaned: `kitty-packet-014`, `feat-packet-005-mail-connector`.
 
 ## In flight
 
-- 008-remainder (Codex worktree).
-- PR #99 (005) awaiting review + merge.
-- PR #97 (plan) awaiting CI + merge.
+- Nothing.
 
 ## Blocked on Jacob
 
-- Wave-0 tail: `PUSH_IMESSAGE_RECIPIENT` in `.env`, `./kitty up` +
-  `./kitty doctor`, confirm `data/gmail_token.json` exists (he reports
-  the OAuth flow was completed the morning of 2026-07-04 — the `ls` is
-  the verification, don't re-run the flow blind).
-- 005 live poll on the Air after PR #99 merges.
+- Nothing.
 
 ## Facts from Jacob (2026-07-04, load-bearing — read before talking to him)
 
@@ -80,7 +68,4 @@ claim, edit this row to `available` and commit to `main`.
 
 ## Next actions
 
-1. Review PR #99 (005); merge when check runs green; mark shipped.
-2. Merge PR #97 (the plan) once CI is green and Jacob approves.
-3. First free executor: build 015 (claim it here first).
-4. Codex: finish 008-remainder in its worktree.
+1. First free executor: claim and build packet 015 (phone-first delivery / move-in bar). Update this table before starting.
