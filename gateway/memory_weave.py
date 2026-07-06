@@ -98,6 +98,16 @@ class WeaveQuery:
     related_failures: list[str]
     is_stale: bool
 
+    def to_dict(self) -> dict:
+        return {
+            "fact": self.fact,
+            "confidence": self.confidence,
+            "last_verified": self.last_verified,
+            "source_chain": list(self.source_chain),
+            "related_failures": list(self.related_failures),
+            "is_stale": self.is_stale,
+        }
+
 
 # ── Class ─────────────────────────────────────────────────────────────
 
@@ -411,6 +421,185 @@ class MemoryWeave:
             SourceType.UNKNOWN.value: 0.5,
         }
         return weights.get(source_type, 0.5)
+
+    # ── RELIABILITY + CONFLICTS (port) ─────────────────────────────────
+
+    def get_reliability(
+        self, resource: str, current_time: Optional[datetime] = None
+    ) -> dict:
+        """Check temporal reliability of a resource (API, model, etc.).
+
+        Returns reliability score based on recent failure/success patterns.
+        Useful for routing decisions (e.g., "DeepSeek has been flaky at 2am").
+        """
+        current_time = current_time or datetime.now()
+
+        with _lock:
+            with kitty_db.connect(KITTY_DB_FILE) as conn:
+                window_start = (current_time - timedelta(hours=6)).isoformat()
+                recent_events = conn.execute(
+                    """
+                    SELECT event_type, COUNT(*) AS count
+                    FROM weave_events
+                    WHERE entity = ? AND timestamp > ?
+                    GROUP BY event_type
+                    """,
+                    (resource, window_start),
+                ).fetchall()
+
+        failures = sum(count for et, count in recent_events if "fail" in et.lower())
+        successes = sum(
+            count for et, count in recent_events if "success" in et.lower()
+        )
+        total = failures + successes
+
+        if total == 0:
+            reliability = "unknown"
+            score = 0.5
+        else:
+            score = successes / total
+            if score > 0.9:
+                reliability = "high"
+            elif score > 0.7:
+                reliability = "medium"
+            else:
+                reliability = "low"
+
+        return {
+            "resource": resource,
+            "reliability": reliability,
+            "score": score,
+            "recent_failures": failures,
+            "recent_successes": successes,
+            "window": "last 6 hours",
+        }
+
+    def get_conflicts(self, entity: str, relation: str) -> list[WeaveQuery]:
+        """Get all conflicting values for an entity+relation."""
+        edges = self._cache.get((entity, relation), [])
+        if not edges:
+            self._load_edges(entity, relation)
+            edges = self._cache.get((entity, relation), [])
+
+        return [
+            WeaveQuery(
+                fact=f"{e.entity} {e.relation} = {e.value}",
+                confidence=self._calculate_score(e),
+                last_verified=e.last_verified,
+                source_chain=[e.source],
+                related_failures=[],
+                is_stale=e.age_days > self.STALE_THRESHOLD_DAYS,
+            )
+            for e in edges
+            if not e.deprecated
+        ]
+
+    def surface_conflict(self, entity: str, relation: str) -> dict:
+        """Surface a conflict to the orchestrator with evidence weights.
+
+        Used when multiple sources disagree. Returns dict with conflicting
+        facts and a recommendation.
+        """
+        conflicts = self.get_conflicts(entity, relation)
+
+        if len(conflicts) < 2:
+            return {"has_conflict": False}
+
+        conflicts.sort(key=lambda x: x.confidence, reverse=True)
+
+        return {
+            "has_conflict": True,
+            "conflicts": [c.to_dict() for c in conflicts[:5]],
+            "recommendation": "Surface ambiguity to user for clarification",
+            "best_fact": conflicts[0].to_dict() if conflicts else None,
+        }
+
+    # ── LOGGING + ANALYSIS (port) ───────────────────────────────────────
+
+    def log_conversation(self, role: str, content: str) -> None:
+        """Log a conversation turn for pattern analysis."""
+        now = datetime.now().isoformat()
+
+        with _lock:
+            with kitty_db.connect(KITTY_DB_FILE) as conn:
+                conn.execute(
+                    """
+                    INSERT INTO weave_conversation_logs (timestamp, role, content)
+                    VALUES (?, ?, ?)
+                    """,
+                    (now, role, content),
+                )
+                conn.commit()
+
+    def detect_corrections(self, hours: int = 24) -> list[dict]:
+        """Detect user corrections in recent conversations via regex patterns."""
+        import re
+
+        cutoff = (datetime.now() - timedelta(hours=hours)).isoformat()
+        correction_patterns = [
+            r"no[,\s]+(actually|wait)",
+            r"it'?s\s+not\s+",
+            r"wrong\s*[,:]",
+            r"(should be|needs to be)\s+",
+            r"try\s+(the|that)\s+",
+        ]
+        compiled = [re.compile(p, re.IGNORECASE) for p in correction_patterns]
+
+        with _lock:
+            with kitty_db.connect(KITTY_DB_FILE) as conn:
+                logs = conn.execute(
+                    """
+                    SELECT timestamp, role, content FROM weave_conversation_logs
+                    WHERE timestamp > ? AND role = 'user'
+                    ORDER BY timestamp DESC
+                    """,
+                    (cutoff,),
+                ).fetchall()
+
+        corrections: list[dict] = []
+        for timestamp, _role, content in logs:
+            for pattern in compiled:
+                if pattern.search(content):
+                    corrections.append(
+                        {
+                            "timestamp": timestamp,
+                            "content": content,
+                            "pattern": pattern.pattern,
+                        }
+                    )
+                    break
+        return corrections
+
+    def get_stale_facts(self, days: int = 30) -> list[WeaveEdge]:
+        """Get facts that haven't been verified in N days."""
+        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+        with _lock:
+            with kitty_db.connect(KITTY_DB_FILE) as conn:
+                conn.row_factory = sqlite3.Row
+                rows = conn.execute(
+                    """
+                    SELECT * FROM weave_edges
+                    WHERE last_verified < ? AND deprecated = 0
+                    """,
+                    (cutoff,),
+                ).fetchall()
+        return [
+            WeaveEdge(
+                id=row["id"],
+                entity=row["entity"],
+                relation=row["relation"],
+                value=row["value"],
+                confidence=row["confidence"],
+                source=row["source"],
+                source_type=row["source_type"],
+                timestamp=row["timestamp"],
+                last_verified=row["last_verified"],
+                deprecated=bool(row["deprecated"]),
+                deprecated_by=row["deprecated_by"],
+                deprecated_reason=row["deprecated_reason"],
+            )
+            for row in rows
+        ]
 
 
 # ── Module-level singleton (matches the original pattern) ──────────────
