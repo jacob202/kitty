@@ -6,7 +6,7 @@ from typing import Optional
 
 from fastapi import APIRouter
 
-from gateway import prompts_catalog
+from gateway import prompts
 
 router = APIRouter(tags=["prompts"])
 
@@ -14,4 +14,4 @@ router = APIRouter(tags=["prompts"])
 @router.get("/prompts")
 async def get_prompts(category: Optional[str] = None) -> dict:
     """Get prompt templates, optionally filtered by category."""
-    return {"templates": prompts_catalog.list_templates(category)}
+    return {"templates": prompts.list_templates(category)}

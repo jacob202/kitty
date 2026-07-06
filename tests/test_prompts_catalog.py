@@ -7,7 +7,7 @@ category filter is deterministic, and lookups by id are precise.
 
 from __future__ import annotations
 
-from gateway import prompts_catalog
+from gateway import prompts as prompts_catalog
 
 
 class TestListTemplates:

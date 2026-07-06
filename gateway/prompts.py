@@ -152,3 +152,72 @@ def list_prompts() -> list[dict[str, str | int]]:
         {"name": name, "version": version, "chars": len(text)}
         for name, (text, version) in CATALOG.items()
     ]
+
+
+# -----------------------------------------------------------------------------
+# Prompt templates catalog (formerly gateway/prompts_catalog.py)
+# -----------------------------------------------------------------------------
+
+_TEMPLATES: list[dict] = [
+    {
+        "id": "brainstorm",
+        "title": "Brainstorm",
+        "content": (
+            "Help me brainstorm ideas for: [topic]\n\nConsider:\n"
+            "- Different perspectives\n- pros and cons\n- Creative solutions"
+        ),
+        "category": "Creative",
+        "icon": "\U0001f4a1",
+    },
+    {
+        "id": "debug",
+        "title": "Debug Code",
+        "content": (
+            "Help me debug this code:\n\n```\n[code]\n```\n\n"
+            "Error/issue: [description]\n\nWhat's wrong?"
+        ),
+        "category": "Technical",
+        "icon": "\U0001f527",
+    },
+    {
+        "id": "summarize",
+        "title": "Summarize",
+        "content": ("Summarize the following text:\n\n[text]\n\nKey points:"),
+        "category": "Analysis",
+        "icon": "\U0001f4c4",
+    },
+    {
+        "id": "rewrite",
+        "title": "Rewrite",
+        "content": (
+            "Rewrite the following to be more concise:\n\n[text]\n\nTarget length: [optional]"
+        ),
+        "category": "Writing",
+        "icon": "\u270d\ufe0f",
+    },
+    {
+        "id": "explain",
+        "title": "Explain",
+        "content": (
+            "Explain the following concept:\n\n[concept]\n\nLevel: [beginner/intermediate/advanced]"
+        ),
+        "category": "Learning",
+        "icon": "\U0001f393",
+    },
+]
+
+
+def list_templates(category: str | None = None) -> list[dict]:
+    """Return every prompt template, optionally filtered by ``category``."""
+    if not category:
+        return list(_TEMPLATES)
+    needle = category.strip().lower()
+    return [t for t in _TEMPLATES if str(t.get("category", "")).lower() == needle]
+
+
+def get_template(template_id: str) -> dict | None:
+    """Return a single template by ``id``, or ``None`` when unknown."""
+    for template in _TEMPLATES:
+        if template.get("id") == template_id:
+            return dict(template)
+    return None
