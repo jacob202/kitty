@@ -81,7 +81,7 @@ move-in. It does not delay move-in.
 
 ## Registry
 
-**Updated:** 2026-07-05 (021 merged (#106); 016 built (#107), awaiting real Bs; 008 shipped (#111))
+**Updated:** 2026-07-06 (017 PR #112 open)
 
 | #   | Packet                                                                               | Best executor                        | Status                                                                                                                                                                           |
 | --- | ------------------------------------------------------------------------------------ | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -101,7 +101,7 @@ move-in. It does not delay move-in.
 | 014 | Make the gates honest (UI tests, CI job, isolation leaks)                            | any competent model                  | ✅ shipped (#94)                                                                                                                                                                 |
 | 015 | Phone channel: Kitty reaches Jacob (iMessage/Pushover)                               | Claude Code / Codex                  | ✅ shipped (#103) — Jacob live-verified and merged                                                                                                                               |
 | 016 | Next-step navigator ("just tell me what B is")                                       | Claude Code + strongest-model prompt | 🔎 built (#107) — first LLM-content packet; closes out after a week of Jacob judging real Bs, not on CI green                                                                    |
-| 017 | Benefits/admin rails + urgent-thing sweep                                            | Claude Code (privacy care)           | 🧭 planned                                                                                                                                                                       |
+| 017 | Benefits/admin rails + urgent-thing sweep                                            | Claude Code (privacy care)           | 🔎 opencode — PR #112 open                                                                                                                                                      |
 | 018 | Expert packs: car, body, proactive headlines                                         | Claude Code / Codex                  | 🧭 planned — gated on 008-remainder ✅                                                                                                                                           |
 | 019 | Job search scaffold                                                                  | Claude Code / Codex                  | ⏸ parked — Jacob: "plan it, don't build it"                                                                                                                                      |
 | 020 | GitHub read-only connector                                                           | Codex / Claude Code                  | 🧭 planned — pattern rides 005                                                                                                                                                   |
