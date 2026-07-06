@@ -23,6 +23,8 @@ main
 | 007           | Jacob (eb3afad)     | ✅ done                                                            |
 | 008-remainder | Codex / opencode    | ✅ shipped (#111) — claim released                                 |
 | 015           | —                   | ✅ shipped (#103) — Jacob live-verified                          |
+| 016           | —                   | ✅ merged (#107) — awaiting Jacob's review of real Bs            |
+| 017           | opencode 2026-07-06 | 🚧 claimed — benefits/admin rails + urgent-thing sweep           |
 
 **Rule for other agents:** if the status above is anything other than
 `available`, the packet is taken. Pick another. If you need to release a
