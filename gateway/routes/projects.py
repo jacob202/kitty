@@ -7,12 +7,15 @@ worker pool, not the event loop (same reasoning as /state and /actions).
 from __future__ import annotations
 
 import hashlib
+import logging
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from gateway import next_step, project_resume, project_store
 from gateway.push import push_to_jacob
+
+logger = logging.getLogger("kitty.routes.projects")
 
 router = APIRouter(tags=["projects"])
 
@@ -22,6 +25,14 @@ class CreateProjectRequest(BaseModel):
     kind: str = Field(min_length=1)
     paths: list[str] = Field(default_factory=list)
     links: list = Field(default_factory=list)
+
+
+class UpdateProjectRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1)
+    kind: str | None = Field(default=None, min_length=1)
+    status: str | None = Field(default=None, min_length=1)
+    paths: list[str] | None = None
+    links: list | None = None
 
 
 def _handle(fn, *args, **kwargs):
@@ -44,10 +55,34 @@ def post_project(payload: CreateProjectRequest) -> dict:
     return _handle(project_store.create, payload.name, payload.kind, payload.paths, payload.links)
 
 
+@router.patch("/projects/{project_id}")
+def patch_project(project_id: int, payload: UpdateProjectRequest) -> dict:
+    fields: dict = {}
+    if payload.name is not None:
+        fields["name"] = payload.name
+    if payload.kind is not None:
+        fields["kind"] = payload.kind
+    if payload.status is not None:
+        fields["status"] = payload.status
+    if payload.paths is not None:
+        fields["paths_json"] = payload.paths
+    if payload.links is not None:
+        fields["links_json"] = payload.links
+    if not fields:
+        raise HTTPException(status_code=400, detail="no updatable fields in payload")
+    return _handle(project_store.update_fields, project_id, **fields)
+
+
 @router.post("/projects/{project_id}/refresh")
 def post_refresh(project_id: int) -> dict:
     refreshed = _handle(project_resume.refresh, project_id)
-    step = _handle(next_step.generate, project_id)
+    # The state refresh above succeeded; a model failure here must degrade,
+    # not 500 the whole call (D9: one broken source never kills the read).
+    try:
+        step = _handle(next_step.generate, project_id)
+    except next_step.NextStepError as exc:
+        logger.warning("next_step generation failed for project %s: %s", project_id, exc)
+        return {**refreshed, "next_step": {"ok": False, "error": str(exc)}}
     if step["changed"]:
         digest = hashlib.sha256(step["step"].encode("utf-8")).hexdigest()[:12]
         push_to_jacob(
@@ -56,7 +91,7 @@ def post_refresh(project_id: int) -> dict:
             title="What's next",
             dedupe_key=f"next-step-{project_id}-{digest}",
         )
-    return {**refreshed, "next_step": step}
+    return {**refreshed, "next_step": {"ok": True, **step}}
 
 
 @router.get("/projects/{project_id}/resume")

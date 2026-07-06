@@ -96,7 +96,42 @@ def _check_env(env: dict) -> list[Check]:
     else:
         out.append(Check("WARN", "env:telegram_token", "not set — Telegram bot disabled"))
 
+    out.extend(_check_env_parse(dotenv))
+
     return out
+
+
+def _check_env_parse(dotenv: pathlib.Path) -> list[Check]:
+    """Flag .env lines that python-dotenv can't parse.
+
+    Every python-dotenv consumer prints "could not parse statement starting
+    at line N" per bad line per process — a stray quote on line 1 spammed
+    nine warnings per `kitty` command live on 2026-07-05. This names the
+    exact lines so the fix is a 10-second edit instead of a mystery.
+    """
+    bad_lines: list[int] = []
+    for lineno, raw in enumerate(dotenv.read_text().splitlines(), start=1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):].lstrip()
+        key, sep, _ = line.partition("=")
+        if not sep or not key.strip().replace("_", "").isalnum() or key.strip()[0].isdigit():
+            bad_lines.append(lineno)
+
+    if not bad_lines:
+        return [Check("PASS", "env:parse", "every line parses")]
+    shown = ", ".join(str(n) for n in bad_lines[:5])
+    more = f" (+{len(bad_lines) - 5} more)" if len(bad_lines) > 5 else ""
+    return [
+        Check(
+            "WARN",
+            "env:parse",
+            f"unparseable line(s) at {shown}{more} — fix or delete them "
+            "(a stray quote or missing '=' breaks python-dotenv loading)",
+        )
+    ]
 
 
 def _check_services(env: dict) -> list[Check]:
