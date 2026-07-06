@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 import gateway.memory_graph as memory_graph_module
+from gateway import prefetcher
 from gateway.memory_graph import (
     CONTEXT_TOKEN_CAP,
     GraphResult,
@@ -25,6 +26,18 @@ from gateway.memory_graph import (
     _fetch_traces,
     unified_context,
 )
+
+
+@pytest.fixture(autouse=True)
+def _isolate_prefetch_cache(tmp_path, monkeypatch):
+    """Per-test history file + clean prefetcher cache so tests in this file
+    don't bleed into each other (the in-process TTL cache would otherwise
+    return stale ``unified_context`` results from a previous test in the
+    same pytest run)."""
+    monkeypatch.setattr(prefetcher, "_HISTORY", tmp_path / "hist.jsonl")
+    prefetcher._cache.clear()
+    yield
+    prefetcher._cache.clear()
 
 
 @pytest.mark.asyncio

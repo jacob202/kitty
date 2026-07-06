@@ -154,6 +154,7 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "010_projects.sql",
         "011_project_next_steps.sql",
         "012_cron_schedules.sql",
+        "013_memory_weave.sql",
         "014_deadlines.sql",
     ]
 
