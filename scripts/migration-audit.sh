@@ -3,7 +3,7 @@
 set -euo pipefail
 
 KITTY="$HOME/Projects/kitty"
-OUT="$KITTY/docs/migration-health.md"
+OUT="$KITTY/docs/plans/migration-health.md"
 DATE=$(date "+%Y-%m-%d")
 PYTHON="$HOME/Projects/kitty/venv/bin/python3.12"
 

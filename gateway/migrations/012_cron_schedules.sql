@@ -1,6 +1,6 @@
 -- 012 — Move cron schedules from data/cron_schedules.db into kitty.db.
 --
--- See docs/PHASE_C3_PLAN.md for the full sequence (C3-0 dry run, C3-1
+-- See docs/phases/PHASE_C3_PLAN.md for the full sequence (C3-0 dry run, C3-1
 -- this migration, C3-2 cron.py update, C3-3 live run, C3-4 cleanup
 -- after a week of stable operation).
 --

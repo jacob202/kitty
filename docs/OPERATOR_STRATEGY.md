@@ -70,7 +70,7 @@ the product itself.
 - `gateway/domain_router.py` + `llm_client.py` — model routing with fallback;
   the seed of the delegation model.
 - `gateway/autonomy_state.py` — persistent state for long multi-turn work.
-- `docs/FUTURE_VISION_AND_ROADMAP.md` Pillar 3 ("It acts... judgment about
+- `docs/retired/FUTURE_VISION_AND_ROADMAP.md` Pillar 3 ("It acts... judgment about
   act-vs-ask") — names the action layer explicitly; nothing implements it.
 - The agent-ops discipline itself (AGENT_HANDOFF, LEARNINGS, packet-shaped
   phases B/C) — Kitty's own development process is a working prototype of the

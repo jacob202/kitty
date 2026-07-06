@@ -26,4 +26,4 @@ Use [`0000-template.md`](0000-template.md) when adding a new ADR.
 | 0013 | [Phone-First Delivery And The Move-In Bar](0013-phone-first-delivery-move-in-bar.md)           | Accepted | 2026-07-04 |
 | 0014 | [Magic Kitty: Cross-Project Insight](0014-magic-kitty-cross-project-insight.md)                | Accepted | 2026-07-05 |
 
-Historical decision detail remains in [`docs/DECISIONS_AND_ROADMAP.md`](../DECISIONS_AND_ROADMAP.md).
+Historical decision detail remains in [`docs/retired/DECISIONS_AND_ROADMAP.md`](../retired/DECISIONS_AND_ROADMAP.md).
