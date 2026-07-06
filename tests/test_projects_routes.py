@@ -67,8 +67,74 @@ def test_refresh_returns_composed_sources_and_next_step(client):
     body = r.json()
     assert "sources" in body
     assert body["sources"]["git"]["ok"] is True
+    assert body["next_step"]["ok"] is True
     assert body["next_step"]["step"] == "stub step"
     assert body["next_step"]["changed"] is True
+
+
+def test_refresh_degrades_when_the_model_is_unavailable(client, monkeypatch):
+    def broken_llm(prompt, privacy_tier, content_class):
+        raise next_step.NextStepError("model unreachable")
+
+    monkeypatch.setattr(next_step, "_default_llm", broken_llm)
+    created = client.post("/projects", json={"name": "x", "kind": "admin"}).json()
+
+    r = client.post(f"/projects/{created['id']}/refresh")
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["sources"]["git"]["ok"] is True  # the state refresh itself still landed
+    assert body["next_step"]["ok"] is False
+    assert "model unreachable" in body["next_step"]["error"]
+
+
+def test_refresh_does_not_push_when_generation_fails(client, monkeypatch):
+    pushes = []
+    monkeypatch.setattr(projects_route, "push_to_jacob", lambda *a, **k: pushes.append(a) or True)
+
+    def broken_llm(prompt, privacy_tier, content_class):
+        raise next_step.NextStepError("model unreachable")
+
+    monkeypatch.setattr(next_step, "_default_llm", broken_llm)
+    created = client.post("/projects", json={"name": "x", "kind": "admin"}).json()
+
+    client.post(f"/projects/{created['id']}/refresh")
+
+    assert pushes == []
+
+
+def test_patch_project_updates_paths(client):
+    created = client.post("/projects", json={"name": "x", "kind": "code"}).json()
+
+    r = client.patch(f"/projects/{created['id']}", json={"paths": ["/real/repo/path"]})
+
+    assert r.status_code == 200
+    assert r.json()["paths"] == ["/real/repo/path"]
+
+
+def test_patch_project_updates_name_and_status(client):
+    created = client.post("/projects", json={"name": "temp", "kind": "admin"}).json()
+
+    r = client.patch(f"/projects/{created['id']}", json={"name": "real name", "status": "archived"})
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["name"] == "real name"
+    assert body["status"] == "archived"
+
+
+def test_patch_project_empty_payload_is_400(client):
+    created = client.post("/projects", json={"name": "x", "kind": "code"}).json()
+
+    r = client.patch(f"/projects/{created['id']}", json={})
+
+    assert r.status_code == 400
+
+
+def test_patch_missing_project_returns_404(client):
+    r = client.patch("/projects/999999", json={"name": "nope"})
+
+    assert r.status_code == 404
 
 
 def test_refresh_missing_project_returns_404(client):
