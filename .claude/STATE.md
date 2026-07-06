@@ -21,11 +21,11 @@ main
 
 ## Packet claims
 
-| Packet        | Claimed by          | Status                                              |
-| ------------- | ------------------- | ---------------------------------------------------- |
-| 005           | opencode 2026-07-04 | 🔎 PR #99 open — ready for review                    |
-| 007           | Jacob (eb3afad)     | ✅ done — Jacob committed to main while session ran  |
-| 008-remainder | Codex 2026-07-04    | 🚧 in `.worktrees/packet-008-expert-retrieval`       |
+| Packet        | Claimed by          | Status                                                             |
+| ------------- | ------------------- | ------------------------------------------------------------------ |
+| 005           | opencode 2026-07-04 | ✅ shipped (#99) — live poll pending Jacob's OAuth setup           |
+| 007           | Jacob (eb3afad)     | ✅ done — Jacob committed to main while session ran                |
+| 008-remainder | Codex 2026-07-04    | 🔎 PR #111 open — built, awaiting review/merge                     |
 | 015           | —                   | available — **next priority** (D12: phone channel before features) |
 
 **Rule for other agents:** if the status above is anything other than
@@ -41,7 +41,7 @@ claim, edit this row to `available` and commit to `main`.
 - Plan PR #97 (packets 015–020 + D12 + move-in bar), Fable session.
 - Wave 0 (Jacob, live): ethernet in + verified; Automation permission
   granted; **iMessage-to-self proven end-to-end** — `participant … of
-  (1st account whose service type = iMessage)` works, `buddy` fails
+(1st account whose service type = iMessage)` works, `buddy` fails
   silently. Banked in packet 015.
 
 ## In flight
