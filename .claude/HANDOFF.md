@@ -1,38 +1,54 @@
-# Session Handoff — 2026-07-06 (close-out, ~13:30–13:55)
+# Session Handoff — 2026-07-06 (PR #112 merge attempt)
 
-## Status
-
-Main is at `702e342` with one in-flight task: C3 cron.py + test_cron.py are mid-edit, not yet committed.
+## Status — PR #112 is CONFLICTING, needs merge resolution
 
 ## Completed this session
 
-- Pre-commit cleanup (1abfcef) — drops `ruff-format`, `ruff --fix`, and `prettier` auto-fix hooks. They were the source of the index-corruption loop the salvage session was stuck in. Keeps check-only `pre-commit-hooks` (trailing-whitespace, end-of-file-fixer, check-yaml, check-toml, check-merge-conflict, detect-private-key) and the local `no-macos-metadata` block.
-- Deleted 5 unreferenced cat PNGs (~4.4MB) from `design-system/v2-reference/cat-assets/`. The 8bit SVGs and `kitty-*.svg`/`state-*.svg` files are real design assets and were left alone.
-- Session log written to `.agent/session_logs/20260706T195358Z-handoff.md`.
-- `.claude/STATE.md` updated: in-flight section now points at C3.
+- **Fixed lint errors** in `gateway/deadline_store.py`, `tests/test_deadline_extractor.py`, `tests/test_deadline_sweep.py`, `tests/test_deadline_watch.py`, `tests/test_loops_insights_defake.py` — unused imports, unsorted imports, unused variable.
+- **Fixed PR description** — added `## Test plan` section (check-description was failing).
+- **Restored `gateway/prefetcher.py`** — C3-2 commit removed it, but main has `8f0fadd` that expects it. Restored from main.
+- **Fixed `tests/test_cron.py::TestLegacyImport`** — `test_legacy_import_copies_rows` asserted `LEGACY_CRON_DB.exists()` (the real path) instead of `tmp_legacy_db.exists()` (the fixture path). Import was also stale — `LEGACY_CRON_DB` was captured before monkeypatch.
+- **Renamed migration** `013_deadlines.sql` → `014_deadlines.sql` — main added `013_memory_weave.sql` in the meantime.
+- **Pushed 5 commits** to `claude/packet-017-benefits-rails`:
+  - `43b9c2f`: fix(lint): unused imports, import sorting, restore prefetcher.py
+  - `2e46483`: fix(test): lint import sorting, legacy import assert uses tmp_legacy_db
+  - `05a36ef`: chore: trigger CI
+  - `74a8d60`: fix(migration): rename 013 -> 014 to avoid conflict with main's 013_memory_weave
 
-## In flight (must finish before close)
+## Still failing / blocking
 
-**C3 DB consolidation** — `gateway/cron.py` (+134/-?) and `tests/test_cron.py` (+245/-?) are mid-edit. The intent (per `docs/phases/PHASE_C3_PLAN.md`):
+### 1. Merge conflict — PR #112 is CONFLICTING
 
-- Replace standalone `data/cron_schedules.db` with the shared `data/kitty/kitty.db` table `cron_schedules`.
-- Migration 012 (`gateway/migrations/012_cron_schedules.sql`) is already in main.
-- Legacy DB is imported once on first `init_db()` if destination table is empty, never deleted (rollback = one line in cron.py).
-- Runner must be stopped before migration, restarted after.
+The PR's `mergeStateStatus` is `DIRTY`. The migration rename (013→014) should have resolved the file collision, but it's still conflicting. Likely suspects:
 
-When the edits are done:
+- **`gateway/prefetcher.py`**: The branch deleted it in C3-2 (`d286e02`), then I restored it from main (`main:gateway/prefetcher.py`). Main added it in `40be1ce`. Git sees both sides "adding" the file from different starting points — this may need manual resolution.
+- **`tests/test_memory_graph.py`**: Main's `8f0fadd` adds `from gateway import prefetcher` + `_isolate_prefetch_cache` fixture back. The branch's version (from C3-2) doesn't have these. No merge conflict per se (main's change is additive from the base), but it depends on `prefetcher.py` existing.
 
-1. `python scripts/dry_run_c3.py` — exercises the stop-migrate-restart protocol end-to-end without touching the live runner.
-2. `pytest tests/test_cron.py -q` — confirm the rewritten tests pass.
-3. `git add gateway/cron.py tests/test_cron.py && git commit --no-verify -m "feat(c3): migrate cron schedules to kitty.db" -m "..."` — body should cite 012_cron_schedules.sql and docs/phases/PHASE_C3_PLAN.md.
-4. Per AGENTS.md: `./kitty status` + `./kitty doctor --json` after state-path changes land.
+### 2. Git repo has macOS Icon file corruption
 
-## Mistakes this session (so the next agent doesn't repeat them)
+Hundreds of `Icon` files (from macOS metadata) are scattered through `.git/` directories. These cause `fatal: bad object refs/Icon?` errors when running git operations from the worktree. Fetching and merging from the main repo directory also fails.
 
-- **Bundled C6 work into a single-purpose commit.** My first `git commit` of the pre-commit cleanup (7f5036c) accidentally captured 12 C6 doc-sprawl renames that Jacob had already staged. The commit message said "drop ruff and prettier auto-fix hooks" but the diff had 13 files. I caught it before push, used `git reset --soft HEAD~1 && git commit --only .pre-commit-config.yaml` to redo the commit cleanly. **Lesson: before any `git commit` in a shared/active repo, scan `git status --short` for staged changes you didn't add, and prefer `git commit --only <path>` when other staged work exists.**
-- **Stale reads presented as current state.** I claimed "4 unstaged files" mid-session based on a `git status` from several minutes earlier. Jacob was committing in parallel between my reads; the working tree kept shifting. The final clean re-check was authoritative; my earlier claims were stale. **Lesson: re-run `git status` (and `git log --oneline -3`) immediately before any action that depends on the tree, and trust the most recent read over accumulated context.**
-- **Cited pre-commit ref warnings that turned out to be transient.** `git for-each-ref` showed `refs/remotes/origin/fable/Icon?` once; the next run was clean. The first run was a race with a concurrent fetch, not real corruption. **Lesson: confirm ref-integrity warnings with a second run before flagging them as "real bugs."**
+### 3. CI didn't trigger for latest commits
 
-## Next action
+The last CI run was for `43b9c2f6` and it FAILED (lint had 1 error I001, test_cron had the legacy assert bug). My subsequent fixes (`2e46483`, `74a8d60`) never triggered CI — possibly because the conflict prevents PR CI from running.
 
-Complete C3 per the four steps above. Then claim packet 015 from `.claude/STATE.md`.
+## Next actions
+
+1. **Resolve merge conflict** — the best approach is probably:
+   - Close PR #112
+   - Rebase the branch onto `main`, resolve conflicts in `gateway/prefetcher.py` and `tests/test_memory_graph.py`
+   - Force-push and re-open PR
+   - OR: use `gh pr merge` with a merge strategy that works around the conflict
+2. **Clean up the git repo's Icon files** — `find .git -name "Icon" -delete` was run but may not have caught everything. The worktree's `.git` might still be affected.
+3. **Trigger CI** — once the conflict is resolved, CI should run automatically on push.
+4. **Verify all checks green** — then merge.
+
+## Commits pushed (visible on GitHub)
+
+```
+3117859 feat(benefits): deadline rails, extractor, watch cron, sweep, routes
+43b9c2f  fix(lint): unused imports, import sorting, restore prefetcher.py
+2e46483  fix(test): lint import sorting, legacy import assert uses tmp_legacy_db
+05a36ef  chore: trigger CI
+74a8d60  fix(migration): rename 013 -> 014 to avoid conflict with main's 013_memory_weave
+```
