@@ -33,7 +33,9 @@ logger = logging.getLogger("kitty.llm_client")
 # D10 — Privacy boundary. Content classes that must NEVER be sent to cloud
 # models unless a future explicit opt-in flag is set per-request. The route
 # layer catches the resulting error and returns 400 with a reason.
-PRIVACY_LOCAL_ONLY: frozenset[str] = frozenset({"journal", "mail_body", "health_admin"})
+PRIVACY_LOCAL_ONLY: frozenset[str] = frozenset(
+    {"journal", "mail_body", "health_admin", "knowledge_document"}
+)
 
 
 class PrivacyBoundaryError(RuntimeError):
@@ -42,9 +44,7 @@ class PrivacyBoundaryError(RuntimeError):
     code = "privacy.boundary"
 
 
-def enforce_privacy_boundary(
-    privacy_tier: str, content_class: str | None
-) -> None:
+def enforce_privacy_boundary(privacy_tier: str, content_class: str | None) -> None:
     """Reject cloud routing for content classes that D10 marks local-only.
 
     Routes that handle private content must tag ``content_class`` AND pick

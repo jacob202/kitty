@@ -1,6 +1,8 @@
 """Tests for the /knowledge routes (packet 008)."""
+
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -155,6 +157,36 @@ def test_ingest_happy_path_with_text_file(client, mock_kb_collection, tmp_path):
     assert mock_kb_collection.add.called
 
 
+def test_ingest_persists_collection_and_normalized_tags(client, mock_kb_collection, tmp_path):
+    sample = tmp_path / "architecture.md"
+    sample.write_text(
+        "Kitty uses FastAPI routes and a local SQLite store for durable state.",
+        encoding="utf-8",
+    )
+
+    cms = _patched_ingest_with_coll(mock_kb_collection, [0.1, 0.2, 0.3, 0.4])
+    _enter_all(cms)
+    try:
+        response = client.post(
+            "/knowledge/ingest",
+            json={
+                "path": str(sample),
+                "collection": "coding_repo",
+                "tags": [" Architecture ", "python", "architecture"],
+            },
+        )
+    finally:
+        _exit_all(cms)
+
+    assert response.status_code == 200, response.text
+    stored = mock_kb_collection.add.call_args.kwargs["metadatas"]
+    assert stored
+    assert {metadata["collection"] for metadata in stored} == {"coding_repo"}
+    assert {tuple(json.loads(metadata["tags_json"])) for metadata in stored} == {
+        ("architecture", "python")
+    }
+
+
 def test_ingest_nonexistent_file_returns_failed(client):
     r = client.post(
         "/knowledge/ingest",
@@ -213,6 +245,8 @@ def test_sources_listing_aggregates_chunks(client, mock_kb_collection):
             "source": "kitty_notes.txt",
             "doc_type": "source_summary",
             "chunk_index": -1,
+            "collection": "coding_repo",
+            "tags_json": '["architecture","python"]',
             "sensitivity": "low",
             "authority_score": 0.8,
             "primary_topic": "Honda Civic maintenance",
@@ -226,6 +260,8 @@ def test_sources_listing_aggregates_chunks(client, mock_kb_collection):
             "source": "kitty_notes.txt",
             "doc_type": "general",
             "chunk_index": 0,
+            "collection": "coding_repo",
+            "tags_json": '["architecture","python"]',
             "sensitivity": "low",
             "authority_score": 0.8,
             "primary_topic": "Honda Civic maintenance",
@@ -239,6 +275,8 @@ def test_sources_listing_aggregates_chunks(client, mock_kb_collection):
             "source": "sansui.txt",
             "doc_type": "source_summary",
             "chunk_index": -1,
+            "collection": "audio_repair",
+            "tags_json": '["amplifier"]',
             "sensitivity": "low",
             "authority_score": 0.6,
             "primary_topic": "Sansui amplifier bias",
@@ -265,7 +303,11 @@ def test_sources_listing_aggregates_chunks(client, mock_kb_collection):
     by_name = {s["name"]: s for s in body["sources"]}
     assert by_name["kitty_notes.txt"]["chunks"] == 2
     assert by_name["kitty_notes.txt"]["primary_topic"] == "Honda Civic maintenance"
+    assert by_name["kitty_notes.txt"]["collection"] == "coding_repo"
+    assert by_name["kitty_notes.txt"]["tags"] == ["architecture", "python"]
     assert by_name["sansui.txt"]["chunks"] == 1
+    assert by_name["sansui.txt"]["collection"] == "audio_repair"
+    assert by_name["sansui.txt"]["tags"] == ["amplifier"]
 
 
 def test_sources_listing_empty_collection(client, mock_kb_collection):
@@ -366,3 +408,71 @@ def test_search_empty_query_returns_message(client):
 def test_search_rejects_invalid_limit(client):
     r = client.get("/knowledge/search", params={"q": "anything", "limit": 999})
     assert r.status_code == 400
+
+
+def test_expert_route_forbids_cloud_override(client):
+    response = client.post(
+        "/knowledge/expert",
+        json={
+            "query": "Which route owns the state console?",
+            "expert": "coding_repo",
+            "allow_cloud": True,
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_expert_route_returns_supported_answer(client):
+    expected = {
+        "expert": "coding_repo",
+        "supported": True,
+        "answer": "The route registry owns that wiring [1].",
+        "citations": [
+            {
+                "id": 1,
+                "source": "ARCHITECTURE.md",
+                "page_num": None,
+                "chunk_index": 3,
+                "label": "ARCHITECTURE.md, chunk 3",
+            }
+        ],
+        "privacy": "local",
+    }
+
+    async def fake_answer(query, expert, limit):
+        assert query == "Which route owns the state console?"
+        assert expert == "coding_repo"
+        assert limit == 5
+        return expected
+
+    with patch("gateway.knowledge.answer_as_expert", side_effect=fake_answer):
+        response = client.post(
+            "/knowledge/expert",
+            json={
+                "query": "Which route owns the state console?",
+                "expert": "coding_repo",
+            },
+        )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == expected
+
+
+def test_expert_route_rejects_unknown_expert(client):
+    response = client.post(
+        "/knowledge/expert",
+        json={"query": "Use my uploaded manuals", "expert": "not_real"},
+    )
+
+    assert response.status_code == 404
+    assert "unknown knowledge expert" in response.json()["detail"]
+
+
+def test_expert_route_rejects_whitespace_query(client):
+    response = client.post(
+        "/knowledge/expert",
+        json={"query": "   ", "expert": "coding_repo"},
+    )
+
+    assert response.status_code == 422
