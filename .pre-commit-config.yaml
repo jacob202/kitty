@@ -21,3 +21,11 @@ repos:
     hooks:
       - id: prettier
         types_or: [javascript, jsx, tsx, json, css, markdown, yaml]
+
+  - repo: local
+    hooks:
+      - id: no-macos-metadata
+        name: Block macOS Finder metadata (Icon\r, .DS_Store)
+        entry: scripts/check-no-macos-metadata.sh
+        language: script
+        stages: [pre-commit]

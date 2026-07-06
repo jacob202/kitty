@@ -25,7 +25,7 @@ main
 | ------------- | ------------------- | ------------------------------------------------------------------ |
 | 005           | opencode 2026-07-04 | ✅ shipped (#99) — live poll pending Jacob's OAuth setup           |
 | 007           | Jacob (eb3afad)     | ✅ done — Jacob committed to main while session ran                |
-| 008-remainder | Codex 2026-07-04    | 🔎 PR #111 open — built, awaiting review/merge                     |
+| 008-remainder | Codex 2026-07-04    | ✅ shipped (#111) — claim released                                 |
 | 015           | —                   | available — **next priority** (D12: phone channel before features) |
 
 **Rule for other agents:** if the status above is anything other than
