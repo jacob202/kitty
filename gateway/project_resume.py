@@ -31,7 +31,11 @@ from gateway.paths import PROJECT_ROOT
 
 logger = logging.getLogger("kitty.project_resume")
 
-SOURCE_TIMEOUT_SECONDS = 5.0
+# 10s not 5s: the memory source's first call after a gateway restart pays
+# Ollama's embedding-model load (observed >5s live on 2026-07-05, which
+# made a cold refresh report memory as timed out). Refresh is a manual,
+# infrequent operation — the extra headroom costs nothing interactive.
+SOURCE_TIMEOUT_SECONDS = 10.0
 GIT_TIMEOUT_SECONDS = 4.0
 SIGNAL_SCAN_LIMIT = 200
 GIT_LOG_LINES = 5
