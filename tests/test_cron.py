@@ -209,7 +209,6 @@ class TestLegacyImport:
     ):
         from gateway import db as kitty_db
         from gateway.cron import (
-            LEGACY_CRON_DB,
             LEGACY_IMPORT_SETTING,
             _import_legacy_cron_once,
         )
@@ -231,7 +230,7 @@ class TestLegacyImport:
         assert "imported 1 row" in setting[0]
 
         # Legacy file is never deleted.
-        assert LEGACY_CRON_DB.exists()
+        assert tmp_legacy_db.exists()
 
     def test_legacy_import_is_idempotent(
         self, tmp_kitty_db, tmp_legacy_db, monkeypatch

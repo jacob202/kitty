@@ -10,8 +10,8 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    from gateway import db as kitty_db
     from gateway import cron, dream_insights
+    from gateway import db as kitty_db
     from gateway.app import app
 
     # Pin the cron store to a tmp kitty.db with the required tables

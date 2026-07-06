@@ -563,3 +563,36 @@ def test_check_push_channel_fail_when_last_attempt_failed(monkeypatch, tmp_path)
     checks = doctor._check_push_channel({"PUSH_IMESSAGE_RECIPIENT": "+15551234567"})
     assert checks[0].level == "FAIL"
     assert "imessage" in checks[0].detail
+
+
+def test_check_deadlines_warn_when_none_open(monkeypatch, tmp_path):
+    from gateway import db, deadline_store, doctor, paths, push
+
+    db_file = tmp_path / "kitty.db"
+    monkeypatch.setattr(deadline_store, "DEADLINES_DB_FILE", db_file)
+    monkeypatch.setattr(db, "KITTY_DB_FILE", db_file)
+    monkeypatch.setattr(paths, "KITTY_DB_FILE", db_file)
+    monkeypatch.setattr(push, "PUSH_LOG_FILE", tmp_path / "push_log.jsonl")
+    deadline_store.init_db()
+    checks = doctor._check_deadlines()
+    assert checks[0].level == "WARN"
+    assert "no open deadlines" in checks[0].detail
+
+
+def test_check_deadlines_pass_when_open_and_no_pushes_yet(monkeypatch, tmp_path):
+    from gateway import db, deadline_store, doctor, paths, push
+
+    db_file = tmp_path / "kitty.db"
+    monkeypatch.setattr(deadline_store, "DEADLINES_DB_FILE", db_file)
+    monkeypatch.setattr(db, "KITTY_DB_FILE", db_file)
+    monkeypatch.setattr(paths, "KITTY_DB_FILE", db_file)
+    monkeypatch.setattr(push, "PUSH_LOG_FILE", tmp_path / "push_log.jsonl")
+    monkeypatch.setattr("gateway.project_store.PROJECTS_DB_FILE", db_file)
+    monkeypatch.setattr("gateway.project_store.KITTY_DB_FILE", db_file)
+    deadline_store.init_db()
+    from gateway import project_store
+    project_store.create("benefits-admin", "admin")
+    deadline_store.upsert({"project_id": 2, "source": "test", "due_date": "2026-08-01", "obligation": "x", "confidence": "high"})
+    checks = doctor._check_deadlines()
+    assert checks[0].level == "PASS"
+    assert "no pushes yet" in checks[0].detail
