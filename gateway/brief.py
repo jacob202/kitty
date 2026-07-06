@@ -378,6 +378,50 @@ def get_next_steps_section(limit: int = 3) -> list[dict]:
     return section
 
 
+def get_deadlines_section(limit: int = 3) -> list[dict]:
+    """Upcoming deadlines section (P7, 017).
+
+    Ordered by due_date ascending. High/medium confidence first; needs_jacob
+    items are surfaced only if there are fewer than `limit` confident items.
+    """
+    from gateway import deadline_store
+
+    open_deadlines = deadline_store.list_open(status="open")
+    needs_jacob = deadline_store.list_needs_jacob()
+
+    open_deadlines.sort(key=lambda d: d["due_date"])
+    needs_jacob.sort(key=lambda d: d["due_date"])
+
+    section: list[dict] = []
+    for d in open_deadlines:
+        section.append(
+            {
+                "id": d["id"],
+                "due_date": d["due_date"],
+                "obligation": d["obligation"],
+                "amount": d["amount"],
+                "currency": d["currency"],
+            }
+        )
+        if len(section) >= limit:
+            break
+
+    while len(section) < limit and needs_jacob:
+        d = needs_jacob.pop(0)
+        section.append(
+            {
+                "id": d["id"],
+                "due_date": d["due_date"] or "unknown",
+                "obligation": d["obligation"],
+                "amount": d["amount"],
+                "currency": d["currency"],
+                "needs_jacob": True,
+            }
+        )
+
+    return section
+
+
 def _build_brief_result(
     *,
     today: str,
@@ -402,6 +446,9 @@ def _build_brief_result(
     next_steps = get_next_steps_section()
     if next_steps:
         result["next_steps"] = next_steps
+    deadlines = get_deadlines_section()
+    if deadlines:
+        result["deadlines"] = deadlines
     return result
 
 

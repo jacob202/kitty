@@ -84,6 +84,15 @@ def _format_brief_text(brief: dict) -> str:
         if name and step:
             lines.append(f"- {name}: {step[:120]}")
 
+    # Deadlines — approaching benefits/admin obligations (P7, 017)
+    for deadline in (brief.get("deadlines") or [])[:2]:
+        due = str(deadline.get("due_date") or "").strip()
+        obligation = str(deadline.get("obligation") or "").strip()
+        amount = str(deadline.get("amount") or "").strip()
+        if obligation:
+            tail = f" ({amount})" if amount else ""
+            lines.append(f"- Deadline {due}: {obligation[:120]}{tail}")
+
     # Cap at 5 bullets (date line + up to 4 bullets)
     return "\n".join(lines[:5])
 

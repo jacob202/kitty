@@ -27,6 +27,7 @@ from gateway.paths import KITTY_DB_FILE, PROJECT_ROOT
 
 PROJECTS_DB_FILE = KITTY_DB_FILE
 KITTY_PROJECT_SEEDED_SETTING = "projects_kitty_seeded"
+BENEFITS_PROJECT_SEEDED_SETTING = "projects_benefits_seeded"
 
 _JSON_FIELDS = frozenset(
     {"paths_json", "open_questions_json", "next_actions_json", "delegable_json", "links_json"}
@@ -62,6 +63,7 @@ class ProjectNotFound(ProjectError):
 def init_db() -> None:
     kitty_db.migrate(db_file=PROJECTS_DB_FILE)
     _seed_kitty_project_once()
+    _seed_benefits_project_once()
 
 
 def create(
@@ -170,5 +172,26 @@ def _seed_kitty_project_once() -> None:
             "INSERT OR REPLACE INTO app_settings (key, value, updated_at) "
             "VALUES (?, ?, CURRENT_TIMESTAMP)",
             (KITTY_PROJECT_SEEDED_SETTING, "1"),
+        )
+        conn.commit()
+
+
+def _seed_benefits_project_once() -> None:
+    """Register the benefits-admin project as project #2. Idempotent, once ever (P7)."""
+    with kitty_db.connect(PROJECTS_DB_FILE) as conn:
+        seeded = conn.execute(
+            "SELECT value FROM app_settings WHERE key = ?",
+            (BENEFITS_PROJECT_SEEDED_SETTING,),
+        ).fetchone()
+        if seeded:
+            return
+        conn.execute(
+            "INSERT INTO projects (name, kind, paths_json, links_json) VALUES (?, ?, ?, ?)",
+            ("benefits-admin", "admin", json.dumps([]), json.dumps([])),
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO app_settings (key, value, updated_at) "
+            "VALUES (?, ?, CURRENT_TIMESTAMP)",
+            (BENEFITS_PROJECT_SEEDED_SETTING, "1"),
         )
         conn.commit()
