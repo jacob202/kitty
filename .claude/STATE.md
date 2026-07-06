@@ -21,7 +21,7 @@ main
 | 005           | opencode 2026-07-04 | ✅ shipped (#99)                                                   |
 | 007           | Jacob (eb3afad)     | ✅ done                                                            |
 | 008-remainder | Codex / opencode    | ✅ shipped (#111) — claim released                                 |
-| 015           | —                   | available — **next priority** (D12: phone channel before features) |
+| 015           | —                   | ✅ shipped (#103) — Jacob live-verified                          |
 
 **Rule for other agents:** if the status above is anything other than
 `available`, the packet is taken. Pick another. If you need to release a
