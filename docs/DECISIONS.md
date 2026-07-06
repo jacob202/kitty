@@ -5,7 +5,7 @@
 
 The full index is in [`docs/adr/README.md`](adr/README.md). Historical
 detail that hasn't been promoted to a per-decision ADR remains in
-[`docs/DECISIONS_AND_ROADMAP.md`](DECISIONS_AND_ROADMAP.md).
+[`docs/retired/DECISIONS_AND_ROADMAP.md`](retired/DECISIONS_AND_ROADMAP.md).
 
 ## Quick reference
 
