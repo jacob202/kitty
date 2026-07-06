@@ -1,12 +1,15 @@
 """Knowledge pipeline contracts — shared Pydantic shapes for ingestion and retrieval."""
+
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
 from typing import Optional
+
+from pydantic import BaseModel, Field
 
 
 class LibrarianReport(BaseModel):
     """Quality judgment for a document source."""
+
     summary: str = ""
     authority_score: float = Field(default=0.5, ge=0.0, le=1.0)
     relevance_period: str = "persistent"  # persistent, seasonal, ephemeral
@@ -17,8 +20,11 @@ class LibrarianReport(BaseModel):
 
 class KnowledgeMetadata(BaseModel):
     """Metadata for a single knowledge chunk."""
+
     source: str
     file_path: str
+    collection: str = "general"
+    tags_json: str = "[]"
     sensitivity: str = "low"
     doc_type: str = "general"
     content_hash: str = ""
@@ -41,6 +47,7 @@ class KnowledgeMetadata(BaseModel):
 
 class IngestionResult(BaseModel):
     """Result of ingesting a single document."""
+
     source: str
     status: str  # success, skipped, failed
     content_hash: str = ""
@@ -50,6 +57,7 @@ class IngestionResult(BaseModel):
 
 class VisualExtraction(BaseModel):
     """Visual analysis result from a document page."""
+
     text: str = ""
     page_num: int = 0
     analysis_type: str = "general"

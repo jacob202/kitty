@@ -24,20 +24,17 @@ privacy boundary, knowledge routes, capture, de-fake, brief scheduler, signal
 wiring). #70 merged with red checks after #75/#77 and broke main; the
 reconcile fix repaired it. PR #78 was closed unmerged as obsolete.
 
-## Test State (2026-07-02)
+## Test State (2026-07-05)
 
 ```
-Local: ~1010 passed, 2 failed, 1 skipped, 2 deselected
+Local: 1120 passed, 1 skipped, 2 deselected, 4 warnings
 ```
 
-Known local-only failures (pass on CI — tests leak real local `data/` state):
-
-- `tests/test_action_queue.py::test_t0_executes_from_proposed_and_records_result`
-- `tests/test_state_composer.py::test_real_sources_compose_against_isolated_stores`
-
-Known collection error:
-
-- `tests/test_llm_client_alt_ua.py` — untracked file importing a function that doesn't exist; skip with `--ignore` or delete.
+The 2026-07-02 entries for `test_action_queue.py::test_t0_executes_from_proposed_and_records_result`,
+`test_state_composer.py::test_real_sources_compose_against_isolated_stores`, and the untracked
+`tests/test_llm_client_alt_ua.py` are no longer reproducible — both tests pass and the untracked
+file is gone. If the failures recur, re-isolate them with `tmp_path` fixtures (see
+`tests/test_env_loader.py` for the pattern).
 
 ## Runtime Shape
 
@@ -48,12 +45,19 @@ Known collection error:
 
 ## Active Technical Debt
 
-| Issue                                          | Location                                                       | Priority                                   |
-| ---------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------ |
-| `npm run` exits 194 silently                   | `gateway/kitty-chat` (node 26.4/npm 11.17)                     | High — use direct bins (see AGENT_HANDOFF) |
-| 6 UI test failures, no kitty-chat CI job       | `tests/SessionSidebar.test.tsx`, `tests/gatewayIntegration...` | High — console-home phase step 0           |
-| Test isolation leaks (2 tests read real data/) | `tests/test_action_queue.py`, `tests/test_state_composer.py`   | Medium — red locally, green on CI          |
-| SIRI_SHORTCUT.md references dead launcher      | `docs/SIRI_SHORTCUT.md`                                        | Low — tombstone it                         |
+| Issue                                          | Location                                                     | Priority                          |
+| ---------------------------------------------- | ------------------------------------------------------------ | --------------------------------- |
+| No kitty-chat CI job                           | `.github/workflows/`                                         | High — add a UI test job          |
+| Test isolation leaks (2 tests read real data/) | `tests/test_action_queue.py`, `tests/test_state_composer.py` | Medium — red locally, green on CI |
+| SIRI_SHORTCUT.md references dead launcher      | `docs/SIRI_SHORTCUT.md`                                      | Low — tombstone it                |
+
+### Resolved 2026-07-05
+
+- `npm run` exits 194 silently — **fixed** in `gateway/kitty-chat/.npmrc` with
+  `script-shell=/bin/sh` (npm 11.17 spawn-ELOOP on default shell). `npm test`
+  and `npm run build` both exit 0 and pass.
+- 6 UI test failures — **stale**. All 85 UI tests pass via `npm test`. The
+  6-failures claim was from 2026-07-02; current count is 14 files, 85 tests, 0 fails.
 
 ## What's Next
 

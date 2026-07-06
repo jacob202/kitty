@@ -36,6 +36,49 @@ def test_doctor_uses_litellm_readiness_endpoint(monkeypatch) -> None:
     assert "http://127.0.0.1:8001/health/readiness" in seen_urls
 
 
+# --- _check_env_parse ---
+
+
+def test_env_parse_passes_on_clean_file(tmp_path) -> None:
+    from gateway import doctor
+
+    dotenv = tmp_path / ".env"
+    dotenv.write_text("# comment\n\nKEY=value\nexport OTHER=x\nQUOTED=\"y\"\n", encoding="utf-8")
+    checks = doctor._check_env_parse(dotenv)
+    assert checks[0].name == "env:parse"
+    assert checks[0].level == "PASS"
+
+
+def test_env_parse_flags_stray_quote_line_with_number(tmp_path) -> None:
+    # The exact live failure from 2026-07-05: a leading quote on line 1.
+    from gateway import doctor
+
+    dotenv = tmp_path / ".env"
+    dotenv.write_text("'# Local-only secrets file\nGOOD=1\n", encoding="utf-8")
+    checks = doctor._check_env_parse(dotenv)
+    assert checks[0].level == "WARN"
+    assert "line(s) at 1" in checks[0].detail
+
+
+def test_env_parse_flags_line_without_equals(tmp_path) -> None:
+    from gateway import doctor
+
+    dotenv = tmp_path / ".env"
+    dotenv.write_text("GOOD=1\nthis is not an assignment\n", encoding="utf-8")
+    checks = doctor._check_env_parse(dotenv)
+    assert checks[0].level == "WARN"
+    assert "line(s) at 2" in checks[0].detail
+
+
+def test_env_parse_runs_as_part_of_check_env(monkeypatch, tmp_path) -> None:
+    from gateway import doctor
+
+    monkeypatch.setattr(doctor, "ROOT", tmp_path)
+    (tmp_path / ".env").write_text("OPENROUTER_API_KEY=set\n", encoding="utf-8")
+    checks = doctor._check_env({"OPENROUTER_API_KEY": "set"})
+    assert any(c.name == "env:parse" for c in checks)
+
+
 # --- _check_env ---
 
 

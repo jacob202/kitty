@@ -92,12 +92,18 @@ async def lifespan(app: FastAPI):
 
             await asyncio.to_thread(poll_now)
 
+        async def _action_warm_prefetch():
+            from gateway.prefetcher import warm
+
+            await warm()
+
         register_action("brief.refresh", _action_refresh_brief)
         register_action("nudges.check", _action_check_nudges)
         register_action("monitors.check", _action_check_monitors)
         register_action("memory.consolidate", _action_memory_consolidate)
         register_action("inbox.triage", _action_triage_inbox)
         register_action("mail.poll", _action_poll_mail)
+        register_action("prefetch.warm", _action_warm_prefetch)
         cron_start()
     except Exception:
         pass

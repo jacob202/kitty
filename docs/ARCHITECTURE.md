@@ -108,7 +108,9 @@ Phase B consolidates app-owned episodic state behind a single SQLite story. It d
 
 ## Removed Modules
 
-The following shallow modules were deleted (deepening pass, 2026-07-02):
+The following shallow modules were deleted (deepening passes):
+
+**2026-07-02 pass:**
 
 - `gateway/llm_utils.py` — one retry function, sole caller was `llm_client`; inlined.
 - `gateway/prompt_loader.py` — 25-line pass-through; folded into `prompts.py`.
@@ -117,3 +119,12 @@ The following shallow modules were deleted (deepening pass, 2026-07-02):
 - `gateway/storage_io.py` — backup/restore; merged into `storage_sync.py`.
 - `gateway/sync.py` — export logic; merged into `storage_sync.py`.
 - `gateway/domain_router.py` ABC layer — `DomainClassifier`/`_classify_cached`/`classifier` param; dead (no second implementation).
+
+**Track C pass (2026-07-06):**
+
+- `gateway/smoke_eval.py` — orphaned smoke-suite harness; deleted with its `gateway/eval_domain.py` substrate.
+- `gateway/eval_domain.py` — evaluation domain types only consumed by the deleted `smoke_eval.py`.
+- `gateway/parts.py` — small parts-mode helper; folded into `gateway/context_assembler.py`.
+- `gateway/prompts_catalog.py` — template list with one route consumer; folded into `gateway/prompts.py`.
+- `gateway/success_criteria.py` — ISA-lite derive/check helper; folded into `gateway/builder.py`.
+- `gateway/voice_session.py` — 19-line re-export shim with no callers; deleted.

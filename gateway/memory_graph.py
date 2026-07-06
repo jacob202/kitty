@@ -528,9 +528,22 @@ async def search_all(query: str) -> GraphResult:
     return await _get_graph().search_all(query)
 
 
-async def unified_context(query: str) -> str:
-    """Return unified context from all stores as a formatted string."""
-    return await _get_graph().unified_context(query)
+async def unified_context(query: str, *, _record: bool = True) -> str:
+    """Return unified context from all stores as a formatted string.
+
+    Checks the predictive prefetch cache first; on a miss, computes the context,
+    caches it, and (for real asks) records the query so the prefetcher learns.
+    """
+    from gateway import prefetcher
+
+    hit = prefetcher.get_cached(query)
+    if hit is not None:
+        return hit
+    result = await _get_graph().unified_context(query)
+    prefetcher.put_cached(query, result)
+    if _record:
+        prefetcher.record(query)
+    return result
 
 
 # --- Free functions used by the assembler ---

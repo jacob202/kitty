@@ -15,6 +15,11 @@
 #   kitty resume    Print one-screen orientation block (branch, PRs, tests, services, packets)
 #   kitty delegate <action-id>  Generate a docs/packets/NNN-slug.md file from an action
 #   kitty push [--alert] "message"  Push to Jacob's phone (iMessage, Pushover fallback)
+#   kitty project add "name" /abs/path [kind]   Register a project (kind: code|admin|creative|...)
+#   kitty project list                          List registered projects
+#   kitty project refresh <id>                  Recompose state + regenerate the next step ("B")
+#   kitty project next <id>                     Show the current next step for a project
+#   kitty project set-path <id> /abs/path       Fix a project's path
 #
 # Environment: reads .env from the repo root if present. All overrides
 # (GATEWAY_PORT, LITELLM_PORT, LITELLM_VENV, …) live in .env, never here.
@@ -312,8 +317,132 @@ sys.exit(0 if ok else 1)
 ' "$message" "$kind"
 }
 
+cmd_project() {
+  local sub="${1:-}"
+  shift || true
+  local base="http://127.0.0.1:$GATEWAY_PORT"
+
+  if [[ -z "${GATEWAY_SECRET:-}" ]]; then
+    echo "GATEWAY_SECRET not set — run: kitty up (it writes one into .env)" >&2
+    exit 1
+  fi
+
+  # All output shaping happens in one python helper so quoting in project
+  # names can never break the shell or the JSON.
+  project_py() {
+    PYTHONPATH="$KITTY_ROOT${PYTHONPATH:+:$PYTHONPATH}" "$PYTHON_BIN" - "$@" <<'PY'
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+
+base = os.environ["KITTY_PROJECT_BASE"]
+secret = os.environ["GATEWAY_SECRET"]
+mode = sys.argv[1]
+args = sys.argv[2:]
+
+
+def call(method, path, payload=None):
+    data = json.dumps(payload).encode() if payload is not None else None
+    req = urllib.request.Request(
+        base + path,
+        data=data,
+        method=method,
+        headers={"Authorization": f"Bearer {secret}", "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            return json.load(resp)
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode(errors="replace")
+        print(f"gateway said {exc.code}: {body}", file=sys.stderr)
+        sys.exit(1)
+    except urllib.error.URLError as exc:
+        print(f"can't reach the gateway at {base} — is it up? ({exc.reason})", file=sys.stderr)
+        sys.exit(1)
+
+
+def show_step(step):
+    if not step:
+        return
+    if step.get("ok") is False:
+        print(f"  B: unavailable — {step.get('error')}")
+        return
+    print(f"  B: {step.get('step')}")
+    if step.get("why"):
+        print(f"     why: {step['why']}")
+    if step.get("recent_win"):
+        print(f"     already done: {step['recent_win']}")
+    if step.get("delegable"):
+        print("     (delegable to an agent)")
+
+
+if mode == "add":
+    name, path, kind = args
+    p = call("POST", "/projects", {"name": name, "kind": kind, "paths": [path]})
+    print(f"registered #{p['id']}: {p['name']} ({p['kind']}) -> {', '.join(p['paths'])}")
+    print(f"next: kitty project refresh {p['id']}")
+elif mode == "list":
+    projects = call("GET", "/projects")["projects"]
+    if not projects:
+        print("no projects registered yet — kitty project add \"name\" /abs/path")
+    for p in projects:
+        paths = ", ".join(p["paths"]) or "(no path)"
+        print(f"#{p['id']:<3} {p['name']:<28} {p['kind']:<9} {p['status']:<9} {paths}")
+elif mode == "refresh":
+    (project_id,) = args
+    p = call("POST", f"/projects/{project_id}/refresh")
+    print(f"#{p['id']} {p['name']}: {p.get('summary') or 'no data yet'}")
+    for name, src in (p.get("sources") or {}).items():
+        if not src.get("ok"):
+            print(f"  source {name}: FAILED — {src.get('error')}")
+    show_step(p.get("next_step"))
+elif mode == "next":
+    (project_id,) = args
+    step = call("GET", f"/projects/{project_id}/next")
+    show_step({"ok": True, **step})
+elif mode == "set-path":
+    project_id, path = args
+    p = call("PATCH", f"/projects/{project_id}", {"paths": [path]})
+    print(f"#{p['id']} {p['name']} -> {', '.join(p['paths'])}")
+PY
+  }
+
+  export KITTY_PROJECT_BASE="$base"
+  case "$sub" in
+    add)
+      local name="${1:-}" path="${2:-}" kind="${3:-code}"
+      if [[ -z "$name" || -z "$path" ]]; then
+        echo 'Usage: kitty project add "name" /abs/path [kind]' >&2
+        exit 1
+      fi
+      project_py add "$name" "$path" "$kind"
+      ;;
+    list)
+      project_py list
+      ;;
+    refresh)
+      if [[ -z "${1:-}" ]]; then echo "Usage: kitty project refresh <id>" >&2; exit 1; fi
+      project_py refresh "$1"
+      ;;
+    next)
+      if [[ -z "${1:-}" ]]; then echo "Usage: kitty project next <id>" >&2; exit 1; fi
+      project_py next "$1"
+      ;;
+    set-path)
+      if [[ -z "${1:-}" || -z "${2:-}" ]]; then echo "Usage: kitty project set-path <id> /abs/path" >&2; exit 1; fi
+      project_py set-path "$1" "$2"
+      ;;
+    *)
+      echo "Usage: kitty project add|list|refresh|next|set-path" >&2
+      exit 1
+      ;;
+  esac
+}
+
 cmd_help() {
-  grep '^#' "$0" | grep -v '#!/' | sed 's/^# //' | head -12
+  grep '^#' "$0" | grep -v '#!/' | sed 's/^# //' | head -22
 }
 
 # ── Dispatch ─────────────────────────────────────────────────────────────────
@@ -331,6 +460,7 @@ case "${1:-help}" in
   resume)    cmd_resume ;;
   delegate)  shift; cmd_delegate "$1" ;;
   push)      shift; cmd_push "$@" ;;
+  project)   shift; cmd_project "$@" ;;
   help|--help|-h) cmd_help ;;
   *)
     echo "Unknown command: ${1}" >&2

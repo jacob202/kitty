@@ -1,7 +1,7 @@
 # Next Steps Implementation Plan
 
 ## Overview
-Implementing all 5 next steps from ARCHITECTURE_COMPLETE.md
+Implementing all 5 next steps from `docs/retired/ARCHITECTURE_COMPLETE.md`
 
 ## Phase A: Cron Schedule Editor UI ✅
 - [x] Create CronScheduleEditor component

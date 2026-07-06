@@ -21,15 +21,36 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import sqlite3
 import time
 import uuid
 from pathlib import Path
+from typing import Any
 
-from gateway import success_criteria
+from gateway import llm_client
 from gateway.paths import BUILDS_DB, DATA_DIR
 
 logger = logging.getLogger("kitty.builder")
+
+MAX_CRITERIA = 7
+
+_DERIVE_SYS = (
+    "You convert a task goal into atomic, binary success criteria (ISCs), in the "
+    "spirit of an Ideal State Artifact. Each criterion must be independently "
+    "verifiable and strictly pass/fail. Apply the splitting test: if a criterion "
+    "contains 'and', 'with', 'including', or a scope word ('all', 'every', "
+    "'complete'), break it into separate criteria. Include at least one 'Anti:' "
+    "criterion naming something that must NOT happen. Return 3-"
+    f"{MAX_CRITERIA} criteria, one per line, no numbering and no preamble."
+)
+
+_CHECK_SYS = (
+    "You are a strict verifier. Given a goal, its success criteria, and evidence "
+    "(test output, code, results), judge each criterion. Return ONLY a JSON array "
+    'of objects: [{"criterion": str, "passed": bool, "note": str}]. A criterion '
+    "passes only if the evidence clearly supports it; if unknown, passed=false."
+)
 
 BUILD_DB = BUILDS_DB
 VALID_STAGES = ["plan", "scaffold", "implement", "test", "review", "commit"]
@@ -83,9 +104,7 @@ def start(
     logger.info("Build started: %s goal=%s", build_id, goal[:80])
 
     # Launch pipeline in background
-    asyncio.create_task(
-        _run_pipeline(build_id, goal, target, auto_approve, require_criteria)
-    )
+    asyncio.create_task(_run_pipeline(build_id, goal, target, auto_approve, require_criteria))
 
     return build_id
 
@@ -125,9 +144,7 @@ def get_artifact(build_id: str) -> str:
     """Get the build artifact (generated code/text)."""
     init_db()
     with sqlite3.connect(BUILD_DB) as conn:
-        row = conn.execute(
-            "SELECT artifact FROM builds WHERE id = ?", (build_id,)
-        ).fetchone()
+        row = conn.execute("SELECT artifact FROM builds WHERE id = ?", (build_id,)).fetchone()
     return row[0] if row else ""
 
 
@@ -163,9 +180,9 @@ async def _run_pipeline(
 
         plan = await _run_plan_stage(goal)
         # Derive atomic success criteria (ISCs) up front so "done" is explicit.
-        criteria = await asyncio.to_thread(success_criteria.derive, goal)
+        criteria = await asyncio.to_thread(derive_criteria, goal)
         if criteria:
-            plan = f"{plan}\n\n{success_criteria.format_block(criteria)}"
+            plan = f"{plan}\n\n{format_criteria_block(criteria)}"
         stages_status["plan"] = "completed"
         _update(build_id, stage_status=stages_status, artifact=plan)
 
@@ -178,9 +195,7 @@ async def _run_pipeline(
         _update(build_id, stage_status=stages_status)
 
         # Stage 3: IMPLEMENT — requires approval
-        stages_status["implement"] = (
-            "awaiting_approval" if not auto_approve else "approved"
-        )
+        stages_status["implement"] = "awaiting_approval" if not auto_approve else "approved"
         _update(build_id, current_stage="implement", stage_status=stages_status)
 
         if not auto_approve:
@@ -212,14 +227,10 @@ async def _run_pipeline(
         review = await _run_review_stage(goal, code, test_result)
         # Check the build against the success criteria derived at PLAN (advisory).
         if criteria:
-            evidence = (
-                f"Test output:\n{test_result.get('stdout', '')}\n\nCode:\n{code[:4000]}"
-            )
-            crit_results = await asyncio.to_thread(
-                success_criteria.check, goal, criteria, evidence
-            )
-            review = f"{review}\n\n{success_criteria.format_block(crit_results)}"
-            criteria_met = success_criteria.all_passed(crit_results)
+            evidence = f"Test output:\n{test_result.get('stdout', '')}\n\nCode:\n{code[:4000]}"
+            crit_results = await asyncio.to_thread(check_criteria, goal, criteria, evidence)
+            review = f"{review}\n\n{format_criteria_block(crit_results)}"
+            criteria_met = all_criteria_passed(crit_results)
             if not criteria_met:
                 logger.info("Build %s: not all success criteria met", build_id)
         stages_status["review"] = "completed"
@@ -233,9 +244,7 @@ async def _run_pipeline(
             return
 
         # Stage 6: COMMIT — requires approval
-        stages_status["commit"] = (
-            "awaiting_approval" if not auto_approve else "approved"
-        )
+        stages_status["commit"] = "awaiting_approval" if not auto_approve else "approved"
         _update(build_id, current_stage="commit", stage_status=stages_status)
 
         if not auto_approve:
@@ -280,9 +289,7 @@ async def _run_scaffold_stage(goal: str, plan: str, target_dir: str) -> str:
     return get_output(session_id)
 
 
-async def _run_implement_stage(
-    goal: str, plan: str, scaffold: str, target_dir: str
-) -> str:
+async def _run_implement_stage(goal: str, plan: str, scaffold: str, target_dir: str) -> str:
     """Write the actual code."""
     from gateway.agent_runner import await_completion, get_output, spawn
 
@@ -345,9 +352,7 @@ async def _wait_for_approval(build_id: str, stage: str, timeout: int) -> None:
         if stages.get(stage) == "approved":
             return
         await asyncio.sleep(2)
-    raise TimeoutError(
-        f"Build {build_id} timed out waiting for approval on stage {stage}"
-    )
+    raise TimeoutError(f"Build {build_id} timed out waiting for approval on stage {stage}")
 
 
 # --- Helpers ---
@@ -365,3 +370,101 @@ def _update(build_id: str, **fields) -> None:
 
 def _update_stage_status(build_id: str, stages: dict) -> None:
     _update(build_id, stage_status=json.dumps(stages))
+
+
+# --- Success Criteria (ISA-lite, formerly gateway/success_criteria.py) ---
+
+
+def derive_criteria(goal: str) -> list[str]:
+    """Derive atomic, binary success criteria from a goal. Returns [] on failure."""
+    if not goal or not goal.strip():
+        return []
+    try:
+        text = llm_client.chat(
+            model=llm_client.route_model("analyze " + goal),
+            messages=[
+                {"role": "system", "content": _DERIVE_SYS},
+                {"role": "user", "content": f"Goal: {goal.strip()}"},
+            ],
+            max_tokens=400,
+            temperature=0.2,
+        )
+    except Exception as e:
+        logger.warning("criteria derive failed: %s", e)
+        return []
+    return _parse_criteria(text)
+
+
+def check_criteria(goal: str, criteria: list[str], evidence: str) -> list[dict[str, Any]]:
+    """Judge each criterion against evidence. Neutral (passed=False) on failure."""
+    if not criteria:
+        return []
+    payload = {"goal": goal, "criteria": criteria, "evidence": (evidence or "")[:6000]}
+    try:
+        text = llm_client.chat(
+            model=llm_client.route_model("analyze verification"),
+            messages=[
+                {"role": "system", "content": _CHECK_SYS},
+                {"role": "user", "content": json.dumps(payload)},
+            ],
+            max_tokens=600,
+            temperature=0.0,
+        )
+        results = _parse_check(text)
+        if results:
+            return results
+    except Exception as e:
+        logger.warning("criteria check failed: %s", e)
+    return [{"criterion": c, "passed": False, "note": "unverified"} for c in criteria]
+
+
+def format_criteria_block(criteria_or_results: list) -> str:
+    """Render criteria (list[str]) or results (list[dict]) as a markdown checklist."""
+    if not criteria_or_results:
+        return ""
+    lines = ["## Success Criteria (ISC)"]
+    for item in criteria_or_results:
+        if isinstance(item, dict):
+            box = "x" if item.get("passed") else " "
+            note = f" — {item['note']}" if item.get("note") else ""
+            lines.append(f"- [{box}] {item.get('criterion', '')}{note}")
+        else:
+            lines.append(f"- [ ] {item}")
+    return "\n".join(lines)
+
+
+def all_criteria_passed(results: list[dict[str, Any]]) -> bool:
+    """True only if there is at least one result and every one passed."""
+    return bool(results) and all(r.get("passed") for r in results)
+
+
+def _parse_criteria(text: str) -> list[str]:
+    out: list[str] = []
+    for line in (text or "").splitlines():
+        line = re.sub(r"^[-*\d.)\s]+", "", line.strip()).strip()
+        if line:
+            out.append(line)
+    return out[:MAX_CRITERIA]
+
+
+def _parse_check(text: str) -> list[dict[str, Any]]:
+    if not text:
+        return []
+    m = re.search(r"\[.*\]", text, re.DOTALL)
+    if not m:
+        return []
+    try:
+        data = json.loads(m.group(0))
+    except json.JSONDecodeError:
+        return []
+    out: list[dict[str, Any]] = []
+    for item in data:
+        if isinstance(item, dict) and "criterion" in item:
+            out.append(
+                {
+                    "criterion": str(item.get("criterion", "")),
+                    "passed": bool(item.get("passed", False)),
+                    "note": str(item.get("note", "")),
+                }
+            )
+    return out

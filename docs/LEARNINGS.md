@@ -1,6 +1,6 @@
 # Learnings
 
-**Date:** 2026-06-20
+**Date:** 2026-07-06
 
 ## Durable Lessons
 
@@ -31,18 +31,17 @@
 
 ### L-CAND-2 — D9 #1 "memory_graph shim collapse DONE 2026-06-18" overstates completion
 
-- **Status:** candidate
-- **Date:** 2026-06-20
+- **Status:** resolved
+- **Date:** 2026-06-20 (opened) / 2026-07-06 (closed)
 - **Source session:** recovery session, when applying the D9 deepening-candidates hunk from stash
 - **Problem:** The hunk claims D9 #1 is DONE 2026-06-18, but the six module-level `_XxxAdapter` shims (`gateway/memory_graph.py:393–399`) are still present, and `GraphResult._get_adapters()` (line 442–456) still falls through to `_default_adapters()`. The work is small and unblocking; the "DONE" label is wrong.
-- **Evidence:** `git grep -n "_MemoryAdapter\|_KnowledgeAdapter\|_JournalAdapter\|_TracesAdapter\|_TodosAdapter\|_InboxAdapter" gateway/` returns the six shim definitions. `sed -n '442,456p' gateway/memory_graph.py` shows the `_get_adapters` fall-through. No external importers use the shims (verified by `git grep "_MemoryAdapter\|..."` excluding the shim file itself).
+- **Evidence (at open):** `git grep -n "_MemoryAdapter\|_KnowledgeAdapter\|_JournalAdapter\|_TracesAdapter\|_TodosAdapter\|_InboxAdapter" gateway/` returns the six shim definitions. `sed -n '442,456p' gateway/memory_graph.py` shows the `_get_adapters` fall-through. No external importers use the shims (verified by `git grep "_MemoryAdapter\|..."` excluding the shim file itself).
+- **Resolution (2026-07-06):** The shims and the `_get_adapters` fall-through no longer exist. The file is now 602 lines (vs. 393–399 at the time of the original report); the `_XxxAdapter` shim class definitions are gone, and `MemoryGraph.__init__` (now at `gateway/memory_graph.py:466`) calls `_default_adapters()` directly with no fall-through. The D9 #1 collapse is genuinely done now; the original "DONE 2026-06-18" claim was correct but the lesson was opened before the next agent verified. Promoting the lesson to **durable** for the verification pattern.
 - **Scope:** local to `memory_graph.py` and any D9 deepening list referencing it.
-- **Lesson:** When stashing/preserving a "done" claim across a crash, the next agent should verify the claim against the current tree before propagating it. The verification is cheap: read the lines you would touch.
-- **Action for future agents:** When applying a stashed status-update hunk, run a quick `git grep` for the actual artifact (shim names, function names, version strings) and downgrade the status to "in progress" if any piece is still present.
+- **Lesson (promoted to durable, #8):** When a "done" claim sits across a crash or a session boundary, the next agent must verify the claim against the current tree before propagating it. The verification is cheap: read the lines you would touch, or run the evidence commands the original report cites. If the artifact is gone, the claim is true *now*; if it isn't, downgrade the status to "in progress."
+- **Action for future agents:** When applying a stashed status-update hunk, run a quick `git grep` for the actual artifact (shim names, function names, version strings) and either confirm the work landed or downgrade the status. Closing a candidate lesson requires a fresh evidence pass against the current tree, not a re-read of the original evidence.
 - **Confidence:** high
-- **Review trigger:** next D9 review pass.
-- **Promotion target:** none (the lesson is narrow).
-- **Notes:** Captured in `docs/PROJECT_STATUS.md` and the handoff.
+- **Promotion target:** durable (lesson #8, this file).
 
 ### L-CAND-3 — `gh` "error connecting to github.com" is a misleading 401 mask
 

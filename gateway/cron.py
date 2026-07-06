@@ -10,6 +10,12 @@ Public API:
   list_schedules() -> list[dict]
   remove(name) -> bool
   start() -> start background runner
+
+The cron schedules live in `data/kitty/kitty.db` (table `cron_schedules`)
+since the C3 consolidation. The legacy `data/cron_schedules.db` is
+imported once on first `init_db()` if the destination table is empty.
+The legacy DB is never deleted; rollback is a one-line change in
+this file. See `docs/phases/PHASE_C3_PLAN.md` for the full sequence.
 """
 from __future__ import annotations
 
@@ -21,33 +27,93 @@ import time
 import uuid
 from typing import Awaitable, Callable, Optional
 
-from gateway.paths import DATA_DIR
+from gateway import db as kitty_db
+from gateway.paths import DATA_DIR, KITTY_DB_FILE
 
 logger = logging.getLogger("kitty.cron")
 
-CRON_DB = DATA_DIR / "cron_schedules.db"
+TABLE = "cron_schedules"
+LEGACY_CRON_DB = DATA_DIR / "cron_schedules.db"
+LEGACY_IMPORT_SETTING = "cron_legacy_imported"
 
 _runner_task: asyncio.Task | None = None
 _actions: dict[str, Callable[[], Awaitable[None]]] = {}
 
 
-def init_db() -> None:
-    CRON_DB.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(CRON_DB) as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS schedules (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                action TEXT NOT NULL,
-                schedule_type TEXT NOT NULL,  -- daily, interval, once
-                schedule_value TEXT NOT NULL,  -- "07:00", "30" (minutes), "2026-05-14T09:00"
-                metadata TEXT DEFAULT '{}',
-                enabled INTEGER DEFAULT 1,
-                last_run REAL DEFAULT 0,
-                created_at REAL
+def _import_legacy_cron_once() -> None:
+    """One-shot import from the legacy `cron_schedules.db` into kitty.db.
+
+    Pattern matches `todo_store`, `chats_store`, `journal_store`,
+    `buddy_store`:
+      - If the destination `cron_schedules` table is non-empty, skip
+        and mark the setting (the live data is the source of truth).
+      - If the legacy DB does not exist, no-op.
+      - If the legacy DB exists and destination is empty, copy rows
+        verbatim, then mark the setting in `app_settings` with the
+        outcome.
+      - Never deletes the source file.
+    """
+    if not LEGACY_CRON_DB.exists():
+        return
+
+    with kitty_db.connect(KITTY_DB_FILE) as conn:
+        already = conn.execute(
+            "SELECT 1 FROM app_settings WHERE key = ?",
+            (LEGACY_IMPORT_SETTING,),
+        ).fetchone()
+        if already is not None:
+            return
+
+        try:
+            with sqlite3.connect(f"file:{LEGACY_CRON_DB}?mode=ro", uri=True) as legacy:
+                legacy.row_factory = sqlite3.Row
+                rows = legacy.execute(
+                    "SELECT id, name, action, schedule_type, schedule_value, "
+                    "metadata, enabled, last_run, created_at FROM schedules"
+                ).fetchall()
+        except sqlite3.OperationalError as exc:
+            logger.warning("Cron legacy import: legacy DB unreadable (%s)", exc)
+            conn.execute(
+                "INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)",
+                (LEGACY_IMPORT_SETTING, f"skipped: legacy DB unreadable ({exc})"),
             )
-        """)
+            conn.commit()
+            return
+
+        dst_count = conn.execute(f"SELECT COUNT(*) FROM {TABLE}").fetchone()[0]
+        if dst_count > 0:
+            conn.execute(
+                "INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)",
+                (LEGACY_IMPORT_SETTING, "skipped: destination non-empty"),
+            )
+            conn.commit()
+            return
+
+        for r in rows:
+            conn.execute(
+                f"INSERT OR IGNORE INTO {TABLE} "
+                "(id, name, action, schedule_type, schedule_value, metadata, "
+                "enabled, last_run, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    r["id"], r["name"], r["action"], r["schedule_type"],
+                    r["schedule_value"], r["metadata"], r["enabled"],
+                    r["last_run"], r["created_at"],
+                ),
+            )
+        conn.execute(
+            "INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)",
+            (LEGACY_IMPORT_SETTING, f"imported {len(rows)} row(s) from legacy"),
+        )
         conn.commit()
+        if rows:
+            logger.info("Cron legacy import: %d row(s) imported from %s", len(rows), LEGACY_CRON_DB)
+
+
+def init_db() -> None:
+    """Apply the legacy import shim. Schema is owned by migration 012."""
+    KITTY_DB_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _import_legacy_cron_once()
 
 
 def schedule(
@@ -62,17 +128,16 @@ def schedule(
     sid = str(uuid.uuid4())[:8]
     now = time.time()
 
-    with sqlite3.connect(CRON_DB) as conn:
+    with kitty_db.connect(KITTY_DB_FILE) as conn:
         conn.execute(
-            "INSERT INTO schedules (id, name, action, schedule_type, schedule_value, metadata, created_at) "
+            f"INSERT INTO {TABLE} "
+            "(id, name, action, schedule_type, schedule_value, metadata, created_at) "
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
             (sid, name, action, schedule_type, schedule_value, json.dumps(metadata or {}), now),
         )
         conn.commit()
 
     logger.info("Cron scheduled: %s (%s %s)", name, schedule_type, schedule_value)
-
-    # Start runner if not running
     start()
     return sid
 
@@ -80,10 +145,10 @@ def schedule(
 def list_schedules() -> list[dict]:
     """List all schedules."""
     init_db()
-    with sqlite3.connect(CRON_DB) as conn:
+    with kitty_db.connect(KITTY_DB_FILE) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
-            "SELECT * FROM schedules ORDER BY created_at DESC"
+            f"SELECT * FROM {TABLE} ORDER BY created_at DESC"
         ).fetchall()
     return [dict(r) for r in rows]
 
@@ -91,8 +156,8 @@ def list_schedules() -> list[dict]:
 def remove(sid: str) -> bool:
     """Remove a schedule by ID."""
     init_db()
-    with sqlite3.connect(CRON_DB) as conn:
-        cursor = conn.execute("DELETE FROM schedules WHERE id = ?", (sid,))
+    with kitty_db.connect(KITTY_DB_FILE) as conn:
+        cursor = conn.execute(f"DELETE FROM {TABLE} WHERE id = ?", (sid,))
         conn.commit()
         return cursor.rowcount > 0
 
@@ -100,12 +165,14 @@ def remove(sid: str) -> bool:
 def toggle(sid: str) -> bool | None:
     """Flip the enabled flag. Returns new state, or None if not found."""
     init_db()
-    with sqlite3.connect(CRON_DB) as conn:
-        row = conn.execute("SELECT enabled FROM schedules WHERE id = ?", (sid,)).fetchone()
+    with kitty_db.connect(KITTY_DB_FILE) as conn:
+        row = conn.execute(
+            f"SELECT enabled FROM {TABLE} WHERE id = ?", (sid,)
+        ).fetchone()
         if not row:
             return None
         new_val = 0 if row[0] else 1
-        conn.execute("UPDATE schedules SET enabled = ? WHERE id = ?", (new_val, sid))
+        conn.execute(f"UPDATE {TABLE} SET enabled = ? WHERE id = ?", (new_val, sid))
         conn.commit()
     return bool(new_val)
 
@@ -120,10 +187,10 @@ def update(
 ) -> bool:
     """Update a schedule by ID. Returns False when the schedule is missing."""
     init_db()
-    with sqlite3.connect(CRON_DB) as conn:
+    with kitty_db.connect(KITTY_DB_FILE) as conn:
         cursor = conn.execute(
-            """
-            UPDATE schedules
+            f"""
+            UPDATE {TABLE}
                SET name = ?, action = ?, schedule_type = ?, schedule_value = ?, metadata = ?
              WHERE id = ?
             """,
@@ -201,7 +268,6 @@ def _should_fire(s: dict, now: float) -> bool:
             return False
 
     if s_type == "daily":
-        # Parse HH:MM and check if we've passed it since last run
         try:
             parts = s_value.split(":")
             target_h, target_m = int(parts[0]), int(parts[1])
@@ -225,6 +291,6 @@ def _should_fire(s: dict, now: float) -> bool:
 
 
 def _update_last_run(sid: str, ts: float) -> None:
-    with sqlite3.connect(CRON_DB) as conn:
-        conn.execute("UPDATE schedules SET last_run = ? WHERE id = ?", (ts, sid))
+    with kitty_db.connect(KITTY_DB_FILE) as conn:
+        conn.execute(f"UPDATE {TABLE} SET last_run = ? WHERE id = ?", (ts, sid))
         conn.commit()

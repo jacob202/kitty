@@ -10,11 +10,29 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
+    from gateway import db as kitty_db
     from gateway import cron, dream_insights
     from gateway.app import app
 
-    # Keep cron/insights data inside the test temp dir so tests are isolated.
-    monkeypatch.setattr(cron, "CRON_DB", tmp_path / "cron_schedules.db")
+    # Pin the cron store to a tmp kitty.db with the required tables
+    # (cron_schedules + app_settings) so tests are isolated.
+    db_file = tmp_path / "kitty.db"
+    with kitty_db.connect(db_file) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS cron_schedules (
+                id TEXT PRIMARY KEY, name TEXT NOT NULL, action TEXT NOT NULL,
+                schedule_type TEXT NOT NULL, schedule_value TEXT NOT NULL,
+                metadata TEXT DEFAULT '{}', enabled INTEGER DEFAULT 1,
+                last_run REAL DEFAULT 0, created_at REAL
+            )
+            """
+        )
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT)"
+        )
+        conn.commit()
+    monkeypatch.setattr(cron, "KITTY_DB_FILE", db_file)
     monkeypatch.setattr(
         dream_insights, "DREAM_INSIGHTS_FILE", tmp_path / "data" / "dream_insights.json"
     )

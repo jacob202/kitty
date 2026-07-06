@@ -86,7 +86,7 @@ Add a `## Voice Glossary` section to `~/Projects/kitty/CLAUDE.md` mapping spoken
 - "the agent" → gateway/agent.py
 - "the storage thing" → gateway/storage_router.py + gateway/memory_graph.py
 - "the routing thing" → gateway/llm_client.py
-- "phase B" → docs/PHASE_B_PLAN.md (current focus)
+- "phase B" → docs/phases/PHASE_B_PLAN.md (current focus)
 - "Goose" → external chat tool, not part of kitty runtime
 - "Honcho" → external mirror service for weekly summaries
 ```
@@ -131,7 +131,7 @@ mismatches. Commit. Push the `~/.claude/` dotfiles repo with phase 1+2 state.
 
 Script at `~/.claude/scripts/morning-brief.sh`:
 - 8am via launchd plist (more macOS-native than cron)
-- Pulls: open PRs (`gh pr list --author @me`), failing CI (`gh run list --status failure`), top 3 TODO from latest handoff, top 5 lines from `docs/PHASE_B_PLAN.md`'s "next" section
+- Pulls: open PRs (`gh pr list --author @me`), failing CI (`gh run list --status failure`), top 3 TODO from latest handoff, top 5 lines from `docs/phases/PHASE_B_PLAN.md`'s "next" section
 - Writes structured markdown
 - `osascript -e 'display notification ...'` for the alert
 
@@ -145,7 +145,7 @@ Weekly skill that scans `~/.claude/projects/-Users-jacobbrizinski-Projects-kitty
 - For each entry, find its file's last-modified date
 - Flag any entry whose file hasn't been touched in 60 days
 - Generate a markdown list of "stale candidates" with first-line context
-- Email/notify or write to `docs/memory-stale.md`
+- Email/notify or write to `docs/plans/memory-stale.md`
 
 **Files**: `~/.claude/scripts/memory-prune.sh`, launchd plist for weekly
 **Effort**: 15 min
@@ -158,7 +158,7 @@ Weekly `/improve skill` cron on each global skill:
 - Script iterates `~/.claude/skills/*/SKILL.md`
 - For each: counts unmotivated MUSTs, line count, presence of `## Flow`
 - If any skill exceeds thresholds (>5 bare MUSTs, >250 lines, no Flow), writes a finding
-- All findings → `docs/skill-improvement-queue.md`
+- All findings → `docs/plans/skill-improvement-queue.md`
 - Does NOT auto-fix — surfaces to you for `/improve skill <name>` invocation
 
 **Files**: `~/.claude/scripts/self-audit-skills.sh`, launchd plist
@@ -172,7 +172,7 @@ Builds on Phase B SQLite work. Periodically (weekly):
 - Run `python -c "from gateway import db; db.migrate()"` against a test DB
 - Verify idempotency by running twice — second run should be no-op
 - Check schema_migrations matches files in `gateway/db_migrations/`
-- Report to `docs/migration-health.md`
+- Report to `docs/plans/migration-health.md`
 
 **Files**: `~/Projects/kitty/scripts/migration-audit.sh`, launchd plist
 **Effort**: 20 min

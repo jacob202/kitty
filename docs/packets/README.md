@@ -23,15 +23,15 @@ become active work just because it sounds good in a planning chat.
 
 Before authoring or activating a packet, classify it as exactly one of:
 
-| Class | Meaning | Allowed next move |
-| --- | --- | --- |
-| `idea_seed` | Interesting spark, not scoped yet | Capture in notes / idea mine only |
-| `decision` | A choice Jacob made that future work should respect | Record in `docs/DECISIONS.md` or the relevant packet |
-| `spec_candidate` | Could become a packet after shaping | Author a draft/spec PR, keep out of execution order |
-| `active_packet` | Executor-ready and approved to compete for build time | Add to registry + execution order |
-| `after_move_in` | Valuable, but not needed before H1 move-in | Park behind move-in bar |
-| `parked` | Explicitly not active until Jacob says the trigger words | Mark ⏸ and name the activation trigger |
-| `reject` | Cool maybe, but not worth carrying | Do not preserve as work |
+| Class            | Meaning                                                  | Allowed next move                                    |
+| ---------------- | -------------------------------------------------------- | ---------------------------------------------------- |
+| `idea_seed`      | Interesting spark, not scoped yet                        | Capture in notes / idea mine only                    |
+| `decision`       | A choice Jacob made that future work should respect      | Record in `docs/DECISIONS.md` or the relevant packet |
+| `spec_candidate` | Could become a packet after shaping                      | Author a draft/spec PR, keep out of execution order  |
+| `active_packet`  | Executor-ready and approved to compete for build time    | Add to registry + execution order                    |
+| `after_move_in`  | Valuable, but not needed before H1 move-in               | Park behind move-in bar                              |
+| `parked`         | Explicitly not active until Jacob says the trigger words | Mark ⏸ and name the activation trigger               |
+| `reject`         | Cool maybe, but not worth carrying                       | Do not preserve as work                              |
 
 A packet may enter the execution order only when it has:
 
@@ -53,7 +53,7 @@ it has already happened twice in one day).
 
 | Mark | Means                                                              |
 | ---- | ------------------------------------------------------------------ |
-| ✅    | **Built and merged.** Code exists on main. You can see it.         |
+| ✅   | **Built and merged.** Code exists on main. You can see it.         |
 | 🔎   | **PR open.** Built, awaiting review/merge.                         |
 | 🚧   | **In progress.** An agent has claimed it and is building now.      |
 | 📋   | **Spec authored, NOT built.** A markdown file, zero shipped code.  |
@@ -115,6 +115,32 @@ move-in. It does not delay move-in.
 | 023 | Memory taste + creative continuity (renumbered from 021, #101) | Claude Code / Codex + Jacob review  | 📋 spec authored — `after_move_in`: deepens memory policy, does not gate H1 |
 | 024 | Chat log idea mine (renumbered from 022, #102)                | strongest-model prompt + Claude Code | 📋 spec authored — `after_move_in`: obeys 023's taste rules either way |
 | 025 | Imagegen pipeline v2: local-first, criteria-verified loop     | Claude Code + Jacob (installs/taste) | 📋 spec authored 2026-07-05 — replaces fal (cost); Draw Things + ComfyUI |
+**Updated:** 2026-07-06 (017 PR #112 open)
+
+| #   | Packet                                                                               | Best executor                        | Status                                                                                                                                                                           |
+| --- | ------------------------------------------------------------------------------------ | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 001 | State spine: signals, snapshots, /state/now                                          | Claude Code / Codex                  | ✅ shipped                                                                                                                                                                       |
+| 002 | Inbox triage                                                                         | Codex / Claude Code                  | ✅ shipped                                                                                                                                                                       |
+| 003 | Action queue with enforced tiers                                                     | Claude Code                          | ✅ shipped (#65 + #67)                                                                                                                                                           |
+| 004 | State home surface                                                                   | Claude Code                          | ✅ shipped (#98, gaps closed in #100)                                                                                                                                            |
+| 005 | Mail read-only connector (Gmail, D11)                                                | Codex/Claude Code + Jacob (OAuth)    | ✅ shipped (#99) — live poll pending Jacob's OAuth setup                                                                                                                         |
+| 006 | Dev-session resume (`./kitty resume` — **not** Jacob's real-world projects; see 021) | Claude Code                          | ✅ shipped (#71)                                                                                                                                                                 |
+| 007 | Delegation packet generator                                                          | —                                    | ✅ shipped (eb3afad, Jacob direct to main)                                                                                                                                       |
+| 008 | Knowledge library + expert retrieval                                                 | Claude Code / Codex                  | ✅ shipped (#111) — items 1–3 shipped (#73); remainder merged                                                                                                                    |
+| 009 | De-fake loops/insights (backend routes)                                              | Claude Code                          | ✅ shipped (#75)                                                                                                                                                                 |
+| 010 | Capture-to-knowledge (file/PDF/screenshot → inbox → pipeline)                        | Claude Code                          | ✅ shipped (#74)                                                                                                                                                                 |
+| 011 | Brief v2 + push delivery (state-diff open + scheduler)                               | Claude Code                          | ✅ shipped (#76)                                                                                                                                                                 |
+| 012 | Privacy boundary in router (§17.3, D10)                                              | Claude Code                          | ✅ shipped (#72)                                                                                                                                                                 |
+| 013 | Nudges + web_monitor → signal emitters                                               | Claude Code                          | ✅ shipped (#77)                                                                                                                                                                 |
+| 014 | Make the gates honest (UI tests, CI job, isolation leaks)                            | any competent model                  | ✅ shipped (#94)                                                                                                                                                                 |
+| 015 | Phone channel: Kitty reaches Jacob (iMessage/Pushover)                               | Claude Code / Codex                  | ✅ shipped (#103) — Jacob live-verified and merged                                                                                                                               |
+| 016 | Next-step navigator ("just tell me what B is")                                       | Claude Code + strongest-model prompt | 🔎 built (#107) — first LLM-content packet; closes out after a week of Jacob judging real Bs, not on CI green                                                                    |
+| 017 | Benefits/admin rails + urgent-thing sweep                                            | Claude Code (privacy care)           | 🔎 opencode — PR #112 open                                                                                                                                                      |
+| 018 | Expert packs: car, body, proactive headlines                                         | Claude Code / Codex                  | 🧭 planned — gated on 008-remainder ✅                                                                                                                                           |
+| 019 | Job search scaffold                                                                  | Claude Code / Codex                  | ⏸ parked — Jacob: "plan it, don't build it"                                                                                                                                      |
+| 020 | GitHub read-only connector                                                           | Codex / Claude Code                  | 🧭 planned — pattern rides 005                                                                                                                                                   |
+| 021 | Project registry + resume (the real P6 — projects table, git/memory/signal composer) | Claude Code                          | ✅ shipped (#106)                                                                                                                                                                |
+| 022 | Magic Kitty: cross-project insight synthesis (D13)                                   | strongest-model prompt + Claude Code | 🧭 planned — named, not authored. Look across _all_ projects' `resume()` state for non-obvious connections; the "huh, these are related" moment. Comes after 016, not inside it. |
 
 ## Execution order (set 2026-07-04, supersedes 2026-07-03)
 

@@ -4,8 +4,10 @@ Productizes the existing ``gateway.knowledge`` and ``gateway.pdf_pipeline``
 seams. No silent success: every ingest response carries an explicit
 ``status`` (success | skipped | failed | pending) and a ``reason`` string.
 """
+
 from __future__ import annotations
 
+import json
 import logging
 import re
 import time
@@ -15,7 +17,7 @@ from urllib.parse import urlparse
 
 import requests
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from gateway.paths import KNOWLEDGE_DIR
 
@@ -46,6 +48,8 @@ class IngestRequest(BaseModel):
     source_label: Optional[str] = None
     sensitivity: str = Field(default="low", pattern=r"^(low|medium|high)$")
     doc_type: Optional[str] = None
+    collection: str = Field(default="general", pattern=r"^[a-z][a-z0-9_]{0,63}$")
+    tags: list[str] = Field(default_factory=list, max_length=20)
     force_refresh: bool = False
 
     @model_validator(mode="after")
@@ -56,11 +60,42 @@ class IngestRequest(BaseModel):
             raise ValueError("provide only one of 'path' or 'url', not both")
         return self
 
+    @field_validator("tags")
+    @classmethod
+    def _normalize_tags(cls, tags: list[str]) -> list[str]:
+        normalized: set[str] = set()
+        for tag in tags:
+            value = re.sub(r"[^a-z0-9_]+", "_", tag.strip().lower()).strip("_")
+            if not value:
+                raise ValueError("tags must contain at least one letter or number")
+            if len(value) > 64:
+                raise ValueError(f"tag is longer than 64 characters: {tag!r}")
+            normalized.add(value)
+        return sorted(normalized)
+
 
 class IngestResponse(BaseModel):
     status: str
     source_id: str
     reason: str
+
+
+class ExpertRequest(BaseModel):
+    """A strictly local expert retrieval request."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    query: str = Field(min_length=1)
+    expert: str = Field(default="coding_repo", pattern=r"^[a-z][a-z0-9_]{0,63}$")
+    limit: int = Field(default=5, ge=1, le=10)
+
+    @field_validator("query")
+    @classmethod
+    def _non_empty_query(cls, query: str) -> str:
+        value = query.strip()
+        if not value:
+            raise ValueError("query must contain non-whitespace characters")
+        return value
 
 
 # --- Routes ---
@@ -92,6 +127,8 @@ async def post_ingest(body: IngestRequest) -> IngestResponse:
             sensitivity=body.sensitivity,
             source_label=body.source_label,
             doc_type=body.doc_type,
+            collection=body.collection,
+            tags=body.tags,
             force_refresh=body.force_refresh,
         )
     except Exception as exc:  # noqa: BLE001 — surface real failure, not a default
@@ -123,9 +160,7 @@ async def get_sources() -> dict:
         total = collection.count()
     except Exception as exc:  # noqa: BLE001
         logger.exception("could not read knowledge collection")
-        raise HTTPException(
-            status_code=503, detail=f"knowledge store unavailable: {exc}"
-        ) from exc
+        raise HTTPException(status_code=503, detail=f"knowledge store unavailable: {exc}") from exc
 
     if total == 0:
         return {"sources": [], "total_sources": 0, "total_chunks": 0}
@@ -133,9 +168,7 @@ async def get_sources() -> dict:
     try:
         payload = collection.get(include=["metadatas"])
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(
-            status_code=500, detail=f"could not read metadatas: {exc}"
-        ) from exc
+        raise HTTPException(status_code=500, detail=f"could not read metadatas: {exc}") from exc
 
     sources = _aggregate_sources(payload.get("metadatas") or [])
     return {
@@ -167,9 +200,7 @@ async def get_search(q: str = "", limit: int = 5) -> dict:
         raw = await knowledge.search(q.strip(), limit=limit)
     except Exception as exc:  # noqa: BLE001
         logger.exception("knowledge search failed for q=%r", q)
-        raise HTTPException(
-            status_code=500, detail=f"search failed: {exc}"
-        ) from exc
+        raise HTTPException(status_code=500, detail=f"search failed: {exc}") from exc
 
     results = [_format_chunk(c) for c in raw]
 
@@ -181,6 +212,23 @@ async def get_search(q: str = "", limit: int = 5) -> dict:
         }
 
     return {"query": q, "results": results, "count": len(results)}
+
+
+@router.post("/knowledge/expert")
+async def post_expert(body: ExpertRequest) -> dict:
+    """Answer from uploaded sources through the loopback-only MLX model."""
+    from gateway import knowledge
+
+    try:
+        return await knowledge.answer_as_expert(
+            body.query,
+            expert=body.expert,
+            limit=body.limit,
+        )
+    except knowledge.UnknownExpertError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except knowledge.ExpertAnswerError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 # --- Helpers ---
@@ -224,9 +272,7 @@ def _download_url(url: str) -> tuple[Optional[Path], bool, Optional[str]]:
                     if written > URL_DOWNLOAD_MAX_BYTES:
                         out.close()
                         target.unlink(missing_ok=True)
-                        return None, False, (
-                            f"download exceeded {URL_DOWNLOAD_MAX_BYTES} bytes"
-                        )
+                        return None, False, (f"download exceeded {URL_DOWNLOAD_MAX_BYTES} bytes")
                     out.write(chunk)
         return target, True, None
     except requests.RequestException as exc:
@@ -281,6 +327,21 @@ def _aggregate_sources(metadatas: list[dict[str, Any]]) -> list[dict[str, Any]]:
             (m for m in items if m.get("doc_type") == "source_summary"),
             None,
         )
+        collections = sorted({m.get("collection", "general") for m in items})
+        if len(collections) != 1:
+            raise RuntimeError(f"source {name!r} has inconsistent collections: {collections}")
+        tags: set[str] = set()
+        for metadata in items:
+            raw_tags = metadata.get("tags_json", "[]")
+            try:
+                decoded_tags = json.loads(raw_tags)
+            except (TypeError, json.JSONDecodeError) as exc:
+                raise RuntimeError(f"source {name!r} has invalid tags_json: {raw_tags!r}") from exc
+            if not isinstance(decoded_tags, list) or not all(
+                isinstance(tag, str) for tag in decoded_tags
+            ):
+                raise RuntimeError(f"source {name!r} tags_json must encode a list of strings")
+            tags.update(decoded_tags)
         ingested_at = max((m.get("ingested_at") or 0) for m in items)
         modified_at = max((m.get("modified_at") or 0) for m in items)
         created_at = max((m.get("created_at") or 0) for m in items)
@@ -290,12 +351,13 @@ def _aggregate_sources(metadatas: list[dict[str, Any]]) -> list[dict[str, Any]]:
             {
                 "name": name,
                 "chunks": len(items),
+                "collection": collections[0],
+                "tags": sorted(tags),
                 "doc_types": doc_types,
                 "sensitivities": sensitivities,
                 "authority_score": (brief or {}).get("authority_score"),
                 "primary_topic": (brief or {}).get("primary_topic"),
-                "content_hash": (brief or {}).get("content_hash")
-                or items[0].get("content_hash"),
+                "content_hash": (brief or {}).get("content_hash") or items[0].get("content_hash"),
                 "file_path": items[0].get("file_path"),
                 "ingested_at": ingested_at or None,
                 "modified_at": modified_at or None,

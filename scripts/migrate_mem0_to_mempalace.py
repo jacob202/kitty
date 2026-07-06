@@ -11,7 +11,7 @@ Design guarantees (so re-running or aborting is never scary):
   * The ONE unverified call (how MemPalace ingests text) is isolated in one
     function and overridable with --ingest-cmd, so you never edit code blind.
 
-Read the runbook first: docs/MEMPALACE_MIGRATION_RUNBOOK.md
+Read the runbook first: docs/phases/MEMPALACE_MIGRATION_RUNBOOK.md
 
 Typical use:
     python scripts/mempalace_preflight.py            # 1. verify the package

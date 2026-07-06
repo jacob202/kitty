@@ -9,15 +9,10 @@ repos:
       - id: check-merge-conflict
       - id: detect-private-key
 
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.6
+  - repo: local
     hooks:
-      - id: ruff-format
-      - id: ruff
-        args: [--fix]
-
-  - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v4.0.0-alpha.8
-    hooks:
-      - id: prettier
-        types_or: [javascript, jsx, tsx, json, css, markdown, yaml]
+      - id: no-macos-metadata
+        name: Block macOS Finder metadata (Icon\r, .DS_Store)
+        entry: scripts/check-no-macos-metadata.sh
+        language: script
+        stages: [pre-commit]

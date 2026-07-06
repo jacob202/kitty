@@ -1,6 +1,6 @@
 # ADR-0001: db.py is the SQLite seam for app-state stores only
 
-**Date:** 2026-07-02  
+**Date:** 2026-07-02
 **Status:** Accepted
 
 ## Context
@@ -15,16 +15,16 @@ Five modules use it: `todo_store`, `chats_store`, `journal_store`,
 Eight other gateway modules open their own `sqlite3.connect` against separate
 `.db` files, bypassing `db.py` entirely:
 
-| Module | DB file |
-|--------|---------|
-| `cron.py` | `data/kitty/cron.db` |
-| `builder.py` | `data/builds.db` |
-| `agent_runner.py` | autonomy state |
-| `task_runner.py` | `data/task_queue.db` |
-| `ingestion_queue.py` | own queue db |
-| `web_monitor.py` | own monitor db |
-| `autonomy_state.py` | `data/kitty/autonomy.db` |
-| `model_digest.py` | `data/model_digest.db` |
+| Module               | DB file                  |
+| -------------------- | ------------------------ |
+| `cron.py`            | `data/kitty/cron.db`     |
+| `builder.py`         | `data/builds.db`         |
+| `agent_runner.py`    | autonomy state           |
+| `task_runner.py`     | `data/task_queue.db`     |
+| `ingestion_queue.py` | own queue db             |
+| `web_monitor.py`     | own monitor db           |
+| `autonomy_state.py`  | `data/kitty/autonomy.db` |
+| `model_digest.py`    | `data/model_digest.db`   |
 
 This looks accidental — a reader who learns `db.py` then expects the rest of
 the gateway to use it is surprised 8 times.

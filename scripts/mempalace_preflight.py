@@ -122,14 +122,14 @@ def main() -> int:
     if not exe:
         print("\n" + "=" * 60)
         print(f"{NO} FAIL — install the CLI, then re-run. See "
-              "docs/MEMPALACE_MIGRATION_RUNBOOK.md")
+              "docs/phases/MEMPALACE_MIGRATION_RUNBOOK.md")
         return 1
     dump_subcommands(exe)
     ok = check_search_shape(exe)
     print("\n" + "=" * 60)
     if ok:
         print(f"{OK} PASS — read path verified. Next: dry-run the migration "
-              "(see docs/MEMPALACE_MIGRATION_RUNBOOK.md, step 5).")
+              "(see docs/phases/MEMPALACE_MIGRATION_RUNBOOK.md, step 5).")
         return 0
     print(f"{NO} FAIL — fix the search shape above, then re-run.")
     return 2

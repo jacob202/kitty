@@ -46,8 +46,8 @@ Read `.claude/HANDOFF.md` and `.claude/STATE.md` at the start of every session. 
 | Orientation         | `START_HERE.md`                  |
 | Current status      | `docs/PROJECT_STATUS.md`         |
 | Architecture        | `docs/ARCHITECTURE.md`           |
-| Phase B plan        | `docs/PHASE_B_PLAN.md`           |
-| Storage migration   | `docs/STORAGE_MIGRATION_PLAN.md` |
+| Phase B plan        | `docs/phases/PHASE_B_PLAN.md`           |
+| Storage migration   | `docs/phases/STORAGE_MIGRATION_PLAN.md` |
 | Agent/runtime rules | `docs/AGENT_RUNTIME.md`          |
 | Decisions           | `docs/DECISIONS.md`              |
 | Lessons             | `docs/LEARNINGS.md`              |
@@ -89,7 +89,7 @@ If a command fails, report the failure exactly. Do not round up to passing.
 - "the storage thing" → `gateway/storage_router.py` + `gateway/memory_graph.py`
 - "the routing thing" → `gateway/llm_client.py`
 - "the journal thing" → `gateway/journal.py` + `gateway/journal_store.py`
-- "phase B" → `docs/PHASE_B_PLAN.md` (shipped)
+- "phase B" → `docs/phases/PHASE_B_PLAN.md` (shipped)
 - "phase C" → storage migrations (chats done, journal next)
 - "Goose" → external chat tool, not part of kitty runtime
 - "Honcho" → external mirror service, not properly wired up

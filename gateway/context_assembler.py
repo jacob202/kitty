@@ -38,7 +38,6 @@ from typing import Callable
 from gateway import (
     domain_router,
     journal,
-    parts,
     prompts,
     skill_registry,
     user_context,
@@ -59,6 +58,74 @@ from gateway.memory_graph import (
 logger = logging.getLogger("kitty.context_assembler")
 
 SkillHintFn = Callable[[str], str]
+
+# --- Parts system (folded from gateway/parts.py) ---
+# Triggers that suggest a parts-mode response adds value
+_HIGH_STAKES_TRIGGERS = [
+    "should i",
+    "should we",
+    "deciding",
+    "decision",
+    "choose",
+    "choice",
+    "worth it",
+    "is it worth",
+    "commit",
+    "quit",
+    "leave",
+    "stay",
+    "invest",
+    "buy",
+    "sell",
+    "switch",
+    "change everything",
+]
+
+_CHALLENGE_TRIGGERS = [
+    "i think",
+    "i believe",
+    "i know",
+    "obviously",
+    "clearly",
+    "definitely",
+    "always",
+    "never",
+    "everyone",
+    "no one",
+    "the only",
+    "the best",
+    "for sure",
+    "100%",
+    "guaranteed",
+]
+
+_SOCRATIC_TRIGGERS = [
+    "what do you think",
+    "am i right",
+    "is this a good idea",
+    "does this make sense",
+    "validate",
+    "confirm",
+    "agree",
+    "tell me i'm",
+    "reassure",
+]
+
+
+def _should_surface_parts(message: str) -> bool:
+    """Return True when the context warrants auto-surfacing the parts debate."""
+    text = message.lower()
+    high_stakes = any(t in text for t in _HIGH_STAKES_TRIGGERS)
+    assertion = any(t in text for t in _CHALLENGE_TRIGGERS)
+    validation_seek = any(t in text for t in _SOCRATIC_TRIGGERS)
+    return (high_stakes and assertion) or validation_seek
+
+
+def _build_parts_system_prompt(base_prompt: str) -> str:
+    """Append the parts debate instruction to an existing system prompt."""
+    from gateway.prompts import PARTS_COUNCIL_PROMPT
+
+    return base_prompt + "\n\n" + PARTS_COUNCIL_PROMPT
 
 
 @dataclass
@@ -155,7 +222,7 @@ async def assemble_context(
         message: The user's incoming message — drives memory retrieval
             and trigger detection.
         parts_mode: Force the parts-system surface. When false, the parts
-            block is added only if ``parts.should_surface_parts`` agrees.
+            block is added only if the message triggers parts-mode detection.
         domain: Pre-classified domain. When ``None`` the domain is inferred
             from the message.
         deps: Internal — test override seam. Production callers should
@@ -165,8 +232,8 @@ async def assemble_context(
     warnings: list[str] = []
 
     base_prompt = _domain_prompt(message, domain)
-    if parts_mode or parts.should_surface_parts(message):
-        base_prompt = parts.build_parts_system_prompt(base_prompt)
+    if parts_mode or _should_surface_parts(message):
+        base_prompt = _build_parts_system_prompt(base_prompt)
 
     user_block = user_context.load_user_context()
     if user_block:
