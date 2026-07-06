@@ -35,7 +35,7 @@ def _make_deadline(due_date: str) -> dict:
 
 
 def test_fires_today_checkpoint():
-    deadline = _make_deadline("2026-07-27")
+    _make_deadline("2026-07-27")
     pushes = []
 
     def push_fn(message: str, *, title: str, kind: str, dedupe_key: str) -> bool:

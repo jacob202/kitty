@@ -14,10 +14,9 @@ Public API:
 from __future__ import annotations
 
 import hashlib
-import json
 import sqlite3
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import Any
 
 from gateway import db as kitty_db

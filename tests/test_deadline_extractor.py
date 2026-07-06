@@ -1,9 +1,9 @@
 """Tests for gateway/deadline_extractor.py."""
 from __future__ import annotations
 
-import pytest
-
 import json
+
+import pytest
 
 from gateway import deadline_extractor
 

@@ -5,7 +5,7 @@ from datetime import date
 
 import pytest
 
-from gateway import deadline_extractor, deadline_store, deadline_sweep, project_store
+from gateway import deadline_store, deadline_sweep, project_store
 
 
 @pytest.fixture(autouse=True)
@@ -66,8 +66,6 @@ def test_sweep_ranks_near_high_amount_first():
 
 
 def test_sweep_extracts_from_mail_signals():
-    import json
-
     signal = {
         "source": "mail",
         "id": 1,
