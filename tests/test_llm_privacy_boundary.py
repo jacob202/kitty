@@ -19,10 +19,11 @@ from gateway.llm_client import (
 
 
 def test_local_only_classes_are_listed():
-    """The set is the contract; journal, mail_body, health_admin must all be in it."""
+    """The set is the contract for every class that must stay on the Mac."""
     assert "journal" in PRIVACY_LOCAL_ONLY
     assert "mail_body" in PRIVACY_LOCAL_ONLY
     assert "health_admin" in PRIVACY_LOCAL_ONLY
+    assert "knowledge_document" in PRIVACY_LOCAL_ONLY
 
 
 def test_enforce_rejects_journal_on_cloud():
@@ -40,6 +41,11 @@ def test_enforce_rejects_mail_body_on_cloud():
 def test_enforce_rejects_health_admin_on_cloud():
     with pytest.raises(PrivacyBoundaryError):
         enforce_privacy_boundary("cloud_ok", "health_admin")
+
+
+def test_enforce_rejects_knowledge_documents_on_cloud():
+    with pytest.raises(PrivacyBoundaryError):
+        enforce_privacy_boundary("cloud_ok", "knowledge_document")
 
 
 def test_enforce_allows_journal_on_local():
