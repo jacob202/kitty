@@ -19,6 +19,10 @@ langgraph==1.2.2
 numpy==2.4.4
 pillow==11.3.0
 
+# Gmail connector (P3, docs/packets/005) — read-only OAuth + REST.
+google-auth==2.40.3
+google-auth-oauthlib==1.2.2
+
 # retry + memory + article extraction (for brief enrichment)
 tenacity>=8.5.0,<10
 mem0ai>=0.1.50,<0.2

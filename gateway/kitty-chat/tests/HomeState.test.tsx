@@ -9,6 +9,9 @@ import {
   useTodos,
   useLoops,
   useNeedsJacob,
+  useSnapshotState,
+  useStateNow,
+  useRunInboxTriage,
 } from '../src/lib/queries';
 import { HomeState } from '../src/components/HomeState';
 
@@ -24,6 +27,9 @@ vi.mock('../src/lib/queries', () => ({
   useTodos: vi.fn(),
   useLoops: vi.fn(),
   useNeedsJacob: vi.fn(),
+  useSnapshotState: vi.fn(),
+  useStateNow: vi.fn(),
+  useRunInboxTriage: vi.fn(),
 }));
 
 function setDefaultMocks() {
@@ -59,6 +65,14 @@ function setDefaultMocks() {
     isError: false,
     isFetched: true,
   });
+  (useSnapshotState as Mock).mockReturnValue({ isPending: false, mutate: vi.fn() });
+  (useStateNow as Mock).mockReturnValue({
+    data: { ts: 0, sections: { inbox: { ok: true, untriaged_count: 0 } } },
+    isPending: false,
+    isError: false,
+    isFetched: true,
+  });
+  (useRunInboxTriage as Mock).mockReturnValue({ isPending: false, mutate: vi.fn() });
 }
 
 describe('HomeState', () => {
@@ -168,5 +182,58 @@ describe('HomeState', () => {
     const { container } = render(<HomeState compact />);
     const grid = container.firstChild as HTMLElement;
     expect(grid.style.padding).toBe('16px 12px 40px');
+  });
+
+  it('shows needs_jacob entries as actionable cards, not a bare count', () => {
+    const entry = {
+      inbox_id: 'abc-123',
+      ts: 0,
+      bucket: 'needs_jacob',
+      confidence: 0.4,
+      rationale: 'Ambiguous — could be spam or a real bill.',
+      model: 'kitty-smart',
+      text: 'Invoice #881 attached — please review.',
+      created_at: null,
+    };
+    (useNeedsJacob as Mock).mockReturnValue({
+      data: { entries: [entry] },
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+    const onDecideInChat = vi.fn();
+    render(<HomeState onDecideInChat={onDecideInChat} />);
+    expect(screen.getByText(/Invoice #881/)).toBeInTheDocument();
+    screen.getByText('decide in chat').click();
+    expect(onDecideInChat).toHaveBeenCalledWith(entry);
+  });
+
+  it('offers a snapshot verb on What changed regardless of state', () => {
+    const mutate = vi.fn();
+    (useSnapshotState as Mock).mockReturnValue({ isPending: false, mutate });
+    render(<HomeState />);
+    screen.getByText('mark point').click();
+    expect(mutate).toHaveBeenCalled();
+  });
+
+  it('shows an untriaged count with a triage-now verb, and running it invalidates state', () => {
+    (useStateNow as Mock).mockReturnValue({
+      data: { ts: 0, sections: { inbox: { ok: true, untriaged_count: 3 } } },
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+    const mutate = vi.fn();
+    (useRunInboxTriage as Mock).mockReturnValue({ isPending: false, mutate });
+    render(<HomeState />);
+    expect(screen.getByText('untriaged inbox')).toBeInTheDocument();
+    screen.getByText('triage now').click();
+    expect(mutate).toHaveBeenCalled();
+  });
+
+  it("shows an honest error on Today when the gateway is down, not a misleading empty state", () => {
+    render(<HomeState gatewayError="Could not reach the gateway" />);
+    expect(screen.getByText(/gateway offline — Could not reach the gateway/)).toBeInTheDocument();
+    expect(screen.queryByText('nothing on the list')).not.toBeInTheDocument();
   });
 });

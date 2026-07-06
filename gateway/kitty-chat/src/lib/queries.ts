@@ -49,6 +49,9 @@ import {
   approveAction,
   rejectAction,
   fetchNeedsJacob,
+  snapshotState,
+  fetchStateNow,
+  runInboxTriage,
   // payload types used by optimistic updates
   type GatewayTodo,
   type GatewayLoopsPayload,
@@ -412,5 +415,33 @@ export function useNeedsJacob() {
     queryFn: () => fetchNeedsJacob(),
     refetchInterval: 60_000,
     retry: false,
+  })
+}
+
+export function useSnapshotState() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => snapshotState(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['state'] }),
+  })
+}
+
+export function useStateNow() {
+  return useQuery({
+    queryKey: ['state', 'now'],
+    queryFn: fetchStateNow,
+    refetchInterval: 60_000,
+    retry: false,
+  })
+}
+
+export function useRunInboxTriage() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (limit?: number) => runInboxTriage(limit),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['state'] })
+      qc.invalidateQueries({ queryKey: ['inbox'] })
+    },
   })
 }

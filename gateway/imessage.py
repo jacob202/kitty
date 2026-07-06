@@ -32,13 +32,37 @@ def _run_applescript(script: str) -> tuple[bool, str]:
         return False, str(e)
 
 
+def _escape_applescript_string(text: str) -> str:
+    """Escape backslash and double-quote for a plain AppleScript string literal."""
+    return text.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _applescript_string_literal(message: str) -> str:
+    """Build an AppleScript expression for ``message`` with real linefeeds.
+
+    AppleScript string literals have no `\\n` escape — a literal backslash-n
+    two-character sequence renders as-is instead of a newline. Multi-line
+    text is built by joining per-line string literals with `& return &`.
+    """
+    lines = message.split("\n")
+    quoted = [f'"{_escape_applescript_string(line)}"' for line in lines]
+    return " & return & ".join(quoted)
+
+
 def send(recipient: str, message: str) -> bool:
-    """Send an iMessage. Recipient can be phone number or email."""
-    msg_escaped = message.replace('"', '\\"').replace('\n', '\\n')
+    """Send an iMessage. Recipient can be phone number or email.
+
+    Targets the participant of the iMessage account directly rather than
+    `buddy "<id>"`, which fails silently on modern Messages.app (exit 0, no
+    message sent) — verified on Jacob's Air 2026-07-04. Requires Messages to
+    be signed in and a conversation with the recipient to already exist.
+    """
+    message_expr = _applescript_string_literal(message)
+    recipient_escaped = _escape_applescript_string(recipient)
     script = f'''
     tell application "Messages"
-        set targetBuddy to buddy "{recipient}"
-        send "{msg_escaped}" to targetBuddy
+        set targetAccount to 1st account whose service type = iMessage
+        send {message_expr} to participant "{recipient_escaped}" of targetAccount
     end tell
     '''
     ok, _ = _run_applescript(script)

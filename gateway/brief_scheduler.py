@@ -77,6 +77,13 @@ def _format_brief_text(brief: dict) -> str:
     if intention:
         lines.append(f"- Intention: {intention[:120]}")
 
+    # What's B — each active project's curated next step (P4, 016)
+    for next_step in (brief.get("next_steps") or [])[:3]:
+        name = str(next_step.get("project_name") or "").strip()
+        step = str(next_step.get("step") or "").strip()
+        if name and step:
+            lines.append(f"- {name}: {step[:120]}")
+
     # Cap at 5 bullets (date line + up to 4 bullets)
     return "\n".join(lines[:5])
 
@@ -91,12 +98,15 @@ def generate_and_deliver_brief() -> str:
     # Deliver to stdout/log for now
     logger.info("Daily brief delivered:\n%s", text)
 
-    # Push to phone only when Pushover is configured
+    # Push to Jacob's phone via the push façade (iMessage first, Pushover fallback).
     try:
-        from gateway.notify import is_configured, send_brief
+        from gateway.push import push_to_jacob
 
-        if is_configured():
-            send_brief(text)
+        if not push_to_jacob(text, kind="info", title="Kitty Morning Brief"):
+            logger.warning(
+                "Brief push not delivered — no configured channel accepted it "
+                "(set PUSH_IMESSAGE_RECIPIENT or PUSHOVER_USER_KEY/PUSHOVER_API_TOKEN)"
+            )
     except Exception as e:
         logger.warning("Brief push notification failed: %s", e)
 

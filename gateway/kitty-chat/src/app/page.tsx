@@ -16,14 +16,25 @@ import { TerminalStrip } from '@/components/TerminalStrip';
 import { AgentPanel } from '@/components/AgentPanel';
 import { MonitorPanel } from '@/components/MonitorPanel';
 import { ImageGenPanel } from '@/components/ImageGenPanel';
+import { LoopWatch } from '@/components/LoopWatch';
+import { InsightFeed } from '@/components/InsightFeed';
+import { PromptToolkit } from '@/components/PromptToolkit';
 import { CommandPalette } from '@/components/CommandPalette';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PwaInstallBanner } from '@/components/PwaInstallBanner';
 import { WobFilters, PaperGrain } from '@/components/WobFilters';
 import { CatCorner, CatBody, type CatState } from '@/components/CrayonCat';
-import { fetchGatewaySearch, type GatewaySearchSnapshot } from '@/lib/gateway';
+import { fetchGatewaySearch, type GatewaySearchSnapshot, type GatewayTriageEntry } from '@/lib/gateway';
 import { usePwaInstall } from '@/lib/pwa';
-import { useGatewayBrief, useGatewayModels } from '@/lib/queries';
+import {
+  useGatewayBrief,
+  useGatewayModels,
+  useLoops,
+  useInsights,
+  usePrompts,
+  useToggleLoop,
+  useDismissInsight,
+} from '@/lib/queries';
 
 const MOBILE_BREAKPOINT = 900;
 
@@ -185,6 +196,13 @@ function KittyChatInner() {
   const queryClient = useQueryClient();
   const modelsQuery = useGatewayModels();
   const briefQuery = useGatewayBrief();
+  // Loops/insights/prompts still bind to real data but aren't part of the
+  // console home surface — they live in the Tools view instead.
+  const loopsQuery = useLoops();
+  const insightsQuery = useInsights();
+  const promptsQuery = usePrompts();
+  const toggleLoop = useToggleLoop();
+  const dismissInsight = useDismissInsight();
 
   const availableModels = modelsQuery.data?.models ?? MODELS;
   const modelGateway = {
@@ -197,6 +215,10 @@ function KittyChatInner() {
     live: briefQuery.data?.fromLiveGateway ?? true,
     error: briefQuery.data?.error ?? null,
   };
+
+  const loops = loopsQuery.data?.loops ?? [];
+  const insights = insightsQuery.data?.insights ?? [];
+  const promptTemplates = promptsQuery.data ?? [];
 
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -441,6 +463,35 @@ function KittyChatInner() {
     abortRef.current?.abort();
   }, []);
 
+  const handlePromptSelect = useCallback((text: string) => {
+    setInput(text);
+    setActiveView('chat');
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  }, []);
+
+  const handleDecideInChat = useCallback(
+    (entry: GatewayTriageEntry) => {
+      handlePromptSelect(`Help me decide what to do with this: ${entry.text ?? `inbox entry ${entry.inbox_id}`}`);
+    },
+    [handlePromptSelect],
+  );
+
+  const handleLoopToggle = useCallback(
+    (loopId: string) => {
+      toggleLoop.mutate(loopId);
+    },
+    [toggleLoop],
+  );
+
+  const handleInsightDismiss = useCallback(
+    (insightId: string) => {
+      dismissInsight.mutate(insightId);
+    },
+    [dismissInsight],
+  );
+
+  const handleInsightAction = useCallback((_insightId: string, _actionId: string) => {}, []);
+
   const retryGatewayBootstrap = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['models'] });
     queryClient.invalidateQueries({ queryKey: ['brief'] });
@@ -448,6 +499,9 @@ function KittyChatInner() {
     queryClient.invalidateQueries({ queryKey: ['actions'] });
     queryClient.invalidateQueries({ queryKey: ['todos'] });
     queryClient.invalidateQueries({ queryKey: ['inbox'] });
+    queryClient.invalidateQueries({ queryKey: ['loops'] });
+    queryClient.invalidateQueries({ queryKey: ['insights'] });
+    queryClient.invalidateQueries({ queryKey: ['prompts'] });
   }, [queryClient]);
 
   const handlePwaInstall = useCallback(() => {
@@ -679,6 +733,18 @@ function KittyChatInner() {
                 <ToolCard title="Image gen">
                   <ImageGenPanel />
                 </ToolCard>
+                <LoopWatch loops={loops} onToggle={handleLoopToggle} isLoading={loopsQuery.isLoading} />
+                <InsightFeed
+                  insights={insights}
+                  onDismiss={handleInsightDismiss}
+                  onAction={handleInsightAction}
+                  isLoading={insightsQuery.isLoading}
+                />
+                <PromptToolkit
+                  templates={promptTemplates}
+                  onSelect={(tpl) => handlePromptSelect(tpl.content)}
+                  isLoading={promptsQuery.isLoading}
+                />
               </div>
             ) : activeView === 'terminal' ? (
               <div
@@ -840,7 +906,11 @@ function KittyChatInner() {
                 </div>
               </div>
             ) : activeView === 'home' ? (
-              <HomeState compact={isMobile} />
+              <HomeState
+                compact={isMobile}
+                gatewayError={!briefGateway.live ? briefGateway.error : null}
+                onDecideInChat={handleDecideInChat}
+              />
             ) : (
               <div
                 style={{

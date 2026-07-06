@@ -1,78 +1,67 @@
-# Handoff — 2026-06-25 — claude/mcp-server-imagen-dvig1y
+# Session Handoff — 2026-07-04 (two parallel sessions)
 
-## Goal
-Build out the imagen MCP server (mcp/imagen/) and wire Jacob's interaction quality rules.
+## Session A: Fable plan session
 
-## State
+- Branch: `claude/kitty-app-packet-plan-gs7ccc`, PR #97
+- Request: "Plan the entire rest of the kitty app as packets" — done via
+  live Q&A with Jacob, not doc archaeology.
 
-### Done (all committed + pushed to claude/mcp-server-imagen-dvig1y)
-- Built `mcp/imagen/server.py` from scratch — 25 tools, all working
-- **Gemini tools**: generate_image, edit_image, generate_with_reference, refine_image,
-  variations, set_avatar, generate_with_avatar, generate_image_imagen, generate_image_dalle,
-  generate_image_comfy, make_gallery
-- **fal.ai tools**: generate_image_fal, generate_with_face_fal, edit_image_fal,
-  upscale_fal, inpaint_fal, face_swap_fal, variations_fal, strip_clothing_fal,
-  enhance_realism_fal (2× upscale + skin/hair texture pass, strength 0.18)
-- **Character system**: save_character, list_characters, generate_with_character,
-  generate_scene (two named characters via Nano Banana multi-ref compositing)
-- **Auto prompt engineering**: _expand_prompt() calls Gemini 2.5 Flash text (free tier)
-  to rewrite every fal.ai prompt into a FLUX-optimised version before sending.
-  Rule-based fallback if no key. All three core fal.ai tools wired. Shows expanded
-  prompt in response.
-- **imagen_help**: formatted menu of all tools with workflows and tips
-- `mcp/imagen/requirements.txt`: mcp, google-genai, openai, httpx, fal-client
-- `mcp/imagen/README.md`: updated with all tools, settings.json example, FAL_KEY setup
-- `tests/test_mcp_imagen.py`: 38 tests, all green (CI job 83436378244 = success)
-- `.claude/rules/initiative.md`: concrete trigger→action pairs for proactive engineering
-- `.claude/rules/voice.md`: Full Kitty voice for all Claude Code sessions
-- `config/SOUL.md`: one line added to "What you notice" (engineering initiative)
-- `CLAUDE.md`: cleaned up, one-liner reference to rules files
+### Done
 
-### In flight
-- Nothing uncommitted
+- Packets 015–020 authored (`docs/packets/`): 015 phone channel
+  (executor-ready, includes live-verified iMessage `participant` syntax),
+  016 next-step navigator, 017 benefits rails + urgent-thing sweep,
+  018 expert packs, 019 job search (⏸ parked), 020 GitHub connector.
+- `docs/packets/README.md` rewritten: status legend (📋 spec ≠ ✅ built),
+  the **move-in bar**, wave order 0–5.
+- `docs/DECISIONS.md`: D12 (phone-first delivery + move-in bar).
+- Walked Jacob through Wave 0 live: ethernet verified, Automation
+  permission granted, iMessage-to-self proven end-to-end.
 
-### Untouched / next session
-- The compounding memory loop (Stop hook → SOUL_SCRATCHPAD → /reflect promotion)
-- `/remember` skill for manual preference capture
-- `config/PREFERENCES.md` auto-injected each session
-- Merging this PR into main
+### Gotchas
 
-## Gotchas
-- fal.ai is blocked by Anthropic's remote proxy (403). ALL fal.ai tools only work
-  on Jacob's local Mac. Do not test fal.ai tools from this remote env.
-- Gemini image generation requires paid billing (Jacob's KOHO not accepted).
-  Gemini TEXT (gemini-2.5-flash) IS available on free tier — _expand_prompt() uses it.
-- The logging.py shadowing issue: Jacob had a local mcp/imagen/logging.py that shadowed
-  stdlib logging and broke venv. Fixed by deleting it locally. Not in repo.
-- Pytest green, lint (563 ruff errors) and typecheck (108 mypy errors) are pre-existing
-  in gateway/ files — not caused by this PR, not to be fixed here.
-- GEMINI_TEXT_MODEL env var overrides the text model used for prompt expansion.
-- FAL_FLUX_MODEL, FAL_PULID_MODEL, FAL_UPSCALER_MODEL, FAL_INPAINT_MODEL,
-  FAL_FACESWAP_MODEL all overridable via env.
+- Jacob believes things are "done" when a spec exists — answer status
+  questions with the README legend's words (built vs spec'd).
+- All review artifacts must be PUSHED to his phone (D12); never ask him
+  to go look at anything.
+- Read `.claude/STATE.md` "Facts from Jacob" before talking to him — it
+  explains the tone this project now requires.
 
-## Key files
-- mcp/imagen/server.py — the whole MCP server
-- mcp/imagen/README.md — setup + settings.json snippet for Claude Code
-- tests/test_mcp_imagen.py — 38 tests
-- .claude/rules/initiative.md — proactive engineering rules
-- .claude/rules/voice.md — Kitty voice for all sessions
+## Session B: opencode (claimed 005 + 007)
 
-## Next step
-Review PR #46, merge to main, then start the compounding memory session (Stop hook +
-/reflect + /remember) when back at computer.
+- Original request: "Start nailing off the packets. Mark them done so
+  multiple agents don't duplicate."
+- Branch: main (claims), `feat/packet-005-mail-connector` (code)
 
-## Settings.json snippet (for Jacob's Mac ~/.claude/settings.json)
-```json
-{
-  "mcpServers": {
-    "imagen": {
-      "command": "/Users/jacobbrizinski/Projects/kitty/mcp/imagen/.venv/bin/python",
-      "args": ["/Users/jacobbrizinski/Projects/kitty/mcp/imagen/server.py"],
-      "env": {
-        "FAL_KEY": "a221b381-f0b3-4816-bf37-a6aada78bd48:60b3ae35e673288c84233510ece7fd73",
-        "GEMINI_API_KEY": "your-gemini-key"
-      }
-    }
-  }
-}
-```
+### Done
+
+- **Claim mechanism**: two-row update in `docs/packets/README.md` +
+  `.claude/STATE.md`, pushed to main FIRST before code work.
+- **Packet 005** built — PR #99 (`gateway/connectors/{__init__,mail}.py`,
+  doctor `connector:mail` check, google-auth + google-auth-oauthlib in
+  requirements, 25 mocked-transport tests + 4 doctor-state tests).
+  - D10 enforced: signal payload carries only
+    `{message_id, from, subject, snippet, internal_date}`; body never
+    lands in a signal row (asserted by test).
+  - Fail-loud: missing token / expired-no-refresh / non-200 raise typed
+    errors; unconfigured `poll_now` returns `{skipped: "unconfigured"}`.
+  - Verification: 100/100 across affected modules; ruff check+format clean.
+- **Packet 007** — shipped by Jacob directly to main (eb3afad) while the
+  session ran; the 007 worktree was discarded to avoid a competing PR
+  (the claim mechanism working as intended).
+- **Did not modify `docs/AGENT_HANDOFF.md`** — the global hook
+  `~/.claude/hooks/handoff-snapshot.sh` keeps rewriting it; dual-source
+  mismatch still unfixed. Coordination via STATE.md + registry instead.
+
+## Next actions (combined)
+
+1. Review PR #99 (005); merge after green check runs; mark shipped in
+   registry (chore commit on main).
+2. Merge PR #97 (the plan) once CI green and Jacob approves.
+3. Jacob's Wave-0 tail: `PUSH_IMESSAGE_RECIPIENT` in `.env`,
+   `./kitty up` + `./kitty doctor`, confirm `data/gmail_token.json`.
+4. First free executor builds **015** (claim in STATE.md first). Codex is
+   on 008-remainder in `.worktrees/packet-008-expert-retrieval` — check
+   `git worktree list` before claiming anything.
+5. Optional / awaiting Jacob: fix the handoff-snapshot.sh dual-source
+   mismatch.

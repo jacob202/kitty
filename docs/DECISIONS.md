@@ -180,3 +180,83 @@ read path.
 
 - AppleScript/Apple Mail integration for mail.
 - Any write scope in v1 (send, label, archive, delete).
+
+## D12 - Phone-First Delivery And The Move-In Bar
+
+Decided by Jacob 2026-07-04, in the H1 planning session (packets 015-020).
+
+**The load-bearing fact:** Jacob has never used Kitty and won't until it
+clears a bar he defined. He is phone-first: always on the iPhone, rarely at
+a Mac. The MacBook Air (broken screen, previously offline) becomes Kitty's
+headless always-on home once it has an ethernet adapter.
+
+**Delivery channel:** iOS push, not the web UI, not Telegram (he never
+opens it), not email (buried). First try iMessage-to-self via the existing
+`gateway/imessage.py` bridge (free); fall back to the existing Pushover
+integration in `gateway/notify.py` (~US$5 one-time) if AppleScript fights
+back. Packet 015.
+
+**The review contract:** anything needing Jacob's eyes (screenshots,
+reports, approvals) is pushed TO him. "Show me, I'm not gonna go looking
+for this." No review step may assume he opens an app unprompted.
+
+**The move-in bar (H1 done-enough):** morning brief on the phone with real
+mail and deadlines; one concrete next step per project ("what's B");
+benefits/admin paper watched with escalating deadline alerts (triggered by
+the June 2026 ~$600 repayment-assistance miss); capture that comes back;
+everything auditable in the queue. Defined in `docs/packets/README.md`.
+
+**Priority order among life domains:** projects navigator first (his pick),
+then benefits/disability (SAID/CDB/DTC is the income track), then car and
+body expert packs. **Job search is parked** — "plan it, don't build it,"
+packet 019 activates only on his explicit say-so. The recovery expert pack
+is built only on his explicit opt-in, local-only, and Kitty does not raise
+it.
+
+**What this rules out:**
+
+- Shipping user-facing features with no push path to the phone.
+- Telegram as a delivery assumption anywhere in the product.
+- Treating job search or any H2 ambition (voice, mobile-native, other
+  users) as in-scope before move-in day.
+
+## D13 - Magic Kitty: Cross-Project Insight Is The Point, Not A Feature
+
+Decided by Jacob 2026-07-05, mid-build on packet 016.
+
+**The load-bearing quote:** a Codex-generated brief found a real connection
+between two of Jacob's projects that looked unrelated — and it landed.
+His words: *"that's exactly the kind of information, insights, or whatever
+the experience I wanna have with AI... I'm always kind of blown away."*
+Then, pushed on scope: *"I'm a little disorganized and so much happens —
+little shit gets missed all the time, the magic a project can have just
+disappears when there's no attention to the minutiae that makes a life
+extraordinary... I kind of want magic. That's a phrase we need more of —
+Kitty is all about perspective shifts. Magic Kitty."*
+
+**What this means, concretely:** the per-project "what's B" navigator
+(016) and cross-project insight-finding are two different capabilities,
+not one. 016 stays narrow and mechanical-plus-one-LLM-call by design —
+one step, one project, anti-nag. Insight-finding is a separate, later
+layer: look across *all* active projects' composed state (021's
+`resume()` for each) and surface non-obvious connections between them —
+the "huh, these are actually related" moment. That layer is not yet
+packet-scoped; naming it here so it survives past this session instead
+of getting lost the way Jacob just described things getting lost.
+
+**Build order (his own call, same message):** basic thing first, verified
+working, *then* integrate magic on top. Do not let "but what about the
+insight layer" block 016 from shipping. Do not let 016 shipping close the
+door on the insight layer — it's next, not someday.
+
+**What this rules out:**
+
+- Treating 016 as "done" in the product-vision sense once it ships —
+  it's the floor, not the ceiling. The move-in-day bar (D12) only needs
+  the floor; "magic" is what makes Kitty worth continuing to use after.
+- Building the insight layer as a bolt-on inside 016's narrow prompt
+  (one step, one project) instead of its own packet with its own prompt
+  design — conflating the two reproduces the exact overload 021 already
+  refused (see that packet's "next_actions_json stays mechanical" note).
+- Losing this note. If a future session reads D1-D12 and not this one,
+  the thing Jacob actually said he wants from Kitty is invisible again.
