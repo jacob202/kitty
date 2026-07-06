@@ -24,10 +24,30 @@ def isolated_log(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 @pytest.fixture(autouse=True)
 def _clear_cron_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Pin the cron store to a tmp file so the perf stats don't read
-    whatever happens to be on disk in the developer's repo."""
-    cron_db = tmp_path / "cron_schedules.db"
-    monkeypatch.setattr(cron, "CRON_DB", cron_db)
+    """Pin the cron store to a tmp kitty.db so perf stats don't read
+    whatever happens to be on disk in the developer's repo. The cron
+    module now reads kitty.db (C3 consolidation), so the fixture creates
+    the required `cron_schedules` and `app_settings` tables in the tmp
+    DB."""
+    from gateway import db as kitty_db
+
+    db_file = tmp_path / "kitty.db"
+    with kitty_db.connect(db_file) as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS cron_schedules (
+                id TEXT PRIMARY KEY, name TEXT NOT NULL, action TEXT NOT NULL,
+                schedule_type TEXT NOT NULL, schedule_value TEXT NOT NULL,
+                metadata TEXT DEFAULT '{}', enabled INTEGER DEFAULT 1,
+                last_run REAL DEFAULT 0, created_at REAL
+            )
+            """
+        )
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT)"
+        )
+        conn.commit()
+    monkeypatch.setattr(cron, "KITTY_DB_FILE", db_file)
 
 
 class TestLogPerfStat:
