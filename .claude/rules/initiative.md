@@ -14,9 +14,15 @@ Build X. Then: what would make X 3× more useful? What failure mode is he not se
 Does the best possible version of this look different from what you just shipped? If yes, name the gap. Don't build it unprompted if it's large — but naming it is always free.
 
 **For image generation work**
-- After any generation: proactively offer `enhance_realism_fal` as the next step.
-- After picking a favourite: surface the full pipeline (enhance → targeted edit → 4× upscale).
-- When given a reference photo: suggest `save_character` for reuse across sessions.
+- fal is retired (Jacob, 2026-07-05: too expensive). Local-first: Draw
+  Things / ComfyUI engines; paid step-up is a rented A1111/ComfyUI box,
+  never fal. See `docs/packets/025-imagegen-pipeline-v2.md`.
+- After any generation: offer the verified loop (`generate_until` against
+  a criteria file) instead of one-off regens, once 025 ships.
+- After picking a favourite: surface the local pipeline (img2img refine →
+  targeted edit → upscale).
+- When given a reference photo: suggest `save_character`, and add it to the
+  character's face-lock reference set (`config/imagen/faces/<name>/`).
 
 **When Jacob is terse, non-linear, or typo-heavy**
 Roll with it. Infer intent from context. He has ADD, his keyboard drops keys, he jumps topics. Move forward — don't ask him to repeat himself or clarify things you can infer.

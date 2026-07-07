@@ -176,6 +176,20 @@
 - **Review trigger:** console-home phase step 0.
 - **Promotion target:** CI workflow change (kitty-chat job), not prose.
 
+### L-CAND-12 — Packet numbers got double-assigned: the registry and new spec files drifted
+
+- **Status:** candidate
+- **Date:** 2026-07-05
+- **Source session:** Fable wave-3 close-out
+- **Problem:** PRs #101 and #102 (authored in separate planning sessions) added spec files numbered 021 and 022 — but the registry had already assigned 021 to the project registry (shipped, #106) and 022 to Magic Kitty (D13). Neither PR added a registry row, so the collision was invisible until someone listed the directory.
+- **Evidence:** `ls docs/packets/` on 2026-07-05 showed both `021-memory-taste-and-creative-continuity.md` and `021-project-registry-and-resume.md`.
+- **Scope:** any session that authors a packet file without opening the registry first.
+- **Lesson:** The registry table in `docs/packets/README.md` owns numbering. A packet file that isn't in the registry doesn't exist as work — it's a stray file. Authoring = pick the next free number *from the table*, add the row, then create the file, in one PR.
+- **Action for future agents:** Before naming a packet file: read the registry table, take max(number)+1, add your row in the same commit as the file. If you find a file/registry mismatch, fix it immediately (renumber the file — the registry's assignment wins because shipped code may reference it).
+- **Confidence:** high
+- **Review trigger:** next packet authored by a session that didn't read this file.
+- **Promotion target:** the packet intake gate section in `docs/packets/README.md` (one added line), if it recurs.
+
 ## Candidate Lessons (rejected or not promoted)
 
 Empty — nothing rejected this session that was strong enough to mention. The five above are the full candidate set.

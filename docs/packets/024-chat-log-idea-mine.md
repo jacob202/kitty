@@ -1,4 +1,8 @@
-# 022 — Chat Log Idea Mine
+# 024 — Chat Log Idea Mine
+
+> Renumbered from 022 on 2026-07-05: that number was already assigned by the
+> registry to Magic Kitty (D13). The README registry table owns packet
+> numbering — check it before naming a new packet file.
 
 **Status:** 📋 spec authored, not built
 **Best executor:** strongest-model prompt + Claude Code/Codex for implementation
@@ -35,13 +39,13 @@ The key distinction:
 
 > Memory is for continuity in the present. The chat-log mine is for recovering useful threads from the past.
 
-## Relationship to packet 021
+## Relationship to packet 023 (memory taste)
 
-Packet 021 defines the memory taste policy: continuity, not surveillance.
+Packet 023 defines the memory taste policy: continuity, not surveillance.
 
-This packet depends conceptually on 021 but does not require all 021 code to exist first if implemented as an offline/manual import tool.
+This packet depends conceptually on 023 but does not require all 023 code to exist first if implemented as an offline/manual import tool.
 
-If 021 is not built yet, this packet must still obey its design rules:
+If 023 is not built yet, this packet must still obey its design rules:
 
 - sensitive/recovery material is quiet by default
 - extracted items need categories and review states
@@ -239,7 +243,7 @@ But they should not all enter chat context by default.
 
 ## Files likely touched
 
-- new `docs/packets/022-chat-log-idea-mine.md`
+- new `docs/packets/024-chat-log-idea-mine.md`
 - new `scripts/curation/extract_chat_goldmine.py`
 - new `gateway/idea_mine_store.py`
 - possibly `gateway/routes/idea_mine.py`
@@ -248,7 +252,7 @@ But they should not all enter chat context by default.
 
 ## Files not to touch
 
-- core memory consolidation unless implementing 021 at the same time
+- core memory consolidation unless implementing 023 at the same time
 - LLM provider routing except for privacy tags
 - action execution tiers
 - Gmail/mail connector
@@ -287,8 +291,8 @@ But they should not all enter chat context by default.
   "status": "active",
   "domain": "kitty",
   "why_it_matters": "This connects memory, daily briefing, creative work, and project navigation into one product thesis.",
-  "last_known_state": "Packet 021 authored to encode memory taste and creative continuity.",
-  "next_small_move": "Review packet 021 language and decide whether 'creative_thread' is the right term.",
+  "last_known_state": "Packet 023 authored to encode memory taste and creative continuity.",
+  "next_small_move": "Review packet 023 language and decide whether 'creative_thread' is the right term.",
   "sensitivity": "normal",
   "user_review": "unreviewed"
 }
