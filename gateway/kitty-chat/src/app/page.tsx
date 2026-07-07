@@ -1003,6 +1003,7 @@ function KittyChatInner() {
                 compact={isMobile}
                 gatewayError={!briefGateway.live ? briefGateway.error : null}
                 onDecideInChat={handleDecideInChat}
+                onNavigate={setActiveView}
               />
             ) : (
               <div

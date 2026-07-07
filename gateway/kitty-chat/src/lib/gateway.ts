@@ -1122,3 +1122,48 @@ export async function fetchMcpTools(): Promise<McpTool[]> {
   const json = await gfetch<{ tools?: McpTool[] }>('/mcp/tools')
   return json.tools ?? []
 }
+
+// ── Cockpit health signals ───────────────────────────────────────────────────
+
+export interface GatewayHealthPayload {
+  ok: boolean
+  error: string | null
+}
+
+export async function fetchGatewayHealth(): Promise<GatewayHealthPayload> {
+  try {
+    const json = await gfetch<{ status?: string }>('/health', undefined, 4000)
+    return json.status === 'ok'
+      ? { ok: true, error: null }
+      : { ok: false, error: `unexpected /health payload: ${JSON.stringify(json)}` }
+  } catch (err) {
+    return { ok: false, error: describeFetchError(err, null) }
+  }
+}
+
+export interface ChatsPersistencePayload {
+  ok: boolean
+  count: number
+  error: string | null
+}
+
+/** Chat persistence health = the actual chats table answering. */
+export async function fetchChatsPersistence(): Promise<ChatsPersistencePayload> {
+  try {
+    const json = await gfetch<{ chats?: unknown[] }>('/chats', undefined, 6000)
+    if (!Array.isArray(json.chats)) {
+      return { ok: false, count: 0, error: '/chats answered without a chats array' }
+    }
+    return { ok: true, count: json.chats.length, error: null }
+  } catch (err) {
+    return { ok: false, count: 0, error: describeFetchError(err, null) }
+  }
+}
+
+/** HEURISTIC: /api/models masks LiteLLM failure behind a hardcoded one-model
+ *  fallback (completions.py — data: [{id: "kitty-default", owned_by: "kitty"}]).
+ *  There is no honest LiteLLM-health endpoint, so seeing exactly that shape is
+ *  our only signal that routing is degraded. Label output as inference. */
+export function isLitellmFallbackList(models: Model[]): boolean {
+  return models.length === 1 && models[0].id === 'kitty-default'
+}

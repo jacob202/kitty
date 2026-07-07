@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { card, cardHeader, cardTitle, cardMeta, itemCard, emptyState, bodyText } from '@/lib/ui';
 import { CapturePanel } from '@/components/CapturePanel';
 import {
@@ -8,13 +9,24 @@ import {
   useApproveAction,
   useRejectAction,
   useTodos,
-  useLoops,
   useNeedsJacob,
   useSnapshotState,
   useRunInboxTriage,
   useStateNow,
+  useProjects,
+  useProjectNextSteps,
+  useGatewayHealth,
+  useGatewayModels,
+  useChatsPersistence,
 } from '@/lib/queries';
-import type { GatewayAction, GatewayTriageEntry, StateChange } from '@/lib/gateway';
+import { isLitellmFallbackList } from '@/lib/gateway';
+import type {
+  GatewayAction,
+  GatewayNextStep,
+  GatewayProject,
+  GatewayTriageEntry,
+  StateChange,
+} from '@/lib/gateway';
 
 // ── shared micro-components ──────────────────────────────────────────────────
 
@@ -22,15 +34,25 @@ function SectionCard({
   title,
   count,
   action,
+  span,
   children,
 }: {
   title: string;
   count?: number | string;
   action?: React.ReactNode;
+  span?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <div style={{ ...card, display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div
+      style={{
+        ...card,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        ...(span ? { gridColumn: '1 / -1' } : {}),
+      }}
+    >
       <div style={cardHeader}>
         <span style={cardTitle}>{title}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -55,6 +77,18 @@ const actionButtonStyle: React.CSSProperties = {
   color: 'var(--text-muted)',
 };
 
+const primaryButtonStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  fontWeight: 700,
+  padding: '4px 12px',
+  borderRadius: 4,
+  border: 'none',
+  cursor: 'pointer',
+  background: 'var(--primary)',
+  color: 'var(--on-primary)',
+};
+
 function ErrorCard({ message }: { message: string }) {
   return (
     <div
@@ -66,11 +100,374 @@ function ErrorCard({ message }: { message: string }) {
   );
 }
 
+const OFFLINE_FIX = 'gateway offline — start it with ./kitty up';
+
+// ── Health strip ─────────────────────────────────────────────────────────────
+
+function HealthDot({ tone, label }: { tone: 'ok' | 'warn' | 'bad'; label: string }) {
+  const color =
+    tone === 'ok' ? 'var(--c-green)' : tone === 'warn' ? 'var(--c-yellow)' : 'var(--error)';
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        fontFamily: 'var(--font-mono)',
+        fontSize: 11,
+        color: 'var(--text-dim)',
+      }}
+    >
+      <span
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: '50%',
+          background: color,
+          flexShrink: 0,
+          display: 'inline-block',
+        }}
+      />
+      {label}
+    </span>
+  );
+}
+
+function HealthStrip() {
+  const health = useGatewayHealth();
+  const models = useGatewayModels();
+  const persistence = useChatsPersistence();
+  const queryClient = useQueryClient();
+
+  const gatewayOk = health.data?.ok === true;
+  const modelsLive = models.data?.fromLiveGateway === true;
+  // isLitellmFallbackList: /api/models hides LiteLLM failure behind a canned
+  // one-model list, so "fallback shape seen" is inference, and labeled as such.
+  const routingDegraded = modelsLive && isLitellmFallbackList(models.data?.models ?? []);
+  const storeOk = persistence.data?.ok === true;
+
+  const retry = () => {
+    queryClient.invalidateQueries({ queryKey: ['health'] });
+    queryClient.invalidateQueries({ queryKey: ['models'] });
+    queryClient.invalidateQueries({ queryKey: ['chats', 'persistence'] });
+  };
+
+  const loading = health.isPending || models.isPending || persistence.isPending;
+
+  return (
+    <div
+      role="status"
+      style={{
+        ...card,
+        gridColumn: '1 / -1',
+        padding: '10px 16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 18,
+        flexWrap: 'wrap',
+      }}
+    >
+      {loading ? (
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-faint)' }}>
+          checking gateway…
+        </span>
+      ) : (
+        <>
+          <HealthDot
+            tone={gatewayOk ? 'ok' : 'bad'}
+            label={gatewayOk ? 'gateway live' : OFFLINE_FIX}
+          />
+          <HealthDot
+            tone={!gatewayOk ? 'bad' : routingDegraded ? 'warn' : modelsLive ? 'ok' : 'bad'}
+            label={
+              !gatewayOk
+                ? 'routing unknown'
+                : routingDegraded
+                  ? 'routing: fallback list served — litellm likely down'
+                  : modelsLive
+                    ? `routing live · ${models.data?.models.length ?? 0} models`
+                    : 'routing unreachable'
+            }
+          />
+          <HealthDot
+            tone={storeOk ? 'ok' : 'bad'}
+            label={
+              storeOk
+                ? `chat store ok · ${persistence.data?.count ?? 0} saved`
+                : `chat store: ${persistence.data?.error ?? 'unreachable'}`
+            }
+          />
+        </>
+      )}
+      <span style={{ flex: 1 }} />
+      <button type="button" onClick={retry} style={actionButtonStyle}>
+        retry
+      </button>
+    </div>
+  );
+}
+
+// ── What's next (hero) ───────────────────────────────────────────────────────
+
+function freshestStep(steps: Array<GatewayNextStep | null | undefined>): GatewayNextStep | null {
+  let best: GatewayNextStep | null = null;
+  for (const s of steps) {
+    if (s && (!best || s.generated_at > best.generated_at)) best = s;
+  }
+  return best;
+}
+
+function WhatsNext({
+  onDecideInChat,
+  onNavigate,
+}: {
+  onDecideInChat: (entry: GatewayTriageEntry) => void;
+  onNavigate: (view: string) => void;
+}) {
+  const actionsQuery = useActions('proposed');
+  const needsJacob = useNeedsJacob();
+  const projectsQuery = useProjects();
+  const stepQueries = useProjectNextSteps(projectsQuery.data ?? []);
+  const todosQuery = useTodos();
+  const approve = useApproveAction();
+  const reject = useRejectAction();
+  const [busy, setBusy] = useState(false);
+
+  const isPending =
+    actionsQuery.isPending || needsJacob.isPending || projectsQuery.isPending || todosQuery.isPending;
+
+  if (isPending) {
+    return (
+      <SectionCard title="what's next" span>
+        <div role="status" style={emptyState}>
+          loading…
+        </div>
+      </SectionCard>
+    );
+  }
+
+  if (actionsQuery.isError || projectsQuery.isError) {
+    return (
+      <SectionCard title="what's next" span>
+        <ErrorCard message={OFFLINE_FIX} />
+      </SectionCard>
+    );
+  }
+
+  const decide = async (fn: () => Promise<unknown>) => {
+    setBusy(true);
+    try {
+      await fn();
+    } catch {
+      // gateway error — buttons re-enable via finally; queue refetch shows truth
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const action: GatewayAction | undefined = (actionsQuery.data ?? [])[0];
+  const entry: GatewayTriageEntry | undefined = [...(needsJacob.data?.entries ?? [])].sort(
+    (a, b) => b.confidence - a.confidence,
+  )[0];
+  const step = freshestStep(stepQueries.map((q) => q.data));
+  const project: GatewayProject | undefined = step
+    ? (projectsQuery.data ?? []).find((p) => p.id === step.project_id)
+    : undefined;
+  const todo = (todosQuery.data ?? []).find(
+    (t) => t.status === 'pending' || t.status === 'active',
+  );
+
+  return (
+    <SectionCard title="what's next" span>
+      {action ? (
+        <div style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={heroTextStyle}>{action.title}</div>
+          <div style={heroMetaStyle}>
+            waiting on your approval · {action.kind} · {action.risk_tier}
+          </div>
+          {action.preview && <div style={{ ...bodyText, fontSize: 12 }}>{action.preview}</div>}
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void decide(() => approve.mutateAsync(action.id))}
+              style={{ ...primaryButtonStyle, opacity: busy ? 0.5 : 1 }}
+            >
+              {busy ? '…' : 'approve'}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void decide(() => reject.mutateAsync(action.id))}
+              style={{ ...actionButtonStyle, opacity: busy ? 0.5 : 1 }}
+            >
+              reject
+            </button>
+          </div>
+        </div>
+      ) : entry ? (
+        <div style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={heroTextStyle}>{entry.text?.slice(0, 140) || 'an inbox entry needs a decision'}</div>
+          <div style={heroMetaStyle}>
+            needs a decision · {Math.round(entry.confidence * 100)}% confident
+          </div>
+          <div>
+            <button type="button" onClick={() => onDecideInChat(entry)} style={primaryButtonStyle}>
+              decide in chat
+            </button>
+          </div>
+        </div>
+      ) : step ? (
+        <div style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={heroTextStyle}>{step.step}</div>
+          <div style={heroMetaStyle}>
+            {project ? `${project.name} · ` : ''}
+            {step.why ? `why: ${step.why}` : 'project next step'}
+          </div>
+          <div>
+            <button type="button" onClick={() => onNavigate('projects')} style={primaryButtonStyle}>
+              open projects
+            </button>
+          </div>
+        </div>
+      ) : todo ? (
+        <div style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={heroTextStyle}>{todo.content}</div>
+          <div style={heroMetaStyle}>top of today&apos;s list — nothing louder is waiting</div>
+          <div>
+            <button type="button" onClick={() => onNavigate('tasks')} style={primaryButtonStyle}>
+              open tasks
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ ...emptyState, textAlign: 'left', padding: '12px 2px' }}>
+          not enough signal yet — nothing proposed, no decisions waiting, no project next-steps,
+          and today&apos;s list is empty. refresh a project in the projects tab or capture a
+          thought below.
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+const heroTextStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-ui)',
+  fontSize: 16,
+  fontWeight: 600,
+  color: 'var(--text)',
+  lineHeight: 1.45,
+};
+
+const heroMetaStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  color: 'var(--text-muted)',
+};
+
+// ── Active projects ──────────────────────────────────────────────────────────
+
+function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) {
+  const projectsQuery = useProjects();
+  const stepQueries = useProjectNextSteps(projectsQuery.data ?? []);
+
+  if (projectsQuery.isPending) {
+    return (
+      <SectionCard title="active projects">
+        <div role="status" style={emptyState}>
+          loading…
+        </div>
+      </SectionCard>
+    );
+  }
+
+  if (projectsQuery.isError) {
+    return (
+      <SectionCard title="active projects">
+        <ErrorCard message={OFFLINE_FIX} />
+      </SectionCard>
+    );
+  }
+
+  const projects = projectsQuery.data ?? [];
+  const active = projects.filter((p) => p.status === 'active');
+
+  if (active.length === 0) {
+    return (
+      <SectionCard title="active projects">
+        <div style={emptyState}>
+          {projects.length === 0
+            ? 'no projects registered — ./kitty project add <name>'
+            : 'no active projects — everything is parked or done'}
+        </div>
+      </SectionCard>
+    );
+  }
+
+  const open = (
+    <button type="button" onClick={() => onNavigate('projects')} style={actionButtonStyle}>
+      open
+    </button>
+  );
+
+  return (
+    <SectionCard title="active projects" count={active.length} action={open}>
+      {active.slice(0, 4).map((p) => {
+        const idx = projects.indexOf(p);
+        const stepQuery = stepQueries[idx];
+        const step = stepQuery?.data;
+        return (
+          <div key={p.id} style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <span
+                style={{
+                  fontFamily: 'var(--font-ui)',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: 'var(--text)',
+                }}
+              >
+                {p.name}
+              </span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+                {p.kind}
+              </span>
+            </div>
+            <div style={{ ...bodyText, fontSize: 12 }}>
+              {stepQuery?.isPending
+                ? '…'
+                : stepQuery?.isError
+                  ? 'next step unreadable — gateway error'
+                  : step
+                    ? step.step
+                    : 'no next step yet — refresh it in projects'}
+            </div>
+          </div>
+        );
+      })}
+      {active.length > 4 && (
+        <div
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            color: 'var(--text-muted)',
+            textAlign: 'center',
+          }}
+        >
+          +{active.length - 4} more in projects
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
 // ── What changed panel ───────────────────────────────────────────────────────
 
 function WhatChanged() {
   const { data, isError, isPending } = useStateChanges();
   const snapshot = useSnapshotState();
+  const stateNowQuery = useStateNow();
+  const runTriage = useRunInboxTriage();
 
   const markPoint = (
     <button
@@ -103,6 +500,12 @@ function WhatChanged() {
 
   const { changes, new_signals, note } = data;
   const count = changes.length + new_signals.length;
+
+  const inboxSection = stateNowQuery.data?.sections.inbox;
+  const untriagedCount =
+    inboxSection?.ok && typeof inboxSection.untriaged_count === 'number'
+      ? inboxSection.untriaged_count
+      : 0;
 
   return (
     <SectionCard title="what changed" count={count || undefined} action={markPoint}>
@@ -139,7 +542,29 @@ function WhatChanged() {
           </span>
         </div>
       )}
-      {!count && !note && <div style={emptyState}>nothing new since last snapshot</div>}
+      {untriagedCount > 0 && (
+        <div
+          style={{
+            ...itemCard,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <span style={bodyText}>{untriagedCount} untriaged in inbox</span>
+          <button
+            type="button"
+            disabled={runTriage.isPending}
+            onClick={() => runTriage.mutate(undefined)}
+            style={actionButtonStyle}
+          >
+            {runTriage.isPending ? '…' : 'triage now'}
+          </button>
+        </div>
+      )}
+      {!count && !note && !untriagedCount && (
+        <div style={emptyState}>nothing new since last snapshot</div>
+      )}
     </SectionCard>
   );
 }
@@ -246,15 +671,8 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
                     onClick={() => void handleApprove(action.id)}
                     aria-label={`Approve ${action.title}`}
                     style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      padding: '4px 12px',
-                      borderRadius: 4,
-                      border: 'none',
+                      ...primaryButtonStyle,
                       cursor: isBusy ? 'not-allowed' : 'pointer',
-                      background: 'var(--primary)',
-                      color: 'var(--on-primary)',
                       opacity: isBusy ? 0.5 : 1,
                     }}
                   >
@@ -330,160 +748,6 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
           </div>
         </div>
       ))}
-    </SectionCard>
-  );
-}
-
-// ── Open loops count ─────────────────────────────────────────────────────────
-
-function OpenLoops() {
-  const actionsQuery = useActions('proposed');
-  const needsJacobQuery = useNeedsJacob();
-  const loopsQuery = useLoops();
-  const stateNowQuery = useStateNow();
-  const runTriage = useRunInboxTriage();
-
-  const isLoading =
-    actionsQuery.isPending || needsJacobQuery.isPending || loopsQuery.isPending || stateNowQuery.isPending;
-  // Actions query throws on gateway error; loops silently returns fromLiveGateway: false.
-  const hasError =
-    actionsQuery.isError || (loopsQuery.isFetched && loopsQuery.data?.fromLiveGateway === false);
-
-  if (isLoading) {
-    return (
-      <SectionCard title="open loops">
-        <div role="status" style={emptyState}>
-          loading…
-        </div>
-      </SectionCard>
-    );
-  }
-
-  if (hasError) {
-    return (
-      <SectionCard title="open loops">
-        <ErrorCard message="gateway offline — loop count unavailable" />
-      </SectionCard>
-    );
-  }
-
-  const proposedCount = actionsQuery.data?.length ?? 0;
-  const needsJacobCount = needsJacobQuery.data?.entries?.length ?? 0;
-  const errorLoopsCount = loopsQuery.data?.loops?.filter((l) => l.status === 'error').length ?? 0;
-  const inboxSection = stateNowQuery.data?.sections.inbox;
-  const untriagedCount =
-    inboxSection?.ok && typeof inboxSection.untriaged_count === 'number' ? inboxSection.untriaged_count : 0;
-  const total = proposedCount + needsJacobCount + errorLoopsCount + untriagedCount;
-
-  const triageNow = untriagedCount > 0 && (
-    <button
-      type="button"
-      disabled={runTriage.isPending}
-      onClick={() => runTriage.mutate(undefined)}
-      style={actionButtonStyle}
-    >
-      {runTriage.isPending ? '…' : 'triage now'}
-    </button>
-  );
-
-  if (total === 0) {
-    return (
-      <SectionCard title="open loops">
-        <div style={emptyState}>no open loops</div>
-      </SectionCard>
-    );
-  }
-
-  return (
-    <SectionCard title="open loops" count={total} action={triageNow || undefined}>
-      {untriagedCount > 0 && (
-        <div
-          style={{
-            ...itemCard,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          <span style={bodyText}>untriaged inbox</span>
-          <span
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 700,
-              fontSize: 14,
-              color: 'var(--primary)',
-            }}
-          >
-            {untriagedCount}
-          </span>
-        </div>
-      )}
-      {proposedCount > 0 && (
-        <div
-          style={{
-            ...itemCard,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          <span style={bodyText}>proposed actions</span>
-          <span
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 700,
-              fontSize: 14,
-              color: 'var(--primary)',
-            }}
-          >
-            {proposedCount}
-          </span>
-        </div>
-      )}
-      {needsJacobCount > 0 && (
-        <div
-          style={{
-            ...itemCard,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          <span style={bodyText}>needs jacob</span>
-          <span
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 700,
-              fontSize: 14,
-              color: 'var(--primary)',
-            }}
-          >
-            {needsJacobCount}
-          </span>
-        </div>
-      )}
-      {errorLoopsCount > 0 && (
-        <div
-          style={{
-            ...itemCard,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          <span style={bodyText}>loops in error</span>
-          <span
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontWeight: 700,
-              fontSize: 14,
-              color: 'var(--error)',
-            }}
-          >
-            {errorLoopsCount}
-          </span>
-        </div>
-      )}
     </SectionCard>
   );
 }
@@ -570,33 +834,8 @@ function TodayPanel({ gatewayError }: { gatewayError: string | null }) {
 
 function CaptureSection() {
   return (
-    <SectionCard title="capture">
+    <SectionCard title="capture" span>
       <CapturePanel />
-    </SectionCard>
-  );
-}
-
-// ── Chat drawer hint ─────────────────────────────────────────────────────────
-
-function ChatHint() {
-  return (
-    <SectionCard title="chat">
-      <div style={{ ...emptyState, display: 'flex', alignItems: 'center', gap: 6 }}>
-        press{' '}
-        <kbd
-          style={{
-            fontFamily: 'var(--font-mono)',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 3,
-            padding: '1px 6px',
-            fontSize: 11,
-          }}
-        >
-          K
-        </kbd>{' '}
-        to open chat
-      </div>
     </SectionCard>
   );
 }
@@ -608,9 +847,15 @@ interface Props {
   /** Sibling-query error (brief) used only to disambiguate Today's empty state — see TodayPanel. */
   gatewayError?: string | null;
   onDecideInChat?: (entry: GatewayTriageEntry) => void;
+  onNavigate?: (view: string) => void;
 }
 
-export function HomeState({ compact = false, gatewayError = null, onDecideInChat = () => {} }: Props) {
+export function HomeState({
+  compact = false,
+  gatewayError = null,
+  onDecideInChat = () => {},
+  onNavigate = () => {},
+}: Props) {
   return (
     <div
       style={{
@@ -623,12 +868,13 @@ export function HomeState({ compact = false, gatewayError = null, onDecideInChat
         alignContent: 'start',
       }}
     >
-      <WhatChanged />
+      <HealthStrip />
+      <WhatsNext onDecideInChat={onDecideInChat} onNavigate={onNavigate} />
       <NeedsYou onDecideInChat={onDecideInChat} />
-      <OpenLoops />
+      <ActiveProjects onNavigate={onNavigate} />
+      <WhatChanged />
       <TodayPanel gatewayError={gatewayError} />
       <CaptureSection />
-      <ChatHint />
     </div>
   );
 }
