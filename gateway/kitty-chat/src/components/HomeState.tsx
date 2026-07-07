@@ -48,6 +48,7 @@ function SectionCard({
     <div
       style={{
         ...card,
+        flex: span ? '1 1 100%' : '1 1 300px',
         display: 'flex',
         flexDirection: 'column',
         gap: 12,
@@ -910,10 +911,11 @@ export function HomeState({
         flex: 1,
         overflowY: 'auto',
         padding: compact ? '16px 12px 40px' : '24px 32px 40px',
-        display: 'grid',
-        gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(340px, 1fr))',
-        gap: 20,
-        alignContent: 'start',
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 24,
+        alignContent: 'flex-start',
+        alignItems: 'flex-start',
       }}
     >
       <HealthStrip />

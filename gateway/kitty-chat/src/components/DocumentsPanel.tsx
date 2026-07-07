@@ -95,58 +95,75 @@ export function DocumentsPanel() {
 
       {/* ── ingest ── */}
       <div style={cardStyle}>
-        <div style={sectionLabelStyle}>add a document</div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input
-            value={target}
-            onChange={e => setTarget(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleIngest()}
-            placeholder="a file path on the Mac, or a URL"
-            style={inputStyle}
-          />
-          <button
-            onClick={handleIngest}
-            disabled={!target.trim() || ingest.isPending}
-            style={primaryButtonStyle}
-          >
-            {ingest.isPending ? 'ingesting…' : 'ingest'}
-          </button>
-        </div>
-        {ingest.isError && (
-          <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
-            ingest failed — {ingest.error instanceof Error ? ingest.error.message : 'gateway error'}
-          </p>
-        )}
-        {ingest.data && (
-          <p style={{ ...mutedStyle, color: STATUS_COLORS[ingest.data.status] ?? 'var(--ink-2)' }}>
-            {ingest.data.status}: {ingest.data.source_id} — {ingest.data.reason}
-          </p>
-        )}
+        <div style={sectionLabelStyle}>feed the brain</div>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <input
+              value={target}
+              onChange={e => setTarget(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleIngest()}
+              placeholder="url or file path..."
+              style={inputStyle}
+            />
+            <button
+              onClick={handleIngest}
+              disabled={!target.trim() || ingest.isPending}
+              style={{ ...primaryButtonStyle, alignSelf: 'flex-start' }}
+            >
+              {ingest.isPending ? 'eating…' : 'feed kitty'}
+            </button>
+            {ingest.isError && (
+              <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
+                choked — {ingest.error instanceof Error ? ingest.error.message : 'gateway error'}
+              </p>
+            )}
+            {ingest.data && (
+              <p style={{ ...mutedStyle, color: STATUS_COLORS[ingest.data.status] ?? 'var(--ink-2)' }}>
+                {ingest.data.status}: {ingest.data.reason}
+              </p>
+            )}
+          </div>
 
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={() => fileInputRef.current?.click()}
-          onKeyDown={e => e.key === 'Enter' && fileInputRef.current?.click()}
-          onDragOver={e => {
-            e.preventDefault()
-            setDragOver(true)
-          }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={e => {
-            e.preventDefault()
-            setDragOver(false)
-            handleFiles(e.dataTransfer.files)
-          }}
-          style={{
-            ...dropZoneStyle,
-            borderColor: dragOver ? 'var(--primary)' : 'var(--line)',
-            background: dragOver ? 'var(--primary-fade)' : 'var(--bg)',
-          }}
-        >
-          {upload.isPending
-            ? 'uploading…'
-            : 'or drop a file here (pdf / md / txt / images) — uploads via /capture/file, indexes in the background'}
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => fileInputRef.current?.click()}
+            onKeyDown={e => e.key === 'Enter' && fileInputRef.current?.click()}
+            onDragOver={e => {
+              e.preventDefault()
+              setDragOver(true)
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={e => {
+              e.preventDefault()
+              setDragOver(false)
+              handleFiles(e.dataTransfer.files)
+            }}
+            style={{
+              ...dropZoneStyle,
+              width: 120,
+              height: 120,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: '25px 225px 15px 255px / 255px 15px 225px 15px',
+              border: '2px dashed var(--line)',
+              borderColor: dragOver ? 'var(--primary)' : 'var(--line)',
+              background: dragOver ? 'var(--primary-fade)' : 'var(--surface-2)',
+              transform: dragOver ? 'scale(1.05) rotate(2deg)' : 'rotate(-2deg)',
+              transition: 'all 0.2s',
+            }}
+          >
+            {upload.isPending ? (
+              'uploading…'
+            ) : (
+              <>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>📥</div>
+                <div>drop files</div>
+              </>
+            )}
+          </div>
         </div>
         <input
           ref={fileInputRef}
