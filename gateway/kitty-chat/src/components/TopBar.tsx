@@ -140,7 +140,7 @@ function ModelSelector({
         }}
       >
         <span
-          title={modelFromGateway ? undefined : 'Using offline model list'}
+          title={modelFromGateway ? undefined : 'using offline model list'}
           style={{
             width: 7, height: 7, borderRadius: 99,
             background: modelFromGateway ? activeModel.color : 'var(--c-red)',

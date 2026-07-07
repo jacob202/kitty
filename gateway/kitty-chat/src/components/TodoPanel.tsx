@@ -77,7 +77,7 @@ const rowStyle: CSSProperties = {
   alignItems: 'center',
   gap: 6,
   padding: '4px 6px',
-  background: 'var(--recessed)',
+  background: 'var(--surface-2)',
   border: '1px solid var(--line)',
   borderRadius: 4,
 }
@@ -99,7 +99,7 @@ const activeFormStyle: CSSProperties = {
 const checkStyle: CSSProperties = {
   background: 'transparent',
   border: 'none',
-  color: 'var(--teal)',
+  color: 'var(--c-blue)',
   cursor: 'pointer',
   fontSize: 12,
   padding: 0,
@@ -120,7 +120,7 @@ const removeStyle: CSSProperties = {
 
 const inputStyle: CSSProperties = {
   flex: 1,
-  background: 'var(--recessed)',
+  background: 'var(--surface-2)',
   border: '1px solid var(--line)',
   borderRadius: 4,
   padding: '4px 8px',
@@ -138,7 +138,7 @@ const addBtnStyle: CSSProperties = {
   borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 13,
-  color: 'var(--teal)',
+  color: 'var(--c-blue)',
   cursor: 'pointer',
   flexShrink: 0,
 }

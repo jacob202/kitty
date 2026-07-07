@@ -14,10 +14,10 @@ interface Props {
 
 function kindColor(kind: InsightKind): string {
   switch (kind) {
-    case 'pattern': return 'var(--teal)'
+    case 'pattern': return 'var(--c-blue)'
     case 'anomaly': return 'var(--c-red)'
-    case 'suggestion': return 'var(--orange)'
-    case 'milestone': return 'var(--mint)'
+    case 'suggestion': return 'var(--cat-ginger)'
+    case 'milestone': return 'var(--c-green)'
   }
 }
 
@@ -89,7 +89,7 @@ export function InsightFeed({ insights, onDismiss, onAction, title = 'Insights',
               <button
                 onClick={() => onDismiss(insight.insight_id)}
                 style={dismissBtnStyle}
-                title="Dismiss"
+                title="dismiss"
                 aria-label="Dismiss"
               >
                 ✕
@@ -104,7 +104,7 @@ export function InsightFeed({ insights, onDismiss, onAction, title = 'Insights',
               <Skeleton height={56} />
             </div>
           ) : (
-            <div style={emptyStyle}>No new insights</div>
+            <div style={emptyStyle}>no new insights</div>
           )
         )}
       </div>

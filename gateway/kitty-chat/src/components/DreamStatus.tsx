@@ -52,7 +52,7 @@ export function DreamStatus() {
         <>
           <div style={rowStyle}>
             <span style={metaLabelStyle}>status</span>
-            <span style={{ ...metaValueStyle, color: status.never ? 'var(--ink-2)' : 'var(--mint)' }}>
+            <span style={{ ...metaValueStyle, color: status.never ? 'var(--ink-2)' : 'var(--c-green)' }}>
               {status.never ? 'never run' : status.status}
             </span>
           </div>
@@ -119,7 +119,7 @@ const triggerBtnStyle: CSSProperties = {
   borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--indigo)',
+  color: 'var(--c-purple)',
   cursor: 'pointer',
   textAlign: 'left',
 }

@@ -2,61 +2,61 @@
 import { useState, useEffect, useRef } from 'react'
 import type { CSSProperties } from 'react'
 
-interface LogEntry {
-  timestamp: Date
-  level: 'info' | 'warn' | 'error' | 'debug'
-  message: string
-}
+import { fetchLogTail } from '../lib/gateway'
 
 interface Props {
   title?: string
   maxLines?: number
+  file?: string
+  pollMs?: number
 }
 
-export function TerminalStrip({ title = 'terminal', maxLines = 50 }: Props) {
-  const [logs, setLogs] = useState<LogEntry[]>([])
+type Level = 'info' | 'warn' | 'error' | 'debug'
+
+function lineLevel(line: string): Level {
+  if (/error|traceback|critical/i.test(line)) return 'error'
+  if (/warn/i.test(line)) return 'warn'
+  if (/debug/i.test(line)) return 'debug'
+  return 'info'
+}
+
+export function TerminalStrip({ title = 'gateway log', maxLines = 100, file = 'gateway', pollMs = 5000 }: Props) {
+  const [lines, setLines] = useState<string[]>([])
+  const [error, setError] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      const levels: LogEntry['level'][] = ['info', 'warn', 'error', 'debug']
-      const sampleMessages = [
-        'Gateway heartbeat received',
-        'Search index updated',
-        'New todo created',
-        'Loop execution completed',
-        'Brief generation started',
-        'Agent task finished',
-        'Insight detected',
-        'Memory consolidation complete',
-        'Model response streamed',
-      ]
-      const newLog: LogEntry = {
-        timestamp: new Date(),
-        level: levels[Math.floor(Math.random() * levels.length)],
-        message: sampleMessages[Math.floor(Math.random() * sampleMessages.length)],
+    let cancelled = false
+    const load = async () => {
+      try {
+        const payload = await fetchLogTail(file, maxLines)
+        if (!cancelled) {
+          setLines(payload.lines)
+          setError(null)
+        }
+      } catch {
+        if (!cancelled) setError('log unavailable. is the gateway up?')
       }
-      setLogs(prev => [...prev.slice(-maxLines + 1), newLog])
-    }, 3000)
-
-    return () => clearInterval(interval)
-  }, [maxLines])
+    }
+    void load()
+    const interval = setInterval(() => { void load() }, pollMs)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [file, maxLines, pollMs])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [logs])
+  }, [lines])
 
-  const levelColor = (level: LogEntry['level']): string => {
+  const levelColor = (level: Level): string => {
     switch (level) {
       case 'error': return 'var(--c-red)'
-      case 'warn': return 'var(--orange)'
+      case 'warn': return 'var(--cat-ginger)'
       case 'debug': return 'var(--ink-2)'
-      default: return 'var(--mint)'
+      default: return 'var(--ink)'
     }
-  }
-
-  const formatTime = (ts: Date): string => {
-    return ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
   }
 
   return (
@@ -64,19 +64,21 @@ export function TerminalStrip({ title = 'terminal', maxLines = 50 }: Props) {
       <div style={headerStyle}>
         <span style={titleStyle}>{title}</span>
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}>
-          {logs.length} lines
+          {lines.length} lines
         </span>
       </div>
       <div style={terminalStyle}>
-        {logs.map((log, i) => (
-          <div key={i} style={lineStyle}>
-            <span style={timeStyle}>{formatTime(log.timestamp)}</span>
-            <span style={{ ...levelBadgeStyle, color: levelColor(log.level), borderColor: levelColor(log.level) }}>
-              {log.level.toUpperCase()}
-            </span>
-            <span style={messageStyle}>{log.message}</span>
-          </div>
-        ))}
+        {error ? (
+          <div style={{ color: 'var(--ink-2)' }}>{error}</div>
+        ) : lines.length === 0 ? (
+          <div style={{ color: 'var(--ink-2)' }}>nothing logged yet</div>
+        ) : (
+          lines.map((line, i) => (
+            <div key={i} style={{ ...lineStyle, color: levelColor(lineLevel(line)) }}>
+              {line}
+            </div>
+          ))
+        )}
         <div ref={bottomRef} />
       </div>
     </div>
@@ -111,7 +113,7 @@ const titleStyle: CSSProperties = {
 
 const terminalStyle: CSSProperties = {
   flex: 1,
-  background: 'var(--panel)',
+  background: 'var(--surface)',
   border: '1px solid var(--line)',
   borderRadius: 4,
   padding: '12px',
@@ -122,31 +124,6 @@ const terminalStyle: CSSProperties = {
 }
 
 const lineStyle: CSSProperties = {
-  display: 'flex',
-  gap: 8,
-  alignItems: 'center',
-  whiteSpace: 'nowrap',
-}
-
-const timeStyle: CSSProperties = {
-  color: 'var(--ink-2)',
-  flexShrink: 0,
-}
-
-const levelBadgeStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 9,
-  fontWeight: 700,
-  letterSpacing: '0.08em',
-  textTransform: 'lowercase',
-  border: '1px solid',
-  borderRadius: 4,
-  padding: '1px 4px',
-  background: 'transparent',
-  flexShrink: 0,
-}
-
-const messageStyle: CSSProperties = {
-  color: 'var(--ink)',
-  flexShrink: 0,
+  whiteSpace: 'pre-wrap',
+  wordBreak: 'break-all',
 }

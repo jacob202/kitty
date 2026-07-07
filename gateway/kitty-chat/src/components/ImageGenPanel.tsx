@@ -47,14 +47,14 @@ export function ImageGenPanel() {
       onSuccess: result => {
         if (!result) {
           setState('error')
-          setErrMsg('Generation failed — is ComfyUI running?')
+          setErrMsg('generation failed — is ComfyUI running?')
           return
         }
         setState('done')
       },
       onError: () => {
         setState('error')
-        setErrMsg('Generation failed — is ComfyUI running?')
+        setErrMsg('generation failed — is ComfyUI running?')
       },
     })
   }
@@ -94,7 +94,7 @@ export function ImageGenPanel() {
             style={{
               ...chipStyle,
               background: chips.includes(c.label) ? 'rgba(232,120,69,0.16)' : 'transparent',
-              color: chips.includes(c.label) ? 'var(--orange-2)' : 'var(--ink-2)',
+              color: chips.includes(c.label) ? 'var(--cat-ginger)' : 'var(--ink-2)',
               borderColor: chips.includes(c.label) ? 'rgba(232,120,69,0.35)' : 'var(--line)',
             }}
           >
@@ -141,7 +141,7 @@ export function ImageGenPanel() {
 }
 
 const textareaStyle: CSSProperties = {
-  background: 'var(--recessed)',
+  background: 'var(--surface-2)',
   border: '1px solid var(--line)',
   borderRadius: 4,
   padding: '6px 8px',
@@ -175,7 +175,7 @@ const genBtnStyle: CSSProperties = {
   borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--orange-2)',
+  color: 'var(--cat-ginger)',
   cursor: 'pointer',
   textAlign: 'left',
 }
@@ -191,7 +191,7 @@ const thumbWrapStyle: CSSProperties = {
   overflow: 'hidden',
   borderRadius: 4,
   border: '1px solid var(--line)',
-  background: 'var(--recessed)',
+  background: 'var(--surface-2)',
 }
 
 const thumbStyle: CSSProperties = {
@@ -205,7 +205,7 @@ const errorStyle: CSSProperties = {
   margin: 0,
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--orange)',
+  color: 'var(--cat-ginger)',
 }
 
 const emptyStyle: CSSProperties = {
@@ -217,7 +217,7 @@ const emptyStyle: CSSProperties = {
 
 const unavailableStyle: CSSProperties = {
   padding: '10px 12px',
-  background: 'var(--recessed)',
+  background: 'var(--surface-2)',
   border: '1px solid var(--line)',
   borderRadius: 4,
 }
@@ -241,6 +241,6 @@ const onlineStyle: CSSProperties = {
   margin: 0,
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--teal)',
+  color: 'var(--c-blue)',
   textTransform: 'lowercase',
 }

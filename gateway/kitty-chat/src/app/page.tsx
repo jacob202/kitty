@@ -490,7 +490,7 @@ function KittyChatInner() {
           m.id === aiMsgId
             ? {
                 ...m,
-                content: `⚠ ${err instanceof Error ? err.message : 'Error connecting to gateway'}`,
+                content: `⚠ ${err instanceof Error ? err.message : 'error connecting to gateway'}`,
                 mood: 'confused' as const,
               }
             : m,
@@ -778,13 +778,13 @@ function KittyChatInner() {
                   alignContent: 'start',
                 }}
               >
-                <ToolCard title="Agents">
+                <ToolCard title="agents">
                   <AgentPanel />
                 </ToolCard>
-                <ToolCard title="Monitors">
+                <ToolCard title="monitors">
                   <MonitorPanel />
                 </ToolCard>
-                <ToolCard title="Image gen">
+                <ToolCard title="image gen">
                   <ImageGenPanel />
                 </ToolCard>
                 <LoopWatch loops={loops} onToggle={handleLoopToggle} isLoading={loopsQuery.isLoading} />
@@ -809,7 +809,7 @@ function KittyChatInner() {
                   flexDirection: 'column',
                 }}
               >
-                <TerminalStrip title="Gateway Log" maxLines={100} />
+                <TerminalStrip title="gateway log" maxLines={100} />
               </div>
             ) : activeView === 'projects' ? (
               <div style={panelPadding(isMobile)}>

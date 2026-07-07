@@ -30,7 +30,7 @@ export function RightPanel({
 
   return (
     <aside style={{
-      width: 'var(--rightbar)',
+      width: 'var(--sidebar-width)',
       borderLeft: '1px solid var(--line)',
       overflowY: 'auto',
       background: 'var(--surface)',
@@ -67,34 +67,34 @@ export function RightPanel({
           borderBottom: '1px solid var(--line)',
           marginBottom: 8,
         }}>
-          <Stat label="Sessions" value={String(chats.length)} />
-          <Stat label="Messages" value={String(msgCount)} />
+          <Stat label="sessions" value={String(chats.length)} />
+          <Stat label="messages" value={String(msgCount)} />
         </div>
 
         {/* Cron schedules */}
         <CronPanel />
 
         {/* Time */}
-        <PanelRow label="Time">
+        <PanelRow label="time">
           <span style={valueStyle}>{timeStr}</span>
           <span style={subStyle}>{new Date().toLocaleDateString([], { weekday: 'long' })}</span>
         </PanelRow>
 
         {/* Active model */}
         {activeModelName && (
-          <PanelRow label="Model">
+          <PanelRow label="model">
             <span style={valueStyle}>{activeModelName}</span>
           </PanelRow>
         )}
 
         {/* Kitty status */}
-        <PanelRow label="Kitty">
+        <PanelRow label="kitty">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{
               width: 7,
               height: 7,
               borderRadius: '50%',
-              background: isStreaming ? 'var(--primary)' : 'var(--mint)',
+              background: isStreaming ? 'var(--primary)' : 'var(--c-green)',
               flexShrink: 0,
               display: 'inline-block',
               boxShadow: isStreaming
@@ -110,16 +110,16 @@ export function RightPanel({
 
         {/* Brief */}
         {brief && (
-          <PanelRow label="Brief">
+          <PanelRow label="brief">
             <span style={valueStyle}>
-              {brief.intention || (typeof brief.headlines[0] === 'string' ? brief.headlines[0] : (brief.headlines[0] as GatewayHeadline | undefined)?.title) || 'Live brief connected.'}
+              {brief.intention || (typeof brief.headlines[0] === 'string' ? brief.headlines[0] : (brief.headlines[0] as GatewayHeadline | undefined)?.title) || 'live brief connected.'}
             </span>
           </PanelRow>
         )}
 
         {/* Active context */}
         {activeChat && activeChat.messages.length > 0 && (
-          <PanelRow label="Context">
+          <PanelRow label="context">
             <span style={valueStyle}>{activeChat.title}</span>
             <span style={subStyle}>{activeChat.messages.length} messages</span>
           </PanelRow>
@@ -127,7 +127,7 @@ export function RightPanel({
 
         {/* Last AI reply */}
         {lastAi && (
-          <PanelRow label="Last reply">
+          <PanelRow label="last reply">
             <span style={{ ...valueStyle, fontFamily: 'var(--font-body)', fontWeight: 400, fontSize: 12, lineHeight: 1.5 }}>
               {lastAi.content.replace(/```[\s\S]*?```/g, '[code]').slice(0, 100)}
               {lastAi.content.length > 100 ? '…' : ''}
@@ -137,7 +137,7 @@ export function RightPanel({
 
         {/* Search error */}
         {searchGatewayError && !search && (
-          <PanelRow label="Search">
+          <PanelRow label="search">
             <span style={{ ...subStyle, color: 'var(--c-yellow)' }}>unavailable</span>
           </PanelRow>
         )}

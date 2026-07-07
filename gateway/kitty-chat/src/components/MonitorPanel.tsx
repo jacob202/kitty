@@ -41,7 +41,7 @@ export function MonitorPanel() {
             <div key={m.watch_id} style={rowStyle}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={labelStyle}>{m.label}</span>
-                <span style={{ ...statusStyle, color: m.last_match ? 'var(--orange)' : 'var(--ink-2)' }}>
+                <span style={{ ...statusStyle, color: m.last_match ? 'var(--cat-ginger)' : 'var(--ink-2)' }}>
                   {m.last_match ? 'hit' : 'watching'}
                 </span>
               </div>
@@ -89,7 +89,7 @@ export function MonitorPanel() {
 
 const rowStyle: CSSProperties = {
   padding: '6px 8px',
-  background: 'var(--recessed)',
+  background: 'var(--surface-2)',
   border: '1px solid var(--line)',
   borderRadius: 4,
   display: 'grid',
@@ -130,7 +130,7 @@ const removeButtonStyle: CSSProperties = {
 }
 
 const inputStyle: CSSProperties = {
-  background: 'var(--recessed)',
+  background: 'var(--surface-2)',
   border: '1px solid var(--line)',
   borderRadius: 4,
   padding: '5px 8px',
@@ -148,7 +148,7 @@ const actionButtonStyle: CSSProperties = {
   borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--orange-2)',
+  color: 'var(--cat-ginger)',
   cursor: 'pointer',
 }
 

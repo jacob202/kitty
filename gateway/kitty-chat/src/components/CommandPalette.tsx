@@ -91,14 +91,14 @@ export function CommandPalette({
           background: 'var(--surface)',
           border: '1px solid var(--line)',
           borderRadius: 4,
-          boxShadow: '4px 4px 0 var(--ink-deep)',
+          boxShadow: 'var(--shadow)',
           overflow: 'hidden',
         }}
       >
-        <Command label="Command palette" loop>
+        <Command label="command palette" loop>
           <Command.Input
             autoFocus
-            placeholder="Type a command or search…"
+            placeholder="type a command or search…"
             style={{
               width: '100%',
               border: 'none',
@@ -112,18 +112,18 @@ export function CommandPalette({
             }}
           />
           <Command.List style={{ maxHeight: 320, overflowY: 'auto', padding: 6 }}>
-            <Command.Empty style={emptyStyle}>No results.</Command.Empty>
+            <Command.Empty style={emptyStyle}>no results.</Command.Empty>
 
             <Command.Group heading="Actions" style={groupStyle}>
               <Item
                 icon={Plus}
-                label="New chat"
+                label="new chat"
                 shortcut="N"
                 onSelect={fire(onNewChat)}
               />
               <Item
                 icon={PanelLeft}
-                label="Toggle sidebar"
+                label="toggle sidebar"
                 onSelect={fire(onToggleSidebar)}
               />
             </Command.Group>

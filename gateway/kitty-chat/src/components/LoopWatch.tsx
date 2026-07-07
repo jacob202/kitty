@@ -13,8 +13,8 @@ interface Props {
 
 function statusColor(status: LoopStatus): string {
   switch (status) {
-    case 'running': return 'var(--mint)'
-    case 'paused': return 'var(--orange)'
+    case 'running': return 'var(--c-green)'
+    case 'paused': return 'var(--cat-ginger)'
     case 'error': return 'var(--c-red)'
     case 'idle': return 'var(--ink-2)'
   }
@@ -67,8 +67,8 @@ export function LoopWatch({ loops, onToggle, title = 'Loop Watch', isLoading = f
                   <button
                     onClick={() => onToggle(loop.loop_id)}
                     style={toggleBtnStyle(loop.status === 'running')}
-                    title={loop.status === 'running' ? 'Pause loop' : 'Start loop'}
-                    aria-label={loop.status === 'running' ? 'Pause loop' : 'Start loop'}
+                    title={loop.status === 'running' ? 'pause loop' : 'start loop'}
+                    aria-label={loop.status === 'running' ? 'pause loop' : 'start loop'}
                   >
                     {loop.status === 'running' ? '⏸' : '▶'}
                   </button>
@@ -80,7 +80,7 @@ export function LoopWatch({ loops, onToggle, title = 'Loop Watch', isLoading = f
             )}
             <div style={metaStyle}>
               {loop.last_run && (
-                <span>Last run: {new Date(loop.last_run).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                <span>last run: {new Date(loop.last_run).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
               )}
               {loop.interval_minutes && (
                 <span>· Every {loop.interval_minutes}m</span>
@@ -98,7 +98,7 @@ export function LoopWatch({ loops, onToggle, title = 'Loop Watch', isLoading = f
               <Skeleton height={48} />
             </div>
           ) : (
-            <div style={emptyStyle}>No loops configured</div>
+            <div style={emptyStyle}>no loops configured</div>
           )
         )}
       </div>

@@ -5,17 +5,17 @@ import { type GatewayTask, type TaskType } from '@/lib/gateway'
 import { useTasks, useCreateTask, useCancelTask } from '@/lib/queries'
 
 const TYPE_META: Record<TaskType, { label: string; description: string; color: string; example: string }> = {
-  research: { label: 'Research', description: 'Deep dive on a topic',     color: 'var(--purple)', example: 'e.g. summarize recent LLM evals…' },
-  ingest:   { label: 'Ingest',   description: 'Process & store knowledge', color: 'var(--indigo)', example: 'e.g. index my reading list…' },
-  build:    { label: 'Build',    description: 'Write or modify code',      color: 'var(--orange)', example: 'e.g. add auth to the API…' },
-  cleanup:  { label: 'Cleanup',  description: 'Refactor, prune, tidy up', color: 'var(--teal)',   example: 'e.g. remove dead utility files…' },
-  dream:    { label: 'Dream',    description: 'Speculate freely',          color: 'var(--mint)',   example: 'e.g. how could kitty learn music…' },
+  research: { label: 'research', description: 'deep dive on a topic',     color: 'var(--c-purple)', example: 'e.g. summarize recent LLM evals…' },
+  ingest:   { label: 'ingest',   description: 'process & store knowledge', color: 'var(--c-purple)', example: 'e.g. index my reading list…' },
+  build:    { label: 'build',    description: 'write or modify code',      color: 'var(--cat-ginger)', example: 'e.g. add auth to the API…' },
+  cleanup:  { label: 'cleanup',  description: 'refactor, prune, tidy up', color: 'var(--c-blue)',   example: 'e.g. remove dead utility files…' },
+  dream:    { label: 'dream',    description: 'speculate freely',          color: 'var(--c-green)',   example: 'e.g. how could kitty learn music…' },
 }
 
 const STATUS_COLOR: Record<string, string> = {
   queued:    'var(--ink-2)',
-  running:   'var(--orange)',
-  completed: 'var(--teal)',
+  running:   'var(--cat-ginger)',
+  completed: 'var(--c-blue)',
   failed:    '#ff5577',
   cancelled: 'var(--ink-2)',
 }
@@ -69,8 +69,8 @@ export function TaskPanel() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
-          <StatChip label="active" value={String(activeTasks.length)} color="var(--orange)" />
-          <StatChip label="done" value={String(recentTasks.filter(t => t.status === 'completed').length)} color="var(--teal)" />
+          <StatChip label="active" value={String(activeTasks.length)} color="var(--cat-ginger)" />
+          <StatChip label="done" value={String(recentTasks.filter(t => t.status === 'completed').length)} color="var(--c-blue)" />
           <StatChip label="failed" value={String(recentTasks.filter(t => t.status === 'failed').length)} color="#ff5577" />
         </div>
       </div>
@@ -249,7 +249,7 @@ function StatChip({ label, value, color }: { label: string; value: string; color
 function TaskCard({ task, onCancel }: { task: GatewayTask; onCancel: (id: string) => void }) {
   const statusColor = STATUS_COLOR[task.status] ?? 'var(--ink-2)'
   const icon = STATUS_ICON[task.status] ?? '○'
-  const typeColor = TYPE_META[task.task_type as TaskType]?.color ?? 'var(--indigo)'
+  const typeColor = TYPE_META[task.task_type as TaskType]?.color ?? 'var(--c-purple)'
   const isActive = task.status === 'queued' || task.status === 'running'
 
   return (

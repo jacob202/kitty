@@ -36,7 +36,7 @@ export function PwaInstallBanner({
         }}
       >
         <AlertCircle size={14} style={{ flexShrink: 0 }} />
-        <span>{error ?? 'Install setup failed.'}</span>
+        <span>{error ?? 'install setup failed.'}</span>
       </div>
     )
   }
@@ -63,7 +63,7 @@ export function PwaInstallBanner({
         <span style={{ lineHeight: 1.5 }}>
           {state === 'available'
             ? 'Install Kitty for dock launch and a focused app window.'
-            : 'On iPhone or iPad, install Kitty from Safari with Share > Add to Home Screen.'}
+            : 'on iPhone or iPad, install kitty from Safari with share → add to home screen.'}
         </span>
       </span>
 

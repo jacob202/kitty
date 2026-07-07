@@ -117,7 +117,7 @@ export function CronPanel() {
                 <div style={{ display: 'flex', gap: 3, flexShrink: 0, alignItems: 'center' }}>
                   <button
                     onClick={() => toggleSchedule.mutate(s.id)}
-                    style={{ ...toggleBtnStyle, color: s.enabled ? 'var(--teal)' : 'var(--ink-2)' }}
+                    style={{ ...toggleBtnStyle, color: s.enabled ? 'var(--c-blue)' : 'var(--ink-2)' }}
                     title={s.enabled ? 'disable' : 'enable'}
                     aria-label={s.enabled ? 'disable schedule' : 'enable schedule'}
                   >
@@ -177,7 +177,7 @@ export function CronPanel() {
                 style={{
                   ...typeChipStyle,
                   background: schedType === t ? 'rgba(102,119,204,0.16)' : 'transparent',
-                  color: schedType === t ? 'var(--indigo)' : 'var(--ink-2)',
+                  color: schedType === t ? 'var(--c-purple)' : 'var(--ink-2)',
                   borderColor: schedType === t ? 'rgba(102,119,204,0.35)' : 'var(--line)',
                 }}
               >
@@ -213,7 +213,7 @@ export function CronPanel() {
 function rowStyle(enabled: number): CSSProperties {
   return {
     padding: '5px 7px',
-    background: enabled ? 'var(--recessed)' : 'transparent',
+    background: enabled ? 'var(--surface-2)' : 'transparent',
     border: `1px solid ${enabled ? 'var(--line)' : 'var(--line)'}`,
     borderRadius: 4,
     opacity: enabled ? 1 : 0.5,
@@ -221,9 +221,9 @@ function rowStyle(enabled: number): CSSProperties {
 }
 
 function typeBadgeStyle(type: string): CSSProperties {
-  const color = type === 'daily' ? 'var(--teal)'
-    : type === 'interval' ? 'var(--indigo)'
-    : 'var(--orange-2)'
+  const color = type === 'daily' ? 'var(--c-blue)'
+    : type === 'interval' ? 'var(--c-purple)'
+    : 'var(--cat-ginger)'
   return { fontFamily: 'var(--font-mono)', fontSize: 9, color, textTransform: 'lowercase', letterSpacing: '0.06em' }
 }
 
@@ -288,7 +288,7 @@ const formStyle: CSSProperties = {
   display: 'grid',
   gap: 5,
   padding: '8px 10px',
-  background: 'var(--recessed)',
+  background: 'var(--surface-2)',
   border: '1px solid var(--line)',
   borderRadius: 4,
 }
@@ -320,7 +320,7 @@ const saveBtnStyle: CSSProperties = {
   borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--indigo)',
+  color: 'var(--c-purple)',
   cursor: 'pointer',
 }
 

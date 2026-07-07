@@ -1,57 +1,55 @@
-import { render, screen, cleanup, act } from '@testing-library/react'
-import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
+import { render, screen, cleanup, waitFor } from '@testing-library/react'
+import { describe, expect, it, afterEach, vi } from 'vitest'
+
 import { TerminalStrip } from '../src/components/TerminalStrip'
 
+vi.mock('../src/lib/gateway', () => ({
+  fetchLogTail: vi.fn(),
+}))
+
+import { fetchLogTail } from '../src/lib/gateway'
+
+const mockedTail = vi.mocked(fetchLogTail)
+
 describe('TerminalStrip', () => {
-  afterEach(cleanup)
-
-  beforeEach(() => {
-    vi.useFakeTimers()
-  })
-
   afterEach(() => {
-    vi.useRealTimers()
+    cleanup()
+    vi.clearAllMocks()
   })
 
-  it('renders title and line count', () => {
-    render(<TerminalStrip title="Gateway Log" maxLines={50} />)
-    expect(screen.getByText('Gateway Log')).toBeInTheDocument()
-    expect(screen.getByText('0 lines')).toBeInTheDocument()
-  })
-
-  it('shows logs with timestamps and levels', async () => {
-    render(<TerminalStrip title="Log" maxLines={10} />)
-
-    await act(async () => {
-      vi.advanceTimersByTime(3000)
+  it('renders title and real log lines from the gateway', async () => {
+    mockedTail.mockResolvedValue({
+      file: 'gateway.log',
+      lines: ['INFO: 127.0.0.1 - "GET /health HTTP/1.1" 200 OK', 'WARNING: slow request'],
     })
-
-    expect(screen.getByText(/\d{2}:\d{2}:\d{2}/)).toBeInTheDocument()
-  })
-
-  it('displays different log levels with colors', async () => {
-    render(<TerminalStrip title="Log" maxLines={10} />)
-
-    await act(async () => {
-      vi.advanceTimersByTime(3000)
+    render(<TerminalStrip title="gateway log" />)
+    expect(screen.getByText('gateway log')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText(/GET \/health/)).toBeInTheDocument()
     })
-
-    expect(screen.getByText(/INFO|WARN|ERROR|DEBUG/)).toBeInTheDocument()
+    expect(screen.getByText('2 lines')).toBeInTheDocument()
+    expect(mockedTail).toHaveBeenCalledWith('gateway', 100)
   })
 
-  it('respects maxLines prop', async () => {
-    render(<TerminalStrip title="Log" maxLines={2} />)
-
-    await act(async () => {
-      vi.advanceTimersByTime(15000)
-    })
-
-    const lines = screen.getAllByText(/\d{2}:\d{2}:\d{2}/)
-    expect(lines.length).toBeLessThanOrEqual(2)
-  })
-
-  it('renders default title when not provided', () => {
+  it('shows empty state when the log has no lines', async () => {
+    mockedTail.mockResolvedValue({ file: 'gateway.log', lines: [] })
     render(<TerminalStrip />)
-    expect(screen.getByText('terminal')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText('nothing logged yet')).toBeInTheDocument()
+    })
+  })
+
+  it('shows a deadpan error when the gateway is unreachable', async () => {
+    mockedTail.mockRejectedValue(new Error('down'))
+    render(<TerminalStrip />)
+    await waitFor(() => {
+      expect(screen.getByText('log unavailable. is the gateway up?')).toBeInTheDocument()
+    })
+  })
+
+  it('renders default title when not provided', async () => {
+    mockedTail.mockResolvedValue({ file: 'gateway.log', lines: [] })
+    render(<TerminalStrip />)
+    expect(screen.getByText('gateway log')).toBeInTheDocument()
   })
 })

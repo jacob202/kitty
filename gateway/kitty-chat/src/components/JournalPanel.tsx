@@ -107,7 +107,7 @@ export function JournalPanel() {
             <button
               key={t}
               onClick={() => setTheme(t)}
-              style={{ ...themeChipStyle, background: theme === t ? 'rgba(232,120,69,0.18)' : 'transparent', color: theme === t ? 'var(--orange-2)' : 'var(--ink-2)' }}
+              style={{ ...themeChipStyle, background: theme === t ? 'var(--ginger-fade)' : 'transparent', color: theme === t ? 'var(--cat-ginger)' : 'var(--ink-2)' }}
             >
               {t}
             </button>
@@ -188,7 +188,7 @@ const startBtnStyle: CSSProperties = {
   borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--orange-2)',
+  color: 'var(--cat-ginger)',
   cursor: 'pointer',
   textAlign: 'left',
 }
@@ -234,7 +234,7 @@ const msgTextStyle: CSSProperties = {
 
 const replyInputStyle: CSSProperties = {
   flex: 1,
-  background: 'var(--recessed)',
+  background: 'var(--surface-2)',
   border: '1px solid var(--line)',
   borderRadius: 4,
   padding: '5px 8px',
@@ -247,7 +247,7 @@ const replyInputStyle: CSSProperties = {
 
 const sendBtnStyle: CSSProperties = {
   padding: '5px 10px',
-  background: 'var(--recessed)',
+  background: 'var(--surface-2)',
   border: '1px solid var(--line)',
   borderRadius: 4,
   fontFamily: 'var(--font-mono)',
@@ -264,7 +264,7 @@ const synthBtnStyle: CSSProperties = {
   borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--teal)',
+  color: 'var(--c-blue)',
   cursor: 'pointer',
 }
 
@@ -283,7 +283,7 @@ const chipStyle: CSSProperties = {
   margin: 0,
   fontFamily: 'var(--font-mono)',
   fontSize: 9,
-  color: 'var(--teal)',
+  color: 'var(--c-blue)',
   textTransform: 'lowercase',
   letterSpacing: '0.08em',
 }
@@ -296,8 +296,8 @@ const entryStyle: CSSProperties = {
   color: 'var(--ink-2)',
   whiteSpace: 'pre-wrap',
   padding: '8px 10px',
-  background: 'var(--recessed)',
+  background: 'var(--surface-2)',
   border: '1px solid var(--line)',
-  borderLeft: '3px solid var(--teal)',
+  borderLeft: '3px solid var(--c-blue)',
   borderRadius: 4,
 }

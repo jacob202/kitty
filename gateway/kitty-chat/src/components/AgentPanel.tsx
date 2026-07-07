@@ -6,11 +6,11 @@ import { fetchAgentStatus, type AgentSession, type AgentType } from '@/lib/gatew
 import { useAgentSessions, useSpawnAgent, useStopAgent } from '@/lib/queries'
 
 const AGENT_TYPES: { id: AgentType; label: string; desc: string }[] = [
-  { id: 'explorer',   label: 'explore',  desc: 'Wide research & discovery' },
-  { id: 'planner',    label: 'plan',     desc: 'Break goal into steps' },
+  { id: 'explorer',   label: 'explore',  desc: 'wide research & discovery' },
+  { id: 'planner',    label: 'plan',     desc: 'break goal into steps' },
   { id: 'coder',      label: 'code',     desc: 'Analyze & implement' },
-  { id: 'reviewer',   label: 'review',   desc: 'Find issues & suggestions' },
-  { id: 'researcher', label: 'research', desc: 'Deep technical research' },
+  { id: 'reviewer',   label: 'review',   desc: 'find issues & suggestions' },
+  { id: 'researcher', label: 'research', desc: 'deep technical research' },
 ]
 
 const AGENTS_LIMIT = 8
@@ -65,7 +65,7 @@ export function AgentPanel() {
             style={{
               ...typeChipStyle,
               background: agentType === t.id ? 'rgba(102,119,204,0.18)' : 'transparent',
-              color: agentType === t.id ? 'var(--indigo)' : 'var(--ink-2)',
+              color: agentType === t.id ? 'var(--c-purple)' : 'var(--ink-2)',
               borderColor: agentType === t.id ? 'rgba(102,119,204,0.4)' : 'var(--line)',
             }}
           >
@@ -120,7 +120,7 @@ export function AgentPanel() {
                   ) : s.last_output_snippet ? (
                     <p style={outputTextStyle}>{s.last_output_snippet}</p>
                   ) : (
-                    <p style={outputTextStyle}>No output yet.</p>
+                    <p style={outputTextStyle}>no output yet.</p>
                   )}
                 </div>
               )}
@@ -135,18 +135,18 @@ export function AgentPanel() {
 }
 
 function statusDotStyle(status: string): CSSProperties {
-  const color = status === 'running' ? 'var(--teal)'
+  const color = status === 'running' ? 'var(--c-blue)'
     : status === 'completed' ? 'var(--ink-2)'
-    : status === 'failed' ? 'var(--orange)'
-    : status === 'queued' ? 'var(--indigo)'
+    : status === 'failed' ? 'var(--cat-ginger)'
+    : status === 'queued' ? 'var(--c-purple)'
     : 'var(--ink-2)'
   return { width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }
 }
 
 function statusBadgeStyle(status: string): CSSProperties {
-  const color = status === 'running' ? 'var(--teal)'
+  const color = status === 'running' ? 'var(--c-blue)'
     : status === 'completed' ? 'var(--ink-2)'
-    : status === 'failed' ? 'var(--orange)'
+    : status === 'failed' ? 'var(--cat-ginger)'
     : 'var(--ink-2)'
   return { fontFamily: 'var(--font-mono)', fontSize: 9, color, textTransform: 'lowercase', letterSpacing: '0.06em' }
 }
@@ -168,7 +168,7 @@ const typeChipStyle: CSSProperties = {
 
 const inputStyle: CSSProperties = {
   flex: 1,
-  background: 'var(--recessed)',
+  background: 'var(--surface-2)',
   border: '1px solid var(--line)',
   borderRadius: 4,
   padding: '5px 8px',
@@ -186,14 +186,14 @@ const spawnBtnStyle: CSSProperties = {
   borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 13,
-  color: 'var(--indigo)',
+  color: 'var(--c-purple)',
   cursor: 'pointer',
   flexShrink: 0,
 }
 
 const sessionRowStyle: CSSProperties = {
   padding: '5px 7px',
-  background: 'var(--recessed)',
+  background: 'var(--surface-2)',
   border: '1px solid var(--line)',
   borderRadius: 4,
   display: 'grid',

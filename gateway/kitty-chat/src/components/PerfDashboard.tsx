@@ -26,11 +26,11 @@ export function PerfDashboard() {
   }
 
   if (loading) {
-    return <div style={containerStyle}>Loading performance stats...</div>
+    return <div style={containerStyle}>loading performance stats…</div>
   }
 
   if (!stats) {
-    return <div style={containerStyle}>No performance data available</div>
+    return <div style={containerStyle}>no performance data</div>
   }
 
   return (
@@ -38,12 +38,12 @@ export function PerfDashboard() {
       <h3 style={titleStyle}>Performance (24h)</h3>
 
       <div style={gridStyle}>
-        <StatBox label="Requests" value={stats.total_requests.toString()} color="var(--mint)" />
-        <StatBox label="Avg Latency" value={`${stats.avg_latency_ms.toFixed(0)}ms`} color="var(--teal)" />
-        <StatBox label="Max Latency" value={`${stats.max_latency_ms.toFixed(0)}ms`} color="var(--yellow)" />
-        <StatBox label="Total Tokens" value={stats.total_tokens.toLocaleString()} color="var(--purple)" />
-        <StatBox label="Avg Tokens" value={stats.avg_tokens.toFixed(0)} color="var(--blue)" />
-        <StatBox label="Active Schedules" value={stats.active_schedules.toString()} color="var(--pink)" />
+        <StatBox label="requests" value={stats.total_requests.toString()} color="var(--c-green)" />
+        <StatBox label="avg latency" value={`${stats.avg_latency_ms.toFixed(0)}ms`} color="var(--c-blue)" />
+        <StatBox label="max latency" value={`${stats.max_latency_ms.toFixed(0)}ms`} color="var(--c-yellow)" />
+        <StatBox label="total tokens" value={stats.total_tokens.toLocaleString()} color="var(--c-purple)" />
+        <StatBox label="avg tokens" value={stats.avg_tokens.toFixed(0)} color="var(--c-blue)" />
+        <StatBox label="active schedules" value={stats.active_schedules.toString()} color="var(--cat-pink)" />
       </div>
 
       {stats.schedules && stats.schedules.length > 0 && (
@@ -151,5 +151,5 @@ const scheduleNameStyle: CSSProperties = {
 const scheduleStatusStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: '12px',
-  color: 'var(--mint)',
+  color: 'var(--c-green)',
 }

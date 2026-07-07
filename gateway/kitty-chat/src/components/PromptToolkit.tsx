@@ -81,7 +81,7 @@ export function PromptToolkit({ templates, onSelect, title = 'Prompt Toolkit', i
               <Skeleton height={64} />
             </div>
           ) : (
-            <div style={emptyStyle}>No prompt templates available</div>
+            <div style={emptyStyle}>no prompt templates yet</div>
           )
         )}
       </div>

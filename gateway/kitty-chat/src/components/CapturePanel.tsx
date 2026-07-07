@@ -14,7 +14,7 @@ export function CapturePanel() {
     if (result) {
       setStatus(`${result.status}: ${result.message}`)
     } else {
-      setStatus('Upload failed')
+      setStatus('upload failed')
     }
   }, [])
 
@@ -53,7 +53,7 @@ export function CapturePanel() {
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       style={{
-        border: `1px dashed ${dragActive ? 'var(--mint)' : 'var(--line)'}`,
+        border: `1px dashed ${dragActive ? 'var(--c-green)' : 'var(--line)'}`,
         borderRadius: 4,
         padding: 16,
         cursor: 'pointer',
