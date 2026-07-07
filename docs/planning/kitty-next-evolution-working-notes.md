@@ -93,7 +93,20 @@ The skeleton is right (v2 tokens shipped, nav shell rebuilt). What's missing is 
   - Verified: `make ui-test` 91/91 passed, `make ui-build` green, logs-route pytest green. Full pytest suite running in background at slice-1 close.
   - Worktree note: node_modules is an APFS clone (`cp -Rc`) of the main checkout's — symlink breaks Turbopack.
 - Next: Slice 2 (chat deepening — message actions, markdown/tool-call mono blocks, cat bound to stream lifecycle, session search).
+- 2026-07-07 (later): **Slice 2 done + verified live.** Chat already had markdown/code-copy/typing-dots/sidebar-search (deeper than diagnosed — good). What was actually missing and got built:
+  - `fa40398` — extracted `runStream` from `handleSend`; added `handleRetry` (drops trailing assistant msg, re-streams same history); cat now hits all four canon states honestly (`o_o` streaming, `^_^` 2.5s on done, `:[` on error until next send); quiet hover copy/retry action row on finished kitty messages; tests/ChatMessage.test.tsx.
+  - `6c94a4f` — TopBar had two *static* "^_^ done" / ":[ broke" buttons faking state next to the real StateBadge — deleted (KITTY.md: state faces must mean something).
+  - **Live verification (dev server, gateway down):** app renders v2 manila skin; fonts confirmed self-hosted (`Hanken Grotesk` computed, 0 external font requests); sent a chat message → ⚠ error bubble with the real cause, topbar badge flips to `broke`, message badge `:[`, corner cat desaturates; retry re-streamed and honestly failed again. Screenshots taken in-session.
+  - Full pytest: 1310 passed / 3 failed — all 3 are missing-module env failures (mem0 ×2 in test_doctor, google.auth in test_mail_connector) unrelated to this diff; targeted re-runs confirm. UI: 95/95, build green.
+  - Fixed stale `~/.claude/launch.json` (pointed at nonexistent `~/Projects/kitty-chat`, port 4000 note: kitty-chat dev script hardcodes `-p 4000`).
+
+## remaining slices (not started)
+
+- Slice 3 — home cockpit click-throughs (tiles navigate to panels; deadlines from 017; next-step hero from 016).
+- Slice 4 — perf pass (lazy-load heavy panels behind activeView, React Query staleTime, honest latency display).
+- Slice 5 — mobile/PWA polish (phone-first: bottom tabs on mobile, safe-area insets).
+- Doc PR: mark v2-reference as canon inside design-system/PHILOSOPHY.md ("three systems" section is stale).
 
 ## next recommended action if session ends
 
-Run the **Slice 1 copy-paste prompt** above in a fresh session, then Slice 2. Slices 3–5 are sketched in "prioritized slices."
+Branch `claude/fable-ux-phase` in `.worktrees/fable-ux-phase` has 4 commits ready for PR (`ad840cc bf76538 fa40398 6c94a4f`). Push (auth permitting) and open the PR, then pick up **Slice 3** using the sketch above. Merge-conflict watch: packet-018's dirty tree touches DocumentsPanel/ProjectsPanel/queries.ts.
