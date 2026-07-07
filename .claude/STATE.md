@@ -90,16 +90,8 @@ claim, edit this row to `available` and commit to `main`.
 | 008-remainder | Codex / opencode | ✅ shipped (#111) |
 | 015 | — | ✅ shipped (#103) — Jacob live-verified |
 | 016 | — | ✅ merged (#107) |
-| 017 | opencode 2026-07-06 | 🚧 claimed — PR #112 open, merge conflict with main |
-
-## In flight
-
-- **PR #112 (packet 017)** — benefits/admin deadline rails + urgent-thing sweep. All code changes are committed and pushed. CI failed on lint + pre-existing test_cron bug (both fixed in later commits). PR is CONFLICTING with main because:
-  - main added `013_memory_weave.sql` (branch renamed to `014_deadlines.sql`) 
-  - main added `gateway/prefetcher.py` (branch restored it from main)
-  - main modified `tests/test_memory_graph.py` (branch needs to accept main's change)
-  - Git repo has macOS `Icon` file corruption causing `fatal: bad object refs/Icon?`
-  - CI may not trigger while PR is conflicting
+| 017 | opencode 2026-07-06 | ✅ merged (#112) |
+| 020 | antigravity 2026-07-07 | 🚧 claimed — GitHub connector |
 
 ## Facts from Jacob (load-bearing — read before talking to him)
 

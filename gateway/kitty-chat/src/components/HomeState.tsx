@@ -18,6 +18,8 @@ import {
   useGatewayHealth,
   useGatewayModels,
   useChatsPersistence,
+  useGatewayWeather,
+  useKnowledgeSources,
 } from '@/lib/queries';
 import type {
   GatewayAction,
@@ -836,6 +838,56 @@ function CaptureSection() {
   );
 }
 
+// ── Weather & Sources (Ugly/Whimsy) ──────────────────────────────────────────
+
+function WeatherTile() {
+  const { data: weatherPayload, isPending, isError } = useGatewayWeather();
+
+  if (isPending || isError || !weatherPayload || !weatherPayload.weather) return null;
+  const weather = weatherPayload.weather;
+
+  return (
+    <SectionCard title="sky">
+      <div style={{ ...itemCard, display: 'flex', gap: 16, alignItems: 'center', background: 'var(--surface)', border: '2px dashed var(--border)' }}>
+        <div style={{ fontSize: 44, fontFamily: 'var(--font-display)', transform: 'rotate(-4deg)', color: 'var(--text)' }}>
+          {weather.temp_c ?? '--'}°
+        </div>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.4 }}>
+          <div>it feels {weather.description?.toLowerCase() || 'unknown'}</div>
+          <div>in your area</div>
+        </div>
+      </div>
+    </SectionCard>
+  );
+}
+
+function WorkingSources({ onNavigate }: { onNavigate: (v: string) => void }) {
+  const { data: sources, isPending, isError } = useKnowledgeSources();
+
+  if (isPending || isError || !sources) return null;
+
+  return (
+    <SectionCard title="brain" count={sources.total_sources}>
+      <div
+        style={{ ...itemCard, cursor: 'pointer', border: '1px solid var(--text)', background: 'var(--primary-fade)' }}
+        onClick={() => onNavigate('docs')}
+      >
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text)' }}>
+          <div style={{ fontWeight: 700 }}>{sources.total_sources} files stuffed in my head</div>
+          <div style={{ marginTop: 8, color: 'var(--text-dim)' }}>
+            {(sources.sources.slice(0, 3) || []).map((s, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, padding: '2px 0' }}>
+                <span>*</span>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </SectionCard>
+  );
+}
+
 // ── Root ─────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -867,6 +919,8 @@ export function HomeState({
       <HealthStrip />
       <WhatsNext onDecideInChat={onDecideInChat} onNavigate={onNavigate} />
       <NeedsYou onDecideInChat={onDecideInChat} />
+      <WeatherTile />
+      <WorkingSources onNavigate={onNavigate} />
       <ActiveProjects onNavigate={onNavigate} />
       <WhatChanged />
       <TodayPanel gatewayError={gatewayError} />
