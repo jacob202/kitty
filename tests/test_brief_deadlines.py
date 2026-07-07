@@ -14,7 +14,7 @@ def _fresh_db(tmp_path, monkeypatch):
     monkeypatch.setattr("gateway.db.KITTY_DB_FILE", db)
     monkeypatch.setattr("gateway.paths.KITTY_DB_FILE", db)
     deadline_store.init_db()
-    project_store.create("benefits-admin", "admin")
+    project_store.init_db()
 
 
 def test_get_deadlines_section_orders_by_due_date():
