@@ -16,6 +16,8 @@ import {
   useGatewayHealth,
   useGatewayModels,
   useChatsPersistence,
+  useGatewayWeather,
+  useKnowledgeSources,
 } from '../src/lib/queries';
 import { HomeState } from '../src/components/HomeState';
 
@@ -42,6 +44,8 @@ vi.mock('../src/lib/queries', () => ({
   useGatewayHealth: vi.fn(),
   useGatewayModels: vi.fn(),
   useChatsPersistence: vi.fn(),
+  useGatewayWeather: vi.fn(),
+  useKnowledgeSources: vi.fn(),
 }));
 
 const LIVE_MODELS = [
@@ -105,6 +109,18 @@ function setDefaultMocks() {
   });
   (useChatsPersistence as Mock).mockReturnValue({
     data: { ok: true, count: 3, error: null },
+    isPending: false,
+    isError: false,
+    isFetched: true,
+  });
+  (useGatewayWeather as Mock).mockReturnValue({
+    data: { weather: { temp: 72, condition: 'Clear' }, ok: true },
+    isPending: false,
+    isError: false,
+    isFetched: true,
+  });
+  (useKnowledgeSources as Mock).mockReturnValue({
+    data: { sources: [] },
     isPending: false,
     isError: false,
     isFetched: true,

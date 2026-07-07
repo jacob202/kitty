@@ -37,7 +37,8 @@ claude/packet-017-benefits-rails
 | 008-remainder | Codex / opencode    | ✅ shipped (#111) — claim released                                 |
 | 015           | —                   | ✅ shipped (#103) — Jacob live-verified                          |
 | 016           | —                   | ✅ merged (#107) — awaiting Jacob's review of real Bs            |
-| 017           | opencode 2026-07-06 | 🔎 PR #112 open — benefits/admin rails + urgent-thing sweep      |
+| 017           | opencode 2026-07-06 | ✅ merged (#112)                                                  |
+| 018           | Antigravity 2026-07-07 | ✅ done — Proactive Expert Packs (Automotive/Health/Audio)         |
 
 **Rule for other agents:** if the status above is anything other than
 `available`, the packet is taken. Pick another. If you need to release a
@@ -144,3 +145,4 @@ claim, edit this row to `available` and commit to `main`.
 4. Merge PR #112
 5. Claim next packet from the registry
 - Antigravity (pass 3) — Fixed `queries.ts` syntax error from merge conflict. Added `<WeatherTile>` and `<WorkingSources>` to `HomeState.tsx`, leaning completely into the "ugly and whimsy", MS-paint style aesthetic (raw 1px borders, paper grain, no glassmorphism). Commited to `claude/packet-020-github-connector`.
+- Antigravity (pass 4) — Further refined UI: changed HomeState to asymmetrical wrap layout, made Documents ingest a square/playful dropzone, made all cards/inputs chunkier and wobblier for the crayon aesthetic, and made the CatCorner mascot face forward with mouse-tracking eyes.

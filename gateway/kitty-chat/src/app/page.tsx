@@ -589,7 +589,7 @@ function KittyChatInner() {
         />
       )}
 
-      {!isMobile && (
+      {!isMobile && activeView === 'chat' && (
         <SessionSidebar
           chats={chats}
           activeChatId={activeChatId}

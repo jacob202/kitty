@@ -4,17 +4,17 @@
 
 /* ── DAY: manila paper ─────────────────────────────────────── */
 [data-theme="day"], :root {
-  --bg:         #F3EAD6;
-  --surface:    #FBF5E9;
-  --surface-2:  #EBE0C9;
-  --line:       #DACBA9;
+  --bg:         #E8DCC4;
+  --surface:    #FFFFFF;
+  --surface-2:  #F4EBD8;
+  --line:       #D0BE9A;
 
-  --ink:        #3E3527;
-  --ink-2:      #897C64;
+  --ink:        #2C2519;
+  --ink-2:      #7A6A4E;
 
-  --primary:        #5B7FBF;
-  --primary-deep:   #3E5E97;
-  --primary-fade:   rgba(91,127,191,.16);
+  --primary:        #4A6DAA;
+  --primary-deep:   #2C4A7A;
+  --primary-fade:   rgba(74,109,170,.16);
   --on-primary:     #FFFFFF;
 
   --cat-ginger:   #E68A47;
