@@ -102,7 +102,13 @@ async def lifespan(app: FastAPI):
         register_action("monitors.check", _action_check_monitors)
         register_action("memory.consolidate", _action_memory_consolidate)
         register_action("inbox.triage", _action_triage_inbox)
+        def _action_poll_github():
+            from gateway.connectors import github
+
+            return github.poll_now()
+
         register_action("mail.poll", _action_poll_mail)
+        register_action("github.poll", _action_poll_github)
         register_action("prefetch.warm", _action_warm_prefetch)
         cron_start()
     except Exception:
