@@ -143,3 +143,4 @@ claim, edit this row to `available` and commit to `main`.
 3. Get CI green
 4. Merge PR #112
 5. Claim next packet from the registry
+- Antigravity (pass 3) — Fixed `queries.ts` syntax error from merge conflict. Added `<WeatherTile>` and `<WorkingSources>` to `HomeState.tsx`, leaning completely into the "ugly and whimsy", MS-paint style aesthetic (raw 1px borders, paper grain, no glassmorphism). Commited to `claude/packet-020-github-connector`.

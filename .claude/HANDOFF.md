@@ -1,3 +1,28 @@
+# Session Handoff — 2026-07-07 (Kitty Builder port Phase 4)
+
+## Status
+
+- Work continued in `.worktrees/feat-port-kittybuilder` on branch `feat/port-kittybuilder`.
+- Kitty Builder port Phases 1–4 are **complete and committed** in that worktree.
+- Full Python suite: **1365 passed, 1 skipped**.
+- Push to origin is blocked: the active `gh` OAuth token (`gho_...`) is rejected for git operations. Use SSH or a `ghp_...` personal access token to push.
+
+## What landed in Phase 4
+
+- `gateway/builder_cli.py` with `run`, `loop`/`repl`, `delegate`, `brief`, `contract validate`
+- `gateway/builder/contract.py` for ISC contract validation/execution
+- `gateway/doctor.py` extensions: worker probe checks, `llm:fallback_rate`, `llm:stream_untracked`
+- `gateway/routes/builder.py` with `POST /builder/delegate`, `POST /builder/loop`, `GET /builder/budget`, `GET /builder/session/{id}`
+- `./kitty builder <subcommand>` wired into the umbrella script
+- Tests: `tests/test_builder_cli.py`, `tests/test_builder_contract.py`, `tests/test_doctor.py` additions
+
+## Next
+
+- Phase 5 cleanup: delete `~/Projects/kitty-salvage/kittybuilder/`, update `docs/ARCHITECTURE.md` + `AGENTS.md`, write ADR.
+- Fix git auth and push `feat/port-kittybuilder`.
+
+---
+
 # Session Handoff — 2026-07-05 (Fable overnight/day session)
 
 ## What happened (in order)
