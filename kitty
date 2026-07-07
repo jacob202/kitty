@@ -20,6 +20,7 @@
 #   kitty project refresh <id>                  Recompose state + regenerate the next step ("B")
 #   kitty project next <id>                     Show the current next step for a project
 #   kitty project set-path <id> /abs/path       Fix a project's path
+#   kitty verify-home   Start gateway+UI if needed, check health + tailnet, print the iPhone URL
 #
 # Environment: reads .env from the repo root if present. All overrides
 # (GATEWAY_PORT, LITELLM_PORT, LITELLM_VENV, …) live in .env, never here.
@@ -450,8 +451,78 @@ PY
   esac
 }
 
+cmd_verify_home() {
+  # Is the Home cockpit actually reachable, end to end? Exits 0 only when
+  # gateway, UI, and tailnet all check out. LiteLLM is report-only: chat
+  # routing breaks without it, but Home still loads and says so honestly.
+  local fails=0
+  local ui_port="${UI_PORT:-4000}"
+
+  if ! http_ok "http://127.0.0.1:$GATEWAY_PORT/health"; then
+    echo "gateway   not running — starting via ./kitty up"
+    cmd_up
+  fi
+  if http_ok "http://127.0.0.1:$GATEWAY_PORT/health"; then
+    echo "gateway   ✓  http://127.0.0.1:$GATEWAY_PORT"
+    if curl -sf --max-time 3 "http://127.0.0.1:$GATEWAY_PORT/health" 2>/dev/null \
+        | grep -q '"litellm_reachable": *true'; then
+      echo "litellm   ✓  reachable (via gateway /health)"
+    else
+      echo "litellm   ✗  gateway reports it unreachable — chat routing is down, home still works"
+    fi
+  else
+    echo "gateway   ✗  not responding — check: kitty logs"
+    fails=1
+  fi
+
+  if ! http_ok "http://127.0.0.1:$ui_port/"; then
+    echo "ui        not running — starting bound to all interfaces (logs: $LOG_DIR/ui.log)"
+    (cd "$KITTY_ROOT/gateway/kitty-chat" \
+      && nohup node node_modules/next/dist/bin/next dev -H 0.0.0.0 -p "$ui_port" \
+        >"$LOG_DIR/ui.log" 2>&1 &)
+    _i=0
+    while [ $_i -lt 30 ]; do
+      if http_ok "http://127.0.0.1:$ui_port/"; then break; fi
+      sleep 1
+      _i=$((_i + 1))
+    done
+  fi
+  if http_ok "http://127.0.0.1:$ui_port/"; then
+    echo "ui        ✓  http://localhost:$ui_port"
+  else
+    echo "ui        ✗  not responding on :$ui_port — check: $LOG_DIR/ui.log"
+    fails=1
+  fi
+
+  local ts_ip=""
+  if command -v tailscale >/dev/null 2>&1; then
+    ts_ip="$(tailscale ip -4 2>/dev/null | head -1 || true)"
+  fi
+  if [[ -z "$ts_ip" ]]; then
+    # Tailscale hands out addresses in the CGNAT 100.64/10 range.
+    ts_ip="$(ifconfig 2>/dev/null | awk '/inet 100\./ { print $2; exit }' || true)"
+  fi
+  if [[ -z "$ts_ip" ]]; then
+    echo "tailnet   ✗  no tailscale interface — install/start Tailscale on this machine"
+    fails=1
+  elif http_ok "http://$ts_ip:$ui_port/"; then
+    echo "tailnet   ✓  your iPhone can reach Kitty at: http://$ts_ip:$ui_port"
+  else
+    echo "tailnet   ✗  tailscale is up ($ts_ip) but the UI isn't reachable on it —"
+    echo "             the UI is bound to loopback. restart it with: make ui-tailnet"
+    fails=1
+  fi
+
+  if [ "$fails" -eq 0 ]; then
+    echo "verify-home: all checks passed ✓"
+  else
+    echo "verify-home: FAILED — fix the ✗ lines above"
+  fi
+  return "$fails"
+}
+
 cmd_help() {
-  grep '^#' "$0" | grep -v '#!/' | sed 's/^# //' | head -22
+  grep '^#' "$0" | grep -v '#!/' | sed 's/^# //' | head -23
 }
 
 # ── Dispatch ─────────────────────────────────────────────────────────────────
@@ -471,6 +542,7 @@ case "${1:-help}" in
   push)      shift; cmd_push "$@" ;;
   sweep)     cmd_sweep ;;
   project)   shift; cmd_project "$@" ;;
+  verify-home) cmd_verify_home ;;
   help|--help|-h) cmd_help ;;
   *)
     echo "Unknown command: ${1}" >&2

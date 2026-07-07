@@ -1127,17 +1127,28 @@ export async function fetchMcpTools(): Promise<McpTool[]> {
 
 export interface GatewayHealthPayload {
   ok: boolean
+  /** Direct probe from the gateway's /health — the honest LiteLLM signal
+   *  (/api/models masks proxy failures behind a fallback model list). */
+  litellmReachable: boolean
   error: string | null
 }
 
 export async function fetchGatewayHealth(): Promise<GatewayHealthPayload> {
   try {
-    const json = await gfetch<{ status?: string }>('/health', undefined, 4000)
+    const json = await gfetch<{ status?: string; litellm_reachable?: boolean }>(
+      '/health',
+      undefined,
+      4000,
+    )
     return json.status === 'ok'
-      ? { ok: true, error: null }
-      : { ok: false, error: `unexpected /health payload: ${JSON.stringify(json)}` }
+      ? { ok: true, litellmReachable: json.litellm_reachable === true, error: null }
+      : {
+          ok: false,
+          litellmReachable: false,
+          error: `unexpected /health payload: ${JSON.stringify(json)}`,
+        }
   } catch (err) {
-    return { ok: false, error: describeFetchError(err, null) }
+    return { ok: false, litellmReachable: false, error: describeFetchError(err, null) }
   }
 }
 
@@ -1160,10 +1171,3 @@ export async function fetchChatsPersistence(): Promise<ChatsPersistencePayload> 
   }
 }
 
-/** HEURISTIC: /api/models masks LiteLLM failure behind a hardcoded one-model
- *  fallback (completions.py — data: [{id: "kitty-default", owned_by: "kitty"}]).
- *  There is no honest LiteLLM-health endpoint, so seeing exactly that shape is
- *  our only signal that routing is degraded. Label output as inference. */
-export function isLitellmFallbackList(models: Model[]): boolean {
-  return models.length === 1 && models[0].id === 'kitty-default'
-}

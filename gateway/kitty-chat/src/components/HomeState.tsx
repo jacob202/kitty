@@ -19,7 +19,6 @@ import {
   useGatewayModels,
   useChatsPersistence,
 } from '@/lib/queries';
-import { isLitellmFallbackList } from '@/lib/gateway';
 import type {
   GatewayAction,
   GatewayNextStep,
@@ -140,10 +139,9 @@ function HealthStrip() {
   const queryClient = useQueryClient();
 
   const gatewayOk = health.data?.ok === true;
-  const modelsLive = models.data?.fromLiveGateway === true;
-  // isLitellmFallbackList: /api/models hides LiteLLM failure behind a canned
-  // one-model list, so "fallback shape seen" is inference, and labeled as such.
-  const routingDegraded = modelsLive && isLitellmFallbackList(models.data?.models ?? []);
+  // Direct probe reported by /health — not inferred from /api/models, which
+  // masks LiteLLM failures behind a fallback model list.
+  const litellmOk = health.data?.litellmReachable === true;
   const storeOk = persistence.data?.ok === true;
 
   const retry = () => {
@@ -178,15 +176,13 @@ function HealthStrip() {
             label={gatewayOk ? 'gateway live' : OFFLINE_FIX}
           />
           <HealthDot
-            tone={!gatewayOk ? 'bad' : routingDegraded ? 'warn' : modelsLive ? 'ok' : 'bad'}
+            tone={!gatewayOk ? 'bad' : litellmOk ? 'ok' : 'bad'}
             label={
               !gatewayOk
                 ? 'routing unknown'
-                : routingDegraded
-                  ? 'routing: fallback list served — litellm likely down'
-                  : modelsLive
-                    ? `routing live · ${models.data?.models.length ?? 0} models`
-                    : 'routing unreachable'
+                : litellmOk
+                  ? `routing live · ${models.data?.models.length ?? 0} models`
+                  : 'litellm unreachable — ./kitty up starts it'
             }
           />
           <HealthDot

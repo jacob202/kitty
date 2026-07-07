@@ -64,6 +64,7 @@ import {
   fetchKnowledgeSources,
   searchKnowledge,
   ingestKnowledge,
+  uploadCaptureFile,
   // providers
   fetchPlugins,
   setPluginEnabled,
@@ -563,5 +564,15 @@ export function useProjectNextSteps(projects: GatewayProject[]) {
       queryFn: () => fetchProjectNext(p.id),
       staleTime: 60_000,
     })),
+  })
+}
+
+export function useUploadCapture() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (file: File) => uploadCaptureFile(file),
+    // Indexing runs as a gateway background task; the invalidation gives the
+    // fast path, the sources card's refresh button covers the slow one.
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['knowledge', 'sources'] }),
   })
 }

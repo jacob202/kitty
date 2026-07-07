@@ -92,7 +92,7 @@ function setDefaultMocks() {
   });
   (useProjectNextSteps as Mock).mockReturnValue([]);
   (useGatewayHealth as Mock).mockReturnValue({
-    data: { ok: true, error: null },
+    data: { ok: true, litellmReachable: true, error: null },
     isPending: false,
     isError: false,
     isFetched: true,
@@ -168,7 +168,7 @@ describe('HomeState', () => {
 
   it('shows the ./kitty up fix when the gateway is down', () => {
     (useGatewayHealth as Mock).mockReturnValue({
-      data: { ok: false, error: 'Could not reach the gateway' },
+      data: { ok: false, litellmReachable: false, error: 'Could not reach the gateway' },
       isPending: false,
     });
     render(<HomeState />);
@@ -178,18 +178,13 @@ describe('HomeState', () => {
     expect(screen.getByText('routing unknown')).toBeInTheDocument();
   });
 
-  it('labels the LiteLLM fallback list as degraded routing, not live', () => {
-    // /api/models masks LiteLLM failure with exactly this one-model shape.
-    (useGatewayModels as Mock).mockReturnValue({
-      data: {
-        models: [{ id: 'kitty-default', name: 'default', color: '#000', glow: '#0009' }],
-        fromLiveGateway: true,
-        error: null,
-      },
+  it('shows litellm down from the /health probe, never a fake routing-live', () => {
+    (useGatewayHealth as Mock).mockReturnValue({
+      data: { ok: true, litellmReachable: false, error: null },
       isPending: false,
     });
     render(<HomeState />);
-    expect(screen.getByText(/fallback list served — litellm likely down/)).toBeInTheDocument();
+    expect(screen.getByText(/litellm unreachable — \.\/kitty up starts it/)).toBeInTheDocument();
     expect(screen.queryByText(/routing live/)).not.toBeInTheDocument();
   });
 
