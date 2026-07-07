@@ -1,7 +1,12 @@
 'use client'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { useKnowledgeSources, useKnowledgeSearch, useIngestKnowledge } from '@/lib/queries'
+import {
+  useKnowledgeSources,
+  useKnowledgeSearch,
+  useIngestKnowledge,
+  useUploadCapture,
+} from '@/lib/queries'
 
 const STATUS_COLORS: Record<string, string> = {
   success: 'var(--c-green)',
@@ -13,12 +18,20 @@ const STATUS_COLORS: Record<string, string> = {
 export function DocumentsPanel() {
   const sourcesQuery = useKnowledgeSources()
   const ingest = useIngestKnowledge()
+  const upload = useUploadCapture()
 
   const [query, setQuery] = useState('')
   const [submitted, setSubmitted] = useState('')
   const searchQuery = useKnowledgeSearch(submitted)
 
   const [target, setTarget] = useState('')
+  const [dragOver, setDragOver] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  function handleFiles(files: FileList | null) {
+    const file = files?.[0]
+    if (file && !upload.isPending) upload.mutate(file)
+  }
 
   const payload = sourcesQuery.data
 
@@ -99,10 +112,6 @@ export function DocumentsPanel() {
             {ingest.isPending ? 'ingesting…' : 'ingest'}
           </button>
         </div>
-        <p style={mutedStyle}>
-          drag-and-drop upload isn&apos;t wired — the gateway ingests by path or URL
-          (POST /knowledge/ingest). PDFs, markdown, and text all work.
-        </p>
         {ingest.isError && (
           <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
             ingest failed — {ingest.error instanceof Error ? ingest.error.message : 'gateway error'}
@@ -113,11 +122,75 @@ export function DocumentsPanel() {
             {ingest.data.status}: {ingest.data.source_id} — {ingest.data.reason}
           </p>
         )}
+
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => fileInputRef.current?.click()}
+          onKeyDown={e => e.key === 'Enter' && fileInputRef.current?.click()}
+          onDragOver={e => {
+            e.preventDefault()
+            setDragOver(true)
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={e => {
+            e.preventDefault()
+            setDragOver(false)
+            handleFiles(e.dataTransfer.files)
+          }}
+          style={{
+            ...dropZoneStyle,
+            borderColor: dragOver ? 'var(--primary)' : 'var(--line)',
+            background: dragOver ? 'var(--primary-fade)' : 'var(--bg)',
+          }}
+        >
+          {upload.isPending
+            ? 'uploading…'
+            : 'or drop a file here (pdf / md / txt / images) — uploads via /capture/file, indexes in the background'}
+        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.md,.txt,.png,.jpg,.jpeg,.webp,.gif"
+          style={{ display: 'none' }}
+          onChange={e => {
+            handleFiles(e.target.files)
+            e.target.value = ''
+          }}
+        />
+        {upload.isError && (
+          <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
+            upload failed —{' '}
+            {upload.error instanceof Error ? upload.error.message : 'gateway error'}
+          </p>
+        )}
+        {upload.data === null && !upload.isPending && upload.isSuccess && (
+          <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
+            upload failed — the gateway rejected the file (size or type). check ./kitty logs.
+          </p>
+        )}
+        {upload.data && (
+          <p style={{ ...mutedStyle, color: STATUS_COLORS[upload.data.status] ?? 'var(--ink-2)' }}>
+            {upload.data.status}: {upload.data.message} — it appears under sources once indexing
+            finishes (refresh below).
+          </p>
+        )}
       </div>
 
       {/* ── sources ── */}
       <div style={cardStyle}>
-        <div style={sectionLabelStyle}>sources</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ ...sectionLabelStyle, borderBottom: 'none', paddingBottom: 0, flex: 1 }}>
+            sources
+          </span>
+          <button
+            onClick={() => void sourcesQuery.refetch()}
+            disabled={sourcesQuery.isFetching}
+            style={refreshButtonStyle}
+          >
+            {sourcesQuery.isFetching ? '…' : '↻ refresh'}
+          </button>
+        </div>
         {sourcesQuery.isLoading && <p style={mutedStyle}>loading sources…</p>}
         {sourcesQuery.isError && (
           <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
@@ -273,4 +346,27 @@ const mutedStyle: CSSProperties = {
   fontSize: 12,
   color: 'var(--ink-2)',
   lineHeight: 1.6,
+}
+
+const dropZoneStyle: CSSProperties = {
+  border: '1.5px dashed var(--line)',
+  borderRadius: 10,
+  padding: '14px 12px',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  color: 'var(--ink-2)',
+  textAlign: 'center',
+  cursor: 'pointer',
+  lineHeight: 1.5,
+}
+
+const refreshButtonStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  padding: '3px 10px',
+  border: '1px solid var(--line)',
+  borderRadius: 8,
+  background: 'var(--surface-2)',
+  color: 'var(--ink-2)',
+  cursor: 'pointer',
 }

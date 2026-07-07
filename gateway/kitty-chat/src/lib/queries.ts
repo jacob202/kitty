@@ -1,5 +1,5 @@
 'use client'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   // brief / models / search / weather (full payloads)
   fetchGatewayBrief,
@@ -56,10 +56,15 @@ import {
   fetchProjects,
   fetchProjectNext,
   refreshProject,
+  type GatewayProject,
+  // cockpit health
+  fetchGatewayHealth,
+  fetchChatsPersistence,
   // knowledge
   fetchKnowledgeSources,
   searchKnowledge,
   ingestKnowledge,
+  uploadCaptureFile,
   // providers
   fetchPlugins,
   setPluginEnabled,
@@ -529,4 +534,45 @@ export function useMcpServers() {
 
 export function useMcpTools() {
   return useQuery({ queryKey: ['mcp', 'tools'], queryFn: fetchMcpTools })
+}
+
+// ── Cockpit (Home) ──────────────────────────────────────────────────────────
+
+export function useGatewayHealth() {
+  return useQuery({
+    queryKey: ['health'],
+    queryFn: fetchGatewayHealth,
+    refetchInterval: 30_000,
+  })
+}
+
+export function useChatsPersistence() {
+  return useQuery({
+    queryKey: ['chats', 'persistence'],
+    queryFn: fetchChatsPersistence,
+    refetchInterval: 120_000,
+  })
+}
+
+/** One next-step query per project, sharing the ['projects', id, 'next']
+ *  cache entries with useProjectNext so ProjectsPanel and Home never
+ *  double-fetch. */
+export function useProjectNextSteps(projects: GatewayProject[]) {
+  return useQueries({
+    queries: projects.map(p => ({
+      queryKey: ['projects', p.id, 'next'],
+      queryFn: () => fetchProjectNext(p.id),
+      staleTime: 60_000,
+    })),
+  })
+}
+
+export function useUploadCapture() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (file: File) => uploadCaptureFile(file),
+    // Indexing runs as a gateway background task; the invalidation gives the
+    // fast path, the sources card's refresh button covers the slow one.
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['knowledge', 'sources'] }),
+  })
 }

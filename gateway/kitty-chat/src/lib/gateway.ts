@@ -1122,3 +1122,52 @@ export async function fetchMcpTools(): Promise<McpTool[]> {
   const json = await gfetch<{ tools?: McpTool[] }>('/mcp/tools')
   return json.tools ?? []
 }
+
+// ── Cockpit health signals ───────────────────────────────────────────────────
+
+export interface GatewayHealthPayload {
+  ok: boolean
+  /** Direct probe from the gateway's /health — the honest LiteLLM signal
+   *  (/api/models masks proxy failures behind a fallback model list). */
+  litellmReachable: boolean
+  error: string | null
+}
+
+export async function fetchGatewayHealth(): Promise<GatewayHealthPayload> {
+  try {
+    const json = await gfetch<{ status?: string; litellm_reachable?: boolean }>(
+      '/health',
+      undefined,
+      4000,
+    )
+    return json.status === 'ok'
+      ? { ok: true, litellmReachable: json.litellm_reachable === true, error: null }
+      : {
+          ok: false,
+          litellmReachable: false,
+          error: `unexpected /health payload: ${JSON.stringify(json)}`,
+        }
+  } catch (err) {
+    return { ok: false, litellmReachable: false, error: describeFetchError(err, null) }
+  }
+}
+
+export interface ChatsPersistencePayload {
+  ok: boolean
+  count: number
+  error: string | null
+}
+
+/** Chat persistence health = the actual chats table answering. */
+export async function fetchChatsPersistence(): Promise<ChatsPersistencePayload> {
+  try {
+    const json = await gfetch<{ chats?: unknown[] }>('/chats', undefined, 6000)
+    if (!Array.isArray(json.chats)) {
+      return { ok: false, count: 0, error: '/chats answered without a chats array' }
+    }
+    return { ok: true, count: json.chats.length, error: null }
+  } catch (err) {
+    return { ok: false, count: 0, error: describeFetchError(err, null) }
+  }
+}
+

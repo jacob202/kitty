@@ -171,7 +171,25 @@ async def kitty_error_handler(request: Request, exc: KittyError):
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "kitty-gateway"}
+    # litellm_reachable lives here because /api/models masks LiteLLM failures
+    # behind a fallback model list — this is the one honest signal the UI
+    # health strip can read. Short timeout so a dead proxy can't make the
+    # gateway itself look slow.
+    from gateway.http_client import get_http_client
+    from gateway.paths import LITELLM_BASE
+
+    litellm_reachable = False
+    try:
+        client = await get_http_client()
+        resp = await client.get(f"{LITELLM_BASE}/health/readiness", timeout=1.5)
+        litellm_reachable = resp.status_code == 200
+    except Exception:  # noqa: BLE001 — any failure means "not reachable", which is the answer
+        litellm_reachable = False
+    return {
+        "status": "ok",
+        "service": "kitty-gateway",
+        "litellm_reachable": litellm_reachable,
+    }
 
 
 @app.get("/mood")
