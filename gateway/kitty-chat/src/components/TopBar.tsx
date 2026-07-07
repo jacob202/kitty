@@ -99,9 +99,6 @@ export function TopBar({
           onClick={onCommandPalette}
           style={chipBtnStyle}
         >⌘K</button>
-        <button style={{ ...chipBtnStyle, color: 'var(--c-green)' }}>^_^ done</button>
-        <button style={{ ...chipBtnStyle, color: 'var(--c-red)' }}>:[ broke</button>
-
         <ModelSelector
           activeModel={activeModel}
           models={models}
