@@ -678,8 +678,8 @@ function KittyChatInner() {
               padding: '4px 16px',
               fontFamily: 'var(--font-mono)',
               fontSize: 11,
-              color: 'var(--text-muted)',
-              borderBottom: '1px solid var(--border)',
+              color: 'var(--ink-2)',
+              borderBottom: '1px solid var(--line)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
@@ -693,7 +693,7 @@ function KittyChatInner() {
                   width: 6,
                   height: 6,
                   borderRadius: '50%',
-                  background: 'var(--error)',
+                  background: 'var(--c-red)',
                   flexShrink: 0,
                   display: 'inline-block',
                 }}
@@ -712,14 +712,14 @@ function KittyChatInner() {
                 fontWeight: 600,
                 cursor: 'pointer',
                 background: 'transparent',
-                color: 'var(--text-muted)',
+                color: 'var(--ink-2)',
                 flexShrink: 0,
               }}
               onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.color = 'var(--text)';
+                (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink)';
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)';
+                (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-2)';
               }}
             >
               retry
@@ -734,9 +734,9 @@ function KittyChatInner() {
               padding: '6px 16px',
               fontFamily: 'var(--font-mono)',
               fontSize: 11,
-              color: 'var(--text-dim)',
+              color: 'var(--ink-2)',
               background: 'rgba(26, 20, 16, 0.5)',
-              borderBottom: '1px solid var(--border)',
+              borderBottom: '1px solid var(--line)',
               flexShrink: 0,
             }}
           >
@@ -1015,13 +1015,13 @@ function KittyChatInner() {
                   justifyContent: 'center',
                   gap: 12,
                   fontFamily: 'var(--font-mono)',
-                  color: 'var(--text-muted)',
+                  color: 'var(--ink-2)',
                   fontSize: 14,
                 }}
               >
                 <span style={{ fontSize: 32, opacity: 0.3 }}>?</span>
                 <span>{activeView} view</span>
-                <span style={{ fontSize: 12, color: 'var(--text-ghost)' }}>coming soon</span>
+                <span style={{ fontSize: 12, color: 'var(--ink-2)' }}>coming soon</span>
               </div>
             )}
           </ErrorBoundary>

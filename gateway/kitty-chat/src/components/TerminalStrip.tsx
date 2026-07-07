@@ -48,9 +48,9 @@ export function TerminalStrip({ title = 'terminal', maxLines = 50 }: Props) {
 
   const levelColor = (level: LogEntry['level']): string => {
     switch (level) {
-      case 'error': return 'var(--error)'
+      case 'error': return 'var(--c-red)'
       case 'warn': return 'var(--orange)'
-      case 'debug': return 'var(--text-muted)'
+      case 'debug': return 'var(--ink-2)'
       default: return 'var(--mint)'
     }
   }
@@ -63,7 +63,7 @@ export function TerminalStrip({ title = 'terminal', maxLines = 50 }: Props) {
     <div style={containerStyle}>
       <div style={headerStyle}>
         <span style={titleStyle}>{title}</span>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}>
           {logs.length} lines
         </span>
       </div>
@@ -84,8 +84,8 @@ export function TerminalStrip({ title = 'terminal', maxLines = 50 }: Props) {
 }
 
 const containerStyle: CSSProperties = {
-  background: 'var(--surface-low)',
-  border: '1px solid var(--border)',
+  background: 'var(--bg)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   padding: '16px',
   display: 'flex',
@@ -99,20 +99,20 @@ const headerStyle: CSSProperties = {
   justifyContent: 'space-between',
   alignItems: 'center',
   paddingBottom: 8,
-  borderBottom: '1px solid var(--border-dim)',
+  borderBottom: '1px solid var(--line)',
 }
 
 const titleStyle: CSSProperties = {
-  fontFamily: 'var(--font-ui)',
+  fontFamily: 'var(--font-body)',
   fontSize: 16,
   fontWeight: 600,
-  color: 'var(--text)',
+  color: 'var(--ink)',
 }
 
 const terminalStyle: CSSProperties = {
   flex: 1,
   background: 'var(--panel)',
-  border: '1px solid var(--border)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   padding: '12px',
   overflowY: 'auto',
@@ -129,7 +129,7 @@ const lineStyle: CSSProperties = {
 }
 
 const timeStyle: CSSProperties = {
-  color: 'var(--text-muted)',
+  color: 'var(--ink-2)',
   flexShrink: 0,
 }
 
@@ -147,6 +147,6 @@ const levelBadgeStyle: CSSProperties = {
 }
 
 const messageStyle: CSSProperties = {
-  color: 'var(--text)',
+  color: 'var(--ink)',
   flexShrink: 0,
 }

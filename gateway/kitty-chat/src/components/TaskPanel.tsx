@@ -13,11 +13,11 @@ const TYPE_META: Record<TaskType, { label: string; description: string; color: s
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  queued:    'var(--text-muted)',
+  queued:    'var(--ink-2)',
   running:   'var(--orange)',
   completed: 'var(--teal)',
   failed:    '#ff5577',
-  cancelled: 'var(--text-faint)',
+  cancelled: 'var(--ink-2)',
 }
 
 const STATUS_ICON: Record<string, string> = {
@@ -64,7 +64,7 @@ export function TaskPanel() {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, flexShrink: 0 }}>
         <div>
           <div style={sectionLabelStyle}>task runner</div>
-          <div style={{ fontFamily: 'var(--font-ui)', fontSize: 22, fontWeight: 700, color: 'var(--text)', lineHeight: 1.1, marginTop: 4 }}>
+          <div style={{ fontFamily: 'var(--font-body)', fontSize: 22, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.1, marginTop: 4 }}>
             What should Kitty work on?
           </div>
         </div>
@@ -88,8 +88,8 @@ export function TaskPanel() {
                 flex: 1,
                 padding: '10px 10px 10px',
                 borderRadius: 4,
-                border: `1px solid ${active ? m.color : 'var(--border)'}`,
-                background: active ? `${m.color}1a` : 'var(--surface-low)',
+                border: `1px solid ${active ? m.color : 'var(--line)'}`,
+                background: active ? `${m.color}1a` : 'var(--bg)',
                 cursor: 'pointer',
                 textAlign: 'left',
                 transition: 'all 0.15s ease',
@@ -104,8 +104,8 @@ export function TaskPanel() {
               onMouseLeave={e => {
                 if (!active) {
                   const el = e.currentTarget as HTMLButtonElement
-                  el.style.borderColor = 'var(--border)'
-                  el.style.background = 'var(--surface-low)'
+                  el.style.borderColor = 'var(--line)'
+                  el.style.background = 'var(--bg)'
                 }
               }}
             >
@@ -113,14 +113,14 @@ export function TaskPanel() {
                 fontFamily: 'var(--font-mono)',
                 fontSize: 11,
                 fontWeight: 700,
-                color: active ? m.color : 'var(--text-dim)',
+                color: active ? m.color : 'var(--ink-2)',
                 letterSpacing: '0.04em',
                 marginBottom: 4,
               }}>{m.label}</div>
               <div style={{
                 fontFamily: 'var(--font-mono)',
                 fontSize: 9,
-                color: active ? `${m.color}bb` : 'var(--text-ghost)',
+                color: active ? `${m.color}bb` : 'var(--ink-2)',
                 lineHeight: 1.4,
               }}>{m.description}</div>
             </button>
@@ -130,7 +130,7 @@ export function TaskPanel() {
 
       {/* Launch form */}
       <div style={{
-        background: 'var(--surface-low)',
+        background: 'var(--bg)',
         border: `1px solid ${meta.color}50`,
         borderRadius: 4,
         padding: '16px',
@@ -157,13 +157,13 @@ export function TaskPanel() {
             placeholder={meta.example}
             style={{
               flex: 1,
-              background: 'var(--surface-mid)',
-              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+              border: '1px solid var(--line)',
               borderRadius: 4,
               padding: '10px 14px',
               fontFamily: 'var(--font-mono)',
               fontSize: 12,
-              color: 'var(--text)',
+              color: 'var(--ink)',
               outline: 'none',
               minWidth: 0,
             }}
@@ -174,13 +174,13 @@ export function TaskPanel() {
             style={{
               flexShrink: 0,
               padding: '10px 20px',
-              background: !goal.trim() || launching ? 'var(--surface-mid)' : `${meta.color}22`,
-              border: `1px solid ${!goal.trim() || launching ? 'var(--border)' : meta.color}`,
+              background: !goal.trim() || launching ? 'var(--surface)' : `${meta.color}22`,
+              border: `1px solid ${!goal.trim() || launching ? 'var(--line)' : meta.color}`,
               borderRadius: 4,
               fontFamily: 'var(--font-mono)',
               fontSize: 12,
               fontWeight: 700,
-              color: !goal.trim() || launching ? 'var(--text-muted)' : meta.color,
+              color: !goal.trim() || launching ? 'var(--ink-2)' : meta.color,
               cursor: !goal.trim() || launching ? 'not-allowed' : 'pointer',
               transition: 'all 0.15s ease',
               letterSpacing: '0.04em',
@@ -218,10 +218,10 @@ export function TaskPanel() {
 
         {tasks.length === 0 && (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: '48px 0' }}>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 40, color: 'var(--surface-high)', lineHeight: 1 }}>◎</div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 40, color: 'var(--surface-2)', lineHeight: 1 }}>◎</div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--text-faint)', marginBottom: 4 }}>no tasks yet</div>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-ghost)' }}>pick a type above and describe a goal</div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink-2)', marginBottom: 4 }}>no tasks yet</div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}>pick a type above and describe a goal</div>
             </div>
           </div>
         )}
@@ -233,29 +233,29 @@ export function TaskPanel() {
 function StatChip({ label, value, color }: { label: string; value: string; color: string }) {
   return (
     <div style={{
-      background: 'var(--surface-low)',
-      border: '1px solid var(--border)',
+      background: 'var(--bg)',
+      border: '1px solid var(--line)',
       borderRadius: 4,
       padding: '8px 14px',
       textAlign: 'center',
       minWidth: 48,
     }}>
       <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color, lineHeight: 1 }}>{value}</div>
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-ghost)', letterSpacing: '0.1em', textTransform: 'lowercase' as const, marginTop: 3 }}>{label}</div>
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-2)', letterSpacing: '0.1em', textTransform: 'lowercase' as const, marginTop: 3 }}>{label}</div>
     </div>
   )
 }
 
 function TaskCard({ task, onCancel }: { task: GatewayTask; onCancel: (id: string) => void }) {
-  const statusColor = STATUS_COLOR[task.status] ?? 'var(--text-muted)'
+  const statusColor = STATUS_COLOR[task.status] ?? 'var(--ink-2)'
   const icon = STATUS_ICON[task.status] ?? '○'
   const typeColor = TYPE_META[task.task_type as TaskType]?.color ?? 'var(--indigo)'
   const isActive = task.status === 'queued' || task.status === 'running'
 
   return (
     <div style={{
-      background: 'var(--surface-low)',
-      border: '1px solid var(--border)',
+      background: 'var(--bg)',
+      border: '1px solid var(--line)',
       borderLeft: `3px solid ${statusColor}`,
       borderRadius: '0 10px 10px 0',
       padding: '12px 14px',
@@ -274,7 +274,7 @@ function TaskCard({ task, onCancel }: { task: GatewayTask; onCancel: (id: string
             <div style={{
               fontFamily: 'var(--font-mono)',
               fontSize: 12,
-              color: 'var(--text)',
+              color: 'var(--ink)',
               lineHeight: 1.5,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -289,9 +289,9 @@ function TaskCard({ task, onCancel }: { task: GatewayTask; onCancel: (id: string
                 letterSpacing: '0.1em',
                 textTransform: 'lowercase' as const,
               }}>{task.task_type}</span>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-ghost)', letterSpacing: '0.06em' }}>{task.status}</span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-2)', letterSpacing: '0.06em' }}>{task.status}</span>
               {task.created_at && (
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-ghost)' }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-2)' }}>
                   {new Date(task.created_at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               )}
@@ -304,11 +304,11 @@ function TaskCard({ task, onCancel }: { task: GatewayTask; onCancel: (id: string
             style={{
               flexShrink: 0,
               background: 'transparent',
-              border: '1px solid var(--border-dim)',
+              border: '1px solid var(--line)',
               borderRadius: 4,
               fontFamily: 'var(--font-mono)',
               fontSize: 9,
-              color: 'var(--text-muted)',
+              color: 'var(--ink-2)',
               cursor: 'pointer',
               padding: '3px 8px',
               letterSpacing: '0.06em',
@@ -338,7 +338,7 @@ const sectionLabelStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 9,
   fontWeight: 700,
-  color: 'var(--text-ghost)',
+  color: 'var(--ink-2)',
   letterSpacing: '0.18em',
   textTransform: 'lowercase',
 }

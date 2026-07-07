@@ -52,13 +52,13 @@ export function PromptToolkit({ templates, onSelect, title = 'Prompt Toolkit', i
                   style={templateCardStyle}
                   onMouseEnter={(e) => {
                     const el = e.currentTarget as HTMLDivElement
-                    el.style.background = 'var(--surface-mid)'
+                    el.style.background = 'var(--surface)'
                     el.style.borderColor = 'var(--primary)'
                   }}
                   onMouseLeave={(e) => {
                     const el = e.currentTarget as HTMLDivElement
-                    el.style.background = 'var(--surface-low)'
-                    el.style.borderColor = 'var(--border)'
+                    el.style.background = 'var(--bg)'
+                    el.style.borderColor = 'var(--line)'
                   }}
                 >
                   <div style={templateHeaderStyle}>
@@ -124,16 +124,16 @@ const iconStyle: CSSProperties = {
 }
 
 const templateTitleStyle: CSSProperties = {
-  fontFamily: 'var(--font-ui)',
+  fontFamily: 'var(--font-body)',
   fontSize: 13,
   fontWeight: 600,
-  color: 'var(--text)',
+  color: 'var(--ink)',
 }
 
 const templatePreviewStyle: CSSProperties = {
-  fontFamily: 'var(--font-ui)',
+  fontFamily: 'var(--font-body)',
   fontSize: 12,
-  color: 'var(--text-dim)',
+  color: 'var(--ink-2)',
   lineHeight: 1.4,
   display: '-webkit-box',
   WebkitLineClamp: 2,

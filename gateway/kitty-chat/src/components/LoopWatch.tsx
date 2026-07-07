@@ -15,8 +15,8 @@ function statusColor(status: LoopStatus): string {
   switch (status) {
     case 'running': return 'var(--mint)'
     case 'paused': return 'var(--orange)'
-    case 'error': return 'var(--error)'
-    case 'idle': return 'var(--text-muted)'
+    case 'error': return 'var(--c-red)'
+    case 'idle': return 'var(--ink-2)'
   }
 }
 
@@ -86,7 +86,7 @@ export function LoopWatch({ loops, onToggle, title = 'Loop Watch', isLoading = f
                 <span>· Every {loop.interval_minutes}m</span>
               )}
               {loop.error_message && (
-                <span style={{ color: 'var(--error)' }}> · {loop.error_message}</span>
+                <span style={{ color: 'var(--c-red)' }}> · {loop.error_message}</span>
               )}
             </div>
           </div>
@@ -126,10 +126,10 @@ const cardHeaderStyle: CSSProperties = {
 }
 
 const loopNameStyle: CSSProperties = {
-  fontFamily: 'var(--font-ui)',
+  fontFamily: 'var(--font-body)',
   fontSize: 14,
   fontWeight: 600,
-  color: 'var(--text)',
+  color: 'var(--ink)',
 }
 
 const badgeStyle: CSSProperties = {
@@ -145,8 +145,8 @@ const badgeStyle: CSSProperties = {
 }
 
 const toggleBtnStyle = (isRunning: boolean): CSSProperties => ({
-  background: 'var(--surface-mid)',
-  border: '1px solid var(--border)',
+  background: 'var(--surface)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   width: 28,
   height: 24,
@@ -154,21 +154,21 @@ const toggleBtnStyle = (isRunning: boolean): CSSProperties => ({
   placeItems: 'center',
   cursor: 'pointer',
   fontSize: 10,
-  color: 'var(--text-dim)',
+  color: 'var(--ink-2)',
   transition: 'all 0.15s ease',
 })
 
 const descStyle: CSSProperties = {
-  fontFamily: 'var(--font-ui)',
+  fontFamily: 'var(--font-body)',
   fontSize: 12,
-  color: 'var(--text-dim)',
+  color: 'var(--ink-2)',
   lineHeight: 1.4,
 }
 
 const metaStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-muted)',
+  color: 'var(--ink-2)',
   display: 'flex',
   flexWrap: 'wrap',
   gap: 4,

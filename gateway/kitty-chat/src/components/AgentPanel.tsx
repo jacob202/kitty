@@ -65,8 +65,8 @@ export function AgentPanel() {
             style={{
               ...typeChipStyle,
               background: agentType === t.id ? 'rgba(102,119,204,0.18)' : 'transparent',
-              color: agentType === t.id ? 'var(--indigo)' : 'var(--text-muted)',
-              borderColor: agentType === t.id ? 'rgba(102,119,204,0.4)' : 'var(--border-dim)',
+              color: agentType === t.id ? 'var(--indigo)' : 'var(--ink-2)',
+              borderColor: agentType === t.id ? 'rgba(102,119,204,0.4)' : 'var(--line)',
             }}
           >
             {t.label}
@@ -136,18 +136,18 @@ export function AgentPanel() {
 
 function statusDotStyle(status: string): CSSProperties {
   const color = status === 'running' ? 'var(--teal)'
-    : status === 'completed' ? 'var(--text-muted)'
+    : status === 'completed' ? 'var(--ink-2)'
     : status === 'failed' ? 'var(--orange)'
     : status === 'queued' ? 'var(--indigo)'
-    : 'var(--text-faint)'
+    : 'var(--ink-2)'
   return { width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }
 }
 
 function statusBadgeStyle(status: string): CSSProperties {
   const color = status === 'running' ? 'var(--teal)'
-    : status === 'completed' ? 'var(--text-muted)'
+    : status === 'completed' ? 'var(--ink-2)'
     : status === 'failed' ? 'var(--orange)'
-    : 'var(--text-faint)'
+    : 'var(--ink-2)'
   return { fontFamily: 'var(--font-mono)', fontSize: 9, color, textTransform: 'lowercase', letterSpacing: '0.06em' }
 }
 
@@ -159,7 +159,7 @@ const typeRowStyle: CSSProperties = {
 
 const typeChipStyle: CSSProperties = {
   padding: '3px 8px',
-  border: '1px solid var(--border-dim)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
@@ -169,12 +169,12 @@ const typeChipStyle: CSSProperties = {
 const inputStyle: CSSProperties = {
   flex: 1,
   background: 'var(--recessed)',
-  border: '1px solid var(--border-dim)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   padding: '5px 8px',
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--text-dim)',
+  color: 'var(--ink-2)',
   outline: 'none',
   minWidth: 0,
 }
@@ -194,7 +194,7 @@ const spawnBtnStyle: CSSProperties = {
 const sessionRowStyle: CSSProperties = {
   padding: '5px 7px',
   background: 'var(--recessed)',
-  border: '1px solid var(--border-dim)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   display: 'grid',
   gap: 4,
@@ -216,7 +216,7 @@ const goalBtnStyle: CSSProperties = {
 const goalTextStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--text-dim)',
+  color: 'var(--ink-2)',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
@@ -225,7 +225,7 @@ const goalTextStyle: CSSProperties = {
 const stopBtnStyle: CSSProperties = {
   background: 'transparent',
   border: 'none',
-  color: 'var(--text-faint)',
+  color: 'var(--ink-2)',
   cursor: 'pointer',
   fontSize: 10,
   padding: '1px 3px',
@@ -233,7 +233,7 @@ const stopBtnStyle: CSSProperties = {
 }
 
 const outputBoxStyle: CSSProperties = {
-  borderTop: '1px solid var(--border-dim)',
+  borderTop: '1px solid var(--line)',
   paddingTop: 5,
   marginTop: 2,
 }
@@ -242,7 +242,7 @@ const metaLineStyle: CSSProperties = {
   margin: '0 0 4px',
   fontFamily: 'var(--font-mono)',
   fontSize: 9,
-  color: 'var(--text-faint)',
+  color: 'var(--ink-2)',
   textTransform: 'lowercase',
   letterSpacing: '0.06em',
 }
@@ -251,7 +251,7 @@ const outputTextStyle: CSSProperties = {
   margin: 0,
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-muted)',
+  color: 'var(--ink-2)',
   lineHeight: 1.5,
   whiteSpace: 'pre-wrap',
   maxHeight: 120,
@@ -261,6 +261,6 @@ const outputTextStyle: CSSProperties = {
 const emptyStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-faint)',
+  color: 'var(--ink-2)',
   margin: 0,
 }

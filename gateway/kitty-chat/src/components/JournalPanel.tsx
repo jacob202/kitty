@@ -107,7 +107,7 @@ export function JournalPanel() {
             <button
               key={t}
               onClick={() => setTheme(t)}
-              style={{ ...themeChipStyle, background: theme === t ? 'rgba(232,120,69,0.18)' : 'transparent', color: theme === t ? 'var(--orange-2)' : 'var(--text-muted)' }}
+              style={{ ...themeChipStyle, background: theme === t ? 'rgba(232,120,69,0.18)' : 'transparent', color: theme === t ? 'var(--orange-2)' : 'var(--ink-2)' }}
             >
               {t}
             </button>
@@ -132,7 +132,7 @@ export function JournalPanel() {
         {thinking && (
           <div style={kittyMsgStyle}>
             <span style={msgRoleStyle}>kitty</span>
-            <p style={{ ...msgTextStyle, color: 'var(--text-faint)' }}>…</p>
+            <p style={{ ...msgTextStyle, color: 'var(--ink-2)' }}>…</p>
           </div>
         )}
         <div ref={bottomRef} />
@@ -173,7 +173,7 @@ const themeRowStyle: CSSProperties = {
 
 const themeChipStyle: CSSProperties = {
   padding: '3px 8px',
-  border: '1px solid var(--border-dim)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
@@ -217,7 +217,7 @@ const msgRoleStyle: CSSProperties = {
   display: 'block',
   fontFamily: 'var(--font-mono)',
   fontSize: 9,
-  color: 'var(--text-faint)',
+  color: 'var(--ink-2)',
   textTransform: 'lowercase',
   letterSpacing: '0.08em',
   marginBottom: 2,
@@ -228,19 +228,19 @@ const msgTextStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
   lineHeight: 1.55,
-  color: 'var(--text-dim)',
+  color: 'var(--ink-2)',
   whiteSpace: 'pre-wrap',
 }
 
 const replyInputStyle: CSSProperties = {
   flex: 1,
   background: 'var(--recessed)',
-  border: '1px solid var(--border-dim)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   padding: '5px 8px',
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--text-dim)',
+  color: 'var(--ink-2)',
   outline: 'none',
   minWidth: 0,
 }
@@ -248,11 +248,11 @@ const replyInputStyle: CSSProperties = {
 const sendBtnStyle: CSSProperties = {
   padding: '5px 10px',
   background: 'var(--recessed)',
-  border: '1px solid var(--border-dim)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 13,
-  color: 'var(--text-muted)',
+  color: 'var(--ink-2)',
   cursor: 'pointer',
   flexShrink: 0,
 }
@@ -271,11 +271,11 @@ const synthBtnStyle: CSSProperties = {
 const secondaryBtnStyle: CSSProperties = {
   padding: '5px 10px',
   background: 'transparent',
-  border: '1px solid var(--border-dim)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--text-muted)',
+  color: 'var(--ink-2)',
   cursor: 'pointer',
 }
 
@@ -293,11 +293,11 @@ const entryStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
   lineHeight: 1.7,
-  color: 'var(--text-dim)',
+  color: 'var(--ink-2)',
   whiteSpace: 'pre-wrap',
   padding: '8px 10px',
   background: 'var(--recessed)',
-  border: '1px solid var(--border-dim)',
+  border: '1px solid var(--line)',
   borderLeft: '3px solid var(--teal)',
   borderRadius: 4,
 }

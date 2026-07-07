@@ -94,8 +94,8 @@ export function ImageGenPanel() {
             style={{
               ...chipStyle,
               background: chips.includes(c.label) ? 'rgba(232,120,69,0.16)' : 'transparent',
-              color: chips.includes(c.label) ? 'var(--orange-2)' : 'var(--text-muted)',
-              borderColor: chips.includes(c.label) ? 'rgba(232,120,69,0.35)' : 'var(--border-dim)',
+              color: chips.includes(c.label) ? 'var(--orange-2)' : 'var(--ink-2)',
+              borderColor: chips.includes(c.label) ? 'rgba(232,120,69,0.35)' : 'var(--line)',
             }}
           >
             {c.label}
@@ -142,12 +142,12 @@ export function ImageGenPanel() {
 
 const textareaStyle: CSSProperties = {
   background: 'var(--recessed)',
-  border: '1px solid var(--border-dim)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   padding: '6px 8px',
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--text-dim)',
+  color: 'var(--ink-2)',
   outline: 'none',
   resize: 'vertical',
   lineHeight: 1.5,
@@ -161,7 +161,7 @@ const chipsRowStyle: CSSProperties = {
 
 const chipStyle: CSSProperties = {
   padding: '3px 8px',
-  border: '1px solid var(--border-dim)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
@@ -190,7 +190,7 @@ const thumbWrapStyle: CSSProperties = {
   aspectRatio: '1',
   overflow: 'hidden',
   borderRadius: 4,
-  border: '1px solid var(--border-dim)',
+  border: '1px solid var(--line)',
   background: 'var(--recessed)',
 }
 
@@ -212,13 +212,13 @@ const emptyStyle: CSSProperties = {
   margin: 0,
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-faint)',
+  color: 'var(--ink-2)',
 }
 
 const unavailableStyle: CSSProperties = {
   padding: '10px 12px',
   background: 'var(--recessed)',
-  border: '1px solid var(--border-dim)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
 }
 
@@ -226,14 +226,14 @@ const unavailableTitleStyle: CSSProperties = {
   margin: '0 0 4px',
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--text-muted)',
+  color: 'var(--ink-2)',
 }
 
 const unavailableBodyStyle: CSSProperties = {
   margin: 0,
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-faint)',
+  color: 'var(--ink-2)',
   lineHeight: 1.5,
 }
 

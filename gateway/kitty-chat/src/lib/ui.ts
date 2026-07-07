@@ -5,8 +5,8 @@ import type { CSSProperties } from 'react'
 
 /** Outer card / panel container. */
 export const card: CSSProperties = {
-  background: 'var(--surface-low)',
-  border: '1px solid var(--border)',
+  background: 'var(--bg)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   padding: 16,
 }
@@ -19,14 +19,14 @@ export const cardHeader: CSSProperties = {
   justifyContent: 'space-between',
   alignItems: 'center',
   paddingBottom: 12,
-  borderBottom: '1px solid var(--border-dim)',
+  borderBottom: '1px solid var(--line)',
 }
 
 export const cardTitle: CSSProperties = {
-  fontFamily: 'var(--font-ui)',
+  fontFamily: 'var(--font-body)',
   fontSize: 14,
   fontWeight: 600,
-  color: 'var(--text)',
+  color: 'var(--ink)',
   letterSpacing: '-0.01em',
 }
 
@@ -35,7 +35,7 @@ export const cardMeta: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
   fontWeight: 600,
-  color: 'var(--text-muted)',
+  color: 'var(--ink-2)',
   letterSpacing: '0.04em',
 }
 
@@ -46,22 +46,22 @@ export const sectionLabel: CSSProperties = {
   fontWeight: 700,
   letterSpacing: '0.12em',
   textTransform: 'lowercase',
-  color: 'var(--text-muted)',
+  color: 'var(--ink-2)',
 }
 
 /** Recessed inner item sitting inside a card. */
 export const itemCard: CSSProperties = {
   background: 'var(--surface)',
-  border: '1px solid var(--border)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   padding: '12px 14px',
   transition: 'background 0.15s ease, border-color 0.15s ease',
 }
 
 export const bodyText: CSSProperties = {
-  fontFamily: 'var(--font-ui)',
+  fontFamily: 'var(--font-body)',
   fontSize: 13,
-  color: 'var(--text-dim)',
+  color: 'var(--ink-2)',
   lineHeight: 1.5,
 }
 
@@ -69,7 +69,7 @@ export const bodyText: CSSProperties = {
 export const emptyState: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--text-faint)',
+  color: 'var(--ink-2)',
   textAlign: 'center',
   padding: '20px 0',
 }

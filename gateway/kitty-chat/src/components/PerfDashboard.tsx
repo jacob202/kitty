@@ -36,7 +36,7 @@ export function PerfDashboard() {
   return (
     <div style={containerStyle}>
       <h3 style={titleStyle}>Performance (24h)</h3>
-      
+
       <div style={gridStyle}>
         <StatBox label="Requests" value={stats.total_requests.toString()} color="var(--mint)" />
         <StatBox label="Avg Latency" value={`${stats.avg_latency_ms.toFixed(0)}ms`} color="var(--teal)" />
@@ -72,16 +72,16 @@ function StatBox({ label, value, color }: { label: string; value: string; color:
 
 const containerStyle: CSSProperties = {
   padding: '16px',
-  background: 'var(--surface-low)',
+  background: 'var(--bg)',
   borderRadius: '8px',
-  border: '1px solid var(--border)',
+  border: '1px solid var(--line)',
 }
 
 const titleStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: '11px',
   fontWeight: 700,
-  color: 'var(--text-ghost)',
+  color: 'var(--ink-2)',
   letterSpacing: '0.16em',
   textTransform: 'lowercase',
   marginBottom: '12px',
@@ -91,7 +91,7 @@ const subtitleStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: '9px',
   fontWeight: 600,
-  color: 'var(--text-ghost)',
+  color: 'var(--ink-2)',
   letterSpacing: '0.12em',
   textTransform: 'lowercase',
   marginTop: '16px',
@@ -105,8 +105,8 @@ const gridStyle: CSSProperties = {
 }
 
 const statBoxStyle: CSSProperties = {
-  background: 'var(--surface-high)',
-  border: '1px solid var(--border)',
+  background: 'var(--surface-2)',
+  border: '1px solid var(--line)',
   borderRadius: '6px',
   padding: '10px 8px',
   textAlign: 'center',
@@ -115,7 +115,7 @@ const statBoxStyle: CSSProperties = {
 const statLabelStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: '8px',
-  color: 'var(--text-ghost)',
+  color: 'var(--ink-2)',
   letterSpacing: '0.14em',
   textTransform: 'lowercase',
   marginBottom: '4px',
@@ -131,7 +131,7 @@ const statValueStyle: CSSProperties = {
 const schedulesStyle: CSSProperties = {
   marginTop: '16px',
   paddingTop: '12px',
-  borderTop: '1px solid var(--border)',
+  borderTop: '1px solid var(--line)',
 }
 
 const scheduleRowStyle: CSSProperties = {
@@ -139,13 +139,13 @@ const scheduleRowStyle: CSSProperties = {
   justifyContent: 'space-between',
   alignItems: 'center',
   padding: '6px 0',
-  borderBottom: '1px solid var(--border-dim)',
+  borderBottom: '1px solid var(--line)',
 }
 
 const scheduleNameStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: '10px',
-  color: 'var(--text)',
+  color: 'var(--ink)',
 }
 
 const scheduleStatusStyle: CSSProperties = {

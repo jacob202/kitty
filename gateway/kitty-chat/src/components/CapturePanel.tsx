@@ -53,11 +53,11 @@ export function CapturePanel() {
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       style={{
-        border: `1px dashed ${dragActive ? 'var(--mint)' : 'var(--border)'}`,
+        border: `1px dashed ${dragActive ? 'var(--mint)' : 'var(--line)'}`,
         borderRadius: 4,
         padding: 16,
         cursor: 'pointer',
-        background: dragActive ? 'var(--surface-low)' : 'transparent',
+        background: dragActive ? 'var(--bg)' : 'transparent',
       }}
     >
       <input
@@ -67,16 +67,16 @@ export function CapturePanel() {
         onChange={onChange}
         style={{ display: 'none' }}
       />
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)' }}>
         DROP FILE OR CLICK TO CAPTURE
       </div>
       {status && (
         <div
           style={{
             marginTop: 8,
-            fontFamily: 'var(--font-ui)',
+            fontFamily: 'var(--font-body)',
             fontSize: 12,
-            color: 'var(--text)',
+            color: 'var(--ink)',
           }}
         >
           {status}

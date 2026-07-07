@@ -72,7 +72,7 @@ export const signals: DashboardItem[] = [
     label: 'Risk',
     value: 'Old ports',
     detail: 'Some code still assumed the legacy 5001 backend.',
-    accent: 'var(--warning)',
+    accent: 'var(--c-yellow)',
   },
 ]
 
@@ -80,7 +80,7 @@ export const commandZones: CommandZone[] = [
   {
     label: 'Debug',
     prompt: 'Help me debug this error:\n',
-    accent: 'var(--warning)',
+    accent: 'var(--c-yellow)',
   },
   {
     label: 'Plan',

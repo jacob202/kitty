@@ -47,7 +47,7 @@ export function TodoPanel() {
       )}
 
       {done.length > 0 && (
-        <p style={{ ...emptyStyle, color: 'var(--text-faint)' }}>
+        <p style={{ ...emptyStyle, color: 'var(--ink-2)' }}>
           {done.length} completed
         </p>
       )}
@@ -78,21 +78,21 @@ const rowStyle: CSSProperties = {
   gap: 6,
   padding: '4px 6px',
   background: 'var(--recessed)',
-  border: '1px solid var(--border-dim)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
 }
 
 const labelStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--text-dim)',
+  color: 'var(--ink-2)',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
 }
 
 const activeFormStyle: CSSProperties = {
-  color: 'var(--text-muted)',
+  color: 'var(--ink-2)',
   fontStyle: 'italic',
 }
 
@@ -110,7 +110,7 @@ const checkStyle: CSSProperties = {
 const removeStyle: CSSProperties = {
   background: 'transparent',
   border: 'none',
-  color: 'var(--text-faint)',
+  color: 'var(--ink-2)',
   cursor: 'pointer',
   fontSize: 13,
   padding: '0 2px',
@@ -121,12 +121,12 @@ const removeStyle: CSSProperties = {
 const inputStyle: CSSProperties = {
   flex: 1,
   background: 'var(--recessed)',
-  border: '1px solid var(--border-dim)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   padding: '4px 8px',
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--text-dim)',
+  color: 'var(--ink-2)',
   outline: 'none',
   minWidth: 0,
 }
@@ -146,6 +146,6 @@ const addBtnStyle: CSSProperties = {
 const emptyStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-faint)',
+  color: 'var(--ink-2)',
   margin: 0,
 }

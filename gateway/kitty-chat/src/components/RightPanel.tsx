@@ -31,7 +31,7 @@ export function RightPanel({
   return (
     <aside style={{
       width: 'var(--rightbar)',
-      borderLeft: '1px solid var(--border)',
+      borderLeft: '1px solid var(--line)',
       overflowY: 'auto',
       background: 'var(--surface)',
       flexShrink: 0,
@@ -41,7 +41,7 @@ export function RightPanel({
       {/* Header */}
       <div style={{
         padding: '12px 16px 8px',
-        borderBottom: '1px solid var(--border)',
+        borderBottom: '1px solid var(--line)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -51,7 +51,7 @@ export function RightPanel({
         <span style={{
           fontFamily: 'var(--font-mono)',
           fontSize: 10,
-          color: 'var(--text-muted)',
+          color: 'var(--ink-2)',
         }}>{dateStr}</span>
       </div>
 
@@ -64,7 +64,7 @@ export function RightPanel({
           gridTemplateColumns: '1fr 1fr',
           gap: 6,
           padding: '0 12px 8px',
-          borderBottom: '1px solid var(--border)',
+          borderBottom: '1px solid var(--line)',
           marginBottom: 8,
         }}>
           <Stat label="Sessions" value={String(chats.length)} />
@@ -128,7 +128,7 @@ export function RightPanel({
         {/* Last AI reply */}
         {lastAi && (
           <PanelRow label="Last reply">
-            <span style={{ ...valueStyle, fontFamily: 'var(--font-ui)', fontWeight: 400, fontSize: 12, lineHeight: 1.5 }}>
+            <span style={{ ...valueStyle, fontFamily: 'var(--font-body)', fontWeight: 400, fontSize: 12, lineHeight: 1.5 }}>
               {lastAi.content.replace(/```[\s\S]*?```/g, '[code]').slice(0, 100)}
               {lastAi.content.length > 100 ? '…' : ''}
             </span>
@@ -138,7 +138,7 @@ export function RightPanel({
         {/* Search error */}
         {searchGatewayError && !search && (
           <PanelRow label="Search">
-            <span style={{ ...subStyle, color: 'var(--warning)' }}>unavailable</span>
+            <span style={{ ...subStyle, color: 'var(--c-yellow)' }}>unavailable</span>
           </PanelRow>
         )}
 
@@ -156,7 +156,7 @@ export function RightPanel({
                   .filter(([, v]) => Boolean(v))
                   .map(([label, v]) => (
                     <div key={label}>
-                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.12em', textTransform: 'lowercase' as const }}>{label}</div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-2)', letterSpacing: '0.12em', textTransform: 'lowercase' as const }}>{label}</div>
                       <div style={valueStyle}>{v}</div>
                     </div>
                   ))}
@@ -175,14 +175,14 @@ const valueStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 12,
   fontWeight: 600,
-  color: 'var(--text)',
+  color: 'var(--ink)',
   display: 'block',
 }
 
 const subStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-muted)',
+  color: 'var(--ink-2)',
   display: 'block',
   marginTop: 2,
 }
@@ -190,15 +190,15 @@ const subStyle: React.CSSProperties = {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div style={{
-      background: 'var(--surface-low)',
-      border: '1px solid var(--border)',
+      background: 'var(--bg)',
+      border: '1px solid var(--line)',
       borderRadius: 4,
       padding: '6px 10px',
     }}>
       <div style={{
         fontFamily: 'var(--font-mono)',
         fontSize: 9,
-        color: 'var(--text-muted)',
+        color: 'var(--ink-2)',
         letterSpacing: '0.14em',
         textTransform: 'lowercase' as const,
         marginBottom: 2,
@@ -207,7 +207,7 @@ function Stat({ label, value }: { label: string; value: string }) {
         fontFamily: 'var(--font-mono)',
         fontSize: 16,
         fontWeight: 700,
-        color: 'var(--text)',
+        color: 'var(--ink)',
         lineHeight: 1,
       }}>{value}</div>
     </div>
@@ -221,7 +221,7 @@ function PanelRow({ label, children }: {
   return (
     <div style={{
       padding: '6px 12px 6px 10px',
-      borderLeft: '2px solid var(--border-dim)',
+      borderLeft: '2px solid var(--line)',
       marginLeft: 12,
       marginBottom: 6,
     }}>
