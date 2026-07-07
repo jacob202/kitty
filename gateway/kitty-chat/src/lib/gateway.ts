@@ -800,8 +800,8 @@ export interface ImageEntry {
 
 export async function fetchImageStatus(): Promise<{ available: boolean }> {
   try {
-    await gfetch('/image/status')
-    return { available: true }
+    const json = await gfetch<{ available?: boolean }>('/image/status')
+    return { available: json.available === true }
   } catch {
     return { available: false }
   }
@@ -959,4 +959,166 @@ export async function uploadCaptureFile(file: File): Promise<CaptureResult | nul
   } catch {
     return null
   }
+}
+
+// ── Projects ─────────────────────────────────────────────────────────────────
+
+export interface GatewayProject {
+  id: number
+  name: string
+  kind: string
+  status: string
+  summary: string | null
+  paths: string[]
+  last_touched: number | null
+  open_questions: string[]
+  next_actions: string[]
+  links: unknown[]
+}
+
+export interface GatewayNextStep {
+  project_id: number
+  step: string
+  why: string
+  recent_win: string
+  delegable: boolean
+  generated_at: number
+}
+
+// Projects/knowledge/provider fetchers throw on failure — react-query's
+// isError is the honest signal, not a silently empty list.
+export async function fetchProjects(): Promise<GatewayProject[]> {
+  const json = await gfetch<{ projects?: GatewayProject[] }>('/projects')
+  return json.projects ?? []
+}
+
+/** null means "no step generated yet" (gateway 404s rather than fabricating one). */
+export async function fetchProjectNext(projectId: number): Promise<GatewayNextStep | null> {
+  try {
+    return await gfetch<GatewayNextStep>(`/projects/${projectId}/next`)
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('404')) return null
+    throw err
+  }
+}
+
+/** Blocks on git + LLM composition server-side — give it a long timeout. */
+export async function refreshProject(projectId: number): Promise<{ next_step?: { ok: boolean; step?: string; error?: string } }> {
+  return await gfetch(`/projects/${projectId}/refresh`, { method: 'POST' }, 60_000)
+}
+
+// ── Knowledge (Documents) ────────────────────────────────────────────────────
+
+export interface KnowledgeSource {
+  name: string
+  chunks: number
+  collection: string
+  tags: string[]
+  doc_types: string[]
+  sensitivities: string[]
+  primary_topic?: string | null
+  file_path?: string | null
+  ingested_at?: number | null
+}
+
+export interface KnowledgeSourcesPayload {
+  sources: KnowledgeSource[]
+  total_sources: number
+  total_chunks: number
+}
+
+export interface KnowledgeSearchResult {
+  text: string
+  source: string
+  doc_type: string
+  score: number | null
+  reference: { source: string; chunk_index?: number | null; page_num?: number | null }
+}
+
+export interface KnowledgeSearchPayload {
+  query: string
+  results: KnowledgeSearchResult[]
+  message?: string
+  count?: number
+}
+
+export interface KnowledgeIngestResult {
+  status: 'success' | 'skipped' | 'failed' | 'pending'
+  source_id: string
+  reason: string
+}
+
+export async function fetchKnowledgeSources(): Promise<KnowledgeSourcesPayload> {
+  return await gfetch<KnowledgeSourcesPayload>('/knowledge/sources', undefined, 10_000)
+}
+
+export async function searchKnowledge(q: string, limit = 8): Promise<KnowledgeSearchPayload> {
+  return await gfetch<KnowledgeSearchPayload>(
+    `/knowledge/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+    undefined,
+    15_000,
+  )
+}
+
+/** Ingest a Mac file path or a URL. The gateway downloads/parses/indexes and
+ *  answers with an explicit status + reason — surface both verbatim. */
+export async function ingestKnowledge(body: {
+  path?: string
+  url?: string
+  collection?: string
+  tags?: string[]
+}): Promise<KnowledgeIngestResult> {
+  return await gfetch<KnowledgeIngestResult>(
+    '/knowledge/ingest',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+    120_000,
+  )
+}
+
+// ── Providers (plugins + MCP) ────────────────────────────────────────────────
+
+export interface GatewayPlugin {
+  name: string
+  description?: string
+  enabled: boolean
+  version?: string
+}
+
+export interface McpServer {
+  name: string
+  status?: string
+  transport?: string
+  tools?: number
+  [key: string]: unknown
+}
+
+export interface McpTool {
+  name: string
+  description?: string
+  [key: string]: unknown
+}
+
+export async function fetchPlugins(): Promise<GatewayPlugin[]> {
+  const json = await gfetch<{ plugins?: GatewayPlugin[] }>('/plugins')
+  return json.plugins ?? []
+}
+
+export async function setPluginEnabled(name: string, enabled: boolean): Promise<void> {
+  await gfetch(`/plugin/${encodeURIComponent(name)}/${enabled ? 'enable' : 'disable'}`, {
+    method: 'POST',
+  })
+}
+
+export async function fetchMcpServers(): Promise<McpServer[]> {
+  const json = await gfetch<{ servers?: McpServer[] }>('/mcp/servers')
+  return json.servers ?? []
+}
+
+export async function fetchMcpTools(): Promise<McpTool[]> {
+  const json = await gfetch<{ tools?: McpTool[] }>('/mcp/tools')
+  return json.tools ?? []
 }

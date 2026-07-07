@@ -52,6 +52,19 @@ import {
   snapshotState,
   fetchStateNow,
   runInboxTriage,
+  // projects
+  fetchProjects,
+  fetchProjectNext,
+  refreshProject,
+  // knowledge
+  fetchKnowledgeSources,
+  searchKnowledge,
+  ingestKnowledge,
+  // providers
+  fetchPlugins,
+  setPluginEnabled,
+  fetchMcpServers,
+  fetchMcpTools,
   // payload types used by optimistic updates
   type GatewayTodo,
   type GatewayLoopsPayload,
@@ -444,4 +457,76 @@ export function useRunInboxTriage() {
       qc.invalidateQueries({ queryKey: ['inbox'] })
     },
   })
+}
+
+// ── Projects ────────────────────────────────────────────────────────────────
+
+export function useProjects() {
+  return useQuery({ queryKey: ['projects'], queryFn: fetchProjects, refetchInterval: 60_000 })
+}
+
+export function useProjectNext(projectId: number) {
+  return useQuery({
+    queryKey: ['projects', projectId, 'next'],
+    queryFn: () => fetchProjectNext(projectId),
+    staleTime: 60_000,
+  })
+}
+
+export function useRefreshProject() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (projectId: number) => refreshProject(projectId),
+    onSettled: (_data, _err, projectId) => {
+      qc.invalidateQueries({ queryKey: ['projects'] })
+      qc.invalidateQueries({ queryKey: ['projects', projectId, 'next'] })
+    },
+  })
+}
+
+// ── Knowledge (Documents) ───────────────────────────────────────────────────
+
+export function useKnowledgeSources() {
+  return useQuery({ queryKey: ['knowledge', 'sources'], queryFn: fetchKnowledgeSources })
+}
+
+export function useKnowledgeSearch(q: string, limit = 8) {
+  return useQuery({
+    queryKey: ['knowledge', 'search', q, limit],
+    queryFn: () => searchKnowledge(q, limit),
+    enabled: q.trim().length > 0,
+    staleTime: 30_000,
+  })
+}
+
+export function useIngestKnowledge() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: { path?: string; url?: string; collection?: string; tags?: string[] }) =>
+      ingestKnowledge(body),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['knowledge', 'sources'] }),
+  })
+}
+
+// ── Providers ───────────────────────────────────────────────────────────────
+
+export function usePlugins() {
+  return useQuery({ queryKey: ['plugins'], queryFn: fetchPlugins })
+}
+
+export function useTogglePlugin() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ name, enabled }: { name: string; enabled: boolean }) =>
+      setPluginEnabled(name, enabled),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['plugins'] }),
+  })
+}
+
+export function useMcpServers() {
+  return useQuery({ queryKey: ['mcp', 'servers'], queryFn: fetchMcpServers })
+}
+
+export function useMcpTools() {
+  return useQuery({ queryKey: ['mcp', 'tools'], queryFn: fetchMcpTools })
 }

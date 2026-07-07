@@ -157,6 +157,8 @@ class MemoryWeave:
                     (entity, relation, value, confidence, source, source_type, now, now),
                 )
                 edge_id = cursor.lastrowid
+                if edge_id is None:
+                    raise RuntimeError("weave_edges INSERT returned no rowid")
                 conn.commit()
 
         self._cache.pop((entity, relation), None)
@@ -225,6 +227,8 @@ class MemoryWeave:
                     (entity, relation, new_value, new_confidence, source, source_type, now, now),
                 )
                 edge_id = cursor.lastrowid
+                if edge_id is None:
+                    raise RuntimeError("weave_edges INSERT returned no rowid")
                 conn.commit()
 
         self._cache.pop((entity, relation), None)
