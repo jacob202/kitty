@@ -124,7 +124,7 @@ describe('RightPanel', () => {
         searchGatewayError="Gateway returned 500 Internal Server Error"
       />
     )
-    expect(screen.getByText('Search')).toBeInTheDocument()
+    expect(screen.getByText('search')).toBeInTheDocument()
     expect(screen.getByText('unavailable')).toBeInTheDocument()
   })
 
@@ -171,12 +171,12 @@ describe('TopBar', () => {
 
   it('shows offline indicator when modelFromGateway is false', () => {
     render(<TopBar {...baseProps} modelFromGateway={false} />)
-    expect(screen.getByTitle('Using offline model list')).toBeInTheDocument()
+    expect(screen.getByTitle('using offline model list')).toBeInTheDocument()
   })
 
   it('does not show offline indicator when modelFromGateway is true', () => {
     render(<TopBar {...baseProps} modelFromGateway={true} />)
-    expect(screen.queryByTitle('Using offline model list')).not.toBeInTheDocument()
+    expect(screen.queryByTitle('using offline model list')).not.toBeInTheDocument()
   })
 
   it('reserves the iOS status-bar safe area in mobile mode', () => {
@@ -187,4 +187,3 @@ describe('TopBar', () => {
     )
   })
 })
-

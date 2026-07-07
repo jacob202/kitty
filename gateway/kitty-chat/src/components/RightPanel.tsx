@@ -30,8 +30,8 @@ export function RightPanel({
 
   return (
     <aside style={{
-      width: 'var(--rightbar)',
-      borderLeft: '1px solid var(--border)',
+      width: 'var(--sidebar-width)',
+      borderLeft: '1px solid var(--line)',
       overflowY: 'auto',
       background: 'var(--surface)',
       flexShrink: 0,
@@ -41,7 +41,7 @@ export function RightPanel({
       {/* Header */}
       <div style={{
         padding: '12px 16px 8px',
-        borderBottom: '1px solid var(--border)',
+        borderBottom: '1px solid var(--line)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -51,7 +51,7 @@ export function RightPanel({
         <span style={{
           fontFamily: 'var(--font-mono)',
           fontSize: 10,
-          color: 'var(--text-muted)',
+          color: 'var(--ink-2)',
         }}>{dateStr}</span>
       </div>
 
@@ -64,37 +64,37 @@ export function RightPanel({
           gridTemplateColumns: '1fr 1fr',
           gap: 6,
           padding: '0 12px 8px',
-          borderBottom: '1px solid var(--border)',
+          borderBottom: '1px solid var(--line)',
           marginBottom: 8,
         }}>
-          <Stat label="Sessions" value={String(chats.length)} />
-          <Stat label="Messages" value={String(msgCount)} />
+          <Stat label="sessions" value={String(chats.length)} />
+          <Stat label="messages" value={String(msgCount)} />
         </div>
 
         {/* Cron schedules */}
         <CronPanel />
 
         {/* Time */}
-        <PanelRow label="Time">
+        <PanelRow label="time">
           <span style={valueStyle}>{timeStr}</span>
           <span style={subStyle}>{new Date().toLocaleDateString([], { weekday: 'long' })}</span>
         </PanelRow>
 
         {/* Active model */}
         {activeModelName && (
-          <PanelRow label="Model">
+          <PanelRow label="model">
             <span style={valueStyle}>{activeModelName}</span>
           </PanelRow>
         )}
 
         {/* Kitty status */}
-        <PanelRow label="Kitty">
+        <PanelRow label="kitty">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{
               width: 7,
               height: 7,
               borderRadius: '50%',
-              background: isStreaming ? 'var(--primary)' : 'var(--mint)',
+              background: isStreaming ? 'var(--primary)' : 'var(--c-green)',
               flexShrink: 0,
               display: 'inline-block',
               boxShadow: isStreaming
@@ -110,16 +110,16 @@ export function RightPanel({
 
         {/* Brief */}
         {brief && (
-          <PanelRow label="Brief">
+          <PanelRow label="brief">
             <span style={valueStyle}>
-              {brief.intention || (typeof brief.headlines[0] === 'string' ? brief.headlines[0] : (brief.headlines[0] as GatewayHeadline | undefined)?.title) || 'Live brief connected.'}
+              {brief.intention || (typeof brief.headlines[0] === 'string' ? brief.headlines[0] : (brief.headlines[0] as GatewayHeadline | undefined)?.title) || 'live brief connected.'}
             </span>
           </PanelRow>
         )}
 
         {/* Active context */}
         {activeChat && activeChat.messages.length > 0 && (
-          <PanelRow label="Context">
+          <PanelRow label="context">
             <span style={valueStyle}>{activeChat.title}</span>
             <span style={subStyle}>{activeChat.messages.length} messages</span>
           </PanelRow>
@@ -127,8 +127,8 @@ export function RightPanel({
 
         {/* Last AI reply */}
         {lastAi && (
-          <PanelRow label="Last reply">
-            <span style={{ ...valueStyle, fontFamily: 'var(--font-ui)', fontWeight: 400, fontSize: 12, lineHeight: 1.5 }}>
+          <PanelRow label="last reply">
+            <span style={{ ...valueStyle, fontFamily: 'var(--font-body)', fontWeight: 400, fontSize: 12, lineHeight: 1.5 }}>
               {lastAi.content.replace(/```[\s\S]*?```/g, '[code]').slice(0, 100)}
               {lastAi.content.length > 100 ? '…' : ''}
             </span>
@@ -137,8 +137,8 @@ export function RightPanel({
 
         {/* Search error */}
         {searchGatewayError && !search && (
-          <PanelRow label="Search">
-            <span style={{ ...subStyle, color: 'var(--warning)' }}>unavailable</span>
+          <PanelRow label="search">
+            <span style={{ ...subStyle, color: 'var(--c-yellow)' }}>unavailable</span>
           </PanelRow>
         )}
 
@@ -156,7 +156,7 @@ export function RightPanel({
                   .filter(([, v]) => Boolean(v))
                   .map(([label, v]) => (
                     <div key={label}>
-                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', letterSpacing: '0.12em', textTransform: 'lowercase' as const }}>{label}</div>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-2)', letterSpacing: '0.12em', textTransform: 'lowercase' as const }}>{label}</div>
                       <div style={valueStyle}>{v}</div>
                     </div>
                   ))}
@@ -175,14 +175,14 @@ const valueStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 12,
   fontWeight: 600,
-  color: 'var(--text)',
+  color: 'var(--ink)',
   display: 'block',
 }
 
 const subStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-muted)',
+  color: 'var(--ink-2)',
   display: 'block',
   marginTop: 2,
 }
@@ -190,15 +190,15 @@ const subStyle: React.CSSProperties = {
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div style={{
-      background: 'var(--surface-low)',
-      border: '1px solid var(--border)',
+      background: 'var(--bg)',
+      border: '1px solid var(--line)',
       borderRadius: 4,
       padding: '6px 10px',
     }}>
       <div style={{
         fontFamily: 'var(--font-mono)',
         fontSize: 9,
-        color: 'var(--text-muted)',
+        color: 'var(--ink-2)',
         letterSpacing: '0.14em',
         textTransform: 'lowercase' as const,
         marginBottom: 2,
@@ -207,7 +207,7 @@ function Stat({ label, value }: { label: string; value: string }) {
         fontFamily: 'var(--font-mono)',
         fontSize: 16,
         fontWeight: 700,
-        color: 'var(--text)',
+        color: 'var(--ink)',
         lineHeight: 1,
       }}>{value}</div>
     </div>
@@ -221,7 +221,7 @@ function PanelRow({ label, children }: {
   return (
     <div style={{
       padding: '6px 12px 6px 10px',
-      borderLeft: '2px solid var(--border-dim)',
+      borderLeft: '2px solid var(--line)',
       marginLeft: 12,
       marginBottom: 6,
     }}>

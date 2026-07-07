@@ -80,7 +80,7 @@ describe('InsightFeed', () => {
 
   it('shows empty state when no insights', () => {
     render(<InsightFeed insights={[]} />)
-    expect(screen.getByText('No new insights')).toBeInTheDocument()
+    expect(screen.getByText('no new insights')).toBeInTheDocument()
   })
 
   it('renders custom title', () => {

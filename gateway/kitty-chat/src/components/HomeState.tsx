@@ -70,10 +70,10 @@ const actionButtonStyle: React.CSSProperties = {
   fontWeight: 700,
   padding: '2px 8px',
   borderRadius: 4,
-  border: '1px solid var(--border)',
+  border: '1px solid var(--line)',
   cursor: 'pointer',
   background: 'var(--surface)',
-  color: 'var(--text-muted)',
+  color: 'var(--ink-2)',
 };
 
 const primaryButtonStyle: React.CSSProperties = {
@@ -92,7 +92,7 @@ function ErrorCard({ message }: { message: string }) {
   return (
     <div
       role="alert"
-      style={{ ...itemCard, color: 'var(--error)', fontFamily: 'var(--font-mono)', fontSize: 11 }}
+      style={{ ...itemCard, color: 'var(--c-red)', fontFamily: 'var(--font-mono)', fontSize: 11 }}
     >
       {message}
     </div>
@@ -105,7 +105,7 @@ const OFFLINE_FIX = 'gateway offline — start it with ./kitty up';
 
 function HealthDot({ tone, label }: { tone: 'ok' | 'warn' | 'bad'; label: string }) {
   const color =
-    tone === 'ok' ? 'var(--c-green)' : tone === 'warn' ? 'var(--c-yellow)' : 'var(--error)';
+    tone === 'ok' ? 'var(--c-green)' : tone === 'warn' ? 'var(--c-yellow)' : 'var(--c-red)';
   return (
     <span
       style={{
@@ -114,7 +114,7 @@ function HealthDot({ tone, label }: { tone: 'ok' | 'warn' | 'bad'; label: string
         gap: 6,
         fontFamily: 'var(--font-mono)',
         fontSize: 11,
-        color: 'var(--text-dim)',
+        color: 'var(--ink-2)',
       }}
     >
       <span
@@ -166,7 +166,7 @@ function HealthStrip() {
       }}
     >
       {loading ? (
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-faint)' }}>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)' }}>
           checking gateway…
         </span>
       ) : (
@@ -348,17 +348,17 @@ function WhatsNext({
 }
 
 const heroTextStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-ui)',
+  fontFamily: 'var(--font-body)',
   fontSize: 16,
   fontWeight: 600,
-  color: 'var(--text)',
+  color: 'var(--ink)',
   lineHeight: 1.45,
 };
 
 const heroMetaStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-muted)',
+  color: 'var(--ink-2)',
 };
 
 // ── Active projects ──────────────────────────────────────────────────────────
@@ -417,15 +417,15 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
               <span
                 style={{
-                  fontFamily: 'var(--font-ui)',
+                  fontFamily: 'var(--font-body)',
                   fontSize: 13,
                   fontWeight: 600,
-                  color: 'var(--text)',
+                  color: 'var(--ink)',
                 }}
               >
                 {p.name}
               </span>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}>
                 {p.kind}
               </span>
             </div>
@@ -446,7 +446,7 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
           style={{
             fontFamily: 'var(--font-mono)',
             fontSize: 10,
-            color: 'var(--text-muted)',
+            color: 'var(--ink-2)',
             textAlign: 'center',
           }}
         >
@@ -512,7 +512,7 @@ function WhatChanged() {
             style={{
               fontFamily: 'var(--font-mono)',
               fontSize: 10,
-              color: 'var(--text-muted)',
+              color: 'var(--ink-2)',
               marginBottom: 4,
             }}
           >
@@ -641,10 +641,10 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
                 <div>
                   <div
                     style={{
-                      fontFamily: 'var(--font-ui)',
+                      fontFamily: 'var(--font-body)',
                       fontSize: 13,
                       fontWeight: 600,
-                      color: 'var(--text)',
+                      color: 'var(--ink)',
                       marginBottom: 2,
                     }}
                   >
@@ -654,7 +654,7 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
                     style={{
                       fontFamily: 'var(--font-mono)',
                       fontSize: 10,
-                      color: 'var(--text-muted)',
+                      color: 'var(--ink-2)',
                     }}
                   >
                     {action.kind} · {action.risk_tier} · {action.source_kind}
@@ -685,10 +685,10 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
                       fontWeight: 700,
                       padding: '4px 12px',
                       borderRadius: 4,
-                      border: '1px solid var(--border)',
+                      border: '1px solid var(--line)',
                       cursor: isBusy ? 'not-allowed' : 'pointer',
                       background: 'transparent',
-                      color: 'var(--text-muted)',
+                      color: 'var(--ink-2)',
                       opacity: isBusy ? 0.5 : 1,
                     }}
                   >
@@ -715,21 +715,21 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
           >
             <span
               style={{
-                fontFamily: 'var(--font-ui)',
+                fontFamily: 'var(--font-body)',
                 fontSize: 13,
                 fontWeight: 600,
-                color: 'var(--text)',
+                color: 'var(--ink)',
               }}
             >
               needs a decision
             </span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}>
               {Math.round(entry.confidence * 100)}% confident
             </span>
           </div>
           {entry.text && <div style={{ ...bodyText, fontSize: 12 }}>{entry.text.slice(0, 160)}</div>}
           {entry.rationale && (
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}>
               {entry.rationale}
             </div>
           )}
@@ -799,9 +799,9 @@ function TodayPanel({ gatewayError }: { gatewayError: string | null }) {
             </span>
             <span
               style={{
-                fontFamily: 'var(--font-ui)',
+                fontFamily: 'var(--font-body)',
                 fontSize: 13,
-                color: 'var(--text)',
+                color: 'var(--ink)',
                 lineHeight: 1.4,
               }}
             >
@@ -815,7 +815,7 @@ function TodayPanel({ gatewayError }: { gatewayError: string | null }) {
           style={{
             fontFamily: 'var(--font-mono)',
             fontSize: 10,
-            color: 'var(--text-muted)',
+            color: 'var(--ink-2)',
             textAlign: 'center',
           }}
         >

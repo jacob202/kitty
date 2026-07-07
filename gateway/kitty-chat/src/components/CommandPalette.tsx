@@ -89,41 +89,41 @@ export function CommandPalette({
           width: 520,
           maxWidth: 'calc(100vw - 40px)',
           background: 'var(--surface)',
-          border: '1px solid var(--border)',
+          border: '1px solid var(--line)',
           borderRadius: 4,
-          boxShadow: '4px 4px 0 var(--ink-deep)',
+          boxShadow: 'var(--shadow)',
           overflow: 'hidden',
         }}
       >
-        <Command label="Command palette" loop>
+        <Command label="command palette" loop>
           <Command.Input
             autoFocus
-            placeholder="Type a command or search…"
+            placeholder="type a command or search…"
             style={{
               width: '100%',
               border: 'none',
-              borderBottom: '1px solid var(--border)',
+              borderBottom: '1px solid var(--line)',
               background: 'transparent',
               padding: '14px 16px',
-              fontFamily: 'var(--font-ui)',
+              fontFamily: 'var(--font-body)',
               fontSize: 14,
-              color: 'var(--text)',
+              color: 'var(--ink)',
               outline: 'none',
             }}
           />
           <Command.List style={{ maxHeight: 320, overflowY: 'auto', padding: 6 }}>
-            <Command.Empty style={emptyStyle}>No results.</Command.Empty>
+            <Command.Empty style={emptyStyle}>no results.</Command.Empty>
 
             <Command.Group heading="Actions" style={groupStyle}>
               <Item
                 icon={Plus}
-                label="New chat"
+                label="new chat"
                 shortcut="N"
                 onSelect={fire(onNewChat)}
               />
               <Item
                 icon={PanelLeft}
-                label="Toggle sidebar"
+                label="toggle sidebar"
                 onSelect={fire(onToggleSidebar)}
               />
             </Command.Group>
@@ -186,7 +186,7 @@ const groupStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
   letterSpacing: '0.1em',
-  color: 'var(--text-muted)',
+  color: 'var(--ink-2)',
   textTransform: 'lowercase',
 }
 
@@ -195,9 +195,9 @@ const itemStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: 10,
   padding: '8px 10px',
-  fontFamily: 'var(--font-ui)',
+  fontFamily: 'var(--font-body)',
   fontSize: 13,
-  color: 'var(--text)',
+  color: 'var(--ink)',
   borderRadius: 4,
   cursor: 'pointer',
 }
@@ -207,15 +207,15 @@ const emptyStyle: React.CSSProperties = {
   textAlign: 'center',
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--text-muted)',
+  color: 'var(--ink-2)',
 }
 
 const kbdStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
   padding: '1px 5px',
-  border: '1px solid var(--border)',
+  border: '1px solid var(--line)',
   borderRadius: 3,
-  color: 'var(--text-muted)',
-  background: 'var(--surface-mid)',
+  color: 'var(--ink-2)',
+  background: 'var(--surface)',
 }

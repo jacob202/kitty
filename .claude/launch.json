@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "kitty-chat",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "/Users/jacobbrizinski/Projects/kitty/.worktrees/fable-ux-phase/gateway/kitty-chat", "run", "dev"],
+      "port": 3000
+    }
+  ]
+}

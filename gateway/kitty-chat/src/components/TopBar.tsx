@@ -99,9 +99,6 @@ export function TopBar({
           onClick={onCommandPalette}
           style={chipBtnStyle}
         >⌘K</button>
-        <button style={{ ...chipBtnStyle, color: 'var(--c-green)' }}>^_^ done</button>
-        <button style={{ ...chipBtnStyle, color: 'var(--c-red)' }}>:[ broke</button>
-
         <ModelSelector
           activeModel={activeModel}
           models={models}
@@ -140,7 +137,7 @@ function ModelSelector({
         }}
       >
         <span
-          title={modelFromGateway ? undefined : 'Using offline model list'}
+          title={modelFromGateway ? undefined : 'using offline model list'}
           style={{
             width: 7, height: 7, borderRadius: 99,
             background: modelFromGateway ? activeModel.color : 'var(--c-red)',

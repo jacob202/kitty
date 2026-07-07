@@ -7,11 +7,11 @@ interface Props {
 }
 
 const glowColor: Record<KittyMood, string> = {
-  idle:      'var(--orange)',
-  searching: 'var(--indigo)',
-  thinking:  'var(--tertiary)',
-  success:   'var(--teal)',
-  confused:  'var(--yellow)',
+  idle:      'var(--cat-ginger)',
+  searching: 'var(--c-purple)',
+  thinking:  'var(--c-purple)',
+  success:   'var(--c-blue)',
+  confused:  'var(--c-yellow)',
 }
 
 function Eyes({ mood }: { mood: KittyMood }) {

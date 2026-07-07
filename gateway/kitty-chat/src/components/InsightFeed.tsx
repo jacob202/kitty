@@ -14,10 +14,10 @@ interface Props {
 
 function kindColor(kind: InsightKind): string {
   switch (kind) {
-    case 'pattern': return 'var(--teal)'
-    case 'anomaly': return 'var(--error)'
-    case 'suggestion': return 'var(--orange)'
-    case 'milestone': return 'var(--mint)'
+    case 'pattern': return 'var(--c-blue)'
+    case 'anomaly': return 'var(--c-red)'
+    case 'suggestion': return 'var(--cat-ginger)'
+    case 'milestone': return 'var(--c-green)'
   }
 }
 
@@ -89,7 +89,7 @@ export function InsightFeed({ insights, onDismiss, onAction, title = 'Insights',
               <button
                 onClick={() => onDismiss(insight.insight_id)}
                 style={dismissBtnStyle}
-                title="Dismiss"
+                title="dismiss"
                 aria-label="Dismiss"
               >
                 ✕
@@ -104,7 +104,7 @@ export function InsightFeed({ insights, onDismiss, onAction, title = 'Insights',
               <Skeleton height={56} />
             </div>
           ) : (
-            <div style={emptyStyle}>No new insights</div>
+            <div style={emptyStyle}>no new insights</div>
           )
         )}
       </div>
@@ -151,17 +151,17 @@ const timeStyle: CSSProperties = {
 }
 
 const insightTitleStyle: CSSProperties = {
-  fontFamily: 'var(--font-ui)',
+  fontFamily: 'var(--font-body)',
   fontSize: 13,
   fontWeight: 600,
-  color: 'var(--text)',
+  color: 'var(--ink)',
   marginTop: 2,
 }
 
 const insightDetailStyle: CSSProperties = {
-  fontFamily: 'var(--font-ui)',
+  fontFamily: 'var(--font-body)',
   fontSize: 12,
-  color: 'var(--text-dim)',
+  color: 'var(--ink-2)',
   lineHeight: 1.4,
 }
 
@@ -179,14 +179,14 @@ const actionsStyle: CSSProperties = {
 }
 
 const actionBtnStyle: CSSProperties = {
-  background: 'var(--surface-mid)',
-  border: '1px solid var(--border)',
+  background: 'var(--surface)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   padding: '4px 10px',
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
   fontWeight: 600,
-  color: 'var(--text)',
+  color: 'var(--ink)',
   cursor: 'pointer',
   transition: 'all 0.15s ease',
 }
@@ -197,7 +197,7 @@ const dismissBtnStyle: CSSProperties = {
   right: 8,
   background: 'transparent',
   border: 'none',
-  color: 'var(--text-ghost)',
+  color: 'var(--ink-2)',
   cursor: 'pointer',
   fontSize: 12,
   padding: 2,

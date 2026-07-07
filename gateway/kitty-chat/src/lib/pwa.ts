@@ -92,7 +92,7 @@ export function usePwaInstall(): UsePwaInstallResult {
     }
 
     if (!('serviceWorker' in window.navigator)) {
-      setError('This browser does not support service workers, so Kitty cannot be installed here.')
+      setError('this browser does not support service workers, so kitty cannot be installed here.')
     } else {
       void window.navigator.serviceWorker
         .register('/sw.js', { scope: '/' })
@@ -122,7 +122,7 @@ export function usePwaInstall(): UsePwaInstallResult {
 
   const install = useCallback(async () => {
     if (!installPrompt) {
-      throw new Error('Kitty install prompt is not available in this browser session.')
+      throw new Error('kitty install prompt is not available in this browser session.')
     }
 
     setInstalling(true)

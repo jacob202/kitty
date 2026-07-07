@@ -49,7 +49,7 @@ describe('PromptToolkit', () => {
 
   it('shows empty state when no templates', () => {
     render(<PromptToolkit templates={[]} />)
-    expect(screen.getByText('No prompt templates available')).toBeInTheDocument()
+    expect(screen.getByText('no prompt templates yet')).toBeInTheDocument()
   })
 
   it('renders custom title', () => {

@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 /* ── DAY: manila paper ─────────────────────────────────────── */
@@ -76,10 +74,7 @@
 
 /* ── Typography ────────────────────────────────────────────── */
 :root {
-  --font-display: 'Bricolage Grotesque', sans-serif;
-  --font-body:    'Hanken Grotesk', sans-serif;
-  --font-mono:    'JetBrains Mono', monospace;
-
+  /* --font-display / --font-body / --font-mono come from next/font in layout.tsx */
   --t-hero:    5rem;
   --t-display: 3rem;
   --t-h1:      2.25rem;
@@ -109,24 +104,6 @@
   --rail-width:    94px;
   --sidebar-width: 268px;
   --topbar-height: 58px;
-
-  /* ── Backward-compatible aliases ── */
-  --text:        var(--ink);
-  --text-dim:    var(--ink-2);
-  --text-muted:  var(--ink-2);
-  --text-faint:  var(--ink-2);
-  --text-ghost:  var(--ink-2);
-  --border:      var(--line);
-  --border-dim:  var(--line);
-  --border-soft: var(--line);
-  --surface-low:  var(--bg);
-  --surface-mid:  var(--surface);
-  --surface-high: var(--surface-2);
-  --error:       var(--c-red);
-  --warning:     var(--c-yellow);
-  --font-ui:     var(--font-body);
-  --cream:       var(--ink);
-  --cream-dim:   var(--ink-2);
 }
 
 html, body {

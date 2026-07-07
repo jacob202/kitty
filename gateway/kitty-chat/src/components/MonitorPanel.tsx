@@ -41,7 +41,7 @@ export function MonitorPanel() {
             <div key={m.watch_id} style={rowStyle}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={labelStyle}>{m.label}</span>
-                <span style={{ ...statusStyle, color: m.last_match ? 'var(--orange)' : 'var(--text-faint)' }}>
+                <span style={{ ...statusStyle, color: m.last_match ? 'var(--cat-ginger)' : 'var(--ink-2)' }}>
                   {m.last_match ? 'hit' : 'watching'}
                 </span>
               </div>
@@ -89,8 +89,8 @@ export function MonitorPanel() {
 
 const rowStyle: CSSProperties = {
   padding: '6px 8px',
-  background: 'var(--recessed)',
-  border: '1px solid var(--border-dim)',
+  background: 'var(--surface-2)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   display: 'grid',
   gap: 3,
@@ -99,7 +99,7 @@ const rowStyle: CSSProperties = {
 const labelStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--text-dim)',
+  color: 'var(--ink-2)',
 }
 
 const statusStyle: CSSProperties = {
@@ -112,7 +112,7 @@ const statusStyle: CSSProperties = {
 const urlStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 9,
-  color: 'var(--text-muted)',
+  color: 'var(--ink-2)',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
@@ -121,7 +121,7 @@ const urlStyle: CSSProperties = {
 const removeButtonStyle: CSSProperties = {
   background: 'transparent',
   border: 'none',
-  color: 'var(--text-faint)',
+  color: 'var(--ink-2)',
   cursor: 'pointer',
   fontSize: 13,
   padding: '0 4px',
@@ -130,13 +130,13 @@ const removeButtonStyle: CSSProperties = {
 }
 
 const inputStyle: CSSProperties = {
-  background: 'var(--recessed)',
-  border: '1px solid var(--border-dim)',
+  background: 'var(--surface-2)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   padding: '5px 8px',
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--text-dim)',
+  color: 'var(--ink-2)',
   outline: 'none',
 }
 
@@ -148,29 +148,29 @@ const actionButtonStyle: CSSProperties = {
   borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--orange-2)',
+  color: 'var(--cat-ginger)',
   cursor: 'pointer',
 }
 
 const cancelButtonStyle: CSSProperties = {
   padding: '5px 10px',
   background: 'transparent',
-  border: '1px solid var(--border-dim)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--text-muted)',
+  color: 'var(--ink-2)',
   cursor: 'pointer',
 }
 
 const addButtonStyle: CSSProperties = {
   background: 'transparent',
-  border: '1px solid var(--border-dim)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   padding: '5px 10px',
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--text-muted)',
+  color: 'var(--ink-2)',
   cursor: 'pointer',
   textAlign: 'left',
 }
@@ -178,5 +178,5 @@ const addButtonStyle: CSSProperties = {
 const emptyStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-faint)',
+  color: 'var(--ink-2)',
 }

@@ -34,14 +34,14 @@ export class ErrorBoundary extends Component<Props, State> {
         <div style={{
           margin: 16,
           padding: '14px 16px',
-          background: 'var(--surface-low)',
-          border: '1px solid var(--error)',
+          background: 'var(--bg)',
+          border: '1px solid var(--c-red)',
           borderRadius: 4,
-          color: 'var(--text-dim)',
+          color: 'var(--ink-2)',
           fontFamily: 'var(--font-mono)',
           fontSize: 12,
         }}>
-          <div style={{ color: 'var(--error)', fontWeight: 700, marginBottom: 6 }}>
+          <div style={{ color: 'var(--c-red)', fontWeight: 700, marginBottom: 6 }}>
             Something crashed{this.props.name ? ` in ${this.props.name}` : ''}
           </div>
           <div style={{ marginBottom: 10 }}>{error.message}</div>
@@ -49,12 +49,12 @@ export class ErrorBoundary extends Component<Props, State> {
             onClick={this.reset}
             style={{
               padding: '4px 10px',
-              background: 'var(--surface-mid)',
-              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+              border: '1px solid var(--line)',
               borderRadius: 4,
               fontFamily: 'var(--font-mono)',
               fontSize: 11,
-              color: 'var(--text)',
+              color: 'var(--ink)',
               cursor: 'pointer',
             }}
           >

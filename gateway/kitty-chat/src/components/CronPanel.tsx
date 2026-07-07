@@ -117,7 +117,7 @@ export function CronPanel() {
                 <div style={{ display: 'flex', gap: 3, flexShrink: 0, alignItems: 'center' }}>
                   <button
                     onClick={() => toggleSchedule.mutate(s.id)}
-                    style={{ ...toggleBtnStyle, color: s.enabled ? 'var(--teal)' : 'var(--text-faint)' }}
+                    style={{ ...toggleBtnStyle, color: s.enabled ? 'var(--c-blue)' : 'var(--ink-2)' }}
                     title={s.enabled ? 'disable' : 'enable'}
                     aria-label={s.enabled ? 'disable schedule' : 'enable schedule'}
                   >
@@ -177,8 +177,8 @@ export function CronPanel() {
                 style={{
                   ...typeChipStyle,
                   background: schedType === t ? 'rgba(102,119,204,0.16)' : 'transparent',
-                  color: schedType === t ? 'var(--indigo)' : 'var(--text-muted)',
-                  borderColor: schedType === t ? 'rgba(102,119,204,0.35)' : 'var(--border-dim)',
+                  color: schedType === t ? 'var(--c-purple)' : 'var(--ink-2)',
+                  borderColor: schedType === t ? 'rgba(102,119,204,0.35)' : 'var(--line)',
                 }}
               >
                 {t}
@@ -213,17 +213,17 @@ export function CronPanel() {
 function rowStyle(enabled: number): CSSProperties {
   return {
     padding: '5px 7px',
-    background: enabled ? 'var(--recessed)' : 'transparent',
-    border: `1px solid ${enabled ? 'var(--border-dim)' : 'var(--border-dim)'}`,
+    background: enabled ? 'var(--surface-2)' : 'transparent',
+    border: `1px solid ${enabled ? 'var(--line)' : 'var(--line)'}`,
     borderRadius: 4,
     opacity: enabled ? 1 : 0.5,
   }
 }
 
 function typeBadgeStyle(type: string): CSSProperties {
-  const color = type === 'daily' ? 'var(--teal)'
-    : type === 'interval' ? 'var(--indigo)'
-    : 'var(--orange-2)'
+  const color = type === 'daily' ? 'var(--c-blue)'
+    : type === 'interval' ? 'var(--c-purple)'
+    : 'var(--cat-ginger)'
   return { fontFamily: 'var(--font-mono)', fontSize: 9, color, textTransform: 'lowercase', letterSpacing: '0.06em' }
 }
 
@@ -231,14 +231,14 @@ const nameStyle: CSSProperties = {
   margin: '0 0 2px',
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--text-dim)',
+  color: 'var(--ink-2)',
 }
 
 const metaStyle: CSSProperties = {
   margin: 0,
   fontFamily: 'var(--font-mono)',
   fontSize: 9,
-  color: 'var(--text-faint)',
+  color: 'var(--ink-2)',
 }
 
 const toggleBtnStyle: CSSProperties = {
@@ -253,7 +253,7 @@ const toggleBtnStyle: CSSProperties = {
 const deleteBtnStyle: CSSProperties = {
   background: 'transparent',
   border: 'none',
-  color: 'var(--text-faint)',
+  color: 'var(--ink-2)',
   cursor: 'pointer',
   fontSize: 13,
   padding: '1px 3px',
@@ -263,7 +263,7 @@ const deleteBtnStyle: CSSProperties = {
 const editBtnStyle: CSSProperties = {
   background: 'transparent',
   border: 'none',
-  color: 'var(--text-faint)',
+  color: 'var(--ink-2)',
   cursor: 'pointer',
   fontSize: 12,
   padding: '1px 3px',
@@ -274,39 +274,39 @@ const summaryStyle: CSSProperties = {
   margin: 0,
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-faint)',
+  color: 'var(--ink-2)',
 }
 
 const emptyStyle: CSSProperties = {
   margin: 0,
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-faint)',
+  color: 'var(--ink-2)',
 }
 
 const formStyle: CSSProperties = {
   display: 'grid',
   gap: 5,
   padding: '8px 10px',
-  background: 'var(--recessed)',
-  border: '1px solid var(--border-dim)',
+  background: 'var(--surface-2)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
 }
 
 const inputStyle: CSSProperties = {
   background: 'var(--surface)',
-  border: '1px solid var(--border-dim)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   padding: '4px 7px',
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--text-dim)',
+  color: 'var(--ink-2)',
   outline: 'none',
 }
 
 const typeChipStyle: CSSProperties = {
   padding: '2px 7px',
-  border: '1px solid var(--border-dim)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 9,
@@ -320,29 +320,29 @@ const saveBtnStyle: CSSProperties = {
   borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--indigo)',
+  color: 'var(--c-purple)',
   cursor: 'pointer',
 }
 
 const cancelBtnStyle: CSSProperties = {
   padding: '5px 10px',
   background: 'transparent',
-  border: '1px solid var(--border-dim)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--text-muted)',
+  color: 'var(--ink-2)',
   cursor: 'pointer',
 }
 
 const addBtnStyle: CSSProperties = {
   padding: '4px 8px',
   background: 'transparent',
-  border: '1px dashed var(--border-dim)',
+  border: '1px dashed var(--line)',
   borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-faint)',
+  color: 'var(--ink-2)',
   cursor: 'pointer',
   textAlign: 'left',
 }

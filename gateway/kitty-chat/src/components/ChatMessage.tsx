@@ -3,7 +3,7 @@ import { isValidElement, useRef, useState, type ReactNode, type CSSProperties } 
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
-import { Copy, Check } from 'lucide-react'
+import { Copy, Check, RotateCcw } from 'lucide-react'
 import { Message } from '@/lib/types'
 import { CatFaceBadge, type CatState } from './CrayonCat'
 
@@ -12,11 +12,24 @@ interface Props {
   isStreaming?: boolean
   isFirstInRun?: boolean
   catState?: CatState
+  onRetry?: () => void
 }
 
-export function ChatMessage({ message, isStreaming, catState = 'idle' }: Props) {
+export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry }: Props) {
   const isUser = message.role === 'user'
   const isKitty = !isUser
+  const [hovered, setHovered] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const copyMessage = () => {
+    if (!message.content) return
+    void navigator.clipboard.writeText(message.content).then(() => {
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1500)
+    })
+  }
+
+  const showActions = isKitty && !isStreaming && Boolean(message.content)
 
   return (
     <div className="msg-in" style={{
@@ -24,21 +37,40 @@ export function ChatMessage({ message, isStreaming, catState = 'idle' }: Props) 
       alignItems: 'flex-end',
       gap: 10,
       flexDirection: isKitty ? 'row' : 'row-reverse',
-    }}>
+    }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       {isKitty && <CatFaceBadge state={catState} />}
 
-      <div style={{
-        maxWidth: 560,
-        borderRadius: isKitty ? '5px 17px 17px 17px' : '17px 5px 17px 17px',
-        padding: '11px 16px',
-        background: isKitty ? 'var(--surface)' : 'var(--primary)',
-        border: isKitty ? '1.5px solid var(--line)' : 'none',
-        boxShadow: 'var(--shadow-soft)',
-      }}>
-        {isStreaming && !message.content ? (
-          <TypingDots />
-        ) : (
-          <MessageContent content={message.content} isUser={isUser} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: isKitty ? 'flex-start' : 'flex-end' }}>
+        <div style={{
+          maxWidth: 560,
+          borderRadius: isKitty ? '5px 17px 17px 17px' : '17px 5px 17px 17px',
+          padding: '11px 16px',
+          background: isKitty ? 'var(--surface)' : 'var(--primary)',
+          border: isKitty ? '1.5px solid var(--line)' : 'none',
+          boxShadow: 'var(--shadow-soft)',
+        }}>
+          {isStreaming && !message.content ? (
+            <TypingDots />
+          ) : (
+            <MessageContent content={message.content} isUser={isUser} />
+          )}
+        </div>
+        {showActions && (
+          <div style={{ ...actionRowStyle, opacity: hovered ? 1 : 0 }}>
+            <button onClick={copyMessage} style={actionBtnStyle} title="copy message">
+              {copied ? <Check size={10} /> : <Copy size={10} />}
+              <span>{copied ? 'copied' : 'copy'}</span>
+            </button>
+            {onRetry && (
+              <button onClick={onRetry} style={actionBtnStyle} title="regenerate this reply">
+                <RotateCcw size={10} />
+                <span>retry</span>
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -132,6 +164,17 @@ function TypingDots() {
       <span style={{ width: 6, height: 6, borderRadius: 99, background: 'var(--ink-2)', animation: 'dot3 1.2s ease-in-out infinite' }} />
     </span>
   )
+}
+
+const actionRowStyle: CSSProperties = {
+  display: 'flex', gap: 10, paddingLeft: 6,
+  transition: 'opacity 0.12s linear',
+}
+const actionBtnStyle: CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 4,
+  background: 'transparent', border: 'none', padding: '2px 4px',
+  color: 'var(--ink-2)', fontFamily: 'var(--font-mono)',
+  fontSize: 10, cursor: 'pointer', borderRadius: 4,
 }
 
 const bodyStyle: CSSProperties = {

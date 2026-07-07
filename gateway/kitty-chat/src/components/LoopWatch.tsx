@@ -13,10 +13,10 @@ interface Props {
 
 function statusColor(status: LoopStatus): string {
   switch (status) {
-    case 'running': return 'var(--mint)'
-    case 'paused': return 'var(--orange)'
-    case 'error': return 'var(--error)'
-    case 'idle': return 'var(--text-muted)'
+    case 'running': return 'var(--c-green)'
+    case 'paused': return 'var(--cat-ginger)'
+    case 'error': return 'var(--c-red)'
+    case 'idle': return 'var(--ink-2)'
   }
 }
 
@@ -67,8 +67,8 @@ export function LoopWatch({ loops, onToggle, title = 'Loop Watch', isLoading = f
                   <button
                     onClick={() => onToggle(loop.loop_id)}
                     style={toggleBtnStyle(loop.status === 'running')}
-                    title={loop.status === 'running' ? 'Pause loop' : 'Start loop'}
-                    aria-label={loop.status === 'running' ? 'Pause loop' : 'Start loop'}
+                    title={loop.status === 'running' ? 'pause loop' : 'start loop'}
+                    aria-label={loop.status === 'running' ? 'pause loop' : 'start loop'}
                   >
                     {loop.status === 'running' ? '⏸' : '▶'}
                   </button>
@@ -80,13 +80,13 @@ export function LoopWatch({ loops, onToggle, title = 'Loop Watch', isLoading = f
             )}
             <div style={metaStyle}>
               {loop.last_run && (
-                <span>Last run: {new Date(loop.last_run).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                <span>last run: {new Date(loop.last_run).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
               )}
               {loop.interval_minutes && (
                 <span>· Every {loop.interval_minutes}m</span>
               )}
               {loop.error_message && (
-                <span style={{ color: 'var(--error)' }}> · {loop.error_message}</span>
+                <span style={{ color: 'var(--c-red)' }}> · {loop.error_message}</span>
               )}
             </div>
           </div>
@@ -98,7 +98,7 @@ export function LoopWatch({ loops, onToggle, title = 'Loop Watch', isLoading = f
               <Skeleton height={48} />
             </div>
           ) : (
-            <div style={emptyStyle}>No loops configured</div>
+            <div style={emptyStyle}>no loops configured</div>
           )
         )}
       </div>
@@ -126,10 +126,10 @@ const cardHeaderStyle: CSSProperties = {
 }
 
 const loopNameStyle: CSSProperties = {
-  fontFamily: 'var(--font-ui)',
+  fontFamily: 'var(--font-body)',
   fontSize: 14,
   fontWeight: 600,
-  color: 'var(--text)',
+  color: 'var(--ink)',
 }
 
 const badgeStyle: CSSProperties = {
@@ -145,8 +145,8 @@ const badgeStyle: CSSProperties = {
 }
 
 const toggleBtnStyle = (isRunning: boolean): CSSProperties => ({
-  background: 'var(--surface-mid)',
-  border: '1px solid var(--border)',
+  background: 'var(--surface)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   width: 28,
   height: 24,
@@ -154,21 +154,21 @@ const toggleBtnStyle = (isRunning: boolean): CSSProperties => ({
   placeItems: 'center',
   cursor: 'pointer',
   fontSize: 10,
-  color: 'var(--text-dim)',
+  color: 'var(--ink-2)',
   transition: 'all 0.15s ease',
 })
 
 const descStyle: CSSProperties = {
-  fontFamily: 'var(--font-ui)',
+  fontFamily: 'var(--font-body)',
   fontSize: 12,
-  color: 'var(--text-dim)',
+  color: 'var(--ink-2)',
   lineHeight: 1.4,
 }
 
 const metaStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-muted)',
+  color: 'var(--ink-2)',
   display: 'flex',
   flexWrap: 'wrap',
   gap: 4,
