@@ -6,10 +6,10 @@ import type { CSSProperties } from 'react'
 /** Outer card / panel container. */
 export const card: CSSProperties = {
   background: 'var(--surface-low)',
-  border: '1.5px solid var(--border)',
-  borderRadius: '255px 15px 225px 15px / 15px 225px 15px 255px',
+  border: '2.5px solid var(--border)',
+  borderRadius: '255px 25px 225px 25px / 25px 225px 25px 255px',
   padding: 16,
-  boxShadow: '2px 3px 0px var(--border-dim)',
+  boxShadow: '4px 5px 0px var(--border-dim)',
 }
 
 /** Header row inside a card: title left, count/meta right, hairline underneath.
@@ -53,8 +53,8 @@ export const sectionLabel: CSSProperties = {
 /** Recessed inner item sitting inside a card. */
 export const itemCard: CSSProperties = {
   background: 'var(--surface)',
-  border: '1px solid var(--border)',
-  borderRadius: '15px 225px 15px 255px / 255px 15px 225px 15px',
+  border: '2px solid var(--border)',
+  borderRadius: '15px 255px 15px 225px / 225px 15px 255px 15px',
   padding: '12px 14px',
   transition: 'background 0.15s ease, border-color 0.15s ease, transform 0.15s ease',
 }

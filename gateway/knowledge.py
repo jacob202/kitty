@@ -40,7 +40,36 @@ EXPERT_PROFILES: dict[str, dict[str, Any]] = {
     "coding_repo": {
         "prompt_path": PROJECT_ROOT / "soul" / "specialists" / "coder.md",
         "collections": ["coding_repo"],
-    }
+    },
+    "automotive": {
+        "prompt_path": PROJECT_ROOT / "soul" / "specialists" / "automotive.md",
+        "collections": ["automotive_manuals"],
+        "proactive_policy": {
+            "watch_inbox": True,
+            "watch_directories": [
+                "~/Library/Mobile Documents/iCloud~net~obdsoftware~obdfusion/Documents/CsvLogs"
+            ],
+            "learning_enabled": True,
+        },
+    },
+    "health": {
+        "prompt_path": PROJECT_ROOT / "soul" / "specialists" / "health.md",
+        "collections": ["health_records", "supplements"],
+        "proactive_policy": {
+            "watch_inbox": True,
+            "watch_directories": [],
+            "learning_enabled": True,
+        },
+    },
+    "audio": {
+        "prompt_path": PROJECT_ROOT / "soul" / "specialists" / "audio.md",
+        "collections": ["audio_equipment", "vintage_manuals"],
+        "proactive_policy": {
+            "watch_inbox": True,
+            "watch_directories": [],
+            "learning_enabled": True,
+        },
+    },
 }
 
 

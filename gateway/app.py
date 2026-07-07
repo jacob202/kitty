@@ -107,8 +107,14 @@ async def lifespan(app: FastAPI):
 
             return github.poll_now()
 
+        async def _action_poll_experts():
+            from gateway.expert_proactive import poll_experts
+
+            await asyncio.to_thread(poll_experts)
+
         register_action("mail.poll", _action_poll_mail)
         register_action("github.poll", _action_poll_github)
+        register_action("experts.poll", _action_poll_experts)
         register_action("prefetch.warm", _action_warm_prefetch)
         cron_start()
     except Exception:
