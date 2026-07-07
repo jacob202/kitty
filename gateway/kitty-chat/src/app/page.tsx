@@ -165,8 +165,9 @@ function KittyChatInner() {
     'idle',
   );
   const pwaInstall = usePwaInstall();
+  const [lastOutcome, setLastOutcome] = useState<'done' | 'broke' | null>(null);
 
-  const catState: CatState = isStreaming ? 'working' : 'idle';
+  const catState: CatState = isStreaming ? 'working' : (lastOutcome ?? 'idle');
 
   useEffect(() => {
     fetch('/proxy/chats')
@@ -406,6 +407,96 @@ function KittyChatInner() {
     if (chat) void persistChat(chat);
   }, [chats, activeChatId, persistChat]);
 
+  /** Stream one assistant reply into `chat` given `history` (ends with a user
+   *  message). Shared by send and retry so the cat's outcome states stay honest. */
+  const runStream = useCallback(async (chat: Chat, history: Message[], title: string) => {
+    setIsStreaming(true);
+    setLastOutcome(null);
+
+    const aiMsgId = newMsgId();
+    const aiMsg: Message = {
+      id: aiMsgId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date(),
+      model: activeModel.name,
+    };
+
+    updateChat(chat.id, (c) => ({ ...c, messages: [...history, aiMsg] }));
+
+    const abort = new AbortController();
+    abortRef.current = abort;
+
+    try {
+      let accumulated = '';
+
+      for await (const chunk of streamChat(activeModel.id, history, abort.signal)) {
+        if (chunk.done) break;
+        accumulated += chunk.content;
+        const content = accumulated;
+        updateChat(chat.id, (c) => ({
+          ...c,
+          messages: c.messages.map((m) => (m.id === aiMsgId ? { ...m, content } : m)),
+        }));
+      }
+
+      const mood = inferMood(accumulated, 'assistant');
+      updateChat(chat.id, (c) => ({
+        ...c,
+        updatedAt: new Date(),
+        messages: c.messages.map((m) =>
+          m.id === aiMsgId ? { ...m, content: accumulated, mood } : m,
+        ),
+      }));
+      setLastOutcome('done');
+      window.setTimeout(() => setLastOutcome((o) => (o === 'done' ? null : o)), 2500);
+
+      // Persist to SQLite — React state stays the source of truth, but the
+      // outcome is surfaced (saving / saved / failed / offline), never swallowed.
+      void persistChat({
+        id: chat.id,
+        title,
+        model: activeModel.id,
+        color: chat.color,
+        createdAt: chat.createdAt,
+        updatedAt: new Date(),
+        messages: [...history, { ...aiMsg, content: accumulated, mood }],
+      });
+    } catch (err: unknown) {
+      // User pressed Stop — keep whatever streamed so far, don't show an error.
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return;
+      }
+      setLastOutcome('broke');
+      updateChat(chat.id, (c) => ({
+        ...c,
+        messages: c.messages.map((m) =>
+          m.id === aiMsgId
+            ? {
+                ...m,
+                content: `⚠ ${err instanceof Error ? err.message : 'error connecting to gateway'}`,
+                mood: 'confused' as const,
+              }
+            : m,
+        ),
+      }));
+      // The stream died, but the user's message still deserves to survive a
+      // restart — persist it (the ⚠ bubble stays UI-only) and show the outcome.
+      void persistChat({
+        id: chat.id,
+        title,
+        model: activeModel.id,
+        color: chat.color,
+        createdAt: chat.createdAt,
+        updatedAt: new Date(),
+        messages: history,
+      });
+    } finally {
+      setIsStreaming(false);
+      abortRef.current = null;
+    }
+  }, [activeModel, updateChat, persistChat]);
+
   const handleSend = useCallback(async () => {
     const text = input.trim();
     if (!text || isStreaming || !activeChat) return;
@@ -429,89 +520,18 @@ function KittyChatInner() {
     }));
     setInput('');
     setActiveView('chat');
-    setIsStreaming(true);
+    void runStream(activeChat, [...activeChat.messages, userMsg], title);
+  }, [input, isStreaming, activeChat, runStream]);
 
-    const aiMsgId = newMsgId();
-    const aiMsg: Message = {
-      id: aiMsgId,
-      role: 'assistant',
-      content: '',
-      timestamp: new Date(),
-      model: activeModel.name,
-    };
 
-    updateChat(activeChat.id, (c) => ({ ...c, messages: [...c.messages, aiMsg] }));
-
-    const abort = new AbortController();
-    abortRef.current = abort;
-
-    try {
-      const history = [...activeChat.messages, userMsg];
-      let accumulated = '';
-
-      for await (const chunk of streamChat(activeModel.id, history, abort.signal)) {
-        if (chunk.done) break;
-        accumulated += chunk.content;
-        const content = accumulated;
-        updateChat(activeChat.id, (c) => ({
-          ...c,
-          messages: c.messages.map((m) => (m.id === aiMsgId ? { ...m, content } : m)),
-        }));
-      }
-
-      const mood = inferMood(accumulated, 'assistant');
-      updateChat(activeChat.id, (c) => ({
-        ...c,
-        updatedAt: new Date(),
-        messages: c.messages.map((m) =>
-          m.id === aiMsgId ? { ...m, content: accumulated, mood } : m,
-        ),
-      }));
-
-      // Persist to SQLite — React state stays the source of truth, but the
-      // outcome is surfaced (saving / saved / failed / offline), never swallowed.
-      void persistChat({
-        id: activeChat.id,
-        title,
-        model: activeModel.id,
-        color: activeChat.color,
-        createdAt: activeChat.createdAt,
-        updatedAt: new Date(),
-        messages: [...activeChat.messages, userMsg, { ...aiMsg, content: accumulated, mood }],
-      });
-    } catch (err: unknown) {
-      // User pressed Stop — keep whatever streamed so far, don't show an error.
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        return;
-      }
-      updateChat(activeChat.id, (c) => ({
-        ...c,
-        messages: c.messages.map((m) =>
-          m.id === aiMsgId
-            ? {
-                ...m,
-                content: `⚠ ${err instanceof Error ? err.message : 'error connecting to gateway'}`,
-                mood: 'confused' as const,
-              }
-            : m,
-        ),
-      }));
-      // The stream died, but the user's message still deserves to survive a
-      // restart — persist it (the ⚠ bubble stays UI-only) and show the outcome.
-      void persistChat({
-        id: activeChat.id,
-        title,
-        model: activeModel.id,
-        color: activeChat.color,
-        createdAt: activeChat.createdAt,
-        updatedAt: new Date(),
-        messages: [...activeChat.messages, userMsg],
-      });
-    } finally {
-      setIsStreaming(false);
-      abortRef.current = null;
-    }
-  }, [input, isStreaming, activeChat, activeModel, updateChat, persistChat]);
+  const handleRetry = useCallback(() => {
+    if (!activeChat || isStreaming) return;
+    const history = [...activeChat.messages];
+    while (history.length && history.at(-1)?.role === 'assistant') history.pop();
+    if (history.length === 0) return;
+    updateChat(activeChat.id, (c) => ({ ...c, messages: history }));
+    void runStream(activeChat, history, activeChat.title);
+  }, [activeChat, isStreaming, updateChat, runStream]);
 
   const handleStop = useCallback(() => {
     abortRef.current?.abort();
@@ -886,6 +906,7 @@ function KittyChatInner() {
                       isStreaming={isStreaming && isLast && msg.role === 'assistant'}
                       isFirstInRun={isFirstInRun}
                       catState={catState}
+                      onRetry={isLast && msg.role === 'assistant' && !isStreaming ? handleRetry : undefined}
                     />
                   );
                 })}
