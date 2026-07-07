@@ -9,6 +9,7 @@ from __future__ import annotations
 from mcp.imagen.engines.base import Engine
 from mcp.imagen.engines.comfyui import ComfyuiEngine
 from mcp.imagen.engines.dalle import DalleEngine
+from mcp.imagen.engines.drawthings import DrawThingsEngine
 from mcp.imagen.engines.imagen4 import Imagen4Engine
 from mcp.imagen.engines.nano_banana import NanoBananaEngine
 
@@ -25,6 +26,7 @@ nano_banana = _register(NanoBananaEngine())
 imagen4 = _register(Imagen4Engine())
 dalle = _register(DalleEngine())
 comfyui = _register(ComfyuiEngine())
+drawthings = _register(DrawThingsEngine())
 
 
 def get(name: str) -> Engine:

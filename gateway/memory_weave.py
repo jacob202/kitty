@@ -330,6 +330,36 @@ class MemoryWeave:
             is_stale=is_stale,
         )
 
+    def search(self, query: str, limit: int = 10) -> list[WeaveQuery]:
+        """Search the graph for facts matching a text query."""
+        terms = [t for t in query.lower().split() if t]
+        if not terms:
+            return []
+
+        # Simple keyword match across entity, relation, value
+        with _lock:
+            with kitty_db.connect(KITTY_DB_FILE) as conn:
+                conn.row_factory = sqlite3.Row
+                # Get unique entity+relation pairs that match
+                all_edges = conn.execute(
+                    "SELECT entity, relation, value FROM weave_edges WHERE deprecated = 0"
+                ).fetchall()
+
+        matched_pairs = set()
+        for row in all_edges:
+            text = f"{row['entity']} {row['relation']} {row['value']}".lower()
+            if any(term in text for term in terms):
+                matched_pairs.add((row["entity"], row["relation"]))
+
+        results = []
+        for entity, relation in matched_pairs:
+            q = self.query(entity, relation)
+            if q:
+                results.append(q)
+
+        results.sort(key=lambda x: x.confidence, reverse=True)
+        return results[:limit]
+
     # ── PRIVATE HELPERS (ported for query()) ──────────────────────────
 
     def _load_edges(self, entity: str, relation: str) -> None:

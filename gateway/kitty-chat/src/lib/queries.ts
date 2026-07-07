@@ -56,6 +56,7 @@ import {
   fetchProjects,
   fetchProjectNext,
   refreshProject,
+  createProject,
   type GatewayProject,
   // cockpit health
   fetchGatewayHealth,
@@ -489,6 +490,41 @@ export function useRefreshProject() {
   })
 }
 
+export function useCreateProject() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ name, kind, paths, links }: { name: string; kind: string; paths?: string[]; links?: unknown[] }) =>
+      createProject(name, kind, paths, links),
+    onMutate: async (newProject) => {
+      await qc.cancelQueries({ queryKey: ['projects'] })
+      const previous = qc.getQueryData<GatewayProject[]>(['projects'])
+      qc.setQueryData<GatewayProject[]>(['projects'], (old) => {
+        if (!old) return old
+        // Optimistic update
+        return [...old, {
+          id: Date.now(), // Fake ID for optimistic rendering
+          name: newProject.name,
+          kind: newProject.kind,
+          status: 'active',
+          summary: null,
+          paths: newProject.paths ?? [],
+          last_touched: Math.floor(Date.now() / 1000),
+          open_questions: [],
+          next_actions: [],
+          links: newProject.links ?? [],
+        }]
+      })
+      return { previous }
+    },
+    onError: (_err, _newProject, context) => {
+      if (context?.previous) {
+        qc.setQueryData(['projects'], context.previous)
+      }
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['projects'] }),
+  })
+}
+
 // ── Knowledge (Documents) ───────────────────────────────────────────────────
 
 export function useKnowledgeSources() {
@@ -570,7 +606,8 @@ export function useProjectNextSteps(projects: GatewayProject[]) {
 export function useUploadCapture() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (file: File) => uploadCaptureFile(file),
+    mutationFn: ({ file, onProgress }: { file: File; onProgress?: (p: number) => void }) =>
+      uploadCaptureFile(file, onProgress),
     // Indexing runs as a gateway background task; the invalidation gives the
     // fast path, the sources card's refresh button covers the slow one.
     onSuccess: () => qc.invalidateQueries({ queryKey: ['knowledge', 'sources'] }),

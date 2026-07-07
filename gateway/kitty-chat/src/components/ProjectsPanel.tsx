@@ -1,11 +1,16 @@
 'use client'
 import type { CSSProperties } from 'react'
-import { useProjects, useProjectNext, useRefreshProject } from '@/lib/queries'
+import { useProjects, useProjectNext, useRefreshProject, useCreateProject } from '@/lib/queries'
 import type { GatewayProject } from '@/lib/gateway'
+import { useState } from 'react'
 
 export function ProjectsPanel() {
   const projectsQuery = useProjects()
   const refresh = useRefreshProject()
+  const createProject = useCreateProject()
+
+  const [newName, setNewName] = useState('')
+  const [newKind, setNewKind] = useState('')
 
   if (projectsQuery.isLoading) {
     return <p style={mutedStyle}>loading projects…</p>
@@ -23,6 +28,13 @@ export function ProjectsPanel() {
 
   const projects = projectsQuery.data ?? []
 
+  function handleCreate() {
+    if (!newName.trim() || !newKind.trim()) return
+    createProject.mutate({ name: newName.trim(), kind: newKind.trim() })
+    setNewName('')
+    setNewKind('')
+  }
+
   return (
     <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
       <header>
@@ -32,9 +44,35 @@ export function ProjectsPanel() {
         </p>
       </header>
 
+      <div style={cardStyle}>
+        <div style={sectionLabelStyle}>create project</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            placeholder="project name"
+            style={inputStyle}
+          />
+          <input
+            value={newKind}
+            onChange={e => setNewKind(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleCreate()}
+            placeholder="kind (e.g. app, plugin)"
+            style={inputStyle}
+          />
+          <button
+            onClick={handleCreate}
+            disabled={!newName.trim() || !newKind.trim() || createProject.isPending}
+            style={primaryButtonStyle}
+          >
+            {createProject.isPending ? 'creating…' : 'add'}
+          </button>
+        </div>
+      </div>
+
       {projects.length === 0 && (
         <p style={mutedStyle}>
-          no projects registered yet — POST /projects with a name and kind to add one.
+          no projects registered yet — add one above.
         </p>
       )}
 
@@ -235,4 +273,28 @@ const errorBoxStyle: CSSProperties = {
   fontSize: 12,
   color: 'var(--c-red)',
   lineHeight: 1.6,
+}
+
+const inputStyle: CSSProperties = {
+  flex: 1,
+  background: 'var(--bg)',
+  border: '1.5px solid var(--line)',
+  borderRadius: 10,
+  padding: '8px 12px',
+  fontFamily: 'var(--font-body)',
+  fontSize: 14,
+  color: 'var(--ink)',
+  outline: 'none',
+}
+
+const primaryButtonStyle: CSSProperties = {
+  padding: '8px 18px',
+  background: 'var(--primary)',
+  color: 'var(--on-primary)',
+  border: 'none',
+  borderRadius: 10,
+  fontFamily: 'var(--font-body)',
+  fontSize: 14,
+  fontWeight: 600,
+  cursor: 'pointer',
 }

@@ -74,5 +74,15 @@ class Settings:
     # ComfyUI
     comfy_url: str = field(default_factory=lambda: _env("COMFY_URL", "http://127.0.0.1:8188"))
 
+    # Draw Things / A1111-compatible API
+    dt_url: str = field(default_factory=lambda: _env("DT_URL", "http://127.0.0.1:7860"))
+
+    # Verifier settings
+    ollama_url: str = field(default_factory=lambda: _env("OLLAMA_URL", "http://127.0.0.1:11434"))
+    vision_model: str = field(default_factory=lambda: _env("VISION_MODEL", "qwen2.5-vl:7b"))
+
+    # Face-lock reference directory
+    faces_dir: Path = field(default_factory=lambda: Path("config/imagen/faces"))
+
 
 settings = Settings()

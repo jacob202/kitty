@@ -948,17 +948,38 @@ export interface CaptureResult {
   message: string
 }
 
-export async function uploadCaptureFile(file: File): Promise<CaptureResult | null> {
-  const formData = new FormData()
-  formData.append('file', file)
-  try {
-    return await gfetch<CaptureResult>('/capture/file', {
-      method: 'POST',
-      body: formData,
-    })
-  } catch {
-    return null
-  }
+export async function uploadCaptureFile(file: File, onProgress?: (percent: number) => void): Promise<CaptureResult | null> {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `${GATEWAY_BASE}/capture/file`)
+
+    if (onProgress && xhr.upload) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const percent = Math.round((e.loaded / e.total) * 100)
+          onProgress(percent)
+        }
+      }
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText))
+        } catch {
+          resolve(null)
+        }
+      } else {
+        resolve(null)
+      }
+    }
+
+    xhr.onerror = () => resolve(null)
+
+    const formData = new FormData()
+    formData.append('file', file)
+    xhr.send(formData)
+  })
 }
 
 // ── Projects ─────────────────────────────────────────────────────────────────
@@ -999,6 +1020,23 @@ export async function fetchProjectNext(projectId: number): Promise<GatewayNextSt
   } catch (err) {
     if (err instanceof Error && err.message.includes('404')) return null
     throw err
+  }
+}
+
+export async function createProject(
+  name: string,
+  kind: string,
+  paths: string[] = [],
+  links: unknown[] = [],
+): Promise<GatewayProject | null> {
+  try {
+    return await gfetch<GatewayProject>('/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, kind, paths, links }),
+    })
+  } catch {
+    return null
   }
 }
 
@@ -1170,4 +1208,3 @@ export async function fetchChatsPersistence(): Promise<ChatsPersistencePayload> 
     return { ok: false, count: 0, error: describeFetchError(err, null) }
   }
 }
-

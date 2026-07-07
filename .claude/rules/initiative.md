@@ -18,7 +18,7 @@ Does the best possible version of this look different from what you just shipped
   Things / ComfyUI engines; paid step-up is a rented A1111/ComfyUI box,
   never fal. See `docs/packets/025-imagegen-pipeline-v2.md`.
 - After any generation: offer the verified loop (`generate_until` against
-  a criteria file) instead of one-off regens, once 025 ships.
+  a criteria file) instead of one-off regens.
 - After picking a favourite: surface the local pipeline (img2img refine →
   targeted edit → upscale).
 - When given a reference photo: suggest `save_character`, and add it to the

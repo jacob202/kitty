@@ -2,26 +2,27 @@
 
 Photorealistic image generation and editing inside Claude Code. Default engine is
 Google's **Nano Banana** (`gemini-2.5-flash-image`) — state-of-the-art photorealism plus
-natural-language editing. Imagen 4, DALL-E 3, and local ComfyUI are opt-in alternatives.
+natural-language editing. Imagen 4, DALL-E 3, **Draw Things** (local Apple Silicon),
+and **ComfyUI** (local) are available as opt-in alternatives.
 
-Every tool **renders the image inline in the chat** and saves a copy to
+Every tool renders the image inline in the chat and saves a copy to
 `~/Pictures/kitty-gen/`, so the loop is: generate → look → "change X" → `edit_image`.
 
-## What's new (PR 3)
+## What's new (P25 — local-first, fal retired)
 
-- **Unified `generate`** — one tool replaces `generate_image`, `generate_image_imagen`,
-  `generate_image_dalle`, `generate_image_comfy`. Pass `engine="nano_banana"` (default),
-  `"imagen4"`, `"dalle"`, or `"comfyui"`.
-- **`batch_generate`** — N prompts in parallel via `asyncio.gather`. 10x speedup for
-  "generate these three scenes: a, b, c". Concurrency-limited (default 10) with a
-  semaphore to avoid rate-limiting.
-- **SHA256 cache** — identical `(prompt, engine, params)` calls return the cached path
-  instantly. Cache lives at `~/Pictures/kitty-gen/.cache/`. Clear it with
-  `rm -rf ~/Pictures/kitty-gen/.cache`.
-- **Retry with backoff** — all engine calls wrap in tenacity (3 attempts, exponential
-  backoff 1–10s). A single 429 from Gemini no longer fails the whole call.
-- **Structured refusals** — when a safety filter blocks a prompt, the tool returns
-  `{"blocked": True, "reason": "..."}` so the LLM can rephrase programmatically.
+- **Draw Things engine** (`engine="drawthings"`) — A1111-compatible API for local
+  generation on Apple Silicon. Free, private, no API cost. Set `DT_URL` to point
+  at your running instance (default `http://127.0.0.1:7860`).
+- **`generate_until`** — verified generation loop: generate → score against criteria →
+  keep best → stop early when one passes all hard gates. Scorers: `mechanical`
+  (resolution, blank detection), `face_match` (InsightFace against reference images),
+  `vision_rubric` (local VLM via Ollama). Every attempt logged to
+  `~/Pictures/kitty-gen/runs/<run-id>/attempts.jsonl`.
+- **`private=True` guard** — `generate_until` refuses cloud engines when `private=True`,
+  enforcing local-only generation for personal creative work.
+- **fal retired** — all `*_fal` tools removed. Git keeps the history. Local engines
+  (Draw Things, ComfyUI) replace fal at a fraction of the per-image cost.
+  See `docs/packets/025-imagegen-pipeline-v2.md`.
 
 ## Setup
 
@@ -41,7 +42,6 @@ pip install -r requirements.txt
       "command": "/Users/jacobbrizinski/Projects/kitty/mcp/imagen/.venv/bin/python",
       "args": ["/Users/jacobbrizinski/Projects/kitty/mcp/imagen/server.py"],
       "env": {
-        "FAL_KEY": "your-fal-key",
         "GEMINI_API_KEY": "your-gemini-key",
         "OPENAI_API_KEY": "your-openai-key"
       }
@@ -50,94 +50,122 @@ pip install -r requirements.txt
 }
 ```
 
-Only `FAL_KEY` is required to use `generate_image_fal` and `generate_with_face_fal`.
 Drop keys you don't have — the server starts fine without them and only errors when
-you call a tool that needs a missing key.
+you call a tool that needs a missing key. `DT_URL` defaults to `http://127.0.0.1:7860`
+if not set.
 
-Drop a key from `env` if it's already exported in your shell. Restart Claude Code, then
-just ask: *"generate a photo of a misty harbor at dawn"* or *"edit that — make it night."*
+## Jacob's half — Draw Things setup (~30 min + downloads)
+
+1. **Draw Things** (App Store, free) → Settings → enable **API Server**
+   (`127.0.0.1:7860`, HTTP).
+2. Pick a base checkpoint on Civitai (test-drive via free on-site generation first),
+   download it + one photoreal merge + 2–3 anatomy LoRAs for that base. Import into
+   Draw Things. Same files can be symlinked into ComfyUI's `models/` if using Comfy.
+3. `ollama pull qwen2.5-vl:7b` (or the VLM of choice) for `vision_rubric` scorer.
+4. Drop 8–12 approved reference images of a character into `config/imagen/faces/<name>/`
+   for face-lock.
+5. First verified run: write `config/imagen/criteria/<name>.json`, run
+   `generate_until`, judge the survivors, tighten the rubric.
 
 ## Tools
 
 **Core**
 
-| Tool | Engine | NSFW | Best for |
-|---|---|---|---|
-| `generate` | nano_banana (default) | Tasteful | **Default.** Photorealism. Pass `engine=` to switch. |
-| `edit_image` | nano_banana | Tasteful | Refining an existing image by sentence |
-| `batch_generate` | any | varies | N prompts in parallel |
-| `generate_with_reference` | nano_banana | Tasteful | Keep a subject consistent; composite images |
-| `refine_image` | nano_banana + vision | Tasteful | Autonomous generate → critique → edit loop |
-| `variations` | nano_banana | Tasteful | "More like this one" — alternate pose/angle/lighting |
+| Tool | Engine | Best for |
+|------|--------|----------|
+| `generate` | any (default nano_banana) | **Default.** Pass `engine="drawthings"` for local. |
+| `edit_image` | nano_banana | Refine an existing image by sentence |
+| `batch_generate` | any | N prompts in parallel |
+| `generate_with_reference` | nano_banana | Keep a subject consistent; composite images |
+| `refine_image` | nano_banana + vision | Auto generate → critique → edit loop |
+| `variations` | nano_banana | "More like this one" — alternate pose/angle/lighting |
+| `generate_until` | any | Verified loop — score against criteria, keep best |
+
+**Engines (pass as `engine=` to `generate` or `batch_generate`)**
+
+| Engine | Cost | NSFW | Best for |
+|--------|------|------|----------|
+| `nano_banana` (default) | Gemini API | Tasteful | Photorealism + editing |
+| `drawthings` | $0 (local) | Full | Personal/private, Apple Silicon, no censorship |
+| `comfyui` | $0 (local) | Full/explicit | Custom LoRAs, full NSFW |
+| `imagen4` | Gemini API | Tasteful (adults) | 1–4 at once |
+| `dalle` | OpenAI API | ✗ | Creative/illustrative, text-in-image |
 
 **Persistent character**
 
 | Tool | Best for |
-|---|---|
+|------|----------|
 | `set_avatar` | Pin a reference image as a recurring character |
 | `generate_with_avatar` | Drop that character into any new scene |
+| `save_character` | Save a named character by photo + description |
+| `generate_with_character` | Place a saved character by name in a scene |
+| `generate_scene` | Two saved characters together |
 
-**Engines (pass as `engine=` to `generate` or `batch_generate`)**
+**Utility**
 
-| Tool | Engine | NSFW | Best for |
-|---|---|---|---|
-| `generate_image_fal` | fal.ai FLUX Pro Ultra | Permissive (tol 1–6) | High quality, looser safety than Gemini |
-| `generate_with_face_fal` | fal.ai PuLID | Permissive | **Face-consistent** — same person in new scenes |
-| `edit_image_fal` | fal.ai FLUX Pro Ultra img2img | Permissive | Edit a generated image by describing the change |
-| `generate_image_imagen` | Imagen 4 | Tasteful (adults) | 1–4 variations in one call |
-| `generate_image_dalle` | DALL-E 3 | ✗ | Creative/illustrative, text-in-image |
-| `generate_image_comfy` | ComfyUI (local) | Full/explicit | Explicit NSFW, custom LoRAs, $0 |
-| `make_gallery` | — | — | Browsable HTML contact sheet of all outputs |
-| Engine | NSFW | Best for |
-|---|---|---|
-| `nano_banana` (default) | Tasteful | Photorealism + editing + reference consistency |
-| `imagen4` | Tasteful (adults) | High-fidelity alternative |
-| `dalle` | ✗ | Creative/illustrative, text-in-image |
-| `comfyui` | Full/explicit | Explicit NSFW, custom LoRAs, $0 (needs ComfyUI running) |
-
-| Utility | Best for |
-|---|---|
+| Tool | Best for |
+|------|----------|
 | `make_gallery` | Browsable HTML contact sheet of all outputs |
+| `imagen_help` | This menu |
 
-### The standout: consistency & compositing
+## The verified loop
 
-`generate_with_reference` is the capability DALL-E and Imagen can't match:
+`generate_until(prompt, criteria_name, engine, max_attempts=8, keep=3)`:
 
-- **One reference** → same subject, new scene: *"the person in this photo, now on a Tokyo street at night"*
-- **Multiple references** → composite: *"put the person from image 1 in the room from image 2"*, *"dress the model in image 1 in the outfit from image 2"*
+1. Generate → score against `config/imagen/criteria/<name>.json`
+2. Scorers: `mechanical` (resolution, blank), `face_match` (InsightFace),
+   `vision_rubric` (Ollama VLM)
+3. If a candidate passes all hard gates → stop early
+4. Otherwise, re-seed and try again (optionally rephrase prompt via local LLM)
+5. Return best-N candidates sorted by total score
+6. Every attempt logged to `~/Pictures/kitty-gen/runs/<run-id>/attempts.jsonl`
 
-`set_avatar` + `generate_with_avatar` turn that into a persistent character you place into scenes without re-uploading each time.
+Set `private=True` to refuse cloud engines — for personal creative prompts.
 
-### The autonomous loop
+## Face-lock
 
-`refine_image(prompt, target, max_rounds)` generates, then a vision model critiques the
-result against `target` and either approves it or returns one concrete edit — applied and
-re-checked until it matches or rounds run out. You get the final image plus the critique trail.
+Reference-based identity locking via InsightFace. Place 8–12 approved images in
+`config/imagen/faces/<character>/`. The `face_match` scorer gates every generation
+against them. Threshold in the criteria file controls strictness.
 
-### Batch generation
+For stronger consistency: train a character LoRA via Draw Things' on-device training
+or Civitai's on-site trainer (runbooks only — no training code in v1).
 
-`batch_generate(["prompt a", "prompt b", "prompt c"], engine="nano_banana")` fires all
-three concurrently. Individual failures surface as error strings in the result list; the
-batch continues. Concurrency is limited to 10 by default (override with
-`concurrency_limit=`).
+## Criteria files
 
-## Photorealism
+Located at `config/imagen/criteria/<name>.json`:
 
-`generate` has `photorealistic=True` by default, which appends photographic cues
-(DSLR, 85mm lens, natural lighting, depth of field) to your prompt. Set it `False` for
-illustrations, paintings, or cartoons.
+```json
+{
+  "face_match": { "character": "jace", "threshold": 0.6 },
+  "rubric": [
+    "anatomy is correct: no extra limbs or distorted proportions",
+    "hands are anatomically correct",
+    "no visible artifacts, seams, or glitches"
+  ],
+  "mechanical": { "min_width": 512, "min_height": 512 }
+}
+```
+
+Rubric lines are soft by default. Add `"hard": true` to make a line a discard gate.
+
+## Cost tiers
+
+- **Tier 0 — free, local, private:** Draw Things on the Air (queue overnight;
+  quantized SDXL runs on Apple Silicon), ComfyUI local for scriptable workflows.
+- **Tier 1 — free, cloud, limited:** Civitai on-site (daily free Buzz) for trying
+  checkpoints/LoRAs before downloading 6 GB.
+- **Tier 2 — cheap, metered:** RunPod/Vast.ai spot GPU (~$0.20–0.40/hr) running
+  A1111/Forge or ComfyUI. Set `DT_URL` to the pod.
 
 ## Cache
 
 Identical `(prompt, engine, params)` calls hit a SHA256-keyed cache at
-`~/Pictures/kitty-gen/.cache/`. The cache key includes `model_name` so engine version
-changes implicitly invalidate. Clear it:
+`~/Pictures/kitty-gen/.cache/`. Clear it:
 
 ```bash
 rm -rf ~/Pictures/kitty-gen/.cache
 ```
-
-Disable it entirely:
 
 ```bash
 IMAGEN_CACHE_ENABLED=0
@@ -145,14 +173,10 @@ IMAGEN_CACHE_ENABLED=0
 
 ## Model drift
 
-Image model names move fast. Override without touching code:
+Override without touching code:
 
 ```bash
 GEMINI_IMAGE_MODEL=gemini-3.1-flash-image
-IMAGEN_MODEL=imagen-4.0-ultra-generate-001
+DT_URL=http://192.168.1.50:7860
+VISION_MODEL=llama-3.2-vision:11b
 ```
-
-## ComfyUI prompt keywords
-
-`realistic`/`photo`/`sdxl`/`photonic` → SDXL · `explicit`/`erect`/`cock` → explicit LoRA ·
-`portrait`/`landscape` → aspect · `detailed` → more steps · `more bear`/`less bear` → LoRA strength

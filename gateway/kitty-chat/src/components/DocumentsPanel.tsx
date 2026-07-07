@@ -26,11 +26,29 @@ export function DocumentsPanel() {
 
   const [target, setTarget] = useState('')
   const [dragOver, setDragOver] = useState(false)
+  const [validationError, setValidationError] = useState('')
+  const [uploadProgress, setUploadProgress] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const ALLOWED_TYPES = [
+    'application/pdf', 'text/markdown', 'text/plain',
+    'image/png', 'image/jpeg', 'image/webp', 'image/gif'
+  ]
+
   function handleFiles(files: FileList | null) {
+    setValidationError('')
+    setUploadProgress(0)
     const file = files?.[0]
-    if (file && !upload.isPending) upload.mutate(file)
+    if (!file) return
+
+    if (!ALLOWED_TYPES.includes(file.type) && !file.name.endsWith('.md')) {
+      setValidationError(`unsupported file type: ${file.type || file.name}`)
+      return
+    }
+
+    if (!upload.isPending) {
+      upload.mutate({ file, onProgress: setUploadProgress })
+    }
   }
 
   const payload = sourcesQuery.data
@@ -153,16 +171,33 @@ export function DocumentsPanel() {
               background: dragOver ? 'var(--primary-fade)' : 'var(--surface-2)',
               transform: dragOver ? 'scale(1.05) rotate(2deg)' : 'rotate(-2deg)',
               transition: 'all 0.2s',
+              position: 'relative',
+              overflow: 'hidden',
             }}
           >
-            {upload.isPending ? (
-              'uploading…'
-            ) : (
-              <>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>📥</div>
-                <div>drop files</div>
-              </>
+            {upload.isPending && uploadProgress > 0 && uploadProgress < 100 && (
+              <div style={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                height: '100%',
+                width: `${uploadProgress}%`,
+                background: 'var(--primary-fade)',
+                zIndex: 0,
+                transition: 'width 0.1s linear',
+              }} />
             )}
+
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              {upload.isPending ? (
+                `uploading… ${uploadProgress}%`
+              ) : (
+                <>
+                  <div style={{ fontSize: 32, marginBottom: 8 }}>📥</div>
+                  <div>drop files</div>
+                </>
+              )}
+            </div>
           </div>
         </div>
         <input
@@ -179,6 +214,11 @@ export function DocumentsPanel() {
           <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
             upload failed —{' '}
             {upload.error instanceof Error ? upload.error.message : 'gateway error'}
+          </p>
+        )}
+        {validationError && (
+          <p style={{ ...mutedStyle, color: 'var(--c-yellow)' }}>
+            {validationError}
           </p>
         )}
         {upload.data === null && !upload.isPending && upload.isSuccess && (

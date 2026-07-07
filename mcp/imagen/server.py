@@ -2,7 +2,7 @@
 
 Default engine is Google's "Nano Banana" (gemini-2.5-flash-image), which does both
 generation and natural-language editing with strong photorealism. Imagen 4, DALL-E 3,
-fal.ai FLUX, and local ComfyUI are available as opt-in alternatives.
+Draw Things, and local ComfyUI are available as opt-in alternatives.
 
 Every tool returns the image inline (it renders directly in the chat) AND saves a
 copy to ~/Pictures/kitty-gen/ so you can pass the path back to edit_image to refine it.
@@ -12,32 +12,27 @@ engine=...)`` + ``batch_generate(prompts, engine=...)``. A SHA256 cache deduplic
 identical (prompt, engine, params) calls. All engine calls retry with exponential
 backoff so 429s recover.
 
+P25 (retired fal): fal.ai was too expensive per-gen; replaced with local engines
+(Draw Things, ComfyUI) and the ``generate_until`` verified loop. The fal code is
+in git history — see ``docs/packets/025-imagegen-pipeline-v2.md``.
+
 Tools:
-  generate              — unified generation (engine: nano_banana | imagen4 | dalle | comfyui)
+  generate              — unified generation (engine: nano_banana | imagen4 | dalle | comfyui | drawthings)
   edit_image            — natural-language edits (Nano Banana)
   batch_generate        — N prompts in parallel (asyncio.gather)
   generate_with_reference — keep a subject consistent / composite images
   refine_image          — auto loop: generate → vision-critique → edit until it matches
   variations            — several alternates of an existing image
   set_avatar / generate_with_avatar — a persistent character you can drop into scenes
+  generate_until        — verified loop: generate → score → keep best → stop early
   make_gallery          — HTML contact sheet of everything generated
   generate_image_imagen — Imagen 4: alternative high-fidelity generation, 1-4 at once
   generate_image_dalle  — DALL-E 3: creative/illustrative prompts, text-in-image
   generate_image_comfy  — local ComfyUI: full NSFW incl. explicit (needs ComfyUI running)
-  generate_image_fal    — fal.ai FLUX Pro Ultra: high-quality, permissive safety
-  generate_with_face_fal — fal.ai PuLID: face-identity-consistent generation from a photo
-  edit_image_fal        — fal.ai FLUX Pro Ultra img2img: edit an existing image by description
-  upscale_fal           — fal.ai Clarity Upscaler: 2× or 4× resolution with real detail
-  inpaint_fal           — fal.ai FLUX Fill: rewrite a masked region only
-  face_swap_fal         — fal.ai Inswapper: transplant a real face onto any generated body
-  variations_fal        — fal.ai FLUX: N creative variations of an existing image
-  strip_clothing_fal    — fal.ai FLUX: progressive 3-step clothing removal
   save_character        — save a named character reference (face photo + description)
   list_characters       — list all saved characters
-  generate_with_character — place a named character in a new scene (PuLID by name)
+  generate_with_character — place a named character in a new scene (Nano Banana reference)
   generate_scene        — two named characters together (Nano Banana multi-ref)
-  enhance_realism_fal   — fal.ai FLUX: skin texture / body hair / subcutaneous lighting pass
-  (all fal.ai tools auto-expand prompts via Gemini text or rule-based fallback)
 """
 
 from __future__ import annotations
@@ -59,12 +54,6 @@ AVATAR_PATH = OUTPUT_DIR / "_avatar.png"
 GEMINI_IMAGE_MODEL = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
 GEMINI_VISION_MODEL = os.environ.get("GEMINI_VISION_MODEL", "gemini-2.5-flash")
 IMAGEN_MODEL = os.environ.get("IMAGEN_MODEL", "imagen-4.0-generate-001")
-FAL_FLUX_MODEL = os.environ.get("FAL_FLUX_MODEL", "fal-ai/flux-pro/v1.1-ultra")
-FAL_PULID_MODEL = os.environ.get("FAL_PULID_MODEL", "fal-ai/flux-pulid")
-FAL_UPSCALER_MODEL = os.environ.get("FAL_UPSCALER_MODEL", "fal-ai/clarity-upscaler")
-FAL_INPAINT_MODEL = os.environ.get("FAL_INPAINT_MODEL", "fal-ai/flux-pro/v1/fill")
-FAL_FACESWAP_MODEL = os.environ.get("FAL_FACESWAP_MODEL", "fal-ai/inswapper")
-
 # Appended to a prompt when photorealistic=True. Photographic cues measurably push
 # Nano Banana toward realism; toggle off for illustration/painting styles.
 PHOTOREAL_SUFFIX = (
@@ -79,23 +68,19 @@ mcp = FastMCP(
         "for new images and edit_image to refine them — both render inline and save to "
         "~/Pictures/kitty-gen/. Pass the engine name to generate() to switch backends: "
         "nano_banana (default, best photorealism), imagen4 (1-4 at once), dalle "
-        "(creative/text-in-image), comfyui (local, full NSFW). batch_generate runs N "
-        "prompts in parallel. The generate→look→edit loop is the intended workflow: "
-        "make an image, the user reacts, call edit_image with their change. "
-        "To keep a subject consistent or composite images, use generate_with_reference. "
-        "set_avatar pins a recurring character for generate_with_avatar. refine_image "
-        "runs the generate→critique→edit loop automatically. variations makes alternates, "
-        "make_gallery builds a browsable contact sheet. "
+        "(creative/text-in-image), comfyui (local, full NSFW), drawthings (local A1111). "
+        "batch_generate runs N prompts in parallel. The generate->look->edit loop is "
+        "the intended workflow: make an image, the user reacts, call edit_image with their "
+        "change. To keep a subject consistent or composite images, use "
+        "generate_with_reference. set_avatar pins a recurring character for "
+        "generate_with_avatar. refine_image runs the generate->critique->edit loop "
+        "automatically. variations makes alternates, make_gallery builds a browsable "
+        "contact sheet. generate_until runs a verified loop: generate -> score against "
+        "criteria -> keep best -> stop early when one passes all hard gates. "
         "Use generate_image_imagen for batches of 1-4, generate_image_dalle for "
         "illustrative/text-heavy prompts, generate_image_comfy for explicit NSFW. "
-        "Use generate_image_fal for FLUX Pro Ultra quality with permissive safety filters. "
-        "Use generate_with_face_fal when you have a reference photo and need the exact "
-        "same face in a new scene — PuLID preserves identity better than prompt alone. "
         "Characters: save_character stores a named reference, generate_with_character places "
-        "them by name, generate_scene puts two saved characters together. "
-        "Post-processing: upscale_fal for 4× detail, inpaint_fal to repaint a masked region, "
-        "face_swap_fal to transplant a real face, variations_fal for N alternates, "
-        "strip_clothing_fal for progressive clothing removal."
+        "them by name (Nano Banana reference), generate_scene puts two saved characters together."
     ),
 )
 
@@ -825,575 +810,53 @@ def make_gallery() -> str:
 
 
 # ---------------------------------------------------------------------------
-# fal.ai — FLUX Pro Ultra + PuLID face-consistent generation
+# generate_until — verified loop: generate, score, keep best, stop early
 # ---------------------------------------------------------------------------
 
-def _fal_client():
-    import fal_client  # noqa: PLC0415
-    key = os.environ.get("FAL_KEY") or os.environ.get("FAL_API_KEY")
-    if not key:
-        raise RuntimeError("Set FAL_KEY (or FAL_API_KEY) in your environment")
-    os.environ["FAL_KEY"] = key
-    return fal_client
-
-
-def _fal_upload(path: Path) -> str:
-    """Upload a local file to fal CDN and return its URL."""
-    fc = _fal_client()
-    return fc.upload_file(str(path))
-
-
-def _fal_download(url: str) -> bytes:
-    import httpx
-    return httpx.get(url, timeout=60, follow_redirects=True).content
-
 
 @mcp.tool()
-def generate_image_fal(
+def generate_until(
     prompt: str,
-    aspect_ratio: str = "3:4",
-    safety_tolerance: str = "5",
-    num_images: int = 1,
+    criteria_name: str = "default",
+    engine: str = "",
+    max_attempts: int = 8,
+    keep: int = 3,
+    private: bool = False,
 ) -> list:
-    """Generate an image using fal.ai FLUX Pro Ultra. Higher quality ceiling than
-    Nano Banana and a more permissive safety tolerance (1 = strictest, 6 = most
-    permissive). Does not support editing or reference images — use
-    generate_with_face_fal for face-consistent shots.
+    """Generate an image, score it against criteria, and iterate until one passes.
+
+    Each attempt is scored on mechanical checks (resolution, blank detection),
+    face-match against a reference set, and a vision-model rubric. When a
+    candidate passes all hard criteria the loop stops early. The best ``keep``
+    candidates across all attempts are returned.
+
+    Every attempt is logged to ``~/Pictures/kitty-gen/runs/<run-id>/`` with
+    scores and seeds so good results are reproducible.
 
     Args:
-        prompt: What to generate. Be explicit and descriptive.
-        aspect_ratio: 1:1, 3:4, 4:3, 9:16, 16:9, 21:9. Default 3:4 (portrait).
-        safety_tolerance: "1"–"6". Default "5" (permissive). Use "6" for nudity.
-        num_images: 1–4. Default 1.
+        prompt: What to generate. Be specific about subject, setting, lighting.
+        criteria_name: Name of a criteria file in ``config/imagen/criteria/``.
+                       Defaults to "default" (soft rubric only).
+        engine: Generation engine. Default from settings (nano_banana).
+                Use "drawthings" for local generation.
+        max_attempts: Maximum generation rounds (1-20). Default 8.
+        keep: Number of best candidates to return (1-5). Default 3.
+        private: When True, refuses cloud engines (nano_banana, imagen4, dalle).
+                 Use this for personal creative prompts.
 
     Returns:
-        Each generated image (inline) plus its saved path.
+        Images (inline) plus a summary of scores and paths.
     """
-    fc = _fal_client()
-    expanded, ai_expanded = _expand_prompt(prompt, "generate")
-    result = fc.subscribe(
-        FAL_FLUX_MODEL,
-        arguments={
-            "prompt": expanded,
-            "aspect_ratio": aspect_ratio,
-            "num_images": max(1, min(num_images, 4)),
-            "output_format": "png",
-            "safety_tolerance": safety_tolerance,
-        },
+    from mcp.imagen.tools.generate_until import generate_until as _gu
+
+    return _gu(
+        prompt=prompt,
+        criteria_name=criteria_name,
+        engine=engine,
+        max_attempts=max_attempts,
+        keep=keep,
+        private=private,
     )
-
-    out: list = []
-    for img in result.get("images", []):
-        data = _fal_download(img["url"])
-        path = _save(data, "fal")
-        out.append(Image(data=data, format="png"))
-        out.append(f"Saved to: {path}")
-
-    if ai_expanded:
-        out.append(f"Prompt sent: {expanded}")
-
-    return out or ["fal.ai returned no images — prompt may have been blocked."]
-
-
-@mcp.tool()
-def generate_with_face_fal(
-    reference_image_path: str,
-    prompt: str,
-    id_weight: float = 1.0,
-    num_images: int = 1,
-) -> list:
-    """Generate a new image of the person in the reference photo using fal.ai PuLID.
-    PuLID locks the face identity from the reference and places that person in a new
-    scene — more reliable than prompting alone. Best for model shots, outfit changes,
-    or putting someone in a new setting while keeping the face exact.
-
-    Args:
-        reference_image_path: Absolute path to a clear face photo (PNG or JPEG).
-        prompt: What scene to place them in. Describe pose, setting, clothing, lighting.
-        id_weight: How tightly to lock the identity (0.0–2.0). Default 1.0. Raise to
-                   ~1.5 for stronger likeness, lower for more creative freedom.
-        num_images: Number of results (1–4). Default 1.
-
-    Returns:
-        Each generated image (inline) plus its saved path.
-    """
-    src = Path(reference_image_path).expanduser()
-    if not src.exists():
-        return [f"Reference file not found: {reference_image_path}"]
-
-    fc = _fal_client()
-
-    expanded, ai_expanded = _expand_prompt(prompt, "face")
-    ref_url = _fal_upload(src)
-    result = fc.subscribe(
-        FAL_PULID_MODEL,
-        arguments={
-            "prompt": expanded,
-            "reference_image_url": ref_url,
-            "id_weight": id_weight,
-            "num_images": max(1, min(num_images, 4)),
-            "num_inference_steps": 28,
-            "guidance_scale": 4.0,
-            "true_cfg": 1.0,
-            "output_format": "png",
-        },
-    )
-
-    out: list = []
-    for img in result.get("images", []):
-        data = _fal_download(img["url"])
-        path = _save(data, "pulid")
-        out.append(Image(data=data, format="png"))
-        out.append(f"Saved to: {path}")
-
-    if ai_expanded:
-        out.append(f"Prompt sent: {expanded}")
-
-    return out or ["PuLID returned no images — prompt may have been blocked."]
-
-
-@mcp.tool()
-def edit_image_fal(
-    image_path: str,
-    edit_prompt: str,
-    strength: float = 0.4,
-    safety_tolerance: str = "6",
-    num_images: int = 2,
-) -> list:
-    """Edit an existing image using fal.ai FLUX Pro Ultra img2img. Describe what to
-    change in plain language — the model rewrites those parts while keeping everything
-    else. Lower strength preserves more of the original; higher strength makes bigger
-    changes.
-
-    Great workflow: generate_with_face_fal → pick best result → edit_image_fal to push
-    it further (more body hair, adjust bulge, change background, tweak lighting, etc.)
-
-    Args:
-        image_path: Absolute path to the source image (PNG or JPEG).
-        edit_prompt: Full description of the desired result. Describe the whole image,
-                     not just the change — e.g. "same man, same pose, but make the
-                     pubic hair more visible above the waistband and the bulge fuller."
-        strength: How much to change (0.1 = tiny tweak, 0.9 = almost new image).
-                  Default 0.4 — changes what you ask for while preserving pose and face.
-        safety_tolerance: "1"–"6". Default "6" (most permissive).
-        num_images: Number of edited variants to return (1–4). Default 2.
-
-    Returns:
-        Each edited image (inline) plus its saved path.
-    """
-    src = Path(image_path).expanduser()
-    if not src.exists():
-        return [f"File not found: {image_path}"]
-
-    fc = _fal_client()
-    src_url = _fal_upload(src)
-
-    expanded, ai_expanded = _expand_prompt(edit_prompt, "edit")
-    result = fc.subscribe(
-        FAL_FLUX_MODEL,
-        arguments={
-            "prompt": expanded,
-            "image_url": src_url,
-            "image_prompt_strength": strength,
-            "num_images": max(1, min(num_images, 4)),
-            "output_format": "png",
-            "safety_tolerance": safety_tolerance,
-        },
-    )
-
-    out: list = []
-    for img in result.get("images", []):
-        data = _fal_download(img["url"])
-        path = _save(data, "fal-edit")
-        out.append(Image(data=data, format="png"))
-        out.append(f"Saved to: {path}")
-
-    if ai_expanded:
-        out.append(f"Prompt sent: {expanded}")
-
-    return out or ["fal.ai returned no images — prompt may have been blocked."]
-
-
-@mcp.tool()
-def upscale_fal(
-    image_path: str,
-    scale_factor: int = 4,
-) -> list:
-    """Upscale an image 2× or 4× using fal.ai Clarity Upscaler — adds real detail
-    rather than just resizing. Great for enlarging a generated shot before cropping
-    or printing. Works on any PNG/JPEG.
-
-    Args:
-        image_path: Absolute path to the source image (PNG or JPEG).
-        scale_factor: 2 or 4. Default 4 (4× resolution increase).
-
-    Returns:
-        The upscaled image (inline) plus its saved path.
-    """
-    src = Path(image_path).expanduser()
-    if not src.exists():
-        return [f"File not found: {image_path}"]
-
-    fc = _fal_client()
-    src_url = _fal_upload(src)
-
-    result = fc.subscribe(
-        FAL_UPSCALER_MODEL,
-        arguments={
-            "image_url": src_url,
-            "scale_factor": max(2, min(scale_factor, 4)),
-            "output_format": "png",
-        },
-    )
-
-    img_url = (result.get("image") or {}).get("url") or result.get("output_url")
-    if not img_url:
-        return ["Upscaler returned no image."]
-
-    data = _fal_download(img_url)
-    path = _save(data, "upscale")
-    return [Image(data=data, format="png"), f"Saved to: {path}"]
-
-
-@mcp.tool()
-def inpaint_fal(
-    image_path: str,
-    mask_path: str,
-    prompt: str,
-    safety_tolerance: str = "6",
-) -> list:
-    """Rewrite a specific region of an image using fal.ai FLUX Fill (inpainting).
-    The mask tells the model exactly where to redraw — everywhere that is WHITE
-    in the mask gets repainted according to the prompt; BLACK areas are preserved.
-
-    To create a mask: open the image in any editor (Preview, GIMP, etc.), paint the
-    area you want to change white, save as PNG. Or generate_image_fal a plain white/
-    black mask file. The mask should be the same size as the source image.
-
-    Args:
-        image_path: Absolute path to the source image (PNG or JPEG).
-        mask_path: Absolute path to the mask image (PNG). White = repaint, Black = keep.
-        prompt: Full description of what should appear in the masked region.
-        safety_tolerance: "1"–"6". Default "6" (most permissive).
-
-    Returns:
-        The inpainted image (inline) plus its saved path.
-    """
-    src = Path(image_path).expanduser()
-    if not src.exists():
-        return [f"Source file not found: {image_path}"]
-
-    mask = Path(mask_path).expanduser()
-    if not mask.exists():
-        return [f"Mask file not found: {mask_path}"]
-
-    fc = _fal_client()
-    src_url = _fal_upload(src)
-    mask_url = _fal_upload(mask)
-
-    result = fc.subscribe(
-        FAL_INPAINT_MODEL,
-        arguments={
-            "image_url": src_url,
-            "mask_url": mask_url,
-            "prompt": prompt,
-            "output_format": "png",
-            "safety_tolerance": safety_tolerance,
-        },
-    )
-
-    out: list = []
-    for img in result.get("images", []):
-        data = _fal_download(img["url"])
-        path = _save(data, "inpaint")
-        out.append(Image(data=data, format="png"))
-        out.append(f"Saved to: {path}")
-
-    return out or ["Inpainting returned no image."]
-
-
-@mcp.tool()
-def face_swap_fal(
-    face_image_path: str,
-    target_image_path: str,
-) -> list:
-    """Swap a face from a reference photo onto a generated body using fal.ai Inswapper.
-    The face from face_image_path is extracted and transplanted onto the person in
-    target_image_path. Useful for fixing face-to-body mismatch after generation.
-
-    Best workflow:
-      1. generate_image_fal or generate_with_face_fal to get a good body/pose
-      2. face_swap_fal to lock in the exact real face
-
-    Args:
-        face_image_path: Absolute path to the source face photo (clear, front-facing).
-        target_image_path: Absolute path to the generated image with the body/pose.
-
-    Returns:
-        The face-swapped image (inline) plus its saved path.
-    """
-    face_src = Path(face_image_path).expanduser()
-    if not face_src.exists():
-        return [f"Face image not found: {face_image_path}"]
-
-    target_src = Path(target_image_path).expanduser()
-    if not target_src.exists():
-        return [f"Target image not found: {target_image_path}"]
-
-    fc = _fal_client()
-    face_url = _fal_upload(face_src)
-    target_url = _fal_upload(target_src)
-
-    result = fc.subscribe(
-        FAL_FACESWAP_MODEL,
-        arguments={
-            "source_image_url": face_url,
-            "target_image_url": target_url,
-        },
-    )
-
-    img_url = (result.get("image") or {}).get("url") or result.get("output_url")
-    if not img_url:
-        imgs = result.get("images", [])
-        img_url = imgs[0]["url"] if imgs else None
-    if not img_url:
-        return ["Face swap returned no image."]
-
-    data = _fal_download(img_url)
-    path = _save(data, "faceswap")
-    return [Image(data=data, format="png"), f"Saved to: {path}"]
-
-
-@mcp.tool()
-def variations_fal(
-    image_path: str,
-    prompt: str = "",
-    count: int = 4,
-    strength: float = 0.3,
-    safety_tolerance: str = "6",
-) -> list:
-    """Generate N creative variations of an existing image using FLUX img2img.
-    Low strength keeps pose and composition close; higher drifts further. Good for
-    "give me 4 more like this one" after finding a shot you like.
-
-    Args:
-        image_path: Absolute path to the source image.
-        prompt: Optional override — describe what you want. If empty, the model
-                infers from the source image.
-        count: How many variations (1–4). Default 4.
-        strength: 0.1 = barely changed, 0.9 = almost new. Default 0.3.
-        safety_tolerance: "1"–"6". Default "6".
-
-    Returns:
-        Each variation (inline) plus its saved path.
-    """
-    src = Path(image_path).expanduser()
-    if not src.exists():
-        return [f"File not found: {image_path}"]
-
-    fc = _fal_client()
-    src_url = _fal_upload(src)
-
-    n = max(1, min(count, 4))
-    vary_prompt = prompt or (
-        "same subject, same pose and setting, slight variation in expression and lighting"
-    )
-
-    out: list = []
-    for _ in range(n):
-        result = fc.subscribe(
-            FAL_FLUX_MODEL,
-            arguments={
-                "prompt": vary_prompt,
-                "image_url": src_url,
-                "image_prompt_strength": strength,
-                "num_images": 1,
-                "output_format": "png",
-                "safety_tolerance": safety_tolerance,
-            },
-        )
-        for img in result.get("images", []):
-            data = _fal_download(img["url"])
-            path = _save(data, "var-fal")
-            out.append(Image(data=data, format="png"))
-            out.append(f"Saved to: {path}")
-
-    return out or ["No variations were produced."]
-
-
-@mcp.tool()
-def strip_clothing_fal(
-    image_path: str,
-    base_prompt: str,
-    safety_tolerance: str = "6",
-) -> list:
-    """Progressively remove clothing from a generated image in three passes:
-    subtle (strength 0.3), moderate (strength 0.5), and strong (strength 0.7).
-    Returns all three so you can pick how far to go.
-
-    Each pass feeds into the next — the model builds on each prior result so
-    the face and body proportions stay consistent across all three outputs.
-
-    Args:
-        image_path: Absolute path to the source image.
-        base_prompt: Describe the end state you want — "naked, hairy chest, full nudity,
-                     photorealistic male" etc. The model uses this at all three steps.
-        safety_tolerance: "1"–"6". Default "6".
-
-    Returns:
-        Three progressively-more-revealed images (inline) plus saved paths.
-    """
-    src = Path(image_path).expanduser()
-    if not src.exists():
-        return [f"File not found: {image_path}"]
-
-    fc = _fal_client()
-    out: list = []
-
-    current_path = src
-    for step, strength in enumerate([0.3, 0.5, 0.7], start=1):
-        src_url = _fal_upload(current_path)
-        result = fc.subscribe(
-            FAL_FLUX_MODEL,
-            arguments={
-                "prompt": base_prompt,
-                "image_url": src_url,
-                "image_prompt_strength": strength,
-                "num_images": 1,
-                "output_format": "png",
-                "safety_tolerance": safety_tolerance,
-            },
-        )
-        imgs = result.get("images", [])
-        if not imgs:
-            out.append(f"Step {step} produced no image.")
-            break
-
-        data = _fal_download(imgs[0]["url"])
-        saved = _save(data, f"strip-{step}")
-        out.append(f"Step {step} (strength {strength}):")
-        out.append(Image(data=data, format="png"))
-        out.append(f"Saved to: {saved}")
-        current_path = saved
-
-    return out or ["No images produced."]
-
-
-@mcp.tool()
-def enhance_realism_fal(
-    image_path: str,
-    focus: str = "all",
-    strength: float = 0.18,
-    upscale_first: bool = True,
-    safety_tolerance: str = "6",
-) -> list:
-    """Run a dedicated realism enhancement pass on an existing image using FLUX img2img.
-    Improves skin texture, body hair, and subcutaneous lighting at very low strength
-    so the content, pose, and face are unchanged — only physical detail is added.
-
-    Optionally upscales 2× first with Clarity Upscaler so there's more pixel canvas
-    for the texture pass to work on. The combined result is sharper than either step alone.
-
-    Focus modes:
-      "all"   — skin texture + body hair + subcutaneous lighting (default)
-      "skin"  — skin pores, folds, vellus hair, translucency, micro imperfections
-      "hair"  — body hair strands, follicle detail, growth patterns, coarseness gradient
-      "light" — subsurface scattering, skin translucency, rim lighting, shadow gradients
-
-    Args:
-        image_path: Absolute path to the source image (PNG or JPEG).
-        focus: What to enhance — "all", "skin", "hair", or "light". Default "all".
-        strength: img2img denoising strength (0.05–0.35). Default 0.18 — adds texture
-                  detail without shifting pose, face, or composition.
-        upscale_first: Upscale 2× with Clarity Upscaler before the texture pass.
-                       Default True — more canvas = more detail rendered.
-        safety_tolerance: "1"–"6". Default "6".
-
-    Returns:
-        The enhanced image (inline) plus its saved path. If upscale_first=True, both
-        the upscaled intermediate and the final enhanced image are returned.
-    """
-    src = Path(image_path).expanduser()
-    if not src.exists():
-        return [f"File not found: {image_path}"]
-
-    fc = _fal_client()
-    out: list = []
-    current_path = src
-
-    if upscale_first:
-        src_url = _fal_upload(current_path)
-        up_result = fc.subscribe(
-            FAL_UPSCALER_MODEL,
-            arguments={
-                "image_url": src_url,
-                "scale_factor": 2,
-                "output_format": "png",
-            },
-        )
-        img_url = (up_result.get("image") or {}).get("url") or up_result.get("output_url")
-        if img_url:
-            up_data = _fal_download(img_url)
-            up_path = _save(up_data, "enhance-up")
-            out.append("Upscale 2× complete:")
-            out.append(Image(data=up_data, format="png"))
-            out.append(f"Saved to: {up_path}")
-            current_path = up_path
-
-    _focus_prompts = {
-        "skin": (
-            "photorealistic, highly detailed skin texture, visible skin pores, "
-            "subsurface scattering, translucent skin, natural skin folds and creases, "
-            "vellus hair on skin, micro skin imperfections, realistic skin tone variation, "
-            "soft dermal sheen, RAW photo, 8k uhd, ultra-detailed"
-        ),
-        "hair": (
-            "photorealistic body hair, individual hair strands clearly visible, "
-            "realistic hair follicle detail, natural hair growth pattern and direction, "
-            "coarse-to-fine density gradient, hair texture variation, "
-            "chest hair, treasure trail, forearm hair, natural bristle texture, "
-            "RAW photo, 8k uhd, ultra-detailed"
-        ),
-        "light": (
-            "photorealistic subcutaneous lighting, subsurface scattering through skin, "
-            "translucent rim lighting on skin edges, soft shadow gradients on body, "
-            "cinematic skin luminosity, natural light bounce on torso, "
-            "specular highlights on skin, deep shadow in skin folds, "
-            "RAW photo, 8k uhd, cinematic lighting"
-        ),
-        "all": (
-            "photorealistic, highly detailed skin texture, visible skin pores, "
-            "subsurface scattering, translucent skin, natural skin folds, "
-            "vellus hair on skin, micro skin imperfections, "
-            "realistic body hair, individual hair strands, natural hair growth pattern, "
-            "hair follicle detail, coarse-to-fine hair density, chest hair texture, "
-            "cinematic subsurface light scatter, skin luminosity, specular highlights, "
-            "RAW photo, 8k uhd, masterpiece, ultra-detailed"
-        ),
-    }
-    enhance_prompt = _focus_prompts.get(focus, _focus_prompts["all"])
-
-    enh_url = _fal_upload(current_path)
-    enh_result = fc.subscribe(
-        FAL_FLUX_MODEL,
-        arguments={
-            "prompt": enhance_prompt,
-            "image_url": enh_url,
-            "image_prompt_strength": max(0.05, min(strength, 0.35)),
-            "num_images": 1,
-            "output_format": "png",
-            "safety_tolerance": safety_tolerance,
-        },
-    )
-
-    for img in enh_result.get("images", []):
-        data = _fal_download(img["url"])
-        path = _save(data, f"enhance-{focus}")
-        out.append(f"Realism pass ({focus}) complete:")
-        out.append(Image(data=data, format="png"))
-        out.append(f"Saved to: {path}")
-
-    return out or ["Enhancement pass returned no image."]
 
 
 # ---------------------------------------------------------------------------
@@ -1468,17 +931,15 @@ def list_characters() -> str:
 def generate_with_character(
     character_name: str,
     prompt: str,
-    id_weight: float = 1.2,
     num_images: int = 2,
 ) -> list:
     """Generate an image of a saved character (see save_character / list_characters)
-    in a new scene using PuLID face-identity lock. Convenience wrapper so you don't
-    need to remember the file path.
+    in a new scene using Nano Banana multi-reference compositing. Convenience wrapper
+    so you don't need to remember the file path.
 
     Args:
         character_name: The name you used when calling save_character.
         prompt: Scene description — pose, setting, outfit, lighting, etc.
-        id_weight: How tightly to lock the identity (0.0–2.0). Default 1.2.
         num_images: Number of results (1–4). Default 2.
 
     Returns:
@@ -1490,12 +951,7 @@ def generate_with_character(
         hint = f"Available: {', '.join(saved)}" if saved else "No characters saved — use save_character first."
         return [f'Character "{character_name}" not found. {hint}']
 
-    return generate_with_face_fal(
-        reference_image_path=str(char),
-        prompt=prompt,
-        id_weight=id_weight,
-        num_images=num_images,
-    )
+    return generate_with_reference(reference_paths=[str(char)], prompt=prompt)
 
 
 @mcp.tool()
@@ -1563,7 +1019,7 @@ def imagen_help() -> str:
 ── CHARACTER SYSTEM ────────────────────────────────────────────────
 
 💾  save_character
-    Save a reference photo as a named character (face + optional description).
+    Save a reference photo as a named character.
     Example: save_character name="marcus" image_path="/path/to/face.jpg"
              description="dark hair, blue eyes, athletic build"
 
@@ -1572,110 +1028,79 @@ def imagen_help() -> str:
     Example: list_characters
 
 🧍  generate_with_character
-    Place a saved character in a new scene (PuLID face lock, by name).
+    Place a saved character in a new scene (Nano Banana reference).
     Example: generate_with_character character_name="marcus"
              prompt="shirtless on a beach, white swim briefs" num_images=4
 
 🎬  generate_scene
-    Two saved characters together in one image (Nano Banana multi-ref compositing).
+    Two saved characters together (Nano Banana multi-ref compositing).
     Example: generate_scene character_names=["marcus","alex"]
              prompt="both men at a pool party, sunny afternoon"
 
-── FAL.AI GENERATION & EDITING ─────────────────────────────────────
+── GENERATION ──────────────────────────────────────────────────────
 
-🎨  generate_image_fal
-    FLUX Pro Ultra. Best quality + permissive safety (tol 1–6).
-    Example: generate_image_fal prompt="..." safety_tolerance="6"
+🌟  generate(prompt, engine=...)
+    Default: Nano Banana. Pass engine="drawthings" or "comfyui" for local.
+    Example: generate prompt="photorealistic misty harbor at dawn"
 
-👤  generate_with_face_fal  ← USE THIS for single-face consistency
-    PuLID — locks identity from a reference photo, places them in a new scene.
-    Example: generate_with_face_fal reference_image_path="/path/to/face.jpg"
-             prompt="shirtless on a beach, white briefs" id_weight=1.5 num_images=4
+🖊️  edit_image
+    Natural-language edit of any image (Nano Banana).
+    Example: edit_image image_path="/path/to/image.png" edit_prompt="make it night"
 
-✏️  edit_image_fal
-    FLUX img2img — describe a change; lower strength = subtle, higher = big shift.
-    Example: edit_image_fal image_path="/path/to/image.png"
-             edit_prompt="fuller bulge, pubic hair visible above waistband" strength=0.4
+🔄  refine_image
+    Auto generate → critique → edit loop.
+    Example: refine_image prompt="..." target="moody lighting" max_rounds=3
 
-🔁  variations_fal
-    N creative variations of an existing image. Keeps pose/composition by default.
-    Example: variations_fal image_path="/path/to/image.png" count=4 strength=0.3
+🎭  variations
+    Alternates of an existing image with different angle/lighting.
+    Example: variations image_path="/path/to/image.png" count=3
 
-🔍  upscale_fal
-    4× resolution upscale with real detail added (Clarity Upscaler).
-    Example: upscale_fal image_path="/path/to/image.png" scale_factor=4
+🎯  generate_until  ← NEW: verified loop
+    Generate, score against criteria, keep best, stop early.
+    Example: generate_until prompt="..." criteria_name="character-jace"
+             engine="drawthings" private=True
 
-🎭  inpaint_fal
-    Rewrite a masked region only — white=repaint, black=keep (FLUX Fill).
-    Example: inpaint_fal image_path="..." mask_path="..." prompt="visible bulge in briefs"
+🔗  generate_with_reference
+    Composite/consistent via 1–3 reference images.
+    Example: generate_with_reference reference_paths=["a.png","b.png"]
+             prompt="the person in a, in the room from b"
 
-🔀  face_swap_fal
-    Swap a real face onto any generated body for exact likeness (Inswapper).
-    Example: face_swap_fal face_image_path="/face.jpg" target_image_path="/body.png"
+── LOCAL ENGINES ───────────────────────────────────────────────────
 
-👙  strip_clothing_fal
-    3-step progressive clothing removal at 0.3 / 0.5 / 0.7 strength. Returns all three.
-    Example: strip_clothing_fal image_path="/path/to/image.png"
-             base_prompt="naked, hairy chest, photorealistic male"
+⚙️  generate_image_comfy    — ComfyUI (local), full NSFW, $0
+🖥️  drawthings engine        — Draw Things (local, A1111-compatible API)
+     Pass engine="drawthings" to generate(). Requires DT_URL (default :7860).
 
-✨  enhance_realism_fal  ← USE THIS after any generation to add skin/hair detail
-    Dedicated skin texture + body hair + subcutaneous lighting pass at very low strength
-    (0.18 default) so pose and face are unchanged. Optionally upscales 2× first.
-    focus="all" | "skin" | "hair" | "light"
-    Example: enhance_realism_fal image_path="/path/to/image.png" focus="all"
-             (runs 2× upscale → then skin/hair detail pass automatically)
+── CLOUD ENGINES ──────────────────────────────────────────────────
 
-── GOOGLE GEMINI (needs paid billing) ─────────────────────────────
+🖼️  generate_image_imagen   — Imagen 4, 1–4 at once (needs Gemini billing)
+🎨  generate_image_dalle    — DALL-E 3 (needs OpenAI key)
 
-🌟  generate_image            — Nano Banana photorealism
-🖊️  edit_image                — Natural-language edit of any image
-🔗  generate_with_reference   — Composite/consistent via 1–3 reference images
-🔄  refine_image              — Auto generate→critique→edit loop
-🎭  variations                — Alternates with different angle/lighting
-
-── CHARACTER PINNING (single-slot shortcut) ─────────────────────────
+── CHARACTER PINNING ────────────────────────────────────────────────
 
 📌  set_avatar        — Pin ONE reference image for quick reuse
 🧍  generate_with_avatar — Drop the pinned avatar into any scene
-
-── OTHER ENGINES ───────────────────────────────────────────────────
-
-🖼️  generate_image_imagen   — Imagen 4, 1–4 at once (needs billing)
-🎨  generate_image_dalle    — DALL-E 3 (needs OpenAI key)
-⚙️  generate_image_comfy    — Local ComfyUI, fully explicit NSFW
 
 ── UTILITIES ───────────────────────────────────────────────────────
 
 🗂️  make_gallery — HTML contact sheet of all generated images
 ❓  imagen_help  — This menu
 
-── AUTO PROMPT ENGINEERING ─────────────────────────────────────────
-All fal.ai generation tools auto-expand your prompt before sending. If GEMINI_API_KEY
-is set, Gemini 2.5 Flash (free text tier) rewrites it with photographic quality tokens,
-skin detail, body hair texture, and model-specific cues. Falls back to rule-based
-expansion automatically. You always see the final sent prompt in the response.
-
 ── RECOMMENDED WORKFLOWS ───────────────────────────────────────────
 
-🎯 Best quality single-person shot:
-    1. generate_with_face_fal (reference photo + scene prompt, num_images=4)
-    2. Pick best result
-    3. enhance_realism_fal (adds skin/hair texture, upscales 2× automatically)
-    4. edit_image_fal to push specific details further (bulge, hair, lighting)
-    5. upscale_fal 4× for final print-quality output
+🎯 Best quality shot (local):
+    1. generate(prompt, engine="drawthings", seed=X)
+    2. Pick best, enhance via img2img in Draw Things / ComfyUI
+    3. generate_until for criteria-verified face-lock runs
 
 👥 Two-person scene:
-    1. save_character × 2
-    2. generate_scene → pick best
-    3. enhance_realism_fal → edit_image_fal
-
-🔁 When stuck / not enough variation:
-    variations_fal (count=4) on any result you like
+    1. save_character x 2
+    2. generate_scene x 2 characters
+    3. refine or regenerate for best result
 
 ── TIPS ────────────────────────────────────────────────────────────
-• id_weight 1.0–1.5 = tight face lock. Lower = more creative freedom.
-• safety_tolerance "6" = most permissive fal.ai allows.
-• enhance_realism_fal strength default (0.18) is safe — won't shift face or pose.
+• Pass engine="drawthings" for free local generation on Apple Silicon.
+• generate_until with private=True refuses cloud engines.
 • All images save to ~/Pictures/kitty-gen/ automatically.
 """
 

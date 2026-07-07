@@ -414,6 +414,37 @@ class SignalsAdapter(StoreAdapter):
             return []
 
 
+class WeaveAdapter(StoreAdapter):
+    """Adapter for the temporal knowledge graph (MemoryWeave)."""
+
+    @property
+    def name(self) -> str:
+        return "facts"
+
+    async def fetch(self, query: str) -> list[Item]:
+        try:
+            from gateway.memory_weave import get_weave
+
+            weave = get_weave()
+            results = await asyncio.to_thread(weave.search, query, limit=5)
+
+            items: list[Item] = []
+            for q in results:
+                # Apply staleness tag to the output text if needed
+                stale_marker = " [STALE]" if q.is_stale else ""
+                items.append(Item(
+                    text=f"{q.fact}{stale_marker} (confidence: {q.confidence:.2f})",
+                    source=Source.MEMORY, # we use Source.MEMORY as a fallback type, or we could add FACTS to Source
+                    score=q.confidence,
+                    ts=datetime.fromisoformat(q.last_verified) if q.last_verified else None,
+                    metadata=q.to_dict(),
+                ))
+            return items
+        except Exception as e:
+            logger.warning("Weave fetch failed: %s", e)
+            return []
+
+
 # --- Adapter registry ---
 
 
@@ -427,6 +458,7 @@ def _default_adapters() -> list[StoreAdapter]:
         TodosAdapter(),
         InboxAdapter(),
         SignalsAdapter(),
+        WeaveAdapter(),
     ]
     try:
         from gateway.mempalace_adapter import MemPalaceAdapter
