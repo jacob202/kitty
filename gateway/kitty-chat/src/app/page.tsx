@@ -16,6 +16,10 @@ import { TerminalStrip } from '@/components/TerminalStrip';
 import { AgentPanel } from '@/components/AgentPanel';
 import { MonitorPanel } from '@/components/MonitorPanel';
 import { ImageGenPanel } from '@/components/ImageGenPanel';
+import { ProjectsPanel } from '@/components/ProjectsPanel';
+import { DocumentsPanel } from '@/components/DocumentsPanel';
+import { ProviderCenter } from '@/components/ProviderCenter';
+import { SettingsPanel } from '@/components/SettingsPanel';
 import { LoopWatch } from '@/components/LoopWatch';
 import { InsightFeed } from '@/components/InsightFeed';
 import { PromptToolkit } from '@/components/PromptToolkit';
@@ -103,6 +107,19 @@ function ToolCard({ title, children }: { title: string; children: React.ReactNod
   );
 }
 
+function panelPadding(isMobile: boolean): React.CSSProperties {
+  return {
+    flex: 1,
+    padding: isMobile ? '16px 12px 124px' : '24px 32px 40px',
+    display: 'grid',
+    gap: 16,
+    alignContent: 'start',
+    maxWidth: 860,
+    width: '100%',
+    margin: '0 auto',
+  };
+}
+
 function latestSearchQuery(chat: Chat | null): string {
   if (!chat) return '';
   const lastUser = [...chat.messages]
@@ -144,6 +161,9 @@ function KittyChatInner() {
   const [isMobile, setIsMobile] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [theme, setTheme] = useState<'day' | 'night'>('day');
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'failed' | 'offline'>(
+    'idle',
+  );
   const pwaInstall = usePwaInstall();
 
   const catState: CatState = isStreaming ? 'working' : 'idle';
@@ -360,6 +380,32 @@ function KittyChatInner() {
     setChats((prev) => prev.map((c) => (c.id === id ? updater(c) : c)));
   }, []);
 
+  // Persist a chat to SQLite via the gateway, tracking the outcome so the UI
+  // can say saved / failed / offline instead of silently dropping history.
+  const persistChat = useCallback(async (chat: Chat) => {
+    setSaveState('saving');
+    try {
+      const res = await fetch('/proxy/chats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(chat),
+      });
+      if (res.ok) {
+        setSaveState('saved');
+      } else {
+        // The proxy answers 5xx when the gateway itself is unreachable.
+        setSaveState(res.status >= 500 ? 'offline' : 'failed');
+      }
+    } catch {
+      setSaveState('offline');
+    }
+  }, []);
+
+  const handleRetrySave = useCallback(() => {
+    const chat = chats.find((c) => c.id === activeChatId);
+    if (chat) void persistChat(chat);
+  }, [chats, activeChatId, persistChat]);
+
   const handleSend = useCallback(async () => {
     const text = input.trim();
     if (!text || isStreaming || !activeChat) return;
@@ -422,20 +468,17 @@ function KittyChatInner() {
         ),
       }));
 
-      // Persist to SQLite — fire and forget, React state is the source of truth
-      fetch('/proxy/chats', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: activeChat.id,
-          title,
-          model: activeModel.id,
-          color: activeChat.color,
-          createdAt: activeChat.createdAt,
-          updatedAt: new Date(),
-          messages: [...activeChat.messages, userMsg, { ...aiMsg, content: accumulated, mood }],
-        }),
-      }).catch(() => {});
+      // Persist to SQLite — React state stays the source of truth, but the
+      // outcome is surfaced (saving / saved / failed / offline), never swallowed.
+      void persistChat({
+        id: activeChat.id,
+        title,
+        model: activeModel.id,
+        color: activeChat.color,
+        createdAt: activeChat.createdAt,
+        updatedAt: new Date(),
+        messages: [...activeChat.messages, userMsg, { ...aiMsg, content: accumulated, mood }],
+      });
     } catch (err: unknown) {
       // User pressed Stop — keep whatever streamed so far, don't show an error.
       if (err instanceof DOMException && err.name === 'AbortError') {
@@ -453,11 +496,22 @@ function KittyChatInner() {
             : m,
         ),
       }));
+      // The stream died, but the user's message still deserves to survive a
+      // restart — persist it (the ⚠ bubble stays UI-only) and show the outcome.
+      void persistChat({
+        id: activeChat.id,
+        title,
+        model: activeModel.id,
+        color: activeChat.color,
+        createdAt: activeChat.createdAt,
+        updatedAt: new Date(),
+        messages: [...activeChat.messages, userMsg],
+      });
     } finally {
       setIsStreaming(false);
       abortRef.current = null;
     }
-  }, [input, isStreaming, activeChat, activeModel, updateChat]);
+  }, [input, isStreaming, activeChat, activeModel, updateChat, persistChat]);
 
   const handleStop = useCallback(() => {
     abortRef.current?.abort();
@@ -757,6 +811,45 @@ function KittyChatInner() {
               >
                 <TerminalStrip title="Gateway Log" maxLines={100} />
               </div>
+            ) : activeView === 'projects' ? (
+              <div style={panelPadding(isMobile)}>
+                <ProjectsPanel />
+              </div>
+            ) : activeView === 'docs' ? (
+              <div style={panelPadding(isMobile)}>
+                <DocumentsPanel />
+              </div>
+            ) : activeView === 'providers' ? (
+              <div style={panelPadding(isMobile)}>
+                <ProviderCenter />
+              </div>
+            ) : activeView === 'agents' ? (
+              <div style={panelPadding(isMobile)}>
+                <ToolCard title="agents — spawn, watch, stop">
+                  <AgentPanel />
+                </ToolCard>
+              </div>
+            ) : activeView === 'images' ? (
+              <div style={panelPadding(isMobile)}>
+                <ToolCard title="image lab — local pipeline">
+                  <ImageGenPanel />
+                </ToolCard>
+                <p
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 11,
+                    color: 'var(--ink-2)',
+                    lineHeight: 1.6,
+                  }}
+                >
+                  runs on the local engine via the gateway. ComfyUI stays an external service —
+                  planned, not wired.
+                </p>
+              </div>
+            ) : activeView === 'settings' ? (
+              <div style={panelPadding(isMobile)}>
+                <SettingsPanel theme={theme} onToggleTheme={handleToggleTheme} />
+              </div>
             ) : activeView === 'chat' && activeChat && activeChat.messages.length > 0 ? (
               <div
                 style={{
@@ -932,6 +1025,48 @@ function KittyChatInner() {
             )}
           </ErrorBoundary>
         </div>
+
+        {activeView === 'chat' && saveState !== 'idle' && (
+          <div
+            role="status"
+            style={{
+              padding: '2px 28px',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              display: 'flex',
+              justifyContent: 'flex-start',
+              alignItems: 'center',
+              gap: 8,
+              flexShrink: 0,
+              color:
+                saveState === 'saved'
+                  ? 'var(--ink-2)'
+                  : saveState === 'saving'
+                    ? 'var(--ink-2)'
+                    : 'var(--c-red)',
+            }}
+          >
+            {saveState === 'saving' && <span>saving…</span>}
+            {saveState === 'saved' && <span>saved</span>}
+            {saveState === 'failed' && <span>save failed — chat not persisted</span>}
+            {saveState === 'offline' && <span>gateway offline — chat not saved</span>}
+            {(saveState === 'failed' || saveState === 'offline') && (
+              <button
+                type="button"
+                onClick={handleRetrySave}
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 10,
+                  fontWeight: 600,
+                  textDecoration: 'underline',
+                  color: 'inherit',
+                }}
+              >
+                retry
+              </button>
+            )}
+          </div>
+        )}
 
         {activeView === 'chat' && (
           <InputBar

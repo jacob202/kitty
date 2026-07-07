@@ -4,8 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev -H 127.0.0.1 -p 4000",
+    "dev:tailnet": "next dev -H 0.0.0.0 -p 4000",
     "build": "next build",
     "start": "next start -H 127.0.0.1 -p 4000",
+    "start:tailnet": "next start -H 0.0.0.0 -p 4000",
     "test": "vitest run",
     "test:watch": "vitest",
     "gen:api-types": "openapi-typescript http://127.0.0.1:8000/openapi.json -o src/lib/gen/gateway-schema.d.ts"

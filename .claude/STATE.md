@@ -126,6 +126,20 @@ claim, edit this row to `available` and commit to `main`.
 3. C3-4 cleanup after 2026-07-13 (one-week stable window per C3 plan).
 4. Wire `MemoryWeave` into `unified_context`/`context_assembler` call paths (next session, or as a small packet).
 5. Salvage port queue: pick one (recommend `context_hierarchy.py` first — smallest, 284 LOC) when fresh session energy is available.
+## Sessions (2026-07-07)
+
+- Fable (remote, prototype sprint) — nav shell rebuilt (8 tabs: home / chat
+  / projects / docs / providers / agents / image lab / settings), new
+  ProjectsPanel (surfaces /projects/{id}/next), DocumentsPanel
+  (knowledge.py wired: sources/search/ingest), ProviderCenter
+  (plugins/MCP live + honest external-lane cards), SettingsPanel stub,
+  chat save-state indicator (saving/saved/failed/offline + retry, error
+  path now persists the user message), fixed fetchImageStatus fake
+  "available" bug, added `dev:tailnet` / `make ui-tailnet` (dev binds
+  loopback — that was the missing Tailscale step). 85 UI tests + build
+  green; screenshots verified against a live gateway in the container.
+  Branch `claude/kitty-prototype-sprint-srs5bl`.
+
 ## Blocked on
 
 - Merge conflict resolution on PR #112
