@@ -4,7 +4,7 @@
 > registry to Magic Kitty (D13). The README registry table owns packet
 > numbering — check it before naming a new packet file.
 
-**Status:** 📋 spec authored, not built
+**Status:** 🚧 phase 1 built (offline extractor); phases 2–3 not started
 **Best executor:** strongest-model prompt + Claude Code/Codex for implementation
 **Intent:** turn Jacob’s long chat history into an organized idea/project mine without turning every emotional trace into permanent personality memory.
 
