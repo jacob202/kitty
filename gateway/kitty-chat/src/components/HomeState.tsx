@@ -18,9 +18,12 @@ import {
   useGatewayHealth,
   useGatewayModels,
   useChatsPersistence,
+  useDeadlines,
+  useDeadlineSweep,
 } from '@/lib/queries';
 import type {
   GatewayAction,
+  GatewayDeadline,
   GatewayNextStep,
   GatewayProject,
   GatewayTriageEntry,
@@ -401,7 +404,12 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
   }
 
   const open = (
-    <button type="button" onClick={() => onNavigate('projects')} style={actionButtonStyle}>
+    <button
+      type="button"
+      onClick={() => onNavigate('projects')}
+      aria-label="Open projects"
+      style={actionButtonStyle}
+    >
       open
     </button>
   );
@@ -413,7 +421,21 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
         const stepQuery = stepQueries[idx];
         const step = stepQuery?.data;
         return (
-          <div key={p.id} style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => onNavigate('projects')}
+            aria-label={`Open ${p.name} in projects`}
+            style={{
+              ...itemCard,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4,
+              textAlign: 'left',
+              width: '100%',
+              cursor: 'pointer',
+            }}
+          >
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
               <span
                 style={{
@@ -438,7 +460,7 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
                     ? step.step
                     : 'no next step yet — refresh it in projects'}
             </div>
-          </div>
+          </button>
         );
       })}
       {active.length > 4 && (
@@ -451,6 +473,144 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
           }}
         >
           +{active.length - 4} more in projects
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+// ── Deadlines (urgent paper) ─────────────────────────────────────────────────
+
+function daysUntil(dueDate: string): number | null {
+  const due = new Date(`${dueDate}T00:00:00`);
+  if (Number.isNaN(due.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((due.getTime() - today.getTime()) / 86_400_000);
+}
+
+function dueLabel(dueDate: string): string {
+  const days = daysUntil(dueDate);
+  if (days === null) return dueDate;
+  if (days < 0) return `overdue ${-days}d · ${dueDate}`;
+  if (days === 0) return `due today · ${dueDate}`;
+  if (days === 1) return `due tomorrow · ${dueDate}`;
+  return `due in ${days}d · ${dueDate}`;
+}
+
+function dueTone(dueDate: string): string {
+  const days = daysUntil(dueDate);
+  if (days === null) return 'var(--ink-2)';
+  if (days <= 0) return 'var(--c-red)';
+  if (days <= 3) return 'var(--c-yellow)';
+  return 'var(--ink-2)';
+}
+
+function Deadlines() {
+  const deadlines = useDeadlines('open');
+  const sweep = useDeadlineSweep();
+
+  const sweepButton = (
+    <button
+      type="button"
+      disabled={sweep.isPending}
+      onClick={() => sweep.mutate()}
+      style={{ ...actionButtonStyle, opacity: sweep.isPending ? 0.5 : 1 }}
+    >
+      {sweep.isPending ? 'sweeping…' : 'sweep'}
+    </button>
+  );
+
+  if (deadlines.isPending) {
+    return (
+      <SectionCard title="deadlines">
+        <div role="status" style={emptyState}>
+          loading…
+        </div>
+      </SectionCard>
+    );
+  }
+
+  // fetchDeadlines folds transport errors into fromLiveGateway:false so an empty
+  // list can't be mistaken for the gateway being down.
+  if (deadlines.data?.fromLiveGateway === false) {
+    return (
+      <SectionCard title="deadlines" action={sweepButton}>
+        <ErrorCard message="gateway offline — deadlines unavailable" />
+      </SectionCard>
+    );
+  }
+
+  const open = deadlines.data?.deadlines ?? [];
+
+  if (open.length === 0) {
+    return (
+      <SectionCard title="deadlines" action={sweepButton}>
+        <div style={{ ...emptyState, textAlign: 'left', padding: '12px 2px' }}>
+          no deadlines tracked yet — sweep scans your documents and mail for due
+          dates and obligations.
+          {sweep.data && sweep.data.blind_spots.length > 0 && (
+            <div style={{ marginTop: 8, color: 'var(--ink-2)' }}>
+              last sweep found nothing — {sweep.data.blind_spots.join(', ')}
+            </div>
+          )}
+        </div>
+      </SectionCard>
+    );
+  }
+
+  const nearest = open[0];
+  const rest = open.slice(1, 4);
+
+  return (
+    <SectionCard title="deadlines" count={open.length} action={sweepButton}>
+      <div style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div
+          style={{
+            fontFamily: 'var(--font-body)',
+            fontSize: 14,
+            fontWeight: 600,
+            color: 'var(--ink)',
+          }}
+        >
+          {nearest.obligation}
+        </div>
+        <div
+          style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: dueTone(nearest.due_date) }}
+        >
+          {dueLabel(nearest.due_date)}
+          {nearest.amount ? ` · ${nearest.currency ?? ''}${nearest.amount}` : ''}
+          {nearest.confidence === 'needs_jacob' ? ' · needs your eyes' : ''}
+        </div>
+      </div>
+      {rest.map((d: GatewayDeadline) => (
+        <div
+          key={d.id}
+          style={{ ...itemCard, display: 'flex', justifyContent: 'space-between', gap: 8 }}
+        >
+          <span style={{ ...bodyText, fontSize: 12, color: 'var(--ink)' }}>{d.obligation}</span>
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              color: dueTone(d.due_date),
+              flexShrink: 0,
+            }}
+          >
+            {dueLabel(d.due_date)}
+          </span>
+        </div>
+      ))}
+      {open.length > 4 && (
+        <div
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            color: 'var(--ink-2)',
+            textAlign: 'center',
+          }}
+        >
+          +{open.length - 4} more
         </div>
       )}
     </SectionCard>
@@ -750,7 +910,13 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
 
 // ── Today (todos) ────────────────────────────────────────────────────────────
 
-function TodayPanel({ gatewayError }: { gatewayError: string | null }) {
+function TodayPanel({
+  gatewayError,
+  onNavigate,
+}: {
+  gatewayError: string | null;
+  onNavigate: (view: string) => void;
+}) {
   // fetchGatewayTodos swallows its own errors into `[]`, so an empty list
   // here is ambiguous between "nothing today" and "gateway's down." The
   // caller passes down a sibling query's error (brief) as the tie-breaker.
@@ -776,8 +942,19 @@ function TodayPanel({ gatewayError }: { gatewayError: string | null }) {
     );
   }
 
+  const openTasks = (
+    <button
+      type="button"
+      onClick={() => onNavigate('tasks')}
+      aria-label="Open tasks"
+      style={actionButtonStyle}
+    >
+      open
+    </button>
+  );
+
   return (
-    <SectionCard title="today" count={open.length || undefined}>
+    <SectionCard title="today" count={open.length || undefined} action={openTasks}>
       {open.length === 0 ? (
         <div style={emptyState}>nothing on the list</div>
       ) : (
@@ -867,9 +1044,10 @@ export function HomeState({
       <HealthStrip />
       <WhatsNext onDecideInChat={onDecideInChat} onNavigate={onNavigate} />
       <NeedsYou onDecideInChat={onDecideInChat} />
+      <Deadlines />
       <ActiveProjects onNavigate={onNavigate} />
       <WhatChanged />
-      <TodayPanel gatewayError={gatewayError} />
+      <TodayPanel gatewayError={gatewayError} onNavigate={onNavigate} />
       <CaptureSection />
     </div>
   );

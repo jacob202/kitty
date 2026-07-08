@@ -1007,6 +1007,59 @@ export async function refreshProject(projectId: number): Promise<{ next_step?: {
   return await gfetch(`/projects/${projectId}/refresh`, { method: 'POST' }, 60_000)
 }
 
+// ── Deadlines (urgent paper, docs/packets/017) ───────────────────────────────
+
+export interface GatewayDeadline {
+  id: number
+  project_id: number
+  source: string
+  source_id: string | null
+  due_date: string
+  obligation: string
+  amount: number | null
+  currency: string | null
+  confidence: 'high' | 'medium' | 'low' | 'needs_jacob'
+  status: 'open' | 'closed' | 'needs_jacob'
+  dedupe_key: string
+  created_at: number
+  updated_at: number
+  pushed_at: number | null
+}
+
+export interface GatewayDeadlinesPayload {
+  deadlines: GatewayDeadline[]
+  fromLiveGateway: boolean
+  error: string | null
+}
+
+/** Backend returns rows already sorted by due_date ASC, so `deadlines[0]` is the
+ *  nearest due item. Transport errors fold into `fromLiveGateway:false` so the
+ *  Home card can tell "gateway down" apart from "nothing tracked". */
+export async function fetchDeadlines(status = 'open'): Promise<GatewayDeadlinesPayload> {
+  try {
+    const json = await gfetch<{ deadlines?: GatewayDeadline[] }>(
+      `/deadlines?status=${encodeURIComponent(status)}`,
+    )
+    return { deadlines: json.deadlines ?? [], fromLiveGateway: true, error: null }
+  } catch (err) {
+    return { deadlines: [], fromLiveGateway: false, error: describeFetchError(err, null) }
+  }
+}
+
+export interface DeadlineSweepReport {
+  found: number
+  open: number
+  needs_jacob: number
+  top: GatewayDeadline | null
+  blind_spots: string[]
+  generated_at: string
+}
+
+/** The sweep scans documents + mail via the LLM server-side — give it room. */
+export async function runDeadlineSweep(): Promise<DeadlineSweepReport> {
+  return await gfetch<DeadlineSweepReport>('/deadlines/sweep', { method: 'POST' }, 60_000)
+}
+
 // ── Knowledge (Documents) ────────────────────────────────────────────────────
 
 export interface KnowledgeSource {
