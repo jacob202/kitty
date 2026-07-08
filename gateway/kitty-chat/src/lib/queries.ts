@@ -57,6 +57,9 @@ import {
   fetchProjectNext,
   refreshProject,
   type GatewayProject,
+  // deadlines
+  fetchDeadlines,
+  runDeadlineSweep,
   // cockpit health
   fetchGatewayHealth,
   fetchChatsPersistence,
@@ -486,6 +489,25 @@ export function useRefreshProject() {
       qc.invalidateQueries({ queryKey: ['projects'] })
       qc.invalidateQueries({ queryKey: ['projects', projectId, 'next'] })
     },
+  })
+}
+
+// ── Deadlines (urgent paper) ──────────────────────────────────────────────────
+
+export function useDeadlines(status = 'open') {
+  return useQuery({
+    queryKey: ['deadlines', status],
+    queryFn: () => fetchDeadlines(status),
+    refetchInterval: 5 * 60_000,
+    retry: false,
+  })
+}
+
+export function useDeadlineSweep() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => runDeadlineSweep(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['deadlines'] }),
   })
 }
 
