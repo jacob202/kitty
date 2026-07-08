@@ -212,4 +212,22 @@ async def get_mood():
     return get_state()
 
 
+@app.get("/stream")
+async def sse_stream(request: Request, session_id: str | None = None):
+    """Server-Sent Events endpoint for pushing state changes to the UI."""
+    import uuid
+    from fastapi.responses import StreamingResponse
+    from gateway.sse import broadcaster
+
+    client_id = session_id or str(uuid.uuid4())
+
+    async def event_generator():
+        async for message in broadcaster.subscribe(client_id):
+            if await request.is_disconnected():
+                break
+            yield message
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
 register_routes(app)

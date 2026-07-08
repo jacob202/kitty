@@ -14,7 +14,7 @@ from mcp.imagen import cache, engines
 from mcp.imagen.config import settings
 from mcp.imagen.engines.base import RefusalError
 from mcp.imagen.io import save_image
-from mcp.imagen.logging import log
+from mcp.imagen.logger import log
 from mcp.server.fastmcp import Image
 
 

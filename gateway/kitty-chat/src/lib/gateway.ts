@@ -1,6 +1,6 @@
 import { MODELS, type Model } from './types'
 
-const GATEWAY_BASE = '/proxy'
+export const GATEWAY_BASE = '/proxy'
 const DEFAULT_TIMEOUT_MS = 2500
 
 export interface GatewayHeadline {
@@ -110,6 +110,34 @@ export type GatewaySearchPayload = {
   error: string | null
 }
 
+// ── Magic Kitty ──────────────────────────────────────────────────────────────
+
+export interface MagicConnection {
+  insight_id: string
+  kind: string
+  title: string
+  detail: string
+  source: string
+  confidence: number
+  created_at: number
+}
+
+export interface MagicPayload {
+  connections: MagicConnection[]
+  projects_used: number
+  generated_at: number
+}
+
+export async function fetchMagicInsights(force = false): Promise<MagicPayload> {
+  const params = force ? '?force=true' : ''
+  try {
+    const json = await gfetch<MagicPayload>(`/magic${params}`)
+    return json
+  } catch {
+    return { connections: [], projects_used: 0, generated_at: 0 }
+  }
+}
+
 export interface GatewayWeather {
   temp_c?: number
   feels_like_c?: number
@@ -154,8 +182,18 @@ async function fetchWithTimeout(
     }
   }
 
+  const headers = new Headers()
+  const token = typeof window !== 'undefined' && window.localStorage ? window.localStorage.getItem('kitty_token') : null
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
+
   try {
-    return await fetch(input, { signal: controller.signal })
+    const response = await fetch(input, { headers, signal: controller.signal })
+    if (response.status === 401 && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('kitty:unauthorized'))
+    }
+    return response
   } finally {
     window.clearTimeout(timeoutId)
   }
@@ -348,8 +386,17 @@ export interface AgentSession {
 async function gfetch<T = unknown>(path: string, init?: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
   const controller = new AbortController()
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
+  const headers = new Headers(init?.headers)
+  const token = typeof window !== 'undefined' ? localStorage.getItem('kitty_token') : null
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
+
   try {
-    const response = await fetch(`${GATEWAY_BASE}${path}`, { ...init, signal: controller.signal })
+    const response = await fetch(`${GATEWAY_BASE}${path}`, { ...init, headers, signal: controller.signal })
+    if (response.status === 401 && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('kitty:unauthorized'))
+    }
     if (!response.ok) {
       throw new Error(`Gateway returned ${response.status} ${response.statusText}`.trim())
     }
@@ -392,6 +439,42 @@ export async function fetchAgentSessions(limit = 10): Promise<AgentSession[]> {
 export async function stopAgent(sessionId: number): Promise<boolean> {
   try {
     await gfetch(`/agent/${sessionId}/stop`, { method: 'POST' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+// ── Deadlines ────────────────────────────────────────────────────────────────
+
+export interface GatewayDeadline {
+  id: number
+  project_id: number
+  source: string
+  source_id: string | null
+  due_date: string
+  obligation: string
+  amount: number | null
+  currency: string | null
+  confidence: 'high' | 'medium' | 'low' | 'needs_jacob'
+  status: 'open' | 'closed' | 'needs_jacob'
+  created_at: number
+  updated_at: number
+  pushed_at: number | null
+}
+
+export async function fetchGatewayDeadlines(status: string = 'open'): Promise<GatewayDeadline[]> {
+  try {
+    const json = await gfetch<{ deadlines?: GatewayDeadline[] }>(`/deadlines?status=${status}`)
+    return json.deadlines ?? []
+  } catch {
+    return []
+  }
+}
+
+export async function closeGatewayDeadline(id: number): Promise<boolean> {
+  try {
+    await gfetch(`/deadlines/${id}/close`, { method: 'POST' })
     return true
   } catch {
     return false
@@ -664,6 +747,54 @@ export async function fetchGatewayInsights(limit = 10): Promise<GatewayInsightsP
 export async function dismissGatewayInsight(insightId: string): Promise<boolean> {
   try {
     await gfetch(`/insight/${insightId}/dismiss`, { method: 'POST' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+// ── Expert Signals ────────────────────────────────────────────────────────────
+
+export interface ExpertSignal {
+  id: number;
+  ts: number;
+  source: string;
+  kind: string;
+  payload: {
+    headline: string;
+    analysis: string;
+    topic_hash?: string;
+  };
+  dedupe_key: string;
+  processed_at: number | null;
+  created_at: number;
+}
+
+export async function fetchExpertSignals(): Promise<ExpertSignal[]> {
+  try {
+    const json = await gfetch<{ signals?: ExpertSignal[] }>(`/experts/signals/unprocessed`)
+    return json.signals ?? []
+  } catch (err) {
+    console.error("fetchExpertSignals error:", err)
+    return []
+  }
+}
+
+export async function dismissExpertSignal(signalId: number): Promise<boolean> {
+  try {
+    await gfetch(`/experts/signals/${signalId}/dismiss`, { method: 'POST' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function snoozeExpert(expertId: string, durationHours: number = 24.0): Promise<boolean> {
+  try {
+    await gfetch(`/experts/${expertId}/snooze`, {
+      method: 'POST',
+      body: JSON.stringify({ duration_hours: durationHours })
+    })
     return true
   } catch {
     return false
@@ -948,10 +1079,30 @@ export interface CaptureResult {
   message: string
 }
 
-export async function uploadCaptureFile(file: File, onProgress?: (percent: number) => void): Promise<CaptureResult | null> {
-  return new Promise((resolve) => {
+export async function uploadCaptureFile(
+  file: File,
+  onProgress?: (percent: number) => void,
+  signal?: AbortSignal,
+): Promise<CaptureResult | null> {
+  return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
+
+    if (signal) {
+      if (signal.aborted) {
+        return reject(new Error('AbortError'))
+      }
+      signal.addEventListener('abort', () => {
+        xhr.abort()
+        reject(new Error('AbortError'))
+      }, { once: true })
+    }
+
     xhr.open('POST', `${GATEWAY_BASE}/capture/file`)
+
+    const token = typeof window !== 'undefined' ? localStorage.getItem('kitty_token') : null
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+    }
 
     if (onProgress && xhr.upload) {
       xhr.upload.onprogress = (e) => {
@@ -963,6 +1114,9 @@ export async function uploadCaptureFile(file: File, onProgress?: (percent: numbe
     }
 
     xhr.onload = () => {
+      if (xhr.status === 401 && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('kitty:unauthorized'))
+      }
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
           resolve(JSON.parse(xhr.responseText))

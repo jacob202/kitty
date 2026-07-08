@@ -17,12 +17,59 @@ interface Props {
   onViewChange?: (view: string) => void
   theme?: 'day' | 'night'
   onToggleTheme?: () => void
+  isMobile?: boolean
 }
 
-export function Rail({ activeView = 'home', onViewChange, theme = 'day', onToggleTheme }: Props) {
+export function Rail({ activeView = 'home', onViewChange, theme = 'day', onToggleTheme, isMobile }: Props) {
   const themeIconPath = theme === 'night'
     ? 'M12 3 V5 M12 19 V21 M3 12 H5 M19 12 H21 M5.5 5.5 L7 7 M17 17 L18.5 18.5 M18.5 5.5 L17 7 M7 17 L5.5 18.5 M12 8 a4 4 0 1 0 0 8 a4 4 0 0 0 0 -8'
     : 'M19 13 a8 8 0 1 1 -8 -10 a6 6 0 0 0 8 10 Z'
+
+  if (isMobile) {
+    return (
+      <nav className="safe-bottom" style={{
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        background: 'var(--surface-2)',
+        borderTop: '1.5px solid var(--line)',
+        display: 'flex',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-around',
+        paddingTop: 10,
+        zIndex: 100,
+        boxShadow: '0 -4px 14px rgba(0,0,0,0.05)',
+      }}>
+        {NAV_ITEMS.map(({ label, view, d }) => {
+          const active = activeView === view
+          return (
+            <button
+              key={view}
+              onClick={() => onViewChange?.(view)}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 4,
+                padding: '6px 0',
+                border: 'none',
+                background: 'transparent',
+                color: active ? 'var(--cat-ginger)' : 'var(--ink-2)',
+                flex: 1,
+              }}
+            >
+              <svg viewBox="0 0 24 24" style={{ width: 24, height: 24, marginBottom: 2 }}>
+                <path d={d} stroke="currentColor" strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" filter="url(#wob)" />
+              </svg>
+              <span style={{ fontSize: 10, letterSpacing: '0.02em', fontWeight: 600 }}>{label}</span>
+            </button>
+          )
+        })}
+      </nav>
+    )
+  }
 
   return (
     <nav style={{

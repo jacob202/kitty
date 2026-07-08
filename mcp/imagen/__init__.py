@@ -2,7 +2,7 @@
 
 Package structure (PR 2 + PR 3):
   config.py    — settings, constants, model names
-  logging.py   — structured logger
+  logger.py   — structured logger
   io.py        — save_image, image-part helpers, response parsing
   cache.py     — SHA256-keyed cache for identical (prompt, engine, params)
   retry.py     — tenacity decorator with exponential backoff

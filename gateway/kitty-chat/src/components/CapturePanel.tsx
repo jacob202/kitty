@@ -1,22 +1,29 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { uploadCaptureFile } from '@/lib/gateway'
+import { useUploadCapture } from '@/lib/queries'
 
 export function CapturePanel() {
   const [status, setStatus] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const upload = useUploadCapture()
 
-  const handleFile = useCallback(async (file: File) => {
+  const handleFile = useCallback((file: File) => {
     setStatus('Uploading...')
-    const result = await uploadCaptureFile(file)
-    if (result) {
-      setStatus(`${result.status}: ${result.message}`)
-    } else {
-      setStatus('Upload failed')
-    }
-  }, [])
+    upload.mutate({ file }, {
+      onSuccess: (result) => {
+        if (result) {
+          setStatus(`${result.status}: ${result.message}`)
+        } else {
+          setStatus('Upload failed')
+        }
+      },
+      onError: () => {
+        setStatus('Upload failed')
+      }
+    })
+  }, [upload])
 
   const onChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {

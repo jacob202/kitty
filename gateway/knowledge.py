@@ -50,6 +50,9 @@ EXPERT_PROFILES: dict[str, dict[str, Any]] = {
                 "~/Library/Mobile Documents/iCloud~net~obdsoftware~obdfusion/Documents/CsvLogs"
             ],
             "learning_enabled": True,
+            "poll_interval_hours": 0.5,
+            "cooldown_hours": 4.0,
+            "suppress_after_dismissals": 3,
         },
     },
     "health": {
@@ -59,6 +62,9 @@ EXPERT_PROFILES: dict[str, dict[str, Any]] = {
             "watch_inbox": True,
             "watch_directories": [],
             "learning_enabled": True,
+            "poll_interval_hours": 12.0,
+            "cooldown_hours": 24.0,
+            "suppress_after_dismissals": 3,
         },
     },
     "audio": {
@@ -68,6 +74,9 @@ EXPERT_PROFILES: dict[str, dict[str, Any]] = {
             "watch_inbox": True,
             "watch_directories": [],
             "learning_enabled": True,
+            "poll_interval_hours": 24.0,
+            "cooldown_hours": 24.0,
+            "suppress_after_dismissals": 3,
         },
     },
 }

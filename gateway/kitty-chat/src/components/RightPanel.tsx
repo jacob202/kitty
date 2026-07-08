@@ -2,7 +2,7 @@
 import { Chat, STREAMING_LABEL } from '@/lib/types'
 import type { GatewayBrief, GatewayHeadline, GatewaySearchSnapshot } from '@/lib/gateway'
 import { CronPanel } from './CronPanel'
-import { sectionLabel } from '@/lib/ui'
+import { SectionLabel } from '@/components/ui/SectionLabel'
 
 interface Props {
   chats: Chat[]
@@ -47,7 +47,7 @@ export function RightPanel({
         justifyContent: 'space-between',
         flexShrink: 0,
       }}>
-        <span style={{ ...sectionLabel, letterSpacing: '0.16em' }}>today</span>
+        <SectionLabel style={{ letterSpacing: '0.16em' }}>today</SectionLabel>
         <span style={{
           fontFamily: 'var(--font-mono)',
           fontSize: 10,
@@ -225,7 +225,7 @@ function PanelRow({ label, children }: {
       marginLeft: 12,
       marginBottom: 6,
     }}>
-      <div style={{ ...sectionLabel, marginBottom: 2 }}>{label}</div>
+      <SectionLabel style={{ marginBottom: 2 }}>{label}</SectionLabel>
       {children}
     </div>
   )

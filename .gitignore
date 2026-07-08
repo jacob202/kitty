@@ -71,3 +71,13 @@ kitty_gateway/
 .aider*
 
 .worktrees/
+
+# Imagen runtime
+mcp/imagen/ComfyUI/
+mcp/imagen/.venv/
+mcp/imagen/.env
+mcp/imagen/*.ckpt
+mcp/imagen/models/
+mcp/imagen/Icon*
+mcp/imagen/COLAB_INSTRUCTIONS.md
+mcp/imagen/test_run.py

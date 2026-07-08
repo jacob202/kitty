@@ -16,7 +16,7 @@ describe('TerminalStrip', () => {
   it('renders title and line count', () => {
     render(<TerminalStrip title="Gateway Log" maxLines={50} />)
     expect(screen.getByText('Gateway Log')).toBeInTheDocument()
-    expect(screen.getByText('0 lines')).toBeInTheDocument()
+    expect(screen.getByText('1 lines')).toBeInTheDocument()
   })
 
   it('shows logs with timestamps and levels', async () => {

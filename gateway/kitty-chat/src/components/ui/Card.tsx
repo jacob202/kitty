@@ -38,14 +38,30 @@ export function ItemCard({
   style,
   role,
   onClick,
+  onKeyDown,
+  onMouseEnter,
+  onMouseLeave,
+  tabIndex,
 }: {
   children: ReactNode;
   style?: CSSProperties;
   role?: string;
   onClick?: () => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLDivElement>) => void;
+  onMouseEnter?: (e: React.MouseEvent<HTMLDivElement>) => void;
+  onMouseLeave?: (e: React.MouseEvent<HTMLDivElement>) => void;
+  tabIndex?: number;
 }) {
   return (
-    <div role={role} style={{ ...itemCard, ...style }} onClick={onClick}>
+    <div
+      role={role}
+      tabIndex={tabIndex}
+      style={{ ...itemCard, ...style }}
+      onClick={onClick}
+      onKeyDown={onKeyDown}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
       {children}
     </div>
   );

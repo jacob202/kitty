@@ -52,7 +52,10 @@ def get_projects(status: str | None = None) -> dict:
 
 @router.post("/projects")
 def post_project(payload: CreateProjectRequest) -> dict:
-    return _handle(project_store.create, payload.name, payload.kind, payload.paths, payload.links)
+    result = _handle(project_store.create, payload.name, payload.kind, payload.paths, payload.links)
+    from gateway.sse import broadcaster
+    broadcaster.broadcast("projects_updated")
+    return result
 
 
 @router.patch("/projects/{project_id}")
@@ -70,7 +73,18 @@ def patch_project(project_id: int, payload: UpdateProjectRequest) -> dict:
         fields["links_json"] = payload.links
     if not fields:
         raise HTTPException(status_code=400, detail="no updatable fields in payload")
-    return _handle(project_store.update_fields, project_id, **fields)
+    result = _handle(project_store.update_fields, project_id, **fields)
+    from gateway.sse import broadcaster
+    broadcaster.broadcast("projects_updated")
+    return result
+
+
+@router.delete("/projects/{project_id}")
+def delete_project(project_id: int) -> dict:
+    _handle(project_store.delete, project_id)
+    from gateway.sse import broadcaster
+    broadcaster.broadcast("projects_updated")
+    return {"status": "deleted", "id": project_id}
 
 
 @router.post("/projects/{project_id}/refresh")
@@ -91,6 +105,8 @@ def post_refresh(project_id: int) -> dict:
             title="What's next",
             dedupe_key=f"next-step-{project_id}-{digest}",
         )
+    from gateway.sse import broadcaster
+    broadcaster.broadcast("projects_updated")
     return {**refreshed, "next_step": {"ok": True, **step}}
 
 

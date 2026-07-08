@@ -20,7 +20,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from mcp.imagen.logging import log
+from mcp.imagen.logger import log
 
 try:
     from google.api_core.exceptions import ResourceExhausted, ServiceUnavailable

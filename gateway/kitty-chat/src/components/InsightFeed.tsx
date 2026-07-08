@@ -1,7 +1,9 @@
 'use client'
 import type { CSSProperties } from 'react'
 import type { GatewayInsight, InsightKind } from '@/lib/gateway'
-import { card, cardHeader, cardTitle, cardMeta, itemCard, emptyState } from '@/lib/ui'
+import { Card, CardHeader, ItemCard } from '@/components/ui/Card'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { Button } from '@/components/ui/Button'
 import { Skeleton } from './Skeleton'
 
 interface Props {
@@ -42,14 +44,11 @@ export function InsightFeed({ insights, onDismiss, onAction, title = 'Insights',
   const sorted = [...insights].sort((a, b) => b.created_at - a.created_at)
 
   return (
-    <div style={containerStyle}>
-      <div style={headerStyle}>
-        <span style={titleStyle}>{title}</span>
-        <span style={countStyle}>{insights.length} new</span>
-      </div>
+    <Card style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <CardHeader title={title} count={`${insights.length} new`} />
       <div style={listStyle}>
         {sorted.map(insight => (
-          <div key={insight.insight_id} style={cardBaseStyle}>
+          <ItemCard key={insight.insight_id} style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div style={cardHeaderStyle}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{
@@ -59,7 +58,7 @@ export function InsightFeed({ insights, onDismiss, onAction, title = 'Insights',
                   background: kindColor(insight.kind),
                   flexShrink: 0,
                 }} />
-                <span style={kindBadgeStyle(cardBaseStyle, kindColor(insight.kind))}>
+                <span style={kindBadgeStyle(kindColor(insight.kind))}>
                   {kindLabel(insight.kind)}
                 </span>
               </div>
@@ -75,13 +74,13 @@ export function InsightFeed({ insights, onDismiss, onAction, title = 'Insights',
             {insight.actions && insight.actions.length > 0 && (
               <div style={actionsStyle}>
                 {insight.actions.map(action => (
-                  <button
+                  <Button
                     key={action.action_id}
                     onClick={() => onAction?.(insight.insight_id, action.action_id)}
-                    style={actionBtnStyle}
+                    variant="action"
                   >
                     {action.label}
-                  </button>
+                  </Button>
                 ))}
               </div>
             )}
@@ -95,7 +94,7 @@ export function InsightFeed({ insights, onDismiss, onAction, title = 'Insights',
                 ✕
               </button>
             )}
-          </div>
+          </ItemCard>
         ))}
         {insights.length === 0 && (
           isLoading ? (
@@ -104,18 +103,15 @@ export function InsightFeed({ insights, onDismiss, onAction, title = 'Insights',
               <Skeleton height={56} />
             </div>
           ) : (
-            <div style={emptyStyle}>No new insights</div>
+            <EmptyState>No new insights</EmptyState>
           )
         )}
       </div>
-    </div>
+    </Card>
   )
 }
 
-const containerStyle: CSSProperties = { ...card, display: 'flex', flexDirection: 'column', gap: 12 }
-const headerStyle: CSSProperties = cardHeader
-const titleStyle: CSSProperties = cardTitle
-const countStyle: CSSProperties = cardMeta
+
 
 const listStyle: CSSProperties = {
   display: 'flex',
@@ -123,7 +119,7 @@ const listStyle: CSSProperties = {
   gap: 8,
 }
 
-const cardBaseStyle: CSSProperties = { ...itemCard, position: 'relative', display: 'flex', flexDirection: 'column', gap: 6 }
+
 
 const cardHeaderStyle: CSSProperties = {
   display: 'flex',
@@ -131,8 +127,7 @@ const cardHeaderStyle: CSSProperties = {
   alignItems: 'center',
 }
 
-const kindBadgeStyle = (base: CSSProperties, color: string): CSSProperties => ({
-  ...base,
+const kindBadgeStyle = (color: string): CSSProperties => ({
   fontFamily: 'var(--font-mono)',
   fontSize: 9,
   fontWeight: 700,
@@ -178,18 +173,7 @@ const actionsStyle: CSSProperties = {
   marginTop: 4,
 }
 
-const actionBtnStyle: CSSProperties = {
-  background: 'var(--surface-mid)',
-  border: '1px solid var(--border)',
-  borderRadius: 4,
-  padding: '4px 10px',
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  fontWeight: 600,
-  color: 'var(--text)',
-  cursor: 'pointer',
-  transition: 'all 0.15s ease',
-}
+
 
 const dismissBtnStyle: CSSProperties = {
   position: 'absolute',
@@ -203,6 +187,3 @@ const dismissBtnStyle: CSSProperties = {
   padding: 2,
   lineHeight: 1,
 }
-
-
-const emptyStyle: CSSProperties = emptyState

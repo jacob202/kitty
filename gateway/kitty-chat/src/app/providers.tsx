@@ -1,9 +1,20 @@
 'use client'
 import { useState, type ReactNode } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, MutationCache } from '@tanstack/react-query'
 
 export function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(() => new QueryClient({
+    mutationCache: new MutationCache({
+      onError: (error) => {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('kitty:toast', {
+              detail: { message: error.message || 'Action failed', type: 'error' },
+            })
+          )
+        }
+      },
+    }),
     defaultOptions: {
       queries: {
         // Cache for a minute, refetch on focus so the dashboard recovers

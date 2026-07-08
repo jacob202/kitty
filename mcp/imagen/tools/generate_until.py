@@ -6,7 +6,7 @@ Claude sessions can run: generate → score → keep best → stop early.
 
 from __future__ import annotations
 
-from mcp.imagen.logging import log
+from mcp.imagen.logger import log
 from mcp.imagen.verify import generate_until as _generate_until
 from mcp.server.fastmcp import Image
 

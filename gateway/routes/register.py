@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from gateway.routes import (
+    experts,
     actions,
     ask,
     brief,
@@ -24,6 +25,7 @@ from gateway.routes import (
     kitty_tools,
     knowledge,
     loops,
+    magic,
     memories,
     monitors,
     projects,
@@ -38,6 +40,7 @@ from gateway.routes import (
 
 def register_routes(app: FastAPI) -> None:
     for module in (
+        experts,
         actions,
         ask,
         brief,
@@ -65,6 +68,7 @@ def register_routes(app: FastAPI) -> None:
         status,
         telos,
         voice,
-        extended,
-    ):
+    extended,
+    magic,
+):
         app.include_router(module.router)

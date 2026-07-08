@@ -15,6 +15,7 @@ import time
 from collections import defaultdict
 from typing import Optional
 
+from gateway.memory_policy import rewrite_sensitive_summary
 from gateway.paths import DATA_DIR, LOG_FILE
 
 logger = logging.getLogger("kitty.memory_consolidation")
@@ -76,9 +77,11 @@ def consolidate_recent(days: int = 3) -> int:
         if len(cluster_traces) < MIN_TRACES_FOR_SUMMARY:
             continue
         summary = _summarize_cluster(domain, cluster_traces)
-        if summary:
-            _store_memory(domain, summary, cluster_traces)
-            count += 1
+        if not summary or summary.strip() == "NO_DURABLE_MEMORY":
+            continue
+        safe_summary = rewrite_sensitive_summary(summary)
+        _store_memory(domain, safe_summary, cluster_traces)
+        count += 1
 
     return count
 
@@ -128,7 +131,14 @@ def _cluster_by_domain(traces: list[dict]) -> dict[str, list[dict]]:
 
 
 def _summarize_cluster(domain: str, traces: list[dict]) -> Optional[str]:
-    """Use LLM to summarize a cluster of traces into a durable fact sentence."""
+    """Use LLM to summarize a cluster of traces into a durable continuity fact.
+
+    Returns:
+        A summary string, or ``None`` on failure. The string may be
+        ``NO_DURABLE_MEMORY`` if the cluster contains nothing worth remembering
+        (e.g., emotionally repetitive content with no new decisions or
+        preferences) — callers should skip storage in that case.
+    """
     try:
         from gateway.llm_client import call_llm
     except ImportError:
@@ -141,10 +151,21 @@ def _summarize_cluster(domain: str, traces: list[dict]) -> Optional[str]:
         {
             "role": "system",
             "content": (
-                "You are summarizing recent interactions for a personal AI companion. "
-                "Write ONE concise sentence (under 80 words) capturing what Jacob has "
-                "been focused on in the '{domain}' domain. Start with 'Jacob has been...'"
-            ).replace("{domain}", domain),
+                "You are summarizing recent interactions for a personal AI companion.\n"
+                "Capture only what is useful for continuity: decisions made, active\n"
+                "projects, preferences, constraints, next steps, and creative threads.\n\n"
+                "Write ONE concise sentence (under 80 words).\n\n"
+                "Rules:\n"
+                "- Do NOT turn distress, recovery repetition, or emotional spirals\n"
+                "  into identity summaries like 'Jacob has been struggling with...'\n"
+                "  or 'Jacob keeps dealing with...'\n"
+                "- If the cluster is emotionally repetitive with no new decisions,\n"
+                "  preferences, or progress, return exactly: NO_DURABLE_MEMORY\n"
+                "- If the cluster contains sensitive/support content, summarize\n"
+                "  only the support preference or concrete next step — never a\n"
+                "  psych label.\n"
+                "- Start with 'Jacob has been...' or a simple factual statement."
+            ),
         },
         {
             "role": "user",

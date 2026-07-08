@@ -2,6 +2,9 @@
 import type { CSSProperties } from 'react'
 import { useProjects, useProjectNext, useRefreshProject, useCreateProject } from '@/lib/queries'
 import type { GatewayProject } from '@/lib/gateway'
+import { Card } from '@/components/ui/Card'
+import { SectionLabel } from '@/components/ui/SectionLabel'
+import { Button } from '@/components/ui/Button'
 import { useState } from 'react'
 
 export function ProjectsPanel() {
@@ -44,8 +47,8 @@ export function ProjectsPanel() {
         </p>
       </header>
 
-      <div style={cardStyle}>
-        <div style={sectionLabelStyle}>create project</div>
+      <Card style={{ display: 'grid', gap: 12 }}>
+        <SectionLabel>create project</SectionLabel>
         <div style={{ display: 'flex', gap: 8 }}>
           <input
             value={newName}
@@ -60,15 +63,15 @@ export function ProjectsPanel() {
             placeholder="kind (e.g. app, plugin)"
             style={inputStyle}
           />
-          <button
+          <Button
+            variant="primary"
             onClick={handleCreate}
             disabled={!newName.trim() || !newKind.trim() || createProject.isPending}
-            style={primaryButtonStyle}
           >
             {createProject.isPending ? 'creating…' : 'add'}
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
 
       {projects.length === 0 && (
         <p style={mutedStyle}>
@@ -103,7 +106,7 @@ function ProjectCard({
     : null
 
   return (
-    <div style={cardStyle}>
+    <Card style={{ display: 'grid', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
         <span style={nameStyle}>{project.name}</span>
         <span style={chipStyle}>{project.kind}</span>
@@ -112,15 +115,15 @@ function ProjectCard({
         </span>
         {touched && <span style={metaStyle}>touched {touched}</span>}
         <span style={{ flex: 1 }} />
-        <button onClick={onRefresh} disabled={refreshing} style={refreshButtonStyle}>
+        <Button onClick={onRefresh} disabled={refreshing} variant="action">
           {refreshing ? 'refreshing…' : '↻ refresh'}
-        </button>
+        </Button>
       </div>
 
       {project.summary && <p style={summaryStyle}>{project.summary}</p>}
 
       <div style={nextBoxStyle}>
-        <div style={nextLabelStyle}>what&apos;s next</div>
+        <SectionLabel style={{ color: 'var(--cat-ginger)' }}>what&apos;s next</SectionLabel>
         {nextQuery.isLoading ? (
           <p style={mutedStyle}>checking…</p>
         ) : nextQuery.isError ? (
@@ -145,7 +148,7 @@ function ProjectCard({
 
       {project.next_actions.length > 0 && (
         <div>
-          <div style={nextLabelStyle}>open actions</div>
+          <SectionLabel>open actions</SectionLabel>
           <ul style={{ margin: '4px 0 0 16px', display: 'grid', gap: 2 }}>
             {project.next_actions.slice(0, 4).map((a, i) => (
               <li key={i} style={actionStyle}>{a}</li>
@@ -153,7 +156,7 @@ function ProjectCard({
           </ul>
         </div>
       )}
-    </div>
+    </Card>
   )
 }
 
@@ -171,14 +174,7 @@ const subtitleStyle: CSSProperties = {
   marginTop: 2,
 }
 
-const cardStyle: CSSProperties = {
-  background: 'var(--surface)',
-  border: '1.5px solid var(--line)',
-  borderRadius: 14,
-  padding: 18,
-  display: 'grid',
-  gap: 12,
-}
+
 
 const nameStyle: CSSProperties = {
   fontFamily: 'var(--font-display)',
@@ -219,14 +215,7 @@ const nextBoxStyle: CSSProperties = {
   gap: 4,
 }
 
-const nextLabelStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  fontWeight: 700,
-  letterSpacing: '0.12em',
-  textTransform: 'lowercase',
-  color: 'var(--cat-ginger)',
-}
+
 
 const stepStyle: CSSProperties = {
   fontSize: 15,
@@ -247,16 +236,7 @@ const actionStyle: CSSProperties = {
   lineHeight: 1.5,
 }
 
-const refreshButtonStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 11,
-  padding: '4px 10px',
-  border: '1.5px solid var(--line)',
-  borderRadius: 8,
-  background: 'var(--surface-2)',
-  color: 'var(--ink-2)',
-  cursor: 'pointer',
-}
+
 
 const mutedStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
@@ -285,16 +265,4 @@ const inputStyle: CSSProperties = {
   fontSize: 14,
   color: 'var(--ink)',
   outline: 'none',
-}
-
-const primaryButtonStyle: CSSProperties = {
-  padding: '8px 18px',
-  background: 'var(--primary)',
-  color: 'var(--on-primary)',
-  border: 'none',
-  borderRadius: 10,
-  fontFamily: 'var(--font-body)',
-  fontSize: 14,
-  fontWeight: 600,
-  cursor: 'pointer',
 }

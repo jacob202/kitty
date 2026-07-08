@@ -76,6 +76,7 @@ class Settings:
 
     # Draw Things / A1111-compatible API
     dt_url: str = field(default_factory=lambda: _env("DT_URL", "http://127.0.0.1:7860"))
+    dt_model: str = field(default_factory=lambda: _env("DT_MODEL", "icatcher_realistic"))
 
     # Verifier settings
     ollama_url: str = field(default_factory=lambda: _env("OLLAMA_URL", "http://127.0.0.1:11434"))

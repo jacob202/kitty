@@ -1,0 +1,22 @@
+{
+  "name": "character-james",
+  "face_match": {
+    "character": "james",
+    "threshold": 0.55
+  },
+  "rubric": [
+    {
+      "text": "Does the image look photorealistic and unedited?",
+      "hard": true
+    },
+    {
+      "text": "Is the lighting cinematic and dramatic?",
+      "hard": false
+    }
+  ],
+  "mechanical": {
+    "min_width": 256,
+    "min_height": 256,
+    "reject_blank": true
+  }
+}

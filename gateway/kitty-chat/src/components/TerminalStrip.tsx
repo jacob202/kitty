@@ -18,28 +18,11 @@ export function TerminalStrip({ title = 'terminal', maxLines = 50 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      const levels: LogEntry['level'][] = ['info', 'warn', 'error', 'debug']
-      const sampleMessages = [
-        'Gateway heartbeat received',
-        'Search index updated',
-        'New todo created',
-        'Loop execution completed',
-        'Brief generation started',
-        'Agent task finished',
-        'Insight detected',
-        'Memory consolidation complete',
-        'Model response streamed',
-      ]
-      const newLog: LogEntry = {
-        timestamp: new Date(),
-        level: levels[Math.floor(Math.random() * levels.length)],
-        message: sampleMessages[Math.floor(Math.random() * sampleMessages.length)],
-      }
-      setLogs(prev => [...prev.slice(-maxLines + 1), newLog])
-    }, 3000)
-
-    return () => clearInterval(interval)
+    setLogs([{
+      timestamp: new Date(),
+      level: 'warn',
+      message: 'Terminal logs not yet wired to backend (Honesty Guard)',
+    }])
   }, [maxLines])
 
   useEffect(() => {

@@ -13,7 +13,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import filelock
 from gateway.paths import DESKTOP_LOG_FILE, DESKTOP_PID_DIR, INBOX_FILE
+INBOX_PROCESSED_FILE = INBOX_FILE.with_name("inbox_processed.jsonl")
 
 
 def utc_now_iso() -> str:
@@ -93,6 +95,55 @@ def read_inbox(limit: int = 20, inbox_file: Path = INBOX_FILE) -> list[dict[str,
     if limit <= 0:
         return rows
     return rows[-limit:]
+
+
+def mark_inbox_processed(entry_id: str) -> bool:
+    """Atomically mark an entry processed by moving it to inbox_processed.jsonl."""
+    if not INBOX_FILE.exists():
+        return False
+
+    lock = filelock.FileLock(str(INBOX_FILE) + ".lock", timeout=10)
+    with lock:
+        # Read all entries
+        try:
+            with INBOX_FILE.open("r", encoding="utf-8") as handle:
+                lines = handle.readlines()
+        except OSError:
+            return False
+
+        remaining_lines = []
+        processed_lines = []
+        found = False
+
+        for line in lines:
+            if not line.strip():
+                continue
+            try:
+                entry = json.loads(line)
+                if entry.get("id") == entry_id:
+                    found = True
+                    entry["processed"] = True
+                    processed_lines.append(json.dumps(entry, ensure_ascii=False) + "\n")
+                else:
+                    remaining_lines.append(line)
+            except json.JSONDecodeError:
+                remaining_lines.append(line)
+
+        if not found:
+            return False
+
+        # Write to processed
+        INBOX_PROCESSED_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with INBOX_PROCESSED_FILE.open("a", encoding="utf-8") as f_out:
+            f_out.writelines(processed_lines)
+
+        # Write remaining to tmp and atomic replace
+        tmp_file = INBOX_FILE.with_suffix(".tmp")
+        with tmp_file.open("w", encoding="utf-8") as f_out:
+            f_out.writelines(remaining_lines)
+
+        os.replace(tmp_file, INBOX_FILE)
+        return True
 
 
 def count_inbox_entries(inbox_file: Path = INBOX_FILE) -> int:

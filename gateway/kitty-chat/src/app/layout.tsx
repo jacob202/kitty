@@ -34,6 +34,9 @@ export const viewport: Viewport = {
   colorScheme: "light dark",
 };
 
+import { ToastManager } from "@/components/Toast";
+import { SSEListener } from "@/components/SSEListener";
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" data-theme="day" style={{ height: '100%' }}>
@@ -46,7 +49,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body style={{ height: '100%' }}>
-        <Providers>{children}</Providers>
+        <Providers>
+          {children}
+          <ToastManager />
+          <SSEListener />
+        </Providers>
       </body>
     </html>
   );

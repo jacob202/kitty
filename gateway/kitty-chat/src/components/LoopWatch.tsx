@@ -1,7 +1,9 @@
 'use client'
 import type { CSSProperties } from 'react'
 import type { GatewayLoop, LoopStatus } from '@/lib/gateway'
-import { card, cardHeader, cardTitle, cardMeta, itemCard, emptyState } from '@/lib/ui'
+import { Card, CardHeader, ItemCard } from '@/components/ui/Card'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { Button } from '@/components/ui/Button'
 import { Skeleton } from './Skeleton'
 
 interface Props {
@@ -36,14 +38,11 @@ export function LoopWatch({ loops, onToggle, title = 'Loop Watch', isLoading = f
   })
 
   return (
-    <div style={containerStyle}>
-      <div style={headerStyle}>
-        <span style={titleStyle}>{title}</span>
-        <span style={countStyle}>{loops.length} active</span>
-      </div>
+    <Card style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <CardHeader title={title} count={`${loops.length} active`} />
       <div style={listStyle}>
         {sorted.map(loop => (
-          <div key={loop.loop_id} style={cardBaseStyle}>
+          <ItemCard key={loop.loop_id} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div style={cardHeaderStyle}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{
@@ -64,14 +63,14 @@ export function LoopWatch({ loops, onToggle, title = 'Loop Watch', isLoading = f
                   {statusLabel(loop.status)}
                 </span>
                 {onToggle && loop.status !== 'error' && (
-                  <button
+                  <Button
+                    variant="action"
                     onClick={() => onToggle(loop.loop_id)}
-                    style={toggleBtnStyle(loop.status === 'running')}
-                    title={loop.status === 'running' ? 'Pause loop' : 'Start loop'}
-                    aria-label={loop.status === 'running' ? 'Pause loop' : 'Start loop'}
+                    style={{ width: 28, height: 24, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 0 }}
+                    ariaLabel={loop.status === 'running' ? 'Pause loop' : 'Start loop'}
                   >
                     {loop.status === 'running' ? '⏸' : '▶'}
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>
@@ -89,7 +88,7 @@ export function LoopWatch({ loops, onToggle, title = 'Loop Watch', isLoading = f
                 <span style={{ color: 'var(--error)' }}> · {loop.error_message}</span>
               )}
             </div>
-          </div>
+          </ItemCard>
         ))}
         {loops.length === 0 && (
           isLoading ? (
@@ -98,18 +97,15 @@ export function LoopWatch({ loops, onToggle, title = 'Loop Watch', isLoading = f
               <Skeleton height={48} />
             </div>
           ) : (
-            <div style={emptyStyle}>No loops configured</div>
+            <EmptyState>No loops configured</EmptyState>
           )
         )}
       </div>
-    </div>
+    </Card>
   )
 }
 
-const containerStyle: CSSProperties = { ...card, display: 'flex', flexDirection: 'column', gap: 12 }
-const headerStyle: CSSProperties = cardHeader
-const titleStyle: CSSProperties = cardTitle
-const countStyle: CSSProperties = cardMeta
+
 
 const listStyle: CSSProperties = {
   display: 'flex',
@@ -117,7 +113,7 @@ const listStyle: CSSProperties = {
   gap: 8,
 }
 
-const cardBaseStyle: CSSProperties = { ...itemCard, display: 'flex', flexDirection: 'column', gap: 6 }
+
 
 const cardHeaderStyle: CSSProperties = {
   display: 'flex',
@@ -144,19 +140,7 @@ const badgeStyle: CSSProperties = {
   background: 'transparent',
 }
 
-const toggleBtnStyle = (isRunning: boolean): CSSProperties => ({
-  background: 'var(--surface-mid)',
-  border: '1px solid var(--border)',
-  borderRadius: 4,
-  width: 28,
-  height: 24,
-  display: 'grid',
-  placeItems: 'center',
-  cursor: 'pointer',
-  fontSize: 10,
-  color: 'var(--text-dim)',
-  transition: 'all 0.15s ease',
-})
+
 
 const descStyle: CSSProperties = {
   fontFamily: 'var(--font-ui)',
@@ -173,5 +157,3 @@ const metaStyle: CSSProperties = {
   flexWrap: 'wrap',
   gap: 4,
 }
-
-const emptyStyle: CSSProperties = emptyState

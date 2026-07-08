@@ -19,7 +19,7 @@ from typing import Any
 from mcp.imagen import engines
 from mcp.imagen.config import settings
 from mcp.imagen.engines.base import RefusalError
-from mcp.imagen.logging import log
+from mcp.imagen.logger import log
 from mcp.imagen.retry import retry_with_backoff
 
 # ---------------------------------------------------------------------------

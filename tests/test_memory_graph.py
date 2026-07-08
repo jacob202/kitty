@@ -23,6 +23,7 @@ from gateway.memory_graph import (
     StoreAdapter,
     TodosAdapter,
     TracesAdapter,
+    WeaveAdapter,
     _fetch_traces,
     unified_context,
 )
@@ -52,6 +53,7 @@ async def test_search_all_returns_all_keys():
         patch.object(TodosAdapter, "fetch", new=AsyncMock(return_value=[])),
         patch.object(InboxAdapter, "fetch", new=AsyncMock(return_value=[])),
         patch.object(SignalsAdapter, "fetch", new=AsyncMock(return_value=[])),
+        patch.object(WeaveAdapter, "fetch", new=AsyncMock(return_value=[])),
     ):
         graph = MemoryGraph()
         result = await graph.search_all("test query")
@@ -63,6 +65,7 @@ async def test_search_all_returns_all_keys():
             "todos",
             "inbox",
             "signals",
+            "facts",
         }
         assert all(isinstance(v, list) for v in result.results.values())
         assert all(isinstance(it, Item) for v in result.results.values() for it in v)

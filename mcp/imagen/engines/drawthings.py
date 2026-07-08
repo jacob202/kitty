@@ -53,6 +53,7 @@ class DrawThingsEngine:
         w, h = _aspect_to_wh(aspect_ratio, width, height)
 
         payload: dict = {
+            "model": settings.dt_model,
             "prompt": full_prompt,
             "negative_prompt": negative_prompt or "",
             "width": w,

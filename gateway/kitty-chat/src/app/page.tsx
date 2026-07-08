@@ -13,15 +13,29 @@ import { SessionSidebar } from '@/components/SessionSidebar';
 import { TaskPanel } from '@/components/TaskPanel';
 import { TodoPanel } from '@/components/TodoPanel';
 import { TerminalStrip } from '@/components/TerminalStrip';
-import { AgentPanel } from '@/components/AgentPanel';
-import { MonitorPanel } from '@/components/MonitorPanel';
-import { ImageGenPanel } from '@/components/ImageGenPanel';
-import { ProjectsPanel } from '@/components/ProjectsPanel';
-import { DocumentsPanel } from '@/components/DocumentsPanel';
-import { ProviderCenter } from '@/components/ProviderCenter';
-import { SettingsPanel } from '@/components/SettingsPanel';
+import dynamic from 'next/dynamic';
+
+function PanelSkeleton() {
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16, padding: 16 }}>
+      <div style={{ height: 24, width: '40%', background: 'var(--surface-high)', borderRadius: 4, animation: 'shimmer 1.5s infinite' }} />
+      <div style={{ height: 80, width: '100%', background: 'var(--surface-high)', borderRadius: 8, animation: 'shimmer 1.5s infinite' }} />
+      <div style={{ height: 80, width: '100%', background: 'var(--surface-high)', borderRadius: 8, animation: 'shimmer 1.5s infinite' }} />
+    </div>
+  );
+}
+
+const AgentPanel = dynamic(() => import('@/components/AgentPanel').then(mod => ({ default: mod.AgentPanel })), { loading: () => <PanelSkeleton /> });
+const MonitorPanel = dynamic(() => import('@/components/MonitorPanel').then(mod => ({ default: mod.MonitorPanel })), { loading: () => <PanelSkeleton /> });
+const ImageGenPanel = dynamic(() => import('@/components/ImageGenPanel').then(mod => ({ default: mod.ImageGenPanel })), { loading: () => <PanelSkeleton /> });
+const ProjectsPanel = dynamic(() => import('@/components/ProjectsPanel').then(mod => ({ default: mod.ProjectsPanel })), { loading: () => <PanelSkeleton /> });
+const DocumentsPanel = dynamic(() => import('@/components/DocumentsPanel').then(mod => ({ default: mod.DocumentsPanel })), { loading: () => <PanelSkeleton /> });
+const ProviderCenter = dynamic(() => import('@/components/ProviderCenter').then(mod => ({ default: mod.ProviderCenter })), { loading: () => <PanelSkeleton /> });
+const SettingsPanel = dynamic(() => import('@/components/SettingsPanel').then(mod => ({ default: mod.SettingsPanel })), { loading: () => <PanelSkeleton /> });
+
 import { LoopWatch } from '@/components/LoopWatch';
 import { InsightFeed } from '@/components/InsightFeed';
+import { ExpertSignals } from '@/components/ExpertSignals';
 import { PromptToolkit } from '@/components/PromptToolkit';
 import { CommandPalette } from '@/components/CommandPalette';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -580,14 +594,13 @@ function KittyChatInner() {
     >
       <WobFilters />
 
-      {!isMobile && (
-        <Rail
-          activeView={activeView}
-          onViewChange={setActiveView}
-          theme={theme}
-          onToggleTheme={handleToggleTheme}
-        />
-      )}
+      <Rail
+        isMobile={isMobile}
+        activeView={activeView}
+        onViewChange={setActiveView}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
+      />
 
       {!isMobile && activeView === 'chat' && (
         <SessionSidebar
@@ -794,6 +807,7 @@ function KittyChatInner() {
                   onAction={handleInsightAction}
                   isLoading={insightsQuery.isLoading}
                 />
+                <ExpertSignals />
                 <PromptToolkit
                   templates={promptTemplates}
                   onSelect={(tpl) => handlePromptSelect(tpl.content)}
