@@ -1,3 +1,26 @@
+# Session Handoff — 2026-07-07 (Fable UX phase, slices 1–2)
+
+## Status
+
+- Branch `claude/fable-ux-phase` in `.worktrees/fable-ux-phase`, 5 commits, **unpushed** (git auth still broken for this box).
+- Full log + remaining slices: `docs/planning/kitty-next-evolution-working-notes.md` (also committed on the branch).
+
+## What landed
+
+- next/font self-hosting (no Google CDN at first paint; PWA/offline safe); compat token aliases deleted, all components on real v2 tokens.
+- ~90 usages of undefined old-palette CSS vars fixed (were silently unstyled).
+- New `GET /logs/tail` (whitelisted, bounded) + tests; TerminalStrip tails the real gateway log — it previously invented random log lines.
+- Chat: runStream extraction, retry-last-reply, hover copy/retry actions, cat state honestly bound (o_o streaming / ^_^ done / :[ broke); fake TopBar state chips removed.
+- Verified in the running app with gateway down: honest error path end-to-end. UI 95/95, build green. Pytest 1310 pass; 3 pre-existing env failures (mem0, google.auth modules missing in local env), not from this diff.
+
+## Next
+
+1. Push + PR `claude/fable-ux-phase` (watch conflicts with packet-018's dirty UI files: DocumentsPanel, ProjectsPanel, queries.ts).
+2. Slice 3: home cockpit click-throughs (017 deadlines, 016 next-step hero).
+3. Slice 4 perf, Slice 5 mobile/PWA — sketched in the working notes.
+
+---
+
 # Session Handoff — 2026-07-07 (Kitty Builder port Phase 4)
 
 ## Status

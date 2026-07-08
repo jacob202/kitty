@@ -18,6 +18,9 @@ import {
   useChatsPersistence,
   useGatewayWeather,
   useKnowledgeSources,
+  useDeadlines,
+  useCloseDeadline,
+  useMagicInsights,
 } from '../src/lib/queries';
 import { HomeState } from '../src/components/HomeState';
 
@@ -46,6 +49,9 @@ vi.mock('../src/lib/queries', () => ({
   useChatsPersistence: vi.fn(),
   useGatewayWeather: vi.fn(),
   useKnowledgeSources: vi.fn(),
+  useDeadlines: vi.fn(),
+  useCloseDeadline: vi.fn(),
+  useMagicInsights: vi.fn(),
 }));
 
 const LIVE_MODELS = [
@@ -125,6 +131,20 @@ function setDefaultMocks() {
     isError: false,
     isFetched: true,
   });
+  (useMagicInsights as Mock).mockReturnValue({
+    data: undefined,
+    isPending: false,
+    isError: false,
+  });
+  (useDeadlines as Mock).mockReturnValue({
+    data: [],
+    isPending: false,
+    isError: false,
+  });
+  (useCloseDeadline as Mock).mockReturnValue({
+    isPending: false,
+    mutate: vi.fn(),
+  });
 }
 
 const PROJECT = {
@@ -155,7 +175,7 @@ describe('HomeState', () => {
 
   it('renders the cockpit section titles', () => {
     render(<HomeState />);
-    expect(screen.getByText("what's next")).toBeInTheDocument();
+    expect(screen.getByText("jacob's next move")).toBeInTheDocument();
     expect(screen.getByText('active projects')).toBeInTheDocument();
     expect(screen.getByText('needs you')).toBeInTheDocument();
     expect(screen.getByText('what changed')).toBeInTheDocument();

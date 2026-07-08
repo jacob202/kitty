@@ -8,9 +8,13 @@ claude/packet-018-expert-packs
 
 ## Sessions (2026-07-07)
 
+- Fable (UX phase) — worktree `.worktrees/fable-ux-phase`, branch `claude/fable-ux-phase` (5 commits, unpushed): self-hosted fonts via next/font, compat token aliases retired, dead old-palette vars fixed (~90 silent failures), TerminalStrip now tails real `/logs/tail` (new route + tests) instead of fabricating lines, lowercase copy sweep, chat copy/retry actions, cat state honestly bound to stream (o_o/^_^/:[), fake TopBar state chips removed. Verified live + 95/95 UI tests. Plan + next slices: `docs/planning/kitty-next-evolution-working-notes.md`.
+
 - Fable (prototype sprint) — nav shell rebuilt (8 tabs), ProjectsPanel, DocumentsPanel, ProviderCenter, chat save-state indicator, Tailscale bind. Branch `claude/kitty-prototype-sprint-srs5bl`. Merged as #113.
 - OpenCode — fixed memory_weave typecheck errors, created PR #115 (test fixture cleanup, open).
 - Antigravity — added WeatherTile/WorkingSources, whimsy styling, crayon borders, cat eyes. Branch `claude/packet-020-github-connector` (includes GitHub connector).
+- Phase 5 (Feedback Loops & Observability) — wired up dismiss/snooze controls to SSE cache invalidation (`broadcaster.broadcast('state_updated')`), fixed `expert_proactive.py` cron interval skipping bug by ensuring `_last_run` cursor is updated on completion, and refactored `CapturePanel.tsx` to use React Query (`useUploadCapture`) with a global `MutationCache` for error toasts in `providers.tsx`.
+- Fable (Home Dashboard) — extracted primitive components (Card, ItemCard, ErrorState, Button), implemented Command registry (`src/lib/commands.ts`), and implemented `evaluateNextAction` in `src/lib/ranking.ts` to power the `WhatsNext` priority queue. 101/101 Next.js tests passing, build passing.
 - Models working on packet 018 (expert packs). **Leave alone.**
 
 ## Latest merges
