@@ -42,6 +42,7 @@
 /* ── DAY: manila paper ─────────────────────────────────────── */
 [data-theme="day"], :root {
   --bg:         #F3EAD6;
+  --surface:    #FBF5E9;
   --surface-2:  #EBE0C9;
   --line:       #DACBA9;
 
