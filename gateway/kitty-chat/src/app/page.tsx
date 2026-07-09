@@ -174,7 +174,7 @@ function KittyChatInner() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [theme, setTheme] = useState<'day' | 'night'>('day');
+  const [theme, setTheme] = useState<'day' | 'night'>('night');
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'failed' | 'offline'>(
     'idle',
   );
@@ -325,12 +325,12 @@ function KittyChatInner() {
     setInput('');
   }, [activeModel.id]);
 
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
   const handleToggleTheme = useCallback(() => {
-    setTheme((t) => {
-      const next = t === 'day' ? 'night' : 'day';
-      document.documentElement.setAttribute('data-theme', next);
-      return next;
-    });
+    setTheme((t) => (t === 'day' ? 'night' : 'day'));
   }, []);
 
   const handleToggleSidebar = useCallback(() => {
@@ -937,7 +937,7 @@ function KittyChatInner() {
                       fontFamily: 'var(--font-display)',
                       fontWeight: 800,
                       fontSize: 64,
-                      letterSpacing: '-0.035em',
+                      letterSpacing: 0,
                       color: 'var(--ink)',
                       lineHeight: 0.86,
                     }}
@@ -972,7 +972,7 @@ function KittyChatInner() {
                     fontWeight: 600,
                     cursor: 'pointer',
                     boxShadow: 'var(--btn-shadow)',
-                    letterSpacing: '-0.01em',
+                    letterSpacing: 0,
                   }}
                 >
                   {"let's go →"}
@@ -1102,7 +1102,7 @@ function KittyChatInner() {
         )}
       </main>
 
-      <CatCorner state={catState} />
+      {!isMobile && activeView !== 'home' && <CatCorner state={catState} />}
       <PaperGrain />
 
       <CommandPalette

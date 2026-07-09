@@ -2,6 +2,8 @@ import { MODELS, type Model } from './types'
 
 export const GATEWAY_BASE = '/proxy'
 const DEFAULT_TIMEOUT_MS = 2500
+const BRIEF_TIMEOUT_MS = 5000
+const STATE_TIMEOUT_MS = 5000
 
 export interface GatewayHeadline {
   title: string
@@ -311,7 +313,7 @@ export async function fetchGatewayModels(): Promise<GatewayModelsPayload> {
 
 export async function fetchGatewayBrief(): Promise<GatewayBriefPayload> {
   try {
-    const response = await fetchWithTimeout(`${GATEWAY_BASE}/brief`, 1500)
+    const response = await fetchWithTimeout(`${GATEWAY_BASE}/brief`, BRIEF_TIMEOUT_MS)
     if (!response.ok) {
       return {
         brief: null,
@@ -993,7 +995,7 @@ export interface GatewayAction {
 }
 
 export async function fetchStateChanges(): Promise<StateChangesPayload> {
-  return gfetch<StateChangesPayload>('/state/changes')
+  return gfetch<StateChangesPayload>('/state/changes', undefined, STATE_TIMEOUT_MS)
 }
 
 export async function fetchActions(status?: string): Promise<GatewayAction[]> {
@@ -1026,7 +1028,7 @@ export interface GatewayStateNow {
 }
 
 export async function fetchStateNow(): Promise<GatewayStateNow> {
-  return gfetch<GatewayStateNow>('/state/now')
+  return gfetch<GatewayStateNow>('/state/now', undefined, STATE_TIMEOUT_MS)
 }
 
 export async function runInboxTriage(limit = 25): Promise<void> {

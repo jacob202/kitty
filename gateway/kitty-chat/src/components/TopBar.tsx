@@ -57,7 +57,7 @@ export function TopBar({
           )}
           <span style={{
             fontFamily: 'var(--font-display)', fontWeight: 800,
-            fontSize: 20, letterSpacing: '-0.02em', color: 'var(--ink)',
+            fontSize: 20, letterSpacing: 0, color: 'var(--ink)',
           }}>kitty</span>
           <StateBadge state={catState} />
         </div>
@@ -83,7 +83,7 @@ export function TopBar({
       <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
         <span style={{
           fontFamily: 'var(--font-display)', fontWeight: 800,
-          fontSize: 23, letterSpacing: '-0.02em', color: 'var(--ink)',
+          fontSize: 23, letterSpacing: 0, color: 'var(--ink)',
         }}>kitty</span>
         <StateBadge state={catState} />
         {isStreaming && (

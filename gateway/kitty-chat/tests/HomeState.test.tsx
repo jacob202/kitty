@@ -176,7 +176,7 @@ describe('HomeState', () => {
   it('renders the cockpit section titles', () => {
     render(<HomeState />);
     expect(screen.getByText("jacob's next move")).toBeInTheDocument();
-    expect(screen.getByText('active projects')).toBeInTheDocument();
+    expect(screen.getByText('select space')).toBeInTheDocument();
     expect(screen.getByText('needs you')).toBeInTheDocument();
     expect(screen.getByText('what changed')).toBeInTheDocument();
     expect(screen.getByText('today')).toBeInTheDocument();
@@ -186,7 +186,7 @@ describe('HomeState', () => {
   it('shows honest empty states when gateway returns no data', () => {
     render(<HomeState />);
     expect(screen.getByText(/not enough signal yet/)).toBeInTheDocument();
-    expect(screen.getByText(/no projects registered — \.\/kitty project add/)).toBeInTheDocument();
+    expect(screen.getByText(/gateway returned zero projects/)).toBeInTheDocument();
     expect(screen.getByText('nothing new since last snapshot')).toBeInTheDocument();
     expect(screen.getByText('nothing waiting for you')).toBeInTheDocument();
     expect(screen.getByText('nothing on the list')).toBeInTheDocument();
@@ -284,9 +284,9 @@ describe('HomeState', () => {
     ).toBeGreaterThan(0);
   });
 
-  // ── active projects ──
+  // ── spaces / projects ──
 
-  it('lists active projects with their next step', () => {
+  it('lists existing projects as selectable spaces with their next step', () => {
     (useProjects as Mock).mockReturnValue({
       data: [PROJECT, { ...PROJECT, id: 2, name: 'kitty', kind: 'code', status: 'parked' }],
       isPending: false,
@@ -297,9 +297,11 @@ describe('HomeState', () => {
       { data: null, isPending: false, isError: false },
     ]);
     render(<HomeState />);
+    expect(screen.getByText('select space')).toBeInTheDocument();
     expect(screen.getByText('benefits-admin')).toBeInTheDocument();
-    // parked project stays out of the active list
-    expect(screen.queryByText('kitty')).not.toBeInTheDocument();
+    // Existing projects are still selectable spaces even when they are parked.
+    expect(screen.getByText('kitty')).toBeInTheDocument();
+    expect(screen.queryByText(/create project/i)).not.toBeInTheDocument();
   });
 
   it('says so when a project has no generated step yet', () => {
@@ -399,7 +401,7 @@ describe('HomeState', () => {
   it('applies compact padding when compact prop is true', () => {
     const { container } = render(<HomeState compact />);
     const grid = container.firstChild as HTMLElement;
-    expect(grid.style.padding).toBe('16px 12px 40px');
+    expect(grid.style.padding).toBe('16px 12px 120px');
   });
 
   it('shows needs_jacob entries as actionable cards, not a bare count', () => {

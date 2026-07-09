@@ -5,7 +5,14 @@ import { vi, describe, expect, it, beforeEach, afterEach } from 'vitest'
 
 import { RightPanel } from '../src/components/RightPanel'
 import { TopBar } from '../src/components/TopBar'
-import { buildGatewayModels, fetchGatewaySearch, summarizeGatewaySearch } from '../src/lib/gateway'
+import {
+  buildGatewayModels,
+  fetchGatewayBrief,
+  fetchGatewaySearch,
+  fetchStateChanges,
+  fetchStateNow,
+  summarizeGatewaySearch,
+} from '../src/lib/gateway'
 
 function renderWithQueryClient(children: ReactNode) {
   const client = new QueryClient({
@@ -112,6 +119,111 @@ describe('fetchGatewaySearch abort', () => {
   })
 })
 
+describe('fetchGatewayBrief timeout budget', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', vi.fn())
+    vi.stubGlobal('window', {
+      setTimeout: globalThis.setTimeout,
+      clearTimeout: globalThis.clearTimeout,
+    })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  it('waits long enough for the gateway cold-cache fallback path', async () => {
+    vi.mocked(global.fetch).mockImplementation((_url, init) => {
+      const signal = init?.signal as AbortSignal | undefined
+      return new Promise((resolve, reject) => {
+        const rejectAbort = () => {
+          const err = new Error('The operation was aborted')
+          err.name = 'AbortError'
+          reject(err)
+        }
+        if (signal?.aborted) {
+          rejectAbort()
+          return
+        }
+        signal?.addEventListener('abort', rejectAbort, { once: true })
+        setTimeout(() => {
+          resolve(
+            Response.json({
+              date: '2026-07-08',
+              headlines: [],
+              memory_snippet: '',
+              intention: 'Move the real project forward.',
+              generated_at: '2026-07-08T21:00:00Z',
+              notification_sent: false,
+              error: null,
+            })
+          )
+        }, 2100)
+      })
+    })
+
+    const pending = fetchGatewayBrief()
+    await vi.advanceTimersByTimeAsync(2100)
+
+    const result = await pending
+    expect(result.fromLiveGateway).toBe(true)
+    expect(result.error).toBeNull()
+    expect(result.brief?.intention).toBe('Move the real project forward.')
+  })
+})
+
+describe('state endpoint timeout budget', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', vi.fn())
+    vi.stubGlobal('localStorage', { getItem: vi.fn(() => null) })
+    vi.stubGlobal('window', {
+      setTimeout: globalThis.setTimeout,
+      clearTimeout: globalThis.clearTimeout,
+      dispatchEvent: vi.fn(),
+    })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  it('waits for state endpoints that include slow calendar checks', async () => {
+    vi.mocked(global.fetch).mockImplementation((url, init) => {
+      const signal = init?.signal as AbortSignal | undefined
+      return new Promise((resolve, reject) => {
+        const rejectAbort = () => {
+          const err = new Error('The operation was aborted')
+          err.name = 'AbortError'
+          reject(err)
+        }
+        if (signal?.aborted) {
+          rejectAbort()
+          return
+        }
+        signal?.addEventListener('abort', rejectAbort, { once: true })
+        setTimeout(() => {
+          if (String(url).endsWith('/state/changes')) {
+            resolve(Response.json({ baseline_ts: null, current_ts: 1, changes: [], new_signals: [] }))
+            return
+          }
+          resolve(Response.json({ ts: 1, sections: { calendar: { ok: false, error: 'timed out after 3.0s' } } }))
+        }, 3100)
+      })
+    })
+
+    const changes = fetchStateChanges()
+    const now = fetchStateNow()
+    await vi.advanceTimersByTimeAsync(3100)
+
+    await expect(changes).resolves.toMatchObject({ current_ts: 1 })
+    await expect(now).resolves.toMatchObject({ sections: { calendar: { ok: false } } })
+  })
+})
+
 describe('RightPanel', () => {
   afterEach(cleanup)
   it('shows search unavailable card when searchGatewayError is set', () => {
@@ -187,4 +299,3 @@ describe('TopBar', () => {
     )
   })
 })
-

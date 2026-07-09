@@ -1,15 +1,19 @@
 import type { CSSProperties } from 'react'
 
-// Canonical visual language for dashboard cards.
-// One card surface, one accent (--primary), tight type scale.
+// Canonical visual language for the Kitty cockpit.
+// The panels are translucent so real data sits inside the starfield instead of
+// feeling pasted on top of a separate dashboard.
 
 /** Outer card / panel container. */
 export const card: CSSProperties = {
-  background: 'var(--surface-low)',
-  border: '2.5px solid var(--border)',
-  borderRadius: '255px 25px 225px 25px / 25px 225px 25px 255px',
+  background: 'linear-gradient(145deg, var(--surface), var(--surface-2))',
+  border: '1px solid var(--border)',
+  borderRadius: 8,
   padding: 16,
-  boxShadow: '4px 5px 0px var(--border-dim)',
+  display: 'grid',
+  gap: 12,
+  boxShadow: 'var(--shadow-soft)',
+  backdropFilter: 'blur(18px)',
 }
 
 /** Header row inside a card: title left, count/meta right, hairline underneath.
@@ -21,14 +25,15 @@ export const cardHeader: CSSProperties = {
   alignItems: 'center',
   paddingBottom: 12,
   borderBottom: '1px solid var(--border-dim)',
+  gap: 12,
 }
 
 export const cardTitle: CSSProperties = {
   fontFamily: 'var(--font-ui)',
-  fontSize: 14,
-  fontWeight: 600,
+  fontSize: 15,
+  fontWeight: 700,
   color: 'var(--text)',
-  letterSpacing: '-0.01em',
+  letterSpacing: 0,
 }
 
 /** Small monospace meta/count, e.g. "3 items". */
@@ -45,17 +50,18 @@ export const sectionLabel: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
   fontWeight: 700,
-  letterSpacing: '0.12em',
+  letterSpacing: '0.08em',
   textTransform: 'lowercase',
   color: 'var(--text-muted)',
 }
 
 /** Recessed inner item sitting inside a card. */
 export const itemCard: CSSProperties = {
-  background: 'var(--surface)',
-  border: '2px solid var(--border)',
-  borderRadius: '15px 255px 15px 225px / 225px 15px 255px 15px',
+  background: 'var(--surface-high)',
+  border: '1px solid var(--border-dim)',
+  borderRadius: 7,
   padding: '12px 14px',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)',
   transition: 'background 0.15s ease, border-color 0.15s ease, transform 0.15s ease',
 }
 
@@ -71,7 +77,7 @@ export const emptyState: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
   color: 'var(--text-faint)',
-  textAlign: 'center',
+  textAlign: 'left',
   padding: '20px 0',
 }
 

@@ -136,7 +136,7 @@ def delete(project_id: int) -> None:
     init_db()
     with kitty_db.connect(PROJECTS_DB_FILE) as conn:
         conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
-        conn.execute("DELETE FROM next_steps WHERE project_id = ?", (project_id,))
+        conn.execute("DELETE FROM project_next_steps WHERE project_id = ?", (project_id,))
         conn.commit()
 
 

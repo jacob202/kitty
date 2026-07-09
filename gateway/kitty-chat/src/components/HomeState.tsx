@@ -101,6 +101,33 @@ function HealthStrip({ expanded }: { expanded?: boolean }) {
   );
 }
 
+function CockpitHeader({ rankedTitle }: { rankedTitle?: string }) {
+  return (
+    <section style={cockpitHeaderStyle}>
+      <div style={{ display: 'grid', gap: 10, alignContent: 'center', minWidth: 0 }}>
+        <div style={eyebrowStyle}>space kitty</div>
+        <h1 style={cockpitTitleStyle}>Kitty</h1>
+        <p style={cockpitCopyStyle}>
+          Select an existing space, see the next move, then keep working without inventing fake setup work.
+        </p>
+        {rankedTitle && (
+          <div style={missionBarStyle}>
+            <span style={missionLabelStyle}>current pull</span>
+            <span style={missionTextStyle}>{rankedTitle}</span>
+          </div>
+        )}
+      </div>
+      <div style={mascotFrameStyle} aria-hidden="true">
+        <img
+          src="/cat-assets/state-working.svg"
+          alt=""
+          style={{ width: 'min(190px, 34vw)', height: 'auto', display: 'block' }}
+        />
+      </div>
+    </section>
+  );
+}
+
 // ── What's next (hero) ───────────────────────────────────────────────────────
 
 function WhatsNext({
@@ -241,16 +268,94 @@ const heroMetaStyle: React.CSSProperties = {
   color: 'var(--text-muted)',
 };
 
-// ── Active projects ──────────────────────────────────────────────────────────
+const cockpitHeaderStyle: React.CSSProperties = {
+  gridColumn: '1 / -1',
+  minHeight: 210,
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr) auto',
+  gap: 18,
+  alignItems: 'center',
+  padding: '28px 30px',
+  border: '1px solid rgba(239,135,67,.32)',
+  borderRadius: 8,
+  background:
+    'linear-gradient(135deg, rgba(12,17,29,.90), rgba(20,24,37,.62) 62%, rgba(26,18,28,.74))',
+  boxShadow: 'var(--shadow-soft)',
+  overflow: 'hidden',
+  position: 'relative',
+};
 
-function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) {
+const eyebrowStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: 0,
+  color: 'var(--cat-green)',
+};
+
+const cockpitTitleStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-display)',
+  fontWeight: 800,
+  fontSize: 'clamp(42px, 7vw, 76px)',
+  lineHeight: 0.95,
+  letterSpacing: 0,
+  color: 'var(--ink)',
+};
+
+const cockpitCopyStyle: React.CSSProperties = {
+  maxWidth: 560,
+  fontSize: 16,
+  lineHeight: 1.55,
+  color: 'var(--ink-2)',
+};
+
+const mascotFrameStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  opacity: 0.88,
+  filter: 'drop-shadow(0 18px 32px rgba(0,0,0,.38))',
+};
+
+const missionBarStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'auto minmax(0, 1fr)',
+  gap: 10,
+  alignItems: 'center',
+  maxWidth: 680,
+  marginTop: 4,
+  padding: '10px 12px',
+  border: '1px solid var(--border-dim)',
+  borderRadius: 7,
+  background: 'rgba(255,255,255,.035)',
+};
+
+const missionLabelStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  color: 'var(--primary)',
+  fontWeight: 700,
+};
+
+const missionTextStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-ui)',
+  fontSize: 13,
+  color: 'var(--ink)',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+};
+
+// ── Spaces / projects ────────────────────────────────────────────────────────
+
+function SpaceSelector({ onNavigate }: { onNavigate: (view: string) => void }) {
   const projectsQuery = useProjects();
   const stepQueries = useProjectNextSteps(projectsQuery.data ?? []);
 
   if (projectsQuery.isPending) {
     return (
       <Card>
-        <CardHeader title="active projects" />
+        <CardHeader title="select space" />
         <EmptyState>loading…</EmptyState>
       </Card>
     );
@@ -259,23 +364,20 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
   if (projectsQuery.isError) {
     return (
       <Card>
-        <CardHeader title="active projects" />
+        <CardHeader title="select space" />
         <ErrorState message={OFFLINE_FIX} />
       </Card>
     );
   }
 
   const projects = projectsQuery.data ?? [];
-  const active = projects.filter((p) => p.status === 'active');
 
-  if (active.length === 0) {
+  if (projects.length === 0) {
     return (
       <Card>
-        <CardHeader title="active projects" />
+        <CardHeader title="select space" />
         <EmptyState>
-          {projects.length === 0
-            ? 'no projects registered — ./kitty project add <name>'
-            : 'no active projects — everything is parked or done'}
+          gateway returned zero projects — refresh the gateway project store before creating anything new.
         </EmptyState>
       </Card>
     );
@@ -289,8 +391,9 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
 
   return (
     <Card>
-      <CardHeader title="active projects" count={active.length} action={open} />
-      {active.slice(0, 4).map((p) => {
+      <CardHeader title="select space" count={projects.length} action={open} />
+      <div style={{ display: 'grid', gap: 10 }}>
+      {projects.slice(0, 5).map((p) => {
         const idx = projects.indexOf(p);
         const stepQuery = stepQueries[idx];
         const step = stepQuery?.data;
@@ -299,21 +402,28 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
             key={p.id}
             role="button"
             onClick={() => onNavigate('projects')}
-            style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 4 }}
+            style={{
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+              borderColor: p.status === 'active' ? 'var(--primary)' : 'var(--border-dim)',
+              background: p.status === 'active' ? 'var(--primary-fade)' : 'var(--surface-high)',
+            }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
               <span
                 style={{
                   fontFamily: 'var(--font-ui)',
-                  fontSize: 13,
-                  fontWeight: 600,
+                  fontSize: 14,
+                  fontWeight: 700,
                   color: 'var(--text)',
                 }}
               >
                 {p.name}
               </span>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
-                {p.kind}
+                {p.kind} · {p.status}
               </span>
             </div>
             <BodyText style={{ fontSize: 12 }}>
@@ -328,7 +438,8 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
           </ItemCard>
         );
       })}
-      {active.length > 4 && (
+      </div>
+      {projects.length > 5 && (
         <div
           style={{
             fontFamily: 'var(--font-mono)',
@@ -337,7 +448,7 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
             textAlign: 'center',
           }}
         >
-          +{active.length - 4} more in projects
+          +{projects.length - 5} more in projects
         </div>
       )}
     </Card>
@@ -785,16 +896,22 @@ function WorkingSources({ onNavigate }: { onNavigate: (v: string) => void }) {
     <Card>
       <CardHeader title="brain" count={sources.total_sources} />
       <ItemCard
-        style={{ cursor: 'pointer', border: '1px solid var(--text)', background: 'var(--primary-fade)' }}
+        style={{
+          cursor: 'pointer',
+          border: '1px solid var(--text)',
+          background: 'var(--primary-fade)',
+          minWidth: 0,
+          overflow: 'hidden',
+        }}
         onClick={() => onNavigate('docs')}
       >
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text)' }}>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text)', minWidth: 0 }}>
           <div style={{ fontWeight: 700 }}>{sources.total_sources} files stuffed in my head</div>
           <div style={{ marginTop: 8, color: 'var(--text-dim)' }}>
             {(sources.sources.slice(0, 3) || []).map((s, i) => (
-              <div key={i} style={{ display: 'flex', gap: 8, padding: '2px 0' }}>
+              <div key={i} style={{ display: 'flex', gap: 8, padding: '2px 0', minWidth: 0 }}>
                 <span>*</span>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
               </div>
             ))}
           </div>
@@ -841,27 +958,34 @@ export function HomeState({
 
   return (
     <div
+      className="kitty-cockpit"
       style={{
         flex: 1,
         overflowY: 'auto',
-        padding: compact ? '16px 12px 40px' : '24px 32px 40px',
+        padding: compact ? '16px 12px 120px' : '28px 32px 44px',
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-        gap: 24,
+        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+        gap: compact ? 14 : 18,
         alignContent: 'flex-start',
         alignItems: 'flex-start',
+        minHeight: '100%',
+        background:
+          'radial-gradient(circle at 20% 16%, rgba(116,168,255,.13) 0 1px, transparent 1.5px), radial-gradient(circle at 80% 18%, rgba(240,198,106,.22) 0 1px, transparent 1.5px), radial-gradient(circle at 62% 62%, rgba(109,220,192,.12) 0 1px, transparent 1.5px), linear-gradient(135deg, rgba(6,10,20,.96), rgba(9,13,24,.92) 48%, rgba(15,10,18,.96))',
+        backgroundSize: '160px 160px, 220px 220px, 180px 180px, 100% 100%',
       }}
     >
+      <CockpitHeader rankedTitle={rankedAction?.title} />
       <HealthStrip expanded={!gatewayOk} />
       <WhatsNext onDecideInChat={onDecideInChat} onNavigate={onNavigate} />
       <DeadlinesPanel />
+      <SpaceSelector onNavigate={onNavigate} />
       <NeedsYou onDecideInChat={onDecideInChat} />
+      <TodayPanel gatewayError={gatewayError} />
+      <WhatChanged onNavigate={onNavigate} />
+      <WeatherTile />
       <PhoneAccessTile />
       <MagicKittyTile />
       <WorkingSources onNavigate={onNavigate} />
-      <ActiveProjects onNavigate={onNavigate} />
-      <WhatChanged onNavigate={onNavigate} />
-      <TodayPanel gatewayError={gatewayError} />
       <CaptureSection />
     </div>
   );

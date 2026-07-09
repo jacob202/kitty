@@ -143,7 +143,7 @@ app = FastAPI(title="Kitty Gateway", lifespan=lifespan)
 
 app.add_middleware(VoiceGateMiddleware)
 app.add_middleware(BearerAuthMiddleware)
-_cors_origins = ["http://localhost:3000", "http://localhost:8000"]
+_cors_origins = ["http://localhost:3000", "http://localhost:4000", "http://localhost:4001"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,

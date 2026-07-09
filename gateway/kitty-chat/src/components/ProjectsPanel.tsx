@@ -164,7 +164,7 @@ const titleStyle: CSSProperties = {
   fontFamily: 'var(--font-display)',
   fontWeight: 800,
   fontSize: 28,
-  letterSpacing: '-0.02em',
+  letterSpacing: 0,
   color: 'var(--ink)',
 }
 
