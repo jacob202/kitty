@@ -18,14 +18,17 @@ Show this to the user, then immediately proceed to Step 2. The user reads and th
 
 ### 2. Spawn sub-agents
 
-Spawn 3+ sub-agents in parallel using the Task tool. Each must produce a **radically different** interface for the deepened module.
+Spawn sub-agents in parallel using the Task tool. Each must produce a **radically different** interface for the deepened module.
+
+- **Small/familiar candidate:** 2 agents (minimize interface, optimize common caller).
+- **Complex or uncertain candidate:** 3–4 agents (add flexibility and ports-and-adapters angles).
 
 Prompt each sub-agent with a separate technical brief (file paths, coupling details, dependency category from [DEEPENING.md](DEEPENING.md), what sits behind the seam). The brief is independent of the user-facing problem-space explanation in Step 1. Give each agent a different design constraint:
 
 - Agent 1: "Minimize the interface — aim for 1–3 entry points max. Maximise leverage per entry point."
-- Agent 2: "Maximise flexibility — support many use cases and extension."
-- Agent 3: "Optimise for the most common caller — make the default case trivial."
-- Agent 4 (if applicable): "Design around ports & adapters for cross-seam dependencies."
+- Agent 2: "Optimise for the most common caller — make the default case trivial."
+- Agent 3 (if scope warrants): "Maximise flexibility — support many use cases and extension."
+- Agent 4 (if cross-seam dependencies are heavy): "Design around ports & adapters for cross-seam dependencies."
 
 Include both [LANGUAGE.md](LANGUAGE.md) vocabulary and Kitty domain vocabulary (`docs/ARCHITECTURE.md`, `CLAUDE.md`, optional `docs/CONTEXT.md`) in the brief so each sub-agent names things consistently with the architecture language and the project's domain language.
 

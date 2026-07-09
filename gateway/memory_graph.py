@@ -414,6 +414,55 @@ class SignalsAdapter(StoreAdapter):
             return []
 
 
+class WeaveAdapter(StoreAdapter):
+    """Adapter for the temporal knowledge graph (MemoryWeave)."""
+
+    @property
+    def name(self) -> str:
+        return "facts"
+
+    async def fetch(self, query: str) -> list[Item]:
+        try:
+            from gateway.memory_weave import get_weave
+
+            weave = get_weave()
+            results = await asyncio.to_thread(weave.search, query, limit=5)
+
+            items: list[Item] = []
+
+            # Check for exact conflicts on matched entities
+            for q in results:
+                # Basic token extraction to guess entity/relation
+                parts = q.fact.split("=")
+                if len(parts) == 2:
+                    left_parts = parts[0].strip().split(" ", 1)
+                    if len(left_parts) == 2:
+                        conflict_check = weave.surface_conflict(left_parts[0], left_parts[1])
+                        if conflict_check.get("has_conflict"):
+                            stale_marker = " [CONFLICT DETECTED]"
+                            items.append(Item(
+                                text=f"{q.fact}{stale_marker} (confidence: {q.confidence:.2f}) - Warning: multiple conflicting facts exist. {conflict_check.get('recommendation', '')}",
+                                source=Source.MEMORY,
+                                score=q.confidence,
+                                ts=datetime.fromisoformat(q.last_verified) if q.last_verified else None,
+                                metadata=q.to_dict(),
+                            ))
+                            continue
+
+                stale_marker = " [STALE]" if q.is_stale else ""
+                items.append(Item(
+                    text=f"{q.fact}{stale_marker} (confidence: {q.confidence:.2f})",
+                    source=Source.MEMORY, # we use Source.MEMORY as a fallback type, or we could add FACTS to Source
+                    score=q.confidence,
+                    ts=datetime.fromisoformat(q.last_verified) if q.last_verified else None,
+                    metadata=q.to_dict(),
+                ))
+            return items
+        except Exception as e:
+            logger.warning("Weave fetch failed: %s", e)
+            return []
+
+
 # --- Adapter registry ---
 
 
@@ -427,6 +476,7 @@ def _default_adapters() -> list[StoreAdapter]:
         TodosAdapter(),
         InboxAdapter(),
         SignalsAdapter(),
+        WeaveAdapter(),
     ]
     try:
         from gateway.mempalace_adapter import MemPalaceAdapter
@@ -473,7 +523,7 @@ class MemoryGraph:
         The new assemblers use :meth:`search_all` directly.
         """
         result = await self.search_all(query)
-        return _format_unified_items(result.results)
+        return _format_unified_items(result.results, query=query)
 
     async def search_all(self, query: str) -> GraphResult:
         """Search all stores concurrently.
@@ -557,13 +607,30 @@ def _truncate_text(text: str, cap: int) -> str:
     return text[: cap * 4] + "…"
 
 
-def _format_unified_items(results: dict[str, list[Item]], cap: int = CONTEXT_TOKEN_CAP) -> str:
+def _is_sensitive(item: Item, query_terms: set[str]) -> bool:
+    """Filter out items with sensitive tags unless requested in the query."""
+    if item.metadata.get("sensitivity") == "high":
+        return True
+
+    tags = item.metadata.get("tags", [])
+    if isinstance(tags, list):
+        for tag in tags:
+            tag_lower = str(tag).lower()
+            if tag_lower in {"health", "location", "financial", "private", "secret", "billing"}:
+                if tag_lower not in query_terms:
+                    return True
+    return False
+
+
+def _format_unified_items(results: dict[str, list[Item]], cap: int = CONTEXT_TOKEN_CAP, query: str = "") -> str:
     """Render ``results`` (keyed by adapter name) as the memory section.
 
-    Each non-empty source gets a heading and up to 3 lines. The output
-    is truncated to a token cap. Used by the assembler.
+    Uses Token-Aware Budgeting and a Privacy Gate.
     """
+    query_terms = set(query.lower().split())
     sections: list[str] = []
+    current_tokens = 0
+
     for source_name, items in results.items():
         if not items:
             continue
@@ -571,16 +638,41 @@ def _format_unified_items(results: dict[str, list[Item]], cap: int = CONTEXT_TOK
             heading = f"## {Source(source_name).name.title().replace('_', ' ')}"
         except ValueError:
             heading = f"## {source_name.title()}"
+
         lines = [heading]
-        for item in items[:3]:
+        heading_tokens = len(heading) // 4
+
+        added_any = False
+        for item in items[:5]: # Allow up to 5 if budget permits
+            if _is_sensitive(item, query_terms):
+                continue
+
             text = item.text.strip()
-            if text:
-                lines.append(f"- {text}")
-        if len(lines) > 1:
+            if not text:
+                continue
+
+            item_tokens = len(text) // 4
+            remaining_cap = cap - (current_tokens + heading_tokens + 2)
+            if remaining_cap <= 5:
+                continue
+
+            if item_tokens > remaining_cap:
+                text = _truncate_text(text, remaining_cap)
+                item_tokens = len(text) // 4
+
+            if not added_any:
+                current_tokens += heading_tokens
+                added_any = True
+
+            lines.append(f"- {text}")
+            current_tokens += item_tokens + 2
+
+        if added_any:
             sections.append("\n".join(lines))
+
     if not sections:
         return ""
-    return _truncate_text("\n\n".join(sections), cap)
+    return "\n\n".join(sections)
 
 
 # --- Legacy shims for backward compatibility (tests) ---

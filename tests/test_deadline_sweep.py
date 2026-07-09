@@ -17,6 +17,12 @@ def _fresh_db(tmp_path, monkeypatch):
     monkeypatch.setattr("gateway.paths.KITTY_DB_FILE", db)
     monkeypatch.setattr("gateway.project_store.PROJECTS_DB_FILE", db)
     monkeypatch.setattr("gateway.project_store.KITTY_DB_FILE", db)
+    monkeypatch.setattr("gateway.archivist.KNOWLEDGE_DB_PATH", tmp_path / "knowledge_db")
+    try:
+        from gateway.archivist import _get_collection
+        _get_collection.cache_clear()
+    except (ImportError, AttributeError):
+        pass
     deadline_store.init_db()
     project_store.create("benefits-admin", "admin")
 

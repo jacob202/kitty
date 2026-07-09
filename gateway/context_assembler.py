@@ -54,6 +54,7 @@ from gateway.memory_graph import (
     StoreAdapter,
     _format_unified_items,
 )
+from gateway.memory_policy import should_surface
 
 logger = logging.getLogger("kitty.context_assembler")
 
@@ -195,6 +196,19 @@ def _flatten_items(results: dict[str, list[Item]]) -> list[Item]:
     return items
 
 
+def _filter_items_by_policy(
+    results: dict[str, list[Item]], query: str
+) -> dict[str, list[Item]]:
+    """Filter each store's items through memory policy, keeping only those
+    that should surface. Preserves the dict structure for downstream formatting."""
+    filtered: dict[str, list[Item]] = {}
+    for source_name, items in results.items():
+        kept = [item for item in items if should_surface(item, query=query)]
+        if kept:
+            filtered[source_name] = kept
+    return filtered
+
+
 def _format_memory_block(results: dict[str, list[Item]], cap: int) -> str:
     """Render ``results`` (keyed by source) as the memory-graph section."""
     if not any(results.values()):
@@ -248,7 +262,8 @@ async def assemble_context(
     graph_result = await graph.search_all(message)
     warnings.extend(f"memory_graph:{err}" for err in graph_result.errors)
 
-    memory_block = _format_memory_block(graph_result.results, CONTEXT_TOKEN_CAP)
+    filtered_results = _filter_items_by_policy(graph_result.results, message)
+    memory_block = _format_memory_block(filtered_results, CONTEXT_TOKEN_CAP)
 
     enrichment_blocks, enrichment_warnings = await run_enrichments(deps.enrichments, message)
     warnings.extend(enrichment_warnings)

@@ -30,6 +30,7 @@ import time
 
 from gateway import db as kitty_db
 from gateway.paths import KITTY_DB_FILE
+from gateway.sse import broadcaster
 
 logger = logging.getLogger("kitty.signal_store")
 
@@ -78,6 +79,9 @@ def emit(
         if cursor.rowcount == 0:
             logger.debug("signal deduped: %s/%s key=%s", source, kind, dedupe_key)
             return None
+
+        broadcaster.broadcast("state_updated")
+
         return {
             "id": cursor.lastrowid,
             "ts": signal_ts,
@@ -149,6 +153,27 @@ def mark_processed(signal_id: int) -> bool:
         )
         conn.commit()
         return cursor.rowcount > 0
+
+
+def get_signal(signal_id: int) -> dict | None:
+    """Return a single signal by ID, or None if not found."""
+    init_db()
+    with kitty_db.connect(SIGNALS_DB_FILE) as conn:
+        row = conn.execute(
+            f"SELECT {_COLUMNS} FROM signals WHERE id = ?",
+            (signal_id,)
+        ).fetchone()
+        if row:
+            return _row_to_signal(row)
+        return None
+
+
+def delete(signal_id: int) -> None:
+    """Delete a signal entirely (for tests/cleanup)."""
+    init_db()
+    with kitty_db.connect(SIGNALS_DB_FILE) as conn:
+        conn.execute("DELETE FROM signals WHERE id = ?", (signal_id,))
+        conn.commit()
 
 
 _COLUMNS = "id, ts, source, kind, payload, dedupe_key, processed_at, created_at"

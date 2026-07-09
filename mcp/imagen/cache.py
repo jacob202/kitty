@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from mcp.imagen.config import settings
-from mcp.imagen.logging import log
+from mcp.imagen.logger import log
 
 
 def key_for(prompt: str, engine: str, params: dict[str, Any]) -> str:

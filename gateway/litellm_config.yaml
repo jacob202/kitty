@@ -61,6 +61,7 @@ litellm_settings:
     - kitty-sonnet: [kitty-openai]
 
 general_settings:
+  database_url: null
   max_budget: os.environ/LITELLM_MAX_BUDGET_USD
   budget_duration: 1d
   master_key: os.environ/LITELLM_MASTER_KEY

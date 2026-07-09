@@ -233,6 +233,20 @@ def _check_mail_connector(env: dict) -> list[Check]:
     return [Check("PASS", "connector:mail", detail)]
 
 
+def _check_github_connector(env: dict) -> list[Check]:
+    """PASS if token exists, WARN if not present. Does not validate token bounds."""
+    token = env.get("GITHUB_TOKEN", "").strip()
+    if not token:
+        return [
+            Check(
+                "WARN",
+                "connector:github",
+                "GITHUB_TOKEN not present in environment or .env",
+            )
+        ]
+    return [Check("PASS", "connector:github", "token present")]
+
+
 def _check_push_channel(env: dict) -> list[Check]:
     """PASS when a channel is configured and the last logged attempt (if any)
     succeeded; WARN when nothing is configured; FAIL when the last attempt
@@ -330,6 +344,7 @@ def main() -> int:
         + _check_mem0(env)
         + _check_disk()
         + _check_mail_connector(env)
+        + _check_github_connector(env)
         + _check_push_channel(env)
         + _check_deadlines()
     )

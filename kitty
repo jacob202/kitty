@@ -2,6 +2,7 @@
 # Kitty launcher — one command to run, stop, and inspect the stack.
 #
 # Usage:
+#   kitty           Start gateway + LiteLLM + UI and open the browser (default)
 #   kitty up        Start gateway + LiteLLM (background, logs to logs/)
 #   kitty down      Stop both
 #   kitty status    Show what's running + health check
@@ -44,6 +45,7 @@ fi
 GATEWAY_PORT="${GATEWAY_PORT:-8000}"
 LITELLM_PORT="${LITELLM_PORT:-8001}"
 LITELLM_MASTER_KEY="${LITELLM_MASTER_KEY:-kitty-local-key-change-me}"
+UI_PORT="${UI_PORT:-4000}"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 mkdir -p "$RUN_DIR" "$LOG_DIR"
@@ -155,6 +157,33 @@ cmd_up() {
   done
   if [ $_i -ge 15 ]; then
     echo "  Gateway  not responding yet — check: kitty logs"
+  fi
+}
+
+cmd_start() {
+  # One-shot launch: gateway + LiteLLM + UI, then open the browser.
+  cmd_up
+
+  if ! http_ok "http://127.0.0.1:$UI_PORT/"; then
+    echo "Starting UI on http://localhost:$UI_PORT ..."
+    (cd "$KITTY_ROOT/gateway/kitty-chat" \
+      && nohup node node_modules/next/dist/bin/next dev -H 0.0.0.0 -p "$UI_PORT" \
+        >"$LOG_DIR/ui.log" 2>&1 &)
+    _i=0
+    while [ $_i -lt 30 ]; do
+      if http_ok "http://127.0.0.1:$UI_PORT/"; then break; fi
+      sleep 1
+      _i=$((_i + 1))
+    done
+  fi
+
+  if http_ok "http://127.0.0.1:$UI_PORT/"; then
+    echo "UI ready: http://localhost:$UI_PORT"
+    if command -v open >/dev/null 2>&1; then
+      open "http://localhost:$UI_PORT"
+    fi
+  else
+    echo "UI not responding on :$UI_PORT — check: $LOG_DIR/ui.log"
   fi
 }
 
@@ -526,7 +555,8 @@ cmd_help() {
 }
 
 # ── Dispatch ─────────────────────────────────────────────────────────────────
-case "${1:-help}" in
+case "${1:-start}" in
+  start)     cmd_start ;;
   up)        cmd_up ;;
   down)      cmd_down ;;
   status)    cmd_status ;;

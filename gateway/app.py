@@ -102,7 +102,19 @@ async def lifespan(app: FastAPI):
         register_action("monitors.check", _action_check_monitors)
         register_action("memory.consolidate", _action_memory_consolidate)
         register_action("inbox.triage", _action_triage_inbox)
+        def _action_poll_github():
+            from gateway.connectors import github
+
+            return github.poll_now()
+
+        async def _action_poll_experts():
+            from gateway.expert_proactive import poll_experts
+
+            await asyncio.to_thread(poll_experts)
+
         register_action("mail.poll", _action_poll_mail)
+        register_action("github.poll", _action_poll_github)
+        register_action("experts.poll", _action_poll_experts)
         register_action("prefetch.warm", _action_warm_prefetch)
         cron_start()
     except Exception:
@@ -131,7 +143,7 @@ app = FastAPI(title="Kitty Gateway", lifespan=lifespan)
 
 app.add_middleware(VoiceGateMiddleware)
 app.add_middleware(BearerAuthMiddleware)
-_cors_origins = ["http://localhost:3000", "http://localhost:8000"]
+_cors_origins = ["http://localhost:3000", "http://localhost:4000", "http://localhost:4001"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
@@ -198,6 +210,26 @@ async def get_mood():
     from gateway.buddy import get_state
 
     return get_state()
+
+
+@app.get("/stream")
+async def sse_stream(request: Request, session_id: str | None = None):
+    """Server-Sent Events endpoint for pushing state changes to the UI."""
+    import uuid
+
+    from fastapi.responses import StreamingResponse
+
+    from gateway.sse import broadcaster
+
+    client_id = session_id or str(uuid.uuid4())
+
+    async def event_generator():
+        async for message in broadcaster.subscribe(client_id):
+            if await request.is_disconnected():
+                break
+            yield message
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 register_routes(app)

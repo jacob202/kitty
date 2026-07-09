@@ -9,7 +9,9 @@ Surface architectural friction and propose **deepening opportunities** — refac
 
 ## Glossary
 
-Use these terms exactly in every suggestion. Consistent language is the point — don't drift into "component," "service," "API," or "boundary." Full definitions in [LANGUAGE.md](LANGUAGE.md).
+Use these terms exactly in every suggestion. Consistent language is the point — don't drift into "component," "service," "API," or "boundary." Full definitions below.
+
+!`cat LANGUAGE.md`
 
 - **Module** — anything with an interface and an implementation (function, class, package, slice).
 - **Interface** — everything a caller must know to use the module: types, invariants, error modes, ordering, config. Not just the type signature.
@@ -20,7 +22,7 @@ Use these terms exactly in every suggestion. Consistent language is the point �
 - **Leverage** — what callers get from depth.
 - **Locality** — what maintainers get from depth: change, bugs, knowledge concentrated in one place.
 
-Key principles (see [LANGUAGE.md](LANGUAGE.md) for the full list):
+Key principles:
 
 - **Deletion test**: imagine deleting the module. If complexity vanishes, it was a pass-through. If complexity reappears across N callers, it was earning its keep.
 - **The interface is the test surface.**
@@ -37,17 +39,28 @@ Before exploring, read:
 | `docs/ARCHITECTURE.md` | Live stack, ports, package layout |
 | `CLAUDE.md` | Module map, routing rules, test commands |
 | `gateway/paths.py` | Path constants — all storage paths flow from here |
-| `docs/CONTEXT_ENGINEERING.md` | How context is assembled and injected |
+| `docs/phases/CONTEXT_ENGINEERING.md` | How context is assembled and injected |
 
 **Domain vocabulary:** use names from `gateway/` — e.g. `context_builder`, `memory_graph`, `StorageRouter`, `buddy`, `skill_registry` — not generic handler names.
 
 **Recorded decisions:** Kitty has no formal ADR directory yet. Treat existing docs under `docs/` as load-bearing unless the user says otherwise. When a rejection deserves permanence, offer to add `docs/adr/NNNN-title.md` using [ADR-FORMAT.md](ADR-FORMAT.md).
 
+## Failure modes to avoid
+
+- **Parroting docs.** Read the grounding docs, then walk the code. Surface candidates that come from the code, not from echoing `docs/ARCHITECTURE.md`.
+- **One-adapter seam.** A module with one implementation is hypothetical; deepen only after a second caller or adapter justifies the seam.
+- **Over-refactoring.** Apply the deletion test first. If deleting the module would not concentrate complexity, leave it alone.
+- **Speculative abstractions.** Add flexibility only when the user asks for it.
+
 ## Process
+
+<scope_check>
+If the user names ≤2 specific files or asks about one function/class, skip the Task-tool exploration phase. Read the named files directly and move to the grilling loop.
+</scope_check>
 
 ### 1. Explore
 
-Read the Kitty grounding docs above, then walk the codebase. Use the Task tool (`subagent_type=generalPurpose` or `ce-repo-research-analyst`) for broad exploration. Note where you experience friction:
+Read the Kitty grounding docs above, then walk the codebase. Use the Task tool (`subagent_type=generalPurpose`) for broad exploration only when the scope is large. Note where you experience friction:
 
 - Where does understanding one concept require bouncing between many small modules?
 - Where are modules **shallow** — interface nearly as complex as the implementation?
@@ -66,11 +79,11 @@ Present a numbered list of deepening opportunities. For each candidate:
 - **Solution** — plain English description of what would change
 - **Benefits** — explained in terms of locality and leverage, and also in how tests would improve
 
-**Use Kitty domain vocabulary** (from `docs/ARCHITECTURE.md` and `CLAUDE.md`) **and [LANGUAGE.md](LANGUAGE.md) vocabulary for the architecture.** Talk about "the memory_graph unified query module" — not "the FooBarHandler," and not "the Memory service."
+**Use Kitty domain vocabulary** (from `docs/ARCHITECTURE.md` and `CLAUDE.md`) **and the architecture vocabulary above.** Talk about "the memory_graph unified query module" — not "the FooBarHandler," and not "the Memory service."
 
-**Doc conflicts**: if a candidate contradicts an existing doc, only surface it when the friction is real enough to warrant revisiting. Mark it clearly (e.g. _"contradicts docs/ARCHITECTURE.md — but worth reopening because…"_). Don't list every theoretical refactor existing docs forbid.
+**Doc conflicts**: if a candidate contradicts an existing doc, only surface it when the friction is real enough to warrant revisiting. Mark it clearly (e.g. _"contradicts docs/ARCHITECTURE.md — but worth reopening because…"_). Skip theoretical refactors that existing docs already forbid.
 
-Do NOT propose interfaces yet. Ask the user: "Which of these would you like to explore?"
+Propose interfaces only after the user picks a candidate. Until then, ask: "Which of these would you like to explore?"
 
 ### 3. Grilling loop
 

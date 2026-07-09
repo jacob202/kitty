@@ -12,6 +12,7 @@ are unchanged in behavior but now live in their own modules.
 from mcp.imagen.tools.batch import batch_generate
 from mcp.imagen.tools.gallery import make_gallery
 from mcp.imagen.tools.generate import edit_image, generate
+from mcp.imagen.tools.generate_until import generate_until
 from mcp.imagen.tools.reference import (
     generate_with_avatar,
     generate_with_reference,
@@ -26,6 +27,7 @@ __all__ = [
     "batch_generate",
     "refine_image",
     "variations",
+    "generate_until",
     "generate_with_reference",
     "set_avatar",
     "generate_with_avatar",

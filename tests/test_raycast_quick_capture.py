@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -18,7 +19,7 @@ def test_raycast_quick_capture_script_writes_to_inbox(tmp_path):
     env = {
         **os.environ,
         "KITTY_INBOX_FILE": str(inbox_file),
-        "KITTY_PYTHON": "python3.12",
+        "KITTY_PYTHON": sys.executable,
     }
 
     result = subprocess.run(
@@ -42,7 +43,7 @@ def test_raycast_quick_capture_script_rejects_empty_text(tmp_path):
     env = {
         **os.environ,
         "KITTY_INBOX_FILE": str(tmp_path / "inbox.jsonl"),
-        "KITTY_PYTHON": "python3.12",
+        "KITTY_PYTHON": sys.executable,
     }
 
     result = subprocess.run(

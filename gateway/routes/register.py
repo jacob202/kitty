@@ -16,6 +16,7 @@ from gateway.routes import (
     deadlines,
     desktop,
     dream,
+    experts,
     extended,
     inbox,
     insights,
@@ -25,6 +26,7 @@ from gateway.routes import (
     knowledge,
     logs,
     loops,
+    magic,
     memories,
     monitors,
     projects,
@@ -39,6 +41,7 @@ from gateway.routes import (
 
 def register_routes(app: FastAPI) -> None:
     for module in (
+        experts,
         actions,
         ask,
         brief,
@@ -67,6 +70,7 @@ def register_routes(app: FastAPI) -> None:
         status,
         telos,
         voice,
-        extended,
-    ):
+    extended,
+    magic,
+):
         app.include_router(module.router)

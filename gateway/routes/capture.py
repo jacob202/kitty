@@ -101,6 +101,7 @@ def _index_capture(capture_id: str, file_path: Path) -> None:
         import asyncio
 
         from gateway import knowledge
+        from gateway.sse import broadcaster
 
         result = asyncio.run(
             knowledge.ingest(
@@ -114,6 +115,7 @@ def _index_capture(capture_id: str, file_path: Path) -> None:
             result.status,
             result.source,
         )
+        broadcaster.broadcast("knowledge_updated")
     except Exception as exc:
         logger.error("Capture %s indexing failed: %s", capture_id, exc)
 
