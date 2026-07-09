@@ -1,67 +1,39 @@
-# STATE — Kitty
+# Session State — 2026-07-09
 
-> Live packet coordination. Read before picking up work. Update when claiming or finishing.
+## Current branch
+`claude/packet-018-expert-packs` — PR #119 open; local branch has unpushed follow-up commits.
 
-## Branch
+## Done (this session)
+- PR #119 opened: CORS ports, project delete fix, brief timeout fix, LiteLLM db config, dark cosmic cockpit UI, kitty start command
+- Fixed `project_store.py` table name bug: `next_steps` → `project_next_steps`
+- Deleted 500 swarm-test projects (IDs 4-503) from DB — 7 real projects remain
+- Deleted stale `data/kitty.db` (root)
+- Fixed LiteLLM `/health` crash: added `database_url: null` to config, installed `prisma` in venv
+- Confirmed proxy works, all 102 frontend tests pass, production build succeeds
+- Gateway on 8000, UI on 4000, LiteLLM on 8001 — all healthy
+- Continued UI reliability cleanup on 2026-07-09:
+  - Verified the 4000 blank-shell symptom was a Next dev HMR origin issue; after restarting the dev server, `4000` hydrates and HMR connects.
+  - Moved `/magic` route's blocking cross-project LLM work into `asyncio.to_thread` so Magic Kitty no longer blocks unrelated home dashboard requests.
+  - Reduced home first-paint proxy pressure by sharing project next-step queries inside `HomeState` and only loading loops/insights/prompts when the Tools view is open.
+  - Made Magic Kitty cache valid empty insight results without caching LLM/resume failures as fake empty success.
+  - Verified the live `4000` cockpit in Chrome: no false `Brief unavailable`, `changes unavailable`, or `gateway offline` text after the request-burst fix.
+  - Committed local follow-up: `a1728e9 fix(home): reduce startup request blocking`.
+  - Fresh verification: `python3.12 -m pytest tests/test_magic_route.py tests/test_brief.py tests/test_brief_deadlines.py -q --tb=short` → 32 passed; `npm test` → 103 passed; `npm run build` → pass; targeted pre-commit hooks → pass.
+  - Follow-up verification: `python3.12 -m pytest tests/test_magic_kitty.py tests/test_magic_route.py tests/test_brief.py tests/test_brief_deadlines.py -q --tb=short` → 37 passed.
+  - Committed Magic Kitty fail-loud follow-up: `70018c8 fix(magic): fail loud on discovery errors`.
+  - Fresh Magic Kitty verification: `python3.12 -m pytest tests/test_magic_kitty.py tests/test_magic_route.py -q --tb=short` → 6 passed; `ruff check` → pass; `ruff format` applied to `gateway/magic_kitty.py`; targeted pre-commit hooks → pass.
+  - Observed concurrent/new imagen commit on the same branch: `bb8cdf6 feat(imagen): add init_image support to generate_until and verify pipelines`.
 
-claude/packet-018-expert-packs
-
-## Sessions (2026-07-07)
-
-- Fable (UX phase) — worktree `.worktrees/fable-ux-phase`, branch `claude/fable-ux-phase` (5 commits, unpushed): self-hosted fonts via next/font, compat token aliases retired, dead old-palette vars fixed (~90 silent failures), TerminalStrip now tails real `/logs/tail` (new route + tests) instead of fabricating lines, lowercase copy sweep, chat copy/retry actions, cat state honestly bound to stream (o_o/^_^/:[), fake TopBar state chips removed. Verified live + 95/95 UI tests. Plan + next slices: `docs/planning/kitty-next-evolution-working-notes.md`.
-
-- Fable (prototype sprint) — nav shell rebuilt (8 tabs), ProjectsPanel, DocumentsPanel, ProviderCenter, chat save-state indicator, Tailscale bind. Branch `claude/kitty-prototype-sprint-srs5bl`. Merged as #113.
-- OpenCode — fixed memory_weave typecheck errors, created PR #115 (test fixture cleanup, open).
-- Antigravity — added WeatherTile/WorkingSources, whimsy styling, crayon borders, cat eyes. Branch `claude/packet-020-github-connector` (includes GitHub connector).
-- Phase 5 (Feedback Loops & Observability) — wired up dismiss/snooze controls to SSE cache invalidation (`broadcaster.broadcast('state_updated')`), fixed `expert_proactive.py` cron interval skipping bug by ensuring `_last_run` cursor is updated on completion, and refactored `CapturePanel.tsx` to use React Query (`useUploadCapture`) with a global `MutationCache` for error toasts in `providers.tsx`.
-- Fable (Home Dashboard) — extracted primitive components (Card, ItemCard, ErrorState, Button), implemented Command registry (`src/lib/commands.ts`), and implemented `evaluateNextAction` in `src/lib/ranking.ts` to power the `WhatsNext` priority queue. 101/101 Next.js tests passing, build passing.
-- Models working on packet 018 (expert packs). **Leave alone.**
-
-## Latest merges
-
-| PR | What | CI |
-| -- | ---- | -- |
-| #115 | fix(tests): test_brief_deadlines.py duplicate seed | ⏳ check-description fixed, re-running |
-| #114 | UI sprint pass 2 — weather, sources, cat eyes | ✅ |
-| #113 | UI sprint — nav shell, DocumentsPanel, ProviderCenter, save state, memory_weave typefix | ✅ |
-| #112 | 017 benefits rails — deadlines, sweep, watch, routes | ✅ |
-| #111 | 008 knowledge expert retrieval | ✅ |
-| #110 | docs: wave-4 authoring (017 spec, 025 spec) | ✅ (typecheck fixed by #113) |
-| #109 | projects hardening — timeout, PATCH, degraded next-step | ✅ |
-
-## Packet claims
-
-| Packet | Status |
-| ------ | ------ |
-| 001–016 | ✅ all shipped |
-| 017 (benefits rails) | ✅ shipped (#112) |
-| 018 (expert packs) | 🚧 claimed — models building. **Leave alone.** |
-| 020 (GitHub connector) | 🚧 claimed — Antigravity |
-| 022 (magic kitty) | 🧭 next after 025 |
-| 023 (memory taste) | 🧭 planned |
-| 024 (chat log idea mine) | 🧭 planned |
-| 025 (imagegen v2) | 🧭 **next build** — local-first, Draw Things, fal retired |
-
-**Rule for other agents:** if the status above is anything other than `available`, the packet is taken.
-
-## Facts from Jacob (load-bearing)
-
-- Phone-first; iOS pushes only channel that works (D12). Now live.
-- He conflates "spec exists" with "built" — answer status questions with the registry legend's words.
-- Missed student-loan deadline June 2026 (~$600) — trigger for 017.
-- Disability (SAID/CDB/DTC) is the income track; job search parked (019). Recovery expert pack strictly opt-in; Kitty does not raise it.
-- "Magic kitty" — cross-project insight is the point (D13, packet 022). Basic-then-magic sequencing was his explicit call.
-- fal is retired for imagegen (too expensive) — local-first, D25 packet.
-- Kitty's house: the broken-screen MacBook Air, headless, on ethernet.
-
-## Blocked on Jacob
-
-- Register his 2–3 real projects (`./kitty project add`) and start judging real Bs (closes 016).
-- 025 installs half (Draw Things API server, model downloads) before packet builds. **Preflight:** his live imagen checkout is under `~/Projects/`, NOT this repo's `mcp/imagen/` copy.
+## In-flight / Blocked
+- **PR #119** — awaiting review/merge, but local follow-up commits are not on the remote PR branch until Jacob approves push.
+- **LiteLLM** — healthy now, but some models still fail (Claude Sonnet needs ANTHROPIC_API_KEY, Gemini 2.0 Flash endpoint expired, AgentRouter needs API key)
+- **Service pidfiles** — Gateway/LiteLLM are currently healthy via attached Codex sessions, but `./kitty status` reports `not running` for pidfiles while health checks are green. If the next session needs long-lived services outside Codex, re-run/repair `./kitty up` backgrounding.
+- **Unrelated dirty files** — `.agents/skills/engineering/improve-codebase-architecture/INTERFACE-DESIGN.md` and `.agents/skills/engineering/improve-codebase-architecture/SKILL.md` were left uncommitted.
+- **Commit attribution wrinkle** — `mcp/imagen/engines/drawthings.py` landed in `70018c8` while imagen work was moving concurrently; `bb8cdf6` adds the matching imagen pipeline calls, so do not revert Draw Things img2img support casually.
+- **Kitty Builder**: `feat/port-kittybuilder` still unmerged
 
 ## Next actions
-
-1. **Build packet 025 (imagegen v2)** — local-first, Draw Things A1111-compatible API, fal retired. Spec at `docs/packets/025-imagegen-pipeline-v2.md`.
-2. **Build packet 022 (magic kitty)** — cross-project insight synthesis (D13). Comes after 025.
-3. Clean up stale worktrees: `/tmp/kitty-fix`.
-4. Wire `MemoryWeave` into `unified_context`/`context_assembler` call paths (small packet).
+1. If Jacob approves, push `claude/packet-018-expert-packs` so PR #119 includes the local follow-up commits.
+2. After push, confirm CI check runs are green before merging PR #119.
+3. Merge Kitty Builder branch if still wanted.
+4. Packet 016: Jacob judges Bs for registered projects.

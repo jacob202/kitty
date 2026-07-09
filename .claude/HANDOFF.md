@@ -1,157 +1,67 @@
-# Session Handoff — 2026-07-07 (Fable UX phase, slices 1–2)
+# Handoff — 2026-07-09
 
-## Status
+## What's working
+- Gateway on 8000, UI on 4000, both responsive
+- Frontend proxy works (`/proxy/health` → gateway health)
+- 7 real projects in DB (IDs 1-3, 504-507), no more swarm clutter
+- `project_store` delete fixed (wrong table name)
+- `data/kitty.db` stale copy deleted — only `data/kitty/kitty.db` exists now
+- 103/103 frontend tests pass, production build compiles
+- Home cockpit now uses the dark cosmic visual direction and existing Kitty mascot assets.
+- Home `select space` lists the real existing projects from `/proxy/projects` (7 projects: IDs 1-3, 504-507) instead of pushing Jacob to create fake projects.
+- Mobile visual QA no longer has the fixed cat overlapping project rows; Brain card filenames ellipsize instead of overflowing.
+- The brief timeout banner was fixed on the frontend side: `/proxy/brief` now gets a 5000ms abort budget, and a regression test covers a 2.1s successful cold-cache/fallback response.
+- Dev `4000` now renders the cockpit in Chrome with HMR connected; the stale blank-shell symptom was cleared by restarting the dev server with the current Next dev-origin config.
+- `/magic` no longer blocks the FastAPI event loop; the route runs Magic Kitty's synchronous LLM workflow in a worker thread.
+- Magic Kitty caches valid empty insight results, but LLM/resume failures now raise loudly instead of being stored as fake empty success.
+- Home first-paint proxy pressure is lower: project next-step queries are shared inside `HomeState`, and loops/insights/prompts wait until the Tools view is open.
 
-- Branch `claude/fable-ux-phase` in `.worktrees/fable-ux-phase`, 5 commits, **unpushed** (git auth still broken for this box).
-- Full log + remaining slices: `docs/planning/kitty-next-evolution-working-notes.md` (also committed on the branch).
+## What needs attention
+1. **PR #119**: open, but the local branch has unpushed follow-up commits. Do not assume PR #119 contains these follow-ups until Jacob approves a push. Current notable local commits include:
+   - `a1728e9 fix(home): reduce startup request blocking`
+   - `70018c8 fix(magic): fail loud on discovery errors`
+   - `bb8cdf6 feat(imagen): add init_image support to generate_until and verify pipelines`
+2. **Service pidfiles**: Gateway/LiteLLM are healthy via attached Codex sessions, but `./kitty status` says `not running` from pidfiles while health checks are green. Re-run/repair `./kitty up` backgrounding if the next session needs detached services.
+3. **UI**: dark cockpit first slice is implemented and live on 4000. Jacob may still want more polish/density to get closer to the Stitch mockup.
+4. **Unmerged**: `feat/port-kittybuilder` still on its worktree branch, never merged to main.
+5. **Gateway port**: `.env` `GATEWAY_PORT` field keeps reverting to 8000. Something resets it. Gateway reads from env but the frontend proxy hardcodes `http://127.0.0.1:8000` at `proxy/[...path]/route.ts:13` as fallback.
+6. **Unrelated dirty files**: `.agents/skills/engineering/improve-codebase-architecture/INTERFACE-DESIGN.md` and `.agents/skills/engineering/improve-codebase-architecture/SKILL.md` remain uncommitted.
+7. **Commit attribution wrinkle**: `mcp/imagen/engines/drawthings.py` landed inside `70018c8` while imagen work was moving concurrently; `bb8cdf6` then added the matching `generate_until`/`verify` plumbing. Do not revert Draw Things img2img support casually because the imagen lane now appears to depend on it.
 
-## What landed
+## Latest verification
+- `./kitty status` → pidfiles say not running, but health checks are green for Gateway 8000 and LiteLLM 8001 because services are attached to Codex sessions.
+- Live Chrome verification on `http://127.0.0.1:4000` → cockpit renders, HMR connected, no `Brief unavailable`, `changes unavailable`, or `gateway offline` text.
+- Temporary 4001 production preview was stopped after 4000 dev was fixed; use `http://127.0.0.1:4000`.
+- `python3.12 -m pytest tests/test_magic_route.py tests/test_brief.py tests/test_brief_deadlines.py -q --tb=short` → 32 passed in 7.19s.
+- `python3.12 -m pytest tests/test_magic_kitty.py tests/test_magic_route.py tests/test_brief.py tests/test_brief_deadlines.py -q --tb=short` → 37 passed.
+- `cd gateway/kitty-chat && npm test` → 16 files / 103 tests passed.
+- `cd gateway/kitty-chat && npm run build` → pass; Next build completed TypeScript/static generation successfully.
+- `/Users/jacobbrizinski/Projects/kitty/venv/bin/pre-commit run --files gateway/routes/magic.py tests/test_magic_route.py gateway/kitty-chat/src/app/page.tsx gateway/kitty-chat/src/components/HomeState.tsx gateway/kitty-chat/src/lib/queries.ts` → pass.
+- `git commit -m "fix(home): reduce startup request blocking"` → `a1728e9`.
+- `/Users/jacobbrizinski/Projects/kitty/venv/bin/ruff check gateway/magic_kitty.py tests/test_magic_kitty.py` → pass.
+- `/Users/jacobbrizinski/Projects/kitty/venv/bin/ruff format --check gateway/magic_kitty.py tests/test_magic_kitty.py` initially wanted formatting; after `ruff format`, tests passed again.
+- `/Users/jacobbrizinski/Projects/kitty/venv/bin/pre-commit run --files gateway/magic_kitty.py tests/test_magic_kitty.py` → pass.
+- `git commit -m "fix(magic): fail loud on discovery errors"` → `70018c8`.
+- Concurrent/new local commit observed after that: `bb8cdf6 feat(imagen): add init_image support to generate_until and verify pipelines`.
+- Playwright screenshots via system Chrome channel:
+  - `/tmp/kitty-cockpit-desktop-final2.png`
+  - `/tmp/kitty-cockpit-mobile-warm-final.png`
+  - `/tmp/kitty-cockpit-mobile-bottom-final.png`
+  - `/tmp/kitty-home-brief-check-4001.png`
+  - `/tmp/kitty-dev-4000-request-burst-reduced.png`
 
-- next/font self-hosting (no Google CDN at first paint; PWA/offline safe); compat token aliases deleted, all components on real v2 tokens.
-- ~90 usages of undefined old-palette CSS vars fixed (were silently unstyled).
-- New `GET /logs/tail` (whitelisted, bounded) + tests; TerminalStrip tails the real gateway log — it previously invented random log lines.
-- Chat: runStream extraction, retry-last-reply, hover copy/retry actions, cat state honestly bound (o_o streaming / ^_^ done / :[ broke); fake TopBar state chips removed.
-- Verified in the running app with gateway down: honest error path end-to-end. UI 95/95, build green. Pytest 1310 pass; 3 pre-existing env failures (mem0, google.auth modules missing in local env), not from this diff.
+## Env notes
+- `DT_URL=http://127.0.0.1:7859`, `VISION_MODEL=moondream`, `DT_MODEL=Juggernaut XL Ragnarok`
+- GATEWAY_PORT=8000 (keeps reverting despite edits)
+- `GITHUB_TOKEN` env var has working `ghp_` PAT; `gh auth status` shows `gho_` OAuth from keychain
 
-## Next
-
-1. Push + PR `claude/fable-ux-phase` (watch conflicts with packet-018's dirty UI files: DocumentsPanel, ProjectsPanel, queries.ts).
-2. Slice 3: home cockpit click-throughs (017 deadlines, 016 next-step hero).
-3. Slice 4 perf, Slice 5 mobile/PWA — sketched in the working notes.
-
----
-
-# Session Handoff — 2026-07-07 (Kitty Builder port Phase 4)
-
-## Status
-
-- Work continued in `.worktrees/feat-port-kittybuilder` on branch `feat/port-kittybuilder`.
-- Kitty Builder port Phases 1–4 are **complete and committed** in that worktree.
-- Full Python suite: **1365 passed, 1 skipped**.
-- Push to origin is blocked: the active `gh` OAuth token (`gho_...`) is rejected for git operations. Use SSH or a `ghp_...` personal access token to push.
-
-## What landed in Phase 4
-
-- `gateway/builder_cli.py` with `run`, `loop`/`repl`, `delegate`, `brief`, `contract validate`
-- `gateway/builder/contract.py` for ISC contract validation/execution
-- `gateway/doctor.py` extensions: worker probe checks, `llm:fallback_rate`, `llm:stream_untracked`
-- `gateway/routes/builder.py` with `POST /builder/delegate`, `POST /builder/loop`, `GET /builder/budget`, `GET /builder/session/{id}`
-- `./kitty builder <subcommand>` wired into the umbrella script
-- Tests: `tests/test_builder_cli.py`, `tests/test_builder_contract.py`, `tests/test_doctor.py` additions
-
-## Next
-
-- Phase 5 cleanup: delete `~/Projects/kitty-salvage/kittybuilder/`, update `docs/ARCHITECTURE.md` + `AGENTS.md`, write ADR.
-- Fix git auth and push `feat/port-kittybuilder`.
-
----
-
-# Session Handoff — 2026-07-05 (Fable overnight/day session)
-
-## What happened (in order)
-
-1. **Shipped the packet run:** 015 phone channel (#103), 021 project
-   registry (#106), 016 next-step navigator (#107) — each built, tested,
-   manually verified against a real gateway, PR'd, merged.
-2. **Jacob went live.** First time Kitty actually ran for him:
-   - Fixed his stale local main (two macOS `Icon\r` files inside `.git/`
-     broke pulls — `find .git -type f -iname 'Icon*' -delete`).
-   - LiteLLM wouldn't start: `~/kitty-services/venv-litellm` was missing
-     the proxy extras → `pip install 'litellm[proxy]'` fixed it (plus its
-     cold start is now slow — doctor can race it; re-run doctor).
-   - Another `Icon\r` inside the project venv broke chromadb — same fix.
-   - Gmail OAuth completed (Desktop-app client), `PUSH_IMESSAGE_RECIPIENT`
-     set. **Doctor: pass=11 warn=1 fail=0.** First real B generated.
-3. **Wave-3 hardening from watching him live** — PR #109: refresh degrades
-   instead of 500ing when the model is down (D9 shape), PATCH /projects,
-   `./kitty project add|list|refresh|next|set-path`, doctor `env:parse`
-   (his `.env` line 1 has a stray quote — still there, cosmetic), source
-   timeout 5→10s.
-4. **Docs close-out + wave 4 open** — this PR: 016 flipped to shipped;
-   021/022 numbering collision from #101/#102 fixed (files renumbered
-   023/024, registered, L-CAND-12 written, intake gate now names the
-   rule); **017 authored executor-ready** (Wave 4 = move-in day);
-   **025 authored** (imagegen v2 — Jacob's explicit request).
-
-## Live warnings for the next session
-
-- **Jacob pasted his entire `.env` (all API keys) into chat twice.**
-  Advised rotating GITHUB_PAT + legacy token at minimum. Not done as of
-  handoff — worth a gentle check-in, not a lecture.
-- His live imagen checkout is under `~/Projects/`, NOT this repo's
-  `mcp/imagen/` copy ("it's in projects not kitty") — 025 step 0 covers
-  the reconciliation. Do not build imagen features into this repo's copy
-  without doing that preflight.
-- `python-dotenv could not parse statement starting at line 1` on every
-  command on his Mac = the stray quote, not a real failure. #109's doctor
-  check names it; the fix is deleting one character in `.env` line 1.
-- Codex's 008-remainder worktree claim is from 2026-07-04 and hasn't been
-  heard from — verify before treating it as taken.
-
-## The thread (D13 context, do not lose)
-
-Jacob's sequencing, his words: build the basic thing, verify it works,
-THEN "magic kitty" — cross-project insight (packet 022). 016's week of
-real Bs is the verification step. Magic comes next, not never, and not
-smuggled into 016.
-
-## Open PRs at handoff
-
-- #109 wave-3 hardening (CI was running; merge when green)
-- wave-4 docs PR (this branch)
-- #108 registry flip — superseded by the docs PR; close it
-# Session Handoff — 2026-07-06 (long opencode session: Track B + C + salvage port)
-# Session Handoff — 2026-07-06 (PR #112 merge attempt)
-
-## Status — PR #112 is CONFLICTING, needs merge resolution
-
-## Completed this session
-
-- **Fixed lint errors** in `gateway/deadline_store.py`, `tests/test_deadline_extractor.py`, `tests/test_deadline_sweep.py`, `tests/test_deadline_watch.py`, `tests/test_loops_insights_defake.py` — unused imports, unsorted imports, unused variable.
-- **Fixed PR description** — added `## Test plan` section (check-description was failing).
-- **Restored `gateway/prefetcher.py`** — C3-2 commit removed it, but main has `8f0fadd` that expects it. Restored from main.
-- **Fixed `tests/test_cron.py::TestLegacyImport`** — `test_legacy_import_copies_rows` asserted `LEGACY_CRON_DB.exists()` (the real path) instead of `tmp_legacy_db.exists()` (the fixture path). Import was also stale — `LEGACY_CRON_DB` was captured before monkeypatch.
-- **Renamed migration** `013_deadlines.sql` → `014_deadlines.sql` — main added `013_memory_weave.sql` in the meantime.
-- **Pushed 5 commits** to `claude/packet-017-benefits-rails`:
-  - `43b9c2f`: fix(lint): unused imports, import sorting, restore prefetcher.py
-  - `2e46483`: fix(test): lint import sorting, legacy import assert uses tmp_legacy_db
-  - `05a36ef`: chore: trigger CI
-  - `74a8d60`: fix(migration): rename 013 -> 014 to avoid conflict with main's 013_memory_weave
-
-## Still failing / blocking
-
-### 1. Merge conflict — PR #112 is CONFLICTING
-
-The PR's `mergeStateStatus` is `DIRTY`. The migration rename (013→014) should have resolved the file collision, but it's still conflicting. Likely suspects:
-
-- **`gateway/prefetcher.py`**: The branch deleted it in C3-2 (`d286e02`), then I restored it from main (`main:gateway/prefetcher.py`). Main added it in `40be1ce`. Git sees both sides "adding" the file from different starting points — this may need manual resolution.
-- **`tests/test_memory_graph.py`**: Main's `8f0fadd` adds `from gateway import prefetcher` + `_isolate_prefetch_cache` fixture back. The branch's version (from C3-2) doesn't have these. No merge conflict per se (main's change is additive from the base), but it depends on `prefetcher.py` existing.
-
-### 2. Git repo has macOS Icon file corruption
-
-Hundreds of `Icon` files (from macOS metadata) are scattered through `.git/` directories. These cause `fatal: bad object refs/Icon?` errors when running git operations from the worktree. Fetching and merging from the main repo directory also fails.
-
-### 3. CI didn't trigger for latest commits
-
-The last CI run was for `43b9c2f6` and it FAILED (lint had 1 error I001, test_cron had the legacy assert bug). My subsequent fixes (`2e46483`, `74a8d60`) never triggered CI — possibly because the conflict prevents PR CI from running.
-
-## Next actions
-
-1. **Resolve merge conflict** — the best approach is probably:
-   - Close PR #112
-   - Rebase the branch onto `main`, resolve conflicts in `gateway/prefetcher.py` and `tests/test_memory_graph.py`
-   - Force-push and re-open PR
-   - OR: use `gh pr merge` with a merge strategy that works around the conflict
-2. **Clean up the git repo's Icon files** — `find .git -name "Icon" -delete` was run but may not have caught everything. The worktree's `.git` might still be affected.
-3. **Trigger CI** — once the conflict is resolved, CI should run automatically on push.
-4. **Verify all checks green** — then merge.
-
-## Commits pushed (visible on GitHub)
-
-```
-3117859 feat(benefits): deadline rails, extractor, watch cron, sweep, routes
-43b9c2f  fix(lint): unused imports, import sorting, restore prefetcher.py
-2e46483  fix(test): lint import sorting, legacy import assert uses tmp_legacy_db
-05a36ef  chore: trigger CI
-74a8d60  fix(migration): rename 013 -> 014 to avoid conflict with main's 013_memory_weave
-```
+## Packet status
+- 001-015 shipped
+- 016 blocked — Jacob needs to judge Bs for registered projects
+- 017 PR #112 open (move-in blocker)
+- 018 PR #119 open; local follow-up commits are not pushed
+- 020 claimed by Antigravity
+- 022 partial code in 018 batch
+- 023 spec exists
+- 024 spec exists, phase 1 built
+- 025 committed
