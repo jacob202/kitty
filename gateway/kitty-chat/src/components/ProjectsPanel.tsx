@@ -1,19 +1,11 @@
 'use client'
 import type { CSSProperties } from 'react'
-import { useProjects, useProjectNext, useRefreshProject, useCreateProject } from '@/lib/queries'
+import { useProjects, useProjectNext, useRefreshProject } from '@/lib/queries'
 import type { GatewayProject } from '@/lib/gateway'
-import { Card } from '@/components/ui/Card'
-import { SectionLabel } from '@/components/ui/SectionLabel'
-import { Button } from '@/components/ui/Button'
-import { useState } from 'react'
 
 export function ProjectsPanel() {
   const projectsQuery = useProjects()
   const refresh = useRefreshProject()
-  const createProject = useCreateProject()
-
-  const [newName, setNewName] = useState('')
-  const [newKind, setNewKind] = useState('')
 
   if (projectsQuery.isLoading) {
     return <p style={mutedStyle}>loading projects…</p>
@@ -31,13 +23,6 @@ export function ProjectsPanel() {
 
   const projects = projectsQuery.data ?? []
 
-  function handleCreate() {
-    if (!newName.trim() || !newKind.trim()) return
-    createProject.mutate({ name: newName.trim(), kind: newKind.trim() })
-    setNewName('')
-    setNewKind('')
-  }
-
   return (
     <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
       <header>
@@ -47,35 +32,9 @@ export function ProjectsPanel() {
         </p>
       </header>
 
-      <Card style={{ display: 'grid', gap: 12 }}>
-        <SectionLabel>create project</SectionLabel>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input
-            value={newName}
-            onChange={e => setNewName(e.target.value)}
-            placeholder="project name"
-            style={inputStyle}
-          />
-          <input
-            value={newKind}
-            onChange={e => setNewKind(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleCreate()}
-            placeholder="kind (e.g. app, plugin)"
-            style={inputStyle}
-          />
-          <Button
-            variant="primary"
-            onClick={handleCreate}
-            disabled={!newName.trim() || !newKind.trim() || createProject.isPending}
-          >
-            {createProject.isPending ? 'creating…' : 'add'}
-          </Button>
-        </div>
-      </Card>
-
       {projects.length === 0 && (
         <p style={mutedStyle}>
-          no projects registered yet — add one above.
+          no projects registered yet — POST /projects with a name and kind to add one.
         </p>
       )}
 
@@ -106,7 +65,7 @@ function ProjectCard({
     : null
 
   return (
-    <Card style={{ display: 'grid', gap: 12 }}>
+    <div style={cardStyle}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
         <span style={nameStyle}>{project.name}</span>
         <span style={chipStyle}>{project.kind}</span>
@@ -115,15 +74,15 @@ function ProjectCard({
         </span>
         {touched && <span style={metaStyle}>touched {touched}</span>}
         <span style={{ flex: 1 }} />
-        <Button onClick={onRefresh} disabled={refreshing} variant="action">
+        <button onClick={onRefresh} disabled={refreshing} style={refreshButtonStyle}>
           {refreshing ? 'refreshing…' : '↻ refresh'}
-        </Button>
+        </button>
       </div>
 
       {project.summary && <p style={summaryStyle}>{project.summary}</p>}
 
       <div style={nextBoxStyle}>
-        <SectionLabel style={{ color: 'var(--cat-ginger)' }}>what&apos;s next</SectionLabel>
+        <div style={nextLabelStyle}>what&apos;s next</div>
         {nextQuery.isLoading ? (
           <p style={mutedStyle}>checking…</p>
         ) : nextQuery.isError ? (
@@ -148,7 +107,7 @@ function ProjectCard({
 
       {project.next_actions.length > 0 && (
         <div>
-          <SectionLabel>open actions</SectionLabel>
+          <div style={nextLabelStyle}>open actions</div>
           <ul style={{ margin: '4px 0 0 16px', display: 'grid', gap: 2 }}>
             {project.next_actions.slice(0, 4).map((a, i) => (
               <li key={i} style={actionStyle}>{a}</li>
@@ -156,7 +115,7 @@ function ProjectCard({
           </ul>
         </div>
       )}
-    </Card>
+    </div>
   )
 }
 
@@ -164,7 +123,7 @@ const titleStyle: CSSProperties = {
   fontFamily: 'var(--font-display)',
   fontWeight: 800,
   fontSize: 28,
-  letterSpacing: 0,
+  letterSpacing: '-0.02em',
   color: 'var(--ink)',
 }
 
@@ -174,7 +133,14 @@ const subtitleStyle: CSSProperties = {
   marginTop: 2,
 }
 
-
+const cardStyle: CSSProperties = {
+  background: 'var(--surface)',
+  border: '1.5px solid var(--line)',
+  borderRadius: 14,
+  padding: 18,
+  display: 'grid',
+  gap: 12,
+}
 
 const nameStyle: CSSProperties = {
   fontFamily: 'var(--font-display)',
@@ -215,7 +181,14 @@ const nextBoxStyle: CSSProperties = {
   gap: 4,
 }
 
-
+const nextLabelStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  fontWeight: 700,
+  letterSpacing: '0.12em',
+  textTransform: 'lowercase',
+  color: 'var(--cat-ginger)',
+}
 
 const stepStyle: CSSProperties = {
   fontSize: 15,
@@ -236,7 +209,16 @@ const actionStyle: CSSProperties = {
   lineHeight: 1.5,
 }
 
-
+const refreshButtonStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  padding: '4px 10px',
+  border: '1.5px solid var(--line)',
+  borderRadius: 8,
+  background: 'var(--surface-2)',
+  color: 'var(--ink-2)',
+  cursor: 'pointer',
+}
 
 const mutedStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
@@ -253,16 +235,4 @@ const errorBoxStyle: CSSProperties = {
   fontSize: 12,
   color: 'var(--c-red)',
   lineHeight: 1.6,
-}
-
-const inputStyle: CSSProperties = {
-  flex: 1,
-  background: 'var(--bg)',
-  border: '1.5px solid var(--line)',
-  borderRadius: 10,
-  padding: '8px 12px',
-  fontFamily: 'var(--font-body)',
-  fontSize: 14,
-  color: 'var(--ink)',
-  outline: 'none',
 }

@@ -1,7 +1,24 @@
 import type { Metadata, Viewport } from "next";
+import { Bricolage_Grotesque, Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import "highlight.js/styles/github-dark.css";
 import { Providers } from "./providers";
+
+const display = Bricolage_Grotesque({
+  subsets: ["latin"],
+  weight: ["700", "800"],
+  variable: "--font-display",
+});
+const body = Hanken_Grotesk({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-body",
+});
+const mono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-mono",
+});
 
 export const metadata: Metadata = {
   title: "Kitty",
@@ -34,26 +51,16 @@ export const viewport: Viewport = {
   colorScheme: "light dark",
 };
 
-import { ToastManager } from "@/components/Toast";
-import { SSEListener } from "@/components/SSEListener";
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-theme="day" style={{ height: '100%' }}>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html
+      lang="en"
+      data-theme="day"
+      className={`${display.variable} ${body.variable} ${mono.variable}`}
+      style={{ height: '100%' }}
+    >
       <body style={{ height: '100%' }}>
-        <Providers>
-          {children}
-          <ToastManager />
-          <SSEListener />
-        </Providers>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

@@ -47,7 +47,7 @@ describe('LoopWatch', () => {
 
   it('shows empty state when no loops', () => {
     render(<LoopWatch loops={[]} />)
-    expect(screen.getByText('No loops configured')).toBeInTheDocument()
+    expect(screen.getByText('no loops configured')).toBeInTheDocument()
   })
 
   it('calls onToggle when toggle button clicked', () => {
@@ -76,7 +76,7 @@ describe('LoopWatch', () => {
   it('shows last run time when available', () => {
     render(<LoopWatch loops={mockLoops} />)
     // The "Last run:" text should appear at least once
-    expect(screen.getAllByText(/Last run:/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/last run:/).length).toBeGreaterThan(0)
   })
 
   it('displays custom title', () => {

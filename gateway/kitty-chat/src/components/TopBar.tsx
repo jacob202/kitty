@@ -57,7 +57,7 @@ export function TopBar({
           )}
           <span style={{
             fontFamily: 'var(--font-display)', fontWeight: 800,
-            fontSize: 20, letterSpacing: 0, color: 'var(--ink)',
+            fontSize: 20, letterSpacing: '-0.02em', color: 'var(--ink)',
           }}>kitty</span>
           <StateBadge state={catState} />
         </div>
@@ -83,7 +83,7 @@ export function TopBar({
       <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
         <span style={{
           fontFamily: 'var(--font-display)', fontWeight: 800,
-          fontSize: 23, letterSpacing: 0, color: 'var(--ink)',
+          fontSize: 23, letterSpacing: '-0.02em', color: 'var(--ink)',
         }}>kitty</span>
         <StateBadge state={catState} />
         {isStreaming && (
@@ -99,9 +99,6 @@ export function TopBar({
           onClick={onCommandPalette}
           style={chipBtnStyle}
         >⌘K</button>
-        <button style={{ ...chipBtnStyle, color: 'var(--c-green)' }}>^_^ done</button>
-        <button style={{ ...chipBtnStyle, color: 'var(--c-red)' }}>:[ broke</button>
-
         <ModelSelector
           activeModel={activeModel}
           models={models}
@@ -140,7 +137,7 @@ function ModelSelector({
         }}
       >
         <span
-          title={modelFromGateway ? undefined : 'Using offline model list'}
+          title={modelFromGateway ? undefined : 'using offline model list'}
           style={{
             width: 7, height: 7, borderRadius: 99,
             background: modelFromGateway ? activeModel.color : 'var(--c-red)',

@@ -26,24 +26,24 @@ export function PerfDashboard() {
   }
 
   if (loading) {
-    return <div style={containerStyle}>Loading performance stats...</div>
+    return <div style={containerStyle}>loading performance stats…</div>
   }
 
   if (!stats) {
-    return <div style={containerStyle}>No performance data available</div>
+    return <div style={containerStyle}>no performance data</div>
   }
 
   return (
     <div style={containerStyle}>
       <h3 style={titleStyle}>Performance (24h)</h3>
-      
+
       <div style={gridStyle}>
-        <StatBox label="Requests" value={stats.total_requests.toString()} color="var(--mint)" />
-        <StatBox label="Avg Latency" value={`${stats.avg_latency_ms.toFixed(0)}ms`} color="var(--teal)" />
-        <StatBox label="Max Latency" value={`${stats.max_latency_ms.toFixed(0)}ms`} color="var(--yellow)" />
-        <StatBox label="Total Tokens" value={stats.total_tokens.toLocaleString()} color="var(--purple)" />
-        <StatBox label="Avg Tokens" value={stats.avg_tokens.toFixed(0)} color="var(--blue)" />
-        <StatBox label="Active Schedules" value={stats.active_schedules.toString()} color="var(--pink)" />
+        <StatBox label="requests" value={stats.total_requests.toString()} color="var(--c-green)" />
+        <StatBox label="avg latency" value={`${stats.avg_latency_ms.toFixed(0)}ms`} color="var(--c-blue)" />
+        <StatBox label="max latency" value={`${stats.max_latency_ms.toFixed(0)}ms`} color="var(--c-yellow)" />
+        <StatBox label="total tokens" value={stats.total_tokens.toLocaleString()} color="var(--c-purple)" />
+        <StatBox label="avg tokens" value={stats.avg_tokens.toFixed(0)} color="var(--c-blue)" />
+        <StatBox label="active schedules" value={stats.active_schedules.toString()} color="var(--cat-pink)" />
       </div>
 
       {stats.schedules && stats.schedules.length > 0 && (
@@ -72,16 +72,16 @@ function StatBox({ label, value, color }: { label: string; value: string; color:
 
 const containerStyle: CSSProperties = {
   padding: '16px',
-  background: 'var(--surface-low)',
+  background: 'var(--bg)',
   borderRadius: '8px',
-  border: '1px solid var(--border)',
+  border: '1px solid var(--line)',
 }
 
 const titleStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: '11px',
   fontWeight: 700,
-  color: 'var(--text-ghost)',
+  color: 'var(--ink-2)',
   letterSpacing: '0.16em',
   textTransform: 'lowercase',
   marginBottom: '12px',
@@ -91,7 +91,7 @@ const subtitleStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: '9px',
   fontWeight: 600,
-  color: 'var(--text-ghost)',
+  color: 'var(--ink-2)',
   letterSpacing: '0.12em',
   textTransform: 'lowercase',
   marginTop: '16px',
@@ -105,8 +105,8 @@ const gridStyle: CSSProperties = {
 }
 
 const statBoxStyle: CSSProperties = {
-  background: 'var(--surface-high)',
-  border: '1px solid var(--border)',
+  background: 'var(--surface-2)',
+  border: '1px solid var(--line)',
   borderRadius: '6px',
   padding: '10px 8px',
   textAlign: 'center',
@@ -115,7 +115,7 @@ const statBoxStyle: CSSProperties = {
 const statLabelStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: '8px',
-  color: 'var(--text-ghost)',
+  color: 'var(--ink-2)',
   letterSpacing: '0.14em',
   textTransform: 'lowercase',
   marginBottom: '4px',
@@ -131,7 +131,7 @@ const statValueStyle: CSSProperties = {
 const schedulesStyle: CSSProperties = {
   marginTop: '16px',
   paddingTop: '12px',
-  borderTop: '1px solid var(--border)',
+  borderTop: '1px solid var(--line)',
 }
 
 const scheduleRowStyle: CSSProperties = {
@@ -139,17 +139,17 @@ const scheduleRowStyle: CSSProperties = {
   justifyContent: 'space-between',
   alignItems: 'center',
   padding: '6px 0',
-  borderBottom: '1px solid var(--border-dim)',
+  borderBottom: '1px solid var(--line)',
 }
 
 const scheduleNameStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: '10px',
-  color: 'var(--text)',
+  color: 'var(--ink)',
 }
 
 const scheduleStatusStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: '12px',
-  color: 'var(--mint)',
+  color: 'var(--c-green)',
 }

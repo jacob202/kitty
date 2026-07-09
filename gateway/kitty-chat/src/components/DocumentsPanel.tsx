@@ -26,41 +26,11 @@ export function DocumentsPanel() {
 
   const [target, setTarget] = useState('')
   const [dragOver, setDragOver] = useState(false)
-  const [validationError, setValidationError] = useState('')
-  const [uploadProgress, setUploadProgress] = useState(0)
-  const [abortController, setAbortController] = useState<AbortController | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const Spinner = () => (
-    <svg style={{ animation: 'spin 1s linear infinite', width: 14, height: 14 }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" strokeOpacity="0.25" />
-      <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-    </svg>
-  )
-
-  const ALLOWED_TYPES = [
-    'application/pdf', 'text/markdown', 'text/plain',
-    'image/png', 'image/jpeg', 'image/webp', 'image/gif'
-  ]
-
   function handleFiles(files: FileList | null) {
-    setValidationError('')
-    setUploadProgress(0)
     const file = files?.[0]
-    if (!file) return
-
-    if (!ALLOWED_TYPES.includes(file.type) && !file.name.endsWith('.md')) {
-      setValidationError(`unsupported file type: ${file.type || file.name}`)
-      return
-    }
-
-    if (!upload.isPending) {
-      const controller = new AbortController()
-      setAbortController(controller)
-      upload.mutate({ file, onProgress: setUploadProgress, signal: controller.signal }, {
-        onSettled: () => setAbortController(null)
-      })
-    }
+    if (file && !upload.isPending) upload.mutate(file)
   }
 
   const payload = sourcesQuery.data
@@ -96,15 +66,14 @@ export function DocumentsPanel() {
           />
           <button
             onClick={() => setSubmitted(query.trim())}
-            disabled={!query.trim() || searchQuery.isFetching}
-            style={{ ...primaryButtonStyle, display: 'flex', gap: 6, alignItems: 'center' }}
+            disabled={!query.trim()}
+            style={primaryButtonStyle}
           >
-            {searchQuery.isFetching && <Spinner />}
             search
           </button>
         </div>
 
-        {submitted && searchQuery.isFetching && <p style={mutedStyle}>searching…</p>}
+        {submitted && searchQuery.isLoading && <p style={mutedStyle}>searching…</p>}
         {submitted && searchQuery.isError && (
           <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
             search failed —{' '}
@@ -126,103 +95,58 @@ export function DocumentsPanel() {
 
       {/* ── ingest ── */}
       <div style={cardStyle}>
-        <div style={sectionLabelStyle}>feed the brain</div>
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <input
-              value={target}
-              onChange={e => setTarget(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleIngest()}
-              placeholder="url or file path..."
-              style={inputStyle}
-            />
-            <button
-              onClick={handleIngest}
-              disabled={!target.trim() || ingest.isPending}
-              style={{ ...primaryButtonStyle, alignSelf: 'flex-start', display: 'flex', gap: 6, alignItems: 'center' }}
-            >
-              {ingest.isPending && <Spinner />}
-              {ingest.isPending ? 'eating…' : 'feed kitty'}
-            </button>
-            {ingest.isError && (
-              <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
-                choked — {ingest.error instanceof Error ? ingest.error.message : 'gateway error'}
-              </p>
-            )}
-            {ingest.data && (
-              <p style={{ ...mutedStyle, color: STATUS_COLORS[ingest.data.status] ?? 'var(--ink-2)' }}>
-                {ingest.data.status}: {ingest.data.reason}
-              </p>
-            )}
-          </div>
-
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => fileInputRef.current?.click()}
-            onKeyDown={e => e.key === 'Enter' && fileInputRef.current?.click()}
-            onDragOver={e => {
-              e.preventDefault()
-              setDragOver(true)
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={e => {
-              e.preventDefault()
-              setDragOver(false)
-              handleFiles(e.dataTransfer.files)
-            }}
-            style={{
-              ...dropZoneStyle,
-              width: 120,
-              height: 120,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: '25px 225px 15px 255px / 255px 15px 225px 15px',
-              border: '2px dashed var(--line)',
-              borderColor: dragOver ? 'var(--primary)' : 'var(--line)',
-              background: dragOver ? 'var(--primary-fade)' : 'var(--surface-2)',
-              transform: dragOver ? 'scale(1.05) rotate(2deg)' : 'rotate(-2deg)',
-              transition: 'all 0.2s',
-              position: 'relative',
-              overflow: 'hidden',
-            }}
+        <div style={sectionLabelStyle}>add a document</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            value={target}
+            onChange={e => setTarget(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleIngest()}
+            placeholder="a file path on the Mac, or a URL"
+            style={inputStyle}
+          />
+          <button
+            onClick={handleIngest}
+            disabled={!target.trim() || ingest.isPending}
+            style={primaryButtonStyle}
           >
-            {upload.isPending && uploadProgress > 0 && uploadProgress < 100 && (
-              <div style={{
-                position: 'absolute',
-                bottom: 0,
-                left: 0,
-                height: '100%',
-                width: `${uploadProgress}%`,
-                background: 'var(--primary-fade)',
-                zIndex: 0,
-                transition: 'width 0.1s linear',
-              }} />
-            )}
+            {ingest.isPending ? 'ingesting…' : 'ingest'}
+          </button>
+        </div>
+        {ingest.isError && (
+          <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
+            ingest failed — {ingest.error instanceof Error ? ingest.error.message : 'gateway error'}
+          </p>
+        )}
+        {ingest.data && (
+          <p style={{ ...mutedStyle, color: STATUS_COLORS[ingest.data.status] ?? 'var(--ink-2)' }}>
+            {ingest.data.status}: {ingest.data.source_id} — {ingest.data.reason}
+          </p>
+        )}
 
-            <div style={{ position: 'relative', zIndex: 1 }}>
-              {upload.isPending ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                  <span>uploading… {uploadProgress}%</span>
-                  {abortController && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); abortController.abort() }}
-                      style={{ ...refreshButtonStyle, marginTop: 4, background: 'var(--bg)' }}
-                    >
-                      cancel
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <div style={{ fontSize: 32, marginBottom: 8 }}>📥</div>
-                  <div>drop files</div>
-                </>
-              )}
-            </div>
-          </div>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => fileInputRef.current?.click()}
+          onKeyDown={e => e.key === 'Enter' && fileInputRef.current?.click()}
+          onDragOver={e => {
+            e.preventDefault()
+            setDragOver(true)
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={e => {
+            e.preventDefault()
+            setDragOver(false)
+            handleFiles(e.dataTransfer.files)
+          }}
+          style={{
+            ...dropZoneStyle,
+            borderColor: dragOver ? 'var(--primary)' : 'var(--line)',
+            background: dragOver ? 'var(--primary-fade)' : 'var(--bg)',
+          }}
+        >
+          {upload.isPending
+            ? 'uploading…'
+            : 'or drop a file here (pdf / md / txt / images) — uploads via /capture/file, indexes in the background'}
         </div>
         <input
           ref={fileInputRef}
@@ -238,11 +162,6 @@ export function DocumentsPanel() {
           <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
             upload failed —{' '}
             {upload.error instanceof Error ? upload.error.message : 'gateway error'}
-          </p>
-        )}
-        {validationError && (
-          <p style={{ ...mutedStyle, color: 'var(--c-yellow)' }}>
-            {validationError}
           </p>
         )}
         {upload.data === null && !upload.isPending && upload.isSuccess && (
@@ -311,7 +230,7 @@ const titleStyle: CSSProperties = {
   fontFamily: 'var(--font-display)',
   fontWeight: 800,
   fontSize: 28,
-  letterSpacing: 0,
+  letterSpacing: '-0.02em',
   color: 'var(--ink)',
 }
 

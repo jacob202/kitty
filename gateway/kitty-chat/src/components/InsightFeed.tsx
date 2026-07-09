@@ -1,9 +1,7 @@
 'use client'
 import type { CSSProperties } from 'react'
 import type { GatewayInsight, InsightKind } from '@/lib/gateway'
-import { Card, CardHeader, ItemCard } from '@/components/ui/Card'
-import { EmptyState } from '@/components/ui/EmptyState'
-import { Button } from '@/components/ui/Button'
+import { card, cardHeader, cardTitle, cardMeta, itemCard, emptyState } from '@/lib/ui'
 import { Skeleton } from './Skeleton'
 
 interface Props {
@@ -16,10 +14,10 @@ interface Props {
 
 function kindColor(kind: InsightKind): string {
   switch (kind) {
-    case 'pattern': return 'var(--teal)'
-    case 'anomaly': return 'var(--error)'
-    case 'suggestion': return 'var(--orange)'
-    case 'milestone': return 'var(--mint)'
+    case 'pattern': return 'var(--c-blue)'
+    case 'anomaly': return 'var(--c-red)'
+    case 'suggestion': return 'var(--cat-ginger)'
+    case 'milestone': return 'var(--c-green)'
   }
 }
 
@@ -44,11 +42,14 @@ export function InsightFeed({ insights, onDismiss, onAction, title = 'Insights',
   const sorted = [...insights].sort((a, b) => b.created_at - a.created_at)
 
   return (
-    <Card style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <CardHeader title={title} count={`${insights.length} new`} />
+    <div style={containerStyle}>
+      <div style={headerStyle}>
+        <span style={titleStyle}>{title}</span>
+        <span style={countStyle}>{insights.length} new</span>
+      </div>
       <div style={listStyle}>
         {sorted.map(insight => (
-          <ItemCard key={insight.insight_id} style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div key={insight.insight_id} style={cardBaseStyle}>
             <div style={cardHeaderStyle}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{
@@ -58,7 +59,7 @@ export function InsightFeed({ insights, onDismiss, onAction, title = 'Insights',
                   background: kindColor(insight.kind),
                   flexShrink: 0,
                 }} />
-                <span style={kindBadgeStyle(kindColor(insight.kind))}>
+                <span style={kindBadgeStyle(cardBaseStyle, kindColor(insight.kind))}>
                   {kindLabel(insight.kind)}
                 </span>
               </div>
@@ -74,13 +75,13 @@ export function InsightFeed({ insights, onDismiss, onAction, title = 'Insights',
             {insight.actions && insight.actions.length > 0 && (
               <div style={actionsStyle}>
                 {insight.actions.map(action => (
-                  <Button
+                  <button
                     key={action.action_id}
                     onClick={() => onAction?.(insight.insight_id, action.action_id)}
-                    variant="action"
+                    style={actionBtnStyle}
                   >
                     {action.label}
-                  </Button>
+                  </button>
                 ))}
               </div>
             )}
@@ -88,13 +89,13 @@ export function InsightFeed({ insights, onDismiss, onAction, title = 'Insights',
               <button
                 onClick={() => onDismiss(insight.insight_id)}
                 style={dismissBtnStyle}
-                title="Dismiss"
+                title="dismiss"
                 aria-label="Dismiss"
               >
                 ✕
               </button>
             )}
-          </ItemCard>
+          </div>
         ))}
         {insights.length === 0 && (
           isLoading ? (
@@ -103,15 +104,18 @@ export function InsightFeed({ insights, onDismiss, onAction, title = 'Insights',
               <Skeleton height={56} />
             </div>
           ) : (
-            <EmptyState>No new insights</EmptyState>
+            <div style={emptyStyle}>no new insights</div>
           )
         )}
       </div>
-    </Card>
+    </div>
   )
 }
 
-
+const containerStyle: CSSProperties = { ...card, display: 'flex', flexDirection: 'column', gap: 12 }
+const headerStyle: CSSProperties = cardHeader
+const titleStyle: CSSProperties = cardTitle
+const countStyle: CSSProperties = cardMeta
 
 const listStyle: CSSProperties = {
   display: 'flex',
@@ -119,7 +123,7 @@ const listStyle: CSSProperties = {
   gap: 8,
 }
 
-
+const cardBaseStyle: CSSProperties = { ...itemCard, position: 'relative', display: 'flex', flexDirection: 'column', gap: 6 }
 
 const cardHeaderStyle: CSSProperties = {
   display: 'flex',
@@ -127,7 +131,8 @@ const cardHeaderStyle: CSSProperties = {
   alignItems: 'center',
 }
 
-const kindBadgeStyle = (color: string): CSSProperties => ({
+const kindBadgeStyle = (base: CSSProperties, color: string): CSSProperties => ({
+  ...base,
   fontFamily: 'var(--font-mono)',
   fontSize: 9,
   fontWeight: 700,
@@ -146,17 +151,17 @@ const timeStyle: CSSProperties = {
 }
 
 const insightTitleStyle: CSSProperties = {
-  fontFamily: 'var(--font-ui)',
+  fontFamily: 'var(--font-body)',
   fontSize: 13,
   fontWeight: 600,
-  color: 'var(--text)',
+  color: 'var(--ink)',
   marginTop: 2,
 }
 
 const insightDetailStyle: CSSProperties = {
-  fontFamily: 'var(--font-ui)',
+  fontFamily: 'var(--font-body)',
   fontSize: 12,
-  color: 'var(--text-dim)',
+  color: 'var(--ink-2)',
   lineHeight: 1.4,
 }
 
@@ -173,7 +178,18 @@ const actionsStyle: CSSProperties = {
   marginTop: 4,
 }
 
-
+const actionBtnStyle: CSSProperties = {
+  background: 'var(--surface)',
+  border: '1px solid var(--line)',
+  borderRadius: 4,
+  padding: '4px 10px',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  fontWeight: 600,
+  color: 'var(--ink)',
+  cursor: 'pointer',
+  transition: 'all 0.15s ease',
+}
 
 const dismissBtnStyle: CSSProperties = {
   position: 'absolute',
@@ -181,9 +197,12 @@ const dismissBtnStyle: CSSProperties = {
   right: 8,
   background: 'transparent',
   border: 'none',
-  color: 'var(--text-ghost)',
+  color: 'var(--ink-2)',
   cursor: 'pointer',
   fontSize: 12,
   padding: 2,
   lineHeight: 1,
 }
+
+
+const emptyStyle: CSSProperties = emptyState

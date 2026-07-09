@@ -11,7 +11,7 @@ export function Skeleton({ height = 60, width = '100%', radius = 8 }: {
 }
 
 const base: CSSProperties = {
-  background: 'var(--surface-mid)',
-  border: '1px solid var(--border-dim)',
+  background: 'var(--surface)',
+  border: '1px solid var(--line)',
   opacity: 0.55,
 }

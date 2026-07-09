@@ -1,12 +1,8 @@
 'use client';
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { card, cardHeader, cardTitle, cardMeta, itemCard, emptyState, bodyText } from '@/lib/ui';
 import { CapturePanel } from '@/components/CapturePanel';
-import { Card, CardHeader, ItemCard, BodyText } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-import { StatusDot } from '@/components/ui/StatusDot';
-import { EmptyState, ErrorState } from '@/components/ui/EmptyState';
-import { evaluateNextAction } from '@/lib/ranking';
 import {
   useStateChanges,
   useActions,
@@ -22,31 +18,132 @@ import {
   useGatewayHealth,
   useGatewayModels,
   useChatsPersistence,
-  useKnowledgeSources,
-  useMagicInsights,
-  useGatewayWeather,
   useDeadlines,
-  useCloseDeadline,
+  useDeadlineSweep,
 } from '@/lib/queries';
 import type {
   GatewayAction,
+  GatewayDeadline,
   GatewayNextStep,
   GatewayProject,
   GatewayTriageEntry,
   StateChange,
 } from '@/lib/gateway';
 
+// ── shared micro-components ──────────────────────────────────────────────────
+
+function SectionCard({
+  title,
+  count,
+  action,
+  span,
+  children,
+}: {
+  title: string;
+  count?: number | string;
+  action?: React.ReactNode;
+  span?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        ...card,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        ...(span ? { gridColumn: '1 / -1' } : {}),
+      }}
+    >
+      <div style={cardHeader}>
+        <span style={cardTitle}>{title}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {count !== undefined && <span style={cardMeta}>{count}</span>}
+          {action}
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+const actionButtonStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  fontWeight: 700,
+  padding: '2px 8px',
+  borderRadius: 4,
+  border: '1px solid var(--line)',
+  cursor: 'pointer',
+  background: 'var(--surface)',
+  color: 'var(--ink-2)',
+};
+
+const primaryButtonStyle: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  fontWeight: 700,
+  padding: '4px 12px',
+  borderRadius: 4,
+  border: 'none',
+  cursor: 'pointer',
+  background: 'var(--primary)',
+  color: 'var(--on-primary)',
+};
+
+function ErrorCard({ message }: { message: string }) {
+  return (
+    <div
+      role="alert"
+      style={{ ...itemCard, color: 'var(--c-red)', fontFamily: 'var(--font-mono)', fontSize: 11 }}
+    >
+      {message}
+    </div>
+  );
+}
+
 const OFFLINE_FIX = 'gateway offline — start it with ./kitty up';
 
 // ── Health strip ─────────────────────────────────────────────────────────────
 
-function HealthStrip({ expanded }: { expanded?: boolean }) {
+function HealthDot({ tone, label }: { tone: 'ok' | 'warn' | 'bad'; label: string }) {
+  const color =
+    tone === 'ok' ? 'var(--c-green)' : tone === 'warn' ? 'var(--c-yellow)' : 'var(--c-red)';
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        fontFamily: 'var(--font-mono)',
+        fontSize: 11,
+        color: 'var(--ink-2)',
+      }}
+    >
+      <span
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: '50%',
+          background: color,
+          flexShrink: 0,
+          display: 'inline-block',
+        }}
+      />
+      {label}
+    </span>
+  );
+}
+
+function HealthStrip() {
   const health = useGatewayHealth();
   const models = useGatewayModels();
   const persistence = useChatsPersistence();
   const queryClient = useQueryClient();
 
   const gatewayOk = health.data?.ok === true;
+  // Direct probe reported by /health — not inferred from /api/models, which
+  // masks LiteLLM failures behind a fallback model list.
   const litellmOk = health.data?.litellmReachable === true;
   const storeOk = persistence.data?.ok === true;
 
@@ -59,115 +156,100 @@ function HealthStrip({ expanded }: { expanded?: boolean }) {
   const loading = health.isPending || models.isPending || persistence.isPending;
 
   return (
-    <Card style={{ gridColumn: '1 / -1', padding: '10px 16px', display: 'flex', alignItems: expanded ? 'flex-start' : 'center', gap: 18, flexWrap: 'wrap', flexDirection: expanded ? 'column' : 'row' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap', width: '100%' }}>
-        {loading ? (
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-faint)' }}>
-            checking gateway…
-          </span>
-        ) : (
-          <>
-            <StatusDot
-              tone={gatewayOk ? 'ok' : 'bad'}
-              label={gatewayOk ? 'gateway live' : OFFLINE_FIX}
-            />
-            <StatusDot
-              tone={!gatewayOk ? 'bad' : litellmOk ? 'ok' : 'bad'}
-              label={
-                !gatewayOk
-                  ? 'routing unknown'
-                  : litellmOk
-                    ? `routing live · ${models.data?.models.length ?? 0} models`
-                    : 'litellm unreachable — ./kitty up starts it'
-              }
-            />
-            <StatusDot
-              tone={storeOk ? 'ok' : 'bad'}
-              label={
-                storeOk
-                  ? `chat store ok · ${persistence.data?.count ?? 0} saved`
-                  : `chat store: ${persistence.data?.error ?? 'unreachable'}`
-              }
-            />
-          </>
-        )}
-        <span style={{ flex: 1 }} />
-        <Button onClick={retry}>retry</Button>
-      </div>
-      {expanded && !gatewayOk && (
-        <ErrorState message={health.data?.error || OFFLINE_FIX} />
+    <div
+      role="status"
+      style={{
+        ...card,
+        gridColumn: '1 / -1',
+        padding: '10px 16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 18,
+        flexWrap: 'wrap',
+      }}
+    >
+      {loading ? (
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)' }}>
+          checking gateway…
+        </span>
+      ) : (
+        <>
+          <HealthDot
+            tone={gatewayOk ? 'ok' : 'bad'}
+            label={gatewayOk ? 'gateway live' : OFFLINE_FIX}
+          />
+          <HealthDot
+            tone={!gatewayOk ? 'bad' : litellmOk ? 'ok' : 'bad'}
+            label={
+              !gatewayOk
+                ? 'routing unknown'
+                : litellmOk
+                  ? `routing live · ${models.data?.models.length ?? 0} models`
+                  : 'litellm unreachable — ./kitty up starts it'
+            }
+          />
+          <HealthDot
+            tone={storeOk ? 'ok' : 'bad'}
+            label={
+              storeOk
+                ? `chat store ok · ${persistence.data?.count ?? 0} saved`
+                : `chat store: ${persistence.data?.error ?? 'unreachable'}`
+            }
+          />
+        </>
       )}
-    </Card>
-  );
-}
-
-function CockpitHeader({ rankedTitle }: { rankedTitle?: string }) {
-  return (
-    <section style={cockpitHeaderStyle}>
-      <div style={{ display: 'grid', gap: 10, alignContent: 'center', minWidth: 0 }}>
-        <div style={eyebrowStyle}>space kitty</div>
-        <h1 style={cockpitTitleStyle}>Kitty</h1>
-        <p style={cockpitCopyStyle}>
-          Select an existing space, see the next move, then keep working without inventing fake setup work.
-        </p>
-        {rankedTitle && (
-          <div style={missionBarStyle}>
-            <span style={missionLabelStyle}>current pull</span>
-            <span style={missionTextStyle}>{rankedTitle}</span>
-          </div>
-        )}
-      </div>
-      <div style={mascotFrameStyle} aria-hidden="true">
-        <img
-          src="/cat-assets/state-working.svg"
-          alt=""
-          style={{ width: 'min(190px, 34vw)', height: 'auto', display: 'block' }}
-        />
-      </div>
-    </section>
+      <span style={{ flex: 1 }} />
+      <button type="button" onClick={retry} style={actionButtonStyle}>
+        retry
+      </button>
+    </div>
   );
 }
 
 // ── What's next (hero) ───────────────────────────────────────────────────────
 
+function freshestStep(steps: Array<GatewayNextStep | null | undefined>): GatewayNextStep | null {
+  let best: GatewayNextStep | null = null;
+  for (const s of steps) {
+    if (s && (!best || s.generated_at > best.generated_at)) best = s;
+  }
+  return best;
+}
+
 function WhatsNext({
   onDecideInChat,
   onNavigate,
-  projectsQuery,
-  stepQueries,
 }: {
   onDecideInChat: (entry: GatewayTriageEntry) => void;
   onNavigate: (view: string) => void;
-  projectsQuery: ReturnType<typeof useProjects>;
-  stepQueries: ReturnType<typeof useProjectNextSteps>;
 }) {
   const actionsQuery = useActions('proposed');
   const needsJacob = useNeedsJacob();
+  const projectsQuery = useProjects();
+  const stepQueries = useProjectNextSteps(projectsQuery.data ?? []);
   const todosQuery = useTodos();
-  const deadlinesQuery = useDeadlines('open');
-  const healthQuery = useGatewayHealth();
   const approve = useApproveAction();
   const reject = useRejectAction();
   const [busy, setBusy] = useState(false);
 
   const isPending =
-    actionsQuery.isPending || needsJacob.isPending || projectsQuery.isPending || todosQuery.isPending || deadlinesQuery.isPending || healthQuery.isPending;
+    actionsQuery.isPending || needsJacob.isPending || projectsQuery.isPending || todosQuery.isPending;
 
   if (isPending) {
     return (
-      <Card style={{ flex: '1 1 100%', gridColumn: '1 / -1' }}>
-        <CardHeader title="what's next" />
-        <EmptyState>loading…</EmptyState>
-      </Card>
+      <SectionCard title="what's next" span>
+        <div role="status" style={emptyState}>
+          loading…
+        </div>
+      </SectionCard>
     );
   }
 
   if (actionsQuery.isError || projectsQuery.isError) {
     return (
-      <Card style={{ flex: '1 1 100%', gridColumn: '1 / -1' }}>
-        <CardHeader title="what's next" />
-        <ErrorState message={OFFLINE_FIX} />
-      </Card>
+      <SectionCard title="what's next" span>
+        <ErrorCard message={OFFLINE_FIX} />
+      </SectionCard>
     );
   }
 
@@ -176,264 +258,200 @@ function WhatsNext({
     try {
       await fn();
     } catch {
-      // gateway error
+      // gateway error — buttons re-enable via finally; queue refetch shows truth
     } finally {
       setBusy(false);
     }
   };
 
-  const rankedAction = evaluateNextAction(
-    actionsQuery.data ?? [],
-    needsJacob.data?.entries ?? [],
-    stepQueries.map((q) => q.data).filter((s): s is GatewayNextStep => s !== null && s !== undefined),
-    todosQuery.data ?? [],
-    healthQuery.data ?? { ok: true, litellmReachable: true, error: null },
-    deadlinesQuery.data ?? []
+  const action: GatewayAction | undefined = (actionsQuery.data ?? [])[0];
+  const entry: GatewayTriageEntry | undefined = [...(needsJacob.data?.entries ?? [])].sort(
+    (a, b) => b.confidence - a.confidence,
+  )[0];
+  const step = freshestStep(stepQueries.map((q) => q.data));
+  const project: GatewayProject | undefined = step
+    ? (projectsQuery.data ?? []).find((p) => p.id === step.project_id)
+    : undefined;
+  const todo = (todosQuery.data ?? []).find(
+    (t) => t.status === 'pending' || t.status === 'active',
   );
 
   return (
-    <Card style={{ flex: '1 1 100%', gridColumn: '1 / -1' }}>
-      <CardHeader title="jacob's next move" />
-      {!rankedAction ? (
-        <EmptyState style={{ textAlign: 'left', padding: '12px 2px' }}>
+    <SectionCard title="what's next" span>
+      {action ? (
+        <div style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={heroTextStyle}>{action.title}</div>
+          <div style={heroMetaStyle}>
+            waiting on your approval · {action.kind} · {action.risk_tier}
+          </div>
+          {action.preview && <div style={{ ...bodyText, fontSize: 12 }}>{action.preview}</div>}
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void decide(() => approve.mutateAsync(action.id))}
+              style={{ ...primaryButtonStyle, opacity: busy ? 0.5 : 1 }}
+            >
+              {busy ? '…' : 'approve'}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void decide(() => reject.mutateAsync(action.id))}
+              style={{ ...actionButtonStyle, opacity: busy ? 0.5 : 1 }}
+            >
+              reject
+            </button>
+          </div>
+        </div>
+      ) : entry ? (
+        <div style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={heroTextStyle}>{entry.text?.slice(0, 140) || 'an inbox entry needs a decision'}</div>
+          <div style={heroMetaStyle}>
+            needs a decision · {Math.round(entry.confidence * 100)}% confident
+          </div>
+          <div>
+            <button type="button" onClick={() => onDecideInChat(entry)} style={primaryButtonStyle}>
+              decide in chat
+            </button>
+          </div>
+        </div>
+      ) : step ? (
+        <div style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={heroTextStyle}>{step.step}</div>
+          <div style={heroMetaStyle}>
+            {project ? `${project.name} · ` : ''}
+            {step.why ? `why: ${step.why}` : 'project next step'}
+          </div>
+          <div>
+            <button type="button" onClick={() => onNavigate('projects')} style={primaryButtonStyle}>
+              open projects
+            </button>
+          </div>
+        </div>
+      ) : todo ? (
+        <div style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={heroTextStyle}>{todo.content}</div>
+          <div style={heroMetaStyle}>top of today&apos;s list — nothing louder is waiting</div>
+          <div>
+            <button type="button" onClick={() => onNavigate('tasks')} style={primaryButtonStyle}>
+              open tasks
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ ...emptyState, textAlign: 'left', padding: '12px 2px' }}>
           not enough signal yet — nothing proposed, no decisions waiting, no project next-steps,
           and today&apos;s list is empty. refresh a project in the projects tab or capture a
           thought below.
-        </EmptyState>
-      ) : (
-        <ItemCard style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={heroTextStyle}>{rankedAction.title}</div>
-          <div style={heroMetaStyle}>{rankedAction.reason}</div>
-          {rankedAction.preview && <BodyText style={{ fontSize: 12 }}>{rankedAction.preview}</BodyText>}
-
-          <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-            {rankedAction.kind === 'deadline' && (
-              <Button variant="primary" onClick={() => { /* Navigate or close */ }}>
-                view deadlines
-              </Button>
-            )}
-            {rankedAction.kind === 'proposed_action' && (
-              <>
-                <Button
-                  variant="primary"
-                  disabled={busy}
-                  onClick={() => void decide(() => approve.mutateAsync(rankedAction.sourceId as number))}
-                >
-                  {busy ? '…' : 'approve'}
-                </Button>
-                <Button
-                  disabled={busy}
-                  onClick={() => void decide(() => reject.mutateAsync(rankedAction.sourceId as number))}
-                >
-                  reject
-                </Button>
-              </>
-            )}
-            {rankedAction.kind === 'needs_jacob' && (
-              <Button variant="primary" onClick={() => onDecideInChat(rankedAction.payload as GatewayTriageEntry)}>
-                decide in chat
-              </Button>
-            )}
-            {rankedAction.kind === 'project_step' && (
-              <Button variant="primary" onClick={() => onNavigate('projects')}>
-                open projects
-              </Button>
-            )}
-            {rankedAction.kind === 'todo' && (
-              <Button variant="primary" onClick={() => onNavigate('tasks')}>
-                open tasks
-              </Button>
-            )}
-            {rankedAction.kind === 'gateway_error' && (
-              <Button variant="primary" onClick={() => window.location.reload()}>
-                refresh
-              </Button>
-            )}
-          </div>
-        </ItemCard>
+        </div>
       )}
-    </Card>
+    </SectionCard>
   );
 }
 
 const heroTextStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-ui)',
+  fontFamily: 'var(--font-body)',
   fontSize: 16,
   fontWeight: 600,
-  color: 'var(--text)',
+  color: 'var(--ink)',
   lineHeight: 1.45,
 };
 
 const heroMetaStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-muted)',
-};
-
-const cockpitHeaderStyle: React.CSSProperties = {
-  gridColumn: '1 / -1',
-  minHeight: 210,
-  display: 'grid',
-  gridTemplateColumns: 'minmax(0, 1fr) auto',
-  gap: 18,
-  alignItems: 'center',
-  padding: '28px 30px',
-  border: '1px solid rgba(239,135,67,.32)',
-  borderRadius: 8,
-  background:
-    'linear-gradient(135deg, rgba(12,17,29,.90), rgba(20,24,37,.62) 62%, rgba(26,18,28,.74))',
-  boxShadow: 'var(--shadow-soft)',
-  overflow: 'hidden',
-  position: 'relative',
-};
-
-const eyebrowStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 11,
-  fontWeight: 700,
-  letterSpacing: 0,
-  color: 'var(--cat-green)',
-};
-
-const cockpitTitleStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-display)',
-  fontWeight: 800,
-  fontSize: 'clamp(42px, 7vw, 76px)',
-  lineHeight: 0.95,
-  letterSpacing: 0,
-  color: 'var(--ink)',
-};
-
-const cockpitCopyStyle: React.CSSProperties = {
-  maxWidth: 560,
-  fontSize: 16,
-  lineHeight: 1.55,
   color: 'var(--ink-2)',
 };
 
-const mascotFrameStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  opacity: 0.88,
-  filter: 'drop-shadow(0 18px 32px rgba(0,0,0,.38))',
-};
+// ── Active projects ──────────────────────────────────────────────────────────
 
-const missionBarStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'auto minmax(0, 1fr)',
-  gap: 10,
-  alignItems: 'center',
-  maxWidth: 680,
-  marginTop: 4,
-  padding: '10px 12px',
-  border: '1px solid var(--border-dim)',
-  borderRadius: 7,
-  background: 'rgba(255,255,255,.035)',
-};
+function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) {
+  const projectsQuery = useProjects();
+  const stepQueries = useProjectNextSteps(projectsQuery.data ?? []);
 
-const missionLabelStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  color: 'var(--primary)',
-  fontWeight: 700,
-};
-
-const missionTextStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-ui)',
-  fontSize: 13,
-  color: 'var(--ink)',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-};
-
-// ── Spaces / projects ────────────────────────────────────────────────────────
-
-function SpaceSelector({
-  onNavigate,
-  projectsQuery,
-  stepQueries,
-}: {
-  onNavigate: (view: string) => void;
-  projectsQuery: ReturnType<typeof useProjects>;
-  stepQueries: ReturnType<typeof useProjectNextSteps>;
-}) {
   if (projectsQuery.isPending) {
     return (
-      <Card>
-        <CardHeader title="select space" />
-        <EmptyState>loading…</EmptyState>
-      </Card>
+      <SectionCard title="active projects">
+        <div role="status" style={emptyState}>
+          loading…
+        </div>
+      </SectionCard>
     );
   }
 
   if (projectsQuery.isError) {
     return (
-      <Card>
-        <CardHeader title="select space" />
-        <ErrorState message={OFFLINE_FIX} />
-      </Card>
+      <SectionCard title="active projects">
+        <ErrorCard message={OFFLINE_FIX} />
+      </SectionCard>
     );
   }
 
   const projects = projectsQuery.data ?? [];
+  const active = projects.filter((p) => p.status === 'active');
 
-  if (projects.length === 0) {
+  if (active.length === 0) {
     return (
-      <Card>
-        <CardHeader title="select space" />
-        <EmptyState>
-          gateway returned zero projects — refresh the gateway project store before creating anything new.
-        </EmptyState>
-      </Card>
+      <SectionCard title="active projects">
+        <div style={emptyState}>
+          {projects.length === 0
+            ? 'no projects registered — ./kitty project add <name>'
+            : 'no active projects — everything is parked or done'}
+        </div>
+      </SectionCard>
     );
   }
 
   const open = (
-    <Button onClick={() => onNavigate('projects')}>
+    <button
+      type="button"
+      onClick={() => onNavigate('projects')}
+      aria-label="Open projects"
+      style={actionButtonStyle}
+    >
       open
-    </Button>
+    </button>
   );
 
   return (
-    <Card>
-      <CardHeader title="select space" count={projects.length} action={open} />
-      <div style={{ display: 'grid', gap: 10 }}>
-      {projects.slice(0, 5).map((p) => {
+    <SectionCard title="active projects" count={active.length} action={open}>
+      {active.slice(0, 4).map((p) => {
         const idx = projects.indexOf(p);
         const stepQuery = stepQueries[idx];
         const step = stepQuery?.data;
         return (
-          <ItemCard
+          <button
             key={p.id}
-            role="button"
+            type="button"
             onClick={() => onNavigate('projects')}
+            aria-label={`Open ${p.name} in projects`}
             style={{
-              cursor: 'pointer',
+              ...itemCard,
               display: 'flex',
               flexDirection: 'column',
-              gap: 6,
-              borderColor: p.status === 'active' ? 'var(--primary)' : 'var(--border-dim)',
-              background: p.status === 'active' ? 'var(--primary-fade)' : 'var(--surface-high)',
+              gap: 4,
+              textAlign: 'left',
+              width: '100%',
+              cursor: 'pointer',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
               <span
                 style={{
-                  fontFamily: 'var(--font-ui)',
-                  fontSize: 14,
-                  fontWeight: 700,
-                  color: 'var(--text)',
+                  fontFamily: 'var(--font-body)',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: 'var(--ink)',
                 }}
               >
                 {p.name}
               </span>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
-                {p.kind} · {p.status}
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}>
+                {p.kind}
               </span>
             </div>
-            <BodyText style={{ fontSize: 12 }}>
+            <div style={{ ...bodyText, fontSize: 12 }}>
               {stepQuery?.isPending
                 ? '…'
                 : stepQuery?.isError
@@ -441,61 +459,200 @@ function SpaceSelector({
                   : step
                     ? step.step
                     : 'no next step yet — refresh it in projects'}
-            </BodyText>
-          </ItemCard>
+            </div>
+          </button>
         );
       })}
-      </div>
-      {projects.length > 5 && (
+      {active.length > 4 && (
         <div
           style={{
             fontFamily: 'var(--font-mono)',
             fontSize: 10,
-            color: 'var(--text-muted)',
+            color: 'var(--ink-2)',
             textAlign: 'center',
           }}
         >
-          +{projects.length - 5} more in projects
+          +{active.length - 4} more in projects
         </div>
       )}
-    </Card>
+    </SectionCard>
   );
 }
 
-// ── What changed (since last look) ───────────────────────────────────────────
+// ── Deadlines (urgent paper) ─────────────────────────────────────────────────
 
-function WhatChanged({ onNavigate }: { onNavigate: (view: string) => void }) {
-  const { data, isPending, isError } = useStateChanges();
+function daysUntil(dueDate: string): number | null {
+  const due = new Date(`${dueDate}T00:00:00`);
+  if (Number.isNaN(due.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((due.getTime() - today.getTime()) / 86_400_000);
+}
+
+function dueLabel(dueDate: string): string {
+  const days = daysUntil(dueDate);
+  if (days === null) return dueDate;
+  if (days < 0) return `overdue ${-days}d · ${dueDate}`;
+  if (days === 0) return `due today · ${dueDate}`;
+  if (days === 1) return `due tomorrow · ${dueDate}`;
+  return `due in ${days}d · ${dueDate}`;
+}
+
+function dueTone(dueDate: string): string {
+  const days = daysUntil(dueDate);
+  if (days === null) return 'var(--ink-2)';
+  if (days <= 0) return 'var(--c-red)';
+  if (days <= 3) return 'var(--c-yellow)';
+  return 'var(--ink-2)';
+}
+
+function Deadlines() {
+  const deadlines = useDeadlines('open');
+  const sweep = useDeadlineSweep();
+
+  const sweepButton = (
+    <button
+      type="button"
+      disabled={sweep.isPending}
+      onClick={() => sweep.mutate()}
+      style={{ ...actionButtonStyle, opacity: sweep.isPending ? 0.5 : 1 }}
+    >
+      {sweep.isPending ? 'sweeping…' : 'sweep'}
+    </button>
+  );
+
+  if (deadlines.isPending) {
+    return (
+      <SectionCard title="deadlines">
+        <div role="status" style={emptyState}>
+          loading…
+        </div>
+      </SectionCard>
+    );
+  }
+
+  // fetchDeadlines folds transport errors into fromLiveGateway:false so an empty
+  // list can't be mistaken for the gateway being down.
+  if (deadlines.data?.fromLiveGateway === false) {
+    return (
+      <SectionCard title="deadlines" action={sweepButton}>
+        <ErrorCard message="gateway offline — deadlines unavailable" />
+      </SectionCard>
+    );
+  }
+
+  const open = deadlines.data?.deadlines ?? [];
+
+  if (open.length === 0) {
+    return (
+      <SectionCard title="deadlines" action={sweepButton}>
+        <div style={{ ...emptyState, textAlign: 'left', padding: '12px 2px' }}>
+          no deadlines tracked yet — sweep scans your documents and mail for due
+          dates and obligations.
+          {sweep.data && sweep.data.blind_spots.length > 0 && (
+            <div style={{ marginTop: 8, color: 'var(--ink-2)' }}>
+              last sweep found nothing — {sweep.data.blind_spots.join(', ')}
+            </div>
+          )}
+        </div>
+      </SectionCard>
+    );
+  }
+
+  const nearest = open[0];
+  const rest = open.slice(1, 4);
+
+  return (
+    <SectionCard title="deadlines" count={open.length} action={sweepButton}>
+      <div style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div
+          style={{
+            fontFamily: 'var(--font-body)',
+            fontSize: 14,
+            fontWeight: 600,
+            color: 'var(--ink)',
+          }}
+        >
+          {nearest.obligation}
+        </div>
+        <div
+          style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: dueTone(nearest.due_date) }}
+        >
+          {dueLabel(nearest.due_date)}
+          {nearest.amount ? ` · ${nearest.currency ?? ''}${nearest.amount}` : ''}
+          {nearest.confidence === 'needs_jacob' ? ' · needs your eyes' : ''}
+        </div>
+      </div>
+      {rest.map((d: GatewayDeadline) => (
+        <div
+          key={d.id}
+          style={{ ...itemCard, display: 'flex', justifyContent: 'space-between', gap: 8 }}
+        >
+          <span style={{ ...bodyText, fontSize: 12, color: 'var(--ink)' }}>{d.obligation}</span>
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              color: dueTone(d.due_date),
+              flexShrink: 0,
+            }}
+          >
+            {dueLabel(d.due_date)}
+          </span>
+        </div>
+      ))}
+      {open.length > 4 && (
+        <div
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            color: 'var(--ink-2)',
+            textAlign: 'center',
+          }}
+        >
+          +{open.length - 4} more
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
+// ── What changed panel ───────────────────────────────────────────────────────
+
+function WhatChanged() {
+  const { data, isError, isPending } = useStateChanges();
+  const snapshot = useSnapshotState();
   const stateNowQuery = useStateNow();
   const runTriage = useRunInboxTriage();
-  const mark = useSnapshotState();
-
-  if (isPending || stateNowQuery.isPending) {
-    return (
-      <Card>
-        <CardHeader title="what changed" />
-        <EmptyState>loading…</EmptyState>
-      </Card>
-    );
-  }
-
-  if (isError || stateNowQuery.isError) {
-    return (
-      <Card>
-        <CardHeader title="what changed" />
-        <ErrorState message="gateway offline — changes unavailable" />
-      </Card>
-    );
-  }
 
   const markPoint = (
-    <Button
-      disabled={mark.isPending}
-      onClick={() => mark.mutate(undefined)}
+    <button
+      type="button"
+      disabled={snapshot.isPending}
+      onClick={() => snapshot.mutate()}
+      style={actionButtonStyle}
     >
-      {mark.isPending ? '…' : 'mark point'}
-    </Button>
+      {snapshot.isPending ? '…' : 'mark point'}
+    </button>
   );
+
+  if (isPending) {
+    return (
+      <SectionCard title="what changed">
+        <div role="status" style={{ ...emptyState }}>
+          loading…
+        </div>
+      </SectionCard>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <SectionCard title="what changed">
+        <ErrorCard message="gateway offline — changes unavailable" />
+      </SectionCard>
+    );
+  }
 
   const { changes, new_signals, note } = data;
   const count = changes.length + new_signals.length;
@@ -507,61 +664,64 @@ function WhatChanged({ onNavigate }: { onNavigate: (view: string) => void }) {
       : 0;
 
   return (
-    <Card>
-      <CardHeader title="what changed" count={count || undefined} action={markPoint} />
-      {note && !changes.length && !new_signals.length ? <EmptyState>{note}</EmptyState> : null}
+    <SectionCard title="what changed" count={count || undefined} action={markPoint}>
+      {note && !changes.length && !new_signals.length ? <div style={emptyState}>{note}</div> : null}
       {changes.map((c: StateChange, i: number) => (
-        <ItemCard key={i}>
+        <div key={i} style={itemCard}>
           <div
             style={{
               fontFamily: 'var(--font-mono)',
               fontSize: 10,
-              color: 'var(--text-muted)',
+              color: 'var(--ink-2)',
               marginBottom: 4,
             }}
           >
             {c.section}
             {c.field ? ` · ${c.field}` : ''}
           </div>
-          <BodyText>
+          <div style={bodyText}>
             {String(c.before ?? '–')} → {String(c.after ?? '–')}
-          </BodyText>
-        </ItemCard>
+          </div>
+        </div>
       ))}
       {new_signals.length > 0 && (
-        <ItemCard
+        <div
           style={{
+            ...itemCard,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
           }}
         >
-          <BodyText>
+          <span style={bodyText}>
             {new_signals.length} new signal{new_signals.length !== 1 ? 's' : ''} since last snapshot
-          </BodyText>
-        </ItemCard>
+          </span>
+        </div>
       )}
       {untriagedCount > 0 && (
-        <ItemCard
+        <div
           style={{
+            ...itemCard,
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
           }}
         >
-          <BodyText>{untriagedCount} untriaged in inbox</BodyText>
-          <Button
+          <span style={bodyText}>{untriagedCount} untriaged in inbox</span>
+          <button
+            type="button"
             disabled={runTriage.isPending}
             onClick={() => runTriage.mutate(undefined)}
+            style={actionButtonStyle}
           >
             {runTriage.isPending ? '…' : 'triage now'}
-          </Button>
-        </ItemCard>
+          </button>
+        </div>
       )}
       {!count && !note && !untriagedCount && (
-        <EmptyState>nothing new since last snapshot</EmptyState>
+        <div style={emptyState}>nothing new since last snapshot</div>
       )}
-    </Card>
+    </SectionCard>
   );
 }
 
@@ -572,23 +732,24 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
   const needsJacob = useNeedsJacob();
   const approve = useApproveAction();
   const reject = useRejectAction();
+  // Track which action is in-flight to disable its buttons and prevent races.
   const [pendingId, setPendingId] = useState<number | null>(null);
 
   if (isPending || needsJacob.isPending) {
     return (
-      <Card>
-        <CardHeader title="needs you" />
-        <EmptyState>loading…</EmptyState>
-      </Card>
+      <SectionCard title="needs you">
+        <div role="status" style={emptyState}>
+          loading…
+        </div>
+      </SectionCard>
     );
   }
 
   if (isError) {
     return (
-      <Card>
-        <CardHeader title="needs you" />
-        <ErrorState message="gateway offline — action queue unavailable" />
-      </Card>
+      <SectionCard title="needs you">
+        <ErrorCard message="gateway offline — action queue unavailable" />
+      </SectionCard>
     );
   }
 
@@ -600,7 +761,7 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
     try {
       await approve.mutateAsync(id);
     } catch {
-      // gateway error
+      // gateway error — button re-enables via finally
     } finally {
       setPendingId(null);
     }
@@ -611,224 +772,234 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
     try {
       await reject.mutateAsync(id);
     } catch {
-      // gateway error
+      // gateway error — button re-enables via finally
     } finally {
       setPendingId(null);
     }
   };
 
   return (
-    <Card>
-      <CardHeader title="needs you" count={total || undefined} />
+    <SectionCard title="needs you" count={total || undefined}>
       {total === 0 ? (
-        <EmptyState>nothing waiting for you</EmptyState>
+        <div style={emptyState}>nothing waiting for you</div>
       ) : (
-        <>
-        {actions.map((action: GatewayAction) => {
+        actions.map((action: GatewayAction) => {
           const isBusy = pendingId === action.id;
           return (
-            <ItemCard key={action.id} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+            <div
+              key={action.id}
+              style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 8 }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'flex-start',
+                  gap: 8,
+                }}
+              >
                 <div>
-                  <div style={{ fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>
+                  <div
+                    style={{
+                      fontFamily: 'var(--font-body)',
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: 'var(--ink)',
+                      marginBottom: 2,
+                    }}
+                  >
                     {action.title}
                   </div>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+                  <div
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 10,
+                      color: 'var(--ink-2)',
+                    }}
+                  >
                     {action.kind} · {action.risk_tier} · {action.source_kind}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                  <Button
-                    variant="primary"
+                  <button
+                    type="button"
                     disabled={isBusy}
                     onClick={() => void handleApprove(action.id)}
-                    ariaLabel={`Approve ${action.title}`}
+                    aria-label={`Approve ${action.title}`}
+                    style={{
+                      ...primaryButtonStyle,
+                      cursor: isBusy ? 'not-allowed' : 'pointer',
+                      opacity: isBusy ? 0.5 : 1,
+                    }}
                   >
                     {isBusy ? '…' : 'approve'}
-                  </Button>
-                  <Button
-                    variant="ghost"
+                  </button>
+                  <button
+                    type="button"
                     disabled={isBusy}
                     onClick={() => void handleReject(action.id)}
-                    ariaLabel={`Reject ${action.title}`}
+                    aria-label={`Reject ${action.title}`}
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      padding: '4px 12px',
+                      borderRadius: 4,
+                      border: '1px solid var(--line)',
+                      cursor: isBusy ? 'not-allowed' : 'pointer',
+                      background: 'transparent',
+                      color: 'var(--ink-2)',
+                      opacity: isBusy ? 0.5 : 1,
+                    }}
                   >
                     reject
-                  </Button>
+                  </button>
                 </div>
               </div>
-              {action.preview && <BodyText style={{ fontSize: 12 }}>{action.preview}</BodyText>}
-            </ItemCard>
+              {action.preview && <div style={{ ...bodyText, fontSize: 12 }}>{action.preview}</div>}
+            </div>
           );
-        })}
-        {needsJacobEntries.map((entry) => (
-          <ItemCard key={entry.inbox_id} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        })
+      )}
+      {needsJacobEntries.map((entry) => (
+        <div
+          key={entry.inbox_id}
+          style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 8 }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
             <span
               style={{
-                fontFamily: 'var(--font-ui)',
+                fontFamily: 'var(--font-body)',
                 fontSize: 13,
                 fontWeight: 600,
-                color: 'var(--text)',
+                color: 'var(--ink)',
               }}
             >
               needs a decision
             </span>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}>
               {Math.round(entry.confidence * 100)}% confident
             </span>
           </div>
-          {entry.text && <BodyText style={{ fontSize: 12 }}>{entry.text.slice(0, 160)}</BodyText>}
+          {entry.text && <div style={{ ...bodyText, fontSize: 12 }}>{entry.text.slice(0, 160)}</div>}
           {entry.rationale && (
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}>
               {entry.rationale}
             </div>
           )}
           <div>
-            <Button
+            <button
+              type="button"
               onClick={() => onDecideInChat(entry)}
+              style={actionButtonStyle}
             >
               decide in chat
-            </Button>
+            </button>
           </div>
-          </ItemCard>
-        ))}
-        </>
-      )}
-    </Card>
+        </div>
+      ))}
+    </SectionCard>
   );
 }
 
 // ── Today (todos) ────────────────────────────────────────────────────────────
 
-function TodayPanel({ gatewayError }: { gatewayError: string | null }) {
+function TodayPanel({
+  gatewayError,
+  onNavigate,
+}: {
+  gatewayError: string | null;
+  onNavigate: (view: string) => void;
+}) {
+  // fetchGatewayTodos swallows its own errors into `[]`, so an empty list
+  // here is ambiguous between "nothing today" and "gateway's down." The
+  // caller passes down a sibling query's error (brief) as the tie-breaker.
   const { data: todos = [], isPending } = useTodos();
 
   const open = todos.filter((t) => t.status === 'pending' || t.status === 'active');
 
   if (isPending) {
     return (
-      <Card>
-        <CardHeader title="today" />
-        <EmptyState>loading…</EmptyState>
-      </Card>
+      <SectionCard title="today">
+        <div role="status" style={emptyState}>
+          loading…
+        </div>
+      </SectionCard>
     );
   }
 
   if (open.length === 0 && gatewayError) {
     return (
-      <Card>
-        <CardHeader title="today" />
-        <ErrorState message={`gateway offline — ${gatewayError}`} />
-      </Card>
+      <SectionCard title="today">
+        <ErrorCard message={`gateway offline — ${gatewayError}`} />
+      </SectionCard>
     );
   }
 
+  const openTasks = (
+    <button
+      type="button"
+      onClick={() => onNavigate('tasks')}
+      aria-label="Open tasks"
+      style={actionButtonStyle}
+    >
+      open
+    </button>
+  );
+
   return (
-    <Card>
-      <CardHeader title="today" count={open.length || undefined} />
+    <SectionCard title="today" count={open.length || undefined} action={openTasks}>
       {open.length === 0 ? (
-        <EmptyState>nothing on the list</EmptyState>
+        <div style={emptyState}>nothing on the list</div>
       ) : (
         open.slice(0, 5).map((t) => (
-          <ItemCard key={t.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--primary)', flexShrink: 0, marginTop: 1 }}>
+          <div
+            key={t.id}
+            style={{ ...itemCard, display: 'flex', gap: 8, alignItems: 'flex-start' }}
+          >
+            <span
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 13,
+                color: 'var(--primary)',
+                flexShrink: 0,
+                marginTop: 1,
+              }}
+            >
               ○
             </span>
-            <span style={{ fontFamily: 'var(--font-ui)', fontSize: 13, color: 'var(--text)', lineHeight: 1.4 }}>
+            <span
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: 13,
+                color: 'var(--ink)',
+                lineHeight: 1.4,
+              }}
+            >
               {t.content}
             </span>
-          </ItemCard>
+          </div>
         ))
       )}
       {open.length > 5 && (
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)', textAlign: 'center' }}>
+        <div
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            color: 'var(--ink-2)',
+            textAlign: 'center',
+          }}
+        >
           +{open.length - 5} more
         </div>
       )}
-    </Card>
-  );
-}
-
-// ── Deadlines ────────────────────────────────────────────────────────────────
-
-function DeadlinesPanel() {
-  const { data: deadlines = [], isPending, isError } = useDeadlines('open');
-  const close = useCloseDeadline();
-
-  if (isPending) {
-    return (
-      <Card>
-        <CardHeader title="deadlines" />
-        <EmptyState>loading…</EmptyState>
-      </Card>
-    );
-  }
-
-  if (isError) {
-    return (
-      <Card>
-        <CardHeader title="deadlines" />
-        <ErrorState message="gateway offline — deadlines unavailable" />
-      </Card>
-    );
-  }
-
-  if (deadlines.length === 0) return null;
-
-  return (
-    <Card>
-      <CardHeader title="deadlines" count={deadlines.length} />
-      {deadlines.map((d) => (
-        <ItemCard key={d.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <div style={{ fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>
-              {d.obligation}
-            </div>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
-              due: {d.due_date} {d.amount ? `· ${d.amount} ${d.currency}` : ''}
-            </div>
-          </div>
-          <Button
-            onClick={() => close.mutate(d.id)}
-            disabled={close.isPending}
-          >
-            {close.isPending ? '…' : 'close'}
-          </Button>
-        </ItemCard>
-      ))}
-    </Card>
-  );
-}
-
-// ── Phone Access ─────────────────────────────────────────────────────────────
-
-function PhoneAccessTile() {
-  const [status, setStatus] = useState<'idle' | 'checking' | 'ok' | 'fail'>('idle');
-
-  const verify = async () => {
-    setStatus('checking');
-    try {
-      const res = await fetch('/proxy/health');
-      if (res.ok) setStatus('ok');
-      else setStatus('fail');
-    } catch {
-      setStatus('fail');
-    }
-    setTimeout(() => setStatus('idle'), 3000);
-  };
-
-  return (
-    <Card>
-      <CardHeader title="phone access" />
-      <ItemCard style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text)' }}>
-          {status === 'checking' ? 'verifying…' : status === 'ok' ? 'connected to tailnet' : status === 'fail' ? 'tailnet unreachable' : 'ready for mobile'}
-        </div>
-        <Button onClick={verify} disabled={status === 'checking'}>
-          verify now
-        </Button>
-      </ItemCard>
-    </Card>
+    </SectionCard>
   );
 }
 
@@ -836,95 +1007,9 @@ function PhoneAccessTile() {
 
 function CaptureSection() {
   return (
-    <Card style={{ gridColumn: '1 / -1' }}>
-      <CardHeader title="capture" />
+    <SectionCard title="capture" span>
       <CapturePanel />
-    </Card>
-  );
-}
-
-// ── Weather ──────────────────────────────────────────────────────────────────
-
-function WeatherTile() {
-  const { data: weatherPayload, isPending, isError } = useGatewayWeather();
-
-  if (isPending || isError || !weatherPayload || !weatherPayload.weather) return null;
-  const weather = weatherPayload.weather;
-
-  return (
-    <Card>
-      <CardHeader title="sky" />
-      <ItemCard style={{ display: 'flex', gap: 16, alignItems: 'center', background: 'var(--surface)', border: '2px dashed var(--border)' }}>
-        <div style={{ fontSize: 44, fontFamily: 'var(--font-display)', transform: 'rotate(-4deg)', color: 'var(--text)' }}>
-          {weather.temp_c ?? '--'}°
-        </div>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-dim)', lineHeight: 1.4 }}>
-          <div>it feels {weather.description?.toLowerCase() || 'unknown'}</div>
-          <div>in your area</div>
-        </div>
-      </ItemCard>
-    </Card>
-  );
-}
-
-// ── Magic Kitty & Sources ─────────────────────────────────────────────────────
-
-function MagicKittyTile() {
-  const { data: magic, isPending, isError } = useMagicInsights();
-
-  if (isPending || isError || !magic) return null;
-  const connections = magic.connections ?? [];
-  if (connections.length === 0) return null;
-
-  return (
-    <Card>
-      <CardHeader title="magic" count={connections.length} />
-      {connections.slice(0, 3).map((c) => (
-        <ItemCard key={c.insight_id} style={{ cursor: 'default' }}>
-          <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--text)' }}>{c.title}</div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>
-            {c.detail}
-          </div>
-          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--text-muted)', marginTop: 6 }}>
-            {c.source} &middot; {(c.confidence * 100).toFixed(0)}%
-          </div>
-        </ItemCard>
-      ))}
-    </Card>
-  );
-}
-
-function WorkingSources({ onNavigate }: { onNavigate: (v: string) => void }) {
-  const { data: sources, isPending, isError } = useKnowledgeSources();
-
-  if (isPending || isError || !sources) return null;
-
-  return (
-    <Card>
-      <CardHeader title="brain" count={sources.total_sources} />
-      <ItemCard
-        style={{
-          cursor: 'pointer',
-          border: '1px solid var(--text)',
-          background: 'var(--primary-fade)',
-          minWidth: 0,
-          overflow: 'hidden',
-        }}
-        onClick={() => onNavigate('docs')}
-      >
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text)', minWidth: 0 }}>
-          <div style={{ fontWeight: 700 }}>{sources.total_sources} files stuffed in my head</div>
-          <div style={{ marginTop: 8, color: 'var(--text-dim)' }}>
-            {(sources.sources.slice(0, 3) || []).map((s, i) => (
-              <div key={i} style={{ display: 'flex', gap: 8, padding: '2px 0', minWidth: 0 }}>
-                <span>*</span>
-                <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </ItemCard>
-    </Card>
+    </SectionCard>
   );
 }
 
@@ -944,62 +1029,25 @@ export function HomeState({
   onDecideInChat = () => {},
   onNavigate = () => {},
 }: Props) {
-  const healthQuery = useGatewayHealth();
-  const gatewayOk = healthQuery.data?.ok === true;
-  const projectsQuery = useProjects();
-  const projects = projectsQuery.data ?? [];
-  const stepQueries = useProjectNextSteps(projects);
-
-  // Expanding What's Next based on the same query
-  const actionsQuery = useActions('proposed');
-  const needsJacob = useNeedsJacob();
-  const todosQuery = useTodos();
-  const deadlinesQuery = useDeadlines('open');
-
-  const rankedAction = evaluateNextAction(
-    actionsQuery.data ?? [],
-    needsJacob.data?.entries ?? [],
-    stepQueries.map((q) => q.data).filter((s): s is GatewayNextStep => s !== null && s !== undefined),
-    todosQuery.data ?? [],
-    healthQuery.data ?? { ok: true, litellmReachable: true, error: null },
-    deadlinesQuery.data ?? []
-  );
-
   return (
     <div
-      className="kitty-cockpit"
       style={{
         flex: 1,
         overflowY: 'auto',
-        padding: compact ? '16px 12px 120px' : '28px 32px 44px',
+        padding: compact ? '16px 12px 40px' : '24px 32px 40px',
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-        gap: compact ? 14 : 18,
-        alignContent: 'flex-start',
-        alignItems: 'flex-start',
-        minHeight: '100%',
-        background:
-          'radial-gradient(circle at 20% 16%, rgba(116,168,255,.13) 0 1px, transparent 1.5px), radial-gradient(circle at 80% 18%, rgba(240,198,106,.22) 0 1px, transparent 1.5px), radial-gradient(circle at 62% 62%, rgba(109,220,192,.12) 0 1px, transparent 1.5px), linear-gradient(135deg, rgba(6,10,20,.96), rgba(9,13,24,.92) 48%, rgba(15,10,18,.96))',
-        backgroundSize: '160px 160px, 220px 220px, 180px 180px, 100% 100%',
+        gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(340px, 1fr))',
+        gap: 20,
+        alignContent: 'start',
       }}
     >
-      <CockpitHeader rankedTitle={rankedAction?.title} />
-      <HealthStrip expanded={!gatewayOk} />
-      <WhatsNext
-        onDecideInChat={onDecideInChat}
-        onNavigate={onNavigate}
-        projectsQuery={projectsQuery}
-        stepQueries={stepQueries}
-      />
-      <DeadlinesPanel />
-      <SpaceSelector onNavigate={onNavigate} projectsQuery={projectsQuery} stepQueries={stepQueries} />
+      <HealthStrip />
+      <WhatsNext onDecideInChat={onDecideInChat} onNavigate={onNavigate} />
       <NeedsYou onDecideInChat={onDecideInChat} />
-      <TodayPanel gatewayError={gatewayError} />
-      <WhatChanged onNavigate={onNavigate} />
-      <WeatherTile />
-      <PhoneAccessTile />
-      <MagicKittyTile />
-      <WorkingSources onNavigate={onNavigate} />
+      <Deadlines />
+      <ActiveProjects onNavigate={onNavigate} />
+      <WhatChanged />
+      <TodayPanel gatewayError={gatewayError} onNavigate={onNavigate} />
       <CaptureSection />
     </div>
   );

@@ -6,11 +6,6 @@ import {
   fetchGatewayModels,
   fetchGatewaySearch,
   fetchGatewayWeather,
-  fetchMagicInsights,
-  // deadlines
-  fetchGatewayDeadlines,
-  closeGatewayDeadline,
-  type GatewayDeadline,
   // todos
   fetchGatewayTodos,
   addGatewayTodo,
@@ -22,11 +17,6 @@ import {
   fetchGatewayInsights,
   dismissGatewayInsight,
   fetchGatewayPrompts,
-  // expert signals
-  fetchExpertSignals,
-  dismissExpertSignal,
-  snoozeExpert,
-  type ExpertSignal,
   // monitors
   fetchGatewayMonitors,
   addGatewayMonitor,
@@ -66,8 +56,10 @@ import {
   fetchProjects,
   fetchProjectNext,
   refreshProject,
-  createProject,
   type GatewayProject,
+  // deadlines
+  fetchDeadlines,
+  runDeadlineSweep,
   // cockpit health
   fetchGatewayHealth,
   fetchChatsPersistence,
@@ -87,16 +79,6 @@ import {
   type GatewayInsightsPayload,
 } from '@/lib/gateway'
 
-// ── Magic Kitty ─────────────────────────────────────────────────────────────
-
-export function useMagicInsights() {
-  return useQuery({
-    queryKey: ['magic'],
-    queryFn: () => fetchMagicInsights(),
-    refetchInterval: 5 * 60_000,
-  })
-}
-
 // ── Dashboard payload queries ────────────────────────────────────────────────
 // These keep the existing payload shape ({data, fromLiveGateway, error}) so
 // callers see no change beyond wrapping in `useQuery`.
@@ -113,7 +95,6 @@ export function useGatewayModels() {
   return useQuery({
     queryKey: ['models'],
     queryFn: fetchGatewayModels,
-    staleTime: 5 * 60_000,
   })
 }
 
@@ -131,31 +112,6 @@ export function useGatewayWeather() {
     queryKey: ['weather'],
     queryFn: fetchGatewayWeather,
     refetchInterval: 15 * 60_000,
-  })
-}
-
-// ── Deadlines ────────────────────────────────────────────────────────────────
-
-export function useDeadlines(status: string = 'open') {
-  return useQuery({ queryKey: ['deadlines', status], queryFn: () => fetchGatewayDeadlines(status) })
-}
-
-export function useCloseDeadline() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (id: number) => closeGatewayDeadline(id),
-    onMutate: async (id) => {
-      await qc.cancelQueries({ queryKey: ['deadlines'] })
-      const previous = qc.getQueryData<GatewayDeadline[]>(['deadlines', 'open'])
-      qc.setQueriesData<GatewayDeadline[]>({ queryKey: ['deadlines'] }, (old) =>
-        old?.filter((d) => d.id !== id) ?? old
-      )
-      return { previous }
-    },
-    onError: (_err, _id, ctx) => {
-      if (ctx?.previous !== undefined) qc.setQueryData(['deadlines', 'open'], ctx.previous)
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: ['deadlines'] }),
   })
 }
 
@@ -215,13 +171,11 @@ export function useDeleteTodo() {
 
 // ── Loops / Insights ─────────────────────────────────────────────────────────
 
-export function useLoops(enabled = true) {
+export function useLoops() {
   return useQuery({
     queryKey: ['loops'],
     queryFn: fetchGatewayLoops,
-    enabled,
     refetchInterval: 30_000,
-    staleTime: 30_000,
   })
 }
 
@@ -254,11 +208,10 @@ export function useToggleLoop() {
   })
 }
 
-export function useInsights(limit = 10, enabled = true) {
+export function useInsights(limit = 10) {
   return useQuery({
     queryKey: ['insights', limit],
     queryFn: () => fetchGatewayInsights(limit),
-    enabled,
     refetchInterval: 60_000,
   })
 }
@@ -287,53 +240,11 @@ export function useDismissInsight() {
   })
 }
 
-export function usePrompts(enabled = true) {
+export function usePrompts() {
   return useQuery({
     queryKey: ['prompts'],
     queryFn: fetchGatewayPrompts,
-    enabled,
     staleTime: 5 * 60_000,
-  })
-}
-
-// ── Expert Signals ────────────────────────────────────────────────────────────
-
-export function useExpertSignals() {
-  return useQuery({
-    queryKey: ['expertSignals'],
-    queryFn: () => fetchExpertSignals(),
-    refetchInterval: 60_000,
-  })
-}
-
-export function useDismissExpertSignal() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (id: number) => dismissExpertSignal(id),
-    onMutate: async (id) => {
-      await qc.cancelQueries({ queryKey: ['expertSignals'] })
-      const previous = qc.getQueryData<ExpertSignal[]>(['expertSignals'])
-      qc.setQueryData<ExpertSignal[]>(['expertSignals'], (old) => {
-        if (!old) return old
-        return old.filter((s) => s.id !== id)
-      })
-      return { previous }
-    },
-    onError: (_err, _id, ctx) => {
-      if (ctx?.previous !== undefined) qc.setQueryData(['expertSignals'], ctx.previous)
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: ['expertSignals'] }),
-  })
-}
-
-export function useSnoozeExpert() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ expertId, durationHours }: { expertId: string; durationHours?: number }) => snoozeExpert(expertId, durationHours),
-    onSuccess: () => {
-      // Invalidate expertSignals so the UI might reflect fewer suggestions if we want
-      qc.invalidateQueries({ queryKey: ['expertSignals'] })
-    },
   })
 }
 
@@ -581,38 +492,22 @@ export function useRefreshProject() {
   })
 }
 
-export function useCreateProject() {
+// ── Deadlines (urgent paper) ──────────────────────────────────────────────────
+
+export function useDeadlines(status = 'open') {
+  return useQuery({
+    queryKey: ['deadlines', status],
+    queryFn: () => fetchDeadlines(status),
+    refetchInterval: 5 * 60_000,
+    retry: false,
+  })
+}
+
+export function useDeadlineSweep() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ name, kind, paths, links }: { name: string; kind: string; paths?: string[]; links?: unknown[] }) =>
-      createProject(name, kind, paths, links),
-    onMutate: async (newProject) => {
-      await qc.cancelQueries({ queryKey: ['projects'] })
-      const previous = qc.getQueryData<GatewayProject[]>(['projects'])
-      qc.setQueryData<GatewayProject[]>(['projects'], (old) => {
-        if (!old) return old
-        // Optimistic update
-        return [...old, {
-          id: Date.now(), // Fake ID for optimistic rendering
-          name: newProject.name,
-          kind: newProject.kind,
-          status: 'active',
-          summary: null,
-          paths: newProject.paths ?? [],
-          last_touched: Math.floor(Date.now() / 1000),
-          open_questions: [],
-          next_actions: [],
-          links: newProject.links ?? [],
-        }]
-      })
-      return { previous }
-    },
-    onError: (_err, _newProject, context) => {
-      if (context?.previous) {
-        qc.setQueryData(['projects'], context.previous)
-      }
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: ['projects'] }),
+    mutationFn: () => runDeadlineSweep(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['deadlines'] }),
   })
 }
 
@@ -697,8 +592,7 @@ export function useProjectNextSteps(projects: GatewayProject[]) {
 export function useUploadCapture() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ file, onProgress, signal }: { file: File; onProgress?: (p: number) => void; signal?: AbortSignal }) =>
-      uploadCaptureFile(file, onProgress, signal),
+    mutationFn: (file: File) => uploadCaptureFile(file),
     // Indexing runs as a gateway background task; the invalidation gives the
     // fast path, the sources card's refresh button covers the slow one.
     onSuccess: () => qc.invalidateQueries({ queryKey: ['knowledge', 'sources'] }),

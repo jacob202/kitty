@@ -1,9 +1,7 @@
 import { MODELS, type Model } from './types'
 
-export const GATEWAY_BASE = '/proxy'
+const GATEWAY_BASE = '/proxy'
 const DEFAULT_TIMEOUT_MS = 2500
-const BRIEF_TIMEOUT_MS = 5000
-const STATE_TIMEOUT_MS = 5000
 
 export interface GatewayHeadline {
   title: string
@@ -112,34 +110,6 @@ export type GatewaySearchPayload = {
   error: string | null
 }
 
-// ── Magic Kitty ──────────────────────────────────────────────────────────────
-
-export interface MagicConnection {
-  insight_id: string
-  kind: string
-  title: string
-  detail: string
-  source: string
-  confidence: number
-  created_at: number
-}
-
-export interface MagicPayload {
-  connections: MagicConnection[]
-  projects_used: number
-  generated_at: number
-}
-
-export async function fetchMagicInsights(force = false): Promise<MagicPayload> {
-  const params = force ? '?force=true' : ''
-  try {
-    const json = await gfetch<MagicPayload>(`/magic${params}`)
-    return json
-  } catch {
-    return { connections: [], projects_used: 0, generated_at: 0 }
-  }
-}
-
 export interface GatewayWeather {
   temp_c?: number
   feels_like_c?: number
@@ -184,18 +154,8 @@ async function fetchWithTimeout(
     }
   }
 
-  const headers = new Headers()
-  const token = typeof window !== 'undefined' && window.localStorage ? window.localStorage.getItem('kitty_token') : null
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`)
-  }
-
   try {
-    const response = await fetch(input, { headers, signal: controller.signal })
-    if (response.status === 401 && typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('kitty:unauthorized'))
-    }
-    return response
+    return await fetch(input, { signal: controller.signal })
   } finally {
     window.clearTimeout(timeoutId)
   }
@@ -313,7 +273,7 @@ export async function fetchGatewayModels(): Promise<GatewayModelsPayload> {
 
 export async function fetchGatewayBrief(): Promise<GatewayBriefPayload> {
   try {
-    const response = await fetchWithTimeout(`${GATEWAY_BASE}/brief`, BRIEF_TIMEOUT_MS)
+    const response = await fetchWithTimeout(`${GATEWAY_BASE}/brief`, 1500)
     if (!response.ok) {
       return {
         brief: null,
@@ -388,17 +348,8 @@ export interface AgentSession {
 async function gfetch<T = unknown>(path: string, init?: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
   const controller = new AbortController()
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
-  const headers = new Headers(init?.headers)
-  const token = typeof window !== 'undefined' ? localStorage.getItem('kitty_token') : null
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`)
-  }
-
   try {
-    const response = await fetch(`${GATEWAY_BASE}${path}`, { ...init, headers, signal: controller.signal })
-    if (response.status === 401 && typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('kitty:unauthorized'))
-    }
+    const response = await fetch(`${GATEWAY_BASE}${path}`, { ...init, signal: controller.signal })
     if (!response.ok) {
       throw new Error(`Gateway returned ${response.status} ${response.statusText}`.trim())
     }
@@ -441,42 +392,6 @@ export async function fetchAgentSessions(limit = 10): Promise<AgentSession[]> {
 export async function stopAgent(sessionId: number): Promise<boolean> {
   try {
     await gfetch(`/agent/${sessionId}/stop`, { method: 'POST' })
-    return true
-  } catch {
-    return false
-  }
-}
-
-// ── Deadlines ────────────────────────────────────────────────────────────────
-
-export interface GatewayDeadline {
-  id: number
-  project_id: number
-  source: string
-  source_id: string | null
-  due_date: string
-  obligation: string
-  amount: number | null
-  currency: string | null
-  confidence: 'high' | 'medium' | 'low' | 'needs_jacob'
-  status: 'open' | 'closed' | 'needs_jacob'
-  created_at: number
-  updated_at: number
-  pushed_at: number | null
-}
-
-export async function fetchGatewayDeadlines(status: string = 'open'): Promise<GatewayDeadline[]> {
-  try {
-    const json = await gfetch<{ deadlines?: GatewayDeadline[] }>(`/deadlines?status=${status}`)
-    return json.deadlines ?? []
-  } catch {
-    return []
-  }
-}
-
-export async function closeGatewayDeadline(id: number): Promise<boolean> {
-  try {
-    await gfetch(`/deadlines/${id}/close`, { method: 'POST' })
     return true
   } catch {
     return false
@@ -755,54 +670,6 @@ export async function dismissGatewayInsight(insightId: string): Promise<boolean>
   }
 }
 
-// ── Expert Signals ────────────────────────────────────────────────────────────
-
-export interface ExpertSignal {
-  id: number;
-  ts: number;
-  source: string;
-  kind: string;
-  payload: {
-    headline: string;
-    analysis: string;
-    topic_hash?: string;
-  };
-  dedupe_key: string;
-  processed_at: number | null;
-  created_at: number;
-}
-
-export async function fetchExpertSignals(): Promise<ExpertSignal[]> {
-  try {
-    const json = await gfetch<{ signals?: ExpertSignal[] }>(`/experts/signals/unprocessed`)
-    return json.signals ?? []
-  } catch (err) {
-    console.error("fetchExpertSignals error:", err)
-    return []
-  }
-}
-
-export async function dismissExpertSignal(signalId: number): Promise<boolean> {
-  try {
-    await gfetch(`/experts/signals/${signalId}/dismiss`, { method: 'POST' })
-    return true
-  } catch {
-    return false
-  }
-}
-
-export async function snoozeExpert(expertId: string, durationHours: number = 24.0): Promise<boolean> {
-  try {
-    await gfetch(`/experts/${expertId}/snooze`, {
-      method: 'POST',
-      body: JSON.stringify({ duration_hours: durationHours })
-    })
-    return true
-  } catch {
-    return false
-  }
-}
-
 // ── Cron Schedules ────────────────────────────────────────────────────────────
 
 export type CronScheduleType = 'daily' | 'interval' | 'once'
@@ -995,7 +862,7 @@ export interface GatewayAction {
 }
 
 export async function fetchStateChanges(): Promise<StateChangesPayload> {
-  return gfetch<StateChangesPayload>('/state/changes', undefined, STATE_TIMEOUT_MS)
+  return gfetch<StateChangesPayload>('/state/changes')
 }
 
 export async function fetchActions(status?: string): Promise<GatewayAction[]> {
@@ -1028,7 +895,7 @@ export interface GatewayStateNow {
 }
 
 export async function fetchStateNow(): Promise<GatewayStateNow> {
-  return gfetch<GatewayStateNow>('/state/now', undefined, STATE_TIMEOUT_MS)
+  return gfetch<GatewayStateNow>('/state/now')
 }
 
 export async function runInboxTriage(limit = 25): Promise<void> {
@@ -1081,61 +948,17 @@ export interface CaptureResult {
   message: string
 }
 
-export async function uploadCaptureFile(
-  file: File,
-  onProgress?: (percent: number) => void,
-  signal?: AbortSignal,
-): Promise<CaptureResult | null> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest()
-
-    if (signal) {
-      if (signal.aborted) {
-        return reject(new Error('AbortError'))
-      }
-      signal.addEventListener('abort', () => {
-        xhr.abort()
-        reject(new Error('AbortError'))
-      }, { once: true })
-    }
-
-    xhr.open('POST', `${GATEWAY_BASE}/capture/file`)
-
-    const token = typeof window !== 'undefined' ? localStorage.getItem('kitty_token') : null
-    if (token) {
-      xhr.setRequestHeader('Authorization', `Bearer ${token}`)
-    }
-
-    if (onProgress && xhr.upload) {
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          const percent = Math.round((e.loaded / e.total) * 100)
-          onProgress(percent)
-        }
-      }
-    }
-
-    xhr.onload = () => {
-      if (xhr.status === 401 && typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('kitty:unauthorized'))
-      }
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          resolve(JSON.parse(xhr.responseText))
-        } catch {
-          resolve(null)
-        }
-      } else {
-        resolve(null)
-      }
-    }
-
-    xhr.onerror = () => resolve(null)
-
-    const formData = new FormData()
-    formData.append('file', file)
-    xhr.send(formData)
-  })
+export async function uploadCaptureFile(file: File): Promise<CaptureResult | null> {
+  const formData = new FormData()
+  formData.append('file', file)
+  try {
+    return await gfetch<CaptureResult>('/capture/file', {
+      method: 'POST',
+      body: formData,
+    })
+  } catch {
+    return null
+  }
 }
 
 // ── Projects ─────────────────────────────────────────────────────────────────
@@ -1179,26 +1002,62 @@ export async function fetchProjectNext(projectId: number): Promise<GatewayNextSt
   }
 }
 
-export async function createProject(
-  name: string,
-  kind: string,
-  paths: string[] = [],
-  links: unknown[] = [],
-): Promise<GatewayProject | null> {
-  try {
-    return await gfetch<GatewayProject>('/projects', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, kind, paths, links }),
-    })
-  } catch {
-    return null
-  }
-}
-
 /** Blocks on git + LLM composition server-side — give it a long timeout. */
 export async function refreshProject(projectId: number): Promise<{ next_step?: { ok: boolean; step?: string; error?: string } }> {
   return await gfetch(`/projects/${projectId}/refresh`, { method: 'POST' }, 60_000)
+}
+
+// ── Deadlines (urgent paper, docs/packets/017) ───────────────────────────────
+
+export interface GatewayDeadline {
+  id: number
+  project_id: number
+  source: string
+  source_id: string | null
+  due_date: string
+  obligation: string
+  amount: number | null
+  currency: string | null
+  confidence: 'high' | 'medium' | 'low' | 'needs_jacob'
+  status: 'open' | 'closed' | 'needs_jacob'
+  dedupe_key: string
+  created_at: number
+  updated_at: number
+  pushed_at: number | null
+}
+
+export interface GatewayDeadlinesPayload {
+  deadlines: GatewayDeadline[]
+  fromLiveGateway: boolean
+  error: string | null
+}
+
+/** Backend returns rows already sorted by due_date ASC, so `deadlines[0]` is the
+ *  nearest due item. Transport errors fold into `fromLiveGateway:false` so the
+ *  Home card can tell "gateway down" apart from "nothing tracked". */
+export async function fetchDeadlines(status = 'open'): Promise<GatewayDeadlinesPayload> {
+  try {
+    const json = await gfetch<{ deadlines?: GatewayDeadline[] }>(
+      `/deadlines?status=${encodeURIComponent(status)}`,
+    )
+    return { deadlines: json.deadlines ?? [], fromLiveGateway: true, error: null }
+  } catch (err) {
+    return { deadlines: [], fromLiveGateway: false, error: describeFetchError(err, null) }
+  }
+}
+
+export interface DeadlineSweepReport {
+  found: number
+  open: number
+  needs_jacob: number
+  top: GatewayDeadline | null
+  blind_spots: string[]
+  generated_at: string
+}
+
+/** The sweep scans documents + mail via the LLM server-side — give it room. */
+export async function runDeadlineSweep(): Promise<DeadlineSweepReport> {
+  return await gfetch<DeadlineSweepReport>('/deadlines/sweep', { method: 'POST' }, 60_000)
 }
 
 // ── Knowledge (Documents) ────────────────────────────────────────────────────
@@ -1363,4 +1222,16 @@ export async function fetchChatsPersistence(): Promise<ChatsPersistencePayload> 
   } catch (err) {
     return { ok: false, count: 0, error: describeFetchError(err, null) }
   }
+}
+
+
+// ── Logs ──────────────────────────────────────────────────────────────────────
+
+export interface LogTailPayload {
+  file: string
+  lines: string[]
+}
+
+export async function fetchLogTail(file = 'gateway', lines = 100): Promise<LogTailPayload> {
+  return await gfetch<LogTailPayload>(`/logs/tail?file=${encodeURIComponent(file)}&lines=${lines}`)
 }

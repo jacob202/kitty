@@ -1,10 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { Command } from 'cmdk'
-import type { LucideIcon } from 'lucide-react'
+import { House, MessageSquare, CheckSquare, Terminal, Wrench, Plus, PanelLeft, Flag, FileText, Plug, Bot, Image, Settings, type LucideIcon } from 'lucide-react'
 import type { Chat } from '@/lib/types'
-import { useProjects } from '@/lib/queries'
-import { getGlobalCommands, getViewCommands, getChatCommands, getProjectCommands, type CommandGroupDef } from '@/lib/commands'
 
 interface Props {
   chats: Chat[]
@@ -14,6 +12,20 @@ interface Props {
   onToggleSidebar: () => void
 }
 
+const VIEW_COMMANDS: Array<{ id: string; label: string; icon: LucideIcon }> = [
+  { id: 'home', label: 'home', icon: House },
+  { id: 'chat', label: 'chat', icon: MessageSquare },
+  { id: 'projects', label: 'projects', icon: Flag },
+  { id: 'docs', label: 'documents', icon: FileText },
+  { id: 'providers', label: 'providers', icon: Plug },
+  { id: 'agents', label: 'agents', icon: Bot },
+  { id: 'images', label: 'image lab', icon: Image },
+  { id: 'settings', label: 'settings', icon: Settings },
+  { id: 'tasks', label: 'tasks', icon: CheckSquare },
+  { id: 'tools', label: 'tools', icon: Wrench },
+  { id: 'terminal', label: 'terminal', icon: Terminal },
+]
+
 export function CommandPalette({
   chats,
   onNewChat,
@@ -22,11 +34,13 @@ export function CommandPalette({
   onToggleSidebar,
 }: Props) {
   const [open, setOpen] = useState(false)
-  const projectsQuery = useProjects()
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        // If the user is typing in an editable field (composer, search,
+        // any contenteditable), don't steal the keystroke unless the
+        // palette is already open (so Cmd+K can still close it).
         const target = e.target as HTMLElement | null
         const inEditable = !!target?.closest('input, textarea, [contenteditable="true"]')
         if (inEditable && !open) return
@@ -46,16 +60,14 @@ export function CommandPalette({
     close()
   }
 
+  // Recent chats first — only those with content. Coerce updatedAt
+  // defensively: hydrated-from-JSON chats can land here as strings.
+  const recentChats = [...chats]
+    .filter(c => c.messages.length > 0)
+    .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))
+    .slice(0, 8)
+
   if (!open) return null
-
-  const globalCommands = getGlobalCommands({ onNewChat, onToggleSidebar })
-  const viewCommands = getViewCommands(onViewChange)
-  const chatCommands = getChatCommands(chats, onSelectChat)
-  const projectCommands = getProjectCommands(projectsQuery.data ?? [], onViewChange)
-
-  const groups: CommandGroupDef[] = [globalCommands, viewCommands]
-  if (chatCommands) groups.push(chatCommands)
-  if (projectCommands) groups.push(projectCommands)
 
   return (
     <div
@@ -77,44 +89,68 @@ export function CommandPalette({
           width: 520,
           maxWidth: 'calc(100vw - 40px)',
           background: 'var(--surface)',
-          border: '1px solid var(--border)',
+          border: '1px solid var(--line)',
           borderRadius: 4,
-          boxShadow: '4px 4px 0 var(--ink-deep)',
+          boxShadow: 'var(--shadow)',
           overflow: 'hidden',
         }}
       >
-        <Command label="Command palette" loop>
+        <Command label="command palette" loop>
           <Command.Input
             autoFocus
-            placeholder="Type a command or search…"
+            placeholder="type a command or search…"
             style={{
               width: '100%',
               border: 'none',
-              borderBottom: '1px solid var(--border)',
+              borderBottom: '1px solid var(--line)',
               background: 'transparent',
               padding: '14px 16px',
-              fontFamily: 'var(--font-ui)',
+              fontFamily: 'var(--font-body)',
               fontSize: 14,
-              color: 'var(--text)',
+              color: 'var(--ink)',
               outline: 'none',
             }}
           />
           <Command.List style={{ maxHeight: 320, overflowY: 'auto', padding: 6 }}>
-            <Command.Empty style={emptyStyle}>No results.</Command.Empty>
+            <Command.Empty style={emptyStyle}>no results.</Command.Empty>
 
-            {groups.map(group => (
-              <Command.Group key={group.id} heading={group.heading} style={groupStyle}>
-                {group.commands.map(cmd => (
+            <Command.Group heading="Actions" style={groupStyle}>
+              <Item
+                icon={Plus}
+                label="new chat"
+                shortcut="N"
+                onSelect={fire(onNewChat)}
+              />
+              <Item
+                icon={PanelLeft}
+                label="toggle sidebar"
+                onSelect={fire(onToggleSidebar)}
+              />
+            </Command.Group>
+
+            <Command.Group heading="Go to" style={groupStyle}>
+              {VIEW_COMMANDS.map(v => (
+                <Item
+                  key={v.id}
+                  icon={v.icon}
+                  label={v.label}
+                  onSelect={fire(() => onViewChange(v.id))}
+                />
+              ))}
+            </Command.Group>
+
+            {recentChats.length > 0 && (
+              <Command.Group heading="Recent chats" style={groupStyle}>
+                {recentChats.map(c => (
                   <Item
-                    key={cmd.id}
-                    icon={cmd.icon}
-                    label={cmd.label}
-                    shortcut={cmd.shortcut}
-                    onSelect={fire(cmd.onSelect)}
+                    key={c.id}
+                    icon={MessageSquare}
+                    label={c.title}
+                    onSelect={fire(() => onSelectChat(c.id))}
                   />
                 ))}
               </Command.Group>
-            ))}
+            )}
           </Command.List>
         </Command>
       </div>
@@ -150,7 +186,7 @@ const groupStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
   letterSpacing: '0.1em',
-  color: 'var(--text-muted)',
+  color: 'var(--ink-2)',
   textTransform: 'lowercase',
 }
 
@@ -159,9 +195,9 @@ const itemStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: 10,
   padding: '8px 10px',
-  fontFamily: 'var(--font-ui)',
+  fontFamily: 'var(--font-body)',
   fontSize: 13,
-  color: 'var(--text)',
+  color: 'var(--ink)',
   borderRadius: 4,
   cursor: 'pointer',
 }
@@ -171,15 +207,15 @@ const emptyStyle: React.CSSProperties = {
   textAlign: 'center',
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--text-muted)',
+  color: 'var(--ink-2)',
 }
 
 const kbdStyle: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
   padding: '1px 5px',
-  border: '1px solid var(--border)',
+  border: '1px solid var(--line)',
   borderRadius: 3,
-  color: 'var(--text-muted)',
-  background: 'var(--surface-mid)',
+  color: 'var(--ink-2)',
+  background: 'var(--surface)',
 }

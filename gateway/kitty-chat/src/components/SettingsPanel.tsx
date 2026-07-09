@@ -63,30 +63,6 @@ export function SettingsPanel({ theme, onToggleTheme }: Props) {
       </div>
 
       <div style={cardStyle}>
-        <div style={sectionLabelStyle}>image lab</div>
-        <div style={rowStyle}>
-          <span style={rowNameStyle}>backend engine</span>
-          <span style={monoValueStyle}>comfyui (planned)</span>
-        </div>
-      </div>
-
-      <div style={cardStyle}>
-        <div style={sectionLabelStyle}>agents</div>
-        <div style={rowStyle}>
-          <span style={rowNameStyle}>spawn behavior</span>
-          <span style={monoValueStyle}>auto-spawn (planned)</span>
-        </div>
-      </div>
-
-      <div style={cardStyle}>
-        <div style={sectionLabelStyle}>projects</div>
-        <div style={rowStyle}>
-          <span style={rowNameStyle}>default path</span>
-          <span style={monoValueStyle}>~/Projects</span>
-        </div>
-      </div>
-
-      <div style={cardStyle}>
         <div style={sectionLabelStyle}>not wired here yet — lives on disk</div>
         {NOT_WIRED.map(item => (
           <div key={item.name} style={rowStyle}>
@@ -103,7 +79,7 @@ const titleStyle: CSSProperties = {
   fontFamily: 'var(--font-display)',
   fontWeight: 800,
   fontSize: 28,
-  letterSpacing: 0,
+  letterSpacing: '-0.02em',
   color: 'var(--ink)',
 }
 

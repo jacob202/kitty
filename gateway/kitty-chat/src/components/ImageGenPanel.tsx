@@ -47,14 +47,14 @@ export function ImageGenPanel() {
       onSuccess: result => {
         if (!result) {
           setState('error')
-          setErrMsg('Generation failed — is ComfyUI running?')
+          setErrMsg('generation failed — is ComfyUI running?')
           return
         }
         setState('done')
       },
       onError: () => {
         setState('error')
-        setErrMsg('Generation failed — is ComfyUI running?')
+        setErrMsg('generation failed — is ComfyUI running?')
       },
     })
   }
@@ -94,8 +94,8 @@ export function ImageGenPanel() {
             style={{
               ...chipStyle,
               background: chips.includes(c.label) ? 'rgba(232,120,69,0.16)' : 'transparent',
-              color: chips.includes(c.label) ? 'var(--orange-2)' : 'var(--text-muted)',
-              borderColor: chips.includes(c.label) ? 'rgba(232,120,69,0.35)' : 'var(--border-dim)',
+              color: chips.includes(c.label) ? 'var(--cat-ginger)' : 'var(--ink-2)',
+              borderColor: chips.includes(c.label) ? 'rgba(232,120,69,0.35)' : 'var(--line)',
             }}
           >
             {c.label}
@@ -141,13 +141,13 @@ export function ImageGenPanel() {
 }
 
 const textareaStyle: CSSProperties = {
-  background: 'var(--recessed)',
-  border: '1px solid var(--border-dim)',
+  background: 'var(--surface-2)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   padding: '6px 8px',
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--text-dim)',
+  color: 'var(--ink-2)',
   outline: 'none',
   resize: 'vertical',
   lineHeight: 1.5,
@@ -161,7 +161,7 @@ const chipsRowStyle: CSSProperties = {
 
 const chipStyle: CSSProperties = {
   padding: '3px 8px',
-  border: '1px solid var(--border-dim)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
@@ -175,7 +175,7 @@ const genBtnStyle: CSSProperties = {
   borderRadius: 4,
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--orange-2)',
+  color: 'var(--cat-ginger)',
   cursor: 'pointer',
   textAlign: 'left',
 }
@@ -190,8 +190,8 @@ const thumbWrapStyle: CSSProperties = {
   aspectRatio: '1',
   overflow: 'hidden',
   borderRadius: 4,
-  border: '1px solid var(--border-dim)',
-  background: 'var(--recessed)',
+  border: '1px solid var(--line)',
+  background: 'var(--surface-2)',
 }
 
 const thumbStyle: CSSProperties = {
@@ -205,20 +205,20 @@ const errorStyle: CSSProperties = {
   margin: 0,
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--orange)',
+  color: 'var(--cat-ginger)',
 }
 
 const emptyStyle: CSSProperties = {
   margin: 0,
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-faint)',
+  color: 'var(--ink-2)',
 }
 
 const unavailableStyle: CSSProperties = {
   padding: '10px 12px',
-  background: 'var(--recessed)',
-  border: '1px solid var(--border-dim)',
+  background: 'var(--surface-2)',
+  border: '1px solid var(--line)',
   borderRadius: 4,
 }
 
@@ -226,14 +226,14 @@ const unavailableTitleStyle: CSSProperties = {
   margin: '0 0 4px',
   fontFamily: 'var(--font-mono)',
   fontSize: 11,
-  color: 'var(--text-muted)',
+  color: 'var(--ink-2)',
 }
 
 const unavailableBodyStyle: CSSProperties = {
   margin: 0,
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-faint)',
+  color: 'var(--ink-2)',
   lineHeight: 1.5,
 }
 
@@ -241,6 +241,6 @@ const onlineStyle: CSSProperties = {
   margin: 0,
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--teal)',
+  color: 'var(--c-blue)',
   textTransform: 'lowercase',
 }

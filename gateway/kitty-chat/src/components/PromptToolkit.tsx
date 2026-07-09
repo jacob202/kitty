@@ -1,8 +1,6 @@
 'use client'
 import type { CSSProperties } from 'react'
-import { Card, CardHeader, ItemCard } from '@/components/ui/Card'
-import { EmptyState } from '@/components/ui/EmptyState'
-import { SectionLabel } from '@/components/ui/SectionLabel'
+import { card, cardHeader, cardTitle, cardMeta, itemCard, emptyState, sectionLabel } from '@/lib/ui'
 import { Skeleton } from './Skeleton'
 
 interface PromptTemplate {
@@ -29,15 +27,18 @@ export function PromptToolkit({ templates, onSelect, title = 'Prompt Toolkit', i
   }, {} as Record<string, PromptTemplate[]>)
 
   return (
-    <Card style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <CardHeader title={title} count={`${templates.length} templates`} />
+    <div style={containerStyle}>
+      <div style={headerStyle}>
+        <span style={titleStyle}>{title}</span>
+        <span style={countStyle}>{templates.length} templates</span>
+      </div>
       <div style={bodyStyle}>
         {Object.entries(grouped).map(([category, items]) => (
           <div key={category} style={categoryGroupStyle}>
-            <SectionLabel style={{ marginBottom: 8, marginTop: 4 }}>{category}</SectionLabel>
+            <div style={categoryHeaderStyle}>{category}</div>
             <div style={templateListStyle}>
               {items.map(tpl => (
-                <ItemCard
+                <div
                   key={tpl.id}
                   role="button"
                   tabIndex={0}
@@ -48,16 +49,16 @@ export function PromptToolkit({ templates, onSelect, title = 'Prompt Toolkit', i
                       onSelect?.(tpl)
                     }
                   }}
-                  style={{ padding: '12px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 6 }}
+                  style={templateCardStyle}
                   onMouseEnter={(e) => {
                     const el = e.currentTarget as HTMLDivElement
-                    el.style.background = 'var(--surface-mid)'
+                    el.style.background = 'var(--surface)'
                     el.style.borderColor = 'var(--primary)'
                   }}
                   onMouseLeave={(e) => {
                     const el = e.currentTarget as HTMLDivElement
-                    el.style.background = 'var(--surface-low)'
-                    el.style.borderColor = 'var(--border)'
+                    el.style.background = 'var(--bg)'
+                    el.style.borderColor = 'var(--line)'
                   }}
                 >
                   <div style={templateHeaderStyle}>
@@ -68,7 +69,7 @@ export function PromptToolkit({ templates, onSelect, title = 'Prompt Toolkit', i
                     {tpl.content.slice(0, 100)}
                     {tpl.content.length > 100 ? '...' : ''}
                   </div>
-                </ItemCard>
+                </div>
               ))}
             </div>
           </div>
@@ -80,15 +81,18 @@ export function PromptToolkit({ templates, onSelect, title = 'Prompt Toolkit', i
               <Skeleton height={64} />
             </div>
           ) : (
-            <EmptyState>No prompt templates available</EmptyState>
+            <div style={emptyStyle}>no prompt templates yet</div>
           )
         )}
       </div>
-    </Card>
+    </div>
   )
 }
 
-
+const containerStyle: CSSProperties = { ...card, display: 'flex', flexDirection: 'column', gap: 12 }
+const headerStyle: CSSProperties = cardHeader
+const titleStyle: CSSProperties = cardTitle
+const countStyle: CSSProperties = cardMeta
 
 const bodyStyle: CSSProperties = {
   display: 'flex',
@@ -98,7 +102,7 @@ const bodyStyle: CSSProperties = {
 
 const categoryGroupStyle: CSSProperties = {}
 
-
+const categoryHeaderStyle: CSSProperties = { ...sectionLabel, marginBottom: 8, marginTop: 4 }
 
 const templateListStyle: CSSProperties = {
   display: 'grid',
@@ -106,7 +110,7 @@ const templateListStyle: CSSProperties = {
   gap: 8,
 }
 
-
+const templateCardStyle: CSSProperties = { ...itemCard, padding: '12px', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 6 }
 
 const templateHeaderStyle: CSSProperties = {
   display: 'flex',
@@ -120,19 +124,21 @@ const iconStyle: CSSProperties = {
 }
 
 const templateTitleStyle: CSSProperties = {
-  fontFamily: 'var(--font-ui)',
+  fontFamily: 'var(--font-body)',
   fontSize: 13,
   fontWeight: 600,
-  color: 'var(--text)',
+  color: 'var(--ink)',
 }
 
 const templatePreviewStyle: CSSProperties = {
-  fontFamily: 'var(--font-ui)',
+  fontFamily: 'var(--font-body)',
   fontSize: 12,
-  color: 'var(--text-dim)',
+  color: 'var(--ink-2)',
   lineHeight: 1.4,
   display: '-webkit-box',
   WebkitLineClamp: 2,
   WebkitBoxOrient: 'vertical',
   overflow: 'hidden',
 }
+
+const emptyStyle: CSSProperties = emptyState

@@ -1,9 +1,7 @@
 'use client'
 import type { CSSProperties } from 'react'
 import type { GatewayLoop, LoopStatus } from '@/lib/gateway'
-import { Card, CardHeader, ItemCard } from '@/components/ui/Card'
-import { EmptyState } from '@/components/ui/EmptyState'
-import { Button } from '@/components/ui/Button'
+import { card, cardHeader, cardTitle, cardMeta, itemCard, emptyState } from '@/lib/ui'
 import { Skeleton } from './Skeleton'
 
 interface Props {
@@ -15,10 +13,10 @@ interface Props {
 
 function statusColor(status: LoopStatus): string {
   switch (status) {
-    case 'running': return 'var(--mint)'
-    case 'paused': return 'var(--orange)'
-    case 'error': return 'var(--error)'
-    case 'idle': return 'var(--text-muted)'
+    case 'running': return 'var(--c-green)'
+    case 'paused': return 'var(--cat-ginger)'
+    case 'error': return 'var(--c-red)'
+    case 'idle': return 'var(--ink-2)'
   }
 }
 
@@ -38,11 +36,14 @@ export function LoopWatch({ loops, onToggle, title = 'Loop Watch', isLoading = f
   })
 
   return (
-    <Card style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <CardHeader title={title} count={`${loops.length} active`} />
+    <div style={containerStyle}>
+      <div style={headerStyle}>
+        <span style={titleStyle}>{title}</span>
+        <span style={countStyle}>{loops.length} active</span>
+      </div>
       <div style={listStyle}>
         {sorted.map(loop => (
-          <ItemCard key={loop.loop_id} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div key={loop.loop_id} style={cardBaseStyle}>
             <div style={cardHeaderStyle}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{
@@ -63,14 +64,14 @@ export function LoopWatch({ loops, onToggle, title = 'Loop Watch', isLoading = f
                   {statusLabel(loop.status)}
                 </span>
                 {onToggle && loop.status !== 'error' && (
-                  <Button
-                    variant="action"
+                  <button
                     onClick={() => onToggle(loop.loop_id)}
-                    style={{ width: 28, height: 24, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 0 }}
-                    ariaLabel={loop.status === 'running' ? 'Pause loop' : 'Start loop'}
+                    style={toggleBtnStyle(loop.status === 'running')}
+                    title={loop.status === 'running' ? 'pause loop' : 'start loop'}
+                    aria-label={loop.status === 'running' ? 'pause loop' : 'start loop'}
                   >
                     {loop.status === 'running' ? '⏸' : '▶'}
-                  </Button>
+                  </button>
                 )}
               </div>
             </div>
@@ -79,16 +80,16 @@ export function LoopWatch({ loops, onToggle, title = 'Loop Watch', isLoading = f
             )}
             <div style={metaStyle}>
               {loop.last_run && (
-                <span>Last run: {new Date(loop.last_run).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                <span>last run: {new Date(loop.last_run).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
               )}
               {loop.interval_minutes && (
                 <span>· Every {loop.interval_minutes}m</span>
               )}
               {loop.error_message && (
-                <span style={{ color: 'var(--error)' }}> · {loop.error_message}</span>
+                <span style={{ color: 'var(--c-red)' }}> · {loop.error_message}</span>
               )}
             </div>
-          </ItemCard>
+          </div>
         ))}
         {loops.length === 0 && (
           isLoading ? (
@@ -97,15 +98,18 @@ export function LoopWatch({ loops, onToggle, title = 'Loop Watch', isLoading = f
               <Skeleton height={48} />
             </div>
           ) : (
-            <EmptyState>No loops configured</EmptyState>
+            <div style={emptyStyle}>no loops configured</div>
           )
         )}
       </div>
-    </Card>
+    </div>
   )
 }
 
-
+const containerStyle: CSSProperties = { ...card, display: 'flex', flexDirection: 'column', gap: 12 }
+const headerStyle: CSSProperties = cardHeader
+const titleStyle: CSSProperties = cardTitle
+const countStyle: CSSProperties = cardMeta
 
 const listStyle: CSSProperties = {
   display: 'flex',
@@ -113,7 +117,7 @@ const listStyle: CSSProperties = {
   gap: 8,
 }
 
-
+const cardBaseStyle: CSSProperties = { ...itemCard, display: 'flex', flexDirection: 'column', gap: 6 }
 
 const cardHeaderStyle: CSSProperties = {
   display: 'flex',
@@ -122,10 +126,10 @@ const cardHeaderStyle: CSSProperties = {
 }
 
 const loopNameStyle: CSSProperties = {
-  fontFamily: 'var(--font-ui)',
+  fontFamily: 'var(--font-body)',
   fontSize: 14,
   fontWeight: 600,
-  color: 'var(--text)',
+  color: 'var(--ink)',
 }
 
 const badgeStyle: CSSProperties = {
@@ -140,20 +144,34 @@ const badgeStyle: CSSProperties = {
   background: 'transparent',
 }
 
-
+const toggleBtnStyle = (isRunning: boolean): CSSProperties => ({
+  background: 'var(--surface)',
+  border: '1px solid var(--line)',
+  borderRadius: 4,
+  width: 28,
+  height: 24,
+  display: 'grid',
+  placeItems: 'center',
+  cursor: 'pointer',
+  fontSize: 10,
+  color: 'var(--ink-2)',
+  transition: 'all 0.15s ease',
+})
 
 const descStyle: CSSProperties = {
-  fontFamily: 'var(--font-ui)',
+  fontFamily: 'var(--font-body)',
   fontSize: 12,
-  color: 'var(--text-dim)',
+  color: 'var(--ink-2)',
   lineHeight: 1.4,
 }
 
 const metaStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
-  color: 'var(--text-muted)',
+  color: 'var(--ink-2)',
   display: 'flex',
   flexWrap: 'wrap',
   gap: 4,
 }
+
+const emptyStyle: CSSProperties = emptyState

@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     id: '/',
     name: 'Kitty',
     short_name: 'Kitty',
-    description: 'Your personal AI companion',
+    description: 'your personal AI companion',
     start_url: '/',
     scope: '/',
     display: 'standalone',

@@ -26,9 +26,9 @@ export function PwaInstallBanner({
           padding: '8px 16px',
           fontFamily: 'var(--font-mono)',
           fontSize: 11,
-          color: 'var(--error)',
+          color: 'var(--c-red)',
           background: 'rgba(255, 180, 171, 0.08)',
-          borderBottom: '1px solid var(--border)',
+          borderBottom: '1px solid var(--line)',
           display: 'flex',
           alignItems: 'center',
           gap: 8,
@@ -36,7 +36,7 @@ export function PwaInstallBanner({
         }}
       >
         <AlertCircle size={14} style={{ flexShrink: 0 }} />
-        <span>{error ?? 'Install setup failed.'}</span>
+        <span>{error ?? 'install setup failed.'}</span>
       </div>
     )
   }
@@ -48,8 +48,8 @@ export function PwaInstallBanner({
         padding: '8px 16px',
         fontFamily: 'var(--font-mono)',
         fontSize: 11,
-        color: 'var(--text-dim)',
-        borderBottom: '1px solid var(--border)',
+        color: 'var(--ink-2)',
+        borderBottom: '1px solid var(--line)',
         background: 'rgba(26, 20, 16, 0.5)',
         display: 'flex',
         alignItems: 'center',
@@ -63,7 +63,7 @@ export function PwaInstallBanner({
         <span style={{ lineHeight: 1.5 }}>
           {state === 'available'
             ? 'Install Kitty for dock launch and a focused app window.'
-            : 'On iPhone or iPad, install Kitty from Safari with Share > Add to Home Screen.'}
+            : 'on iPhone or iPad, install kitty from Safari with share → add to home screen.'}
         </span>
       </span>
 
@@ -80,8 +80,8 @@ export function PwaInstallBanner({
             fontSize: 10,
             fontWeight: 700,
             cursor: installing ? 'default' : 'pointer',
-            background: 'var(--surface-mid)',
-            color: 'var(--text)',
+            background: 'var(--surface)',
+            color: 'var(--ink)',
             flexShrink: 0,
             opacity: installing ? 0.65 : 1,
           }}

@@ -1,29 +1,22 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { useUploadCapture } from '@/lib/queries'
+import { uploadCaptureFile } from '@/lib/gateway'
 
 export function CapturePanel() {
   const [status, setStatus] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
-  const upload = useUploadCapture()
 
-  const handleFile = useCallback((file: File) => {
+  const handleFile = useCallback(async (file: File) => {
     setStatus('Uploading...')
-    upload.mutate({ file }, {
-      onSuccess: (result) => {
-        if (result) {
-          setStatus(`${result.status}: ${result.message}`)
-        } else {
-          setStatus('Upload failed')
-        }
-      },
-      onError: () => {
-        setStatus('Upload failed')
-      }
-    })
-  }, [upload])
+    const result = await uploadCaptureFile(file)
+    if (result) {
+      setStatus(`${result.status}: ${result.message}`)
+    } else {
+      setStatus('upload failed')
+    }
+  }, [])
 
   const onChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -60,11 +53,11 @@ export function CapturePanel() {
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       style={{
-        border: `1px dashed ${dragActive ? 'var(--mint)' : 'var(--border)'}`,
+        border: `1px dashed ${dragActive ? 'var(--c-green)' : 'var(--line)'}`,
         borderRadius: 4,
         padding: 16,
         cursor: 'pointer',
-        background: dragActive ? 'var(--surface-low)' : 'transparent',
+        background: dragActive ? 'var(--bg)' : 'transparent',
       }}
     >
       <input
@@ -74,16 +67,16 @@ export function CapturePanel() {
         onChange={onChange}
         style={{ display: 'none' }}
       />
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)' }}>
         DROP FILE OR CLICK TO CAPTURE
       </div>
       {status && (
         <div
           style={{
             marginTop: 8,
-            fontFamily: 'var(--font-ui)',
+            fontFamily: 'var(--font-body)',
             fontSize: 12,
-            color: 'var(--text)',
+            color: 'var(--ink)',
           }}
         >
           {status}

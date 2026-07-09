@@ -16,40 +16,9 @@ const STATE_DOTS: Record<CatState, string> = {
   broke: 'var(--c-red)',
 }
 
-import { useEffect, useRef } from 'react'
-
 export function CatCorner({ state = 'idle' }: { state?: CatState }) {
-  const catRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    let rafId: number
-    const onMove = (e: MouseEvent) => {
-      cancelAnimationFrame(rafId)
-      rafId = requestAnimationFrame(() => {
-        if (!catRef.current) return
-        const rect = catRef.current.getBoundingClientRect()
-        const cx = rect.left + rect.width / 2
-        const cy = rect.top + rect.height / 2
-
-        // Calculate offset for the pupils
-        const angle = Math.atan2(e.clientY - cy, e.clientX - cx)
-        const dist = Math.min(5, Math.hypot(e.clientX - cx, e.clientY - cy) / 40)
-        const x = Math.cos(angle) * dist
-        const y = Math.sin(angle) * dist
-
-        catRef.current.style.setProperty('--eye-x', `${x}px`)
-        catRef.current.style.setProperty('--eye-y', `${y}px`)
-      })
-    }
-    window.addEventListener('mousemove', onMove)
-    return () => {
-      window.removeEventListener('mousemove', onMove)
-      cancelAnimationFrame(rafId)
-    }
-  }, [])
-
   return (
-    <div ref={catRef} style={{ position: 'fixed', bottom: 92, right: 26, zIndex: 30, pointerEvents: 'none' }}>
+    <div style={{ position: 'fixed', bottom: 92, right: 26, zIndex: 30, pointerEvents: 'none' }}>
       <div className={`cat-${state}`}>
         <CatBody size={120} />
       </div>
@@ -90,7 +59,6 @@ export function CatBody({ size = 120 }: { size?: number }) {
         <path d="M58 56 L50 34 L74 53 Z" fill="var(--cat-pink)" />
         <path d="M102 54 L115 36 L116 60 Z" fill="var(--cat-pink)" />
         <circle cx={64} cy={95} r={8} fill="var(--cat-green)" />
-        <circle cx={96} cy={95} r={8} fill="var(--cat-green)" />
         <path d="M38 104 L52 100 L49 112 Z" fill="var(--cat-pink)" />
         <circle cx={44} cy={114} r={6} fill="var(--cat-pink)" opacity={0.5} />
       </g>
@@ -99,8 +67,7 @@ export function CatBody({ size = 120 }: { size?: number }) {
         <circle cx={80} cy={102} r={44} />
         <path d="M54 66 L44 24 L88 58" />
         <path d="M98 58 L118 24 L122 64" />
-        <circle cx={64} cy={96} r={4.5} fill="var(--cat-outline)" stroke="none" style={{ transform: 'translate(var(--eye-x, 0), var(--eye-y, 0))', transition: 'transform 0.05s linear' }} />
-        <circle cx={96} cy={96} r={4.5} fill="var(--cat-outline)" stroke="none" style={{ transform: 'translate(var(--eye-x, 0), var(--eye-y, 0))', transition: 'transform 0.05s linear' }} />
+        <circle cx={64} cy={96} r={4.5} fill="var(--cat-outline)" stroke="none" />
         <path d="M38 104 L52 100 L49 112 Z" />
         <path d="M44 113 Q58 126 74 116" />
         <path d="M36 100 Q20 96 8 102 M38 114 Q22 116 10 124" />

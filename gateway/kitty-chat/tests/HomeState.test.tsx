@@ -16,11 +16,8 @@ import {
   useGatewayHealth,
   useGatewayModels,
   useChatsPersistence,
-  useGatewayWeather,
-  useKnowledgeSources,
   useDeadlines,
-  useCloseDeadline,
-  useMagicInsights,
+  useDeadlineSweep,
 } from '../src/lib/queries';
 import { HomeState } from '../src/components/HomeState';
 
@@ -47,11 +44,8 @@ vi.mock('../src/lib/queries', () => ({
   useGatewayHealth: vi.fn(),
   useGatewayModels: vi.fn(),
   useChatsPersistence: vi.fn(),
-  useGatewayWeather: vi.fn(),
-  useKnowledgeSources: vi.fn(),
   useDeadlines: vi.fn(),
-  useCloseDeadline: vi.fn(),
-  useMagicInsights: vi.fn(),
+  useDeadlineSweep: vi.fn(),
 }));
 
 const LIVE_MODELS = [
@@ -119,33 +113,35 @@ function setDefaultMocks() {
     isError: false,
     isFetched: true,
   });
-  (useGatewayWeather as Mock).mockReturnValue({
-    data: { weather: { temp: 72, condition: 'Clear' }, ok: true },
-    isPending: false,
-    isError: false,
-    isFetched: true,
-  });
-  (useKnowledgeSources as Mock).mockReturnValue({
-    data: { sources: [] },
-    isPending: false,
-    isError: false,
-    isFetched: true,
-  });
-  (useMagicInsights as Mock).mockReturnValue({
-    data: undefined,
-    isPending: false,
-    isError: false,
-  });
   (useDeadlines as Mock).mockReturnValue({
-    data: [],
+    data: { deadlines: [], fromLiveGateway: true, error: null },
     isPending: false,
     isError: false,
+    isFetched: true,
   });
-  (useCloseDeadline as Mock).mockReturnValue({
+  (useDeadlineSweep as Mock).mockReturnValue({
     isPending: false,
     mutate: vi.fn(),
+    data: undefined,
   });
 }
+
+const DEADLINE = {
+  id: 5,
+  project_id: 2,
+  source: 'knowledge:said-letter',
+  source_id: null,
+  due_date: '2099-01-15',
+  obligation: 'Return the SAID income form',
+  amount: null,
+  currency: null,
+  confidence: 'high' as const,
+  status: 'open' as const,
+  dedupe_key: 'deadline:knowledge:abc',
+  created_at: 0,
+  updated_at: 0,
+  pushed_at: null,
+};
 
 const PROJECT = {
   id: 1,
@@ -175,8 +171,8 @@ describe('HomeState', () => {
 
   it('renders the cockpit section titles', () => {
     render(<HomeState />);
-    expect(screen.getByText("jacob's next move")).toBeInTheDocument();
-    expect(screen.getByText('select space')).toBeInTheDocument();
+    expect(screen.getByText("what's next")).toBeInTheDocument();
+    expect(screen.getByText('active projects')).toBeInTheDocument();
     expect(screen.getByText('needs you')).toBeInTheDocument();
     expect(screen.getByText('what changed')).toBeInTheDocument();
     expect(screen.getByText('today')).toBeInTheDocument();
@@ -186,7 +182,7 @@ describe('HomeState', () => {
   it('shows honest empty states when gateway returns no data', () => {
     render(<HomeState />);
     expect(screen.getByText(/not enough signal yet/)).toBeInTheDocument();
-    expect(screen.getByText(/gateway returned zero projects/)).toBeInTheDocument();
+    expect(screen.getByText(/no projects registered — \.\/kitty project add/)).toBeInTheDocument();
     expect(screen.getByText('nothing new since last snapshot')).toBeInTheDocument();
     expect(screen.getByText('nothing waiting for you')).toBeInTheDocument();
     expect(screen.getByText('nothing on the list')).toBeInTheDocument();
@@ -284,9 +280,9 @@ describe('HomeState', () => {
     ).toBeGreaterThan(0);
   });
 
-  // ── spaces / projects ──
+  // ── active projects ──
 
-  it('lists existing projects as selectable spaces with their next step', () => {
+  it('lists active projects with their next step', () => {
     (useProjects as Mock).mockReturnValue({
       data: [PROJECT, { ...PROJECT, id: 2, name: 'kitty', kind: 'code', status: 'parked' }],
       isPending: false,
@@ -297,11 +293,9 @@ describe('HomeState', () => {
       { data: null, isPending: false, isError: false },
     ]);
     render(<HomeState />);
-    expect(screen.getByText('select space')).toBeInTheDocument();
     expect(screen.getByText('benefits-admin')).toBeInTheDocument();
-    // Existing projects are still selectable spaces even when they are parked.
-    expect(screen.getByText('kitty')).toBeInTheDocument();
-    expect(screen.queryByText(/create project/i)).not.toBeInTheDocument();
+    // parked project stays out of the active list
+    expect(screen.queryByText('kitty')).not.toBeInTheDocument();
   });
 
   it('says so when a project has no generated step yet', () => {
@@ -401,7 +395,7 @@ describe('HomeState', () => {
   it('applies compact padding when compact prop is true', () => {
     const { container } = render(<HomeState compact />);
     const grid = container.firstChild as HTMLElement;
-    expect(grid.style.padding).toBe('16px 12px 120px');
+    expect(grid.style.padding).toBe('16px 12px 40px');
   });
 
   it('shows needs_jacob entries as actionable cards, not a bare count', () => {
@@ -455,5 +449,127 @@ describe('HomeState', () => {
     render(<HomeState gatewayError="Could not reach the gateway" />);
     expect(screen.getByText(/gateway offline — Could not reach the gateway/)).toBeInTheDocument();
     expect(screen.queryByText('nothing on the list')).not.toBeInTheDocument();
+  });
+
+  // ── click-throughs (cards change the active view) ──
+
+  it('routes Active projects "open" to the projects view', () => {
+    // No generated step keeps the hero on its empty state, so the only
+    // "open projects" control is the Active projects header button.
+    (useProjects as Mock).mockReturnValue({ data: [PROJECT], isPending: false, isError: false });
+    (useProjectNextSteps as Mock).mockReturnValue([
+      { data: null, isPending: false, isError: false },
+    ]);
+    const onNavigate = vi.fn();
+    render(<HomeState onNavigate={onNavigate} />);
+    screen.getByRole('button', { name: /open projects/i }).click();
+    expect(onNavigate).toHaveBeenCalledWith('projects');
+  });
+
+  it('routes a project row click to the projects view', () => {
+    (useProjects as Mock).mockReturnValue({ data: [PROJECT], isPending: false, isError: false });
+    (useProjectNextSteps as Mock).mockReturnValue([
+      { data: STEP, isPending: false, isError: false },
+    ]);
+    const onNavigate = vi.fn();
+    render(<HomeState onNavigate={onNavigate} />);
+    screen.getByRole('button', { name: /open benefits-admin in projects/i }).click();
+    expect(onNavigate).toHaveBeenCalledWith('projects');
+  });
+
+  it('routes Today "open" to the tasks view', () => {
+    // A project step keeps the hero on "open projects", so the only "open tasks"
+    // control is the Today header button.
+    (useProjects as Mock).mockReturnValue({ data: [PROJECT], isPending: false, isError: false });
+    (useProjectNextSteps as Mock).mockReturnValue([
+      { data: STEP, isPending: false, isError: false },
+    ]);
+    (useTodos as Mock).mockReturnValue({
+      data: [{ id: 1, content: 'write tests', status: 'pending' }],
+      isPending: false,
+    });
+    const onNavigate = vi.fn();
+    render(<HomeState onNavigate={onNavigate} />);
+    screen.getByRole('button', { name: /open tasks/i }).click();
+    expect(onNavigate).toHaveBeenCalledWith('tasks');
+  });
+
+  // ── next-step hero CTA routing by source ──
+
+  it('routes the todo hero CTA to the tasks view', () => {
+    (useTodos as Mock).mockReturnValue({
+      data: [{ id: 1, content: 'book dentist', status: 'pending' }],
+      isPending: false,
+    });
+    const onNavigate = vi.fn();
+    render(<HomeState onNavigate={onNavigate} />);
+    screen.getByText('open tasks').click();
+    expect(onNavigate).toHaveBeenCalledWith('tasks');
+  });
+
+  it('routes the needs-decision hero CTA to chat with the entry as context', () => {
+    const entry = {
+      inbox_id: 'z-9',
+      ts: 0,
+      bucket: 'needs_jacob',
+      confidence: 0.8,
+      rationale: 'Ambiguous.',
+      text: 'Is this bill real?',
+      created_at: null,
+    };
+    (useNeedsJacob as Mock).mockReturnValue({
+      data: { entries: [entry] },
+      isPending: false,
+      isError: false,
+    });
+    const onDecideInChat = vi.fn();
+    render(<HomeState onDecideInChat={onDecideInChat} />);
+    // Hero CTA is the first "decide in chat" (the needs-you card renders another).
+    screen.getAllByText('decide in chat')[0].click();
+    expect(onDecideInChat).toHaveBeenCalledWith(entry);
+  });
+
+  // ── deadlines card ──
+
+  it('shows an honest empty state when no deadlines are tracked', () => {
+    render(<HomeState />);
+    expect(screen.getByText(/no deadlines tracked yet/)).toBeInTheDocument();
+  });
+
+  it('surfaces the nearest deadline when the store has open items', () => {
+    (useDeadlines as Mock).mockReturnValue({
+      data: {
+        deadlines: [
+          DEADLINE,
+          { ...DEADLINE, id: 6, obligation: 'Pay the water bill', due_date: '2099-03-01' },
+        ],
+        fromLiveGateway: true,
+        error: null,
+      },
+      isPending: false,
+      isError: false,
+    });
+    render(<HomeState />);
+    expect(screen.getByText('Return the SAID income form')).toBeInTheDocument();
+    expect(screen.getByText('Pay the water bill')).toBeInTheDocument();
+    expect(screen.queryByText(/no deadlines tracked yet/)).not.toBeInTheDocument();
+  });
+
+  it('shows an honest offline state for deadlines when the gateway is down', () => {
+    (useDeadlines as Mock).mockReturnValue({
+      data: { deadlines: [], fromLiveGateway: false, error: 'Could not reach the gateway' },
+      isPending: false,
+      isError: false,
+    });
+    render(<HomeState />);
+    expect(screen.getByText('gateway offline — deadlines unavailable')).toBeInTheDocument();
+  });
+
+  it('runs a sweep from the deadlines card', () => {
+    const mutate = vi.fn();
+    (useDeadlineSweep as Mock).mockReturnValue({ isPending: false, mutate, data: undefined });
+    render(<HomeState />);
+    screen.getByText('sweep').click();
+    expect(mutate).toHaveBeenCalled();
   });
 });

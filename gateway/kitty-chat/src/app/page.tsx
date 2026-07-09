@@ -13,29 +13,15 @@ import { SessionSidebar } from '@/components/SessionSidebar';
 import { TaskPanel } from '@/components/TaskPanel';
 import { TodoPanel } from '@/components/TodoPanel';
 import { TerminalStrip } from '@/components/TerminalStrip';
-import dynamic from 'next/dynamic';
-
-function PanelSkeleton() {
-  return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16, padding: 16 }}>
-      <div style={{ height: 24, width: '40%', background: 'var(--surface-high)', borderRadius: 4, animation: 'shimmer 1.5s infinite' }} />
-      <div style={{ height: 80, width: '100%', background: 'var(--surface-high)', borderRadius: 8, animation: 'shimmer 1.5s infinite' }} />
-      <div style={{ height: 80, width: '100%', background: 'var(--surface-high)', borderRadius: 8, animation: 'shimmer 1.5s infinite' }} />
-    </div>
-  );
-}
-
-const AgentPanel = dynamic(() => import('@/components/AgentPanel').then(mod => ({ default: mod.AgentPanel })), { loading: () => <PanelSkeleton /> });
-const MonitorPanel = dynamic(() => import('@/components/MonitorPanel').then(mod => ({ default: mod.MonitorPanel })), { loading: () => <PanelSkeleton /> });
-const ImageGenPanel = dynamic(() => import('@/components/ImageGenPanel').then(mod => ({ default: mod.ImageGenPanel })), { loading: () => <PanelSkeleton /> });
-const ProjectsPanel = dynamic(() => import('@/components/ProjectsPanel').then(mod => ({ default: mod.ProjectsPanel })), { loading: () => <PanelSkeleton /> });
-const DocumentsPanel = dynamic(() => import('@/components/DocumentsPanel').then(mod => ({ default: mod.DocumentsPanel })), { loading: () => <PanelSkeleton /> });
-const ProviderCenter = dynamic(() => import('@/components/ProviderCenter').then(mod => ({ default: mod.ProviderCenter })), { loading: () => <PanelSkeleton /> });
-const SettingsPanel = dynamic(() => import('@/components/SettingsPanel').then(mod => ({ default: mod.SettingsPanel })), { loading: () => <PanelSkeleton /> });
-
+import { AgentPanel } from '@/components/AgentPanel';
+import { MonitorPanel } from '@/components/MonitorPanel';
+import { ImageGenPanel } from '@/components/ImageGenPanel';
+import { ProjectsPanel } from '@/components/ProjectsPanel';
+import { DocumentsPanel } from '@/components/DocumentsPanel';
+import { ProviderCenter } from '@/components/ProviderCenter';
+import { SettingsPanel } from '@/components/SettingsPanel';
 import { LoopWatch } from '@/components/LoopWatch';
 import { InsightFeed } from '@/components/InsightFeed';
-import { ExpertSignals } from '@/components/ExpertSignals';
 import { PromptToolkit } from '@/components/PromptToolkit';
 import { CommandPalette } from '@/components/CommandPalette';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -174,13 +160,14 @@ function KittyChatInner() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [theme, setTheme] = useState<'day' | 'night'>('night');
+  const [theme, setTheme] = useState<'day' | 'night'>('day');
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'failed' | 'offline'>(
     'idle',
   );
   const pwaInstall = usePwaInstall();
+  const [lastOutcome, setLastOutcome] = useState<'done' | 'broke' | null>(null);
 
-  const catState: CatState = isStreaming ? 'working' : 'idle';
+  const catState: CatState = isStreaming ? 'working' : (lastOutcome ?? 'idle');
 
   useEffect(() => {
     fetch('/proxy/chats')
@@ -230,12 +217,11 @@ function KittyChatInner() {
   const queryClient = useQueryClient();
   const modelsQuery = useGatewayModels();
   const briefQuery = useGatewayBrief();
-  const toolsViewActive = activeView === 'tools';
   // Loops/insights/prompts still bind to real data but aren't part of the
   // console home surface — they live in the Tools view instead.
-  const loopsQuery = useLoops(toolsViewActive);
-  const insightsQuery = useInsights(10, toolsViewActive);
-  const promptsQuery = usePrompts(toolsViewActive);
+  const loopsQuery = useLoops();
+  const insightsQuery = useInsights();
+  const promptsQuery = usePrompts();
   const toggleLoop = useToggleLoop();
   const dismissInsight = useDismissInsight();
 
@@ -326,12 +312,12 @@ function KittyChatInner() {
     setInput('');
   }, [activeModel.id]);
 
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-  }, [theme]);
-
   const handleToggleTheme = useCallback(() => {
-    setTheme((t) => (t === 'day' ? 'night' : 'day'));
+    setTheme((t) => {
+      const next = t === 'day' ? 'night' : 'day';
+      document.documentElement.setAttribute('data-theme', next);
+      return next;
+    });
   }, []);
 
   const handleToggleSidebar = useCallback(() => {
@@ -421,6 +407,96 @@ function KittyChatInner() {
     if (chat) void persistChat(chat);
   }, [chats, activeChatId, persistChat]);
 
+  /** Stream one assistant reply into `chat` given `history` (ends with a user
+   *  message). Shared by send and retry so the cat's outcome states stay honest. */
+  const runStream = useCallback(async (chat: Chat, history: Message[], title: string) => {
+    setIsStreaming(true);
+    setLastOutcome(null);
+
+    const aiMsgId = newMsgId();
+    const aiMsg: Message = {
+      id: aiMsgId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date(),
+      model: activeModel.name,
+    };
+
+    updateChat(chat.id, (c) => ({ ...c, messages: [...history, aiMsg] }));
+
+    const abort = new AbortController();
+    abortRef.current = abort;
+
+    try {
+      let accumulated = '';
+
+      for await (const chunk of streamChat(activeModel.id, history, abort.signal)) {
+        if (chunk.done) break;
+        accumulated += chunk.content;
+        const content = accumulated;
+        updateChat(chat.id, (c) => ({
+          ...c,
+          messages: c.messages.map((m) => (m.id === aiMsgId ? { ...m, content } : m)),
+        }));
+      }
+
+      const mood = inferMood(accumulated, 'assistant');
+      updateChat(chat.id, (c) => ({
+        ...c,
+        updatedAt: new Date(),
+        messages: c.messages.map((m) =>
+          m.id === aiMsgId ? { ...m, content: accumulated, mood } : m,
+        ),
+      }));
+      setLastOutcome('done');
+      window.setTimeout(() => setLastOutcome((o) => (o === 'done' ? null : o)), 2500);
+
+      // Persist to SQLite — React state stays the source of truth, but the
+      // outcome is surfaced (saving / saved / failed / offline), never swallowed.
+      void persistChat({
+        id: chat.id,
+        title,
+        model: activeModel.id,
+        color: chat.color,
+        createdAt: chat.createdAt,
+        updatedAt: new Date(),
+        messages: [...history, { ...aiMsg, content: accumulated, mood }],
+      });
+    } catch (err: unknown) {
+      // User pressed Stop — keep whatever streamed so far, don't show an error.
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return;
+      }
+      setLastOutcome('broke');
+      updateChat(chat.id, (c) => ({
+        ...c,
+        messages: c.messages.map((m) =>
+          m.id === aiMsgId
+            ? {
+                ...m,
+                content: `⚠ ${err instanceof Error ? err.message : 'error connecting to gateway'}`,
+                mood: 'confused' as const,
+              }
+            : m,
+        ),
+      }));
+      // The stream died, but the user's message still deserves to survive a
+      // restart — persist it (the ⚠ bubble stays UI-only) and show the outcome.
+      void persistChat({
+        id: chat.id,
+        title,
+        model: activeModel.id,
+        color: chat.color,
+        createdAt: chat.createdAt,
+        updatedAt: new Date(),
+        messages: history,
+      });
+    } finally {
+      setIsStreaming(false);
+      abortRef.current = null;
+    }
+  }, [activeModel, updateChat, persistChat]);
+
   const handleSend = useCallback(async () => {
     const text = input.trim();
     if (!text || isStreaming || !activeChat) return;
@@ -444,89 +520,18 @@ function KittyChatInner() {
     }));
     setInput('');
     setActiveView('chat');
-    setIsStreaming(true);
+    void runStream(activeChat, [...activeChat.messages, userMsg], title);
+  }, [input, isStreaming, activeChat, runStream]);
 
-    const aiMsgId = newMsgId();
-    const aiMsg: Message = {
-      id: aiMsgId,
-      role: 'assistant',
-      content: '',
-      timestamp: new Date(),
-      model: activeModel.name,
-    };
 
-    updateChat(activeChat.id, (c) => ({ ...c, messages: [...c.messages, aiMsg] }));
-
-    const abort = new AbortController();
-    abortRef.current = abort;
-
-    try {
-      const history = [...activeChat.messages, userMsg];
-      let accumulated = '';
-
-      for await (const chunk of streamChat(activeModel.id, history, abort.signal)) {
-        if (chunk.done) break;
-        accumulated += chunk.content;
-        const content = accumulated;
-        updateChat(activeChat.id, (c) => ({
-          ...c,
-          messages: c.messages.map((m) => (m.id === aiMsgId ? { ...m, content } : m)),
-        }));
-      }
-
-      const mood = inferMood(accumulated, 'assistant');
-      updateChat(activeChat.id, (c) => ({
-        ...c,
-        updatedAt: new Date(),
-        messages: c.messages.map((m) =>
-          m.id === aiMsgId ? { ...m, content: accumulated, mood } : m,
-        ),
-      }));
-
-      // Persist to SQLite — React state stays the source of truth, but the
-      // outcome is surfaced (saving / saved / failed / offline), never swallowed.
-      void persistChat({
-        id: activeChat.id,
-        title,
-        model: activeModel.id,
-        color: activeChat.color,
-        createdAt: activeChat.createdAt,
-        updatedAt: new Date(),
-        messages: [...activeChat.messages, userMsg, { ...aiMsg, content: accumulated, mood }],
-      });
-    } catch (err: unknown) {
-      // User pressed Stop — keep whatever streamed so far, don't show an error.
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        return;
-      }
-      updateChat(activeChat.id, (c) => ({
-        ...c,
-        messages: c.messages.map((m) =>
-          m.id === aiMsgId
-            ? {
-                ...m,
-                content: `⚠ ${err instanceof Error ? err.message : 'Error connecting to gateway'}`,
-                mood: 'confused' as const,
-              }
-            : m,
-        ),
-      }));
-      // The stream died, but the user's message still deserves to survive a
-      // restart — persist it (the ⚠ bubble stays UI-only) and show the outcome.
-      void persistChat({
-        id: activeChat.id,
-        title,
-        model: activeModel.id,
-        color: activeChat.color,
-        createdAt: activeChat.createdAt,
-        updatedAt: new Date(),
-        messages: [...activeChat.messages, userMsg],
-      });
-    } finally {
-      setIsStreaming(false);
-      abortRef.current = null;
-    }
-  }, [input, isStreaming, activeChat, activeModel, updateChat, persistChat]);
+  const handleRetry = useCallback(() => {
+    if (!activeChat || isStreaming) return;
+    const history = [...activeChat.messages];
+    while (history.length && history.at(-1)?.role === 'assistant') history.pop();
+    if (history.length === 0) return;
+    updateChat(activeChat.id, (c) => ({ ...c, messages: history }));
+    void runStream(activeChat, history, activeChat.title);
+  }, [activeChat, isStreaming, updateChat, runStream]);
 
   const handleStop = useCallback(() => {
     abortRef.current?.abort();
@@ -595,15 +600,16 @@ function KittyChatInner() {
     >
       <WobFilters />
 
-      <Rail
-        isMobile={isMobile}
-        activeView={activeView}
-        onViewChange={setActiveView}
-        theme={theme}
-        onToggleTheme={handleToggleTheme}
-      />
+      {!isMobile && (
+        <Rail
+          activeView={activeView}
+          onViewChange={setActiveView}
+          theme={theme}
+          onToggleTheme={handleToggleTheme}
+        />
+      )}
 
-      {!isMobile && activeView === 'chat' && (
+      {!isMobile && (
         <SessionSidebar
           chats={chats}
           activeChatId={activeChatId}
@@ -692,8 +698,8 @@ function KittyChatInner() {
               padding: '4px 16px',
               fontFamily: 'var(--font-mono)',
               fontSize: 11,
-              color: 'var(--text-muted)',
-              borderBottom: '1px solid var(--border)',
+              color: 'var(--ink-2)',
+              borderBottom: '1px solid var(--line)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
@@ -707,7 +713,7 @@ function KittyChatInner() {
                   width: 6,
                   height: 6,
                   borderRadius: '50%',
-                  background: 'var(--error)',
+                  background: 'var(--c-red)',
                   flexShrink: 0,
                   display: 'inline-block',
                 }}
@@ -726,14 +732,14 @@ function KittyChatInner() {
                 fontWeight: 600,
                 cursor: 'pointer',
                 background: 'transparent',
-                color: 'var(--text-muted)',
+                color: 'var(--ink-2)',
                 flexShrink: 0,
               }}
               onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.color = 'var(--text)';
+                (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink)';
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)';
+                (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-2)';
               }}
             >
               retry
@@ -748,9 +754,9 @@ function KittyChatInner() {
               padding: '6px 16px',
               fontFamily: 'var(--font-mono)',
               fontSize: 11,
-              color: 'var(--text-dim)',
+              color: 'var(--ink-2)',
               background: 'rgba(26, 20, 16, 0.5)',
-              borderBottom: '1px solid var(--border)',
+              borderBottom: '1px solid var(--line)',
               flexShrink: 0,
             }}
           >
@@ -792,13 +798,13 @@ function KittyChatInner() {
                   alignContent: 'start',
                 }}
               >
-                <ToolCard title="Agents">
+                <ToolCard title="agents">
                   <AgentPanel />
                 </ToolCard>
-                <ToolCard title="Monitors">
+                <ToolCard title="monitors">
                   <MonitorPanel />
                 </ToolCard>
-                <ToolCard title="Image gen">
+                <ToolCard title="image gen">
                   <ImageGenPanel />
                 </ToolCard>
                 <LoopWatch loops={loops} onToggle={handleLoopToggle} isLoading={loopsQuery.isLoading} />
@@ -808,7 +814,6 @@ function KittyChatInner() {
                   onAction={handleInsightAction}
                   isLoading={insightsQuery.isLoading}
                 />
-                <ExpertSignals />
                 <PromptToolkit
                   templates={promptTemplates}
                   onSelect={(tpl) => handlePromptSelect(tpl.content)}
@@ -824,7 +829,7 @@ function KittyChatInner() {
                   flexDirection: 'column',
                 }}
               >
-                <TerminalStrip title="Gateway Log" maxLines={100} />
+                <TerminalStrip title="gateway log" maxLines={100} />
               </div>
             ) : activeView === 'projects' ? (
               <div style={panelPadding(isMobile)}>
@@ -901,6 +906,7 @@ function KittyChatInner() {
                       isStreaming={isStreaming && isLast && msg.role === 'assistant'}
                       isFirstInRun={isFirstInRun}
                       catState={catState}
+                      onRetry={isLast && msg.role === 'assistant' && !isStreaming ? handleRetry : undefined}
                     />
                   );
                 })}
@@ -938,7 +944,7 @@ function KittyChatInner() {
                       fontFamily: 'var(--font-display)',
                       fontWeight: 800,
                       fontSize: 64,
-                      letterSpacing: 0,
+                      letterSpacing: '-0.035em',
                       color: 'var(--ink)',
                       lineHeight: 0.86,
                     }}
@@ -973,7 +979,7 @@ function KittyChatInner() {
                     fontWeight: 600,
                     cursor: 'pointer',
                     boxShadow: 'var(--btn-shadow)',
-                    letterSpacing: 0,
+                    letterSpacing: '-0.01em',
                   }}
                 >
                   {"let's go →"}
@@ -1030,13 +1036,13 @@ function KittyChatInner() {
                   justifyContent: 'center',
                   gap: 12,
                   fontFamily: 'var(--font-mono)',
-                  color: 'var(--text-muted)',
+                  color: 'var(--ink-2)',
                   fontSize: 14,
                 }}
               >
                 <span style={{ fontSize: 32, opacity: 0.3 }}>?</span>
                 <span>{activeView} view</span>
-                <span style={{ fontSize: 12, color: 'var(--text-ghost)' }}>coming soon</span>
+                <span style={{ fontSize: 12, color: 'var(--ink-2)' }}>coming soon</span>
               </div>
             )}
           </ErrorBoundary>
@@ -1103,7 +1109,7 @@ function KittyChatInner() {
         )}
       </main>
 
-      {!isMobile && activeView !== 'home' && <CatCorner state={catState} />}
+      <CatCorner state={catState} />
       <PaperGrain />
 
       <CommandPalette
