@@ -14,6 +14,7 @@
 #   kitty uninstall Remove launchd plists
 #   kitty run-fg    Run gateway in foreground (for debugging)
 #   kitty resume    Print one-screen orientation block (branch, PRs, tests, services, packets)
+#   kitty builder <cmd>        Run Kitty Builder Layer 1A (brief, contract validate)
 #   kitty delegate <action-id>  Generate a docs/packets/NNN-slug.md file from an action
 #   kitty push [--alert] "message"  Push to Jacob's phone (iMessage, Pushover fallback)
 #   kitty project add "name" /abs/path [kind]   Register a project (kind: code|admin|creative|...)
@@ -314,6 +315,14 @@ cmd_resume() {
   fi
 }
 
+cmd_builder() {
+  local python_bin="$KITTY_ROOT/venv/bin/python"
+  if [[ ! -x "$python_bin" ]]; then
+    python_bin="$(command -v python3.12)"
+  fi
+  "$python_bin" -m gateway.builder_cli "$@"
+}
+
 cmd_delegate() {
   local action_id="${1:-}"
   if [[ -z "$action_id" ]]; then
@@ -568,6 +577,7 @@ case "${1:-start}" in
   uninstall) cmd_uninstall ;;
   run-fg)    cmd_run_fg ;;
   resume)    cmd_resume ;;
+  builder)   shift; cmd_builder "$@" ;;
   delegate)  shift; cmd_delegate "$1" ;;
   push)      shift; cmd_push "$@" ;;
   sweep)     cmd_sweep ;;

@@ -35,6 +35,16 @@ Before any `gh` command or `git push`, check whether `GITHUB_TOKEN` is set. If `
 
 Before merging a PR, read the Actions **check runs** and confirm each required job is `success` — not just the combined commit `status`. They are different GitHub surfaces; a green `status` (e.g. a review bot) can hide failing lint/typecheck/pytest check runs. A broken file reached `main` this way once (see `docs/LEARNINGS.md` L-CAND-6). After any non-trivial merge, compile/import the touched files before declaring done.
 
+## Kitty Builder (Layer 1A — coordination only)
+
+Safe, read-only coordination commands wired through `./kitty builder`. No autonomous loops, agent spawning, or budget enforcement yet.
+
+- `./kitty builder brief <task>` — print a repo brief (branch, dirty files, task context)
+- `./kitty builder contract validate <path>` — validate a JSON/markdown build contract
+- `python3.12 -m pytest tests/test_builder_cli.py tests/test_builder_contract.py -v` — run builder tests
+
+Disabled commands (`run`, `loop`, `repl`, `delegate`) return a clear "not enabled" message.
+
 ## Agent Rules
 
 Before multi-file work, give a short plan. Prefer editing existing files over creating new structure.
