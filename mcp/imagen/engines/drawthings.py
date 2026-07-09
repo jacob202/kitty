@@ -46,6 +46,8 @@ class DrawThingsEngine:
         sampler_name: str | None = None,
         width: int | None = None,
         height: int | None = None,
+        init_image: Path | None = None,
+        denoising_strength: float = 0.5,
         **kwargs: object,
     ) -> bytes:
         full_prompt = prompt + (settings.photoreal_suffix if photorealistic else "")
@@ -63,10 +65,18 @@ class DrawThingsEngine:
             "sampler_name": sampler_name or "Euler a",
             "batch_size": 1,
         }
+
+        endpoint = "txt2img"
+        if init_image:
+            with open(init_image, "rb") as f:
+                img_data = base64.b64encode(f.read()).decode("utf-8")
+            payload["init_images"] = [img_data]
+            payload["denoising_strength"] = denoising_strength
+            endpoint = "img2img"
         if seed is not None:
             payload["seed"] = seed
 
-        url = f"{settings.dt_url.rstrip('/')}/sdapi/v1/txt2img"
+        url = f"{settings.dt_url.rstrip('/')}/sdapi/v1/{endpoint}"
         try:
             response = httpx.post(url, json=payload, timeout=120)
             response.raise_for_status()

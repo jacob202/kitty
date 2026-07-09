@@ -32,7 +32,7 @@ def discover_connections(force: bool = False) -> dict[str, Any]:
     """
     now = time.time()
     cached = _LAST_CONNECTIONS_CACHE
-    if not force and cached["connections"] and (now - cached["generated_at"]) < 300:
+    if not force and cached["generated_at"] > 0 and (now - cached["generated_at"]) < 300:
         return dict(cached)
 
     projects = project_store.list_projects(status="active")
@@ -45,7 +45,9 @@ def discover_connections(force: bool = False) -> dict[str, Any]:
             r = project_resume(p["id"])
             resumes.append(r)
         except Exception as exc:
-            logger.warning("magic_kitty: resume(%s) failed: %s", p["id"], exc)
+            raise RuntimeError(
+                f"magic_kitty failed to build resume for project {p['id']}: {exc}"
+            ) from exc
 
     if len(resumes) < 2:
         cached["connections"] = []
@@ -82,9 +84,15 @@ Projects:
 
 def _call_llm_for_connections(resumes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     serialized = json.dumps(
-        [{"name": r["name"], "kind": r["kind"], "summary": r["summary"],
-          "open_questions": r["open_questions"]}
-         for r in resumes],
+        [
+            {
+                "name": r["name"],
+                "kind": r["kind"],
+                "summary": r["summary"],
+                "open_questions": r["open_questions"],
+            }
+            for r in resumes
+        ],
         indent=2,
     )
     messages = [
@@ -100,8 +108,9 @@ def _call_llm_for_connections(resumes: list[dict[str, Any]]) -> list[dict[str, A
             operation="magic_kitty.discover",
         )
         if not text:
-            logger.warning("magic_kitty LLM returned empty text")
-            return []
+            raise RuntimeError(
+                "magic_kitty LLM returned empty response for operation magic_kitty.discover"
+            )
         logger.info("magic_kitty raw LLM response (first 300 chars): %s", text[:300])
         cleaned = text.strip()
         if cleaned.startswith("```"):
@@ -116,7 +125,8 @@ def _call_llm_for_connections(resumes: list[dict[str, Any]]) -> list[dict[str, A
                     c["insight_id"] = uuid.uuid4().hex[:8]
                 c["created_at"] = time.time()
             return parsed
-        return []
+        raise TypeError(f"magic_kitty expected LLM JSON list, got {type(parsed).__name__}")
     except Exception as exc:
-        logger.warning("magic_kitty LLM call failed: %s", exc)
-        return []
+        raise RuntimeError(
+            f"magic_kitty LLM call failed for operation magic_kitty.discover: {exc}"
+        ) from exc
