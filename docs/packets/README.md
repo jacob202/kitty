@@ -106,13 +106,13 @@ move-in. It does not delay move-in.
 | 014 | Make the gates honest (UI tests, CI job, isolation leaks)     | any competent model                  | ✅ shipped (#94)                                                     |
 | 015 | Phone channel: Kitty reaches Jacob (iMessage/Pushover)        | Claude Code / Codex                  | ✅ shipped (#103) — Jacob live-verified and merged                   |
 | 016 | Next-step navigator ("just tell me what B is")                | Claude Code + strongest-model prompt | ✅ shipped (#107, hardened #109) — first LLM-content packet; closes out after a week of Jacob judging real Bs, not on merge alone |
-| 017 | Benefits/admin rails + urgent-thing sweep                     | Claude Code (privacy care)           | 📋 spec authored 2026-07-05 — Wave 4; end of this packet = move-in day |
-| 018 | Expert packs: car, body, proactive headlines                  | Claude Code / Codex                  | 🧭 planned — gated on 008-remainder (🚧)                             |
+| 017 | Benefits/admin rails + urgent-thing sweep                     | Claude Code (privacy care)           | ✅ shipped (#112)                                                     |
+| 018 | Expert packs: car, body, proactive headlines                  | Claude Code / Codex                  | ✅ shipped (#119)                                                     |
 | 019 | Job search scaffold                                           | Claude Code / Codex                  | ⏸ parked — Jacob: "plan it, don't build it"                          |
 | 020 | GitHub read-only connector                                    | Codex / Claude Code                  | 🧭 planned — pattern rides 005                                       |
 | 021 | Project registry + resume (the real P6 — projects table, git/memory/signal composer) | Claude Code          | ✅ shipped (#106)                                                    |
 | 022 | Magic Kitty: cross-project insight synthesis (D13)            | strongest-model prompt + Claude Code | 🧭 planned — named, not authored. Look across *all* projects' `resume()` state for non-obvious connections; the "huh, these are related" moment. Comes after 016, not inside it. |
-| 023 | Memory taste + creative continuity (renumbered from 021, #101) | Claude Code / Codex + Jacob review  | 📋 spec authored — `after_move_in`: deepens memory policy, does not gate H1 |
+| 023 | Memory taste + creative continuity (renumbered from 021, #101) | Claude Code / Codex + Jacob review  | 🚧 in progress (backend shipped #119)                                |
 | 024 | Chat log idea mine (renumbered from 022, #102)                | strongest-model prompt + Claude Code | 📋 spec authored — `after_move_in`: obeys 023's taste rules either way |
 | 025 | Imagegen pipeline v2: local-first, criteria-verified loop     | Claude Code + Jacob (installs/taste) | 📋 spec authored 2026-07-05 — replaces fal (cost); Draw Things + ComfyUI |
 **Updated:** 2026-07-06 (017 PR #112 open)
@@ -135,8 +135,8 @@ move-in. It does not delay move-in.
 | 014 | Make the gates honest (UI tests, CI job, isolation leaks)                            | any competent model                  | ✅ shipped (#94)                                                                                                                                                                 |
 | 015 | Phone channel: Kitty reaches Jacob (iMessage/Pushover)                               | Claude Code / Codex                  | ✅ shipped (#103) — Jacob live-verified and merged                                                                                                                               |
 | 016 | Next-step navigator ("just tell me what B is")                                       | Claude Code + strongest-model prompt | 🔎 built (#107) — first LLM-content packet; closes out after a week of Jacob judging real Bs, not on CI green                                                                    |
-| 017 | Benefits/admin rails + urgent-thing sweep                                            | Claude Code (privacy care)           | 🔎 opencode — PR #112 open                                                                                                                                                      |
-| 018 | Expert packs: car, body, proactive headlines                                         | Claude Code / Codex                  | 🧭 planned — gated on 008-remainder ✅                                                                                                                                           |
+| 017 | Benefits/admin rails + urgent-thing sweep                                            | Claude Code (privacy care)           | ✅ shipped (#112)                                                                                                                                                                |
+| 018 | Expert packs: car, body, proactive headlines                                         | Claude Code / Codex                  | ✅ shipped (#119)                                                                                                                                                                |
 | 019 | Job search scaffold                                                                  | Claude Code / Codex                  | ⏸ parked — Jacob: "plan it, don't build it"                                                                                                                                      |
 | 020 | GitHub read-only connector                                                           | Codex / Claude Code                  | 🧭 planned — pattern rides 005                                                                                                                                                   |
 | 021 | Project registry + resume (the real P6 — projects table, git/memory/signal composer) | Claude Code                          | ✅ shipped (#106)                                                                                                                                                                |
@@ -162,11 +162,11 @@ channel, litellm, chromadb), first real B generated. The review loop (a
 week of real Bs) is what actually closes 016 out, not the merge.
 020 (GitHub) is optional here and enriches 016 for code projects.
 
-**Wave 4 — The safety net: 017 (📋 authored, ready to build).** Needs
+**Wave 4 — The safety net: ~~017~~ ✅ (#112).** Needs
 005's mail signals for the sweep to have teeth — those are live as of
-2026-07-05. **End of Wave 4 = move-in day.**
+2026-07-05. **End of Wave 4 = move-in day. (Move-in day reached)**
 
-**Wave 5 — Depth: 008-remainder (🚧 Codex) → 018 → 022 (Magic Kitty).**
+**Wave 5 — Depth: 008-remainder ✅ (#111) → 018 ✅ (#119) → 022 (Magic Kitty).**
 
 **Side track (Jacob-driven, parallel to any wave): 025 imagegen pipeline.**
 Explicitly requested 2026-07-05; doesn't gate move-in, doesn't wait for it.
