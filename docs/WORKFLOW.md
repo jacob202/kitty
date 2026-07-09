@@ -3,12 +3,18 @@
 How agents and reviewers coordinate on Kitty pull requests. This is the
 coordination contract — read it before opening a PR.
 
-## Task inbox — KittyBuilder Queue (issue #127)
+## Bridge inbox — KittyBuilder Queue (issue #127)
 
-GitHub issue **#127 — "KittyBuilder Queue"** is the single task inbox for
-KittyBuilder work. A task only counts once it appears as a comment on
-that issue. Ideas, chat prompts, and stale handoffs in other channels
-are not tasks — they are noise until they land on #127.
+GitHub issue **#127 — "KittyBuilder Queue"** is the current bridge inbox for
+KittyBuilder work while the local KittyBuilder orchestrator is not built yet.
+It is not the permanent source of truth. Phase 1 should move authoritative task
+state into a local KittyBuilder daemon/database; long term, GitHub stays useful
+for PRs, reviews, audit trail, and optional sync.
+
+Until that local daemon exists, a worker task only counts once it appears as a
+comment on #127. Ideas, chat prompts, and stale handoffs in other channels are
+not executable tasks — they are coordination noise until a captain turns them
+into a scoped bridge task or the future local queue records them.
 
 The handoff chain:
 
@@ -16,7 +22,7 @@ The handoff chain:
    comment must include `TASK:`, `BRANCH:`, `SCOPE:`, `DO NOT:`,
    `VALIDATION:`, and `STOP:` (see the issue body for the exact format).
 2. **One captain, not self-selected workers.** Exactly one captain reads
-   the queue and dispatches the next task. Workers do not self-select
+   the bridge queue and dispatches the next task. Workers do not self-select
    broad work from the issue, the registry, or the packet README —
    they take the specific task the captain assigns. If a task comment
    does not clearly include scope, validation, and a stop point, the
@@ -142,4 +148,6 @@ auth (see `AGENTS.md` — this has bitten the repo before).
 - It does not authorize autonomous merges or autonomous scope
   expansion.
 - It does not make the packet README, planning docs, or chat prompts
-  into a task queue. Only comments on issue #127 are tasks.
+  into a task queue. For now, only comments on issue #127 are bridge
+  tasks; after the local KittyBuilder daemon lands, the daemon/database
+  becomes the authoritative queue.
