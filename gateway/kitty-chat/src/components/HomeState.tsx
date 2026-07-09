@@ -32,6 +32,20 @@ import type {
 
 // ── shared micro-components ──────────────────────────────────────────────────
 
+function friendlyLabel(raw: string): string {
+  if (!raw) return raw;
+  const lower = raw.toLowerCase().replace(/_/g, ' ');
+
+  if (lower.includes('psychological profile')) return 'Something to carry forward';
+  if (lower.includes('mental state')) return 'Last useful thought';
+  if (lower.includes('surveillance')) return 'Quiet memory';
+  if (lower.includes('diagnosis')) return 'Decision kept';
+  if (lower.includes('user traits')) return 'Continue';
+
+  return raw;
+}
+
+
 function SectionCard({
   title,
   count,
@@ -282,7 +296,7 @@ function WhatsNext({
         <div style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={heroTextStyle}>{action.title}</div>
           <div style={heroMetaStyle}>
-            waiting on your approval · {action.kind} · {action.risk_tier}
+            waiting on your approval · {friendlyLabel(action.kind)} · {action.risk_tier}
           </div>
           {action.preview && <div style={{ ...bodyText, fontSize: 12 }}>{action.preview}</div>}
           <div style={{ display: 'flex', gap: 6 }}>
@@ -676,8 +690,8 @@ function WhatChanged() {
               marginBottom: 4,
             }}
           >
-            {c.section}
-            {c.field ? ` · ${c.field}` : ''}
+            {friendlyLabel(c.section)}
+            {c.field ? ` · ${friendlyLabel(c.field)}` : ''}
           </div>
           <div style={bodyText}>
             {String(c.before ?? '–')} → {String(c.after ?? '–')}
@@ -817,7 +831,7 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
                       color: 'var(--ink-2)',
                     }}
                   >
-                    {action.kind} · {action.risk_tier} · {action.source_kind}
+                    {friendlyLabel(action.kind)} · {action.risk_tier} · {action.source_kind}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
