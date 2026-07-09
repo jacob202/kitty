@@ -216,7 +216,9 @@ async def get_mood():
 async def sse_stream(request: Request, session_id: str | None = None):
     """Server-Sent Events endpoint for pushing state changes to the UI."""
     import uuid
+
     from fastapi.responses import StreamingResponse
+
     from gateway.sse import broadcaster
 
     client_id = session_id or str(uuid.uuid4())

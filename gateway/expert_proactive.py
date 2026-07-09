@@ -5,7 +5,6 @@ Evaluates unread captures and configured directories to emit expert headlines.
 from __future__ import annotations
 
 import asyncio
-import csv
 import json
 import logging
 import os
@@ -16,7 +15,7 @@ from pathlib import Path
 
 import filelock
 
-from gateway import desktop_store, knowledge, llm_client, paths, signal_store, expert_state
+from gateway import desktop_store, expert_state, knowledge, llm_client, paths, signal_store
 from gateway.researcher import DeepResearcher
 
 logger = logging.getLogger("kitty.expert_proactive")

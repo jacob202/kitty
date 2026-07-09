@@ -2,13 +2,11 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from mcp.imagen.config import settings
-
 
 # ---------------------------------------------------------------------------
 # Mechanical scorer
@@ -141,7 +139,7 @@ def test_load_criteria_missing_returns_default():
 
 
 def test_load_criteria_from_file(tmp_path):
-    from mcp.imagen.verify import load_criteria, _criteria_path
+    from mcp.imagen.verify import load_criteria
 
     criteria_dir = settings.faces_dir.parent / "criteria"
     criteria_dir.mkdir(parents=True, exist_ok=True)

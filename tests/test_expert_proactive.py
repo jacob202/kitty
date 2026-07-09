@@ -1,10 +1,8 @@
-import json
-import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from gateway import expert_proactive, knowledge, signal_store
+from gateway import expert_proactive
 
 
 @pytest.fixture(autouse=True)

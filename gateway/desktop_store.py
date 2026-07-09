@@ -14,7 +14,9 @@ from pathlib import Path
 from typing import Any
 
 import filelock
+
 from gateway.paths import DESKTOP_LOG_FILE, DESKTOP_PID_DIR, INBOX_FILE
+
 INBOX_PROCESSED_FILE = INBOX_FILE.with_name("inbox_processed.jsonl")
 
 

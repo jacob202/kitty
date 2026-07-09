@@ -5,7 +5,6 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from gateway.routes import (
-    experts,
     actions,
     ask,
     brief,
@@ -17,6 +16,7 @@ from gateway.routes import (
     deadlines,
     desktop,
     dream,
+    experts,
     extended,
     inbox,
     insights,

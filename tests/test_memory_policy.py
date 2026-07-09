@@ -1,6 +1,5 @@
 """Tests for the memory policy layer — classification, surfacing, rewriting."""
 
-from datetime import datetime, timezone
 
 from gateway.memory_graph import Item, Source
 from gateway.memory_policy import (

@@ -1,6 +1,8 @@
 import sys
-from gateway import project_store, signal_store, db
-from gateway.paths import KITTY_DB_FILE, SIGNALS_DB_FILE
+
+from gateway import db, project_store
+from gateway.paths import SIGNALS_DB_FILE
+
 
 def cleanup_project(project_id: int):
     project_store.delete(project_id)

@@ -6,7 +6,6 @@ GitHub's REST shape onto Kitty's signal store; this file pins that mapping.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import Any
 

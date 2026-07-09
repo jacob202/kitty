@@ -190,14 +190,3 @@ def _row_to_signal(row: sqlite3.Row) -> dict:
         "processed_at": row["processed_at"],
         "created_at": row["created_at"],
     }
-
-def get_signal(signal_id: int) -> dict | None:
-    init_db()
-    with kitty_db.connect(SIGNALS_DB_FILE) as conn:
-        row = conn.execute(
-            f"SELECT {_COLUMNS} FROM signals WHERE id = ?",
-            (signal_id,)
-        ).fetchone()
-        if row:
-            return _row_to_signal(row)
-        return None

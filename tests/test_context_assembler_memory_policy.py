@@ -8,10 +8,10 @@ Verifies:
 
 import pytest
 
-pytestmark = pytest.mark.asyncio
-
-from gateway.context_assembler import ContextBundle, _AssemblerDeps, assemble_context
+from gateway.context_assembler import _AssemblerDeps, assemble_context
 from gateway.memory_graph import Item, Source, StoreAdapter
+
+pytestmark = pytest.mark.asyncio
 
 
 class _ControlledAdapter(StoreAdapter):

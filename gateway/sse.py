@@ -6,8 +6,8 @@ logger = logging.getLogger("kitty.sse")
 
 class SSEBroadcaster:
     def __init__(self):
-        self.queues: dict[str, asyncio.Queue] = {}
-        self.loop = None
+        self.queues: dict[str, asyncio.Queue[str | None]] = {}
+        self.loop: asyncio.AbstractEventLoop | None = None
 
     async def subscribe(self, session_id: str) -> AsyncGenerator[str, None]:
         if self.loop is None:
@@ -20,7 +20,7 @@ class SSEBroadcaster:
             except Exception:
                 pass
 
-        q = asyncio.Queue()
+        q: asyncio.Queue[str | None] = asyncio.Queue()
         self.queues[session_id] = q
         try:
             yield "event: connected\ndata: {}\n\n"

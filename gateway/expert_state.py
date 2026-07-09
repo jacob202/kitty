@@ -1,12 +1,11 @@
 """Data access layer for proactive expert state (snooze, inbox lifecycle, feedback)."""
 
-import time
-import hashlib
-import re
-
 import json
-from gateway.paths import KITTY_DB_FILE, EXPERT_STATE_FILE
+import time
+
 from gateway import db as kitty_db
+from gateway.paths import EXPERT_STATE_FILE, KITTY_DB_FILE
+
 
 def compute_topic_hash(text: str) -> str:
     """Deterministic hash function for topic suppression."""
