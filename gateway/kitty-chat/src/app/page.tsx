@@ -230,11 +230,12 @@ function KittyChatInner() {
   const queryClient = useQueryClient();
   const modelsQuery = useGatewayModels();
   const briefQuery = useGatewayBrief();
+  const toolsViewActive = activeView === 'tools';
   // Loops/insights/prompts still bind to real data but aren't part of the
   // console home surface — they live in the Tools view instead.
-  const loopsQuery = useLoops();
-  const insightsQuery = useInsights();
-  const promptsQuery = usePrompts();
+  const loopsQuery = useLoops(toolsViewActive);
+  const insightsQuery = useInsights(10, toolsViewActive);
+  const promptsQuery = usePrompts(toolsViewActive);
   const toggleLoop = useToggleLoop();
   const dismissInsight = useDismissInsight();
 

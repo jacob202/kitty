@@ -215,10 +215,11 @@ export function useDeleteTodo() {
 
 // ── Loops / Insights ─────────────────────────────────────────────────────────
 
-export function useLoops() {
+export function useLoops(enabled = true) {
   return useQuery({
     queryKey: ['loops'],
     queryFn: fetchGatewayLoops,
+    enabled,
     refetchInterval: 30_000,
     staleTime: 30_000,
   })
@@ -253,10 +254,11 @@ export function useToggleLoop() {
   })
 }
 
-export function useInsights(limit = 10) {
+export function useInsights(limit = 10, enabled = true) {
   return useQuery({
     queryKey: ['insights', limit],
     queryFn: () => fetchGatewayInsights(limit),
+    enabled,
     refetchInterval: 60_000,
   })
 }
@@ -285,10 +287,11 @@ export function useDismissInsight() {
   })
 }
 
-export function usePrompts() {
+export function usePrompts(enabled = true) {
   return useQuery({
     queryKey: ['prompts'],
     queryFn: fetchGatewayPrompts,
+    enabled,
     staleTime: 5 * 60_000,
   })
 }

@@ -133,14 +133,16 @@ function CockpitHeader({ rankedTitle }: { rankedTitle?: string }) {
 function WhatsNext({
   onDecideInChat,
   onNavigate,
+  projectsQuery,
+  stepQueries,
 }: {
   onDecideInChat: (entry: GatewayTriageEntry) => void;
   onNavigate: (view: string) => void;
+  projectsQuery: ReturnType<typeof useProjects>;
+  stepQueries: ReturnType<typeof useProjectNextSteps>;
 }) {
   const actionsQuery = useActions('proposed');
   const needsJacob = useNeedsJacob();
-  const projectsQuery = useProjects();
-  const stepQueries = useProjectNextSteps(projectsQuery.data ?? []);
   const todosQuery = useTodos();
   const deadlinesQuery = useDeadlines('open');
   const healthQuery = useGatewayHealth();
@@ -348,10 +350,15 @@ const missionTextStyle: React.CSSProperties = {
 
 // ── Spaces / projects ────────────────────────────────────────────────────────
 
-function SpaceSelector({ onNavigate }: { onNavigate: (view: string) => void }) {
-  const projectsQuery = useProjects();
-  const stepQueries = useProjectNextSteps(projectsQuery.data ?? []);
-
+function SpaceSelector({
+  onNavigate,
+  projectsQuery,
+  stepQueries,
+}: {
+  onNavigate: (view: string) => void;
+  projectsQuery: ReturnType<typeof useProjects>;
+  stepQueries: ReturnType<typeof useProjectNextSteps>;
+}) {
   if (projectsQuery.isPending) {
     return (
       <Card>
@@ -939,11 +946,13 @@ export function HomeState({
 }: Props) {
   const healthQuery = useGatewayHealth();
   const gatewayOk = healthQuery.data?.ok === true;
+  const projectsQuery = useProjects();
+  const projects = projectsQuery.data ?? [];
+  const stepQueries = useProjectNextSteps(projects);
 
   // Expanding What's Next based on the same query
   const actionsQuery = useActions('proposed');
   const needsJacob = useNeedsJacob();
-  const stepQueries = useProjectNextSteps(useProjects().data ?? []);
   const todosQuery = useTodos();
   const deadlinesQuery = useDeadlines('open');
 
@@ -976,9 +985,14 @@ export function HomeState({
     >
       <CockpitHeader rankedTitle={rankedAction?.title} />
       <HealthStrip expanded={!gatewayOk} />
-      <WhatsNext onDecideInChat={onDecideInChat} onNavigate={onNavigate} />
+      <WhatsNext
+        onDecideInChat={onDecideInChat}
+        onNavigate={onNavigate}
+        projectsQuery={projectsQuery}
+        stepQueries={stepQueries}
+      />
       <DeadlinesPanel />
-      <SpaceSelector onNavigate={onNavigate} />
+      <SpaceSelector onNavigate={onNavigate} projectsQuery={projectsQuery} stepQueries={stepQueries} />
       <NeedsYou onDecideInChat={onDecideInChat} />
       <TodayPanel gatewayError={gatewayError} />
       <WhatChanged onNavigate={onNavigate} />
