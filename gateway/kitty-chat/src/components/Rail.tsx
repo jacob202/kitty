@@ -15,13 +15,15 @@ const NAV_ITEMS: { label: string; view: string; d: string }[] = [
 interface Props {
   activeView?: string
   onViewChange?: (view: string) => void
-  theme?: 'day' | 'night'
+  theme?: 'cosmic' | 'day' | 'night'
   onToggleTheme?: () => void
 }
 
-export function Rail({ activeView = 'home', onViewChange, theme = 'day', onToggleTheme }: Props) {
+export function Rail({ activeView = 'home', onViewChange, theme = 'cosmic', onToggleTheme }: Props) {
   const themeIconPath = theme === 'night'
     ? 'M12 3 V5 M12 19 V21 M3 12 H5 M19 12 H21 M5.5 5.5 L7 7 M17 17 L18.5 18.5 M18.5 5.5 L17 7 M7 17 L5.5 18.5 M12 8 a4 4 0 1 0 0 8 a4 4 0 0 0 0 -8'
+    : theme === 'cosmic'
+    ? 'M12 2 L13.5 10 L22 12 L13.5 14 L12 22 L10.5 14 L2 12 L10.5 10 Z'
     : 'M19 13 a8 8 0 1 1 -8 -10 a6 6 0 0 0 8 10 Z'
 
   return (

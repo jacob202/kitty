@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react'
 import { useGatewayModels } from '@/lib/queries'
 
 interface Props {
-  theme: 'day' | 'night'
+  theme: 'cosmic' | 'day' | 'night'
   onToggleTheme: () => void
 }
 
@@ -32,7 +32,7 @@ export function SettingsPanel({ theme, onToggleTheme }: Props) {
         <div style={rowStyle}>
           <span style={rowNameStyle}>theme</span>
           <button onClick={onToggleTheme} style={buttonStyle}>
-            {theme === 'day' ? '☀ day — switch to night' : '☾ night — switch to day'}
+            {theme === 'cosmic' ? '✦ cosmic — switch to day' : theme === 'day' ? '☀ day — switch to night' : '☾ night — switch to cosmic'}
           </button>
         </div>
       </div>

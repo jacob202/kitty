@@ -160,7 +160,7 @@ function KittyChatInner() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [theme, setTheme] = useState<'day' | 'night'>('day');
+  const [theme, setTheme] = useState<'cosmic' | 'day' | 'night'>('cosmic');
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'failed' | 'offline'>(
     'idle',
   );
@@ -314,7 +314,7 @@ function KittyChatInner() {
 
   const handleToggleTheme = useCallback(() => {
     setTheme((t) => {
-      const next = t === 'day' ? 'night' : 'day';
+      const next = t === 'cosmic' ? 'day' : t === 'day' ? 'night' : 'cosmic';
       document.documentElement.setAttribute('data-theme', next);
       return next;
     });

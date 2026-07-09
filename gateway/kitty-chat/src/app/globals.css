@@ -1,5 +1,54 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ── COSMIC: dark navy starfield executive cockpit ─────────── */
+[data-theme="cosmic"] {
+  --bg:         #0A0F1F;
+  --surface:    rgba(20, 28, 48, 0.55);
+  --surface-2:  rgba(28, 38, 64, 0.72);
+  --line:       rgba(196, 132, 76, 0.32);
+  --glass-blur: 14px;
+  --glass-border: rgba(196, 132, 76, 0.28);
+  --glass-glow: 0 0 0 1px rgba(196, 132, 76, 0.10), 0 8px 32px rgba(0, 0, 0, 0.45);
+
+  --ink:        #F2E8D5;
+  --ink-2:      #9AA0B4;
+
+  --primary:        #C4844C;
+  --primary-deep:   #8A5A30;
+  --primary-fade:   rgba(196, 132, 76, 0.18);
+  --on-primary:     #0A0F1F;
+
+  --cat-ginger:   #C4844C;
+  --cat-green:    #7FB069;
+  --cat-pink:     #D98AA0;
+  --cat-outline:  #F2E8D5;
+  --ginger-fade:  rgba(196, 132, 76, 0.20);
+
+  --c-red:    #D97A66;
+  --c-green:  #7FB069;
+  --c-yellow: #E8C46A;
+  --c-purple: #B089C7;
+  --c-blue:   #6FA0D9;
+
+  --shadow:      0 8px 32px rgba(0, 0, 0, 0.45);
+  --shadow-soft: 0 2px 12px rgba(0, 0, 0, 0.30);
+  --btn-shadow:  0 2px 0 rgba(138, 90, 48, 0.6), 0 6px 18px rgba(0, 0, 0, 0.40);
+  --input-glow:  0 0 0 3px var(--ginger-fade);
+
+  --grain-opacity: 0;
+  --grain-blend:   screen;
+
+  /* Card glass treatment — only under cosmic. Day/night rely on the
+     fallbacks in ui.ts (var(--card-bg, var(--bg)) etc.), so they render
+     exactly as before with no cosmic glass bleeding in on theme toggle. */
+  --card-bg:        rgba(20, 28, 48, 0.55);
+  --card-border:    rgba(196, 132, 76, 0.28);
+  --card-shadow:    0 8px 32px rgba(0, 0, 0, 0.45);
+  --card-backdrop:  blur(14px);
+  --item-bg:        rgba(28, 38, 64, 0.72);
+  --item-border:    rgba(196, 132, 76, 0.20);
+}
+
 /* ── DAY: manila paper ─────────────────────────────────────── */
 [data-theme="day"], :root {
   --bg:         #F3EAD6;
@@ -115,6 +164,23 @@ html, body {
   font-family: var(--font-body);
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
+}
+
+/* ── COSMIC: starfield + nebula body treatment ─────────────── */
+[data-theme="cosmic"] body,
+[data-theme="cosmic"] {
+  background-color: #0A0F1F;
+  background-image:
+    radial-gradient(1.4px 1.4px at 12% 18%, rgba(242, 232, 213, 0.85), transparent 60%),
+    radial-gradient(1.1px 1.1px at 84% 72%, rgba(242, 232, 213, 0.70), transparent 60%),
+    radial-gradient(1.2px 1.2px at 38% 88%, rgba(242, 232, 213, 0.60), transparent 60%),
+    radial-gradient(0.9px 0.9px at 62% 22%, rgba(242, 232, 213, 0.75), transparent 60%),
+    radial-gradient(1.0px 1.0px at 22% 58%, rgba(242, 232, 213, 0.55), transparent 60%),
+    radial-gradient(1.3px 1.3px at 78% 38%, rgba(242, 232, 213, 0.70), transparent 60%),
+    radial-gradient(circle at 70% 30%, rgba(90, 60, 130, 0.18), transparent 55%),
+    radial-gradient(circle at 25% 75%, rgba(196, 132, 76, 0.12), transparent 60%),
+    linear-gradient(180deg, #0A0F1F 0%, #0D1428 60%, #0A0F1F 100%);
+  background-attachment: fixed;
 }
 
 button { border: 0; cursor: pointer; color: inherit; background: transparent; }
