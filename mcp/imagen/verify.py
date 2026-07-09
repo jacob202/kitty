@@ -318,6 +318,7 @@ def generate_until(
     max_attempts: int = 8,
     keep: int = 3,
     private: bool = False,
+    init_image: str | None = None,
 ) -> list[dict[str, Any]]:
     """Generate, score, keep best, stop early.
 
@@ -353,7 +354,7 @@ def generate_until(
     for attempt_num in range(1, max_attempts + 1):
         seed_val = reseed()
         try:
-            data = eng.generate(prompt, seed=seed_val)
+            data = eng.generate(prompt, seed=seed_val, init_image=init_image)
         except RefusalError as e:
             log.warning("attempt %d refused: %s", attempt_num, str(e)[:200])
             continue

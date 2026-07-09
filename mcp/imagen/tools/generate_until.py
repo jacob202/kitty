@@ -18,6 +18,7 @@ def generate_until(
     max_attempts: int = 8,
     keep: int = 3,
     private: bool = False,
+    init_image: str | None = None,
 ) -> list:
     """Generate an image, score it against criteria, and iterate until one passes.
 
@@ -54,6 +55,7 @@ def generate_until(
             max_attempts=max_attempts,
             keep=keep,
             private=private,
+            init_image=init_image,
         )
     except ValueError as e:
         log.warning("generate_until rejected: %s", str(e)[:200])
