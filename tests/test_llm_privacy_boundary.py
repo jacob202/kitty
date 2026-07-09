@@ -110,3 +110,57 @@ def test_call_llm_passes_through_when_local():
         assert out == "ok"
     finally:
         monkey.undo()
+
+
+def test_call_llm_with_none_content_class_proceeds_on_cloud():
+    """content_class=None + cloud_ok must pass through (legacy permissive behavior)."""
+
+    def _fake_post(url, **kwargs):
+        import requests
+
+        resp = requests.Response()
+        resp.status_code = 200
+        resp._content = (
+            b'{"choices":[{"message":{"role":"assistant","content":"ok"}}],'
+            b'"model":"test","usage":{"prompt_tokens":1,"completion_tokens":1}}'
+        )
+        return resp
+
+    monkey = __import__("pytest").MonkeyPatch()
+    try:
+        monkey.setattr("gateway.llm_client._post", _fake_post)
+        out = call_llm(
+            [{"role": "user", "content": "public"}],
+            privacy_tier="cloud_ok",
+            content_class=None,
+        )
+        assert out == "ok"
+    finally:
+        monkey.undo()
+
+
+def test_call_llm_with_public_content_class_proceeds_on_cloud():
+    """Non-private content_class + cloud_ok proceeds to provider."""
+
+    def _fake_post(url, **kwargs):
+        import requests
+
+        resp = requests.Response()
+        resp.status_code = 200
+        resp._content = (
+            b'{"choices":[{"message":{"role":"assistant","content":"ok"}}],'
+            b'"model":"test","usage":{"prompt_tokens":1,"completion_tokens":1}}'
+        )
+        return resp
+
+    monkey = __import__("pytest").MonkeyPatch()
+    try:
+        monkey.setattr("gateway.llm_client._post", _fake_post)
+        out = call_llm(
+            [{"role": "user", "content": "public"}],
+            privacy_tier="cloud_ok",
+            content_class="calendar",
+        )
+        assert out == "ok"
+    finally:
+        monkey.undo()
