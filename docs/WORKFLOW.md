@@ -3,6 +3,58 @@
 How agents and reviewers coordinate on Kitty pull requests. This is the
 coordination contract — read it before opening a PR.
 
+## Bridge inbox — KittyBuilder Queue (issue #127)
+
+GitHub issue **#127 — "KittyBuilder Queue"** is the current bridge inbox for
+KittyBuilder work while the local KittyBuilder orchestrator is not built yet.
+It is not the permanent source of truth. Phase 1 should move authoritative task
+state into a local KittyBuilder daemon/database; long term, GitHub stays useful
+for PRs, reviews, audit trail, and optional sync.
+
+Until that local daemon exists, a worker task only counts once it appears as a
+comment on #127. Ideas, chat prompts, and stale handoffs in other channels are
+not executable tasks — they are coordination noise until a captain turns them
+into a scoped bridge task or the future local queue records them.
+
+The handoff chain:
+
+1. **Intake.** ChatGPT or Jacob posts a new task comment on #127. Each
+   comment must include `TASK:`, `BRANCH:`, `SCOPE:`, `DO NOT:`,
+   `VALIDATION:`, and `STOP:` (see the issue body for the exact format).
+2. **One captain, not self-selected workers.** Exactly one captain reads
+   the bridge queue and dispatches the next task. Workers do not self-select
+   broad work from the issue, the registry, or the packet README —
+   they take the specific task the captain assigns. If a task comment
+   does not clearly include scope, validation, and a stop point, the
+   worker asks for clarification on #127 instead of guessing.
+3. **Claim.** The worker replies `CLAIMED` with the branch name and
+   timestamp on the task comment before starting. If another worker
+   already claimed the same task, do not start. A stale claim (no update
+   for a long time) may be taken over with a `TAKING OVER` reply after
+   inspecting existing branches/PRs.
+4. **Implement.** Start from clean, up-to-date `main`. Create the
+   requested branch. Do only the stated scope.
+5. **Open PR.** The worker opens a PR for the implementation branch.
+   **PRs are for implementation branches; issue #127 is for task intake
+   and coordination — never the other way around.** Do not treat
+   issue #127 as a PR, and do not use an implementation branch as a
+   task queue.
+6. **Report on the PR.** Post the required final report comment on the
+   PR (see "Every PR gets a final report comment" below).
+7. **Close the loop on #127.** Comment back on issue #127 with the PR
+   number, then stop and wait.
+8. **Review/merge on the PR.** ChatGPT and Jacob review through PR
+   comments and merge there. The worker does not merge.
+
+### Read-only / stale agents
+
+Codex, Antigravity, and any older worker sessions are read-only unless
+current git/GitHub confirms an active claim. A captain or worker that
+finds a stale session should either close its branch or mark it
+read-only in `.claude/STATE.md` — do not silently build on top of it.
+Before taking over a stale task, inspect local branches, open PRs, and
+`.claude/STATE.md` to avoid duplicate branches and conflicting work.
+
 ## PR comments are the coordination channel
 
 GitHub PR comments are the single source of truth for review and merge
@@ -95,3 +147,7 @@ auth (see `AGENTS.md` — this has bitten the repo before).
   registry.
 - It does not authorize autonomous merges or autonomous scope
   expansion.
+- It does not make the packet README, planning docs, or chat prompts
+  into a task queue. For now, only comments on issue #127 are bridge
+  tasks; after the local KittyBuilder daemon lands, the daemon/database
+  becomes the authoritative queue.
