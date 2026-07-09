@@ -37,6 +37,16 @@
 
   --grain-opacity: 0;
   --grain-blend:   screen;
+
+  /* Card glass treatment — only under cosmic. Day/night rely on the
+     fallbacks in ui.ts (var(--card-bg, var(--bg)) etc.), so they render
+     exactly as before with no cosmic glass bleeding in on theme toggle. */
+  --card-bg:        rgba(20, 28, 48, 0.55);
+  --card-border:    rgba(196, 132, 76, 0.28);
+  --card-shadow:    0 8px 32px rgba(0, 0, 0, 0.45);
+  --card-backdrop:  blur(14px);
+  --item-bg:        rgba(28, 38, 64, 0.72);
+  --item-border:    rgba(196, 132, 76, 0.20);
 }
 
 /* ── DAY: manila paper ─────────────────────────────────────── */

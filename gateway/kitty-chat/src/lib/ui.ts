@@ -2,32 +2,22 @@ import type { CSSProperties } from 'react'
 
 // Canonical visual language for dashboard cards.
 // One card surface, one accent (--primary), tight type scale.
-
-/** True when the cosmic (dark cockpit) theme is active. */
-function isCosmic(): boolean {
-  if (typeof document === 'undefined') return false
-  return document.documentElement.getAttribute('data-theme') === 'cosmic'
-}
-
-/** Glass treatment layered onto card/itemCard under the cosmic theme. */
-const glassExtras = (): CSSProperties =>
-  isCosmic()
-    ? {
-        background: 'rgba(20, 28, 48, 0.55)',
-        backdropFilter: 'blur(14px)',
-        WebkitBackdropFilter: 'blur(14px)',
-        border: '1px solid rgba(196, 132, 76, 0.28)',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.45)',
-      }
-    : {}
+//
+// Theme-specific glass treatment (cosmic) is driven by CSS variables
+// (--card-bg, --card-border, --card-shadow, --card-backdrop) defined in
+// globals.css. Day/night define no such variables, so the fallbacks below
+// preserve the original day/night rendering exactly. No document/theme
+// reads happen at module time — toggling themes re-resolves the variables.
 
 /** Outer card / panel container. */
 export const card: CSSProperties = {
-  background: 'var(--bg)',
-  border: '1px solid var(--line)',
+  background: 'var(--card-bg, var(--bg))',
+  border: '1px solid var(--card-border, var(--line))',
   borderRadius: 4,
   padding: 16,
-  ...glassExtras(),
+  boxShadow: 'var(--card-shadow, none)',
+  backdropFilter: 'var(--card-backdrop, none)',
+  WebkitBackdropFilter: 'var(--card-backdrop, none)',
 }
 
 /** Header row inside a card: title left, count/meta right, hairline underneath.
@@ -70,17 +60,11 @@ export const sectionLabel: CSSProperties = {
 
 /** Recessed inner item sitting inside a card. */
 export const itemCard: CSSProperties = {
-  background: 'var(--surface)',
-  border: '1px solid var(--line)',
+  background: 'var(--item-bg, var(--surface))',
+  border: '1px solid var(--item-border, var(--line))',
   borderRadius: 4,
   padding: '12px 14px',
   transition: 'background 0.15s ease, border-color 0.15s ease',
-  ...(isCosmic()
-    ? {
-        background: 'rgba(28, 38, 64, 0.72)',
-        border: '1px solid rgba(196, 132, 76, 0.20)',
-      }
-    : {}),
 }
 
 export const bodyText: CSSProperties = {
