@@ -579,6 +579,186 @@ def test_check_deadlines_warn_when_none_open(monkeypatch, tmp_path):
     assert "no open deadlines" in checks[0].detail
 
 
+# --- _check_github_connector ---
+
+
+def test_github_connector_passes_when_token_present(monkeypatch) -> None:
+    from gateway import doctor
+
+    checks = doctor._check_github_connector({"GITHUB_TOKEN": "ghp_abc123"})
+    assert len(checks) == 1
+    assert checks[0].level == "PASS"
+    assert checks[0].name == "connector:github"
+    assert "token present" in checks[0].detail
+
+
+def test_github_connector_warns_when_token_missing(monkeypatch) -> None:
+    from gateway import doctor
+
+    checks = doctor._check_github_connector({})
+    assert len(checks) == 1
+    assert checks[0].level == "WARN"
+    assert checks[0].detail == "GITHUB_TOKEN not present in environment or .env"
+
+
+# --- _load_env ---
+
+
+def test_load_env_returns_os_environ_when_no_dotenv(monkeypatch, tmp_path) -> None:
+    from gateway import doctor
+
+    monkeypatch.setattr(doctor, "ROOT", tmp_path)
+    monkeypatch.setenv("TEST_VAR", "from_env")
+    result = doctor._load_env()
+    assert result["TEST_VAR"] == "from_env"
+
+
+def test_load_env_reads_dotenv_values(monkeypatch, tmp_path) -> None:
+    from gateway import doctor
+
+    monkeypatch.setattr(doctor, "ROOT", tmp_path)
+    (tmp_path / ".env").write_text(
+        "MY_KEY=my_value\nANOTHER=123\n", encoding="utf-8"
+    )
+    result = doctor._load_env()
+    assert result["MY_KEY"] == "my_value"
+    assert result["ANOTHER"] == "123"
+
+
+def test_load_env_skips_comments_and_empty_lines(monkeypatch, tmp_path) -> None:
+    from gateway import doctor
+
+    monkeypatch.setattr(doctor, "ROOT", tmp_path)
+    (tmp_path / ".env").write_text(
+        "# this is a comment\n\nKEY=val\n", encoding="utf-8"
+    )
+    result = doctor._load_env()
+    assert result["KEY"] == "val"
+    assert "# this is a comment" not in result
+
+
+def test_load_env_uses_setdefault_not_override(monkeypatch, tmp_path) -> None:
+    """Existing env vars take precedence over .env values."""
+    from gateway import doctor
+
+    monkeypatch.setattr(doctor, "ROOT", tmp_path)
+    monkeypatch.setenv("EXISTING", "from_env")
+    (tmp_path / ".env").write_text("EXISTING=from_dotenv\n", encoding="utf-8")
+    result = doctor._load_env()
+    assert result["EXISTING"] == "from_env"
+
+
+def test_load_env_strips_quotes_from_values(monkeypatch, tmp_path) -> None:
+    from gateway import doctor
+
+    monkeypatch.setattr(doctor, "ROOT", tmp_path)
+    (tmp_path / ".env").write_text('QUOTED="hello"\n', encoding="utf-8")
+    result = doctor._load_env()
+    assert result["QUOTED"] == "hello"
+
+
+# --- _http_ok ---
+
+
+def test_http_ok_returns_true_on_2xx() -> None:
+    from unittest.mock import MagicMock, patch
+
+    from gateway import doctor
+
+    mock_resp = MagicMock()
+    mock_resp.getcode.return_value = 200
+    with patch("gateway.doctor.urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+        assert doctor._http_ok("http://example.test/health") is True
+
+
+def test_http_ok_returns_false_on_4xx() -> None:
+    from unittest.mock import MagicMock, patch
+
+    from gateway import doctor
+
+    mock_resp = MagicMock()
+    mock_resp.getcode.return_value = 404
+    with patch("gateway.doctor.urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+        assert doctor._http_ok("http://example.test/missing") is False
+
+
+def test_http_ok_returns_false_on_connection_error() -> None:
+    from unittest.mock import patch
+
+    from gateway import doctor
+
+    with patch("gateway.doctor.urllib.request.urlopen") as mock_urlopen:
+        mock_urlopen.side_effect = ConnectionError("connection refused")
+        assert doctor._http_ok("http://example.test/down") is False
+
+
+# --- _level_order ---
+
+
+def test_level_order_correct_priority() -> None:
+    from gateway import doctor
+
+    assert doctor._level_order("PASS") == 0
+    assert doctor._level_order("WARN") == 1
+    assert doctor._level_order("FAIL") == 2
+
+
+def test_level_order_unknown_defaults_to_fail() -> None:
+    from gateway import doctor
+
+    assert doctor._level_order("UNKNOWN") == 2
+    assert doctor._level_order("") == 2
+    assert doctor._level_order("INFO") == 2
+
+
+def test_check_mail_connector_pass_with_expired_token_and_refresh(
+    monkeypatch, tmp_path
+) -> None:
+    """Token expired but has a refresh_token — detail says 'refresh pending', level stays PASS."""
+    from gateway import doctor
+    from gateway.connectors import mail as mail_module
+
+    token = tmp_path / "expired_refresh.json"
+    token.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(doctor, "ROOT", tmp_path)
+    monkeypatch.setenv("GMAIL_TOKEN_FILE", str(token))
+    fake_creds = type("FakeCreds", (), {"valid": False, "expired": True, "refresh_token": "r"})()
+    monkeypatch.setattr(mail_module, "_load_credentials", lambda: fake_creds)
+    checks = doctor._check_mail_connector({"GMAIL_TOKEN_FILE": str(token)})
+    assert checks[0].level == "PASS"
+    assert "expired" in checks[0].detail
+
+
+def test_check_deadlines_fail_on_last_push_failure(monkeypatch, tmp_path) -> None:
+    from gateway import db, deadline_store, doctor, paths, push
+
+    db_file = tmp_path / "kitty.db"
+    monkeypatch.setattr(deadline_store, "DEADLINES_DB_FILE", db_file)
+    monkeypatch.setattr(db, "KITTY_DB_FILE", db_file)
+    monkeypatch.setattr(paths, "KITTY_DB_FILE", db_file)
+    monkeypatch.setattr("gateway.project_store.PROJECTS_DB_FILE", db_file)
+    monkeypatch.setattr("gateway.project_store.KITTY_DB_FILE", db_file)
+    log = tmp_path / "push_log.jsonl"
+    log.write_text(
+        '{"ts": 1, "kind": "info", "title": "Kitty", "channel": "pushover", '
+        '"ok": false, "dedupe_key": "deadline-proj-a"}\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(push, "PUSH_LOG_FILE", log)
+    deadline_store.init_db()
+    from gateway import project_store
+    project_store.create("benefits-admin", "admin")
+    deadline_store.upsert({
+        "project_id": 2, "source": "test", "due_date": "2026-08-01",
+        "obligation": "x", "confidence": "high",
+    })
+    checks = doctor._check_deadlines()
+    assert checks[0].level == "FAIL"
+    assert "failed" in checks[0].detail
+
+
 def test_check_deadlines_pass_when_open_and_no_pushes_yet(monkeypatch, tmp_path):
     from gateway import db, deadline_store, doctor, paths, push
 
