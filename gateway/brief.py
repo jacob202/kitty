@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 from typing import List, Optional
 
@@ -54,6 +55,76 @@ FEED_TIMEOUT_SECONDS = 1.25
 BRIEF_CACHE_TTL_SECONDS = 900
 _brief_cache_lock = threading.Lock()
 _brief_cache: Optional[dict] = None
+
+
+def _git_dirty_count() -> int:
+    """Best-effort count of dirty files in the project root."""
+    import subprocess
+
+    try:
+        r = subprocess.run(
+            ["git", "status", "--short"],
+            capture_output=True,
+            text=True,
+            cwd=PROJECT_ROOT,
+            timeout=5,
+        )
+        if r.stdout.strip():
+            return len(r.stdout.strip().splitlines())
+    except (subprocess.SubprocessError, OSError) as e:
+        logger.debug("git status failed: %s", e)
+    return 0
+
+
+def _current_focus_text() -> str:
+    """Return the current task line from CURRENT_FOCUS.md if it exists."""
+    focus_path = PROJECT_ROOT / "CURRENT_FOCUS.md"
+    if not focus_path.is_file():
+        return ""
+    try:
+        for line in focus_path.read_text(encoding="utf-8").splitlines():
+            if line.startswith("## Current Task"):
+                return line
+    except (OSError, UnicodeDecodeError) as e:
+        logger.debug("focus read failed: %s", e)
+    return ""
+
+
+def build_worker_brief(task: str, packet: dict | None = None) -> str:
+    """Construct the context blob handed to a delegate worker.
+
+    Uses the gateway's own project root and git state; if a packet is
+    provided, it is appended as compact JSON.
+    """
+    lines = [f"Project: {PROJECT_ROOT}"]
+    focus = _current_focus_text()
+    if focus:
+        lines.append(f"Focus: {focus}")
+    dirty = _git_dirty_count()
+    if dirty:
+        lines.append(f"Dirty: {dirty} files modified")
+    lines.append(f"\nTask: {task}")
+
+    base = "\n".join(lines)
+    if not packet:
+        return base
+
+    slim: dict[str, object] = {
+        "schema_version": packet.get("schema_version", "builder_handoff.v1"),
+        "stage": packet.get("stage", "intent_compiled"),
+        "objective": packet.get("objective", ""),
+        "recommended_mode": packet.get("recommended_mode", ""),
+        "must_do": packet.get("must_do", []),
+        "must_not_do": packet.get("must_not_do", []),
+        "context_targets": packet.get("context_targets", []),
+        "validation_commands": packet.get("validation_commands", []),
+        "blocking_question": packet.get("blocking_question", ""),
+        "output_contract": packet.get("output_contract", []),
+        "next_prompt": packet.get("next_prompt", ""),
+    }
+    blob = json.dumps(slim, sort_keys=True)
+    return f"{base}\n\n---\nNEXT_AGENT_PACKET_JSON:\n{blob}\n"
+
 
 DEFAULT_FEEDS = {
     "regina": "https://www.cbc.ca/cmlink/rss-canada-saskatchewan",
