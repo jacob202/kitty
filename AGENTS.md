@@ -37,12 +37,11 @@ Before merging a PR, read the Actions **check runs** and confirm each required j
 
 ## Kitty Builder (Layer 1A — coordination only)
 
-Safe, read-only coordination commands. No autonomous loops, agent spawning, or budget enforcement yet.
+Safe, read-only coordination commands wired through `./kitty builder`. No autonomous loops, agent spawning, or budget enforcement yet.
 
-- `python3.12 -m gateway.builder_cli brief <task>` — print a repo brief (branch, dirty files, task context)
-- `python3.12 -m gateway.builder_cli contract validate <path>` — validate a JSON/markdown build contract
-- `./kitty builder brief <task>` — alias if installed as a console script
-- `./kitty builder contract validate <path>` — alias if installed as a console script
+- `./kitty builder brief <task>` — print a repo brief (branch, dirty files, task context)
+- `./kitty builder contract validate <path>` — validate a JSON/markdown build contract
+- `python3.12 -m pytest tests/test_builder_cli.py tests/test_builder_contract.py -v` — run builder tests
 
 Disabled commands (`run`, `loop`, `repl`, `delegate`) return a clear "not enabled" message.
 
