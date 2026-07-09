@@ -112,7 +112,7 @@ move-in. It does not delay move-in.
 | 020 | GitHub read-only connector                                    | Codex / Claude Code                  | 🧭 planned — pattern rides 005                                       |
 | 021 | Project registry + resume (the real P6 — projects table, git/memory/signal composer) | Claude Code          | ✅ shipped (#106)                                                    |
 | 022 | Magic Kitty: cross-project insight synthesis (D13)            | strongest-model prompt + Claude Code | 🧭 planned — named, not authored. Look across *all* projects' `resume()` state for non-obvious connections; the "huh, these are related" moment. Comes after 016, not inside it. |
-| 023 | Memory taste + creative continuity (renumbered from 021, #101) | Claude Code / Codex + Jacob review  | 🚧 in progress (backend shipped #119)                                |
+| 023 | Memory taste + creative continuity (renumbered from 021, #101) | Claude Code / Codex + Jacob review  | ✅ shipped (#119 backend + #123 UI)                                   |
 | 024 | Chat log idea mine (renumbered from 022, #102)                | strongest-model prompt + Claude Code | 📋 spec authored — `after_move_in`: obeys 023's taste rules either way |
 | 025 | Imagegen pipeline v2: local-first, criteria-verified loop     | Claude Code + Jacob (installs/taste) | 📋 spec authored 2026-07-05 — replaces fal (cost); Draw Things + ComfyUI |
 **Updated:** 2026-07-06 (017 PR #112 open)

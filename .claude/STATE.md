@@ -1,7 +1,7 @@
 # Session State — 2026-07-09 (session closed)
 
 ## Current branch
-`claude/packet-023-memory-taste`
+`main` @ `09865be` — clean working tree.
 
 ## Merged
 1. PR #120 — Kitty Builder Layer 1A
@@ -9,12 +9,13 @@
 3. PR #122 — llm_client hardening (88% cov)
 4. PR #119 — Packet 018 + 023 (backend), dark cosmic cockpit
 5. PR #112 — Packet 017 (benefits rails)
+6. PR #123 — Packet 023 UI: continuity cards on home (friendly labels, no raw psych terms). All checks green, fast-forward merge. Branch deleted.
 
 ## Stale / read-only agents
 Codex, Antigravity, old packet-018 — ignore unless current git/GitHub confirms.
 
 ## In-flight / needs next session
-- Packet 023 — Memory Taste + Creative Continuity (in progress UI)
+- Packet 023 complete (backend #119 + UI #123). Registry shows ✅ shipped.
 - feat/port-kittybuilder worktree — unmerged, decide
 - Packet 016 — Jacob judges Bs
 - LiteLLM model health
@@ -23,5 +24,5 @@ Codex, Antigravity, old packet-018 — ignore unless current git/GitHub confirms
 
 ## Next session start
 ```bash
-./kitty builder brief
+git checkout main && git pull && ./kitty builder brief
 ```
