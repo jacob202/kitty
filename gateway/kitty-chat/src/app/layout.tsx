@@ -47,7 +47,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#F3EAD6",
+  themeColor: "#0A0F1F",
   colorScheme: "light dark",
 };
 
@@ -55,7 +55,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      data-theme="day"
+      data-theme="cosmic"
       className={`${display.variable} ${body.variable} ${mono.variable}`}
       style={{ height: '100%' }}
     >

@@ -45,6 +45,39 @@ function friendlyLabel(raw: string): string {
   return raw;
 }
 
+// Tiny crude white-doodle Kitty (see public/cat-assets/kid-cat.svg) used as
+// small dashboard decoration under the cosmic theme. Intentionally rough.
+function KidCatDoodle({ size = 36, opacity = 0.5 }: { size?: number; opacity?: number }) {
+  return (
+    <svg
+      viewBox="0 0 280 210"
+      width={size}
+      height={size * (210 / 280)}
+      style={{ opacity, display: 'block', pointerEvents: 'none' }}
+      aria-hidden
+    >
+      <g
+        stroke="currentColor"
+        strokeWidth={5}
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <ellipse cx="168" cy="128" rx="62" ry="46" />
+        <circle cx="80" cy="102" r="44" />
+        <path d="M54 66 L44 24 L88 58" />
+        <path d="M98 58 L118 24 L122 64" />
+        <circle cx="64" cy="96" r="5" fill="currentColor" stroke="none" />
+        <path d="M38 104 L52 100 L49 112 Z" />
+        <path d="M44 113 Q58 126 74 116" />
+        <path d="M36 100 Q20 96 8 102 M38 114 Q22 116 10 124" />
+        <path d="M120 168 q-4 18 6 20 M152 172 q-2 18 7 20 M188 170 q0 18 8 19 M214 160 q5 16 12 17" />
+        <path d="M226 122 Q262 112 256 70 Q254 48 236 58" />
+      </g>
+    </svg>
+  );
+}
+
 
 function SectionCard({
   title,
@@ -354,10 +387,15 @@ function WhatsNext({
           </div>
         </div>
       ) : (
-        <div style={{ ...emptyState, textAlign: 'left', padding: '12px 2px' }}>
-          not enough signal yet — nothing proposed, no decisions waiting, no project next-steps,
-          and today&apos;s list is empty. refresh a project in the projects tab or capture a
-          thought below.
+        <div style={{ ...emptyState, textAlign: 'left', padding: '12px 2px', display: 'flex', alignItems: 'center', gap: 14 }}>
+          <span style={{ color: 'var(--cat-ginger)', flexShrink: 0 }}>
+            <KidCatDoodle size={40} opacity={0.7} />
+          </span>
+          <span>
+            not enough signal yet — nothing proposed, no decisions waiting, no project next-steps,
+            and today's list is empty. refresh a project in the projects tab or capture a
+            thought below.
+          </span>
         </div>
       )}
     </SectionCard>
@@ -1043,15 +1081,25 @@ export function HomeState({
   onDecideInChat = () => {},
   onNavigate = () => {},
 }: Props) {
+  const isCosmic =
+    typeof document !== 'undefined' &&
+    document.documentElement.getAttribute('data-theme') === 'cosmic';
+
   return (
     <div
       style={{
         flex: 1,
         overflowY: 'auto',
-        padding: compact ? '16px 12px 40px' : '24px 32px 40px',
+        padding: compact ? '16px 12px 40px' : isCosmic ? '28px 32px 48px' : '24px 32px 40px',
+        maxWidth: isCosmic ? 1320 : undefined,
+        margin: isCosmic ? '0 auto' : undefined,
         display: 'grid',
-        gridTemplateColumns: compact ? '1fr' : 'repeat(auto-fit, minmax(340px, 1fr))',
-        gap: 20,
+        gridTemplateColumns: compact
+          ? '1fr'
+          : isCosmic
+          ? 'repeat(3, minmax(0, 1fr))'
+          : 'repeat(auto-fit, minmax(340px, 1fr))',
+        gap: isCosmic ? 18 : 20,
         alignContent: 'start',
       }}
     >
