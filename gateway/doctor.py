@@ -59,7 +59,7 @@ def _http_ok(url: str, timeout: float = 3.0, headers: dict | None = None) -> boo
     try:
         with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
             return 200 <= r.getcode() < 400
-    except Exception:
+    except Exception:  # noqa: BLE001  # network/SSL errors are heterogeneous and unpredictable
         return False
 
 
@@ -165,7 +165,7 @@ def _check_chromadb() -> list[Check]:
         return [Check("PASS", "store:chromadb", f"{len(colls)} collection(s) at {data_dir}")]
     except ImportError:
         return [Check("FAIL", "store:chromadb", "chromadb not installed")]
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001  # chromadb raises heterogeneous client/network errors
         return [Check("FAIL", "store:chromadb", f"error: {exc}")]
 
 
@@ -179,7 +179,7 @@ def _check_mem0(env: dict) -> list[Check]:
         return [Check("PASS", "store:mem0", "local mode")]
     except ImportError:
         return [Check("FAIL", "store:mem0", "mem0 not installed")]
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001  # mem0 init errors are heterogeneous (config, network, API)
         return [Check("WARN", "store:mem0", f"local init: {exc}")]
 
 
@@ -221,7 +221,7 @@ def _check_mail_connector(env: dict) -> list[Check]:
         creds = mail_connector._load_credentials()
     except mail_connector.MailAuthError as exc:
         return [Check("FAIL", "connector:mail", f"token unreadable: {exc}")]
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001  # mail connector may raise heterogeneous OAuth/network errors
         return [Check("FAIL", "connector:mail", f"unexpected: {exc}")]
 
     if getattr(creds, "expired", False) and not getattr(creds, "refresh_token", None):
