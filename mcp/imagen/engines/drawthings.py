@@ -68,8 +68,15 @@ class DrawThingsEngine:
 
         endpoint = "txt2img"
         if init_image:
-            with open(init_image, "rb") as f:
-                img_data = base64.b64encode(f.read()).decode("utf-8")
+            import io
+            from PIL import Image as PILImage
+            with PILImage.open(init_image) as img:
+                if img.mode != "RGB":
+                    img = img.convert("RGB")
+                img = img.resize((w, h), PILImage.Resampling.LANCZOS)
+                buf = io.BytesIO()
+                img.save(buf, format="PNG")
+                img_data = base64.b64encode(buf.getvalue()).decode("utf-8")
             payload["init_images"] = [img_data]
             payload["denoising_strength"] = denoising_strength
             endpoint = "img2img"

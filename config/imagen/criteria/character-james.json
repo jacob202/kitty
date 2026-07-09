@@ -6,17 +6,29 @@
   },
   "rubric": [
     {
-      "text": "Does the image look photorealistic and unedited?",
+      "text": "The subject is clearly male.",
       "hard": true
     },
     {
-      "text": "Is the lighting cinematic and dramatic?",
+      "text": "Human anatomy is correct. Limbs, hands, and torso are correctly proportioned with no extra or missing fingers or limbs.",
+      "hard": true
+    },
+    {
+      "text": "The image is highly photorealistic, resembling a photograph rather than an illustration, digital painting, or 3D render.",
+      "hard": true
+    },
+    {
+      "text": "The lighting is cinematic and natural, highlighting the subject's features well.",
+      "hard": false
+    },
+    {
+      "text": "The composition focuses on the subject clearly without messy or contradictory background elements.",
       "hard": false
     }
   ],
   "mechanical": {
-    "min_width": 256,
-    "min_height": 256,
+    "min_width": 512,
+    "min_height": 512,
     "reject_blank": true
   }
 }
