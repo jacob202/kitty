@@ -775,3 +775,130 @@ class TestQueueArchive:
         assert rc == 1
         _, err = capsys.readouterr()
         assert "error" in err.lower()
+
+
+# ---------------------------------------------------------------------------
+# Kill switch (KITTY_BUILDER_QUEUE_ENABLED=0)
+# ---------------------------------------------------------------------------
+
+
+class TestKillSwitch:
+    _MUTATING_INVOCATIONS = [
+        ["queue", "add", "t"],
+        ["queue", "edit", "kb_x", "--title", "t"],
+        ["queue", "claim", "kb_x", "--worker", "w"],
+        ["queue", "claim-next", "--worker", "w"],
+        ["queue", "release", "kb_x", "--worker", "w",
+         "--lease-token", "tok", "--claim-version", "1"],
+        ["queue", "operator-release", "kb_x"],
+        ["queue", "transition", "kb_x", "running",
+         "--lease-token", "tok", "--claim-version", "1"],
+        ["queue", "archive", "--state", "done", "--older-than", "7"],
+    ]
+
+    def test_mutating_commands_refused_when_disabled(self, monkeypatch, capsys):
+        monkeypatch.setenv("KITTY_BUILDER_QUEUE_ENABLED", "0")
+        for argv in self._MUTATING_INVOCATIONS:
+            with patch(f"{_QUEUE_PATCH}.init_db") as mock_init:
+                rc = main(argv)
+            assert rc == 1, f"expected refusal for {argv}"
+            err = capsys.readouterr().err
+            assert "disabled" in err, f"expected disabled message for {argv}"
+            mock_init.assert_not_called()
+
+    def test_read_commands_still_work_when_disabled(self, monkeypatch, capsys):
+        monkeypatch.setenv("KITTY_BUILDER_QUEUE_ENABLED", "0")
+        with patch(f"{_QUEUE_PATCH}.init_db") as mock_init:
+            with patch(f"{_QUEUE_PATCH}.list_tasks", return_value=[]):
+                rc = main(["queue", "list"])
+        assert rc == 0
+        mock_init.assert_called_once()
+
+    def test_enabled_by_default(self, monkeypatch):
+        monkeypatch.delenv("KITTY_BUILDER_QUEUE_ENABLED", raising=False)
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                f"{_QUEUE_PATCH}.create_task", return_value=_fake_task("kb_ks1")
+            ) as mock_create:
+                rc = main(["queue", "add", "works"])
+        assert rc == 0
+        mock_create.assert_called_once()
+
+    def test_explicit_enable(self, monkeypatch):
+        monkeypatch.setenv("KITTY_BUILDER_QUEUE_ENABLED", "1")
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                f"{_QUEUE_PATCH}.create_task", return_value=_fake_task("kb_ks2")
+            ):
+                rc = main(["queue", "add", "works"])
+        assert rc == 0
+
+
+# ---------------------------------------------------------------------------
+# Backup-age warning on queue status
+# ---------------------------------------------------------------------------
+
+
+def _status_data(total: int) -> dict:
+    return {
+        "per_state": {"queued": total},
+        "total": total,
+        "queued": total,
+        "claimed": 0,
+        "running": 0,
+        "blocked": 0,
+        "pr_opened": 0,
+        "awaiting_review": 0,
+        "done": 0,
+        "failed": 0,
+        "cancelled": 0,
+    }
+
+
+class TestBackupAgeWarning:
+    def _run_status(self, tmp_path, monkeypatch, total):
+        monkeypatch.setattr(
+            "gateway.paths.BUILDER_QUEUE_DB", tmp_path / "builder_queue.db"
+        )
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                f"{_QUEUE_PATCH}.queue_status", return_value=_status_data(total)
+            ):
+                return main(["queue", "status"])
+
+    def test_no_warning_for_empty_queue(self, tmp_path, monkeypatch, capsys):
+        rc = self._run_status(tmp_path, monkeypatch, total=0)
+        assert rc == 0
+        assert "WARNING" not in capsys.readouterr().err
+
+    def test_warns_when_no_backups_exist(self, tmp_path, monkeypatch, capsys):
+        rc = self._run_status(tmp_path, monkeypatch, total=2)
+        assert rc == 0
+        err = capsys.readouterr().err
+        assert "no queue backups" in err
+        assert "VACUUM INTO" in err
+
+    def test_warns_when_newest_backup_is_stale(self, tmp_path, monkeypatch, capsys):
+        import os as _os
+        import time as _time
+
+        backups = tmp_path / "backups"
+        backups.mkdir()
+        old = backups / "builder_queue_20260101.db"
+        old.write_bytes(b"")
+        three_days_ago = _time.time() - 3 * 24 * 3600
+        _os.utime(old, (three_days_ago, three_days_ago))
+
+        rc = self._run_status(tmp_path, monkeypatch, total=2)
+        assert rc == 0
+        err = capsys.readouterr().err
+        assert "days old" in err
+
+    def test_no_warning_when_backup_is_fresh(self, tmp_path, monkeypatch, capsys):
+        backups = tmp_path / "backups"
+        backups.mkdir()
+        (backups / "builder_queue_20260710.db").write_bytes(b"")
+
+        rc = self._run_status(tmp_path, monkeypatch, total=2)
+        assert rc == 0
+        assert "WARNING" not in capsys.readouterr().err
