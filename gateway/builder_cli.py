@@ -1258,7 +1258,18 @@ def _queue_disabled() -> bool:
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
+    # Workaround for Python 3.11 argparse bug: `--` followed by positional
+    # args with nargs="*" doesn't work in deeply nested subparsers.  Extract
+    # everything after `--` before argparse, then restore it on the namespace.
+    post_dash: list[str] | None = None
+    if argv is not None and "--" in argv:
+        idx = argv.index("--")
+        post_dash = argv[idx + 1:]
+        argv = argv[:idx]
     args = parser.parse_args(argv)
+    if post_dash is not None:
+        if args.command == "queue" and args.queue_command == "run":
+            args.worker_command = post_dash
 
     if args.command == "queue":
         # Kill switch: refuse mutations before touching the DB. Read-only
