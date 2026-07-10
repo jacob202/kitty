@@ -2324,7 +2324,12 @@ def recover_interrupted_runs(
                 (RUN_INTERRUPTED, run_id, run["state"]),
             )
             if cursor.rowcount != 1:
-                # Another writer changed this run; skip it and continue.
+                # Run changed between the SELECT and this UPDATE.  Under
+                # normal SQLite write-lock semantics this is unreachable
+                # (BEGIN IMMEDIATE prevents concurrent writes), but
+                # exotic filesystem/NFS configurations may allow it.
+                # The run is still active and will be retried on a
+                # subsequent recovery pass.
                 conflicts += 1
                 continue
             append_event(
@@ -2365,6 +2370,11 @@ def recover_interrupted_runs(
                             ),
                         )
                         if task_cursor.rowcount != 1:
+                            # Task row changed concurrently (exotic
+                            # filesystem).  The run is already marked
+                            # INTERRUPTED above; the task remains in
+                            # its prior state and will be reconciled
+                            # by the next recovery pass.
                             conflicts += 1
                             continue
                         append_event(
@@ -2394,6 +2404,11 @@ def recover_interrupted_runs(
                             (QUEUED, task_id, CLAIMED, run_claim_version),
                         )
                         if task_cursor.rowcount != 1:
+                            # Task row changed concurrently (exotic
+                            # filesystem).  The run is already marked
+                            # INTERRUPTED above; the task remains in
+                            # its prior state and will be reconciled
+                            # by the next recovery pass.
                             conflicts += 1
                             continue
                         append_event(

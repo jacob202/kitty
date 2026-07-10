@@ -418,6 +418,10 @@ class TestRunWorker:
         error_msg = run["final_report"].get("error", "")
         assert "original heartbeat error" in error_msg
         assert "no recorded start SHA" not in error_msg
+        refreshed = bq.get_task(task["id"], db_path=db_path)
+        assert refreshed is not None
+        assert refreshed["state"] == "blocked"
+        assert refreshed["blocked_reason"] == "runner_control_failed"
 
     def test_timeout_terminates_and_blocks(self, repo: Path, db_path: Path):
         task = _queued_task(db_path)
