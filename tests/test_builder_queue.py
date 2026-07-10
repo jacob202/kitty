@@ -1548,3 +1548,294 @@ class TestConcurrentClaimNext:
             assert _count_events_of_type(conn, task["id"], bq.CLAIMED) == 1
         finally:
             conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Edit task (queued-only)
+# ---------------------------------------------------------------------------
+
+
+class TestEditTask:
+    def test_edit_title_of_queued_task(self, db_path):
+        task = bq.create_task("original", db_path=db_path)
+        edited = bq.edit_task(task["id"], title="updated", db_path=db_path)
+        assert edited["title"] == "updated"
+        assert edited["id"] == task["id"]
+
+    def test_edit_description(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        edited = bq.edit_task(task["id"], description="new desc", db_path=db_path)
+        assert edited["description"] == "new desc"
+
+    def test_edit_priority(self, db_path):
+        task = bq.create_task("t", priority=0, db_path=db_path)
+        edited = bq.edit_task(task["id"], priority=99, db_path=db_path)
+        assert edited["priority"] == 99
+
+    def test_edit_acceptance_criteria(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        edited = bq.edit_task(
+            task["id"], acceptance_criteria=["new c1", "new c2"], db_path=db_path
+        )
+        assert edited["acceptance_criteria"] == ["new c1", "new c2"]
+
+    def test_edit_allowed_paths(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        edited = bq.edit_task(
+            task["id"], allowed_paths=["gateway/", "tests/"], db_path=db_path
+        )
+        assert edited["allowed_paths"] == ["gateway/", "tests/"]
+
+    def test_edit_appends_edited_event(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        bq.edit_task(task["id"], title="updated", db_path=db_path)
+        conn = bq.connect(db_path)
+        try:
+            assert _count_events_of_type(conn, task["id"], "edited") == 1
+        finally:
+            conn.close()
+
+    def test_edit_rejected_when_not_queued(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        bq.transition_task(task["id"], bq.CLAIMED, db_path=db_path)
+        with pytest.raises(bq.IllegalTransitionError, match="only queued"):
+            bq.edit_task(task["id"], title="update", db_path=db_path)
+
+    def test_edit_rejected_when_archived(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        conn = bq.connect(db_path)
+        try:
+            conn.execute(
+                "UPDATE tasks SET archived_at=CURRENT_TIMESTAMP WHERE id=?",
+                (task["id"],),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        with pytest.raises(bq.IllegalTransitionError, match="archived"):
+            bq.edit_task(task["id"], title="update", db_path=db_path)
+
+    def test_edit_raises_for_unknown_task(self, db_path):
+        with pytest.raises(bq.TaskNotFoundError):
+            bq.edit_task("kb_nonexistent", title="x", db_path=db_path)
+
+    def test_edit_requires_at_least_one_field(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        with pytest.raises(ValueError, match="at least one"):
+            bq.edit_task(task["id"], db_path=db_path)
+
+    def test_edit_empty_title_raises(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        with pytest.raises(ValueError, match="title must be non-empty"):
+            bq.edit_task(task["id"], title="   ", db_path=db_path)
+
+
+# ---------------------------------------------------------------------------
+# list_events
+# ---------------------------------------------------------------------------
+
+
+class TestListEvents:
+    def test_returns_all_events_in_order(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        bq.transition_task(task["id"], bq.CLAIMED, db_path=db_path)
+        bq.transition_task(task["id"], bq.RUNNING, db_path=db_path)
+
+        events = bq.list_events(task["id"], db_path=db_path)
+        assert len(events) == 3
+        assert events[0]["type"] == "created"
+        assert events[1]["type"] == bq.CLAIMED
+        assert events[2]["type"] == bq.RUNNING
+        for ev in events:
+            assert ev["task_id"] == task["id"]
+            assert ev["id"] is not None
+
+    def test_raises_for_unknown_task(self, db_path):
+        with pytest.raises(bq.TaskNotFoundError):
+            bq.list_events("kb_nonexistent", db_path=db_path)
+
+    def test_returns_empty_list_for_task_without_events(self, db_path):
+        # This can't happen under normal operation (created event is always
+        # appended), but test the code path for robustness.
+        conn = bq.connect(db_path)
+        task_id = "kb_test0001_abcd"
+        try:
+            conn.execute(
+                "INSERT INTO tasks (id, title) VALUES (?, ?)",
+                (task_id, "orphan"),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        events = bq.list_events(task_id, db_path=db_path)
+        assert events == []
+
+
+# ---------------------------------------------------------------------------
+# queue_status
+# ---------------------------------------------------------------------------
+
+
+class TestQueueStatus:
+    def test_empty_queue(self, db_path):
+        status = bq.queue_status(db_path=db_path)
+        assert status["total"] == 0
+        assert status["queued"] == 0
+
+    def test_counts_per_state(self, db_path):
+        bq.create_task("t1", db_path=db_path)
+        t2 = bq.create_task("t2", db_path=db_path)
+        bq.transition_task(t2["id"], bq.CLAIMED, db_path=db_path)
+        t3 = bq.create_task("t3", db_path=db_path)
+        bq.transition_task(t3["id"], bq.CLAIMED, db_path=db_path)
+        bq.transition_task(t3["id"], bq.RUNNING, db_path=db_path)
+
+        status = bq.queue_status(db_path=db_path)
+        assert status["queued"] == 1
+        assert status["claimed"] == 1
+        assert status["running"] == 1
+        assert status["total"] == 3
+        assert status["per_state"]["queued"] == 1
+        assert status["per_state"]["claimed"] == 1
+        assert status["per_state"]["running"] == 1
+
+    def test_excludes_archived(self, db_path):
+        bq.create_task("live", db_path=db_path)
+        t2 = bq.create_task("archived", db_path=db_path)
+        conn = bq.connect(db_path)
+        try:
+            conn.execute(
+                "UPDATE tasks SET archived_at=CURRENT_TIMESTAMP WHERE id=?",
+                (t2["id"],),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        status = bq.queue_status(db_path=db_path)
+        assert status["total"] == 1
+        assert status["queued"] == 1
+
+    def test_all_states_present(self, db_path):
+        status = bq.queue_status(db_path=db_path)
+        for key in (
+            "queued", "claimed", "running", "blocked",
+            "pr_opened", "awaiting_review", "done", "failed", "cancelled",
+        ):
+            assert key in status, f"missing key: {key}"
+        assert "per_state" in status
+
+
+# ---------------------------------------------------------------------------
+# archive_tasks
+# ---------------------------------------------------------------------------
+
+
+class TestArchiveTasks:
+    def test_archive_requires_terminal_state(self, db_path):
+        with pytest.raises(ValueError, match="terminal"):
+            bq.archive_tasks(bq.QUEUED, older_than_days=0, db_path=db_path)
+
+    def test_archive_requires_non_negative_days(self, db_path):
+        with pytest.raises(ValueError, match="non-negative"):
+            bq.archive_tasks(bq.DONE, older_than_days=-1, db_path=db_path)
+
+    def test_archive_rejects_unknown_state(self, db_path):
+        with pytest.raises(ValueError, match="unknown state"):
+            bq.archive_tasks("invalid_state", older_than_days=0, db_path=db_path)
+
+    def test_archives_old_done_tasks(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        bq.transition_task(task["id"], bq.CLAIMED, db_path=db_path)
+        bq.transition_task(task["id"], bq.RUNNING, db_path=db_path)
+        bq.transition_task(task["id"], bq.PR_OPENED, db_path=db_path)
+        bq.transition_task(task["id"], bq.AWAITING_REVIEW, db_path=db_path)
+        bq.transition_task(task["id"], bq.DONE, db_path=db_path)
+        # Set updated_at far in the past.
+        conn = bq.connect(db_path)
+        try:
+            conn.execute(
+                "UPDATE tasks SET updated_at='2000-01-01 00:00:00' WHERE id=?",
+                (task["id"],),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        result = bq.archive_tasks(bq.DONE, older_than_days=1, db_path=db_path)
+        assert result["tasks_archived"] == 1
+        assert task["id"] in result["task_ids"]
+
+        archived = bq.get_task(task["id"], db_path=db_path)
+        assert archived["archived_at"] is not None
+
+    def test_archived_task_has_archived_event(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        bq.transition_task(task["id"], bq.CLAIMED, db_path=db_path)
+        bq.transition_task(task["id"], bq.RUNNING, db_path=db_path)
+        bq.transition_task(task["id"], bq.FAILED, db_path=db_path)
+        conn = bq.connect(db_path)
+        try:
+            conn.execute(
+                "UPDATE tasks SET updated_at='2000-01-01 00:00:00' WHERE id=?",
+                (task["id"],),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        bq.archive_tasks(bq.FAILED, older_than_days=1, db_path=db_path)
+        conn = bq.connect(db_path)
+        try:
+            assert _count_events_of_type(conn, task["id"], "archived") == 1
+        finally:
+            conn.close()
+
+    def test_does_not_archive_recent_tasks(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        for state in (bq.CLAIMED, bq.RUNNING, bq.PR_OPENED, bq.AWAITING_REVIEW, bq.DONE):
+            bq.transition_task(task["id"], state, db_path=db_path)
+
+        result = bq.archive_tasks(bq.DONE, older_than_days=365, db_path=db_path)
+        assert result["tasks_archived"] == 0
+
+        archived = bq.get_task(task["id"], db_path=db_path)
+        assert archived["archived_at"] is None
+
+    def test_archives_multiple_old_tasks(self, db_path):
+        ids = []
+        for _ in range(3):
+            t = bq.create_task("t", db_path=db_path)
+            for state in (
+                bq.CLAIMED, bq.RUNNING, bq.PR_OPENED, bq.AWAITING_REVIEW, bq.DONE
+            ):
+                bq.transition_task(t["id"], state, db_path=db_path)
+            conn = bq.connect(db_path)
+            try:
+                conn.execute(
+                    "UPDATE tasks SET updated_at='2000-01-01 00:00:00' WHERE id=?",
+                    (t["id"],),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+            ids.append(t["id"])
+
+        result = bq.archive_tasks(bq.DONE, older_than_days=1, db_path=db_path)
+        assert result["tasks_archived"] == 3
+        assert set(result["task_ids"]) == set(ids)
+
+    def test_does_not_archive_non_terminal_state(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        conn = bq.connect(db_path)
+        try:
+            conn.execute(
+                "UPDATE tasks SET updated_at='2000-01-01 00:00:00' WHERE id=?",
+                (task["id"],),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        with pytest.raises(ValueError, match="terminal"):
+            bq.archive_tasks(bq.QUEUED, older_than_days=1, db_path=db_path)

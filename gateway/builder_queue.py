@@ -265,6 +265,16 @@ def _row_to_task(row: sqlite3.Row) -> dict[str, Any]:
             task["acceptance_criteria"] = None
     else:
         task["acceptance_criteria"] = None
+
+    ap = task.get("allowed_paths_json")
+    if ap is not None:
+        try:
+            task["allowed_paths"] = json.loads(ap)
+        except (json.JSONDecodeError, TypeError):
+            task["allowed_paths"] = None
+    else:
+        task["allowed_paths"] = None
+
     return task
 
 
@@ -1023,4 +1033,269 @@ def recover_expired_leases(*, db_path: Path | None = None) -> dict[str, int]:
         "claimed_requeued": claimed_requeued,
         "running_blocked": running_blocked,
         "total": total,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Edit task (queued-only editable fields)
+# ---------------------------------------------------------------------------
+
+
+def edit_task(
+    task_id: str,
+    *,
+    title: str | None = None,
+    description: str | None = None,
+    priority: int | None = None,
+    acceptance_criteria: list[str] | None = None,
+    allowed_paths: list[str] | None = None,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Edit a queued task's editable fields.
+
+    Only allowed when state is ``queued``. Editable fields: title, description,
+    priority, acceptance_criteria, and allowed_paths. Bridge metadata is
+    read-only after creation.
+
+    Returns the updated task dict.
+
+    Raises:
+        TaskNotFoundError — task ID does not exist.
+        IllegalTransitionError — task is not queued or is archived.
+    """
+    if title is not None and not title.strip():
+        raise ValueError("title must be non-empty if provided")
+
+    conn = connect(db_path)
+    result: dict[str, Any] | None = None
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT id, state, archived_at FROM tasks WHERE id = ?",
+            (task_id,),
+        ).fetchone()
+
+        if row is None:
+            raise TaskNotFoundError(f"task not found: {task_id}")
+        if row["archived_at"] is not None:
+            raise IllegalTransitionError(
+                f"task {task_id} is archived and cannot be edited"
+            )
+        if row["state"] != QUEUED:
+            raise IllegalTransitionError(
+                f"task {task_id} is in state {row['state']!r}; "
+                "only queued tasks can be edited"
+            )
+
+        set_parts: list[str] = []
+        params: list[Any] = []
+
+        if title is not None:
+            set_parts.append("title = ?")
+            params.append(title)
+        if description is not None:
+            set_parts.append("description = ?")
+            params.append(description)
+        if priority is not None:
+            set_parts.append("priority = ?")
+            params.append(priority)
+        if acceptance_criteria is not None:
+            set_parts.append("acceptance_criteria_json = ?")
+            params.append(json.dumps(list(acceptance_criteria)))
+        if allowed_paths is not None:
+            set_parts.append("allowed_paths_json = ?")
+            params.append(json.dumps(list(allowed_paths)))
+
+        if not set_parts:
+            raise ValueError("at least one editable field must be provided")
+
+        set_parts.append("updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')")
+        params.append(task_id)
+
+        conn.execute(
+            f"UPDATE tasks SET {', '.join(set_parts)} WHERE id = ? AND state = ?",
+            (*params, QUEUED),
+        )
+
+        result = _get_task_on_conn(conn, task_id)
+        if result is None:
+            raise RuntimeError(
+                f"Task {task_id} was edited but is not retrievable"
+            )
+        append_event(
+            task_id,
+            "edited",
+            payload={
+                k: v
+                for k, v in [
+                    ("title", title),
+                    ("description", description),
+                    ("priority", priority),
+                    ("acceptance_criteria", acceptance_criteria),
+                    ("allowed_paths", allowed_paths),
+                ]
+                if v is not None
+            },
+            conn=conn,
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Event listing
+# ---------------------------------------------------------------------------
+
+
+def list_events(
+    task_id: str,
+    db_path: Path | None = None,
+) -> list[dict[str, Any]]:
+    """Return all events for a task in chronological order.
+
+    Raises:
+        TaskNotFoundError — task ID does not exist.
+    """
+    conn = connect(db_path)
+    try:
+        task_exists = conn.execute(
+            "SELECT 1 FROM tasks WHERE id = ?", (task_id,)
+        ).fetchone()
+        if task_exists is None:
+            raise TaskNotFoundError(f"task not found: {task_id}")
+
+        rows = conn.execute(
+            """
+            SELECT * FROM events
+            WHERE task_id = ?
+            ORDER BY id ASC
+            """,
+            (task_id,),
+        ).fetchall()
+        return [_row_to_event(r) for r in rows]
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Queue status (counts per state)
+# ---------------------------------------------------------------------------
+
+
+def queue_status(
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Return a summary of queue counts per state and total."""
+    conn = connect(db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT state, COUNT(*) as count
+            FROM tasks
+            WHERE archived_at IS NULL
+            GROUP BY state
+            ORDER BY state ASC
+            """
+        ).fetchall()
+        per_state: dict[str, int] = {}
+        total = 0
+        for row in rows:
+            per_state[row["state"]] = row["count"]
+            total += row["count"]
+
+        return {
+            "per_state": per_state,
+            "total": total,
+            "queued": per_state.get(QUEUED, 0),
+            "claimed": per_state.get(CLAIMED, 0),
+            "running": per_state.get(RUNNING, 0),
+            "blocked": per_state.get(BLOCKED, 0),
+            "pr_opened": per_state.get(PR_OPENED, 0),
+            "awaiting_review": per_state.get(AWAITING_REVIEW, 0),
+            "done": per_state.get(DONE, 0),
+            "failed": per_state.get(FAILED, 0),
+            "cancelled": per_state.get(CANCELLED, 0),
+        }
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Soft archive (terminal-state-only, age-filtered)
+# ---------------------------------------------------------------------------
+
+
+def archive_tasks(
+    state: str,
+    older_than_days: int,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Soft-archive terminal tasks in *state* older than *older_than_days*.
+
+    Sets ``archived_at`` on matching tasks. Does **not** delete rows or
+    events. Raises ``ValueError`` if *state* is not a terminal state.
+
+    Returns a dict with ``tasks_archived`` count and ``task_ids`` list.
+    """
+    _validate_state(state)
+    if state not in TERMINAL_STATES:
+        raise ValueError(
+            f"archive only supports terminal states ({sorted(TERMINAL_STATES)}); "
+            f"got {state!r}"
+        )
+    if older_than_days < 0:
+        raise ValueError("older_than_days must be non-negative")
+
+    conn = connect(db_path)
+    archived_ids: list[str] = []
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        rows = conn.execute(
+            """
+            SELECT id FROM tasks
+            WHERE state = ?
+              AND archived_at IS NULL
+              AND updated_at <= strftime('%Y-%m-%d %H:%M:%f', 'now', ?)
+            ORDER BY id ASC
+            """,
+            (state, f"-{older_than_days} days"),
+        ).fetchall()
+
+        for row in rows:
+            cursor = conn.execute(
+                """
+                UPDATE tasks
+                SET archived_at = strftime('%Y-%m-%d %H:%M:%f', 'now'),
+                    updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
+                WHERE id = ?
+                  AND state = ?
+                  AND archived_at IS NULL
+                """,
+                (row["id"], state),
+            )
+            if cursor.rowcount == 1:
+                archived_ids.append(row["id"])
+                append_event(
+                    row["id"],
+                    "archived",
+                    payload={"state": state},
+                    conn=conn,
+                )
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    return {
+        "tasks_archived": len(archived_ids),
+        "task_ids": archived_ids,
     }

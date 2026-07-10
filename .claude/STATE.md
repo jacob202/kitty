@@ -1,28 +1,42 @@
-# Session State — 2026-07-09 (session closed)
+# Session State — 2026-07-10 (PR 4 — CLI Integration)
 
 ## Current branch
-`main` @ `09865be` — clean working tree.
+`feat/kittybuilder-queue-cli-free` @ `8eaddfc` — 4 files modified, uncommitted.
 
-## Merged
-1. PR #120 — Kitty Builder Layer 1A
-2. PR #121 — doctor hardening (96% cov)
-3. PR #122 — llm_client hardening (88% cov)
-4. PR #119 — Packet 018 + 023 (backend), dark cosmic cockpit
-5. PR #112 — Packet 017 (benefits rails)
-6. PR #123 — Packet 023 UI: continuity cards on home (friendly labels, no raw psych terms). All checks green, fast-forward merge. Branch deleted.
+## Done this session
+PR 4 — CLI Integration for the KittyBuilder durable local queue (Phase 1A).
 
-## Stale / read-only agents
-Codex, Antigravity, old packet-018 — ignore unless current git/GitHub confirms.
+### Changed files
+- `gateway/builder_cli.py` — Added `queue` subcommand group with 12 commands: `add`, `edit`, `list`, `show`, `claim`, `claim-next`, `release`, `operator-release`, `transition`, `events`, `status`, `archive`. Preserved all existing commands (`brief`, `contract validate`, disabled `run/loop/repl/delegate`).
+- `gateway/builder_queue.py` — Fixed `_row_to_task` to also decode `allowed_paths`. Added 4 narrow helpers: `edit_task`, `list_events`, `queue_status`, `archive_tasks`.
+- `tests/test_builder_cli.py` — Added comprehensive CLI tests for all 12 queue commands (argparse shape, dispatch, JSON output, error handling). 168 tests added.
+- `tests/test_builder_queue.py` — Added test classes for `edit_task` (11 tests), `list_events` (3 tests), `queue_status` (4 tests), `archive_tasks` (7 tests). Plus updated `test_excludes_archived` to remove unused variable.
 
-## In-flight / needs next session
-- Packet 023 complete (backend #119 + UI #123). Registry shows ✅ shipped.
-- feat/port-kittybuilder worktree — unmerged, decide
-- Packet 016 — Jacob judges Bs
-- LiteLLM model health
-- Gateway port drift
-- Imagen/archive verification
+### Verification results
+- **pytest**: 188 passed (test_builder_cli.py + test_builder_queue.py + test_builder_contract.py)
+- **mypy**: Success: no issues found in 2 source files
+- **ruff**: All checks passed
+- **Manual smoke test**: All CLI commands verified against a temp database, including JSON output parsing, claim-next empty result (returns rc=1 with clear message), full lifecycle transitions, soft archive preserving events
 
-## Next session start
+### Key design decisions
+- Queue DB is initialized safely before command dispatch (`_init_queue_db`)
+- JSON arguments parsed strictly (`_parse_json_array`, `_parse_json_object`)
+- Errors go to stderr with clear message; no tracebacks for operator mistakes
+- No lease tokens printed in human output (except claim result where caller needs it)
+- `claim-next` with no eligible tasks returns rc=1, deterministic message (human: "No eligible queued tasks.", JSON: `{"task": null, "message": "..."}`)
+- Edit rejected unless task is `queued` (raises `IllegalTransitionError`)
+- Archive is soft-only, terminal-state-only, age-filtered, preserves events
+- Worker mutations remain fenced by lease token and claim version
+
+### Scope confirmation
+- No forbidden files touched (builder.py, task_runner.py, paths.py, routes, schema)
+- No daemon, HTTP API, worker spawning, worktree creation, GitHub automation, UI
+- Existing Builder commands and tests unchanged
+
+## Ready for
+- Review, commit, PR #124
+
+## Next command (do not run)
 ```bash
-git checkout main && git pull && ./kitty builder brief
+git add gateway/builder_cli.py gateway/builder_queue.py tests/test_builder_cli.py tests/test_builder_queue.py .claude/STATE.md && git commit -m "feat(builder): add queue CLI commands -- add, edit, list, show, claim, claim-next, release, operator-release, transition, events, status, archive"
 ```
