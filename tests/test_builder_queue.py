@@ -2255,6 +2255,41 @@ class TestRunRecords:
         ]
         assert notes[-1]["payload"]["task_state"] == bq.BLOCKED
 
+    def test_starting_run_can_finalize_as_lease_lost(self, db_path: Path):
+        task = bq.create_task("ownership changed during launch", db_path=db_path)
+        claimed = self._claim(task, db_path)
+        run = bq.create_run(
+            task["id"],
+            ["true"],
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
+        with bq.connect(db_path) as conn:
+            conn.execute(
+                """
+                UPDATE tasks
+                SET claim_version = claim_version + 1,
+                    lease_token = 'replacement-token'
+                WHERE id = ?
+                """,
+                (task["id"],),
+            )
+            conn.commit()
+
+        final = bq.finalize_run(
+            run["id"],
+            bq.RUN_FAILED,
+            exit_code=None,
+            report={"error": "launch failed"},
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            block_reason="worker_launch_failed",
+            db_path=db_path,
+        )
+
+        assert final["state"] == bq.RUN_LEASE_LOST
+
     def test_update_unknown_run(self, db_path: Path):
         with pytest.raises(bq.RunNotFoundError):
             bq.update_run("run_nope_0000", state=bq.RUN_EXITED, db_path=db_path)
@@ -2273,13 +2308,30 @@ class TestRunRecords:
         )
         proc = sp.Popen(["true"])
         proc.wait()
+        bq.worker_transition_task(
+            task["id"],
+            bq.RUNNING,
+            claimed["lease_token"],
+            claimed["claim_version"],
+            db_path=db_path,
+        )
         bq.update_run(
-            run["id"], state=bq.RUN_RUNNING, pid=proc.pid, db_path=db_path
+            run["id"],
+            state=bq.RUN_RUNNING,
+            pid=proc.pid,
+            process_identity="dead process identity",
+            db_path=db_path,
         )
         result = bq.recover_interrupted_runs(db_path=db_path)
         assert result["runs_interrupted"] == 1
+        assert result["running_tasks_blocked"] == 1
         refreshed = bq.get_run(run["id"], db_path=db_path)
         assert refreshed["state"] == bq.RUN_INTERRUPTED
+        refreshed_task = bq.get_task(task["id"], db_path=db_path)
+        assert refreshed_task is not None
+        assert refreshed_task["state"] == bq.BLOCKED
+        assert refreshed_task["blocked_reason"] == "run_interrupted"
+        assert refreshed_task["lease_token"] is None
         events = bq.list_events(task["id"], db_path=db_path)
         assert any(e["type"] == "run_interrupted" for e in events)
 
@@ -2303,6 +2355,43 @@ class TestRunRecords:
         refreshed = bq.get_run(run["id"], db_path=db_path)
         assert refreshed is not None
         assert refreshed["state"] == bq.RUN_STARTING
+
+    def test_recovery_requeues_stale_starting_run_before_process_launch(
+        self, db_path: Path
+    ):
+        task = bq.create_task("launcher died before popen", db_path=db_path)
+        claimed = self._claim(task, db_path)
+        run = bq.create_run(
+            task["id"],
+            ["true"],
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
+        with bq.connect(db_path) as conn:
+            conn.execute(
+                """
+                UPDATE runs
+                SET updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now', '-60 seconds')
+                WHERE id = ?
+                """,
+                (run["id"],),
+            )
+            conn.commit()
+
+        result = bq.recover_interrupted_runs(
+            db_path=db_path,
+            starting_grace_seconds=30,
+        )
+
+        assert result["claimed_tasks_requeued"] == 1
+        refreshed_run = bq.get_run(run["id"], db_path=db_path)
+        assert refreshed_run is not None
+        assert refreshed_run["state"] == bq.RUN_INTERRUPTED
+        refreshed_task = bq.get_task(task["id"], db_path=db_path)
+        assert refreshed_task is not None
+        assert refreshed_task["state"] == bq.QUEUED
+        assert refreshed_task["lease_token"] is None
 
     def test_recover_interrupted_skips_live_pid(self, db_path: Path):
         import os as _os

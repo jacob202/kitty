@@ -629,6 +629,14 @@ def _cmd_queue_recover(args: argparse.Namespace) -> int:
         print(
             f"Marked {runs_result['runs_interrupted']} dead run(s) as interrupted"
         )
+        reconciled_blocked = runs_result.get("running_tasks_blocked", 0)
+        reconciled_requeued = runs_result.get("claimed_tasks_requeued", 0)
+        if reconciled_blocked or reconciled_requeued:
+            print(
+                "Reconciled interrupted-run tasks: "
+                f"{reconciled_requeued} claimed → queued, "
+                f"{reconciled_blocked} running → blocked (run_interrupted)"
+            )
         deferred_ids = runs_result.get("starting_run_ids", [])
         if deferred_ids:
             print(
@@ -761,17 +769,18 @@ def _cmd_queue_show_run(args: argparse.Namespace) -> int:
             for line in lines[-args.log_tail:]:
                 print(line)
         else:
-            print(f"(log file missing: {log_file})")
+            print(f"error: log file missing: {log_file}", file=sys.stderr)
+            return 1
     return 0
 
 
 def _cmd_queue_cancel_run(args: argparse.Namespace) -> int:
     from gateway.builder_queue import RunNotFoundError
-    from gateway.builder_runner import request_cancel
+    from gateway.builder_runner import RunnerError, request_cancel
 
     try:
         run = request_cancel(args.run_id, kill=args.kill)
-    except (RunNotFoundError, ValueError) as exc:
+    except (RunNotFoundError, RunnerError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
@@ -1168,7 +1177,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_q_p.add_argument("--json", action="store_true", help="output JSON")
     run_q_p.add_argument(
         "worker_command",
-        nargs=argparse.REMAINDER,
+        nargs="*",
         help="worker command after --",
     )
 

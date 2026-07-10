@@ -1123,6 +1123,82 @@ class TestQueueOperatorCancel:
 
 
 class TestQueueRunnerCommands:
+    def test_run_dispatches_worker_command_and_metadata(self, capsys):
+        run = {
+            "id": "run_123",
+            "task_id": "kb_123",
+            "state": "exited",
+            "command": ["true"],
+        }
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                "gateway.builder_runner.run_worker", return_value=run
+            ) as mock_run:
+                rc = main(
+                    [
+                        "queue",
+                        "run",
+                        "kb_123",
+                        "--worker",
+                        "captain",
+                        "--model",
+                        "model-x",
+                        "--provider",
+                        "provider-y",
+                        "--timeout",
+                        "90",
+                        "--lease-seconds",
+                        "20",
+                        "--heartbeat-seconds",
+                        "5",
+                        "--json",
+                        "--",
+                        "true",
+                    ]
+                )
+
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["id"] == "run_123"
+        mock_run.assert_called_once_with(
+            "kb_123",
+            ["true"],
+            worker="captain",
+            model="model-x",
+            provider="provider-y",
+            timeout_seconds=90,
+            lease_seconds=20,
+            heartbeat_seconds=5,
+        )
+
+    def test_show_run_missing_log_fails_loud(self, tmp_path: Path, capsys):
+        run = {
+            "id": "run_missing_log",
+            "task_id": "kb_123",
+            "state": "failed",
+            "log_path": str(tmp_path / "missing.log"),
+        }
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.get_run", return_value=run):
+                rc = main(
+                    ["queue", "show-run", "run_missing_log", "--log-tail", "10"]
+                )
+
+        assert rc == 1
+        assert "log file missing" in capsys.readouterr().err
+
+    def test_cancel_run_signal_error_is_operator_readable(self, capsys):
+        from gateway.builder_runner import RunnerError
+
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                "gateway.builder_runner.request_cancel",
+                side_effect=RunnerError("signaling process group 42 failed"),
+            ):
+                rc = main(["queue", "cancel-run", "run_123"])
+
+        assert rc == 1
+        assert "signaling process group 42 failed" in capsys.readouterr().err
+
     def test_cancel_run_reports_when_signal_was_refused(self, capsys):
         run = {
             "id": "run_123",

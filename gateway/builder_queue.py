@@ -241,6 +241,7 @@ RUN_TRANSITIONS: dict[str, frozenset[str]] = {
             RUN_FAILED,
             RUN_CANCELLED,
             RUN_INTERRUPTED,
+            RUN_LEASE_LOST,
         }
     ),
     RUN_RUNNING: frozenset(
@@ -2176,6 +2177,8 @@ def recover_interrupted_runs(
     interrupted: list[str] = []
     deferred: list[str] = []
     unverified: list[dict[str, str]] = []
+    running_tasks_blocked = 0
+    claimed_tasks_requeued = 0
     conn = connect(db_path)
     try:
         # The write lock keeps launch activation from changing a row between
@@ -2202,7 +2205,12 @@ def recover_interrupted_runs(
                     """,
                     (run_id,),
                 ).fetchone()
-                age_seconds = float(age_row["age_seconds"] or 0.0)
+                if age_row is None or age_row["age_seconds"] is None:
+                    raise ValueError(
+                        f"run {run_id} has an invalid updated_at timestamp; "
+                        "cannot determine whether startup recovery is safe"
+                    )
+                age_seconds = float(age_row["age_seconds"])
                 if age_seconds < starting_grace_seconds:
                     deferred.append(run_id)
                     continue
@@ -2273,6 +2281,81 @@ def recover_interrupted_runs(
                 run_id=run_id,
                 conn=conn,
             )
+
+            run_claim_version = run.get("claim_version")
+            if run_claim_version is not None:
+                task_id = str(run["task_id"])
+                task_row = conn.execute(
+                    "SELECT state, claim_version FROM tasks WHERE id = ?",
+                    (task_id,),
+                ).fetchone()
+                if (
+                    task_row is not None
+                    and int(task_row["claim_version"]) == int(run_claim_version)
+                ):
+                    if task_row["state"] == RUNNING:
+                        task_cursor = conn.execute(
+                            """
+                            UPDATE tasks
+                            SET state = ?, blocked_reason = ?,
+                                lease_owner = NULL, lease_token = NULL,
+                                lease_expires_at = NULL,
+                                updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
+                            WHERE id = ? AND state = ? AND claim_version = ?
+                            """,
+                            (
+                                BLOCKED,
+                                "run_interrupted",
+                                task_id,
+                                RUNNING,
+                                run_claim_version,
+                            ),
+                        )
+                        if task_cursor.rowcount != 1:
+                            raise RunStateConflictError(
+                                f"task {task_id} changed during run recovery"
+                            )
+                        append_event(
+                            task_id,
+                            BLOCKED,
+                            payload={
+                                "reason": "run_interrupted",
+                                "run_id": run_id,
+                            },
+                            run_id=run_id,
+                            conn=conn,
+                        )
+                        running_tasks_blocked += 1
+                    elif (
+                        task_row["state"] == CLAIMED
+                        and run["state"] == RUN_STARTING
+                    ):
+                        task_cursor = conn.execute(
+                            """
+                            UPDATE tasks
+                            SET state = ?, blocked_reason = NULL,
+                                lease_owner = NULL, lease_token = NULL,
+                                lease_expires_at = NULL,
+                                updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
+                            WHERE id = ? AND state = ? AND claim_version = ?
+                            """,
+                            (QUEUED, task_id, CLAIMED, run_claim_version),
+                        )
+                        if task_cursor.rowcount != 1:
+                            raise RunStateConflictError(
+                                f"task {task_id} changed during run recovery"
+                            )
+                        append_event(
+                            task_id,
+                            "released",
+                            payload={
+                                "reason": "run_interrupted_before_start",
+                                "run_id": run_id,
+                            },
+                            run_id=run_id,
+                            conn=conn,
+                        )
+                        claimed_tasks_requeued += 1
             interrupted.append(run_id)
 
         conn.commit()
@@ -2289,4 +2372,6 @@ def recover_interrupted_runs(
         "starting_run_ids": deferred,
         "runs_unverified": len(unverified),
         "unverified_runs": unverified,
+        "running_tasks_blocked": running_tasks_blocked,
+        "claimed_tasks_requeued": claimed_tasks_requeued,
     }

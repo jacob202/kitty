@@ -20,8 +20,7 @@ import shutil
 import signal
 import subprocess
 import time
-from pathlib import Path
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from gateway import builder_queue as bq
@@ -246,12 +245,12 @@ def run_worker(
     """
     if not command:
         raise ValueError("command must be a non-empty list")
-    for name, value in (
+    for name, seconds in (
         ("timeout_seconds", timeout_seconds),
         ("lease_seconds", lease_seconds),
         ("heartbeat_seconds", heartbeat_seconds),
     ):
-        if value <= 0:
+        if seconds <= 0:
             raise ValueError(f"{name} must be positive")
     if heartbeat_seconds >= lease_seconds:
         raise ValueError(
@@ -342,9 +341,9 @@ def run_worker(
         ("core.askPass", false_command),
     )
     child_env["GIT_CONFIG_COUNT"] = str(len(git_overrides))
-    for index, (key, value) in enumerate(git_overrides):
+    for index, (key, config_value) in enumerate(git_overrides):
         child_env[f"GIT_CONFIG_KEY_{index}"] = key
-        child_env[f"GIT_CONFIG_VALUE_{index}"] = value
+        child_env[f"GIT_CONFIG_VALUE_{index}"] = config_value
     child_env.update(
         KB_TASK_ID=task_id,
         KB_RUN_ID=run_id,
