@@ -1,11 +1,58 @@
 """Tests for gateway/builder_cli.py Layer 1A — argparse shape and command dispatch."""
 
+import json
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from gateway.builder_cli import build_parser, main
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+def _fake_task(task_id: str = "kb_test0000_abcd", **overrides) -> dict:
+    base = {
+        "id": task_id,
+        "title": "test task",
+        "description": None,
+        "state": "queued",
+        "priority": 0,
+        "lease_owner": None,
+        "lease_token": None,
+        "lease_expires_at": None,
+        "claim_version": 0,
+        "acceptance_criteria": None,
+        "acceptance_criteria_json": None,
+        "allowed_paths": None,
+        "allowed_paths_json": None,
+        "bridge_source": None,
+        "bridge_issue": None,
+        "bridge_external_id": None,
+        "bridge_comment_url": None,
+        "workflow_ref": None,
+        "workflow_sha": None,
+        "repo_path": None,
+        "blocked_reason": None,
+        "last_error": None,
+        "final_report_json": None,
+        "archived_at": None,
+        "created_at": "2026-07-09 12:00:00.000",
+        "updated_at": "2026-07-09 12:00:00.000",
+    }
+    base.update(overrides)
+    return base
+
+
+_QUEUE_PATCH = "gateway.builder_queue"
+_CLI_PATCH = "gateway.builder_cli"  # noqa
+
+
+# ---------------------------------------------------------------------------
+# Existing parser tests
+# ---------------------------------------------------------------------------
 
 
 class TestParser:
@@ -18,6 +65,37 @@ class TestParser:
         parser = build_parser()
         with pytest.raises(SystemExit):
             parser.parse_args(["contract", "validate"])
+
+    def test_queue_add_requires_title(self):
+        parser = build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["queue", "add"])
+
+    def test_queue_show_requires_id(self):
+        parser = build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["queue", "show"])
+
+    def test_queue_list_accepts_state_filter(self):
+        parser = build_parser()
+        args = parser.parse_args(["queue", "list", "--state", "queued"])
+        assert args.queue_command == "list"
+        assert args.state == "queued"
+
+    def test_queue_claim_requires_worker(self):
+        parser = build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["queue", "claim", "some-id"])
+
+    def test_queue_claim_next_requires_worker(self):
+        parser = build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["queue", "claim-next"])
+
+    def test_queue_release_requires_fencing(self):
+        parser = build_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["queue", "release", "some-id", "--worker", "w"])
 
 
 class TestDisabledCommands:
@@ -38,7 +116,7 @@ class TestDisabledCommands:
         assert rc == 1
 
 
-class TestCommands:
+class TestExistingCommands:
     def test_brief_command_prints_context(self):
         with patch(
             "gateway.brief.build_worker_brief",
@@ -69,3 +147,631 @@ class TestCommands:
             rc = main(["contract", "validate", str(p)])
         assert rc == 0
         mock_run.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Queue — add
+# ---------------------------------------------------------------------------
+
+
+class TestQueueAdd:
+    def test_add_basic_task(self):
+        with patch(f"{_QUEUE_PATCH}.init_db") as mock_init:
+            with patch(f"{_QUEUE_PATCH}.create_task", return_value=_fake_task("kb_1")) as mock_create:
+                rc = main(["queue", "add", "my task"])
+        assert rc == 0
+        mock_init.assert_called_once()
+        mock_create.assert_called_once_with(
+            "my task",
+            description=None,
+            acceptance_criteria=None,
+            priority=0,
+            allowed_paths=None,
+        )
+
+    def test_add_with_all_options(self):
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.create_task", return_value=_fake_task("kb_2")) as mock_create:
+                rc = main([
+                    "queue", "add", "full task",
+                    "--description", "desc text",
+                    "--acceptance", '["c1", "c2"]',
+                    "--priority", "5",
+                    "--allowed-paths", '["src/", "tests/"]',
+                ])
+        assert rc == 0
+        mock_create.assert_called_once_with(
+            "full task",
+            description="desc text",
+            acceptance_criteria=["c1", "c2"],
+            priority=5,
+            allowed_paths=["src/", "tests/"],
+        )
+
+    def test_add_json_output(self, capsys):
+        task = _fake_task("kb_3", title="json task", priority=3)
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.create_task", return_value=task):
+                rc = main(["queue", "add", "json task", "--priority", "3", "--json"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        parsed = json.loads(out)
+        assert parsed["id"] == "kb_3"
+        assert parsed["title"] == "json task"
+        assert parsed["priority"] == 3
+
+    def test_add_invalid_acceptance_returns_error(self, capsys):
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            rc = main(["queue", "add", "bad", "--acceptance", "not-json"])
+        assert rc == 1
+        _, err = capsys.readouterr()
+        assert "error" in err.lower()
+
+    def test_add_invalid_allowed_paths_returns_error(self, capsys):
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            rc = main(["queue", "add", "bad", "--allowed-paths", '"string-not-array"'])
+        assert rc == 1
+        _, err = capsys.readouterr()
+        assert "error" in err.lower()
+
+    def test_add_empty_title_returns_error(self, capsys):
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.create_task", side_effect=ValueError("title is required")):
+                rc = main(["queue", "add", ""])
+        assert rc == 1
+        _, err = capsys.readouterr()
+        assert "error" in err.lower()
+
+
+# ---------------------------------------------------------------------------
+# Queue — edit
+# ---------------------------------------------------------------------------
+
+
+class TestQueueEdit:
+    def test_edit_title(self):
+        task = _fake_task("kb_e1", state="queued")
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.edit_task", return_value=task) as mock_edit:
+                rc = main(["queue", "edit", "kb_e1", "--title", "new title"])
+        assert rc == 0
+        mock_edit.assert_called_once_with("kb_e1", title="new title")
+
+    def test_edit_multiple_fields(self):
+        task = _fake_task("kb_e2", state="queued")
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.edit_task", return_value=task) as mock_edit:
+                rc = main([
+                    "queue", "edit", "kb_e2",
+                    "--title", "t",
+                    "--description", "d",
+                    "--priority", "42",
+                    "--acceptance", '["a","b"]',
+                    "--allowed-paths", '["p1"]',
+                ])
+        assert rc == 0
+        mock_edit.assert_called_once_with(
+            "kb_e2",
+            title="t",
+            description="d",
+            priority=42,
+            acceptance_criteria=["a", "b"],
+            allowed_paths=["p1"],
+        )
+
+    def test_edit_json_output(self, capsys):
+        task = _fake_task("kb_e3", title="edited")
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.edit_task", return_value=task):
+                rc = main(["queue", "edit", "kb_e3", "--title", "edited", "--json"])
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["title"] == "edited"
+
+    def test_edit_not_queued_returns_error(self, capsys):
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                f"{_QUEUE_PATCH}.edit_task",
+                side_effect=ValueError("only queued tasks can be edited"),
+            ):
+                rc = main(["queue", "edit", "kb_e4", "--title", "x"])
+        assert rc == 1
+        _, err = capsys.readouterr()
+        assert "error" in err.lower()
+
+    def test_edit_no_fields_returns_error(self, capsys):
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                f"{_QUEUE_PATCH}.edit_task",
+                side_effect=ValueError("at least one editable field must be provided"),
+            ):
+                rc = main(["queue", "edit", "kb_e5"])
+        assert rc == 1
+        _, err = capsys.readouterr()
+        assert "error" in err.lower()
+
+    def test_edit_invalid_acceptance_returns_error(self, capsys):
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            rc = main(["queue", "edit", "kb_e6", "--acceptance", "not-json"])
+        assert rc == 1
+        _, err = capsys.readouterr()
+        assert "error" in err.lower()
+
+    def test_edit_unknown_task_returns_error(self, capsys):
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                f"{_QUEUE_PATCH}.edit_task",
+                side_effect=ValueError("task not found"),
+            ):
+                rc = main(["queue", "edit", "kb_none", "--title", "x"])
+        assert rc == 1
+        _, err = capsys.readouterr()
+        assert "error" in err.lower()
+
+
+# ---------------------------------------------------------------------------
+# Queue — list
+# ---------------------------------------------------------------------------
+
+
+class TestQueueList:
+    def test_list_empty(self, capsys):
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.list_tasks", return_value=[]):
+                rc = main(["queue", "list"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "No tasks found" in out
+
+    def test_list_with_state_filter(self):
+        fake_tasks = [_fake_task("kb_l1", state="claimed")]
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.list_tasks", return_value=fake_tasks) as mock_list:
+                rc = main(["queue", "list", "--state", "claimed"])
+        assert rc == 0
+        mock_list.assert_called_once_with(state="claimed", include_archived=False)
+
+    def test_list_includes_archived(self):
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.list_tasks", return_value=[]) as mock_list:
+                rc = main(["queue", "list", "--include-archived"])
+        assert rc == 0
+        mock_list.assert_called_once_with(state=None, include_archived=True)
+
+    def test_list_json_output(self, capsys):
+        tasks = [_fake_task("kb_l2", title="t1"), _fake_task("kb_l3", title="t2")]
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.list_tasks", return_value=tasks):
+                rc = main(["queue", "list", "--json"])
+        assert rc == 0
+        parsed = json.loads(capsys.readouterr().out)
+        assert len(parsed) == 2
+        assert parsed[0]["id"] == "kb_l2"
+
+    def test_list_human_output(self, capsys):
+        tasks = [_fake_task("kb_l4", title="my task", state="queued", priority=5)]
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.list_tasks", return_value=tasks):
+                rc = main(["queue", "list"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "kb_l4" in out
+        assert "my task" in out
+
+
+# ---------------------------------------------------------------------------
+# Queue — show
+# ---------------------------------------------------------------------------
+
+
+class TestQueueShow:
+    def test_show_returns_task(self, capsys):
+        task = _fake_task("kb_s1", title="show me", state="queued")
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.get_task", return_value=task):
+                rc = main(["queue", "show", "kb_s1"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "kb_s1" in out
+        assert "show me" in out
+
+    def test_show_json(self, capsys):
+        task = _fake_task("kb_s2", title="json show")
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.get_task", return_value=task):
+                rc = main(["queue", "show", "kb_s2", "--json"])
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["title"] == "json show"
+
+    def test_show_unknown(self, capsys):
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.get_task", return_value=None):
+                rc = main(["queue", "show", "kb_none"])
+        assert rc == 1
+        _, err = capsys.readouterr()
+        assert "task not found" in err.lower()
+
+
+# ---------------------------------------------------------------------------
+# Queue — claim
+# ---------------------------------------------------------------------------
+
+
+class TestQueueClaim:
+    def test_claim_basic(self):
+        task = _fake_task("kb_c1", state="claimed", lease_owner="bot", claim_version=1)
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.claim_task", return_value=task) as mock_claim:
+                rc = main(["queue", "claim", "kb_c1", "--worker", "bot"])
+        assert rc == 0
+        mock_claim.assert_called_once_with("kb_c1", "bot", lease_seconds=1800)
+
+    def test_claim_with_lease_seconds(self):
+        task = _fake_task("kb_c2", state="claimed")
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.claim_task", return_value=task) as mock_claim:
+                rc = main(["queue", "claim", "kb_c2", "--worker", "w", "--lease-seconds", "3600"])
+        assert rc == 0
+        mock_claim.assert_called_once_with("kb_c2", "w", lease_seconds=3600)
+
+    def test_claim_json(self, capsys):
+        task = _fake_task("kb_c3", state="claimed", lease_token="tok123")
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.claim_task", return_value=task):
+                rc = main(["queue", "claim", "kb_c3", "--worker", "w", "--json"])
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["lease_token"] == "tok123"
+
+    def test_claim_conflict(self, capsys):
+        from gateway.builder_queue import LeaseConflictError
+
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                f"{_QUEUE_PATCH}.claim_task",
+                side_effect=LeaseConflictError("already claimed"),
+            ):
+                rc = main(["queue", "claim", "kb_c4", "--worker", "w"])
+        assert rc == 1
+        _, err = capsys.readouterr()
+        assert "error" in err.lower()
+
+
+# ---------------------------------------------------------------------------
+# Queue — claim-next
+# ---------------------------------------------------------------------------
+
+
+class TestQueueClaimNext:
+    def test_claim_next_found(self):
+        task = _fake_task("kb_n1", state="claimed", lease_owner="bot")
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.claim_next", return_value=task) as mock_cn:
+                rc = main(["queue", "claim-next", "--worker", "bot"])
+        assert rc == 0
+        mock_cn.assert_called_once_with("bot", lease_seconds=1800)
+
+    def test_claim_next_json(self, capsys):
+        task = _fake_task("kb_n2", state="claimed")
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.claim_next", return_value=task):
+                rc = main(["queue", "claim-next", "--worker", "w", "--json"])
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["id"] == "kb_n2"
+
+    def test_claim_next_empty(self, capsys):
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.claim_next", return_value=None):
+                rc = main(["queue", "claim-next", "--worker", "w"])
+        assert rc == 1
+        out = capsys.readouterr().out
+        assert "No eligible queued tasks" in out
+
+    def test_claim_next_empty_json(self, capsys):
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.claim_next", return_value=None):
+                rc = main(["queue", "claim-next", "--worker", "w", "--json"])
+        assert rc == 1
+        out = json.loads(capsys.readouterr().out)
+        assert out["task"] is None
+        assert "No eligible" in out["message"]
+
+
+# ---------------------------------------------------------------------------
+# Queue — release (worker)
+# ---------------------------------------------------------------------------
+
+
+class TestQueueRelease:
+    def test_release_basic(self):
+        task = _fake_task("kb_r1", state="queued")
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.worker_release_task", return_value=task) as mock_rel:
+                rc = main([
+                    "queue", "release", "kb_r1",
+                    "--worker", "w",
+                    "--lease-token", "tok",
+                    "--claim-version", "1",
+                ])
+        assert rc == 0
+        mock_rel.assert_called_once_with("kb_r1", "tok", 1)
+
+    def test_release_json(self, capsys):
+        task = _fake_task("kb_r2", state="queued")
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.worker_release_task", return_value=task):
+                rc = main([
+                    "queue", "release", "kb_r2",
+                    "--worker", "w",
+                    "--lease-token", "tok",
+                    "--claim-version", "1",
+                    "--json",
+                ])
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["id"] == "kb_r2"
+
+    def test_release_conflict(self, capsys):
+        from gateway.builder_queue import LeaseConflictError
+
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                f"{_QUEUE_PATCH}.worker_release_task",
+                side_effect=LeaseConflictError("stale"),
+            ):
+                rc = main([
+                    "queue", "release", "kb_r3",
+                    "--worker", "w",
+                    "--lease-token", "bad",
+                    "--claim-version", "1",
+                ])
+        assert rc == 1
+        _, err = capsys.readouterr()
+        assert "error" in err.lower()
+
+
+# ---------------------------------------------------------------------------
+# Queue — operator-release
+# ---------------------------------------------------------------------------
+
+
+class TestQueueOperatorRelease:
+    def test_operator_release_basic(self):
+        task = _fake_task("kb_o1", state="queued")
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.operator_release_task", return_value=task) as mock_rel:
+                rc = main(["queue", "operator-release", "kb_o1", "--reason", "cleanup"])
+        assert rc == 0
+        mock_rel.assert_called_once_with("kb_o1", reason="cleanup")
+
+    def test_operator_release_no_reason(self):
+        task = _fake_task("kb_o2", state="queued")
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.operator_release_task", return_value=task) as mock_rel:
+                rc = main(["queue", "operator-release", "kb_o2"])
+        assert rc == 0
+        mock_rel.assert_called_once_with("kb_o2", reason=None)
+
+    def test_operator_release_json(self, capsys):
+        task = _fake_task("kb_o3", state="queued")
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.operator_release_task", return_value=task):
+                rc = main(["queue", "operator-release", "kb_o3", "--json"])
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["id"] == "kb_o3"
+
+    def test_operator_release_error(self, capsys):
+        from gateway.builder_queue import IllegalTransitionError
+
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                f"{_QUEUE_PATCH}.operator_release_task",
+                side_effect=IllegalTransitionError("running tasks must be blocked"),
+            ):
+                rc = main(["queue", "operator-release", "kb_o4"])
+        assert rc == 1
+        _, err = capsys.readouterr()
+        assert "error" in err.lower()
+
+
+# ---------------------------------------------------------------------------
+# Queue — transition
+# ---------------------------------------------------------------------------
+
+
+class TestQueueTransition:
+    def test_transition_basic(self):
+        task = _fake_task("kb_t1", state="running", lease_token="tok")
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.worker_transition_task", return_value=task) as mock_tr:
+                rc = main([
+                    "queue", "transition", "kb_t1", "running",
+                    "--lease-token", "tok",
+                    "--claim-version", "1",
+                ])
+        assert rc == 0
+        mock_tr.assert_called_once_with("kb_t1", "running", "tok", 1, payload=None)
+
+    def test_transition_with_payload(self):
+        task = _fake_task("kb_t2", state="blocked")
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.worker_transition_task", return_value=task) as mock_tr:
+                rc = main([
+                    "queue", "transition", "kb_t2", "blocked",
+                    "--lease-token", "tok",
+                    "--claim-version", "1",
+                    "--payload-json", '{"reason": "test"}',
+                ])
+        assert rc == 0
+        mock_tr.assert_called_once_with(
+            "kb_t2", "blocked", "tok", 1, payload={"reason": "test"}
+        )
+
+    def test_transition_json(self, capsys):
+        task = _fake_task("kb_t3", state="running")
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.worker_transition_task", return_value=task):
+                rc = main([
+                    "queue", "transition", "kb_t3", "running",
+                    "--lease-token", "tok",
+                    "--claim-version", "1",
+                    "--json",
+                ])
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["id"] == "kb_t3"
+
+    def test_transition_conflict(self, capsys):
+        from gateway.builder_queue import LeaseConflictError
+
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                f"{_QUEUE_PATCH}.worker_transition_task",
+                side_effect=LeaseConflictError("stale"),
+            ):
+                rc = main([
+                    "queue", "transition", "kb_t4", "running",
+                    "--lease-token", "bad",
+                    "--claim-version", "1",
+                ])
+        assert rc == 1
+        _, err = capsys.readouterr()
+        assert "error" in err.lower()
+
+    def test_transition_invalid_payload_json(self, capsys):
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            rc = main([
+                "queue", "transition", "kb_t5", "running",
+                "--lease-token", "tok",
+                "--claim-version", "1",
+                "--payload-json", '"not-an-object"',
+            ])
+        assert rc == 1
+        _, err = capsys.readouterr()
+        assert "error" in err.lower()
+
+
+# ---------------------------------------------------------------------------
+# Queue — events
+# ---------------------------------------------------------------------------
+
+
+class TestQueueEvents:
+    def test_events_empty(self, capsys):
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.list_events", return_value=[]):
+                rc = main(["queue", "events", "kb_e1"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "No events" in out
+
+    def test_events_human(self, capsys):
+        events = [
+            {"id": 1, "task_id": "kb_e2", "type": "created", "payload": None, "created_at": "2026-07-09 12:00:00", "payload_json": None},
+            {"id": 2, "task_id": "kb_e2", "type": "claimed", "payload": {"worker": "bot"}, "created_at": "2026-07-09 12:01:00", "payload_json": '{"worker": "bot"}'},
+        ]
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.list_events", return_value=events):
+                rc = main(["queue", "events", "kb_e2"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "created" in out
+        assert "claimed" in out
+        assert "worker" in out
+
+    def test_events_json(self, capsys):
+        events = [
+            {"id": 1, "task_id": "kb_e3", "type": "created", "payload": None, "created_at": "2026-07-09 12:00:00", "payload_json": None},
+        ]
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.list_events", return_value=events):
+                rc = main(["queue", "events", "kb_e3", "--json"])
+        assert rc == 0
+        parsed = json.loads(capsys.readouterr().out)
+        assert len(parsed) == 1
+        assert parsed[0]["type"] == "created"
+
+    def test_events_unknown_task(self, capsys):
+        from gateway.builder_queue import TaskNotFoundError
+
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                f"{_QUEUE_PATCH}.list_events",
+                side_effect=TaskNotFoundError("task not found"),
+            ):
+                rc = main(["queue", "events", "kb_none"])
+        assert rc == 1
+        _, err = capsys.readouterr()
+        assert "error" in err.lower()
+
+
+# ---------------------------------------------------------------------------
+# Queue — status
+# ---------------------------------------------------------------------------
+
+
+class TestQueueStatus:
+    def test_status_human(self, capsys):
+        status_data = {
+            "per_state": {"queued": 3, "claimed": 1, "running": 2},
+            "total": 6,
+            "queued": 3,
+            "claimed": 1,
+            "running": 2,
+            "blocked": 0,
+            "pr_opened": 0,
+            "awaiting_review": 0,
+            "done": 0,
+            "failed": 0,
+            "cancelled": 0,
+        }
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.queue_status", return_value=status_data):
+                rc = main(["queue", "status"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "queued: 3" in out
+        assert "claimed: 1" in out
+        assert "running: 2" in out
+
+    def test_status_json(self, capsys):
+        status_data = {"per_state": {"queued": 1}, "total": 1, "queued": 1,
+                       "claimed": 0, "running": 0, "blocked": 0, "pr_opened": 0,
+                       "awaiting_review": 0, "done": 0, "failed": 0, "cancelled": 0}
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.queue_status", return_value=status_data):
+                rc = main(["queue", "status", "--json"])
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["total"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Queue — archive
+# ---------------------------------------------------------------------------
+
+
+class TestQueueArchive:
+    def test_archive_basic(self):
+        result = {"tasks_archived": 2, "task_ids": ["kb_a1", "kb_a2"]}
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.archive_tasks", return_value=result) as mock_arch:
+                rc = main(["queue", "archive", "--state", "done", "--older-than", "7"])
+        assert rc == 0
+        mock_arch.assert_called_once_with("done", older_than_days=7)
+
+    def test_archive_json(self, capsys):
+        result = {"tasks_archived": 1, "task_ids": ["kb_a3"]}
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.archive_tasks", return_value=result):
+                rc = main(["queue", "archive", "--state", "failed", "--older-than", "1", "--json"])
+        assert rc == 0
+        parsed = json.loads(capsys.readouterr().out)
+        assert parsed["tasks_archived"] == 1
+        assert parsed["task_ids"] == ["kb_a3"]
+
+    def test_archive_invalid_state(self, capsys):
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                f"{_QUEUE_PATCH}.archive_tasks",
+                side_effect=ValueError("archive only supports terminal states"),
+            ):
+                rc = main(["queue", "archive", "--state", "queued", "--older-than", "1"])
+        assert rc == 1
+        _, err = capsys.readouterr()
+        assert "error" in err.lower()
