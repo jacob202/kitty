@@ -1,4 +1,4 @@
-# Handoff — 2026-07-10 (KPA-02a chat lifecycle complete)
+# Handoff — 2026-07-10 (KPA-02b artifacts complete)
 
 ## Branch
 
@@ -34,6 +34,13 @@
   durable lifecycle state.
 - Chat sends conversation/title/message IDs and receives turn/attempt headers.
 - Committed locally as `d091352` (`feat(chat): persist normalized turn lifecycle`).
+- Added migration `017_artifacts.sql` and `gateway/artifact_store.py` for
+  durable file metadata, hashes, provenance, and ingestion status.
+- `/capture/file` now registers an attachment artifact after the atomic write;
+  background ingestion updates its explicit processing status.
+- Added read-only `/artifacts` and `/artifacts/{id}` endpoints plus
+  `/chats/{id}/lifecycle` normalized turn reads.
+- Committed locally as `80759cd` (`feat(artifacts): register captured files durably`).
 
 ## Verification performed
 
@@ -52,13 +59,14 @@
 - Active project selection is now persisted through `/context/project`; an
   explicit request `project_id` still overrides the persisted scope.
 - Attachments, normalized chat reads, offline outbox replay, and UI recovery
-  from the lifecycle ledger remain intentionally out of this packet.
+  from the lifecycle ledger remain intentionally out of this packet. Capture
+  registration is ready, but the Chat composer does not yet upload files.
 - The untracked files `kittybuildercoder.txt`,
   `scripts/run_kittybuilder_free_campaign.sh`, and the oddly named existing
   untracked file beginning `-iname` were not touched.
 
 ## Next action
 
-KPA-01, KPA-01b, and KPA-02a are committed locally. The next focused packet is
-attachment artifacts and normalized lifecycle reads; do not mix KB-S1B, Builder
+KPA-01, KPA-01b, KPA-02a, and KPA-02b are committed locally. The next focused
+packet is Chat composer attachment upload/linking; do not mix KB-S1B, Builder
 automation, or the full offline outbox into that packet.

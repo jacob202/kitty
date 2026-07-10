@@ -1,4 +1,4 @@
-# Session State — 2026-07-10 (KPA-02a chat lifecycle complete)
+# Session State — 2026-07-10 (KPA-02b artifacts complete)
 
 ## Current branch and inspected commit
 
@@ -7,6 +7,7 @@
 - KPA-01 commit: `25b7f3f` (`feat(runtime): add authoritative manifest to chat`)
 - KPA-01b commit: `e95275b` (`feat(context): persist active project scope`)
 - KPA-02a commit: `d091352` (`feat(chat): persist normalized turn lifecycle`)
+- KPA-02b commit: `80759cd` (`feat(artifacts): register captured files durably`)
 - Existing untracked files were not touched: `kittybuildercoder.txt` and
   `scripts/run_kittybuilder_free_campaign.sh`.
 - Nothing was pushed. The focused KPA-01 unit is committed locally.
@@ -26,11 +27,16 @@
 - Implemented KPA-02a: additive normalized chat lifecycle migration/store,
   pre-dispatch user-message/attempt persistence, terminal success/failure/
   interruption finalization, and turn/attempt response metadata.
+- Implemented KPA-02b: artifact metadata migration/store, capture registration
+  with content hashes and provenance, ingestion-status updates, artifact reads,
+  and normalized lifecycle reads.
 - Python syntax compilation passed for all touched Python modules.
 - Runtime smoke check passed and correctly returned explicit `unknown` facts for
   offline LiteLLM, missing project/version, and `available` Builder state.
 - Lifecycle smoke check passed: a turn finalized as `succeeded` with one user
   and one assistant message.
+- Artifact migration/read smoke passed without creating a new artifact row;
+  artifact index was empty and lifecycle read returned the existing smoke turn.
 - Per the user's instruction, no tests, frontend build, or browser run was
   performed. No push was performed.
 
@@ -113,6 +119,7 @@ normalization, artifact migration, settings redesign, and Builder automation.
   active project so Chat has an honest, durable scope.
 - The legacy `chats` JSON blob remains the compatibility record while the new
   lifecycle tables become the durable turn/attempt ledger.
+- Capture files are registered in place; no file movement or deletion occurs.
 
 ## Prior Builder lane retained
 
@@ -126,6 +133,6 @@ review unit.
 
 - Frontend TypeScript project check passed with
   `tsc -p gateway/kitty-chat/tsconfig.json --noEmit`.
-- KPA-01, KPA-01b, and KPA-02a are committed locally. The next action is a
-  focused attachment-artifact/read-surface packet; keep KB-S1B, Builder
-  automation, and full offline outbox replay separate.
+- KPA-01, KPA-01b, KPA-02a, and KPA-02b are committed locally. The next action
+  is Chat composer attachment upload/linking; keep KB-S1B, Builder automation,
+  and full offline outbox replay separate.
