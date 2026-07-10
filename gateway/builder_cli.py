@@ -896,9 +896,123 @@ def _print_task_summary(
         print(f"  [{state}] {tid}  pri={prio}  owner={owner}  \"{title}\"")
 
 
+# ---------------------------------------------------------------------------
+# Initiative (KB-S1A)
+# ---------------------------------------------------------------------------
+
+
+def _cmd_initiative_validate(args: argparse.Namespace) -> int:
+    from gateway.builder_initiative import (
+        ManifestError,
+        load_manifest,
+        manifest_sha256,
+        validate_manifest,
+    )
+
+    try:
+        manifest = load_manifest(Path(args.manifest))
+    except ManifestError as exc:
+        for error in exc.errors:
+            print(f"error: {error}", file=sys.stderr)
+        return 1
+
+    errors = validate_manifest(manifest)
+    if errors:
+        for error in errors:
+            print(f"error: {error}", file=sys.stderr)
+        return 1
+
+    print(
+        f"OK: initiative {manifest['initiative_id']!r}, "
+        f"{len(manifest['packets'])} packet(s), "
+        f"sha256 {manifest_sha256(manifest)}"
+    )
+    return 0
+
+
+def _cmd_initiative_apply(args: argparse.Namespace) -> int:
+    from gateway.builder_initiative import (
+        InitiativeConflictError,
+        ManifestError,
+        apply_manifest,
+        load_manifest,
+    )
+
+    try:
+        manifest = load_manifest(Path(args.manifest))
+        result = apply_manifest(manifest, dry_run=args.dry_run)
+    except ManifestError as exc:
+        for error in exc.errors:
+            print(f"error: {error}", file=sys.stderr)
+        return 1
+    except InitiativeConflictError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(json.dumps(result, indent=2, default=str))
+        return 0
+
+    print(
+        f"{result['status']}: initiative {result['initiative_id']!r} "
+        f"({len(result['packets'])} packet(s), "
+        f"sha256 {result['manifest_sha256'][:12]}…)"
+    )
+    for mapping in result["packets"]:
+        task = mapping["task_id"] or "(dry run — no task created)"
+        print(f"  {mapping['packet_id']} -> {task}")
+    return 0
+
+
+def _cmd_initiative_list(args: argparse.Namespace) -> int:
+    from gateway.builder_initiative import list_initiatives
+
+    initiatives = list_initiatives()
+    if args.json:
+        print(json.dumps(initiatives, indent=2, default=str))
+        return 0
+    if not initiatives:
+        print("No initiatives found.")
+        return 0
+    for item in initiatives:
+        print(
+            f"{item['id']}  [{item['state']}]  {item['title']}  "
+            f"({item['packet_count']} packet(s))"
+        )
+    return 0
+
+
+def _cmd_initiative_show(args: argparse.Namespace) -> int:
+    from gateway.builder_initiative import get_initiative
+
+    initiative = get_initiative(args.id)
+    if initiative is None:
+        print(f"error: initiative not found: {args.id}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(initiative, indent=2, default=str))
+        return 0
+
+    print(f"{initiative['id']}  [{initiative['state']}]  {initiative['title']}")
+    print(f"  manifest sha256: {initiative['manifest_sha256']}")
+    print(f"  created: {initiative['created_at']}")
+    for packet in initiative["packets"]:
+        deps = ", ".join(packet["depends_on"]) if packet["depends_on"] else "-"
+        print(f"  {packet['packet_id']}  task={packet['task_id']}  deps: {deps}")
+        print(f"    {packet['title']}")
+    return 0
+
+
 def _init_queue_db() -> None:
     """Initialize the queue DB safely before command dispatch."""
     from gateway.builder_queue import init_db
+
+    init_db()
+
+
+def _init_initiative_db() -> None:
+    """Initialize queue + initiative schema before initiative dispatch."""
+    from gateway.builder_initiative import init_db
 
     init_db()
 
@@ -932,6 +1046,10 @@ _dispatch: dict[str, Any] = {
     "queue-show-run": _cmd_queue_show_run,
     "queue-cancel-run": _cmd_queue_cancel_run,
     "queue-clean-worktree": _cmd_queue_clean_worktree,
+    "initiative-validate": _cmd_initiative_validate,
+    "initiative-apply": _cmd_initiative_apply,
+    "initiative-list": _cmd_initiative_list,
+    "initiative-show": _cmd_initiative_show,
 }
 
 
@@ -1211,6 +1329,39 @@ def build_parser() -> argparse.ArgumentParser:
     )
     clean_wt_p.add_argument("id", help="task ID")
 
+    # -- initiative subcommand group (KB-S1A) ----------------------------------
+
+    initiative_p = sub.add_parser(
+        "initiative", help="initiative manifest commands"
+    )
+    initiative_sub = initiative_p.add_subparsers(
+        dest="initiative_command", required=True
+    )
+
+    ini_validate_p = initiative_sub.add_parser(
+        "validate", help="validate an initiative manifest file"
+    )
+    ini_validate_p.add_argument("manifest", help="path to the manifest JSON file")
+
+    ini_apply_p = initiative_sub.add_parser(
+        "apply",
+        help="apply a manifest: create the initiative and one queue task per packet",
+    )
+    ini_apply_p.add_argument("manifest", help="path to the manifest JSON file")
+    ini_apply_p.add_argument(
+        "--dry-run", action="store_true", help="validate and report without mutating"
+    )
+    ini_apply_p.add_argument("--json", action="store_true", help="output JSON")
+
+    ini_list_p = initiative_sub.add_parser("list", help="list initiatives")
+    ini_list_p.add_argument("--json", action="store_true", help="output JSON")
+
+    ini_show_p = initiative_sub.add_parser(
+        "show", help="show an initiative and its packet-to-task mappings"
+    )
+    ini_show_p.add_argument("id", help="initiative ID")
+    ini_show_p.add_argument("--json", action="store_true", help="output JSON")
+
     return parser
 
 
@@ -1227,6 +1378,10 @@ def _resolve_func(args: argparse.Namespace) -> Any:
     """
     if args.command == "queue":
         return _dispatch.get(f"queue-{args.queue_command}", _cmd_not_enabled)
+    if args.command == "initiative":
+        return _dispatch.get(
+            f"initiative-{args.initiative_command}", _cmd_not_enabled
+        )
     return _dispatch.get(args.command, _cmd_not_enabled)
 
 
@@ -1284,6 +1439,19 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         # Initialize the queue DB on every invocation (safe/idempotent).
         _init_queue_db()
+
+    if args.command == "initiative":
+        # `apply` creates queue tasks, so it honors the same kill switch.
+        if args.initiative_command == "apply" and _queue_disabled():
+            print(
+                "error: KittyBuilder queue is disabled "
+                "(KITTY_BUILDER_QUEUE_ENABLED=0); refusing to apply an "
+                "initiative. Unset the variable or set it to 1 to re-enable.",
+                file=sys.stderr,
+            )
+            return 1
+        if args.initiative_command != "validate":
+            _init_initiative_db()
 
     func = _resolve_func(args)
     return func(args)

@@ -457,6 +457,7 @@ def create_task(
     repo_path: str | None = None,
     allowed_paths: list[str] | None = None,
     db_path: Path | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> dict[str, Any]:
     """Create a task in state ``queued`` and append a ``created`` event.
 
@@ -464,6 +465,11 @@ def create_task(
     ``(bridge_source, bridge_external_id)`` (where both are non-null) prevents
     duplicate inserts for the same bridge tuple. On a duplicate, IntegrityError
     is raised and NO ``created`` event is appended.
+
+    If ``conn`` is supplied (same pattern as ``append_event``), the insert
+    happens on the caller's open transaction without committing — used by
+    initiative apply to materialize packet tasks atomically with the
+    initiative rows.
 
     Returns the created task dict (as from ``get_task``).
     """
@@ -478,9 +484,13 @@ def create_task(
         json.dumps(list(allowed_paths)) if allowed_paths else None
     )
 
-    conn = connect(db_path)
+    own_conn = conn is None
+    if own_conn:
+        conn = connect(db_path)
+    assert conn is not None
     try:
-        conn.execute("BEGIN IMMEDIATE")
+        if own_conn:
+            conn.execute("BEGIN IMMEDIATE")
         conn.execute(
             """
             INSERT INTO tasks (
@@ -515,16 +525,19 @@ def create_task(
             db_path=db_path,
             conn=conn,
         )
-        conn.commit()
+        if own_conn:
+            conn.commit()
+        created = _get_task_on_conn(conn, task_id)
     except Exception:
-        conn.rollback()
+        if own_conn:
+            conn.rollback()
         raise
     finally:
-        conn.close()
+        if own_conn:
+            conn.close()
 
-    created = get_task(task_id, db_path=db_path)
     if created is None:
-        # Should be impossible given the commit above; fail loud per AGENTS.md.
+        # Should be impossible given the insert above; fail loud per AGENTS.md.
         raise RuntimeError(
             f"Task {task_id} was committed but is not retrievable"
         )

@@ -1,31 +1,41 @@
-# Session State — 2026-07-10 (runner hardening complete)
+# Session State — 2026-07-10 (KB-S1A committed)
 
 ## Current branch
-`feat/kittybuilder-runner-shadow` @ `87777de` — clean working tree.
+`feat/kittybuilder-initiative`, based on `5cdea2f` (origin/feat/kittybuilder-queue-cli-free =
+merged PRs #140 briefs + #141 runner-shadow). NOTE: origin/main (e05a990) does NOT contain the
+runner/brief work — #140/#141 merged into the integration branch, not main.
 
-## Done this session
-Completed Phase 1C-alpha runner safety hardening. Consolidated Sol's partial
-checkpoint (`3ed6a47`, `6b9af75`) into one coherent, green implementation.
+## Completed: KB-S1A — initiative manifest, persistence, validation
+- `gateway/builder_initiative.py` (new): manifest v1 validation (dup/missing/self/cyclic deps,
+  policies, acceptance criteria, allowed paths incl. absolute/`..` rejection, `\Z` ID regex),
+  canonical JSON + SHA-256, atomic idempotent apply (one queue task per packet,
+  bridge_external_id `<initiative_id>/<packet_id>`), dry-run, list/show helpers.
+  Tables `initiatives` + `initiative_packets` in the queue DB.
+- `gateway/builder_queue.py`: create_task gains optional `conn=` (append_event pattern).
+  Task state machine untouched.
+- `gateway/builder_cli.py`: `initiative validate|apply [--dry-run]|list|show [--json]`;
+  apply honors KITTY_BUILDER_QUEUE_ENABLED kill switch.
+- `tests/test_builder_initiative.py`: 58 tests.
+- `docs/KITTYBUILDER_SELF_BUILDING_MVP.md` (roadmap S1B→S5),
+  `docs/examples/kitty_alpha_initiative.example.json` (validates OK).
 
-### Changed files (in commit `87777de`)
-- `gateway/builder_queue.py` — `finalize_run` gains `runner_owns_claimed_task` for launch-failure CLAIMED→QUEUED path
-- `gateway/builder_runner.py` — `_raise_worker_launch_error` helper, prelaunch setup try/except, `control_error` tracking, credential isolation, scope boundary check
-- `tests/test_builder_cli.py` — CLI tests for runs filter, show-run log tail, clean-worktree, run-requires-command
-- `tests/test_builder_queue.py` — Recovery idempotency test
-- `tests/test_builder_runner.py` — Prefix-confusion test, commits-since-start-SHA test, prelaunch failure test, monitoring failure test
+## Validation
+- pytest (all builder suites): 381 passed
+- ruff: clean; git diff --check: clean
+- mypy: 0 errors in changed files (17 pre-existing in unrelated imports, identical without
+  the diff — verified by stash comparison)
+- Real-entrypoint smoke: `./kitty builder initiative validate|list|apply --dry-run` OK.
 
-### Verification results
-- **pytest**: 297 builder tests pass
-- **mypy**: Success: no issues found in 3 source files
-- **git diff --check**: clean
-- **Smoke tests**: 6/6 pass (success, failure, timeout, launch failure, scope violation, recovery)
+## Review notes
+Ultracode review fleet mostly died on session limits; surviving tests-lens caught the
+trailing-newline ID regex bug (fixed + test). Unaddressed coverage suggestions (non-defects,
+candidates for KB-S1B PR): concurrent-apply test, dry-run-on-invalid test, `list --json` /
+`apply --json` unchanged/would_create shapes, multi-initiative list ordering.
 
-## Ready for
-- Review and push
-- Open PR for architecture review
-- Decide: Phase 1C-beta (real provider integration) or architecture audit first
+## Next (not started)
+KB-S1B: `eligible_packets`/`next_packet`, initiative status rollup, blocked-forever
+detection, `initiative status` CLI. Pure reads, no execution. See roadmap doc.
 
-## Next command (do not run)
-```bash
-git push -u origin feat/kittybuilder-runner-shadow
-```
+## Blockers
+None. Nothing pushed; operator controls merge. Excluded from commit: `kittybuildercoder.txt`
+(local prompt notes), pre-existing stashes.
