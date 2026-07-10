@@ -1,8 +1,8 @@
 """Tests for gateway/builder_run.py — KB-S5 initiative run loop.
 
-Integration-style: real git repo + real queue DB, with tiny shell workers that
-write a valid implementation contract (no LLMs, no network). Exercises the
-loop driver, the operator pause gate, and the per-initiative budgets.
+Integration-style: isolated git repo + queue DB, tiny shell workers that
+write a valid implementation contract (no LLMs, no network). Always pass
+``repo_root`` so the loop never touches the checkout under test (CI-safe).
 """
 
 from __future__ import annotations
@@ -47,13 +47,15 @@ def db_path(tmp_path: Path) -> Path:
 
 def _worker(tmp_path: Path) -> list[str]:
     path = tmp_path / "worker.sh"
+    # Portable sh (no bash-only heredoc). JSON is single-line so printf is fine.
     path.write_text(
-        "#!/bin/bash\nset -e\n"
-        f"echo ok > done.txt\ncat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n",
+        "#!/bin/sh\nset -e\n"
+        "echo ok > done.txt\n"
+        f"printf '%s\\n' '{_GOOD_IMPL}' > \"$KB_RESULT_PATH\"\n",
         encoding="utf-8",
     )
     path.chmod(0o755)
-    return ["bash", str(path)]
+    return ["/bin/sh", str(path)]
 
 
 def _apply(db_path: Path, packets: list[dict[str, Any]]) -> None:
@@ -79,24 +81,26 @@ def _packet(packet_id: str, depends_on: list[str] | None = None) -> dict[str, An
     }
 
 
-# ---------------------------------------------------------------------------
-# Loop behavior
-# ---------------------------------------------------------------------------
+def _run(
+    repo: Path, db_path: Path, tmp_path: Path, **kwargs: Any
+) -> dict[str, Any]:
+    return br.run_initiative(
+        INITIATIVE,
+        worker_command=_worker(tmp_path),
+        db_path=db_path,
+        repo_root=repo,
+        **kwargs,
+    )
 
 
 class TestRunInitiative:
     def test_independent_packets_run_in_seq_order(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):
-        _apply(
-            db_path,
-            [_packet("P1"), _packet("P2")],
-        )
-        summary = br.run_initiative(
-            INITIATIVE, worker_command=_worker(tmp_path), db_path=db_path
-        )
-        assert summary["outcome"] == "idle"
-        assert summary["succeeded"] == 2
+        _apply(db_path, [_packet("P1"), _packet("P2")])
+        summary = _run(repo, db_path, tmp_path)
+        assert summary["outcome"] == "idle", summary
+        assert summary["succeeded"] == 2, summary
         assert summary["exhausted"] == 0
         seen = [e["packet_id"] for e in summary["processed"]]
         assert seen == ["P1", "P2"]
@@ -105,11 +109,8 @@ class TestRunInitiative:
         self, repo: Path, db_path: Path, tmp_path: Path
     ):
         _apply(db_path, [_packet("P1"), _packet("P2")])
-        br.run_initiative(
-            INITIATIVE, worker_command=_worker(tmp_path), db_path=db_path
-        )
-        # Events are written against the packet task ids; both should have a
-        # packet_succeeded decision.
+        summary = _run(repo, db_path, tmp_path)
+        assert summary["outcome"] == "idle", summary
         conn = bq.connect(db_path)
         try:
             rows = conn.execute(
@@ -120,17 +121,17 @@ class TestRunInitiative:
         finally:
             conn.close()
         decisions = {r["task_id"]: json.loads(r["payload_json"]) for r in rows}
-        assert decisions
-        assert all(d.get("decision") == "packet_succeeded" for d in decisions.values())
+        assert decisions, summary
+        assert all(
+            d.get("decision") == "packet_succeeded" for d in decisions.values()
+        ), decisions
 
     def test_pause_gate_stops_before_any_packet(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):
         _apply(db_path, [_packet("P1")])
         bi.pause_initiative(INITIATIVE, "halt", db_path=db_path)
-        summary = br.run_initiative(
-            INITIATIVE, worker_command=_worker(tmp_path), db_path=db_path
-        )
+        summary = _run(repo, db_path, tmp_path)
         assert summary["outcome"] == "paused"
         assert summary["processed"] == []
         assert "paused" in summary["reason"]
@@ -139,12 +140,7 @@ class TestRunInitiative:
         self, repo: Path, db_path: Path, tmp_path: Path
     ):
         _apply(db_path, [_packet("P1"), _packet("P2")])
-        summary = br.run_initiative(
-            INITIATIVE,
-            worker_command=_worker(tmp_path),
-            db_path=db_path,
-            max_initiative_attempts=0,
-        )
+        summary = _run(repo, db_path, tmp_path, max_initiative_attempts=0)
         assert summary["outcome"] == "paused"
         assert summary["processed"] == []
         assert "attempt budget" in summary["reason"]
@@ -152,22 +148,12 @@ class TestRunInitiative:
     def test_dependency_gates_next_packet(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):
-        # P2 depends on P1; until P1's task is done (via merge), P2 is not
-        # eligible, so one run processes exactly one packet.
         _apply(db_path, [_packet("P1"), _packet("P2", depends_on=["P1"])])
-        summary = br.run_initiative(
-            INITIATIVE, worker_command=_worker(tmp_path), db_path=db_path
-        )
-        assert summary["succeeded"] == 1
+        summary = _run(repo, db_path, tmp_path)
+        assert summary["succeeded"] == 1, summary
         assert [e["packet_id"] for e in summary["processed"]] == ["P1"]
-        # P2 is still queued, waiting on P1's (blocked) task.
         status = bi.initiative_status(INITIATIVE, db_path=db_path)
         assert "P2" in status["pending"]
-
-
-# ---------------------------------------------------------------------------
-# Pause / resume helpers
-# ---------------------------------------------------------------------------
 
 
 class TestPauseResume:
