@@ -1032,6 +1032,12 @@ export interface GatewayProject {
   links: unknown[]
 }
 
+export interface GatewayActiveProjectPayload {
+  project_id: number
+  project: GatewayProject
+  source: 'persisted' | 'defaulted_once' | string
+}
+
 export interface GatewayNextStep {
   project_id: number
   step: string
@@ -1046,6 +1052,18 @@ export interface GatewayNextStep {
 export async function fetchProjects(): Promise<GatewayProject[]> {
   const json = await gfetch<{ projects?: GatewayProject[] }>('/projects')
   return json.projects ?? []
+}
+
+export async function fetchActiveProject(): Promise<GatewayActiveProjectPayload> {
+  return await gfetch<GatewayActiveProjectPayload>('/context/project')
+}
+
+export async function setActiveProject(projectId: number): Promise<GatewayActiveProjectPayload> {
+  return await gfetch<GatewayActiveProjectPayload>('/context/project', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ project_id: projectId }),
+  })
 }
 
 /** null means "no step generated yet" (gateway 404s rather than fabricating one). */

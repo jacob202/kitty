@@ -39,6 +39,9 @@ import {
   useGatewayBrief,
   useGatewayModels,
   useGatewayRuntimeManifest,
+  useActiveProject,
+  useProjects,
+  useSetActiveProject,
   useLoops,
   useInsights,
   usePrompts,
@@ -223,6 +226,9 @@ function KittyChatInner() {
   const queryClient = useQueryClient();
   const modelsQuery = useGatewayModels();
   const runtimeQuery = useGatewayRuntimeManifest();
+  const projectsQuery = useProjects();
+  const activeProjectQuery = useActiveProject();
+  const setActiveProject = useSetActiveProject();
   const briefQuery = useGatewayBrief();
   // Loops/insights/prompts still bind to real data but aren't part of the
   // console home surface — they live in the Tools view instead.
@@ -256,6 +262,13 @@ function KittyChatInner() {
   const loops = loopsQuery.data?.loops ?? [];
   const insights = insightsQuery.data?.insights ?? [];
   const promptTemplates = promptsQuery.data ?? [];
+  const activeProject = activeProjectQuery.data?.project ?? null;
+  const projects = projectsQuery.data ?? [];
+
+  const handleSelectProject = useCallback(
+    (projectId: number) => setActiveProject.mutate(projectId),
+    [setActiveProject],
+  );
 
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -446,7 +459,7 @@ function KittyChatInner() {
     try {
       let accumulated = '';
 
-      for await (const chunk of streamChat(activeModel.id, history, abort.signal)) {
+      for await (const chunk of streamChat(activeModel.id, history, abort.signal, activeProject?.id)) {
         if (chunk.done) break;
         accumulated += chunk.content;
         const content = accumulated;
@@ -511,7 +524,7 @@ function KittyChatInner() {
       setIsStreaming(false);
       abortRef.current = null;
     }
-  }, [activeModel, updateChat, persistChat]);
+  }, [activeModel, activeProject?.id, updateChat, persistChat]);
 
   const handleSend = useCallback(async () => {
     const text = input.trim();
@@ -698,6 +711,11 @@ function KittyChatInner() {
           onToggleSidebar={handleToggleSidebar}
           isMobile={isMobile}
           catState={catState}
+          activeProject={activeProject}
+          projects={projects}
+          onSelectProject={handleSelectProject}
+          projectLoading={projectsQuery.isLoading || activeProjectQuery.isLoading}
+          projectBusy={setActiveProject.isPending}
           runtimeState={runtimeQuery.data?.connections.gateway.state ?? 'unknown'}
           runtimeDetail={
             runtimeQuery.data?.connections.gateway.reason

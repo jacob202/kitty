@@ -106,12 +106,17 @@ def _project_fact(
     valid_until: str,
 ) -> dict[str, Any]:
     if project_id is None:
-        return _unknown(
-            source="project_store",
-            observed_at=observed_at,
-            valid_until=valid_until,
-            reason="no explicit project_id was supplied for this request",
-        )
+        from gateway.project_context import ProjectContextError, get_active_project
+
+        try:
+            project_id = get_active_project()["project_id"]
+        except (OSError, RuntimeError, ValueError, ProjectContextError) as exc:
+            return _unknown(
+                source="project_context",
+                observed_at=observed_at,
+                valid_until=valid_until,
+                reason=f"active project could not be established: {exc}",
+            )
     if project_id <= 0:
         raise RuntimeManifestError(f"project_id must be positive, got {project_id}")
     project = project_store.get(project_id)
