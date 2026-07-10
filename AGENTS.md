@@ -41,7 +41,8 @@ Safe, read-only coordination commands wired through `./kitty builder`. No autono
 
 - `./kitty builder brief <task>` — print a repo brief (branch, dirty files, task context)
 - `./kitty builder contract validate <path>` — validate a JSON/markdown build contract
-- `python3.12 -m pytest tests/test_builder_cli.py tests/test_builder_contract.py -v` — run builder tests
+- `./kitty builder queue ...` — durable local task queue (add/list/claim/transition/…); see `docs/KITTYBUILDER_QUICKSTART.md`
+- `python3.12 -m pytest tests/test_builder_cli.py tests/test_builder_queue.py tests/test_builder_contract.py -v` — run builder tests
 
 Disabled commands (`run`, `loop`, `repl`, `delegate`) return a clear "not enabled" message.
 
