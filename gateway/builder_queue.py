@@ -2,9 +2,9 @@
 
 Library-mode SQLite storage for the KittyBuilder orchestrator. Scope so far:
 schema, connection helpers, task creation/retrieval/listing, append-only event
-log, and state machine transitions. This module does not implement claim/
-fencing, CLI commands, daemon/API, worker execution, worktrees, or PR
-automation yet.
+log, state machine transitions, claims, lease fencing, worker transitions,
+releases, and expired lease recovery. This module does not implement CLI
+commands, daemon/API, worker execution, worktrees, or PR automation yet.
 
 Important scope notes (see docs/KITTYBUILDER_ORCHESTRATOR_PHASE1A.md):
 
@@ -87,6 +87,10 @@ class TaskNotFoundError(ValueError):
 
 class IllegalTransitionError(ValueError):
     """Raised when a state transition is not legal or the task is archived."""
+
+
+class LeaseConflictError(ValueError):
+    """Raised when a task cannot be claimed or lease fencing rejects a stale worker."""
 
 
 # ---------------------------------------------------------------------------
@@ -223,6 +227,11 @@ def generate_task_id() -> str:
     base36 = _to_base36(unix_ms)
     hex4 = secrets.token_hex(2)  # 2 bytes -> 4 hex chars
     return f"kb_{base36}_{hex4}"
+
+
+def _generate_lease_token() -> str:
+    """Return a 64-character hex token for lease fencing."""
+    return secrets.token_hex(32)
 
 
 def _to_base36(n: int) -> str:
@@ -380,6 +389,14 @@ def get_task(
         conn.close()
 
 
+def _get_task_on_conn(conn: sqlite3.Connection, task_id: str) -> dict[str, Any] | None:
+    """Return a task using the caller's open transaction."""
+    row = conn.execute(
+        "SELECT * FROM tasks WHERE id = ?", (task_id,)
+    ).fetchone()
+    return _row_to_task(row) if row is not None else None
+
+
 def list_tasks(
     state: str | None = None,
     include_archived: bool = False,
@@ -494,6 +511,7 @@ def _apply_transition(
     payload: dict[str, Any] | None = None,
     extra_where: str = "",
     extra_params: tuple[Any, ...] = (),
+    event_type: str | None = None,
 ) -> None:
     """Apply a state transition on *conn* (inside an open transaction).
 
@@ -501,7 +519,8 @@ def _apply_transition(
     event. Does **not** commit — the caller owns the transaction.
 
     Raises:
-        IllegalTransitionError — illegal, stale, or archived.
+        IllegalTransitionError — illegal, changed, or archived.
+        LeaseConflictError — legal transition rejected by lease fencing.
         ValueError — unknown state.
     """
     _validate_state(current_state)
@@ -515,7 +534,7 @@ def _apply_transition(
     terminal = new_state in TERMINAL_STATES
 
     set_clause = "state = ?, updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')"
-    if terminal:
+    if terminal or new_state == QUEUED:
         set_clause += (
             ", lease_owner = NULL, lease_token = NULL, lease_expires_at = NULL"
         )
@@ -528,12 +547,17 @@ def _apply_transition(
 
     cursor = conn.execute(sql, (new_state, task_id, current_state, *extra_params))
 
+    if cursor.rowcount != 1 and extra_where:
+        raise LeaseConflictError(
+            "lease conflict; task claim is stale, expired, or no longer valid"
+        )
+
     if cursor.rowcount != 1:
         raise IllegalTransitionError(
             "transition failed; task changed, archived, or lease guard failed"
         )
 
-    append_event(task_id, new_state, payload=payload, conn=conn)
+    append_event(task_id, event_type or new_state, payload=payload, conn=conn)
 
 
 # ---------------------------------------------------------------------------
@@ -592,3 +616,411 @@ def transition_task(
             f"Task {task_id} was committed but is not retrievable"
         )
     return result
+
+
+# ---------------------------------------------------------------------------
+# Claiming / lease fencing
+# ---------------------------------------------------------------------------
+
+
+def _claim_impl(
+    conn: sqlite3.Connection,
+    task_id: str,
+    worker_id: str,
+    *,
+    lease_seconds: int = 1800,
+) -> tuple[str, int]:
+    """Claim *task_id* on an open transaction and return token/version."""
+    if lease_seconds <= 0:
+        raise ValueError("lease_seconds must be greater than zero")
+
+    row = conn.execute(
+        "SELECT id, state, archived_at FROM tasks WHERE id = ?",
+        (task_id,),
+    ).fetchone()
+    if row is None:
+        raise TaskNotFoundError(f"task not found: {task_id}")
+    if row["archived_at"] is not None:
+        raise IllegalTransitionError(
+            f"task {task_id} is archived and cannot be claimed"
+        )
+
+    lease_token = _generate_lease_token()
+    lease_modifier = f"+{lease_seconds} seconds"
+    cursor = conn.execute(
+        """
+        UPDATE tasks
+        SET state = ?,
+            lease_owner = ?,
+            lease_token = ?,
+            claim_version = claim_version + 1,
+            lease_expires_at = strftime('%Y-%m-%d %H:%M:%f', 'now', ?),
+            updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
+        WHERE id = ?
+          AND state = ?
+          AND archived_at IS NULL
+          AND (
+              lease_token IS NULL
+              OR lease_expires_at IS NULL
+              OR lease_expires_at <= strftime('%Y-%m-%d %H:%M:%f', 'now')
+          )
+        """,
+        (
+            CLAIMED,
+            worker_id,
+            lease_token,
+            lease_modifier,
+            task_id,
+            QUEUED,
+        ),
+    )
+    if cursor.rowcount != 1:
+        raise LeaseConflictError(
+            f"task {task_id} is not claimable; it is claimed, running, or leased"
+        )
+
+    claimed_row = conn.execute(
+        "SELECT claim_version FROM tasks WHERE id = ?", (task_id,)
+    ).fetchone()
+    if claimed_row is None:
+        raise RuntimeError(f"Task {task_id} was claimed but is not retrievable")
+
+    claim_version = int(claimed_row["claim_version"])
+    append_event(
+        task_id,
+        CLAIMED,
+        payload={"worker": worker_id, "claim_version": claim_version},
+        conn=conn,
+    )
+    return lease_token, claim_version
+
+
+def claim_task(
+    task_id: str,
+    worker_id: str,
+    *,
+    lease_seconds: int = 1800,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Claim a queued task for *worker_id* and return the updated task."""
+    conn = connect(db_path)
+    result: dict[str, Any] | None = None
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        _claim_impl(
+            conn,
+            task_id,
+            worker_id,
+            lease_seconds=lease_seconds,
+        )
+        result = _get_task_on_conn(conn, task_id)
+        if result is None:
+            raise RuntimeError(
+                f"Task {task_id} was claimed but is not retrievable"
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    return result
+
+
+def claim_next(
+    worker_id: str,
+    *,
+    lease_seconds: int = 1800,
+    db_path: Path | None = None,
+) -> dict[str, Any] | None:
+    """Claim the highest-priority eligible queued task, or ``None``."""
+    if lease_seconds <= 0:
+        raise ValueError("lease_seconds must be greater than zero")
+
+    conn = connect(db_path)
+    claimed_task_id: str | None = None
+    result: dict[str, Any] | None = None
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            """
+            SELECT id FROM tasks
+            WHERE state = ?
+              AND archived_at IS NULL
+              AND (
+                  lease_token IS NULL
+                  OR lease_expires_at IS NULL
+                  OR lease_expires_at <= strftime('%Y-%m-%d %H:%M:%f', 'now')
+              )
+            ORDER BY priority DESC, id ASC
+            LIMIT 1
+            """,
+            (QUEUED,),
+        ).fetchone()
+        if row is None:
+            conn.commit()
+            return None
+
+        claimed_task_id = row["id"]
+        try:
+            _claim_impl(
+                conn,
+                claimed_task_id,
+                worker_id,
+                lease_seconds=lease_seconds,
+            )
+        except LeaseConflictError:
+            conn.rollback()
+            return None
+        result = _get_task_on_conn(conn, claimed_task_id)
+        if result is None:
+            raise RuntimeError(
+                f"Task {claimed_task_id} was claimed but is not retrievable"
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    if claimed_task_id is None:
+        raise RuntimeError("claim_next committed without selecting a task")
+    return result
+
+
+def _transition_subject(conn: sqlite3.Connection, task_id: str) -> sqlite3.Row:
+    row = conn.execute(
+        "SELECT id, state, archived_at FROM tasks WHERE id = ?",
+        (task_id,),
+    ).fetchone()
+    if row is None:
+        raise TaskNotFoundError(f"task not found: {task_id}")
+    if row["archived_at"] is not None:
+        raise IllegalTransitionError(
+            f"task {task_id} is archived and cannot be transitioned"
+        )
+    return row
+
+
+def worker_transition_task(
+    task_id: str,
+    new_state: str,
+    lease_token: str,
+    claim_version: int,
+    *,
+    payload: dict[str, Any] | None = None,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Transition a task using worker lease fencing."""
+    conn = connect(db_path)
+    result: dict[str, Any] | None = None
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = _transition_subject(conn, task_id)
+        _apply_transition(
+            conn,
+            task_id,
+            row["state"],
+            new_state,
+            payload=payload,
+            extra_where=(
+                "AND lease_token = ? "
+                "AND claim_version = ? "
+                "AND lease_expires_at > strftime('%Y-%m-%d %H:%M:%f', 'now')"
+            ),
+            extra_params=(lease_token, claim_version),
+        )
+        result = _get_task_on_conn(conn, task_id)
+        if result is None:
+            raise RuntimeError(
+                f"Task {task_id} was transitioned but is not retrievable"
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    return result
+
+
+def worker_release_task(
+    task_id: str,
+    lease_token: str,
+    claim_version: int,
+    *,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Release a worker-held task back to ``queued`` with lease fencing."""
+    conn = connect(db_path)
+    result: dict[str, Any] | None = None
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = _transition_subject(conn, task_id)
+        _apply_transition(
+            conn,
+            task_id,
+            row["state"],
+            QUEUED,
+            event_type="released",
+            extra_where=(
+                "AND lease_token = ? "
+                "AND claim_version = ? "
+                "AND lease_expires_at > strftime('%Y-%m-%d %H:%M:%f', 'now')"
+            ),
+            extra_params=(lease_token, claim_version),
+        )
+        result = _get_task_on_conn(conn, task_id)
+        if result is None:
+            raise RuntimeError(
+                f"Task {task_id} was released but is not retrievable"
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    return result
+
+
+def operator_release_task(
+    task_id: str,
+    *,
+    reason: str | None = None,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Privileged release from ``claimed`` or ``blocked`` back to ``queued``."""
+    conn = connect(db_path)
+    result: dict[str, Any] | None = None
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = _transition_subject(conn, task_id)
+        if row["state"] == RUNNING:
+            raise IllegalTransitionError(
+                "running tasks must be blocked before operator release"
+            )
+
+        payload = {"reason": reason} if reason is not None else None
+        _apply_transition(
+            conn,
+            task_id,
+            row["state"],
+            QUEUED,
+            payload=payload,
+            event_type="operator_released",
+        )
+        result = _get_task_on_conn(conn, task_id)
+        if result is None:
+            raise RuntimeError(
+                f"Task {task_id} was released but is not retrievable"
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    return result
+
+
+def recover_expired_leases(*, db_path: Path | None = None) -> dict[str, int]:
+    """Recover expired worker leases in one transaction."""
+    conn = connect(db_path)
+    claimed_requeued = 0
+    running_blocked = 0
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        expired_claimed = conn.execute(
+            """
+            SELECT id FROM tasks
+            WHERE state = ?
+              AND archived_at IS NULL
+              AND lease_expires_at IS NOT NULL
+              AND lease_expires_at <= strftime('%Y-%m-%d %H:%M:%f', 'now')
+            ORDER BY id ASC
+            """,
+            (CLAIMED,),
+        ).fetchall()
+        for row in expired_claimed:
+            cursor = conn.execute(
+                """
+                UPDATE tasks
+                SET state = ?,
+                    lease_owner = NULL,
+                    lease_token = NULL,
+                    lease_expires_at = NULL,
+                    updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
+                WHERE id = ?
+                  AND state = ?
+                  AND archived_at IS NULL
+                  AND lease_expires_at IS NOT NULL
+                  AND lease_expires_at <= strftime('%Y-%m-%d %H:%M:%f', 'now')
+                """,
+                (QUEUED, row["id"], CLAIMED),
+            )
+            if cursor.rowcount == 1:
+                claimed_requeued += 1
+                append_event(
+                    row["id"],
+                    "released",
+                    payload={"reason": "lease_expired"},
+                    conn=conn,
+                )
+
+        expired_running = conn.execute(
+            """
+            SELECT id FROM tasks
+            WHERE state = ?
+              AND archived_at IS NULL
+              AND lease_expires_at IS NOT NULL
+              AND lease_expires_at <= strftime('%Y-%m-%d %H:%M:%f', 'now')
+            ORDER BY id ASC
+            """,
+            (RUNNING,),
+        ).fetchall()
+        for row in expired_running:
+            cursor = conn.execute(
+                """
+                UPDATE tasks
+                SET state = ?,
+                    blocked_reason = ?,
+                    lease_owner = NULL,
+                    lease_token = NULL,
+                    lease_expires_at = NULL,
+                    updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
+                WHERE id = ?
+                  AND state = ?
+                  AND archived_at IS NULL
+                  AND lease_expires_at IS NOT NULL
+                  AND lease_expires_at <= strftime('%Y-%m-%d %H:%M:%f', 'now')
+                """,
+                (BLOCKED, "stale_heartbeat", row["id"], RUNNING),
+            )
+            if cursor.rowcount == 1:
+                running_blocked += 1
+                append_event(
+                    row["id"],
+                    BLOCKED,
+                    payload={"reason": "stale_heartbeat"},
+                    conn=conn,
+                )
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    total = claimed_requeued + running_blocked
+    return {
+        "claimed_requeued": claimed_requeued,
+        "running_blocked": running_blocked,
+        "total": total,
+    }

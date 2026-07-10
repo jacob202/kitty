@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 from pathlib import Path
 
 import pytest
@@ -45,6 +46,35 @@ def _count_events_of_type(conn: sqlite3.Connection, task_id: str, event_type: st
         (task_id, event_type),
     ).fetchone()
     return int(row[0])
+
+
+def _event_payloads(
+    conn: sqlite3.Connection, task_id: str, event_type: str
+) -> list[dict]:
+    rows = conn.execute(
+        """
+        SELECT payload_json FROM events
+        WHERE task_id = ? AND type = ?
+        ORDER BY id ASC
+        """,
+        (task_id, event_type),
+    ).fetchall()
+    return [json.loads(r[0]) if r[0] is not None else {} for r in rows]
+
+
+def _set_task_fields(db_path: Path, task_id: str, **fields):
+    if not fields:
+        raise ValueError("fields are required")
+    conn = bq.connect(db_path)
+    try:
+        assignments = ", ".join(f"{name}=?" for name in fields)
+        conn.execute(
+            f"UPDATE tasks SET {assignments} WHERE id=?",
+            (*fields.values(), task_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -664,8 +694,12 @@ class TestTransitionTask:
         bq.transition_task(task["id"], bq.CLAIMED, db_path=db_path)
         bq.transition_task(task["id"], bq.RUNNING, db_path=db_path)
         bq.transition_task(task["id"], bq.BLOCKED, db_path=db_path)
+        self._set_lease(db_path, task["id"])
         result = bq.transition_task(task["id"], bq.QUEUED, db_path=db_path)
         assert result["state"] == bq.QUEUED
+        assert result["lease_owner"] is None
+        assert result["lease_token"] is None
+        assert result["lease_expires_at"] is None
 
     # -- updated_at -----------------------------------------------------------
 
@@ -711,11 +745,806 @@ class TestTransitionTask:
     def test_claimed_to_queued_allowed(self, db_path):
         task = bq.create_task("t", db_path=db_path)
         bq.transition_task(task["id"], bq.CLAIMED, db_path=db_path)
+        self._set_lease(db_path, task["id"])
         result = bq.transition_task(task["id"], bq.QUEUED, db_path=db_path)
         assert result["state"] == bq.QUEUED
+        assert result["lease_owner"] is None
+        assert result["lease_token"] is None
+        assert result["lease_expires_at"] is None
         conn = bq.connect(db_path)
         try:
             assert _count_events(conn, task["id"]) == 3  # created + claimed + queued
             assert _count_events_of_type(conn, task["id"], bq.QUEUED) == 1
+        finally:
+            conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Claims
+# ---------------------------------------------------------------------------
+
+
+class TestClaimTask:
+    def _set_archived(self, db_path, task_id):
+        _set_task_fields(db_path, task_id, archived_at="2099-12-31 23:59:59")
+
+    def test_claiming_queued_task_sets_claim_state_and_lease_fields(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+
+        assert claimed["state"] == bq.CLAIMED
+        assert claimed["lease_owner"] == "worker-a"
+        assert isinstance(claimed["lease_token"], str)
+        assert len(claimed["lease_token"]) == 64
+        int(claimed["lease_token"], 16)
+        assert claimed["claim_version"] == 1
+        assert claimed["lease_expires_at"] is not None
+
+    def test_claimed_event_is_appended_once_without_full_token(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+
+        conn = bq.connect(db_path)
+        try:
+            assert _count_events_of_type(conn, task["id"], bq.CLAIMED) == 1
+            payloads = _event_payloads(conn, task["id"], bq.CLAIMED)
+        finally:
+            conn.close()
+
+        assert payloads == [{"worker": "worker-a", "claim_version": 1}]
+        assert claimed["lease_token"] not in json.dumps(payloads)
+
+    def test_double_claim_raises_conflict_and_appends_no_event(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        bq.claim_task(task["id"], "worker-a", db_path=db_path)
+
+        conn = bq.connect(db_path)
+        try:
+            before = _count_events(conn, task["id"])
+        finally:
+            conn.close()
+
+        with pytest.raises(bq.LeaseConflictError):
+            bq.claim_task(task["id"], "worker-b", db_path=db_path)
+
+        conn = bq.connect(db_path)
+        try:
+            assert _count_events(conn, task["id"]) == before
+            assert _count_events_of_type(conn, task["id"], bq.CLAIMED) == 1
+        finally:
+            conn.close()
+
+    def test_expired_queued_lease_can_be_claimed(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        _set_task_fields(
+            db_path,
+            task["id"],
+            lease_owner="stale-worker",
+            lease_token="old-token",
+            lease_expires_at="2000-01-01 00:00:00",
+        )
+
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+
+        assert claimed["state"] == bq.CLAIMED
+        assert claimed["lease_owner"] == "worker-a"
+        assert claimed["lease_token"] != "old-token"
+        assert claimed["claim_version"] == 1
+
+    def test_expired_claimed_lease_reclaims_through_recovery_path(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        first = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+        _set_task_fields(
+            db_path,
+            task["id"],
+            lease_expires_at="2000-01-01 00:00:00",
+        )
+
+        with pytest.raises(bq.LeaseConflictError):
+            bq.claim_task(task["id"], "worker-b", db_path=db_path)
+
+        assert bq.recover_expired_leases(db_path=db_path) == {
+            "claimed_requeued": 1,
+            "running_blocked": 0,
+            "total": 1,
+        }
+        second = bq.claim_task(task["id"], "worker-b", db_path=db_path)
+
+        assert second["state"] == bq.CLAIMED
+        assert second["lease_owner"] == "worker-b"
+        assert second["lease_token"] != first["lease_token"]
+        assert second["claim_version"] == first["claim_version"] + 1
+
+    def test_running_task_cannot_be_claimed(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        bq.transition_task(task["id"], bq.CLAIMED, db_path=db_path)
+        bq.transition_task(task["id"], bq.RUNNING, db_path=db_path)
+
+        with pytest.raises(bq.LeaseConflictError):
+            bq.claim_task(task["id"], "worker-a", db_path=db_path)
+
+    def test_archived_task_cannot_be_claimed(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        self._set_archived(db_path, task["id"])
+
+        with pytest.raises(bq.IllegalTransitionError, match="archived"):
+            bq.claim_task(task["id"], "worker-a", db_path=db_path)
+
+    def test_claim_requires_positive_lease_seconds(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+
+        with pytest.raises(ValueError, match="lease_seconds"):
+            bq.claim_task(
+                task["id"],
+                "worker-a",
+                lease_seconds=0,
+                db_path=db_path,
+            )
+
+    def test_claim_task_does_not_use_public_get_task_after_commit(
+        self, db_path, monkeypatch
+    ):
+        task = bq.create_task("t", db_path=db_path)
+
+        def fail_get_task(*args, **kwargs):
+            raise AssertionError("claim_task must not read back through public get_task")
+
+        monkeypatch.setattr(bq, "get_task", fail_get_task)
+
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+
+        assert claimed["id"] == task["id"]
+        assert claimed["state"] == bq.CLAIMED
+        assert claimed["lease_owner"] == "worker-a"
+        assert claimed["claim_version"] == 1
+        assert claimed["lease_token"] is not None
+
+    def test_claim_task_returned_lease_cannot_be_stolen_by_post_commit_readback(
+        self, db_path, monkeypatch
+    ):
+        task = bq.create_task("t", db_path=db_path)
+
+        def racing_get_task(task_id, db_path=None):
+            bq.operator_release_task(task_id, db_path=db_path)
+            bq.claim_task(task_id, "worker-b", db_path=db_path)
+            raise AssertionError("claim_task called public get_task after commit")
+
+        monkeypatch.setattr(bq, "get_task", racing_get_task)
+
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+
+        assert claimed["lease_owner"] == "worker-a"
+        assert claimed["claim_version"] == 1
+
+
+class TestClaimNext:
+    def test_returns_highest_priority_eligible_queued_task(self, db_path):
+        low = bq.create_task("low", priority=1, db_path=db_path)
+        high = bq.create_task("high", priority=10, db_path=db_path)
+
+        claimed = bq.claim_next("worker-a", db_path=db_path)
+
+        assert claimed is not None
+        assert claimed["id"] == high["id"]
+        assert bq.get_task(low["id"], db_path=db_path)["state"] == bq.QUEUED
+
+    def test_breaks_equal_priority_by_id_ascending(self, db_path):
+        first = bq.create_task("first", priority=5, db_path=db_path)
+        second = bq.create_task("second", priority=5, db_path=db_path)
+        expected_id = min(first["id"], second["id"])
+
+        claimed = bq.claim_next("worker-a", db_path=db_path)
+
+        assert claimed is not None
+        assert claimed["id"] == expected_id
+
+    def test_returns_none_when_queue_empty(self, db_path):
+        assert bq.claim_next("worker-a", db_path=db_path) is None
+
+    def test_requires_positive_lease_seconds_even_when_queue_empty(self, db_path):
+        with pytest.raises(ValueError, match="lease_seconds"):
+            bq.claim_next("worker-a", lease_seconds=0, db_path=db_path)
+
+    def test_returns_none_when_all_tasks_have_active_claims(self, db_path):
+        first = bq.create_task("first", db_path=db_path)
+        second = bq.create_task("second", db_path=db_path)
+        bq.claim_task(first["id"], "worker-a", db_path=db_path)
+        bq.claim_task(second["id"], "worker-b", db_path=db_path)
+
+        assert bq.claim_next("worker-c", db_path=db_path) is None
+
+    def test_claim_next_does_not_use_public_get_task_after_commit(
+        self, db_path, monkeypatch
+    ):
+        task = bq.create_task("t", db_path=db_path)
+
+        def fail_get_task(*args, **kwargs):
+            raise AssertionError("claim_next must not read back through public get_task")
+
+        monkeypatch.setattr(bq, "get_task", fail_get_task)
+
+        claimed = bq.claim_next("worker-a", db_path=db_path)
+
+        assert claimed is not None
+        assert claimed["id"] == task["id"]
+        assert claimed["lease_owner"] == "worker-a"
+        assert claimed["claim_version"] == 1
+        assert claimed["lease_token"] is not None
+
+    def test_claim_next_returned_lease_cannot_be_stolen_by_post_commit_readback(
+        self, db_path, monkeypatch
+    ):
+        bq.create_task("t", db_path=db_path)
+
+        def racing_get_task(task_id, db_path=None):
+            bq.operator_release_task(task_id, db_path=db_path)
+            bq.claim_task(task_id, "worker-b", db_path=db_path)
+            raise AssertionError("claim_next called public get_task after commit")
+
+        monkeypatch.setattr(bq, "get_task", racing_get_task)
+
+        claimed = bq.claim_next("worker-a", db_path=db_path)
+
+        assert claimed is not None
+        assert claimed["lease_owner"] == "worker-a"
+        assert claimed["claim_version"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Worker release
+# ---------------------------------------------------------------------------
+
+
+class TestWorkerReleaseTask:
+    def test_valid_worker_release_returns_task_to_queued_and_clears_lease(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+
+        released = bq.worker_release_task(
+            task["id"],
+            claimed["lease_token"],
+            claimed["claim_version"],
+            db_path=db_path,
+        )
+
+        assert released["state"] == bq.QUEUED
+        assert released["lease_owner"] is None
+        assert released["lease_token"] is None
+        assert released["lease_expires_at"] is None
+        assert released["claim_version"] == claimed["claim_version"]
+
+    def test_worker_release_returns_row_without_public_get_task(
+        self, db_path, monkeypatch
+    ):
+        task = bq.create_task("t", db_path=db_path)
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+
+        def fail_get_task(*args, **kwargs):
+            raise AssertionError(
+                "worker_release_task must not read back through public get_task"
+            )
+
+        monkeypatch.setattr(bq, "get_task", fail_get_task)
+
+        released = bq.worker_release_task(
+            task["id"],
+            claimed["lease_token"],
+            claimed["claim_version"],
+            db_path=db_path,
+        )
+
+        assert released["id"] == task["id"]
+        assert released["state"] == bq.QUEUED
+        assert released["lease_owner"] is None
+        assert released["claim_version"] == claimed["claim_version"]
+
+    def test_valid_worker_release_appends_released_event(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+
+        bq.worker_release_task(
+            task["id"],
+            claimed["lease_token"],
+            claimed["claim_version"],
+            db_path=db_path,
+        )
+
+        conn = bq.connect(db_path)
+        try:
+            assert _count_events_of_type(conn, task["id"], "released") == 1
+            assert _count_events_of_type(conn, task["id"], bq.QUEUED) == 0
+        finally:
+            conn.close()
+
+    def test_wrong_token_raises_conflict(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+
+        with pytest.raises(bq.LeaseConflictError):
+            bq.worker_release_task(
+                task["id"],
+                "wrong-token",
+                claimed["claim_version"],
+                db_path=db_path,
+            )
+
+    def test_wrong_claim_version_raises_conflict(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+
+        with pytest.raises(bq.LeaseConflictError):
+            bq.worker_release_task(
+                task["id"],
+                claimed["lease_token"],
+                claimed["claim_version"] + 1,
+                db_path=db_path,
+            )
+
+    def test_expired_lease_raises_conflict(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+        _set_task_fields(
+            db_path, task["id"], lease_expires_at="2000-01-01 00:00:00"
+        )
+
+        with pytest.raises(bq.LeaseConflictError):
+            bq.worker_release_task(
+                task["id"],
+                claimed["lease_token"],
+                claimed["claim_version"],
+                db_path=db_path,
+            )
+
+    def test_failed_release_appends_no_event_and_mutates_no_state(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+        conn = bq.connect(db_path)
+        try:
+            before_events = _count_events(conn, task["id"])
+        finally:
+            conn.close()
+
+        with pytest.raises(bq.LeaseConflictError):
+            bq.worker_release_task(
+                task["id"],
+                "wrong-token",
+                claimed["claim_version"],
+                db_path=db_path,
+            )
+
+        after = bq.get_task(task["id"], db_path=db_path)
+        assert after["state"] == bq.CLAIMED
+        assert after["lease_owner"] == "worker-a"
+        assert after["lease_token"] == claimed["lease_token"]
+        assert after["claim_version"] == claimed["claim_version"]
+        conn = bq.connect(db_path)
+        try:
+            assert _count_events(conn, task["id"]) == before_events
+        finally:
+            conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Operator release
+# ---------------------------------------------------------------------------
+
+
+class TestOperatorReleaseTask:
+    def test_claimed_to_queued(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        bq.claim_task(task["id"], "worker-a", db_path=db_path)
+
+        released = bq.operator_release_task(task["id"], db_path=db_path)
+
+        assert released["state"] == bq.QUEUED
+        assert released["lease_owner"] is None
+        assert released["lease_token"] is None
+        assert released["lease_expires_at"] is None
+
+    def test_operator_release_returns_row_without_public_get_task(
+        self, db_path, monkeypatch
+    ):
+        task = bq.create_task("t", db_path=db_path)
+        bq.claim_task(task["id"], "worker-a", db_path=db_path)
+
+        def fail_get_task(*args, **kwargs):
+            raise AssertionError(
+                "operator_release_task must not read back through public get_task"
+            )
+
+        monkeypatch.setattr(bq, "get_task", fail_get_task)
+
+        released = bq.operator_release_task(task["id"], db_path=db_path)
+
+        assert released["id"] == task["id"]
+        assert released["state"] == bq.QUEUED
+        assert released["lease_owner"] is None
+
+    def test_blocked_to_queued(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+        bq.worker_transition_task(
+            task["id"],
+            bq.RUNNING,
+            claimed["lease_token"],
+            claimed["claim_version"],
+            db_path=db_path,
+        )
+        blocked = bq.worker_transition_task(
+            task["id"],
+            bq.BLOCKED,
+            claimed["lease_token"],
+            claimed["claim_version"],
+            db_path=db_path,
+        )
+
+        released = bq.operator_release_task(blocked["id"], db_path=db_path)
+
+        assert released["state"] == bq.QUEUED
+        assert released["lease_owner"] is None
+        assert released["lease_token"] is None
+        assert released["lease_expires_at"] is None
+
+    def test_event_type_is_operator_released_with_reason(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        bq.claim_task(task["id"], "worker-a", db_path=db_path)
+
+        bq.operator_release_task(
+            task["id"], reason="operator reset", db_path=db_path
+        )
+
+        conn = bq.connect(db_path)
+        try:
+            assert _count_events_of_type(conn, task["id"], "operator_released") == 1
+            assert _count_events_of_type(conn, task["id"], bq.QUEUED) == 0
+            assert _event_payloads(conn, task["id"], "operator_released") == [
+                {"reason": "operator reset"}
+            ]
+        finally:
+            conn.close()
+
+    def test_running_release_raises_clear_error(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+        bq.worker_transition_task(
+            task["id"],
+            bq.RUNNING,
+            claimed["lease_token"],
+            claimed["claim_version"],
+            db_path=db_path,
+        )
+
+        with pytest.raises(bq.IllegalTransitionError, match="must be blocked"):
+            bq.operator_release_task(task["id"], db_path=db_path)
+
+    def test_archived_task_raises(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        bq.claim_task(task["id"], "worker-a", db_path=db_path)
+        _set_task_fields(db_path, task["id"], archived_at="2099-12-31 23:59:59")
+
+        with pytest.raises(bq.IllegalTransitionError, match="archived"):
+            bq.operator_release_task(task["id"], db_path=db_path)
+
+
+# ---------------------------------------------------------------------------
+# Worker-fenced transitions
+# ---------------------------------------------------------------------------
+
+
+class TestWorkerTransitionTask:
+    def test_claimed_to_running_works_with_valid_fence(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+
+        running = bq.worker_transition_task(
+            task["id"],
+            bq.RUNNING,
+            claimed["lease_token"],
+            claimed["claim_version"],
+            db_path=db_path,
+        )
+
+        assert running["state"] == bq.RUNNING
+        assert running["lease_token"] == claimed["lease_token"]
+        assert running["claim_version"] == claimed["claim_version"]
+
+    def test_worker_transition_returns_row_without_public_get_task(
+        self, db_path, monkeypatch
+    ):
+        task = bq.create_task("t", db_path=db_path)
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+
+        def fail_get_task(*args, **kwargs):
+            raise AssertionError(
+                "worker_transition_task must not read back through public get_task"
+            )
+
+        monkeypatch.setattr(bq, "get_task", fail_get_task)
+
+        running = bq.worker_transition_task(
+            task["id"],
+            bq.RUNNING,
+            claimed["lease_token"],
+            claimed["claim_version"],
+            db_path=db_path,
+        )
+
+        assert running["id"] == task["id"]
+        assert running["state"] == bq.RUNNING
+        assert running["lease_token"] == claimed["lease_token"]
+        assert running["claim_version"] == claimed["claim_version"]
+
+    def test_running_to_blocked_works_with_valid_fence(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+        bq.worker_transition_task(
+            task["id"],
+            bq.RUNNING,
+            claimed["lease_token"],
+            claimed["claim_version"],
+            db_path=db_path,
+        )
+
+        blocked = bq.worker_transition_task(
+            task["id"],
+            bq.BLOCKED,
+            claimed["lease_token"],
+            claimed["claim_version"],
+            db_path=db_path,
+        )
+
+        assert blocked["state"] == bq.BLOCKED
+        assert blocked["lease_token"] == claimed["lease_token"]
+
+    def test_wrong_token_raises_conflict(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+
+        with pytest.raises(bq.LeaseConflictError):
+            bq.worker_transition_task(
+                task["id"],
+                bq.RUNNING,
+                "wrong-token",
+                claimed["claim_version"],
+                db_path=db_path,
+            )
+
+    def test_wrong_claim_version_raises_conflict(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+
+        with pytest.raises(bq.LeaseConflictError):
+            bq.worker_transition_task(
+                task["id"],
+                bq.RUNNING,
+                claimed["lease_token"],
+                claimed["claim_version"] + 1,
+                db_path=db_path,
+            )
+
+    def test_expired_lease_raises_conflict(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+        _set_task_fields(
+            db_path, task["id"], lease_expires_at="2000-01-01 00:00:00"
+        )
+
+        with pytest.raises(bq.LeaseConflictError):
+            bq.worker_transition_task(
+                task["id"],
+                bq.RUNNING,
+                claimed["lease_token"],
+                claimed["claim_version"],
+                db_path=db_path,
+            )
+
+    def test_stale_worker_after_reclaim_is_rejected(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        worker_a = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+        bq.worker_release_task(
+            task["id"],
+            worker_a["lease_token"],
+            worker_a["claim_version"],
+            db_path=db_path,
+        )
+        worker_b = bq.claim_task(task["id"], "worker-b", db_path=db_path)
+        conn = bq.connect(db_path)
+        try:
+            before_events = _count_events(conn, task["id"])
+        finally:
+            conn.close()
+
+        with pytest.raises(bq.LeaseConflictError):
+            bq.worker_transition_task(
+                task["id"],
+                bq.RUNNING,
+                worker_a["lease_token"],
+                worker_a["claim_version"],
+                db_path=db_path,
+            )
+        with pytest.raises(bq.LeaseConflictError):
+            bq.worker_release_task(
+                task["id"],
+                worker_a["lease_token"],
+                worker_a["claim_version"],
+                db_path=db_path,
+            )
+
+        after = bq.get_task(task["id"], db_path=db_path)
+        assert after["state"] == bq.CLAIMED
+        assert after["lease_owner"] == "worker-b"
+        assert after["lease_token"] == worker_b["lease_token"]
+        assert after["claim_version"] == worker_b["claim_version"]
+        conn = bq.connect(db_path)
+        try:
+            assert _count_events(conn, task["id"]) == before_events
+        finally:
+            conn.close()
+
+    def test_no_event_on_failed_worker_transition(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+        conn = bq.connect(db_path)
+        try:
+            before_events = _count_events(conn, task["id"])
+        finally:
+            conn.close()
+
+        with pytest.raises(bq.LeaseConflictError):
+            bq.worker_transition_task(
+                task["id"],
+                bq.RUNNING,
+                "wrong-token",
+                claimed["claim_version"],
+                db_path=db_path,
+            )
+
+        conn = bq.connect(db_path)
+        try:
+            assert _count_events(conn, task["id"]) == before_events
+        finally:
+            conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Expired lease recovery
+# ---------------------------------------------------------------------------
+
+
+class TestRecoverExpiredLeases:
+    def test_expired_claimed_lease_requeues_and_appends_released_event(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+        _set_task_fields(
+            db_path, task["id"], lease_expires_at="2000-01-01 00:00:00"
+        )
+
+        counts = bq.recover_expired_leases(db_path=db_path)
+
+        recovered = bq.get_task(task["id"], db_path=db_path)
+        assert recovered["state"] == bq.QUEUED
+        assert recovered["lease_owner"] is None
+        assert recovered["lease_token"] is None
+        assert recovered["lease_expires_at"] is None
+        assert recovered["claim_version"] == claimed["claim_version"]
+        assert counts == {"claimed_requeued": 1, "running_blocked": 0, "total": 1}
+        conn = bq.connect(db_path)
+        try:
+            assert _event_payloads(conn, task["id"], "released") == [
+                {"reason": "lease_expired"}
+            ]
+        finally:
+            conn.close()
+
+    def test_expired_running_lease_blocks_and_appends_blocked_event(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+        bq.worker_transition_task(
+            task["id"],
+            bq.RUNNING,
+            claimed["lease_token"],
+            claimed["claim_version"],
+            db_path=db_path,
+        )
+        _set_task_fields(
+            db_path, task["id"], lease_expires_at="2000-01-01 00:00:00"
+        )
+
+        counts = bq.recover_expired_leases(db_path=db_path)
+
+        recovered = bq.get_task(task["id"], db_path=db_path)
+        assert recovered["state"] == bq.BLOCKED
+        assert recovered["blocked_reason"] == "stale_heartbeat"
+        assert recovered["lease_owner"] is None
+        assert recovered["lease_token"] is None
+        assert recovered["lease_expires_at"] is None
+        assert recovered["claim_version"] == claimed["claim_version"]
+        assert counts == {"claimed_requeued": 0, "running_blocked": 1, "total": 1}
+        conn = bq.connect(db_path)
+        try:
+            assert _event_payloads(conn, task["id"], bq.BLOCKED) == [
+                {"reason": "stale_heartbeat"}
+            ]
+        finally:
+            conn.close()
+
+    def test_recovery_returns_total_counts_across_claimed_and_running(self, db_path):
+        claimed_task = bq.create_task("claimed", db_path=db_path)
+        running_task = bq.create_task("running", db_path=db_path)
+        active_task = bq.create_task("active", db_path=db_path)
+        claimed = bq.claim_task(claimed_task["id"], "worker-a", db_path=db_path)
+        running = bq.claim_task(running_task["id"], "worker-b", db_path=db_path)
+        bq.claim_task(active_task["id"], "worker-c", db_path=db_path)
+        bq.worker_transition_task(
+            running_task["id"],
+            bq.RUNNING,
+            running["lease_token"],
+            running["claim_version"],
+            db_path=db_path,
+        )
+        _set_task_fields(
+            db_path, claimed_task["id"], lease_expires_at="2000-01-01 00:00:00"
+        )
+        _set_task_fields(
+            db_path, running_task["id"], lease_expires_at="2000-01-01 00:00:00"
+        )
+
+        counts = bq.recover_expired_leases(db_path=db_path)
+
+        assert counts == {"claimed_requeued": 1, "running_blocked": 1, "total": 2}
+        assert bq.get_task(claimed_task["id"], db_path=db_path)["claim_version"] == (
+            claimed["claim_version"]
+        )
+        assert bq.get_task(active_task["id"], db_path=db_path)["state"] == bq.CLAIMED
+
+
+# ---------------------------------------------------------------------------
+# Concurrent claim_next
+# ---------------------------------------------------------------------------
+
+
+class TestConcurrentClaimNext:
+    def test_one_winner_and_nine_empty_results(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        barrier = threading.Barrier(10)
+        results = []
+        errors = []
+        lock = threading.Lock()
+
+        def claim(worker_index: int):
+            try:
+                barrier.wait()
+                result = bq.claim_next(
+                    f"worker-{worker_index}", db_path=db_path
+                )
+                with lock:
+                    results.append(result)
+            except Exception as exc:  # fail loud in the assertion below
+                with lock:
+                    errors.append(exc)
+
+        threads = [
+            threading.Thread(target=claim, args=(i,)) for i in range(10)
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        winners = [r for r in results if r is not None]
+        empty = [r for r in results if r is None]
+        assert errors == []
+        assert len(winners) == 1
+        assert len(empty) == 9
+        assert winners[0]["id"] == task["id"]
+        final = bq.get_task(task["id"], db_path=db_path)
+        assert final["state"] == bq.CLAIMED
+        assert final["lease_owner"] is not None
+        assert final["lease_token"] is not None
+        assert final["claim_version"] == 1
+        conn = bq.connect(db_path)
+        try:
+            assert _count_events_of_type(conn, task["id"], bq.CLAIMED) == 1
         finally:
             conn.close()
