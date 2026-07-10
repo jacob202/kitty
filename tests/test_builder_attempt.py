@@ -327,6 +327,103 @@ class TestContextBundle:
 
 
 # ---------------------------------------------------------------------------
+# Deterministic validation (KB-S3a)
+# ---------------------------------------------------------------------------
+
+
+def _apply_with_commands(db_path: Path, commands: list[str]) -> None:
+    manifest = _manifest()
+    manifest["initiative_id"] = "val-test"
+    manifest["packets"][0]["validation_commands"] = commands
+    bi.apply_manifest(manifest, db_path=db_path)
+
+
+class TestRunValidation:
+    def test_all_commands_pass(self, db_path: Path, tmp_path: Path):
+        _apply_with_commands(db_path, ["true", "echo hello"])
+        attempt = ba.start_attempt("val-test", PACKET, db_path=db_path)
+        assert attempt["bundle"]["validation_commands"] == ["true", "echo hello"]
+        updated = ba.run_validation(attempt["id"], cwd=tmp_path, db_path=db_path)
+        validation = updated["validation"]
+        assert validation["status"] == "passed"
+        assert [r["passed"] for r in validation["commands"]] == [True, True]
+        assert "hello" in validation["commands"][1]["output_tail"]
+
+    def test_failing_command_fails_validation(self, db_path: Path, tmp_path: Path):
+        _apply_with_commands(db_path, ["true", "false"])
+        attempt = ba.start_attempt("val-test", PACKET, db_path=db_path)
+        updated = ba.run_validation(attempt["id"], cwd=tmp_path, db_path=db_path)
+        assert updated["validation"]["status"] == "failed"
+        assert updated["validation"]["commands"][1]["exit_code"] == 1
+
+    def test_no_commands_is_skipped(self, db_path: Path, tmp_path: Path):
+        attempt = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+        updated = ba.run_validation(attempt["id"], cwd=tmp_path, db_path=db_path)
+        assert updated["validation"] == {"status": "skipped", "commands": []}
+
+    def test_runs_in_given_cwd(self, db_path: Path, tmp_path: Path):
+        (tmp_path / "marker.txt").write_text("here", encoding="utf-8")
+        _apply_with_commands(db_path, ["cat marker.txt"])
+        attempt = ba.start_attempt("val-test", PACKET, db_path=db_path)
+        updated = ba.run_validation(attempt["id"], cwd=tmp_path, db_path=db_path)
+        assert updated["validation"]["status"] == "passed"
+        assert "here" in updated["validation"]["commands"][0]["output_tail"]
+
+    def test_missing_cwd_fails_loud(self, db_path: Path, tmp_path: Path):
+        _apply_with_commands(db_path, ["true"])
+        attempt = ba.start_attempt("val-test", PACKET, db_path=db_path)
+        with pytest.raises(ba.AttemptError, match="does not exist"):
+            ba.run_validation(
+                attempt["id"], cwd=tmp_path / "nope", db_path=db_path
+            )
+
+    def test_timeout_records_failure(self, db_path: Path, tmp_path: Path):
+        _apply_with_commands(db_path, ["sleep 5"])
+        attempt = ba.start_attempt("val-test", PACKET, db_path=db_path)
+        updated = ba.run_validation(
+            attempt["id"], cwd=tmp_path, timeout_seconds=1, db_path=db_path
+        )
+        record = updated["validation"]["commands"][0]
+        assert updated["validation"]["status"] == "failed"
+        assert record["exit_code"] is None
+        assert "TIMEOUT" in record["output_tail"]
+
+    def test_validation_is_write_once(self, db_path: Path, tmp_path: Path):
+        attempt = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+        ba.run_validation(attempt["id"], cwd=tmp_path, db_path=db_path)
+        with pytest.raises(ba.AttemptStateError, match="already has"):
+            ba.run_validation(attempt["id"], cwd=tmp_path, db_path=db_path)
+
+    def test_closed_attempt_rejected(self, db_path: Path, tmp_path: Path):
+        attempt = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+        ba.close_attempt(attempt["id"], "aborted", db_path=db_path)
+        with pytest.raises(ba.AttemptStateError, match="closed"):
+            ba.run_validation(attempt["id"], cwd=tmp_path, db_path=db_path)
+
+    def test_output_tail_is_capped(self, db_path: Path, tmp_path: Path):
+        _apply_with_commands(
+            db_path, ["python3 -c \"print('x' * 20000)\""]
+        )
+        attempt = ba.start_attempt("val-test", PACKET, db_path=db_path)
+        updated = ba.run_validation(attempt["id"], cwd=tmp_path, db_path=db_path)
+        assert len(updated["validation"]["commands"][0]["output_tail"]) <= ba.OUTPUT_CAP
+
+    def test_event_appended(self, db_path: Path, tmp_path: Path):
+        attempt = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+        ba.run_validation(attempt["id"], cwd=tmp_path, db_path=db_path)
+        events = [
+            e["type"] for e in bq.list_events(attempt["task_id"], db_path=db_path)
+        ]
+        assert "attempt_validation_recorded" in events
+
+    def test_manifest_rejects_bad_validation_commands(self):
+        manifest = _manifest()
+        manifest["packets"][0]["validation_commands"] = ["", 3]
+        errors = bi.validate_manifest(manifest)
+        assert any("validation_commands" in e for e in errors)
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -407,3 +504,33 @@ class TestCli:
         capsys.readouterr()
         assert main(["initiative", "attempts", INITIATIVE, "KB-A2", "--json"]) == 0
         assert json.loads(capsys.readouterr().out) == []
+
+    def test_run_validation_cli(self, tmp_path: Path, cli_db, capsys):
+        manifest = _manifest()
+        manifest["initiative_id"] = "val-cli"
+        manifest["packets"][0]["validation_commands"] = ["true"]
+        bi.apply_manifest(manifest)
+        assert main(["initiative", "start-attempt", "val-cli", PACKET, "--json"]) == 0
+        attempt = json.loads(capsys.readouterr().out)
+        assert main(
+            ["initiative", "run-validation", str(attempt["id"]),
+             "--cwd", str(tmp_path)]
+        ) == 0
+        assert "validation passed" in capsys.readouterr().out
+
+    def test_run_validation_cli_failure_exit_code(
+        self, tmp_path: Path, cli_db, capsys
+    ):
+        manifest = _manifest()
+        manifest["initiative_id"] = "val-cli-fail"
+        manifest["packets"][0]["validation_commands"] = ["false"]
+        bi.apply_manifest(manifest)
+        assert main(
+            ["initiative", "start-attempt", "val-cli-fail", PACKET, "--json"]
+        ) == 0
+        attempt = json.loads(capsys.readouterr().out)
+        assert main(
+            ["initiative", "run-validation", str(attempt["id"]),
+             "--cwd", str(tmp_path)]
+        ) == 1
+        assert "validation failed" in capsys.readouterr().out

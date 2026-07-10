@@ -61,8 +61,10 @@ _PACKET_KEYS = frozenset(
         "acceptance_criteria",
         "allowed_paths",
         "policy",
+        "validation_commands",
     }
 )
+_MAX_VALIDATION_COMMANDS = 20
 _POLICY_KEYS = frozenset({"max_attempts", "priority"})
 
 # bridge_source for tasks materialized from initiative packets.
@@ -115,6 +117,7 @@ CREATE TABLE IF NOT EXISTS initiative_packets (
     acceptance_criteria_json TEXT NOT NULL,
     allowed_paths_json TEXT NOT NULL,
     policy_json TEXT,
+    validation_commands_json TEXT,
     task_id TEXT NOT NULL UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (initiative_id, packet_id),
@@ -124,11 +127,24 @@ CREATE TABLE IF NOT EXISTS initiative_packets (
 """
 
 
+def _ensure_packet_columns(conn: sqlite3.Connection) -> None:
+    """Add KB-S3a columns to initiative_packets tables created before them."""
+    existing = {
+        str(row["name"])
+        for row in conn.execute("PRAGMA table_info(initiative_packets)").fetchall()
+    }
+    if existing and "validation_commands_json" not in existing:
+        conn.execute(
+            "ALTER TABLE initiative_packets ADD COLUMN validation_commands_json TEXT"
+        )
+
+
 def init_db(db_path: Path | None = None) -> None:
     """Ensure the queue schema plus initiative tables exist. Idempotent."""
     bq.init_db(db_path)
     conn = bq.connect(db_path)
     try:
+        _ensure_packet_columns(conn)
         conn.executescript(_SCHEMA_SQL)
         conn.commit()
     finally:
@@ -306,6 +322,18 @@ def validate_manifest(manifest: Any) -> list[str]:
         for path in allowed:
             _validate_allowed_path(path, label, errors)
 
+        commands = _check_str_list(
+            packet.get("validation_commands"),
+            f"{label}: validation_commands",
+            errors,
+            required=False,
+        )
+        if len(commands) > _MAX_VALIDATION_COMMANDS:
+            errors.append(
+                f"{label}: validation_commands must have at most "
+                f"{_MAX_VALIDATION_COMMANDS} entries"
+            )
+
         deps = _check_str_list(
             packet.get("depends_on"), f"{label}: depends_on", errors,
             required=False,
@@ -451,13 +479,15 @@ def apply_manifest(
                 db_path=db_path,
                 conn=conn,
             )
+            validation_commands = packet.get("validation_commands") or []
             conn.execute(
                 """
                 INSERT INTO initiative_packets (
                     initiative_id, packet_id, seq, title, objective,
                     depends_on_json, acceptance_criteria_json,
-                    allowed_paths_json, policy_json, task_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    allowed_paths_json, policy_json,
+                    validation_commands_json, task_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     initiative_id,
@@ -469,6 +499,7 @@ def apply_manifest(
                     json.dumps(packet["acceptance_criteria"]),
                     json.dumps(packet["allowed_paths"]),
                     json.dumps(policy) if policy else None,
+                    json.dumps(validation_commands) if validation_commands else None,
                     task["id"],
                 ),
             )
@@ -500,6 +531,7 @@ def _row_to_packet(row: sqlite3.Row) -> dict[str, Any]:
         ("acceptance_criteria_json", "acceptance_criteria"),
         ("allowed_paths_json", "allowed_paths"),
         ("policy_json", "policy"),
+        ("validation_commands_json", "validation_commands"),
     ):
         raw = packet.get(column)
         try:

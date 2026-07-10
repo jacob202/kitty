@@ -44,16 +44,24 @@ materializes one queue task per packet with a stable mapping, dry-run, and
   Reuse `builder_contract.py` validation style; hard size caps on every
   free-text field.
 
-### KB-S3 — Deterministic validation, independent review, bounded repair
+### KB-S3a — Deterministic validation stage ✅ (this PR)
 
-- Validation stage: run the packet's declared checks (pytest slice, mypy,
-  ruff, `git diff --check`) in the task worktree; results recorded on the
-  attempt, pass/fail is deterministic.
+- Packets declare `validation_commands` in the manifest (optional, additive
+  to manifest v1); stored on the packet and carried in the context bundle.
+- `run_validation(attempt_id)`: runs the declared commands sequentially in
+  the task's runner worktree (or an explicit cwd), records
+  passed/failed/skipped with capped output tails, write-once per attempt.
+  Orchestrator-owned truth, independent of the worker's claimed validation.
+- CLI: `initiative run-validation <attempt-id> [--cwd] [--timeout]`.
+
+### KB-S3b — Independent review and bounded repair loop
+
 - Independent review: a second worker invocation with a review brief and no
   memory of the implementation conversation; emits the review contract.
 - Repair loop: implement → validate → review → repair, capped by
-  `policy.max_attempts`; each attempt is a new run record via the existing
-  runner. Cap exhausted → task `blocked`, initiative pauses.
+  `policy.max_attempts` (enforced by `start_attempt` since KB-S2); each
+  attempt is a new run record via the existing runner. Cap exhausted → task
+  `blocked`, initiative pauses.
 
 ### KB-S4 — Push, PR, CI reconciliation, merge detection
 

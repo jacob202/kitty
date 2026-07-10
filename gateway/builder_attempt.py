@@ -20,6 +20,8 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -89,6 +91,7 @@ CREATE TABLE IF NOT EXISTS packet_attempts (
     task_id TEXT NOT NULL,
     bundle_json TEXT NOT NULL,
     implementation_json TEXT,
+    validation_json TEXT,
     review_json TEXT,
     outcome TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -101,11 +104,22 @@ CREATE TABLE IF NOT EXISTS packet_attempts (
 """
 
 
+def _ensure_attempt_columns(conn: sqlite3.Connection) -> None:
+    """Add KB-S3a columns to packet_attempts tables created before them."""
+    existing = {
+        str(row["name"])
+        for row in conn.execute("PRAGMA table_info(packet_attempts)").fetchall()
+    }
+    if existing and "validation_json" not in existing:
+        conn.execute("ALTER TABLE packet_attempts ADD COLUMN validation_json TEXT")
+
+
 def init_db(db_path: Path | None = None) -> None:
     """Ensure initiative schema plus the attempts table exist. Idempotent."""
     bi.init_db(db_path)
     conn = bq.connect(db_path)
     try:
+        _ensure_attempt_columns(conn)
         conn.executescript(_SCHEMA_SQL)
         conn.commit()
     finally:
@@ -283,6 +297,11 @@ def _build_bundle_on_conn(
         "acceptance_criteria": json.loads(packet["acceptance_criteria_json"]),
         "allowed_paths": json.loads(packet["allowed_paths_json"]),
         "policy": json.loads(packet["policy_json"]) if packet["policy_json"] else {},
+        "validation_commands": (
+            json.loads(packet["validation_commands_json"])
+            if packet["validation_commands_json"]
+            else []
+        ),
         "prior_attempts": [
             _prior_attempt_summary(r) for r in reversed(priors)
         ],
@@ -326,6 +345,7 @@ def _row_to_attempt(row: sqlite3.Row) -> dict[str, Any]:
     for column, key in (
         ("bundle_json", "bundle"),
         ("implementation_json", "implementation"),
+        ("validation_json", "validation"),
         ("review_json", "review"),
     ):
         raw = attempt.get(column)
@@ -445,6 +465,138 @@ def record_implementation_result(
             row["task_id"],
             "attempt_implementation_recorded",
             payload={"attempt_id": attempt_id, "status": result["status"]},
+            conn=conn,
+        )
+        conn.commit()
+        updated = conn.execute(
+            "SELECT * FROM packet_attempts WHERE id = ?", (attempt_id,)
+        ).fetchone()
+        return _row_to_attempt(updated)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+VALIDATION_PASSED = "passed"
+VALIDATION_FAILED = "failed"
+VALIDATION_SKIPPED = "skipped"
+DEFAULT_VALIDATION_TIMEOUT = 600
+
+
+def run_validation(
+    attempt_id: int,
+    *,
+    cwd: Path | None = None,
+    timeout_seconds: int = DEFAULT_VALIDATION_TIMEOUT,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Run the packet's declared validation_commands and record the verdict.
+
+    Deterministic, orchestrator-owned check — independent of whatever the
+    worker claimed in its implementation result. Commands run sequentially
+    with ``shell=True`` in ``cwd`` (default: the task's runner worktree,
+    which must already exist). Manifests are operator-authored, so commands
+    carry the same trust as the worker command passed to ``queue run``.
+
+    Result (write-once on the attempt): ``status`` is ``passed`` when every
+    command exits 0, ``failed`` if any fails or times out, ``skipped`` when
+    the packet declares no commands. Output tails are capped at OUTPUT_CAP.
+    """
+    init_db(db_path)
+    conn = bq.connect(db_path)
+    try:
+        row = _open_attempt_row(conn, attempt_id)
+        if row["validation_json"] is not None:
+            raise AttemptStateError(
+                f"attempt {attempt_id} already has a validation result"
+            )
+        packet = _packet_row(conn, row["initiative_id"], row["packet_id"])
+        commands: list[str] = (
+            json.loads(packet["validation_commands_json"])
+            if packet["validation_commands_json"]
+            else []
+        )
+        task_id = row["task_id"]
+    finally:
+        conn.close()
+
+    if commands:
+        if cwd is None:
+            from gateway.builder_runner import worktree_path
+
+            cwd = worktree_path(task_id)
+        if not Path(cwd).is_dir():
+            raise AttemptError(
+                f"validation cwd does not exist: {cwd} — run the worker first "
+                "or pass an explicit --cwd"
+            )
+
+    results: list[dict[str, Any]] = []
+    for command in commands:
+        started = time.monotonic()
+        try:
+            proc = subprocess.run(
+                command,
+                shell=True,
+                cwd=str(cwd),
+                capture_output=True,
+                text=True,
+                timeout=timeout_seconds,
+            )
+            exit_code: int | None = proc.returncode
+            output = (proc.stdout or "") + (proc.stderr or "")
+        except subprocess.TimeoutExpired as exc:
+            exit_code = None
+            # TimeoutExpired may carry bytes even under text=True.
+            partial = b"".join(
+                part if isinstance(part, bytes) else part.encode("utf-8")
+                for part in (exc.stdout, exc.stderr)
+                if part
+            )
+            output = (
+                f"TIMEOUT after {timeout_seconds}s\n"
+                + partial.decode("utf-8", errors="replace")
+            )
+        results.append(
+            {
+                "command": command,
+                "exit_code": exit_code,
+                "passed": exit_code == 0,
+                "duration_s": round(time.monotonic() - started, 2),
+                "output_tail": output[-OUTPUT_CAP:],
+            }
+        )
+
+    if not commands:
+        status = VALIDATION_SKIPPED
+    elif all(r["passed"] for r in results):
+        status = VALIDATION_PASSED
+    else:
+        status = VALIDATION_FAILED
+    validation = {"status": status, "commands": results}
+
+    conn = bq.connect(db_path)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = _open_attempt_row(conn, attempt_id)
+        if row["validation_json"] is not None:
+            raise AttemptStateError(
+                f"attempt {attempt_id} already has a validation result"
+            )
+        conn.execute(
+            """
+            UPDATE packet_attempts
+            SET validation_json = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (json.dumps(validation), attempt_id),
+        )
+        bq.append_event(
+            row["task_id"],
+            "attempt_validation_recorded",
+            payload={"attempt_id": attempt_id, "status": status},
             conn=conn,
         )
         conn.commit()

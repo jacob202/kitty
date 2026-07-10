@@ -1115,6 +1115,29 @@ def _cmd_initiative_record(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_initiative_run_validation(args: argparse.Namespace) -> int:
+    from gateway.builder_attempt import AttemptError, run_validation
+
+    try:
+        attempt = run_validation(
+            args.attempt_id,
+            cwd=Path(args.cwd) if args.cwd else None,
+            timeout_seconds=args.timeout,
+        )
+    except AttemptError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    validation = attempt["validation"]
+    if args.json:
+        print(json.dumps(attempt, indent=2, default=str))
+    else:
+        print(f"validation {validation['status']} (attempt {attempt['id']})")
+        for r in validation["commands"]:
+            marker = "ok " if r["passed"] else "FAIL"
+            print(f"  [{marker}] {r['command']} ({r['duration_s']}s)")
+    return 0 if validation["status"] != "failed" else 1
+
+
 def _cmd_initiative_close_attempt(args: argparse.Namespace) -> int:
     from gateway.builder_attempt import AttemptError, close_attempt
 
@@ -1182,6 +1205,7 @@ _dispatch: dict[str, Any] = {
     "initiative-start-attempt": _cmd_initiative_start_attempt,
     "initiative-record-implementation": _cmd_initiative_record,
     "initiative-record-review": _cmd_initiative_record,
+    "initiative-run-validation": _cmd_initiative_run_validation,
     "initiative-close-attempt": _cmd_initiative_close_attempt,
 }
 
@@ -1527,6 +1551,19 @@ def build_parser() -> argparse.ArgumentParser:
         rec_p.add_argument("--file", required=True, help="path to the result JSON file")
         rec_p.add_argument("--json", action="store_true", help="output JSON")
 
+    ini_run_val_p = initiative_sub.add_parser(
+        "run-validation",
+        help="run the packet's declared validation commands and record the verdict",
+    )
+    ini_run_val_p.add_argument("attempt_id", type=int, help="attempt ID")
+    ini_run_val_p.add_argument(
+        "--cwd", help="directory to run in (default: the task's runner worktree)"
+    )
+    ini_run_val_p.add_argument(
+        "--timeout", type=int, default=600, help="per-command timeout in seconds"
+    )
+    ini_run_val_p.add_argument("--json", action="store_true", help="output JSON")
+
     ini_close_att_p = initiative_sub.add_parser(
         "close-attempt", help="close an open attempt with a terminal outcome"
     )
@@ -1587,6 +1624,7 @@ _MUTATING_INITIATIVE_COMMANDS = frozenset(
         "start-attempt",
         "record-implementation",
         "record-review",
+        "run-validation",
         "close-attempt",
     }
 )
