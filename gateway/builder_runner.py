@@ -21,7 +21,7 @@ import signal
 import subprocess
 import time
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, NoReturn
 
 from gateway import builder_queue as bq
 from gateway.builder_brief import default_branch_name, render_worker_brief
@@ -223,6 +223,82 @@ def _terminate_group(proc: subprocess.Popen[Any]) -> None:
         proc.wait()
 
 
+def _raise_worker_launch_error(
+    exc: OSError,
+    *,
+    run: dict[str, Any],
+    task: dict[str, Any],
+    command: list[str],
+    branch: str,
+    wt_path: Path,
+    log_path: Path,
+    brief_path: Path,
+    lease_token: str,
+    claim_version: int,
+    worker: str,
+    model: str | None,
+    provider: str | None,
+    db_path: Path | None,
+) -> NoReturn:
+    """Persist a failed launch, then raise the original failure with context."""
+    run_id = str(run["id"])
+    start_sha = str(run.get("start_sha") or "")
+    inspection_error: str | None = None
+    try:
+        changed_paths = _changed_paths(wt_path, start_sha)
+        scope_violations = _scope_violations(
+            changed_paths, task.get("allowed_paths")
+        )
+        worktree_state = _worktree_summary(wt_path)
+    except Exception as inspect_exc:
+        changed_paths = []
+        scope_violations = []
+        inspection_error = f"{type(inspect_exc).__name__}: {inspect_exc}"
+        worktree_state = {"inspection_error": inspection_error}
+
+    report = {
+        "run_id": run_id,
+        "outcome": bq.RUN_FAILED,
+        "exit_code": None,
+        "error": f"{type(exc).__name__}: {exc}",
+        "branch": branch,
+        "worktree": str(wt_path),
+        "log_path": str(log_path),
+        "brief_path": str(brief_path),
+        "start_sha": start_sha,
+        "command": command,
+        "claim_version": claim_version,
+        "worker": worker,
+        "model": model,
+        "provider": provider,
+        "changed_paths": changed_paths,
+        "scope_violations": scope_violations,
+        "worktree_state": worktree_state,
+    }
+    if inspection_error is not None:
+        report["inspection_error"] = inspection_error
+    try:
+        bq.finalize_run(
+            run_id,
+            bq.RUN_FAILED,
+            exit_code=None,
+            report=report,
+            lease_token=lease_token,
+            claim_version=claim_version,
+            block_reason="worker_launch_failed",
+            db_path=db_path,
+        )
+    except Exception as finalize_exc:
+        raise RunnerError(
+            f"worker launch failed for run {run_id} with command "
+            f"{command!r}: {exc}; durable failure recording also failed: "
+            f"{finalize_exc}"
+        ) from exc
+    raise RunnerError(
+        f"worker launch failed for run {run_id} with command {command!r}: {exc}"
+    ) from exc
+
+
 def run_worker(
     task_id: str,
     command: list[str],
@@ -285,44 +361,110 @@ def run_worker(
 
     queue_db = Path(db_path) if db_path is not None else BUILDER_QUEUE_DB
     log_dir = queue_db.parent / "runs"
-    log_dir.mkdir(parents=True, exist_ok=True)
+    run: dict[str, Any] | None = None
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        start_sha = _git_output(["rev-parse", "HEAD"], cwd=wt_path).strip()
+        run = bq.create_run(
+            task_id,
+            command,
+            lease_token=lease_token,
+            claim_version=claim_version,
+            worker=worker,
+            model=model,
+            provider=provider,
+            branch=branch,
+            worktree_path=str(wt_path),
+            start_sha=start_sha,
+            log_path="",  # set below once the run ID names the file
+            db_path=db_path,
+        )
+        run_id = str(run["id"])
+        run_dir = log_dir / run_id
+        run_dir.mkdir()
+        log_path = run_dir / "combined.log"
+        brief_path = run_dir / "brief.md"
+        gh_config_dir = run_dir / "gh-config"
+        gh_config_dir.mkdir(mode=0o700)
 
-    run = bq.create_run(
-        task_id,
-        command,
-        lease_token=lease_token,
-        claim_version=claim_version,
-        worker=worker,
-        model=model,
-        provider=provider,
-        branch=branch,
-        worktree_path=str(wt_path),
-        start_sha=_git_output(["rev-parse", "HEAD"], cwd=wt_path).strip(),
-        log_path="",  # set below once the run ID names the file
-        db_path=db_path,
-    )
-    run_id = run["id"]
-    run_dir = log_dir / run_id
-    run_dir.mkdir()
-    log_path = run_dir / "combined.log"
-    brief_path = run_dir / "brief.md"
-    gh_config_dir = run_dir / "gh-config"
-    gh_config_dir.mkdir(mode=0o700)
+        events = bq.list_events(task_id, db_path=db_path)
+        pr_links = bq.get_pr_links(task_id, db_path=db_path)
+        brief_path.write_text(
+            render_worker_brief(task, events, pr_links, branch=branch)
+        )
 
-    events = bq.list_events(task_id, db_path=db_path)
-    pr_links = bq.get_pr_links(task_id, db_path=db_path)
-    brief_path.write_text(
-        render_worker_brief(task, events, pr_links, branch=branch)
-    )
+        bq.worker_transition_task(
+            task_id,
+            bq.RUNNING,
+            lease_token,
+            claim_version,
+            payload={"run_id": run_id, "worker": worker},
+            db_path=db_path,
+        )
+    except Exception as exc:
+        if run is None:
+            try:
+                bq.worker_release_task(
+                    task_id,
+                    lease_token,
+                    claim_version,
+                    db_path=db_path,
+                )
+            except Exception as release_exc:
+                raise RunnerError(
+                    f"prelaunch setup failed for task {task_id}: {exc}; "
+                    f"releasing its claim also failed: {release_exc}"
+                ) from exc
+        else:
+            failed_run_id = str(run["id"])
+            failed_run_dir = log_dir / failed_run_id
+            current_run = bq.get_run(failed_run_id, db_path=db_path)
+            failed_outcome = (
+                bq.RUN_CANCELLED
+                if current_run is not None
+                and current_run["state"] == bq.RUN_CANCEL_REQUESTED
+                else bq.RUN_FAILED
+            )
+            report = {
+                "run_id": failed_run_id,
+                "outcome": failed_outcome,
+                "exit_code": None,
+                "error": f"{type(exc).__name__}: {exc}",
+                "branch": branch,
+                "worktree": str(wt_path),
+                "log_path": str(failed_run_dir / "combined.log"),
+                "brief_path": str(failed_run_dir / "brief.md"),
+                "start_sha": run.get("start_sha"),
+                "command": command,
+                "claim_version": claim_version,
+                "worker": worker,
+                "model": model,
+                "provider": provider,
+                "changed_paths": [],
+                "scope_violations": [],
+            }
+            try:
+                bq.finalize_run(
+                    failed_run_id,
+                    failed_outcome,
+                    exit_code=None,
+                    report=report,
+                    lease_token=lease_token,
+                    claim_version=claim_version,
+                    block_reason="runner_setup_failed",
+                    db_path=db_path,
+                )
+            except Exception as finalize_exc:
+                raise RunnerError(
+                    f"prelaunch setup failed for run {failed_run_id}: {exc}; "
+                    f"durable failure recording also failed: {finalize_exc}"
+                ) from exc
+        raise RunnerError(
+            f"prelaunch setup failed for task {task_id}: "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
 
-    bq.worker_transition_task(
-        task_id,
-        bq.RUNNING,
-        lease_token,
-        claim_version,
-        payload={"run_id": run_id, "worker": worker},
-        db_path=db_path,
-    )
+    assert run is not None
 
     child_env = dict(os.environ)
     # Shadow mode: no ambient GitHub credentials reach the worker.
@@ -357,7 +499,27 @@ def run_worker(
     exit_code: int | None = None
     started = time.monotonic()
 
-    with open(log_path, "wb") as log_fh:
+    try:
+        log_fh = open(log_path, "wb")
+    except OSError as exc:
+        _raise_worker_launch_error(
+            exc,
+            run=run,
+            task=task,
+            command=command,
+            branch=branch,
+            wt_path=wt_path,
+            log_path=log_path,
+            brief_path=brief_path,
+            lease_token=lease_token,
+            claim_version=claim_version,
+            worker=worker,
+            model=model,
+            provider=provider,
+            db_path=db_path,
+        )
+
+    with log_fh:
         try:
             proc = subprocess.Popen(
                 command,
@@ -368,52 +530,25 @@ def run_worker(
                 start_new_session=True,  # own process group → clean termination
             )
         except OSError as exc:
-            start_sha = str(run.get("start_sha") or "")
-            changed_paths = _changed_paths(wt_path, start_sha)
-            report = {
-                "run_id": run_id,
-                "outcome": bq.RUN_FAILED,
-                "exit_code": None,
-                "error": f"{type(exc).__name__}: {exc}",
-                "branch": branch,
-                "worktree": str(wt_path),
-                "log_path": str(log_path),
-                "brief_path": str(brief_path),
-                "start_sha": start_sha,
-                "command": command,
-                "claim_version": claim_version,
-                "worker": worker,
-                "model": model,
-                "provider": provider,
-                "changed_paths": changed_paths,
-                "scope_violations": _scope_violations(
-                    changed_paths, task.get("allowed_paths")
-                ),
-                "worktree_state": _worktree_summary(wt_path),
-            }
-            try:
-                bq.finalize_run(
-                    run_id,
-                    bq.RUN_FAILED,
-                    exit_code=None,
-                    report=report,
-                    lease_token=lease_token,
-                    claim_version=claim_version,
-                    block_reason="worker_launch_failed",
-                    db_path=db_path,
-                )
-            except Exception as finalize_exc:
-                raise RunnerError(
-                    f"worker launch failed for run {run_id} with command "
-                    f"{command!r}: {exc}; durable failure recording also "
-                    f"failed: {finalize_exc}"
-                ) from exc
-            raise RunnerError(
-                f"worker launch failed for run {run_id} with command "
-                f"{command!r}: {exc}"
-            ) from exc
+            _raise_worker_launch_error(
+                exc,
+                run=run,
+                task=task,
+                command=command,
+                branch=branch,
+                wt_path=wt_path,
+                log_path=log_path,
+                brief_path=brief_path,
+                lease_token=lease_token,
+                claim_version=claim_version,
+                worker=worker,
+                model=model,
+                provider=provider,
+                db_path=db_path,
+            )
         lost_lease = False
         cancelled_before_start = False
+        control_error: Exception | None = None
         try:
             process_identity = bq.capture_process_identity(proc.pid)
             bq.update_run(
@@ -427,65 +562,78 @@ def run_worker(
                 expected_states=frozenset({bq.RUN_STARTING}),
                 db_path=db_path,
             )
-        except bq.RunStateConflictError:
-            current = bq.get_run(run_id, db_path=db_path)
-            if current and current["state"] == bq.RUN_CANCEL_REQUESTED:
-                _terminate_group(proc)
-                exit_code = proc.returncode
+        except bq.RunStateConflictError as exc:
+            try:
+                current = bq.get_run(run_id, db_path=db_path)
+            except Exception as read_exc:
+                current = None
+                control_error = read_exc
+            if current is not None and current["state"] == bq.RUN_CANCEL_REQUESTED:
                 outcome = bq.RUN_CANCELLED
                 cancelled_before_start = True
-            else:
-                _terminate_group(proc)
-                raise
-        except Exception:
+            elif control_error is None:
+                control_error = exc
             _terminate_group(proc)
-            raise
+            exit_code = proc.returncode
+        except Exception as exc:
+            _terminate_group(proc)
+            exit_code = proc.returncode
+            control_error = exc
 
-        if not cancelled_before_start:
-            bq.append_event(
-                task_id,
-                "run_started",
-                payload={"run_id": run_id, "pid": proc.pid, "command": command},
-                run_id=run_id,
-                db_path=db_path,
-            )
+        if not cancelled_before_start and control_error is None:
+            try:
+                bq.append_event(
+                    task_id,
+                    "run_started",
+                    payload={"run_id": run_id, "pid": proc.pid, "command": command},
+                    run_id=run_id,
+                    db_path=db_path,
+                )
 
-            while True:
-                try:
-                    exit_code = proc.wait(timeout=heartbeat_seconds)
-                    break
-                except subprocess.TimeoutExpired:
-                    pass
+                while True:
+                    try:
+                        exit_code = proc.wait(timeout=heartbeat_seconds)
+                        break
+                    except subprocess.TimeoutExpired:
+                        pass
 
-                current = bq.get_run(run_id, db_path=db_path)
-                if current and current["state"] == bq.RUN_CANCEL_REQUESTED:
-                    _terminate_group(proc)
-                    exit_code = proc.returncode
-                    outcome = bq.RUN_CANCELLED
-                    break
+                    current = bq.get_run(run_id, db_path=db_path)
+                    if current is None:
+                        raise RuntimeError(
+                            f"run {run_id} disappeared during heartbeat"
+                        )
+                    if current["state"] == bq.RUN_CANCEL_REQUESTED:
+                        _terminate_group(proc)
+                        exit_code = proc.returncode
+                        outcome = bq.RUN_CANCELLED
+                        break
 
-                if time.monotonic() - started > timeout_seconds:
-                    _terminate_group(proc)
-                    exit_code = proc.returncode
-                    outcome = bq.RUN_TIMEOUT
-                    break
+                    if time.monotonic() - started > timeout_seconds:
+                        _terminate_group(proc)
+                        exit_code = proc.returncode
+                        outcome = bq.RUN_TIMEOUT
+                        break
 
-                try:
-                    bq.renew_lease(
-                        task_id,
-                        lease_token,
-                        claim_version,
-                        lease_seconds=lease_seconds,
-                        db_path=db_path,
-                    )
-                    bq.update_run(run_id, mark_heartbeat=True, db_path=db_path)
-                except bq.LeaseConflictError:
-                    # We no longer own the task (operator released / another
-                    # worker). Stop the worker; do not touch task state.
-                    _terminate_group(proc)
-                    exit_code = proc.returncode
-                    lost_lease = True
-                    break
+                    try:
+                        bq.renew_lease(
+                            task_id,
+                            lease_token,
+                            claim_version,
+                            lease_seconds=lease_seconds,
+                            db_path=db_path,
+                        )
+                        bq.update_run(run_id, mark_heartbeat=True, db_path=db_path)
+                    except bq.LeaseConflictError:
+                        # We no longer own the task (operator released / another
+                        # worker). Stop the worker; do not touch task state.
+                        _terminate_group(proc)
+                        exit_code = proc.returncode
+                        lost_lease = True
+                        break
+            except Exception as exc:
+                _terminate_group(proc)
+                exit_code = proc.returncode
+                control_error = exc
 
     # Fence once more after process exit. A cancellation signal can make the
     # child exit before the heartbeat loop observes that the task lease was
@@ -501,6 +649,9 @@ def run_worker(
             )
         except bq.LeaseConflictError:
             lost_lease = True
+        except Exception as exc:
+            if control_error is None:
+                control_error = exc
 
     if lost_lease:
         outcome = bq.RUN_LEASE_LOST
@@ -514,23 +665,36 @@ def run_worker(
     # non-zero), turning a legitimate cancellation into a spurious failure.
     # We must NOT do this when we lost the lease — that's an ownership change,
     # not a cancellation, and should be classified by exit code below.
-    if outcome == bq.RUN_FAILED and not lost_lease:
+    if outcome == bq.RUN_FAILED and not lost_lease and control_error is None:
         final_check = bq.get_run(run_id, db_path=db_path)
         if final_check and final_check["state"] == bq.RUN_CANCEL_REQUESTED:
             outcome = bq.RUN_CANCELLED
 
-    if outcome not in (bq.RUN_CANCELLED, bq.RUN_TIMEOUT, bq.RUN_LEASE_LOST):
+    if control_error is not None and not lost_lease:
+        outcome = bq.RUN_FAILED
+    elif outcome not in (bq.RUN_CANCELLED, bq.RUN_TIMEOUT, bq.RUN_LEASE_LOST):
         outcome = bq.RUN_EXITED if exit_code == 0 else bq.RUN_FAILED
 
     start_sha = str(run.get("start_sha") or "")
     if not start_sha:
-        raise RunnerError(f"run {run_id} has no recorded start SHA")
-    changed_paths = _changed_paths(wt_path, start_sha)
-    scope_violations = _scope_violations(
-        changed_paths,
-        task.get("allowed_paths"),
-    )
-    if scope_violations and outcome != bq.RUN_LEASE_LOST:
+        control_error = RunnerError(f"run {run_id} has no recorded start SHA")
+    try:
+        changed_paths = _changed_paths(wt_path, start_sha)
+        scope_violations = _scope_violations(
+            changed_paths,
+            task.get("allowed_paths"),
+        )
+        worktree_state = _worktree_summary(wt_path)
+    except Exception as exc:
+        if control_error is None:
+            control_error = exc
+        changed_paths = []
+        scope_violations = []
+        worktree_state = {"inspection_error": f"{type(exc).__name__}: {exc}"}
+
+    if control_error is not None and outcome != bq.RUN_LEASE_LOST:
+        outcome = bq.RUN_FAILED
+    elif scope_violations and outcome != bq.RUN_LEASE_LOST:
         outcome = bq.RUN_SCOPE_VIOLATION
 
     report = {
@@ -549,18 +713,30 @@ def run_worker(
         "provider": provider,
         "changed_paths": changed_paths,
         "scope_violations": scope_violations,
-        "worktree_state": _worktree_summary(wt_path),
+        "worktree_state": worktree_state,
     }
-    return bq.finalize_run(
+    if control_error is not None:
+        report["error"] = f"{type(control_error).__name__}: {control_error}"
+    final = bq.finalize_run(
         run_id,
         outcome,
         exit_code=exit_code,
         report=report,
         lease_token=lease_token,
         claim_version=claim_version,
-        block_reason=_BLOCK_REASONS.get(outcome),
+        block_reason=(
+            "runner_control_failed"
+            if control_error is not None
+            else _BLOCK_REASONS.get(outcome)
+        ),
         db_path=db_path,
     )
+    if control_error is not None:
+        raise RunnerError(
+            f"runner monitoring failed for run {run_id}; durable state is "
+            f"{final['state']}: {type(control_error).__name__}: {control_error}"
+        ) from control_error
+    return final
 
 
 def request_cancel(

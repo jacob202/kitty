@@ -211,6 +211,58 @@ class TestRunWorker:
         assert refreshed["state"] == bq.BLOCKED
         assert refreshed["blocked_reason"] == "scope_violation"
 
+    def test_scope_check_includes_commits_since_start_sha(
+        self, repo: Path, db_path: Path
+    ):
+        task = _queued_task(db_path, allowed_paths=["gateway/"])
+        command = [
+            "sh",
+            "-c",
+            "mkdir -p gateway && echo ok > gateway/ok.py && "
+            "git add gateway/ok.py && "
+            "git -c user.email=test@example.com -c user.name=test "
+            "commit -q -m worker-change",
+        ]
+
+        run = br.run_worker(
+            task["id"],
+            command,
+            timeout_seconds=30,
+            heartbeat_seconds=1,
+            repo_root=repo,
+            db_path=db_path,
+        )
+
+        assert run["state"] == bq.RUN_EXITED
+        assert run["final_report"]["changed_paths"] == ["gateway/ok.py"]
+        assert run["final_report"]["scope_violations"] == []
+
+    def test_scope_check_rejects_prefix_confusion(
+        self, repo: Path, db_path: Path
+    ):
+        # An allowlist entry of gateway/foo.py must NOT match
+        # gateway/foo.py.backup — the matcher must use a path boundary, not a
+        # bare string prefix, so the backup file is recorded as out of scope.
+        task = _queued_task(db_path, allowed_paths=["gateway/foo.py"])
+
+        run = br.run_worker(
+            task["id"],
+            [
+                "sh",
+                "-c",
+                "mkdir -p gateway && echo ok > gateway/foo.py.backup",
+            ],
+            timeout_seconds=30,
+            heartbeat_seconds=1,
+            repo_root=repo,
+            db_path=db_path,
+        )
+
+        assert run["state"] == bq.RUN_SCOPE_VIOLATION
+        assert run["final_report"]["scope_violations"] == [
+            "gateway/foo.py.backup"
+        ]
+
     def test_timeout_terminates_and_blocks(self, repo: Path, db_path: Path):
         task = _queued_task(db_path)
         start = time.monotonic()
@@ -304,6 +356,27 @@ class TestRunWorker:
         assert refreshed["state"] == bq.BLOCKED
         assert refreshed["blocked_reason"] == "worker_launch_failed"
 
+    def test_prelaunch_setup_failure_releases_claim_and_closes_run(
+        self, repo: Path, db_path: Path, monkeypatch
+    ):
+        task = _queued_task(db_path)
+
+        def fail_brief(*_args, **_kwargs):
+            raise RuntimeError("brief renderer exploded")
+
+        monkeypatch.setattr(br, "render_worker_brief", fail_brief)
+
+        with pytest.raises(br.RunnerError, match="prelaunch setup failed"):
+            br.run_worker(task["id"], ["true"], repo_root=repo, db_path=db_path)
+
+        run = bq.list_runs(task_id=task["id"], db_path=db_path)[0]
+        assert run["state"] == bq.RUN_FAILED
+        assert "brief renderer exploded" in run["final_report"]["error"]
+        refreshed = bq.get_task(task["id"], db_path=db_path)
+        assert refreshed is not None
+        assert refreshed["state"] == bq.QUEUED
+        assert refreshed["lease_token"] is None
+
     def test_worktree_failure_releases_claim(self, repo: Path, db_path: Path):
         task = _queued_task(db_path)
         # Pre-dirty the worktree so ensure_worktree refuses.
@@ -342,6 +415,39 @@ class TestRunWorker:
         assert run["last_heartbeat_at"] is not None
         refreshed = bq.get_task(task["id"], db_path=db_path)
         assert refreshed["state"] == "blocked"
+
+    def test_monitoring_failure_terminates_worker_and_is_durable(
+        self, repo: Path, db_path: Path, monkeypatch
+    ):
+        task = _queued_task(db_path)
+        real_get_run = bq.get_run
+
+        def fail_after_activation(run_id: str, db_path: Path | None = None):
+            run = real_get_run(run_id, db_path=db_path)
+            if run is not None and run["state"] == bq.RUN_RUNNING:
+                raise RuntimeError("queue read failed during heartbeat")
+            return run
+
+        monkeypatch.setattr(bq, "get_run", fail_after_activation)
+
+        with pytest.raises(br.RunnerError, match="monitoring failed"):
+            br.run_worker(
+                task["id"],
+                ["sleep", "2"],
+                timeout_seconds=30,
+                lease_seconds=5,
+                heartbeat_seconds=1,
+                repo_root=repo,
+                db_path=db_path,
+            )
+
+        run = bq.list_runs(task_id=task["id"], db_path=db_path)[0]
+        assert run["state"] == bq.RUN_FAILED
+        assert "queue read failed" in run["final_report"]["error"]
+        assert run["exit_code"] is not None
+        refreshed = bq.get_task(task["id"], db_path=db_path)
+        assert refreshed is not None
+        assert refreshed["state"] == bq.BLOCKED
 
     def test_noop_run_leaves_worktree_clean_and_removable(
         self, repo: Path, db_path: Path

@@ -2042,6 +2042,11 @@ def finalize_run(
         same_claim = int(task_row["claim_version"]) == claim_version
         lease_matches = bool(task_row["lease_matches"])
         runner_owns_running_task = task_state == RUNNING and lease_matches
+        runner_owns_claimed_task = (
+            task_state == CLAIMED
+            and lease_matches
+            and run_row["state"] in {RUN_STARTING, RUN_CANCEL_REQUESTED}
+        )
         worker_advanced_task = (
             same_claim
             and task_state
@@ -2053,7 +2058,11 @@ def finalize_run(
         )
 
         effective_outcome = outcome
-        if not runner_owns_running_task and not worker_advanced_task:
+        if (
+            not runner_owns_running_task
+            and not runner_owns_claimed_task
+            and not worker_advanced_task
+        ):
             effective_outcome = RUN_LEASE_LOST
 
         _validate_run_transition(str(run_row["state"]), effective_outcome)
@@ -2062,6 +2071,8 @@ def finalize_run(
         final_report["task_state_at_finalize"] = task_state
         if runner_owns_running_task:
             final_report["task_update"] = "blocked_by_runner"
+        elif runner_owns_claimed_task:
+            final_report["task_update"] = "released_after_setup_failure"
         elif worker_advanced_task:
             final_report["task_update"] = "preserved_worker_state"
         else:
@@ -2111,6 +2122,25 @@ def finalize_run(
                     "run_id": run_id,
                     "exit_code": exit_code,
                 },
+                extra_where=(
+                    "AND lease_token = ? AND claim_version = ? "
+                    "AND lease_expires_at > strftime('%Y-%m-%d %H:%M:%f', 'now')"
+                ),
+                extra_params=(lease_token, claim_version),
+            )
+        elif runner_owns_claimed_task:
+            _apply_transition(
+                conn,
+                task_id,
+                CLAIMED,
+                QUEUED,
+                payload={
+                    "reason": "run_cancelled_before_start"
+                    if effective_outcome == RUN_CANCELLED
+                    else "runner_setup_failed",
+                    "run_id": run_id,
+                },
+                event_type="released",
                 extra_where=(
                     "AND lease_token = ? AND claim_version = ? "
                     "AND lease_expires_at > strftime('%Y-%m-%d %H:%M:%f', 'now')"

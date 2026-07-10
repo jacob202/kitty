@@ -2452,3 +2452,45 @@ class TestRunRecords:
         ][-1]
         assert event["run_id"] == run["id"]
         assert event["payload"]["reason"] == "process_identity_mismatch"
+
+    def test_recover_interrupted_is_idempotent(self, db_path: Path):
+        import subprocess as sp
+
+        task = bq.create_task("crashy", db_path=db_path)
+        claimed = self._claim(task, db_path)
+        run = bq.create_run(
+            task["id"],
+            ["true"],
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
+        proc = sp.Popen(["true"])
+        proc.wait()
+        bq.worker_transition_task(
+            task["id"],
+            bq.RUNNING,
+            claimed["lease_token"],
+            claimed["claim_version"],
+            db_path=db_path,
+        )
+        bq.update_run(
+            run["id"],
+            state=bq.RUN_RUNNING,
+            pid=proc.pid,
+            process_identity="dead process identity",
+            db_path=db_path,
+        )
+
+        first = bq.recover_interrupted_runs(db_path=db_path)
+        assert first["runs_interrupted"] == 1
+
+        second = bq.recover_interrupted_runs(db_path=db_path)
+        assert second["runs_interrupted"] == 0
+
+        refreshed = bq.get_run(run["id"], db_path=db_path)
+        assert refreshed is not None
+        assert refreshed["state"] == bq.RUN_INTERRUPTED
+        refreshed_task = bq.get_task(task["id"], db_path=db_path)
+        assert refreshed_task is not None
+        assert refreshed_task["state"] == bq.BLOCKED

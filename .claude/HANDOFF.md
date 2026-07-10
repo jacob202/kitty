@@ -1,35 +1,41 @@
-# Handoff — 2026-07-09 (stabilization session closed)
+# Handoff — 2026-07-10 (runner hardening complete)
 
-## What shipped (merged to main)
-1. **PR #120 — Kitty Builder Layer 1A**
-   Safe read-only coordination CLI (`./kitty builder brief`, `contract validate`). No agent spawning, loops, budgets, or autonomy.
+## Branch: `feat/kittybuilder-runner-shadow`
 
-2. **PR #121 — Doctor hardening**
-   55 tests, 96% coverage, BLE001 fix. No behavior changes.
+### What's done
+Phase 1C-alpha runner safety hardening is complete and green. This session
+consolidated Sol's partial checkpoint (`3ed6a47`, `6b9af75`) into one
+internally coherent, reviewed implementation committed at `87777de`.
 
-3. **PR #122 — LLM client hardening**
-   82 tests, 88% coverage. Privacy boundary, fallback exhaustion, retry, extraction helpers, provider config hooks, AgentRouter request mutator. No production code changes.
+### Commits on branch (oldest → newest)
+- `156875a` — Phase 1C-alpha runner draft (runner loop, scope checks, timeout, cancellation)
+- `3cbf5d3` — Fix: honor requested cancellation when worker exits via cancel signal
+- `3ed6a47` — Sol's bulk hardening checkpoint (~1331 lines: process_identity, credential isolation, scope boundary, recovery grace period, PID identity, heartbeat validation, atomic finalization)
+- `6b9af75` — Preserve Sol's remaining uncommitted work (Sol ran out of credits)
+- **`87777de`** — Complete the hardening (this session)
 
-## Current main HEAD
-`b75ce8a` — clean working tree.
+### What `87777de` adds/changes
+- **`gateway/builder_queue.py`**: `finalize_run` gains `runner_owns_claimed_task` — handles edge case where task is CLAIMED but run is STARTING or CANCEL_REQUESTED (launch failure path). Properly releases claim back to QUEUED with `released_after_setup_failure` task_update.
+- **`gateway/builder_runner.py`**:
+  - `_raise_worker_launch_error` helper — persists failed launches with full report (scope violations, worktree state), then raises `RunnerError`.
+  - Prelaunch setup (create_run → brief → worker_transition to RUNNING) wrapped in try/except with two paths: `run is None` (claim release) vs `run exists` (finalize_run as failed).
+  - `control_error` tracking through heartbeat loop — handles disappeared runs, missing start SHA, worktree inspection failures. Always terminates worker, always raises `RunnerError` after durable finalization.
+  - Credential isolation: pops `GITHUB_TOKEN`/`GH_TOKEN`, redirects `GH_CONFIG_DIR` to empty dir, disables global/system git config, blocks credential helpers via `GIT_CONFIG_COUNT/KEY/VALUE`.
+  - Scope checking: `PurePosixPath` with path-boundary prefix check (`path.startswith(f"{prefix}/")`) prevents prefix-confusion attacks.
+- **Tests**: 4 new tests (prefix-confusion, recovery idempotency, prelaunch setup failure, monitoring failure); CLI tests for runs filter dispatch, show-run log tail, clean-worktree command.
 
-## Known stale agent reports (ignore without current git/GitHub confirmation)
-- old PR #119 "not mergeable" claims (PR #119 already merged)
-- old packet-018 dirty/rebase/cherry-pick claims
-- old Codex/Antigravity sessions
-- old imagen/local-change claims
-- old legacy-archive/archive-removal claims
-- `.coverage` artifact from hardening runs (removed)
+### Verification
+- 297 builder tests pass (`pytest tests/test_builder_*.py`)
+- mypy clean (3 source files)
+- `git diff --check` clean
+- 6 live smoke tests pass in temp git repo (success, failure, timeout, launch failure, scope violation, recovery)
 
-## Remaining loose threads (separate verification needed)
-- verify imagen local changes separately
-- verify legacy-archive/archive-removal separately
-- decide next packet after fresh brief
+### What's NOT done
+- **No PR opened** — branch is local only. Do not push without confirmation.
+- **No architecture audit** — the 7 hardening areas are internally consistent but have not been through a formal architecture review.
+- **No Phase 1C-beta** — the runner shadow mode works but has not been tested against real LLM providers or GitHub Actions.
 
-## Unmerged worktree
-- `feat/port-kittybuilder` — full Kitty Builder implementation exists in `.worktrees/feat-port-kittybuilder/`. Never merged to main. Decide next session.
-
-## Recommended next session start
-```bash
-./kitty builder brief
-```
+### Recommended next step
+1. Push branch and open PR for review
+2. Consider running `/qg` to gate the PR
+3. Decide whether to proceed to Phase 1C-beta (real provider integration) or run architecture audit first

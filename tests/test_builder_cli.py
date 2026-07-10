@@ -1123,6 +1123,13 @@ class TestQueueOperatorCancel:
 
 
 class TestQueueRunnerCommands:
+    def test_run_requires_worker_command(self, capsys):
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            rc = main(["queue", "run", "kb_123"])
+
+        assert rc == 1
+        assert "provide the worker command after --" in capsys.readouterr().err
+
     def test_run_dispatches_worker_command_and_metadata(self, capsys):
         run = {
             "id": "run_123",
@@ -1170,6 +1177,44 @@ class TestQueueRunnerCommands:
             heartbeat_seconds=5,
         )
 
+    def test_runs_dispatches_filters(self, capsys):
+        runs = [{"id": "run_123", "task_id": "kb_123", "state": "exited"}]
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.list_runs", return_value=runs) as mock_list:
+                rc = main(
+                    [
+                        "queue",
+                        "runs",
+                        "--task",
+                        "kb_123",
+                        "--state",
+                        "exited",
+                        "--json",
+                    ]
+                )
+
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out) == runs
+        mock_list.assert_called_once_with(task_id="kb_123", state="exited")
+
+    def test_show_run_prints_log_tail(self, tmp_path: Path, capsys):
+        log_path = tmp_path / "combined.log"
+        log_path.write_text("one\ntwo\nthree\n")
+        run = {
+            "id": "run_with_log",
+            "task_id": "kb_123",
+            "state": "exited",
+            "log_path": str(log_path),
+        }
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.get_run", return_value=run):
+                rc = main(["queue", "show-run", "run_with_log", "--log-tail", "2"])
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "two\nthree" in out
+        assert "one\n" not in out.split("--- log tail", 1)[-1]
+
     def test_show_run_missing_log_fails_loud(self, tmp_path: Path, capsys):
         run = {
             "id": "run_missing_log",
@@ -1216,3 +1261,15 @@ class TestQueueRunnerCommands:
         out = capsys.readouterr().out
         assert "signal not sent" in out
         assert "process_identity_mismatch" in out
+
+    def test_clean_worktree_dispatch(self, capsys, tmp_path: Path):
+        removed = tmp_path / ".worktrees" / "kittybuilder" / "kb_123"
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                "gateway.builder_runner.remove_worktree", return_value=removed
+            ) as mock_remove:
+                rc = main(["queue", "clean-worktree", "kb_123"])
+
+        assert rc == 0
+        assert str(removed) in capsys.readouterr().out
+        mock_remove.assert_called_once_with("kb_123")
