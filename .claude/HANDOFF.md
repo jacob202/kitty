@@ -1,4 +1,4 @@
-# Handoff — 2026-07-10 (KPA-01b project scope complete)
+# Handoff — 2026-07-10 (KPA-02a chat lifecycle complete)
 
 ## Branch
 
@@ -26,6 +26,14 @@
 - Chat now sends the active `project_id`, and the TopBar exposes a project
   selector that invalidates runtime truth after switching.
 - Committed locally as `e95275b` (`feat(context): persist active project scope`).
+- Added migration `016_chat_lifecycle.sql` and `gateway/chat_lifecycle.py` for
+  normalized conversations, turns, attempts, and messages beside the legacy
+  chat blob.
+- Identified Chat requests now persist the user message and running attempt
+  before provider dispatch; success, failure, and stream interruption finalize
+  durable lifecycle state.
+- Chat sends conversation/title/message IDs and receives turn/attempt headers.
+- Committed locally as `d091352` (`feat(chat): persist normalized turn lifecycle`).
 
 ## Verification performed
 
@@ -43,12 +51,14 @@
   should retire the endpoint fallback once all consumers use the manifest.
 - Active project selection is now persisted through `/context/project`; an
   explicit request `project_id` still overrides the persisted scope.
+- Attachments, normalized chat reads, offline outbox replay, and UI recovery
+  from the lifecycle ledger remain intentionally out of this packet.
 - The untracked files `kittybuildercoder.txt`,
   `scripts/run_kittybuilder_free_campaign.sh`, and the oddly named existing
   untracked file beginning `-iname` were not touched.
 
 ## Next action
 
-KPA-01 and KPA-01b are committed locally. Review them or begin the next focused
-packet; do not mix KB-S1B,
-chat normalization, artifacts, or Builder automation into this packet.
+KPA-01, KPA-01b, and KPA-02a are committed locally. The next focused packet is
+attachment artifacts and normalized lifecycle reads; do not mix KB-S1B, Builder
+automation, or the full offline outbox into that packet.
