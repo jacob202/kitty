@@ -36,6 +36,11 @@ MODEL_DIGEST_DB = DATA_DIR / "model_digest.db"
 BUILDS_DB = DATA_DIR / "builds.db"
 TASK_DB = DATA_DIR / "task_queue.db"
 TASK_OUTPUT_DIR = DATA_DIR / "task_outputs"
+# KittyBuilder orchestrator queue — separate from the generic TASK_DB.
+# Phase 1A stores the durable task/event store here; see
+# docs/KITTYBUILDER_ORCHESTRATOR_PHASE1A.md. Do not reuse TASK_DB for this.
+KITTYBUILDER_DIR = DATA_DIR / "kittybuilder"
+BUILDER_QUEUE_DB = KITTYBUILDER_DIR / "builder_queue.db"
 DESKTOP_LOG_FILE = LOGS_DIR / "desktop.log"
 DESKTOP_PID_DIR = DESKTOP_DIR / "run"
 
