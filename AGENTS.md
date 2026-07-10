@@ -45,6 +45,21 @@ Safe, read-only coordination commands wired through `./kitty builder`. No autono
 
 Disabled commands (`run`, `loop`, `repl`, `delegate`) return a clear "not enabled" message.
 
+### Orca/OpenCode Build Train
+
+Use Orca worktrees for isolated KittyBuilder work. Run
+`scripts/orca_worktree_setup.sh` as the Orca setup hook for this repo, and keep
+`docs/KITTYBUILDER_ORCA_SETUP.md` as the operating guide.
+
+Default to OpenCode for planning, implementation, packaging, and normal scoped
+review. Reserve Codex for high-risk safety reviews involving queue state,
+concurrency, auth/secrets/env, destructive operations, or blocked escalation.
+
+Do not let the same worker approve its own work. T0 work may proceed
+automatically, T1 work needs a separate model approval, and T2 work still needs
+Jacob: push, merge, deletes, auth/secrets/env, paid or heavy dependencies, and
+broad scope changes.
+
 ## Agent Rules
 
 Before multi-file work, give a short plan. Prefer editing existing files over creating new structure.
