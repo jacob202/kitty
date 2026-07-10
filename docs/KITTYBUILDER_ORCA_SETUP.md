@@ -41,6 +41,37 @@ Default to OpenCode first:
 
 Cap silent provider retries quickly: one cheap attempt, one stronger attempt, then block or escalate. Do not loop through providers silently.
 
+## Free-Only Build Train
+
+The repository `opencode.jsonc` defaults to OpenCode Zen free models, disables session sharing, blocks external-directory access and subagent spawning, and denies push, merge, destructive git cleanup, and recursive deletion even when OpenCode runs with `--auto`.
+
+Launch one task card from a clean Orca worktree:
+
+```bash
+./scripts/opencode_free_train.sh docs/KITTYBUILDER_PHASE1A_PR4_CLI_TASK.md
+```
+
+The launcher uses this zero-cost ladder:
+
+1. `opencode/deepseek-v4-flash-free`
+2. `opencode/mimo-v2.5-free`
+3. `opencode/nemotron-3-ultra-free`
+4. `opencode/north-mini-code-free`
+5. `openrouter/poolside/laguna-xs-2.1:free`
+6. `openrouter/tencent/hy3:free`
+7. `openrouter/free` as the final availability fallback
+
+A failed model may hand off only if it left both the worktree and `HEAD` unchanged. Once a builder changes anything, automatic provider fallback stops. A successful build is reviewed by a different free model in a read-only lane. Transcripts are written outside the repo under `/tmp` unless `OPENCODE_FREE_LOG_DIR` is set.
+
+Free endpoints may log prompts or use trial data for improvement. Use them only for public repository code and task instructions. Never expose `.env` files, credentials, runtime personal data, private memories, or uncommitted user content.
+
+Provider credentials remain in OpenCode's user credential store or environment. Never commit API keys. Check configured providers with:
+
+```bash
+opencode auth list
+opencode models --refresh
+```
+
 ## Safe Build Train
 
 Use this sequence for low-babysitting work:
