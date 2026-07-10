@@ -493,6 +493,7 @@ class TestLegalTransitionMap:
             (bq.BLOCKED, bq.QUEUED),
             (bq.BLOCKED, bq.FAILED),
             (bq.BLOCKED, bq.CANCELLED),
+            (bq.BLOCKED, bq.PR_OPENED),
         }
         for src, dst in valid:
             assert dst in m[src], f"missing: {src} -> {dst}"

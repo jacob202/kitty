@@ -71,7 +71,8 @@ LEGAL_TRANSITIONS: dict[str, frozenset[str]] = {
     RUNNING: frozenset({BLOCKED, PR_OPENED, FAILED, CANCELLED}),
     PR_OPENED: frozenset({AWAITING_REVIEW, FAILED, CANCELLED}),
     AWAITING_REVIEW: frozenset({DONE, FAILED, CANCELLED}),
-    BLOCKED: frozenset({RUNNING, QUEUED, FAILED, CANCELLED}),
+    # Operator publish (KB-S4) may advance shadow-blocked work to pr_opened.
+    BLOCKED: frozenset({RUNNING, QUEUED, FAILED, CANCELLED, PR_OPENED}),
     DONE: frozenset(),
     FAILED: frozenset(),
     CANCELLED: frozenset(),
