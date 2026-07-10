@@ -263,6 +263,162 @@ class TestRunWorker:
             "gateway/foo.py.backup"
         ]
 
+    def test_scope_rejects_absolute_paths(self, repo: Path, db_path: Path):
+        """allowed_paths containing an absolute path must raise RunnerError."""
+        task = _queued_task(db_path, allowed_paths=["/etc/passwd"])
+        with pytest.raises(br.RunnerError, match="invalid allowed path"):
+            br.run_worker(
+                task["id"], ["true"],
+                timeout_seconds=10, heartbeat_seconds=1,
+                repo_root=repo, db_path=db_path,
+            )
+
+    def test_scope_rejects_dotdot_paths(self, repo: Path, db_path: Path):
+        """allowed_paths containing '..' must raise RunnerError."""
+        task = _queued_task(db_path, allowed_paths=["../outside"])
+        with pytest.raises(br.RunnerError, match="invalid allowed path"):
+            br.run_worker(
+                task["id"], ["true"],
+                timeout_seconds=10, heartbeat_seconds=1,
+                repo_root=repo, db_path=db_path,
+            )
+
+    def test_scope_dot_grant_allows_whole_repo(self, repo: Path, db_path: Path):
+        """allowed_paths=['.'] grants access to the entire repository."""
+        task = _queued_task(db_path, allowed_paths=["."])
+        run = br.run_worker(
+            task["id"],
+            ["sh", "-c", "echo ok > anywhere.txt"],
+            timeout_seconds=10, heartbeat_seconds=1,
+            repo_root=repo, db_path=db_path,
+        )
+        assert run["state"] == bq.RUN_EXITED
+        assert run["final_report"]["scope_violations"] == []
+
+    def test_blocked_reason_on_timeout(self, repo: Path, db_path: Path):
+        task = _queued_task(db_path)
+        run = br.run_worker(
+            task["id"], ["sleep", "60"],
+            timeout_seconds=2, heartbeat_seconds=1,
+            repo_root=repo, db_path=db_path,
+        )
+        assert run["state"] == bq.RUN_TIMEOUT
+        refreshed = bq.get_task(task["id"], db_path=db_path)
+        assert refreshed["state"] == "blocked"
+        assert refreshed["blocked_reason"] == "run_timeout"
+
+    def test_blocked_reason_on_monitoring_failure(self, repo: Path, db_path: Path, monkeypatch):
+        task = _queued_task(db_path)
+        real_get_run = bq.get_run
+
+        def fail_after_activation(run_id: str, db_path: Path | None = None):
+            run = real_get_run(run_id, db_path=db_path)
+            if run is not None and run["state"] == bq.RUN_RUNNING:
+                raise RuntimeError("queue read failed")
+            return run
+
+        monkeypatch.setattr(bq, "get_run", fail_after_activation)
+
+        with pytest.raises(br.RunnerError, match="monitoring failed"):
+            br.run_worker(
+                task["id"], ["sleep", "2"],
+                timeout_seconds=30, lease_seconds=5, heartbeat_seconds=1,
+                repo_root=repo, db_path=db_path,
+            )
+
+        run = bq.list_runs(task_id=task["id"], db_path=db_path)[0]
+        assert run["state"] == bq.RUN_FAILED
+        refreshed = bq.get_task(task["id"], db_path=db_path)
+        assert refreshed["state"] == "blocked"
+        assert refreshed["blocked_reason"] == "runner_control_failed"
+
+    def test_blocked_reason_on_scope_violation(self, repo: Path, db_path: Path):
+        task = _queued_task(db_path, allowed_paths=["allowed/"])
+        run = br.run_worker(
+            task["id"],
+            ["sh", "-c", "mkdir -p outside && echo nope > outside/secret.txt"],
+            timeout_seconds=10, heartbeat_seconds=1,
+            repo_root=repo, db_path=db_path,
+        )
+        assert run["state"] == bq.RUN_SCOPE_VIOLATION
+        refreshed = bq.get_task(task["id"], db_path=db_path)
+        assert refreshed["state"] == "blocked"
+        assert refreshed["blocked_reason"] == "scope_violation"
+
+    def test_post_loop_lease_renewal_failure_is_captured(
+        self, repo: Path, db_path: Path, monkeypatch
+    ):
+        task = _queued_task(db_path)
+        call_count = [0]
+
+        def fail_renew(task_id, lease_token, claim_version, *,
+                        lease_seconds=300, db_path=None):
+            call_count[0] += 1
+            if call_count[0] > 3:
+                raise RuntimeError("post-loop renewal failure")
+            return bq.renew_lease(
+                task_id, lease_token, claim_version,
+                lease_seconds=lease_seconds, db_path=db_path,
+            )
+
+        monkeypatch.setattr(bq, "renew_lease", fail_renew)
+
+        with pytest.raises(br.RunnerError, match="monitoring failed"):
+            br.run_worker(
+                task["id"], ["sleep", "2"],
+                timeout_seconds=30, lease_seconds=10, heartbeat_seconds=1,
+                repo_root=repo, db_path=db_path,
+            )
+
+        run = bq.list_runs(task_id=task["id"], db_path=db_path)[0]
+        assert run["state"] == bq.RUN_FAILED
+        assert "RuntimeError" in run["final_report"].get("error", "")
+        refreshed = bq.get_task(task["id"], db_path=db_path)
+        assert refreshed["state"] == "blocked"
+        assert refreshed["blocked_reason"] == "runner_control_failed"
+
+    def test_control_error_preserved_when_start_sha_missing(
+        self, repo: Path, db_path: Path, monkeypatch
+    ):
+        """A missing start_sha must never overwrite an existing control_error."""
+        task = _queued_task(db_path)
+
+        # Inject a control_error during the heartbeat loop.
+        real_get_run = bq.get_run
+
+        def fail_heartbeat(run_id: str, db_path: Path | None = None):
+            run = real_get_run(run_id, db_path=db_path)
+            if run is not None and run["state"] == bq.RUN_RUNNING:
+                raise RuntimeError("original heartbeat error")
+            return run
+
+        monkeypatch.setattr(bq, "get_run", fail_heartbeat)
+
+        # Also make the run's start_sha appear empty by returning "" from .get()
+        orig_create_run = bq.create_run
+
+        def create_run_no_sha(*args, **kwargs):
+            run = orig_create_run(*args, **kwargs)
+            del run["start_sha"]
+            run["start_sha"] = ""
+            return run
+
+        monkeypatch.setattr(bq, "create_run", create_run_no_sha)
+
+        with pytest.raises(br.RunnerError, match="monitoring failed"):
+            br.run_worker(
+                task["id"], ["sleep", "2"],
+                timeout_seconds=30, lease_seconds=5, heartbeat_seconds=1,
+                repo_root=repo, db_path=db_path,
+            )
+
+        run = bq.list_runs(task_id=task["id"], db_path=db_path)[0]
+        # The heartbeat error is preserved — "no recorded start SHA" is
+        # NOT present because the guard (control_error is None) suppressed it.
+        error_msg = run["final_report"].get("error", "")
+        assert "original heartbeat error" in error_msg
+        assert "no recorded start SHA" not in error_msg
+
     def test_timeout_terminates_and_blocks(self, repo: Path, db_path: Path):
         task = _queued_task(db_path)
         start = time.monotonic()
@@ -326,6 +482,41 @@ class TestRunWorker:
         assert f"gh_config={Path(run['log_path']).parent / 'gh-config'}" in log
         assert f"git_global={Path('/dev/null')} git_system={Path('/dev/null')}" in log
         assert "git_interactive=never" in log
+
+    def test_ssh_credentials_stripped_from_worker_env(
+        self, repo: Path, db_path: Path, monkeypatch
+    ):
+        monkeypatch.setenv("SSH_AUTH_SOCK", "/tmp/fake-agent.sock")
+        monkeypatch.setenv("SSH_AGENT_PID", "99999")
+        monkeypatch.setenv("GIT_SSH_COMMAND", "ssh -i /secret/key")
+        monkeypatch.setenv("GIT_SSH", "ssh -i /another/secret")
+        task = _queued_task(db_path)
+        run = br.run_worker(
+            task["id"],
+            [
+                "sh",
+                "-c",
+                """
+                echo "ssh_sock=[${SSH_AUTH_SOCK:-unset}]"
+                echo "ssh_pid=[${SSH_AGENT_PID:-unset}]"
+                echo "git_ssh_cmd=[${GIT_SSH_COMMAND:-unset}]"
+                echo "git_ssh=[${GIT_SSH:-unset}]"
+                echo "credential_helper=$(git config --get credential.helper 2>&1 || true)"
+                """,
+            ],
+            timeout_seconds=30,
+            heartbeat_seconds=1,
+            repo_root=repo,
+            db_path=db_path,
+        )
+        log = Path(run["log_path"]).read_text()
+        assert "ssh_sock=[unset]" in log
+        assert "ssh_pid=[unset]" in log
+        assert "git_ssh_cmd=[unset]" in log
+        assert "git_ssh=[unset]" in log
+        # Empty credential.helper output (the "" value from GIT_CONFIG_COUNT
+        # overrides) means no helper is configured.
+        assert "credential_helper=" in log
 
     def test_claim_conflict_raises(self, repo: Path, db_path: Path):
         task = _queued_task(db_path)

@@ -470,6 +470,11 @@ def run_worker(
     # Shadow mode: no ambient GitHub credentials reach the worker.
     child_env.pop("GITHUB_TOKEN", None)
     child_env.pop("GH_TOKEN", None)
+    # Strip SSH agent access — workers must not push via the host SSH agent.
+    child_env.pop("SSH_AUTH_SOCK", None)
+    child_env.pop("SSH_AGENT_PID", None)
+    child_env.pop("GIT_SSH_COMMAND", None)
+    child_env.pop("GIT_SSH", None)
     child_env["GH_CONFIG_DIR"] = str(gh_config_dir)
     child_env["GIT_CONFIG_GLOBAL"] = os.devnull
     child_env["GIT_CONFIG_SYSTEM"] = os.devnull
@@ -567,7 +572,10 @@ def run_worker(
                 current = bq.get_run(run_id, db_path=db_path)
             except Exception as read_exc:
                 current = None
-                control_error = read_exc
+                control_error = exc
+                control_error.__notes__ = [
+                    f"also, get_run failed: {type(read_exc).__name__}: {read_exc}"
+                ]
             if current is not None and current["state"] == bq.RUN_CANCEL_REQUESTED:
                 outcome = bq.RUN_CANCELLED
                 cancelled_before_start = True
@@ -666,9 +674,13 @@ def run_worker(
     # We must NOT do this when we lost the lease — that's an ownership change,
     # not a cancellation, and should be classified by exit code below.
     if outcome == bq.RUN_FAILED and not lost_lease and control_error is None:
-        final_check = bq.get_run(run_id, db_path=db_path)
-        if final_check and final_check["state"] == bq.RUN_CANCEL_REQUESTED:
-            outcome = bq.RUN_CANCELLED
+        try:
+            final_check = bq.get_run(run_id, db_path=db_path)
+        except Exception as exc:
+            control_error = exc
+        else:
+            if final_check and final_check["state"] == bq.RUN_CANCEL_REQUESTED:
+                outcome = bq.RUN_CANCELLED
 
     if control_error is not None and not lost_lease:
         outcome = bq.RUN_FAILED
@@ -676,7 +688,7 @@ def run_worker(
         outcome = bq.RUN_EXITED if exit_code == 0 else bq.RUN_FAILED
 
     start_sha = str(run.get("start_sha") or "")
-    if not start_sha:
+    if not start_sha and control_error is None:
         control_error = RunnerError(f"run {run_id} has no recorded start SHA")
     try:
         changed_paths = _changed_paths(wt_path, start_sha)
@@ -787,7 +799,10 @@ def request_cancel(
                     f"process group {pid} failed: {exc}"
                 ) from exc
     refreshed = bq.get_run(run_id, db_path=db_path)
-    assert refreshed is not None
+    if refreshed is None:
+        raise bq.RunNotFoundError(
+            f"run {run_id} disappeared after finalize_run"
+        )
     refreshed["signal_sent"] = signal_sent
     refreshed["signal_status"] = signal_status
     return refreshed

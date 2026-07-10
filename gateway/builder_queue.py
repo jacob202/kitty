@@ -94,6 +94,10 @@ class LeaseConflictError(ValueError):
     """Raised when a task cannot be claimed or lease fencing rejects a stale worker."""
 
 
+class DataCorruptionError(RuntimeError):
+    """Raised when a DB column contains data that cannot be decoded."""
+
+
 # ---------------------------------------------------------------------------
 # Schema (Phase 1A — tasks + events only; runs/pr_links/artifacts are future)
 # ---------------------------------------------------------------------------
@@ -402,9 +406,18 @@ def _row_to_task(row: sqlite3.Row) -> dict[str, Any]:
     ap = task.get("allowed_paths_json")
     if ap is not None:
         try:
-            task["allowed_paths"] = json.loads(ap)
-        except (json.JSONDecodeError, TypeError):
-            task["allowed_paths"] = None
+            allowed = json.loads(ap)
+        except (json.JSONDecodeError, TypeError) as exc:
+            raise DataCorruptionError(
+                f"corrupted allowed_paths_json for task {task.get('id', '?')}: "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
+        if not isinstance(allowed, list):
+            raise DataCorruptionError(
+                f"corrupted allowed_paths_json for task {task.get('id', '?')}: "
+                f"expected a JSON array, got {type(allowed).__name__}"
+            )
+        task["allowed_paths"] = allowed
     else:
         task["allowed_paths"] = None
 
@@ -2209,6 +2222,7 @@ def recover_interrupted_runs(
     unverified: list[dict[str, str]] = []
     running_tasks_blocked = 0
     claimed_tasks_requeued = 0
+    conflicts = 0
     conn = connect(db_path)
     try:
         # The write lock keeps launch activation from changing a row between
@@ -2229,7 +2243,7 @@ def recover_interrupted_runs(
             if run["state"] == RUN_STARTING and pid is None:
                 age_row = conn.execute(
                     """
-                    SELECT (julianday('now') - julianday(updated_at)) * 86400.0
+                    SELECT (julianday('now') - julianday(created_at)) * 86400.0
                     AS age_seconds
                     FROM runs WHERE id = ?
                     """,
@@ -2237,7 +2251,7 @@ def recover_interrupted_runs(
                 ).fetchone()
                 if age_row is None or age_row["age_seconds"] is None:
                     raise ValueError(
-                        f"run {run_id} has an invalid updated_at timestamp; "
+                        f"run {run_id} has an invalid created_at timestamp; "
                         "cannot determine whether startup recovery is safe"
                     )
                 age_seconds = float(age_row["age_seconds"])
@@ -2271,8 +2285,17 @@ def recover_interrupted_runs(
                             {"run_id": run_id, "reason": "process_identity_missing"}
                         )
                         continue
+                    # Capture identity immediately after the liveness check
+                    # to minimize (but not eliminate) the PID-reuse TOCTOU
+                    # window.  On macOS there is no O_CLOEXEC-equivalent for
+                    # the process table, so a sufficiently fast reuse can
+                    # still occur between kill(0) and ps(1).  We accept this
+                    # residual risk and fail-safe to "unverifiable" when the
+                    # identity cannot be proven.
                     current_identity = capture_process_identity(numeric_pid)
                     if current_identity is None:
+                        # ps failed; re-check liveness before marking
+                        # unverifiable — the process may have exited.
                         try:
                             _os.kill(numeric_pid, 0)
                         except ProcessLookupError:
@@ -2301,9 +2324,9 @@ def recover_interrupted_runs(
                 (RUN_INTERRUPTED, run_id, run["state"]),
             )
             if cursor.rowcount != 1:
-                raise RunStateConflictError(
-                    f"run {run_id} changed during interrupted-run recovery"
-                )
+                # Another writer changed this run; skip it and continue.
+                conflicts += 1
+                continue
             append_event(
                 str(run["task_id"]),
                 "run_interrupted",
@@ -2342,9 +2365,8 @@ def recover_interrupted_runs(
                             ),
                         )
                         if task_cursor.rowcount != 1:
-                            raise RunStateConflictError(
-                                f"task {task_id} changed during run recovery"
-                            )
+                            conflicts += 1
+                            continue
                         append_event(
                             task_id,
                             BLOCKED,
@@ -2358,7 +2380,7 @@ def recover_interrupted_runs(
                         running_tasks_blocked += 1
                     elif (
                         task_row["state"] == CLAIMED
-                        and run["state"] == RUN_STARTING
+                        and run["state"] in {RUN_STARTING, RUN_CANCEL_REQUESTED}
                     ):
                         task_cursor = conn.execute(
                             """
@@ -2372,9 +2394,8 @@ def recover_interrupted_runs(
                             (QUEUED, task_id, CLAIMED, run_claim_version),
                         )
                         if task_cursor.rowcount != 1:
-                            raise RunStateConflictError(
-                                f"task {task_id} changed during run recovery"
-                            )
+                            conflicts += 1
+                            continue
                         append_event(
                             task_id,
                             "released",
@@ -2404,4 +2425,5 @@ def recover_interrupted_runs(
         "unverified_runs": unverified,
         "running_tasks_blocked": running_tasks_blocked,
         "claimed_tasks_requeued": claimed_tasks_requeued,
+        "conflicts": conflicts,
     }

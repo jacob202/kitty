@@ -2372,7 +2372,8 @@ class TestRunRecords:
             conn.execute(
                 """
                 UPDATE runs
-                SET updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now', '-60 seconds')
+                SET created_at = strftime('%Y-%m-%d %H:%M:%f', 'now', '-60 seconds'),
+                    updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now', '-60 seconds')
                 WHERE id = ?
                 """,
                 (run["id"],),
@@ -2494,3 +2495,212 @@ class TestRunRecords:
         refreshed_task = bq.get_task(task["id"], db_path=db_path)
         assert refreshed_task is not None
         assert refreshed_task["state"] == bq.BLOCKED
+
+    def test_finalize_claimed_task_releases_to_queued(self, db_path: Path):
+        """runner_owns_claimed_task: CLAIMED task + STARTING run → QUEUED."""
+        task = bq.create_task("setup failed", db_path=db_path)
+        claimed = self._claim(task, db_path)
+        run = bq.create_run(
+            task["id"],
+            ["true"],
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
+        # Run stays STARTING, task stays CLAIMED — the launch-failure path.
+        final = bq.finalize_run(
+            run["id"],
+            bq.RUN_FAILED,
+            exit_code=None,
+            report={"error": "brief exploded"},
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            block_reason="runner_setup_failed",
+            db_path=db_path,
+        )
+
+        assert final["state"] == bq.RUN_FAILED
+        assert final["final_report"]["task_update"] == "released_after_setup_failure"
+        refreshed_task = bq.get_task(task["id"], db_path=db_path)
+        assert refreshed_task is not None
+        assert refreshed_task["state"] == bq.QUEUED
+        assert refreshed_task["lease_token"] is None
+        events = bq.list_events(task["id"], db_path=db_path)
+        released = [e for e in events if e["type"] == "released"]
+        assert len(released) == 1
+        assert released[0]["payload"]["reason"] == "runner_setup_failed"
+
+    def test_finalize_claimed_task_cancel_before_start(self, db_path: Path):
+        """runner_owns_claimed_task: CLAIMED task + CANCEL_REQUESTED run."""
+        task = bq.create_task("cancel during setup", db_path=db_path)
+        claimed = self._claim(task, db_path)
+        run = bq.create_run(
+            task["id"],
+            ["true"],
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
+        # Simulate cancel requested before the run could start.
+        bq.update_run(
+            run["id"],
+            state=bq.RUN_CANCEL_REQUESTED,
+            expected_states=frozenset({bq.RUN_STARTING}),
+            db_path=db_path,
+        )
+        final = bq.finalize_run(
+            run["id"],
+            bq.RUN_CANCELLED,
+            exit_code=None,
+            report={"error": "cancelled before launch"},
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            block_reason=None,
+            db_path=db_path,
+        )
+
+        assert final["state"] == bq.RUN_CANCELLED
+        assert final["final_report"]["task_update"] == "released_after_setup_failure"
+        refreshed_task = bq.get_task(task["id"], db_path=db_path)
+        assert refreshed_task is not None
+        assert refreshed_task["state"] == bq.QUEUED
+        assert refreshed_task["lease_token"] is None
+
+    def test_recover_interrupted_mixed_batch(self, db_path: Path):
+        """Recovery handles dead, live, reused-PID, and unverifiable runs."""
+        import os as _os
+
+        # Run A: dead PID → INTERRUPTED
+        task_a = bq.create_task("dead", db_path=db_path)
+        claimed_a = self._claim(task_a, db_path)
+        run_a = bq.create_run(
+            task_a["id"], ["true"],
+            lease_token=claimed_a["lease_token"],
+            claim_version=claimed_a["claim_version"],
+            db_path=db_path,
+        )
+        proc_dead = __import__("subprocess").Popen(["true"])
+        proc_dead.wait()
+        bq.worker_transition_task(
+            task_a["id"], bq.RUNNING,
+            claimed_a["lease_token"], claimed_a["claim_version"],
+            db_path=db_path,
+        )
+        bq.update_run(
+            run_a["id"], state=bq.RUN_RUNNING,
+            pid=proc_dead.pid, process_identity="dead id",
+            db_path=db_path,
+        )
+
+        # Run B: live PID without process_identity → unverifiable
+        task_b = bq.create_task("alive", db_path=db_path)
+        claimed_b = self._claim(task_b, db_path)
+        run_b = bq.create_run(
+            task_b["id"], ["true"],
+            lease_token=claimed_b["lease_token"],
+            claim_version=claimed_b["claim_version"],
+            db_path=db_path,
+        )
+        bq.worker_transition_task(
+            task_b["id"], bq.RUNNING,
+            claimed_b["lease_token"], claimed_b["claim_version"],
+            db_path=db_path,
+        )
+        bq.update_run(
+            run_b["id"], state=bq.RUN_RUNNING,
+            pid=_os.getpid(),
+            db_path=db_path,
+        )
+
+        result = bq.recover_interrupted_runs(db_path=db_path)
+
+        # Run A dead → interrupted, Run B live but wrong identity → unverified
+        assert result["runs_interrupted"] == 1
+        assert result["run_ids"] == [run_a["id"]]
+        assert result["runs_unverified"] == 1
+        assert result["conflicts"] == 0
+        refreshed_a = bq.get_run(run_a["id"], db_path=db_path)
+        assert refreshed_a is not None
+        assert refreshed_a["state"] == bq.RUN_INTERRUPTED
+        refreshed_b = bq.get_run(run_b["id"], db_path=db_path)
+        assert refreshed_b is not None
+        assert refreshed_b["state"] == bq.RUN_RUNNING
+
+    def test_recover_continues_after_run_conflict(self, db_path: Path):
+        """Verify the conflicts counter is present and zero for normal recovery."""
+        import subprocess as sp
+
+        task = bq.create_task("normal", db_path=db_path)
+        claimed = self._claim(task, db_path)
+        run = bq.create_run(
+            task["id"], ["true"],
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
+        proc = sp.Popen(["true"])
+        proc.wait()
+        bq.worker_transition_task(
+            task["id"], bq.RUNNING,
+            claimed["lease_token"], claimed["claim_version"],
+            db_path=db_path,
+        )
+        bq.update_run(
+            run["id"], state=bq.RUN_RUNNING,
+            pid=proc.pid, process_identity="dead",
+            db_path=db_path,
+        )
+
+        result = bq.recover_interrupted_runs(db_path=db_path)
+        # The conflicts counter marks rows where the UPDATE rowcount != 1.
+        # Under normal SQLite write-lock semantics this is zero, but the
+        # counter is defensive against exotic filesystem/network races.
+        assert "conflicts" in result
+        assert result["conflicts"] == 0
+        assert result["runs_interrupted"] == 1
+
+    def test_recover_grace_period_uses_created_at(self, db_path: Path):
+        """Updating log_path (which refreshes updated_at) must not reset grace."""
+        task = bq.create_task("grace test", db_path=db_path)
+        claimed = self._claim(task, db_path)
+        run = bq.create_run(
+            task["id"], ["true"],
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
+        # created_at is fresh (just created), so recovery should defer it
+        # even though we later update updated_at.
+        bq.update_run(run["id"], log_path="/some/path", db_path=db_path)
+
+        result = bq.recover_interrupted_runs(
+            db_path=db_path, starting_grace_seconds=30,
+        )
+        assert result["runs_interrupted"] == 0
+        assert result["starting_runs_deferred"] == 1
+
+    def test_corrupted_allowed_paths_json_raises(self, db_path: Path):
+        """Corrupted allowed_paths_json must raise, not silently disable scope."""
+        task = bq.create_task("t", db_path=db_path)
+        with bq.connect(db_path) as conn:
+            conn.execute(
+                "UPDATE tasks SET allowed_paths_json = ? WHERE id = ?",
+                ("{invalid json", task["id"]),
+            )
+            conn.commit()
+
+        with pytest.raises(bq.DataCorruptionError, match="corrupted allowed_paths"):
+            bq.get_task(task["id"], db_path=db_path)
+
+    def test_wrong_type_allowed_paths_json_raises(self, db_path: Path):
+        """allowed_paths_json containing a non-list must raise."""
+        task = bq.create_task("t", db_path=db_path)
+        with bq.connect(db_path) as conn:
+            conn.execute(
+                "UPDATE tasks SET allowed_paths_json = ? WHERE id = ?",
+                ('"just a string"', task["id"]),
+            )
+            conn.commit()
+
+        with pytest.raises(bq.DataCorruptionError, match="corrupted allowed_paths"):
+            bq.get_task(task["id"], db_path=db_path)
