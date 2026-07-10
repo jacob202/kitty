@@ -170,7 +170,48 @@ CREATE TABLE IF NOT EXISTS pr_links (
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_pr_links_task_pr
     ON pr_links(task_id, pr_number);
+
+-- Phase 1C-alpha: worker run records. One row per execution attempt,
+-- updated in place as the attempt progresses. History = multiple rows.
+CREATE TABLE IF NOT EXISTS runs (
+    id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL,
+    state TEXT NOT NULL DEFAULT 'starting',
+    command_json TEXT NOT NULL,
+    worker TEXT,
+    model TEXT,
+    provider TEXT,
+    pid INTEGER,
+    branch TEXT,
+    worktree_path TEXT,
+    log_path TEXT,
+    exit_code INTEGER,
+    started_at TIMESTAMP,
+    ended_at TIMESTAMP,
+    last_heartbeat_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_runs_task ON runs(task_id, id);
 """
+
+# Run lifecycle states (runs table). Terminal: exited/failed/timeout/
+# cancelled/interrupted.
+RUN_STARTING = "starting"
+RUN_RUNNING = "running"
+RUN_CANCEL_REQUESTED = "cancel_requested"
+RUN_EXITED = "exited"
+RUN_FAILED = "failed"
+RUN_TIMEOUT = "timeout"
+RUN_CANCELLED = "cancelled"
+RUN_INTERRUPTED = "interrupted"
+
+RUN_ACTIVE_STATES = frozenset({RUN_STARTING, RUN_RUNNING, RUN_CANCEL_REQUESTED})
+RUN_TERMINAL_STATES = frozenset(
+    {RUN_EXITED, RUN_FAILED, RUN_TIMEOUT, RUN_CANCELLED, RUN_INTERRUPTED}
+)
 
 _PRAGMAS = (
     "PRAGMA journal_mode=WAL;",
@@ -1549,3 +1590,288 @@ def get_pr_links(
         return [dict(r) for r in rows]
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Phase 1C-alpha — lease renewal (heartbeat)
+# ---------------------------------------------------------------------------
+
+
+def renew_lease(
+    task_id: str,
+    lease_token: str,
+    claim_version: int,
+    *,
+    lease_seconds: int = 60,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Extend a live lease by *lease_seconds* from now (heartbeat).
+
+    Fenced: requires the current token + version AND an unexpired lease —
+    a worker whose lease already lapsed must not resurrect it (the recovery
+    scan owns that task now). Appends no event by design: renewals are not
+    state changes and would flood the log at 10s cadence.
+
+    Raises LeaseConflictError when fencing fails or the lease is expired.
+    """
+    if lease_seconds <= 0:
+        raise ValueError("lease_seconds must be positive")
+
+    conn = connect(db_path)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        cursor = conn.execute(
+            """
+            UPDATE tasks
+            SET lease_expires_at = strftime('%Y-%m-%d %H:%M:%f', 'now', ?),
+                updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
+            WHERE id = ?
+              AND lease_token = ?
+              AND claim_version = ?
+              AND lease_expires_at > strftime('%Y-%m-%d %H:%M:%f', 'now')
+            """,
+            (f"+{lease_seconds} seconds", task_id, lease_token, claim_version),
+        )
+        if cursor.rowcount != 1:
+            raise LeaseConflictError(
+                f"cannot renew lease for task {task_id}: stale token/version "
+                "or lease already expired"
+            )
+        result = _get_task_on_conn(conn, task_id)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    if result is None:
+        raise RuntimeError(f"Task {task_id} lease renewed but not retrievable")
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Phase 1C-alpha — run records
+# ---------------------------------------------------------------------------
+
+
+def generate_run_id() -> str:
+    """Return ``run_<base36_unix_ms>_<hex4>`` (same shape as task IDs)."""
+    unix_ms = int(time.time() * 1000)
+    return f"run_{_to_base36(unix_ms)}_{secrets.token_hex(2)}"
+
+
+def create_run(
+    task_id: str,
+    command: list[str],
+    *,
+    worker: str | None = None,
+    model: str | None = None,
+    provider: str | None = None,
+    branch: str | None = None,
+    worktree_path: str | None = None,
+    log_path: str | None = None,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Create a run record in state ``starting`` for an existing task."""
+    if not command:
+        raise ValueError("command must be a non-empty list")
+
+    run_id = generate_run_id()
+    conn = connect(db_path)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        task_row = conn.execute(
+            "SELECT id FROM tasks WHERE id = ?", (task_id,)
+        ).fetchone()
+        if task_row is None:
+            raise TaskNotFoundError(f"task not found: {task_id}")
+        conn.execute(
+            """
+            INSERT INTO runs
+                (id, task_id, command_json, worker, model, provider,
+                 branch, worktree_path, log_path)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                run_id,
+                task_id,
+                json.dumps(list(command)),
+                worker,
+                model,
+                provider,
+                branch,
+                worktree_path,
+                log_path,
+            ),
+        )
+        row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    return _row_to_run(row)
+
+
+def _row_to_run(row: sqlite3.Row) -> dict[str, Any]:
+    run = dict(row)
+    try:
+        run["command"] = json.loads(run.get("command_json") or "null")
+    except (json.JSONDecodeError, TypeError):
+        run["command"] = None
+    return run
+
+
+class RunNotFoundError(ValueError):
+    """Raised when a run ID does not exist."""
+
+
+def get_run(run_id: str, db_path: Path | None = None) -> dict[str, Any] | None:
+    conn = connect(db_path)
+    try:
+        row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
+        return _row_to_run(row) if row is not None else None
+    finally:
+        conn.close()
+
+
+def list_runs(
+    task_id: str | None = None,
+    state: str | None = None,
+    db_path: Path | None = None,
+) -> list[dict[str, Any]]:
+    """List runs, optionally filtered by task and/or run state. Oldest first."""
+    query = "SELECT * FROM runs"
+    clauses: list[str] = []
+    params: list[Any] = []
+    if task_id is not None:
+        clauses.append("task_id = ?")
+        params.append(task_id)
+    if state is not None:
+        clauses.append("state = ?")
+        params.append(state)
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
+    query += " ORDER BY id ASC"
+
+    conn = connect(db_path)
+    try:
+        rows = conn.execute(query, params).fetchall()
+        return [_row_to_run(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def update_run(
+    run_id: str,
+    *,
+    state: str | None = None,
+    pid: int | None = None,
+    exit_code: int | None = None,
+    log_path: str | None = None,
+    mark_started: bool = False,
+    mark_ended: bool = False,
+    mark_heartbeat: bool = False,
+    expected_states: frozenset[str] | None = None,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Update a run record in place.
+
+    ``expected_states`` makes the update conditional on the current state
+    (used for cancel_requested handoff); a mismatch raises ValueError so
+    callers cannot silently clobber a concurrent cancellation.
+    """
+    set_parts = ["updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')"]
+    params: list[Any] = []
+    if state is not None:
+        set_parts.append("state = ?")
+        params.append(state)
+    if pid is not None:
+        set_parts.append("pid = ?")
+        params.append(pid)
+    if exit_code is not None:
+        set_parts.append("exit_code = ?")
+        params.append(exit_code)
+    if log_path is not None:
+        set_parts.append("log_path = ?")
+        params.append(log_path)
+    if mark_started:
+        set_parts.append("started_at = strftime('%Y-%m-%d %H:%M:%f', 'now')")
+    if mark_ended:
+        set_parts.append("ended_at = strftime('%Y-%m-%d %H:%M:%f', 'now')")
+    if mark_heartbeat:
+        set_parts.append("last_heartbeat_at = strftime('%Y-%m-%d %H:%M:%f', 'now')")
+
+    where = "id = ?"
+    where_params: list[Any] = [run_id]
+    if expected_states is not None:
+        placeholders = ",".join("?" for _ in expected_states)
+        where += f" AND state IN ({placeholders})"
+        where_params.extend(sorted(expected_states))
+
+    conn = connect(db_path)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        exists = conn.execute(
+            "SELECT 1 FROM runs WHERE id = ?", (run_id,)
+        ).fetchone()
+        if exists is None:
+            raise RunNotFoundError(f"run not found: {run_id}")
+        cursor = conn.execute(
+            f"UPDATE runs SET {', '.join(set_parts)} WHERE {where}",
+            (*params, *where_params),
+        )
+        if cursor.rowcount != 1:
+            raise ValueError(
+                f"run {run_id} not in expected state for this update"
+            )
+        row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    return _row_to_run(row)
+
+
+def recover_interrupted_runs(db_path: Path | None = None) -> dict[str, Any]:
+    """Mark active runs whose recorded PID is dead as ``interrupted``.
+
+    Complements ``recover_expired_leases``: the lease scan handles the
+    *task*; this handles the *run row* so crashed attempts are visible.
+    Appends a ``run_interrupted`` event per affected task.
+
+    ponytail: PID liveness via os.kill(pid, 0) — PID reuse could false-
+    negative a dead run; acceptable for a single-user machine.
+    """
+    import os as _os
+
+    interrupted: list[str] = []
+    for run in list_runs(db_path=db_path):
+        if run["state"] not in RUN_ACTIVE_STATES:
+            continue
+        pid = run.get("pid")
+        alive = False
+        if pid:
+            try:
+                _os.kill(int(pid), 0)
+                alive = True
+            except (ProcessLookupError, PermissionError, ValueError):
+                alive = False
+        if alive:
+            continue
+        update_run(run["id"], state=RUN_INTERRUPTED, mark_ended=True, db_path=db_path)
+        append_event(
+            run["task_id"],
+            "run_interrupted",
+            payload={"run_id": run["id"], "pid": pid},
+            db_path=db_path,
+        )
+        interrupted.append(run["id"])
+
+    return {"runs_interrupted": len(interrupted), "run_ids": interrupted}
