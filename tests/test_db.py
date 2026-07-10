@@ -157,6 +157,9 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "013_memory_weave.sql",
         "014_deadlines.sql",
         "015_expert_state.sql",
+        "016_chat_lifecycle.sql",
+        "017_artifacts.sql",
+        "018_message_attachments.sql",
     ]
 
 

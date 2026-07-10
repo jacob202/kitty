@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from gateway.routes import (
     actions,
+    artifacts,
     ask,
     brief,
     calendar,
@@ -31,6 +32,7 @@ from gateway.routes import (
     monitors,
     projects,
     prompts,
+    runtime,
     search,
     state,
     status,
@@ -41,6 +43,7 @@ from gateway.routes import (
 
 def register_routes(app: FastAPI) -> None:
     for module in (
+        artifacts,
         experts,
         actions,
         ask,
@@ -65,6 +68,7 @@ def register_routes(app: FastAPI) -> None:
         monitors,
         projects,
         prompts,
+        runtime,
         search,
         state,
         status,

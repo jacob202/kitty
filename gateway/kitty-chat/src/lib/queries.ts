@@ -4,6 +4,7 @@ import {
   // brief / models / search / weather (full payloads)
   fetchGatewayBrief,
   fetchGatewayModels,
+  fetchGatewayRuntimeManifest,
   fetchGatewaySearch,
   fetchGatewayWeather,
   // todos
@@ -54,6 +55,8 @@ import {
   runInboxTriage,
   // projects
   fetchProjects,
+  fetchActiveProject,
+  setActiveProject,
   fetchProjectNext,
   refreshProject,
   type GatewayProject,
@@ -95,6 +98,15 @@ export function useGatewayModels() {
   return useQuery({
     queryKey: ['models'],
     queryFn: fetchGatewayModels,
+  })
+}
+
+export function useGatewayRuntimeManifest(projectId?: number) {
+  return useQuery({
+    queryKey: ['runtime-manifest', projectId ?? null],
+    queryFn: () => fetchGatewayRuntimeManifest(projectId),
+    refetchInterval: 15_000,
+    staleTime: 10_000,
   })
 }
 
@@ -471,6 +483,21 @@ export function useRunInboxTriage() {
 
 export function useProjects() {
   return useQuery({ queryKey: ['projects'], queryFn: fetchProjects, refetchInterval: 60_000 })
+}
+
+export function useActiveProject() {
+  return useQuery({ queryKey: ['active-project'], queryFn: fetchActiveProject, staleTime: 30_000 })
+}
+
+export function useSetActiveProject() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (projectId: number) => setActiveProject(projectId),
+    onSuccess: (payload) => {
+      qc.setQueryData(['active-project'], payload)
+      void qc.invalidateQueries({ queryKey: ['runtime-manifest'] })
+    },
+  })
 }
 
 export function useProjectNext(projectId: number) {

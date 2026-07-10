@@ -1,6 +1,7 @@
 'use client'
 import { useRef, useEffect, useState, KeyboardEvent, RefObject } from 'react'
-import { Mic, Square } from 'lucide-react'
+import { Mic, Square, Paperclip, X } from 'lucide-react'
+import { MessageAttachment } from '@/lib/types'
 
 interface Props {
   value: string
@@ -16,17 +17,31 @@ interface Props {
   maxTokens?: number
   textareaRef?: RefObject<HTMLTextAreaElement | null>
   compact?: boolean
+  attachments?: MessageAttachment[]
+  onAddFiles?: (files: FileList) => void
+  onRemoveAttachment?: (id: string) => void
 }
 
 type RecState = 'idle' | 'recording' | 'transcribing'
+
+function formatBytes(n?: number): string {
+  if (n === undefined || Number.isNaN(n)) return ''
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`
+}
 
 export function InputBar({
   value, onChange, onSend, onStop, isStreaming, disabled,
   textareaRef,
   compact = false,
+  attachments = [],
+  onAddFiles,
+  onRemoveAttachment,
 }: Props) {
   const internalRef = useRef<HTMLTextAreaElement>(null)
   const ref = textareaRef ?? internalRef
+  const fileRef = useRef<HTMLInputElement>(null)
 
   const [recState, setRecState] = useState<RecState>('idle')
   const recorderRef = useRef<MediaRecorder | null>(null)
@@ -109,12 +124,69 @@ export function InputBar({
     }
   }
 
+  const onPickFiles = () => fileRef.current?.click()
+
+  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length && onAddFiles) onAddFiles(e.target.files)
+    e.target.value = ''
+  }
+
   return (
     <div style={{
       padding: '14px 26px 20px',
       flexShrink: 0,
       background: 'var(--bg)',
     }}>
+      {attachments.length > 0 && (
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 8,
+          marginBottom: 10,
+          paddingLeft: 4,
+        }}>
+          {attachments.map((att) => (
+            <div key={att.id} style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              background: 'var(--surface)',
+              border: '1.5px solid var(--line)',
+              borderRadius: 10,
+              padding: '5px 8px 5px 10px',
+              maxWidth: 280,
+            }}>
+              <Paperclip size={12} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+              <span style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                color: 'var(--ink)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}>
+                {att.display_name}
+                {att.size ? ` · ${formatBytes(att.size)}` : ''}
+              </span>
+              {onRemoveAttachment && (
+                <button
+                  type="button"
+                  onClick={() => onRemoveAttachment(att.id)}
+                  aria-label={`remove ${att.display_name}`}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: 'none', background: 'transparent', cursor: 'pointer',
+                    color: 'var(--ink-2)', padding: 2, flexShrink: 0,
+                  }}
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -148,6 +220,31 @@ export function InputBar({
             padding: 0,
           }}
         />
+
+        <input
+          ref={fileRef}
+          type="file"
+          multiple
+          onChange={onFileChange}
+          style={{ display: 'none' }}
+        />
+
+        <button
+          type="button"
+          onClick={onPickFiles}
+          disabled={disabled}
+          title="attach a file"
+          aria-label="attach a file"
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 36, height: 36, flexShrink: 0,
+            background: 'transparent',
+            border: 'none', borderRadius: 99,
+            color: 'var(--ink-2)', cursor: disabled ? 'not-allowed' : 'pointer',
+          }}
+        >
+          <Paperclip size={16} />
+        </button>
 
         {recState !== 'idle' && (
           <button

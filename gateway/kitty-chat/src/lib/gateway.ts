@@ -98,6 +98,57 @@ export type GatewayModelsPayload = {
   error: string | null
 }
 
+export type RuntimeFactState = 'available' | 'unavailable' | 'degraded' | 'stale' | 'unknown'
+
+export interface RuntimeFact<T = unknown> {
+  state: RuntimeFactState
+  value: T | null
+  source: string
+  observed_at: string
+  valid_until: string
+  reason?: string
+}
+
+export interface GatewayRuntimeManifest {
+  schema_version: number
+  manifest_id: string
+  revision: string
+  generated_at: string
+  valid_until: string
+  application: {
+    name: string
+    version: RuntimeFact<string>
+    build_commit: string | null
+    environment: string
+  }
+  clock: RuntimeFact<{ current_time: string; timezone: string }>
+  context: {
+    active_project: RuntimeFact<Record<string, unknown>>
+    repository: RuntimeFact<{
+      root: string
+      branch: string
+      commit: string
+      dirty: boolean
+      changed_paths: number
+    }>
+  }
+  execution: {
+    builder: RuntimeFact<Record<string, unknown>>
+  }
+  inference: {
+    routing_mode: string
+    available_models: RuntimeFact<string[]>
+    providers: Array<Record<string, unknown>>
+    execution_location: string
+  }
+  tools: RuntimeFact<Array<Record<string, unknown>>>
+  connections: {
+    gateway: RuntimeFact<Record<string, unknown>>
+    litellm: RuntimeFact<Record<string, unknown>>
+  }
+  approvals: RuntimeFact<Record<string, unknown>>
+}
+
 export type GatewayBriefPayload = {
   brief: GatewayBrief | null
   fromLiveGateway: boolean
@@ -269,6 +320,11 @@ export async function fetchGatewayModels(): Promise<GatewayModelsPayload> {
       error: describeFetchError(err, null),
     }
   }
+}
+
+export async function fetchGatewayRuntimeManifest(projectId?: number): Promise<GatewayRuntimeManifest> {
+  const suffix = projectId === undefined ? '' : `?project_id=${encodeURIComponent(projectId)}`
+  return await gfetch<GatewayRuntimeManifest>(`/runtime/manifest${suffix}`, undefined, 4000)
 }
 
 export async function fetchGatewayBrief(): Promise<GatewayBriefPayload> {
@@ -944,13 +1000,19 @@ export async function fetchNeedsJacob(limit = 20): Promise<GatewayNeedsJacobPayl
 
 export interface CaptureResult {
   capture_id: string
+  artifact_id?: string | null
   status: string
   message: string
 }
 
-export async function uploadCaptureFile(file: File): Promise<CaptureResult | null> {
+export async function uploadCaptureFile(
+  file: File,
+  opts?: { conversationId?: string; projectId?: number },
+): Promise<CaptureResult | null> {
   const formData = new FormData()
   formData.append('file', file)
+  if (opts?.conversationId) formData.append('conversation_id', opts.conversationId)
+  if (opts?.projectId !== undefined) formData.append('project_id', String(opts.projectId))
   try {
     return await gfetch<CaptureResult>('/capture/file', {
       method: 'POST',
@@ -976,6 +1038,12 @@ export interface GatewayProject {
   links: unknown[]
 }
 
+export interface GatewayActiveProjectPayload {
+  project_id: number
+  project: GatewayProject
+  source: 'persisted' | 'defaulted_once' | string
+}
+
 export interface GatewayNextStep {
   project_id: number
   step: string
@@ -990,6 +1058,18 @@ export interface GatewayNextStep {
 export async function fetchProjects(): Promise<GatewayProject[]> {
   const json = await gfetch<{ projects?: GatewayProject[] }>('/projects')
   return json.projects ?? []
+}
+
+export async function fetchActiveProject(): Promise<GatewayActiveProjectPayload> {
+  return await gfetch<GatewayActiveProjectPayload>('/context/project')
+}
+
+export async function setActiveProject(projectId: number): Promise<GatewayActiveProjectPayload> {
+  return await gfetch<GatewayActiveProjectPayload>('/context/project', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ project_id: projectId }),
+  })
 }
 
 /** null means "no step generated yet" (gateway 404s rather than fabricating one). */

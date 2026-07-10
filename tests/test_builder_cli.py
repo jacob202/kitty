@@ -775,3 +775,501 @@ class TestQueueArchive:
         assert rc == 1
         _, err = capsys.readouterr()
         assert "error" in err.lower()
+
+
+# ---------------------------------------------------------------------------
+# Kill switch (KITTY_BUILDER_QUEUE_ENABLED=0)
+# ---------------------------------------------------------------------------
+
+
+class TestKillSwitch:
+    _MUTATING_INVOCATIONS = [
+        ["queue", "add", "t"],
+        ["queue", "edit", "kb_x", "--title", "t"],
+        ["queue", "claim", "kb_x", "--worker", "w"],
+        ["queue", "claim-next", "--worker", "w"],
+        ["queue", "release", "kb_x", "--worker", "w",
+         "--lease-token", "tok", "--claim-version", "1"],
+        ["queue", "operator-release", "kb_x"],
+        ["queue", "transition", "kb_x", "running",
+         "--lease-token", "tok", "--claim-version", "1"],
+        ["queue", "archive", "--state", "done", "--older-than", "7"],
+        ["queue", "attach-report", "kb_x", "--report-json", '{"s": 1}',
+         "--operator-reason", "r"],
+        ["queue", "attach-pr", "kb_x", "--pr", "5"],
+        ["queue", "recover"],
+        ["queue", "operator-cancel", "kb_x"],
+    ]
+
+    def test_mutating_commands_refused_when_disabled(self, monkeypatch, capsys):
+        monkeypatch.setenv("KITTY_BUILDER_QUEUE_ENABLED", "0")
+        for argv in self._MUTATING_INVOCATIONS:
+            with patch(f"{_QUEUE_PATCH}.init_db") as mock_init:
+                rc = main(argv)
+            assert rc == 1, f"expected refusal for {argv}"
+            err = capsys.readouterr().err
+            assert "disabled" in err, f"expected disabled message for {argv}"
+            mock_init.assert_not_called()
+
+    def test_read_commands_still_work_when_disabled(self, monkeypatch, capsys):
+        monkeypatch.setenv("KITTY_BUILDER_QUEUE_ENABLED", "0")
+        with patch(f"{_QUEUE_PATCH}.init_db") as mock_init:
+            with patch(f"{_QUEUE_PATCH}.list_tasks", return_value=[]):
+                rc = main(["queue", "list"])
+        assert rc == 0
+        mock_init.assert_called_once()
+
+    def test_enabled_by_default(self, monkeypatch):
+        monkeypatch.delenv("KITTY_BUILDER_QUEUE_ENABLED", raising=False)
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                f"{_QUEUE_PATCH}.create_task", return_value=_fake_task("kb_ks1")
+            ) as mock_create:
+                rc = main(["queue", "add", "works"])
+        assert rc == 0
+        mock_create.assert_called_once()
+
+    def test_explicit_enable(self, monkeypatch):
+        monkeypatch.setenv("KITTY_BUILDER_QUEUE_ENABLED", "1")
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                f"{_QUEUE_PATCH}.create_task", return_value=_fake_task("kb_ks2")
+            ):
+                rc = main(["queue", "add", "works"])
+        assert rc == 0
+
+
+# ---------------------------------------------------------------------------
+# Backup-age warning on queue status
+# ---------------------------------------------------------------------------
+
+
+def _status_data(total: int) -> dict:
+    return {
+        "per_state": {"queued": total},
+        "total": total,
+        "queued": total,
+        "claimed": 0,
+        "running": 0,
+        "blocked": 0,
+        "pr_opened": 0,
+        "awaiting_review": 0,
+        "done": 0,
+        "failed": 0,
+        "cancelled": 0,
+    }
+
+
+class TestBackupAgeWarning:
+    def _run_status(self, tmp_path, monkeypatch, total):
+        monkeypatch.setattr(
+            "gateway.paths.BUILDER_QUEUE_DB", tmp_path / "builder_queue.db"
+        )
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                f"{_QUEUE_PATCH}.queue_status", return_value=_status_data(total)
+            ):
+                return main(["queue", "status"])
+
+    def test_no_warning_for_empty_queue(self, tmp_path, monkeypatch, capsys):
+        rc = self._run_status(tmp_path, monkeypatch, total=0)
+        assert rc == 0
+        assert "WARNING" not in capsys.readouterr().err
+
+    def test_warns_when_no_backups_exist(self, tmp_path, monkeypatch, capsys):
+        rc = self._run_status(tmp_path, monkeypatch, total=2)
+        assert rc == 0
+        err = capsys.readouterr().err
+        assert "no queue backups" in err
+        assert "VACUUM INTO" in err
+
+    def test_warns_when_newest_backup_is_stale(self, tmp_path, monkeypatch, capsys):
+        import os as _os
+        import time as _time
+
+        backups = tmp_path / "backups"
+        backups.mkdir()
+        old = backups / "builder_queue_20260101.db"
+        old.write_bytes(b"")
+        three_days_ago = _time.time() - 3 * 24 * 3600
+        _os.utime(old, (three_days_ago, three_days_ago))
+
+        rc = self._run_status(tmp_path, monkeypatch, total=2)
+        assert rc == 0
+        err = capsys.readouterr().err
+        assert "days old" in err
+
+    def test_no_warning_when_backup_is_fresh(self, tmp_path, monkeypatch, capsys):
+        backups = tmp_path / "backups"
+        backups.mkdir()
+        (backups / "builder_queue_20260710.db").write_bytes(b"")
+
+        rc = self._run_status(tmp_path, monkeypatch, total=2)
+        assert rc == 0
+        assert "WARNING" not in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# Phase 1B commands — brief, attach-report, attach-pr, recover, operator-cancel
+# ---------------------------------------------------------------------------
+
+
+class TestQueueBrief:
+    def test_brief_renders_for_existing_task(self, capsys):
+        task = _fake_task(
+            "kb_brief001_aaaa",
+            title="brief me",
+            acceptance_criteria=["c1"],
+            allowed_paths=["gateway/x.py"],
+        )
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.get_task", return_value=task):
+                with patch(f"{_QUEUE_PATCH}.list_events", return_value=[]):
+                    with patch(f"{_QUEUE_PATCH}.get_pr_links", return_value=[]):
+                        rc = main(["queue", "brief", "kb_brief001_aaaa"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "brief me" in out
+        assert "kittybuilder/kb_brief001_aaaa" in out
+        assert "Stop conditions" in out
+
+    def test_brief_json_mode(self, capsys):
+        task = _fake_task("kb_brief002_bbbb")
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.get_task", return_value=task):
+                with patch(f"{_QUEUE_PATCH}.list_events", return_value=[]):
+                    with patch(f"{_QUEUE_PATCH}.get_pr_links", return_value=[]):
+                        rc = main(["queue", "brief", "kb_brief002_bbbb", "--json"])
+        assert rc == 0
+        parsed = json.loads(capsys.readouterr().out)
+        assert parsed["task_id"] == "kb_brief002_bbbb"
+        assert "KittyBuilder task brief" in parsed["brief"]
+
+    def test_brief_unknown_task(self, capsys):
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.get_task", return_value=None):
+                rc = main(["queue", "brief", "kb_nope"])
+        assert rc == 1
+        assert "not found" in capsys.readouterr().err
+
+
+class TestQueueAttachReport:
+    def test_worker_mode_dispatch(self):
+        task = _fake_task("kb_rep1_aaaa")
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                f"{_QUEUE_PATCH}.attach_final_report", return_value=task
+            ) as mock_attach:
+                rc = main([
+                    "queue", "attach-report", "kb_rep1_aaaa",
+                    "--report-json", '{"summary": "done"}',
+                    "--lease-token", "tok", "--claim-version", "1",
+                ])
+        assert rc == 0
+        mock_attach.assert_called_once_with(
+            "kb_rep1_aaaa",
+            {"summary": "done"},
+            lease_token="tok",
+            claim_version=1,
+            operator_reason=None,
+        )
+
+    def test_report_file_mode(self, tmp_path):
+        p = tmp_path / "report.json"
+        p.write_text('{"summary": "from file"}')
+        task = _fake_task("kb_rep2_bbbb")
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                f"{_QUEUE_PATCH}.attach_final_report", return_value=task
+            ) as mock_attach:
+                rc = main([
+                    "queue", "attach-report", "kb_rep2_bbbb",
+                    "--report-file", str(p),
+                    "--operator-reason", "post-mortem",
+                ])
+        assert rc == 0
+        assert mock_attach.call_args.args[1] == {"summary": "from file"}
+
+    def test_both_sources_rejected(self, capsys):
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            rc = main([
+                "queue", "attach-report", "kb_x",
+                "--report-json", "{}", "--report-file", "x.json",
+            ])
+        assert rc == 1
+        assert "exactly one" in capsys.readouterr().err
+
+    def test_invalid_json_rejected(self, capsys):
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            rc = main([
+                "queue", "attach-report", "kb_x", "--report-json", "[1,2]",
+            ])
+        assert rc == 1
+        assert "error" in capsys.readouterr().err
+
+
+class TestQueueAttachPr:
+    def test_dispatch(self):
+        link = {"pr_number": 141, "task_id": "kb_pr1_aaaa"}
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.attach_pr", return_value=link) as mock_pr:
+                rc = main([
+                    "queue", "attach-pr", "kb_pr1_aaaa", "--pr", "141",
+                    "--url", "https://x/141", "--head-sha", "abc",
+                ])
+        assert rc == 0
+        mock_pr.assert_called_once_with(
+            "kb_pr1_aaaa",
+            141,
+            pr_url="https://x/141",
+            head_sha="abc",
+            checks_state=None,
+            review_state=None,
+        )
+
+    def test_pr_required(self):
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with pytest.raises(SystemExit):
+                main(["queue", "attach-pr", "kb_x"])
+
+
+class TestQueueRecover:
+    def test_dispatch(self, capsys):
+        result = {"claimed_requeued": 2, "running_blocked": 1, "total": 3}
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                f"{_QUEUE_PATCH}.recover_expired_leases", return_value=result
+            ):
+                with patch(
+                    f"{_QUEUE_PATCH}.recover_interrupted_runs",
+                    return_value={"runs_interrupted": 0, "run_ids": []},
+                ):
+                    rc = main(["queue", "recover"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "Recovered 3" in out
+        assert "2 claimed" in out
+
+    def test_json(self, capsys):
+        result = {"claimed_requeued": 0, "running_blocked": 0, "total": 0}
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                f"{_QUEUE_PATCH}.recover_expired_leases", return_value=result
+            ):
+                with patch(
+                    f"{_QUEUE_PATCH}.recover_interrupted_runs",
+                    return_value={"runs_interrupted": 0, "run_ids": []},
+                ):
+                    rc = main(["queue", "recover", "--json"])
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["total"] == 0
+
+    def test_human_output_surfaces_unverified_live_runs(self, capsys):
+        tasks = {"claimed_requeued": 0, "running_blocked": 0, "total": 0}
+        runs = {
+            "runs_interrupted": 0,
+            "run_ids": [],
+            "starting_runs_deferred": 0,
+            "starting_run_ids": [],
+            "runs_unverified": 1,
+            "unverified_runs": [
+                {"run_id": "run_123", "reason": "process_identity_missing"}
+            ],
+        }
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                f"{_QUEUE_PATCH}.recover_expired_leases", return_value=tasks
+            ):
+                with patch(
+                    f"{_QUEUE_PATCH}.recover_interrupted_runs", return_value=runs
+                ):
+                    rc = main(["queue", "recover"])
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "run_123" in out
+        assert "process_identity_missing" in out
+
+
+class TestQueueOperatorCancel:
+    def test_dispatch(self):
+        task = _fake_task("kb_oc1_aaaa", state="cancelled")
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                f"{_QUEUE_PATCH}.transition_task", return_value=task
+            ) as mock_tr:
+                rc = main([
+                    "queue", "operator-cancel", "kb_oc1_aaaa",
+                    "--reason", "stale demo",
+                ])
+        assert rc == 0
+        mock_tr.assert_called_once_with(
+            "kb_oc1_aaaa",
+            "cancelled",
+            payload={"operator": True, "reason": "stale demo"},
+        )
+
+    def test_illegal_state_reports_error(self, capsys):
+        from gateway.builder_queue import IllegalTransitionError
+
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                f"{_QUEUE_PATCH}.transition_task",
+                side_effect=IllegalTransitionError("no"),
+            ):
+                rc = main(["queue", "operator-cancel", "kb_oc2_bbbb"])
+        assert rc == 1
+        assert "error" in capsys.readouterr().err
+
+
+class TestQueueRunnerCommands:
+    def test_run_requires_worker_command(self, capsys):
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            rc = main(["queue", "run", "kb_123"])
+
+        assert rc == 1
+        assert "provide the worker command after --" in capsys.readouterr().err
+
+    def test_run_dispatches_worker_command_and_metadata(self, capsys):
+        run = {
+            "id": "run_123",
+            "task_id": "kb_123",
+            "state": "exited",
+            "command": ["true"],
+        }
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                "gateway.builder_runner.run_worker", return_value=run
+            ) as mock_run:
+                rc = main(
+                    [
+                        "queue",
+                        "run",
+                        "kb_123",
+                        "--worker",
+                        "captain",
+                        "--model",
+                        "model-x",
+                        "--provider",
+                        "provider-y",
+                        "--timeout",
+                        "90",
+                        "--lease-seconds",
+                        "20",
+                        "--heartbeat-seconds",
+                        "5",
+                        "--json",
+                        "--",
+                        "true",
+                    ]
+                )
+
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["id"] == "run_123"
+        mock_run.assert_called_once_with(
+            "kb_123",
+            ["true"],
+            worker="captain",
+            model="model-x",
+            provider="provider-y",
+            timeout_seconds=90,
+            lease_seconds=20,
+            heartbeat_seconds=5,
+        )
+
+    def test_runs_dispatches_filters(self, capsys):
+        runs = [{"id": "run_123", "task_id": "kb_123", "state": "exited"}]
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.list_runs", return_value=runs) as mock_list:
+                rc = main(
+                    [
+                        "queue",
+                        "runs",
+                        "--task",
+                        "kb_123",
+                        "--state",
+                        "exited",
+                        "--json",
+                    ]
+                )
+
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out) == runs
+        mock_list.assert_called_once_with(task_id="kb_123", state="exited")
+
+    def test_show_run_prints_log_tail(self, tmp_path: Path, capsys):
+        log_path = tmp_path / "combined.log"
+        log_path.write_text("one\ntwo\nthree\n")
+        run = {
+            "id": "run_with_log",
+            "task_id": "kb_123",
+            "state": "exited",
+            "log_path": str(log_path),
+        }
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.get_run", return_value=run):
+                rc = main(["queue", "show-run", "run_with_log", "--log-tail", "2"])
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "two\nthree" in out
+        assert "one\n" not in out.split("--- log tail", 1)[-1]
+
+    def test_show_run_missing_log_fails_loud(self, tmp_path: Path, capsys):
+        run = {
+            "id": "run_missing_log",
+            "task_id": "kb_123",
+            "state": "failed",
+            "log_path": str(tmp_path / "missing.log"),
+        }
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.get_run", return_value=run):
+                rc = main(
+                    ["queue", "show-run", "run_missing_log", "--log-tail", "10"]
+                )
+
+        assert rc == 1
+        assert "log file missing" in capsys.readouterr().err
+
+    def test_cancel_run_signal_error_is_operator_readable(self, capsys):
+        from gateway.builder_runner import RunnerError
+
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                "gateway.builder_runner.request_cancel",
+                side_effect=RunnerError("signaling process group 42 failed"),
+            ):
+                rc = main(["queue", "cancel-run", "run_123"])
+
+        assert rc == 1
+        assert "signaling process group 42 failed" in capsys.readouterr().err
+
+    def test_cancel_run_reports_when_signal_was_refused(self, capsys):
+        run = {
+            "id": "run_123",
+            "task_id": "kb_123",
+            "state": "cancel_requested",
+            "pid": 4242,
+            "signal_sent": False,
+            "signal_status": "process_identity_mismatch",
+        }
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch("gateway.builder_runner.request_cancel", return_value=run):
+                rc = main(["queue", "cancel-run", "run_123"])
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "signal not sent" in out
+        assert "process_identity_mismatch" in out
+
+    def test_clean_worktree_dispatch(self, capsys, tmp_path: Path):
+        removed = tmp_path / ".worktrees" / "kittybuilder" / "kb_123"
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                "gateway.builder_runner.remove_worktree", return_value=removed
+            ) as mock_remove:
+                rc = main(["queue", "clean-worktree", "kb_123"])
+
+        assert rc == 0
+        assert str(removed) in capsys.readouterr().out
+        mock_remove.assert_called_once_with("kb_123")

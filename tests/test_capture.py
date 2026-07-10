@@ -18,7 +18,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(paths, "INBOX_FILE", tmp_path / "data" / "inbox.jsonl")
     monkeypatch.setattr(capture, "INBOX_FILE", tmp_path / "data" / "inbox.jsonl")
     monkeypatch.setattr(capture, "CAPTURES_DIR", tmp_path / "data" / "captures")
-    monkeypatch.setattr(capture, "_index_capture", lambda _cid, _path: None)
+    monkeypatch.setattr(capture, "_index_capture", lambda _cid, _path, _artifact_id: None)
 
     return TestClient(app)
 

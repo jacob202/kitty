@@ -1,7 +1,7 @@
 'use client';
 import { startTransition, useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Chat, Message, Model, MODELS, COLOR_CYCLE, ChatColor } from '@/lib/types';
+import { Chat, Message, MessageAttachment, Model, MODELS, COLOR_CYCLE, ChatColor } from '@/lib/types';
 import { streamChat } from '@/lib/chat-client';
 import { inferMood } from '@/lib/mood';
 import { TopBar } from '@/components/TopBar';
@@ -28,11 +28,21 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PwaInstallBanner } from '@/components/PwaInstallBanner';
 import { WobFilters, PaperGrain } from '@/components/WobFilters';
 import { CatCorner, CatBody, type CatState } from '@/components/CrayonCat';
-import { fetchGatewaySearch, type GatewaySearchSnapshot, type GatewayTriageEntry } from '@/lib/gateway';
+import {
+  buildGatewayModels,
+  fetchGatewaySearch,
+  uploadCaptureFile,
+  type GatewaySearchSnapshot,
+  type GatewayTriageEntry,
+} from '@/lib/gateway';
 import { usePwaInstall } from '@/lib/pwa';
 import {
   useGatewayBrief,
   useGatewayModels,
+  useGatewayRuntimeManifest,
+  useActiveProject,
+  useProjects,
+  useSetActiveProject,
   useLoops,
   useInsights,
   usePrompts,
@@ -59,6 +69,29 @@ function makeChat(color: ChatColor): Chat {
     color,
     createdAt: new Date(),
     updatedAt: new Date(),
+  };
+}
+
+interface RecoveredMessage {
+  id: string
+  role: 'user' | 'assistant';
+  content: string;
+  created_at: number;
+  model?: string | null;
+  status?: string;
+  attachments?: MessageAttachment[];
+}
+
+/** Map a saved legacy chat blob into the UI shape with Date timestamps. */
+function legacyChat(c: Chat): Chat {
+  return {
+    ...c,
+    createdAt: new Date(c.createdAt),
+    updatedAt: new Date(c.updatedAt),
+    messages: (c.messages ?? []).map((m: Message) => ({
+      ...m,
+      timestamp: new Date(m.timestamp),
+    })),
   };
 }
 
@@ -166,27 +199,49 @@ function KittyChatInner() {
   );
   const pwaInstall = usePwaInstall();
   const [lastOutcome, setLastOutcome] = useState<'done' | 'broke' | null>(null);
+  const [attachments, setAttachments] = useState<MessageAttachment[]>([]);
 
   const catState: CatState = isStreaming ? 'working' : (lastOutcome ?? 'idle');
 
   useEffect(() => {
     fetch('/proxy/chats')
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
+      .then(async (d) => {
         const saved: Chat[] = d?.chats ?? [];
-        if (saved.length) {
-          setChats(
-            saved.map((c: Chat) => ({
-              ...c,
-              createdAt: new Date(c.createdAt),
-              updatedAt: new Date(c.updatedAt),
-              messages: (c.messages ?? []).map((m: Message) => ({
-                ...m,
-                timestamp: new Date(m.timestamp),
-              })),
-            })),
-          );
-        }
+        if (!saved.length) return;
+        const recovered = await Promise.all(
+          saved.map(async (c: Chat) => {
+            // Prefer the durable lifecycle ledger for history when it has
+            // messages; fall back to the legacy blob otherwise. The ledger is
+            // the honest source for restart recovery.
+            try {
+              const res = await fetch(`/proxy/chats/${encodeURIComponent(c.id)}/messages`);
+              if (!res.ok) return legacyChat(c);
+              const payload = await res.json();
+              const ledgerMessages = payload?.messages ?? [];
+              if (!ledgerMessages.length) return legacyChat(c);
+              return {
+                ...c,
+                createdAt: new Date(c.createdAt),
+                updatedAt: new Date(c.updatedAt),
+                messages: ledgerMessages.map((m: RecoveredMessage) => ({
+                  id: m.id,
+                  role: m.role,
+                  content: m.content,
+                  timestamp: new Date(m.created_at * 1000),
+                  ...(m.model ? { model: m.model } : {}),
+                  ...(m.status ? { turnStatus: m.status as Message['turnStatus'] } : {}),
+                  ...(m.attachments?.length
+                    ? { attachments: m.attachments as MessageAttachment[] }
+                    : {}),
+                })),
+              };
+            } catch {
+              return legacyChat(c);
+            }
+          }),
+        );
+        setChats(recovered);
       })
       .catch(() => {});
   }, []);
@@ -216,6 +271,10 @@ function KittyChatInner() {
   // Gateway status queries — models for TopBar, brief for the offline banner.
   const queryClient = useQueryClient();
   const modelsQuery = useGatewayModels();
+  const runtimeQuery = useGatewayRuntimeManifest();
+  const projectsQuery = useProjects();
+  const activeProjectQuery = useActiveProject();
+  const setActiveProject = useSetActiveProject();
   const briefQuery = useGatewayBrief();
   // Loops/insights/prompts still bind to real data but aren't part of the
   // console home surface — they live in the Tools view instead.
@@ -225,10 +284,19 @@ function KittyChatInner() {
   const toggleLoop = useToggleLoop();
   const dismissInsight = useDismissInsight();
 
-  const availableModels = modelsQuery.data?.models ?? MODELS;
+  const runtimeModelIds = runtimeQuery.data?.inference.available_models.value;
+  const availableModels = useMemo(
+    () => runtimeModelIds
+      ? buildGatewayModels(runtimeModelIds)
+      : modelsQuery.data?.models ?? MODELS,
+    [runtimeModelIds, modelsQuery.data?.models],
+  );
   const modelGateway = {
     loaded: modelsQuery.isFetched,
-    live: modelsQuery.data?.fromLiveGateway ?? true,
+    live:
+      runtimeQuery.isSuccess
+      && runtimeQuery.data?.inference.available_models.state === 'available'
+      && modelsQuery.data?.fromLiveGateway === true,
     error: modelsQuery.data?.error ?? null,
   };
   const briefGateway = {
@@ -240,6 +308,13 @@ function KittyChatInner() {
   const loops = loopsQuery.data?.loops ?? [];
   const insights = insightsQuery.data?.insights ?? [];
   const promptTemplates = promptsQuery.data ?? [];
+  const activeProject = activeProjectQuery.data?.project ?? null;
+  const projects = projectsQuery.data ?? [];
+
+  const handleSelectProject = useCallback(
+    (projectId: number) => setActiveProject.mutate(projectId),
+    [setActiveProject],
+  );
 
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -264,12 +339,12 @@ function KittyChatInner() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeChat?.messages.length, isStreaming]);
 
-  // Sync activeModel with the models list once it loads (or after retry).
+  // Sync activeModel with the authoritative runtime model list once it loads.
   useEffect(() => {
-    if (!modelsQuery.data) return;
-    const models = modelsQuery.data.models;
+    if (!availableModels.length) return;
+    const models = availableModels;
     setActiveModel((current) => models.find((m) => m.id === current.id) ?? models[0] ?? current);
-  }, [modelsQuery.data]);
+  }, [availableModels]);
 
   useEffect(() => {
     if (!searchQuery) {
@@ -409,7 +484,11 @@ function KittyChatInner() {
 
   /** Stream one assistant reply into `chat` given `history` (ends with a user
    *  message). Shared by send and retry so the cat's outcome states stay honest. */
-  const runStream = useCallback(async (chat: Chat, history: Message[], title: string) => {
+  const runStream = useCallback(async (chat: Chat, history: Message[], title: string, attachmentIds: string[] = []) => {
+    const latestUserMessage = [...history].reverse().find((message) => message.role === 'user');
+    if (!latestUserMessage) {
+      throw new Error('Cannot start a chat turn without a user message');
+    }
     setIsStreaming(true);
     setLastOutcome(null);
 
@@ -430,7 +509,16 @@ function KittyChatInner() {
     try {
       let accumulated = '';
 
-      for await (const chunk of streamChat(activeModel.id, history, abort.signal)) {
+      for await (const chunk of streamChat(
+        activeModel.id,
+        history,
+        abort.signal,
+        activeProject?.id,
+        chat.id,
+        latestUserMessage.id,
+        title,
+        attachmentIds,
+      )) {
         if (chunk.done) break;
         accumulated += chunk.content;
         const content = accumulated;
@@ -495,7 +583,7 @@ function KittyChatInner() {
       setIsStreaming(false);
       abortRef.current = null;
     }
-  }, [activeModel, updateChat, persistChat]);
+  }, [activeModel, activeProject?.id, updateChat, persistChat]);
 
   const handleSend = useCallback(async () => {
     const text = input.trim();
@@ -506,6 +594,7 @@ function KittyChatInner() {
       role: 'user',
       content: text,
       timestamp: new Date(),
+      attachments: attachments.length ? [...attachments] : undefined,
     };
 
     // derive title from first message
@@ -519,8 +608,10 @@ function KittyChatInner() {
       updatedAt: new Date(),
     }));
     setInput('');
+    setAttachments([]);
     setActiveView('chat');
-    void runStream(activeChat, [...activeChat.messages, userMsg], title);
+    const attachmentIds = attachments.map((a) => a.id);
+    void runStream(activeChat, [...activeChat.messages, userMsg], title, attachmentIds);
   }, [input, isStreaming, activeChat, runStream]);
 
 
@@ -541,6 +632,36 @@ function KittyChatInner() {
     setInput(text);
     setActiveView('chat');
     setTimeout(() => textareaRef.current?.focus(), 0);
+  }, []);
+
+  // Upload picked files to the gateway, registering each as a durable artifact
+  // linked to this conversation. Only successful registrations become pending
+  // attachments; a null result means upload failed and the chip is dropped.
+  const handleAddFiles = useCallback(
+    async (files: FileList) => {
+      if (!activeChat) return;
+      const added: MessageAttachment[] = [];
+      for (const file of Array.from(files)) {
+        const result = await uploadCaptureFile(file, {
+          conversationId: activeChat.id,
+          projectId: activeProject?.id,
+        });
+        if (result?.artifact_id) {
+          added.push({
+            id: result.artifact_id,
+            display_name: file.name,
+            media_type: file.type || 'application/octet-stream',
+            size: file.size,
+          });
+        }
+      }
+      if (added.length) setAttachments((prev) => [...prev, ...added]);
+    },
+    [activeChat, activeProject?.id],
+  );
+
+  const handleRemoveAttachment = useCallback((id: string) => {
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
   }, []);
 
   const handleDecideInChat = useCallback(
@@ -682,6 +803,16 @@ function KittyChatInner() {
           onToggleSidebar={handleToggleSidebar}
           isMobile={isMobile}
           catState={catState}
+          activeProject={activeProject}
+          projects={projects}
+          onSelectProject={handleSelectProject}
+          projectLoading={projectsQuery.isLoading || activeProjectQuery.isLoading}
+          projectBusy={setActiveProject.isPending}
+          runtimeState={runtimeQuery.data?.connections.gateway.state ?? 'unknown'}
+          runtimeDetail={
+            runtimeQuery.data?.connections.gateway.reason
+            ?? (runtimeQuery.error instanceof Error ? runtimeQuery.error.message : undefined)
+          }
         />
 
         <PwaInstallBanner
@@ -1105,6 +1236,9 @@ function KittyChatInner() {
             maxTokens={200000}
             textareaRef={textareaRef}
             compact={isMobile}
+            attachments={attachments}
+            onAddFiles={handleAddFiles}
+            onRemoveAttachment={handleRemoveAttachment}
           />
         )}
       </main>
