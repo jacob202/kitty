@@ -1,0 +1,72 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "opencode/deepseek-v4-flash-free",
+  "small_model": "opencode/north-mini-code-free",
+  "share": "disabled",
+  "autoupdate": "notify",
+  "permission": {
+    "bash": {
+      "*": "allow",
+      "git push*": "deny",
+      "git force-push*": "deny",
+      "git reset*": "deny",
+      "git clean*": "deny",
+      "git restore*": "deny",
+      "gh pr create*": "deny",
+      "gh pr merge*": "deny",
+      "gh pr close*": "deny",
+      "rm *": "deny"
+    },
+    "external_directory": "deny",
+    "question": "deny",
+    "task": "deny"
+  },
+  "agent": {
+    "free-builder": {
+      "description": "Focused Kitty implementation using a zero-cost coding model",
+      "model": "opencode/deepseek-v4-flash-free",
+      "prompt": "Work only inside the current isolated Kitty worktree. Read AGENTS.md, .claude/HANDOFF.md, .claude/STATE.md, and the supplied task card before editing. Make a focused implementation, run the exact relevant tests, update .claude/STATE.md, and leave a clear final report. Never push, merge, broaden scope, touch secrets or env files, inspect runtime personal data, or use a paid model. Do not ask questions; make the safest reasonable assumption and document it.",
+      "permission": {
+        "edit": "allow",
+        "question": "deny",
+        "task": "deny",
+        "external_directory": "deny"
+      }
+    },
+    "free-reviewer": {
+      "description": "Independent read-only Kitty review using a different zero-cost model",
+      "model": "opencode/nemotron-3-ultra-free",
+      "prompt": "Review the current Kitty worktree independently. Inspect the diff, task card, tests, and repository rules. Do not edit files. Return exactly APPROVE or BLOCK first, followed by concise evidence, required fixes, and any missing verification. Never push, merge, inspect secrets or env files, or use a paid model.",
+      "permission": {
+        "edit": "deny",
+        "question": "deny",
+        "task": "deny",
+        "external_directory": "deny"
+      }
+    }
+  },
+  "experimental": {
+    "policies": [
+      {
+        "effect": "deny",
+        "action": "provider.use",
+        "resource": "*"
+      },
+      {
+        "effect": "allow",
+        "action": "provider.use",
+        "resource": "opencode"
+      },
+      {
+        "effect": "allow",
+        "action": "provider.use",
+        "resource": "nvidia"
+      },
+      {
+        "effect": "allow",
+        "action": "provider.use",
+        "resource": "openrouter"
+      }
+    ]
+  }
+}
