@@ -102,9 +102,10 @@ class TestSchema:
             names = {r[0] for r in rows}
             assert "tasks" in names
             assert "events" in names
-            # runs/pr_links/artifacts are future tables and must NOT exist.
+            # pr_links landed in Phase 1B (advisory PR metadata).
+            assert "pr_links" in names
+            # runs/artifacts are still future tables and must NOT exist.
             assert "runs" not in names
-            assert "pr_links" not in names
             assert "artifacts" not in names
         finally:
             conn.close()
@@ -1839,3 +1840,160 @@ class TestArchiveTasks:
 
         with pytest.raises(ValueError, match="terminal"):
             bq.archive_tasks(bq.QUEUED, older_than_days=1, db_path=db_path)
+
+
+# ---------------------------------------------------------------------------
+# Phase 1B — attach_final_report
+# ---------------------------------------------------------------------------
+
+
+class TestAttachFinalReport:
+    def _claimed_task(self, db_path: Path) -> dict:
+        task = bq.create_task("report task", db_path=db_path)
+        return bq.claim_task(task["id"], "worker-1", db_path=db_path)
+
+    def test_fenced_attach_succeeds(self, db_path: Path):
+        claimed = self._claimed_task(db_path)
+        report = {"summary": "did the thing", "tests": "5/5 passed"}
+        updated = bq.attach_final_report(
+            claimed["id"],
+            report,
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
+        assert json.loads(updated["final_report_json"]) == report
+        with bq.connect(db_path) as conn:
+            assert _count_events_of_type(conn, claimed["id"], "report_attached") == 1
+
+    def test_stale_lease_rejected_no_event(self, db_path: Path):
+        claimed = self._claimed_task(db_path)
+        with pytest.raises(bq.LeaseConflictError):
+            bq.attach_final_report(
+                claimed["id"],
+                {"summary": "stale"},
+                lease_token="wrong-token",
+                claim_version=claimed["claim_version"],
+                db_path=db_path,
+            )
+        with bq.connect(db_path) as conn:
+            assert _count_events_of_type(conn, claimed["id"], "report_attached") == 0
+        refreshed = bq.get_task(claimed["id"], db_path=db_path)
+        assert refreshed["final_report_json"] is None
+
+    def test_operator_attach_without_lease(self, db_path: Path):
+        task = bq.create_task("dead task", db_path=db_path)
+        updated = bq.attach_final_report(
+            task["id"],
+            {"summary": "post-mortem"},
+            operator_reason="worker crashed",
+            db_path=db_path,
+        )
+        assert json.loads(updated["final_report_json"])["summary"] == "post-mortem"
+        events = bq.list_events(task["id"], db_path=db_path)
+        report_events = [e for e in events if e["type"] == "report_attached"]
+        assert report_events[0]["payload"]["operator"] is True
+        assert report_events[0]["payload"]["reason"] == "worker crashed"
+
+    def test_requires_mode(self, db_path: Path):
+        task = bq.create_task("no mode", db_path=db_path)
+        with pytest.raises(ValueError):
+            bq.attach_final_report(task["id"], {"summary": "x"}, db_path=db_path)
+
+    def test_partial_fencing_rejected(self, db_path: Path):
+        task = bq.create_task("partial", db_path=db_path)
+        with pytest.raises(ValueError):
+            bq.attach_final_report(
+                task["id"], {"s": 1}, lease_token="t", db_path=db_path
+            )
+
+    def test_empty_report_rejected(self, db_path: Path):
+        task = bq.create_task("empty", db_path=db_path)
+        with pytest.raises(ValueError):
+            bq.attach_final_report(
+                task["id"], {}, operator_reason="x", db_path=db_path
+            )
+
+    def test_unknown_task(self, db_path: Path):
+        with pytest.raises(bq.TaskNotFoundError):
+            bq.attach_final_report(
+                "kb_nope_0000", {"s": 1}, operator_reason="x", db_path=db_path
+            )
+
+    def test_reattach_overwrites_column_keeps_history(self, db_path: Path):
+        claimed = self._claimed_task(db_path)
+        for i in (1, 2):
+            bq.attach_final_report(
+                claimed["id"],
+                {"summary": f"v{i}"},
+                lease_token=claimed["lease_token"],
+                claim_version=claimed["claim_version"],
+                db_path=db_path,
+            )
+        refreshed = bq.get_task(claimed["id"], db_path=db_path)
+        assert json.loads(refreshed["final_report_json"])["summary"] == "v2"
+        with bq.connect(db_path) as conn:
+            assert _count_events_of_type(conn, claimed["id"], "report_attached") == 2
+
+
+# ---------------------------------------------------------------------------
+# Phase 1B — attach_pr / get_pr_links
+# ---------------------------------------------------------------------------
+
+
+class TestAttachPr:
+    def test_attach_creates_link_and_event(self, db_path: Path):
+        task = bq.create_task("pr task", db_path=db_path)
+        link = bq.attach_pr(
+            task["id"],
+            141,
+            pr_url="https://github.com/jacob202/kitty/pull/141",
+            head_sha="abc123",
+            db_path=db_path,
+        )
+        assert link["pr_number"] == 141
+        assert link["head_sha"] == "abc123"
+        with bq.connect(db_path) as conn:
+            assert _count_events_of_type(conn, task["id"], "pr_attached") == 1
+
+    def test_attach_does_not_change_task_state(self, db_path: Path):
+        task = bq.create_task("stays queued", db_path=db_path)
+        bq.attach_pr(task["id"], 7, db_path=db_path)
+        refreshed = bq.get_task(task["id"], db_path=db_path)
+        assert refreshed["state"] == "queued"
+
+    def test_reattach_updates_only_given_fields(self, db_path: Path):
+        task = bq.create_task("update pr", db_path=db_path)
+        bq.attach_pr(
+            task["id"], 8, pr_url="https://x/8", head_sha="aaa", db_path=db_path
+        )
+        link = bq.attach_pr(
+            task["id"], 8, checks_state="success", db_path=db_path
+        )
+        assert link["pr_url"] == "https://x/8"
+        assert link["head_sha"] == "aaa"
+        assert link["checks_state"] == "success"
+        with bq.connect(db_path) as conn:
+            assert _count_events_of_type(conn, task["id"], "pr_updated") == 1
+
+    def test_multiple_prs_per_task(self, db_path: Path):
+        task = bq.create_task("two prs", db_path=db_path)
+        bq.attach_pr(task["id"], 10, db_path=db_path)
+        bq.attach_pr(task["id"], 11, db_path=db_path)
+        links = bq.get_pr_links(task["id"], db_path=db_path)
+        assert [link["pr_number"] for link in links] == [10, 11]
+
+    def test_invalid_pr_number(self, db_path: Path):
+        task = bq.create_task("bad pr", db_path=db_path)
+        with pytest.raises(ValueError):
+            bq.attach_pr(task["id"], 0, db_path=db_path)
+
+    def test_unknown_task(self, db_path: Path):
+        with pytest.raises(bq.TaskNotFoundError):
+            bq.attach_pr("kb_nope_0000", 5, db_path=db_path)
+        with pytest.raises(bq.TaskNotFoundError):
+            bq.get_pr_links("kb_nope_0000", db_path=db_path)
+
+    def test_no_links_returns_empty(self, db_path: Path):
+        task = bq.create_task("no prs", db_path=db_path)
+        assert bq.get_pr_links(task["id"], db_path=db_path) == []

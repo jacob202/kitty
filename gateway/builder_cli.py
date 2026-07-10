@@ -497,6 +497,163 @@ def _cmd_queue_archive(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Queue — brief (Phase 1B)
+# ---------------------------------------------------------------------------
+
+
+def _cmd_queue_brief(args: argparse.Namespace) -> int:
+    from gateway.builder_brief import render_worker_brief
+    from gateway.builder_queue import get_pr_links, get_task, list_events
+
+    task = get_task(args.id)
+    if task is None:
+        print(f"error: task not found: {args.id}", file=sys.stderr)
+        return 1
+
+    events = list_events(args.id)
+    pr_links = get_pr_links(args.id)
+    brief = render_worker_brief(task, events, pr_links, branch=args.branch)
+
+    if args.json:
+        print(json.dumps({"task_id": args.id, "brief": brief}, indent=2))
+    else:
+        print(brief)
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Queue — attach-report (Phase 1B)
+# ---------------------------------------------------------------------------
+
+
+def _cmd_queue_attach_report(args: argparse.Namespace) -> int:
+    from gateway.builder_queue import (
+        IllegalTransitionError,
+        LeaseConflictError,
+        TaskNotFoundError,
+        attach_final_report,
+    )
+
+    if (args.report_json is None) == (args.report_file is None):
+        print(
+            "error: provide exactly one of --report-json or --report-file",
+            file=sys.stderr,
+        )
+        return 1
+
+    raw = args.report_json
+    if args.report_file is not None:
+        try:
+            raw = Path(args.report_file).read_text()
+        except OSError as exc:
+            print(f"error: cannot read report file: {exc}", file=sys.stderr)
+            return 1
+
+    try:
+        report = _parse_json_object(raw)
+    except (json.JSONDecodeError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        task = attach_final_report(
+            args.id,
+            report or {},
+            lease_token=args.lease_token,
+            claim_version=args.claim_version,
+            operator_reason=args.operator_reason,
+        )
+        if args.json:
+            print(json.dumps(task, indent=2, default=str))
+        else:
+            print(f"Attached final report to task {task['id']}")
+        return 0
+    except (
+        ValueError,
+        TaskNotFoundError,
+        LeaseConflictError,
+        IllegalTransitionError,
+    ) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+
+# ---------------------------------------------------------------------------
+# Queue — attach-pr (Phase 1B)
+# ---------------------------------------------------------------------------
+
+
+def _cmd_queue_attach_pr(args: argparse.Namespace) -> int:
+    from gateway.builder_queue import TaskNotFoundError, attach_pr
+
+    try:
+        link = attach_pr(
+            args.id,
+            args.pr,
+            pr_url=args.url,
+            head_sha=args.head_sha,
+            checks_state=args.checks_state,
+            review_state=args.review_state,
+        )
+        if args.json:
+            print(json.dumps(link, indent=2, default=str))
+        else:
+            print(f"Attached PR #{link['pr_number']} to task {args.id}")
+        return 0
+    except (ValueError, TaskNotFoundError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+
+# ---------------------------------------------------------------------------
+# Queue — recover (Phase 1B)
+# ---------------------------------------------------------------------------
+
+
+def _cmd_queue_recover(args: argparse.Namespace) -> int:
+    from gateway.builder_queue import recover_expired_leases
+
+    result = recover_expired_leases()
+    if args.json:
+        print(json.dumps(result, indent=2, default=str))
+    else:
+        print(
+            f"Recovered {result['total']} task(s): "
+            f"{result['claimed_requeued']} claimed → queued, "
+            f"{result['running_blocked']} running → blocked (stale_heartbeat)"
+        )
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Queue — operator-cancel (Phase 1B)
+# ---------------------------------------------------------------------------
+
+
+def _cmd_queue_operator_cancel(args: argparse.Namespace) -> int:
+    from gateway.builder_queue import (
+        IllegalTransitionError,
+        TaskNotFoundError,
+        transition_task,
+    )
+
+    payload: dict[str, Any] = {"operator": True}
+    if args.reason:
+        payload["reason"] = args.reason
+
+    try:
+        task = transition_task(args.id, "cancelled", payload=payload)
+        if args.json:
+            print(json.dumps(task, indent=2, default=str))
+        else:
+            print(f"Cancelled task {task['id']}")
+        return 0
+    except (ValueError, TaskNotFoundError, IllegalTransitionError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -574,6 +731,11 @@ _dispatch: dict[str, Any] = {
     "queue-events": _cmd_queue_events,
     "queue-status": _cmd_queue_status,
     "queue-archive": _cmd_queue_archive,
+    "queue-brief": _cmd_queue_brief,
+    "queue-attach-report": _cmd_queue_attach_report,
+    "queue-attach-pr": _cmd_queue_attach_pr,
+    "queue-recover": _cmd_queue_recover,
+    "queue-operator-cancel": _cmd_queue_operator_cancel,
 }
 
 
@@ -742,6 +904,61 @@ def build_parser() -> argparse.ArgumentParser:
     )
     archive_p.add_argument("--json", action="store_true", help="output JSON")
 
+    # queue brief (Phase 1B)
+    brief_q_p = queue_sub.add_parser(
+        "brief", help="render a complete worker brief for a task"
+    )
+    brief_q_p.add_argument("id", help="task ID")
+    brief_q_p.add_argument(
+        "--branch", help="branch name override (default kittybuilder/<task_id>)"
+    )
+    brief_q_p.add_argument("--json", action="store_true", help="output JSON")
+
+    # queue attach-report (Phase 1B)
+    att_rep_p = queue_sub.add_parser(
+        "attach-report", help="attach a structured final report to a task"
+    )
+    att_rep_p.add_argument("id", help="task ID")
+    att_rep_p.add_argument("--report-json", help="report as a JSON object string")
+    att_rep_p.add_argument("--report-file", help="path to a JSON report file")
+    att_rep_p.add_argument("--lease-token", help="lease token (worker mode)")
+    att_rep_p.add_argument(
+        "--claim-version", type=int, help="claim version (worker mode)"
+    )
+    att_rep_p.add_argument(
+        "--operator-reason",
+        help="operator mode: reason for attaching without a lease",
+    )
+    att_rep_p.add_argument("--json", action="store_true", help="output JSON")
+
+    # queue attach-pr (Phase 1B)
+    att_pr_p = queue_sub.add_parser(
+        "attach-pr", help="attach/update advisory PR metadata for a task"
+    )
+    att_pr_p.add_argument("id", help="task ID")
+    att_pr_p.add_argument("--pr", type=int, required=True, help="PR number")
+    att_pr_p.add_argument("--url", help="PR URL")
+    att_pr_p.add_argument("--head-sha", help="PR head commit SHA")
+    att_pr_p.add_argument("--checks-state", help="CI checks state summary")
+    att_pr_p.add_argument("--review-state", help="review state summary")
+    att_pr_p.add_argument("--json", action="store_true", help="output JSON")
+
+    # queue recover (Phase 1B)
+    recover_p = queue_sub.add_parser(
+        "recover",
+        help="recovery scan: expired claimed → queued, expired running → blocked",
+    )
+    recover_p.add_argument("--json", action="store_true", help="output JSON")
+
+    # queue operator-cancel (Phase 1B)
+    op_cancel_p = queue_sub.add_parser(
+        "operator-cancel",
+        help="operator cancel of a task without a lease (e.g. queued/blocked)",
+    )
+    op_cancel_p.add_argument("id", help="task ID")
+    op_cancel_p.add_argument("--reason", help="reason for cancellation")
+    op_cancel_p.add_argument("--json", action="store_true", help="output JSON")
+
     return parser
 
 
@@ -772,6 +989,10 @@ _MUTATING_QUEUE_COMMANDS = frozenset(
         "operator-release",
         "transition",
         "archive",
+        "attach-report",
+        "attach-pr",
+        "recover",
+        "operator-cancel",
     }
 )
 

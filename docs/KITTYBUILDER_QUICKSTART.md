@@ -139,29 +139,54 @@ rm -f data/kittybuilder/builder_queue.db-wal data/kittybuilder/builder_queue.db-
 sqlite3 data/kittybuilder/builder_queue.db "PRAGMA integrity_check;"
 ```
 
-## Expired lease recovery
+## Expired lease recovery & worker takeover
 
-Leases default to 30 minutes (Phase 1A has no heartbeat). Recovery rules:
+Leases default to 30 minutes (no heartbeat until Phase 1C). Recovery rules:
 
 - `claimed` + expired lease → back to `queued` (safe: execution never started)
 - `running` + expired lease → `blocked` with reason `stale_heartbeat`
   (never auto-requeued; an operator inspects and decides)
 
-Until the recovery CLI command lands (Phase 1B), run the scan directly:
-
 ```bash
-python3.12 -c "from gateway.builder_queue import recover_expired_leases as r; print(r())"
+./kitty builder queue recover          # run the recovery scan
 ```
 
-## Known limitations (Phase 1A)
+Takeover flow when a worker dies or runs out of credits:
 
-- No CLI command for the expired-lease recovery scan (library call above).
-- No operator CLI path to cancel/fail a **queued** task — `transition` is
-  worker-fenced and a queued task has no lease. Use the library
-  (`transition_task(id, "cancelled")`) until the Phase 1B operator commands
-  land.
+```bash
+./kitty builder queue recover                          # frees expired leases
+./kitty builder queue operator-release <id> --reason "worker crashed"  # if blocked
+./kitty builder queue brief <id>                       # new worker's full context
+```
+
+The brief includes the previous final report, attached PRs, and recent events,
+so the next worker starts from what actually happened instead of a stale chat.
+
+## Worker briefs, final reports, PR metadata (Phase 1B)
+
+```bash
+# Complete worker prompt: scope, criteria, branch, validation, fencing, stops
+./kitty builder queue brief <id> [--branch feat/custom]
+
+# Worker attaches a structured report (fenced)
+./kitty builder queue attach-report <id> --report-json '{"summary": "...", "tests": "5/5"}' \
+  --lease-token <token> --claim-version <version>
+
+# Operator post-mortem on a dead task (unfenced, reason logged)
+./kitty builder queue attach-report <id> --report-file report.json \
+  --operator-reason "worker crashed, notes recovered"
+
+# Advisory PR metadata (never changes task state — that stays fenced)
+./kitty builder queue attach-pr <id> --pr 141 --url <url> --head-sha <sha>
+
+# Cancel a queued/blocked task without a lease
+./kitty builder queue operator-cancel <id> --reason "superseded"
+```
+
+## Known limitations
+
 - No worker spawning, no PR automation, no daemon, no UI. Those are Phases
-  1B–2 and gated separately.
+  1C–2 and gated separately.
 
 ## Cutting over from GitHub issue #127
 
