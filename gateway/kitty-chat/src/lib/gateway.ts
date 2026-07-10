@@ -1000,6 +1000,7 @@ export async function fetchNeedsJacob(limit = 20): Promise<GatewayNeedsJacobPayl
 
 export interface CaptureResult {
   capture_id: string
+  artifact_id?: string | null
   status: string
   message: string
 }

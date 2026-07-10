@@ -12,6 +12,7 @@ from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
+from gateway import artifact_store
 from gateway.paths import DATA_DIR, INBOX_FILE
 
 logger = logging.getLogger("kitty.routes.capture")
@@ -46,6 +47,7 @@ class CaptureResponse(BaseModel):
     capture_id: str
     status: str
     message: str
+    artifact_id: str | None = None
 
 
 def _ensure_dirs() -> None:
@@ -95,7 +97,7 @@ def _write_inbox_event(
         f.write(json.dumps(event) + "\n")
 
 
-def _index_capture(capture_id: str, file_path: Path) -> None:
+def _index_capture(capture_id: str, file_path: Path, artifact_id: str) -> None:
     """Background task: send the captured file through the knowledge pipeline."""
     try:
         import asyncio
@@ -115,9 +117,19 @@ def _index_capture(capture_id: str, file_path: Path) -> None:
             result.status,
             result.source,
         )
+        ingestion_status = "failed" if result.status == "failed" else "ready"
+        artifact_store.update_ingestion(artifact_id, status=ingestion_status)
         broadcaster.broadcast("knowledge_updated")
     except Exception as exc:
         logger.error("Capture %s indexing failed: %s", capture_id, exc)
+        try:
+            artifact_store.update_ingestion(artifact_id, status="failed", error=str(exc))
+        except Exception as record_error:
+            raise RuntimeError(
+                "capture indexing failed and artifact failure could not be "
+                f"recorded for {capture_id}: {record_error}"
+            ) from record_error
+        raise
 
 
 @router.post("/capture/file", response_model=CaptureResponse)
@@ -125,6 +137,8 @@ async def post_capture_file(
     background_tasks: BackgroundTasks,
     file: Optional[UploadFile] = File(None),
     path: Optional[str] = Form(None),
+    project_id: Optional[int] = Form(None),
+    conversation_id: Optional[str] = Form(None),
 ) -> CaptureResponse:
     """Capture a file (multipart upload) or local path and queue it for indexing."""
     if file is None and not path:
@@ -194,10 +208,26 @@ async def post_capture_file(
         capture_type=capture_type,
     )
 
-    background_tasks.add_task(_index_capture, capture_id, Path(source_path))
+    artifact = artifact_store.register_file(
+        Path(source_path),
+        kind="attachment",
+        media_type=file.content_type if file is not None else None,
+        project_id=project_id,
+        created_by="capture.file",
+        source_ref=capture_id,
+        conversation_id=conversation_id,
+        metadata={
+            "capture_status": "queued",
+            "capture_type": capture_type,
+            "ingestion_status": "queued",
+        },
+    )
+
+    background_tasks.add_task(_index_capture, capture_id, Path(source_path), artifact["id"])
 
     return CaptureResponse(
         capture_id=capture_id,
+        artifact_id=artifact["id"],
         status="queued",
         message=f"Capture queued for indexing: {Path(source_path).name}",
     )

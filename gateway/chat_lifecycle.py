@@ -201,3 +201,24 @@ def get_turn(turn_id: str) -> dict[str, Any] | None:
             ).fetchall()
         ]
         return result
+
+
+def list_conversation(conversation_id: str) -> dict[str, Any]:
+    """Return normalized conversation state and all ordered turns."""
+    if not conversation_id.strip():
+        raise ChatLifecycleError("conversation_id must not be empty")
+    init_db()
+    with kitty_db.connect(LIFECYCLE_DB_FILE) as conn:
+        conversation = conn.execute(
+            "SELECT * FROM chat_conversations WHERE id = ?", (conversation_id,)
+        ).fetchone()
+        if conversation is None:
+            raise ChatLifecycleError(f"conversation {conversation_id} does not exist")
+        turns = [
+            dict(row)
+            for row in conn.execute(
+                "SELECT * FROM chat_turns WHERE conversation_id = ? ORDER BY sequence",
+                (conversation_id,),
+            ).fetchall()
+        ]
+    return {"conversation": dict(conversation), "turns": [get_turn(turn["id"]) for turn in turns]}

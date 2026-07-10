@@ -9,6 +9,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 
 from gateway import chats_store
+from gateway import chat_lifecycle
 
 router = APIRouter(tags=["chats"])
 
@@ -34,3 +35,11 @@ async def delete_chat(chat_id: str):
     """Delete a chat session."""
     chats_store.delete_chat(chat_id)
     return {"ok": True}
+
+
+@router.get("/chats/{chat_id}/lifecycle")
+def get_chat_lifecycle(chat_id: str) -> dict:
+    try:
+        return chat_lifecycle.list_conversation(chat_id)
+    except chat_lifecycle.ChatLifecycleError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

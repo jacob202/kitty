@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from gateway.routes import (
+    artifacts,
     actions,
     ask,
     brief,
@@ -42,6 +43,7 @@ from gateway.routes import (
 
 def register_routes(app: FastAPI) -> None:
     for module in (
+        artifacts,
         experts,
         actions,
         ask,
