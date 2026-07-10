@@ -139,7 +139,7 @@ if [[ -z "${builder_model}" ]]; then
   exit 4
 fi
 
-review_prompt="Review the implementation for the task card at ${task_file}. Compare the current branch against its merge base with origin/main, inspect all changed files, and run the relevant focused tests if useful. The builder model was ${builder_model}; you must be independent and read-only. Return APPROVE or BLOCK as the first word."
+review_prompt="Review the implementation for the task card at ${task_file}. Compare the current branch against its merge base with origin/main, inspect all changed files, and run the relevant focused tests if useful. The builder model was ${builder_model}; you must be independent and read-only. End your review with a final line that is exactly APPROVE or BLOCK, optionally followed by a colon and a short reason."
 reviewed=0
 approved=0
 for model in "${review_models[@]}"; do
@@ -178,12 +178,22 @@ for model in "${review_models[@]}"; do
   fi
 
   reviewed=1
-  first_decision="$(grep -Eo 'APPROVE|BLOCK' "${log_file}" | head -n 1 || true)"
-  if [[ "${first_decision}" == "APPROVE" ]]; then
+  # The verdict is the LAST line starting with APPROVE or BLOCK, so an
+  # explanatory "BLOCK" earlier in the transcript cannot override a final
+  # APPROVE (and vice versa). No verdict line means no approval.
+  verdict_line="$(grep -E '^(APPROVE|BLOCK)($|[^A-Z])' "${log_file}" | tail -n 1 || true)"
+  case "${verdict_line}" in
+    APPROVE*) final_decision="APPROVE" ;;
+    BLOCK*) final_decision="BLOCK" ;;
+    *) final_decision="" ;;
+  esac
+  if [[ "${final_decision}" == "APPROVE" ]]; then
     approved=1
     echo "Independent free review approved the implementation."
+  elif [[ "${final_decision}" == "BLOCK" ]]; then
+    echo "Review blocked the implementation. Inspect ${log_file}." >&2
   else
-    echo "Review did not approve the implementation. Inspect ${log_file}." >&2
+    echo "Reviewer never produced a final APPROVE or BLOCK line. Inspect ${log_file}." >&2
   fi
   break
 done
