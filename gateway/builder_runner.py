@@ -316,6 +316,20 @@ def run_worker(
                 lost_lease = True
                 break
 
+    # Re-check a requested cancellation if we exited the loop because the
+    # process died (rather than because we observed the flag). request_cancel
+    # SIGTERMs the worker's process group, so a short-lived worker can be
+    # killed by the cancel signal *before* the loop's TimeoutExpired branch
+    # gets a chance to see RUN_CANCEL_REQUESTED. Without this re-check, that
+    # process death is misclassified as RUN_FAILED (the SIGTERM exit code is
+    # non-zero), turning a legitimate cancellation into a spurious failure.
+    # We must NOT do this when we lost the lease — that's an ownership change,
+    # not a cancellation, and should be classified by exit code below.
+    if outcome == bq.RUN_FAILED and not lost_lease:
+        final_check = bq.get_run(run_id, db_path=db_path)
+        if final_check and final_check["state"] == bq.RUN_CANCEL_REQUESTED:
+            outcome = bq.RUN_CANCELLED
+
     if outcome not in (bq.RUN_CANCELLED, bq.RUN_TIMEOUT):
         outcome = bq.RUN_EXITED if exit_code == 0 else bq.RUN_FAILED
 

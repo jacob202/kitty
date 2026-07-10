@@ -1040,7 +1040,11 @@ class TestQueueRecover:
             with patch(
                 f"{_QUEUE_PATCH}.recover_expired_leases", return_value=result
             ):
-                rc = main(["queue", "recover"])
+                with patch(
+                    f"{_QUEUE_PATCH}.recover_interrupted_runs",
+                    return_value={"runs_interrupted": 0, "run_ids": []},
+                ):
+                    rc = main(["queue", "recover"])
         assert rc == 0
         out = capsys.readouterr().out
         assert "Recovered 3" in out
@@ -1052,7 +1056,11 @@ class TestQueueRecover:
             with patch(
                 f"{_QUEUE_PATCH}.recover_expired_leases", return_value=result
             ):
-                rc = main(["queue", "recover", "--json"])
+                with patch(
+                    f"{_QUEUE_PATCH}.recover_interrupted_runs",
+                    return_value={"runs_interrupted": 0, "run_ids": []},
+                ):
+                    rc = main(["queue", "recover", "--json"])
         assert rc == 0
         assert json.loads(capsys.readouterr().out)["total"] == 0
 
