@@ -1040,7 +1040,11 @@ class TestQueueRecover:
             with patch(
                 f"{_QUEUE_PATCH}.recover_expired_leases", return_value=result
             ):
-                rc = main(["queue", "recover"])
+                with patch(
+                    f"{_QUEUE_PATCH}.recover_interrupted_runs",
+                    return_value={"runs_interrupted": 0, "run_ids": []},
+                ):
+                    rc = main(["queue", "recover"])
         assert rc == 0
         out = capsys.readouterr().out
         assert "Recovered 3" in out
@@ -1052,9 +1056,39 @@ class TestQueueRecover:
             with patch(
                 f"{_QUEUE_PATCH}.recover_expired_leases", return_value=result
             ):
-                rc = main(["queue", "recover", "--json"])
+                with patch(
+                    f"{_QUEUE_PATCH}.recover_interrupted_runs",
+                    return_value={"runs_interrupted": 0, "run_ids": []},
+                ):
+                    rc = main(["queue", "recover", "--json"])
         assert rc == 0
         assert json.loads(capsys.readouterr().out)["total"] == 0
+
+    def test_human_output_surfaces_unverified_live_runs(self, capsys):
+        tasks = {"claimed_requeued": 0, "running_blocked": 0, "total": 0}
+        runs = {
+            "runs_interrupted": 0,
+            "run_ids": [],
+            "starting_runs_deferred": 0,
+            "starting_run_ids": [],
+            "runs_unverified": 1,
+            "unverified_runs": [
+                {"run_id": "run_123", "reason": "process_identity_missing"}
+            ],
+        }
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                f"{_QUEUE_PATCH}.recover_expired_leases", return_value=tasks
+            ):
+                with patch(
+                    f"{_QUEUE_PATCH}.recover_interrupted_runs", return_value=runs
+                ):
+                    rc = main(["queue", "recover"])
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "run_123" in out
+        assert "process_identity_missing" in out
 
 
 class TestQueueOperatorCancel:
@@ -1086,3 +1120,156 @@ class TestQueueOperatorCancel:
                 rc = main(["queue", "operator-cancel", "kb_oc2_bbbb"])
         assert rc == 1
         assert "error" in capsys.readouterr().err
+
+
+class TestQueueRunnerCommands:
+    def test_run_requires_worker_command(self, capsys):
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            rc = main(["queue", "run", "kb_123"])
+
+        assert rc == 1
+        assert "provide the worker command after --" in capsys.readouterr().err
+
+    def test_run_dispatches_worker_command_and_metadata(self, capsys):
+        run = {
+            "id": "run_123",
+            "task_id": "kb_123",
+            "state": "exited",
+            "command": ["true"],
+        }
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                "gateway.builder_runner.run_worker", return_value=run
+            ) as mock_run:
+                rc = main(
+                    [
+                        "queue",
+                        "run",
+                        "kb_123",
+                        "--worker",
+                        "captain",
+                        "--model",
+                        "model-x",
+                        "--provider",
+                        "provider-y",
+                        "--timeout",
+                        "90",
+                        "--lease-seconds",
+                        "20",
+                        "--heartbeat-seconds",
+                        "5",
+                        "--json",
+                        "--",
+                        "true",
+                    ]
+                )
+
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["id"] == "run_123"
+        mock_run.assert_called_once_with(
+            "kb_123",
+            ["true"],
+            worker="captain",
+            model="model-x",
+            provider="provider-y",
+            timeout_seconds=90,
+            lease_seconds=20,
+            heartbeat_seconds=5,
+        )
+
+    def test_runs_dispatches_filters(self, capsys):
+        runs = [{"id": "run_123", "task_id": "kb_123", "state": "exited"}]
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.list_runs", return_value=runs) as mock_list:
+                rc = main(
+                    [
+                        "queue",
+                        "runs",
+                        "--task",
+                        "kb_123",
+                        "--state",
+                        "exited",
+                        "--json",
+                    ]
+                )
+
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out) == runs
+        mock_list.assert_called_once_with(task_id="kb_123", state="exited")
+
+    def test_show_run_prints_log_tail(self, tmp_path: Path, capsys):
+        log_path = tmp_path / "combined.log"
+        log_path.write_text("one\ntwo\nthree\n")
+        run = {
+            "id": "run_with_log",
+            "task_id": "kb_123",
+            "state": "exited",
+            "log_path": str(log_path),
+        }
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.get_run", return_value=run):
+                rc = main(["queue", "show-run", "run_with_log", "--log-tail", "2"])
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "two\nthree" in out
+        assert "one\n" not in out.split("--- log tail", 1)[-1]
+
+    def test_show_run_missing_log_fails_loud(self, tmp_path: Path, capsys):
+        run = {
+            "id": "run_missing_log",
+            "task_id": "kb_123",
+            "state": "failed",
+            "log_path": str(tmp_path / "missing.log"),
+        }
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(f"{_QUEUE_PATCH}.get_run", return_value=run):
+                rc = main(
+                    ["queue", "show-run", "run_missing_log", "--log-tail", "10"]
+                )
+
+        assert rc == 1
+        assert "log file missing" in capsys.readouterr().err
+
+    def test_cancel_run_signal_error_is_operator_readable(self, capsys):
+        from gateway.builder_runner import RunnerError
+
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                "gateway.builder_runner.request_cancel",
+                side_effect=RunnerError("signaling process group 42 failed"),
+            ):
+                rc = main(["queue", "cancel-run", "run_123"])
+
+        assert rc == 1
+        assert "signaling process group 42 failed" in capsys.readouterr().err
+
+    def test_cancel_run_reports_when_signal_was_refused(self, capsys):
+        run = {
+            "id": "run_123",
+            "task_id": "kb_123",
+            "state": "cancel_requested",
+            "pid": 4242,
+            "signal_sent": False,
+            "signal_status": "process_identity_mismatch",
+        }
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch("gateway.builder_runner.request_cancel", return_value=run):
+                rc = main(["queue", "cancel-run", "run_123"])
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "signal not sent" in out
+        assert "process_identity_mismatch" in out
+
+    def test_clean_worktree_dispatch(self, capsys, tmp_path: Path):
+        removed = tmp_path / ".worktrees" / "kittybuilder" / "kb_123"
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                "gateway.builder_runner.remove_worktree", return_value=removed
+            ) as mock_remove:
+                rc = main(["queue", "clean-worktree", "kb_123"])
+
+        assert rc == 0
+        assert str(removed) in capsys.readouterr().out
+        mock_remove.assert_called_once_with("kb_123")

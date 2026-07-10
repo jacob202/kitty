@@ -611,17 +611,45 @@ def _cmd_queue_attach_pr(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_recover(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import recover_expired_leases
+    from gateway.builder_queue import (
+        recover_expired_leases,
+        recover_interrupted_runs,
+    )
 
     result = recover_expired_leases()
+    runs_result = recover_interrupted_runs()
     if args.json:
-        print(json.dumps(result, indent=2, default=str))
+        print(json.dumps({**result, **runs_result}, indent=2, default=str))
     else:
         print(
             f"Recovered {result['total']} task(s): "
             f"{result['claimed_requeued']} claimed → queued, "
             f"{result['running_blocked']} running → blocked (stale_heartbeat)"
         )
+        print(
+            f"Marked {runs_result['runs_interrupted']} dead run(s) as interrupted"
+        )
+        reconciled_blocked = runs_result.get("running_tasks_blocked", 0)
+        reconciled_requeued = runs_result.get("claimed_tasks_requeued", 0)
+        if reconciled_blocked or reconciled_requeued:
+            print(
+                "Reconciled interrupted-run tasks: "
+                f"{reconciled_requeued} claimed → queued, "
+                f"{reconciled_blocked} running → blocked (run_interrupted)"
+            )
+        deferred_ids = runs_result.get("starting_run_ids", [])
+        if deferred_ids:
+            print(
+                "Deferred fresh starting run(s) until the recovery grace "
+                f"window expires: {', '.join(deferred_ids)}"
+            )
+        unverified_runs = runs_result.get("unverified_runs", [])
+        for run in unverified_runs:
+            print(
+                "WARNING: left active run "
+                f"{run['run_id']} unchanged because its process could not be "
+                f"verified ({run['reason']})"
+            )
     return 0
 
 
@@ -651,6 +679,169 @@ def _cmd_queue_operator_cancel(args: argparse.Namespace) -> int:
     except (ValueError, TaskNotFoundError, IllegalTransitionError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+
+
+# ---------------------------------------------------------------------------
+# Queue — run / runs / show-run / cancel-run / clean-worktree (Phase 1C-alpha)
+# ---------------------------------------------------------------------------
+
+
+def _cmd_queue_run(args: argparse.Namespace) -> int:
+    from gateway.builder_queue import (
+        IllegalTransitionError,
+        LeaseConflictError,
+        TaskNotFoundError,
+    )
+    from gateway.builder_runner import RunnerError, run_worker
+
+    command = list(args.worker_command or [])
+    if command and command[0] == "--":
+        command = command[1:]
+    if not command:
+        print(
+            "error: provide the worker command after --, e.g. "
+            "queue run <id> -- opencode run --auto '...'",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        run = run_worker(
+            args.id,
+            command,
+            worker=args.worker,
+            model=args.model,
+            provider=args.provider,
+            timeout_seconds=args.timeout,
+            lease_seconds=args.lease_seconds,
+            heartbeat_seconds=args.heartbeat_seconds,
+        )
+    except (
+        TaskNotFoundError,
+        LeaseConflictError,
+        IllegalTransitionError,
+        RunnerError,
+        ValueError,
+    ) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(json.dumps(run, indent=2, default=str))
+    else:
+        _print_run_summary(run, verbose=True)
+    return 0 if run.get("state") == "exited" else 1
+
+
+def _cmd_queue_runs(args: argparse.Namespace) -> int:
+    from gateway.builder_queue import list_runs
+
+    runs = list_runs(task_id=args.task, state=args.state)
+    if args.json:
+        print(json.dumps(runs, indent=2, default=str))
+    else:
+        if not runs:
+            print("No runs found.")
+            return 0
+        for run in runs:
+            _print_run_summary(run)
+    return 0
+
+
+def _cmd_queue_show_run(args: argparse.Namespace) -> int:
+    from gateway.builder_queue import get_run
+
+    run = get_run(args.run_id)
+    if run is None:
+        print(f"error: run not found: {args.run_id}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(json.dumps(run, indent=2, default=str))
+        return 0
+
+    _print_run_summary(run, verbose=True)
+    if args.log_tail and run.get("log_path"):
+        log_file = Path(run["log_path"])
+        if log_file.exists():
+            print(f"--- log tail ({args.log_tail} lines) ---")
+            lines = log_file.read_text(errors="replace").splitlines()
+            for line in lines[-args.log_tail:]:
+                print(line)
+        else:
+            print(f"error: log file missing: {log_file}", file=sys.stderr)
+            return 1
+    return 0
+
+
+def _cmd_queue_cancel_run(args: argparse.Namespace) -> int:
+    from gateway.builder_queue import RunNotFoundError
+    from gateway.builder_runner import RunnerError, request_cancel
+
+    try:
+        run = request_cancel(args.run_id, kill=args.kill)
+    except (RunNotFoundError, RunnerError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(json.dumps(run, indent=2, default=str))
+    elif run.get("signal_sent"):
+        print(
+            f"Cancellation requested for run {args.run_id}; signal sent to "
+            f"pid {run.get('pid')}. The runner records the outcome within "
+            "one heartbeat."
+        )
+    else:
+        print(
+            f"Cancellation recorded for run {args.run_id}; signal not sent "
+            f"({run.get('signal_status', 'unknown_reason')}). The runner will "
+            "honor the durable flag if it is still active."
+        )
+    return 0
+
+
+def _cmd_queue_clean_worktree(args: argparse.Namespace) -> int:
+    from gateway.builder_runner import RunnerError, remove_worktree
+
+    try:
+        path = remove_worktree(args.id)
+    except RunnerError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"Removed clean worktree {path}")
+    return 0
+
+
+def _print_run_summary(run: dict[str, Any], verbose: bool = False) -> None:
+    if verbose:
+        print(f"Run:        {run['id']}")
+        print(f"Task:       {run['task_id']}")
+        print(f"State:      {run['state']}")
+        cmd = run.get("command")
+        if cmd:
+            print(f"Command:    {' '.join(cmd)}")
+        for label, key in (
+            ("Worker", "worker"),
+            ("Model", "model"),
+            ("Provider", "provider"),
+            ("PID", "pid"),
+            ("Branch", "branch"),
+            ("Worktree", "worktree_path"),
+            ("Log", "log_path"),
+            ("Exit code", "exit_code"),
+            ("Started", "started_at"),
+            ("Ended", "ended_at"),
+            ("Heartbeat", "last_heartbeat_at"),
+        ):
+            value = run.get(key)
+            if value is not None and value != "":
+                print(f"{label + ':':<12}{value}")
+    else:
+        print(
+            f"  [{run['state']}] {run['id']}  task={run['task_id']}  "
+            f"exit={run.get('exit_code')}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -736,6 +927,11 @@ _dispatch: dict[str, Any] = {
     "queue-attach-pr": _cmd_queue_attach_pr,
     "queue-recover": _cmd_queue_recover,
     "queue-operator-cancel": _cmd_queue_operator_cancel,
+    "queue-run": _cmd_queue_run,
+    "queue-runs": _cmd_queue_runs,
+    "queue-show-run": _cmd_queue_show_run,
+    "queue-cancel-run": _cmd_queue_cancel_run,
+    "queue-clean-worktree": _cmd_queue_clean_worktree,
 }
 
 
@@ -959,6 +1155,62 @@ def build_parser() -> argparse.ArgumentParser:
     op_cancel_p.add_argument("--reason", help="reason for cancellation")
     op_cancel_p.add_argument("--json", action="store_true", help="output JSON")
 
+    # queue run (Phase 1C-alpha shadow mode)
+    run_q_p = queue_sub.add_parser(
+        "run",
+        help="claim a task and run a worker command in its isolated worktree "
+        "(shadow mode: no push, no PR)",
+    )
+    run_q_p.add_argument("id", help="task ID")
+    run_q_p.add_argument("--worker", default="local-runner", help="worker name")
+    run_q_p.add_argument("--model", help="model identifier (metadata)")
+    run_q_p.add_argument("--provider", help="provider identifier (metadata)")
+    run_q_p.add_argument(
+        "--timeout", type=int, default=3600, help="worker timeout in seconds"
+    )
+    run_q_p.add_argument(
+        "--lease-seconds", type=int, default=60, help="heartbeat lease duration"
+    )
+    run_q_p.add_argument(
+        "--heartbeat-seconds", type=int, default=10, help="heartbeat interval"
+    )
+    run_q_p.add_argument("--json", action="store_true", help="output JSON")
+    run_q_p.add_argument(
+        "worker_command",
+        nargs="*",
+        help="worker command after --",
+    )
+
+    # queue runs
+    runs_p = queue_sub.add_parser("runs", help="list run records")
+    runs_p.add_argument("--task", help="filter by task ID")
+    runs_p.add_argument("--state", help="filter by run state")
+    runs_p.add_argument("--json", action="store_true", help="output JSON")
+
+    # queue show-run
+    show_run_p = queue_sub.add_parser("show-run", help="show one run record")
+    show_run_p.add_argument("run_id", help="run ID")
+    show_run_p.add_argument(
+        "--log-tail", type=int, default=0, help="print last N log lines"
+    )
+    show_run_p.add_argument("--json", action="store_true", help="output JSON")
+
+    # queue cancel-run
+    cancel_run_p = queue_sub.add_parser(
+        "cancel-run", help="request cancellation of an active run"
+    )
+    cancel_run_p.add_argument("run_id", help="run ID")
+    cancel_run_p.add_argument(
+        "--kill", action="store_true", help="escalate to SIGKILL"
+    )
+    cancel_run_p.add_argument("--json", action="store_true", help="output JSON")
+
+    # queue clean-worktree
+    clean_wt_p = queue_sub.add_parser(
+        "clean-worktree", help="remove a task worktree (refuses if dirty)"
+    )
+    clean_wt_p.add_argument("id", help="task ID")
+
     return parser
 
 
@@ -993,6 +1245,9 @@ _MUTATING_QUEUE_COMMANDS = frozenset(
         "attach-pr",
         "recover",
         "operator-cancel",
+        "run",
+        "cancel-run",
+        "clean-worktree",
     }
 )
 
@@ -1003,7 +1258,18 @@ def _queue_disabled() -> bool:
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
+    # Workaround for Python 3.11 argparse bug: `--` followed by positional
+    # args with nargs="*" doesn't work in deeply nested subparsers.  Extract
+    # everything after `--` before argparse, then restore it on the namespace.
+    post_dash: list[str] | None = None
+    if argv is not None and "--" in argv:
+        idx = argv.index("--")
+        post_dash = argv[idx + 1:]
+        argv = argv[:idx]
     args = parser.parse_args(argv)
+    if post_dash is not None:
+        if args.command == "queue" and args.queue_command == "run":
+            args.worker_command = post_dash
 
     if args.command == "queue":
         # Kill switch: refuse mutations before touching the DB. Read-only
