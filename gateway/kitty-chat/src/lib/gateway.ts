@@ -98,6 +98,57 @@ export type GatewayModelsPayload = {
   error: string | null
 }
 
+export type RuntimeFactState = 'available' | 'unavailable' | 'degraded' | 'stale' | 'unknown'
+
+export interface RuntimeFact<T = unknown> {
+  state: RuntimeFactState
+  value: T | null
+  source: string
+  observed_at: string
+  valid_until: string
+  reason?: string
+}
+
+export interface GatewayRuntimeManifest {
+  schema_version: number
+  manifest_id: string
+  revision: string
+  generated_at: string
+  valid_until: string
+  application: {
+    name: string
+    version: RuntimeFact<string>
+    build_commit: string | null
+    environment: string
+  }
+  clock: RuntimeFact<{ current_time: string; timezone: string }>
+  context: {
+    active_project: RuntimeFact<Record<string, unknown>>
+    repository: RuntimeFact<{
+      root: string
+      branch: string
+      commit: string
+      dirty: boolean
+      changed_paths: number
+    }>
+  }
+  execution: {
+    builder: RuntimeFact<Record<string, unknown>>
+  }
+  inference: {
+    routing_mode: string
+    available_models: RuntimeFact<string[]>
+    providers: Array<Record<string, unknown>>
+    execution_location: string
+  }
+  tools: RuntimeFact<Array<Record<string, unknown>>>
+  connections: {
+    gateway: RuntimeFact<Record<string, unknown>>
+    litellm: RuntimeFact<Record<string, unknown>>
+  }
+  approvals: RuntimeFact<Record<string, unknown>>
+}
+
 export type GatewayBriefPayload = {
   brief: GatewayBrief | null
   fromLiveGateway: boolean
@@ -269,6 +320,11 @@ export async function fetchGatewayModels(): Promise<GatewayModelsPayload> {
       error: describeFetchError(err, null),
     }
   }
+}
+
+export async function fetchGatewayRuntimeManifest(projectId?: number): Promise<GatewayRuntimeManifest> {
+  const suffix = projectId === undefined ? '' : `?project_id=${encodeURIComponent(projectId)}`
+  return await gfetch<GatewayRuntimeManifest>(`/runtime/manifest${suffix}`, undefined, 4000)
 }
 
 export async function fetchGatewayBrief(): Promise<GatewayBriefPayload> {

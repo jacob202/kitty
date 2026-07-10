@@ -6,7 +6,7 @@ import logging
 import time
 import uuid
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -20,6 +20,7 @@ from gateway.llm_client import (
     route_model,
 )
 from gateway.paths import LITELLM_BASE, LITELLM_KEY, LOG_FILE
+from gateway.runtime_manifest import compact_runtime_context, compose_manifest
 
 logger = logging.getLogger("kitty.gateway")
 router = APIRouter(tags=["completions"])
@@ -47,6 +48,19 @@ async def chat_completions(request: Request):
     on_request_start()
 
     body = await request.json()
+    raw_project_id = body.get("project_id")
+    if raw_project_id is not None and (
+        isinstance(raw_project_id, bool) or not isinstance(raw_project_id, int) or raw_project_id <= 0
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=f"project_id must be a positive integer, got {raw_project_id!r}",
+        )
+    try:
+        runtime_manifest = await compose_manifest(project_id=raw_project_id)
+    except Exception:
+        on_request_error()
+        raise
     messages = body.get("messages", [])
     stream = body.get("stream", True)
 
@@ -71,7 +85,7 @@ async def chat_completions(request: Request):
     try:
         on_context_fetch()
         bundle = await assemble_context(user_text, parts_mode=False, domain=domain)
-        system_prompt = bundle.system
+        system_prompt = f"{bundle.system}\n\n{compact_runtime_context(runtime_manifest)}"
     except Exception:
         on_request_error()
         raise
@@ -79,7 +93,12 @@ async def chat_completions(request: Request):
     enriched = [m for m in messages if m.get("role") != "system"]
     enriched = [{"role": "system", "content": system_prompt}] + enriched
 
-    payload = {**body, "messages": enriched, "model": model, "stream": stream}
+    payload = {
+        **{key: value for key, value in body.items() if key != "project_id"},
+        "messages": enriched,
+        "model": model,
+        "stream": stream,
+    }
 
     if stream:
 
@@ -87,19 +106,49 @@ async def chat_completions(request: Request):
             try:
                 async for chunk in iter_chat_completions_stream(payload):
                     yield chunk
-                log_chat_trace(LOG_FILE, correlation_id, user_text, domain, model, t_start)
+                log_chat_trace(
+                    LOG_FILE,
+                    correlation_id,
+                    user_text,
+                    domain,
+                    model,
+                    t_start,
+                    runtime_revision=runtime_manifest["revision"],
+                )
                 on_request_success()
             except Exception:
                 on_request_error()
                 raise
 
-        return StreamingResponse(stream_with_trace(), media_type="text/event-stream")
+        return StreamingResponse(
+            stream_with_trace(),
+            media_type="text/event-stream",
+            headers={
+                "X-Kitty-Runtime-Revision": runtime_manifest["revision"],
+                "X-Kitty-Model-Selected": model,
+            },
+        )
 
     try:
         result = await chat_completions_non_stream(payload)
-        log_chat_trace(LOG_FILE, correlation_id, user_text, domain, model, t_start)
+        log_chat_trace(
+            LOG_FILE,
+            correlation_id,
+            user_text,
+            domain,
+            model,
+            t_start,
+            runtime_revision=runtime_manifest["revision"],
+            model_resolved=result.get("model") or model,
+        )
         on_request_success()
-        return result
+        return {
+            **result,
+            "kitty_runtime": {
+                "manifest_revision": runtime_manifest["revision"],
+                "resolved_model": result.get("model") or model,
+            },
+        }
     except Exception:
         on_request_error()
         raise

@@ -28,11 +28,17 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PwaInstallBanner } from '@/components/PwaInstallBanner';
 import { WobFilters, PaperGrain } from '@/components/WobFilters';
 import { CatCorner, CatBody, type CatState } from '@/components/CrayonCat';
-import { fetchGatewaySearch, type GatewaySearchSnapshot, type GatewayTriageEntry } from '@/lib/gateway';
+import {
+  buildGatewayModels,
+  fetchGatewaySearch,
+  type GatewaySearchSnapshot,
+  type GatewayTriageEntry,
+} from '@/lib/gateway';
 import { usePwaInstall } from '@/lib/pwa';
 import {
   useGatewayBrief,
   useGatewayModels,
+  useGatewayRuntimeManifest,
   useLoops,
   useInsights,
   usePrompts,
@@ -216,6 +222,7 @@ function KittyChatInner() {
   // Gateway status queries — models for TopBar, brief for the offline banner.
   const queryClient = useQueryClient();
   const modelsQuery = useGatewayModels();
+  const runtimeQuery = useGatewayRuntimeManifest();
   const briefQuery = useGatewayBrief();
   // Loops/insights/prompts still bind to real data but aren't part of the
   // console home surface — they live in the Tools view instead.
@@ -225,10 +232,19 @@ function KittyChatInner() {
   const toggleLoop = useToggleLoop();
   const dismissInsight = useDismissInsight();
 
-  const availableModels = modelsQuery.data?.models ?? MODELS;
+  const runtimeModelIds = runtimeQuery.data?.inference.available_models.value;
+  const availableModels = useMemo(
+    () => runtimeModelIds
+      ? buildGatewayModels(runtimeModelIds)
+      : modelsQuery.data?.models ?? MODELS,
+    [runtimeModelIds, modelsQuery.data?.models],
+  );
   const modelGateway = {
     loaded: modelsQuery.isFetched,
-    live: modelsQuery.data?.fromLiveGateway ?? true,
+    live:
+      runtimeQuery.isSuccess
+      && runtimeQuery.data?.inference.available_models.state === 'available'
+      && modelsQuery.data?.fromLiveGateway === true,
     error: modelsQuery.data?.error ?? null,
   };
   const briefGateway = {
@@ -264,12 +280,12 @@ function KittyChatInner() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeChat?.messages.length, isStreaming]);
 
-  // Sync activeModel with the models list once it loads (or after retry).
+  // Sync activeModel with the authoritative runtime model list once it loads.
   useEffect(() => {
-    if (!modelsQuery.data) return;
-    const models = modelsQuery.data.models;
+    if (!availableModels.length) return;
+    const models = availableModels;
     setActiveModel((current) => models.find((m) => m.id === current.id) ?? models[0] ?? current);
-  }, [modelsQuery.data]);
+  }, [availableModels]);
 
   useEffect(() => {
     if (!searchQuery) {
@@ -682,6 +698,11 @@ function KittyChatInner() {
           onToggleSidebar={handleToggleSidebar}
           isMobile={isMobile}
           catState={catState}
+          runtimeState={runtimeQuery.data?.connections.gateway.state ?? 'unknown'}
+          runtimeDetail={
+            runtimeQuery.data?.connections.gateway.reason
+            ?? (runtimeQuery.error instanceof Error ? runtimeQuery.error.message : undefined)
+          }
         />
 
         <PwaInstallBanner

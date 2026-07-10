@@ -835,6 +835,9 @@ def log_chat_trace(
     domain: str,
     model: str,
     t_start: float,
+    *,
+    runtime_revision: str | None = None,
+    model_resolved: str | None = None,
 ) -> None:
     import json
     import time
@@ -849,5 +852,9 @@ def log_chat_trace(
         "timestamp": time.time(),
         "elapsed_ms": elapsed_ms,
     }
+    if runtime_revision:
+        entry["runtime_manifest_revision"] = runtime_revision
+    if model_resolved:
+        entry["model_resolved"] = model_resolved
     with log_file.open("a") as f:
         f.write(json.dumps(entry) + "\n")

@@ -23,6 +23,8 @@ interface Props {
   isMobile?: boolean
   catState?: CatState
   onCommandPalette?: () => void
+  runtimeState?: 'available' | 'unavailable' | 'degraded' | 'stale' | 'unknown'
+  runtimeDetail?: string
 }
 
 export function TopBar({
@@ -37,6 +39,8 @@ export function TopBar({
   onCommandPalette,
   isMobile = false,
   onToggleSidebar,
+  runtimeState = 'unknown',
+  runtimeDetail,
 }: Props) {
 
   if (isMobile) {
@@ -60,6 +64,7 @@ export function TopBar({
             fontSize: 20, letterSpacing: '-0.02em', color: 'var(--ink)',
           }}>kitty</span>
           <StateBadge state={catState} />
+          <RuntimeBadge state={runtimeState} detail={runtimeDetail} />
         </div>
         <ModelSelector
           activeModel={activeModel}
@@ -86,6 +91,7 @@ export function TopBar({
           fontSize: 23, letterSpacing: '-0.02em', color: 'var(--ink)',
         }}>kitty</span>
         <StateBadge state={catState} />
+        <RuntimeBadge state={runtimeState} detail={runtimeDetail} />
         {isStreaming && (
           <span style={{
             fontFamily: 'var(--font-mono)', fontSize: 11,
@@ -109,6 +115,31 @@ export function TopBar({
         />
       </div>
     </div>
+  )
+}
+
+function RuntimeBadge({
+  state,
+  detail,
+}: {
+  state: 'available' | 'unavailable' | 'degraded' | 'stale' | 'unknown'
+  detail?: string
+}) {
+  const healthy = state === 'available'
+  const color = healthy ? 'var(--c-green)' : 'var(--c-red)'
+  return (
+    <span
+      title={detail ?? `runtime state: ${state}`}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        fontFamily: 'var(--font-mono)', fontSize: 10,
+        color, border: `1px solid ${color}`, borderRadius: 999,
+        padding: '3px 7px', opacity: 0.9,
+      }}
+    >
+      <span style={{ width: 5, height: 5, borderRadius: 99, background: color }} />
+      {healthy ? 'runtime live' : `runtime ${state}`}
+    </span>
   )
 }
 

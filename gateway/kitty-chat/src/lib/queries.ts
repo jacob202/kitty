@@ -4,6 +4,7 @@ import {
   // brief / models / search / weather (full payloads)
   fetchGatewayBrief,
   fetchGatewayModels,
+  fetchGatewayRuntimeManifest,
   fetchGatewaySearch,
   fetchGatewayWeather,
   // todos
@@ -95,6 +96,15 @@ export function useGatewayModels() {
   return useQuery({
     queryKey: ['models'],
     queryFn: fetchGatewayModels,
+  })
+}
+
+export function useGatewayRuntimeManifest(projectId?: number) {
+  return useQuery({
+    queryKey: ['runtime-manifest', projectId ?? null],
+    queryFn: () => fetchGatewayRuntimeManifest(projectId),
+    refetchInterval: 15_000,
+    staleTime: 10_000,
   })
 }
 

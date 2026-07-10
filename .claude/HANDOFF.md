@@ -1,41 +1,46 @@
-# Handoff — 2026-07-10 (runner hardening complete)
+# Handoff — 2026-07-10 (KPA-01 runtime truth in progress)
 
-## Branch: `feat/kittybuilder-runner-shadow`
+## Branch
 
-### What's done
-Phase 1C-alpha runner safety hardening is complete and green. This session
-consolidated Sol's partial checkpoint (`3ed6a47`, `6b9af75`) into one
-internally coherent, reviewed implementation committed at `87777de`.
+`feat/kittybuilder-initiative`
 
-### Commits on branch (oldest → newest)
-- `156875a` — Phase 1C-alpha runner draft (runner loop, scope checks, timeout, cancellation)
-- `3cbf5d3` — Fix: honor requested cancellation when worker exits via cancel signal
-- `3ed6a47` — Sol's bulk hardening checkpoint (~1331 lines: process_identity, credential isolation, scope boundary, recovery grace period, PID identity, heartbeat validation, atomic finalization)
-- `6b9af75` — Preserve Sol's remaining uncommitted work (Sol ran out of credits)
-- **`87777de`** — Complete the hardening (this session)
+## Completed in this session
 
-### What `87777de` adds/changes
-- **`gateway/builder_queue.py`**: `finalize_run` gains `runner_owns_claimed_task` — handles edge case where task is CLAIMED but run is STARTING or CANCEL_REQUESTED (launch failure path). Properly releases claim back to QUEUED with `released_after_setup_failure` task_update.
-- **`gateway/builder_runner.py`**:
-  - `_raise_worker_launch_error` helper — persists failed launches with full report (scope violations, worktree state), then raises `RunnerError`.
-  - Prelaunch setup (create_run → brief → worker_transition to RUNNING) wrapped in try/except with two paths: `run is None` (claim release) vs `run exists` (finalize_run as failed).
-  - `control_error` tracking through heartbeat loop — handles disappeared runs, missing start SHA, worktree inspection failures. Always terminates worker, always raises `RunnerError` after durable finalization.
-  - Credential isolation: pops `GITHUB_TOKEN`/`GH_TOKEN`, redirects `GH_CONFIG_DIR` to empty dir, disables global/system git config, blocks credential helpers via `GIT_CONFIG_COUNT/KEY/VALUE`.
-  - Scope checking: `PurePosixPath` with path-boundary prefix check (`path.startswith(f"{prefix}/")`) prevents prefix-confusion attacks.
-- **Tests**: 4 new tests (prefix-confusion, recovery idempotency, prelaunch setup failure, monitoring failure); CLI tests for runs filter dispatch, show-run log tail, clean-worktree command.
+- Added `gateway/runtime_manifest.py`: versioned, revisioned runtime manifest
+  with explicit fact states, source, observation time, expiry, and reasons.
+- Added `GET /runtime/manifest` through `gateway/routes/runtime.py` and route
+  registration.
+- Bound chat completions to a manifest revision and injected compact runtime
+  truth into the system context.
+- Added runtime revision/model metadata to completion responses, stream headers,
+  and gateway trace records.
+- Added the Chat runtime status badge and runtime-manifest query; authoritative
+  model IDs are used when the manifest probe succeeds and are marked non-live
+  when it does not.
+- Updated the architecture and state documents from the planning handoff.
 
-### Verification
-- 297 builder tests pass (`pytest tests/test_builder_*.py`)
-- mypy clean (3 source files)
-- `git diff --check` clean
-- 6 live smoke tests pass in temp git repo (success, failure, timeout, launch failure, scope violation, recovery)
+## Verification performed
 
-### What's NOT done
-- **No PR opened** — branch is local only. Do not push without confirmation.
-- **No architecture audit** — the 7 hardening areas are internally consistent but have not been through a formal architecture review.
-- **No Phase 1C-beta** — the runner shadow mode works but has not been tested against real LLM providers or GitHub Actions.
+- `python3.12 -m py_compile` passed for all touched Python modules.
+- Runtime composer smoke check passed. With LiteLLM offline, it emitted explicit
+  warnings and returned `unknown` for LiteLLM/model/project/version facts;
+  Builder state returned `available`.
+- No tests, frontend build, browser run, commit, or push was performed.
 
-### Recommended next step
-1. Push branch and open PR for review
-2. Consider running `/qg` to gate the PR
-3. Decide whether to proceed to Phase 1C-beta (real provider integration) or run architecture audit first
+## In-flight / review notes
+
+- Frontend TypeScript project check passed with `tsc -p gateway/kitty-chat/tsconfig.json --noEmit`.
+- `/api/models` still has its legacy fallback for compatibility. Chat's new
+  runtime badge no longer treats that fallback as live, but a later packet
+  should retire the endpoint fallback once all consumers use the manifest.
+- Active project selection is not yet persisted in Chat; the manifest honestly
+  reports `unknown` unless `project_id` is supplied.
+- The untracked files `kittybuildercoder.txt`,
+  `scripts/run_kittybuilder_free_campaign.sh`, and the oddly named existing
+  untracked file beginning `-iname` were not touched.
+
+## Next action
+
+Review the diff, then either make small corrections or commit KPA-01 as one
+focused unit. Do not mix KB-S1B,
+chat normalization, artifacts, or Builder automation into this packet.
