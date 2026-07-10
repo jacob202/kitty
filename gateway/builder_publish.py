@@ -33,12 +33,19 @@ def _default_run(
     cwd: Path | None = None,
     check: bool = False,
 ) -> subprocess.CompletedProcess[str]:
+    env = dict(__import__("os").environ)
+    # gh must use keyring auth, never an ambient/stale token inherited by the
+    # worker process (repo AGENTS.md requirement).
+    env.pop("GITHUB_TOKEN", None)
+    env.pop("GH_TOKEN", None)
     return subprocess.run(
         args,
         cwd=str(cwd) if cwd is not None else None,
         capture_output=True,
         text=True,
         check=check,
+        timeout=120,
+        env=env,
     )
 
 
@@ -49,7 +56,8 @@ def _require_task(task_id: str, db_path: Path | None) -> dict[str, Any]:
     return task
 
 
-def _assert_publishable_state(state: str) -> None:
+def _assert_publishable_state(task: dict[str, Any]) -> None:
+    state = str(task["state"])
     allowed = {
         bq.BLOCKED,
         bq.RUNNING,
@@ -61,6 +69,37 @@ def _assert_publishable_state(state: str) -> None:
             f"task state {state!r} cannot be published "
             f"(need one of {sorted(allowed)})"
         )
+    if state in {bq.BLOCKED, bq.RUNNING}:
+        report = task.get("final_report")
+        if not isinstance(report, dict):
+            raw = task.get("final_report_json")
+            if isinstance(raw, str) and raw.strip():
+                try:
+                    parsed = json.loads(raw)
+                except json.JSONDecodeError as exc:
+                    raise PublishError(
+                        f"task {task['id']} has invalid final report JSON: {exc}"
+                    ) from exc
+                report = parsed
+        if not isinstance(report, dict) or not report:
+            raise PublishError(
+                f"task {task['id']} has no completed shadow final report"
+            )
+        outcome = report.get("outcome")
+        if outcome in {
+            bq.RUN_FAILED,
+            bq.RUN_TIMEOUT,
+            bq.RUN_CANCELLED,
+            bq.RUN_SCOPE_VIOLATION,
+            bq.RUN_LEASE_LOST,
+        }:
+            raise PublishError(
+                f"task {task['id']} shadow run is not publishable: {outcome}"
+            )
+        if report.get("scope_violations"):
+            raise PublishError(
+                f"task {task['id']} shadow run reported scope violations"
+            )
 
 
 def _worktree_ready(
@@ -124,6 +163,8 @@ def _push_branch(
 def _existing_pr_number(
     branch: str,
     *,
+    base: str,
+    cwd: Path,
     run_cmd: RunCmd,
 ) -> int | None:
     result = run_cmd(
@@ -133,11 +174,14 @@ def _existing_pr_number(
             "list",
             "--head",
             branch,
+            "--base",
+            base,
             "--json",
             "number,url",
             "--limit",
             "1",
         ],
+        cwd=cwd,
         check=False,
     )
     if result.returncode != 0:
@@ -191,9 +235,12 @@ def _open_or_update_pr(
     title: str,
     body: str,
     dry_run: bool,
+    cwd: Path,
     run_cmd: RunCmd,
 ) -> dict[str, Any]:
-    existing = None if dry_run else _existing_pr_number(branch, run_cmd=run_cmd)
+    existing = None if dry_run else _existing_pr_number(
+        branch, base=base, cwd=cwd, run_cmd=run_cmd
+    )
     if existing is None:
         args = [
             "gh",
@@ -216,13 +263,13 @@ def _open_or_update_pr(
                 "pr_number": None,
                 "pr_url": None,
             }
-        result = run_cmd(args, check=False)
+        result = run_cmd(args, cwd=cwd, check=False)
         if result.returncode != 0:
             detail = (result.stderr or result.stdout or "").strip()
             raise PublishError(f"gh pr create failed: {detail}")
         url = (result.stdout or "").strip().splitlines()[-1] if result.stdout else ""
         pr_number = _pr_number_from_url(url) or _existing_pr_number(
-            branch, run_cmd=run_cmd
+            branch, base=base, cwd=cwd, run_cmd=run_cmd
         )
         if pr_number is None:
             raise PublishError(
@@ -248,12 +295,13 @@ def _open_or_update_pr(
             "pr_number": existing,
             "pr_url": None,
         }
-    result = run_cmd(args, check=False)
+    result = run_cmd(args, cwd=cwd, check=False)
     if result.returncode != 0:
         detail = (result.stderr or result.stdout or "").strip()
         raise PublishError(f"gh pr edit failed: {detail}")
     view = run_cmd(
         ["gh", "pr", "view", str(existing), "--json", "url"],
+        cwd=cwd,
         check=False,
     )
     edited_url: str | None = None
@@ -334,7 +382,7 @@ def publish_task(
         raise PublishError(f"invalid base branch: {base!r}")
 
     task = _require_task(task_id, db_path)
-    _assert_publishable_state(str(task["state"]))
+    _assert_publishable_state(task)
     branch = default_branch_name(task)
     pr_title = title or f"kittybuilder: {task['title']}"
     body = _pr_body(task)
@@ -357,6 +405,7 @@ def publish_task(
         title=pr_title,
         body=body,
         dry_run=dry_run,
+        cwd=path,
         run_cmd=_run,
     )
 

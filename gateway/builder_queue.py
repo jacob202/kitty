@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import secrets
 import sqlite3
 import subprocess
@@ -1710,6 +1711,9 @@ def _gh_pr_status(pr_number: int) -> dict[str, Any]:
     the caller can decide whether to skip (advisory) or surface the error.
     """
     try:
+        env = dict(os.environ)
+        env.pop("GITHUB_TOKEN", None)
+        env.pop("GH_TOKEN", None)
         proc = subprocess.run(
             [
                 "gh",
@@ -1717,11 +1721,13 @@ def _gh_pr_status(pr_number: int) -> dict[str, Any]:
                 "view",
                 str(pr_number),
                 "--json",
-                "merged,url,headRefOid,statusCheckRollup,reviews",
+                "merged,url,headRefOid,statusCheckRollup,reviews,reviewDecision",
             ],
             capture_output=True,
             text=True,
             check=True,
+            timeout=120,
+            env=env,
         )
     except (subprocess.CalledProcessError, FileNotFoundError) as exc:
         raise RuntimeError(
@@ -1737,7 +1743,9 @@ def _gh_pr_status(pr_number: int) -> dict[str, Any]:
 
     checks = data.get("statusCheckRollup") or []
     checks_state = _roll_up_check_state(checks)
-    review_state = _roll_up_review_state(data.get("reviews") or [])
+    review_state = _roll_up_review_state(
+        data.get("reviews") or [], decision=data.get("reviewDecision")
+    )
     return {
         "merged": bool(data.get("merged")),
         "url": data.get("url"),
@@ -1751,23 +1759,38 @@ def _roll_up_check_state(checks: list[dict[str, Any]]) -> str | None:
     """Map a GitHub statusCheckRollup list to a single aggregate state."""
     if not checks:
         return None
-    if any(
-        c.get("status") == "COMPLETED" and c.get("conclusion") == "FAILURE"
-        for c in checks
-    ):
+    terminal = [c for c in checks if c.get("status") == "COMPLETED"]
+    if any(c.get("conclusion") not in {"SUCCESS", "NEUTRAL", "SKIPPED"} for c in terminal):
         return "failed"
     if any(c.get("status") in ("QUEUED", "IN_PROGRESS", "PENDING") for c in checks):
         return "pending"
-    if all(c.get("status") == "COMPLETED" for c in checks):
+    if len(terminal) == len(checks) and all(
+        c.get("conclusion") in {"SUCCESS", "NEUTRAL", "SKIPPED"}
+        for c in terminal
+    ):
         return "passed"
     return "unknown"
 
 
-def _roll_up_review_state(reviews: list[dict[str, Any]]) -> str | None:
+def _roll_up_review_state(
+    reviews: list[dict[str, Any]], *, decision: str | None = None
+) -> str | None:
     """Map GitHub reviews to an aggregate: approved / changes_requested / pending."""
+    if decision == "APPROVED":
+        return "approved"
+    if decision == "CHANGES_REQUESTED":
+        return "changes_requested"
+    if decision == "REVIEW_REQUIRED":
+        return "pending"
     if not reviews:
         return None
-    states = [r.get("state") for r in reviews]
+    latest: dict[str, dict[str, Any]] = {}
+    for review in reviews:
+        author = (review.get("author") or {}).get("login") or review.get("user", {}).get("login") or "?"
+        current = latest.get(author)
+        if current is None or str(review.get("submittedAt", "")) >= str(current.get("submittedAt", "")):
+            latest[author] = review
+    states = [r.get("state") for r in latest.values()]
     if any(s == "CHANGES_REQUESTED" for s in states):
         return "changes_requested"
     if any(s == "APPROVED" for s in states):
@@ -1864,9 +1887,9 @@ def detect_merged_prs(
                    p.merged AS already_merged
             FROM tasks t
             JOIN pr_links p ON p.task_id = t.id
-            WHERE t.state IN (?, ?)
+            WHERE t.state IN (?, ?, ?)
             """,
-            (PR_OPENED, AWAITING_REVIEW),
+            (BLOCKED, PR_OPENED, AWAITING_REVIEW),
         ).fetchall()
     finally:
         conn.close()
@@ -1938,7 +1961,26 @@ def _promote_merged_task(task_id: str, db_path: Path | None) -> None:
     state = task["state"]
     if state == DONE:
         return
-    if state == AWAITING_REVIEW:
+    if state == BLOCKED:
+        report = task.get("final_report")
+        if not isinstance(report, dict):
+            raise IllegalTransitionError(
+                f"task {task_id} is blocked without a final shadow report"
+            )
+        if report.get("scope_violations") or report.get("outcome") in {
+            RUN_FAILED,
+            RUN_TIMEOUT,
+            RUN_CANCELLED,
+            RUN_SCOPE_VIOLATION,
+            RUN_LEASE_LOST,
+        }:
+            raise IllegalTransitionError(
+                f"task {task_id} has a failed or scope-violating shadow report"
+            )
+        transition_task(task_id, PR_OPENED, db_path=db_path)
+        transition_task(task_id, AWAITING_REVIEW, db_path=db_path)
+        transition_task(task_id, DONE, db_path=db_path)
+    elif state == AWAITING_REVIEW:
         transition_task(task_id, DONE, db_path=db_path)
     elif state == PR_OPENED:
         transition_task(task_id, AWAITING_REVIEW, db_path=db_path)
