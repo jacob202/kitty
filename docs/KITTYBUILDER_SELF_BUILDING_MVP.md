@@ -54,14 +54,21 @@ materializes one queue task per packet with a stable mapping, dry-run, and
   Orchestrator-owned truth, independent of the worker's claimed validation.
 - CLI: `initiative run-validation <attempt-id> [--cwd] [--timeout]`.
 
-### KB-S3b — Independent review and bounded repair loop
+### KB-S3b — Independent review and bounded repair loop ✅ (this PR)
 
-- Independent review: a second worker invocation with a review brief and no
-  memory of the implementation conversation; emits the review contract.
-- Repair loop: implement → validate → review → repair, capped by
-  `policy.max_attempts` (enforced by `start_attempt` since KB-S2); each
-  attempt is a new run record via the existing runner. Cap exhausted → task
-  `blocked`, initiative pauses.
+- `run_packet` in `gateway/builder_loop.py`: implement → validate → review →
+  repair, capped by `policy.max_attempts` (enforced by `start_attempt`).
+  Each attempt is a real `run_worker` execution; the worker receives
+  KB_ATTEMPT_ID / KB_BUNDLE_PATH / KB_RESULT_PATH and must write the
+  implementation contract. The optional reviewer runs as an independent
+  subprocess with the bundle + implementation result and must write the
+  review contract. Missing/invalid contracts fail the attempt.
+- Success = implementation `completed` + validation not failed + (if a
+  reviewer is configured) verdict `approve`. Failed attempts release the
+  blocked task back to queued only once the next attempt is secured, so
+  budget exhaustion leaves the task `blocked` for the operator.
+- CLI: `initiative run-packet <id> <packet> --worker-command '[...]'
+  [--review-command '[...]']`. Shadow mode throughout — no push/PR.
 
 ### KB-S4 — Push, PR, CI reconciliation, merge detection
 

@@ -43,6 +43,17 @@ _BLOCK_REASONS = {
 }
 
 
+# Env vars the runner strips for credential isolation; extra_env (KB-S3b)
+# may never re-supply them.
+_EXTRA_ENV_BLOCKED = frozenset(
+    {
+        "GITHUB_TOKEN", "GH_TOKEN", "SSH_AUTH_SOCK", "SSH_AGENT_PID",
+        "GIT_SSH_COMMAND", "GIT_SSH", "GH_CONFIG_DIR", "GIT_ASKPASS",
+        "SSH_ASKPASS",
+    }
+)
+
+
 class RunnerError(RuntimeError):
     """Raised for worktree or run-orchestration failures."""
 
@@ -311,6 +322,7 @@ def run_worker(
     heartbeat_seconds: int = DEFAULT_HEARTBEAT_SECONDS,
     repo_root: Path | None = None,
     db_path: Path | None = None,
+    extra_env: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Claim *task_id*, run *command* in its isolated worktree, record all.
 
@@ -318,9 +330,19 @@ def run_worker(
     from the outcome (shadow_run_complete / worker_failed / run_timeout /
     run_cancelled) unless the worker command already transitioned it itself
     (smart workers hold the lease via KB_LEASE_TOKEN and may do so).
+
+    ``extra_env`` adds variables to the worker environment (the KB-S3b
+    packet loop passes attempt bundle/result paths). It may not re-inject
+    the credentials this runner strips.
     """
     if not command:
         raise ValueError("command must be a non-empty list")
+    if extra_env:
+        overlap = _EXTRA_ENV_BLOCKED & set(extra_env)
+        if overlap:
+            raise ValueError(
+                f"extra_env may not override credential isolation: {sorted(overlap)}"
+            )
     for name, seconds in (
         ("timeout_seconds", timeout_seconds),
         ("lease_seconds", lease_seconds),
@@ -491,6 +513,10 @@ def run_worker(
     for index, (key, config_value) in enumerate(git_overrides):
         child_env[f"GIT_CONFIG_KEY_{index}"] = key
         child_env[f"GIT_CONFIG_VALUE_{index}"] = config_value
+    if extra_env:
+        # Additions only — validated against _EXTRA_ENV_BLOCKED up front; the
+        # runner-owned KB_* vars below always win.
+        child_env.update(extra_env)
     child_env.update(
         KB_TASK_ID=task_id,
         KB_RUN_ID=run_id,

@@ -1115,6 +1115,49 @@ def _cmd_initiative_record(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
+    from gateway.builder_attempt import AttemptError
+    from gateway.builder_loop import LoopError, run_packet
+    from gateway.builder_runner import RunnerError
+
+    try:
+        worker_command = _parse_json_array(args.worker_command)
+        review_command = _parse_json_array(args.review_command)
+    except (json.JSONDecodeError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if not worker_command:
+        print("error: --worker-command must be a non-empty JSON array", file=sys.stderr)
+        return 1
+
+    try:
+        result = run_packet(
+            args.id,
+            args.packet,
+            worker_command=worker_command,
+            review_command=review_command,
+            worker=args.worker,
+            model=args.model,
+            provider=args.provider,
+            timeout_seconds=args.timeout,
+        )
+    except (LoopError, RunnerError, AttemptError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(json.dumps(result, indent=2, default=str))
+    else:
+        print(
+            f"{result['outcome']}: {result['initiative_id']}/{result['packet_id']} "
+            f"after {len(result['attempts'])} attempt(s)"
+        )
+        for entry in result["attempts"]:
+            detail = entry.get("failure") or "ok"
+            print(f"  attempt {entry['attempt_no']}: {entry['outcome']} — {detail}")
+    return 0 if result["outcome"] == "succeeded" else 1
+
+
 def _cmd_initiative_run_validation(args: argparse.Namespace) -> int:
     from gateway.builder_attempt import AttemptError, run_validation
 
@@ -1206,6 +1249,7 @@ _dispatch: dict[str, Any] = {
     "initiative-record-implementation": _cmd_initiative_record,
     "initiative-record-review": _cmd_initiative_record,
     "initiative-run-validation": _cmd_initiative_run_validation,
+    "initiative-run-packet": _cmd_initiative_run_packet,
     "initiative-close-attempt": _cmd_initiative_close_attempt,
 }
 
@@ -1551,6 +1595,31 @@ def build_parser() -> argparse.ArgumentParser:
         rec_p.add_argument("--file", required=True, help="path to the result JSON file")
         rec_p.add_argument("--json", action="store_true", help="output JSON")
 
+    ini_run_pkt_p = initiative_sub.add_parser(
+        "run-packet",
+        help="drive one packet through the bounded implement/validate/review "
+        "repair loop (shadow mode: no push, no PR)",
+    )
+    ini_run_pkt_p.add_argument("id", help="initiative ID")
+    ini_run_pkt_p.add_argument("packet", help="packet ID")
+    ini_run_pkt_p.add_argument(
+        "--worker-command",
+        required=True,
+        help='worker command as a JSON array, e.g. \'["opencode", "run"]\'',
+    )
+    ini_run_pkt_p.add_argument(
+        "--review-command",
+        default=None,
+        help="optional reviewer command as a JSON array (omit = validation-gated only)",
+    )
+    ini_run_pkt_p.add_argument("--worker", default="packet-loop", help="worker name")
+    ini_run_pkt_p.add_argument("--model", help="model identifier (metadata)")
+    ini_run_pkt_p.add_argument("--provider", help="provider identifier (metadata)")
+    ini_run_pkt_p.add_argument(
+        "--timeout", type=int, default=3600, help="worker timeout in seconds"
+    )
+    ini_run_pkt_p.add_argument("--json", action="store_true", help="output JSON")
+
     ini_run_val_p = initiative_sub.add_parser(
         "run-validation",
         help="run the packet's declared validation commands and record the verdict",
@@ -1625,6 +1694,7 @@ _MUTATING_INITIATIVE_COMMANDS = frozenset(
         "record-implementation",
         "record-review",
         "run-validation",
+        "run-packet",
         "close-attempt",
     }
 )
