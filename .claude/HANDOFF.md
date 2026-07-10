@@ -18,6 +18,7 @@
   model IDs are used when the manifest probe succeeds and are marked non-live
   when it does not.
 - Updated the architecture and state documents from the planning handoff.
+- Committed locally as `25b7f3f` (`feat(runtime): add authoritative manifest to chat`).
 
 ## Verification performed
 
@@ -25,7 +26,7 @@
 - Runtime composer smoke check passed. With LiteLLM offline, it emitted explicit
   warnings and returned `unknown` for LiteLLM/model/project/version facts;
   Builder state returned `available`.
-- No tests, frontend build, browser run, commit, or push was performed.
+- No tests, frontend build, or browser run was performed. Nothing was pushed.
 
 ## In-flight / review notes
 
@@ -41,6 +42,6 @@
 
 ## Next action
 
-Review the diff, then either make small corrections or commit KPA-01 as one
-focused unit. Do not mix KB-S1B,
+KPA-01 is committed locally. Review it or begin the next focused packet; do not
+mix KB-S1B,
 chat normalization, artifacts, or Builder automation into this packet.

@@ -4,9 +4,10 @@
 
 - Branch: `feat/kittybuilder-initiative`
 - Inspected commit: `0f05ae09ad6a6f90cda4e3bf116278466f72536b`
+- KPA-01 commit: `25b7f3f` (`feat(runtime): add authoritative manifest to chat`)
 - Existing untracked files were not touched: `kittybuildercoder.txt` and
   `scripts/run_kittybuilder_free_campaign.sh`.
-- Nothing was pushed or committed.
+- Nothing was pushed. The focused KPA-01 unit is committed locally.
 
 ## Completed this session
 
@@ -20,8 +21,8 @@
 - Python syntax compilation passed for all touched Python modules.
 - Runtime smoke check passed and correctly returned explicit `unknown` facts for
   offline LiteLLM, missing project/version, and `available` Builder state.
-- Per the user's instruction, no tests, frontend build, browser run, commit, or
-  push was performed.
+- Per the user's instruction, no tests, frontend build, or browser run was
+  performed. No push was performed.
 
 ## Important architectural decisions
 
@@ -112,7 +113,6 @@ review unit.
 
 - Frontend TypeScript project check passed with
   `tsc -p gateway/kitty-chat/tsconfig.json --noEmit`.
-- Review the diff and typecheck the frontend if permitted, then make focused
-  corrections or commit KPA-01 as one unit.
-- Keep KB-S1B, chat normalization, artifacts, and Builder automation out of this
-  packet.
+- KPA-01 is committed locally. The next action is a focused review or the next
+  architecture packet; do not mix KB-S1B, chat normalization, artifacts, or
+  Builder automation into this unit.
