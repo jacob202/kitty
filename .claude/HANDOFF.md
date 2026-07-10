@@ -42,6 +42,82 @@
   `/chats/{id}/lifecycle` normalized turn reads.
 - Committed locally as `80759cd` (`feat(artifacts): register captured files durably`).
 
+## KPA-02c — Chat composer attachment upload and artifact linking
+
+- Added migration `018_message_attachments.sql` adding `artifact_ids` JSON to
+  `chat_messages`.
+- `chat_lifecycle.start_turn` now accepts and persists `attachment_ids` on the
+  durable user message.
+- `completions.py` reads `attachment_ids` from the request body and forwards it
+  to `start_turn` (403-safeguard: must be a list of strings).
+- `gateway.ts` `uploadCaptureFile` now carries `conversation_id` and
+  `project_id` so captured files register as conversation-linked artifacts.
+- `chat-client.ts` `streamChat` forwards `attachment_ids` to the gateway.
+- `types.ts` adds `MessageAttachment` and `attachments` on `Message`.
+- `InputBar` gains a paperclip button, hidden file input, and pending-attachment
+  chips with remove controls.
+- `ChatMessage` renders attachment chips on user messages.
+- `page.tsx` uploads selected files immediately (registering durable artifacts),
+  links them on send, and clears the pending tray.
+
+### Verification performed
+- `python3.12 -m py_compile` passed for completions.py and chat_lifecycle.py.
+- `tsc --noEmit` passed for kitty-chat.
+- Migration + lifecycle smoke confirmed `artifact_ids` round-trips on the user
+  message and the turn finalizes as `succeeded`.
+- No tests, frontend build, or browser run was performed. Nothing was pushed.
+
+### Next action
+KPA-02c is complete locally. Next focused packet is the normalized-lifecycle
+read surface in the Chat UI (history recovery from the ledger); keep KB-S1B,
+Builder automation, and the full offline outbox separate.
+
+## KPA-02d — Normalized lifecycle read surface (history recovery)
+
+- Added `GET /chats/{chat_id}/messages` in `routes/chats.py`: rebuilds an ordered
+  UI message list from the durable `chat_conversations`/`chat_turns`/`chat_messages`
+  ledger, enriches attachments via `artifact_store`, and recovers the assistant
+  model from the turn's resolved attempt.
+- `_recover_messages` returns `[]` for a missing/empty conversation so the caller
+  keeps using the legacy chat blob (honest fallback, never fabricated history).
+- `page.tsx` startup load now hydrates each saved chat from the ledger when it
+  has messages, falling back to the legacy blob otherwise; adds `RecoveredMessage`
+  type and `legacyChat` helper.
+
+### Verification performed
+- `python3.12 -m py_compile` passed for routes/chats.py.
+- `tsc --noEmit` passed for kitty-chat.
+- Recovery smoke confirmed 2 messages reconstruct with attachment display name
+  and assistant model; a missing conversation yields `[]`.
+- No tests, frontend build, or browser run was performed. Nothing was pushed.
+
+### Next action
+KPA-02d is complete locally. Keep KB-S1B, Builder automation, and the full
+offline outbox replay separate from the KPA product packets.
+
+## KPA-02e — Lifecycle turn status surfaced in Chat UI
+
+- `routes/chats.py` `_recover_messages` now carries the parent turn's terminal
+  `status` on each recovered message.
+- `types.ts` `Message` gains `turnStatus` (running/succeeded/failed/interrupted/
+  cancelled).
+- `page.tsx` maps `status` into `turnStatus` on recovered messages.
+- `ChatMessage` renders a subtle status marker under non-succeeded assistant
+  messages (red for `failed`, muted for others) so recovered history shows
+  honest generation outcomes rather than looking silently complete.
+
+### Verification performed
+- `python3.12 -m py_compile` passed for routes/chats.py.
+- `tsc --noEmit` passed for kitty-chat.
+- Status smoke confirmed both user and assistant recovered messages carry the
+  turn's terminal status; an empty (failed) assistant message is correctly
+  absent from the ledger.
+- No tests, frontend build, or browser run was performed. Nothing was pushed.
+
+### Next action
+KPA-02e is complete locally. Keep KB-S1B, Builder automation, and the full
+offline outbox replay separate from the KPA product packets.
+
 ## Verification performed
 
 - `python3.12 -m py_compile` passed for all touched Python modules.

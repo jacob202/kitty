@@ -30,6 +30,19 @@
 - Implemented KPA-02b: artifact metadata migration/store, capture registration
   with content hashes and provenance, ingestion-status updates, artifact reads,
   and normalized lifecycle reads.
+- Implemented KPA-02c: chat composer attachment upload and artifact linking —
+  migration `018_message_attachments.sql`, `attachment_ids` persistence on the
+  durable user message, `attachment_ids` wired through completions + streamChat,
+  `uploadCaptureFile` carrying `conversation_id`/`project_id`, `MessageAttachment`
+  type, `InputBar` paperclip + chips, `ChatMessage` attachment chips, and
+  `page.tsx` upload-on-select/link-on-send.
+- Implemented KPA-02d: normalized-lifecycle read surface — `GET /chats/{id}/messages`
+  reconstructs the UI message list from the durable ledger with artifact
+  enrichment and assistant-model recovery; `page.tsx` hydrates saved chats from
+  the ledger, falling back to the legacy blob.
+- Implemented KPA-02e: lifecycle turn status surfaced in Chat UI — recovered
+  messages carry the turn's terminal `status`; `Message.turnStatus` added;
+  `ChatMessage` shows a subtle marker under non-succeeded assistant messages.
 - Python syntax compilation passed for all touched Python modules.
 - Runtime smoke check passed and correctly returned explicit `unknown` facts for
   offline LiteLLM, missing project/version, and `available` Builder state.
@@ -133,6 +146,7 @@ review unit.
 
 - Frontend TypeScript project check passed with
   `tsc -p gateway/kitty-chat/tsconfig.json --noEmit`.
-- KPA-01, KPA-01b, KPA-02a, and KPA-02b are committed locally. The next action
-  is Chat composer attachment upload/linking; keep KB-S1B, Builder automation,
-  and full offline outbox replay separate.
+- KPA-01, KPA-01b, KPA-02a, KPA-02b, KPA-02c, KPA-02d, and KPA-02e are complete
+  locally. The KPA-02 lifecycle read surface is now complete (history recovery +
+  turn status). Next: KB-S1B (Builder) or the full offline outbox replay — both
+  kept separate from the KPA product packets.

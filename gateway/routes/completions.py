@@ -130,6 +130,17 @@ async def chat_completions(request: Request):
     conversation_title = body.get("conversation_title", "")
     if not isinstance(conversation_title, str):
         raise HTTPException(status_code=400, detail="conversation_title must be a string")
+    raw_attachment_ids = body.get("attachment_ids")
+    if raw_attachment_ids is not None:
+        if not isinstance(raw_attachment_ids, list) or not all(
+            isinstance(a, str) for a in raw_attachment_ids
+        ):
+            raise HTTPException(
+                status_code=400, detail="attachment_ids must be a list of strings"
+            )
+        attachment_ids = [a for a in raw_attachment_ids if a.strip()]
+    else:
+        attachment_ids = None
     manifest_project = runtime_manifest["context"]["active_project"]["value"]
     scoped_project_id = raw_project_id
     if scoped_project_id is None and isinstance(manifest_project, dict):
@@ -149,6 +160,7 @@ async def chat_completions(request: Request):
                 user_text=user_text,
                 manifest_revision=runtime_manifest["revision"],
                 requested_model=model,
+                attachment_ids=attachment_ids,
             )
         except Exception:
             on_request_error()

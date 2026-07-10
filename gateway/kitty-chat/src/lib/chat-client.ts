@@ -16,6 +16,7 @@ export async function* streamChat(
   conversationId?: string,
   userMessageId?: string,
   conversationTitle?: string,
+  attachmentIds?: string[],
 ): AsyncGenerator<StreamChunk> {
   const response = await fetch(`${GATEWAY_BASE}/api/chat/completions`, {
     method: 'POST',
@@ -27,6 +28,7 @@ export async function* streamChat(
       ...(conversationId === undefined ? {} : { conversation_id: conversationId }),
       ...(userMessageId === undefined ? {} : { user_message_id: userMessageId }),
       ...(conversationTitle === undefined ? {} : { conversation_title: conversationTitle }),
+      ...(attachmentIds === undefined ? {} : { attachment_ids: attachmentIds }),
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
     }),
     signal,

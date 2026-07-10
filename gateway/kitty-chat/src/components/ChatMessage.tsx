@@ -3,7 +3,7 @@ import { isValidElement, useRef, useState, type ReactNode, type CSSProperties } 
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
-import { Copy, Check, RotateCcw } from 'lucide-react'
+import { Copy, Check, RotateCcw, Paperclip } from 'lucide-react'
 import { Message } from '@/lib/types'
 import { CatFaceBadge, type CatState } from './CrayonCat'
 
@@ -18,6 +18,10 @@ interface Props {
 export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry }: Props) {
   const isUser = message.role === 'user'
   const isKitty = !isUser
+  const attachments = message.attachments ?? []
+  const turnStatus = message.turnStatus
+  const showTurnStatus =
+    isKitty && turnStatus !== undefined && turnStatus !== 'succeeded'
   const [hovered, setHovered] = useState(false)
   const [copied, setCopied] = useState(false)
 
@@ -43,21 +47,48 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry }
     >
       {isKitty && <CatFaceBadge state={catState} />}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: isKitty ? 'flex-start' : 'flex-end' }}>
-        <div style={{
-          maxWidth: 560,
-          borderRadius: isKitty ? '5px 17px 17px 17px' : '17px 5px 17px 17px',
-          padding: '11px 16px',
-          background: isKitty ? 'var(--surface)' : 'var(--primary)',
-          border: isKitty ? '1.5px solid var(--line)' : 'none',
-          boxShadow: 'var(--shadow-soft)',
-        }}>
-          {isStreaming && !message.content ? (
-            <TypingDots />
-          ) : (
-            <MessageContent content={message.content} isUser={isUser} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: isKitty ? 'flex-start' : 'flex-end' }}>
+          {attachments.length > 0 && (
+            <div style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 6,
+              marginBottom: 2,
+              justifyContent: isKitty ? 'flex-start' : 'flex-end',
+            }}>
+              {attachments.map((att) => (
+                <span key={att.id} style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  background: isKitty ? 'var(--surface-2)' : 'rgba(255,255,255,0.18)',
+                  border: isKitty ? '1.5px solid var(--line)' : 'none',
+                  borderRadius: 8,
+                  padding: '3px 8px',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 10.5,
+                  color: isKitty ? 'var(--ink-2)' : 'var(--on-primary)',
+                }}>
+                  <Paperclip size={10} />
+                  {att.display_name}
+                </span>
+              ))}
+            </div>
           )}
-        </div>
+          <div style={{
+            maxWidth: 560,
+            borderRadius: isKitty ? '5px 17px 17px 17px' : '17px 5px 17px 17px',
+            padding: '11px 16px',
+            background: isKitty ? 'var(--surface)' : 'var(--primary)',
+            border: isKitty ? '1.5px solid var(--line)' : 'none',
+            boxShadow: 'var(--shadow-soft)',
+          }}>
+            {isStreaming && !message.content ? (
+              <TypingDots />
+            ) : (
+              <MessageContent content={message.content} isUser={isUser} />
+            )}
+          </div>
         {showActions && (
           <div style={{ ...actionRowStyle, opacity: hovered ? 1 : 0 }}>
             <button onClick={copyMessage} style={actionBtnStyle} title="copy message">
@@ -70,6 +101,14 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry }
                 <span>retry</span>
               </button>
             )}
+          </div>
+        )}
+        {showTurnStatus && (
+          <div style={{
+            ...actionRowStyle,
+            color: turnStatus === 'failed' ? 'var(--c-red)' : 'var(--ink-2)',
+          }}>
+            <span style={{ fontSize: 10 }}>{turnStatus}</span>
           </div>
         )}
       </div>

@@ -1,5 +1,13 @@
 export type KittyMood = 'idle' | 'thinking' | 'success' | 'confused' | 'searching'
 
+/** A durable artifact linked to a chat message by the user who attached it. */
+export interface MessageAttachment {
+  id: string
+  display_name: string
+  media_type: string
+  size?: number
+}
+
 export interface Message {
   id: string
   role: 'user' | 'assistant'
@@ -8,6 +16,9 @@ export interface Message {
   model?: string
   mood?: KittyMood
   tags?: string[]
+  attachments?: MessageAttachment[]
+  /** Terminal status of the lifecycle turn that produced this message. */
+  turnStatus?: 'running' | 'succeeded' | 'failed' | 'interrupted' | 'cancelled'
 }
 
 export interface Chat {

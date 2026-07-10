@@ -7,6 +7,7 @@ status without forcing a client migration in the same packet.
 
 from __future__ import annotations
 
+import json
 import time
 import uuid
 from dataclasses import dataclass
@@ -45,6 +46,7 @@ def start_turn(
     user_text: str,
     manifest_revision: str,
     requested_model: str,
+    attachment_ids: list[str] | None = None,
 ) -> TurnHandle:
     """Persist the user message and running attempt before provider dispatch."""
     if not conversation_id.strip():
@@ -57,6 +59,12 @@ def start_turn(
         raise ChatLifecycleError("manifest_revision must not be empty")
     if not requested_model.strip():
         raise ChatLifecycleError("requested_model must not be empty")
+    if attachment_ids is not None:
+        if not isinstance(attachment_ids, list) or not all(
+            isinstance(a, str) and a.strip() for a in attachment_ids
+        ):
+            raise ChatLifecycleError("attachment_ids must be a list of non-empty strings")
+    artifact_ids_json = json.dumps(attachment_ids or [])
 
     init_db()
     now = time.time()
@@ -102,10 +110,10 @@ def start_turn(
         conn.execute(
             """
             INSERT INTO chat_messages
-                (id, turn_id, role, content, status, source_message_id, created_at)
-            VALUES (?, ?, 'user', ?, 'complete', ?, ?)
+                (id, turn_id, role, content, status, source_message_id, artifact_ids, created_at)
+            VALUES (?, ?, 'user', ?, 'complete', ?, ?, ?)
             """,
-            (user_storage_id, turn_id, user_text, user_message_id, now),
+            (user_storage_id, turn_id, user_text, user_message_id, artifact_ids_json, now),
         )
         conn.commit()
     return TurnHandle(conversation_id, turn_id, attempt_id, sequence)

@@ -1005,9 +1005,14 @@ export interface CaptureResult {
   message: string
 }
 
-export async function uploadCaptureFile(file: File): Promise<CaptureResult | null> {
+export async function uploadCaptureFile(
+  file: File,
+  opts?: { conversationId?: string; projectId?: number },
+): Promise<CaptureResult | null> {
   const formData = new FormData()
   formData.append('file', file)
+  if (opts?.conversationId) formData.append('conversation_id', opts.conversationId)
+  if (opts?.projectId !== undefined) formData.append('project_id', String(opts.projectId))
   try {
     return await gfetch<CaptureResult>('/capture/file', {
       method: 'POST',
