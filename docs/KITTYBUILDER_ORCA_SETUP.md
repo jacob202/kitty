@@ -43,12 +43,12 @@ Cap silent provider retries quickly: one cheap attempt, one stronger attempt, th
 
 ## Free-Only Build Train
 
-The repository `opencode.jsonc` defaults to OpenCode Zen free models, disables session sharing, blocks external-directory access and subagent spawning, and denies push, merge, destructive git cleanup, and recursive deletion even when OpenCode runs with `--auto`.
+The repository `opencode.jsonc` defaults to OpenCode Zen free models, disables session sharing, blocks external-directory access and subagent spawning, and denies push, PR creation/merge, destructive git cleanup, and file deletion even when OpenCode runs with `--auto`.
 
 Launch one task card from a clean Orca worktree:
 
 ```bash
-./scripts/opencode_free_train.sh docs/KITTYBUILDER_PHASE1A_PR4_CLI_TASK.md
+bash scripts/opencode_free_train.sh docs/KITTYBUILDER_PHASE1A_PR4_CLI_TASK.md
 ```
 
 The launcher uses this zero-cost ladder:
