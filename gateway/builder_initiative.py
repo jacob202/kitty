@@ -103,6 +103,7 @@ CREATE TABLE IF NOT EXISTS initiatives (
     manifest_json TEXT NOT NULL,
     manifest_sha256 TEXT NOT NULL,
     state TEXT NOT NULL DEFAULT 'active',
+    pause_reason TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -139,6 +140,16 @@ def _ensure_packet_columns(conn: sqlite3.Connection) -> None:
         )
 
 
+def _ensure_initiative_columns(conn: sqlite3.Connection) -> None:
+    """Add durable operator-pause metadata to pre-KB-S5 databases."""
+    existing = {
+        str(row["name"])
+        for row in conn.execute("PRAGMA table_info(initiatives)").fetchall()
+    }
+    if existing and "pause_reason" not in existing:
+        conn.execute("ALTER TABLE initiatives ADD COLUMN pause_reason TEXT")
+
+
 def init_db(db_path: Path | None = None) -> None:
     """Ensure the queue schema plus initiative tables exist. Idempotent."""
     bq.init_db(db_path)
@@ -146,6 +157,7 @@ def init_db(db_path: Path | None = None) -> None:
     try:
         _ensure_packet_columns(conn)
         conn.executescript(_SCHEMA_SQL)
+        _ensure_initiative_columns(conn)
         conn.commit()
     finally:
         conn.close()
@@ -808,7 +820,10 @@ def initiative_status(
         and p["packet_id"] not in {e["packet_id"] for e in eligible}
     ]
 
-    if len(done) == len(packets):
+    stored_state = str(initiative.get("state", INITIATIVE_ACTIVE))
+    if stored_state == INITIATIVE_PAUSED:
+        state = INITIATIVE_PAUSED
+    elif len(done) == len(packets):
         state = INITIATIVE_COMPLETED
     elif blocked or failed:
         state = INITIATIVE_FAILED
@@ -821,6 +836,7 @@ def initiative_status(
     return {
         "initiative_id": initiative_id,
         "state": state,
+        "pause_reason": initiative.get("pause_reason"),
         "total_packets": len(packets),
         "eligible": [p["packet_id"] for p in eligible],
         "blocked": [p["packet_id"] for p in blocked],
@@ -831,3 +847,98 @@ def initiative_status(
         "next_packet": next_p["packet_id"] if next_p else None,
         "next_packet_task_id": next_p["task_id"] if next_p else None,
     }
+
+
+# ---------------------------------------------------------------------------
+# KB-S5 — durable initiative state (pause/resume) and the run loop driver.
+# ---------------------------------------------------------------------------
+
+
+_VALID_STATES = frozenset(
+    {INITIATIVE_ACTIVE, INITIATIVE_COMPLETED, INITIATIVE_FAILED, INITIATIVE_PAUSED}
+)
+
+
+def get_initiative_state(
+    initiative_id: str, db_path: Path | None = None
+) -> str:
+    """Return the stored initiative ``state`` (the operator-set value).
+
+    Distinct from ``initiative_status``'s *derived* state: this is the value an
+    operator writes via pause/resume and that the run loop consults as a gate.
+    """
+    init_db(db_path)
+    conn = bq.connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT state FROM initiatives WHERE id = ?", (initiative_id,)
+        ).fetchone()
+        if row is None:
+            raise InitiativeNotFoundError(initiative_id)
+        return str(row["state"])
+    finally:
+        conn.close()
+
+
+def set_initiative_state(
+    initiative_id: str, state: str, db_path: Path | None = None
+) -> None:
+    """Persist an operator-set initiative ``state``. Validates the value."""
+    if state not in _VALID_STATES:
+        raise ValueError(
+            f"invalid initiative state {state!r}; expected one of "
+            f"{sorted(_VALID_STATES)}"
+        )
+    init_db(db_path)
+    conn = bq.connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM initiatives WHERE id = ?", (initiative_id,)
+        ).fetchone()
+        if row is None:
+            raise InitiativeNotFoundError(initiative_id)
+        conn.execute(
+            "UPDATE initiatives SET state = ?, pause_reason = ?, "
+            "updated_at = CURRENT_TIMESTAMP "
+            "WHERE id = ?",
+            (state, None if state != INITIATIVE_PAUSED else "operator state", initiative_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def pause_initiative(
+    initiative_id: str, reason: str | None = None, db_path: Path | None = None
+) -> None:
+    """Halt the run loop for an initiative. Idempotent and fail-loud.
+
+    Sets the stored state to ``paused``; the next ``run_initiative`` call sees
+    this and returns without driving any packet. The reason is durable.
+    """
+    if not reason or not reason.strip():
+        reason = "operator pause"
+    init_db(db_path)
+    conn = bq.connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM initiatives WHERE id = ?", (initiative_id,)
+        ).fetchone()
+        if row is None:
+            raise InitiativeNotFoundError(initiative_id)
+        conn.execute(
+            "UPDATE initiatives SET state = ?, pause_reason = ?, "
+            "updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (INITIATIVE_PAUSED, reason, initiative_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def resume_initiative(
+    initiative_id: str, db_path: Path | None = None
+) -> None:
+    """Clear a pause so the run loop may proceed. Fail-loud if unknown."""
+    get_initiative_state(initiative_id, db_path=db_path)  # raises if missing
+    set_initiative_state(initiative_id, INITIATIVE_ACTIVE, db_path=db_path)

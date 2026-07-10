@@ -611,7 +611,7 @@ def _cmd_queue_sync_pr(args: argparse.Namespace) -> int:
     result = sync_pr_status()
     if args.json:
         print(json.dumps(result, indent=2, default=str))
-        return 0
+        return 0 if not result["errors"] else 1
     if result["errors"]:
         for err in result["errors"]:
             print(f"  error PR #{err['pr_number']}: {err['error']}", file=sys.stderr)
@@ -628,7 +628,7 @@ def _cmd_queue_reconcile_merges(args: argparse.Namespace) -> int:
     result = detect_merged_prs()
     if args.json:
         print(json.dumps(result, indent=2, default=str))
-        return 0
+        return 0 if not result["errors"] else 1
     if result["promoted"]:
         for task_id in result["promoted"]:
             print(f"  promoted: {task_id} -> done (PR merged)")
@@ -1234,6 +1234,76 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
     return 0 if result["outcome"] == "succeeded" else 1
 
 
+def _cmd_initiative_run(args: argparse.Namespace) -> int:
+    from gateway.builder_run import run_initiative
+
+    try:
+        worker_command = _parse_json_array(args.worker_command)
+        review_command = _parse_json_array(args.review_command)
+    except (json.JSONDecodeError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if not worker_command:
+        print("error: --worker-command must be a non-empty JSON array", file=sys.stderr)
+        return 1
+
+    try:
+        summary = run_initiative(
+            args.id,
+            worker_command=worker_command,
+            review_command=review_command,
+            worker=args.worker,
+            model=args.model,
+            provider=args.provider,
+            timeout_seconds=args.timeout,
+            publish=args.publish,
+            max_initiative_attempts=args.max_attempts,
+            max_runtime_seconds=args.max_runtime,
+        )
+    except (ValueError, RuntimeError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(json.dumps(summary, indent=2, default=str))
+    else:
+        print(
+            f"{summary['outcome']}: {args.id} "
+            f"succeeded={summary['succeeded']} exhausted={summary['exhausted']}"
+        )
+        if summary.get("reason"):
+            print(f"  reason: {summary['reason']}")
+        for entry in summary["processed"]:
+            print(
+                f"  {entry['outcome']}: {args.id}/{entry['packet_id']}"
+            )
+    return 0 if summary["outcome"] in {"idle", "paused"} else 1
+
+
+def _cmd_initiative_pause(args: argparse.Namespace) -> int:
+    from gateway.builder_initiative import pause_initiative
+
+    try:
+        pause_initiative(args.id, args.reason)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"paused: {args.id}" + (f" ({args.reason})" if args.reason else ""))
+    return 0
+
+
+def _cmd_initiative_resume(args: argparse.Namespace) -> int:
+    from gateway.builder_initiative import resume_initiative
+
+    try:
+        resume_initiative(args.id)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"resumed: {args.id}")
+    return 0
+
+
 def _cmd_initiative_run_validation(args: argparse.Namespace) -> int:
     from gateway.builder_attempt import AttemptError, run_validation
 
@@ -1330,6 +1400,9 @@ _dispatch: dict[str, Any] = {
     "initiative-run-validation": _cmd_initiative_run_validation,
     "initiative-run-packet": _cmd_initiative_run_packet,
     "initiative-close-attempt": _cmd_initiative_close_attempt,
+    "initiative-run": _cmd_initiative_run,
+    "initiative-pause": _cmd_initiative_pause,
+    "initiative-resume": _cmd_initiative_resume,
 }
 
 
@@ -1749,6 +1822,60 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ini_close_att_p.add_argument("--json", action="store_true", help="output JSON")
 
+    # -- run loop (KB-S5) ------------------------------------------------------
+
+    ini_run_p = initiative_sub.add_parser(
+        "run",
+        help="drive an initiative to completion: loop eligible packets through "
+        "implement/validate/review (S3b) then operator-gated publish (S4b)",
+    )
+    ini_run_p.add_argument("id", help="initiative ID")
+    ini_run_p.add_argument(
+        "--worker-command",
+        required=True,
+        help='worker command as a JSON array, e.g. \'["opencode", "run"]\'',
+    )
+    ini_run_p.add_argument(
+        "--review-command",
+        default=None,
+        help="optional reviewer command as a JSON array (omit = validation-gated only)",
+    )
+    ini_run_p.add_argument("--worker", default="packet-loop", help="worker name")
+    ini_run_p.add_argument("--model", help="model identifier (metadata)")
+    ini_run_p.add_argument("--provider", help="provider identifier (metadata)")
+    ini_run_p.add_argument(
+        "--timeout", type=int, default=3600, help="worker timeout in seconds"
+    )
+    ini_run_p.add_argument(
+        "--publish",
+        action="store_true",
+        help="run KB-S4b publish (operator-gated push + PR) on each succeeded packet",
+    )
+    ini_run_p.add_argument(
+        "--max-attempts",
+        type=int,
+        default=None,
+        help="per-initiative attempt budget; exceeding it pauses the initiative",
+    )
+    ini_run_p.add_argument(
+        "--max-runtime",
+        type=int,
+        default=None,
+        help="per-initiative wall-clock budget (seconds); exceeding it pauses the initiative",
+    )
+    ini_run_p.add_argument("--json", action="store_true", help="output JSON")
+
+    ini_pause_p = initiative_sub.add_parser(
+        "pause", help="pause the run loop for an initiative (operator gate)"
+    )
+    ini_pause_p.add_argument("id", help="initiative ID")
+    ini_pause_p.add_argument("--reason", default=None, help="advisory pause reason")
+
+    ini_resume_p = initiative_sub.add_parser(
+        "resume", help="clear a pause so the run loop may proceed"
+    )
+    ini_resume_p.add_argument("id", help="initiative ID")
+
     return parser
 
 
@@ -1806,6 +1933,9 @@ _MUTATING_INITIATIVE_COMMANDS = frozenset(
         "run-validation",
         "run-packet",
         "close-attempt",
+        "run",
+        "pause",
+        "resume",
     }
 )
 
