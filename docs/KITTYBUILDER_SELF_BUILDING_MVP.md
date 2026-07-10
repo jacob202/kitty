@@ -33,7 +33,7 @@ materializes one queue task per packet with a stable mapping, dry-run, and
   packet as unreachable rather than silently never-eligible.
 - No execution here — pure reads over existing state.
 
-### KB-S2 — Context bundles and result contracts
+### KB-S2 — Context bundles and result contracts ✅ (this PR)
 
 - Bounded context bundle per packet: brief (existing `builder_brief`) +
   manifest objective/acceptance/paths + prior-attempt summaries, persisted in

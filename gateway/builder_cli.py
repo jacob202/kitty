@@ -1040,6 +1040,96 @@ def _cmd_initiative_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_initiative_attempts(args: argparse.Namespace) -> int:
+    from gateway.builder_attempt import list_attempts
+
+    attempts = list_attempts(args.id, args.packet)
+    if args.json:
+        print(json.dumps(attempts, indent=2, default=str))
+        return 0
+    if not attempts:
+        print("No attempts found.")
+        return 0
+    for a in attempts:
+        impl = (a["implementation"] or {}).get("status", "-")
+        review = (a["review"] or {}).get("verdict", "-")
+        print(
+            f"#{a['id']}  {a['packet_id']}  attempt {a['attempt_no']}  "
+            f"outcome={a['outcome'] or 'open'}  impl={impl}  review={review}"
+        )
+    return 0
+
+
+def _cmd_initiative_start_attempt(args: argparse.Namespace) -> int:
+    from gateway.builder_attempt import AttemptError, start_attempt
+
+    try:
+        attempt = start_attempt(args.id, args.packet)
+    except AttemptError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(attempt, indent=2, default=str))
+    else:
+        print(
+            f"started attempt {attempt['attempt_no']} (id {attempt['id']}) "
+            f"for {attempt['initiative_id']}/{attempt['packet_id']}"
+        )
+    return 0
+
+
+def _load_result_file(path: str) -> dict[str, Any]:
+    parsed = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(parsed, dict):
+        raise ValueError("result file must contain a JSON object")
+    return parsed
+
+
+def _cmd_initiative_record(args: argparse.Namespace) -> int:
+    from gateway.builder_attempt import (
+        AttemptError,
+        ResultContractError,
+        record_implementation_result,
+        record_review_result,
+    )
+
+    record = (
+        record_implementation_result
+        if args.initiative_command == "record-implementation"
+        else record_review_result
+    )
+    try:
+        result = _load_result_file(args.file)
+        attempt = record(args.attempt_id, result)
+    except ResultContractError as exc:
+        for error in exc.errors:
+            print(f"error: {error}", file=sys.stderr)
+        return 1
+    except (OSError, ValueError, json.JSONDecodeError, AttemptError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(attempt, indent=2, default=str))
+    else:
+        print(f"recorded on attempt {attempt['id']}")
+    return 0
+
+
+def _cmd_initiative_close_attempt(args: argparse.Namespace) -> int:
+    from gateway.builder_attempt import AttemptError, close_attempt
+
+    try:
+        attempt = close_attempt(args.attempt_id, args.outcome)
+    except AttemptError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(attempt, indent=2, default=str))
+    else:
+        print(f"attempt {attempt['id']} closed: {attempt['outcome']}")
+    return 0
+
+
 def _init_queue_db() -> None:
     """Initialize the queue DB safely before command dispatch."""
     from gateway.builder_queue import init_db
@@ -1088,6 +1178,11 @@ _dispatch: dict[str, Any] = {
     "initiative-list": _cmd_initiative_list,
     "initiative-show": _cmd_initiative_show,
     "initiative-status": _cmd_initiative_status,
+    "initiative-attempts": _cmd_initiative_attempts,
+    "initiative-start-attempt": _cmd_initiative_start_attempt,
+    "initiative-record-implementation": _cmd_initiative_record,
+    "initiative-record-review": _cmd_initiative_record,
+    "initiative-close-attempt": _cmd_initiative_close_attempt,
 }
 
 
@@ -1406,6 +1501,41 @@ def build_parser() -> argparse.ArgumentParser:
     ini_status_p.add_argument("id", help="initiative ID")
     ini_status_p.add_argument("--json", action="store_true", help="output JSON")
 
+    # -- attempt lifecycle (KB-S2) ---------------------------------------------
+
+    ini_attempts_p = initiative_sub.add_parser(
+        "attempts", help="list packet attempts for an initiative"
+    )
+    ini_attempts_p.add_argument("id", help="initiative ID")
+    ini_attempts_p.add_argument("packet", nargs="?", help="packet ID (optional)")
+    ini_attempts_p.add_argument("--json", action="store_true", help="output JSON")
+
+    ini_start_att_p = initiative_sub.add_parser(
+        "start-attempt",
+        help="open the next attempt for a packet and persist its context bundle",
+    )
+    ini_start_att_p.add_argument("id", help="initiative ID")
+    ini_start_att_p.add_argument("packet", help="packet ID")
+    ini_start_att_p.add_argument("--json", action="store_true", help="output JSON")
+
+    for name, help_text in (
+        ("record-implementation", "attach a validated implementation result"),
+        ("record-review", "attach a validated review result"),
+    ):
+        rec_p = initiative_sub.add_parser(name, help=help_text)
+        rec_p.add_argument("attempt_id", type=int, help="attempt ID")
+        rec_p.add_argument("--file", required=True, help="path to the result JSON file")
+        rec_p.add_argument("--json", action="store_true", help="output JSON")
+
+    ini_close_att_p = initiative_sub.add_parser(
+        "close-attempt", help="close an open attempt with a terminal outcome"
+    )
+    ini_close_att_p.add_argument("attempt_id", type=int, help="attempt ID")
+    ini_close_att_p.add_argument(
+        "outcome", help="succeeded | failed | aborted"
+    )
+    ini_close_att_p.add_argument("--json", action="store_true", help="output JSON")
+
     return parser
 
 
@@ -1451,6 +1581,17 @@ _MUTATING_QUEUE_COMMANDS = frozenset(
 )
 
 
+_MUTATING_INITIATIVE_COMMANDS = frozenset(
+    {
+        "apply",
+        "start-attempt",
+        "record-implementation",
+        "record-review",
+        "close-attempt",
+    }
+)
+
+
 def _queue_disabled() -> bool:
     return os.environ.get("KITTY_BUILDER_QUEUE_ENABLED", "1") == "0"
 
@@ -1485,12 +1626,16 @@ def main(argv: list[str] | None = None) -> int:
         _init_queue_db()
 
     if args.command == "initiative":
-        # `apply` creates queue tasks, so it honors the same kill switch.
-        if args.initiative_command == "apply" and _queue_disabled():
+        # Mutating initiative commands honor the same kill switch as the queue.
+        if (
+            args.initiative_command in _MUTATING_INITIATIVE_COMMANDS
+            and _queue_disabled()
+        ):
             print(
                 "error: KittyBuilder queue is disabled "
-                "(KITTY_BUILDER_QUEUE_ENABLED=0); refusing to apply an "
-                "initiative. Unset the variable or set it to 1 to re-enable.",
+                "(KITTY_BUILDER_QUEUE_ENABLED=0); refusing to modify "
+                "initiative state. Unset the variable or set it to 1 to "
+                "re-enable.",
                 file=sys.stderr,
             )
             return 1
