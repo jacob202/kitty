@@ -1,10 +1,11 @@
-# Session State — 2026-07-10 (KPA-01 runtime truth in progress)
+# Session State — 2026-07-10 (KPA-01b project scope complete)
 
 ## Current branch and inspected commit
 
 - Branch: `feat/kittybuilder-initiative`
 - Inspected commit: `0f05ae09ad6a6f90cda4e3bf116278466f72536b`
 - KPA-01 commit: `25b7f3f` (`feat(runtime): add authoritative manifest to chat`)
+- KPA-01b commit: `e95275b` (`feat(context): persist active project scope`)
 - Existing untracked files were not touched: `kittybuildercoder.txt` and
   `scripts/run_kittybuilder_free_campaign.sh`.
 - Nothing was pushed. The focused KPA-01 unit is committed locally.
@@ -18,6 +19,9 @@
 - Implemented KPA-01 additively: `gateway/runtime_manifest.py`,
   `gateway/routes/runtime.py`, route registration, completion binding/metadata,
   trace revision fields, and the Chat runtime status/query surface.
+- Implemented KPA-01b: persisted active project context through the existing
+  `app_settings` seam, `GET/PUT /context/project`, manifest defaulting, Chat
+  request propagation, and TopBar project selection.
 - Python syntax compilation passed for all touched Python modules.
 - Runtime smoke check passed and correctly returned explicit `unknown` facts for
   offline LiteLLM, missing project/version, and `available` Builder state.
@@ -98,8 +102,9 @@ normalization, artifact migration, settings redesign, and Builder automation.
 - The legacy `/api/models` fallback remains for compatibility, but the new Chat
   runtime badge marks model truth non-live when the authoritative manifest probe
   is unavailable.
-- Active project selection is not yet persisted in Chat; absent `project_id` is
-  reported as `unknown`, never inferred.
+- Active project selection is persisted through `/context/project`; explicit
+  request `project_id` overrides it. The first read defaults once to the first
+  active project so Chat has an honest, durable scope.
 
 ## Prior Builder lane retained
 
@@ -113,6 +118,6 @@ review unit.
 
 - Frontend TypeScript project check passed with
   `tsc -p gateway/kitty-chat/tsconfig.json --noEmit`.
-- KPA-01 is committed locally. The next action is a focused review or the next
-  architecture packet; do not mix KB-S1B, chat normalization, artifacts, or
-  Builder automation into this unit.
+- KPA-01 and KPA-01b are committed locally. The next action is a focused review
+  or the next architecture packet; do not mix KB-S1B, chat normalization,
+  artifacts, or Builder automation into this unit.
