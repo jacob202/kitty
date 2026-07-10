@@ -1,7 +1,7 @@
 # Session State — 2026-07-10 (wrap)
 
 ## Branch
-- `feat/kb-s5-run-loop` (off `main` @ `e2306f1`). KB-S5 plus S4 hardening are local and uncommitted; nothing was pushed.
+- `feat/kb-s5-run-loop` (off `main` @ `e2306f1`). KB-S5 plus S4 hardening are committed locally (`195e688`, `2f59804`), two commits ahead of the remote branch; nothing was pushed.
 
 ## Landed this session
 - **#143** mega: KittyBuilder S1–S3 stack + chat/runtime (CI unblocked then merge)
@@ -15,11 +15,11 @@
 - S1A–S4 builder path on main complete per `docs/KITTYBUILDER_SELF_BUILDING_MVP.md`
 - Shadow workers still credential-stripped; publish is operator-only
 
-## In flight (KB-S5)
+## Completed locally (KB-S5)
 - `gateway/builder_run.py` `run_initiative` driver (loop next_packet -> run_packet -> publish_task)
 - `builder_initiative.py`: `get/set_initiative_state`, `pause_initiative`, `resume_initiative`
 - `builder_cli.py`: `initiative run` / `pause` / `resume`
-- `tests/test_builder_run.py`: 7 tests pass; full builder suite 256 passing
+- `tests/test_builder_run.py`: 7 tests pass; focused Builder suites 340 passing
 - Loop processes next eligible packet per invocation; dependents advance only after merge (DONE via `reconcile-merges`). Per-initiative attempt + runtime budgets pause with reason.
 
 ## Next
