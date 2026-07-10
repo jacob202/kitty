@@ -13,6 +13,9 @@ export async function* streamChat(
   messages: Message[],
   signal?: AbortSignal,
   projectId?: number,
+  conversationId?: string,
+  userMessageId?: string,
+  conversationTitle?: string,
 ): AsyncGenerator<StreamChunk> {
   const response = await fetch(`${GATEWAY_BASE}/api/chat/completions`, {
     method: 'POST',
@@ -21,6 +24,9 @@ export async function* streamChat(
       model,
       stream: true,
       ...(projectId === undefined ? {} : { project_id: projectId }),
+      ...(conversationId === undefined ? {} : { conversation_id: conversationId }),
+      ...(userMessageId === undefined ? {} : { user_message_id: userMessageId }),
+      ...(conversationTitle === undefined ? {} : { conversation_title: conversationTitle }),
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
     }),
     signal,

@@ -439,6 +439,10 @@ function KittyChatInner() {
   /** Stream one assistant reply into `chat` given `history` (ends with a user
    *  message). Shared by send and retry so the cat's outcome states stay honest. */
   const runStream = useCallback(async (chat: Chat, history: Message[], title: string) => {
+    const latestUserMessage = [...history].reverse().find((message) => message.role === 'user');
+    if (!latestUserMessage) {
+      throw new Error('Cannot start a chat turn without a user message');
+    }
     setIsStreaming(true);
     setLastOutcome(null);
 
@@ -459,7 +463,15 @@ function KittyChatInner() {
     try {
       let accumulated = '';
 
-      for await (const chunk of streamChat(activeModel.id, history, abort.signal, activeProject?.id)) {
+      for await (const chunk of streamChat(
+        activeModel.id,
+        history,
+        abort.signal,
+        activeProject?.id,
+        chat.id,
+        latestUserMessage.id,
+        title,
+      )) {
         if (chunk.done) break;
         accumulated += chunk.content;
         const content = accumulated;
