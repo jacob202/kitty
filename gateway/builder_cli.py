@@ -605,6 +605,43 @@ def _cmd_queue_attach_pr(args: argparse.Namespace) -> int:
         return 1
 
 
+def _cmd_queue_sync_pr(args: argparse.Namespace) -> int:
+    from gateway.builder_queue import sync_pr_status
+
+    result = sync_pr_status()
+    if args.json:
+        print(json.dumps(result, indent=2, default=str))
+        return 0
+    if result["errors"]:
+        for err in result["errors"]:
+            print(f"  error PR #{err['pr_number']}: {err['error']}", file=sys.stderr)
+    if not result["synced"]:
+        print("No PR links to sync.")
+    else:
+        print(f"Synced {len(result['synced'])} PR link(s).")
+    return 0 if not result["errors"] else 1
+
+
+def _cmd_queue_reconcile_merges(args: argparse.Namespace) -> int:
+    from gateway.builder_queue import detect_merged_prs
+
+    result = detect_merged_prs()
+    if args.json:
+        print(json.dumps(result, indent=2, default=str))
+        return 0
+    if result["promoted"]:
+        for task_id in result["promoted"]:
+            print(f"  promoted: {task_id} -> done (PR merged)")
+    if result["already_merged"]:
+        print(f"  already merged: {len(result['already_merged'])} task(s)")
+    if result["errors"]:
+        for err in result["errors"]:
+            print(f"  error {err['task_id']}: {err['error']}", file=sys.stderr)
+    if not result["promoted"] and not result["already_merged"]:
+        print("No merged PRs detected.")
+    return 0 if not result["errors"] else 1
+
+
 # ---------------------------------------------------------------------------
 # Queue — recover (Phase 1B)
 # ---------------------------------------------------------------------------
@@ -1232,6 +1269,8 @@ _dispatch: dict[str, Any] = {
     "queue-brief": _cmd_queue_brief,
     "queue-attach-report": _cmd_queue_attach_report,
     "queue-attach-pr": _cmd_queue_attach_pr,
+    "queue-sync-pr": _cmd_queue_sync_pr,
+    "queue-reconcile-merges": _cmd_queue_reconcile_merges,
     "queue-recover": _cmd_queue_recover,
     "queue-operator-cancel": _cmd_queue_operator_cancel,
     "queue-run": _cmd_queue_run,
@@ -1457,6 +1496,18 @@ def build_parser() -> argparse.ArgumentParser:
     att_pr_p.add_argument("--checks-state", help="CI checks state summary")
     att_pr_p.add_argument("--review-state", help="review state summary")
     att_pr_p.add_argument("--json", action="store_true", help="output JSON")
+
+    # queue sync-pr / reconcile-merges (KB-S4)
+    sync_pr_p = queue_sub.add_parser(
+        "sync-pr",
+        help="advisory CI/review reconciliation into pr_links (no task mutation)",
+    )
+    sync_pr_p.add_argument("--json", action="store_true", help="output JSON")
+    reconcile_p = queue_sub.add_parser(
+        "reconcile-merges",
+        help="promote tasks to done whose linked PR has merged (unlocks dependents)",
+    )
+    reconcile_p.add_argument("--json", action="store_true", help="output JSON")
 
     # queue recover (Phase 1B)
     recover_p = queue_sub.add_parser(

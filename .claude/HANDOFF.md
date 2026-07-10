@@ -141,8 +141,33 @@ offline outbox replay separate from the KPA product packets.
   `scripts/run_kittybuilder_free_campaign.sh`, and the oddly named existing
   untracked file beginning `-iname` were not touched.
 
+## KB-S1B — Packet eligibility and initiative status (Builder lane)
+
+- Added read-only surface to `gateway/builder_initiative.py`: `eligible_packets`,
+  `blocked_packets`, `next_packet`, `initiative_status`, plus internal helpers
+  `_read_packets_with_states` and `_compute_unreachable`.
+- `eligible_packets` returns packets whose own task is `queued` and all
+  dependency tasks are `done`, in `seq` order.
+- `blocked_packets` reports unreachable packets via transitive blocking closure
+  (a failed/cancelled dependency task blocks every downstream dependent), with
+  the direct blocking causes listed per packet.
+- `next_packet` is deterministic: lowest `seq` among eligible (priority is
+  advisory metadata only).
+- `initiative_status` rolls up to `active | completed | failed | paused` from
+  per-packet task state — pure reads, no task mutation.
+- Added `initiative status <id>` CLI subcommand (human + `--json`).
+
+### Verification performed
+
+- `py_compile` passed for builder_initiative.py and builder_cli.py.
+- Full Builder pytest suite passed (385 tests). ruff clean, mypy clean.
+- Added `TestKbS1bEligibility` (9) + `TestKbS1bCli` (3) to
+  `tests/test_builder_initiative.py`.
+- Nothing committed or pushed.
+
 ## Next action
 
-KPA-01, KPA-01b, KPA-02a, and KPA-02b are committed locally. The next focused
-packet is Chat composer attachment upload/linking; do not mix KB-S1B, Builder
-automation, or the full offline outbox into that packet.
+KPA-01 → KPA-02e are complete locally. KB-S1B (Builder packet eligibility +
+initiative status) is now complete locally. Next focused packet: KB-S2 (context
+bundles and result contracts) in the Builder lane, or the full offline outbox
+replay in the KPA lane — keep them separate review units.
