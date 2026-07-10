@@ -389,6 +389,14 @@ def get_task(
         conn.close()
 
 
+def _get_task_on_conn(conn: sqlite3.Connection, task_id: str) -> dict[str, Any] | None:
+    """Return a task using the caller's open transaction."""
+    row = conn.execute(
+        "SELECT * FROM tasks WHERE id = ?", (task_id,)
+    ).fetchone()
+    return _row_to_task(row) if row is not None else None
+
+
 def list_tasks(
     state: str | None = None,
     include_archived: bool = False,
@@ -696,6 +704,7 @@ def claim_task(
 ) -> dict[str, Any]:
     """Claim a queued task for *worker_id* and return the updated task."""
     conn = connect(db_path)
+    result: dict[str, Any] | None = None
     try:
         conn.execute("BEGIN IMMEDIATE")
         _claim_impl(
@@ -704,6 +713,11 @@ def claim_task(
             worker_id,
             lease_seconds=lease_seconds,
         )
+        result = _get_task_on_conn(conn, task_id)
+        if result is None:
+            raise RuntimeError(
+                f"Task {task_id} was claimed but is not retrievable"
+            )
         conn.commit()
     except Exception:
         conn.rollback()
@@ -711,11 +725,6 @@ def claim_task(
     finally:
         conn.close()
 
-    result = get_task(task_id, db_path=db_path)
-    if result is None:
-        raise RuntimeError(
-            f"Task {task_id} was committed but is not retrievable"
-        )
     return result
 
 
@@ -731,6 +740,7 @@ def claim_next(
 
     conn = connect(db_path)
     claimed_task_id: str | None = None
+    result: dict[str, Any] | None = None
     try:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute(
@@ -763,6 +773,11 @@ def claim_next(
         except LeaseConflictError:
             conn.rollback()
             return None
+        result = _get_task_on_conn(conn, claimed_task_id)
+        if result is None:
+            raise RuntimeError(
+                f"Task {claimed_task_id} was claimed but is not retrievable"
+            )
         conn.commit()
     except Exception:
         conn.rollback()
@@ -772,11 +787,6 @@ def claim_next(
 
     if claimed_task_id is None:
         raise RuntimeError("claim_next committed without selecting a task")
-    result = get_task(claimed_task_id, db_path=db_path)
-    if result is None:
-        raise RuntimeError(
-            f"Task {claimed_task_id} was committed but is not retrievable"
-        )
     return result
 
 
@@ -805,6 +815,7 @@ def worker_transition_task(
 ) -> dict[str, Any]:
     """Transition a task using worker lease fencing."""
     conn = connect(db_path)
+    result: dict[str, Any] | None = None
     try:
         conn.execute("BEGIN IMMEDIATE")
         row = _transition_subject(conn, task_id)
@@ -821,6 +832,11 @@ def worker_transition_task(
             ),
             extra_params=(lease_token, claim_version),
         )
+        result = _get_task_on_conn(conn, task_id)
+        if result is None:
+            raise RuntimeError(
+                f"Task {task_id} was transitioned but is not retrievable"
+            )
         conn.commit()
     except Exception:
         conn.rollback()
@@ -828,11 +844,6 @@ def worker_transition_task(
     finally:
         conn.close()
 
-    result = get_task(task_id, db_path=db_path)
-    if result is None:
-        raise RuntimeError(
-            f"Task {task_id} was committed but is not retrievable"
-        )
     return result
 
 
@@ -845,6 +856,7 @@ def worker_release_task(
 ) -> dict[str, Any]:
     """Release a worker-held task back to ``queued`` with lease fencing."""
     conn = connect(db_path)
+    result: dict[str, Any] | None = None
     try:
         conn.execute("BEGIN IMMEDIATE")
         row = _transition_subject(conn, task_id)
@@ -861,6 +873,11 @@ def worker_release_task(
             ),
             extra_params=(lease_token, claim_version),
         )
+        result = _get_task_on_conn(conn, task_id)
+        if result is None:
+            raise RuntimeError(
+                f"Task {task_id} was released but is not retrievable"
+            )
         conn.commit()
     except Exception:
         conn.rollback()
@@ -868,11 +885,6 @@ def worker_release_task(
     finally:
         conn.close()
 
-    result = get_task(task_id, db_path=db_path)
-    if result is None:
-        raise RuntimeError(
-            f"Task {task_id} was committed but is not retrievable"
-        )
     return result
 
 
@@ -884,6 +896,7 @@ def operator_release_task(
 ) -> dict[str, Any]:
     """Privileged release from ``claimed`` or ``blocked`` back to ``queued``."""
     conn = connect(db_path)
+    result: dict[str, Any] | None = None
     try:
         conn.execute("BEGIN IMMEDIATE")
         row = _transition_subject(conn, task_id)
@@ -901,6 +914,11 @@ def operator_release_task(
             payload=payload,
             event_type="operator_released",
         )
+        result = _get_task_on_conn(conn, task_id)
+        if result is None:
+            raise RuntimeError(
+                f"Task {task_id} was released but is not retrievable"
+            )
         conn.commit()
     except Exception:
         conn.rollback()
@@ -908,11 +926,6 @@ def operator_release_task(
     finally:
         conn.close()
 
-    result = get_task(task_id, db_path=db_path)
-    if result is None:
-        raise RuntimeError(
-            f"Task {task_id} was committed but is not retrievable"
-        )
     return result
 
 

@@ -882,6 +882,41 @@ class TestClaimTask:
                 db_path=db_path,
             )
 
+    def test_claim_task_does_not_use_public_get_task_after_commit(
+        self, db_path, monkeypatch
+    ):
+        task = bq.create_task("t", db_path=db_path)
+
+        def fail_get_task(*args, **kwargs):
+            raise AssertionError("claim_task must not read back through public get_task")
+
+        monkeypatch.setattr(bq, "get_task", fail_get_task)
+
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+
+        assert claimed["id"] == task["id"]
+        assert claimed["state"] == bq.CLAIMED
+        assert claimed["lease_owner"] == "worker-a"
+        assert claimed["claim_version"] == 1
+        assert claimed["lease_token"] is not None
+
+    def test_claim_task_returned_lease_cannot_be_stolen_by_post_commit_readback(
+        self, db_path, monkeypatch
+    ):
+        task = bq.create_task("t", db_path=db_path)
+
+        def racing_get_task(task_id, db_path=None):
+            bq.operator_release_task(task_id, db_path=db_path)
+            bq.claim_task(task_id, "worker-b", db_path=db_path)
+            raise AssertionError("claim_task called public get_task after commit")
+
+        monkeypatch.setattr(bq, "get_task", racing_get_task)
+
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+
+        assert claimed["lease_owner"] == "worker-a"
+        assert claimed["claim_version"] == 1
+
 
 class TestClaimNext:
     def test_returns_highest_priority_eligible_queued_task(self, db_path):
@@ -919,6 +954,42 @@ class TestClaimNext:
 
         assert bq.claim_next("worker-c", db_path=db_path) is None
 
+    def test_claim_next_does_not_use_public_get_task_after_commit(
+        self, db_path, monkeypatch
+    ):
+        task = bq.create_task("t", db_path=db_path)
+
+        def fail_get_task(*args, **kwargs):
+            raise AssertionError("claim_next must not read back through public get_task")
+
+        monkeypatch.setattr(bq, "get_task", fail_get_task)
+
+        claimed = bq.claim_next("worker-a", db_path=db_path)
+
+        assert claimed is not None
+        assert claimed["id"] == task["id"]
+        assert claimed["lease_owner"] == "worker-a"
+        assert claimed["claim_version"] == 1
+        assert claimed["lease_token"] is not None
+
+    def test_claim_next_returned_lease_cannot_be_stolen_by_post_commit_readback(
+        self, db_path, monkeypatch
+    ):
+        bq.create_task("t", db_path=db_path)
+
+        def racing_get_task(task_id, db_path=None):
+            bq.operator_release_task(task_id, db_path=db_path)
+            bq.claim_task(task_id, "worker-b", db_path=db_path)
+            raise AssertionError("claim_next called public get_task after commit")
+
+        monkeypatch.setattr(bq, "get_task", racing_get_task)
+
+        claimed = bq.claim_next("worker-a", db_path=db_path)
+
+        assert claimed is not None
+        assert claimed["lease_owner"] == "worker-a"
+        assert claimed["claim_version"] == 1
+
 
 # ---------------------------------------------------------------------------
 # Worker release
@@ -941,6 +1012,31 @@ class TestWorkerReleaseTask:
         assert released["lease_owner"] is None
         assert released["lease_token"] is None
         assert released["lease_expires_at"] is None
+        assert released["claim_version"] == claimed["claim_version"]
+
+    def test_worker_release_returns_row_without_public_get_task(
+        self, db_path, monkeypatch
+    ):
+        task = bq.create_task("t", db_path=db_path)
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+
+        def fail_get_task(*args, **kwargs):
+            raise AssertionError(
+                "worker_release_task must not read back through public get_task"
+            )
+
+        monkeypatch.setattr(bq, "get_task", fail_get_task)
+
+        released = bq.worker_release_task(
+            task["id"],
+            claimed["lease_token"],
+            claimed["claim_version"],
+            db_path=db_path,
+        )
+
+        assert released["id"] == task["id"]
+        assert released["state"] == bq.QUEUED
+        assert released["lease_owner"] is None
         assert released["claim_version"] == claimed["claim_version"]
 
     def test_valid_worker_release_appends_released_event(self, db_path):
@@ -1046,6 +1142,25 @@ class TestOperatorReleaseTask:
         assert released["lease_token"] is None
         assert released["lease_expires_at"] is None
 
+    def test_operator_release_returns_row_without_public_get_task(
+        self, db_path, monkeypatch
+    ):
+        task = bq.create_task("t", db_path=db_path)
+        bq.claim_task(task["id"], "worker-a", db_path=db_path)
+
+        def fail_get_task(*args, **kwargs):
+            raise AssertionError(
+                "operator_release_task must not read back through public get_task"
+            )
+
+        monkeypatch.setattr(bq, "get_task", fail_get_task)
+
+        released = bq.operator_release_task(task["id"], db_path=db_path)
+
+        assert released["id"] == task["id"]
+        assert released["state"] == bq.QUEUED
+        assert released["lease_owner"] is None
+
     def test_blocked_to_queued(self, db_path):
         task = bq.create_task("t", db_path=db_path)
         claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
@@ -1130,6 +1245,32 @@ class TestWorkerTransitionTask:
             db_path=db_path,
         )
 
+        assert running["state"] == bq.RUNNING
+        assert running["lease_token"] == claimed["lease_token"]
+        assert running["claim_version"] == claimed["claim_version"]
+
+    def test_worker_transition_returns_row_without_public_get_task(
+        self, db_path, monkeypatch
+    ):
+        task = bq.create_task("t", db_path=db_path)
+        claimed = bq.claim_task(task["id"], "worker-a", db_path=db_path)
+
+        def fail_get_task(*args, **kwargs):
+            raise AssertionError(
+                "worker_transition_task must not read back through public get_task"
+            )
+
+        monkeypatch.setattr(bq, "get_task", fail_get_task)
+
+        running = bq.worker_transition_task(
+            task["id"],
+            bq.RUNNING,
+            claimed["lease_token"],
+            claimed["claim_version"],
+            db_path=db_path,
+        )
+
+        assert running["id"] == task["id"]
         assert running["state"] == bq.RUNNING
         assert running["lease_token"] == claimed["lease_token"]
         assert running["claim_version"] == claimed["claim_version"]
