@@ -17,9 +17,18 @@ Jacob authorized merge of mega PR #143 (after CI fix), then dealer's-choice foll
 Never auto-merges. Workers do not get GitHub tokens.
 
 ## Resume here
-Implement **KB-S5** only — continuation loop above ok packets; small PR, full builder pytest + ruff/mypy.
+KB-S5 is implemented and audited locally on `feat/kb-s5-run-loop` (not pushed):
+```
+./kitty builder initiative run <id> --worker-command '["opencode","run"]' [--publish] [--max-attempts N] [--max-runtime S]
+./kitty builder initiative pause <id> [--reason ...]
+./kitty builder initiative resume <id>
+```
+Loop drives next eligible packet (S2/S3) then optional KB-S4b publish; repeats until no packet eligible or budget/pause halts. Restart reconciles stale leases/runs; PR-merge `reconcile-merges` advances dependency packets to DONE. Publish and queue reconciliation now strip ambient GitHub tokens, scope `gh` to the task worktree/base, gate on final shadow reports, and fail on non-success check rollups.
+
+Verification: focused Builder suites 340 passed; full Ruff and touched-file mypy pass. The lint job is now blocking in `.github/workflows/tests.yml`.
 
 ## Do not
 - Reverse-split #143
-- Let workers push/PR
+- Let workers push/PR (publish is operator-gated; `gh` runs token-stripped)
+- Push or open the PR without Jacob's explicit approval.
 - Resume without reading this + STATE
