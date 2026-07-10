@@ -150,3 +150,47 @@ review unit.
   locally. The KPA-02 lifecycle read surface is now complete (history recovery +
   turn status). Next: KB-S1B (Builder) or the full offline outbox replay — both
   kept separate from the KPA product packets.
+
+## Builder lane — four packets committed 2026-07-10 (afternoon session)
+
+Commits on `feat/kittybuilder-initiative` (none pushed):
+
+- `5ba8431` KB-S1B — packet eligibility + initiative status. Reviewed the
+  uncommitted implementation found in the working tree, gated it (395 tests,
+  ruff, mypy, diff-check all clean), committed as-is.
+- `5092f1f` KB-S2 — `gateway/builder_attempt.py`: packet_attempts table,
+  bounded context bundles (prior-attempt digests, clipped), implementation/
+  review result contracts with hard size caps, write-once semantics,
+  policy.max_attempts enforced by start_attempt. CLI: attempts /
+  start-attempt / record-implementation / record-review / close-attempt.
+- `9b77d4b` KB-S3a — deterministic validation stage. Optional
+  `validation_commands` on manifest packets (additive to v1, column
+  migrations included), carried in bundles, executed by run_validation in
+  the task worktree with capped output; passed/failed/skipped write-once.
+  CLI: run-validation.
+- `51ba675` KB-S3b — `gateway/builder_loop.py` run_packet: bounded
+  implement → validate → review → repair loop over real run_worker
+  executions. Contract wiring via KB_ATTEMPT_ID/KB_BUNDLE_PATH/
+  KB_RESULT_PATH (+KB_REVIEW_RESULT_PATH for the independent reviewer
+  subprocess). Budget exhaustion leaves the task blocked; retries release
+  blocked → queued only after the next attempt is secured. run_worker
+  gained additive extra_env (validated against the credential strip list).
+  CLI: run-packet. Shadow mode throughout — no push/PR/GitHub.
+
+Validation after final commit: full builder suite 454 passed; ruff clean;
+`git diff --check` clean; mypy 0 errors in changed files (17 pre-existing
+in unrelated imports). Roadmap doc updated per packet.
+
+### Next Builder packet: KB-S4 — push, PR, CI reconciliation, merge detection
+
+Design notes for next session:
+- Shadow-succeeded packets end `blocked(shadow_run_complete)` with the diff
+  sitting in `.worktrees/kittybuilder/<task_id>` on branch
+  `kittybuilder/<task_id>`. S4 pushes that branch, creates/updates the PR
+  (`gh`, body = final report + attempt summary), records into the existing
+  advisory `pr_links` table, and detects merge → task `done`, which unlocks
+  dependent packets (KB-S1B eligibility) and enables KB-S5's automatic
+  continuation. Merge itself stays operator-controlled.
+- KB-S5 (initiative run driver, budgets, pause/resume) composes
+  next_packet + run_packet; blocked on S4 for cross-dependency flow, since
+  dependents need dependency tasks `done`.
