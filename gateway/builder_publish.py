@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -33,20 +34,25 @@ def _default_run(
     cwd: Path | None = None,
     check: bool = False,
 ) -> subprocess.CompletedProcess[str]:
-    env = dict(__import__("os").environ)
+    env = dict(os.environ)
     # gh must use keyring auth, never an ambient/stale token inherited by the
     # worker process (repo AGENTS.md requirement).
     env.pop("GITHUB_TOKEN", None)
     env.pop("GH_TOKEN", None)
-    return subprocess.run(
-        args,
-        cwd=str(cwd) if cwd is not None else None,
-        capture_output=True,
-        text=True,
-        check=check,
-        timeout=120,
-        env=env,
-    )
+    try:
+        return subprocess.run(
+            args,
+            cwd=str(cwd) if cwd is not None else None,
+            capture_output=True,
+            text=True,
+            check=check,
+            timeout=120,
+            env=env,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise PublishError(f"command timed out after 120s: {args!r}") from exc
+    except OSError as exc:
+        raise PublishError(f"command failed to launch {args!r}: {exc}") from exc
 
 
 def _require_task(task_id: str, db_path: Path | None) -> dict[str, Any]:
