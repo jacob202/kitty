@@ -151,6 +151,25 @@ CREATE TRIGGER IF NOT EXISTS prevent_event_deletes BEFORE DELETE ON events
 BEGIN
     SELECT RAISE(ABORT, 'Event log is append-only; DELETE is not permitted');
 END;
+
+-- Phase 1B: PR metadata links. Advisory only — GitHub data never mutates
+-- task state (Section 11.4). One row per (task, PR number), updated in
+-- place as checks/review state are synced.
+CREATE TABLE IF NOT EXISTS pr_links (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT NOT NULL,
+    pr_number INTEGER NOT NULL,
+    pr_url TEXT,
+    head_sha TEXT,
+    checks_state TEXT,
+    review_state TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pr_links_task_pr
+    ON pr_links(task_id, pr_number);
 """
 
 _PRAGMAS = (
@@ -1299,3 +1318,234 @@ def archive_tasks(
         "tasks_archived": len(archived_ids),
         "task_ids": archived_ids,
     }
+
+
+# ---------------------------------------------------------------------------
+# Phase 1B — Final reports
+# ---------------------------------------------------------------------------
+
+
+def attach_final_report(
+    task_id: str,
+    report: dict[str, Any],
+    *,
+    lease_token: str | None = None,
+    claim_version: int | None = None,
+    operator_reason: str | None = None,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Attach a structured final report to a task.
+
+    Two calling modes:
+
+    - **Worker (fenced):** pass ``lease_token`` + ``claim_version``. Rejected
+      with ``LeaseConflictError`` if stale — the report of a superseded
+      worker must not overwrite the current one.
+    - **Operator (unfenced):** pass ``operator_reason`` instead. For
+      post-mortems on dead/terminal tasks that no longer hold a lease.
+
+    The report replaces ``final_report_json`` and appends a
+    ``report_attached`` event carrying the report so history keeps every
+    version even when the column is overwritten.
+
+    Raises:
+        TaskNotFoundError, IllegalTransitionError (archived),
+        LeaseConflictError (stale fencing), ValueError (bad args).
+    """
+    if not isinstance(report, dict) or not report:
+        raise ValueError("report must be a non-empty JSON object")
+
+    fenced = lease_token is not None or claim_version is not None
+    if fenced and (lease_token is None or claim_version is None):
+        raise ValueError("fenced mode requires both lease_token and claim_version")
+    if not fenced and operator_reason is None:
+        raise ValueError(
+            "attach_final_report requires either lease_token+claim_version "
+            "(worker) or operator_reason (operator)"
+        )
+
+    conn = connect(db_path)
+    result: dict[str, Any] | None = None
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT id, state, archived_at FROM tasks WHERE id = ?",
+            (task_id,),
+        ).fetchone()
+        if row is None:
+            raise TaskNotFoundError(f"task not found: {task_id}")
+        if row["archived_at"] is not None:
+            raise IllegalTransitionError(
+                f"task {task_id} is archived and cannot accept a report"
+            )
+
+        report_json = json.dumps(report)
+        if fenced:
+            cursor = conn.execute(
+                """
+                UPDATE tasks
+                SET final_report_json = ?,
+                    updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
+                WHERE id = ? AND lease_token = ? AND claim_version = ?
+                """,
+                (report_json, task_id, lease_token, claim_version),
+            )
+            if cursor.rowcount != 1:
+                raise LeaseConflictError(
+                    f"stale lease or claim version for task {task_id}; "
+                    "report not attached"
+                )
+            event_payload: dict[str, Any] = {"report": report}
+        else:
+            conn.execute(
+                """
+                UPDATE tasks
+                SET final_report_json = ?,
+                    updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
+                WHERE id = ?
+                """,
+                (report_json, task_id),
+            )
+            event_payload = {
+                "report": report,
+                "operator": True,
+                "reason": operator_reason,
+            }
+
+        append_event(task_id, "report_attached", payload=event_payload, conn=conn)
+        result = _get_task_on_conn(conn, task_id)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    if result is None:
+        raise RuntimeError(f"Task {task_id} report attached but not retrievable")
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Phase 1B — PR metadata links (advisory; never mutate task state)
+# ---------------------------------------------------------------------------
+
+
+def attach_pr(
+    task_id: str,
+    pr_number: int,
+    *,
+    pr_url: str | None = None,
+    head_sha: str | None = None,
+    checks_state: str | None = None,
+    review_state: str | None = None,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Attach or update PR metadata for a task.
+
+    Upserts one ``pr_links`` row per (task, PR number) and appends a
+    ``pr_attached`` (new) or ``pr_updated`` (refresh) event. Advisory only:
+    task state is never changed here (Section 11.4) — moving a task to
+    ``pr_opened`` remains an explicit fenced transition.
+
+    Only fields passed as non-None are overwritten on refresh.
+    """
+    if pr_number <= 0:
+        raise ValueError("pr_number must be a positive integer")
+
+    conn = connect(db_path)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        task_row = conn.execute(
+            "SELECT id FROM tasks WHERE id = ?", (task_id,)
+        ).fetchone()
+        if task_row is None:
+            raise TaskNotFoundError(f"task not found: {task_id}")
+
+        existing = conn.execute(
+            "SELECT id FROM pr_links WHERE task_id = ? AND pr_number = ?",
+            (task_id, pr_number),
+        ).fetchone()
+
+        if existing is None:
+            conn.execute(
+                """
+                INSERT INTO pr_links
+                    (task_id, pr_number, pr_url, head_sha, checks_state, review_state)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (task_id, pr_number, pr_url, head_sha, checks_state, review_state),
+            )
+            event_type = "pr_attached"
+        else:
+            set_parts = ["updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')"]
+            params: list[Any] = []
+            for column, value in (
+                ("pr_url", pr_url),
+                ("head_sha", head_sha),
+                ("checks_state", checks_state),
+                ("review_state", review_state),
+            ):
+                if value is not None:
+                    set_parts.append(f"{column} = ?")
+                    params.append(value)
+            params.append(existing["id"])
+            conn.execute(
+                f"UPDATE pr_links SET {', '.join(set_parts)} WHERE id = ?",
+                params,
+            )
+            event_type = "pr_updated"
+
+        append_event(
+            task_id,
+            event_type,
+            payload={
+                k: v
+                for k, v in (
+                    ("pr_number", pr_number),
+                    ("pr_url", pr_url),
+                    ("head_sha", head_sha),
+                    ("checks_state", checks_state),
+                    ("review_state", review_state),
+                )
+                if v is not None
+            },
+            conn=conn,
+        )
+
+        link_row = conn.execute(
+            "SELECT * FROM pr_links WHERE task_id = ? AND pr_number = ?",
+            (task_id, pr_number),
+        ).fetchone()
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    return dict(link_row)
+
+
+def get_pr_links(
+    task_id: str,
+    db_path: Path | None = None,
+) -> list[dict[str, Any]]:
+    """Return all PR links for a task, newest PR number last.
+
+    Raises TaskNotFoundError if the task does not exist.
+    """
+    conn = connect(db_path)
+    try:
+        task_row = conn.execute(
+            "SELECT id FROM tasks WHERE id = ?", (task_id,)
+        ).fetchone()
+        if task_row is None:
+            raise TaskNotFoundError(f"task not found: {task_id}")
+        rows = conn.execute(
+            "SELECT * FROM pr_links WHERE task_id = ? ORDER BY pr_number ASC",
+            (task_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
