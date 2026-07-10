@@ -7,6 +7,7 @@ PR 2-5).
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from pathlib import Path
 
@@ -34,6 +35,14 @@ def _count_created_events(conn: sqlite3.Connection, task_id: str) -> int:
     row = conn.execute(
         "SELECT COUNT(*) FROM events WHERE task_id = ? AND type = 'created'",
         (task_id,),
+    ).fetchone()
+    return int(row[0])
+
+
+def _count_events_of_type(conn: sqlite3.Connection, task_id: str, event_type: str) -> int:
+    row = conn.execute(
+        "SELECT COUNT(*) FROM events WHERE task_id = ? AND type = ?",
+        (task_id, event_type),
     ).fetchone()
     return int(row[0])
 
@@ -419,3 +428,294 @@ class TestTaskId:
             return int(s, 36)
 
         assert b36(p2) >= b36(p1)
+
+
+# ---------------------------------------------------------------------------
+# Legal transition map (static contract tests)
+# ---------------------------------------------------------------------------
+
+
+class TestLegalTransitionMap:
+    def test_contains_expected_paths(self):
+        m = bq.LEGAL_TRANSITIONS
+
+        valid = {
+            (bq.QUEUED, bq.CLAIMED),
+            (bq.QUEUED, bq.FAILED),
+            (bq.QUEUED, bq.CANCELLED),
+            (bq.CLAIMED, bq.RUNNING),
+            (bq.CLAIMED, bq.QUEUED),
+            (bq.CLAIMED, bq.FAILED),
+            (bq.CLAIMED, bq.CANCELLED),
+            (bq.RUNNING, bq.BLOCKED),
+            (bq.RUNNING, bq.PR_OPENED),
+            (bq.RUNNING, bq.FAILED),
+            (bq.RUNNING, bq.CANCELLED),
+            (bq.PR_OPENED, bq.AWAITING_REVIEW),
+            (bq.PR_OPENED, bq.FAILED),
+            (bq.PR_OPENED, bq.CANCELLED),
+            (bq.AWAITING_REVIEW, bq.DONE),
+            (bq.AWAITING_REVIEW, bq.FAILED),
+            (bq.AWAITING_REVIEW, bq.CANCELLED),
+            (bq.BLOCKED, bq.RUNNING),
+            (bq.BLOCKED, bq.QUEUED),
+            (bq.BLOCKED, bq.FAILED),
+            (bq.BLOCKED, bq.CANCELLED),
+        }
+        for src, dst in valid:
+            assert dst in m[src], f"missing: {src} -> {dst}"
+
+        invalid = {
+            (bq.RUNNING, bq.QUEUED),
+            (bq.DONE, bq.QUEUED),
+            (bq.QUEUED, bq.DONE),
+            (bq.FAILED, bq.QUEUED),
+            (bq.CANCELLED, bq.QUEUED),
+            (bq.DONE, bq.DONE),
+            (bq.FAILED, bq.FAILED),
+            (bq.CANCELLED, bq.CANCELLED),
+        }
+        for src, dst in invalid:
+            assert dst not in m[src], f"unexpected: {src} -> {dst}"
+
+
+# ---------------------------------------------------------------------------
+# Transition task
+# ---------------------------------------------------------------------------
+
+
+class TestTransitionTask:
+    def _set_lease(
+        self, db_path, task_id, owner="bot", token="tok", expires="2099-12-31 23:59:59"
+    ):
+        conn = bq.connect(db_path)
+        try:
+            conn.execute(
+                "UPDATE tasks SET lease_owner=?, lease_token=?, lease_expires_at=? WHERE id=?",
+                (owner, token, expires, task_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def _set_archived(self, db_path, task_id):
+        conn = bq.connect(db_path)
+        try:
+            conn.execute(
+                "UPDATE tasks SET archived_at=CURRENT_TIMESTAMP WHERE id=?",
+                (task_id,),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    # -- happy path -----------------------------------------------------------
+
+    def test_valid_transition_updates_state(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        result = bq.transition_task(task["id"], bq.CLAIMED, db_path=db_path)
+        assert result["state"] == bq.CLAIMED
+
+    def test_valid_transition_appends_event(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        bq.transition_task(task["id"], bq.CLAIMED, db_path=db_path)
+        conn = bq.connect(db_path)
+        try:
+            assert _count_events(conn, task["id"]) == 2
+            assert _count_events_of_type(conn, task["id"], bq.CLAIMED) == 1
+        finally:
+            conn.close()
+
+    def test_transition_event_has_payload(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        payload = {"reason": "operator assigned", "engineer": "bot"}
+        bq.transition_task(task["id"], bq.CLAIMED, payload=payload, db_path=db_path)
+        conn = bq.connect(db_path)
+        try:
+            row = conn.execute(
+                "SELECT payload_json FROM events WHERE task_id=? AND type=?",
+                (task["id"], bq.CLAIMED),
+            ).fetchone()
+            assert row is not None
+            assert json.loads(row[0]) == payload
+        finally:
+            conn.close()
+
+    def test_transition_event_round_trips_payload(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        payload = {"key": "value", "nested": {"a": 1}}
+        bq.transition_task(task["id"], bq.CLAIMED, payload=payload, db_path=db_path)
+        conn = bq.connect(db_path)
+        try:
+            row = conn.execute(
+                "SELECT payload_json FROM events WHERE task_id=? AND type=?",
+                (task["id"], bq.CLAIMED),
+            ).fetchone()
+            assert json.loads(row[0]) == payload
+        finally:
+            conn.close()
+
+    # -- illegal transitions --------------------------------------------------
+
+    def test_illegal_transition_raises(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        with pytest.raises(bq.IllegalTransitionError):
+            bq.transition_task(task["id"], bq.DONE, db_path=db_path)
+
+    def test_illegal_transition_appends_no_event(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        with pytest.raises(bq.IllegalTransitionError):
+            bq.transition_task(task["id"], bq.DONE, db_path=db_path)
+        conn = bq.connect(db_path)
+        try:
+            assert _count_events(conn, task["id"]) == 1
+        finally:
+            conn.close()
+
+    def test_running_to_queued_rejected(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        bq.transition_task(task["id"], bq.CLAIMED, db_path=db_path)
+        bq.transition_task(task["id"], bq.RUNNING, db_path=db_path)
+        with pytest.raises(bq.IllegalTransitionError):
+            bq.transition_task(task["id"], bq.QUEUED, db_path=db_path)
+
+    def test_done_to_queued_rejected(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        for state in (bq.CLAIMED, bq.RUNNING, bq.PR_OPENED, bq.AWAITING_REVIEW, bq.DONE):
+            bq.transition_task(task["id"], state, db_path=db_path)
+        with pytest.raises(bq.IllegalTransitionError):
+            bq.transition_task(task["id"], bq.QUEUED, db_path=db_path)
+
+    # -- unknown task / state -------------------------------------------------
+
+    def test_unknown_task_raises(self, db_path):
+        with pytest.raises(bq.TaskNotFoundError):
+            bq.transition_task("kb_nonexistent", bq.CLAIMED, db_path=db_path)
+
+    def test_unknown_state_raises(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        with pytest.raises(ValueError, match="unknown state"):
+            bq.transition_task(task["id"], "invalid_state", db_path=db_path)
+
+    def test_unknown_state_appends_no_event(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        with pytest.raises(ValueError, match="unknown state"):
+            bq.transition_task(task["id"], "invalid_state", db_path=db_path)
+        conn = bq.connect(db_path)
+        try:
+            assert _count_events(conn, task["id"]) == 1
+        finally:
+            conn.close()
+
+    # -- terminal clears lease ------------------------------------------------
+
+    def test_terminal_failed_clears_lease(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        bq.transition_task(task["id"], bq.CLAIMED, db_path=db_path)
+        self._set_lease(db_path, task["id"])
+        result = bq.transition_task(task["id"], bq.FAILED, db_path=db_path)
+        assert result["lease_owner"] is None
+        assert result["lease_token"] is None
+        assert result["lease_expires_at"] is None
+
+    def test_terminal_cancelled_clears_lease(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        bq.transition_task(task["id"], bq.CLAIMED, db_path=db_path)
+        self._set_lease(db_path, task["id"])
+        result = bq.transition_task(task["id"], bq.CANCELLED, db_path=db_path)
+        assert result["lease_owner"] is None
+        assert result["lease_token"] is None
+        assert result["lease_expires_at"] is None
+
+    def test_terminal_done_clears_lease(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        for state in (bq.CLAIMED, bq.RUNNING, bq.PR_OPENED, bq.AWAITING_REVIEW):
+            bq.transition_task(task["id"], state, db_path=db_path)
+        self._set_lease(db_path, task["id"])
+        result = bq.transition_task(task["id"], bq.DONE, db_path=db_path)
+        assert result["lease_owner"] is None
+        assert result["lease_token"] is None
+        assert result["lease_expires_at"] is None
+
+    # -- non-terminal preserves lease -----------------------------------------
+
+    def test_non_terminal_preserves_lease(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        bq.transition_task(task["id"], bq.CLAIMED, db_path=db_path)
+        bq.transition_task(task["id"], bq.RUNNING, db_path=db_path)
+        self._set_lease(db_path, task["id"], owner="bot", token="tok", expires="2099-12-31")
+        result = bq.transition_task(task["id"], bq.BLOCKED, db_path=db_path)
+        assert result["lease_owner"] == "bot"
+        assert result["lease_token"] == "tok"
+        assert result["lease_expires_at"] is not None
+
+    # -- blocked paths --------------------------------------------------------
+
+    def test_blocked_to_running_allowed(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        bq.transition_task(task["id"], bq.CLAIMED, db_path=db_path)
+        bq.transition_task(task["id"], bq.RUNNING, db_path=db_path)
+        bq.transition_task(task["id"], bq.BLOCKED, db_path=db_path)
+        result = bq.transition_task(task["id"], bq.RUNNING, db_path=db_path)
+        assert result["state"] == bq.RUNNING
+
+    def test_blocked_to_queued_allowed(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        bq.transition_task(task["id"], bq.CLAIMED, db_path=db_path)
+        bq.transition_task(task["id"], bq.RUNNING, db_path=db_path)
+        bq.transition_task(task["id"], bq.BLOCKED, db_path=db_path)
+        result = bq.transition_task(task["id"], bq.QUEUED, db_path=db_path)
+        assert result["state"] == bq.QUEUED
+
+    # -- updated_at -----------------------------------------------------------
+
+    def test_updated_at_changes(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        before = task["updated_at"]
+        result = bq.transition_task(task["id"], bq.CLAIMED, db_path=db_path)
+        assert result["updated_at"] != before
+
+    # -- archived -------------------------------------------------------------
+
+    def test_archived_task_transition_raises(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        self._set_archived(db_path, task["id"])
+        with pytest.raises(bq.IllegalTransitionError, match="archived"):
+            bq.transition_task(task["id"], bq.CLAIMED, db_path=db_path)
+
+    def test_archived_task_transition_appends_no_event(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        self._set_archived(db_path, task["id"])
+        with pytest.raises(bq.IllegalTransitionError, match="archived"):
+            bq.transition_task(task["id"], bq.CLAIMED, db_path=db_path)
+        conn = bq.connect(db_path)
+        try:
+            assert _count_events(conn, task["id"]) == 1
+        finally:
+            conn.close()
+
+    # -- full lifecycle -------------------------------------------------------
+
+    def test_full_lifecycle_transition(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        states = [bq.CLAIMED, bq.RUNNING, bq.PR_OPENED, bq.AWAITING_REVIEW, bq.DONE]
+        for state in states:
+            result = bq.transition_task(task["id"], state, db_path=db_path)
+            assert result["state"] == state
+        conn = bq.connect(db_path)
+        try:
+            assert _count_events(conn, task["id"]) == 6  # created + 5 transitions
+        finally:
+            conn.close()
+
+    def test_claimed_to_queued_allowed(self, db_path):
+        task = bq.create_task("t", db_path=db_path)
+        bq.transition_task(task["id"], bq.CLAIMED, db_path=db_path)
+        result = bq.transition_task(task["id"], bq.QUEUED, db_path=db_path)
+        assert result["state"] == bq.QUEUED
+        conn = bq.connect(db_path)
+        try:
+            assert _count_events(conn, task["id"]) == 3  # created + claimed + queued
+            assert _count_events_of_type(conn, task["id"], bq.QUEUED) == 1
+        finally:
+            conn.close()

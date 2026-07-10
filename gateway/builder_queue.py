@@ -1,8 +1,10 @@
-"""KittyBuilder Phase 1A — durable local Builder queue store.
+"""KittyBuilder Phase 1A — durable local Builder queue store & state machine.
 
-Library-mode SQLite storage for the KittyBuilder orchestrator. PR 1 scope:
-schema, connection helpers, task creation/retrieval/listing, and an append-only
-event log. No transitions, no claim/fencing, no CLI, no daemon, no workers.
+Library-mode SQLite storage for the KittyBuilder orchestrator. Scope so far:
+schema, connection helpers, task creation/retrieval/listing, append-only event
+log, and state machine transitions. This module does not implement claim/
+fencing, CLI commands, daemon/API, worker execution, worktrees, or PR
+automation yet.
 
 Important scope notes (see docs/KITTYBUILDER_ORCHESTRATOR_PHASE1A.md):
 
@@ -33,6 +35,59 @@ from typing import Any
 from gateway.paths import BUILDER_QUEUE_DB
 
 logger = logging.getLogger("kitty.builder_queue")
+
+# ---------------------------------------------------------------------------
+# State constants (Section 4.3 — legal state machine)
+# ---------------------------------------------------------------------------
+
+QUEUED = "queued"
+CLAIMED = "claimed"
+RUNNING = "running"
+PR_OPENED = "pr_opened"
+AWAITING_REVIEW = "awaiting_review"
+DONE = "done"
+FAILED = "failed"
+CANCELLED = "cancelled"
+BLOCKED = "blocked"
+
+TERMINAL_STATES = frozenset({DONE, FAILED, CANCELLED})
+
+_VALID_STATES = frozenset({
+    QUEUED,
+    CLAIMED,
+    RUNNING,
+    PR_OPENED,
+    AWAITING_REVIEW,
+    DONE,
+    FAILED,
+    CANCELLED,
+    BLOCKED,
+})
+
+LEGAL_TRANSITIONS: dict[str, frozenset[str]] = {
+    QUEUED: frozenset({CLAIMED, FAILED, CANCELLED}),
+    CLAIMED: frozenset({RUNNING, FAILED, CANCELLED, QUEUED}),
+    RUNNING: frozenset({BLOCKED, PR_OPENED, FAILED, CANCELLED}),
+    PR_OPENED: frozenset({AWAITING_REVIEW, FAILED, CANCELLED}),
+    AWAITING_REVIEW: frozenset({DONE, FAILED, CANCELLED}),
+    BLOCKED: frozenset({RUNNING, QUEUED, FAILED, CANCELLED}),
+    DONE: frozenset(),
+    FAILED: frozenset(),
+    CANCELLED: frozenset(),
+}
+
+# ---------------------------------------------------------------------------
+# Error classes
+# ---------------------------------------------------------------------------
+
+
+class TaskNotFoundError(ValueError):
+    """Raised when a task ID does not exist."""
+
+
+class IllegalTransitionError(ValueError):
+    """Raised when a state transition is not legal or the task is archived."""
+
 
 # ---------------------------------------------------------------------------
 # Schema (Phase 1A — tasks + events only; runs/pr_links/artifacts are future)
@@ -410,3 +465,130 @@ def append_event(
     finally:
         if own_conn:
             conn.close()
+
+
+# ---------------------------------------------------------------------------
+# State validation
+# ---------------------------------------------------------------------------
+
+
+def _validate_state(state: str) -> None:
+    """Raise ``ValueError`` if *state* is not a known machine state."""
+    if state not in _VALID_STATES:
+        raise ValueError(
+            f"unknown state: {state!r}; valid: {sorted(_VALID_STATES)}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Transition engine (internal — caller owns the transaction)
+# ---------------------------------------------------------------------------
+
+
+def _apply_transition(
+    conn: sqlite3.Connection,
+    task_id: str,
+    current_state: str,
+    new_state: str,
+    *,
+    payload: dict[str, Any] | None = None,
+    extra_where: str = "",
+    extra_params: tuple[Any, ...] = (),
+) -> None:
+    """Apply a state transition on *conn* (inside an open transaction).
+
+    Validates states, checks legality, updates the row, and appends an
+    event. Does **not** commit — the caller owns the transaction.
+
+    Raises:
+        IllegalTransitionError — illegal, stale, or archived.
+        ValueError — unknown state.
+    """
+    _validate_state(current_state)
+    _validate_state(new_state)
+
+    if new_state not in LEGAL_TRANSITIONS[current_state]:
+        raise IllegalTransitionError(
+            f"illegal transition: {current_state} -> {new_state}"
+        )
+
+    terminal = new_state in TERMINAL_STATES
+
+    set_clause = "state = ?, updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')"
+    if terminal:
+        set_clause += (
+            ", lease_owner = NULL, lease_token = NULL, lease_expires_at = NULL"
+        )
+
+    sql = (
+        f"UPDATE tasks SET {set_clause}"
+        " WHERE id = ? AND state = ? AND archived_at IS NULL"
+        f" {extra_where}"
+    )
+
+    cursor = conn.execute(sql, (new_state, task_id, current_state, *extra_params))
+
+    if cursor.rowcount != 1:
+        raise IllegalTransitionError(
+            "transition failed; task changed, archived, or lease guard failed"
+        )
+
+    append_event(task_id, new_state, payload=payload, conn=conn)
+
+
+# ---------------------------------------------------------------------------
+# Public transition entry point (operator-level)
+# ---------------------------------------------------------------------------
+
+
+def transition_task(
+    task_id: str,
+    new_state: str,
+    *,
+    payload: dict[str, Any] | None = None,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Atomically transition a task to *new_state*.
+
+    Opens its own connection, validates the task exists and is not archived,
+    runs the transition in ``BEGIN IMMEDIATE``, commits, and returns the
+    updated task dict.
+
+    Raises:
+        TaskNotFoundError — task ID does not exist.
+        IllegalTransitionError — transition not legal, task archived, or
+            concurrent state change.
+        ValueError — unknown *new_state*.
+    """
+    conn = connect(db_path)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT id, state, archived_at FROM tasks WHERE id = ?",
+            (task_id,),
+        ).fetchone()
+
+        if row is None:
+            raise TaskNotFoundError(f"task not found: {task_id}")
+
+        if row["archived_at"] is not None:
+            raise IllegalTransitionError(
+                f"task {task_id} is archived and cannot be transitioned"
+            )
+
+        _apply_transition(
+            conn, task_id, row["state"], new_state, payload=payload
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    result = get_task(task_id, db_path=db_path)
+    if result is None:
+        raise RuntimeError(
+            f"Task {task_id} was committed but is not retrievable"
+        )
+    return result
