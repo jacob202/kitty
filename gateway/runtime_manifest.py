@@ -11,10 +11,9 @@ import hashlib
 import json
 import logging
 import os
+import sqlite3
 import subprocess
-import time
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from typing import Any
 
 import httpx
@@ -228,7 +227,7 @@ def _builder_fact(*, observed_at: str, valid_until: str) -> dict[str, Any]:
             observed_at=observed_at,
             valid_until=valid_until,
         )
-    except (OSError, RuntimeError, ValueError) as exc:
+    except (OSError, RuntimeError, ValueError, sqlite3.Error) as exc:
         return _unknown(
             source="builder_queue + builder_initiative",
             observed_at=observed_at,

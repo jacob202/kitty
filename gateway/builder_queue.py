@@ -1361,6 +1361,7 @@ def queue_status(
     db_path: Path | None = None,
 ) -> dict[str, Any]:
     """Return a summary of queue counts per state and total."""
+    init_db(db_path)
     conn = connect(db_path)
     try:
         rows = conn.execute(
@@ -2263,10 +2264,13 @@ def recover_interrupted_runs(
                     (run_id,),
                 ).fetchone()
                 if age_row is None or age_row["age_seconds"] is None:
-                    raise ValueError(
-                        f"run {run_id} has an invalid created_at timestamp; "
-                        "cannot determine whether startup recovery is safe"
+                    # Corrupt timestamp: skip this row and let the next
+                    # recovery pass retry it rather than aborting the whole
+                    # scan over one bad row.
+                    unverified.append(
+                        {"run_id": run_id, "reason": "invalid_created_at"}
                     )
+                    continue
                 age_seconds = float(age_row["age_seconds"])
                 if age_seconds < starting_grace_seconds:
                     deferred.append(run_id)
@@ -2277,10 +2281,12 @@ def recover_interrupted_runs(
             else:
                 try:
                     numeric_pid = int(pid)
-                except (TypeError, ValueError) as exc:
-                    raise ValueError(
-                        f"run {run_id} has invalid pid {pid!r}"
-                    ) from exc
+                except (TypeError, ValueError):
+                    # Corrupt pid: skip rather than abort the scan.
+                    unverified.append(
+                        {"run_id": run_id, "reason": "invalid_pid"}
+                    )
+                    continue
 
                 try:
                     _os.kill(numeric_pid, 0)

@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
-from fastapi import HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, StrictInt
 
 from gateway import project_context

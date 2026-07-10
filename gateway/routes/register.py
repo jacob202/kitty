@@ -5,8 +5,8 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from gateway.routes import (
-    artifacts,
     actions,
+    artifacts,
     ask,
     brief,
     calendar,
