@@ -1003,6 +1003,43 @@ def _cmd_initiative_show(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_initiative_status(args: argparse.Namespace) -> int:
+    from gateway.builder_initiative import (
+        InitiativeNotFoundError,
+        initiative_status,
+    )
+
+    try:
+        status = initiative_status(args.id)
+    except InitiativeNotFoundError as exc:
+        print(f"error: initiative not found: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(json.dumps(status, indent=2, default=str))
+        return 0
+
+    print(f"{status['initiative_id']}  [{status['state']}]")
+    print(f"  packets: {status['total_packets']}")
+    if status["next_packet"]:
+        print(
+            f"  next:    {status['next_packet']} (task {status['next_packet_task_id']})"
+        )
+    else:
+        print("  next:    -")
+    print(f"  eligible: {', '.join(status['eligible']) or '-'}")
+    print(f"  done:     {', '.join(status['done']) or '-'}")
+    print(f"  in flight: {', '.join(status['in_progress']) or '-'}")
+    print(f"  pending:  {', '.join(status['pending']) or '-'}")
+    if status["blocked"]:
+        print("  blocked (unreachable):")
+        for pid in status["blocked"]:
+            print(f"    - {pid}")
+    if status["failed"]:
+        print(f"  failed:   {', '.join(status['failed'])}")
+    return 0
+
+
 def _init_queue_db() -> None:
     """Initialize the queue DB safely before command dispatch."""
     from gateway.builder_queue import init_db
@@ -1050,6 +1087,7 @@ _dispatch: dict[str, Any] = {
     "initiative-apply": _cmd_initiative_apply,
     "initiative-list": _cmd_initiative_list,
     "initiative-show": _cmd_initiative_show,
+    "initiative-status": _cmd_initiative_status,
 }
 
 
@@ -1361,6 +1399,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ini_show_p.add_argument("id", help="initiative ID")
     ini_show_p.add_argument("--json", action="store_true", help="output JSON")
+
+    ini_status_p = initiative_sub.add_parser(
+        "status", help="roll up packet eligibility and initiative status (KB-S1B)"
+    )
+    ini_status_p.add_argument("id", help="initiative ID")
+    ini_status_p.add_argument("--json", action="store_true", help="output JSON")
 
     return parser
 

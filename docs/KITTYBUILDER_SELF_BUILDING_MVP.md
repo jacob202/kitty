@@ -21,7 +21,7 @@ policies, acceptance criteria, allowed paths), atomic + idempotent apply that
 materializes one queue task per packet with a stable mapping, dry-run, and
 `./kitty builder initiative validate|apply|list|show`.
 
-### KB-S1B — Packet eligibility and initiative status
+### KB-S1B — Packet eligibility and initiative status ✅ (this PR)
 
 - `eligible_packets(initiative_id)`: packets whose dependencies' tasks are
   all `done`, own task still `queued`.

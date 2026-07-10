@@ -512,3 +512,166 @@ class TestCli:
         example = Path("docs/examples/kitty_alpha_initiative.example.json")
         assert example.exists(), "example manifest must ship with KB-S1A"
         assert main(["initiative", "validate", str(example)]) == 0
+
+
+# ---------------------------------------------------------------------------
+# KB-S1B — eligibility and initiative status (read-only)
+# ---------------------------------------------------------------------------
+
+
+def _drive_to_done(task_id: str, db_path: Path) -> None:
+    """Move a queued task through the legal state machine to ``done``."""
+    bq.transition_task(task_id, bq.CLAIMED, db_path=db_path)
+    bq.transition_task(task_id, bq.RUNNING, db_path=db_path)
+    bq.transition_task(task_id, bq.PR_OPENED, db_path=db_path)
+    bq.transition_task(task_id, bq.AWAITING_REVIEW, db_path=db_path)
+    bq.transition_task(task_id, bq.DONE, db_path=db_path)
+
+
+def _three_chain_manifest() -> dict:
+    return {
+        "manifest_version": 1,
+        "initiative_id": "chain-v1",
+        "title": "Three-packet chain",
+        "packets": [
+            {
+                "id": "C1",
+                "title": "First",
+                "objective": "one",
+                "depends_on": [],
+                "acceptance_criteria": ["ok"],
+                "allowed_paths": ["gateway/a.py"],
+            },
+            {
+                "id": "C2",
+                "title": "Second",
+                "objective": "two",
+                "depends_on": ["C1"],
+                "acceptance_criteria": ["ok"],
+                "allowed_paths": ["gateway/b.py"],
+            },
+            {
+                "id": "C3",
+                "title": "Third",
+                "objective": "three",
+                "depends_on": ["C2"],
+                "acceptance_criteria": ["ok"],
+                "allowed_paths": ["gateway/c.py"],
+            },
+        ],
+    }
+
+
+class TestKbS1bEligibility:
+    def test_initial_eligible_is_dependency_free_packet(self, db_path: Path):
+        result = bi.apply_manifest(_manifest(), db_path=db_path)
+        eligible = bi.eligible_packets("kitty-alpha-v1", db_path=db_path)
+        assert [p["packet_id"] for p in eligible] == ["KB-A1"]
+        assert result["packets"][0]["packet_id"] == "KB-A1"
+
+    def test_next_packet_is_lowest_seq_among_eligible(self, db_path: Path):
+        result = bi.apply_manifest(_manifest(), db_path=db_path)
+        nxt = bi.next_packet("kitty-alpha-v1", db_path=db_path)
+        assert nxt["packet_id"] == "KB-A1"
+        assert nxt["task_id"] == result["packets"][0]["task_id"]
+
+    def test_dependent_not_eligible_until_dependency_done(self, db_path: Path):
+        bi.apply_manifest(_manifest(), db_path=db_path)
+        eligible = bi.eligible_packets("kitty-alpha-v1", db_path=db_path)
+        assert "KB-A2" not in [p["packet_id"] for p in eligible]
+
+    def test_two_independent_packets_both_eligible_ordered_by_seq(self, db_path: Path):
+        manifest = _manifest(
+            packets=[
+                _packet("KB-Z1", depends_on=[]),
+                _packet("KB-Z2", depends_on=[]),
+            ]
+        )
+        bi.apply_manifest(manifest, db_path=db_path)
+        eligible = bi.eligible_packets("kitty-alpha-v1", db_path=db_path)
+        assert [p["packet_id"] for p in eligible] == ["KB-Z1", "KB-Z2"]
+
+    def test_blocked_forever_when_dependency_task_failed(self, db_path: Path):
+        result = bi.apply_manifest(_manifest(), db_path=db_path)
+        dep_task = result["packets"][0]["task_id"]
+        bq.transition_task(dep_task, bq.FAILED, db_path=db_path)
+
+        eligible = bi.eligible_packets("kitty-alpha-v1", db_path=db_path)
+        assert eligible == []
+
+        blocked = bi.blocked_packets("kitty-alpha-v1", db_path=db_path)
+        assert [b["packet_id"] for b in blocked] == ["KB-A2"]
+        assert blocked[0]["blocked_by"][0]["packet_id"] == "KB-A1"
+
+    def test_blocked_propagates_transitively(self, db_path: Path):
+        result = bi.apply_manifest(_three_chain_manifest(), db_path=db_path)
+        c1_task = result["packets"][0]["task_id"]
+        bq.transition_task(c1_task, bq.FAILED, db_path=db_path)
+
+        blocked = bi.blocked_packets("chain-v1", db_path=db_path)
+        assert {b["packet_id"] for b in blocked} == {"C2", "C3"}
+
+    def test_completed_when_all_tasks_done(self, db_path: Path):
+        result = bi.apply_manifest(_manifest(), db_path=db_path)
+        for mapping in result["packets"]:
+            _drive_to_done(mapping["task_id"], db_path)
+
+        status = bi.initiative_status("kitty-alpha-v1", db_path=db_path)
+        assert status["state"] == bi.INITIATIVE_COMPLETED
+        assert set(status["done"]) == {"KB-A1", "KB-A2"}
+        assert status["next_packet"] is None
+
+    def test_paused_when_in_flight_and_nothing_eligible(self, db_path: Path):
+        result = bi.apply_manifest(_manifest(), db_path=db_path)
+        # Claim KB-A1 (in flight); KB-A2 waits on it. Nothing is claimable now.
+        bq.transition_task(result["packets"][0]["task_id"], bq.CLAIMED, db_path=db_path)
+
+        status = bi.initiative_status("kitty-alpha-v1", db_path=db_path)
+        assert status["state"] == bi.INITIATIVE_PAUSED
+        assert status["eligible"] == []
+        assert status["in_progress"] == ["KB-A1"]
+        assert status["pending"] == ["KB-A2"]
+
+    def test_failed_state_on_direct_task_failure(self, db_path: Path):
+        result = bi.apply_manifest(_manifest(), db_path=db_path)
+        bq.transition_task(result["packets"][1]["task_id"], bq.FAILED, db_path=db_path)
+
+        status = bi.initiative_status("kitty-alpha-v1", db_path=db_path)
+        assert status["state"] == bi.INITIATIVE_FAILED
+        assert status["failed"] == ["KB-A2"]
+
+    def test_active_state_with_eligible_packet(self, db_path: Path):
+        bi.apply_manifest(_manifest(), db_path=db_path)
+        status = bi.initiative_status("kitty-alpha-v1", db_path=db_path)
+        assert status["state"] == bi.INITIATIVE_ACTIVE
+        assert status["next_packet"] == "KB-A1"
+
+    def test_status_not_found_raises(self, db_path: Path):
+        with pytest.raises(bi.InitiativeNotFoundError):
+            bi.initiative_status("ghost", db_path=db_path)
+
+
+class TestKbS1bCli:
+    def test_status_active(self, cli_db, capsys):
+        path = _write_manifest(cli_db.parent.parent, _manifest())
+        assert main(["initiative", "apply", str(path)]) == 0
+        capsys.readouterr()
+
+        assert main(["initiative", "status", "kitty-alpha-v1"]) == 0
+        out = capsys.readouterr().out
+        assert "[active]" in out
+        assert "KB-A1" in out
+
+    def test_status_json_contains_rollup(self, cli_db, capsys):
+        path = _write_manifest(cli_db.parent.parent, _manifest())
+        assert main(["initiative", "apply", str(path)]) == 0
+        capsys.readouterr()
+
+        assert main(["initiative", "status", "kitty-alpha-v1", "--json"]) == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["state"] == "active"
+        assert payload["next_packet"] == "KB-A1"
+
+    def test_status_missing_initiative(self, cli_db, capsys):
+        assert main(["initiative", "status", "ghost"]) == 1
+        assert "not found" in capsys.readouterr().err

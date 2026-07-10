@@ -35,9 +35,16 @@ from gateway import builder_queue as bq
 
 MANIFEST_VERSION = 1
 
-# Initiative states. KB-S1A only creates 'active'; later packets add
-# completion/pause transitions in their own module, not in builder_queue.
+# Initiative states. KB-S1A only creates 'active'. KB-S1B adds the read-only
+# rollup states below, derived from per-packet task state — never by writing
+# task rows. Completion/pause *transitions* remain owned by later packets.
 INITIATIVE_ACTIVE = "active"
+INITIATIVE_COMPLETED = "completed"
+INITIATIVE_FAILED = "failed"
+INITIATIVE_PAUSED = "paused"
+
+# Task states that make a dependency permanently unsatisfiable.
+_BLOCKING_STATES = frozenset({bq.FAILED, bq.CANCELLED})
 
 # \Z, not $: $ would accept a trailing newline in an ID.
 _ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}\Z")
@@ -551,3 +558,244 @@ def get_initiative(
         return initiative
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# KB-S1B — packet eligibility and initiative status (read-only)
+# ---------------------------------------------------------------------------
+
+
+def _read_packets_with_states(
+    initiative_id: str, db_path: Path | None = None
+) -> list[dict[str, Any]]:
+    """Return each packet with its current task state, ordered by ``seq``.
+
+    Raises InitiativeNotFoundError if the initiative row is absent. A packet
+    whose task row is missing (should not happen post-apply) reports
+    ``state=None`` rather than fabricating one.
+    """
+    init_db(db_path)
+    conn = bq.connect(db_path)
+    try:
+        exists = conn.execute(
+            "SELECT 1 FROM initiatives WHERE id = ?", (initiative_id,)
+        ).fetchone()
+        if exists is None:
+            raise InitiativeNotFoundError(initiative_id)
+
+        rows = conn.execute(
+            """
+            SELECT packet_id, seq, title, task_id, depends_on_json
+            FROM initiative_packets
+            WHERE initiative_id = ? ORDER BY seq
+            """,
+            (initiative_id,),
+        ).fetchall()
+
+        packets: list[dict[str, Any]] = []
+        for r in rows:
+            task = (
+                bq._get_task_on_conn(conn, r["task_id"])
+                if r["task_id"]
+                else None
+            )
+            packets.append(
+                {
+                    "packet_id": r["packet_id"],
+                    "seq": r["seq"],
+                    "title": r["title"],
+                    "task_id": r["task_id"],
+                    "depends_on": json.loads(r["depends_on_json"])
+                    if r["depends_on_json"]
+                    else [],
+                    "state": task["state"] if task else None,
+                }
+            )
+        return packets
+    finally:
+        conn.close()
+
+
+def _compute_unreachable(
+    packets: list[dict[str, Any]]
+) -> set[str]:
+    """Packets that can never become eligible (transitive blocking closure).
+
+    A packet is directly unreachable when a dependency's task is in a blocking
+    state (``failed``/``cancelled``). That unreachability propagates to any
+    packet depending on an already-unreachable packet, so a single failed
+    dependency surfaces every downstream packet that will never run instead of
+    silently leaving them perpetually non-eligible.
+    """
+    by_id = {p["packet_id"]: p for p in packets}
+    unreachable: set[str] = set()
+
+    for p in packets:
+        for dep in p["depends_on"]:
+            dep_p = by_id.get(dep)
+            if dep_p is not None and dep_p["state"] in _BLOCKING_STATES:
+                unreachable.add(p["packet_id"])
+                break
+
+    while True:
+        added = False
+        for p in packets:
+            if p["packet_id"] in unreachable:
+                continue
+            if any(dep in unreachable for dep in p["depends_on"]):
+                unreachable.add(p["packet_id"])
+                added = True
+        if not added:
+            break
+    return unreachable
+
+
+def eligible_packets(
+    initiative_id: str, db_path: Path | None = None
+) -> list[dict[str, Any]]:
+    """Packets ready to run now: own task ``queued`` and every dependency done.
+
+    Unreachable packets (a blocking dependency) are excluded, as are packets
+    still waiting on in-flight dependencies. Returned in ``seq`` order so
+    selection is deterministic.
+    """
+    init_db(db_path)
+    packets = _read_packets_with_states(initiative_id, db_path)
+
+    by_id = {p["packet_id"]: p for p in packets}
+    unreachable = _compute_unreachable(packets)
+
+    eligible = []
+    for p in packets:
+        if p["packet_id"] in unreachable:
+            continue
+        if p["state"] != bq.QUEUED:
+            continue
+        if all(
+            by_id[d]["state"] == bq.DONE
+            for d in p["depends_on"]
+            if d in by_id
+        ):
+            eligible.append(p)
+    return eligible
+
+
+def blocked_packets(
+    initiative_id: str, db_path: Path | None = None
+) -> list[dict[str, Any]]:
+    """Packets unreachable because of a blocking dependency task.
+
+    Each entry carries the direct blocking dependencies (the failed/cancelled
+    tasks responsible) so operators see exactly which dependency must be
+    resolved. Transitively blocked packets are included but list only their
+    nearest blocking causes.
+    """
+    init_db(db_path)
+    packets = _read_packets_with_states(initiative_id, db_path)
+
+    by_id = {p["packet_id"]: p for p in packets}
+    unreachable = _compute_unreachable(packets)
+
+    blocked = []
+    for p in packets:
+        if p["packet_id"] not in unreachable:
+            continue
+        blockers = [
+            {
+                "packet_id": dep,
+                "task_id": by_id[dep]["task_id"],
+                "state": by_id[dep]["state"],
+            }
+            for dep in p["depends_on"]
+            if dep in by_id and by_id[dep]["state"] in _BLOCKING_STATES
+        ]
+        blocked.append(
+            {
+                "packet_id": p["packet_id"],
+                "task_id": p["task_id"],
+                "blocked_by": blockers,
+            }
+        )
+    return blocked
+
+
+def next_packet(
+    initiative_id: str, db_path: Path | None = None
+) -> dict[str, Any] | None:
+    """Deterministic next packet to run: lowest ``seq`` among eligible.
+
+    Priority is advisory metadata only and does not influence ordering — the
+    manifest's ``seq`` is the single source of truth for scheduling order.
+    """
+    eligible = eligible_packets(initiative_id, db_path)
+    return eligible[0] if eligible else None
+
+
+def initiative_status(
+    initiative_id: str, db_path: Path | None = None
+) -> dict[str, Any]:
+    """Read-only rollup of an initiative's progress from task state.
+
+    Returns the derived ``state`` (``active | completed | failed | paused``)
+    plus per-bucket packet ids and the current ``next_packet``.
+
+    State derivation (deterministic, over current task states):
+
+    - ``completed``: every packet task is ``done``.
+    - ``failed``: any packet task is ``failed``/``cancelled``, or any packet is
+      unreachable due to a blocking dependency.
+    - ``paused``: not completed and not failed, but no packet is eligible now
+      (everything remaining waits on in-flight dependencies).
+    - ``active``: at least one packet is eligible and ready to run.
+    """
+    initiative = get_initiative(initiative_id, db_path)
+    if initiative is None:
+        raise InitiativeNotFoundError(initiative_id)
+
+    packets = _read_packets_with_states(initiative_id, db_path)
+    unreachable = _compute_unreachable(packets)
+    eligible = eligible_packets(initiative_id, db_path)
+    blocked = blocked_packets(initiative_id, db_path)
+
+    done = [p["packet_id"] for p in packets if p["state"] == bq.DONE]
+    failed = [
+        p["packet_id"]
+        for p in packets
+        if p["state"] in _BLOCKING_STATES
+    ]
+    in_progress = [
+        p["packet_id"]
+        for p in packets
+        if p["state"] not in (bq.DONE, bq.QUEUED, *list(_BLOCKING_STATES))
+    ]
+    pending = [
+        p["packet_id"]
+        for p in packets
+        if p["packet_id"] not in unreachable
+        and p["state"] == bq.QUEUED
+        and p["packet_id"] not in {e["packet_id"] for e in eligible}
+    ]
+
+    if len(done) == len(packets):
+        state = INITIATIVE_COMPLETED
+    elif blocked or failed:
+        state = INITIATIVE_FAILED
+    elif not eligible:
+        state = INITIATIVE_PAUSED
+    else:
+        state = INITIATIVE_ACTIVE
+
+    next_p = eligible[0] if eligible else None
+    return {
+        "initiative_id": initiative_id,
+        "state": state,
+        "total_packets": len(packets),
+        "eligible": [p["packet_id"] for p in eligible],
+        "blocked": [p["packet_id"] for p in blocked],
+        "done": done,
+        "failed": failed,
+        "in_progress": in_progress,
+        "pending": pending,
+        "next_packet": next_p["packet_id"] if next_p else None,
+        "next_packet_task_id": next_p["task_id"] if next_p else None,
+    }
