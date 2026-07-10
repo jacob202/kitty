@@ -72,6 +72,28 @@ opencode auth list
 opencode models --refresh
 ```
 
+## GitHub Credential Hygiene
+
+A build that finishes cleanly can still fail at the push/PR step on a stale
+HTTPS credential. Two known failure modes and their fixes:
+
+1. **Stale ambient `GITHUB_TOKEN`** overrides `gh` keyring auth. Run every
+   GitHub operation as `env -u GITHUB_TOKEN gh ...` /
+   `env -u GITHUB_TOKEN git push ...` (see `docs/WORKFLOW.md`).
+2. **Stale keychain HTTPS credential** used by plain git. One-time fix on a
+   new machine or after re-auth:
+
+   ```bash
+   gh auth setup-git
+   ```
+
+   This routes git's HTTPS credential prompts through `gh auth git-credential`
+   so git always uses the current `gh` login. Verify with
+   `git config --get-all credential.helper`.
+
+`scripts/orca_worktree_setup.sh` warns on both conditions at worktree setup so
+they surface before a build, not after it.
+
 ## Safe Build Train
 
 Use this sequence for low-babysitting work:

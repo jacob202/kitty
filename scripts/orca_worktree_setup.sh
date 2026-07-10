@@ -61,6 +61,19 @@ if [[ "${dirty_count}" != "0" ]]; then
   echo "WARNING: this worktree has uncommitted changes. Inspect before editing." >&2
 fi
 
+if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+  echo
+  echo "WARNING: ambient GITHUB_TOKEN is set and can override gh keyring auth." >&2
+  echo "Run GitHub operations with: env -u GITHUB_TOKEN gh ... (see docs/WORKFLOW.md)" >&2
+fi
+
+if ! git config --get-all credential.helper 2>/dev/null | grep -q 'gh auth git-credential'; then
+  echo
+  echo "WARNING: git HTTPS credentials are not routed through gh; a stale" >&2
+  echo "keychain credential can fail pushes late in a build." >&2
+  echo "One-time fix: gh auth setup-git" >&2
+fi
+
 missing_tools=()
 for tool in orca opencode gh; do
   if ! command -v "${tool}" >/dev/null 2>&1; then
