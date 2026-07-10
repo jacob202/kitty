@@ -384,6 +384,10 @@ def append_event(
     own_conn = conn is None
     if own_conn:
         conn = connect(db_path)
+    # mypy: conn is non-None here — either supplied by the caller or opened
+    # just above. The assert documents the narrowing for both reader and type
+    # checker.
+    assert conn is not None
     try:
         cursor = conn.execute(
             """
