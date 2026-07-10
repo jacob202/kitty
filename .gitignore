@@ -81,3 +81,6 @@ mcp/imagen/models/
 mcp/imagen/Icon*
 mcp/imagen/COLAB_INSTRUCTIONS.md
 mcp/imagen/test_run.py
+
+# local junk/scratch moved out of the way, never committed
+.trash/

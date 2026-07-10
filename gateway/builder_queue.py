@@ -168,6 +168,8 @@ CREATE TABLE IF NOT EXISTS pr_links (
     head_sha TEXT,
     checks_state TEXT,
     review_state TEXT,
+    merged INTEGER NOT NULL DEFAULT 0,
+    merged_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (task_id) REFERENCES tasks(id)
@@ -290,6 +292,22 @@ def _apply_schema(conn: sqlite3.Connection) -> None:
     """Create tables, indexes, and triggers if absent. Idempotent."""
     conn.executescript(_SCHEMA_SQL)
     _ensure_run_columns(conn)
+    _ensure_pr_link_columns(conn)
+
+
+def _ensure_pr_link_columns(conn: sqlite3.Connection) -> None:
+    """Add KB-S4 merge-tracking columns to databases created pre-migration."""
+    existing = {
+        str(row["name"] if isinstance(row, sqlite3.Row) else row[1])
+        for row in conn.execute("PRAGMA table_info(pr_links)").fetchall()
+    }
+    additions = {
+        "merged": "INTEGER NOT NULL DEFAULT 0",
+        "merged_at": "TIMESTAMP",
+    }
+    for column, sql_type in additions.items():
+        if column not in existing:
+            conn.execute(f"ALTER TABLE pr_links ADD COLUMN {column} {sql_type}")
 
 
 def _ensure_run_columns(conn: sqlite3.Connection) -> None:
@@ -1676,6 +1694,258 @@ def attach_pr(
         conn.close()
 
     return dict(link_row)
+
+
+# ---------------------------------------------------------------------------
+# KB-S4 — merge detection + CI/review reconciliation (advisory, operator-gated)
+# ---------------------------------------------------------------------------
+
+
+def _gh_pr_status(pr_number: int) -> dict[str, Any]:
+    """Query GitHub for a PR's merge/checks/review state via the ``gh`` CLI.
+
+    Returns ``{"merged", "url", "head_sha", "checks_state", "review_state"}``.
+    Raises ``RuntimeError`` if ``gh`` is unavailable or the PR is not found, so
+    the caller can decide whether to skip (advisory) or surface the error.
+    """
+    try:
+        proc = subprocess.run(
+            [
+                "gh",
+                "pr",
+                "view",
+                str(pr_number),
+                "--json",
+                "merged,url,headRefOid,statusCheckRollup,reviews",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+        raise RuntimeError(
+            f"gh query for PR #{pr_number} failed: {exc}"
+        ) from exc
+
+    try:
+        data = json.loads(proc.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"gh returned non-JSON for PR #{pr_number}: {proc.stdout!r}"
+        ) from exc
+
+    checks = data.get("statusCheckRollup") or []
+    checks_state = _roll_up_check_state(checks)
+    review_state = _roll_up_review_state(data.get("reviews") or [])
+    return {
+        "merged": bool(data.get("merged")),
+        "url": data.get("url"),
+        "head_sha": data.get("headRefOid"),
+        "checks_state": checks_state,
+        "review_state": review_state,
+    }
+
+
+def _roll_up_check_state(checks: list[dict[str, Any]]) -> str | None:
+    """Map a GitHub statusCheckRollup list to a single aggregate state."""
+    if not checks:
+        return None
+    if any(
+        c.get("status") == "COMPLETED" and c.get("conclusion") == "FAILURE"
+        for c in checks
+    ):
+        return "failed"
+    if any(c.get("status") in ("QUEUED", "IN_PROGRESS", "PENDING") for c in checks):
+        return "pending"
+    if all(c.get("status") == "COMPLETED" for c in checks):
+        return "passed"
+    return "unknown"
+
+
+def _roll_up_review_state(reviews: list[dict[str, Any]]) -> str | None:
+    """Map GitHub reviews to an aggregate: approved / changes_requested / pending."""
+    if not reviews:
+        return None
+    states = [r.get("state") for r in reviews]
+    if any(s == "CHANGES_REQUESTED" for s in states):
+        return "changes_requested"
+    if any(s == "APPROVED" for s in states):
+        return "approved"
+    return "pending"
+
+
+def sync_pr_status(
+    db_path: Path | None = None,
+    *,
+    pr_status: Any = None,
+) -> dict[str, Any]:
+    """Advisory CI/review reconciliation into ``pr_links``.
+
+    For every attached PR, refresh ``checks_state`` / ``review_state`` /
+    ``head_sha`` / ``pr_url`` (and ``merged``), but never mutate task state —
+    promotion happens only in ``detect_merged_prs``. ``pr_status`` is injectable
+    for testing; defaults to ``_gh_pr_status`` (network + ``gh``).
+
+    A single PR query failure is recorded under ``errors`` and skipped so one
+    bad lookup does not abort the whole reconciliation pass.
+    """
+    fetcher = pr_status or _gh_pr_status
+    init_db(db_path)
+    conn = connect(db_path)
+    try:
+        links = conn.execute(
+            "SELECT task_id, pr_number FROM pr_links"
+        ).fetchall()
+    finally:
+        conn.close()
+
+    synced: list[int] = []
+    errors: list[dict[str, str]] = []
+    for link in links:
+        pr_number = int(link["pr_number"])
+        task_id = str(link["task_id"])
+        try:
+            status = fetcher(pr_number)
+        except Exception as exc:  # advisory: skip, record, continue
+            errors.append({"pr_number": str(pr_number), "error": str(exc)})
+            continue
+        attach_pr(
+            task_id,
+            pr_number,
+            pr_url=status.get("url"),
+            head_sha=status.get("head_sha"),
+            checks_state=status.get("checks_state"),
+            review_state=status.get("review_state"),
+            db_path=db_path,
+        )
+        if status.get("merged"):
+            conn = connect(db_path)
+            try:
+                conn.execute(
+                    "UPDATE pr_links SET merged = 1, "
+                    "merged_at = strftime('%Y-%m-%d %H:%M:%f', 'now'), "
+                    "updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now') "
+                    "WHERE task_id = ? AND pr_number = ?",
+                    (task_id, pr_number),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+        synced.append(pr_number)
+
+    return {"synced": synced, "errors": errors}
+
+
+def detect_merged_prs(
+    db_path: Path | None = None,
+    *,
+    pr_merged: Any = None,
+) -> dict[str, Any]:
+    """Promote tasks whose linked PR has merged to ``done``.
+
+    Scans tasks currently in ``awaiting_review`` (or ``pr_opened``) that have a
+    ``pr_links`` row flagged merged, or whose merge status is resolved live via
+    ``pr_merged(pr_number)`` (injectable; defaults to ``_gh_pr_status``). On
+    merge, the task is driven to ``done`` through the legal state machine and
+    the ``pr_links`` row is marked merged — which unlocks dependent packets via
+    the existing KB-S1B eligibility rollup.
+
+    Merge detection is read-only against GitHub and never pushes or merges; the
+    builder remains operator-controlled per the architecture.
+    """
+    resolver = pr_merged or _gh_pr_status
+    init_db(db_path)
+    conn = connect(db_path)
+    try:
+        candidate_rows = conn.execute(
+            """
+            SELECT t.id AS task_id, t.state AS task_state, p.pr_number AS pr_number,
+                   p.merged AS already_merged
+            FROM tasks t
+            JOIN pr_links p ON p.task_id = t.id
+            WHERE t.state IN (?, ?)
+            """,
+            (PR_OPENED, AWAITING_REVIEW),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    promoted: list[str] = []
+    already_done: list[str] = []
+    errors: list[dict[str, str]] = []
+    for row in candidate_rows:
+        task_id = str(row["task_id"])
+        pr_number = int(row["pr_number"])
+        try:
+            if row["already_merged"]:
+                is_merged = True
+            else:
+                status = resolver(pr_number)
+                is_merged = bool(status.get("merged"))
+        except Exception as exc:
+            errors.append({"task_id": task_id, "error": str(exc)})
+            continue
+
+        if not is_merged:
+            continue
+
+        try:
+            _mark_pr_merged(task_id, pr_number, db_path)
+            _promote_merged_task(task_id, db_path)
+        except Exception as exc:
+            errors.append({"task_id": task_id, "error": str(exc)})
+            continue
+        promoted.append(task_id)
+
+    return {
+        "promoted": promoted,
+        # kept key for CLI compat; now lists none by design (promotion always
+        # attempted when merged). Reserved for future "already done" reporting.
+        "already_merged": already_done,
+        "errors": errors,
+    }
+
+
+def _mark_pr_merged(
+    task_id: str, pr_number: int, db_path: Path | None
+) -> None:
+    """Set pr_links.merged=1 once GitHub confirms merge (idempotent)."""
+    conn = connect(db_path)
+    try:
+        conn.execute(
+            """
+            UPDATE pr_links
+            SET merged = 1,
+                merged_at = COALESCE(
+                    merged_at, strftime('%Y-%m-%d %H:%M:%f', 'now')
+                ),
+                updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
+            WHERE task_id = ? AND pr_number = ?
+            """,
+            (task_id, pr_number),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _promote_merged_task(task_id: str, db_path: Path | None) -> None:
+    """Drive a merged PR's task to ``done`` through the legal state machine."""
+    task = get_task(task_id, db_path=db_path)
+    if task is None:
+        raise TaskNotFoundError(f"task not found: {task_id}")
+    state = task["state"]
+    if state == DONE:
+        return
+    if state == AWAITING_REVIEW:
+        transition_task(task_id, DONE, db_path=db_path)
+    elif state == PR_OPENED:
+        transition_task(task_id, AWAITING_REVIEW, db_path=db_path)
+        transition_task(task_id, DONE, db_path=db_path)
+    else:
+        raise IllegalTransitionError(
+            f"task {task_id} in state {state!r} cannot be merged-promoted"
+        )
 
 
 def get_pr_links(

@@ -2704,3 +2704,160 @@ class TestRunRecords:
 
         with pytest.raises(bq.DataCorruptionError, match="corrupted allowed_paths"):
             bq.get_task(task["id"], db_path=db_path)
+
+    def test_recover_skips_run_with_corrupt_created_at(self, db_path: Path):
+        """A malformed created_at must be bucketed, not abort the whole scan."""
+        clean = bq.create_task("clean", db_path=db_path)
+        clean_claim = self._claim(clean, db_path)
+        clean_run = bq.create_run(
+            clean["id"], ["true"],
+            lease_token=clean_claim["lease_token"],
+            claim_version=clean_claim["claim_version"],
+            db_path=db_path,
+        )
+        bq.update_run(
+            clean_run["id"], log_path="/some/path", db_path=db_path
+        )
+        with bq.connect(db_path) as conn:
+            conn.execute(
+                "UPDATE runs SET created_at = NULL WHERE id = ?",
+                (clean_run["id"],),
+            )
+            conn.commit()
+
+        # A second, well-formed run proves the scan still completes.
+        good = bq.create_task("good", db_path=db_path)
+        good_claim = self._claim(good, db_path)
+        good_run = bq.create_run(
+            good["id"], ["true"],
+            lease_token=good_claim["lease_token"],
+            claim_version=good_claim["claim_version"],
+            db_path=db_path,
+        )
+        with bq.connect(db_path) as conn:
+            conn.execute(
+                "UPDATE runs SET created_at = "
+                "strftime('%Y-%m-%d %H:%M:%f', 'now', '-60 seconds') "
+                "WHERE id = ?",
+                (good_run["id"],),
+            )
+            conn.commit()
+
+        result = bq.recover_interrupted_runs(
+            db_path=db_path, starting_grace_seconds=30
+        )
+        # Corrupt row is skipped; clean row is interrupted. No raise.
+        reasons = {u["run_id"]: u["reason"] for u in result["unverified_runs"]}
+        assert reasons.get(clean_run["id"]) == "invalid_created_at"
+        assert result["runs_interrupted"] == 1
+        assert result["run_ids"] == [good_run["id"]]
+
+    def test_recover_skips_run_with_invalid_pid(self, db_path: Path):
+        """A non-numeric pid must be bucketed, not abort the whole scan."""
+        task = bq.create_task("bad pid", db_path=db_path)
+        claimed = self._claim(task, db_path)
+        run = bq.create_run(
+            task["id"], ["true"],
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
+        bq.update_run(run["id"], state=bq.RUN_RUNNING, pid="not-a-number",
+                      db_path=db_path)
+
+        result = bq.recover_interrupted_runs(db_path=db_path)
+        reasons = {u["run_id"]: u["reason"] for u in result["unverified_runs"]}
+        assert reasons.get(run["id"]) == "invalid_pid"
+        assert result["runs_interrupted"] == 0
+
+
+class TestMergeDetection:
+    """KB-S4 — advisory sync + operator-gated merge promotion."""
+
+    def _task_with_pr(self, db_path: Path, *, state: str = bq.AWAITING_REVIEW) -> dict:
+        task = bq.create_task("pr task", db_path=db_path)
+        claimed = bq.claim_task(task["id"], "worker", db_path=db_path)
+        bq.worker_transition_task(
+            task["id"],
+            bq.RUNNING,
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
+        # Drive to pr_opened then awaiting_review via operator transitions where legal.
+        bq.transition_task(task["id"], bq.PR_OPENED, db_path=db_path)
+        if state == bq.AWAITING_REVIEW:
+            bq.transition_task(task["id"], bq.AWAITING_REVIEW, db_path=db_path)
+        bq.attach_pr(task["id"], 42, pr_url="https://example.test/42", db_path=db_path)
+        return bq.get_task(task["id"], db_path=db_path)
+
+    def test_sync_pr_status_updates_checks_without_task_mutation(self, db_path: Path):
+        task = self._task_with_pr(db_path)
+        before = task["state"]
+
+        def fake_status(pr_number: int) -> dict:
+            assert pr_number == 42
+            return {
+                "merged": False,
+                "url": "https://example.test/42",
+                "head_sha": "abc123",
+                "checks_state": "passed",
+                "review_state": "approved",
+            }
+
+        result = bq.sync_pr_status(db_path=db_path, pr_status=fake_status)
+        assert result["synced"] == [42]
+        assert result["errors"] == []
+        assert bq.get_task(task["id"], db_path=db_path)["state"] == before
+        links = bq.get_pr_links(task["id"], db_path=db_path)
+        assert links[0]["checks_state"] == "passed"
+        assert links[0]["review_state"] == "approved"
+        assert links[0]["head_sha"] == "abc123"
+
+    def test_detect_merged_prs_promotes_awaiting_review(self, db_path: Path):
+        task = self._task_with_pr(db_path, state=bq.AWAITING_REVIEW)
+
+        def fake_merged(pr_number: int) -> dict:
+            return {"merged": True, "url": "u", "head_sha": "h",
+                    "checks_state": "passed", "review_state": "approved"}
+
+        result = bq.detect_merged_prs(db_path=db_path, pr_merged=fake_merged)
+        assert result["promoted"] == [task["id"]]
+        assert result["errors"] == []
+        assert bq.get_task(task["id"], db_path=db_path)["state"] == bq.DONE
+        assert bq.get_pr_links(task["id"], db_path=db_path)[0]["merged"] == 1
+
+    def test_detect_merged_prs_promotes_even_if_link_already_flagged(
+        self, db_path: Path
+    ):
+        """A stuck awaiting_review with merged=1 must still be driven to done."""
+        task = self._task_with_pr(db_path, state=bq.AWAITING_REVIEW)
+        bq._mark_pr_merged(task["id"], 42, db_path)
+
+        result = bq.detect_merged_prs(
+            db_path=db_path,
+            pr_merged=lambda _n: (_ for _ in ()).throw(RuntimeError("unused")),
+        )
+        assert result["promoted"] == [task["id"]]
+        assert bq.get_task(task["id"], db_path=db_path)["state"] == bq.DONE
+
+    def test_sync_pr_status_records_query_errors_and_continues(self, db_path: Path):
+        t1 = self._task_with_pr(db_path)
+        t2 = bq.create_task("second", db_path=db_path)
+        bq.attach_pr(t2["id"], 99, db_path=db_path)
+
+        def flaky(pr_number: int) -> dict:
+            if pr_number == 42:
+                raise RuntimeError("gh flopped")
+            return {
+                "merged": False,
+                "url": "u",
+                "head_sha": "h",
+                "checks_state": "pending",
+                "review_state": None,
+            }
+
+        result = bq.sync_pr_status(db_path=db_path, pr_status=flaky)
+        assert 99 in result["synced"]
+        assert any(e["pr_number"] == "42" for e in result["errors"])
+        assert bq.get_task(t1["id"], db_path=db_path)["state"] == bq.AWAITING_REVIEW
