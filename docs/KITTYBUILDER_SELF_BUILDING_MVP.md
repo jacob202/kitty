@@ -70,14 +70,15 @@ materializes one queue task per packet with a stable mapping, dry-run, and
 - CLI: `initiative run-packet <id> <packet> --worker-command '[...]'
   [--review-command '[...]']`. Shadow mode throughout — no push/PR.
 
-### KB-S4 — Push, PR, CI reconciliation, merge detection
+### KB-S4 — Push, PR, CI reconciliation, merge detection ✅
 
 - Safe branch push from the task worktree (existing branch naming,
   `kittybuilder/<task_id>`), PR create-or-update via `gh` with the final
-  report as body.
+  report as body — `queue publish` / `gateway/builder_publish.py`
+  (operator-gated; never force-push; never merge; workers stay credential-stripped).
 - CI + review state sync into the existing advisory `pr_links` table
-  (`attach-pr` machinery); merge detection promotes the task
-  `awaiting_review → done`, which unlocks dependent packets.
+  (`sync-pr` / `attach-pr`); merge detection (`reconcile-merges`) promotes the
+  task `awaiting_review → done`, which unlocks dependent packets.
 - Merge remains operator-controlled; the builder never merges.
 
 ### KB-S5 — Continuation loop, budgets, pause/resume, restart reconciliation

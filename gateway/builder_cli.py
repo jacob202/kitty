@@ -642,6 +642,45 @@ def _cmd_queue_reconcile_merges(args: argparse.Namespace) -> int:
     return 0 if not result["errors"] else 1
 
 
+def _cmd_queue_publish(args: argparse.Namespace) -> int:
+    """Operator-gated push + PR create/update (KB-S4). Never merges."""
+    from gateway.builder_publish import PublishError, publish_task
+    from gateway.builder_queue import TaskNotFoundError
+
+    try:
+        result = publish_task(
+            args.id,
+            remote=args.remote,
+            base=args.base,
+            title=args.title,
+            dry_run=args.dry_run,
+        )
+    except (PublishError, TaskNotFoundError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(json.dumps(result, indent=2, default=str))
+        return 0
+
+    if result["dry_run"]:
+        print(f"dry-run publish for {result['task_id']} branch {result['branch']}")
+        print(f"  push: {' '.join(result['push']['command'])}")
+        print(f"  pr:   {result['pr']['action']} #{result['pr'].get('pr_number')}")
+        return 0
+
+    pr = result["pr"]
+    print(
+        f"Published {result['task_id']} → {result['branch']} "
+        f"(PR #{pr.get('pr_number')} {pr.get('action')})"
+    )
+    if pr.get("pr_url"):
+        print(f"  url: {pr['pr_url']}")
+    for step in result.get("transitions") or []:
+        print(f"  transition: {step}")
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Queue — recover (Phase 1B)
 # ---------------------------------------------------------------------------
@@ -1271,6 +1310,7 @@ _dispatch: dict[str, Any] = {
     "queue-attach-pr": _cmd_queue_attach_pr,
     "queue-sync-pr": _cmd_queue_sync_pr,
     "queue-reconcile-merges": _cmd_queue_reconcile_merges,
+    "queue-publish": _cmd_queue_publish,
     "queue-recover": _cmd_queue_recover,
     "queue-operator-cancel": _cmd_queue_operator_cancel,
     "queue-run": _cmd_queue_run,
@@ -1509,6 +1549,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     reconcile_p.add_argument("--json", action="store_true", help="output JSON")
 
+    # queue publish (KB-S4 push + PR)
+    pub_p = queue_sub.add_parser(
+        "publish",
+        help="operator-gated: push task branch and create/update PR (never merges)",
+    )
+    pub_p.add_argument("id", help="task ID")
+    pub_p.add_argument("--remote", default="origin", help="git remote (default: origin)")
+    pub_p.add_argument("--base", default="main", help="PR base branch (default: main)")
+    pub_p.add_argument("--title", help="PR title (default: kittybuilder: <task title>)")
+    pub_p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print planned git/gh commands without executing",
+    )
+    pub_p.add_argument("--json", action="store_true", help="output JSON")
+
     # queue recover (Phase 1B)
     recover_p = queue_sub.add_parser(
         "recover",
@@ -1729,6 +1785,9 @@ _MUTATING_QUEUE_COMMANDS = frozenset(
         "archive",
         "attach-report",
         "attach-pr",
+        "sync-pr",
+        "reconcile-merges",
+        "publish",
         "recover",
         "operator-cancel",
         "run",
