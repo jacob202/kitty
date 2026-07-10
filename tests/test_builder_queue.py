@@ -119,6 +119,7 @@ class TestSchema:
             names = {r[0] for r in rows}
             assert "idx_tasks_claim" in names
             assert "idx_tasks_bridge_external" in names
+            assert "idx_runs_one_active_per_task" in names
         finally:
             conn.close()
 
@@ -2067,36 +2068,102 @@ class TestRenewLease:
 
 
 class TestRunRecords:
+    @staticmethod
+    def _claim(task: dict, db_path: Path) -> dict:
+        return bq.claim_task(task["id"], "runner", db_path=db_path)
+
+    def test_create_run_requires_current_claim(self, db_path: Path):
+        task = bq.create_task("must be claimed", db_path=db_path)
+
+        with pytest.raises(bq.LeaseConflictError, match="claimed task"):
+            bq.create_run(
+                task["id"],
+                ["true"],
+                lease_token="not-a-current-token",
+                claim_version=0,
+                db_path=db_path,
+            )
+
     def test_create_and_get_run(self, db_path: Path):
         task = bq.create_task("run me", db_path=db_path)
+        claimed = self._claim(task, db_path)
         run = bq.create_run(
             task["id"],
             ["echo", "hi"],
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
             worker="w1",
             model="m",
             provider="p",
             branch="kittybuilder/x",
+            start_sha="abc123",
             db_path=db_path,
         )
         assert run["state"] == bq.RUN_STARTING
         assert run["command"] == ["echo", "hi"]
+        assert run["claim_version"] == claimed["claim_version"]
+        assert run["start_sha"] == "abc123"
         fetched = bq.get_run(run["id"], db_path=db_path)
         assert fetched is not None and fetched["worker"] == "w1"
 
     def test_create_run_unknown_task(self, db_path: Path):
         with pytest.raises(bq.TaskNotFoundError):
-            bq.create_run("kb_nope_0000", ["true"], db_path=db_path)
+            bq.create_run(
+                "kb_nope_0000",
+                ["true"],
+                lease_token="missing",
+                claim_version=1,
+                db_path=db_path,
+            )
 
     def test_empty_command_rejected(self, db_path: Path):
         task = bq.create_task("no cmd", db_path=db_path)
         with pytest.raises(ValueError):
-            bq.create_run(task["id"], [], db_path=db_path)
+            bq.create_run(
+                task["id"],
+                [],
+                lease_token="unused",
+                claim_version=0,
+                db_path=db_path,
+            )
+
+    def test_second_active_run_for_same_task_is_rejected(self, db_path: Path):
+        task = bq.create_task("one active attempt", db_path=db_path)
+        claimed = self._claim(task, db_path)
+        fencing = {
+            "lease_token": claimed["lease_token"],
+            "claim_version": claimed["claim_version"],
+        }
+        first = bq.create_run(task["id"], ["first"], **fencing, db_path=db_path)
+
+        with pytest.raises(bq.ActiveRunConflictError, match="active run"):
+            bq.create_run(task["id"], ["second"], **fencing, db_path=db_path)
+
+        bq.update_run(first["id"], state=bq.RUN_EXITED, db_path=db_path)
+        second = bq.create_run(
+            task["id"], ["second"], **fencing, db_path=db_path
+        )
+        assert second["state"] == bq.RUN_STARTING
 
     def test_list_runs_filters(self, db_path: Path):
         t1 = bq.create_task("t1", db_path=db_path)
         t2 = bq.create_task("t2", db_path=db_path)
-        r1 = bq.create_run(t1["id"], ["a"], db_path=db_path)
-        bq.create_run(t2["id"], ["b"], db_path=db_path)
+        c1 = self._claim(t1, db_path)
+        c2 = self._claim(t2, db_path)
+        r1 = bq.create_run(
+            t1["id"],
+            ["a"],
+            lease_token=c1["lease_token"],
+            claim_version=c1["claim_version"],
+            db_path=db_path,
+        )
+        bq.create_run(
+            t2["id"],
+            ["b"],
+            lease_token=c2["lease_token"],
+            claim_version=c2["claim_version"],
+            db_path=db_path,
+        )
         bq.update_run(r1["id"], state=bq.RUN_EXITED, db_path=db_path)
         assert len(bq.list_runs(db_path=db_path)) == 2
         assert len(bq.list_runs(task_id=t1["id"], db_path=db_path)) == 1
@@ -2104,7 +2171,14 @@ class TestRunRecords:
 
     def test_update_run_expected_state_guard(self, db_path: Path):
         task = bq.create_task("guard", db_path=db_path)
-        run = bq.create_run(task["id"], ["x"], db_path=db_path)
+        claimed = self._claim(task, db_path)
+        run = bq.create_run(
+            task["id"],
+            ["x"],
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
         bq.update_run(run["id"], state=bq.RUN_CANCELLED, db_path=db_path)
         with pytest.raises(ValueError):
             bq.update_run(
@@ -2114,6 +2188,73 @@ class TestRunRecords:
                 db_path=db_path,
             )
 
+    def test_terminal_run_cannot_be_resurrected(self, db_path: Path):
+        task = bq.create_task("terminal means terminal", db_path=db_path)
+        claimed = self._claim(task, db_path)
+        run = bq.create_run(
+            task["id"],
+            ["true"],
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
+        bq.update_run(run["id"], state=bq.RUN_EXITED, db_path=db_path)
+
+        with pytest.raises(bq.RunStateConflictError, match="exited -> running"):
+            bq.update_run(run["id"], state=bq.RUN_RUNNING, db_path=db_path)
+
+    def test_finalize_run_preserves_worker_advanced_task_state(self, db_path: Path):
+        task = bq.create_task("worker handles its own stop state", db_path=db_path)
+        claimed = self._claim(task, db_path)
+        lease_token = claimed["lease_token"]
+        claim_version = claimed["claim_version"]
+        run = bq.create_run(
+            task["id"],
+            ["true"],
+            lease_token=lease_token,
+            claim_version=claim_version,
+            db_path=db_path,
+        )
+        bq.worker_transition_task(
+            task["id"],
+            bq.RUNNING,
+            lease_token,
+            claim_version,
+            db_path=db_path,
+        )
+        bq.update_run(run["id"], state=bq.RUN_RUNNING, db_path=db_path)
+        bq.worker_transition_task(
+            task["id"],
+            bq.BLOCKED,
+            lease_token,
+            claim_version,
+            payload={"reason": "worker_requested_review"},
+            db_path=db_path,
+        )
+
+        final = bq.finalize_run(
+            run["id"],
+            bq.RUN_EXITED,
+            exit_code=0,
+            report={"summary": "worker completed its own handoff"},
+            lease_token=lease_token,
+            claim_version=claim_version,
+            block_reason="shadow_run_complete",
+            db_path=db_path,
+        )
+
+        assert final["state"] == bq.RUN_EXITED
+        refreshed = bq.get_task(task["id"], db_path=db_path)
+        assert refreshed is not None
+        assert refreshed["state"] == bq.BLOCKED
+        assert refreshed["blocked_reason"] == "worker_requested_review"
+        notes = [
+            event
+            for event in bq.list_events(task["id"], db_path=db_path)
+            if event["type"] == "runner_note"
+        ]
+        assert notes[-1]["payload"]["task_state"] == bq.BLOCKED
+
     def test_update_unknown_run(self, db_path: Path):
         with pytest.raises(bq.RunNotFoundError):
             bq.update_run("run_nope_0000", state=bq.RUN_EXITED, db_path=db_path)
@@ -2122,7 +2263,14 @@ class TestRunRecords:
         import subprocess as sp
 
         task = bq.create_task("crashy", db_path=db_path)
-        run = bq.create_run(task["id"], ["true"], db_path=db_path)
+        claimed = self._claim(task, db_path)
+        run = bq.create_run(
+            task["id"],
+            ["true"],
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
         proc = sp.Popen(["true"])
         proc.wait()
         bq.update_run(
@@ -2135,13 +2283,83 @@ class TestRunRecords:
         events = bq.list_events(task["id"], db_path=db_path)
         assert any(e["type"] == "run_interrupted" for e in events)
 
+    def test_recovery_does_not_interrupt_fresh_starting_run(self, db_path: Path):
+        task = bq.create_task("launcher is still starting", db_path=db_path)
+        claimed = self._claim(task, db_path)
+        run = bq.create_run(
+            task["id"],
+            ["true"],
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
+
+        result = bq.recover_interrupted_runs(
+            db_path=db_path,
+            starting_grace_seconds=30,
+        )
+
+        assert result["runs_interrupted"] == 0
+        refreshed = bq.get_run(run["id"], db_path=db_path)
+        assert refreshed is not None
+        assert refreshed["state"] == bq.RUN_STARTING
+
     def test_recover_interrupted_skips_live_pid(self, db_path: Path):
         import os as _os
 
         task = bq.create_task("alive", db_path=db_path)
-        run = bq.create_run(task["id"], ["true"], db_path=db_path)
+        claimed = self._claim(task, db_path)
+        run = bq.create_run(
+            task["id"],
+            ["true"],
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
         bq.update_run(
             run["id"], state=bq.RUN_RUNNING, pid=_os.getpid(), db_path=db_path
         )
         result = bq.recover_interrupted_runs(db_path=db_path)
         assert result["runs_interrupted"] == 0
+        assert result["runs_unverified"] == 1
+
+    def test_recovery_marks_reused_live_pid_interrupted(
+        self, db_path: Path, monkeypatch
+    ):
+        import os as _os
+
+        task = bq.create_task("pid was reused", db_path=db_path)
+        claimed = self._claim(task, db_path)
+        run = bq.create_run(
+            task["id"],
+            ["true"],
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
+        bq.update_run(
+            run["id"],
+            state=bq.RUN_RUNNING,
+            pid=_os.getpid(),
+            process_identity="original process identity",
+            db_path=db_path,
+        )
+        monkeypatch.setattr(
+            bq,
+            "capture_process_identity",
+            lambda _pid: "replacement process identity",
+        )
+
+        result = bq.recover_interrupted_runs(db_path=db_path)
+
+        assert result["run_ids"] == [run["id"]]
+        refreshed = bq.get_run(run["id"], db_path=db_path)
+        assert refreshed is not None
+        assert refreshed["state"] == bq.RUN_INTERRUPTED
+        event = [
+            event
+            for event in bq.list_events(task["id"], db_path=db_path)
+            if event["type"] == "run_interrupted"
+        ][-1]
+        assert event["run_id"] == run["id"]
+        assert event["payload"]["reason"] == "process_identity_mismatch"

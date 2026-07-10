@@ -629,6 +629,19 @@ def _cmd_queue_recover(args: argparse.Namespace) -> int:
         print(
             f"Marked {runs_result['runs_interrupted']} dead run(s) as interrupted"
         )
+        deferred_ids = runs_result.get("starting_run_ids", [])
+        if deferred_ids:
+            print(
+                "Deferred fresh starting run(s) until the recovery grace "
+                f"window expires: {', '.join(deferred_ids)}"
+            )
+        unverified_runs = runs_result.get("unverified_runs", [])
+        for run in unverified_runs:
+            print(
+                "WARNING: left active run "
+                f"{run['run_id']} unchanged because its process could not be "
+                f"verified ({run['reason']})"
+            )
     return 0
 
 
@@ -764,11 +777,17 @@ def _cmd_queue_cancel_run(args: argparse.Namespace) -> int:
 
     if args.json:
         print(json.dumps(run, indent=2, default=str))
+    elif run.get("signal_sent"):
+        print(
+            f"Cancellation requested for run {args.run_id}; signal sent to "
+            f"pid {run.get('pid')}. The runner records the outcome within "
+            "one heartbeat."
+        )
     else:
         print(
-            f"Cancellation requested for run {args.run_id} "
-            f"(signal sent to pid {run.get('pid')}). The runner records the "
-            "outcome within one heartbeat."
+            f"Cancellation recorded for run {args.run_id}; signal not sent "
+            f"({run.get('signal_status', 'unknown_reason')}). The runner will "
+            "honor the durable flag if it is still active."
         )
     return 0
 

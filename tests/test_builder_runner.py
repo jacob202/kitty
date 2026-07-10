@@ -101,6 +101,41 @@ class TestEnsureWorktree:
 
 
 class TestRunWorker:
+    @pytest.mark.parametrize(
+        ("kwargs", "message"),
+        [
+            ({"timeout_seconds": 0}, "timeout_seconds must be positive"),
+            ({"lease_seconds": 0}, "lease_seconds must be positive"),
+            ({"heartbeat_seconds": 0}, "heartbeat_seconds must be positive"),
+            (
+                {"lease_seconds": 5, "heartbeat_seconds": 5},
+                "heartbeat_seconds must be shorter than lease_seconds",
+            ),
+        ],
+    )
+    def test_invalid_timing_is_rejected_before_claim(
+        self,
+        repo: Path,
+        db_path: Path,
+        kwargs: dict,
+        message: str,
+    ):
+        task = _queued_task(db_path)
+
+        with pytest.raises(ValueError, match=message):
+            br.run_worker(
+                task["id"],
+                ["true"],
+                repo_root=repo,
+                db_path=db_path,
+                **kwargs,
+            )
+
+        refreshed = bq.get_task(task["id"], db_path=db_path)
+        assert refreshed is not None
+        assert refreshed["state"] == bq.QUEUED
+        assert bq.list_runs(task_id=task["id"], db_path=db_path) == []
+
     def test_successful_run_blocks_task_with_report(self, repo: Path, db_path: Path):
         task = _queued_task(db_path)
         run = br.run_worker(
@@ -116,9 +151,11 @@ class TestRunWorker:
         assert run["state"] == bq.RUN_EXITED
         assert run["exit_code"] == 0
         assert run["pid"]
+        assert run["final_report"]["outcome"] == bq.RUN_EXITED
 
         refreshed = bq.get_task(task["id"], db_path=db_path)
         assert refreshed["state"] == "blocked"
+        assert refreshed["blocked_reason"] == "shadow_run_complete"
         report = json.loads(refreshed["final_report_json"])
         assert report["outcome"] == bq.RUN_EXITED
         assert report["run_id"] == run["id"]
@@ -126,12 +163,14 @@ class TestRunWorker:
         assert Path(run["worktree_path"]).exists()
         assert (Path(run["worktree_path"]) / "result.txt").exists()
         assert "did work" in Path(run["log_path"]).read_text()
-        # Brief was written for the worker.
-        assert (Path(run["worktree_path"]) / ".kittybuilder" / "brief.md").exists()
+        # Runner control artifacts stay outside the git worktree.
+        assert (Path(run["log_path"]).parent / "brief.md").exists()
 
-        events = [e["type"] for e in bq.list_events(task["id"], db_path=db_path)]
-        assert "run_started" in events
-        assert "run_exited" in events
+        events = bq.list_events(task["id"], db_path=db_path)
+        run_events = [e for e in events if e["type"].startswith("run_")]
+        assert "run_started" in [event["type"] for event in run_events]
+        assert "run_exited" in [event["type"] for event in run_events]
+        assert all(event["run_id"] == run["id"] for event in run_events)
 
     def test_failed_run_blocks_with_worker_failed(self, repo: Path, db_path: Path):
         task = _queued_task(db_path)
@@ -150,6 +189,27 @@ class TestRunWorker:
         events = bq.list_events(task["id"], db_path=db_path)
         blocked = [e for e in events if e["type"] == "blocked"][-1]
         assert blocked["payload"]["reason"] == "worker_failed"
+
+    def test_out_of_scope_change_is_recorded_as_scope_violation(
+        self, repo: Path, db_path: Path
+    ):
+        task = _queued_task(db_path, allowed_paths=["gateway/"])
+
+        run = br.run_worker(
+            task["id"],
+            ["sh", "-c", "echo nope > outside.txt"],
+            timeout_seconds=30,
+            heartbeat_seconds=1,
+            repo_root=repo,
+            db_path=db_path,
+        )
+
+        assert run["state"] == bq.RUN_SCOPE_VIOLATION
+        assert run["final_report"]["scope_violations"] == ["outside.txt"]
+        refreshed = bq.get_task(task["id"], db_path=db_path)
+        assert refreshed is not None
+        assert refreshed["state"] == bq.BLOCKED
+        assert refreshed["blocked_reason"] == "scope_violation"
 
     def test_timeout_terminates_and_blocks(self, repo: Path, db_path: Path):
         task = _queued_task(db_path)
@@ -193,7 +253,16 @@ class TestRunWorker:
         task = _queued_task(db_path)
         run = br.run_worker(
             task["id"],
-            ["sh", "-c", 'echo "gh=[${GITHUB_TOKEN:-unset}] ght=[${GH_TOKEN:-unset}]"'],
+            [
+                "sh",
+                "-c",
+                """
+                echo "gh=[${GITHUB_TOKEN:-unset}] ght=[${GH_TOKEN:-unset}]"
+                echo "gh_config=$GH_CONFIG_DIR"
+                echo "git_global=$GIT_CONFIG_GLOBAL git_system=$GIT_CONFIG_SYSTEM"
+                echo "git_interactive=$(git config --get credential.interactive)"
+                """,
+            ],
             timeout_seconds=30,
             heartbeat_seconds=1,
             repo_root=repo,
@@ -202,6 +271,9 @@ class TestRunWorker:
         log = Path(run["log_path"]).read_text()
         assert "gh=[unset]" in log
         assert "ght=[unset]" in log
+        assert f"gh_config={Path(run['log_path']).parent / 'gh-config'}" in log
+        assert f"git_global={Path('/dev/null')} git_system={Path('/dev/null')}" in log
+        assert "git_interactive=never" in log
 
     def test_claim_conflict_raises(self, repo: Path, db_path: Path):
         task = _queued_task(db_path)
@@ -210,6 +282,27 @@ class TestRunWorker:
             br.run_worker(
                 task["id"], ["true"], repo_root=repo, db_path=db_path
             )
+
+    def test_worker_launch_failure_is_durable_and_explicit(
+        self, repo: Path, db_path: Path
+    ):
+        task = _queued_task(db_path)
+
+        with pytest.raises(br.RunnerError, match="worker launch failed"):
+            br.run_worker(
+                task["id"],
+                ["/definitely/not/a/real/worker"],
+                repo_root=repo,
+                db_path=db_path,
+            )
+
+        run = bq.list_runs(task_id=task["id"], db_path=db_path)[0]
+        assert run["state"] == bq.RUN_FAILED
+        assert "No such file" in run["final_report"]["error"]
+        refreshed = bq.get_task(task["id"], db_path=db_path)
+        assert refreshed is not None
+        assert refreshed["state"] == bq.BLOCKED
+        assert refreshed["blocked_reason"] == "worker_launch_failed"
 
     def test_worktree_failure_releases_claim(self, repo: Path, db_path: Path):
         task = _queued_task(db_path)
@@ -221,6 +314,17 @@ class TestRunWorker:
             br.run_worker(task["id"], ["true"], repo_root=repo, db_path=db_path)
         refreshed = bq.get_task(task["id"], db_path=db_path)
         assert refreshed["state"] == "queued"
+
+    def test_task_repo_mismatch_releases_claim(self, repo: Path, db_path: Path):
+        task = _queued_task(db_path, repo_path=str(repo.parent / "other-repo"))
+
+        with pytest.raises(br.RunnerError, match="targets repo"):
+            br.run_worker(task["id"], ["true"], repo_root=repo, db_path=db_path)
+
+        refreshed = bq.get_task(task["id"], db_path=db_path)
+        assert refreshed is not None
+        assert refreshed["state"] == bq.QUEUED
+        assert bq.list_runs(task_id=task["id"], db_path=db_path) == []
 
     def test_heartbeat_renews_lease_during_run(self, repo: Path, db_path: Path):
         task = _queued_task(db_path)
@@ -239,6 +343,34 @@ class TestRunWorker:
         refreshed = bq.get_task(task["id"], db_path=db_path)
         assert refreshed["state"] == "blocked"
 
+    def test_noop_run_leaves_worktree_clean_and_removable(
+        self, repo: Path, db_path: Path
+    ):
+        task = _queued_task(db_path)
+        run = br.run_worker(
+            task["id"],
+            ["true"],
+            timeout_seconds=30,
+            heartbeat_seconds=1,
+            repo_root=repo,
+            db_path=db_path,
+        )
+
+        worktree = Path(run["worktree_path"])
+        status = subprocess.run(
+            ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+            cwd=worktree,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert status.stdout == ""
+        assert not (worktree / ".kittybuilder" / "brief.md").exists()
+
+        removed = br.remove_worktree(task["id"], repo_root=repo)
+        assert removed == worktree
+        assert not worktree.exists()
+
 
 # ---------------------------------------------------------------------------
 # Cancellation
@@ -246,6 +378,53 @@ class TestRunWorker:
 
 
 class TestRequestCancel:
+    def test_cancel_requested_while_starting_is_not_overwritten(
+        self, repo: Path, db_path: Path, monkeypatch
+    ):
+        import threading
+
+        task = _queued_task(db_path)
+        entered_popen = threading.Event()
+        allow_popen = threading.Event()
+        real_popen = subprocess.Popen
+        result: dict = {}
+
+        def delayed_popen(*args, **kwargs):
+            if kwargs.get("start_new_session"):
+                entered_popen.set()
+                assert allow_popen.wait(timeout=10)
+            return real_popen(*args, **kwargs)
+
+        monkeypatch.setattr(br.subprocess, "Popen", delayed_popen)
+
+        def _run():
+            try:
+                result["run"] = br.run_worker(
+                    task["id"],
+                    ["sleep", "2"],
+                    timeout_seconds=30,
+                    heartbeat_seconds=1,
+                    repo_root=repo,
+                    db_path=db_path,
+                )
+            except Exception as exc:  # assertion below requires no hidden failure
+                result["error"] = exc
+
+        thread = threading.Thread(target=_run)
+        thread.start()
+        assert entered_popen.wait(timeout=10)
+
+        run = bq.list_runs(task_id=task["id"], db_path=db_path)[0]
+        assert run["state"] == bq.RUN_STARTING
+        cancelled = br.request_cancel(run["id"], db_path=db_path)
+        assert cancelled["state"] == bq.RUN_CANCEL_REQUESTED
+
+        allow_popen.set()
+        thread.join(timeout=20)
+        assert not thread.is_alive()
+        assert "error" not in result
+        assert result["run"]["state"] == bq.RUN_CANCELLED
+
     def test_cancel_flag_and_dead_process_detected(self, repo: Path, db_path: Path):
         import threading
 
@@ -284,12 +463,102 @@ class TestRequestCancel:
         blocked = [e for e in events if e["type"] == "blocked"][-1]
         assert blocked["payload"]["reason"] == "run_cancelled"
 
+    def test_lease_loss_has_priority_over_concurrent_cancel(
+        self, repo: Path, db_path: Path
+    ):
+        import threading
+
+        task = _queued_task(db_path)
+        result: dict = {}
+
+        def _run():
+            result["run"] = br.run_worker(
+                task["id"],
+                ["sleep", "60"],
+                timeout_seconds=120,
+                heartbeat_seconds=5,
+                repo_root=repo,
+                db_path=db_path,
+            )
+
+        thread = threading.Thread(target=_run)
+        thread.start()
+        run_row = None
+        for _ in range(100):
+            runs = bq.list_runs(task_id=task["id"], db_path=db_path)
+            if runs and runs[0]["state"] == bq.RUN_RUNNING and runs[0]["pid"]:
+                run_row = runs[0]
+                break
+            time.sleep(0.1)
+        assert run_row is not None, "run never reached running state"
+
+        # Deterministically simulate an operator takeover before cancellation.
+        with bq.connect(db_path) as conn:
+            conn.execute(
+                """
+                UPDATE tasks
+                SET lease_token = 'replacement-token',
+                    claim_version = claim_version + 1,
+                    lease_expires_at = strftime('%Y-%m-%d %H:%M:%f', 'now', '+60 seconds')
+                WHERE id = ?
+                """,
+                (task["id"],),
+            )
+            conn.commit()
+
+        br.request_cancel(run_row["id"], db_path=db_path)
+        thread.join(timeout=30)
+        assert not thread.is_alive()
+        assert result["run"]["state"] == bq.RUN_LEASE_LOST
+        events = bq.list_events(task["id"], db_path=db_path)
+        assert any(event["type"] == "run_lease_lost" for event in events)
+
     def test_cancel_inactive_run_rejected(self, db_path: Path):
         task = _queued_task(db_path)
-        run = bq.create_run(task["id"], ["true"], db_path=db_path)
+        claimed = bq.claim_task(task["id"], "runner", db_path=db_path)
+        run = bq.create_run(
+            task["id"],
+            ["true"],
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
         bq.update_run(run["id"], state=bq.RUN_EXITED, db_path=db_path)
         with pytest.raises(ValueError, match="not active"):
             br.request_cancel(run["id"], db_path=db_path)
+
+    def test_cancel_refuses_to_signal_reused_pid(
+        self, db_path: Path, monkeypatch
+    ):
+        import os
+
+        task = _queued_task(db_path)
+        claimed = bq.claim_task(task["id"], "runner", db_path=db_path)
+        run = bq.create_run(
+            task["id"],
+            ["sleep", "60"],
+            lease_token=claimed["lease_token"],
+            claim_version=claimed["claim_version"],
+            db_path=db_path,
+        )
+        bq.update_run(
+            run["id"],
+            state=bq.RUN_RUNNING,
+            pid=os.getpid(),
+            process_identity="a different process started here",
+            db_path=db_path,
+        )
+        signals: list[tuple[int, int]] = []
+        monkeypatch.setattr(
+            br.os, "killpg", lambda pid, sig: signals.append((pid, sig))
+        )
+
+        cancelled = br.request_cancel(run["id"], db_path=db_path)
+
+        assert cancelled["state"] == bq.RUN_CANCEL_REQUESTED
+        assert cancelled["signal_sent"] is False
+        assert cancelled["signal_status"] == "process_identity_mismatch"
+        assert signals == []
 
     def test_cancel_unknown_run(self, db_path: Path):
         with pytest.raises(bq.RunNotFoundError):

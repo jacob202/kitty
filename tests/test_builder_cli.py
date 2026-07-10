@@ -1064,6 +1064,32 @@ class TestQueueRecover:
         assert rc == 0
         assert json.loads(capsys.readouterr().out)["total"] == 0
 
+    def test_human_output_surfaces_unverified_live_runs(self, capsys):
+        tasks = {"claimed_requeued": 0, "running_blocked": 0, "total": 0}
+        runs = {
+            "runs_interrupted": 0,
+            "run_ids": [],
+            "starting_runs_deferred": 0,
+            "starting_run_ids": [],
+            "runs_unverified": 1,
+            "unverified_runs": [
+                {"run_id": "run_123", "reason": "process_identity_missing"}
+            ],
+        }
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch(
+                f"{_QUEUE_PATCH}.recover_expired_leases", return_value=tasks
+            ):
+                with patch(
+                    f"{_QUEUE_PATCH}.recover_interrupted_runs", return_value=runs
+                ):
+                    rc = main(["queue", "recover"])
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "run_123" in out
+        assert "process_identity_missing" in out
+
 
 class TestQueueOperatorCancel:
     def test_dispatch(self):
@@ -1094,3 +1120,23 @@ class TestQueueOperatorCancel:
                 rc = main(["queue", "operator-cancel", "kb_oc2_bbbb"])
         assert rc == 1
         assert "error" in capsys.readouterr().err
+
+
+class TestQueueRunnerCommands:
+    def test_cancel_run_reports_when_signal_was_refused(self, capsys):
+        run = {
+            "id": "run_123",
+            "task_id": "kb_123",
+            "state": "cancel_requested",
+            "pid": 4242,
+            "signal_sent": False,
+            "signal_status": "process_identity_mismatch",
+        }
+        with patch(f"{_QUEUE_PATCH}.init_db"):
+            with patch("gateway.builder_runner.request_cancel", return_value=run):
+                rc = main(["queue", "cancel-run", "run_123"])
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "signal not sent" in out
+        assert "process_identity_mismatch" in out

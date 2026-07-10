@@ -16,10 +16,12 @@ always survive for inspection — partial progress is never destroyed.
 from __future__ import annotations
 
 import os
+import shutil
 import signal
 import subprocess
 import time
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Any
 
 from gateway import builder_queue as bq
@@ -38,6 +40,7 @@ _BLOCK_REASONS = {
     bq.RUN_FAILED: "worker_failed",
     bq.RUN_TIMEOUT: "run_timeout",
     bq.RUN_CANCELLED: "run_cancelled",
+    bq.RUN_SCOPE_VIOLATION: "scope_violation",
 }
 
 
@@ -65,6 +68,17 @@ def _git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", *args], cwd=cwd, capture_output=True, text=True
     )
+
+
+def _git_output(args: list[str], cwd: Path) -> str:
+    result = _git(args, cwd=cwd)
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or "no output"
+        raise RunnerError(
+            f"git {' '.join(args)} failed in {cwd} "
+            f"(exit {result.returncode}): {detail}"
+        )
+    return result.stdout
 
 
 def ensure_worktree(
@@ -142,10 +156,56 @@ def remove_worktree(task_id: str, *, repo_root: Path | None = None) -> Path:
 
 def _worktree_summary(path: Path) -> dict[str, Any]:
     """Small evidence block for the final report: commits + dirty files."""
-    commits = _git(["log", "--oneline", "-5"], cwd=path).stdout.strip()
-    dirty = _git(["status", "--porcelain=v1", "--untracked-files=all"], cwd=path)
-    dirty_files = [line for line in dirty.stdout.splitlines() if line.strip()]
+    commits = _git_output(["log", "--oneline", "-5"], cwd=path).strip()
+    dirty = _git_output(
+        ["status", "--porcelain=v1", "--untracked-files=all"], cwd=path
+    )
+    dirty_files = [line for line in dirty.splitlines() if line.strip()]
     return {"recent_commits": commits.splitlines(), "dirty_files": dirty_files}
+
+
+def _changed_paths(path: Path, start_sha: str) -> list[str]:
+    """Return committed, staged, unstaged, and untracked paths since dispatch."""
+    commands = (
+        ["diff", "--name-only", "--no-renames", "-z", f"{start_sha}..HEAD"],
+        ["diff", "--name-only", "--no-renames", "-z"],
+        ["diff", "--cached", "--name-only", "--no-renames", "-z"],
+        ["ls-files", "--others", "--exclude-standard", "-z"],
+    )
+    changed: set[str] = set()
+    for command in commands:
+        changed.update(
+            item for item in _git_output(command, cwd=path).split("\0") if item
+        )
+    return sorted(changed)
+
+
+def _scope_violations(
+    changed_paths: list[str],
+    allowed_paths: list[str] | None,
+) -> list[str]:
+    """Return changed paths outside the task's explicit file allowlist."""
+    if not allowed_paths:
+        return []
+
+    normalized: list[str] = []
+    for raw_path in allowed_paths:
+        candidate = raw_path.strip().rstrip("/") or "."
+        parsed = PurePosixPath(candidate)
+        if parsed.is_absolute() or ".." in parsed.parts:
+            raise RunnerError(
+                f"invalid allowed path {raw_path!r}: use a repo-relative path "
+                "without '..'"
+            )
+        normalized.append(parsed.as_posix())
+
+    def allowed(path: str) -> bool:
+        return any(
+            prefix == "." or path == prefix or path.startswith(f"{prefix}/")
+            for prefix in normalized
+        )
+
+    return [path for path in changed_paths if not allowed(path)]
 
 
 def _terminate_group(proc: subprocess.Popen[Any]) -> None:
@@ -186,27 +246,43 @@ def run_worker(
     """
     if not command:
         raise ValueError("command must be a non-empty list")
+    for name, value in (
+        ("timeout_seconds", timeout_seconds),
+        ("lease_seconds", lease_seconds),
+        ("heartbeat_seconds", heartbeat_seconds),
+    ):
+        if value <= 0:
+            raise ValueError(f"{name} must be positive")
+    if heartbeat_seconds >= lease_seconds:
+        raise ValueError(
+            "heartbeat_seconds must be shorter than lease_seconds so the "
+            "runner renews ownership before it expires"
+        )
+    false_command = shutil.which("false")
+    if false_command is None:
+        raise RunnerError("cannot isolate worker credentials: 'false' not found")
 
     task = bq.claim_task(task_id, worker, lease_seconds=lease_seconds, db_path=db_path)
     lease_token = task["lease_token"]
     claim_version = task["claim_version"]
 
     try:
+        root = _repo_root(repo_root).resolve()
+        configured_repo = task.get("repo_path")
+        if configured_repo:
+            expected_root = Path(str(configured_repo)).expanduser().resolve()
+            if expected_root != root:
+                raise RunnerError(
+                    f"task {task_id} targets repo {expected_root}, but the "
+                    f"runner was invoked for {root}"
+                )
+        _scope_violations([], task.get("allowed_paths"))
         branch = default_branch_name(task)
-        wt_path = ensure_worktree(task_id, branch, repo_root=repo_root)
+        wt_path = ensure_worktree(task_id, branch, repo_root=root)
     except Exception:
         # Nothing started yet — hand the claim back cleanly.
         bq.worker_release_task(task_id, lease_token, claim_version, db_path=db_path)
         raise
-
-    events = bq.list_events(task_id, db_path=db_path)
-    pr_links = bq.get_pr_links(task_id, db_path=db_path)
-    brief_dir = wt_path / ".kittybuilder"
-    brief_dir.mkdir(exist_ok=True)
-    brief_path = brief_dir / "brief.md"
-    brief_path.write_text(
-        render_worker_brief(task, events, pr_links, branch=branch)
-    )
 
     queue_db = Path(db_path) if db_path is not None else BUILDER_QUEUE_DB
     log_dir = queue_db.parent / "runs"
@@ -215,16 +291,30 @@ def run_worker(
     run = bq.create_run(
         task_id,
         command,
+        lease_token=lease_token,
+        claim_version=claim_version,
         worker=worker,
         model=model,
         provider=provider,
         branch=branch,
         worktree_path=str(wt_path),
+        start_sha=_git_output(["rev-parse", "HEAD"], cwd=wt_path).strip(),
         log_path="",  # set below once the run ID names the file
         db_path=db_path,
     )
     run_id = run["id"]
-    log_path = log_dir / f"{run_id}.log"
+    run_dir = log_dir / run_id
+    run_dir.mkdir()
+    log_path = run_dir / "combined.log"
+    brief_path = run_dir / "brief.md"
+    gh_config_dir = run_dir / "gh-config"
+    gh_config_dir.mkdir(mode=0o700)
+
+    events = bq.list_events(task_id, db_path=db_path)
+    pr_links = bq.get_pr_links(task_id, db_path=db_path)
+    brief_path.write_text(
+        render_worker_brief(task, events, pr_links, branch=branch)
+    )
 
     bq.worker_transition_task(
         task_id,
@@ -239,7 +329,22 @@ def run_worker(
     # Shadow mode: no ambient GitHub credentials reach the worker.
     child_env.pop("GITHUB_TOKEN", None)
     child_env.pop("GH_TOKEN", None)
+    child_env["GH_CONFIG_DIR"] = str(gh_config_dir)
+    child_env["GIT_CONFIG_GLOBAL"] = os.devnull
+    child_env["GIT_CONFIG_SYSTEM"] = os.devnull
+    child_env["GIT_CONFIG_NOSYSTEM"] = "1"
     child_env["GIT_TERMINAL_PROMPT"] = "0"
+    child_env["GIT_ASKPASS"] = false_command
+    child_env["SSH_ASKPASS"] = false_command
+    git_overrides = (
+        ("credential.helper", ""),
+        ("credential.interactive", "never"),
+        ("core.askPass", false_command),
+    )
+    child_env["GIT_CONFIG_COUNT"] = str(len(git_overrides))
+    for index, (key, value) in enumerate(git_overrides):
+        child_env[f"GIT_CONFIG_KEY_{index}"] = key
+        child_env[f"GIT_CONFIG_VALUE_{index}"] = value
     child_env.update(
         KB_TASK_ID=task_id,
         KB_RUN_ID=run_id,
@@ -254,67 +359,152 @@ def run_worker(
     started = time.monotonic()
 
     with open(log_path, "wb") as log_fh:
-        proc = subprocess.Popen(
-            command,
-            cwd=wt_path,
-            stdout=log_fh,
-            stderr=subprocess.STDOUT,
-            env=child_env,
-            start_new_session=True,  # own process group → clean termination
-        )
-        bq.update_run(
-            run_id,
-            state=bq.RUN_RUNNING,
-            pid=proc.pid,
-            log_path=str(log_path),
-            mark_started=True,
-            mark_heartbeat=True,
-            db_path=db_path,
-        )
-        bq.append_event(
-            task_id,
-            "run_started",
-            payload={"run_id": run_id, "pid": proc.pid, "command": command},
-            db_path=db_path,
-        )
-
-        lost_lease = False
-        while True:
+        try:
+            proc = subprocess.Popen(
+                command,
+                cwd=wt_path,
+                stdout=log_fh,
+                stderr=subprocess.STDOUT,
+                env=child_env,
+                start_new_session=True,  # own process group → clean termination
+            )
+        except OSError as exc:
+            start_sha = str(run.get("start_sha") or "")
+            changed_paths = _changed_paths(wt_path, start_sha)
+            report = {
+                "run_id": run_id,
+                "outcome": bq.RUN_FAILED,
+                "exit_code": None,
+                "error": f"{type(exc).__name__}: {exc}",
+                "branch": branch,
+                "worktree": str(wt_path),
+                "log_path": str(log_path),
+                "brief_path": str(brief_path),
+                "start_sha": start_sha,
+                "command": command,
+                "claim_version": claim_version,
+                "worker": worker,
+                "model": model,
+                "provider": provider,
+                "changed_paths": changed_paths,
+                "scope_violations": _scope_violations(
+                    changed_paths, task.get("allowed_paths")
+                ),
+                "worktree_state": _worktree_summary(wt_path),
+            }
             try:
-                exit_code = proc.wait(timeout=heartbeat_seconds)
-                break
-            except subprocess.TimeoutExpired:
-                pass
-
+                bq.finalize_run(
+                    run_id,
+                    bq.RUN_FAILED,
+                    exit_code=None,
+                    report=report,
+                    lease_token=lease_token,
+                    claim_version=claim_version,
+                    block_reason="worker_launch_failed",
+                    db_path=db_path,
+                )
+            except Exception as finalize_exc:
+                raise RunnerError(
+                    f"worker launch failed for run {run_id} with command "
+                    f"{command!r}: {exc}; durable failure recording also "
+                    f"failed: {finalize_exc}"
+                ) from exc
+            raise RunnerError(
+                f"worker launch failed for run {run_id} with command "
+                f"{command!r}: {exc}"
+            ) from exc
+        lost_lease = False
+        cancelled_before_start = False
+        try:
+            process_identity = bq.capture_process_identity(proc.pid)
+            bq.update_run(
+                run_id,
+                state=bq.RUN_RUNNING,
+                pid=proc.pid,
+                process_identity=process_identity,
+                log_path=str(log_path),
+                mark_started=True,
+                mark_heartbeat=True,
+                expected_states=frozenset({bq.RUN_STARTING}),
+                db_path=db_path,
+            )
+        except bq.RunStateConflictError:
             current = bq.get_run(run_id, db_path=db_path)
             if current and current["state"] == bq.RUN_CANCEL_REQUESTED:
                 _terminate_group(proc)
                 exit_code = proc.returncode
                 outcome = bq.RUN_CANCELLED
-                break
-
-            if time.monotonic() - started > timeout_seconds:
+                cancelled_before_start = True
+            else:
                 _terminate_group(proc)
-                exit_code = proc.returncode
-                outcome = bq.RUN_TIMEOUT
-                break
+                raise
+        except Exception:
+            _terminate_group(proc)
+            raise
 
-            try:
-                bq.renew_lease(
-                    task_id,
-                    lease_token,
-                    claim_version,
-                    lease_seconds=lease_seconds,
-                    db_path=db_path,
-                )
-                bq.update_run(run_id, mark_heartbeat=True, db_path=db_path)
-            except bq.LeaseConflictError:
-                # We no longer own the task (operator released / another
-                # worker). Stop the worker; do not touch task state.
-                _terminate_group(proc)
-                exit_code = proc.returncode
-                lost_lease = True
-                break
+        if not cancelled_before_start:
+            bq.append_event(
+                task_id,
+                "run_started",
+                payload={"run_id": run_id, "pid": proc.pid, "command": command},
+                run_id=run_id,
+                db_path=db_path,
+            )
+
+            while True:
+                try:
+                    exit_code = proc.wait(timeout=heartbeat_seconds)
+                    break
+                except subprocess.TimeoutExpired:
+                    pass
+
+                current = bq.get_run(run_id, db_path=db_path)
+                if current and current["state"] == bq.RUN_CANCEL_REQUESTED:
+                    _terminate_group(proc)
+                    exit_code = proc.returncode
+                    outcome = bq.RUN_CANCELLED
+                    break
+
+                if time.monotonic() - started > timeout_seconds:
+                    _terminate_group(proc)
+                    exit_code = proc.returncode
+                    outcome = bq.RUN_TIMEOUT
+                    break
+
+                try:
+                    bq.renew_lease(
+                        task_id,
+                        lease_token,
+                        claim_version,
+                        lease_seconds=lease_seconds,
+                        db_path=db_path,
+                    )
+                    bq.update_run(run_id, mark_heartbeat=True, db_path=db_path)
+                except bq.LeaseConflictError:
+                    # We no longer own the task (operator released / another
+                    # worker). Stop the worker; do not touch task state.
+                    _terminate_group(proc)
+                    exit_code = proc.returncode
+                    lost_lease = True
+                    break
+
+    # Fence once more after process exit. A cancellation signal can make the
+    # child exit before the heartbeat loop observes that the task lease was
+    # stolen; durable ownership must take priority over the run flag.
+    if not lost_lease:
+        try:
+            bq.renew_lease(
+                task_id,
+                lease_token,
+                claim_version,
+                lease_seconds=lease_seconds,
+                db_path=db_path,
+            )
+        except bq.LeaseConflictError:
+            lost_lease = True
+
+    if lost_lease:
+        outcome = bq.RUN_LEASE_LOST
 
     # Re-check a requested cancellation if we exited the loop because the
     # process died (rather than because we observed the flag). request_cancel
@@ -330,27 +520,19 @@ def run_worker(
         if final_check and final_check["state"] == bq.RUN_CANCEL_REQUESTED:
             outcome = bq.RUN_CANCELLED
 
-    if outcome not in (bq.RUN_CANCELLED, bq.RUN_TIMEOUT):
+    if outcome not in (bq.RUN_CANCELLED, bq.RUN_TIMEOUT, bq.RUN_LEASE_LOST):
         outcome = bq.RUN_EXITED if exit_code == 0 else bq.RUN_FAILED
 
-    bq.update_run(
-        run_id,
-        state=outcome,
-        exit_code=exit_code,
-        mark_ended=True,
-        db_path=db_path,
+    start_sha = str(run.get("start_sha") or "")
+    if not start_sha:
+        raise RunnerError(f"run {run_id} has no recorded start SHA")
+    changed_paths = _changed_paths(wt_path, start_sha)
+    scope_violations = _scope_violations(
+        changed_paths,
+        task.get("allowed_paths"),
     )
-    bq.append_event(
-        task_id,
-        f"run_{outcome}",
-        payload={"run_id": run_id, "exit_code": exit_code},
-        db_path=db_path,
-    )
-
-    if lost_lease:
-        final = bq.get_run(run_id, db_path=db_path)
-        assert final is not None
-        return final
+    if scope_violations and outcome != bq.RUN_LEASE_LOST:
+        outcome = bq.RUN_SCOPE_VIOLATION
 
     report = {
         "run_id": run_id,
@@ -359,56 +541,27 @@ def run_worker(
         "branch": branch,
         "worktree": str(wt_path),
         "log_path": str(log_path),
+        "brief_path": str(brief_path),
+        "start_sha": start_sha,
+        "command": command,
+        "claim_version": claim_version,
         "worker": worker,
         "model": model,
         "provider": provider,
+        "changed_paths": changed_paths,
+        "scope_violations": scope_violations,
         "worktree_state": _worktree_summary(wt_path),
     }
-    try:
-        # Keep the lease alive long enough to record the outcome.
-        bq.renew_lease(
-            task_id,
-            lease_token,
-            claim_version,
-            lease_seconds=lease_seconds,
-            db_path=db_path,
-        )
-        bq.attach_final_report(
-            task_id,
-            report,
-            lease_token=lease_token,
-            claim_version=claim_version,
-            db_path=db_path,
-        )
-        bq.worker_transition_task(
-            task_id,
-            bq.BLOCKED,
-            lease_token,
-            claim_version,
-            payload={
-                "reason": _BLOCK_REASONS[outcome],
-                "run_id": run_id,
-                "exit_code": exit_code,
-            },
-            db_path=db_path,
-        )
-    except (bq.LeaseConflictError, bq.IllegalTransitionError) as exc:
-        # A smart worker already moved the task (or ownership changed while
-        # we were finishing). The run record and report events still tell
-        # the whole story — do not fight over task state.
-        bq.append_event(
-            task_id,
-            "runner_note",
-            payload={
-                "run_id": run_id,
-                "note": f"final transition skipped: {exc}",
-            },
-            db_path=db_path,
-        )
-
-    final = bq.get_run(run_id, db_path=db_path)
-    assert final is not None
-    return final
+    return bq.finalize_run(
+        run_id,
+        outcome,
+        exit_code=exit_code,
+        report=report,
+        lease_token=lease_token,
+        claim_version=claim_version,
+        block_reason=_BLOCK_REASONS.get(outcome),
+        db_path=db_path,
+    )
 
 
 def request_cancel(
@@ -436,12 +589,30 @@ def request_cancel(
         db_path=db_path,
     )
     pid = run.get("pid")
+    signal_sent = False
+    signal_status = "process_not_started"
     if pid:
-        sig = signal.SIGKILL if kill else signal.SIGTERM
-        try:
-            os.killpg(int(pid), sig)
-        except ProcessLookupError:
-            pass
+        expected_identity = run.get("process_identity")
+        current_identity = bq.capture_process_identity(int(pid))
+        if expected_identity is None:
+            signal_status = "process_identity_missing"
+        elif current_identity != expected_identity:
+            signal_status = "process_identity_mismatch"
+        else:
+            sig = signal.SIGKILL if kill else signal.SIGTERM
+            try:
+                os.killpg(int(pid), sig)
+                signal_sent = True
+                signal_status = "signal_sent"
+            except ProcessLookupError:
+                signal_status = "process_not_found"
+            except OSError as exc:
+                raise RunnerError(
+                    f"cancellation recorded for run {run_id}, but signaling "
+                    f"process group {pid} failed: {exc}"
+                ) from exc
     refreshed = bq.get_run(run_id, db_path=db_path)
     assert refreshed is not None
+    refreshed["signal_sent"] = signal_sent
+    refreshed["signal_status"] = signal_status
     return refreshed
