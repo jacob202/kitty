@@ -35,8 +35,6 @@ jobs:
 
   lint:
     runs-on: ubuntu-latest
-    # Non-blocking until the codebase is clean, then flip to a required check.
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4

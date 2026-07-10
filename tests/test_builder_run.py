@@ -15,8 +15,8 @@ from typing import Any
 import pytest
 
 from gateway import builder_initiative as bi
-from gateway import builder_run as br
 from gateway import builder_queue as bq
+from gateway import builder_run as br
 
 INITIATIVE = "run-test"
 
@@ -108,10 +108,6 @@ class TestRunInitiative:
         br.run_initiative(
             INITIATIVE, worker_command=_worker(tmp_path), db_path=db_path
         )
-        task_ids = [
-            r["task_id"]
-            for r in bi.eligible_packets(INITIATIVE, db_path=db_path)
-        ]
         # Events are written against the packet task ids; both should have a
         # packet_succeeded decision.
         conn = bq.connect(db_path)
