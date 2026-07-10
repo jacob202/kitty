@@ -12,7 +12,9 @@ Commands intentionally disabled in Layer 1A:
 from __future__ import annotations
 
 import argparse
+import datetime as _dt
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -411,10 +413,47 @@ def _cmd_queue_events(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 
+def _warn_if_backup_stale(total_tasks: int) -> None:
+    """Warn on stderr when the newest queue backup is missing or >48h old.
+
+    Skipped for an empty queue — nothing worth backing up yet. Warning-only
+    by design (arch doc §11.2): no backup daemon, no auto-backup.
+    """
+    if total_tasks == 0:
+        return
+
+    from gateway.paths import BUILDER_QUEUE_DB
+
+    backup_dir = BUILDER_QUEUE_DB.parent / "backups"
+    backups = sorted(
+        backup_dir.glob("builder_queue_*.db"),
+        key=lambda p: p.stat().st_mtime,
+    )
+    hint = (
+        "Back up with: sqlite3 " + str(BUILDER_QUEUE_DB)
+        + ' "VACUUM INTO \'' + str(backup_dir) + "/builder_queue_"
+        + _dt.date.today().strftime("%Y%m%d") + ".db'\""
+    )
+    if not backups:
+        print("WARNING: no queue backups found.", file=sys.stderr)
+        print(hint, file=sys.stderr)
+        return
+
+    age_hours = (_dt.datetime.now().timestamp() - backups[-1].stat().st_mtime) / 3600
+    if age_hours > 48:
+        print(
+            f"WARNING: newest queue backup is {age_hours / 24:.1f} days old "
+            f"({backups[-1].name}).",
+            file=sys.stderr,
+        )
+        print(hint, file=sys.stderr)
+
+
 def _cmd_queue_status(args: argparse.Namespace) -> int:
     from gateway.builder_queue import queue_status
 
     status = queue_status()
+    _warn_if_backup_stale(status["total"])
     if args.json:
         print(json.dumps(status, indent=2, default=str))
     else:
@@ -722,12 +761,41 @@ def _resolve_func(args: argparse.Namespace) -> Any:
     return _dispatch.get(args.command, _cmd_not_enabled)
 
 
+# Queue commands that write to the DB; gated by the kill switch (§11.3).
+_MUTATING_QUEUE_COMMANDS = frozenset(
+    {
+        "add",
+        "edit",
+        "claim",
+        "claim-next",
+        "release",
+        "operator-release",
+        "transition",
+        "archive",
+    }
+)
+
+
+def _queue_disabled() -> bool:
+    return os.environ.get("KITTY_BUILDER_QUEUE_ENABLED", "1") == "0"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    # Initialize the queue DB on every invocation (safe/idempotent).
     if args.command == "queue":
+        # Kill switch: refuse mutations before touching the DB. Read-only
+        # commands keep working so the operator can inspect a frozen queue.
+        if args.queue_command in _MUTATING_QUEUE_COMMANDS and _queue_disabled():
+            print(
+                "error: KittyBuilder queue is disabled "
+                "(KITTY_BUILDER_QUEUE_ENABLED=0); refusing to modify the queue. "
+                "Unset the variable or set it to 1 to re-enable.",
+                file=sys.stderr,
+            )
+            return 1
+        # Initialize the queue DB on every invocation (safe/idempotent).
         _init_queue_db()
 
     func = _resolve_func(args)
