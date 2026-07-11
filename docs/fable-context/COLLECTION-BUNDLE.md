@@ -35,11 +35,19 @@ That contradicts several docs claiming integrations and the "move-in" state are 
 - ![Kitty mascot reference](assets/kitty-mascot-reference.png) — `assets/kitty-mascot-reference.png`
   (Jacob: "blue squares around mascot/idea sketches")
 
-> NOTE: the mascot/ui filename assignment is **unverified** — this model cannot
-> view images, so the two may be reversed. If so, swap the two filenames (or the
-> links above). Source files are still on the Desktop:
-> `Screenshot 2026-07-10 at 3.11.15 AM.png` and
-> `Screenshot 2026-07-10 at 2.54.33 AM.png`.
+> VERIFIED 2026-07-11 (Fable, visually): the originally collected Jul-10 screenshots
+> were the wrong files entirely (a System Settings subscriptions dialog and a ChatGPT
+> Codex usage screen). Replaced with the real Jul-8 sources from the Desktop:
+> - UI reference = `Screenshot 2026-07-08 at 12.46.07 PM.png` — Google Stitch mock of a
+>   dark space-themed Kitty dashboard: navy cosmos background, warm orange accents,
+>   cards for AI News Brief, Local Pulse (weather), Daily Missions, Focus Mode timer,
+>   Quick Links, System Status; hand-drawn white line-art cats throughout.
+> - Mascot reference = `Screenshot 2026-07-08 at 12.47.21 PM.png` — blue selection
+>   boxes around three sketchy line-art cats: starry-eyed cat-head logo, cat under a
+>   rain cloud, loose standing doodle cat. Doodle line-art style is the preferred
+>   mascot direction (not rendered/3D).
+> - Side fact from the discarded Jul-10 Codex screenshot: Codex usage was exhausted
+>   (0% of 5-hour window, 33% weekly left) — context for the free-worker push.
 
 ## 4. Kitty conversation
 
