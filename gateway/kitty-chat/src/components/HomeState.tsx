@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { card, cardHeader, cardTitle, cardMeta, itemCard, emptyState, bodyText } from '@/lib/ui';
 import { CapturePanel } from '@/components/CapturePanel';
+import { useDashboardConfig } from '@/hooks/useDashboardConfig';
 import {
   useStateChanges,
   useActions,
@@ -269,6 +270,14 @@ function freshestStep(steps: Array<GatewayNextStep | null | undefined>): Gateway
   return best;
 }
 
+// Local time, not UTC — this only ever renders client-side (Home is behind
+// the app's post-mount gate), so there's no SSR/hydration mismatch to guard.
+function greeting(hour: number): string {
+  if (hour < 12) return 'good morning';
+  if (hour < 17) return 'good afternoon';
+  return 'good evening';
+}
+
 function WhatsNext({
   onDecideInChat,
   onNavigate,
@@ -429,10 +438,14 @@ function WhatsNext({
           <span aria-hidden style={{ color: 'var(--cat-ginger)', flexShrink: 0, pointerEvents: 'none' }}>
             <KidCatDoodle size={40} opacity={0.7} />
           </span>
-          <span>
-            not enough signal yet — nothing proposed, no decisions waiting, no project next-steps,
-            and today's list is empty. refresh a project in the projects tab or capture a
-            thought below.
+          <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
+              {greeting(new Date().getHours())} — not enough signal yet
+            </span>
+            <span>
+              nothing proposed, no decisions waiting, no project next-steps, and today's list
+              is empty. refresh a project in the projects tab or capture a thought below.
+            </span>
           </span>
         </div>
       )}
@@ -1132,6 +1145,7 @@ export function HomeState({
   const isCosmic =
     typeof document !== 'undefined' &&
     document.documentElement.getAttribute('data-theme') === 'cosmic';
+  const { visibleTiles } = useDashboardConfig();
 
   return (
     <div
@@ -1151,19 +1165,18 @@ export function HomeState({
         alignContent: 'start',
       }}
     >
-      {preferredName && (
-        <div style={{ gridColumn: '1 / -1', fontFamily: 'var(--font-display)', fontSize: 18, color: 'var(--ink)' }}>
-          hey, {preferredName}
-        </div>
+      {visibleTiles['health'] !== false && <HealthStrip />}
+      {visibleTiles['whats-next'] !== false && (
+        <WhatsNext onDecideInChat={onDecideInChat} onNavigate={onNavigate} />
       )}
-      <HealthStrip />
-      <WhatsNext onDecideInChat={onDecideInChat} onNavigate={onNavigate} />
-      <NeedsYou onDecideInChat={onDecideInChat} />
-      <Deadlines />
-      <ActiveProjects onNavigate={onNavigate} />
-      <WhatChanged />
-      <TodayPanel onNavigate={onNavigate} />
-      <CaptureSection />
+      {visibleTiles['needs-you'] !== false && <NeedsYou onDecideInChat={onDecideInChat} />}
+      {visibleTiles['deadlines'] !== false && <Deadlines />}
+      {visibleTiles['active-projects'] !== false && <ActiveProjects onNavigate={onNavigate} />}
+      {visibleTiles['what-changed'] !== false && <WhatChanged />}
+      {visibleTiles['today'] !== false && (
+        <TodayPanel gatewayError={gatewayError} onNavigate={onNavigate} />
+      )}
+      {visibleTiles['capture'] !== false && <CaptureSection />}
     </div>
   );
 }
