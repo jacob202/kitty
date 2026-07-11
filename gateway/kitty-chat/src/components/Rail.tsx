@@ -4,11 +4,6 @@ import { CatMark } from './CrayonCat'
 const NAV_ITEMS: { label: string; view: string; d: string }[] = [
   { label: 'home',      view: 'home',      d: 'M3 11 L12 3 L21 11 M6 9 V20 H18 V9' },
   { label: 'chats',     view: 'chat',      d: 'M4 5 H20 V15 H10 L5 19 V15 H4 Z' },
-  { label: 'projects',  view: 'projects',  d: 'M6 4 V20 M6 5 H18 L15 8.5 L18 12 H6' },
-  { label: 'docs',      view: 'docs',      d: 'M7 3 H14 L19 8 V21 H7 Z M14 3 V8 H19 M10 12 H16 M10 16 H16' },
-  { label: 'providers', view: 'providers', d: 'M9 3 V7 M15 3 V7 M7 7 H17 V11 A5 5 0 0 1 7 11 Z M12 16 V21' },
-  { label: 'agents',    view: 'agents',    d: 'M7 8 H17 V17 H7 Z M12 8 V4 M9.5 12 h0.01 M14.5 12 h0.01 M10 14.5 H14' },
-  { label: 'image lab', view: 'images',    d: 'M4 5 H20 V19 H4 Z M4 15 L9 10 L13 14 L16 11 L20 15 M15.5 8.5 h0.01' },
   { label: 'settings',  view: 'settings',  d: 'M4 7 H20 M4 12 H20 M4 17 H20 M9 5 V9 M15 10 V14 M8 15 V19' },
 ]
 
