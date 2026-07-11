@@ -158,6 +158,10 @@ def diff_models(previous: dict[str, dict], current: dict[str, dict]) -> list[dic
     return events
 
 
+class ModelDigestError(RuntimeError):
+    """Raised when the model-digest SQLite store cannot be read or written."""
+
+
 def run_digest() -> list[dict]:
     """Fetch, diff, save. Returns detected events. Called by launchd daily."""
     try:
@@ -175,7 +179,12 @@ def run_digest() -> list[dict]:
 
 
 def _load_recent_events(limit: int = 10) -> list[dict]:
-    """Load the most recent digest events from SQLite."""
+    """Load the most recent digest events from SQLite.
+
+    Fails loud: a store error raises ModelDigestError instead of silently
+    returning an empty list, so the morning brief can report the outage
+    honestly rather than appearing to have "no model news".
+    """
     try:
         conn = _get_conn()
         rows = conn.execute(
@@ -183,13 +192,21 @@ def _load_recent_events(limit: int = 10) -> list[dict]:
         ).fetchall()
         conn.close()
         return [dict(r) for r in rows]
-    except Exception:
-        return []
+    except Exception as exc:
+        raise ModelDigestError(f"could not load recent digest events: {exc}") from exc
 
 
 def get_model_digest_section(limit: int = 3) -> str:
-    """Returns a brief text block of recent model changes for the morning brief."""
-    events = _load_recent_events(limit=limit)
+    """Returns a brief text block of recent model changes for the morning brief.
+
+    A store outage is reported as an explicit "unavailable" note rather than
+    a silently empty section.
+    """
+    try:
+        events = _load_recent_events(limit=limit)
+    except ModelDigestError as exc:
+        logger.error("Model digest section unavailable: %s", exc)
+        return "## Model News\n- ⚠ model news unavailable"
     if not events:
         return ""
     lines = ["## Model News"]

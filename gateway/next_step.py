@@ -192,8 +192,8 @@ def _load_preferences() -> str:
         return ""
     try:
         return path.read_text(encoding="utf-8").strip()
-    except OSError:
-        return ""
+    except OSError as exc:
+        raise NextStepError(f"could not read preferences at {path}: {exc}") from exc
 
 
 def _parse_response(raw: str) -> dict[str, Any]:

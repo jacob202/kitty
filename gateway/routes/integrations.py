@@ -112,14 +112,7 @@ async def sync_import(request: Request):
     return {"imported": counts}
 
 
-# --- Search endpoint ---
-
-
-@router.get("/search")
-async def search_all(q: str = "", limit: int = 5):
-    from gateway.search import async_search
-
-    return await async_search(q, limit=limit)
+# --- Search endpoint consolidated into routes/search.py ---
 
 
 # --- Deploy endpoint ---
@@ -180,63 +173,7 @@ async def patterns_annual():
     return annual_review()
 
 
-# --- Cron endpoints ---
-
-
-class CronScheduleRequest(BaseModel):
-    name: str = Field(min_length=1, max_length=200)
-    action: str = Field(min_length=1, max_length=200)
-    schedule_type: str = "daily"
-    schedule_value: str = "07:00"
-    metadata: Optional[dict] = None
-
-
-@router.post("/cron/schedule")
-async def cron_schedule(payload: CronScheduleRequest):
-    from gateway.cron import schedule
-
-    sid = schedule(
-        name=payload.name,
-        action=payload.action,
-        schedule_type=payload.schedule_type,
-        schedule_value=payload.schedule_value,
-        metadata=payload.metadata,
-    )
-    return {"schedule_id": sid}
-
-
-@router.get("/cron/schedules")
-async def cron_list():
-    from gateway.cron import list_schedules
-
-    return {"schedules": list_schedules()}
-
-
-@router.delete("/cron/{schedule_id}")
-async def cron_delete(schedule_id: str):
-    from gateway.cron import remove
-
-    ok = remove(schedule_id)
-    if not ok:
-        raise HTTPException(status_code=404, detail="Schedule not found")
-    return {"deleted": True}
-
-
-@router.post("/cron/{schedule_id}/toggle")
-async def cron_toggle(schedule_id: str):
-    from gateway.cron import toggle
-
-    state = toggle(schedule_id)
-    if state is None:
-        raise HTTPException(status_code=404, detail="Schedule not found")
-    return {"enabled": state}
-
-
-@router.get("/cron/actions")
-async def cron_actions():
-    from gateway.cron import get_actions
-
-    return {"actions": get_actions()}
+# --- Cron endpoints consolidated into routes/cron.py ---
 
 
 @router.get("/weather")
@@ -328,49 +265,4 @@ async def eval_compare():
     return await run_and_compare()
 
 
-# --- Web monitor endpoints ---
-
-
-class WatchCreateRequest(BaseModel):
-    url: str = Field(min_length=1, max_length=2000)
-    label: str = ""
-    keywords: Optional[list[str]] = None
-    interval_minutes: int = 30
-
-
-@router.post("/monitor/create")
-async def monitor_create(payload: WatchCreateRequest):
-    from gateway.web_monitor import add_watch
-
-    watch_id = add_watch(
-        url=payload.url,
-        label=payload.label,
-        keywords=payload.keywords,
-        interval_minutes=payload.interval_minutes,
-    )
-    return {"watch_id": watch_id}
-
-
-@router.get("/monitors")
-async def monitor_list():
-    from gateway.web_monitor import list_watches
-
-    return {"watches": list_watches()}
-
-
-@router.post("/monitor/{watch_id}/check")
-async def monitor_check(watch_id: str):
-    from gateway.web_monitor import check_now
-
-    result = await check_now(watch_id)
-    return result
-
-
-@router.delete("/monitor/{watch_id}")
-async def monitor_delete(watch_id: str):
-    from gateway.web_monitor import remove_watch
-
-    removed = remove_watch(watch_id)
-    if not removed:
-        raise HTTPException(status_code=404, detail="Watch not found")
-    return {"deleted": True}
+# --- Web monitor endpoints consolidated into routes/monitors.py ---

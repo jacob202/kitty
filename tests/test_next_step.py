@@ -4,10 +4,12 @@ No real network/model calls in this suite — an injected llm_fn stands in
 for gateway.llm_client.call_llm, same seam as test_triage.py.
 """
 import json
+from pathlib import Path
 
 import pytest
 
 from gateway import next_step, project_resume, project_store
+from gateway.next_step import NextStepError
 
 
 @pytest.fixture(autouse=True)
@@ -126,3 +128,24 @@ class TestGetAndInvalidate:
         next_step.invalidate(project["id"])
 
         assert next_step.get(project["id"]) is None
+
+
+class TestLoadPreferencesFailLoud:
+    def test_missing_file_returns_empty(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(next_step, "CONFIG_DIR", tmp_path / "empty_cfg")
+        assert next_step._load_preferences() == ""
+
+    def test_unreadable_file_raises(self, monkeypatch, tmp_path):
+        cfg = tmp_path / "cfg"
+        cfg.mkdir()
+        (cfg / "PREFERENCES.md").write_text("")
+        real_read = Path.read_text
+
+        def fake(self, *args, **kwargs):
+            if self.name == "PREFERENCES.md":
+                raise OSError("disk gone")
+            return real_read(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "read_text", fake)
+        with pytest.raises(NextStepError):
+            next_step._load_preferences()

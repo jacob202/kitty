@@ -30,25 +30,34 @@ async def verify(
         out_text = stdout.decode()
         err_text = stderr.decode()
 
-        # Parse pytest output for counts
+        # Parse pytest output for counts. Count "passed"/"failed" tokens
+        # independently so a pure-pass ("3 passed") or pure-fail ("1 failed")
+        # line is still tallied rather than left at zero.
         total = 0
         passed = 0
         failed = 0
         for line in out_text.split("\n"):
-            if "passed" in line and "failed" in line:
-                try:
-                    parts = line.strip().split()
-                    for i, p in enumerate(parts):
-                        if "passed" in p:
-                            passed = int(parts[i - 1]) if i > 0 else int(p.replace("passed", "0"))
-                        if "failed" in p:
-                            failed = int(parts[i - 1]) if i > 0 else int(p.replace("failed", "0"))
-                    total = passed + failed
-                except (ValueError, IndexError):
-                    pass
+            if "passed" not in line and "failed" not in line:
+                continue
+            tokens = line.replace(",", " ").split()
+            try:
+                for i, tok in enumerate(tokens):
+                    if tok == "passed" and i > 0 and tokens[i - 1].isdigit():
+                        passed = int(tokens[i - 1])
+                    if tok == "failed" and i > 0 and tokens[i - 1].isdigit():
+                        failed = int(tokens[i - 1])
+                total = passed + failed
+            except (ValueError, IndexError):
+                pass
 
+        # Process exit status is authoritative. A nonzero exit means the run
+        # did NOT pass — even when the summary line is unparseable (empty run,
+        # collection error, crashed worker). Never infer success from a missing
+        # failure count; that produced false-green "passed" verdicts.
+        passed_verdict = proc.returncode == 0 and failed == 0
         return {
-            "passed": proc.returncode == 0 or failed == 0,
+            "passed": passed_verdict,
+            "returncode": proc.returncode,
             "total": total,
             "passed_count": passed,
             "failed_count": failed,
