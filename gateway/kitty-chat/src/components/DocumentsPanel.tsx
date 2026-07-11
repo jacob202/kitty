@@ -127,7 +127,12 @@ export function DocumentsPanel() {
           role="button"
           tabIndex={0}
           onClick={() => fileInputRef.current?.click()}
-          onKeyDown={e => e.key === 'Enter' && fileInputRef.current?.click()}
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              fileInputRef.current?.click()
+            }
+          }}
           onDragOver={e => {
             e.preventDefault()
             setDragOver(true)

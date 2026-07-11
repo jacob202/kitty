@@ -1,7 +1,10 @@
 import { MODELS, type Model } from './types'
 
 const GATEWAY_BASE = '/proxy'
-const DEFAULT_TIMEOUT_MS = 2500
+// The proxy has to cross the Next.js boundary and may wake a local gateway
+// store on the first request. 2.5s made healthy features look permanently
+// offline after a cold start; keep the timeout bounded but realistic.
+const DEFAULT_TIMEOUT_MS = 8000
 
 export interface GatewayHeadline {
   title: string
@@ -96,6 +99,24 @@ export type GatewayModelsPayload = {
   models: Model[]
   fromLiveGateway: boolean
   error: string | null
+}
+
+export interface GatewayPersonality {
+  soul: string
+  preferences: string
+}
+
+export interface GatewaySessionContext {
+  current_branch: string | null
+  last_session_topic: string | null
+  open_threads: string[]
+  next_actions: string[]
+}
+
+export interface GatewayUsageSummary {
+  totals: { calls: number; tokens: number }
+  estimated_cost: { usd: number; cad: number }
+  cost_estimate_disclaimer: string
 }
 
 export type RuntimeFactState = 'available' | 'unavailable' | 'degraded' | 'stale' | 'unknown'
@@ -329,7 +350,7 @@ export async function fetchGatewayRuntimeManifest(projectId?: number): Promise<G
 
 export async function fetchGatewayBrief(): Promise<GatewayBriefPayload> {
   try {
-    const response = await fetchWithTimeout(`${GATEWAY_BASE}/brief`, 1500)
+    const response = await fetchWithTimeout(`${GATEWAY_BASE}/brief`, 8000)
     if (!response.ok) {
       return {
         brief: null,
@@ -415,6 +436,63 @@ async function gfetch<T = unknown>(path: string, init?: RequestInit, timeoutMs =
   }
 }
 
+export async function fetchGatewayPersonality(): Promise<GatewayPersonality> {
+  const payload = await gfetch<unknown>('/settings/personality')
+  if (!isRecord(payload) || typeof payload.soul !== 'string' || typeof payload.preferences !== 'string') {
+    throw new Error('Gateway /settings/personality returned an invalid payload')
+  }
+  return payload as unknown as GatewayPersonality
+}
+
+export async function updateGatewayPersonality(payload: GatewayPersonality): Promise<void> {
+  await gfetch('/settings/personality', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function fetchGatewaySessionContext(): Promise<GatewaySessionContext> {
+  const payload = await gfetch<unknown>('/session/context')
+  if (!isRecord(payload)) throw new Error('Gateway /session/context returned an invalid payload')
+  if (
+    (payload.current_branch !== null && typeof payload.current_branch !== 'string')
+    || (payload.last_session_topic !== null && typeof payload.last_session_topic !== 'string')
+    || !isStringArray(payload.open_threads)
+    || !isStringArray(payload.next_actions)
+  ) {
+    throw new Error('Gateway /session/context returned an invalid payload')
+  }
+  return payload as unknown as GatewaySessionContext
+}
+
+export async function fetchGatewayUsageSummary(): Promise<GatewayUsageSummary> {
+  const payload = await gfetch<unknown>('/usage/summary')
+  if (!isRecord(payload)) throw new Error('Gateway /usage/summary returned an invalid payload')
+  const totals = payload.totals
+  const cost = payload.estimated_cost
+  if (
+    !isRecord(totals)
+    || typeof totals.calls !== 'number'
+    || typeof totals.tokens !== 'number'
+    || !isRecord(cost)
+    || typeof cost.usd !== 'number'
+    || typeof cost.cad !== 'number'
+    || typeof payload.cost_estimate_disclaimer !== 'string'
+  ) {
+    throw new Error('Gateway /usage/summary returned an invalid payload')
+  }
+  return payload as unknown as GatewayUsageSummary
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(item => typeof item === 'string')
+}
+
 export async function spawnAgent(goal: string, agentType: AgentType = 'explorer'): Promise<number | null> {
   try {
     const json = await gfetch<{ session_id?: number }>('/agent/spawn', {
@@ -467,12 +545,11 @@ export interface GatewayTodo {
 }
 
 export async function fetchGatewayTodos(): Promise<GatewayTodo[]> {
-  try {
-    const json = await gfetch<{ todos?: GatewayTodo[] }>('/todos')
-    return json.todos ?? []
-  } catch {
-    return []
+  const json = await gfetch<{ todos?: GatewayTodo[] }>('/todos')
+  if (!Array.isArray(json.todos)) {
+    throw new Error('Gateway /todos returned an invalid payload: expected a todos array')
   }
+  return json.todos
 }
 
 export async function addGatewayTodo(content: string): Promise<GatewayTodo | null> {

@@ -63,7 +63,7 @@ export function TopBar({
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
           {onToggleSidebar && (
-            <button onClick={onToggleSidebar} style={iconBtnStyle}>
+            <button aria-label="Open sidebar" onClick={onToggleSidebar} style={iconBtnStyle}>
               <svg viewBox="0 0 24 24" style={{ width: 18, height: 18 }}>
                 <path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
               </svg>
@@ -280,7 +280,7 @@ const chipBtnStyle: CSSProperties = {
 
 const iconBtnStyle: CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'center',
-  width: 36, height: 36, border: 'none', borderRadius: 12,
+  width: 44, height: 44, border: 'none', borderRadius: 12,
   background: 'transparent', color: 'var(--ink-2)', cursor: 'pointer',
 }
 

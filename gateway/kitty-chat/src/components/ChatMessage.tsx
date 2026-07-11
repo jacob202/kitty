@@ -3,8 +3,9 @@ import { isValidElement, useRef, useState, type ReactNode, type CSSProperties } 
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
-import { Copy, Check, RotateCcw, Paperclip } from 'lucide-react'
+import { Copy, Check, RotateCcw, Paperclip, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { Message } from '@/lib/types'
+import { useSubmitMessageFeedback, type MessageFeedbackRating } from '@/lib/queries'
 import { CatFaceBadge, type CatState } from './CrayonCat'
 
 interface Props {
@@ -13,9 +14,11 @@ interface Props {
   isFirstInRun?: boolean
   catState?: CatState
   onRetry?: () => void
+  chatId: string
+  messageIndex: number
 }
 
-export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry }: Props) {
+export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, chatId, messageIndex }: Props) {
   const isUser = message.role === 'user'
   const isKitty = !isUser
   const attachments = message.attachments ?? []
@@ -23,7 +26,9 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry }
   const showTurnStatus =
     isKitty && turnStatus !== undefined && turnStatus !== 'succeeded'
   const [hovered, setHovered] = useState(false)
+  const [focused, setFocused] = useState(false)
   const [copied, setCopied] = useState(false)
+  const feedback = useSubmitMessageFeedback()
 
   const copyMessage = () => {
     if (!message.content) return
@@ -35,15 +40,23 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry }
 
   const showActions = isKitty && !isStreaming && Boolean(message.content)
 
+  const submitFeedback = (rating: MessageFeedbackRating) => {
+    feedback.mutate({ chatId, messageIndex, rating })
+  }
+
   return (
     <div className="msg-in" style={{
       display: 'flex',
       alignItems: 'flex-end',
       gap: 10,
       flexDirection: isKitty ? 'row' : 'row-reverse',
-    }}
+      }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onFocusCapture={() => setFocused(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false)
+      }}
     >
       {isKitty && <CatFaceBadge state={catState} />}
 
@@ -90,7 +103,7 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry }
             )}
           </div>
         {showActions && (
-          <div style={{ ...actionRowStyle, opacity: hovered ? 1 : 0 }}>
+          <div className="msg-actions" style={{ ...actionRowStyle, opacity: hovered || focused ? 1 : 0 }}>
             <button onClick={copyMessage} style={actionBtnStyle} title="copy message">
               {copied ? <Check size={10} /> : <Copy size={10} />}
               <span>{copied ? 'copied' : 'copy'}</span>
@@ -101,6 +114,34 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry }
                 <span>retry</span>
               </button>
             )}
+            <button
+              onClick={() => submitFeedback('up')}
+              style={actionBtnStyle}
+              title="rate this response helpful"
+              aria-label="rate this response helpful"
+              disabled={feedback.isPending}
+            >
+              <ThumbsUp size={11} />
+            </button>
+            <button
+              onClick={() => submitFeedback('down')}
+              style={actionBtnStyle}
+              title="rate this response unhelpful"
+              aria-label="rate this response unhelpful"
+              disabled={feedback.isPending}
+            >
+              <ThumbsDown size={11} />
+            </button>
+          </div>
+        )}
+        {feedback.isPending && (
+          <div style={actionRowStyle} aria-live="polite">
+            <span style={{ fontSize: 10 }}>saving feedback…</span>
+          </div>
+        )}
+        {feedback.isError && (
+          <div style={{ ...actionRowStyle, color: 'var(--c-red)' }} role="alert">
+            <span style={{ fontSize: 10 }}>feedback failed: {feedback.error.message}</span>
           </div>
         )}
         {showTurnStatus && (
@@ -211,6 +252,7 @@ const actionRowStyle: CSSProperties = {
 }
 const actionBtnStyle: CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 4,
+  minWidth: 44, minHeight: 44, justifyContent: 'center',
   background: 'transparent', border: 'none', padding: '2px 4px',
   color: 'var(--ink-2)', fontFamily: 'var(--font-mono)',
   fontSize: 10, cursor: 'pointer', borderRadius: 4,

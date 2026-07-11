@@ -20,6 +20,7 @@ import { ProjectsPanel } from '@/components/ProjectsPanel';
 import { DocumentsPanel } from '@/components/DocumentsPanel';
 import { ProviderCenter } from '@/components/ProviderCenter';
 import { SettingsPanel } from '@/components/SettingsPanel';
+import { OnboardingModal } from '@/components/OnboardingModal';
 import { LoopWatch } from '@/components/LoopWatch';
 import { InsightFeed } from '@/components/InsightFeed';
 import { PromptToolkit } from '@/components/PromptToolkit';
@@ -194,6 +195,8 @@ function KittyChatInner() {
   const [isMobile, setIsMobile] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [theme, setTheme] = useState<'cosmic' | 'day' | 'night'>('cosmic');
+  const [preferredName, setPreferredName] = useState('');
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'failed' | 'offline'>(
     'idle',
   );
@@ -267,6 +270,16 @@ function KittyChatInner() {
       setMobileSidebarOpen(false);
     }
   }, [isMobile]);
+
+  useEffect(() => {
+    const savedTheme = window.localStorage.getItem('kitty-theme');
+    setPreferredName(window.localStorage.getItem('kitty-preferred-name') ?? '');
+    if (savedTheme === 'cosmic' || savedTheme === 'day' || savedTheme === 'night') {
+      setTheme(savedTheme);
+      document.documentElement.setAttribute('data-theme', savedTheme);
+    }
+    setShowOnboarding(window.localStorage.getItem('kitty-onboarded') !== 'true');
+  }, []);
 
   // Gateway status queries — models for TopBar, brief for the offline banner.
   const queryClient = useQueryClient();
@@ -391,6 +404,7 @@ function KittyChatInner() {
     setTheme((t) => {
       const next = t === 'cosmic' ? 'day' : t === 'day' ? 'night' : 'cosmic';
       document.documentElement.setAttribute('data-theme', next);
+      window.localStorage.setItem('kitty-theme', next);
       return next;
     });
   }, []);
@@ -720,6 +734,16 @@ function KittyChatInner() {
       onClick={() => showModelMenu && setShowModelMenu(false)}
     >
       <WobFilters />
+      {showOnboarding && (
+        <OnboardingModal
+          onComplete={({ theme: selectedTheme }) => {
+            setTheme(selectedTheme);
+            setPreferredName(window.localStorage.getItem('kitty-preferred-name') ?? '');
+            document.documentElement.setAttribute('data-theme', selectedTheme);
+            setShowOnboarding(false);
+          }}
+        />
+      )}
 
       {!isMobile && (
         <Rail
@@ -1034,6 +1058,8 @@ function KittyChatInner() {
                     <ChatMessage
                       key={msg.id}
                       message={msg}
+                      chatId={activeChat.id}
+                      messageIndex={i}
                       isStreaming={isStreaming && isLast && msg.role === 'assistant'}
                       isFirstInRun={isFirstInRun}
                       catState={catState}
@@ -1153,7 +1179,7 @@ function KittyChatInner() {
             ) : activeView === 'home' ? (
               <HomeState
                 compact={isMobile}
-                gatewayError={!briefGateway.live ? briefGateway.error : null}
+                preferredName={preferredName}
                 onDecideInChat={handleDecideInChat}
                 onNavigate={setActiveView}
               />

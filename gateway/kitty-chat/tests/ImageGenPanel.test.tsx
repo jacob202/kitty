@@ -40,6 +40,7 @@ describe('ImageGenPanel', () => {
     await waitFor(() => {
       expect(screen.getByText('ComfyUI offline')).toBeInTheDocument()
     })
+    expect(screen.getByRole('button', { name: 'check again' })).toBeInTheDocument()
   })
 
   it('renders prompt input when available', async () => {

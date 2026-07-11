@@ -18,6 +18,7 @@ import {
   useGatewayHealth,
   useGatewayModels,
   useChatsPersistence,
+  useSessionContext,
   useDeadlines,
   useDeadlineSweep,
 } from '@/lib/queries';
@@ -277,10 +278,11 @@ function WhatsNext({
   const todosQuery = useTodos();
   const approve = useApproveAction();
   const reject = useRejectAction();
+  const sessionContext = useSessionContext();
   const [busy, setBusy] = useState(false);
 
   const isPending =
-    actionsQuery.isPending || needsJacob.isPending || projectsQuery.isPending || todosQuery.isPending;
+    actionsQuery.isPending || needsJacob.isPending || projectsQuery.isPending || todosQuery.isPending || sessionContext.isPending;
 
   if (isPending) {
     return (
@@ -296,6 +298,16 @@ function WhatsNext({
     return (
       <SectionCard title="what's next" span>
         <ErrorCard message={OFFLINE_FIX} />
+      </SectionCard>
+    );
+  }
+
+  if (todosQuery.isError || needsJacob.isError || sessionContext.isError) {
+    const failed = sessionContext.isError ? sessionContext : todosQuery.isError ? todosQuery : needsJacob;
+    const message = failed.error instanceof Error ? failed.error.message : 'Could not reach the gateway';
+    return (
+      <SectionCard title="what's next" span>
+        <ErrorCard message={`gateway offline — ${message}`} />
       </SectionCard>
     );
   }
@@ -385,6 +397,20 @@ function WhatsNext({
               open tasks
             </button>
           </div>
+        </div>
+      ) : sessionContext.data?.last_session_topic ? (
+        <div style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={heroTextStyle}>last session: {sessionContext.data.last_session_topic}</div>
+          <div style={heroMetaStyle}>
+            {sessionContext.data.next_actions[0]
+              ? `next: ${sessionContext.data.next_actions[0]}`
+              : `${sessionContext.data.open_threads.length} saved session thread${sessionContext.data.open_threads.length === 1 ? '' : 's'}`}
+          </div>
+        </div>
+      ) : sessionContext.data?.open_threads.length ? (
+        <div style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={heroTextStyle}>open threads</div>
+          <div style={heroMetaStyle}>{sessionContext.data.open_threads.join(' · ')}</div>
         </div>
       ) : (
         <div style={{ ...emptyState, textAlign: 'left', padding: '12px 2px', display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -963,16 +989,14 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
 // ── Today (todos) ────────────────────────────────────────────────────────────
 
 function TodayPanel({
-  gatewayError,
   onNavigate,
 }: {
-  gatewayError: string | null;
   onNavigate: (view: string) => void;
 }) {
-  // fetchGatewayTodos swallows its own errors into `[]`, so an empty list
-  // here is ambiguous between "nothing today" and "gateway's down." The
-  // caller passes down a sibling query's error (brief) as the tie-breaker.
-  const { data: todos = [], isPending } = useTodos();
+  // This card owns the /todos query. Do not borrow Brief's state: a healthy
+  // todos response must remain truthful even when another dashboard card is
+  // slow or unavailable.
+  const { data: todos = [], isPending, isError, error } = useTodos();
 
   const open = todos.filter((t) => t.status === 'pending' || t.status === 'active');
 
@@ -986,10 +1010,11 @@ function TodayPanel({
     );
   }
 
-  if (open.length === 0 && gatewayError) {
+  if (isError) {
+    const message = error instanceof Error ? error.message : 'Could not reach the gateway';
     return (
       <SectionCard title="today">
-        <ErrorCard message={`gateway offline — ${gatewayError}`} />
+        <ErrorCard message={`gateway offline — ${message}`} />
       </SectionCard>
     );
   }
@@ -1069,15 +1094,14 @@ function CaptureSection() {
 
 interface Props {
   compact?: boolean;
-  /** Sibling-query error (brief) used only to disambiguate Today's empty state — see TodayPanel. */
-  gatewayError?: string | null;
+  preferredName?: string;
   onDecideInChat?: (entry: GatewayTriageEntry) => void;
   onNavigate?: (view: string) => void;
 }
 
 export function HomeState({
   compact = false,
-  gatewayError = null,
+  preferredName = '',
   onDecideInChat = () => {},
   onNavigate = () => {},
 }: Props) {
@@ -1103,13 +1127,18 @@ export function HomeState({
         alignContent: 'start',
       }}
     >
+      {preferredName && (
+        <div style={{ gridColumn: '1 / -1', fontFamily: 'var(--font-display)', fontSize: 18, color: 'var(--ink)' }}>
+          hey, {preferredName}
+        </div>
+      )}
       <HealthStrip />
       <WhatsNext onDecideInChat={onDecideInChat} onNavigate={onNavigate} />
       <NeedsYou onDecideInChat={onDecideInChat} />
       <Deadlines />
       <ActiveProjects onNavigate={onNavigate} />
       <WhatChanged />
-      <TodayPanel gatewayError={gatewayError} onNavigate={onNavigate} />
+      <TodayPanel onNavigate={onNavigate} />
       <CaptureSection />
     </div>
   );

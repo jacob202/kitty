@@ -4,6 +4,10 @@ import {
   // brief / models / search / weather (full payloads)
   fetchGatewayBrief,
   fetchGatewayModels,
+  fetchGatewayPersonality,
+  updateGatewayPersonality,
+  fetchGatewaySessionContext,
+  fetchGatewayUsageSummary,
   fetchGatewayRuntimeManifest,
   fetchGatewaySearch,
   fetchGatewayWeather,
@@ -80,6 +84,7 @@ import {
   type GatewayTodo,
   type GatewayLoopsPayload,
   type GatewayInsightsPayload,
+  type GatewayPersonality,
 } from '@/lib/gateway'
 
 // ── Dashboard payload queries ────────────────────────────────────────────────
@@ -90,7 +95,11 @@ export function useGatewayBrief() {
   return useQuery({
     queryKey: ['brief'],
     queryFn: fetchGatewayBrief,
-    refetchInterval: 5 * 60_000,
+    // Brief can be slower than the health probe on a cold gateway. Retry and
+    // refresh it quickly so one startup timeout does not pin the dashboard
+    // into an offline state for five minutes.
+    refetchInterval: 30_000,
+    staleTime: 10_000,
   })
 }
 
@@ -98,6 +107,40 @@ export function useGatewayModels() {
   return useQuery({
     queryKey: ['models'],
     queryFn: fetchGatewayModels,
+    refetchInterval: 30_000,
+    staleTime: 10_000,
+  })
+}
+
+export function usePersonality() {
+  return useQuery({
+    queryKey: ['settings', 'personality'],
+    queryFn: fetchGatewayPersonality,
+    staleTime: 30_000,
+  })
+}
+
+export function useUpdatePersonality() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: GatewayPersonality) => updateGatewayPersonality(payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['settings', 'personality'] }),
+  })
+}
+
+export function useSessionContext() {
+  return useQuery({
+    queryKey: ['session', 'context'],
+    queryFn: fetchGatewaySessionContext,
+    staleTime: 30_000,
+  })
+}
+
+export function useUsageSummary() {
+  return useQuery({
+    queryKey: ['usage', 'summary'],
+    queryFn: fetchGatewayUsageSummary,
+    refetchInterval: 60_000,
   })
 }
 
@@ -130,7 +173,12 @@ export function useGatewayWeather() {
 // ── Todos ────────────────────────────────────────────────────────────────────
 
 export function useTodos() {
-  return useQuery({ queryKey: ['todos'], queryFn: fetchGatewayTodos })
+  return useQuery({
+    queryKey: ['todos'],
+    queryFn: fetchGatewayTodos,
+    refetchInterval: 30_000,
+    staleTime: 10_000,
+  })
 }
 
 export function useAddTodo() {
@@ -410,8 +458,8 @@ export function useStateChanges() {
   return useQuery({
     queryKey: ['state', 'changes'],
     queryFn: fetchStateChanges,
-    refetchInterval: 60_000,
-    retry: false,
+    refetchInterval: 30_000,
+    retry: 2,
   })
 }
 
@@ -463,8 +511,8 @@ export function useStateNow() {
   return useQuery({
     queryKey: ['state', 'now'],
     queryFn: fetchStateNow,
-    refetchInterval: 60_000,
-    retry: false,
+    refetchInterval: 30_000,
+    retry: 2,
   })
 }
 
@@ -525,7 +573,7 @@ export function useDeadlines(status = 'open') {
   return useQuery({
     queryKey: ['deadlines', status],
     queryFn: () => fetchDeadlines(status),
-    refetchInterval: 5 * 60_000,
+    refetchInterval: 60_000,
     retry: false,
   })
 }
@@ -623,5 +671,46 @@ export function useUploadCapture() {
     // Indexing runs as a gateway background task; the invalidation gives the
     // fast path, the sources card's refresh button covers the slow one.
     onSuccess: () => qc.invalidateQueries({ queryKey: ['knowledge', 'sources'] }),
+  })
+}
+
+// ── Chat feedback ───────────────────────────────────────────────────────────
+
+export type MessageFeedbackRating = 'up' | 'down'
+
+export interface MessageFeedbackInput {
+  chatId: string
+  messageIndex: number
+  rating: MessageFeedbackRating
+}
+
+export function useSubmitMessageFeedback() {
+  return useMutation({
+    mutationFn: async ({ chatId, messageIndex, rating }: MessageFeedbackInput) => {
+      const controller = new AbortController()
+      const timeoutId = window.setTimeout(() => controller.abort(), 8000)
+      try {
+        const response = await fetch('/proxy/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, message_index: messageIndex, rating }),
+          signal: controller.signal,
+        })
+        if (!response.ok) {
+          throw new Error(`Gateway returned ${response.status} ${response.statusText}`.trim())
+        }
+        const payload = await response.json() as { ok?: unknown }
+        if (payload.ok !== true) {
+          throw new Error('Gateway /feedback returned an invalid acknowledgment')
+        }
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          throw new Error('Feedback request timed out — is the Kitty gateway running?')
+        }
+        throw error
+      } finally {
+        window.clearTimeout(timeoutId)
+      }
+    },
   })
 }
