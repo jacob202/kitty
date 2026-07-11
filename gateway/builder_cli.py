@@ -1311,6 +1311,32 @@ def _cmd_initiative_resume(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_initiative_doctor(args: argparse.Namespace) -> int:
+    from gateway.builder_doctor import run_doctor
+
+    result = run_doctor()
+
+    if args.json:
+        print(json.dumps(result, indent=2, default=str))
+        return 0 if result["ok"] else 1
+
+    for check in result["checks"]:
+        print(f"{check['level']:4}  {check['name']:<28}  {check['detail']}")
+    print()
+    summary = result["summary"]
+    if result["ok"]:
+        print(
+            f"OK — safe to run KittyBuilder "
+            f"(pass={summary['pass']} warn={summary['warn']})"
+        )
+    else:
+        print(
+            f"NOT SAFE — {summary['fail']} blocking problem(s); "
+            f"pass={summary['pass']} warn={summary['warn']} fail={summary['fail']}"
+        )
+    return 0 if result["ok"] else 1
+
+
 def _cmd_initiative_run_validation(args: argparse.Namespace) -> int:
     from gateway.builder_attempt import AttemptError, run_validation
 
@@ -1665,7 +1691,10 @@ COMMANDS: list[CommandSpec] = [
                 [_a("id", "initiative ID"),
                  _a("--reason", "advisory pause reason", default=None)]),
     CommandSpec("initiative-resume", "initiative", "resume", "clear a pause so the run loop may proceed",
-                _cmd_initiative_resume, [_a("id", "initiative ID")]),
+                 _cmd_initiative_resume, [_a("id", "initiative ID")]),
+    CommandSpec("initiative-doctor", "initiative", "doctor",
+                "read-only preflight: is it safe to run KittyBuilder right now?",
+                _cmd_initiative_doctor, [_a("--json", "output JSON", action="store_true")]),
 ]
 
 
