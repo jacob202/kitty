@@ -5,6 +5,10 @@ import logging
 import os
 from typing import Optional
 
+
+class MemoryError(RuntimeError):
+    """Raised when a memory read/write operation fails unexpectedly."""
+
 from gateway.paths import DATA_DIR
 
 logger = logging.getLogger("kitty.memory")
@@ -107,7 +111,11 @@ def add_memory(text: str, namespace: str = "facts", metadata: Optional[dict] = N
 
 
 def search_memory(query: str, limit: int = 5, namespace: Optional[str] = None) -> list[dict]:
-    """Search memories relevant to query. Returns list of {memory, score} dicts."""
+    """Search memories relevant to query. Returns list of {memory, score} dicts.
+
+    Raises MemoryError on unexpected backend failures. Returns [] when mem0
+    is not configured (not an error — just unavailable).
+    """
     mem = _get_memory()
     if mem is None:
         return []
@@ -117,14 +125,21 @@ def search_memory(query: str, limit: int = 5, namespace: Optional[str] = None) -
         if namespace:
             memories = [m for m in memories if m.get("metadata", {}).get("namespace") == namespace]
         return memories
-    except Exception as e:
-        logger.warning("Memory search failed (non-fatal): %s", e)
-        return []
+    except Exception as exc:
+        raise MemoryError(f"memory search failed: {exc}") from exc
 
 
 def get_context_block(query: str, limit: int = 5) -> str:
-    """Return a formatted context block to inject into the system prompt."""
-    memories = search_memory(query, limit=limit)
+    """Return a formatted context block to inject into the system prompt.
+
+    Catches MemoryError so a backend failure never breaks chat — returns ""
+    and logs a warning instead of raising.
+    """
+    try:
+        memories = search_memory(query, limit=limit)
+    except MemoryError as exc:
+        logger.warning("Memory search unavailable (prompt will proceed without context): %s", exc)
+        return ""
     if not memories:
         return ""
     lines = ["## What Kitty knows about Jacob (from memory):"]
@@ -137,7 +152,10 @@ def get_context_block(query: str, limit: int = 5) -> str:
 
 
 def list_memories(namespace: Optional[str] = None, limit: int = 50) -> list[dict]:
-    """List all stored memories. Optionally filter by namespace."""
+    """List all stored memories. Optionally filter by namespace.
+
+    Raises MemoryError on unexpected backend failures.
+    """
     mem = _get_memory()
     if mem is None:
         return []
@@ -147,13 +165,15 @@ def list_memories(namespace: Optional[str] = None, limit: int = 50) -> list[dict
         if namespace:
             memories = [m for m in memories if m.get("metadata", {}).get("namespace") == namespace]
         return memories[:limit]
-    except Exception as e:
-        logger.warning("Memory list failed (non-fatal): %s", e)
-        return []
+    except Exception as exc:
+        raise MemoryError(f"memory list failed: {exc}") from exc
 
 
 def delete_memory(memory_id: str) -> bool:
-    """Delete a specific memory by ID."""
+    """Delete a specific memory by ID.
+
+    Raises MemoryError on unexpected backend failures.
+    """
     mem = _get_memory()
     if mem is None:
         return False
@@ -161,9 +181,8 @@ def delete_memory(memory_id: str) -> bool:
         mem.delete(memory_id=memory_id)
         logger.info("Memory deleted: %s", memory_id)
         return True
-    except Exception as e:
-        logger.warning("Memory delete failed (non-fatal): %s", e)
-        return False
+    except Exception as exc:
+        raise MemoryError(f"memory delete failed for {memory_id!r}: {exc}") from exc
 
 
 def consolidate_session(session_id: str, messages: list[dict]) -> bool:
