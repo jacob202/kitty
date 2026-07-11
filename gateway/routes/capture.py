@@ -12,7 +12,7 @@ from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
-from gateway import artifact_store
+from gateway import artifact_store, desktop_store
 from gateway.paths import DATA_DIR, INBOX_FILE
 
 logger = logging.getLogger("kitty.routes.capture")
@@ -48,6 +48,17 @@ class CaptureResponse(BaseModel):
     status: str
     message: str
     artifact_id: str | None = None
+
+
+class CaptureTextRequest(BaseModel):
+    """Body for POST /capture/text — a quick plain-text note."""
+
+    text: str = Field(..., min_length=1, max_length=10_000)
+
+
+class CaptureTextResponse(BaseModel):
+    ok: bool
+    id: str
 
 
 def _ensure_dirs() -> None:
@@ -231,3 +242,10 @@ async def post_capture_file(
         status="queued",
         message=f"Capture queued for indexing: {Path(source_path).name}",
     )
+
+
+@router.post("/capture/text", response_model=CaptureTextResponse)
+async def post_capture_text(payload: CaptureTextRequest) -> CaptureTextResponse:
+    """Quick capture: store a plain-text note in the inbox for later triage."""
+    entry = desktop_store.append_text_capture(text=payload.text, source="capture.text")
+    return CaptureTextResponse(ok=True, id=entry["id"])
