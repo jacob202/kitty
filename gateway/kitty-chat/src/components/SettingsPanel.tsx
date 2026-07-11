@@ -7,10 +7,6 @@ interface Props {
   onToggleTheme: () => void
 }
 
-const NOT_WIRED = [
-  { name: 'gateway secret & env', where: '.env in the repo root' },
-]
-
 export function SettingsPanel({ theme, onToggleTheme }: Props) {
   const modelsQuery = useGatewayModels()
   const personalityQuery = usePersonality()
@@ -46,7 +42,7 @@ export function SettingsPanel({ theme, onToggleTheme }: Props) {
     <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
       <header>
         <h2 style={titleStyle}>settings</h2>
-        <p style={subtitleStyle}>the few knobs that turn from here, and where the rest live.</p>
+        <p style={subtitleStyle}>the few knobs that turn from here.</p>
       </header>
 
       <div style={cardStyle}>
@@ -165,16 +161,6 @@ export function SettingsPanel({ theme, onToggleTheme }: Props) {
           and open <code style={codeStyle}>http://&lt;mac-tailscale-name&gt;:4000</code>. the gateway
           itself stays loopback-only — the UI proxies to it server-side.
         </p>
-      </div>
-
-      <div style={cardStyle}>
-        <div style={sectionLabelStyle}>not wired here yet — lives on disk</div>
-        {NOT_WIRED.map(item => (
-          <div key={item.name} style={rowStyle}>
-            <span style={rowNameStyle}>{item.name}</span>
-            <span style={monoValueStyle}>{item.where}</span>
-          </div>
-        ))}
       </div>
     </div>
   )
