@@ -125,6 +125,22 @@ def test_generate_brief_structure():
     assert "Ship Phase 7." in result["intention"]
 
 
+def test_generate_brief_uses_injected_news_source():
+    """The NewsSource seam lets generate_brief use a fake source, no network."""
+    import gateway.brief as b
+    from contracts.brief_item import NewsHeadline
+
+    class FakeNewsSource:
+        def fetch(self, limit_per_feed: int = 3):
+            return [NewsHeadline(title="injected headline", url="http://x", snippet="")]
+
+    with patch.object(b, "_fetch_memory_snippet", return_value=""), patch.object(
+        b, "get_tasks_summary", return_value="Ship Phase 7."
+    ), patch("gateway.llm_client.chat", return_value="Ship Phase 7."):
+        result = b.generate_brief(news_source=FakeNewsSource())
+    assert result["headlines"][0]["title"] == "injected headline"
+
+
 def test_generate_fast_brief_returns_contract_without_news():
     import gateway.brief as b
 

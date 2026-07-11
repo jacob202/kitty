@@ -1,6 +1,6 @@
 import json
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, Protocol, runtime_checkable
 
 from contracts.brief_item import NewsHeadline
 from gateway.journal import recent_entries
@@ -203,17 +203,50 @@ def _enrich_with_bodies(headlines: List[NewsHeadline]) -> List[NewsHeadline]:
     return headlines
 
 
+@runtime_checkable
+class NewsSource(Protocol):
+    """Interface the brief pipeline uses to obtain headlines.
+
+    The pipeline never reaches for ``requests``/``feedparser`` directly —
+    it asks a ``NewsSource``. ``RssNewsSource`` is the default
+    implementation; any object with a ``fetch`` method satisfies the
+    protocol, so feeds can be swapped or faked without editing the
+    pipeline (the seam).
+    """
+
+    def fetch(self, limit_per_feed: int = 3) -> List[NewsHeadline]:
+        """Return headlines from this source's configured feeds."""
+        ...
+
+
+class RssNewsSource:
+    """Default news source: pulls configured RSS feeds in parallel.
+
+    Wraps the existing feed-fetch + enrichment logic behind the
+    ``NewsSource`` interface so the feed set is data, not control flow.
+    """
+
+    def __init__(self, feeds: dict[str, str]) -> None:
+        self.feeds = feeds
+
+    def fetch(self, limit_per_feed: int = 3) -> List[NewsHeadline]:
+        all_headlines: List[NewsHeadline] = []
+        with ThreadPoolExecutor(max_workers=len(self.feeds)) as pool:
+            futures = {
+                pool.submit(_fetch_single_feed, cat, url, limit_per_feed): cat
+                for cat, url in self.feeds.items()
+            }
+            for future in as_completed(futures):
+                all_headlines.extend(future.result())
+        return _enrich_with_bodies(all_headlines)
+
+
+DEFAULT_NEWS_SOURCE = RssNewsSource(DEFAULT_FEEDS)
+
+
 def fetch_news(limit_per_feed: int = 3) -> List[NewsHeadline]:
     """Fetch headlines from all feeds in parallel, optionally enriched with article bodies."""
-    all_headlines = []
-    with ThreadPoolExecutor(max_workers=len(DEFAULT_FEEDS)) as pool:
-        futures = {
-            pool.submit(_fetch_single_feed, cat, url, limit_per_feed): cat
-            for cat, url in DEFAULT_FEEDS.items()
-        }
-        for future in as_completed(futures):
-            all_headlines.extend(future.result())
-    return _enrich_with_bodies(all_headlines)
+    return DEFAULT_NEWS_SOURCE.fetch(limit_per_feed)
 
 
 def get_tasks_summary() -> str:
@@ -680,7 +713,7 @@ def detect_brief_novelty(headlines: List[NewsHeadline], themes: list[dict]) -> d
     }
 
 
-def generate_brief() -> dict:
+def generate_brief(news_source: NewsSource | None = None) -> dict:
     """Generate a morning brief. Returns a dict matching BriefItem schema.
 
     Contextual brief generation:
@@ -688,9 +721,12 @@ def generate_brief() -> dict:
     2. Rank headlines by relevance to those themes
     3. Identify novel vs. repeated content
     4. Synthesize brief with theme/novelty context
+
+    ``news_source`` is injectable for tests/non-default feeds; when omitted
+    the brief uses the default ``DEFAULT_NEWS_SOURCE`` (same as ``fetch_news``).
     """
     today = datetime.now(timezone.utc).date().isoformat()
-    headlines = fetch_news()
+    headlines = news_source.fetch() if news_source is not None else fetch_news()
     task_summary = get_tasks_summary()
     memory = _fetch_memory_snippet()
 
