@@ -139,13 +139,18 @@ const primaryButtonStyle: React.CSSProperties = {
   color: 'var(--on-primary)',
 };
 
-function ErrorCard({ message }: { message: string }) {
+function ErrorCard({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
     <div
       role="alert"
-      style={{ ...itemCard, color: 'var(--c-red)', fontFamily: 'var(--font-mono)', fontSize: 11 }}
+      style={{ ...itemCard, display: 'flex', alignItems: 'center', gap: 10, color: 'var(--c-red)', fontFamily: 'var(--font-mono)', fontSize: 11 }}
     >
-      {message}
+      <span style={{ flex: 1 }}>{message}</span>
+      {onRetry && (
+        <button type="button" onClick={onRetry} style={actionButtonStyle}>
+          retry
+        </button>
+      )}
     </div>
   );
 }
@@ -279,6 +284,7 @@ function WhatsNext({
   const approve = useApproveAction();
   const reject = useRejectAction();
   const sessionContext = useSessionContext();
+  const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
 
   const isPending =
@@ -305,9 +311,15 @@ function WhatsNext({
   if (todosQuery.isError || needsJacob.isError || sessionContext.isError) {
     const failed = sessionContext.isError ? sessionContext : todosQuery.isError ? todosQuery : needsJacob;
     const message = failed.error instanceof Error ? failed.error.message : 'Could not reach the gateway';
+    const retryKey = sessionContext.isError
+      ? ['session', 'context']
+      : todosQuery.isError
+        ? ['todos']
+        : ['inbox', 'needs_jacob'];
+    const retry = () => queryClient.invalidateQueries({ queryKey: retryKey });
     return (
       <SectionCard title="what's next" span>
-        <ErrorCard message={`gateway offline — ${message}`} />
+        <ErrorCard message={`gateway offline — ${message}`} onRetry={retry} />
       </SectionCard>
     );
   }

@@ -298,6 +298,44 @@ describe('HomeState', () => {
     ).toBeGreaterThan(0);
   });
 
+  it("shows an error with a retry button when /session/context fails, not a loading spinner", () => {
+    (useSessionContext as Mock).mockReturnValue({
+      data: undefined,
+      isPending: false,
+      isError: true,
+      error: new Error('404 Not Found'),
+    });
+    render(<HomeState />);
+    // Must show an error alert, not a loading spinner
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toMatch(/gateway offline/);
+    expect(screen.queryByText('loading…')).not.toBeInTheDocument();
+    // Must include a retry control (HealthStrip also has one, so at least 1)
+    expect(screen.getAllByRole('button', { name: 'retry' }).length).toBeGreaterThanOrEqual(1);
+    // The error card's retry lives inside the alert
+    expect(screen.getByRole('alert').querySelector('button')).toBeTruthy();
+  });
+
+  it("retry in whats-next recovers when the query succeeds on re-render", () => {
+    (useSessionContext as Mock).mockReturnValue({
+      data: undefined,
+      isPending: false,
+      isError: true,
+      error: new Error('504'),
+    });
+    const { rerender } = render(<HomeState />);
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    // Simulate recovery after retry
+    (useSessionContext as Mock).mockReturnValue({
+      data: { current_branch: 'main', last_session_topic: null, open_threads: [], next_actions: [] },
+      isPending: false,
+      isError: false,
+    });
+    rerender(<HomeState />);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByText(/not enough signal yet/)).toBeInTheDocument();
+  });
+
   // ── active projects ──
 
   it('lists active projects with their next step', () => {
