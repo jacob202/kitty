@@ -8,14 +8,14 @@ router = APIRouter(tags=["search"])
 
 
 @router.get("/search")
-async def search(query: str = "", limit: int = 5):
+async def search(q: str = "", limit: int = 5):
     """Search across memory, knowledge, and journal."""
     from gateway.memory_graph import search_all
 
-    if not query:
+    if not q:
         return {"results": [], "query": ""}
 
-    results = await search_all(query)
+    results = await search_all(q)
 
     all_items = []
     for store_name, items in results.results.items():
@@ -29,7 +29,7 @@ async def search(query: str = "", limit: int = 5):
     all_items.sort(key=lambda x: x["score"], reverse=True)
 
     return {
-        "query": query,
+        "query": q,
         "results": all_items[:limit],
         "stores": list(results.results.keys()),
         "errors": results.errors,
