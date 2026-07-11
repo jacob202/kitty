@@ -1304,6 +1304,32 @@ def _cmd_initiative_resume(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_initiative_doctor(args: argparse.Namespace) -> int:
+    from gateway.builder_doctor import run_doctor
+
+    result = run_doctor()
+
+    if args.json:
+        print(json.dumps(result, indent=2, default=str))
+        return 0 if result["ok"] else 1
+
+    for check in result["checks"]:
+        print(f"{check['level']:4}  {check['name']:<28}  {check['detail']}")
+    print()
+    summary = result["summary"]
+    if result["ok"]:
+        print(
+            f"OK — safe to run KittyBuilder "
+            f"(pass={summary['pass']} warn={summary['warn']})"
+        )
+    else:
+        print(
+            f"NOT SAFE — {summary['fail']} blocking problem(s); "
+            f"pass={summary['pass']} warn={summary['warn']} fail={summary['fail']}"
+        )
+    return 0 if result["ok"] else 1
+
+
 def _cmd_initiative_run_validation(args: argparse.Namespace) -> int:
     from gateway.builder_attempt import AttemptError, run_validation
 
@@ -1403,6 +1429,7 @@ _dispatch: dict[str, Any] = {
     "initiative-run": _cmd_initiative_run,
     "initiative-pause": _cmd_initiative_pause,
     "initiative-resume": _cmd_initiative_resume,
+    "initiative-doctor": _cmd_initiative_doctor,
 }
 
 
@@ -1875,6 +1902,12 @@ def build_parser() -> argparse.ArgumentParser:
         "resume", help="clear a pause so the run loop may proceed"
     )
     ini_resume_p.add_argument("id", help="initiative ID")
+
+    ini_doctor_p = initiative_sub.add_parser(
+        "doctor",
+        help="read-only preflight: is it safe to run KittyBuilder right now?",
+    )
+    ini_doctor_p.add_argument("--json", action="store_true", help="output JSON")
 
     return parser
 
