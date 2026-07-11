@@ -286,6 +286,60 @@ def _check_push_channel(env: dict) -> list[Check]:
     ]
 
 
+def _gateway_process_start_time() -> float | None:
+    """Return the gateway process start time as a Unix timestamp, or None if not found."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["pgrep", "-f", "gateway.main"],
+            capture_output=True, text=True, timeout=3,
+        )
+        pids = result.stdout.strip().splitlines()
+        if not pids:
+            return None
+        pid = int(pids[0])
+        stat = pathlib.Path(f"/proc/{pid}/stat").read_text()
+        # field 22 (0-indexed 21) is process start time in jiffies since boot
+        fields = stat.split()
+        starttime_jiffies = int(fields[21])
+        hz = os.sysconf("SC_CLK_TCK")
+        uptime_s = float(pathlib.Path("/proc/uptime").read_text().split()[0])
+        import time
+        boot_time = time.time() - uptime_s
+        return boot_time + starttime_jiffies / hz
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _check_gateway_freshness(
+    *,
+    process_start: float | None = None,
+    source_mtime: float | None = None,
+) -> list[Check]:
+    """WARN when the running gateway process predates the newest gateway source file."""
+    if process_start is None:
+        process_start = _gateway_process_start_time()
+    if process_start is None:
+        # Gateway not running — services check already covers this.
+        return [Check("PASS", "runtime:gateway_freshness", "gateway not running — no freshness check")]
+
+    if source_mtime is None:
+        py_files = list((ROOT / "gateway").glob("*.py"))
+        source_mtime = max((f.stat().st_mtime for f in py_files), default=0.0)
+
+    if source_mtime > process_start:
+        import datetime
+        age = datetime.timedelta(seconds=int(source_mtime - process_start))
+        return [
+            Check(
+                "WARN",
+                "runtime:gateway_freshness",
+                f"gateway process is {age} older than newest source — restart with ./kitty up",
+            )
+        ]
+    return [Check("PASS", "runtime:gateway_freshness", "gateway process is newer than source")]
+
+
 def _check_deadlines() -> list[Check]:
     """PASS when deadlines are being watched and last push succeeded; WARN when none watched; FAIL on last push failure."""
     from gateway import deadline_store, push
@@ -347,6 +401,7 @@ def main() -> int:
         + _check_github_connector(env)
         + _check_push_channel(env)
         + _check_deadlines()
+        + _check_gateway_freshness()
     )
 
     failures = [c for c in checks if c.level == "FAIL"]
