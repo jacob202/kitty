@@ -125,6 +125,22 @@ def test_generate_brief_structure():
     assert "Ship Phase 7." in result["intention"]
 
 
+def test_generate_brief_uses_injected_news_source():
+    """The NewsSource seam lets generate_brief use a fake source, no network."""
+    import gateway.brief as b
+    from contracts.brief_item import NewsHeadline
+
+    class FakeNewsSource:
+        def fetch(self, limit_per_feed: int = 3):
+            return [NewsHeadline(title="injected headline", url="http://x", snippet="")]
+
+    with patch.object(b, "_fetch_memory_snippet", return_value=""), patch.object(
+        b, "get_tasks_summary", return_value="Ship Phase 7."
+    ), patch("gateway.llm_client.chat", return_value="Ship Phase 7."):
+        result = b.generate_brief(news_source=FakeNewsSource())
+    assert result["headlines"][0]["title"] == "injected headline"
+
+
 def test_generate_fast_brief_returns_contract_without_news():
     import gateway.brief as b
 
@@ -182,6 +198,35 @@ def test_synthesize_brief_prompt_includes_unified_memory():
         )
     assert "unified context" in prompt
     assert "AI news" in prompt
+
+
+def test_synthesize_brief_uses_injected_llm():
+    """LLMClient seam: an injected client is used and gateway.llm_client.chat is not."""
+    import gateway.brief as b
+    from contracts.brief_item import NewsHeadline
+
+    seen: dict = {}
+
+    class FakeLLM:
+        def complete(self, *, model, messages, max_tokens, temperature):
+            seen["model"] = model
+            seen["max_tokens"] = max_tokens
+            return "fake synthesis"
+
+    with patch("gateway.context_enrichment.calendar_today_text_sync", return_value=""), patch(
+        "gateway.context_enrichment.weather_text_sync", return_value=""
+    ), patch("gateway.context_enrichment.todos_text_sync", return_value=""), patch(
+        "gateway.llm_client.chat"
+    ) as chat_mock:
+        out = b.synthesize_brief_with_llm(
+            [NewsHeadline(title="AI news", url="http://x", snippet="")],
+            "Ship Phase 7.", "## Memory",
+            llm=FakeLLM(),
+        )
+    assert out == "fake synthesis"
+    assert seen["model"] == "kitty-sonnet"
+    assert seen["max_tokens"] == 600
+    chat_mock.assert_not_called()
 
 
 def test_calendar_today_text_sync_formats_events():
