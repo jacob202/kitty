@@ -1,0 +1,80 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "trust-lane-v1",
+  "title": "Trust lane: browser-QA findings + fail-loud sweep",
+  "description": "Bounded T0/T1 packets from the 2026-07-11 Fable blueprint session (docs/BLUEPRINT.md). Every packet stems from live browser-QA evidence or the Codex audit Card C. T2 items (LAN bind, SSRF, agent_runner states) are deliberately excluded - those are escalated to Codex/Jacob.",
+  "packets": [
+    {
+      "id": "TL-01-whats-next-error-state",
+      "title": "What's Next card: explicit error state instead of infinite loading",
+      "objective": "When GET /session/context or the next-step query fails (404/5xx/network), the home What's Next card must render an explicit error with a retry control instead of 'loading...' forever. Observed live 2026-07-11: a stale gateway 404'd /session/context and the card spun indefinitely.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "A mocked failing /session/context renders a visible error message and retry button, not a loading state",
+        "Retry re-issues the request and recovers when the mock succeeds",
+        "make ui-test passes"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components/",
+        "gateway/kitty-chat/src/lib/gateway.ts",
+        "gateway/kitty-chat/src/__tests__/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 10 }
+    },
+    {
+      "id": "TL-02-doctor-code-freshness",
+      "title": "Doctor check: gateway process older than checked-out code",
+      "objective": "Add a doctor check that warns when the running gateway process started before the newest mtime of gateway/*.py (stale code serving). Observed live 2026-07-11: gateway ran pre-14f5865 code, 404ing routes that exist in the checkout, while doctor reported healthy.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "./kitty doctor --json emits a WARN-level check when the gateway process predates the newest gateway source mtime",
+        "PASS when the process is newer",
+        "Unit test covers both branches with fake timestamps",
+        "python3.12 -m pytest tests/ -q passes for the touched test files"
+      ],
+      "allowed_paths": ["gateway/doctor.py", "kitty", "tests/test_doctor_freshness.py"],
+      "policy": { "max_attempts": 2, "priority": 9 }
+    },
+    {
+      "id": "TL-03-composer-enter-to-send",
+      "title": "Chat composer: Enter sends, Shift+Enter newlines",
+      "objective": "Observed live 2026-07-11: pressing Enter in the chat composer does not send; only the send button does. Make Enter send the message and Shift+Enter insert a newline, matching standard chat convention.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "Enter in a non-empty composer dispatches the same send path as the send button",
+        "Shift+Enter inserts a newline and does not send",
+        "Enter on an empty composer does nothing",
+        "make ui-test passes with new coverage for all three cases"
+      ],
+      "allowed_paths": ["gateway/kitty-chat/src/components/", "gateway/kitty-chat/src/__tests__/"],
+      "policy": { "max_attempts": 2, "priority": 7 }
+    },
+    {
+      "id": "TL-04-mobile-mascot-overlap",
+      "title": "Mobile: mascot must not overlap interactive controls",
+      "objective": "Observed live 2026-07-11 at 375px width: the doodle cat overlaps the 'sweep' button on the deadlines card. Constrain or hide decorative mascots so they never cover interactive elements at mobile widths.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "At 375px viewport the sweep button is fully visible and clickable",
+        "Mascot remains decorative (aria-hidden / pointer-events: none)",
+        "make ui-test passes"
+      ],
+      "allowed_paths": ["gateway/kitty-chat/src/components/", "gateway/kitty-chat/src/app/globals.css"],
+      "policy": { "max_attempts": 1, "priority": 3 }
+    },
+    {
+      "id": "TL-05-fail-loud-memories-monitors",
+      "title": "Fail-loud sweep: memories + monitors gateway paths",
+      "objective": "Audit Card C, first slice: in gateway memories and monitors modules, replace silent 'except: return []/None/False' fallbacks with typed raises or explicit error envelopes, following the landed pattern in gateway/model_digest.py and gateway/next_step.py.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "No bare silent-fallback except blocks remain in the touched modules (grep-verifiable)",
+        "Each converted path has a regression test proving the error surfaces",
+        "Happy-path behavior and response shapes consumed by the frontend are unchanged",
+        "python3.12 -m pytest tests/ -q passes for the touched test files"
+      ],
+      "allowed_paths": ["gateway/memories.py", "gateway/routes/memories.py", "gateway/routes/monitors.py", "gateway/monitors.py", "tests/"],
+      "policy": { "max_attempts": 2, "priority": 5 }
+    }
+  ]
+}

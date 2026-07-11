@@ -3,9 +3,9 @@
   "configurations": [
     {
       "name": "kitty-chat",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "/Users/jacobbrizinski/Projects/kitty/.worktrees/fable-ux-phase/gateway/kitty-chat", "run", "dev"],
-      "port": 3000
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["gateway/kitty-chat/node_modules/next/dist/bin/next", "dev", "gateway/kitty-chat", "-H", "127.0.0.1", "-p", "4000"],
+      "port": 4000
     }
   ]
 }

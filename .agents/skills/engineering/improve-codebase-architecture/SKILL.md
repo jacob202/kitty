@@ -9,20 +9,11 @@ Surface architectural friction and propose **deepening opportunities** — refac
 
 ## Glossary
 
-Use these terms exactly in every suggestion. Consistent language is the point — don't drift into "component," "service," "API," or "boundary." Full definitions below.
+Use these terms exactly in every suggestion. Consistent language is the point — don't drift into "component," "service," "API," or "boundary." The canonical definitions live in [LANGUAGE.md](LANGUAGE.md) and are injected below; the "Key principles" summary follows.
 
-!`cat LANGUAGE.md`
+!`cat /Users/jacobbrizinski/Projects/kitty/.agents/skills/engineering/improve-codebase-architecture/LANGUAGE.md`
 
-- **Module** — anything with an interface and an implementation (function, class, package, slice).
-- **Interface** — everything a caller must know to use the module: types, invariants, error modes, ordering, config. Not just the type signature.
-- **Implementation** — the code inside.
-- **Depth** — leverage at the interface: a lot of behaviour behind a small interface. **Deep** = high leverage. **Shallow** = interface nearly as complex as the implementation.
-- **Seam** — where an interface lives; a place behaviour can be altered without editing in place. (Use this, not "boundary.")
-- **Adapter** — a concrete thing satisfying an interface at a seam.
-- **Leverage** — what callers get from depth.
-- **Locality** — what maintainers get from depth: change, bugs, knowledge concentrated in one place.
-
-Key principles:
+Key principles (see LANGUAGE.md / DEEPENING.md for full definitions and test strategy):
 
 - **Deletion test**: imagine deleting the module. If complexity vanishes, it was a pass-through. If complexity reappears across N callers, it was earning its keep.
 - **The interface is the test surface.**
@@ -37,7 +28,7 @@ Before exploring, read:
 | Doc | Purpose |
 |-----|---------|
 | `docs/ARCHITECTURE.md` | Live stack, ports, package layout |
-| `CLAUDE.md` | Module map, routing rules, test commands |
+| `AGENTS.md` | Module map, routing rules, test commands (repo root) |
 | `gateway/paths.py` | Path constants — all storage paths flow from here |
 | `docs/phases/CONTEXT_ENGINEERING.md` | How context is assembled and injected |
 
@@ -87,7 +78,7 @@ Propose interfaces only after the user picks a candidate. Until then, ask: "Whic
 
 ### 3. Grilling loop
 
-Once the user picks a candidate, drop into a grilling conversation. Walk the design tree with them — constraints, dependencies, the shape of the deepened module, what sits behind the seam, what tests survive.
+Once the user picks a candidate, drop into a grilling conversation. Walk the design tree with them — constraints, dependencies, the shape of the deepened module, what sits behind the seam, what tests survive. For dependency categories and test strategy when deepening a chosen candidate, see [DEEPENING.md](DEEPENING.md).
 
 Side effects happen inline as decisions crystallize:
 
