@@ -200,6 +200,35 @@ def test_synthesize_brief_prompt_includes_unified_memory():
     assert "AI news" in prompt
 
 
+def test_synthesize_brief_uses_injected_llm():
+    """LLMClient seam: an injected client is used and gateway.llm_client.chat is not."""
+    import gateway.brief as b
+    from contracts.brief_item import NewsHeadline
+
+    seen: dict = {}
+
+    class FakeLLM:
+        def complete(self, *, model, messages, max_tokens, temperature):
+            seen["model"] = model
+            seen["max_tokens"] = max_tokens
+            return "fake synthesis"
+
+    with patch("gateway.context_enrichment.calendar_today_text_sync", return_value=""), patch(
+        "gateway.context_enrichment.weather_text_sync", return_value=""
+    ), patch("gateway.context_enrichment.todos_text_sync", return_value=""), patch(
+        "gateway.llm_client.chat"
+    ) as chat_mock:
+        out = b.synthesize_brief_with_llm(
+            [NewsHeadline(title="AI news", url="http://x", snippet="")],
+            "Ship Phase 7.", "## Memory",
+            llm=FakeLLM(),
+        )
+    assert out == "fake synthesis"
+    assert seen["model"] == "kitty-sonnet"
+    assert seen["max_tokens"] == 600
+    chat_mock.assert_not_called()
+
+
 def test_calendar_today_text_sync_formats_events():
     from gateway.context_enrichment import calendar_today_text_sync
 

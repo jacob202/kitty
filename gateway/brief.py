@@ -244,6 +244,41 @@ class RssNewsSource:
 DEFAULT_NEWS_SOURCE = RssNewsSource(DEFAULT_FEEDS)
 
 
+@runtime_checkable
+class LLMClient(Protocol):
+    """Interface the brief pipeline uses to talk to a language model.
+
+    Keeps the concrete ``gateway.llm_client.chat`` call behind a seam so
+    synthesis is unit-testable (inject a fake) and swappable without
+    editing the prompt-building code.
+    """
+
+    def complete(
+        self, *, model: str, messages: List[dict], max_tokens: int, temperature: float
+    ) -> str:
+        """Return the model's completion text for the given messages."""
+        ...
+
+
+class DefaultLLMClient:
+    """LLMClient backed by ``gateway.llm_client.chat`` (LiteLLM)."""
+
+    def complete(
+        self, *, model: str, messages: List[dict], max_tokens: int, temperature: float
+    ) -> str:
+        from gateway.llm_client import chat
+
+        return chat(
+            model=model,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+
+
+DEFAULT_LLM_CLIENT = DefaultLLMClient()
+
+
 def fetch_news(limit_per_feed: int = 3) -> List[NewsHeadline]:
     """Fetch headlines from all feeds in parallel, optionally enriched with article bodies."""
     return DEFAULT_NEWS_SOURCE.fetch(limit_per_feed)
@@ -281,19 +316,24 @@ def synthesize_brief_with_llm(
     memory_snippet: str,
     themes: list[dict] | None = None,
     novelty: dict | None = None,
+    llm: LLMClient | None = None,
 ) -> str:
     """Use LLM via LiteLLM to turn raw data into a warm, character-driven morning brief.
 
     When themes are present they are surfaced so the brief can connect news to
     what Jacob's been working on. novelty is accepted for pipeline compatibility
     but is no longer rendered into the prompt — it read as meta-noise.
+
+    ``llm`` is injectable for tests/non-default models; when omitted the brief
+    uses the default ``DEFAULT_LLM_CLIENT`` (``gateway.llm_client.chat``).
     """
     from gateway.context_enrichment import (
         calendar_today_text_sync,
         todos_text_sync,
         weather_text_sync,
     )
-    from gateway.llm_client import chat
+
+    llm_client = llm or DEFAULT_LLM_CLIENT
 
     news_text = "\n".join([f"- {h.title}" for h in headlines[:6]])
     calendar_text = calendar_today_text_sync()
@@ -333,7 +373,7 @@ Write 3–4 short paragraphs that feel like a smart friend catching him up, not 
 No bullet points. No headers. No "Certainly!" or "Great question!". Contractions. Speak Canadian."""
 
     try:
-        return chat(
+        return llm_client.complete(
             model="kitty-sonnet",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=600,
@@ -394,17 +434,22 @@ def generate_brief_text(headlines: List[NewsHeadline], task_summary: str) -> str
     return f"Good morning, Jacob. Here's what's happening today:\n\n{news_summary}\n\nYour next action: {task_summary}"
 
 
-def summarize_headlines_to_bullets(headlines: List[NewsHeadline]) -> List[str]:
+def summarize_headlines_to_bullets(
+    headlines: List[NewsHeadline], llm: LLMClient | None = None
+) -> List[str]:
     """Turn enriched headlines into 3–5 bullet 'what's interesting today' lines.
 
     Requires at least some bodies to be present (i.e. BRIEF_ENRICH_ARTICLES=1).
     Returns [] if there's no body content or the LLM call fails.
+
+    ``llm`` is injectable for tests/non-default models; when omitted the brief
+    uses the default ``DEFAULT_LLM_CLIENT``.
     """
     items_with_body = [h for h in headlines if h.body]
     if not items_with_body:
         return []
 
-    from gateway.llm_client import chat
+    llm_client = llm or DEFAULT_LLM_CLIENT
 
     rows = []
     for h in items_with_body[:8]:
@@ -423,7 +468,7 @@ def summarize_headlines_to_bullets(headlines: List[NewsHeadline]) -> List[str]:
     )
 
     try:
-        raw = chat(
+        raw = llm_client.complete(
             model="kitty-sonnet",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=400,
