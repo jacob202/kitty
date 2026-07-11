@@ -50,7 +50,10 @@
 }
 
 /* ── DAY: manila paper ─────────────────────────────────────── */
-[data-theme="day"], :root {
+/* Keep a day-mode default only when no explicit theme is selected. The app
+   always sets data-theme on <html>; an unconditional :root selector here
+   would override the cosmic/night variables above through cascade order. */
+:root:not([data-theme]), [data-theme="day"] {
   --bg:         #F3EAD6;
   --surface:    #FBF5E9;
   --surface-2:  #EBE0C9;
@@ -239,6 +242,10 @@ button, input, textarea { font: inherit; }
 .cat-done    { animation: hop 1.1s ease-in-out; }
 .cat-broke   { animation: none; filter: saturate(.55); }
 .msg-in      { animation: msg-in .22s ease both; }
+
+@media (hover: none) {
+  .msg-actions { opacity: 1 !important; }
+}
 
 input::placeholder { color: var(--ink-2); opacity: .8; }
 textarea::placeholder { color: var(--ink-2); opacity: .8; }

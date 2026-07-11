@@ -1,24 +1,46 @@
 'use client'
-import type { CSSProperties } from 'react'
-import { useGatewayModels } from '@/lib/queries'
+import { useEffect, useState, type CSSProperties } from 'react'
+import { useGatewayModels, usePersonality, useUpdatePersonality, useUsageSummary } from '@/lib/queries'
 
 interface Props {
   theme: 'cosmic' | 'day' | 'night'
   onToggleTheme: () => void
 }
 
-// Settings that exist but live in files on disk — listed here honestly
-// instead of pretending there's an editor for them.
 const NOT_WIRED = [
-  { name: 'voice / persona', where: 'config/SOUL.md' },
-  { name: 'standing preferences', where: 'config/PREFERENCES.md (via /remember in chat)' },
-  { name: 'model routing config', where: 'config/litellm — edit + restart the proxy' },
   { name: 'gateway secret & env', where: '.env in the repo root' },
 ]
 
 export function SettingsPanel({ theme, onToggleTheme }: Props) {
   const modelsQuery = useGatewayModels()
+  const personalityQuery = usePersonality()
+  const updatePersonality = useUpdatePersonality()
+  const usageQuery = useUsageSummary()
   const gatewayLive = modelsQuery.data?.fromLiveGateway ?? false
+  const [soul, setSoul] = useState('')
+  const [preferences, setPreferences] = useState('')
+  const [personalityDirty, setPersonalityDirty] = useState(false)
+
+  useEffect(() => {
+    if (!personalityQuery.data || personalityDirty) return
+    setSoul(personalityQuery.data.soul)
+    setPreferences(personalityQuery.data.preferences)
+  }, [personalityQuery.data, personalityDirty])
+
+  useEffect(() => {
+    if (updatePersonality.isSuccess) setPersonalityDirty(false)
+  }, [updatePersonality.isSuccess])
+
+  const voicePreview = soul
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+    .slice(0, 4)
+    .join(' ')
+
+  const savePersonality = () => {
+    updatePersonality.mutate({ soul, preferences })
+  }
 
   return (
     <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
@@ -35,6 +57,89 @@ export function SettingsPanel({ theme, onToggleTheme }: Props) {
             {theme === 'cosmic' ? '✦ cosmic — switch to day' : theme === 'day' ? '☀ day — switch to night' : '☾ night — switch to cosmic'}
           </button>
         </div>
+      </div>
+
+      <div style={cardStyle}>
+        <div style={sectionLabelStyle}>personality</div>
+        {personalityQuery.isPending ? (
+          <p style={noteStyle}>loading personality files…</p>
+        ) : personalityQuery.isError ? (
+          <p role="alert" style={errorStyle}>
+            couldn&apos;t read personality files — {personalityQuery.error instanceof Error ? personalityQuery.error.message : 'gateway error'}
+          </p>
+        ) : (
+          <>
+            <label style={fieldLabelStyle} htmlFor="personality-soul">tone description</label>
+            <textarea
+              id="personality-soul"
+              aria-label="tone description"
+              value={soul}
+              onChange={event => { setPersonalityDirty(true); setSoul(event.target.value) }}
+              style={textareaStyle}
+            />
+            <label style={fieldLabelStyle} htmlFor="personality-preferences">standing preferences</label>
+            <textarea
+              id="personality-preferences"
+              aria-label="standing preferences"
+              value={preferences}
+              onChange={event => { setPersonalityDirty(true); setPreferences(event.target.value) }}
+              style={textareaStyle}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <button type="button" onClick={savePersonality} disabled={updatePersonality.isPending} style={buttonStyle}>
+                {updatePersonality.isPending ? 'saving…' : 'save personality'}
+              </button>
+              {updatePersonality.isError && (
+                <span role="alert" style={errorStyle}>
+                  save failed — {updatePersonality.error instanceof Error ? updatePersonality.error.message : 'gateway error'}
+                </span>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      <div style={cardStyle}>
+        <div style={sectionLabelStyle}>voice preview</div>
+        <p style={noteStyle}>{voicePreview || 'personality text has no visible preview yet.'}</p>
+      </div>
+
+      <div style={cardStyle}>
+        <div style={sectionLabelStyle}>models and routing</div>
+        {modelsQuery.isPending ? (
+          <p style={noteStyle}>checking configured models…</p>
+        ) : modelsQuery.isError ? (
+          <p role="alert" style={errorStyle}>
+            couldn&apos;t read configured models — {modelsQuery.error instanceof Error ? modelsQuery.error.message : 'gateway error'}
+          </p>
+        ) : (
+          <>
+            <div style={{ ...rowStyle, flexWrap: 'wrap', justifyContent: 'flex-start' }}>
+              {(modelsQuery.data?.models ?? []).map(model => (
+                <span key={model.id} style={chipStyle}>{model.name}</span>
+              ))}
+            </div>
+            <p style={noteStyle}>
+              {gatewayLive ? 'provider endpoint reachable.' : `provider endpoint unreachable${modelsQuery.data?.error ? ` — ${modelsQuery.data.error}` : ''}`}
+              {' '}Reasoning and explicit “best model” requests route to kitty-sonnet; everything else uses the default route.
+            </p>
+          </>
+        )}
+      </div>
+
+      <div style={cardStyle}>
+        <div style={sectionLabelStyle}>usage</div>
+        {usageQuery.isPending ? (
+          <p style={noteStyle}>loading recorded usage…</p>
+        ) : usageQuery.isError ? (
+          <p role="alert" style={errorStyle}>
+            couldn&apos;t read usage — {usageQuery.error instanceof Error ? usageQuery.error.message : 'gateway error'}
+          </p>
+        ) : usageQuery.data ? (
+          <p style={noteStyle}>
+            {usageQuery.data.totals.calls} logged calls · {usageQuery.data.totals.tokens.toLocaleString()} tokens · estimated ${usageQuery.data.estimated_cost.cad.toFixed(4)} CAD. {usageQuery.data.cost_estimate_disclaimer}
+          </p>
+        ) : null}
       </div>
 
       <div style={cardStyle}>
@@ -154,4 +259,40 @@ const codeStyle: CSSProperties = {
   background: 'var(--surface-2)',
   padding: '1px 5px',
   borderRadius: 4,
+}
+
+const fieldLabelStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  fontWeight: 700,
+  color: 'var(--ink-2)',
+}
+
+const textareaStyle: CSSProperties = {
+  width: '100%',
+  minHeight: 112,
+  resize: 'vertical',
+  padding: 10,
+  border: '1.5px solid var(--line)',
+  borderRadius: 8,
+  background: 'var(--bg)',
+  color: 'var(--ink)',
+  fontFamily: 'var(--font-body)',
+  fontSize: 13,
+  lineHeight: 1.5,
+}
+
+const errorStyle: CSSProperties = {
+  color: 'var(--c-red)',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+}
+
+const chipStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  padding: '3px 8px',
+  border: '1px solid var(--line)',
+  borderRadius: 999,
+  color: 'var(--ink-2)',
 }

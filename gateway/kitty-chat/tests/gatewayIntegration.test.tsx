@@ -5,7 +5,12 @@ import { vi, describe, expect, it, beforeEach, afterEach } from 'vitest'
 
 import { RightPanel } from '../src/components/RightPanel'
 import { TopBar } from '../src/components/TopBar'
-import { buildGatewayModels, fetchGatewaySearch, summarizeGatewaySearch } from '../src/lib/gateway'
+import {
+  buildGatewayModels,
+  fetchGatewayModels,
+  fetchGatewaySearch,
+  summarizeGatewaySearch,
+} from '../src/lib/gateway'
 
 function renderWithQueryClient(children: ReactNode) {
   const client = new QueryClient({
@@ -112,6 +117,37 @@ describe('fetchGatewaySearch abort', () => {
   })
 })
 
+describe('fetchGatewayModels', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+  })
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  it('keeps the live model list when the proxy is healthy', async () => {
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ data: [{ id: 'kitty-sonnet' }] }), { status: 200 }),
+    )
+
+    const result = await fetchGatewayModels()
+
+    expect(result.fromLiveGateway).toBe(true)
+    expect(result.error).toBeNull()
+    expect(result.models.map(model => model.id)).toEqual(['kitty-sonnet'])
+  })
+
+  it('marks the model list offline instead of hiding a proxy error', async () => {
+    vi.mocked(global.fetch).mockResolvedValue(
+      new Response(null, { status: 503, statusText: 'Service Unavailable' }),
+    )
+
+    const result = await fetchGatewayModels()
+
+    expect(result.fromLiveGateway).toBe(false)
+    expect(result.error).toContain('503')
+    expect(result.models.length).toBeGreaterThan(0)
+  })
+})
+
 describe('RightPanel', () => {
   afterEach(cleanup)
   it('shows search unavailable card when searchGatewayError is set', () => {
@@ -185,5 +221,12 @@ describe('TopBar', () => {
     expect((container.firstElementChild as HTMLElement).style.padding).toContain(
       'safe-area-inset-top'
     )
+  })
+
+  it('labels the mobile sidebar control and gives it a 44px target', () => {
+    render(<TopBar {...baseProps} isMobile onToggleSidebar={() => undefined} />)
+
+    const sidebarButton = screen.getByRole('button', { name: 'Open sidebar' })
+    expect(sidebarButton).toHaveStyle({ width: '44px', height: '44px' })
   })
 })

@@ -59,13 +59,32 @@ export function ImageGenPanel() {
     })
   }
 
+  if (statusQuery.isPending) {
+    return (
+      <div style={unavailableStyle} role="status">
+        <p style={unavailableTitleStyle}>checking ComfyUI…</p>
+        <p style={unavailableBodyStyle}>Checking the configured image renderer before enabling generation.</p>
+      </div>
+    )
+  }
+
   if (available === false) {
     return (
       <div style={unavailableStyle}>
         <p style={unavailableTitleStyle}>ComfyUI offline</p>
         <p style={unavailableBodyStyle}>
-          Start the Colab notebook and set COMFY_URL in .env, then restart the gateway.
+          Start ComfyUI locally or from the Colab notebook. If it is not on the default local
+          address, set COMFY_URL in .env and restart the gateway. Image generation is wired
+          through the gateway; the renderer itself is the external ComfyUI service.
         </p>
+        <button
+          type="button"
+          onClick={() => void statusQuery.refetch()}
+          disabled={statusQuery.isFetching}
+          style={retryStyle}
+        >
+          {statusQuery.isFetching ? 'checking…' : 'check again'}
+        </button>
       </div>
     )
   }
@@ -235,6 +254,18 @@ const unavailableBodyStyle: CSSProperties = {
   fontSize: 10,
   color: 'var(--ink-2)',
   lineHeight: 1.5,
+}
+
+const retryStyle: CSSProperties = {
+  marginTop: 10,
+  padding: '5px 9px',
+  background: 'transparent',
+  border: '1px solid var(--line)',
+  borderRadius: 4,
+  color: 'var(--ink-2)',
+  cursor: 'pointer',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
 }
 
 const onlineStyle: CSSProperties = {

@@ -16,6 +16,7 @@ import {
   useGatewayHealth,
   useGatewayModels,
   useChatsPersistence,
+  useSessionContext,
   useDeadlines,
   useDeadlineSweep,
 } from '../src/lib/queries';
@@ -44,6 +45,7 @@ vi.mock('../src/lib/queries', () => ({
   useGatewayHealth: vi.fn(),
   useGatewayModels: vi.fn(),
   useChatsPersistence: vi.fn(),
+  useSessionContext: vi.fn(),
   useDeadlines: vi.fn(),
   useDeadlineSweep: vi.fn(),
 }));
@@ -109,6 +111,12 @@ function setDefaultMocks() {
   });
   (useChatsPersistence as Mock).mockReturnValue({
     data: { ok: true, count: 3, error: null },
+    isPending: false,
+    isError: false,
+    isFetched: true,
+  });
+  (useSessionContext as Mock).mockReturnValue({
+    data: { current_branch: 'main', last_session_topic: 'UI wiring fix pass', open_threads: [], next_actions: [] },
     isPending: false,
     isError: false,
     isFetched: true,
@@ -180,6 +188,11 @@ describe('HomeState', () => {
   });
 
   it('shows honest empty states when gateway returns no data', () => {
+    (useSessionContext as Mock).mockReturnValue({
+      data: { current_branch: 'main', last_session_topic: null, open_threads: [], next_actions: [] },
+      isPending: false,
+      isError: false,
+    });
     render(<HomeState />);
     expect(screen.getByText(/not enough signal yet/)).toBeInTheDocument();
     expect(screen.getByText(/no projects registered — \.\/kitty project add/)).toBeInTheDocument();
@@ -270,6 +283,11 @@ describe('HomeState', () => {
     render(<HomeState />);
     expect(screen.getAllByText('book dentist').length).toBeGreaterThan(0);
     expect(screen.getByText(/nothing louder is waiting/)).toBeInTheDocument();
+  });
+
+  it('shows the last session topic when nothing more urgent is waiting', () => {
+    render(<HomeState />);
+    expect(screen.getByText('last session: UI wiring fix pass')).toBeInTheDocument();
   });
 
   it('shows the offline fix in the hero when the gateway is down', () => {
@@ -446,8 +464,14 @@ describe('HomeState', () => {
   });
 
   it("shows an honest error on Today when the gateway is down, not a misleading empty state", () => {
-    render(<HomeState gatewayError="Could not reach the gateway" />);
-    expect(screen.getByText(/gateway offline — Could not reach the gateway/)).toBeInTheDocument();
+    (useTodos as Mock).mockReturnValue({
+      data: undefined,
+      isPending: false,
+      isError: true,
+      error: new Error('Could not reach the gateway'),
+    });
+    render(<HomeState />);
+    expect(screen.getAllByText(/gateway offline — Could not reach the gateway/).length).toBeGreaterThan(0);
     expect(screen.queryByText('nothing on the list')).not.toBeInTheDocument();
   });
 

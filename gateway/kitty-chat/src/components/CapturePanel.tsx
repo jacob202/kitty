@@ -49,9 +49,17 @@ export function CapturePanel() {
   return (
     <div
       onClick={() => inputRef.current?.click()}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          inputRef.current?.click()
+        }
+      }}
       onDrop={onDrop}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
+      role="button"
+      tabIndex={0}
       style={{
         border: `1px dashed ${dragActive ? 'var(--c-green)' : 'var(--line)'}`,
         borderRadius: 4,
@@ -65,6 +73,7 @@ export function CapturePanel() {
         type="file"
         accept=".pdf,.txt,.md,.png,.jpg,.jpeg,.webp,.gif"
         onChange={onChange}
+        onClick={e => e.stopPropagation()}
         style={{ display: 'none' }}
       />
       <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)' }}>
