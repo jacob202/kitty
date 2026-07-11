@@ -7,6 +7,12 @@ Safe commands:
 
 Commands intentionally disabled in Layer 1A:
   run, loop, repl, delegate — each prints a clear "not enabled" message.
+
+The command surface is declared once in ``COMMANDS`` (a declarative registry);
+``build_parser`` turns that table into the argparse tree and attaches each
+handler via ``set_defaults``, so there is a single source of truth for what a
+command is and how it is wired. Adding a command is a table row, not a new
+function plus a new ``add_parser`` block plus a new ``_dispatch`` entry.
 """
 
 from __future__ import annotations
@@ -16,8 +22,9 @@ import datetime as _dt
 import json
 import os
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 # ---------------------------------------------------------------------------
 # JSON argument parsers (strict)
@@ -1356,547 +1363,339 @@ def _init_initiative_db() -> None:
     init_db()
 
 
-_dispatch: dict[str, Any] = {
-    "run": _cmd_not_enabled,
-    "loop": _cmd_not_enabled,
-    "repl": _cmd_not_enabled,
-    "delegate": _cmd_not_enabled,
-    "brief": _cmd_brief,
-    "contract": _cmd_contract_validate,
-    "queue-add": _cmd_queue_add,
-    "queue-edit": _cmd_queue_edit,
-    "queue-list": _cmd_queue_list,
-    "queue-show": _cmd_queue_show,
-    "queue-claim": _cmd_queue_claim,
-    "queue-claim-next": _cmd_queue_claim_next,
-    "queue-release": _cmd_queue_release,
-    "queue-operator-release": _cmd_queue_operator_release,
-    "queue-transition": _cmd_queue_transition,
-    "queue-events": _cmd_queue_events,
-    "queue-status": _cmd_queue_status,
-    "queue-archive": _cmd_queue_archive,
-    "queue-brief": _cmd_queue_brief,
-    "queue-attach-report": _cmd_queue_attach_report,
-    "queue-attach-pr": _cmd_queue_attach_pr,
-    "queue-sync-pr": _cmd_queue_sync_pr,
-    "queue-reconcile-merges": _cmd_queue_reconcile_merges,
-    "queue-publish": _cmd_queue_publish,
-    "queue-recover": _cmd_queue_recover,
-    "queue-operator-cancel": _cmd_queue_operator_cancel,
-    "queue-run": _cmd_queue_run,
-    "queue-runs": _cmd_queue_runs,
-    "queue-show-run": _cmd_queue_show_run,
-    "queue-cancel-run": _cmd_queue_cancel_run,
-    "queue-clean-worktree": _cmd_queue_clean_worktree,
-    "initiative-validate": _cmd_initiative_validate,
-    "initiative-apply": _cmd_initiative_apply,
-    "initiative-list": _cmd_initiative_list,
-    "initiative-show": _cmd_initiative_show,
-    "initiative-status": _cmd_initiative_status,
-    "initiative-attempts": _cmd_initiative_attempts,
-    "initiative-start-attempt": _cmd_initiative_start_attempt,
-    "initiative-record-implementation": _cmd_initiative_record,
-    "initiative-record-review": _cmd_initiative_record,
-    "initiative-run-validation": _cmd_initiative_run_validation,
-    "initiative-run-packet": _cmd_initiative_run_packet,
-    "initiative-close-attempt": _cmd_initiative_close_attempt,
-    "initiative-run": _cmd_initiative_run,
-    "initiative-pause": _cmd_initiative_pause,
-    "initiative-resume": _cmd_initiative_resume,
+# ---------------------------------------------------------------------------
+# Command registry (declarative)
+# ---------------------------------------------------------------------------
+#
+# One row per subcommand. ``build_parser`` turns this table into the argparse
+# tree and attaches each handler via ``set_defaults``, so the parser shape and
+# the dispatch are derived from a single source instead of three places
+# (manual ``add_parser`` blocks + a ``_dispatch`` dict + a resolver).
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ArgSpec:
+    """One ``add_argument`` entry for a command."""
+
+    name: str
+    help: str = ""
+    kwargs: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class CommandSpec:
+    """One CLI subcommand: where it lives, its args, and its handler."""
+
+    key: str
+    group: str | None  # None | "queue" | "initiative" | "contract"
+    name: str
+    help: str
+    handler: Callable[[argparse.Namespace], int]
+    args: list[ArgSpec] = field(default_factory=list)
+
+
+_GROUP_HELP = {
+    "queue": "durable builder queue commands",
+    "initiative": "initiative manifest commands",
+    "contract": "builder contract commands",
+}
+
+_GROUP_SUBPARSER_DEST = {
+    "queue": "queue_command",
+    "initiative": "initiative_command",
+    "contract": "contract_command",
 }
 
 
-# ---------------------------------------------------------------------------
-# Parser
-# ---------------------------------------------------------------------------
+def _a(name: str, help: str = "", **kwargs: Any) -> ArgSpec:
+    """Shorthand for an ``ArgSpec``."""
+    return ArgSpec(name=name, help=help, kwargs=kwargs)
+
+
+COMMANDS: list[CommandSpec] = [
+    # -- top-level (Layer 1A disabled) --------------------------------------
+    CommandSpec("run", None, "run", "[NOT ENABLED] start a build session",
+                _cmd_not_enabled, [_a("goal", "goal for the builder", nargs="+")]),
+    CommandSpec("loop", None, "loop", "[NOT ENABLED] start an interactive session",
+                _cmd_not_enabled, [_a("goal", "goal for the builder", nargs="+")]),
+    CommandSpec("repl", None, "repl", "[NOT ENABLED] alias for 'loop'",
+                _cmd_not_enabled, [_a("goal", "goal for the builder", nargs="+")]),
+    CommandSpec("delegate", None, "delegate", "[NOT ENABLED] hand a task to a worker CLI",
+                _cmd_not_enabled,
+                [_a("cli", "worker CLI alias (e.g. opencode)"),
+                 _a("task", "task description", nargs="+")]),
+    # -- brief ----------------------------------------------------------------
+    CommandSpec("brief", None, "brief", "print the repo brief for a task",
+                _cmd_brief,
+                [_a("task", "task description", nargs="+"),
+                 _a("--packet", "optional packet JSON file")]),
+    # -- contract -------------------------------------------------------------
+    CommandSpec("contract", "contract", "validate", "validate a contract file",
+                _cmd_contract_validate,
+                [_a("path", "path to JSON or markdown contract")]),
+    # -- queue group ----------------------------------------------------------
+    CommandSpec("queue-add", "queue", "add", "add a task to the queue",
+                _cmd_queue_add,
+                [_a("title", "task title"),
+                 _a("--description", "task description"),
+                 _a("--acceptance", "JSON array of acceptance criteria, e.g. '[\"criterion\"]'", default=None),
+                 _a("--priority", "priority (higher = sooner)", type=int, default=0),
+                 _a("--allowed-paths", "JSON array of allowed file paths, e.g. '[\"path\"]'", default=None),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("queue-edit", "queue", "edit", "edit a queued task's fields",
+                _cmd_queue_edit,
+                [_a("id", "task ID"),
+                 _a("--title", "new title"),
+                 _a("--description", "new description"),
+                 _a("--priority", "new priority", type=int),
+                 _a("--acceptance", "JSON array of acceptance criteria, e.g. '[\"criterion\"]'", default=None),
+                 _a("--allowed-paths", "JSON array of allowed file paths, e.g. '[\"path\"]'", default=None),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("queue-list", "queue", "list", "list tasks in the queue",
+                _cmd_queue_list,
+                [_a("--state", "filter by state"),
+                 _a("--include-archived", "include archived tasks", action="store_true"),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("queue-show", "queue", "show", "show task details",
+                _cmd_queue_show,
+                [_a("id", "task ID"), _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("queue-claim", "queue", "claim", "claim a specific task",
+                _cmd_queue_claim,
+                [_a("id", "task ID"),
+                 _a("--worker", "worker name", required=True),
+                 _a("--lease-seconds", "lease duration", type=int, default=1800),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("queue-claim-next", "queue", "claim-next", "claim the highest-priority queued task",
+                _cmd_queue_claim_next,
+                [_a("--worker", "worker name", required=True),
+                 _a("--lease-seconds", "lease duration", type=int, default=1800),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("queue-release", "queue", "release", "release a claimed task back to queued (worker)",
+                _cmd_queue_release,
+                [_a("id", "task ID"),
+                 _a("--worker", "worker name", required=True),
+                 _a("--lease-token", "lease token from claim", required=True),
+                 _a("--claim-version", "claim version from claim", type=int, required=True),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("queue-operator-release", "queue", "operator-release", "operator-forced release of a task",
+                _cmd_queue_operator_release,
+                [_a("id", "task ID"),
+                 _a("--reason", "reason for release", default=None),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("queue-transition", "queue", "transition", "transition a task to a new state (worker-fenced)",
+                _cmd_queue_transition,
+                [_a("id", "task ID"),
+                 _a("state", "target state"),
+                 _a("--lease-token", "lease token from claim", required=True),
+                 _a("--claim-version", "claim version from claim", type=int, required=True),
+                 _a("--payload-json", "JSON object payload"),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("queue-events", "queue", "events", "list events for a task",
+                _cmd_queue_events,
+                [_a("id", "task ID"), _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("queue-status", "queue", "status", "queue summary per state",
+                _cmd_queue_status, [_a("--json", "output JSON", action="store_true")]),
+    CommandSpec("queue-archive", "queue", "archive", "soft-archive terminal tasks by state and age",
+                _cmd_queue_archive,
+                [_a("--state", "terminal state to archive (done, failed, cancelled)", required=True),
+                 _a("--older-than", "archive tasks older than this many days", type=int, required=True),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("queue-brief", "queue", "brief", "render a complete worker brief for a task",
+                _cmd_queue_brief,
+                [_a("id", "task ID"),
+                 _a("--branch", "branch name override (default kittybuilder/<task_id>)"),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("queue-attach-report", "queue", "attach-report", "attach a structured final report to a task",
+                _cmd_queue_attach_report,
+                [_a("id", "task ID"),
+                 _a("--report-json", "report as a JSON object string"),
+                 _a("--report-file", "path to a JSON report file"),
+                 _a("--lease-token", "lease token (worker mode)"),
+                 _a("--claim-version", "claim version (worker mode)", type=int),
+                 _a("--operator-reason", "operator mode: reason for attaching without a lease"),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("queue-attach-pr", "queue", "attach-pr", "attach/update advisory PR metadata for a task",
+                _cmd_queue_attach_pr,
+                [_a("id", "task ID"),
+                 _a("--pr", "PR number", type=int, required=True),
+                 _a("--url", "PR URL"),
+                 _a("--head-sha", "PR head commit SHA"),
+                 _a("--checks-state", "CI checks state summary"),
+                 _a("--review-state", "review state summary"),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("queue-sync-pr", "queue", "sync-pr",
+                "advisory CI/review reconciliation into pr_links (no task mutation)",
+                _cmd_queue_sync_pr, [_a("--json", "output JSON", action="store_true")]),
+    CommandSpec("queue-reconcile-merges", "queue", "reconcile-merges",
+                "promote tasks to done whose linked PR has merged (unlocks dependents)",
+                _cmd_queue_reconcile_merges, [_a("--json", "output JSON", action="store_true")]),
+    CommandSpec("queue-publish", "queue", "publish",
+                "operator-gated: push task branch and create/update PR (never merges)",
+                _cmd_queue_publish,
+                [_a("id", "task ID"),
+                 _a("--remote", "git remote (default: origin)", default="origin"),
+                 _a("--base", "PR base branch (default: main)", default="main"),
+                 _a("--title", "PR title (default: kittybuilder: <task title>)"),
+                 _a("--dry-run", "print planned git/gh commands without executing", action="store_true"),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("queue-recover", "queue", "recover",
+                "recovery scan: expired claimed → queued, expired running → blocked",
+                _cmd_queue_recover, [_a("--json", "output JSON", action="store_true")]),
+    CommandSpec("queue-operator-cancel", "queue", "operator-cancel",
+                "operator cancel of a task without a lease (e.g. queued/blocked)",
+                _cmd_queue_operator_cancel,
+                [_a("id", "task ID"),
+                 _a("--reason", "reason for cancellation"),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("queue-run", "queue", "run",
+                "claim a task and run a worker command in its isolated worktree "
+                "(shadow mode: no push, no PR)",
+                _cmd_queue_run,
+                [_a("id", "task ID"),
+                 _a("--worker", "worker name", default="local-runner"),
+                 _a("--model", "model identifier (metadata)"),
+                 _a("--provider", "provider identifier (metadata)"),
+                 _a("--timeout", "worker timeout in seconds", type=int, default=3600),
+                 _a("--lease-seconds", "heartbeat lease duration", type=int, default=60),
+                 _a("--heartbeat-seconds", "heartbeat interval", type=int, default=10),
+                 _a("--json", "output JSON", action="store_true"),
+                 _a("worker_command", "worker command after --", nargs="*")]),
+    CommandSpec("queue-runs", "queue", "runs", "list run records",
+                _cmd_queue_runs,
+                [_a("--task", "filter by task ID"),
+                 _a("--state", "filter by run state"),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("queue-show-run", "queue", "show-run", "show one run record",
+                _cmd_queue_show_run,
+                [_a("run_id", "run ID"),
+                 _a("--log-tail", "print last N log lines", type=int, default=0),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("queue-cancel-run", "queue", "cancel-run", "request cancellation of an active run",
+                _cmd_queue_cancel_run,
+                [_a("run_id", "run ID"),
+                 _a("--kill", "escalate to SIGKILL", action="store_true"),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("queue-clean-worktree", "queue", "clean-worktree", "remove a task worktree (refuses if dirty)",
+                _cmd_queue_clean_worktree, [_a("id", "task ID")]),
+    # -- initiative group ------------------------------------------------------
+    CommandSpec("initiative-validate", "initiative", "validate", "validate an initiative manifest file",
+                _cmd_initiative_validate,
+                [_a("manifest", "path to the manifest JSON file")]),
+    CommandSpec("initiative-apply", "initiative", "apply",
+                "apply a manifest: create the initiative and one queue task per packet",
+                _cmd_initiative_apply,
+                [_a("manifest", "path to the manifest JSON file"),
+                 _a("--dry-run", "validate and report without mutating", action="store_true"),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("initiative-list", "initiative", "list", "list initiatives",
+                _cmd_initiative_list, [_a("--json", "output JSON", action="store_true")]),
+    CommandSpec("initiative-show", "initiative", "show", "show an initiative and its packet-to-task mappings",
+                _cmd_initiative_show,
+                [_a("id", "initiative ID"), _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("initiative-status", "initiative", "status",
+                "roll up packet eligibility and initiative status (KB-S1B)",
+                _cmd_initiative_status,
+                [_a("id", "initiative ID"), _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("initiative-attempts", "initiative", "attempts", "list packet attempts for an initiative",
+                _cmd_initiative_attempts,
+                [_a("id", "initiative ID"),
+                 _a("packet", "packet ID (optional)", nargs="?"),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("initiative-start-attempt", "initiative", "start-attempt",
+                "open the next attempt for a packet and persist its context bundle",
+                _cmd_initiative_start_attempt,
+                [_a("id", "initiative ID"),
+                 _a("packet", "packet ID"),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("initiative-record-implementation", "initiative", "record-implementation",
+                "attach a validated implementation result",
+                _cmd_initiative_record,
+                [_a("attempt_id", "attempt ID", type=int),
+                 _a("--file", "path to the result JSON file", required=True),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("initiative-record-review", "initiative", "record-review",
+                "attach a validated review result",
+                _cmd_initiative_record,
+                [_a("attempt_id", "attempt ID", type=int),
+                 _a("--file", "path to the result JSON file", required=True),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("initiative-run-packet", "initiative", "run-packet",
+                "drive one packet through the bounded implement/validate/review "
+                "repair loop (shadow mode: no push, no PR)",
+                _cmd_initiative_run_packet,
+                [_a("id", "initiative ID"),
+                 _a("packet", "packet ID"),
+                 _a("--worker-command", "worker command as a JSON array, e.g. '[\"opencode\", \"run\"]'", required=True),
+                 _a("--review-command", "optional reviewer command as a JSON array (omit = validation-gated only)", default=None),
+                 _a("--worker", "worker name", default="packet-loop"),
+                 _a("--model", "model identifier (metadata)"),
+                 _a("--provider", "provider identifier (metadata)"),
+                 _a("--timeout", "worker timeout in seconds", type=int, default=3600),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("initiative-run-validation", "initiative", "run-validation",
+                "run the packet's declared validation commands and record the verdict",
+                _cmd_initiative_run_validation,
+                [_a("attempt_id", "attempt ID", type=int),
+                 _a("--cwd", "directory to run in (default: the task's runner worktree)"),
+                 _a("--timeout", "per-command timeout in seconds", type=int, default=600),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("initiative-close-attempt", "initiative", "close-attempt", "close an open attempt with a terminal outcome",
+                _cmd_initiative_close_attempt,
+                [_a("attempt_id", "attempt ID", type=int),
+                 _a("outcome", "succeeded | failed | aborted"),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("initiative-run", "initiative", "run",
+                "drive an initiative to completion: loop eligible packets through "
+                "implement/validate/review (S3b) then operator-gated publish (S4b)",
+                _cmd_initiative_run,
+                [_a("id", "initiative ID"),
+                 _a("--worker-command", "worker command as a JSON array, e.g. '[\"opencode\", \"run\"]'", required=True),
+                 _a("--review-command", "optional reviewer command as a JSON array (omit = validation-gated only)", default=None),
+                 _a("--worker", "worker name", default="packet-loop"),
+                 _a("--model", "model identifier (metadata)"),
+                 _a("--provider", "provider identifier (metadata)"),
+                 _a("--timeout", "worker timeout in seconds", type=int, default=3600),
+                 _a("--publish", "run KB-S4b publish (operator-gated push + PR) on each succeeded packet", action="store_true"),
+                 _a("--max-attempts", "per-initiative attempt budget; exceeding it pauses the initiative", type=int, default=None),
+                 _a("--max-runtime", "per-initiative wall-clock budget (seconds); exceeding it pauses the initiative", type=int, default=None),
+                 _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("initiative-pause", "initiative", "pause", "pause the run loop for an initiative (operator gate)",
+                _cmd_initiative_pause,
+                [_a("id", "initiative ID"),
+                 _a("--reason", "advisory pause reason", default=None)]),
+    CommandSpec("initiative-resume", "initiative", "resume", "clear a pause so the run loop may proceed",
+                _cmd_initiative_resume, [_a("id", "initiative ID")]),
+]
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the argparse tree from the declarative ``COMMANDS`` table."""
     parser = argparse.ArgumentParser(
         prog="kitty builder",
         description="Kitty Builder control-plane (Layer 1A — coordination only).",
     )
     sub = parser.add_subparsers(dest="command", required=True)
-
-    run_p = sub.add_parser("run", help="[NOT ENABLED] start a build session")
-    run_p.add_argument("goal", nargs="+", help="goal for the builder")
-
-    loop_p = sub.add_parser("loop", help="[NOT ENABLED] start an interactive session")
-    loop_p.add_argument("goal", nargs="+", help="goal for the builder")
-
-    repl_p = sub.add_parser("repl", help="[NOT ENABLED] alias for 'loop'")
-    repl_p.add_argument("goal", nargs="+", help="goal for the builder")
-
-    del_p = sub.add_parser(
-        "delegate", help="[NOT ENABLED] hand a task to a worker CLI"
-    )
-    del_p.add_argument("cli", help="worker CLI alias (e.g. opencode)")
-    del_p.add_argument("task", nargs="+", help="task description")
-
-    brief_p = sub.add_parser("brief", help="print the repo brief for a task")
-    brief_p.add_argument("task", nargs="+", help="task description")
-    brief_p.add_argument("--packet", help="optional packet JSON file")
-
-    contract_p = sub.add_parser("contract", help="builder contract commands")
-    contract_sub = contract_p.add_subparsers(dest="contract_command", required=True)
-    validate_p = contract_sub.add_parser("validate", help="validate a contract file")
-    validate_p.add_argument("path", help="path to JSON or markdown contract")
-
-    # -- queue subcommand group -----------------------------------------------
-
-    queue_p = sub.add_parser("queue", help="durable builder queue commands")
-    queue_sub = queue_p.add_subparsers(dest="queue_command", required=True)
-
-    # queue add
-    add_p = queue_sub.add_parser("add", help="add a task to the queue")
-    add_p.add_argument("title", help="task title")
-    add_p.add_argument("--description", help="task description")
-    add_p.add_argument(
-        "--acceptance",
-        help='JSON array of acceptance criteria, e.g. \'["criterion"]\'',
-        default=None,
-    )
-    add_p.add_argument("--priority", type=int, default=0, help="priority (higher = sooner)")
-    add_p.add_argument(
-        "--allowed-paths",
-        help='JSON array of allowed file paths, e.g. \'["path"]\'',
-        default=None,
-    )
-    add_p.add_argument("--json", action="store_true", help="output JSON")
-
-    # queue edit
-    edit_p = queue_sub.add_parser("edit", help="edit a queued task's fields")
-    edit_p.add_argument("id", help="task ID")
-    edit_p.add_argument("--title", help="new title")
-    edit_p.add_argument("--description", help="new description")
-    edit_p.add_argument("--priority", type=int, help="new priority")
-    edit_p.add_argument(
-        "--acceptance",
-        help='JSON array of acceptance criteria, e.g. \'["criterion"]\'',
-        default=None,
-    )
-    edit_p.add_argument(
-        "--allowed-paths",
-        help='JSON array of allowed file paths, e.g. \'["path"]\'',
-        default=None,
-    )
-    edit_p.add_argument("--json", action="store_true", help="output JSON")
-
-    # queue list
-    list_p = queue_sub.add_parser("list", help="list tasks in the queue")
-    list_p.add_argument("--state", help="filter by state")
-    list_p.add_argument(
-        "--include-archived", action="store_true", help="include archived tasks"
-    )
-    list_p.add_argument("--json", action="store_true", help="output JSON")
-
-    # queue show
-    show_p = queue_sub.add_parser("show", help="show task details")
-    show_p.add_argument("id", help="task ID")
-    show_p.add_argument("--json", action="store_true", help="output JSON")
-
-    # queue claim
-    claim_p = queue_sub.add_parser("claim", help="claim a specific task")
-    claim_p.add_argument("id", help="task ID")
-    claim_p.add_argument("--worker", required=True, help="worker name")
-    claim_p.add_argument("--lease-seconds", type=int, default=1800, help="lease duration")
-    claim_p.add_argument("--json", action="store_true", help="output JSON")
-
-    # queue claim-next
-    claim_next_p = queue_sub.add_parser(
-        "claim-next", help="claim the highest-priority queued task"
-    )
-    claim_next_p.add_argument("--worker", required=True, help="worker name")
-    claim_next_p.add_argument(
-        "--lease-seconds", type=int, default=1800, help="lease duration"
-    )
-    claim_next_p.add_argument("--json", action="store_true", help="output JSON")
-
-    # queue release (worker)
-    release_p = queue_sub.add_parser(
-        "release", help="release a claimed task back to queued (worker)"
-    )
-    release_p.add_argument("id", help="task ID")
-    release_p.add_argument("--worker", required=True, help="worker name")
-    release_p.add_argument("--lease-token", required=True, help="lease token from claim")
-    release_p.add_argument(
-        "--claim-version", type=int, required=True, help="claim version from claim"
-    )
-    release_p.add_argument("--json", action="store_true", help="output JSON")
-
-    # queue operator-release
-    op_rel_p = queue_sub.add_parser(
-        "operator-release", help="operator-forced release of a task"
-    )
-    op_rel_p.add_argument("id", help="task ID")
-    op_rel_p.add_argument("--reason", default=None, help="reason for release")
-    op_rel_p.add_argument("--json", action="store_true", help="output JSON")
-
-    # queue transition
-    trans_p = queue_sub.add_parser(
-        "transition", help="transition a task to a new state (worker-fenced)"
-    )
-    trans_p.add_argument("id", help="task ID")
-    trans_p.add_argument("state", help="target state")
-    trans_p.add_argument("--lease-token", required=True, help="lease token from claim")
-    trans_p.add_argument(
-        "--claim-version", type=int, required=True, help="claim version from claim"
-    )
-    trans_p.add_argument("--payload-json", help="JSON object payload")
-    trans_p.add_argument("--json", action="store_true", help="output JSON")
-
-    # queue events
-    events_p = queue_sub.add_parser("events", help="list events for a task")
-    events_p.add_argument("id", help="task ID")
-    events_p.add_argument("--json", action="store_true", help="output JSON")
-
-    # queue status
-    status_p = queue_sub.add_parser("status", help="queue summary per state")
-    status_p.add_argument("--json", action="store_true", help="output JSON")
-
-    # queue archive
-    archive_p = queue_sub.add_parser(
-        "archive", help="soft-archive terminal tasks by state and age"
-    )
-    archive_p.add_argument(
-        "--state",
-        required=True,
-        help="terminal state to archive (done, failed, cancelled)",
-    )
-    archive_p.add_argument(
-        "--older-than",
-        type=int,
-        required=True,
-        help="archive tasks older than this many days",
-    )
-    archive_p.add_argument("--json", action="store_true", help="output JSON")
-
-    # queue brief (Phase 1B)
-    brief_q_p = queue_sub.add_parser(
-        "brief", help="render a complete worker brief for a task"
-    )
-    brief_q_p.add_argument("id", help="task ID")
-    brief_q_p.add_argument(
-        "--branch", help="branch name override (default kittybuilder/<task_id>)"
-    )
-    brief_q_p.add_argument("--json", action="store_true", help="output JSON")
-
-    # queue attach-report (Phase 1B)
-    att_rep_p = queue_sub.add_parser(
-        "attach-report", help="attach a structured final report to a task"
-    )
-    att_rep_p.add_argument("id", help="task ID")
-    att_rep_p.add_argument("--report-json", help="report as a JSON object string")
-    att_rep_p.add_argument("--report-file", help="path to a JSON report file")
-    att_rep_p.add_argument("--lease-token", help="lease token (worker mode)")
-    att_rep_p.add_argument(
-        "--claim-version", type=int, help="claim version (worker mode)"
-    )
-    att_rep_p.add_argument(
-        "--operator-reason",
-        help="operator mode: reason for attaching without a lease",
-    )
-    att_rep_p.add_argument("--json", action="store_true", help="output JSON")
-
-    # queue attach-pr (Phase 1B)
-    att_pr_p = queue_sub.add_parser(
-        "attach-pr", help="attach/update advisory PR metadata for a task"
-    )
-    att_pr_p.add_argument("id", help="task ID")
-    att_pr_p.add_argument("--pr", type=int, required=True, help="PR number")
-    att_pr_p.add_argument("--url", help="PR URL")
-    att_pr_p.add_argument("--head-sha", help="PR head commit SHA")
-    att_pr_p.add_argument("--checks-state", help="CI checks state summary")
-    att_pr_p.add_argument("--review-state", help="review state summary")
-    att_pr_p.add_argument("--json", action="store_true", help="output JSON")
-
-    # queue sync-pr / reconcile-merges (KB-S4)
-    sync_pr_p = queue_sub.add_parser(
-        "sync-pr",
-        help="advisory CI/review reconciliation into pr_links (no task mutation)",
-    )
-    sync_pr_p.add_argument("--json", action="store_true", help="output JSON")
-    reconcile_p = queue_sub.add_parser(
-        "reconcile-merges",
-        help="promote tasks to done whose linked PR has merged (unlocks dependents)",
-    )
-    reconcile_p.add_argument("--json", action="store_true", help="output JSON")
-
-    # queue publish (KB-S4 push + PR)
-    pub_p = queue_sub.add_parser(
-        "publish",
-        help="operator-gated: push task branch and create/update PR (never merges)",
-    )
-    pub_p.add_argument("id", help="task ID")
-    pub_p.add_argument("--remote", default="origin", help="git remote (default: origin)")
-    pub_p.add_argument("--base", default="main", help="PR base branch (default: main)")
-    pub_p.add_argument("--title", help="PR title (default: kittybuilder: <task title>)")
-    pub_p.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="print planned git/gh commands without executing",
-    )
-    pub_p.add_argument("--json", action="store_true", help="output JSON")
-
-    # queue recover (Phase 1B)
-    recover_p = queue_sub.add_parser(
-        "recover",
-        help="recovery scan: expired claimed → queued, expired running → blocked",
-    )
-    recover_p.add_argument("--json", action="store_true", help="output JSON")
-
-    # queue operator-cancel (Phase 1B)
-    op_cancel_p = queue_sub.add_parser(
-        "operator-cancel",
-        help="operator cancel of a task without a lease (e.g. queued/blocked)",
-    )
-    op_cancel_p.add_argument("id", help="task ID")
-    op_cancel_p.add_argument("--reason", help="reason for cancellation")
-    op_cancel_p.add_argument("--json", action="store_true", help="output JSON")
-
-    # queue run (Phase 1C-alpha shadow mode)
-    run_q_p = queue_sub.add_parser(
-        "run",
-        help="claim a task and run a worker command in its isolated worktree "
-        "(shadow mode: no push, no PR)",
-    )
-    run_q_p.add_argument("id", help="task ID")
-    run_q_p.add_argument("--worker", default="local-runner", help="worker name")
-    run_q_p.add_argument("--model", help="model identifier (metadata)")
-    run_q_p.add_argument("--provider", help="provider identifier (metadata)")
-    run_q_p.add_argument(
-        "--timeout", type=int, default=3600, help="worker timeout in seconds"
-    )
-    run_q_p.add_argument(
-        "--lease-seconds", type=int, default=60, help="heartbeat lease duration"
-    )
-    run_q_p.add_argument(
-        "--heartbeat-seconds", type=int, default=10, help="heartbeat interval"
-    )
-    run_q_p.add_argument("--json", action="store_true", help="output JSON")
-    run_q_p.add_argument(
-        "worker_command",
-        nargs="*",
-        help="worker command after --",
-    )
-
-    # queue runs
-    runs_p = queue_sub.add_parser("runs", help="list run records")
-    runs_p.add_argument("--task", help="filter by task ID")
-    runs_p.add_argument("--state", help="filter by run state")
-    runs_p.add_argument("--json", action="store_true", help="output JSON")
-
-    # queue show-run
-    show_run_p = queue_sub.add_parser("show-run", help="show one run record")
-    show_run_p.add_argument("run_id", help="run ID")
-    show_run_p.add_argument(
-        "--log-tail", type=int, default=0, help="print last N log lines"
-    )
-    show_run_p.add_argument("--json", action="store_true", help="output JSON")
-
-    # queue cancel-run
-    cancel_run_p = queue_sub.add_parser(
-        "cancel-run", help="request cancellation of an active run"
-    )
-    cancel_run_p.add_argument("run_id", help="run ID")
-    cancel_run_p.add_argument(
-        "--kill", action="store_true", help="escalate to SIGKILL"
-    )
-    cancel_run_p.add_argument("--json", action="store_true", help="output JSON")
-
-    # queue clean-worktree
-    clean_wt_p = queue_sub.add_parser(
-        "clean-worktree", help="remove a task worktree (refuses if dirty)"
-    )
-    clean_wt_p.add_argument("id", help="task ID")
-
-    # -- initiative subcommand group (KB-S1A) ----------------------------------
-
-    initiative_p = sub.add_parser(
-        "initiative", help="initiative manifest commands"
-    )
-    initiative_sub = initiative_p.add_subparsers(
-        dest="initiative_command", required=True
-    )
-
-    ini_validate_p = initiative_sub.add_parser(
-        "validate", help="validate an initiative manifest file"
-    )
-    ini_validate_p.add_argument("manifest", help="path to the manifest JSON file")
-
-    ini_apply_p = initiative_sub.add_parser(
-        "apply",
-        help="apply a manifest: create the initiative and one queue task per packet",
-    )
-    ini_apply_p.add_argument("manifest", help="path to the manifest JSON file")
-    ini_apply_p.add_argument(
-        "--dry-run", action="store_true", help="validate and report without mutating"
-    )
-    ini_apply_p.add_argument("--json", action="store_true", help="output JSON")
-
-    ini_list_p = initiative_sub.add_parser("list", help="list initiatives")
-    ini_list_p.add_argument("--json", action="store_true", help="output JSON")
-
-    ini_show_p = initiative_sub.add_parser(
-        "show", help="show an initiative and its packet-to-task mappings"
-    )
-    ini_show_p.add_argument("id", help="initiative ID")
-    ini_show_p.add_argument("--json", action="store_true", help="output JSON")
-
-    ini_status_p = initiative_sub.add_parser(
-        "status", help="roll up packet eligibility and initiative status (KB-S1B)"
-    )
-    ini_status_p.add_argument("id", help="initiative ID")
-    ini_status_p.add_argument("--json", action="store_true", help="output JSON")
-
-    # -- attempt lifecycle (KB-S2) ---------------------------------------------
-
-    ini_attempts_p = initiative_sub.add_parser(
-        "attempts", help="list packet attempts for an initiative"
-    )
-    ini_attempts_p.add_argument("id", help="initiative ID")
-    ini_attempts_p.add_argument("packet", nargs="?", help="packet ID (optional)")
-    ini_attempts_p.add_argument("--json", action="store_true", help="output JSON")
-
-    ini_start_att_p = initiative_sub.add_parser(
-        "start-attempt",
-        help="open the next attempt for a packet and persist its context bundle",
-    )
-    ini_start_att_p.add_argument("id", help="initiative ID")
-    ini_start_att_p.add_argument("packet", help="packet ID")
-    ini_start_att_p.add_argument("--json", action="store_true", help="output JSON")
-
-    for name, help_text in (
-        ("record-implementation", "attach a validated implementation result"),
-        ("record-review", "attach a validated review result"),
-    ):
-        rec_p = initiative_sub.add_parser(name, help=help_text)
-        rec_p.add_argument("attempt_id", type=int, help="attempt ID")
-        rec_p.add_argument("--file", required=True, help="path to the result JSON file")
-        rec_p.add_argument("--json", action="store_true", help="output JSON")
-
-    ini_run_pkt_p = initiative_sub.add_parser(
-        "run-packet",
-        help="drive one packet through the bounded implement/validate/review "
-        "repair loop (shadow mode: no push, no PR)",
-    )
-    ini_run_pkt_p.add_argument("id", help="initiative ID")
-    ini_run_pkt_p.add_argument("packet", help="packet ID")
-    ini_run_pkt_p.add_argument(
-        "--worker-command",
-        required=True,
-        help='worker command as a JSON array, e.g. \'["opencode", "run"]\'',
-    )
-    ini_run_pkt_p.add_argument(
-        "--review-command",
-        default=None,
-        help="optional reviewer command as a JSON array (omit = validation-gated only)",
-    )
-    ini_run_pkt_p.add_argument("--worker", default="packet-loop", help="worker name")
-    ini_run_pkt_p.add_argument("--model", help="model identifier (metadata)")
-    ini_run_pkt_p.add_argument("--provider", help="provider identifier (metadata)")
-    ini_run_pkt_p.add_argument(
-        "--timeout", type=int, default=3600, help="worker timeout in seconds"
-    )
-    ini_run_pkt_p.add_argument("--json", action="store_true", help="output JSON")
-
-    ini_run_val_p = initiative_sub.add_parser(
-        "run-validation",
-        help="run the packet's declared validation commands and record the verdict",
-    )
-    ini_run_val_p.add_argument("attempt_id", type=int, help="attempt ID")
-    ini_run_val_p.add_argument(
-        "--cwd", help="directory to run in (default: the task's runner worktree)"
-    )
-    ini_run_val_p.add_argument(
-        "--timeout", type=int, default=600, help="per-command timeout in seconds"
-    )
-    ini_run_val_p.add_argument("--json", action="store_true", help="output JSON")
-
-    ini_close_att_p = initiative_sub.add_parser(
-        "close-attempt", help="close an open attempt with a terminal outcome"
-    )
-    ini_close_att_p.add_argument("attempt_id", type=int, help="attempt ID")
-    ini_close_att_p.add_argument(
-        "outcome", help="succeeded | failed | aborted"
-    )
-    ini_close_att_p.add_argument("--json", action="store_true", help="output JSON")
-
-    # -- run loop (KB-S5) ------------------------------------------------------
-
-    ini_run_p = initiative_sub.add_parser(
-        "run",
-        help="drive an initiative to completion: loop eligible packets through "
-        "implement/validate/review (S3b) then operator-gated publish (S4b)",
-    )
-    ini_run_p.add_argument("id", help="initiative ID")
-    ini_run_p.add_argument(
-        "--worker-command",
-        required=True,
-        help='worker command as a JSON array, e.g. \'["opencode", "run"]\'',
-    )
-    ini_run_p.add_argument(
-        "--review-command",
-        default=None,
-        help="optional reviewer command as a JSON array (omit = validation-gated only)",
-    )
-    ini_run_p.add_argument("--worker", default="packet-loop", help="worker name")
-    ini_run_p.add_argument("--model", help="model identifier (metadata)")
-    ini_run_p.add_argument("--provider", help="provider identifier (metadata)")
-    ini_run_p.add_argument(
-        "--timeout", type=int, default=3600, help="worker timeout in seconds"
-    )
-    ini_run_p.add_argument(
-        "--publish",
-        action="store_true",
-        help="run KB-S4b publish (operator-gated push + PR) on each succeeded packet",
-    )
-    ini_run_p.add_argument(
-        "--max-attempts",
-        type=int,
-        default=None,
-        help="per-initiative attempt budget; exceeding it pauses the initiative",
-    )
-    ini_run_p.add_argument(
-        "--max-runtime",
-        type=int,
-        default=None,
-        help="per-initiative wall-clock budget (seconds); exceeding it pauses the initiative",
-    )
-    ini_run_p.add_argument("--json", action="store_true", help="output JSON")
-
-    ini_pause_p = initiative_sub.add_parser(
-        "pause", help="pause the run loop for an initiative (operator gate)"
-    )
-    ini_pause_p.add_argument("id", help="initiative ID")
-    ini_pause_p.add_argument("--reason", default=None, help="advisory pause reason")
-
-    ini_resume_p = initiative_sub.add_parser(
-        "resume", help="clear a pause so the run loop may proceed"
-    )
-    ini_resume_p.add_argument("id", help="initiative ID")
-
+    group_subs: dict[str, argparse._SubParsersAction] = {}
+    for spec in COMMANDS:
+        if spec.group is None:
+            p = sub.add_parser(spec.name, help=spec.help)
+        else:
+            if spec.group not in group_subs:
+                gp = sub.add_parser(spec.group, help=_GROUP_HELP[spec.group])
+                group_subs[spec.group] = gp.add_subparsers(
+                    dest=_GROUP_SUBPARSER_DEST[spec.group], required=True
+                )
+            p = group_subs[spec.group].add_parser(spec.name, help=spec.help)
+        for arg in spec.args:
+            p.add_argument(arg.name, help=arg.help, **arg.kwargs)
+        p.set_defaults(func=spec.handler)
     return parser
 
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-
-
-def _resolve_func(args: argparse.Namespace) -> Any:
-    """Resolve the handler function based on args.
-
-    Queue subcommands have ``queue_command`` set; other commands have
-    ``command`` set. The dispatch dict uses composite keys for queue commands.
-    """
-    if args.command == "queue":
-        return _dispatch.get(f"queue-{args.queue_command}", _cmd_not_enabled)
-    if args.command == "initiative":
-        return _dispatch.get(
-            f"initiative-{args.initiative_command}", _cmd_not_enabled
-        )
-    return _dispatch.get(args.command, _cmd_not_enabled)
 
 
 # Queue commands that write to the DB; gated by the kill switch (§11.3).
@@ -1990,8 +1789,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.initiative_command != "validate":
             _init_initiative_db()
 
-    func = _resolve_func(args)
-    return func(args)
+    return args.func(args)
 
 
 if __name__ == "__main__":
