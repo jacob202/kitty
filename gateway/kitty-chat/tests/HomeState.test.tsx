@@ -448,6 +448,21 @@ describe('HomeState', () => {
     expect(screen.queryByText('done already')).not.toBeInTheDocument();
   });
 
+  it('mascot doodle is aria-hidden and non-interactive so it cannot block the sweep button', () => {
+    // Show the WhatsNext empty state (no signal) and the deadlines card together.
+    (useSessionContext as Mock).mockReturnValue({
+      data: { current_branch: 'main', last_session_topic: null, open_threads: [], next_actions: [] },
+      isPending: false,
+      isError: false,
+    });
+    render(<HomeState />);
+    // Sweep button must be present and enabled
+    expect(screen.getByText('sweep')).toBeInTheDocument();
+    // No SVG or span inside an aria-hidden region should be a focusable element
+    const hiddenEls = document.querySelectorAll('[aria-hidden] button, [aria-hidden] a, [aria-hidden] input');
+    expect(hiddenEls.length).toBe(0);
+  });
+
   it('applies compact padding when compact prop is true', () => {
     const { container } = render(<HomeState compact />);
     const grid = container.firstChild as HTMLElement;

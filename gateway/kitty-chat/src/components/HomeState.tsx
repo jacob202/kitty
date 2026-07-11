@@ -426,7 +426,7 @@ function WhatsNext({
         </div>
       ) : (
         <div style={{ ...emptyState, textAlign: 'left', padding: '12px 2px', display: 'flex', alignItems: 'center', gap: 14 }}>
-          <span style={{ color: 'var(--cat-ginger)', flexShrink: 0 }}>
+          <span aria-hidden style={{ color: 'var(--cat-ginger)', flexShrink: 0, pointerEvents: 'none' }}>
             <KidCatDoodle size={40} opacity={0.7} />
           </span>
           <span>
