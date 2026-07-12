@@ -89,19 +89,23 @@ the report itself requires escalating security/auth work to Codex/Jacob first.
 | #3 Duplicate route contracts | ✅ DONE | `gateway/routes/integrations.py`, `gateway/routes/insights.py` | `tests/test_route_contracts.py` (1) |
 | #4 Fail-loud — model discovery | ✅ DONE | `gateway/model_digest.py` | `tests/test_model_digest.py` (3) |
 | #4 Fail-loud — next-step prefs | ✅ DONE | `gateway/next_step.py` | `tests/test_next_step.py` (+2) |
+| #4 Fail-loud — brief enrichment | ✅ DONE | `gateway/context_enrichment.py` | `tests/test_context_enrichment.py` (4) |
 | #1 Security (LAN/SSRF) | ⛔ ESCALATE | — | — |
 | #5–#9 (rest) | ⬜ OPEN | — | — |
 
 **Verification (all backend-only changes):**
 ```
 python3.12 -m pytest tests/test_verifier.py tests/test_model_digest.py \
-                    tests/test_route_contracts.py tests/test_next_step.py
-# 20 passed
+                    tests/test_route_contracts.py tests/test_next_step.py \
+                    tests/test_context_enrichment.py
+# 24 passed
 
 ruff check gateway/verifier.py gateway/model_digest.py gateway/next_step.py \
           gateway/routes/integrations.py gateway/routes/insights.py \
+          gateway/context_enrichment.py \
           tests/test_verifier.py tests/test_model_digest.py \
-          tests/test_route_contracts.py tests/test_next_step.py
+          tests/test_route_contracts.py tests/test_next_step.py \
+          tests/test_context_enrichment.py
 # All checks passed!
 ```
 No frontend build or broader slice was run. Nothing committed or pushed.
@@ -169,6 +173,18 @@ Fix: raises `NextStepError` (the module's existing error type, already raised by
 `generate()` for other failures) so the read error surfaces instead of becoming a
 fake-empty state. Test: `tests/test_next_step.py` (+2 cases: missing-file returns
 `""`, unreadable raises `NextStepError`).
+
+**File 3:** `gateway/context_enrichment.py` (morning-brief content)
+Bug: `weather_text_sync` / `todos_text_sync` / `calendar_today_text_sync`
+swallowed every exception and returned `""`, so a down todo-store / weather /
+calendar source produced a silently empty section in the user-visible brief
+(hides the outage). The module's own `run_enrichments` already propagates
+warnings, so these sync helpers were inconsistent.
+Fix: each returns an explicit `⚠ <source> unavailable` marker (plus a
+`logger.warning`) instead of `""`, so the brief surfaces the failure. The
+happy path (source returns text) is unchanged.
+Test: `tests/test_context_enrichment.py` (4: per-source failure surfaces marker;
+todos happy path returns text).
 
 ---
 
@@ -261,7 +277,10 @@ agents with independent review.
 - **Scope:** sweep the remaining silent fallbacks the audit named — `agents`, `todos`,
   `prompts`, `monitors`, `image generation`, `memory`, `ingestion` — and replace
   `return []/None/false/""` with explicit error envelopes or typed raises.
-  (Two paths already done: `model_digest.py`, `next_step.py` — use them as the pattern.)
+  (Three paths done: `model_digest.py`, `next_step.py`, `context_enrichment.py`
+  — use them as the pattern. `monitors.py` already fails loud via the #3
+  consolidation; `image_gen.is_available()` is a connectivity probe whose job is to
+  report availability, so left as-is.)
 - **Grep start:** `rg -nU 'except[^:]*:\s*\n\s*(return \[\]|return None|return False|return ""|pass)' gateway`
 - **Acceptance:** each fixed function either raises a typed error or returns an
   explicit error marker; a regression test proves the error surfaces. No behavior
