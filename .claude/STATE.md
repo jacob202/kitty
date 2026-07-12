@@ -1,33 +1,56 @@
 # Session State — 2026-07-12
 
 ## Branch
-- `main` @ `07c901f` — TL-01 through TL-05 all merged.
-- Working on: `fix/search-route-query-param` (PR #151) and `claude/kittybuilder-dogfood-preflight-bif2qb` (PR #150)
 
-## Landed this session
+- `codex/workspace-cleanup-20260712` based on `main` @ `329859b`.
+- No remote branch or PR has been created; nothing was pushed.
 
-### Fable branch integration (done)
-- `docs/fable-context` fast-forwarded into `main` (already on Jacob's Mac + origin).
-- All 5 trust-lane-v1 packets implemented and merged into main:
-  - TL-01 (`1df1eee`): What's Next error state + retry button in HomeState
-  - TL-02 (`68249b4`): gateway freshness check in doctor.py
-  - TL-03 (`00c7590`): Enter-to-send / Shift+Enter tests for InputBar
-  - TL-04 (`7aedd18`): mascot aria-hidden + pointer-events:none
-  - TL-05 (`07c901f`): memory read paths raise MemoryError, routes re-raise as HTTP 500
+## Done this session
 
-## Open PRs
+- `dbee71a`: successful KittyBuilder loop runs remove their worktree when the
+  worker leaves exactly the ephemeral untracked `done.txt` marker; failed,
+  interrupted, dirty, or marker-less runs remain inspectable.
+- `f25e79e`: stopped tracking `tmp/IMG_0668.png` and added `tmp/` to
+  `.gitignore`.
+- `44c1fdc`: recorded the cleanup plan.
+- Preserved unique work locally on:
+  - `codex/recover-kb-s4-merge-tests` (`8bf3bab`, 135 tests)
+  - `codex/recover-orchestrator-research` (`5901a3a`, research document)
+- Retired the stale local KB-S4 and superseded UI branches. The credential-
+  bearing `claude/kitty-prototype-sprint-srs5bl` branch remains untouched.
+- Archived external project clutter under
+  `/Users/jacobbrizinski/Archive/Projects-2026-07-12/` and removed Nautilus
+  through Orca after preserving its Git bundle and runtime state.
+- Removed disposable root caches and `.next`; kept active dependencies,
+  runtime data, secrets, and active worktrees.
 
-### PR #151 — fix/search-route-query-param
-- `/search` route param renamed `query`→`q` to match UI and `/knowledge/search`
-- Rebased onto current main; lint fixes included
+## In flight / preserve
 
-### PR #150 — claude/kittybuilder-dogfood-preflight-bif2qb
-- UI Phase 1: hide unwired nav, conditional sidebar, remove dev notes, empty states, GlyphIcon/MoodAvatar deleted, dashboard tile config
-- Rebasing onto main in progress
+- Active builder worktree:
+  `.worktrees/kittybuilder/kb_mrh9ilha_f3d9`, task
+  `kb_mrh9ilha_f3d9`, currently modifies `gateway/next_step.py`; do not clean
+  or remove it.
+- Untracked user scripts remain untouched:
+  `scripts/kittybuilder_opencode_worker.sh` and
+  `scripts/kittybuilder_opencode_reviewer.sh`.
+- `fix/search-route-query-param` and all remote branches remain untouched.
 
-## Known lint debt on main
-The E402/I001/F401 issues in memory.py, register.py, test_doctor_freshness.py, test_memory_fail_loud.py are fixed on PR #151 but not yet on main (waiting for merge). PR #150 also carries those fixes independently.
+## Verification
+
+- `python3.12 -m pytest tests/test_builder_loop.py tests/test_builder_runner.py
+  -q` → 55 passed.
+- `venv/bin/ruff check gateway/builder_loop.py gateway/builder_runner.py
+  tests/test_builder_loop.py tests/test_builder_runner.py` → passed.
+
+## Next actions
+
+- Decide whether to publish the two rescue branches; pushing remains gated.
+- Later plan model usage across ChatGPT's available models by task, cost,
+  latency, reliability, and privacy boundary.
 
 ## T2 (Jacob/Codex only — do not touch)
-- Card A: UI binds 0.0.0.0 in ./kitty + proxy injects gateway secret; SSRF in capture/knowledge routes
-- Card B: agent_runner.py / task_runner.py can false-complete tasks; stop() unreliable
+
+- Card A: UI binds 0.0.0.0 in `./kitty` + proxy injects gateway secret; SSRF
+  in capture/knowledge routes.
+- Card B: `agent_runner.py` / `task_runner.py` can false-complete tasks;
+  `stop()` unreliable.
