@@ -11,6 +11,7 @@ from gateway.paths import DATA_DIR
 class MemoryError(RuntimeError):
     """Raised when a memory read/write operation fails unexpectedly."""
 
+
 logger = logging.getLogger("kitty.memory")
 
 MEM0_DATA_DIR = DATA_DIR / "mem0"
