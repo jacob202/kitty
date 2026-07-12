@@ -84,6 +84,7 @@ mcp/imagen/test_run.py
 
 # local junk/scratch moved out of the way, never committed
 .trash/
+tmp/
 
 # Build artifacts
 .coverage
