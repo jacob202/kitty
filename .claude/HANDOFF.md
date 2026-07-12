@@ -15,7 +15,7 @@ was pushed.
    `tests/test_next_step.py`.
 2. Treat `scripts/kittybuilder_opencode_worker.sh` and
    `scripts/kittybuilder_opencode_reviewer.sh` as user work; they are
-   intentionally untracked and were not inspected or changed.
+   intentionally untracked and were not modified by this cleanup.
 3. If publication is requested, review and push the rescue branches separately:
    `codex/recover-kb-s4-merge-tests` and
    `codex/recover-orchestrator-research`.
