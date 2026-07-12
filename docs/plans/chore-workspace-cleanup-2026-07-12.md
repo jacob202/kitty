@@ -30,24 +30,24 @@ External filesystem actions:
 
 ## Steps
 
-- [ ] Create local rescue branches containing only the unique KB-S4 tests and
+- [x] Create local rescue branches containing only the unique KB-S4 tests and
   orchestrator research document.
-- [ ] Remove the tracked temporary image and ignore future `tmp/` contents.
-- [ ] Archive external clutter and preserve Nautilus generated state before
+- [x] Remove the tracked temporary image and ignore future `tmp/` contents.
+- [x] Archive external clutter and preserve Nautilus generated state before
   removing its stale worktree.
-- [ ] Remove only disposable caches and the superseded clean UI branch.
-- [ ] Update KittyBuilder so a successful loop removes its clean task worktree,
+- [x] Remove only disposable caches and the superseded clean UI branch.
+- [x] Update KittyBuilder so a successful loop removes its clean task worktree,
   while failed, dirty, or interrupted runs remain inspectable.
-- [ ] Run targeted tests, lint the touched Python files, verify the staged
+- [x] Run targeted tests, lint the touched Python files, verify the staged
   commits, and update session state/handoff.
 
 ## Verification
 
-- `python3.12 -m pytest tests/test_builder_loop.py tests/test_builder_runner.py -q`
-- `venv/bin/ruff check gateway/builder_loop.py gateway/builder_runner.py tests/test_builder_loop.py tests/test_builder_runner.py`
-- `git status --short --branch`
-- `git worktree list --porcelain`
-- `find ~/Archive/Projects-2026-07-12 -maxdepth 3 -type f -print`
+- `python3.12 -m pytest tests/test_builder_loop.py tests/test_builder_runner.py -q` → 55 passed.
+- `venv/bin/ruff check gateway/builder_loop.py gateway/builder_runner.py tests/test_builder_loop.py tests/test_builder_runner.py` → passed.
+- `git status --short --branch` → only the two pre-existing untracked OpenCode helper scripts remain.
+- `git worktree list --porcelain` / Orca registry → active worktrees preserved; Nautilus and research worktree removed.
+- `find ~/Archive/Projects-2026-07-12 -maxdepth 3 -type f -print` → archive bundle, runtime state, backup, and extracted projects present.
 
 ## Guardrails
 

@@ -28,8 +28,8 @@
 
 - Active builder worktree:
   `.worktrees/kittybuilder/kb_mrh9ilha_f3d9`, task
-  `kb_mrh9ilha_f3d9`, currently modifies `gateway/next_step.py`; do not clean
-  or remove it.
+  `kb_mrh9ilha_f3d9`, currently modifies `gateway/next_step.py` and
+  `tests/test_next_step.py`; do not clean or remove it.
 - Untracked user scripts remain untouched:
   `scripts/kittybuilder_opencode_worker.sh` and
   `scripts/kittybuilder_opencode_reviewer.sh`.

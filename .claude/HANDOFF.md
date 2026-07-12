@@ -11,7 +11,8 @@ was pushed.
 
 1. Preserve the active worktree
    `.worktrees/kittybuilder/kb_mrh9ilha_f3d9`; it is running task
-   `kb_mrh9ilha_f3d9` and has a modified `gateway/next_step.py`.
+   `kb_mrh9ilha_f3d9` and has modified `gateway/next_step.py` plus
+   `tests/test_next_step.py`.
 2. Treat `scripts/kittybuilder_opencode_worker.sh` and
    `scripts/kittybuilder_opencode_reviewer.sh` as user work; they are
    intentionally untracked and were not inspected or changed.
