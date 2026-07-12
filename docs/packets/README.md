@@ -115,7 +115,7 @@ move-in. It does not delay move-in.
 | 023 | Memory taste + creative continuity (renumbered from 021, #101) | Claude Code / Codex + Jacob review  | ✅ shipped (#119 backend + #123 UI)                                   |
 | 024 | Chat log idea mine (renumbered from 022, #102)                | strongest-model prompt + Claude Code | 📋 spec authored — `after_move_in`: obeys 023's taste rules either way |
 | 025 | Imagegen pipeline v2: local-first, criteria-verified loop     | Claude Code + Jacob (installs/taste) | 📋 spec authored 2026-07-05 — replaces fal (cost); Draw Things + ComfyUI |
-**Updated:** 2026-07-06 (017 PR #112 open)
+**Updated:** 2026-07-12 (022 authored as active_packet; route/module/tests already on main)
 
 | #   | Packet                                                                               | Best executor                        | Status                                                                                                                                                                           |
 | --- | ------------------------------------------------------------------------------------ | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -140,7 +140,7 @@ move-in. It does not delay move-in.
 | 019 | Job search scaffold                                                                  | Claude Code / Codex                  | ⏸ parked — Jacob: "plan it, don't build it"                                                                                                                                      |
 | 020 | GitHub read-only connector                                                           | Codex / Claude Code                  | 🧭 planned — pattern rides 005                                                                                                                                                   |
 | 021 | Project registry + resume (the real P6 — projects table, git/memory/signal composer) | Claude Code                          | ✅ shipped (#106)                                                                                                                                                                |
-| 022 | Magic Kitty: cross-project insight synthesis (D13)                                   | strongest-model prompt + Claude Code | 🧭 planned — named, not authored. Look across _all_ projects' `resume()` state for non-obvious connections; the "huh, these are related" moment. Comes after 016, not inside it. |
+| 022 | Magic Kitty: cross-project insight synthesis (D13)                                   | strongest-model prompt + Claude Code | 🚧 in progress — packet authored 2026-07-12 (orchestrator subagent). Route/module/tests already on main; this packet pins the executor contract + privacy hardening. Look across _all_ projects' `resume()` state for non-obvious connections; the "huh, these are related" moment. Comes after 016, not inside it. |
 
 ## Execution order (set 2026-07-04, supersedes 2026-07-03)
 

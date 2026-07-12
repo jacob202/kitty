@@ -106,6 +106,11 @@ def _call_llm_for_connections(resumes: list[dict[str, Any]]) -> list[dict[str, A
             max_tokens=2000,
             temperature=0.4,
             operation="magic_kitty.discover",
+            # D10: cross-project synthesis aggregates every active project,
+            # including benefits-admin whose summary can hold health_admin
+            # content. Fail toward privacy — local tier only, never cloud.
+            privacy_tier="local",
+            content_class="health_admin",
         )
         if not text:
             raise RuntimeError(
