@@ -17,9 +17,9 @@ environment failures; main is ready for the authorized push.
 2. Treat `scripts/kittybuilder_opencode_worker.sh` and
    `scripts/kittybuilder_opencode_reviewer.sh` as user work; they are
    intentionally untracked and were not modified by this cleanup.
-3. Push committed `main` without staging the concurrent root-checkout Builder
-   edits, then inspect the live Builder queue before starting `trust-lane-v1`
-   in packet order; leave the T2 `0.0.0.0` binding and SSRF work visible and
+3. `trust-lane-v1` is started at the queue level: TL-01 is claimed on its
+   isolated Builder branch. Implement TL-01, then proceed TL-02 → TL-03 →
+   TL-04 → TL-05; leave the T2 `0.0.0.0` binding and SSRF work visible and
    separate.
 4. The next planned task is a model-usage map for ChatGPT's available models,
   matching model strengths to Kitty tasks and routing rules.

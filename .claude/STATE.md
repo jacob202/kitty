@@ -2,8 +2,7 @@
 
 ## Branch
 
-- `main` @ `2b77f6b`, seven local cleanup/session commits ahead of
-  `origin/main`; push is authorized but still pending.
+- `main` @ `1d2183f`, pushed to `origin/main`.
 - `origin/docs/fable-context` is already an ancestor of `main`; no merge
   commit was needed.
 
@@ -32,6 +31,10 @@
 
 ## In flight / preserve
 
+- `trust-lane-v1` has started at the queue level in packet order. TL-01
+  (`kb_mrgw1v45_019b`) is claimed by `codex-trust-lane-v1-tl01` on its
+  isolated Builder branch; implementation is not yet started in this root
+  checkout.
 - The root checkout has concurrent uncommitted Builder work. Preserve and do
   not stage it: `config/imagen/criteria/hard-gate.json`,
   `config/imagen/criteria/test-char.json`, `gateway/builder_loop.py`,
@@ -63,8 +66,9 @@
 
 ## Next actions
 
-- Push committed `main` with ambient GitHub tokens removed from the
-  environment; do not stage the concurrent root-checkout edits above.
+- Implement TL-01 in its isolated branch, then continue TL-02, TL-03, TL-04,
+  and TL-05 in that order. Do not stage the concurrent root-checkout edits
+  above.
 - Start `trust-lane-v1` in the established packet order after the push.
 - Later plan model usage across ChatGPT's available models by task, cost,
   latency, reliability, and privacy boundary.
