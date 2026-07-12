@@ -214,7 +214,7 @@ class GithubConnector:
                         "state": issue.get("state", ""),
                         "url": issue.get("html_url", ""),
                         "user": issue.get("user", {}).get("login", ""),
-                            "labels": [label.get("name", "") for label in issue.get("labels", []) if isinstance(label, dict)],
+                        "labels": [label.get("name", "") for label in issue.get("labels", []) if isinstance(label, dict)],
                         "comments": issue.get("comments", 0),
                     }
                     dedupe_issue = f"github:issue:{repo}:{issue_number}:state:{issue.get('state')}"
