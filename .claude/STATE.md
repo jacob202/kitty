@@ -2,7 +2,8 @@
 
 ## Branch
 
-- `main` @ `2213960`, six local cleanup commits ahead of `origin/main`.
+- `main` @ `2b77f6b`, seven local cleanup/session commits ahead of
+  `origin/main`; push is authorized but still pending.
 - `origin/docs/fable-context` is already an ancestor of `main`; no merge
   commit was needed.
 
@@ -31,6 +32,11 @@
 
 ## In flight / preserve
 
+- The root checkout has concurrent uncommitted Builder work. Preserve and do
+  not stage it: `config/imagen/criteria/hard-gate.json`,
+  `config/imagen/criteria/test-char.json`, `gateway/builder_loop.py`,
+  `tests/test_builder_loop.py`, plus untracked `gateway/builder_context.py`
+  and `tests/test_builder_context.py`.
 - Active builder worktree:
   `.worktrees/kittybuilder/kb_mrh9ilha_f3d9`, task
   `kb_mrh9ilha_f3d9`, currently modifies `gateway/next_step.py` and
@@ -42,15 +48,23 @@
 
 ## Verification
 
-- `python3.12 -m pytest tests/test_builder_loop.py tests/test_builder_runner.py
-  -q` → 55 passed.
+- Frontend: `npm test -- --run --maxWorkers=1` → 18 files / 129 tests passed;
+  `npm run build` → passed.
+- Full Python suite: 2,079 passed, 1 skipped, 8 failed. Failures are known
+  local environment/dependency or timeout issues (`mem0`, `google.auth`,
+  Chroma/runtime, and resume subprocess); this is not a clean green gate.
+- Builder slice: 54 passed and 1 shared-queue lease-conflict failure; the
+  failed case passed when rerun alone (`1 passed`).
+- Browser smoke loaded onboarding and Home successfully. Core gateway routes
+  returned 200, while LiteLLM/models, Chroma knowledge, and runtime freshness
+  remained visibly degraded in this environment.
 - `venv/bin/ruff check gateway/builder_loop.py gateway/builder_runner.py
   tests/test_builder_loop.py tests/test_builder_runner.py` → passed.
 
 ## Next actions
 
-- Run merged-main verification, then push `main` with ambient GitHub tokens
-  removed from the environment.
+- Push committed `main` with ambient GitHub tokens removed from the
+  environment; do not stage the concurrent root-checkout edits above.
 - Start `trust-lane-v1` in the established packet order after the push.
 - Later plan model usage across ChatGPT's available models by task, cost,
   latency, reliability, and privacy boundary.

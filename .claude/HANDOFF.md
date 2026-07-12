@@ -2,10 +2,11 @@
 
 ## TL;DR
 
-Workspace cleanup is merged into local `main` at `2213960`. The Fable branch
+Workspace cleanup is merged into local `main` at `2b77f6b`. The Fable branch
 was already an ancestor of main, so no artificial merge commit was created.
 Builder cleanup, temporary-file hygiene, branch rescue, external archiving,
-and Nautilus removal are finished. Main is ready for verification and push.
+and Nautilus removal are finished. Verification is complete with documented
+environment failures; main is ready for the authorized push.
 
 ## Resume
 
@@ -16,8 +17,10 @@ and Nautilus removal are finished. Main is ready for verification and push.
 2. Treat `scripts/kittybuilder_opencode_worker.sh` and
    `scripts/kittybuilder_opencode_reviewer.sh` as user work; they are
    intentionally untracked and were not modified by this cleanup.
-3. After merged-main verification and push, start `trust-lane-v1` in packet
-   order; leave the T2 `0.0.0.0` binding and SSRF work visible and separate.
+3. Push committed `main` without staging the concurrent root-checkout Builder
+   edits, then inspect the live Builder queue before starting `trust-lane-v1`
+   in packet order; leave the T2 `0.0.0.0` binding and SSRF work visible and
+   separate.
 4. The next planned task is a model-usage map for ChatGPT's available models,
   matching model strengths to Kitty tasks and routing rules.
 
@@ -35,7 +38,13 @@ and Nautilus removal are finished. Main is ready for verification and push.
 
 ## Verification
 
-- Builder slice: 55 passed.
+- Frontend tests: 18 files / 129 passed; production build passed.
+- Full Python suite: 2,079 passed, 1 skipped, 8 failed on local optional
+  dependencies, Chroma/runtime, and resume timeout conditions.
+- Builder slice: 54 passed, 1 shared-queue lease-conflict failure; isolated
+  rerun of that failure passed.
+- Browser smoke reached onboarding and Home; core routes returned 200, with
+  LiteLLM/models, Chroma knowledge, and runtime freshness visibly degraded.
 - Ruff on all touched builder files: passed.
 - Active dependencies and runtime data were intentionally retained.
 
