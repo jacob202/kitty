@@ -1,0 +1,25 @@
+[
+  {
+    "title": "Kitty as attention-repair assistant",
+    "create_time": 1718000000,
+    "mapping": {
+      "a": {"message": {"author": {"role": "user"}, "content": {"parts": ["I want Kitty to hold the thread: where I was, what matters, the next small move."]}, "create_time": 1718000000}},
+      "b": {"message": {"author": {"role": "assistant"}, "content": {"parts": ["That's a strong product thesis — memory, briefing, creative, navigation in one."]}, "create_time": 1718000060}}
+    }
+  },
+  {
+    "title": "Recovery and staying sober",
+    "create_time": 1718100000,
+    "mapping": {
+      "c": {"message": {"author": {"role": "user"}, "content": {"parts": ["therapy this week was hard, sobriety is the through-line but I keep spiraling at night."]}, "create_time": 1718100000}},
+      "d": {"message": {"author": {"role": "assistant"}, "content": {"parts": ["That sounds like a lot. Want to focus on one concrete next step?"]}, "create_time": 1718100060}}
+    }
+  },
+  {
+    "title": "Image prompt workflow for the mascot",
+    "create_time": 1718200000,
+    "mapping": {
+      "e": {"message": {"author": {"role": "user"}, "content": {"parts": ["Here's a reusable prompt: badly drawn cat, imperfect warmth, recovery without branding it recovery."]}, "create_time": 1718200000}}
+    }
+  }
+]
