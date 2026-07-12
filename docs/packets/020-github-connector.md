@@ -14,11 +14,12 @@
 
 ## Scope sketch (for the authoring pass)
 
-- `gateway/connectors/github.py`, copying 005's shape exactly: cron-polled,
+-   `gateway/connectors/github.py`, copying 005's shape exactly: cron-polled,
   token via env (`GITHUB_TOKEN`, classic PAT with `repo:read` — Jacob
   creates it, agents never handle credential issuance), deduped signal
   rows. Sources: open PRs + their check-run conclusions + new review
-  comments on Jacob's repos (config list, kitty first).
+  comments + open issues (PR-shaped entries filtered out, since the issues
+  endpoint also returns PRs) on Jacob's repos (config list, kitty first).
 - Signal payloads carry repo/PR/title/state/URL — never diff contents.
 - Doctor check for connector health; poll failure is loud.
 - Project resume (006) and navigator (016) consume the signals for code

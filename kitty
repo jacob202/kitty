@@ -16,6 +16,10 @@
 #   kitty resume    Print one-screen orientation block (branch, PRs, tests, services, packets)
 #   kitty builder <cmd>        Run Kitty Builder Layer 1A (brief, contract validate)
 #   kitty delegate <action-id>  Generate a docs/packets/NNN-slug.md file from an action
+#   kitty tutor learn <path>     Ingest a doc into the Tutor (RAG learning)
+#   kitty tutor ask "<q>"        Vocab-first answer + one check-in question
+#   kitty tutor review           Show terms you struggled with, due now
+#   kitty tutor rate "<term>" <1-3>  Log confidence (1 got it, 2 need example, 3 lost)
 #   kitty push [--alert] "message"  Push to Jacob's phone (iMessage, Pushover fallback)
 #   kitty project add "name" /abs/path [kind]   Register a project (kind: code|admin|creative|...)
 #   kitty project list                          List registered projects
@@ -323,6 +327,14 @@ cmd_builder() {
   "$python_bin" -m gateway.builder_cli "$@"
 }
 
+cmd_tutor() {
+  local python_bin="$KITTY_ROOT/venv/bin/python"
+  if [[ ! -x "$python_bin" ]]; then
+    python_bin="$(command -v python3.12)"
+  fi
+  "$python_bin" -m gateway.tutor_cli "$@"
+}
+
 cmd_delegate() {
   local action_id="${1:-}"
   if [[ -z "$action_id" ]]; then
@@ -582,6 +594,7 @@ case "${1:-start}" in
   push)      shift; cmd_push "$@" ;;
   sweep)     cmd_sweep ;;
   project)   shift; cmd_project "$@" ;;
+  tutor)     shift; cmd_tutor "$@" ;;
   verify-home) cmd_verify_home ;;
   help|--help|-h) cmd_help ;;
   *)
