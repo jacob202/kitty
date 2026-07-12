@@ -155,8 +155,9 @@ rented GPU later.** The step-up path from free to paid is a URL change.
 ## Files likely touched
 
 - `mcp/imagen/engines/drawthings.py` (new), `engines/__init__.py`
-- `mcp/imagen/verify.py` (new), `server.py` (`generate_until` tool; fal
-  tools removed), `config.py` (DT_URL, verifier settings)
+- `mcp/imagen/verify.py` (already on `main` — criteria loop; this slice
+  builds the mockable adapter on top), `server.py` (`generate_until` tool;
+  fal tools removed), `config.py` (DT_URL, verifier settings)
 - `config/imagen/criteria/` + `config/imagen/models.yaml` (new)
 - `mcp/imagen/README.md` (runbook), `.claude/rules/initiative.md` (de-fal),
   `.env.example`
