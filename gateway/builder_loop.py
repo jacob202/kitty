@@ -34,7 +34,7 @@ from typing import Any
 
 from gateway import builder_attempt as ba
 from gateway import builder_queue as bq
-from gateway.builder_runner import run_worker, worktree_path
+from gateway.builder_runner import remove_worktree, run_worker, worktree_path
 from gateway.paths import BUILDER_QUEUE_DB
 
 DEFAULT_REVIEW_TIMEOUT = 1800
@@ -253,6 +253,19 @@ def run_packet(
         if failure is None:
             ba.close_attempt(attempt_id, ba.ATTEMPT_SUCCEEDED, db_path=db_path)
             entry["outcome"] = ba.ATTEMPT_SUCCEEDED
+
+            # A worker's done marker is the explicit handoff boundary. Remove
+            # only after every success gate passes; failed or interrupted work
+            # must remain available for inspection and recovery.
+            task_worktree = worktree_path(task_id, repo_root=repo_root)
+            if (task_worktree / "done.txt").is_file():
+                remove_worktree(
+                    task_id, repo_root=repo_root, discard_done_marker=True
+                )
+                entry["worktree_cleanup"] = "removed"
+            else:
+                entry["worktree_cleanup"] = "kept_no_done_marker"
+
             final_task = bq.get_task(task_id, db_path=db_path)
             return {
                 "outcome": LOOP_SUCCEEDED,
