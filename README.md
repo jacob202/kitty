@@ -139,12 +139,12 @@ This is vibe-coded across a rotating toolchain, so the instruction files are the
 | `docs/ARCHITECTURE.md` | Canonical runnable stack (the source for this section) |
 | `docs/DECISIONS.md` | Settled decisions |
 | `docs/LEARNINGS.md` | Hard lessons + guardrails |
-| `docs/AGENT_HANDOFF.md` | Latest continuation package |
+| `.claude/HANDOFF.md` | Latest continuation package |
 
 ---
 
 ## Known rough edges
 
-- `docs/` has sprawl (40+ files, some marked stale). `HANDOFF.md` / `SESSION_HANDOFF.md` at root are **stale** — use `docs/AGENT_HANDOFF.md`.
+- `docs/` has sprawl (40+ files, some marked stale). `HANDOFF.md` / `SESSION_HANDOFF.md` at root are **stale** — use `.claude/HANDOFF.md`.
 - `pyproject.toml` pins mypy to `python_version = "3.11"` while everything runtime-side uses `python3.12`. Reconcile when convenient.
 - `LITELLM_MASTER_KEY` defaults to `kitty-local-key-change-me` — fine for localhost, change it if Kitty ever binds beyond loopback.
