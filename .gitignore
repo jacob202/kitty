@@ -84,3 +84,9 @@ mcp/imagen/test_run.py
 
 # local junk/scratch moved out of the way, never committed
 .trash/
+
+# Build artifacts
+.coverage
+*.pyc
+__pycache__/
+gateway/kitty-chat/test-results/
