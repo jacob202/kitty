@@ -301,7 +301,7 @@ async def image_view(filename: str):
 
 
 @router.get("/image/history")
-async def image_history():
+async def image_history(limit: int = 20):
     from gateway.image_gen import get_history
 
-    return {"images": get_history()}
+    return {"images": get_history()[:limit]}

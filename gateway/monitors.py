@@ -23,7 +23,7 @@ def list_monitors() -> list[dict]:
     return list_watches()
 
 
-def create_monitor(url: str, interval_minutes: int = 300) -> dict:
+def create_monitor(url: str, *, label: str | None = None, interval_minutes: int = 300) -> dict:
     """Register a new monitor. Returns the watch as a dict."""
     from gateway.web_monitor import add_watch
 
@@ -31,7 +31,7 @@ def create_monitor(url: str, interval_minutes: int = 300) -> dict:
         raise ValueError("url must be a non-empty string")
     if not isinstance(interval_minutes, int) or interval_minutes <= 0:
         raise ValueError("interval_minutes must be a positive int")
-    watch_id = add_watch(url=url, label=url, interval_minutes=interval_minutes)
+    watch_id = add_watch(url=url, label=label or url, interval_minutes=interval_minutes)
     return {
         "watch_id": watch_id,
         "url": url,
