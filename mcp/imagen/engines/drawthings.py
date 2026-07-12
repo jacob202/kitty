@@ -14,15 +14,22 @@ import asyncio
 import base64
 from pathlib import Path
 
-import httpx
-
 from mcp.imagen.config import settings
-from mcp.imagen.engines.base import RefusalError
+from mcp.imagen.engines.adapters import DrawThingsHttpAdapter, ImagegenAdapter
 from mcp.imagen.retry import retry_with_backoff
 
 
 class DrawThingsEngine:
-    """Local Draw Things / A1111-compatible backend via the standard txt2img API."""
+    """Local Draw Things / A1111-compatible backend via the standard txt2img API.
+
+    The network transport is an :class:`ImagegenAdapter`; by default a live
+    ``DrawThingsHttpAdapter`` is used, but a mock adapter can be injected for
+    tests (Packet 025 — no server or model download needed).
+    """
+
+    def __init__(self, adapter: ImagegenAdapter | None = None) -> None:
+        # Falls back to the live HTTP adapter against settings.dt_url.
+        self._adapter: ImagegenAdapter = adapter or DrawThingsHttpAdapter(settings.dt_url)
 
     @property
     def name(self) -> str:
@@ -69,6 +76,7 @@ class DrawThingsEngine:
         endpoint = "txt2img"
         if init_image:
             import io
+
             from PIL import Image as PILImage
             with PILImage.open(init_image) as img:
                 if img.mode != "RGB":
@@ -83,25 +91,12 @@ class DrawThingsEngine:
         if seed is not None:
             payload["seed"] = seed
 
-        url = f"{settings.dt_url.rstrip('/')}/sdapi/v1/{endpoint}"
-        try:
-            response = httpx.post(url, json=payload, timeout=120)
-            response.raise_for_status()
-        except httpx.ConnectError:
-            raise RuntimeError(
-                f"Could not reach Draw Things at {settings.dt_url}. "
-                "Is the API server enabled in Draw Things Settings?"
-            )
-        except httpx.HTTPStatusError as e:
-            raise RuntimeError(f"Draw Things returned {e.response.status_code}: {e.response.text[:200]}")
-
-        data = response.json()
-        images = data.get("images")
-        if not images:
-            raise RefusalError("Draw Things returned no images — the prompt may have been blocked.")
-
-        raw = base64.b64decode(images[0])
-        return raw
+        images = (
+            self._adapter.img2img(payload)
+            if endpoint == "img2img"
+            else self._adapter.txt2img(payload)
+        )
+        return images[0]
 
     async def generate_async(
         self,
