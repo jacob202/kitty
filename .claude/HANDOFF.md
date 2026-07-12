@@ -2,10 +2,10 @@
 
 ## TL;DR
 
-Workspace cleanup is complete on local branch
-`codex/workspace-cleanup-20260712`. Builder cleanup, temporary-file hygiene,
-branch rescue, external archiving, and Nautilus removal are finished. Nothing
-was pushed.
+Workspace cleanup is merged into local `main` at `2213960`. The Fable branch
+was already an ancestor of main, so no artificial merge commit was created.
+Builder cleanup, temporary-file hygiene, branch rescue, external archiving,
+and Nautilus removal are finished. Main is ready for verification and push.
 
 ## Resume
 
@@ -16,11 +16,10 @@ was pushed.
 2. Treat `scripts/kittybuilder_opencode_worker.sh` and
    `scripts/kittybuilder_opencode_reviewer.sh` as user work; they are
    intentionally untracked and were not modified by this cleanup.
-3. If publication is requested, review and push the rescue branches separately:
-   `codex/recover-kb-s4-merge-tests` and
-   `codex/recover-orchestrator-research`.
+3. After merged-main verification and push, start `trust-lane-v1` in packet
+   order; leave the T2 `0.0.0.0` binding and SSRF work visible and separate.
 4. The next planned task is a model-usage map for ChatGPT's available models,
-   matching model strengths to Kitty tasks and routing rules.
+  matching model strengths to Kitty tasks and routing rules.
 
 ## Preserved / archived
 
@@ -30,6 +29,9 @@ was pushed.
 - `/Users/jacobbrizinski/Archive/Projects-2026-07-12/` contains the backup
   tarball, extracted projects, Nautilus Git bundle, and Nautilus runtime state.
 - PR #151 and all remote branches remain untouched.
+- The final Fable launch config is portable and loopback-only. An intermediate
+  historical commit contained an absolute worktree path, but the tip fixed it;
+  history was not rewritten.
 
 ## Verification
 

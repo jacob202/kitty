@@ -2,8 +2,9 @@
 
 ## Branch
 
-- `codex/workspace-cleanup-20260712` based on `main` @ `329859b`.
-- No remote branch or PR has been created; nothing was pushed.
+- `main` @ `2213960`, six local cleanup commits ahead of `origin/main`.
+- `origin/docs/fable-context` is already an ancestor of `main`; no merge
+  commit was needed.
 
 ## Done this session
 
@@ -23,6 +24,10 @@
   through Orca after preserving its Git bundle and runtime state.
 - Removed disposable root caches and `.next`; kept active dependencies,
   runtime data, secrets, and active worktrees.
+- Reviewed the Fable session commits: final `.claude/launch.json` is relative
+  and loopback-only; no secrets or generated browser artifacts are present in
+  the final snapshot. One intermediate commit had an absolute worktree path,
+  corrected by the Fable tip without rewriting history.
 
 ## In flight / preserve
 
@@ -44,7 +49,9 @@
 
 ## Next actions
 
-- Decide whether to publish the two rescue branches; pushing remains gated.
+- Run merged-main verification, then push `main` with ambient GitHub tokens
+  removed from the environment.
+- Start `trust-lane-v1` in the established packet order after the push.
 - Later plan model usage across ChatGPT's available models by task, cost,
   latency, reliability, and privacy boundary.
 
