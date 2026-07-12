@@ -78,6 +78,47 @@ describe('ChatMessage actions', () => {
     expect(helpfulButton).toHaveStyle({ minWidth: '44px', minHeight: '44px' })
   })
 
+  it('keeps actions visible on compact (touch) layout without hover or focus', () => {
+    renderMessage(kittyMsg, { compact: true })
+    const helpfulButton = screen.getByRole('button', { name: 'rate this response helpful' })
+    expect(helpfulButton.parentElement).toHaveStyle({ opacity: '1' })
+  })
+
+  it('hides actions when compact but still streaming', () => {
+    renderMessage({ ...kittyMsg, content: '' }, { compact: true, isStreaming: true })
+    expect(screen.queryByTitle('copy message')).not.toBeInTheDocument()
+  })
+
+  it('shows who answered via the producing model', () => {
+    renderMessage({ ...kittyMsg, model: 'sonnet-4', content: 'checked it.' })
+    expect(screen.getByText(/answered by sonnet-4/)).toBeInTheDocument()
+  })
+
+  it('surfaces council routing as expert chips', () => {
+    renderMessage({
+      ...kittyMsg,
+      model: 'opus-4',
+      content: 'done.',
+      routing: [
+        { task_id: 't1', category: 'research', agent: 'researcher', priority: 1 },
+        { task_id: 't2', category: 'writing', agent: 'writer', priority: 2 },
+      ],
+    })
+    expect(screen.getByText(/answered by opus-4/)).toBeInTheDocument()
+    expect(screen.getByTitle('research · priority 1')).toHaveTextContent('researcher · p1')
+    expect(screen.getByTitle('writing · priority 2')).toHaveTextContent('writer · p2')
+  })
+
+  it('does not show attribution for user messages', () => {
+    renderMessage({ ...kittyMsg, role: 'user', model: 'sonnet-4' })
+    expect(screen.queryByText(/answered by/)).not.toBeInTheDocument()
+  })
+
+  it('does not show attribution while the reply is still streaming', () => {
+    renderMessage({ ...kittyMsg, model: 'sonnet-4', content: 'partial…' }, { isStreaming: true })
+    expect(screen.queryByText(/answered by/)).not.toBeInTheDocument()
+  })
+
   it('shows a feedback error when the gateway rejects the rating', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 503, statusText: 'Service Unavailable' }))
     renderMessage()
