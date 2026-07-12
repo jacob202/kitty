@@ -86,7 +86,7 @@ def test_search_route_uses_async_search_without_dropping_knowledge() -> None:
 
     with patch("gateway.memory_graph.search_all", new=AsyncMock(return_value=graph_result)):
         client = TestClient(app)
-        response = client.get("/search", params={"query": "mosfet", "limit": 3})
+        response = client.get("/search", params={"q": "mosfet", "limit": 3})
 
     assert response.status_code == 200
     body = response.json()

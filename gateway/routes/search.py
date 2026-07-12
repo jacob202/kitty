@@ -10,9 +10,9 @@ router = APIRouter(tags=["search"])
 
 
 @router.get("/search")
-async def search(query: str = "", limit: int = 5):
+async def search(q: str = "", limit: int = 5):
     """Search across memory, knowledge, and journal."""
-    if not query:
+    if not q:
         return {"query": "", "memories": [], "knowledge": [], "journal": [], "todos": [], "inbox": []}
 
-    return await gateway.search.async_search(query, limit=limit)
+    return await gateway.search.async_search(q, limit=limit)
