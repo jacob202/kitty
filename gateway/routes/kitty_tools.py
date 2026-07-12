@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter, File, UploadFile
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
+
+from gateway.constants import MAX_INVENTORY_BYTES
 
 router = APIRouter(tags=["tools"])
 
@@ -55,10 +57,21 @@ async def inventory_photo(file: UploadFile = File(...)):
 
     from gateway.inventory import process_inventory_image
 
+    written = 0
+    chunks: list[bytes] = []
+    while chunk := await file.read(64 * 1024):
+        written += len(chunk)
+        if written > MAX_INVENTORY_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"inventory photo exceeds {MAX_INVENTORY_BYTES} bytes",
+            )
+        chunks.append(chunk)
+
     with tempfile.NamedTemporaryFile(
         delete=False, suffix=Path(file.filename or ".jpg").suffix
     ) as tmp:
-        tmp.write(await file.read())
+        tmp.write(b"".join(chunks))
         tmp_path = tmp.name
 
     result = process_inventory_image(tmp_path)
