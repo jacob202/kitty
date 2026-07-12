@@ -157,8 +157,15 @@ app.add_middleware(
 async def body_size_guard(request: Request, call_next):
     """Reject requests with content-length exceeding MAX_BODY_BYTES."""
     content_length = request.headers.get("content-length")
-    if content_length and int(content_length) > MAX_BODY_BYTES:
-        return Response(status_code=413, content="Request body too large")
+    if content_length:
+        try:
+            declared_length = int(content_length)
+        except ValueError:
+            return Response(status_code=400, content="Invalid Content-Length header")
+        if declared_length < 0:
+            return Response(status_code=400, content="Invalid Content-Length header")
+        if declared_length > MAX_BODY_BYTES:
+            return Response(status_code=413, content="Request body too large")
     return await call_next(request)
 
 

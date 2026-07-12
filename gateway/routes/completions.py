@@ -78,9 +78,18 @@ async def chat_completions(request: Request):
     )
 
     content_length = request.headers.get("content-length")
-    if content_length and int(content_length) > MAX_BODY_BYTES:
-        on_request_error()
-        return Response(status_code=413, content="Request body too large")
+    if content_length:
+        try:
+            declared_length = int(content_length)
+        except ValueError:
+            on_request_error()
+            return Response(status_code=400, content="Invalid Content-Length header")
+        if declared_length < 0:
+            on_request_error()
+            return Response(status_code=400, content="Invalid Content-Length header")
+        if declared_length > MAX_BODY_BYTES:
+            on_request_error()
+            return Response(status_code=413, content="Request body too large")
 
     on_request_start()
 
