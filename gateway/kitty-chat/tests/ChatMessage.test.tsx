@@ -114,6 +114,11 @@ describe('ChatMessage actions', () => {
     expect(screen.queryByText(/answered by/)).not.toBeInTheDocument()
   })
 
+  it('does not show attribution while the reply is still streaming', () => {
+    renderMessage({ ...kittyMsg, model: 'sonnet-4', content: 'partial…' }, { isStreaming: true })
+    expect(screen.queryByText(/answered by/)).not.toBeInTheDocument()
+  })
+
   it('shows a feedback error when the gateway rejects the rating', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 503, statusText: 'Service Unavailable' }))
     renderMessage()
