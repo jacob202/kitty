@@ -2,7 +2,7 @@
 """
 Check that the Kitty session continuity state is fresh enough.
 
-Reads docs/AGENT_HANDOFF.md and extracts the most recent date. Exits 0 if the
+Reads .claude/HANDOFF.md and extracts the most recent date. Exits 0 if the
 handoff is within the --max-age-days window, 1 otherwise.
 
 Usage:
@@ -15,7 +15,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-HANDOFF_FILE = ROOT / "docs" / "AGENT_HANDOFF.md"
+HANDOFF_FILE = ROOT / ".claude" / "HANDOFF.md"
 
 _DATE_PATTERN = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
 
@@ -30,10 +30,10 @@ def extract_date(path: Path) -> date:
 
 
 def main() -> int:
-    """Parse args, read docs/AGENT_HANDOFF.md, print result, and return exit code."""
+    """Parse args, read .claude/HANDOFF.md, print result, and return exit code."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--max-age-days", type=int, default=21, metavar="N",
-                        help="Maximum allowed age of docs/AGENT_HANDOFF.md in days (default: 21)")
+                        help="Maximum allowed age of .claude/HANDOFF.md in days (default: 21)")
     args = parser.parse_args()
 
     if not HANDOFF_FILE.exists():
@@ -49,13 +49,13 @@ def main() -> int:
     age_days = (date.today() - handoff_date).days
     if age_days >= args.max_age_days:
         print(
-            f"FAIL: docs/AGENT_HANDOFF.md is {age_days} days old "
+            f"FAIL: .claude/HANDOFF.md is {age_days} days old "
             f"(limit: {args.max_age_days} days, last updated: {handoff_date})"
         )
         return 1
 
     print(
-        f"OK: docs/AGENT_HANDOFF.md is {age_days} days old "
+        f"OK: .claude/HANDOFF.md is {age_days} days old "
         f"(limit: {args.max_age_days} days, last updated: {handoff_date})"
     )
     return 0
