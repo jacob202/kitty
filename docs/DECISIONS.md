@@ -25,3 +25,4 @@ detail that hasn't been promoted to a per-decision ADR remains in
 | D12 | Phone-First Delivery And The Move-In Bar            | [0013](adr/0013-phone-first-delivery-move-in-bar.md)        |
 | D13 | Magic Kitty: Cross-Project Insight                  | [0014](adr/0014-magic-kitty-cross-project-insight.md)       |
 | D14 | Resume Loop Is The Product; Builder Boundary        | [0015](adr/0015-resume-loop-and-builder-boundary.md)        |
+| D15 | Life-First Ordering                                 | [0016](adr/0016-life-first-ordering.md)                     |

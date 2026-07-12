@@ -1,3 +1,10 @@
+# Handoff — 2026-07-11 (Fable final session: life-first)
+
+## TL;DR
+Kitty's purpose is now written down where no session can lose it: `docs/NORTH_STAR.md` + ADR 0016. Life projects outrank code projects everywhere Kitty suggests; the daily path must run on the free/cheap routes (verified real: `kitty-default` = DeepSeek flash, `kitty-default-or` = free Gemini). Initiative `life-first-v1` (4 packets) is applied to the Builder queue alongside `trust-lane-v1` (5 packets). The life-first preference is also live immediately via `config/PREFERENCES.md`, which next_step reads today. Any capable free worker can now continue: read NORTH_STAR §4, take one packet, stay bounded, stay honest.
+
+---
+
 # Handoff — 2026-07-11 (Fable blueprint session)
 
 ## TL;DR
