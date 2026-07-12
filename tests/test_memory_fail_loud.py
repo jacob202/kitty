@@ -5,7 +5,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from gateway.memory import MemoryError, delete_memory, get_context_block, list_memories, search_memory
+from gateway.memory import (
+    MemoryError,
+    delete_memory,
+    get_context_block,
+    list_memories,
+    search_memory,
+)
 
 
 def _patched_mem(side_effect=None, return_value=None):

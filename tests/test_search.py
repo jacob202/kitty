@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -80,30 +81,18 @@ async def test_async_search_normalizes_grouped_store_hits() -> None:
 
 
 def test_search_route_uses_async_search_without_dropping_knowledge() -> None:
-    payload = {
-        "query": "mosfet",
-        "memories": [],
-        "knowledge": [
-            {
-                "kind": "knowledge",
-                "source": "sansui.pdf",
-                "title": "sansui.pdf",
-                "text": "MOSFET bias notes",
-                "score": 0.87,
-                "metadata": {},
-            }
-        ],
-        "journal": [],
-        "todos": [],
-        "inbox": [],
-    }
+    item = SimpleNamespace(text="MOSFET bias notes", score=0.87)
+    graph_result = SimpleNamespace(results={"knowledge": [item]}, errors=[])
 
-    with patch("gateway.search.async_search", new=AsyncMock(return_value=payload)):
+    with patch("gateway.memory_graph.search_all", new=AsyncMock(return_value=graph_result)):
         client = TestClient(app)
-        response = client.get("/search", params={"q": "mosfet", "limit": 3})
+        response = client.get("/search", params={"query": "mosfet", "limit": 3})
 
     assert response.status_code == 200
-    assert response.json()["knowledge"][0]["text"] == "MOSFET bias notes"
+    body = response.json()
+    knowledge_items = [r for r in body["results"] if r["store"] == "knowledge"]
+    assert knowledge_items, "knowledge results must not be dropped from the search response"
+    assert knowledge_items[0]["content"] == "MOSFET bias notes"
 
 
 def test_deep_research_route_uses_typed_payload() -> None:

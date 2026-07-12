@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
-from gateway.council import TaskDispatch
 
 from gateway.app import app
+from gateway.council import TaskDispatch
 
 
 class FakeBackend:
