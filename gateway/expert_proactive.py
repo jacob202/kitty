@@ -32,6 +32,7 @@ def _load_cursors() -> dict:
             with open(paths.EXPERT_CURSORS_FILE, "r") as f:
                 return json.load(f)
         except json.JSONDecodeError:
+            logger.warning("Corrupt expert cursors file — resetting")
             return {}
     return {}
 

@@ -27,7 +27,7 @@ jobs:
       - name: Run test suite
         run: |
           python -m pytest tests/ -q --tb=short \
-            --cov=gateway --cov-report=term-missing --cov-fail-under=10
+            --cov=gateway --cov-report=term-missing --cov-fail-under=65
 
   lint:
     runs-on: ubuntu-latest
