@@ -58,20 +58,26 @@ Not a single exportable paste. Sources:
   (the Phase 3–5 task that produced the product commit)
 - Live chat transcripts live in `data/` (kitty chat DB) and the opencode/codex stores above.
 
-## 5. New local changes after Codex's report
+## 5. Current state after Codex's report (2026-07-12)
 
-Repo: `main` @ `ece1480`, **ahead of origin/main by 2 commits**
-(`14f5865` product, `c48186b` merge) — those are Codex's own.
+Repo: `feat/council-routing` based on `main` (`4b02645`).
+Head: `ca04d20` — fail-loud sweep complete.
 
-Uncommitted after the report (doc/config only, net +50/−17 across 5 files):
+**Committed since the report:**
+- `569608b` — verifier false-green, duplicate route contracts, fail-loud core paths
+- `1cc6fbd` — Fable context bundle and visual references
+- `92dc9ee` — replaced mis-collected visual references
+- `907c6c0` — Kitty blueprint and ADR 0015 (resume loop, Builder boundary)
+- `1156dad` — Fable session wrap, QA evidence, trust-lane-v1, bookkeeping
+- `facdec6` — enrichment fail-loud markers (context_enrichment.py)
+- `ca04d20` — bundle update, Card C closed
 
-- `.claude/HANDOFF.md` — +22 lines (swarm QA, wiring fix, personality pass handoffs)
-- `.claude/STATE.md` — +22 lines (state wrap notes)
-- `.agents/skills/engineering/improve-codebase-architecture/SKILL.md` — doc cleanup (LANGUAGE.md/DEEPENING.md links)
-- `config/imagen/criteria/hard-gate.json` — trailing newline only
-- `config/imagen/criteria/test-char.json` — trailing newline only
-
-Nothing pushed.
+**Uncommitted on `feat/council-routing` (in progress):**
+- `gateway/council.py` — council routing supervisor
+- `gateway/routes/council.py` — POST /council route entrypoint
+- `gateway/routes/register.py` — council route wiring
+- `gateway/tutor.py`, `gateway/tutor_cli.py`, `gateway/routes/tutor.py` — tutor endpoint (untracked)
+- `docs/council-routing-design.md`, `docs/tutor-design.md` — design docs (untracked)
 
 ---
 
