@@ -165,7 +165,6 @@ def test_discover_connections_uses_local_privacy_tier_for_synthesis(monkeypatch)
         ),
     )
 
-    captured: dict[str, object] = {}
     mock_call_llm = MagicMock(return_value=json.dumps([]))
     monkeypatch.setattr(magic_kitty.llm_client, "call_llm", mock_call_llm)
 
