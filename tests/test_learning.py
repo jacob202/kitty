@@ -187,8 +187,8 @@ def test_process_gate_answer_level_up(tmp_path):
     assert stats["user_level"] == 2
 
 
-def test_process_gate_answer_llm_failure_passes_gate(tmp_path):
-    """LLM failure returns a default pass so Jacob isn't blocked."""
+def test_process_gate_answer_llm_failure_blocks_gate(tmp_path):
+    """LLM failure fails the gate closed — never auto-pass on error."""
     from gateway.learning import init_stats, process_gate_answer
     stats_file = tmp_path / "user_learning_stats.json"
 
@@ -197,5 +197,5 @@ def test_process_gate_answer_llm_failure_passes_gate(tmp_path):
         with patch("gateway.llm_client.call_llm", side_effect=Exception("timeout")):
             result = process_gate_answer("some answer", "some question")
 
-    assert result["correct"] is True
+    assert result["correct"] is False
     assert "System error" in result["feedback"]
