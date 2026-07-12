@@ -1,8 +1,6 @@
 """Unit tests for TL-02: gateway process freshness check."""
 import time
 
-import pytest
-
 from gateway.doctor import _check_gateway_freshness
 
 

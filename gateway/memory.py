@@ -5,11 +5,11 @@ import logging
 import os
 from typing import Optional
 
+from gateway.paths import DATA_DIR
+
 
 class MemoryError(RuntimeError):
     """Raised when a memory read/write operation fails unexpectedly."""
-
-from gateway.paths import DATA_DIR
 
 logger = logging.getLogger("kitty.memory")
 
