@@ -138,7 +138,7 @@ python3.12 -c "from gateway.routes.register import register_routes; from fastapi
 
 ## Review artifacts
 
-- `pytest` output (5 passed) — see PR body.
+- `pytest` output (6 passed) — see PR body.
 - Import / registration smoke checks above.
 
 ## Jacob review questions
