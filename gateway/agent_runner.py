@@ -35,6 +35,10 @@ logger = logging.getLogger("kitty.agent_runner")
 DEFAULT_MAX_ITERATIONS: int = 5
 AGENT_TIMEOUT_SECONDS: int = 300  # 5 min hard cap per agent
 
+# Keep the in-process task handle so stop() can cancel the work, rather than
+# only changing the database row while the LLM call continues in the background.
+_AGENT_TASKS: dict[int, asyncio.Task[None]] = {}
+
 # --- The Algorithm (reasoning loop, formerly gateway/algorithm.py) ---
 
 
@@ -236,7 +240,7 @@ async def spawn(
     )
 
     # Launch background task
-    asyncio.create_task(
+    task = asyncio.create_task(
         _run_agent_loop(
             session_id,
             goal,
@@ -247,6 +251,8 @@ async def spawn(
             algorithm,
         )
     )
+    _AGENT_TASKS[session_id] = task
+    task.add_done_callback(lambda _done: _AGENT_TASKS.pop(session_id, None))
 
     logger.info("Agent spawned: type=%s session=%d goal=%s", agent_type, session_id, goal[:80])
     return session_id
@@ -279,8 +285,11 @@ async def _run_agent_loop(
 
     model = model or route_model(goal)
 
+    failed = False
     try:
         for iteration in range(max_iterations):
+            if _session_status(session_id) != "active":
+                return
             t_start = time.monotonic()
 
             try:
@@ -300,6 +309,7 @@ async def _run_agent_loop(
                     content=f"LLM call failed: {e}",
                     thinking="",
                 )
+                failed = True
                 break
 
             elapsed = round((time.monotonic() - t_start) * 1000)
@@ -321,7 +331,10 @@ async def _run_agent_loop(
                 logger.info("Agent %d finished after %d iterations", session_id, iteration + 1)
                 break
 
-        state.finish("completed")
+        # stop() may win a race with the final LLM response. Never turn an
+        # externally-cancelled session back into a successful completion.
+        if _session_status(session_id) == "active":
+            state.finish("failed" if failed else "completed")
 
     except asyncio.CancelledError:
         state.finish("cancelled")
@@ -342,6 +355,19 @@ def _is_finished(response: str) -> bool:
         "this completes the",
     ]
     return any(m in lower for m in finish_markers)
+
+
+def _session_status(session_id: int) -> str | None:
+    """Read the persisted status without requiring a history row."""
+    import sqlite3
+
+    from gateway.autonomy_state import STATE_DB
+
+    with sqlite3.connect(STATE_DB) as conn:
+        row = conn.execute(
+            "SELECT status FROM autonomy_sessions WHERE id = ?", (session_id,)
+        ).fetchone()
+    return str(row[0]) if row else None
 
 
 # --- Query API ---
@@ -447,6 +473,9 @@ def stop(session_id: int) -> bool:
             (time.time(), session_id),
         )
         conn.commit()
+    task = _AGENT_TASKS.get(session_id)
+    if task is not None:
+        task.cancel()
     logger.info("Agent %d marked cancelled", session_id)
     return True
 
