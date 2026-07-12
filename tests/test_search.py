@@ -81,8 +81,8 @@ async def test_async_search_normalizes_grouped_store_hits() -> None:
 
 
 def test_search_route_uses_async_search_without_dropping_knowledge() -> None:
-    item = SimpleNamespace(text="MOSFET bias notes", score=0.87)
-    graph_result = SimpleNamespace(results={"knowledge": [item]}, errors=[])
+    item = Item(text="MOSFET bias notes", source=Source.KNOWLEDGE, score=0.87, metadata={"source": "sansui.pdf"})
+    graph_result = GraphResult(results={"knowledge": [item]})
 
     with patch("gateway.memory_graph.search_all", new=AsyncMock(return_value=graph_result)):
         client = TestClient(app)
@@ -90,9 +90,8 @@ def test_search_route_uses_async_search_without_dropping_knowledge() -> None:
 
     assert response.status_code == 200
     body = response.json()
-    knowledge_items = [r for r in body["results"] if r["store"] == "knowledge"]
-    assert knowledge_items, "knowledge results must not be dropped from the search response"
-    assert knowledge_items[0]["content"] == "MOSFET bias notes"
+    assert body["knowledge"], "knowledge results must not be dropped from the search response"
+    assert body["knowledge"][0]["text"] == "MOSFET bias notes"
 
 
 def test_deep_research_route_uses_typed_payload() -> None:
