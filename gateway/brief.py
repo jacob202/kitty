@@ -812,6 +812,6 @@ def generate_brief(news_source: NewsSource | None = None) -> dict:
         if is_configured():
             send_brief(brief_text)
     except Exception:
-        pass
+        logger.exception("brief notification delivery failed")
 
     return _store_cached_brief(result)

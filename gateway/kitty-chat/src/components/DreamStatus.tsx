@@ -23,16 +23,24 @@ export function DreamStatus() {
   }, [])
 
   async function loadStatus() {
-    setStatus(await fetchDreamStatus())
+    try {
+      setStatus(await fetchDreamStatus())
+    } catch {
+      setStatus(null)
+    }
   }
 
   async function handleTrigger() {
     if (triggering) return
     setTriggering(true)
-    const ok = await triggerDreamConsolidation()
-    if (ok) {
-      await new Promise(resolve => setTimeout(resolve, 800))
-      await loadStatus()
+    try {
+      const ok = await triggerDreamConsolidation()
+      if (ok) {
+        await new Promise(resolve => setTimeout(resolve, 800))
+        await loadStatus()
+      }
+    } catch {
+      // gateway unreachable — leave status unchanged
     }
     setTriggering(false)
   }

@@ -46,7 +46,7 @@ async def lifespan(app: FastAPI):
         if tg_configured():
             start_polling()
     except Exception:
-        pass
+        logger.exception("telegram bot startup failed — integration disabled")
     brief_task = asyncio.create_task(_brief_bg_loop())
     from gateway.brief_scheduler import start_brief_scheduler
 
@@ -118,7 +118,7 @@ async def lifespan(app: FastAPI):
         register_action("prefetch.warm", _action_warm_prefetch)
         cron_start()
     except Exception:
-        pass
+        logger.exception("cron system registration failed — all background jobs disabled")
     yield
     brief_task.cancel()
     if brief_scheduler_task is not None:

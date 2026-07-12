@@ -126,4 +126,5 @@ def process_gate_answer(answer: str, question: str) -> dict[str, Any]:
 
         return data
     except Exception:
-        return {"correct": True, "feedback": "System error. Gate passed by default.", "level_up": False}
+        logger.exception("learning gate check failed — failing closed")
+        return {"correct": False, "feedback": "System error. Gate blocked by default.", "level_up": False}

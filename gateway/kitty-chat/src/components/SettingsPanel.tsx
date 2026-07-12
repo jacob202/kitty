@@ -1,52 +1,47 @@
 'use client'
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useState, useEffect, type CSSProperties } from 'react'
 import { useGatewayModels, usePersonality, useUpdatePersonality, useUsageSummary } from '@/lib/queries'
+import { useDashboardConfig } from '@/hooks/useDashboardConfig'
 
 interface Props {
   theme: 'cosmic' | 'day' | 'night'
   onToggleTheme: () => void
 }
 
-const NOT_WIRED = [
-  { name: 'gateway secret & env', where: '.env in the repo root' },
+const DASHBOARD_TILES: { id: string; label: string }[] = [
+  { id: 'whats-next', label: "What's Next" },
+  { id: 'needs-you', label: 'Needs You' },
+  { id: 'deadlines', label: 'Deadlines' },
+  { id: 'active-projects', label: 'Active Projects' },
+  { id: 'what-changed', label: 'What Changed' },
+  { id: 'today', label: 'Today' },
+  { id: 'health', label: 'Health' },
+  { id: 'capture', label: 'Capture' },
 ]
 
 export function SettingsPanel({ theme, onToggleTheme }: Props) {
   const modelsQuery = useGatewayModels()
-  const personalityQuery = usePersonality()
-  const updatePersonality = useUpdatePersonality()
-  const usageQuery = useUsageSummary()
   const gatewayLive = modelsQuery.data?.fromLiveGateway ?? false
+  const { visibleTiles, toggleTile, resetToDefaults } = useDashboardConfig()
+  const personality = usePersonality()
+  const updatePersonality = useUpdatePersonality()
+  const usage = useUsageSummary()
+
   const [soul, setSoul] = useState('')
-  const [preferences, setPreferences] = useState('')
-  const [personalityDirty, setPersonalityDirty] = useState(false)
+  const [prefs, setPrefs] = useState('')
 
   useEffect(() => {
-    if (!personalityQuery.data || personalityDirty) return
-    setSoul(personalityQuery.data.soul)
-    setPreferences(personalityQuery.data.preferences)
-  }, [personalityQuery.data, personalityDirty])
-
-  useEffect(() => {
-    if (updatePersonality.isSuccess) setPersonalityDirty(false)
-  }, [updatePersonality.isSuccess])
-
-  const voicePreview = soul
-    .split('\n')
-    .map(line => line.trim())
-    .filter(Boolean)
-    .slice(0, 4)
-    .join(' ')
-
-  const savePersonality = () => {
-    updatePersonality.mutate({ soul, preferences })
-  }
+    if (personality.data) {
+      setSoul(personality.data.soul)
+      setPrefs(personality.data.preferences)
+    }
+  }, [personality.data])
 
   return (
     <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
       <header>
         <h2 style={titleStyle}>settings</h2>
-        <p style={subtitleStyle}>the few knobs that turn from here, and where the rest live.</p>
+        <p style={subtitleStyle}>the few knobs that turn from here.</p>
       </header>
 
       <div style={cardStyle}>
@@ -60,86 +55,23 @@ export function SettingsPanel({ theme, onToggleTheme }: Props) {
       </div>
 
       <div style={cardStyle}>
-        <div style={sectionLabelStyle}>personality</div>
-        {personalityQuery.isPending ? (
-          <p style={noteStyle}>loading personality files…</p>
-        ) : personalityQuery.isError ? (
-          <p role="alert" style={errorStyle}>
-            couldn&apos;t read personality files — {personalityQuery.error instanceof Error ? personalityQuery.error.message : 'gateway error'}
-          </p>
-        ) : (
-          <>
-            <label style={fieldLabelStyle} htmlFor="personality-soul">tone description</label>
-            <textarea
-              id="personality-soul"
-              aria-label="tone description"
-              value={soul}
-              onChange={event => { setPersonalityDirty(true); setSoul(event.target.value) }}
-              style={textareaStyle}
+        <div style={sectionLabelStyle}>dashboard tiles</div>
+        {DASHBOARD_TILES.map((tile) => (
+          <label key={tile.id} style={{ ...rowStyle, cursor: 'pointer' }}>
+            <span style={rowNameStyle}>{tile.label}</span>
+            <input
+              type="checkbox"
+              checked={visibleTiles[tile.id] ?? true}
+              onChange={() => toggleTile(tile.id)}
+              style={checkboxStyle}
             />
-            <label style={fieldLabelStyle} htmlFor="personality-preferences">standing preferences</label>
-            <textarea
-              id="personality-preferences"
-              aria-label="standing preferences"
-              value={preferences}
-              onChange={event => { setPersonalityDirty(true); setPreferences(event.target.value) }}
-              style={textareaStyle}
-            />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <button type="button" onClick={savePersonality} disabled={updatePersonality.isPending} style={buttonStyle}>
-                {updatePersonality.isPending ? 'saving…' : 'save personality'}
-              </button>
-              {updatePersonality.isError && (
-                <span role="alert" style={errorStyle}>
-                  save failed — {updatePersonality.error instanceof Error ? updatePersonality.error.message : 'gateway error'}
-                </span>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-
-      <div style={cardStyle}>
-        <div style={sectionLabelStyle}>voice preview</div>
-        <p style={noteStyle}>{voicePreview || 'personality text has no visible preview yet.'}</p>
-      </div>
-
-      <div style={cardStyle}>
-        <div style={sectionLabelStyle}>models and routing</div>
-        {modelsQuery.isPending ? (
-          <p style={noteStyle}>checking configured models…</p>
-        ) : modelsQuery.isError ? (
-          <p role="alert" style={errorStyle}>
-            couldn&apos;t read configured models — {modelsQuery.error instanceof Error ? modelsQuery.error.message : 'gateway error'}
-          </p>
-        ) : (
-          <>
-            <div style={{ ...rowStyle, flexWrap: 'wrap', justifyContent: 'flex-start' }}>
-              {(modelsQuery.data?.models ?? []).map(model => (
-                <span key={model.id} style={chipStyle}>{model.name}</span>
-              ))}
-            </div>
-            <p style={noteStyle}>
-              {gatewayLive ? 'provider endpoint reachable.' : `provider endpoint unreachable${modelsQuery.data?.error ? ` — ${modelsQuery.data.error}` : ''}`}
-              {' '}Reasoning and explicit “best model” requests route to kitty-sonnet; everything else uses the default route.
-            </p>
-          </>
-        )}
-      </div>
-
-      <div style={cardStyle}>
-        <div style={sectionLabelStyle}>usage</div>
-        {usageQuery.isPending ? (
-          <p style={noteStyle}>loading recorded usage…</p>
-        ) : usageQuery.isError ? (
-          <p role="alert" style={errorStyle}>
-            couldn&apos;t read usage — {usageQuery.error instanceof Error ? usageQuery.error.message : 'gateway error'}
-          </p>
-        ) : usageQuery.data ? (
-          <p style={noteStyle}>
-            {usageQuery.data.totals.calls} logged calls · {usageQuery.data.totals.tokens.toLocaleString()} tokens · estimated ${usageQuery.data.estimated_cost.cad.toFixed(4)} CAD. {usageQuery.data.cost_estimate_disclaimer}
-          </p>
-        ) : null}
+          </label>
+        ))}
+        <div style={resetRowStyle}>
+          <button onClick={resetToDefaults} style={buttonStyle}>
+            reset to defaults
+          </button>
+        </div>
       </div>
 
       <div style={cardStyle}>
@@ -157,6 +89,75 @@ export function SettingsPanel({ theme, onToggleTheme }: Props) {
       </div>
 
       <div style={cardStyle}>
+        <div style={sectionLabelStyle}>voice preview</div>
+        <div style={{ display: 'grid', gap: 8 }}>
+          <label style={{ display: 'grid', gap: 4 }}>
+            <span style={rowNameStyle}>tone description</span>
+            <textarea
+              aria-label="tone description"
+              value={soul}
+              onChange={(e) => setSoul(e.target.value)}
+              rows={3}
+              style={textareaStyle}
+            />
+          </label>
+          <label style={{ display: 'grid', gap: 4 }}>
+            <span style={rowNameStyle}>standing preferences</span>
+            <textarea
+              aria-label="standing preferences"
+              value={prefs}
+              onChange={(e) => setPrefs(e.target.value)}
+              rows={3}
+              style={textareaStyle}
+            />
+          </label>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => updatePersonality.mutate({ soul, preferences: prefs })}
+              style={buttonStyle}
+            >
+              save personality
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div style={cardStyle}>
+        <div style={sectionLabelStyle}>models and routing</div>
+        {modelsQuery.data?.models?.map((m) => (
+          <div key={m.id} style={rowStyle}>
+            <span style={rowNameStyle}>{m.name}</span>
+            <span style={monoValueStyle}>{m.id}</span>
+          </div>
+        ))}
+      </div>
+
+      <div style={cardStyle}>
+        <div style={sectionLabelStyle}>usage</div>
+        {usage.data ? (
+          <>
+            <div style={rowStyle}>
+              <span style={rowNameStyle}>calls</span>
+              <span style={monoValueStyle}>{usage.data.totals.calls}</span>
+            </div>
+            <div style={rowStyle}>
+              <span style={rowNameStyle}>tokens</span>
+              <span style={monoValueStyle}>{usage.data.totals.tokens.toLocaleString()}</span>
+            </div>
+            <div style={rowStyle}>
+              <span style={rowNameStyle}>estimated cost</span>
+              <span style={monoValueStyle}>${usage.data.estimated_cost.cad.toFixed(2)} CAD</span>
+            </div>
+            <p style={{ ...noteStyle, fontSize: 10, color: 'var(--ink-2)' }}>
+              {usage.data.cost_estimate_disclaimer}
+            </p>
+          </>
+        ) : (
+          <span style={monoValueStyle}>no usage data yet</span>
+        )}
+      </div>
+
+      <div style={cardStyle}>
         <div style={sectionLabelStyle}>phone access — tailscale</div>
         <p style={noteStyle}>
           the dev server binds loopback by default, so the phone can&apos;t see it. to reach kitty
@@ -165,16 +166,6 @@ export function SettingsPanel({ theme, onToggleTheme }: Props) {
           and open <code style={codeStyle}>http://&lt;mac-tailscale-name&gt;:4000</code>. the gateway
           itself stays loopback-only — the UI proxies to it server-side.
         </p>
-      </div>
-
-      <div style={cardStyle}>
-        <div style={sectionLabelStyle}>not wired here yet — lives on disk</div>
-        {NOT_WIRED.map(item => (
-          <div key={item.name} style={rowStyle}>
-            <span style={rowNameStyle}>{item.name}</span>
-            <span style={monoValueStyle}>{item.where}</span>
-          </div>
-        ))}
       </div>
     </div>
   )
@@ -247,6 +238,32 @@ const buttonStyle: CSSProperties = {
   cursor: 'pointer',
 }
 
+const checkboxStyle: CSSProperties = {
+  width: 16,
+  height: 16,
+  accentColor: 'var(--primary)',
+  cursor: 'pointer',
+}
+
+const resetRowStyle: CSSProperties = {
+  display: 'flex',
+  justifyContent: 'flex-end',
+  paddingTop: 6,
+  marginTop: 2,
+  borderTop: '1px solid var(--line)',
+}
+
+const textareaStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 12,
+  padding: '8px 10px',
+  borderRadius: 8,
+  border: '1px solid var(--line)',
+  background: 'var(--surface-2)',
+  color: 'var(--ink)',
+  resize: 'vertical',
+}
+
 const noteStyle: CSSProperties = {
   fontSize: 13,
   lineHeight: 1.6,
@@ -259,40 +276,4 @@ const codeStyle: CSSProperties = {
   background: 'var(--surface-2)',
   padding: '1px 5px',
   borderRadius: 4,
-}
-
-const fieldLabelStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 11,
-  fontWeight: 700,
-  color: 'var(--ink-2)',
-}
-
-const textareaStyle: CSSProperties = {
-  width: '100%',
-  minHeight: 112,
-  resize: 'vertical',
-  padding: 10,
-  border: '1.5px solid var(--line)',
-  borderRadius: 8,
-  background: 'var(--bg)',
-  color: 'var(--ink)',
-  fontFamily: 'var(--font-body)',
-  fontSize: 13,
-  lineHeight: 1.5,
-}
-
-const errorStyle: CSSProperties = {
-  color: 'var(--c-red)',
-  fontFamily: 'var(--font-mono)',
-  fontSize: 11,
-}
-
-const chipStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  padding: '3px 8px',
-  border: '1px solid var(--line)',
-  borderRadius: 999,
-  color: 'var(--ink-2)',
 }

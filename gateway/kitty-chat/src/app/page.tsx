@@ -754,7 +754,7 @@ function KittyChatInner() {
         />
       )}
 
-      {!isMobile && (
+      {!isMobile && activeView === 'chat' && (
         <SessionSidebar
           chats={chats}
           activeChatId={activeChatId}
@@ -765,7 +765,7 @@ function KittyChatInner() {
         />
       )}
 
-      {isMobile && mobileSidebarOpen && (
+      {isMobile && mobileSidebarOpen && activeView === 'chat' && (
         <>
           <div
             onClick={() => setMobileSidebarOpen(false)}

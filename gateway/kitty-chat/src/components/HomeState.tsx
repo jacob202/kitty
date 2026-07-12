@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { card, cardHeader, cardTitle, cardMeta, itemCard, emptyState, bodyText } from '@/lib/ui';
 import { CapturePanel } from '@/components/CapturePanel';
+import { useDashboardConfig } from '@/hooks/useDashboardConfig';
 import {
   useStateChanges,
   useActions,
@@ -223,7 +224,7 @@ function HealthStrip() {
     >
       {loading ? (
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)' }}>
-          checking gateway…
+          checking gateway — status lands here in a sec…
         </span>
       ) : (
         <>
@@ -267,6 +268,14 @@ function freshestStep(steps: Array<GatewayNextStep | null | undefined>): Gateway
     if (s && (!best || s.generated_at > best.generated_at)) best = s;
   }
   return best;
+}
+
+// Local time, not UTC — this only ever renders client-side (Home is behind
+// the app's post-mount gate), so there's no SSR/hydration mismatch to guard.
+function greeting(hour: number): string {
+  if (hour < 12) return 'good morning';
+  if (hour < 17) return 'good afternoon';
+  return 'good evening';
 }
 
 function WhatsNext({
@@ -429,10 +438,14 @@ function WhatsNext({
           <span aria-hidden style={{ color: 'var(--cat-ginger)', flexShrink: 0, pointerEvents: 'none' }}>
             <KidCatDoodle size={40} opacity={0.7} />
           </span>
-          <span>
-            not enough signal yet — nothing proposed, no decisions waiting, no project next-steps,
-            and today's list is empty. refresh a project in the projects tab or capture a
-            thought below.
+          <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
+              {greeting(new Date().getHours())} — not enough signal yet
+            </span>
+            <span>
+              nothing proposed, no decisions waiting, no project next-steps, and today's list
+              is empty. refresh a project in the projects tab or capture a thought below.
+            </span>
           </span>
         </div>
       )}
@@ -809,7 +822,10 @@ function WhatChanged() {
         </div>
       )}
       {!count && !note && !untriagedCount && (
-        <div style={emptyState}>nothing new since last snapshot</div>
+        <div style={{ ...emptyState, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div>nothing new since last snapshot</div>
+          <div style={{ fontSize: 10 }}>tap mark point anytime to set a fresh baseline</div>
+        </div>
       )}
     </SectionCard>
   );
@@ -871,7 +887,10 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
   return (
     <SectionCard title="needs you" count={total || undefined}>
       {total === 0 ? (
-        <div style={emptyState}>nothing waiting for you</div>
+        <div style={{ ...emptyState, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div>nothing waiting for you</div>
+          <div style={{ fontSize: 10 }}>proposed actions and decisions will land here when there are any</div>
+        </div>
       ) : (
         actions.map((action: GatewayAction) => {
           const isBusy = pendingId === action.id;
@@ -1045,7 +1064,10 @@ function TodayPanel({
   return (
     <SectionCard title="today" count={open.length || undefined} action={openTasks}>
       {open.length === 0 ? (
-        <div style={emptyState}>nothing on the list</div>
+        <div style={{ ...emptyState, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div>nothing on the list</div>
+          <div style={{ fontSize: 10 }}>your day is wide open</div>
+        </div>
       ) : (
         open.slice(0, 5).map((t) => (
           <div
@@ -1097,6 +1119,9 @@ function TodayPanel({
 function CaptureSection() {
   return (
     <SectionCard title="capture" span>
+      <div style={{ ...bodyText, fontSize: 12 }}>
+        quick capture — drop a file or click below to save it for later
+      </div>
       <CapturePanel />
     </SectionCard>
   );
@@ -1120,6 +1145,7 @@ export function HomeState({
   const isCosmic =
     typeof document !== 'undefined' &&
     document.documentElement.getAttribute('data-theme') === 'cosmic';
+  const { visibleTiles } = useDashboardConfig();
 
   return (
     <div
@@ -1139,19 +1165,18 @@ export function HomeState({
         alignContent: 'start',
       }}
     >
-      {preferredName && (
-        <div style={{ gridColumn: '1 / -1', fontFamily: 'var(--font-display)', fontSize: 18, color: 'var(--ink)' }}>
-          hey, {preferredName}
-        </div>
+      {visibleTiles['health'] !== false && <HealthStrip />}
+      {visibleTiles['whats-next'] !== false && (
+        <WhatsNext onDecideInChat={onDecideInChat} onNavigate={onNavigate} />
       )}
-      <HealthStrip />
-      <WhatsNext onDecideInChat={onDecideInChat} onNavigate={onNavigate} />
-      <NeedsYou onDecideInChat={onDecideInChat} />
-      <Deadlines />
-      <ActiveProjects onNavigate={onNavigate} />
-      <WhatChanged />
-      <TodayPanel onNavigate={onNavigate} />
-      <CaptureSection />
+      {visibleTiles['needs-you'] !== false && <NeedsYou onDecideInChat={onDecideInChat} />}
+      {visibleTiles['deadlines'] !== false && <Deadlines />}
+      {visibleTiles['active-projects'] !== false && <ActiveProjects onNavigate={onNavigate} />}
+      {visibleTiles['what-changed'] !== false && <WhatChanged />}
+      {visibleTiles['today'] !== false && (
+        <TodayPanel onNavigate={onNavigate} />
+      )}
+      {visibleTiles['capture'] !== false && <CaptureSection />}
     </div>
   );
 }

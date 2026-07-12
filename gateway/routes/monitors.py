@@ -15,10 +15,14 @@ async def get_monitors() -> dict:
     return {"watches": monitors.list_monitors()}
 
 
-@router.get("/monitor/create")
-async def create_monitor(url: str, interval: int = 300) -> dict:
+@router.post("/monitor/create")
+async def create_monitor(payload: dict) -> dict:
     """Create a new monitor."""
-    return monitors.create_monitor(url, interval_minutes=interval)
+    return monitors.create_monitor(
+        payload["url"],
+        label=payload.get("label"),
+        interval_minutes=payload.get("interval", 300),
+    )
 
 
 @router.delete("/monitor/{monitor_id}")
