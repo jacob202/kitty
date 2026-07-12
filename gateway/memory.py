@@ -186,14 +186,44 @@ def delete_memory(memory_id: str) -> bool:
 
 
 def consolidate_session(session_id: str, messages: list[dict]) -> bool:
-    """Best-effort close-session hook until richer consolidation lands."""
+    """Extract key facts from a closed session and persist to long-term memory.
+
+    Reads user messages from the session, creates a summary, and stores
+    it via add_memory(). Returns True if facts were stored, False on
+    backend failure or empty session.
+    """
+    if not messages:
+        logger.info("Session %s closed with no messages — nothing to consolidate", session_id or "<anonymous>")
+        return False
+
+    user_msgs = [m.get("content", "") for m in messages if m.get("role") == "user" and m.get("content")]
+    if not user_msgs:
+        logger.info("Session %s closed with no user messages — nothing to consolidate", session_id or "<anonymous>")
+        return False
+
+    # Build a concise session summary from user messages
+    joined = "\n".join(f"- {msg[:120]}" for msg in user_msgs[-20:])
+    session_summary = (
+        f"[session {session_id or 'anonymous'}] "
+        f"Key topics discussed:\n{joined}"
+    )
+
     try:
+        add_memory(
+            session_summary,
+            namespace="sessions",
+            metadata={
+                "session_id": session_id or "anonymous",
+                "message_count": len(messages),
+                "user_message_count": len(user_msgs),
+            },
+        )
         logger.info(
-            "Session close requested: %s (%d messages)",
+            "Session %s consolidated: %d user messages stored",
             session_id or "<anonymous>",
-            len(messages),
+            len(user_msgs),
         )
         return True
     except Exception as e:
-        logger.warning("Session consolidation failed (non-fatal): %s", e)
+        logger.warning("Session consolidation failed for %s: %s", session_id, e)
         return False
