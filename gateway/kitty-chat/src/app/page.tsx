@@ -1028,7 +1028,7 @@ function KittyChatInner() {
             ) : activeView === 'chat' && activeChat && activeChat.messages.length > 0 ? (
               <div
                 style={{
-                  padding: '30px 44px 16px',
+                  padding: isMobile ? '18px 14px 16px' : '30px 44px 16px',
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 18,
@@ -1063,6 +1063,7 @@ function KittyChatInner() {
                       isStreaming={isStreaming && isLast && msg.role === 'assistant'}
                       isFirstInRun={isFirstInRun}
                       catState={catState}
+                      compact={isMobile}
                       onRetry={isLast && msg.role === 'assistant' && !isStreaming ? handleRetry : undefined}
                     />
                   );
