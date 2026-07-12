@@ -23,7 +23,7 @@
 
 ## Open PR
 
-None currently.
+- **#164** (draft) — fail-loud sweep, doc reconciliation, CI coverage 65%, route tests (5 modules)
 
 Recent merged PRs: #162 (memory persistence), #156 (GitHub connector),
 #155 (imagegen v2), #154 (phone-native console), #153 (Magic Kitty),
@@ -68,12 +68,13 @@ file is gone. If the failures recur, re-isolate them with `tmp_path` fixtures (s
 - Verifier false-green — **fixed** (#569608b)
 - Duplicate route contracts — **fixed** (#569608b)
 - Fail-loud violations (model discovery, next-step prefs, brief enrichment) — **fixed** (#569608b, context_enrichment)
+- Coverage threshold was 10% — **bumped to 65%** (PR #164)
+- 5 route modules had zero HTTP tests — **128 tests added** (PR #164)
 
 ## What's Next
 
 1. Codex Blocker #1 (T2, escalate) — proxy SSRF in kitty-chat
-2. Route test coverage (T1) — 16 route modules have zero HTTP-layer tests
-3. Coverage threshold (T1) — CI floor is 10%, effectively nothing
+2. Route test coverage — 11 route modules still have zero HTTP-layer tests (5 done in PR #164)
 
 ## Sources of Truth
 
