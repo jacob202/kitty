@@ -329,14 +329,22 @@ async def api_models():
         )
         if resp.status_code == 200:
             return Response(content=resp.content, media_type="application/json")
-    except Exception as e:
-        logger.warning("Failed to fetch models from LiteLLM: %s", e)
-        return {
-            "object": "list",
-            "data": [
-                {"id": "kitty-default", "object": "model", "owned_by": "kitty"},
-            ],
-        }
+        detail = getattr(resp, "text", "")[:500]
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                f"LiteLLM model discovery returned HTTP {resp.status_code}"
+                + (f": {detail}" if detail else "")
+            ),
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("Failed to fetch models from LiteLLM: %s", exc)
+        raise HTTPException(
+            status_code=502,
+            detail=f"LiteLLM model discovery failed: {exc}",
+        ) from exc
 
 
 @router.post("/sessions/close")
