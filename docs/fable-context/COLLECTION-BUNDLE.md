@@ -273,19 +273,20 @@ agents with independent review.
 - **Acceptance:** failure states propagate as `failed`/`interrupted` (never `completed`); `stop()` cancels the underlying task and is verified by a test.
 - **Handoff:** escalate — concurrency + orchestration state.
 
-### Card C — Blocker #6 (remaining): Fail-loud on other core paths  T1
+### Card C — Blocker #6 (remaining): Fail-loud on other core paths  ✅ DONE
 - **Scope:** sweep the remaining silent fallbacks the audit named — `agents`, `todos`,
   `prompts`, `monitors`, `image generation`, `memory`, `ingestion` — and replace
   `return []/None/false/""` with explicit error envelopes or typed raises.
-  (Three paths done: `model_digest.py`, `next_step.py`, `context_enrichment.py`
-  — use them as the pattern. `monitors.py` already fails loud via the #3
-  consolidation; `image_gen.is_available()` is a connectivity probe whose job is to
-  report availability, so left as-is.)
-- **Grep start:** `rg -nU 'except[^:]*:\s*\n\s*(return \[\]|return None|return False|return ""|pass)' gateway`
-- **Acceptance:** each fixed function either raises a typed error or returns an
-  explicit error marker; a regression test proves the error surfaces. No behavior
-  change on the happy path.
-- **Forbidden:** changing public response *shapes* consumed by the frontend without a companion frontend change.
+- **Resolution:**
+  - `todos` — fixed: `context_enrichment.py` sync helpers now return `⚠ unavailable`
+    markers (4 tests).
+  - `prompts` — no silent-swallow violations found (zero excepts in `prompts.py`).
+  - `monitors` — already fail-loud via the #3 consolidation.
+  - `image gen` — `is_available()` is a connectivity probe (legitimate by design).
+  - `ingestion` — `routes/capture.py` already fail-loud (logs, records failure state,
+    re-raises).
+  - `agents` / `memory` — covered by **Blocker #5** (T2, agent_runner) and **Blocker #7**
+    (T1/T2, memory consolidation) — separate escalations, not Card C scope.
 
 ### Card D — Blocker #7: Fake/incomplete continuity  T1/T2
 - **Why:** session close calls memory consolidation, but memory doesn't persist/consolidate; insights storage effectively empty/no-op.
