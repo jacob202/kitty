@@ -160,6 +160,7 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "016_chat_lifecycle.sql",
         "017_artifacts.sql",
         "018_message_attachments.sql",
+        "019_idea_mine.sql",
     ]
 
 
