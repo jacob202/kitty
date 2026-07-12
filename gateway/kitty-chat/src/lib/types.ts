@@ -19,6 +19,21 @@ export interface Message {
   attachments?: MessageAttachment[]
   /** Terminal status of the lifecycle turn that produced this message. */
   turnStatus?: 'running' | 'succeeded' | 'failed' | 'interrupted' | 'cancelled'
+  /**
+   * Council routing metadata — which expert/agent produced each part of the
+   * answer. Present when a reply is assembled from multiple routed tasks; lets
+   * the UI show *who* answered so the user can trust the result. The `model`
+   * field above is the fallback attribution when a single model answered.
+   */
+  routing?: MessageRouting[]
+}
+
+/** One routed task in a Council-assembled answer. Mirrors the gateway /council `routing` field. */
+export interface MessageRouting {
+  task_id: string
+  category: string
+  agent: string
+  priority: number
 }
 
 export interface Chat {

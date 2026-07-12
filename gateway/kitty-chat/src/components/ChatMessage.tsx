@@ -16,9 +16,11 @@ interface Props {
   onRetry?: () => void
   chatId: string
   messageIndex: number
+  /** Phone layout: reveal hover-only actions and size targets for touch. */
+  compact?: boolean
 }
 
-export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, chatId, messageIndex }: Props) {
+export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, chatId, messageIndex, compact = false }: Props) {
   const isUser = message.role === 'user'
   const isKitty = !isUser
   const attachments = message.attachments ?? []
@@ -39,6 +41,8 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
   }
 
   const showActions = isKitty && !isStreaming && Boolean(message.content)
+  // On touch (compact) there is no hover to reveal actions — keep them visible.
+  const actionsVisible = hovered || focused || compact
 
   const submitFeedback = (rating: MessageFeedbackRating) => {
     feedback.mutate({ chatId, messageIndex, rating })
@@ -103,7 +107,7 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
             )}
           </div>
         {showActions && (
-          <div className="msg-actions" style={{ ...actionRowStyle, opacity: hovered || focused ? 1 : 0 }}>
+          <div className="msg-actions" style={{ ...actionRowStyle, opacity: actionsVisible ? 1 : 0 }}>
             <button onClick={copyMessage} style={actionBtnStyle} title="copy message">
               {copied ? <Check size={10} /> : <Copy size={10} />}
               <span>{copied ? 'copied' : 'copy'}</span>
@@ -151,6 +155,9 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
           }}>
             <span style={{ fontSize: 10 }}>{turnStatus}</span>
           </div>
+        )}
+        {isKitty && (message.model || message.routing?.length) && (
+          <Attribution message={message} />
         )}
       </div>
     </div>
@@ -232,6 +239,35 @@ function CodeBlock({ children }: { children: ReactNode }) {
         </button>
       </div>
       <pre ref={preRef} style={preStyle}>{children}</pre>
+    </div>
+  )
+}
+
+function Attribution({ message }: { message: Message }) {
+  const routing = message.routing ?? []
+  const agentLabel = message.model ?? (routing[0]?.agent ?? 'kitty')
+  return (
+    <div style={{ ...actionRowStyle, flexWrap: 'wrap', gap: 6 }}>
+      <span style={{ fontSize: 10, color: 'var(--ink-2)', fontFamily: 'var(--font-mono)' }}>
+        answered by {agentLabel}
+      </span>
+      {routing.map((r) => (
+        <span
+          key={r.task_id}
+          title={`${r.category} · priority ${r.priority}`}
+          style={{
+            fontSize: 9.5,
+            color: 'var(--ink-2)',
+            border: '1px solid var(--line)',
+            borderRadius: 999,
+            padding: '1px 7px',
+            fontFamily: 'var(--font-mono)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {r.agent} · p{r.priority}
+        </span>
+      ))}
     </div>
   )
 }

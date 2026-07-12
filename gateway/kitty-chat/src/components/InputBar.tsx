@@ -133,7 +133,7 @@ export function InputBar({
 
   return (
     <div style={{
-      padding: '14px 26px 20px',
+      padding: compact ? '12px 12px 16px' : '14px 26px 20px',
       flexShrink: 0,
       background: 'var(--bg)',
     }}>
