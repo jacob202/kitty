@@ -1,6 +1,6 @@
 'use client'
-import type { CSSProperties } from 'react'
-import { useGatewayModels } from '@/lib/queries'
+import { useState, useEffect, type CSSProperties } from 'react'
+import { useGatewayModels, usePersonality, useUpdatePersonality, useUsageSummary } from '@/lib/queries'
 import { useDashboardConfig } from '@/hooks/useDashboardConfig'
 
 interface Props {
@@ -23,6 +23,19 @@ export function SettingsPanel({ theme, onToggleTheme }: Props) {
   const modelsQuery = useGatewayModels()
   const gatewayLive = modelsQuery.data?.fromLiveGateway ?? false
   const { visibleTiles, toggleTile, resetToDefaults } = useDashboardConfig()
+  const personality = usePersonality()
+  const updatePersonality = useUpdatePersonality()
+  const usage = useUsageSummary()
+
+  const [soul, setSoul] = useState('')
+  const [prefs, setPrefs] = useState('')
+
+  useEffect(() => {
+    if (personality.data) {
+      setSoul(personality.data.soul)
+      setPrefs(personality.data.preferences)
+    }
+  }, [personality.data])
 
   return (
     <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
@@ -73,6 +86,75 @@ export function SettingsPanel({ theme, onToggleTheme }: Props) {
             {gatewayLive ? '● live' : `● offline${modelsQuery.data?.error ? ` — ${modelsQuery.data.error}` : ''}`}
           </span>
         </div>
+      </div>
+
+      <div style={cardStyle}>
+        <div style={sectionLabelStyle}>voice preview</div>
+        <div style={{ display: 'grid', gap: 8 }}>
+          <label style={{ display: 'grid', gap: 4 }}>
+            <span style={rowNameStyle}>tone description</span>
+            <textarea
+              aria-label="tone description"
+              value={soul}
+              onChange={(e) => setSoul(e.target.value)}
+              rows={3}
+              style={textareaStyle}
+            />
+          </label>
+          <label style={{ display: 'grid', gap: 4 }}>
+            <span style={rowNameStyle}>standing preferences</span>
+            <textarea
+              aria-label="standing preferences"
+              value={prefs}
+              onChange={(e) => setPrefs(e.target.value)}
+              rows={3}
+              style={textareaStyle}
+            />
+          </label>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => updatePersonality.mutate({ soul, preferences: prefs })}
+              style={buttonStyle}
+            >
+              save personality
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div style={cardStyle}>
+        <div style={sectionLabelStyle}>models and routing</div>
+        {modelsQuery.data?.models?.map((m) => (
+          <div key={m.id} style={rowStyle}>
+            <span style={rowNameStyle}>{m.name}</span>
+            <span style={monoValueStyle}>{m.id}</span>
+          </div>
+        ))}
+      </div>
+
+      <div style={cardStyle}>
+        <div style={sectionLabelStyle}>usage</div>
+        {usage.data ? (
+          <>
+            <div style={rowStyle}>
+              <span style={rowNameStyle}>calls</span>
+              <span style={monoValueStyle}>{usage.data.totals.calls}</span>
+            </div>
+            <div style={rowStyle}>
+              <span style={rowNameStyle}>tokens</span>
+              <span style={monoValueStyle}>{usage.data.totals.tokens.toLocaleString()}</span>
+            </div>
+            <div style={rowStyle}>
+              <span style={rowNameStyle}>estimated cost</span>
+              <span style={monoValueStyle}>${usage.data.estimated_cost.cad.toFixed(2)} CAD</span>
+            </div>
+            <p style={{ ...noteStyle, fontSize: 10, color: 'var(--ink-2)' }}>
+              {usage.data.cost_estimate_disclaimer}
+            </p>
+          </>
+        ) : (
+          <span style={monoValueStyle}>no usage data yet</span>
+        )}
       </div>
 
       <div style={cardStyle}>
@@ -169,6 +251,17 @@ const resetRowStyle: CSSProperties = {
   paddingTop: 6,
   marginTop: 2,
   borderTop: '1px solid var(--line)',
+}
+
+const textareaStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 12,
+  padding: '8px 10px',
+  borderRadius: 8,
+  border: '1px solid var(--line)',
+  background: 'var(--surface-2)',
+  color: 'var(--ink)',
+  resize: 'vertical',
 }
 
 const noteStyle: CSSProperties = {

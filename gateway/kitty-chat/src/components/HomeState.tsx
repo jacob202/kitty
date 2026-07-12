@@ -1174,7 +1174,7 @@ export function HomeState({
       {visibleTiles['active-projects'] !== false && <ActiveProjects onNavigate={onNavigate} />}
       {visibleTiles['what-changed'] !== false && <WhatChanged />}
       {visibleTiles['today'] !== false && (
-        <TodayPanel gatewayError={gatewayError} onNavigate={onNavigate} />
+        <TodayPanel onNavigate={onNavigate} />
       )}
       {visibleTiles['capture'] !== false && <CaptureSection />}
     </div>
