@@ -94,11 +94,40 @@ def _review(id_: int, state: str) -> dict:
     }
 
 
+def _issues_response(issues: list[dict]) -> dict[str, Any]:
+    return {"items": issues}
+
+
+def _issue(number: int, title: str = "Open issue", state: str = "open") -> dict:
+    return {
+        "number": number,
+        "title": title,
+        "state": state,
+        "html_url": f"https://github.com/jacob202/kitty/issues/{number}",
+        "user": {"login": "reporter"},
+        "labels": [{"name": "bug"}, {"name": "p2"}],
+        "comments": 2,
+    }
+
+
+def _issue_like_pr(number: int) -> dict:
+    """GitHub's issues endpoint also returns PRs; the connector must skip these."""
+
+    return {
+        "number": number,
+        "title": "A pull request",
+        "state": "open",
+        "html_url": f"https://github.com/jacob202/kitty/pull/{number}",
+        "user": {"login": "someone"},
+        "pull_request": {"url": "https://api.github.com/x"},
+    }
+
+
 # --- Tests ------------------------------------------------------------------
 
 
 def test_auth_headers():
-    script = _HttpScript([_prs_response([])])
+    script = _HttpScript([_prs_response([]), _issues_response([])])
     connector = github_module.GithubConnector(
         token="my-token",
         repos=["jacob202/kitty"],
@@ -108,7 +137,7 @@ def test_auth_headers():
     assert result.new == 0
 
     _get: Any = connector._http_get
-    assert len(_get.calls) == 1
+    assert len(_get.calls) == 2  # /pulls then /issues
 
     url, params, headers = _get.calls[0]
     assert headers["Authorization"] == "Bearer my-token"
@@ -132,6 +161,8 @@ def test_poll_success():
         _checks_response([_check("pytest", "completed", "success")]),
         # /reviews for PR 114
         _reviews_response([_review(999, "APPROVED")]),
+        # /issues
+        _issues_response([_issue(7, "Flaky test"), _issue_like_pr(115)]),
     ])
     connector = github_module.GithubConnector(
         token="fake",
@@ -139,12 +170,12 @@ def test_poll_success():
         http_get=_scripted_http_get(script),
     )
     result = connector.poll()
-    assert result.new == 3  # PR, Check, Review
+    assert result.new == 4  # PR, Check, Review, Issue
     assert result.deduped == 0
     assert result.errors == 0
 
     signals = signal_store.list_recent(limit=10)
-    assert len(signals) == 3
+    assert len(signals) == 4
 
     # Assert PR signal
     pr_sig = next(s for s in signals if s["kind"] == "github.pr")
@@ -162,12 +193,21 @@ def test_poll_success():
     assert rev_sig["payload"]["comment_id"] == 999
     assert rev_sig["payload"]["state"] == "APPROVED"
 
+    # Assert Issue signal (PR-shaped issue filtered out)
+    iss_sig = next(s for s in signals if s["kind"] == "github.issue")
+    assert iss_sig["payload"]["issue_number"] == 7
+    assert iss_sig["payload"]["labels"] == ["bug", "p2"]
+    assert iss_sig["dedupe_key"] == "github:issue:jacob202/kitty:7:state:open"
+    kinds = [s["kind"] for s in signals]
+    assert "github.pr" in kinds  # the PR-shaped issue must not create a 2nd PR signal
+
 
 def test_poll_deduplicates():
     script = _HttpScript([
         _prs_response([_pr(114)]),
         _checks_response([_check("pytest", "completed", "success")]),
         _reviews_response([_review(999, "APPROVED")]),
+        _issues_response([_issue(7)]),
     ])
     connector = github_module.GithubConnector(
         token="fake",
@@ -176,22 +216,23 @@ def test_poll_deduplicates():
     )
     # Run once
     res1 = connector.poll()
-    assert res1.new == 3
+    assert res1.new == 4
     assert res1.deduped == 0
 
     # Reset script and run again
     script.index = 0
     res2 = connector.poll()
     assert res2.new == 0
-    assert res2.deduped == 3  # All duplicate keys
+    assert res2.deduped == 4  # All duplicate keys
 
 
 def test_poll_handles_partial_failures():
-    # If check-runs fail, it still fetches reviews and emits the PR.
+    # If check-runs fail, it still fetches reviews/issues and emits the PR.
     script = _HttpScript([
         _prs_response([_pr(114)]),
         github_module.GithubTransportError("500 API Error"),  # Checks fail
         _reviews_response([_review(999, "CHANGES_REQUESTED")]),
+        _issues_response([_issue(7)]),
     ])
     connector = github_module.GithubConnector(
         token="fake",
@@ -200,13 +241,36 @@ def test_poll_handles_partial_failures():
     )
     res = connector.poll()
     assert res.errors == 1  # The checks request failed
-    assert res.new == 2     # Emitted PR and Review signals
+    assert res.new == 3     # Emitted PR, Review, and Issue signals
 
     signals = signal_store.list_recent(limit=10)
     kinds = [s["kind"] for s in signals]
     assert "github.pr" in kinds
     assert "github.review" in kinds
+    assert "github.issue" in kinds
     assert "github.check" not in kinds
+
+
+def test_failing_check_becomes_signal():
+    # A red check run on a watched repo must surface as a signal in one poll.
+    script = _HttpScript([
+        _prs_response([_pr(114, "sha114", "Tailnet Card")]),
+        _checks_response([_check("pytest", "completed", "failure")]),
+        _reviews_response([]),
+        _issues_response([]),
+    ])
+    connector = github_module.GithubConnector(
+        token="fake",
+        repos=["jacob202/kitty"],
+        http_get=_scripted_http_get(script),
+    )
+    result = connector.poll()
+    assert result.new == 2  # PR + failing check
+
+    signals = signal_store.list_recent(limit=10)
+    chk = next(s for s in signals if s["kind"] == "github.check")
+    assert chk["payload"]["conclusion"] == "failure"
+    assert chk["payload"]["status"] == "completed"
 
 
 def test_poll_now_unconfigured():

@@ -1,9 +1,14 @@
 """GitHub read-only connector (P5b, docs/packets/020).
 
-Polls GitHub for open PRs, their check-run status, and new review comments
-across configured repositories, emitting deduped signal rows.
+Polls GitHub for open PRs, their check-run status, new review comments, and
+open issues across configured repositories, emitting deduped signal rows.
 
 Scope: personal access token (classic) with `repo:read`. No write scopes.
+The connector only issues GET requests and refuses to construct any mutating
+call — see `GithubConnector` (there is no write path). Signal payloads carry
+repo / PR / issue / check / review summaries only; never diffs or bodies.
+Tokens are never logged: warnings name the repo and PR/issue number, not the
+credential.
 """
 
 from __future__ import annotations
@@ -182,6 +187,45 @@ class GithubConnector:
                 except Exception as exc:
                     logger.warning("github: failed to fetch reviews for %s PR %s: %s", repo, pr_number, exc)
                     errors += 1
+
+            # Fetch open issues once per repo. GitHub's issues endpoint also
+            # returns PRs (with a ``pull_request`` key) — filter those out so
+            # they are not double-counted; PRs are emitted above. Bodies are
+            # never fetched: issue signals are summary-only, matching the PR path.
+            try:
+                issues_resp = self._http_get(
+                    f"{self._api_base}/repos/{repo}/issues",
+                    {"state": "open", "per_page": "50"},
+                    self._auth_headers(),
+                )
+                issues = issues_resp.get("items", []) if "items" in issues_resp else issues_resp
+                for issue in issues:
+                    if not isinstance(issue, dict):
+                        continue
+                    if issue.get("pull_request"):
+                        continue  # pull requests are emitted as github.pr above
+                    issue_number = issue.get("number")
+                    if not issue_number:
+                        continue
+                    issue_payload = {
+                        "repo": repo,
+                        "issue_number": issue_number,
+                        "title": issue.get("title", ""),
+                        "state": issue.get("state", ""),
+                        "url": issue.get("html_url", ""),
+                        "user": issue.get("user", {}).get("login", ""),
+                        "labels": [label.get("name", "") for label in issue.get("labels", []) if isinstance(label, dict)],
+                        "comments": issue.get("comments", 0),
+                    }
+                    dedupe_issue = f"github:issue:{repo}:{issue_number}:state:{issue.get('state')}"
+                    rec = emit(source=self.SOURCE, kind="github.issue", payload=issue_payload, dedupe_key=dedupe_issue)
+                    if rec:
+                        new_count += 1
+                    else:
+                        deduped_count += 1
+            except Exception as exc:
+                logger.warning("github: failed to fetch issues for %s: %s", repo, exc)
+                errors += 1
 
         return PollResult(new=new_count, deduped=deduped_count, errors=errors)
 
