@@ -81,7 +81,10 @@ def insert_item(item: dict[str, Any], *, db_file: Path = IDEA_MINE_DB_FILE) -> i
             (object_type, json.dumps(payload, ensure_ascii=False), source_ref, user_review, now, now),
         )
         conn.commit()
-        return int(cur.lastrowid)
+        row_id = cur.lastrowid
+        if row_id is None:
+            raise RuntimeError("idea_mine insert did not return a row id")
+        return row_id
 
 
 def import_from_jsonl(path: str | Path, *, db_file: Path = IDEA_MINE_DB_FILE) -> int:
