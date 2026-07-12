@@ -111,6 +111,7 @@ def _check_repeated_research() -> list[dict]:
                 })
         return nudges[:3]
     except Exception:
+        logger.exception("repeat-topic check failed")
         return []
 
 
@@ -149,6 +150,7 @@ def _check_dropped_threads() -> list[dict]:
                 })
         return nudges[:3]
     except Exception:
+        logger.exception("dropped-thread check failed")
         return []
 
 
@@ -176,7 +178,7 @@ def _check_milestones() -> list[dict]:
                 "priority": "high",
             })
     except Exception:
-        pass
+        logger.exception("build milestone check failed")
 
     # Check memory count
     try:
@@ -191,7 +193,7 @@ def _check_milestones() -> list[dict]:
                 "priority": "medium",
             })
     except Exception:
-        pass
+        logger.exception("memory milestone check failed")
 
     return nudges
 

@@ -31,7 +31,7 @@ def list_servers() -> list[dict]:
         from gateway.plugin_registry import get_enabled_mcp_servers
         servers.extend(get_enabled_mcp_servers())
     except Exception:
-        pass
+        logger.exception("failed to load MCP servers from plugin registry")
 
     # From .mcp.json config
     try:
@@ -64,7 +64,7 @@ def list_tools(server_name: str) -> list[dict]:
             if server.get("name") == server_name:
                 return server.get("tools", [])
     except Exception:
-        pass
+        logger.exception("failed to list MCP tools for %s", server_name)
     return []
 
 

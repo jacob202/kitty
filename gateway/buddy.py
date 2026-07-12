@@ -41,7 +41,7 @@ def _load() -> None:
         _state.update(saved)
         _state["mood"] = "idle"  # always start calm on restart
     except Exception:
-        pass
+        logger.exception("buddy state load failed — starting from defaults")
 
 
 def _save() -> None:
