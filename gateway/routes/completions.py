@@ -78,9 +78,18 @@ async def chat_completions(request: Request):
     )
 
     content_length = request.headers.get("content-length")
-    if content_length and int(content_length) > MAX_BODY_BYTES:
-        on_request_error()
-        return Response(status_code=413, content="Request body too large")
+    if content_length:
+        try:
+            declared_length = int(content_length)
+        except ValueError:
+            on_request_error()
+            return Response(status_code=400, content="Invalid Content-Length header")
+        if declared_length < 0:
+            on_request_error()
+            return Response(status_code=400, content="Invalid Content-Length header")
+        if declared_length > MAX_BODY_BYTES:
+            on_request_error()
+            return Response(status_code=413, content="Request body too large")
 
     on_request_start()
 
@@ -329,14 +338,22 @@ async def api_models():
         )
         if resp.status_code == 200:
             return Response(content=resp.content, media_type="application/json")
-    except Exception as e:
-        logger.warning("Failed to fetch models from LiteLLM: %s", e)
-        return {
-            "object": "list",
-            "data": [
-                {"id": "kitty-default", "object": "model", "owned_by": "kitty"},
-            ],
-        }
+        detail = getattr(resp, "text", "")[:500]
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                f"LiteLLM model discovery returned HTTP {resp.status_code}"
+                + (f": {detail}" if detail else "")
+            ),
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("Failed to fetch models from LiteLLM: %s", exc)
+        raise HTTPException(
+            status_code=502,
+            detail=f"LiteLLM model discovery failed: {exc}",
+        ) from exc
 
 
 @router.post("/sessions/close")

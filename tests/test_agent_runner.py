@@ -13,6 +13,7 @@ from gateway.agent_runner import (
     list_agents,
     stop,
 )
+from gateway.autonomy_state import AutonomyState
 
 
 async def _noop_agent_loop(*args, **kwargs) -> None:
@@ -141,3 +142,47 @@ class TestAwaitCompletion:
         ), patch("gateway.agent_runner.asyncio.sleep", new=AsyncMock()):
             result = await await_completion(1, timeout=2, poll=1)
         assert result["status"] == "active"
+
+
+@pytest.mark.asyncio
+async def test_llm_failure_finishes_agent_as_failed(tmp_path, monkeypatch):
+    import gateway.agent_runner as agent_runner
+    import gateway.autonomy_state as autonomy_state
+
+    monkeypatch.setattr(autonomy_state, "STATE_DB", tmp_path / "autonomy.db")
+    autonomy_state.init_db()
+    state = AutonomyState.start_new("fail visibly")
+
+    with patch("gateway.llm_client.route_model", return_value="test-model"), patch(
+        "gateway.llm_client.call_llm", side_effect=RuntimeError("provider down")
+    ):
+        await agent_runner._run_agent_loop(
+            state.session_id or 0,
+            "fail visibly",
+            "system",
+            "test-model",
+            1,
+            0.0,
+            False,
+        )
+
+    assert agent_runner.get_status(state.session_id or 0)["status"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_stop_cancels_registered_agent_task(tmp_path, monkeypatch):
+    import asyncio
+
+    import gateway.agent_runner as agent_runner
+    import gateway.autonomy_state as autonomy_state
+
+    monkeypatch.setattr(autonomy_state, "STATE_DB", tmp_path / "autonomy.db")
+    autonomy_state.init_db()
+    state = AutonomyState.start_new("cancel visibly")
+    task = asyncio.create_task(asyncio.sleep(60))
+    session_id = state.session_id or 0
+    agent_runner._AGENT_TASKS[session_id] = task
+
+    assert agent_runner.stop(session_id) is True
+    with pytest.raises(asyncio.CancelledError):
+        await task

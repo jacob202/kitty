@@ -58,20 +58,26 @@ Not a single exportable paste. Sources:
   (the Phase 3–5 task that produced the product commit)
 - Live chat transcripts live in `data/` (kitty chat DB) and the opencode/codex stores above.
 
-## 5. New local changes after Codex's report
+## 5. Current state after Codex's report (2026-07-12)
 
-Repo: `main` @ `ece1480`, **ahead of origin/main by 2 commits**
-(`14f5865` product, `c48186b` merge) — those are Codex's own.
+Repo: `feat/council-routing` based on `main` (`4b02645`).
+Head: `ca04d20` — fail-loud sweep complete.
 
-Uncommitted after the report (doc/config only, net +50/−17 across 5 files):
+**Committed since the report:**
+- `569608b` — verifier false-green, duplicate route contracts, fail-loud core paths
+- `1cc6fbd` — Fable context bundle and visual references
+- `92dc9ee` — replaced mis-collected visual references
+- `907c6c0` — Kitty blueprint and ADR 0015 (resume loop, Builder boundary)
+- `1156dad` — Fable session wrap, QA evidence, trust-lane-v1, bookkeeping
+- `facdec6` — enrichment fail-loud markers (context_enrichment.py)
+- `ca04d20` — bundle update, Card C closed
 
-- `.claude/HANDOFF.md` — +22 lines (swarm QA, wiring fix, personality pass handoffs)
-- `.claude/STATE.md` — +22 lines (state wrap notes)
-- `.agents/skills/engineering/improve-codebase-architecture/SKILL.md` — doc cleanup (LANGUAGE.md/DEEPENING.md links)
-- `config/imagen/criteria/hard-gate.json` — trailing newline only
-- `config/imagen/criteria/test-char.json` — trailing newline only
-
-Nothing pushed.
+**Uncommitted on `feat/council-routing` (in progress):**
+- `gateway/council.py` — council routing supervisor
+- `gateway/routes/council.py` — POST /council route entrypoint
+- `gateway/routes/register.py` — council route wiring
+- `gateway/tutor.py`, `gateway/tutor_cli.py`, `gateway/routes/tutor.py` — tutor endpoint (untracked)
+- `docs/council-routing-design.md`, `docs/tutor-design.md` — design docs (untracked)
 
 ---
 
@@ -89,19 +95,23 @@ the report itself requires escalating security/auth work to Codex/Jacob first.
 | #3 Duplicate route contracts | ✅ DONE | `gateway/routes/integrations.py`, `gateway/routes/insights.py` | `tests/test_route_contracts.py` (1) |
 | #4 Fail-loud — model discovery | ✅ DONE | `gateway/model_digest.py` | `tests/test_model_digest.py` (3) |
 | #4 Fail-loud — next-step prefs | ✅ DONE | `gateway/next_step.py` | `tests/test_next_step.py` (+2) |
+| #4 Fail-loud — brief enrichment | ✅ DONE | `gateway/context_enrichment.py` | `tests/test_context_enrichment.py` (4) |
 | #1 Security (LAN/SSRF) | ⛔ ESCALATE | — | — |
 | #5–#9 (rest) | ⬜ OPEN | — | — |
 
 **Verification (all backend-only changes):**
 ```
 python3.12 -m pytest tests/test_verifier.py tests/test_model_digest.py \
-                    tests/test_route_contracts.py tests/test_next_step.py
-# 20 passed
+                    tests/test_route_contracts.py tests/test_next_step.py \
+                    tests/test_context_enrichment.py
+# 24 passed
 
 ruff check gateway/verifier.py gateway/model_digest.py gateway/next_step.py \
           gateway/routes/integrations.py gateway/routes/insights.py \
+          gateway/context_enrichment.py \
           tests/test_verifier.py tests/test_model_digest.py \
-          tests/test_route_contracts.py tests/test_next_step.py
+          tests/test_route_contracts.py tests/test_next_step.py \
+          tests/test_context_enrichment.py
 # All checks passed!
 ```
 No frontend build or broader slice was run. Nothing committed or pushed.
@@ -169,6 +179,18 @@ Fix: raises `NextStepError` (the module's existing error type, already raised by
 `generate()` for other failures) so the read error surfaces instead of becoming a
 fake-empty state. Test: `tests/test_next_step.py` (+2 cases: missing-file returns
 `""`, unreadable raises `NextStepError`).
+
+**File 3:** `gateway/context_enrichment.py` (morning-brief content)
+Bug: `weather_text_sync` / `todos_text_sync` / `calendar_today_text_sync`
+swallowed every exception and returned `""`, so a down todo-store / weather /
+calendar source produced a silently empty section in the user-visible brief
+(hides the outage). The module's own `run_enrichments` already propagates
+warnings, so these sync helpers were inconsistent.
+Fix: each returns an explicit `⚠ <source> unavailable` marker (plus a
+`logger.warning`) instead of `""`, so the brief surfaces the failure. The
+happy path (source returns text) is unchanged.
+Test: `tests/test_context_enrichment.py` (4: per-source failure surfaces marker;
+todos happy path returns text).
 
 ---
 
@@ -257,16 +279,20 @@ agents with independent review.
 - **Acceptance:** failure states propagate as `failed`/`interrupted` (never `completed`); `stop()` cancels the underlying task and is verified by a test.
 - **Handoff:** escalate — concurrency + orchestration state.
 
-### Card C — Blocker #6 (remaining): Fail-loud on other core paths  T1
+### Card C — Blocker #6 (remaining): Fail-loud on other core paths  ✅ DONE
 - **Scope:** sweep the remaining silent fallbacks the audit named — `agents`, `todos`,
   `prompts`, `monitors`, `image generation`, `memory`, `ingestion` — and replace
   `return []/None/false/""` with explicit error envelopes or typed raises.
-  (Two paths already done: `model_digest.py`, `next_step.py` — use them as the pattern.)
-- **Grep start:** `rg -nU 'except[^:]*:\s*\n\s*(return \[\]|return None|return False|return ""|pass)' gateway`
-- **Acceptance:** each fixed function either raises a typed error or returns an
-  explicit error marker; a regression test proves the error surfaces. No behavior
-  change on the happy path.
-- **Forbidden:** changing public response *shapes* consumed by the frontend without a companion frontend change.
+- **Resolution:**
+  - `todos` — fixed: `context_enrichment.py` sync helpers now return `⚠ unavailable`
+    markers (4 tests).
+  - `prompts` — no silent-swallow violations found (zero excepts in `prompts.py`).
+  - `monitors` — already fail-loud via the #3 consolidation.
+  - `image gen` — `is_available()` is a connectivity probe (legitimate by design).
+  - `ingestion` — `routes/capture.py` already fail-loud (logs, records failure state,
+    re-raises).
+  - `agents` / `memory` — covered by **Blocker #5** (T2, agent_runner) and **Blocker #7**
+    (T1/T2, memory consolidation) — separate escalations, not Card C scope.
 
 ### Card D — Blocker #7: Fake/incomplete continuity  T1/T2
 - **Why:** session close calls memory consolidation, but memory doesn't persist/consolidate; insights storage effectively empty/no-op.

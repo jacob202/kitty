@@ -4,7 +4,7 @@
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 # kitty-chat is the Next.js app; never lint it as Python.
 extend-exclude = ["gateway/kitty-chat"]
 
@@ -21,7 +21,7 @@ ignore = ["E501"]
 known-first-party = ["gateway"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 # Lenient by design: ~84 modules with dict-shaped LLM payloads and dynamic env
 # reads. The goal is catching real bugs, not enforcing annotations.
 ignore_missing_imports = true
@@ -35,3 +35,4 @@ omit = ["gateway/kitty-chat/*"]
 
 [tool.coverage.report]
 show_missing = true
+fail_under = 10

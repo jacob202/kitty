@@ -10,10 +10,9 @@ Kitty is Jacob's local-first AI companion. It runs on his Mac for one user (D1).
 
 1. `docs/PROJECT_STATUS.md` — current branch, what's shipped, test state, open PR.
 2. `docs/ARCHITECTURE.md` — runnable stack (gateway + LiteLLM + Next.js).
-3. `docs/packets/README.md` — work queue (001–013); what's next and what's blocked.
-4. `docs/DECISIONS.md` — settled decisions (D1–D8). Read before touching architecture.
-5. `docs/LEARNINGS.md` — hard lessons and guardrails. Read before touching risky paths.
-6. `docs/AGENT_HANDOFF.md` — latest continuation package (known issues, fake data warnings, verification commands).
+3. `docs/DECISIONS.md` — settled decisions. Read before touching architecture.
+4. `docs/LEARNINGS.md` — hard lessons and guardrails. Read before touching risky paths.
+5. `docs/AGENT_HANDOFF.md` — latest continuation package (known issues, verification commands).
 
 ## Default Commands
 
@@ -22,13 +21,12 @@ git status --short --branch
 ./kitty up
 ./kitty status
 ./kitty doctor --json
-python3.12 -m pytest tests/ -q --tb=short --ignore=tests/test_llm_client_alt_ua.py
+python3.12 -m pytest tests/ -q --tb=short
 cd gateway/kitty-chat && npm test && npm run build
 ```
 
 ## Current Rules
 
-- All context reads go through `gateway/memory_graph.py` — do not bypass (D3).
-- `gateway/routes/loops.py` and `gateway/routes/insights.py` return **fake data** — do not trust or build on them until packet 004 replaces them.
+- All context reads go through `gateway/memory_graph.py` — do not bypass.
 - Do not push, force-push, rewrite history, delete files, or touch `.env` without explicit confirmation from Jacob.
 - Voice/persona lives in `config/SOUL.md`. Do not modify it without Jacob.

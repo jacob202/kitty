@@ -1,7 +1,7 @@
 # Project Status
 
-**Date:** 2026-07-02
-**Branch:** `main`
+**Date:** 2026-07-12
+**Branch:** `feat/council-routing` (based on `main`)
 **Canonical repo:** `/Users/jacobbrizinski/Projects/kitty`
 
 ## What's Shipped
@@ -16,18 +16,24 @@
 | Mypy gate               | 80 gateway mypy errors cleared; typecheck now blocks CI      | ✓ Shipped (#51)      |
 | Session persistence     | Chat sessions survive restart; SOUL reads real config        | ✓ Shipped (#765caa3) |
 | Startup preflight       | Reliable preflight runs on `./kitty up`                      | ✓ Shipped (#50)      |
+| Phase 3–5 product       | Chat, brief, memory, settings polish; merged to main         | ✓ Shipped (#14f5865) |
+| Gateway deepening       | Route consolidation, fail-loud, duplicate route contracts     | ✓ Shipped (#569608b) |
+| Builder improvements    | Queue, run-loop safety rails, initiative doctor preflight     | ✓ Shipped            |
+| Fail-loud sweep         | Verifier false-green, enrichment markers, model discovery     | ✓ Shipped (Card C)   |
 
 ## Open PR
 
-None. The 2026-07-02 swarm merged #70–#77 (gateway deepening, resume script,
-privacy boundary, knowledge routes, capture, de-fake, brief scheduler, signal
-wiring). #70 merged with red checks after #75/#77 and broke main; the
-reconcile fix repaired it. PR #78 was closed unmerged as obsolete.
+None currently. Active feature branch: `feat/council-routing` (in-progress
+council routing supervisor and tutor endpoint).
 
-## Test State (2026-07-05)
+Recent merged PRs: #149 (kittybuilder dogfood preflight), #148 (brief news
+source seam), #147 (builder CLI registry), #146 (KB-S5 run-loop).
+
+## Test State (2026-07-12)
 
 ```
-Local: 1120 passed, 1 skipped, 2 deselected, 4 warnings
+Collected: 2036 (2 deselected; test_council.py excluded — new, not yet wired)
+Fail-loud suite: 24 passed
 ```
 
 The 2026-07-02 entries for `test_action_queue.py::test_t0_executes_from_proposed_and_records_result`,
@@ -46,10 +52,10 @@ file is gone. If the failures recur, re-isolate them with `tmp_path` fixtures (s
 ## Active Technical Debt
 
 | Issue                                          | Location                                                     | Priority                          |
-| ---------------------------------------------- | ------------------------------------------------------------ | --------------------------------- |
+| ---------------------------------------------- | ------------------------------------------------------------ | --------------------------------─ |
 | No kitty-chat CI job                           | `.github/workflows/`                                         | High — add a UI test job          |
-| Test isolation leaks (2 tests read real data/) | `tests/test_action_queue.py`, `tests/test_state_composer.py` | Medium — red locally, green on CI |
 | SIRI_SHORTCUT.md references dead launcher      | `docs/SIRI_SHORTCUT.md`                                      | Low — tombstone it                |
+| Codex Blockers #1/#5/#7 (security/worker/mem) | `gateway/kitty-chat/src/app/proxy/`, `gateway/agent_runner.py` | T2 — escalate to Jacob            |
 
 ### Resolved 2026-07-05
 
@@ -59,16 +65,21 @@ file is gone. If the failures recur, re-isolate them with `tmp_path` fixtures (s
 - 6 UI test failures — **stale**. All 85 UI tests pass via `npm test`. The
   6-failures claim was from 2026-07-02; current count is 14 files, 85 tests, 0 fails.
 
+### Resolved 2026-07-12
+
+- Verifier false-green — **fixed** (#569608b)
+- Duplicate route contracts — **fixed** (#569608b)
+- Fail-loud violations (model discovery, next-step prefs, brief enrichment) — **fixed** (#569608b, context_enrichment)
+
 ## What's Next
 
-All open work has authored, executor-ready packets (2026-07-03). Execution
-order per `docs/packets/README.md`: **014 → 004 → 005 → 007 → 008-remainder.**
-
-1. Packet 014: make the gates honest (UI tests, CI job, isolation leaks) — mechanical, do first
-2. Packet 004: console home — active phase, plan at `docs/superpowers/specs/2026-07-02-console-home-phase-design.md`
-3. Packet 005: Gmail read-only connector (D11) — Jacob owns the OAuth setup
-4. Packet 007: delegation packet generator
-5. Packet 008 remainder: collections/tags + expert retrieval (items 1–3 landed in #73)
+1. Council routing (T0) — `feat/council-routing` branch, in progress
+2. Tutor endpoint (T0) — `feat/council-routing` branch, in progress
+3. Codex Blockers #1/#5/#7 (T2, escalate) — security/auth, worker failure states, memory consolidation
+4. Upload limits / streaming caps (T1) — Blocker #8
+5. Doc reconciliation (T1) — this file + `START_HERE.md` + `docs/packets/README.md`
+6. CI alignment + coverage threshold (T1) — Blocker #10
+7. Browser smoke tests (T1) — Blocker #9, needs Playwright setup
 
 ## Sources of Truth
 

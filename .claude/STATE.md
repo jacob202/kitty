@@ -77,3 +77,9 @@
 - Added mounted feedback, personality, session-context, and usage endpoints; chat ratings, editable personality, session carry-over, onboarding, and scoped accessibility fixes are wired in the UI.
 - Verification: frontend suite 116 passed; targeted Python endpoint suites, Ruff, compile checks, TypeScript, and diff check passed. Production build emitted a BUILD_ID after successful compilation/typechecking; browser runtime was unavailable for live UI QA.
 - Next: review the combined dirty diff, decide whether to split this from the existing UI wiring changes, then commit only with Jacob's approval. Do not reset the pre-existing skill/session/UI wiring edits.
+- [claim] packet 020 github connector — orchestrator subagent
+- [claim] packet 022 magic kitty — orchestrator subagent
+- [claim] ui-feel-polish — orchestrator subagent
+- [claim] packet 024 chat-log mine — orchestrator subagent
+- [claim] packet 025 imagegen v2 — orchestrator subagent
+- [done] packet 020 github connector — issues source added, 7 tests pass, PR #156 (read-only, no token log, write scopes disabled)

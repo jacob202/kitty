@@ -32,6 +32,10 @@ logger = logging.getLogger("kitty.task_runner")
 VALID_TYPES = frozenset({"research", "ingest", "build", "cleanup", "dream", "wisdom"})
 VALID_STATUSES = frozenset({"queued", "running", "completed", "failed", "cancelled"})
 
+# Keep task handles in-process so cancellation stops active work as well as
+# updating the durable status row.
+_TASKS: dict[str, asyncio.Task[None]] = {}
+
 
 def init_db() -> None:
     TASK_DB.parent.mkdir(parents=True, exist_ok=True)
@@ -82,7 +86,9 @@ def create(
     logger.info("Task created: %s type=%s goal=%s", task_id, task_type, goal[:80])
 
     if run_immediately:
-        asyncio.create_task(_execute(task_id))
+        task = asyncio.create_task(_execute(task_id))
+        _TASKS[task_id] = task
+        task.add_done_callback(lambda _done: _TASKS.pop(task_id, None))
 
     return task_id
 
@@ -140,6 +146,9 @@ def cancel(task_id: str) -> bool:
             (time.time(), task_id),
         )
         conn.commit()
+    task = _TASKS.get(task_id)
+    if task is not None:
+        task.cancel()
     logger.info("Task %s cancelled", task_id)
     return True
 
@@ -171,8 +180,10 @@ async def _execute(task_id: str) -> None:
         elif task_type == "wisdom":
             output = await _run_wisdom(goal, task_id)
         else:
-            output = f"Unknown task type: {task_type}"
+            raise ValueError(f"Unknown task type: {task_type}")
 
+        if get(task_id)["status"] == "cancelled":
+            return
         _save_output(task_id, output)
         _update(task_id, status="completed", completed_at=time.time())
         logger.info("Task %s completed", task_id)
@@ -194,12 +205,18 @@ async def _run_research(goal: str, task_id: str) -> str:
     session_id = await spawn(goal, agent_type="researcher", max_iterations=4)
     _update(task_id, progress=f"Agent spawned (session {session_id}), running...")
 
-    await await_completion(
+    agent_status = await await_completion(
         session_id,
         on_poll=lambda status: _update(
             task_id, progress=f"Iteration {status.get('iterations', 0)}..."
         ),
     )
+    if agent_status["status"] == "cancelled":
+        raise asyncio.CancelledError
+    if agent_status["status"] != "completed":
+        raise RuntimeError(
+            f"Research agent {session_id} ended with status {agent_status['status']}"
+        )
     return agent_output(session_id)
 
 
@@ -208,12 +225,12 @@ async def _run_ingest(goal: str, task_id: str) -> str:
     _update(task_id, progress="Queueing ingestion...")
     from gateway.ingestion_queue import enqueue_file
 
+    # goal is a file path or directory path to ingest
     try:
-        # goal is a file path or directory path to ingest
         enqueue_file(goal)
-        return f"Ingestion queued for: {goal}"
-    except Exception as e:
-        return f"Ingestion failed: {e}"
+    except Exception as exc:
+        raise RuntimeError(f"Ingestion failed for {goal}: {exc}") from exc
+    return f"Ingestion queued for: {goal}"
 
 
 async def _run_build(goal: str, task_id: str) -> str:
@@ -225,12 +242,18 @@ async def _run_build(goal: str, task_id: str) -> str:
     session_id = await spawn(goal, agent_type="coder", max_iterations=5)
     _update(task_id, progress=f"Coder agent running (session {session_id})...")
 
-    await await_completion(
+    agent_status = await await_completion(
         session_id,
         on_poll=lambda status: _update(
             task_id, progress=f"Building... iteration {status.get('iterations', 0)}"
         ),
     )
+    if agent_status["status"] == "cancelled":
+        raise asyncio.CancelledError
+    if agent_status["status"] != "completed":
+        raise RuntimeError(
+            f"Build agent {session_id} ended with status {agent_status['status']}"
+        )
     return agent_output(session_id)
 
 
@@ -248,8 +271,8 @@ async def _run_cleanup(goal: str, task_id: str) -> str:
             kept = [line for line in lines if _line_after_cutoff(line, cutoff)]
             LOG_FILE.write_text("\n".join(kept) + "\n")
             results.append(f"Traces compacted: {len(lines)} -> {len(kept)} lines")
-    except Exception as e:
-        results.append(f"Trace cleanup failed: {e}")
+    except Exception as exc:
+        raise RuntimeError(f"Trace cleanup failed: {exc}") from exc
 
     return "\n".join(results) if results else "No cleanup needed."
 
@@ -265,8 +288,8 @@ async def _run_dream(goal: str, task_id: str) -> str:
 
         summary = await asyncio.to_thread(nightly_dream)
         results.append(summary)
-    except Exception as e:
-        results.append(f"Memory consolidation failed: {e}")
+    except Exception as exc:
+        raise RuntimeError(f"Memory consolidation failed: {exc}") from exc
 
     # Run queued ingestions
     try:
@@ -274,8 +297,8 @@ async def _run_dream(goal: str, task_id: str) -> str:
 
         count = process_queue()
         results.append(f"Ingestion queue: {count} items processed")
-    except Exception as e:
-        results.append(f"Ingestion queue failed: {e}")
+    except Exception as exc:
+        raise RuntimeError(f"Ingestion queue failed: {exc}") from exc
 
     return "\n".join(results) if results else "Dream complete — nothing to do."
 
@@ -302,8 +325,8 @@ async def _run_wisdom(goal: str, task_id: str) -> str:
             1500,
             0.4,
         )
-    except Exception as e:
-        return f"Wisdom extraction failed: {e}"
+    except Exception as exc:
+        raise RuntimeError(f"Wisdom extraction failed: {exc}") from exc
 
 
 # --- Helpers ---

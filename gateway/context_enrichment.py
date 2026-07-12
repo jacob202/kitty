@@ -192,13 +192,21 @@ def _looks_like_weather_block(block: str) -> bool:
 # Sync helpers for brief synthesis (same sources as async enrichment blocks)
 
 
+# Explicit markers surfaced in the brief when a source fails, instead of a
+# silent empty section that hides the outage from the user.
+_WEATHER_UNAVAILABLE = "⚠ Weather unavailable"
+_TODOS_UNAVAILABLE = "⚠ Todos unavailable"
+_CALENDAR_UNAVAILABLE = "⚠ Calendar unavailable"
+
+
 def weather_text_sync() -> str:
     try:
         from gateway.weather import get_weather_text
 
         return get_weather_text() or ""
-    except Exception:
-        return ""
+    except Exception as exc:
+        logger.warning("weather enrichment failed: %s", exc)
+        return _WEATHER_UNAVAILABLE
 
 
 def todos_text_sync() -> str:
@@ -206,8 +214,9 @@ def todos_text_sync() -> str:
         from gateway.todo_store import get_todos_text
 
         return get_todos_text() or ""
-    except Exception:
-        return ""
+    except Exception as exc:
+        logger.warning("todos enrichment failed: %s", exc)
+        return _TODOS_UNAVAILABLE
 
 
 def calendar_today_text_sync() -> str:
@@ -224,5 +233,6 @@ def calendar_today_text_sync() -> str:
             f"- {e.get('start', '')}: {e.get('title', '')}" for e in events[:8]
         ]
         return "\n".join(lines)
-    except Exception:
-        return ""
+    except Exception as exc:
+        logger.warning("calendar enrichment failed: %s", exc)
+        return _CALENDAR_UNAVAILABLE

@@ -133,3 +133,30 @@ def test_close_session_uses_typed_payload() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok", "session_id": "session-123"}
+
+
+def test_models_endpoint_surfaces_litellm_http_failure() -> None:
+    import asyncio
+
+    from fastapi import HTTPException
+
+    response = MagicMock(status_code=401, text="invalid master key")
+    client = MagicMock()
+    client.get = AsyncMock(return_value=response)
+
+    async def run_test() -> None:
+        with patch(
+            "gateway.routes.completions.get_http_client",
+            new=AsyncMock(return_value=client),
+        ):
+            from gateway.routes.completions import api_models
+
+            try:
+                await api_models()
+            except HTTPException as exc:
+                assert exc.status_code == 502
+                assert "HTTP 401" in str(exc.detail)
+            else:
+                raise AssertionError("api_models hid a LiteLLM HTTP failure")
+
+    asyncio.run(run_test())

@@ -68,3 +68,17 @@ def test_global_body_size_guard_blocks_large_requests():
             },
         )
     assert response.status_code == 413
+
+
+def test_global_body_size_guard_rejects_malformed_content_length():
+    with patch.dict(os.environ, {"KITTY_ENV": "test", "GATEWAY_SECRET": ""}):
+        client = _client()
+        response = client.post(
+            "/learn",
+            content=b'{"topic":"ok"}',
+            headers={
+                "content-type": "application/json",
+                "content-length": "not-a-number",
+            },
+        )
+    assert response.status_code == 400

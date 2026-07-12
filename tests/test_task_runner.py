@@ -97,3 +97,34 @@ class TestDBInit:
     def test_init_idempotent(self):
         init_db()
         init_db()  # should not raise
+
+
+@pytest.mark.asyncio
+async def test_ingest_failure_raises_instead_of_returning_success_text():
+    import gateway.ingestion_queue as ingestion_queue
+    import gateway.task_runner as task_runner
+
+    with patch.object(
+        ingestion_queue,
+        "enqueue_file",
+        side_effect=OSError("permission denied"),
+    ):
+        with pytest.raises(RuntimeError, match="Ingestion failed"):
+            await task_runner._run_ingest("/private/file", "missing-task")
+
+
+@pytest.mark.asyncio
+async def test_execute_records_failed_when_worker_raises():
+    import gateway.task_runner as task_runner
+
+    task_id = create("broken ingest", task_type="ingest", run_immediately=False)
+    with patch.object(
+        task_runner,
+        "_run_ingest",
+        side_effect=RuntimeError("ingestion backend unavailable"),
+    ):
+        await task_runner._execute(task_id)
+
+    task = get(task_id)
+    assert task["status"] == "failed"
+    assert "ingestion backend unavailable" in task["error"]

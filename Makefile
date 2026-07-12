@@ -1,7 +1,21 @@
-.PHONY: agent-wrap ui-test ui-build ui-tailnet
+.PHONY: agent-wrap test lint typecheck ci ui-test ui-build ui-tailnet smoke-test
 
 agent-wrap:
 	python3.12 scripts/agent_wrapup.py
+
+test:
+	python3.12 -m pytest tests/ -q --tb=short
+
+lint:
+	./venv/bin/ruff check gateway/ tests/
+
+typecheck:
+	python3.12 -m mypy gateway/
+
+ci: lint typecheck test ui-test ui-build
+
+smoke-test:
+	cd gateway/kitty-chat && npx playwright test
 
 ui-test:
 	cd gateway/kitty-chat && ./node_modules/.bin/vitest run

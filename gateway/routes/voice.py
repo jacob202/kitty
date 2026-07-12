@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, File, Form, UploadFile, WebSocket
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, WebSocket
 from fastapi.responses import Response
 from pydantic import BaseModel
+
+from gateway.constants import MAX_VOICE_BYTES
 
 router = APIRouter(tags=["voice"])
 
@@ -22,7 +24,17 @@ async def audio_transcriptions(
 ):
     from gateway.stt import transcribe_bytes
 
-    audio = await file.read()
+    written = 0
+    chunks: list[bytes] = []
+    while chunk := await file.read(64 * 1024):
+        written += len(chunk)
+        if written > MAX_VOICE_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"voice upload exceeds {MAX_VOICE_BYTES} bytes",
+            )
+        chunks.append(chunk)
+    audio = b"".join(chunks)
     result = transcribe_bytes(audio, filename=file.filename or "audio.webm")
     return {"text": result["text"]}
 
