@@ -552,34 +552,22 @@ export async function fetchGatewayTodos(): Promise<GatewayTodo[]> {
   return json.todos
 }
 
-export async function addGatewayTodo(content: string): Promise<GatewayTodo | null> {
-  try {
-    return await gfetch<GatewayTodo>('/todos/add', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content }),
-    })
-  } catch {
-    return null
-  }
+export async function addGatewayTodo(content: string): Promise<GatewayTodo> {
+  return await gfetch<GatewayTodo>('/todos/add', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  })
 }
 
 export async function completeGatewayTodo(id: number): Promise<boolean> {
-  try {
-    await gfetch(`/todos/${id}/complete`, { method: 'POST' })
-    return true
-  } catch {
-    return false
-  }
+  await gfetch(`/todos/${id}/complete`, { method: 'POST' })
+  return true
 }
 
 export async function deleteGatewayTodo(id: number): Promise<boolean> {
-  try {
-    await gfetch(`/todos/${id}`, { method: 'DELETE' })
-    return true
-  } catch {
-    return false
-  }
+  await gfetch(`/todos/${id}`, { method: 'DELETE' })
+  return true
 }
 
 // ── Prompt Templates ─────────────────────────────────────────────────────────
