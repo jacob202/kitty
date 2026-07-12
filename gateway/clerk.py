@@ -84,6 +84,7 @@ def _extract_text(path: Path) -> str:
         try:
             return path.read_text(errors="ignore")
         except Exception:
+            logger.exception("Failed to read file %s — ingesting as empty", path)
             return ""
 
 

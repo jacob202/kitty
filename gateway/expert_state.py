@@ -1,10 +1,13 @@
 """Data access layer for proactive expert state (snooze, inbox lifecycle, feedback)."""
 
 import json
+import logging
 import time
 
 from gateway import db as kitty_db
 from gateway.paths import EXPERT_STATE_FILE, KITTY_DB_FILE
+
+logger = logging.getLogger("kitty.expert_state")
 
 
 def compute_topic_hash(text: str) -> str:
@@ -182,6 +185,7 @@ def is_global_pause() -> bool:
         with open(EXPERT_STATE_FILE, "r") as f:
             return json.load(f).get("pause_all", False)
     except json.JSONDecodeError:
+        logger.warning("Corrupt expert state file %s — treating as unpaused", EXPERT_STATE_FILE)
         return False
 
 

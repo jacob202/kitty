@@ -27,8 +27,6 @@ jobs:
       - name: Run test suite
         run: |
           python -m pytest tests/ -q --tb=short \
-            --ignore=tests/test_council_graph.py \
-            --ignore=tests/test_mcp_council_server.py \
             --cov=gateway --cov-report=term-missing --cov-fail-under=10
 
   lint:

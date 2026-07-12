@@ -391,6 +391,7 @@ def _fetch_memory_snippet() -> str:
 
         return _run_async(unified_context("morning brief"))
     except Exception:
+        logger.exception("Failed to fetch unified context for brief")
         return ""
 
 
@@ -399,6 +400,7 @@ def _fetch_recent_journal_text(limit: int = 3) -> str:
     try:
         entries = recent_entries(days=7, limit=limit)
     except Exception:
+        logger.exception("Failed to fetch recent journal entries for brief")
         return ""
     if not entries:
         return ""

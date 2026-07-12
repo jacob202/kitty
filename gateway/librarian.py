@@ -151,4 +151,5 @@ def generate_source_summary(source_name: str, text_preview: str, doc_type: str) 
         # Ensure all keys exist
         return LibrarianReport(**{**default_data, **data})
     except Exception:
+        logger.exception("Failed to parse librarian LLM response; falling back to defaults")
         return LibrarianReport(**default_data)

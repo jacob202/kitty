@@ -23,11 +23,11 @@
 
 ## Open PR
 
-None currently. Active feature branch: `feat/council-routing` (in-progress
-council routing supervisor and tutor endpoint).
+None currently.
 
-Recent merged PRs: #149 (kittybuilder dogfood preflight), #148 (brief news
-source seam), #147 (builder CLI registry), #146 (KB-S5 run-loop).
+Recent merged PRs: #162 (memory persistence), #156 (GitHub connector),
+#155 (imagegen v2), #154 (phone-native console), #153 (Magic Kitty),
+#152 (chat-log idea mine), #150 (UI polish + reliability fixes).
 
 ## Test State (2026-07-12)
 
@@ -53,9 +53,7 @@ file is gone. If the failures recur, re-isolate them with `tmp_path` fixtures (s
 
 | Issue                                          | Location                                                     | Priority                          |
 | ---------------------------------------------- | ------------------------------------------------------------ | --------------------------------─ |
-| No kitty-chat CI job                           | `.github/workflows/`                                         | High — add a UI test job          |
-| SIRI_SHORTCUT.md references dead launcher      | `docs/SIRI_SHORTCUT.md`                                      | Low — tombstone it                |
-| Codex Blockers #1/#5/#7 (security/worker/mem) | `gateway/kitty-chat/src/app/proxy/`, `gateway/agent_runner.py` | T2 — escalate to Jacob            |
+| Codex Blocker #1 (proxy SSRF)                  | `gateway/kitty-chat/src/app/proxy/`                          | T2 — escalate to Jacob            |
 
 ### Resolved 2026-07-05
 
@@ -73,13 +71,9 @@ file is gone. If the failures recur, re-isolate them with `tmp_path` fixtures (s
 
 ## What's Next
 
-1. Council routing (T0) — `feat/council-routing` branch, in progress
-2. Tutor endpoint (T0) — `feat/council-routing` branch, in progress
-3. Codex Blockers #1/#5/#7 (T2, escalate) — security/auth, worker failure states, memory consolidation
-4. Upload limits / streaming caps (T1) — Blocker #8
-5. Doc reconciliation (T1) — this file + `START_HERE.md` + `docs/packets/README.md`
-6. CI alignment + coverage threshold (T1) — Blocker #10
-7. Browser smoke tests (T1) — Blocker #9, needs Playwright setup
+1. Codex Blocker #1 (T2, escalate) — proxy SSRF in kitty-chat
+2. Route test coverage (T1) — 16 route modules have zero HTTP-layer tests
+3. Coverage threshold (T1) — CI floor is 10%, effectively nothing
 
 ## Sources of Truth
 
@@ -89,7 +83,7 @@ file is gone. If the failures recur, re-isolate them with `tmp_path` fixtures (s
 | Architecture        | `docs/ARCHITECTURE.md`   |
 | Settled decisions   | `docs/DECISIONS.md`      |
 | Hard lessons        | `docs/LEARNINGS.md`      |
-| Handoff             | `docs/AGENT_HANDOFF.md`  |
+| Handoff             | `.claude/HANDOFF.md`     |
 | Work queue          | `docs/packets/README.md` |
 | Voice/persona       | `config/SOUL.md`         |
 | Agent/runtime rules | `docs/AGENT_RUNTIME.md`  |

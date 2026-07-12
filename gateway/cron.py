@@ -265,6 +265,7 @@ def _should_fire(s: dict, now: float) -> bool:
             interval = int(s_value) * 60
             return (now - last_run) >= interval
         except ValueError:
+            logger.warning("Unparseable interval schedule %r for %s", s_value, s.get("id", "?"))
             return False
 
     if s_type == "daily":
@@ -277,6 +278,7 @@ def _should_fire(s: dict, now: float) -> bool:
             ).timestamp()
             return now >= today_target and last_run < today_target
         except (ValueError, IndexError):
+            logger.warning("Unparseable daily schedule %r for %s", s_value, s.get("id", "?"))
             return False
 
     if s_type == "once":
@@ -285,6 +287,7 @@ def _should_fire(s: dict, now: float) -> bool:
             target = datetime.datetime.fromisoformat(s_value).timestamp()
             return now >= target and last_run == 0
         except (ValueError, TypeError):
+            logger.warning("Unparseable once schedule %r for %s", s_value, s.get("id", "?"))
             return False
 
     return False

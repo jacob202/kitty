@@ -87,12 +87,13 @@ def _extract_text_fallback(path: Path) -> str:
         doc = fitz.open(str(path))
         return "\n".join(page.get_text() for page in doc)
     except Exception:
-        pass
+        logger.debug("fitz unavailable or failed for %s, trying pdfplumber", path)
     try:
         import pdfplumber
         with pdfplumber.open(str(path)) as pdf:
             return "\n".join(p.extract_text() or "" for p in pdf.pages)
     except Exception:
+        logger.exception("All PDF extractors failed for %s — ingesting as empty", path)
         return ""
 
 

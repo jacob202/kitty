@@ -12,7 +12,8 @@ Kitty is Jacob's local-first AI companion. It runs on his Mac for one user (D1).
 2. `docs/ARCHITECTURE.md` — runnable stack (gateway + LiteLLM + Next.js).
 3. `docs/DECISIONS.md` — settled decisions. Read before touching architecture.
 4. `docs/LEARNINGS.md` — hard lessons and guardrails. Read before touching risky paths.
-5. `docs/AGENT_HANDOFF.md` — latest continuation package (known issues, verification commands).
+5. `.claude/HANDOFF.md` — latest continuation package (known issues, verification commands).
+6. `.claude/STATE.md` — live session state (current branch, open PRs, claims).
 
 ## Default Commands
 

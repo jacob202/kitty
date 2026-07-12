@@ -138,6 +138,6 @@ def _get_last_record() -> dict | None:
         lines = EVAL_LOG.read_text().strip().split("\n")
         if lines:
             return json.loads(lines[-1])
-    except (json.JSONDecodeError, Exception):
-        pass
+    except Exception:
+        logger.exception("Failed to read eval log %s", EVAL_LOG)
     return None
