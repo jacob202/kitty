@@ -108,3 +108,15 @@ and the existing `State`/handoff machinery.
 2. Council entrypoint: HTTP route, CLI, or both? (§9)
 3. Does `state` in the dispatch context mean `.claude/STATE.md` summary, or a
    runtime object? Keep v1 to a short text summary.
+
+## 12. Security Constraint — No Direct Shell Routing
+
+The initial Council concept included an `execute_cli_command` path that shells out
+to `subprocess.run(payload["instructions"], shell=True)` using LLM-authored
+strings. **This is explicitly out of scope and must never ship.** Routing an
+LLM-generated string through `shell=True` is remote code execution by prompt.
+
+If trivial CLI handling is ever needed, it MUST go through a structured,
+allowlisted command enum (e.g. a fixed set of read-only diagnostic commands) —
+never raw shell execution of model output. The v1 triviality gate (`is_trivial`)
+returns an inline stub and performs no shelling out by design.

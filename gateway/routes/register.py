@@ -41,6 +41,7 @@ from gateway.routes import (
     state,
     status,
     telos,
+    tutor,
     usage,
     voice,
 )
@@ -82,6 +83,7 @@ def register_routes(app: FastAPI) -> None:
         state,
         status,
         telos,
+        tutor,
         usage,
         voice,
     extended,
