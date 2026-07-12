@@ -92,7 +92,7 @@ def get_weekly_mirror(days: int = 7, use_cache: bool = True) -> dict:
             if time.time() - cached.get("_cached_at", 0) < 23 * 3600:
                 return {k: v for k, v in cached.items() if not k.startswith("_")}
         except Exception:
-            pass
+            logger.exception("Corrupt honcho signal cache %s — regenerating", SIGNAL_CACHE)
 
     traces = get_recent_traces(days=days)
     observation = summarize_patterns(traces)

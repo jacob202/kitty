@@ -130,13 +130,13 @@ async def lifespan(app: FastAPI):
         if _http_client and not _http_client.is_closed:
             await _http_client.aclose()
     except Exception:
-        pass
+        logger.debug("HTTP client cleanup failed (shutdown)", exc_info=True)
     try:
         from gateway.telegram_bot import stop as tg_stop
 
         await tg_stop()
     except Exception:
-        pass
+        logger.debug("Telegram bot shutdown failed", exc_info=True)
 
 
 app = FastAPI(title="Kitty Gateway", lifespan=lifespan)
