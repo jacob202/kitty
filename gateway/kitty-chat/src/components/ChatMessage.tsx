@@ -156,7 +156,7 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
             <span style={{ fontSize: 10 }}>{turnStatus}</span>
           </div>
         )}
-        {isKitty && (message.model || message.routing?.length) && (
+        {showActions && (message.model || message.routing?.length) && (
           <Attribution message={message} />
         )}
       </div>
