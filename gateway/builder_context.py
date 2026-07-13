@@ -91,6 +91,7 @@ def write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
         )
         temporary.replace(path)
     except OSError as exc:
+        temporary.unlink(missing_ok=True)
         raise OSError(f"Unable to write Builder manifest {path}: {exc}") from exc
 
 

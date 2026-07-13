@@ -21,9 +21,9 @@ for staging_path in "${local_bundle}" "${local_context}" "${local_result}"; do
     exit 1
   fi
 done
+trap 'rm -f "${local_bundle}" "${local_context}" "${local_result}"' EXIT
 cp "${KB_BUNDLE_PATH}" "${local_bundle}"
 cp "${KB_CONTEXT_MANIFEST_PATH}" "${local_context}"
-trap 'rm -f "${local_bundle}" "${local_context}" "${local_result}"' EXIT
 
 python3 - "${local_bundle}" "${local_context}" "${KB_TASK_ID}" "${KB_ATTEMPT_ID}" <<'PY'
 import hashlib

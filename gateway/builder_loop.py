@@ -270,8 +270,13 @@ def run_packet(
             )
             manifest["outcome"] = "failed"
             manifest["failure"] = _text_evidence(failure)
-            write_run_manifest(manifest_path, manifest)
-            ba.close_attempt(attempt_id, ba.ATTEMPT_FAILED, db_path=db_path)
+            # If persisting the failure manifest itself fails, the attempt
+            # must still close as failed and the original exception must
+            # propagate (chained, not shadowed).
+            try:
+                write_run_manifest(manifest_path, manifest)
+            finally:
+                ba.close_attempt(attempt_id, ba.ATTEMPT_FAILED, db_path=db_path)
             raise
         entry["run_id"] = run["id"]
         entry["run_state"] = run["state"]
@@ -324,6 +329,7 @@ def run_packet(
                 review_command,
                 cwd=worktree_path(task_id, repo_root=repo_root),
                 env_extra={
+                    "KB_TASK_ID": str(task_id),
                     "KB_ATTEMPT_ID": str(attempt_id),
                     "KB_BUNDLE_PATH": str(bundle_path),
                     "KB_IMPL_RESULT_PATH": str(result_path),

@@ -95,9 +95,15 @@ def _good_worker(tmp_path: Path) -> list[str]:
 
 
 def _approve_reviewer(tmp_path: Path) -> list[str]:
+    # Enforce the same required-env contract as
+    # scripts/kittybuilder_opencode_reviewer.sh so a wiring regression in
+    # _run_review_command's env_extra fails loudly in every reviewer test.
     return _script(
         tmp_path,
         "reviewer.sh",
+        ': "${KB_TASK_ID:?KB_TASK_ID is required}"\n'
+        ': "${KB_ATTEMPT_ID:?KB_ATTEMPT_ID is required}"\n'
+        ': "${KB_CONTEXT_MANIFEST_PATH:?KB_CONTEXT_MANIFEST_PATH is required}"\n'
         f"cat > \"$KB_REVIEW_RESULT_PATH\" <<'EOF'\n{_APPROVE}\nEOF\n",
     )
 
