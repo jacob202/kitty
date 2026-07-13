@@ -1,32 +1,39 @@
 # Session State — 2026-07-12
 
 ## Branch
-- `main` @ `07c901f` — TL-01 through TL-05 all merged.
-- Working on: `fix/search-route-query-param` (PR #151) and `claude/kittybuilder-dogfood-preflight-bif2qb` (PR #150)
+- `main` — TL-01 through TL-05, PR #150, PR #151 all merged.
+- Working on: `claude/kittybuilder-dogfood-preflight-bif2qb` (PR #164, ready for review)
 
-## Landed this session
+## Landed this session (PR #164)
 
-### Fable branch integration (done)
-- `docs/fable-context` fast-forwarded into `main` (already on Jacob's Mac + origin).
-- All 5 trust-lane-v1 packets implemented and merged into main:
-  - TL-01 (`1df1eee`): What's Next error state + retry button in HomeState
-  - TL-02 (`68249b4`): gateway freshness check in doctor.py
-  - TL-03 (`00c7590`): Enter-to-send / Shift+Enter tests for InputBar
-  - TL-04 (`7aedd18`): mascot aria-hidden + pointer-events:none
-  - TL-05 (`07c901f`): memory read paths raise MemoryError, routes re-raise as HTTP 500
+### Fail-loud sweep
+- Added logging to 11 silent `except` blocks across cron, librarian, pdf_pipeline, clerk, eval_runner, expert_state, expert_proactive, brief, nudge, honcho, app shutdown
 
-## Open PRs
+### Doc reconciliation
+- Fixed stale `docs/AGENT_HANDOFF.md` references → `.claude/HANDOFF.md` in README, START_HERE, continuity check script
+- Deduplicated packet registry, updated shipped statuses
 
-### PR #151 — fix/search-route-query-param
-- `/search` route param renamed `query`→`q` to match UI and `/knowledge/search`
-- Rebased onto current main; lint fixes included
+### CI hardening
+- Removed dead `--ignore` flags for nonexistent test files
+- Coverage threshold bumped 10% → 65% (actual ~73%)
 
-### PR #150 — claude/kittybuilder-dogfood-preflight-bif2qb
-- UI Phase 1: hide unwired nav, conditional sidebar, remove dev notes, empty states, GlyphIcon/MoodAvatar deleted, dashboard tile config
-- Rebasing onto main in progress
+### Route test coverage (128 new tests)
+- `test_artifacts_routes.py` — 6 tests
+- `test_integrations_routes.py` — 52 tests
+- `test_runtime_routes.py` — 9 tests
+- `test_memories_routes.py` — 7 tests
+- `test_experts_routes.py` — 16 tests
+- Plus existing: deadlines, projects, knowledge already had tests
 
-## Known lint debt on main
-The E402/I001/F401 issues in memory.py, register.py, test_doctor_freshness.py, test_memory_fail_loud.py are fixed on PR #151 but not yet on main (waiting for merge). PR #150 also carries those fixes independently.
+### Housekeeping
+- `.claude/worktrees/` added to .gitignore
+- `docs/PROJECT_STATUS.md` updated with resolved items
+
+## Open PR
+
+### PR #164 — claude/kittybuilder-dogfood-preflight-bif2qb
+- 8 commits, all CI checks green (pytest, lint, typecheck, kitty-chat, browser-smoke, check-description)
+- Ready for review / merge
 
 ## T2 (Jacob/Codex only — do not touch)
 - Card A: UI binds 0.0.0.0 in ./kitty + proxy injects gateway secret; SSRF in capture/knowledge routes
