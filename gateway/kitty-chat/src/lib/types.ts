@@ -17,6 +17,10 @@ export interface Message {
   mood?: KittyMood
   tags?: string[]
   attachments?: MessageAttachment[]
+  /** Raw reasoning/thinking from the model (Claude extended thinking, DeepSeek R1, etc.) */
+  thinking?: string
+  /** Memory items surfaced from the context assembler for this response. */
+  memoryItems?: MemoryItem[]
   /** Terminal status of the lifecycle turn that produced this message. */
   turnStatus?: 'running' | 'succeeded' | 'failed' | 'interrupted' | 'cancelled'
   /**
@@ -34,6 +38,11 @@ export interface MessageRouting {
   category: string
   agent: string
   priority: number
+}
+
+export interface MemoryItem {
+  source: string
+  text: string
 }
 
 export interface Chat {

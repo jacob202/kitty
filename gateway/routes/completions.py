@@ -175,11 +175,17 @@ async def chat_completions(request: Request):
             on_request_error()
             raise
 
+    thread_objective: str | None = None
+    if conversation_id is not None:
+        thread_objective = chat_lifecycle.get_conversation_objective(conversation_id)
+
     from gateway.context_assembler import assemble_context
 
     try:
         on_context_fetch()
-        bundle = await assemble_context(user_text, parts_mode=False, domain=domain, model=model)
+        bundle = await assemble_context(
+            user_text, parts_mode=False, domain=domain, model=model, objective=thread_objective,
+        )
         system_prompt = f"{bundle.system}\n\n{compact_runtime_context(runtime_manifest)}"
     except Exception as exc:
         if lifecycle_handle is not None and not lifecycle_done:
@@ -235,6 +241,14 @@ async def chat_completions(request: Request):
                                     "stream chunk content was not text while recording chat lifecycle"
                                 )
                             accumulated += content
+                if bundle.memory_items:
+                    trailer = json.dumps({
+                        "memory_items": [
+                            {"source": item.source, "text": item.text[:200]}
+                            for item in bundle.memory_items
+                        ],
+                    })
+                    yield f"data: {trailer}\n\n".encode("utf-8")
                 if lifecycle_handle is not None:
                     _finish_lifecycle_or_raise(
                         lifecycle_handle,

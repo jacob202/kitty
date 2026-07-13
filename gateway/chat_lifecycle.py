@@ -47,6 +47,7 @@ def start_turn(
     manifest_revision: str,
     requested_model: str,
     attachment_ids: list[str] | None = None,
+    objective: str | None = None,
 ) -> TurnHandle:
     """Persist the user message and running attempt before provider dispatch."""
     if not conversation_id.strip():
@@ -74,17 +75,18 @@ def start_turn(
     with kitty_db.connect(LIFECYCLE_DB_FILE) as conn:
         conn.execute(
             """
-            INSERT INTO chat_conversations (id, project_id, title, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO chat_conversations (id, project_id, title, objective, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 project_id = COALESCE(excluded.project_id, chat_conversations.project_id),
                 title = CASE
                     WHEN excluded.title = '' THEN chat_conversations.title
                     ELSE excluded.title
                 END,
+                objective = COALESCE(excluded.objective, chat_conversations.objective),
                 updated_at = excluded.updated_at
             """,
-            (conversation_id, project_id, title, now, now),
+            (conversation_id, project_id, title, objective, now, now),
         )
         sequence = conn.execute(
             "SELECT COALESCE(MAX(sequence), 0) + 1 FROM chat_turns WHERE conversation_id = ?",
@@ -230,3 +232,31 @@ def list_conversation(conversation_id: str) -> dict[str, Any]:
             ).fetchall()
         ]
     return {"conversation": dict(conversation), "turns": [get_turn(turn["id"]) for turn in turns]}
+
+
+def update_objective(conversation_id: str, objective: str | None) -> bool:
+    """Set or clear the objective on an existing conversation. Returns True if updated."""
+    if not conversation_id.strip():
+        raise ChatLifecycleError("conversation_id must not be empty")
+    init_db()
+    now = time.time()
+    with kitty_db.connect(LIFECYCLE_DB_FILE) as conn:
+        cursor = conn.execute(
+            "UPDATE chat_conversations SET objective = ?, updated_at = ? WHERE id = ?",
+            (objective, now, conversation_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def get_conversation_objective(conversation_id: str) -> str | None:
+    """Read just the objective for a conversation. Returns None if unset or missing."""
+    init_db()
+    with kitty_db.connect(LIFECYCLE_DB_FILE) as conn:
+        row = conn.execute(
+            "SELECT objective FROM chat_conversations WHERE id = ?",
+            (conversation_id,),
+        ).fetchone()
+    if row is None:
+        return None
+    return row["objective"]

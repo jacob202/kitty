@@ -1,10 +1,12 @@
-import { Message } from './types';
+import { Message, MemoryItem } from './types';
 
 // All gateway calls go through the Next.js proxy route — avoids CORS and keeps key server-side
 const GATEWAY_BASE = '/proxy';
 
 export interface StreamChunk {
   content: string;
+  thinking: string;
+  memoryItems?: MemoryItem[];
   done: boolean;
 }
 
@@ -55,13 +57,19 @@ export async function* streamChat(
       if (!line.startsWith('data: ')) continue;
       const data = line.slice(6).trim();
       if (data === '[DONE]') {
-        yield { content: '', done: true };
+        yield { content: '', thinking: '', done: true };
         return;
       }
       try {
         const json = JSON.parse(data);
-        const content = json.choices?.[0]?.delta?.content ?? '';
-        if (content) yield { content, done: false };
+        if (json.memory_items) {
+          yield { content: '', thinking: '', memoryItems: json.memory_items, done: false };
+          continue;
+        }
+        const delta = json.choices?.[0]?.delta ?? {};
+        const content = delta.content ?? '';
+        const thinking = delta.reasoning_content ?? '';
+        if (content || thinking) yield { content, thinking, done: false };
       } catch {
         /* skip malformed */
       }

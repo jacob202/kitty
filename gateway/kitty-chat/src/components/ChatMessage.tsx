@@ -3,8 +3,8 @@ import { isValidElement, useRef, useState, type ReactNode, type CSSProperties } 
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
-import { Copy, Check, RotateCcw, Paperclip, ThumbsUp, ThumbsDown } from 'lucide-react'
-import { Message } from '@/lib/types'
+import { Copy, Check, RotateCcw, Paperclip, ThumbsUp, ThumbsDown, Brain, ChevronDown } from 'lucide-react'
+import { Message, MemoryItem } from '@/lib/types'
 import { useSubmitMessageFeedback, type MessageFeedbackRating } from '@/lib/queries'
 import { CatFaceBadge, type CatState } from './CrayonCat'
 
@@ -92,6 +92,9 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
               ))}
             </div>
           )}
+          {isKitty && message.thinking && (
+            <ThinkingBlock thinking={message.thinking} isStreaming={isStreaming && !message.content} />
+          )}
           <div style={{
             maxWidth: 560,
             borderRadius: isKitty ? '5px 17px 17px 17px' : '17px 5px 17px 17px',
@@ -106,6 +109,9 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
               <MessageContent content={message.content} isUser={isUser} />
             )}
           </div>
+        {isKitty && message.memoryItems?.length ? (
+          <MemoryBlock items={message.memoryItems} />
+        ) : null}
         {showActions && (
           <div className="msg-actions" style={{ ...actionRowStyle, opacity: actionsVisible ? 1 : 0 }}>
             <button onClick={copyMessage} style={actionBtnStyle} title="copy message">
@@ -160,6 +166,134 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
           <Attribution message={message} />
         )}
       </div>
+    </div>
+  )
+}
+
+function ThinkingBlock({ thinking, isStreaming }: { thinking: string; isStreaming?: boolean }) {
+  const [expanded, setExpanded] = useState(false)
+  const lines = thinking.trim().split('\n').length
+
+  return (
+    <div style={{
+      marginBottom: 8,
+      borderRadius: 8,
+      border: '1px solid var(--line)',
+      background: 'var(--surface-2)',
+      overflow: 'hidden',
+    }}>
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '6px 10px',
+          background: 'transparent',
+          border: 'none',
+          cursor: 'pointer',
+          color: 'var(--ink-2)',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10.5,
+          letterSpacing: '0.03em',
+        }}
+      >
+        <Brain size={12} />
+        <span>{isStreaming ? 'thinking…' : `thought for ${lines} line${lines === 1 ? '' : 's'}`}</span>
+        <ChevronDown size={12} style={{
+          marginLeft: 'auto',
+          transition: 'transform 0.15s',
+          transform: expanded ? 'rotate(180deg)' : 'rotate(0)',
+        }} />
+      </button>
+      {expanded && (
+        <div style={{
+          padding: '8px 10px',
+          borderTop: '1px solid var(--line)',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 12,
+          lineHeight: 1.6,
+          color: 'var(--ink-2)',
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+          maxHeight: 300,
+          overflowY: 'auto',
+        }}>
+          {thinking}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MemoryBlock({ items }: { items: MemoryItem[] }) {
+  const [expanded, setExpanded] = useState(false)
+  const sources = [...new Set(items.map((i) => i.source))]
+
+  return (
+    <div style={{
+      marginTop: 4,
+      borderRadius: 8,
+      border: '1px solid var(--line)',
+      background: 'var(--surface-2)',
+      overflow: 'hidden',
+    }}>
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '5px 10px',
+          background: 'transparent',
+          border: 'none',
+          cursor: 'pointer',
+          color: 'var(--ink-2)',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10.5,
+          letterSpacing: '0.03em',
+        }}
+      >
+        <span style={{ fontSize: 12 }}>{"🐱"}</span>
+        <span>kitty remembered {items.length} thing{items.length === 1 ? '' : 's'} ({sources.join(', ')})</span>
+        <ChevronDown size={12} style={{
+          marginLeft: 'auto',
+          transition: 'transform 0.15s',
+          transform: expanded ? 'rotate(180deg)' : 'rotate(0)',
+        }} />
+      </button>
+      {expanded && (
+        <div style={{
+          padding: '6px 10px',
+          borderTop: '1px solid var(--line)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 4,
+        }}>
+          {items.map((item, i) => (
+            <div key={i} style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              lineHeight: 1.5,
+              color: 'var(--ink-2)',
+            }}>
+              <span style={{
+                display: 'inline-block',
+                fontSize: 9,
+                padding: '0 4px',
+                borderRadius: 3,
+                background: 'var(--surface)',
+                border: '1px solid var(--line)',
+                marginRight: 6,
+                verticalAlign: 'middle',
+              }}>{item.source}</span>
+              {item.text}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

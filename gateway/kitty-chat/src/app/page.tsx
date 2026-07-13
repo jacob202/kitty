@@ -1,7 +1,7 @@
 'use client';
 import { startTransition, useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Chat, Message, MessageAttachment, Model, MODELS, COLOR_CYCLE, ChatColor } from '@/lib/types';
+import { Chat, Message, MessageAttachment, MemoryItem, Model, MODELS, COLOR_CYCLE, ChatColor } from '@/lib/types';
 import { streamChat } from '@/lib/chat-client';
 import { inferMood } from '@/lib/mood';
 import { TopBar } from '@/components/TopBar';
@@ -522,6 +522,8 @@ function KittyChatInner() {
 
     try {
       let accumulated = '';
+      let accumulatedThinking = '';
+      let memoryItems: MemoryItem[] | undefined;
 
       for await (const chunk of streamChat(
         activeModel.id,
@@ -534,20 +536,27 @@ function KittyChatInner() {
         attachmentIds,
       )) {
         if (chunk.done) break;
+        if (chunk.memoryItems) {
+          memoryItems = chunk.memoryItems;
+          continue;
+        }
         accumulated += chunk.content;
+        accumulatedThinking += chunk.thinking;
         const content = accumulated;
+        const thinking = accumulatedThinking || undefined;
         updateChat(chat.id, (c) => ({
           ...c,
-          messages: c.messages.map((m) => (m.id === aiMsgId ? { ...m, content } : m)),
+          messages: c.messages.map((m) => (m.id === aiMsgId ? { ...m, content, thinking } : m)),
         }));
       }
 
       const mood = inferMood(accumulated, 'assistant');
+      const thinking = accumulatedThinking || undefined;
       updateChat(chat.id, (c) => ({
         ...c,
         updatedAt: new Date(),
         messages: c.messages.map((m) =>
-          m.id === aiMsgId ? { ...m, content: accumulated, mood } : m,
+          m.id === aiMsgId ? { ...m, content: accumulated, thinking, mood, memoryItems } : m,
         ),
       }));
       setLastOutcome('done');

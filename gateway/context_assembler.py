@@ -227,6 +227,7 @@ async def assemble_context(
     domain: str | None = None,
     deps: _AssemblerDeps | None = None,
     model: str | None = None,
+    objective: str | None = None,
 ) -> ContextBundle:
     """The single deep entry point for request-time context.
 
@@ -255,6 +256,14 @@ async def assemble_context(
     user_block = user_context.load_user_context()
     if user_block:
         base_prompt = _join_blocks(base_prompt, user_block)
+
+    if objective:
+        objective_block = (
+            "## Thread Objective\n"
+            f"This conversation is focused on: {objective}\n"
+            "Keep responses aligned with this goal."
+        )
+        base_prompt = _join_blocks(base_prompt, objective_block)
 
     hint_fn = deps.skill_hint_fn or _default_skill_hint
     hint = hint_fn(message)

@@ -109,3 +109,21 @@ def get_chat_messages(chat_id: str) -> dict:
     is gone but the ledger survived.
     """
     return {"conversation_id": chat_id, "messages": _recover_messages(chat_id)}
+
+
+@router.patch("/chats/{chat_id}/objective")
+async def update_objective(chat_id: str, request: Request):
+    """Set or clear the thread objective for a conversation."""
+    body = await request.json()
+    if "objective" not in body:
+        raise HTTPException(status_code=400, detail="objective field required")
+    objective = body["objective"]
+    if objective is not None and not isinstance(objective, str):
+        raise HTTPException(status_code=400, detail="objective must be a string or null")
+    try:
+        updated = chat_lifecycle.update_objective(chat_id, objective)
+    except chat_lifecycle.ChatLifecycleError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"conversation {chat_id} not found")
+    return {"ok": True, "conversation_id": chat_id, "objective": objective}
