@@ -49,13 +49,16 @@ class TestListMonitors:
             ),
             pytest.raises(
                 monitors.MonitorError,
-                match="monitor list failed.*database is locked",
+                match=r"monitor list failed \(OSError\)",
             ) as raised,
         ):
             monitors.list_monitors()
 
         assert raised.value.details["operation"] == "list"
         assert raised.value.details["exception_type"] == "OSError"
+        # Raw exception text may contain filesystem paths; it must never
+        # reach the HTTP-visible message.
+        assert "database is locked" not in str(raised.value)
 
     def test_rejects_malformed_store_response(self, isolated_watch_db: Path) -> None:
         from gateway import web_monitor
@@ -105,7 +108,7 @@ class TestCreateMonitor:
             ),
             pytest.raises(
                 monitors.MonitorError,
-                match="monitor create failed.*database is read-only",
+                match=r"monitor create failed \(OSError\)",
             ),
         ):
             monitors.create_monitor("https://example.com")
@@ -151,7 +154,7 @@ class TestDeleteMonitor:
             ),
             pytest.raises(
                 monitors.MonitorError,
-                match="monitor delete failed.*database is locked",
+                match=r"monitor delete failed \(OSError\)",
             ) as raised,
         ):
             monitors.delete_monitor("watch-123")
@@ -275,7 +278,7 @@ class TestCheckMonitor:
             ),
             pytest.raises(
                 monitors.MonitorError,
-                match="monitor check failed.*database is locked",
+                match=r"monitor check failed \(OperationalError\)",
             ) as raised,
         ):
             await monitors.check_monitor("watch-123")
@@ -401,7 +404,7 @@ def test_monitor_check_route_returns_structured_502() -> None:
 
 def test_monitor_check_route_classifies_store_failure_as_503() -> None:
     error = monitors.MonitorError(
-        "monitor check failed: OperationalError: database is locked",
+        "monitor check failed (OperationalError)",
         details={"operation": "check", "monitor_id": "watch-123"},
     )
     with patch.object(monitors, "check_monitor", side_effect=error):
@@ -410,7 +413,7 @@ def test_monitor_check_route_classifies_store_failure_as_503() -> None:
     assert response.status_code == 503
     assert response.json() == {
         "error": "storage.unavailable",
-        "message": "monitor check failed: OperationalError: database is locked",
+        "message": "monitor check failed (OperationalError)",
         "details": {"operation": "check", "monitor_id": "watch-123"},
     }
 

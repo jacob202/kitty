@@ -35,16 +35,12 @@ class MonitorCheckError(KittyError):
     code = "monitor.check_failed"
 
 
-def _describe_exception(exc: BaseException) -> str:
-    message = str(exc).strip()
-    if message:
-        return f"{type(exc).__name__}: {message}"
-    return type(exc).__name__
-
-
 def _store_failure(operation: str, exc: Exception, **details: Any) -> MonitorError:
+    # Raw exception text can contain filesystem paths; keep it in logs only,
+    # never in the HTTP-visible message (same policy as gateway/memory.py).
+    logger.error("monitor %s failed: %s: %s", operation, type(exc).__name__, exc)
     return MonitorError(
-        f"monitor {operation} failed: {_describe_exception(exc)}",
+        f"monitor {operation} failed ({type(exc).__name__})",
         details={
             "operation": operation,
             "exception_type": type(exc).__name__,
