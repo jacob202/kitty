@@ -649,4 +649,34 @@ describe('HomeState', () => {
     screen.getByText('sweep').click();
     expect(mutate).toHaveBeenCalled();
   });
+
+  // ── error-before-loading regressions ──
+
+  it("shows session context error even when another query is still loading (was: 'loading…' forever)", () => {
+    (useActions as Mock).mockReturnValue({
+      data: undefined,
+      isPending: true,
+      isError: false,
+    });
+    (useSessionContext as Mock).mockReturnValue({
+      data: undefined,
+      isPending: false,
+      isError: true,
+      error: new Error('404 Not Found'),
+    });
+    render(<HomeState />);
+    // The What's Next card must render an alert (its error card) rather than
+    // its own loading state (the text "loading…" may still appear in other
+    // sections whose queries are pending — that's unrelated).
+    const alerts = screen.getAllByRole('alert');
+    // At least one alert carries the /session/context error
+    const sessionAlert = alerts.find((a) => a.textContent?.includes('404'));
+    expect(sessionAlert).toBeTruthy();
+    expect(sessionAlert!.textContent).toMatch(/gateway offline/);
+    // The error card has a retry button inside the alert
+    expect(sessionAlert!.querySelector('button')).toBeTruthy();
+    // The What's Next section heading should be visible (proving the section
+    // rendered content, not a fallthrough loading … that would hide the heading)
+    expect(screen.getByText("what's next")).toBeInTheDocument();
+  });
 });
