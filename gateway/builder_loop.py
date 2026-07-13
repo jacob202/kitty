@@ -265,11 +265,11 @@ def run_packet(
                 },
             )
         except Exception as exc:
-            failure = (
+            orchestration_failure = (
                 f"worker orchestration failed: {type(exc).__name__}: {exc}"
             )
             manifest["outcome"] = "failed"
-            manifest["failure"] = _text_evidence(failure)
+            manifest["failure"] = _text_evidence(orchestration_failure)
             # If persisting the failure manifest itself fails, the attempt
             # must still close as failed and the original exception must
             # propagate (chained, not shadowed).
