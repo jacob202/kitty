@@ -646,6 +646,26 @@ class TestKbS1bEligibility:
         assert status["state"] == bi.INITIATIVE_ACTIVE
         assert status["next_packet"] == "KB-A1"
 
+    def test_status_exposes_truthful_operator_and_review_evidence(self, db_path: Path):
+        result = bi.apply_manifest(_manifest(), db_path=db_path)
+        task_id = result["packets"][0]["task_id"]
+        bq.append_event(task_id, "operator_completed", payload={"source": "human"}, db_path=db_path)
+        bq.append_event(
+            task_id,
+            "review_evidence_bound",
+            payload={"review_sha": "abc123", "diff_sha256": "def456"},
+            db_path=db_path,
+        )
+
+        evidence = bi.initiative_status("kitty-alpha-v1", db_path=db_path)["evidence"]["KB-A1"]
+        assert evidence["operator_completed"] is True
+        assert evidence["review_approved"] is False
+        assert evidence["review_binding"]["review_sha"] == "abc123"
+        assert evidence["done"] is False
+        assert evidence["infrastructure_failures"] == 0
+        assert evidence["latest_run_id"] is None
+        assert evidence["pr"] is None
+
     def test_status_not_found_raises(self, db_path: Path):
         with pytest.raises(bi.InitiativeNotFoundError):
             bi.initiative_status("ghost", db_path=db_path)

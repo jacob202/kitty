@@ -76,13 +76,25 @@ opencode models --refresh
 
 The queue runner supplies `KB_BUNDLE_PATH`, `KB_RESULT_PATH`,
 `KB_CONTEXT_MANIFEST_PATH`, `KB_TASK_ID`, and `KB_ATTEMPT_ID` to the free worker;
-the reviewer also receives `KB_IMPL_RESULT_PATH` and
-`KB_REVIEW_RESULT_PATH`. The checked-in adapter scripts copy runner-owned files
-into the isolated worktree, verify task/attempt IDs and bundle hashes, and only
-copy a validated contract back to the runner path. OpenCode prompts must use
-those local copies, never an external queue path. A missing file, mismatched
-hash, invalid contract, or reviewer worktree mutation is a hard failure and
-leaves the attempt evidence available for inspection.
+the reviewer also receives `KB_IMPL_RESULT_PATH`, `KB_REVIEW_RESULT_PATH`,
+`KB_REVIEW_CONTEXT_PATH`, `KB_REVIEW_SHA`, and `KB_REVIEW_DIFF_SHA256`. The
+checked-in adapter scripts copy runner-owned files into the isolated worktree,
+verify task/attempt IDs and bundle hashes, and only copy a validated contract
+back to the runner path. Reviewer input is bound to the exact worker `HEAD`
+and diff digest; the runner rejects any changed worktree after review. OpenCode
+prompts must use local staged copies, never an external queue path. A missing
+file, mismatched hash, invalid contract, or reviewer worktree mutation is a
+hard failure and leaves the attempt evidence available for inspection.
+
+For a bounded launch with durable artifact paths, use the packet loop's watch
+surface:
+
+```bash
+./kitty builder initiative run-packet <initiative-id> <packet-id> \
+  --worker-command '["scripts/kittybuilder_opencode_worker.sh"]' \
+  --review-command '["scripts/kittybuilder_opencode_reviewer.sh"]' \
+  --watch
+```
 
 ## GitHub Credential Hygiene
 

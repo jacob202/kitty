@@ -629,7 +629,7 @@ def _read_packets_with_states(
 
         rows = conn.execute(
             """
-            SELECT packet_id, seq, title, task_id, depends_on_json
+            SELECT packet_id, seq, title, task_id, depends_on_json, policy_json
             FROM initiative_packets
             WHERE initiative_id = ? ORDER BY seq
             """,
@@ -645,6 +645,7 @@ def _read_packets_with_states(
             )
             packets.append(
                 {
+                    "initiative_id": initiative_id,
                     "packet_id": r["packet_id"],
                     "seq": r["seq"],
                     "title": r["title"],
@@ -652,6 +653,9 @@ def _read_packets_with_states(
                     "depends_on": json.loads(r["depends_on_json"])
                     if r["depends_on_json"]
                     else [],
+                    "policy": json.loads(r["policy_json"])
+                    if r["policy_json"]
+                    else {},
                     "state": task["state"] if task else None,
                 }
             )
@@ -833,6 +837,7 @@ def initiative_status(
         state = INITIATIVE_ACTIVE
 
     next_p = eligible[0] if eligible else None
+    evidence = _initiative_evidence(packets, db_path)
     return {
         "initiative_id": initiative_id,
         "state": state,
@@ -846,7 +851,165 @@ def initiative_status(
         "pending": pending,
         "next_packet": next_p["packet_id"] if next_p else None,
         "next_packet_task_id": next_p["task_id"] if next_p else None,
+        "evidence": evidence,
     }
+
+
+def _initiative_evidence(
+    packets: list[dict[str, Any]], db_path: Path | None
+) -> dict[str, dict[str, Any]]:
+    """Roll up durable attempt/events evidence without inferring hidden work."""
+    # Local import avoids the builder_attempt -> builder_initiative import cycle.
+    from gateway import builder_attempt as ba
+
+    rollup: dict[str, dict[str, Any]] = {}
+    for packet in packets:
+        task = bq.get_task(packet["task_id"], db_path=db_path)
+        attempts = ba.list_attempts(
+            packet["initiative_id"],
+            packet["packet_id"],
+            db_path=db_path,
+        )
+        events = (
+            bq.list_events(packet["task_id"], db_path=db_path)
+            if task is not None
+            else []
+        )
+        runs = bq.list_runs(task_id=packet["task_id"], db_path=db_path)
+        pr_links = (
+            bq.get_pr_links(packet["task_id"], db_path=db_path)
+            if task is not None
+            else []
+        )
+        implementation_statuses = [
+            (attempt.get("implementation") or {}).get("status")
+            for attempt in attempts
+        ]
+        review_verdicts = [
+            (attempt.get("review") or {}).get("verdict")
+            for attempt in attempts
+        ]
+        bound = [
+            event["payload"]
+            for event in events
+            if event["type"] == "review_evidence_bound"
+            and isinstance(event.get("payload"), dict)
+        ]
+        infrastructure_events = [
+            event
+            for event in events
+            if event["type"] == "infrastructure_failed"
+            or (
+                event["type"] == "released"
+                and (event.get("payload") or {}).get("reason")
+                in {"runner_setup_failed", "run_cancelled_before_start"}
+            )
+        ]
+        infrastructure_runs = [
+            run
+            for run in runs
+            if isinstance(run.get("final_report"), dict)
+            and run["final_report"].get("worker_started") is False
+        ]
+        latest_run = runs[-1] if runs else None
+        operator_events = [
+            event
+            for event in events
+            if event["type"] in {
+                "operator_completed",
+                "operator_complete",
+                "operator_release",
+                "report_attached",
+                "pr_opened",
+                "pr_attached",
+            }
+        ]
+        artifacts = [
+            event["payload"]
+            for event in events
+            if event["type"] == "attempt_artifacts_created"
+            and isinstance(event.get("payload"), dict)
+        ]
+        rollup[packet["packet_id"]] = {
+            "initiative_id": packet["initiative_id"],
+            "packet_id": packet["packet_id"],
+            "task_id": packet["task_id"],
+            "current_state": packet["state"],
+            "blocked": packet["state"] == bq.BLOCKED,
+            "attempts_used": len(attempts),
+            "attempt_budget": packet["policy"].get("max_attempts"),
+            "budget_exhausted": (
+                packet["policy"].get("max_attempts") is not None
+                and len(attempts) >= packet["policy"]["max_attempts"]
+                and not any(attempt.get("outcome") == "succeeded" for attempt in attempts)
+            ),
+            "exhausted": (
+                packet["policy"].get("max_attempts") is not None
+                and len(attempts) >= packet["policy"]["max_attempts"]
+                and not any(attempt.get("outcome") == "succeeded" for attempt in attempts)
+            ),
+            "attempt_ids": [attempt.get("id") for attempt in attempts],
+            "attempt_outcomes": [attempt.get("outcome") for attempt in attempts],
+            "infrastructure_failures": len(infrastructure_events) + len(infrastructure_runs),
+            "latest_run_id": latest_run["id"] if latest_run else None,
+            "latest_run_outcome": latest_run["state"] if latest_run else None,
+            "worker_failed": "failed" in implementation_statuses
+            or any(event["type"] == "run_failed" for event in events)
+            or (
+                any(event["type"] == "run_exited" for event in events)
+                and any(
+                    attempt.get("outcome") == "failed"
+                    and attempt.get("implementation") is None
+                    for attempt in attempts
+                )
+            ),
+            "worker_aborted": "aborted" in implementation_statuses
+            or any(
+                event["type"]
+                in {"run_timeout", "run_cancelled", "run_interrupted", "run_lease_lost"}
+                for event in events
+            ),
+            "operator_completed": any(
+                event["type"] in {"operator_completed", "operator_complete"}
+                or (
+                    event["type"] == "report_attached"
+                    and (event.get("payload") or {}).get("operator") is True
+                )
+                for event in events
+            ),
+            "review_approved": (bool(review_verdicts) and review_verdicts[-1] == "approve")
+            or any(event["type"] == "review_approved" for event in events),
+            "pr_opened": packet["state"] == bq.PR_OPENED
+            or any(event["type"] == "pr_opened" for event in events)
+            or any(link.get("pr_url") and link.get("head_sha") for link in pr_links),
+            "review_verdict": review_verdicts[-1] if review_verdicts else None,
+            "operator_action": (
+                {
+                    "type": operator_events[-1]["type"],
+                    "payload": operator_events[-1].get("payload"),
+                }
+                if operator_events
+                else None
+            ),
+            "pr": pr_links[-1] if pr_links else None,
+            "done": packet["state"] == bq.DONE,
+            "review_binding": bound[-1] if bound else None,
+            "artifact_dir": (
+                (bound[-1] if bound else artifacts[-1]).get("artifact_dir")
+                if (bound or artifacts)
+                else None
+            ),
+            "next_action": (
+                "operator_review"
+                if packet["state"] == bq.BLOCKED
+                else "complete"
+                if packet["state"] == bq.DONE
+                else "run"
+            ),
+        }
+        if task is None:
+            rollup[packet["packet_id"]]["next_action"] = "repair_missing_task"
+    return rollup
 
 
 # ---------------------------------------------------------------------------

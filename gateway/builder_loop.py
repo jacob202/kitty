@@ -37,7 +37,15 @@ from typing import Any
 from gateway import builder_attempt as ba
 from gateway import builder_queue as bq
 from gateway.builder_context import build_context_manifest, write_run_manifest
-from gateway.builder_runner import remove_worktree, run_worker, worktree_path
+from gateway.builder_runner import (
+    RunnerError,
+    preflight_worktree,
+    remove_worktree,
+    run_worker,
+    worktree_diff_sha256,
+    worktree_head,
+    worktree_path,
+)
 from gateway.paths import BUILDER_QUEUE_DB
 
 DEFAULT_REVIEW_TIMEOUT = 1800
@@ -97,6 +105,115 @@ def _review_evidence(review: dict[str, Any]) -> dict[str, Any]:
             if isinstance(finding, dict)
         ],
     }
+
+
+def _context_manifest_metadata(manifest: dict[str, Any]) -> dict[str, Any]:
+    """Return stable identity/hash evidence for the context payload."""
+    context = manifest.get("context")
+    encoded = json.dumps(
+        context, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    ).encode("utf-8")
+    return {
+        "sha256": hashlib.sha256(encoded).hexdigest(),
+        "task_id": manifest.get("task_id"),
+        "attempt_id": manifest.get("attempt_id"),
+        "attempt_no": manifest.get("attempt_no"),
+    }
+
+
+def _validate_context_manifest(
+    path: Path,
+    *,
+    attempt_dir: Path,
+    task_id: str,
+    attempt_id: int,
+    bundle_path: Path,
+) -> dict[str, Any]:
+    """Validate the runner-owned context manifest and its bundle identity."""
+    resolved = path.resolve()
+    root = attempt_dir.resolve()
+    if not resolved.is_relative_to(root):
+        raise ValueError(
+            f"context manifest {resolved} is outside attempt artifact root {root}"
+        )
+    try:
+        parsed = json.loads(resolved.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"context manifest unreadable: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError("context manifest must be a JSON object")
+    if parsed.get("task_id") != task_id:
+        raise ValueError(
+            f"context manifest task mismatch: {parsed.get('task_id')!r} != {task_id!r}"
+        )
+    if int(parsed.get("attempt_id", -1)) != attempt_id:
+        raise ValueError(
+            "context manifest attempt mismatch: "
+            f"{parsed.get('attempt_id')!r} != {attempt_id!r}"
+        )
+    expected = parsed.get("bundle_sha256")
+    actual = hashlib.sha256(bundle_path.read_bytes()).hexdigest()
+    if expected != actual:
+        raise ValueError(
+            f"context bundle hash mismatch: manifest={expected!r} actual={actual!r}"
+        )
+    metadata = parsed.get("context_manifest")
+    if metadata != _context_manifest_metadata(parsed):
+        raise ValueError("context manifest metadata/hash is invalid")
+    return parsed
+
+
+def _write_review_context(
+    path: Path,
+    *,
+    task_id: str,
+    attempt_id: int,
+    review_sha: str,
+    diff_sha256: str,
+    changed_paths: list[str],
+) -> dict[str, Any]:
+    """Persist the exact revision/diff that the reviewer is authorized to inspect."""
+    context = {
+        "task_id": task_id,
+        "attempt_id": attempt_id,
+        "review_sha": review_sha,
+        "diff_sha256": diff_sha256,
+        "changed_paths": changed_paths,
+    }
+    path.write_text(json.dumps(context, indent=2, sort_keys=True), encoding="utf-8")
+    return context
+
+
+def _validate_review_context(
+    path: Path,
+    *,
+    task_id: str,
+    attempt_id: int,
+    worktree: Path,
+    start_sha: str,
+) -> dict[str, Any]:
+    """Reject reviewer output if the inspected commit or diff moved."""
+    try:
+        context = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"review context unreadable: {exc}") from exc
+    if not isinstance(context, dict):
+        raise ValueError("review context must be a JSON object")
+    if context.get("task_id") != task_id or int(context.get("attempt_id", -1)) != attempt_id:
+        raise ValueError("review context task/attempt identity mismatch")
+    actual_head = worktree_head(worktree)
+    if actual_head != context.get("review_sha"):
+        raise ValueError(
+            f"reviewed HEAD changed: expected {context.get('review_sha')!r}, "
+            f"actual {actual_head!r}"
+        )
+    actual_diff = worktree_diff_sha256(worktree, start_sha)
+    if actual_diff != context.get("diff_sha256"):
+        raise ValueError(
+            f"reviewed diff changed: expected {context.get('diff_sha256')!r}, "
+            f"actual {actual_diff!r}"
+        )
+    return context
 
 
 def _read_contract(path: Path, kind: str) -> tuple[dict[str, Any] | None, str | None]:
@@ -182,6 +299,21 @@ def run_packet(
     history: list[dict[str, Any]] = []
     while True:
         try:
+            preflight_worktree(task_id, repo_root=repo_root)
+        except RunnerError as exc:
+            bq.append_event(
+                task_id,
+                "infrastructure_failed",
+                payload={
+                    "reason": str(exc),
+                    "counts_toward_budget": False,
+                    "phase": "preflight",
+                },
+                db_path=db_path,
+            )
+            raise LoopError(f"builder preflight failed: {exc}") from exc
+
+        try:
             attempt = ba.start_attempt(initiative_id, packet_id, db_path=db_path)
         except ba.AttemptLimitError as exc:
             return {
@@ -244,7 +376,25 @@ def run_packet(
             "outcome": "running",
             "failure": None,
         }
+        manifest["context_manifest"] = _context_manifest_metadata(manifest)
         write_run_manifest(manifest_path, manifest)
+        _validate_context_manifest(
+            manifest_path,
+            attempt_dir=attempt_dir,
+            task_id=task_id,
+            attempt_id=attempt_id,
+            bundle_path=bundle_path,
+        )
+        bq.append_event(
+            task_id,
+            "attempt_artifacts_created",
+            payload={
+                "attempt_id": attempt_id,
+                "artifact_dir": str(attempt_dir),
+                "manifest_path": str(manifest_path),
+            },
+            db_path=db_path,
+        )
         entry["manifest_path"] = str(manifest_path)
 
         try:
@@ -280,6 +430,22 @@ def run_packet(
             raise
         entry["run_id"] = run["id"]
         entry["run_state"] = run["state"]
+        try:
+            _validate_context_manifest(
+                manifest_path,
+                attempt_dir=attempt_dir,
+                task_id=task_id,
+                attempt_id=attempt_id,
+                bundle_path=bundle_path,
+            )
+        except ValueError as exc:
+            entry["outcome"] = ba.ATTEMPT_FAILED
+            entry["failure"] = f"context manifest invalid after worker: {exc}"
+            manifest["outcome"] = "failed"
+            manifest["failure"] = _text_evidence(entry["failure"])
+            write_run_manifest(manifest_path, manifest)
+            ba.close_attempt(attempt_id, ba.ATTEMPT_FAILED, db_path=db_path)
+            raise LoopError(entry["failure"]) from exc
         run_report = run.get("final_report") or {}
         manifest["worker_run"] = {
             "run_id": run.get("id"),
@@ -325,6 +491,24 @@ def run_packet(
                 failure = "deterministic validation failed"
 
         if failure is None and review_command:
+            review_context_path = attempt_dir / "review-context.json"
+            start_sha = str(run_report.get("start_sha") or "")
+            review_worktree = worktree_path(task_id, repo_root=repo_root)
+            review_context = _write_review_context(
+                review_context_path,
+                task_id=task_id,
+                attempt_id=attempt_id,
+                review_sha=worktree_head(review_worktree),
+                diff_sha256=str(run_report.get("diff_sha256") or ""),
+                changed_paths=list(run_report.get("changed_paths") or []),
+            )
+            manifest["review_context"] = {
+                "path": str(review_context_path),
+                "review_sha": review_context["review_sha"],
+                "diff_sha256": review_context["diff_sha256"],
+                "changed_paths": review_context["changed_paths"],
+            }
+            write_run_manifest(manifest_path, manifest)
             review_error = _run_review_command(
                 review_command,
                 cwd=worktree_path(task_id, repo_root=repo_root),
@@ -335,14 +519,40 @@ def run_packet(
                     "KB_IMPL_RESULT_PATH": str(result_path),
                     "KB_REVIEW_RESULT_PATH": str(review_path),
                     "KB_CONTEXT_MANIFEST_PATH": str(manifest_path),
+                    "KB_REVIEW_CONTEXT_PATH": str(review_context_path),
+                    "KB_REVIEW_SHA": str(review_context["review_sha"]),
+                    "KB_REVIEW_DIFF_SHA256": str(review_context["diff_sha256"]),
                 },
                 timeout_seconds=review_timeout_seconds,
             )
             if review_error is not None:
                 failure = review_error
             else:
+                try:
+                    _validate_context_manifest(
+                        manifest_path,
+                        attempt_dir=attempt_dir,
+                        task_id=task_id,
+                        attempt_id=attempt_id,
+                        bundle_path=bundle_path,
+                    )
+                except ValueError as exc:
+                    failure = f"context manifest invalid after reviewer: {exc}"
+                if failure is None:
+                    try:
+                        _validate_review_context(
+                            review_context_path,
+                            task_id=task_id,
+                            attempt_id=attempt_id,
+                            worktree=review_worktree,
+                            start_sha=start_sha,
+                        )
+                    except ValueError as exc:
+                        failure = f"review evidence invalid: {exc}"
                 review, error = _read_contract(review_path, "review")
-                if review is None:
+                if failure is not None:
+                    review = None
+                elif review is None:
                     failure = error
                 else:
                     try:
@@ -351,7 +561,23 @@ def run_packet(
                         failure = f"review contract invalid: {exc}"
                     else:
                         entry["review_verdict"] = review.get("verdict")
-                        manifest["review"] = _review_evidence(review)
+                        manifest["review"] = {
+                            **_review_evidence(review),
+                            "review_sha": review_context["review_sha"],
+                            "diff_sha256": review_context["diff_sha256"],
+                        }
+                        bq.append_event(
+                            task_id,
+                            "review_evidence_bound",
+                            payload={
+                                "attempt_id": attempt_id,
+                                "review_sha": review_context["review_sha"],
+                                "diff_sha256": review_context["diff_sha256"],
+                                "changed_paths": review_context["changed_paths"],
+                                "artifact_dir": str(attempt_dir),
+                            },
+                            db_path=db_path,
+                        )
                         write_run_manifest(manifest_path, manifest)
                         if review.get("verdict") != "approve":
                             failure = f"review verdict {review.get('verdict')}"
