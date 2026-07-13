@@ -1114,6 +1114,10 @@ def _cmd_initiative_status(args: argparse.Namespace) -> int:
     print(f"  done:     {', '.join(status['done']) or '-'}")
     print(f"  in flight: {', '.join(status['in_progress']) or '-'}")
     print(f"  pending:  {', '.join(status['pending']) or '-'}")
+    if status["exhausted"]:
+        print("  exhausted (attempt budget spent, not runnable):")
+        for pid in status["exhausted"]:
+            print(f"    - {pid}")
     if status["blocked"]:
         print("  blocked (unreachable):")
         for pid in status["blocked"]:

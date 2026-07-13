@@ -31,6 +31,7 @@ from graphlib import CycleError, TopologicalSorter
 from pathlib import Path
 from typing import Any
 
+from gateway import builder_attempt as ba
 from gateway import builder_queue as bq
 
 MANIFEST_VERSION = 1
@@ -657,6 +658,9 @@ def _read_packets_with_states(
                     if r["policy_json"]
                     else {},
                     "state": task["state"] if task else None,
+                    "policy": json.loads(r["policy_json"])
+                    if r["policy_json"]
+                    else {},
                 }
             )
         return packets
@@ -665,22 +669,29 @@ def _read_packets_with_states(
 
 
 def _compute_unreachable(
-    packets: list[dict[str, Any]]
+    packets: list[dict[str, Any]],
+    extra_blocking: set[str] | None = None,
 ) -> set[str]:
     """Packets that can never become eligible (transitive blocking closure).
 
     A packet is directly unreachable when a dependency's task is in a blocking
-    state (``failed``/``cancelled``). That unreachability propagates to any
-    packet depending on an already-unreachable packet, so a single failed
-    dependency surfaces every downstream packet that will never run instead of
-    silently leaving them perpetually non-eligible.
+    state (``failed``/``cancelled``) or when a dependency is in the optional
+    ``extra_blocking`` set (e.g., attempt-exhausted packets that remain
+    ``queued``). That unreachability propagates to any packet depending on an
+    already-unreachable packet, so a single blocked dependency surfaces every
+    downstream packet that will never run instead of silently leaving them
+    perpetually non-eligible.
     """
     by_id = {p["packet_id"]: p for p in packets}
+    blocking = extra_blocking or set()
     unreachable: set[str] = set()
 
     for p in packets:
         for dep in p["depends_on"]:
             dep_p = by_id.get(dep)
+            if dep in blocking:
+                unreachable.add(p["packet_id"])
+                break
             if dep_p is not None and dep_p["state"] in _BLOCKING_STATES:
                 unreachable.add(p["packet_id"])
                 break
@@ -698,24 +709,68 @@ def _compute_unreachable(
     return unreachable
 
 
+def _packet_max_attempts(packet: dict[str, Any]) -> int:
+    """Return the packet's attempt budget, defaulting when unspecified."""
+    policy = packet.get("policy") or {}
+    max_attempts = policy.get("max_attempts", ba.DEFAULT_MAX_ATTEMPTS)
+    if not isinstance(max_attempts, int) or max_attempts < 1:
+        return ba.DEFAULT_MAX_ATTEMPTS
+    return max_attempts
+
+
+def _attempts_exhausted(
+    packet: dict[str, Any], attempts: list[dict[str, Any]]
+) -> bool:
+    """True when every closed attempt failed and the budget is spent.
+
+    A packet with a successful attempt is never exhausted. Open attempts do not
+    count toward the budget until they close. This keeps the rollup truthful
+    without mutating the underlying queue task.
+    """
+    closed = [a for a in attempts if a.get("outcome") is not None]
+    if any(a.get("outcome") == ba.ATTEMPT_SUCCEEDED for a in closed):
+        return False
+    return len(closed) >= _packet_max_attempts(packet)
+
+
+def _exhausted_packet_ids(
+    initiative_id: str,
+    packets: list[dict[str, Any]],
+    db_path: Path | None = None,
+) -> set[str]:
+    """Read attempts once per packet and return the ids of exhausted packets."""
+    exhausted: set[str] = set()
+    for p in packets:
+        if p["state"] != bq.QUEUED:
+            continue
+        attempts = ba.list_attempts(initiative_id, p["packet_id"], db_path=db_path)
+        if _attempts_exhausted(p, attempts):
+            exhausted.add(p["packet_id"])
+    return exhausted
+
+
 def eligible_packets(
     initiative_id: str, db_path: Path | None = None
 ) -> list[dict[str, Any]]:
     """Packets ready to run now: own task ``queued`` and every dependency done.
 
     Unreachable packets (a blocking dependency) are excluded, as are packets
-    still waiting on in-flight dependencies. Returned in ``seq`` order so
-    selection is deterministic.
+    still waiting on in-flight dependencies. Attempt-exhausted packets are also
+    excluded so the rollup does not present a blocked packet as runnable.
+    Returned in ``seq`` order so selection is deterministic.
     """
     init_db(db_path)
     packets = _read_packets_with_states(initiative_id, db_path)
 
     by_id = {p["packet_id"]: p for p in packets}
-    unreachable = _compute_unreachable(packets)
+    exhausted = _exhausted_packet_ids(initiative_id, packets, db_path=db_path)
+    unreachable = _compute_unreachable(packets, extra_blocking=exhausted)
 
     eligible = []
     for p in packets:
         if p["packet_id"] in unreachable:
+            continue
+        if p["packet_id"] in exhausted:
             continue
         if p["state"] != bq.QUEUED:
             continue
@@ -742,21 +797,33 @@ def blocked_packets(
     packets = _read_packets_with_states(initiative_id, db_path)
 
     by_id = {p["packet_id"]: p for p in packets}
-    unreachable = _compute_unreachable(packets)
+    exhausted = _exhausted_packet_ids(initiative_id, packets, db_path=db_path)
+    unreachable = _compute_unreachable(packets, extra_blocking=exhausted)
 
     blocked = []
     for p in packets:
         if p["packet_id"] not in unreachable:
             continue
-        blockers = [
-            {
-                "packet_id": dep,
-                "task_id": by_id[dep]["task_id"],
-                "state": by_id[dep]["state"],
-            }
-            for dep in p["depends_on"]
-            if dep in by_id and by_id[dep]["state"] in _BLOCKING_STATES
-        ]
+        blockers = []
+        for dep in p["depends_on"]:
+            if dep not in by_id:
+                continue
+            if dep in exhausted:
+                blockers.append(
+                    {
+                        "packet_id": dep,
+                        "task_id": by_id[dep]["task_id"],
+                        "state": "exhausted",
+                    }
+                )
+            elif by_id[dep]["state"] in _BLOCKING_STATES:
+                blockers.append(
+                    {
+                        "packet_id": dep,
+                        "task_id": by_id[dep]["task_id"],
+                        "state": by_id[dep]["state"],
+                    }
+                )
         blocked.append(
             {
                 "packet_id": p["packet_id"],
@@ -801,7 +868,8 @@ def initiative_status(
         raise InitiativeNotFoundError(initiative_id)
 
     packets = _read_packets_with_states(initiative_id, db_path)
-    unreachable = _compute_unreachable(packets)
+    exhausted = _exhausted_packet_ids(initiative_id, packets, db_path=db_path)
+    unreachable = _compute_unreachable(packets, extra_blocking=exhausted)
     eligible = eligible_packets(initiative_id, db_path)
     blocked = blocked_packets(initiative_id, db_path)
 
@@ -820,6 +888,7 @@ def initiative_status(
         p["packet_id"]
         for p in packets
         if p["packet_id"] not in unreachable
+        and p["packet_id"] not in exhausted
         and p["state"] == bq.QUEUED
         and p["packet_id"] not in {e["packet_id"] for e in eligible}
     ]
@@ -829,7 +898,7 @@ def initiative_status(
         state = INITIATIVE_PAUSED
     elif len(done) == len(packets):
         state = INITIATIVE_COMPLETED
-    elif blocked or failed:
+    elif blocked or failed or exhausted:
         state = INITIATIVE_FAILED
     elif not eligible:
         state = INITIATIVE_PAUSED
@@ -845,6 +914,7 @@ def initiative_status(
         "total_packets": len(packets),
         "eligible": [p["packet_id"] for p in eligible],
         "blocked": [p["packet_id"] for p in blocked],
+        "exhausted": sorted(exhausted),
         "done": done,
         "failed": failed,
         "in_progress": in_progress,
