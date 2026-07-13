@@ -26,6 +26,7 @@ import { InsightFeed } from '@/components/InsightFeed';
 import { PromptToolkit } from '@/components/PromptToolkit';
 import { CommandPalette } from '@/components/CommandPalette';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { SignalFeed, type Signal } from '@/components/SignalCard';
 import { PwaInstallBanner } from '@/components/PwaInstallBanner';
 import { WobFilters, PaperGrain } from '@/components/WobFilters';
 import { CatCorner, CatBody, type CatState } from '@/components/CrayonCat';
@@ -38,6 +39,7 @@ import {
   type GatewayTriageEntry,
 } from '@/lib/gateway';
 import { usePwaInstall } from '@/lib/pwa';
+import { useSSE } from '@/lib/sse';
 import {
   useGatewayBrief,
   useGatewayModels,
@@ -306,8 +308,22 @@ function KittyChatInner() {
   const pwaInstall = usePwaInstall();
   const [lastOutcome, setLastOutcome] = useState<'done' | 'broke' | null>(null);
   const [attachments, setAttachments] = useState<MessageAttachment[]>([]);
+  const [expertSignals, setExpertSignals] = useState<Signal[]>([]);
 
   const catState: CatState = isStreaming ? 'working' : (lastOutcome ?? 'idle');
+
+  const fetchSignals = useCallback(() => {
+    fetch('/proxy/signals/unprocessed')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.signals) setExpertSignals(d.signals);
+      })
+      .catch(() => {});
+  }, []);
+
+  useSSE({ onStateUpdated: fetchSignals });
+
+  useEffect(() => { fetchSignals(); }, [fetchSignals]);
 
   useEffect(() => {
     fetch('/proxy/chats')
@@ -790,6 +806,14 @@ function KittyChatInner() {
     setAttachments((prev) => prev.filter((a) => a.id !== id));
   }, []);
 
+  const handleDismissSignal = useCallback(
+    (signalId: number) => {
+      setExpertSignals((prev) => prev.filter((s) => s.id !== signalId));
+      fetch(`/proxy/signals/${signalId}/dismiss`, { method: 'POST' }).catch(() => {});
+    },
+    [],
+  );
+
   const handleUpdateObjective = useCallback(
     (objective: string | null) => {
       if (!activeChat) return;
@@ -1178,6 +1202,9 @@ function KittyChatInner() {
                   </span>
                   <span style={{ flex: 1, height: 1.5, background: 'var(--line)' }} />
                 </div>
+                {expertSignals.length > 0 && (
+                  <SignalFeed signals={expertSignals} onDismiss={handleDismissSignal} />
+                )}
                 {activeChat.messages.map((msg, i) => {
                   const isLast = i === activeChat.messages.length - 1;
                   const prev = i > 0 ? activeChat.messages[i - 1] : null;
