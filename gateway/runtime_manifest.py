@@ -7,6 +7,7 @@ mistaken for an unavailable feature or a successful operation.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -286,7 +287,7 @@ async def compose_manifest(project_id: int | None = None) -> dict[str, Any]:
 
     try:
         repository = _fact(
-            _git_snapshot(),
+            await asyncio.to_thread(_git_snapshot),
             source="git",
             observed_at=observed_at,
             valid_until=valid_until,

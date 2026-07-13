@@ -27,4 +27,7 @@ async def morning_brief():
         stale = get_cached_brief(max_age_seconds=None)
         if stale:
             return stale
-        return generate_fast_brief()
+        # The fallback still reads local stores and memory. Running it inline
+        # here blocks the event loop exactly when the gateway is already under
+        # pressure, making unrelated health and chat requests look offline.
+        return await asyncio.to_thread(generate_fast_brief)
