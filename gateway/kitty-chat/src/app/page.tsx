@@ -288,6 +288,7 @@ function KittyChatInner() {
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [activeModel, setActiveModel] = useState<Model>(MODELS[0]);
+  const [modelOverride, setModelOverride] = useState<string | null>(null);
   const [showModelMenu, setShowModelMenu] = useState(false);
   const [tokenCount, setTokenCount] = useState(0);
   const [searchSnapshot, setSearchSnapshot] = useState<GatewaySearchSnapshot | null>(null);
@@ -617,7 +618,7 @@ function KittyChatInner() {
 
   /** Stream one assistant reply into `chat` given `history` (ends with a user
    *  message). Shared by send and retry so the cat's outcome states stay honest. */
-  const runStream = useCallback(async (chat: Chat, history: Message[], title: string, attachmentIds: string[] = []) => {
+  const runStream = useCallback(async (chat: Chat, history: Message[], title: string, attachmentIds: string[] = [], overrideModelId?: string) => {
     const latestUserMessage = [...history].reverse().find((message) => message.role === 'user');
     if (!latestUserMessage) {
       throw new Error('Cannot start a chat turn without a user message');
@@ -625,13 +626,18 @@ function KittyChatInner() {
     setIsStreaming(true);
     setLastOutcome(null);
 
+    const effectiveModelId = overrideModelId ?? activeModel.id;
+    const effectiveModelName = overrideModelId
+      ? (availableModels.find((m) => m.id === overrideModelId)?.name ?? overrideModelId)
+      : activeModel.name;
+
     const aiMsgId = newMsgId();
     const aiMsg: Message = {
       id: aiMsgId,
       role: 'assistant',
       content: '',
       timestamp: new Date(),
-      model: activeModel.name,
+      model: effectiveModelName,
     };
 
     updateChat(chat.id, (c) => ({ ...c, messages: [...history, aiMsg] }));
@@ -645,7 +651,7 @@ function KittyChatInner() {
       let memoryItems: MemoryItem[] | undefined;
 
       for await (const chunk of streamChat(
-        activeModel.id,
+        effectiveModelId,
         history,
         abort.signal,
         activeProject?.id,
@@ -725,7 +731,7 @@ function KittyChatInner() {
       setIsStreaming(false);
       abortRef.current = null;
     }
-  }, [activeModel, activeProject?.id, updateChat, persistChat]);
+  }, [activeModel, availableModels, activeProject?.id, updateChat, persistChat]);
 
   const handleSend = useCallback(async () => {
     const text = input.trim();
@@ -752,9 +758,11 @@ function KittyChatInner() {
     setInput('');
     setAttachments([]);
     setActiveView('chat');
+    const override = modelOverride ?? undefined;
+    setModelOverride(null);
     const attachmentIds = attachments.map((a) => a.id);
-    void runStream(activeChat, [...activeChat.messages, userMsg], title, attachmentIds);
-  }, [input, isStreaming, activeChat, runStream]);
+    void runStream(activeChat, [...activeChat.messages, userMsg], title, attachmentIds, override);
+  }, [input, isStreaming, activeChat, modelOverride, runStream]);
 
 
   const handleRetry = useCallback(() => {
@@ -812,6 +820,21 @@ function KittyChatInner() {
       fetch(`/proxy/signals/${signalId}/dismiss`, { method: 'POST' }).catch(() => {});
     },
     [],
+  );
+
+  const handleMemoryDelete = useCallback(
+    (memoryId: string) => {
+      if (!activeChat) return;
+      updateChat(activeChat.id, (c) => ({
+        ...c,
+        messages: c.messages.map((m) =>
+          m.memoryItems?.some((mi) => mi.id === memoryId)
+            ? { ...m, memoryItems: m.memoryItems!.filter((mi) => mi.id !== memoryId) }
+            : m,
+        ),
+      }));
+    },
+    [activeChat, updateChat],
   );
 
   const handleUpdateObjective = useCallback(
@@ -1220,6 +1243,7 @@ function KittyChatInner() {
                       catState={catState}
                       compact={isMobile}
                       onRetry={isLast && msg.role === 'assistant' && !isStreaming ? handleRetry : undefined}
+                      onMemoryDelete={handleMemoryDelete}
                     />
                   );
                 })}
@@ -1421,6 +1445,9 @@ function KittyChatInner() {
             attachments={attachments}
             onAddFiles={handleAddFiles}
             onRemoveAttachment={handleRemoveAttachment}
+            models={availableModels}
+            modelOverride={modelOverride}
+            onModelOverride={setModelOverride}
           />
         )}
       </main>

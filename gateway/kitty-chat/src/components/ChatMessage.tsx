@@ -3,7 +3,7 @@ import { isValidElement, useRef, useState, type ReactNode, type CSSProperties } 
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
-import { Copy, Check, RotateCcw, Paperclip, ThumbsUp, ThumbsDown, Brain, ChevronDown } from 'lucide-react'
+import { Copy, Check, RotateCcw, Paperclip, ThumbsUp, ThumbsDown, Brain, ChevronDown, Trash2 } from 'lucide-react'
 import { Message, MemoryItem } from '@/lib/types'
 import { useSubmitMessageFeedback, type MessageFeedbackRating } from '@/lib/queries'
 import { CatFaceBadge, type CatState } from './CrayonCat'
@@ -14,13 +14,14 @@ interface Props {
   isFirstInRun?: boolean
   catState?: CatState
   onRetry?: () => void
+  onMemoryDelete?: (memoryId: string) => void
   chatId: string
   messageIndex: number
   /** Phone layout: reveal hover-only actions and size targets for touch. */
   compact?: boolean
 }
 
-export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, chatId, messageIndex, compact = false }: Props) {
+export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, onMemoryDelete, chatId, messageIndex, compact = false }: Props) {
   const isUser = message.role === 'user'
   const isKitty = !isUser
   const attachments = message.attachments ?? []
@@ -110,7 +111,7 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
             )}
           </div>
         {isKitty && message.memoryItems?.length ? (
-          <MemoryBlock items={message.memoryItems} />
+          <MemoryBlock items={message.memoryItems} onDelete={onMemoryDelete} />
         ) : null}
         {showActions && (
           <div className="msg-actions" style={{ ...actionRowStyle, opacity: actionsVisible ? 1 : 0 }}>
@@ -227,9 +228,21 @@ function ThinkingBlock({ thinking, isStreaming }: { thinking: string; isStreamin
   )
 }
 
-function MemoryBlock({ items }: { items: MemoryItem[] }) {
+function MemoryBlock({ items, onDelete }: { items: MemoryItem[]; onDelete?: (id: string) => void }) {
   const [expanded, setExpanded] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const sources = [...new Set(items.map((i) => i.source))]
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id)
+    try {
+      const { deleteMemory } = await import('@/lib/gateway')
+      await deleteMemory(id)
+      onDelete?.(id)
+    } catch {
+      setDeletingId(null)
+    }
+  }
 
   return (
     <div style={{
@@ -273,23 +286,49 @@ function MemoryBlock({ items }: { items: MemoryItem[] }) {
           gap: 4,
         }}>
           {items.map((item, i) => (
-            <div key={i} style={{
+            <div key={item.id ?? i} style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 6,
               fontFamily: 'var(--font-mono)',
               fontSize: 11,
               lineHeight: 1.5,
-              color: 'var(--ink-2)',
+              color: deletingId === item.id ? 'var(--ink-3)' : 'var(--ink-2)',
+              textDecoration: deletingId === item.id ? 'line-through' : 'none',
+              opacity: deletingId === item.id ? 0.5 : 1,
+              transition: 'opacity 0.15s',
             }}>
-              <span style={{
-                display: 'inline-block',
-                fontSize: 9,
-                padding: '0 4px',
-                borderRadius: 3,
-                background: 'var(--surface)',
-                border: '1px solid var(--line)',
-                marginRight: 6,
-                verticalAlign: 'middle',
-              }}>{item.source}</span>
-              {item.text}
+              <div style={{ flex: 1 }}>
+                <span style={{
+                  display: 'inline-block',
+                  fontSize: 9,
+                  padding: '0 4px',
+                  borderRadius: 3,
+                  background: 'var(--surface)',
+                  border: '1px solid var(--line)',
+                  marginRight: 6,
+                  verticalAlign: 'middle',
+                }}>{item.source}</span>
+                {item.text}
+              </div>
+              {item.id && !deletingId && (
+                <button
+                  onClick={() => handleDelete(item.id!)}
+                  title="forget this memory"
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--ink-3)',
+                    padding: 2,
+                    borderRadius: 3,
+                    flexShrink: 0,
+                    marginTop: 1,
+                  }}
+                >
+                  <Trash2 size={11} />
+                </button>
+              )}
             </div>
           ))}
         </div>

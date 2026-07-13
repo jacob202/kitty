@@ -1388,3 +1388,10 @@ export async function updateChatObjective(chatId: string, objective: string | nu
     body: JSON.stringify({ objective }),
   })
 }
+
+export async function deleteMemory(memoryId: string): Promise<boolean> {
+  const json = await gfetch<{ deleted: boolean }>(`/memories/${encodeURIComponent(memoryId)}`, {
+    method: 'DELETE',
+  })
+  return json.deleted
+}

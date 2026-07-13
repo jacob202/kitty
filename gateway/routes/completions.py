@@ -250,7 +250,11 @@ async def chat_completions(request: Request):
                 if surfaced:
                     trailer = json.dumps({
                         "memory_items": [
-                            {"source": item.source, "text": item.text[:200]}
+                            {
+                                "source": item.source,
+                                "text": item.text[:200],
+                                **({"id": item.metadata["id"]} if "id" in item.metadata else {}),
+                            }
                             for item in surfaced
                         ],
                     })

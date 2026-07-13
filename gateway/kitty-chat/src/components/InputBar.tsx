@@ -1,7 +1,7 @@
 'use client'
 import { useRef, useEffect, useState, KeyboardEvent, RefObject } from 'react'
-import { Mic, Square, Paperclip, X } from 'lucide-react'
-import { MessageAttachment } from '@/lib/types'
+import { Mic, Square, Paperclip, X, Repeat } from 'lucide-react'
+import { MessageAttachment, Model } from '@/lib/types'
 
 interface Props {
   value: string
@@ -20,6 +20,9 @@ interface Props {
   attachments?: MessageAttachment[]
   onAddFiles?: (files: FileList) => void
   onRemoveAttachment?: (id: string) => void
+  models?: Model[]
+  modelOverride?: string | null
+  onModelOverride?: (id: string | null) => void
 }
 
 type RecState = 'idle' | 'recording' | 'transcribing'
@@ -38,11 +41,15 @@ export function InputBar({
   attachments = [],
   onAddFiles,
   onRemoveAttachment,
+  models = [],
+  modelOverride,
+  onModelOverride,
 }: Props) {
   const internalRef = useRef<HTMLTextAreaElement>(null)
   const ref = textareaRef ?? internalRef
   const fileRef = useRef<HTMLInputElement>(null)
 
+  const [showModelPicker, setShowModelPicker] = useState(false)
   const [recState, setRecState] = useState<RecState>('idle')
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
@@ -187,6 +194,47 @@ export function InputBar({
         </div>
       )}
 
+      {modelOverride && onModelOverride && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          marginBottom: 6,
+          paddingLeft: 4,
+        }}>
+          <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            background: 'var(--surface)',
+            border: '1.5px solid var(--line)',
+            borderRadius: 8,
+            padding: '3px 8px',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10.5,
+            color: 'var(--ink-2)',
+          }}>
+            <span style={{
+              width: 6, height: 6, borderRadius: 99,
+              background: models.find((m) => m.id === modelOverride)?.color ?? 'var(--ink-2)',
+            }} />
+            this message: {models.find((m) => m.id === modelOverride)?.name ?? modelOverride}
+            <button
+              type="button"
+              onClick={() => onModelOverride(null)}
+              style={{
+                display: 'flex', alignItems: 'center',
+                border: 'none', background: 'transparent',
+                cursor: 'pointer', color: 'var(--ink-2)', padding: 0,
+              }}
+            >
+              <X size={10} />
+            </button>
+          </span>
+        </div>
+      )}
+
+      <div style={{ position: 'relative' }}>
       <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -245,6 +293,25 @@ export function InputBar({
         >
           <Paperclip size={16} />
         </button>
+
+        {models.length > 1 && onModelOverride && (
+          <button
+            type="button"
+            onClick={() => setShowModelPicker((v) => !v)}
+            title="switch model for this message"
+            aria-label="switch model for this message"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 36, height: 36, flexShrink: 0,
+              background: modelOverride ? 'var(--surface-2)' : 'transparent',
+              border: modelOverride ? '1px solid var(--line)' : 'none',
+              borderRadius: 99,
+              color: 'var(--ink-2)', cursor: 'pointer',
+            }}
+          >
+            <Repeat size={14} />
+          </button>
+        )}
 
         {recState !== 'idle' && (
           <button
@@ -314,6 +381,59 @@ export function InputBar({
             <Mic size={16} />
           </button>
         ) : null}
+      </div>
+
+      {showModelPicker && models.length > 1 && onModelOverride && (
+        <div style={{
+          position: 'absolute',
+          bottom: '100%',
+          right: 16,
+          marginBottom: 6,
+          background: 'var(--surface)',
+          border: '1.5px solid var(--line)',
+          borderRadius: 10,
+          padding: 6,
+          boxShadow: 'var(--shadow-soft)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 2,
+          zIndex: 20,
+          minWidth: 160,
+        }}>
+          {models.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => {
+                onModelOverride(modelOverride === m.id ? null : m.id);
+                setShowModelPicker(false);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 10px',
+                background: modelOverride === m.id ? 'var(--surface-2)' : 'transparent',
+                border: 'none',
+                borderRadius: 6,
+                cursor: 'pointer',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                color: 'var(--ink)',
+                textAlign: 'left',
+                width: '100%',
+              }}
+            >
+              <span style={{
+                width: 8, height: 8, borderRadius: 99,
+                background: m.color,
+                flexShrink: 0,
+              }} />
+              {m.name}
+            </button>
+          ))}
+        </div>
+      )}
       </div>
     </div>
   )

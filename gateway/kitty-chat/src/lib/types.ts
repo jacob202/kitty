@@ -43,6 +43,7 @@ export interface MessageRouting {
 export interface MemoryItem {
   source: string
   text: string
+  id?: string
 }
 
 export interface Chat {
