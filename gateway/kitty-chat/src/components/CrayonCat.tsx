@@ -18,7 +18,11 @@ const STATE_DOTS: Record<CatState, string> = {
 
 export function CatCorner({ state = 'idle' }: { state?: CatState }) {
   return (
-    <div style={{ position: 'fixed', bottom: 92, right: 26, zIndex: 30, pointerEvents: 'none' }}>
+    <div
+      className="cat-corner"
+      style={{ position: 'fixed', bottom: 92, right: 26, zIndex: 30, pointerEvents: 'none' }}
+      aria-hidden
+    >
       <div className={`cat-${state}`}>
         <CatBody size={120} />
       </div>

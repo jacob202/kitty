@@ -247,6 +247,12 @@ button, input, textarea { font: inherit; }
   .msg-actions { opacity: 1 !important; }
 }
 
+/* Hide the decorative corner mascot on narrow viewports so it cannot overlap
+   interactive controls such as the deadlines sweep button. */
+@media (max-width: 480px) {
+  .cat-corner { display: none !important; }
+}
+
 input::placeholder { color: var(--ink-2); opacity: .8; }
 textarea::placeholder { color: var(--ink-2); opacity: .8; }
 
