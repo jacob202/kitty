@@ -1,4 +1,4 @@
-import { Message, MemoryItem } from './types';
+import { Message, MemoryItem, ReasoningLevel } from './types';
 
 // All gateway calls go through the Next.js proxy route — avoids CORS and keeps key server-side
 const GATEWAY_BASE = '/proxy';
@@ -19,6 +19,7 @@ export async function* streamChat(
   userMessageId?: string,
   conversationTitle?: string,
   attachmentIds?: string[],
+  reasoningLevel?: ReasoningLevel,
 ): AsyncGenerator<StreamChunk> {
   const response = await fetch(`${GATEWAY_BASE}/api/chat/completions`, {
     method: 'POST',
@@ -31,6 +32,7 @@ export async function* streamChat(
       ...(userMessageId === undefined ? {} : { user_message_id: userMessageId }),
       ...(conversationTitle === undefined ? {} : { conversation_title: conversationTitle }),
       ...(attachmentIds === undefined ? {} : { attachment_ids: attachmentIds }),
+      ...(reasoningLevel === undefined || reasoningLevel === 'off' ? {} : { reasoning_level: reasoningLevel }),
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
     }),
     signal,

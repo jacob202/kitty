@@ -10,12 +10,11 @@ rebased/merged on top of it.
 
 ## Resume
 
-1. Continue / finish PR #164:
-   - Wave 3b: Goal progress sidebar (`Rail.tsx` or new `SessionSidebar.tsx`)
-   - Wave 3e: Reasoning level config (`TopBar.tsx`, `completions.py`)
-2. Verify the frontend build (`npm run build`) and frontend tests (`npm test`)
-   stay green after wave 3b/3e.
-3. Run targeted Python tests for touched route modules.
+1. PR #164 waves 1–3 are complete. Next is **Wave 4 — Kitty Reasoning Engine (KRE)**;
+   Jacob is gathering input from other models before implementation.
+2. Before merging, run the full CI gate (frontend build + tests, Python suite,
+   Ruff) and confirm GitHub shows no remaining merge conflicts.
+3. Preserve the active builder worktree `.worktrees/kittybuilder/kb_mrh9ilha_f3d9`.
 
 ## Watch out
 

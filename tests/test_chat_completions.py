@@ -160,3 +160,31 @@ def test_models_endpoint_surfaces_litellm_http_failure() -> None:
                 raise AssertionError("api_models hid a LiteLLM HTTP failure")
 
     asyncio.run(run_test())
+
+
+def test_reasoning_params_claude_maps_level_to_thinking_budget():
+    from gateway.routes.completions import _reasoning_params
+
+    assert _reasoning_params("claude-sonnet-4-6", "off") == {}
+    assert _reasoning_params("claude-sonnet-4-6", "normal") == {
+        "thinking": {"type": "enabled", "budget_tokens": 4096}
+    }
+    assert _reasoning_params("claude-opus-4-7", "deep") == {
+        "thinking": {"type": "enabled", "budget_tokens": 16000}
+    }
+
+
+def test_reasoning_params_openai_o_series_maps_level_to_effort():
+    from gateway.routes.completions import _reasoning_params
+
+    assert _reasoning_params("o3-mini", "normal") == {"reasoning_effort": "medium"}
+    assert _reasoning_params("o1-preview", "deep") == {"reasoning_effort": "high"}
+    assert _reasoning_params("o3-mini", "off") == {}
+
+
+def test_reasoning_params_unsupported_model_returns_empty():
+    from gateway.routes.completions import _reasoning_params
+
+    assert _reasoning_params("gpt-4o", "deep") == {}
+    assert _reasoning_params("gemini-2.5-flash", "normal") == {}
+    assert _reasoning_params("unknown-model", None) == {}

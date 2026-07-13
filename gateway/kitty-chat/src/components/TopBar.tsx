@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
-import { Chat, Model, STREAMING_LABEL } from '@/lib/types'
+import { Chat, Model, STREAMING_LABEL, ReasoningLevel, REASONING_LEVELS, modelSupportsReasoning } from '@/lib/types'
 import { StateBadge, type CatState } from './CrayonCat'
 
 interface Props {
@@ -30,6 +30,8 @@ interface Props {
   onSelectProject?: (projectId: number) => void
   projectLoading?: boolean
   projectBusy?: boolean
+  reasoningLevel?: ReasoningLevel
+  onReasoningLevelChange?: (level: ReasoningLevel) => void
 }
 
 export function TopBar({
@@ -41,6 +43,8 @@ export function TopBar({
   isStreaming,
   modelFromGateway = true,
   catState = 'idle',
+  reasoningLevel = 'off',
+  onReasoningLevelChange,
   onCommandPalette,
   isMobile = false,
   onToggleSidebar,
@@ -92,6 +96,11 @@ export function TopBar({
             setShowModelMenu={setShowModelMenu}
             modelFromGateway={modelFromGateway}
           />
+          <ReasoningSelector
+            activeModel={activeModel}
+            level={reasoningLevel}
+            onChange={onReasoningLevelChange}
+          />
         </div>
       </div>
     )
@@ -138,6 +147,11 @@ export function TopBar({
           showModelMenu={showModelMenu}
           setShowModelMenu={setShowModelMenu}
           modelFromGateway={modelFromGateway}
+        />
+        <ReasoningSelector
+          activeModel={activeModel}
+          level={reasoningLevel}
+          onChange={onReasoningLevelChange}
         />
       </div>
     </div>
@@ -259,6 +273,69 @@ function ModelSelector({
             >
               <span style={{ width: 7, height: 7, borderRadius: 99, background: m.color, flexShrink: 0 }} />
               {m.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ReasoningSelector({
+  activeModel,
+  level,
+  onChange,
+}: {
+  activeModel: Model
+  level: ReasoningLevel
+  onChange?: (level: ReasoningLevel) => void
+}) {
+  const supported = modelSupportsReasoning(activeModel.id)
+  const [open, setOpen] = useState(false)
+
+  if (!supported) {
+    return (
+      <button disabled title="reasoning not available for this model" style={{ ...chipBtnStyle, opacity: 0.4, cursor: 'not-allowed' }}>
+        thinking: off
+      </button>
+    )
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          ...chipBtnStyle,
+          display: 'flex', alignItems: 'center', gap: 6,
+          borderColor: level === 'off' ? 'var(--line)' : 'var(--c-yellow)',
+          color: level === 'off' ? 'var(--ink-2)' : 'var(--c-yellow)',
+        }}
+      >
+        thinking: {level}
+      </button>
+      {open && onChange && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', right: 0,
+          background: 'var(--surface)', border: '1.5px solid var(--line)',
+          borderRadius: 12, minWidth: 120, zIndex: 100,
+          boxShadow: 'var(--shadow)', padding: 6,
+          display: 'flex', flexDirection: 'column', gap: 2,
+        }}>
+          {REASONING_LEVELS.map((l) => (
+            <button
+              key={l.id}
+              onClick={() => { onChange(l.id); setOpen(false) }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                width: '100%', padding: '8px 12px', borderRadius: 8,
+                background: l.id === level ? 'var(--ginger-fade)' : 'transparent',
+                border: 'none', cursor: 'pointer',
+                fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
+                color: 'var(--ink)',
+              }}
+            >
+              {l.label}
             </button>
           ))}
         </div>

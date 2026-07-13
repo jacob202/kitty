@@ -69,6 +69,30 @@ def _assistant_text_from_result(result: dict) -> str:
     return content
 
 
+def _reasoning_params(model: str, level: str | None) -> dict:
+    """Map a UI reasoning level to model-specific provider parameters.
+
+    Returns a dict that can be merged into the LiteLLM payload. Unknown
+    levels or unsupported models return an empty dict so the request stays
+    clean.
+    """
+    if not level or level == "off":
+        return {}
+    lower_model = model.lower()
+    # Anthropic Claude extended thinking (Claude 3.7+ via LiteLLM).
+    if "claude" in lower_model:
+        budget = 4096 if level == "normal" else 16000
+        return {"thinking": {"type": "enabled", "budget_tokens": budget}}
+    # OpenAI o-series reasoning effort.
+    if "o1" in lower_model or "o3" in lower_model:
+        effort = {"normal": "medium", "deep": "high"}.get(level, "medium")
+        return {"reasoning_effort": effort}
+    # DeepSeek R1 exposes reasoning content automatically; no knob needed.
+    if "deepseek" in lower_model and ("r1" in lower_model or "reasoner" in lower_model):
+        return {}
+    return {}
+
+
 @router.post("/v1/chat/completions")
 async def chat_completions(request: Request):
     from gateway.buddy import (
@@ -151,6 +175,8 @@ async def chat_completions(request: Request):
         attachment_ids = [a for a in raw_attachment_ids if a.strip()]
     else:
         attachment_ids = None
+    raw_reasoning_level = body.get("reasoning_level")
+    reasoning_level = raw_reasoning_level if isinstance(raw_reasoning_level, str) else None
     manifest_project = runtime_manifest["context"]["active_project"]["value"]
     scoped_project_id = raw_project_id
     if scoped_project_id is None and isinstance(manifest_project, dict):
@@ -207,11 +233,12 @@ async def chat_completions(request: Request):
         **{
             key: value
             for key, value in body.items()
-            if key not in {"project_id", "conversation_id", "conversation_title", "user_message_id"}
+            if key not in {"project_id", "conversation_id", "conversation_title", "user_message_id", "reasoning_level"}
         },
         "messages": enriched,
         "model": model,
         "stream": stream,
+        **_reasoning_params(model, reasoning_level),
     }
 
     if stream:

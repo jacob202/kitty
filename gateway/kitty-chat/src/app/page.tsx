@@ -1,7 +1,7 @@
 'use client';
 import { startTransition, useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Chat, Message, MessageAttachment, MemoryItem, Model, MODELS, COLOR_CYCLE, ChatColor } from '@/lib/types';
+import { Chat, Message, MessageAttachment, MemoryItem, Model, MODELS, COLOR_CYCLE, ChatColor, ReasoningLevel } from '@/lib/types';
 import { streamChat } from '@/lib/chat-client';
 import { inferMood } from '@/lib/mood';
 import { TopBar } from '@/components/TopBar';
@@ -289,6 +289,7 @@ function KittyChatInner() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [activeModel, setActiveModel] = useState<Model>(MODELS[0]);
   const [modelOverride, setModelOverride] = useState<string | null>(null);
+  const [reasoningLevel, setReasoningLevel] = useState<ReasoningLevel>('off');
   const [showModelMenu, setShowModelMenu] = useState(false);
   const [tokenCount, setTokenCount] = useState(0);
   const [searchSnapshot, setSearchSnapshot] = useState<GatewaySearchSnapshot | null>(null);
@@ -618,7 +619,7 @@ function KittyChatInner() {
 
   /** Stream one assistant reply into `chat` given `history` (ends with a user
    *  message). Shared by send and retry so the cat's outcome states stay honest. */
-  const runStream = useCallback(async (chat: Chat, history: Message[], title: string, attachmentIds: string[] = [], overrideModelId?: string) => {
+  const runStream = useCallback(async (chat: Chat, history: Message[], title: string, attachmentIds: string[] = [], overrideModelId?: string, streamReasoningLevel?: ReasoningLevel) => {
     const latestUserMessage = [...history].reverse().find((message) => message.role === 'user');
     if (!latestUserMessage) {
       throw new Error('Cannot start a chat turn without a user message');
@@ -659,6 +660,7 @@ function KittyChatInner() {
         latestUserMessage.id,
         title,
         attachmentIds,
+        streamReasoningLevel,
       )) {
         if (chunk.done) break;
         if (chunk.memoryItems) {
@@ -731,7 +733,7 @@ function KittyChatInner() {
       setIsStreaming(false);
       abortRef.current = null;
     }
-  }, [activeModel, availableModels, activeProject?.id, updateChat, persistChat]);
+  }, [activeModel, availableModels, activeProject?.id, updateChat, persistChat, reasoningLevel]);
 
   const handleSend = useCallback(async () => {
     const text = input.trim();
@@ -761,8 +763,8 @@ function KittyChatInner() {
     const override = modelOverride ?? undefined;
     setModelOverride(null);
     const attachmentIds = attachments.map((a) => a.id);
-    void runStream(activeChat, [...activeChat.messages, userMsg], title, attachmentIds, override);
-  }, [input, isStreaming, activeChat, modelOverride, runStream]);
+    void runStream(activeChat, [...activeChat.messages, userMsg], title, attachmentIds, override, reasoningLevel);
+  }, [input, isStreaming, activeChat, modelOverride, reasoningLevel, runStream]);
 
 
   const handleRetry = useCallback(() => {
@@ -930,6 +932,7 @@ function KittyChatInner() {
           onNewChat={handleSidebarNewChat}
           onCloseChat={handleCloseChat}
           collapsed={sidebarCollapsed}
+          activeChat={activeChat}
         />
       )}
 
@@ -962,6 +965,7 @@ function KittyChatInner() {
               onCloseChat={handleCloseChat}
               collapsed={false}
               width="min(320px, 84vw)"
+              activeChat={activeChat}
             />
           </div>
         </>
@@ -1005,6 +1009,8 @@ function KittyChatInner() {
             runtimeQuery.data?.connections.gateway.reason
             ?? (runtimeQuery.error instanceof Error ? runtimeQuery.error.message : undefined)
           }
+          reasoningLevel={reasoningLevel}
+          onReasoningLevelChange={setReasoningLevel}
         />
 
         <PwaInstallBanner

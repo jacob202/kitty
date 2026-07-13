@@ -1,9 +1,23 @@
 import { render, screen, cleanup, fireEvent } from '@testing-library/react'
-import { describe, expect, it, afterEach, vi } from 'vitest'
+import { describe, expect, it, afterEach, vi, beforeEach, type Mock } from 'vitest'
 import { SessionSidebar } from '../src/components/SessionSidebar'
+import { useActiveProject, useProjectNext, useDeadlines } from '../src/lib/queries'
 import type { Chat } from '../src/lib/types'
 
+vi.mock('../src/lib/queries', () => ({
+  useActiveProject: vi.fn(),
+  useProjectNext: vi.fn(),
+  useDeadlines: vi.fn(),
+}))
+
+function setDefaultMocks() {
+  (useActiveProject as Mock).mockReturnValue({ data: null, isPending: false, isError: false })
+  ;(useProjectNext as Mock).mockReturnValue({ data: null, isPending: false, isError: false })
+  ;(useDeadlines as Mock).mockReturnValue({ data: { deadlines: [] }, isPending: false, isError: false })
+}
+
 describe('SessionSidebar', () => {
+  beforeEach(setDefaultMocks)
   afterEach(cleanup)
 
   const mockChats: Chat[] = [

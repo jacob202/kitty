@@ -88,6 +88,23 @@ export const STREAMING_LABEL = 'thinking…'
 
 export type KittyMode = 'gentle' | 'balanced' | 'blunt' | 'auto'
 
+export type ReasoningLevel = 'off' | 'normal' | 'deep'
+
+export const REASONING_LEVELS: { id: ReasoningLevel; label: string }[] = [
+  { id: 'off', label: 'off' },
+  { id: 'normal', label: 'normal' },
+  { id: 'deep', label: 'deep' },
+]
+
+/** Returns true if the model id is known to support a reasoning/thinking knob. */
+export function modelSupportsReasoning(modelId: string): boolean {
+  const lower = modelId.toLowerCase()
+  return lower.includes('claude')
+    || lower.includes('o1')
+    || lower.includes('o3')
+    || (lower.includes('deepseek') && (lower.includes('r1') || lower.includes('reasoner')))
+}
+
 export type NavTab = 'chats' | 'journal' | 'knowledge' | 'tasks'
 
 export interface TerminalState {

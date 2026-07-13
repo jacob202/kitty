@@ -25,6 +25,8 @@
 - **Proactive signal cards**: `SignalCard.tsx` rendered in chat
 - **Memory correction inline**: delete/correct memory items from `MemoryBlock`
 - **Multi-model per-message**: model override chip in `InputBar`
+- **Goal progress sidebar**: `GoalSidebar.tsx` in `SessionSidebar` showing active project, next step, thread objective, nearest deadline
+- **Reasoning level config**: `TopBar.tsx` thinking knob (off/normal/deep) mapped to Claude `thinking.budget_tokens` and OpenAI o-series `reasoning_effort`; wired through `streamChat` to `completions.py`
 
 ### Previous (same PR)
 
@@ -46,8 +48,14 @@
 
 ## Remaining from packet 026
 
-- Wave 3b: Goal progress sidebar (`Rail.tsx` or `SessionSidebar.tsx`)
-- Wave 3e: Reasoning level config (`TopBar.tsx`, `completions.py`)
+- Wave 4 — Kitty Reasoning Engine (KRE): user will gather input from other models before implementation.
+
+## Verification
+
+- `npm run build` in `gateway/kitty-chat`: passed
+- `npm test` in `gateway/kitty-chat`: 129 passed
+- `pytest tests/test_chat_completions.py tests/test_chats_route.py tests/test_context_assembler.py`: 29 passed
+- `ruff check gateway/routes/completions.py gateway/chat_lifecycle.py gateway/routes/chats.py gateway/context_assembler.py`: passed
 
 ## T2 (Jacob/Codex only — do not touch)
 

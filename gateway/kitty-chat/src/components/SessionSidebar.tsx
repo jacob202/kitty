@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { Chat } from '@/lib/types'
+import { GoalSidebar } from './GoalSidebar'
 
 interface Props {
   chats: Chat[]
@@ -10,6 +11,7 @@ interface Props {
   onCloseChat: (id: string) => void
   collapsed?: boolean
   width?: string | number
+  activeChat?: Chat | null
 }
 
 function timeAgo(date: Date): string {
@@ -28,7 +30,7 @@ const SECTION_COLORS: Record<string, string> = {
   earlier: 'var(--c-purple)',
 }
 
-export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, onCloseChat }: Props) {
+export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, onCloseChat, activeChat = null }: Props) {
   const [search, setSearch] = useState('')
 
   const sorted = [...chats].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
@@ -57,6 +59,7 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
       flexDirection: 'column',
       flexShrink: 0,
     }}>
+      <GoalSidebar activeChat={activeChat} />
       <div style={{ padding: '16px 14px 10px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         <button
           onClick={onNewChat}
