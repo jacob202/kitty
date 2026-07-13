@@ -1,4 +1,5 @@
 """Tests for Kitty memory layer."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -9,6 +10,7 @@ def test_memory_event_schema():
     from datetime import datetime
 
     from contracts.memory_event import MemoryEvent, MemoryNamespace, MemorySensitivity
+
     event = MemoryEvent(
         text="Jacob owns a 2010 Honda Civic",
         namespace=MemoryNamespace.FACTS,
@@ -25,6 +27,7 @@ def test_memory_event_schema():
 def test_memory_event_defaults():
     """MemoryEvent has sensible defaults."""
     from contracts.memory_event import MemoryEvent
+
     event = MemoryEvent(
         text="Jacob tends to research before acting",
         source="honcho_inferred",
@@ -36,16 +39,14 @@ def test_memory_event_defaults():
 
 def test_get_context_block_empty_on_no_results():
     """get_context_block returns empty string when no memories found."""
-    with patch("gateway.memory._get_memory") as mock_mem:
-        mock_instance = MagicMock()
-        mock_instance.search.return_value = {"results": []}
-        mock_mem.return_value = mock_instance
-        import gateway.memory
-        from gateway.memory import get_context_block
-        gateway.memory._get_memory.cache_clear()  # clear lru_cache
-        with patch("gateway.memory._get_memory", return_value=mock_instance):
-            result = get_context_block("test query")
-        assert result == ""
+    mock_instance = MagicMock()
+    mock_instance.search.return_value = {"results": []}
+    from gateway.memory import get_context_block
+
+    with patch("gateway.memory._get_memory", return_value=mock_instance):
+        result = get_context_block("test query")
+
+    assert result == ""
 
 
 def test_get_context_block_formats_memories():
@@ -61,17 +62,24 @@ def test_get_context_block_formats_memories():
         mock_instance.search.return_value = mock_results
         mock_get.return_value = mock_instance
         from gateway import memory as mem_module
+
         with patch.object(mem_module, "_get_memory", return_value=mock_instance):
             result = mem_module.get_context_block("Honda")
     assert "Jacob owns a 2010 Honda Civic" in result
     assert "## What Kitty knows" in result
 
 
-def test_add_memory_non_fatal_on_failure():
-    """add_memory swallows exceptions — memory failure never crashes the gateway."""
-    with patch("gateway.memory._get_memory", side_effect=Exception("DB error")):
-        from gateway import memory as mem_module
-        # Should not raise
+def test_add_memory_surfaces_backend_unavailability():
+    """A failed memory write must not look successful to its caller."""
+    from gateway import memory as mem_module
+
+    with (
+        patch(
+            "gateway.memory._get_memory",
+            side_effect=mem_module.MemoryError("DB error"),
+        ),
+        pytest.raises(mem_module.MemoryError, match="DB error"),
+    ):
         mem_module.add_memory("some fact", namespace="facts")
 
 
@@ -79,6 +87,7 @@ def test_add_memory_non_fatal_on_failure():
 def test_memory_roundtrip():
     """Write a fact, search for it, verify retrieval. Requires Ollama + OpenRouter."""
     from gateway.memory import add_memory, search_memory
+
     add_memory("Jacob's test fact: he owns a purple bicycle", namespace="facts")
     results = search_memory("bicycle", limit=3)
     texts = [r.get("memory", r.get("text", "")) for r in results]

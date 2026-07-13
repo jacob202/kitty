@@ -2,18 +2,28 @@
 
 Every store that goes through the storage_sync module should be able to
 be exported to a JSON snapshot, the SQLite state cleared, and the
-data restored from the snapshot with no loss. These tests use the
-real store modules (not mocks) to catch schema drift early.
+data restored from the snapshot with no loss. These tests use the real
+SQLite stores and an explicit Mem0 test backend to catch schema drift early.
 """
 
 from __future__ import annotations
 
 import json
+from unittest.mock import MagicMock
 
 import pytest
 
 from gateway import db as kitty_db
-from gateway import plugin_registry, storage_sync, todo_store
+from gateway import memory, plugin_registry, storage_sync, todo_store
+
+
+@pytest.fixture(autouse=True)
+def isolate_memory_backend(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    """Keep storage-sync tests independent of the live Mem0/Ollama stack."""
+    backend = MagicMock()
+    backend.get_all.return_value = {"results": []}
+    monkeypatch.setattr(memory, "_get_memory", lambda: backend)
+    return backend
 
 
 def _isolate(tmp_path, monkeypatch, name):
@@ -43,6 +53,16 @@ def test_export_all_returns_expected_top_level_shape(tmp_path, monkeypatch):
     assert "memories" in snapshot["stores"]
     assert "journal_entries" in snapshot["stores"]
     assert "preferences" in snapshot["stores"]
+
+
+def test_export_all_surfaces_memory_backend_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    def unavailable():
+        raise memory.MemoryError("memory export unavailable")
+
+    monkeypatch.setattr(memory, "_get_memory", unavailable)
+
+    with pytest.raises(memory.MemoryError, match="memory export unavailable"):
+        storage_sync.export_all()
 
 
 def test_export_includes_real_plugin_settings_and_todos(tmp_path, monkeypatch):
