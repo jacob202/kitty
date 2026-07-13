@@ -21,6 +21,7 @@ from gateway.llm_client import (
     log_chat_trace,
     route_model,
 )
+from gateway.memory_policy import should_surface
 from gateway.paths import LITELLM_BASE, LITELLM_KEY, LOG_FILE
 from gateway.runtime_manifest import compact_runtime_context, compose_manifest
 
@@ -219,11 +220,14 @@ async def chat_completions(request: Request):
             nonlocal lifecycle_done
             accumulated = ""
             try:
+                done_chunk: bytes | None = None
                 async for chunk in iter_chat_completions_stream(payload):
-                    yield chunk
-                    if lifecycle_handle is not None and chunk.startswith(b"data: "):
+                    if chunk.startswith(b"data: "):
                         raw_chunk = chunk[6:].strip()
-                        if raw_chunk != b"[DONE]":
+                        if raw_chunk == b"[DONE]":
+                            done_chunk = chunk
+                            break
+                        if lifecycle_handle is not None:
                             chunk_payload = json.loads(raw_chunk)
                             choices = chunk_payload.get("choices")
                             if not isinstance(choices, list) or not choices:
@@ -241,14 +245,18 @@ async def chat_completions(request: Request):
                                     "stream chunk content was not text while recording chat lifecycle"
                                 )
                             accumulated += content
-                if bundle.memory_items:
+                    yield chunk
+                surfaced = [i for i in bundle.memory_items if should_surface(i, query=user_text)]
+                if surfaced:
                     trailer = json.dumps({
                         "memory_items": [
                             {"source": item.source, "text": item.text[:200]}
-                            for item in bundle.memory_items
+                            for item in surfaced
                         ],
                     })
                     yield f"data: {trailer}\n\n".encode("utf-8")
+                if done_chunk is not None:
+                    yield done_chunk
                 if lifecycle_handle is not None:
                     _finish_lifecycle_or_raise(
                         lifecycle_handle,
