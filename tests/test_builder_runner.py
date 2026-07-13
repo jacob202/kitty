@@ -83,6 +83,17 @@ class TestEnsureWorktree:
         assert removed == path
         assert not path.exists()
 
+    def test_remove_allows_only_ephemeral_done_marker(self, repo: Path):
+        path = br.ensure_worktree("kb_t5_done", "kittybuilder/kb_t5_done", repo_root=repo)
+        (path / "done.txt").write_text("ok\n")
+
+        removed = br.remove_worktree(
+            "kb_t5_done", repo_root=repo, discard_done_marker=True
+        )
+
+        assert removed == path
+        assert not path.exists()
+
     def test_remove_refuses_dirty(self, repo: Path):
         path = br.ensure_worktree("kb_t6_aaaa", "kittybuilder/kb_t6_aaaa", repo_root=repo)
         (path / "junk.txt").write_text("keep me")

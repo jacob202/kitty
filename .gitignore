@@ -42,7 +42,6 @@ out/
 .aura/
 .claude/settings.local.json
 .claude/handoff-archive/
-.claude/worktrees/
 reflection-notes.md
 
 # Misc
@@ -85,6 +84,7 @@ mcp/imagen/test_run.py
 
 # local junk/scratch moved out of the way, never committed
 .trash/
+tmp/
 
 # Build artifacts
 .coverage

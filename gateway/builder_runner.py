@@ -145,14 +145,34 @@ def ensure_worktree(
     return path
 
 
-def remove_worktree(task_id: str, *, repo_root: Path | None = None) -> Path:
-    """Remove a task worktree only if it is clean (conservative cleanup)."""
+def remove_worktree(
+    task_id: str,
+    *,
+    repo_root: Path | None = None,
+    discard_done_marker: bool = False,
+) -> Path:
+    """Remove a task worktree, optionally discarding its lone done marker.
+
+    ``done.txt`` is an ephemeral worker handoff marker, not product output.
+    Cleanup may remove exactly that one untracked file; every other dirty
+    state, including a modified or tracked marker, still fails loudly.
+    """
     root = _repo_root(repo_root)
     path = root / ".worktrees" / "kittybuilder" / task_id
     if not path.exists():
         raise RunnerError(f"no worktree at {path}")
 
     status = _git(["status", "--porcelain=v1", "--untracked-files=all"], cwd=path)
+    if discard_done_marker and status.stdout.splitlines() == ["?? done.txt"]:
+        try:
+            (path / "done.txt").unlink()
+        except OSError as exc:
+            raise RunnerError(
+                f"cannot remove done marker {path / 'done.txt'}: {exc}"
+            ) from exc
+        status = _git(
+            ["status", "--porcelain=v1", "--untracked-files=all"], cwd=path
+        )
     if status.returncode != 0 or status.stdout.strip():
         raise RunnerError(
             f"worktree {path} is dirty; refusing to remove. "

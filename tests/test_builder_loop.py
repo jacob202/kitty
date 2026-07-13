@@ -122,6 +122,8 @@ class TestRunPacket:
         assert entry["implementation_status"] == "completed"
         assert entry["validation_status"] == "passed"
         assert entry["review_verdict"] == "approve"
+        assert entry["worktree_cleanup"] == "removed"
+        assert not (repo / ".worktrees" / "kittybuilder" / task_id).exists()
 
         attempt = ba.get_attempt(entry["attempt_id"], db_path=db_path)
         assert attempt["outcome"] == "succeeded"
@@ -141,6 +143,28 @@ class TestRunPacket:
         )
         assert result["outcome"] == "succeeded"
         assert "review_verdict" not in result["attempts"][0]
+        assert result["attempts"][0]["worktree_cleanup"] == "removed"
+
+    def test_success_without_done_marker_keeps_worktree_for_inspection(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        _apply(db_path, validation_commands=[])
+        worker = _script(
+            tmp_path,
+            "no_marker.sh",
+            f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n",
+        )
+
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=worker,
+            repo_root=repo, db_path=db_path,
+        )
+
+        task_id = result["task_id"]
+        assert result["outcome"] == "succeeded"
+        assert result["attempts"][0]["worktree_cleanup"] == "kept_no_done_marker"
+        assert (repo / ".worktrees" / "kittybuilder" / task_id).exists()
 
     def test_repair_retry_then_success(
         self, repo: Path, db_path: Path, tmp_path: Path
@@ -200,6 +224,8 @@ class TestRunPacket:
         )
         assert result["outcome"] == "exhausted"
         assert "did not write" in result["attempts"][0]["failure"]
+        task_id = result["task_id"]
+        assert (repo / ".worktrees" / "kittybuilder" / task_id).exists()
 
     def test_invalid_contract_fails_attempt_and_stores_nothing(
         self, repo: Path, db_path: Path, tmp_path: Path
