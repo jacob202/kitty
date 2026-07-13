@@ -72,6 +72,18 @@ opencode auth list
 opencode models --refresh
 ```
 
+### Packet adapter contract
+
+The queue runner supplies `KB_BUNDLE_PATH`, `KB_RESULT_PATH`,
+`KB_CONTEXT_MANIFEST_PATH`, `KB_TASK_ID`, and `KB_ATTEMPT_ID` to the free worker;
+the reviewer also receives `KB_IMPL_RESULT_PATH` and
+`KB_REVIEW_RESULT_PATH`. The checked-in adapter scripts copy runner-owned files
+into the isolated worktree, verify task/attempt IDs and bundle hashes, and only
+copy a validated contract back to the runner path. OpenCode prompts must use
+those local copies, never an external queue path. A missing file, mismatched
+hash, invalid contract, or reviewer worktree mutation is a hard failure and
+leaves the attempt evidence available for inspection.
+
 ## GitHub Credential Hygiene
 
 A build that finishes cleanly can still fail at the push/PR step on a stale
