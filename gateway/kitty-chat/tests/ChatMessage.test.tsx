@@ -50,6 +50,19 @@ describe('ChatMessage actions', () => {
     expect(screen.queryByTitle('copy message')).not.toBeInTheDocument()
   })
 
+  it('surfaces an interrupted response and keeps it retryable', () => {
+    const onRetry = vi.fn()
+    renderMessage({
+      ...kittyMsg,
+      content: '⚠ generation stopped before Kitty returned a response.',
+      turnStatus: 'interrupted',
+    }, { onRetry })
+
+    expect(screen.getByText('interrupted')).toBeInTheDocument()
+    fireEvent.click(screen.getByTitle('regenerate this reply'))
+    expect(onRetry).toHaveBeenCalledOnce()
+  })
+
   it('submits assistant feedback with its chat and message identifiers', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ ok: true }), { status: 200 }),
