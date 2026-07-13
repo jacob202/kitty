@@ -37,12 +37,11 @@ async def ask(payload: AskRequest):
 
     on_request_start()
     try:
+        model = route_model(message)
         domain = classify_domain(message)
         on_context_fetch()
-        bundle = await assemble_context(message, parts_mode=payload.parts_mode, domain=domain)
+        bundle = await assemble_context(message, parts_mode=payload.parts_mode, domain=domain, model=model)
         system_prompt = bundle.system
-
-        model = route_model(message)
         llm_payload = {
             "model": model,
             "stream": False,

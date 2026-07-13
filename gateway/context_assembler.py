@@ -48,11 +48,11 @@ from gateway.context_enrichment import (
     run_enrichments,
 )
 from gateway.memory_graph import (
-    CONTEXT_TOKEN_CAP,
     Item,
     MemoryGraph,
     StoreAdapter,
     _format_unified_items,
+    context_cap_for_model,
 )
 from gateway.memory_policy import should_surface
 
@@ -226,6 +226,7 @@ async def assemble_context(
     parts_mode: bool = False,
     domain: str | None = None,
     deps: _AssemblerDeps | None = None,
+    model: str | None = None,
 ) -> ContextBundle:
     """The single deep entry point for request-time context.
 
@@ -241,6 +242,8 @@ async def assemble_context(
             from the message.
         deps: Internal — test override seam. Production callers should
             leave this as ``None``.
+        model: The resolved model name — used to scale the memory token
+            budget to the model's context window.
     """
     deps = deps or _AssemblerDeps()
     warnings: list[str] = []
@@ -262,8 +265,9 @@ async def assemble_context(
     graph_result = await graph.search_all(message)
     warnings.extend(f"memory_graph:{err}" for err in graph_result.errors)
 
+    cap = context_cap_for_model(model)
     filtered_results = _filter_items_by_policy(graph_result.results, message)
-    memory_block = _format_memory_block(filtered_results, CONTEXT_TOKEN_CAP)
+    memory_block = _format_memory_block(filtered_results, cap)
 
     enrichment_blocks, enrichment_warnings = await run_enrichments(deps.enrichments, message)
     warnings.extend(enrichment_warnings)

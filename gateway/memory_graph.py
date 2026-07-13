@@ -39,8 +39,47 @@ from gateway.paths import INBOX_FILE, LOG_FILE
 
 logger = logging.getLogger("kitty.memory_graph")
 
-CONTEXT_TOKEN_CAP: int = 1200
+CONTEXT_TOKEN_CAP: int = 1200  # legacy default; prefer context_cap_for_model()
 STORE_FETCH_TIMEOUT_SECONDS: float = 5.0
+
+_CAP_FLOOR = 800
+_CAP_CEILING = 16_000
+_CAP_RATIO = 0.04  # 4% of context window → memory budget
+
+_MODEL_CONTEXT_WINDOWS: dict[str, int] = {
+    "kitty-default": 128_000,
+    "kitty-sonnet": 200_000,
+    "kitty-default-or": 128_000,
+    "deepseek/deepseek-v4-flash": 128_000,
+    "deepseek/deepseek-chat": 128_000,
+    "deepseek-ai/deepseek-v4-pro": 128_000,
+    "deepseek/deepseek-r1": 128_000,
+    "google/gemini-2.0-flash-001": 1_000_000,
+    "google/gemini-2.0-flash-exp:free": 1_000_000,
+    "gemini-2.5-flash-image": 1_000_000,
+    "qwen/qwen3-235b-a22b:free": 128_000,
+}
+
+
+def context_cap_for_model(model: str | None) -> int:
+    """Return memory-block token cap scaled to the model's context window."""
+    if not model:
+        return 4000
+    window = _MODEL_CONTEXT_WINDOWS.get(model)
+    if window is None:
+        lower = model.lower()
+        if "deepseek" in lower:
+            window = 128_000
+        elif "gemini" in lower:
+            window = 1_000_000
+        elif "claude" in lower or "sonnet" in lower or "opus" in lower:
+            window = 200_000
+        elif "gpt-4" in lower:
+            window = 128_000
+        else:
+            window = 100_000
+    raw = int(window * _CAP_RATIO)
+    return max(_CAP_FLOOR, min(raw, _CAP_CEILING))
 
 
 # --- Uniform item shape ---

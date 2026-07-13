@@ -179,7 +179,7 @@ async def chat_completions(request: Request):
 
     try:
         on_context_fetch()
-        bundle = await assemble_context(user_text, parts_mode=False, domain=domain)
+        bundle = await assemble_context(user_text, parts_mode=False, domain=domain, model=model)
         system_prompt = f"{bundle.system}\n\n{compact_runtime_context(runtime_manifest)}"
     except Exception as exc:
         if lifecycle_handle is not None and not lifecycle_done:
