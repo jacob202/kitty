@@ -296,15 +296,17 @@ function WhatsNext({
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
 
-  const isPending =
-    actionsQuery.isPending || needsJacob.isPending || projectsQuery.isPending || todosQuery.isPending || sessionContext.isPending;
+  // ── Error checks first ──
+  // These run before the loading guard so that a known failure (observed:
+  // stale gateway 404'd /session/context) renders immediately with a retry
+  // control instead of staying stuck on "loading…" while other queries settle.
 
-  if (isPending) {
+  if (sessionContext.isError) {
+    const message = sessionContext.error instanceof Error ? sessionContext.error.message : 'Could not reach the gateway';
+    const retry = () => queryClient.invalidateQueries({ queryKey: ['session', 'context'] });
     return (
       <SectionCard title="what's next" span>
-        <div role="status" style={emptyState}>
-          loading…
-        </div>
+        <ErrorCard message={`gateway offline — ${message}`} onRetry={retry} />
       </SectionCard>
     );
   }
@@ -317,18 +319,29 @@ function WhatsNext({
     );
   }
 
-  if (todosQuery.isError || needsJacob.isError || sessionContext.isError) {
-    const failed = sessionContext.isError ? sessionContext : todosQuery.isError ? todosQuery : needsJacob;
+  if (todosQuery.isError || needsJacob.isError) {
+    const failed = todosQuery.isError ? todosQuery : needsJacob;
     const message = failed.error instanceof Error ? failed.error.message : 'Could not reach the gateway';
-    const retryKey = sessionContext.isError
-      ? ['session', 'context']
-      : todosQuery.isError
-        ? ['todos']
-        : ['inbox', 'needs_jacob'];
+    const retryKey = todosQuery.isError ? ['todos'] : ['inbox', 'needs_jacob'];
     const retry = () => queryClient.invalidateQueries({ queryKey: retryKey });
     return (
       <SectionCard title="what's next" span>
         <ErrorCard message={`gateway offline — ${message}`} onRetry={retry} />
+      </SectionCard>
+    );
+  }
+
+  // ── Loading guard ──
+  // Only show "loading…" when no query has already failed (all errors handled above).
+  const isPending =
+    actionsQuery.isPending || needsJacob.isPending || projectsQuery.isPending || todosQuery.isPending || sessionContext.isPending;
+
+  if (isPending) {
+    return (
+      <SectionCard title="what's next" span>
+        <div role="status" style={emptyState}>
+          loading…
+        </div>
       </SectionCard>
     );
   }
