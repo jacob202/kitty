@@ -204,3 +204,65 @@ def _parse_response(raw: str) -> dict[str, Any]:
     if not isinstance(parsed, dict) or not str(parsed.get("step", "")).strip():
         raise NextStepError(f"model response missing 'step': {raw[:200]!r}")
     return parsed
+
+
+def _is_self_development(project: dict[str, Any]) -> bool:
+    """True if this code project is about Kitty itself (self-development).
+
+    Per ADR 0016 only code projects whose name indicates Kitty work are
+    considered self-development and get the "at most one" cap when life
+    project steps are available.
+    """
+    if project.get("kind") != "code":
+        return False
+    name = (project.get("name") or "").lower()
+    return "kitty" in name
+
+
+def select_steps(limit: int = 3) -> list[dict[str, Any]]:
+    """Select next steps with life-first ordering (ADR 0016).
+
+    Life projects (kind != "code") are preferred over code projects when both
+    have eligible stored steps.  At most one Kitty-self-development suggestion
+    may surface while any life-project step is available.
+
+    Returns the same dict shape as brief.py's get_next_steps_section():
+    project_id, project_name, step, why.
+    """
+    from gateway import project_store
+
+    projects = [p for p in project_store.list_projects() if p["status"] == "active"]
+
+    life: list[dict[str, Any]] = []
+    other_code: list[dict[str, Any]] = []
+    self_dev: list[dict[str, Any]] = []
+
+    for project in projects:
+        step = get(project["id"])
+        if step is None:
+            continue
+        entry = {
+            "project_id": project["id"],
+            "project_name": project["name"],
+            "step": step["step"],
+            "why": step["why"],
+        }
+        if project["kind"] != "code":
+            life.append(entry)
+        elif _is_self_development(project):
+            self_dev.append(entry)
+        else:
+            other_code.append(entry)
+
+    # Assemble: life first, then other code, then at most 1 self-dev.
+    result: list[dict[str, Any]] = []
+    result.extend(life)
+    result.extend(other_code)
+    if life and self_dev:
+        # At most one self-dev suggestion when life steps are present.
+        result.append(self_dev[0])
+    elif not life and self_dev:
+        # No life steps — all self-dev steps are fine.
+        result.extend(self_dev)
+
+    return result[:limit]

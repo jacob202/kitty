@@ -16,6 +16,7 @@ import {
   useStateNow,
   useProjects,
   useProjectNextSteps,
+  useWhatsNextSteps,
   useGatewayHealth,
   useGatewayModels,
   useChatsPersistence,
@@ -262,14 +263,6 @@ function HealthStrip() {
 
 // ── What's next (hero) ───────────────────────────────────────────────────────
 
-function freshestStep(steps: Array<GatewayNextStep | null | undefined>): GatewayNextStep | null {
-  let best: GatewayNextStep | null = null;
-  for (const s of steps) {
-    if (s && (!best || s.generated_at > best.generated_at)) best = s;
-  }
-  return best;
-}
-
 // Local time, not UTC — this only ever renders client-side (Home is behind
 // the app's post-mount gate), so there's no SSR/hydration mismatch to guard.
 function greeting(hour: number): string {
@@ -288,13 +281,16 @@ function WhatsNext({
   const actionsQuery = useActions('proposed');
   const needsJacob = useNeedsJacob();
   const projectsQuery = useProjects();
-  const stepQueries = useProjectNextSteps(projectsQuery.data ?? []);
+  const stepQueries = useWhatsNextSteps();
   const todosQuery = useTodos();
   const approve = useApproveAction();
   const reject = useRejectAction();
   const sessionContext = useSessionContext();
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
+
+  const isPending =
+    actionsQuery.isPending || needsJacob.isPending || projectsQuery.isPending || stepQueries.isPending || todosQuery.isPending || sessionContext.isPending;
 
   // ── Error checks first ──
   // These run before the loading guard so that a known failure (observed:
@@ -311,7 +307,7 @@ function WhatsNext({
     );
   }
 
-  if (actionsQuery.isError || projectsQuery.isError) {
+  if (actionsQuery.isError || projectsQuery.isError || stepQueries.isError) {
     return (
       <SectionCard title="what's next" span>
         <ErrorCard message={OFFLINE_FIX} />
@@ -333,8 +329,6 @@ function WhatsNext({
 
   // ── Loading guard ──
   // Only show "loading…" when no query has already failed (all errors handled above).
-  const isPending =
-    actionsQuery.isPending || needsJacob.isPending || projectsQuery.isPending || todosQuery.isPending || sessionContext.isPending;
 
   if (isPending) {
     return (
@@ -361,7 +355,7 @@ function WhatsNext({
   const entry: GatewayTriageEntry | undefined = [...(needsJacob.data?.entries ?? [])].sort(
     (a, b) => b.confidence - a.confidence,
   )[0];
-  const step = freshestStep(stepQueries.map((q) => q.data));
+  const step = stepQueries.data?.[0] ?? null;
   const project: GatewayProject | undefined = step
     ? (projectsQuery.data ?? []).find((p) => p.id === step.project_id)
     : undefined;

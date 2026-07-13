@@ -13,6 +13,7 @@ import {
   useRunInboxTriage,
   useProjects,
   useProjectNextSteps,
+  useWhatsNextSteps,
   useGatewayHealth,
   useGatewayModels,
   useChatsPersistence,
@@ -42,6 +43,7 @@ vi.mock('../src/lib/queries', () => ({
   useRunInboxTriage: vi.fn(),
   useProjects: vi.fn(),
   useProjectNextSteps: vi.fn(),
+  useWhatsNextSteps: vi.fn(),
   useGatewayHealth: vi.fn(),
   useGatewayModels: vi.fn(),
   useChatsPersistence: vi.fn(),
@@ -97,6 +99,7 @@ function setDefaultMocks() {
     isFetched: true,
   });
   (useProjectNextSteps as Mock).mockReturnValue([]);
+  (useWhatsNextSteps as Mock).mockReturnValue({ data: null, isPending: false, isError: false, isFetched: true });
   (useGatewayHealth as Mock).mockReturnValue({
     data: { ok: true, litellmReachable: true, error: null },
     isPending: false,
@@ -254,19 +257,15 @@ describe('HomeState', () => {
     });
     // project step also present — action must win
     (useProjects as Mock).mockReturnValue({ data: [PROJECT], isPending: false, isError: false });
-    (useProjectNextSteps as Mock).mockReturnValue([
-      { data: STEP, isPending: false, isError: false },
-    ]);
+    (useWhatsNextSteps as Mock).mockReturnValue({ data: [STEP], isPending: false, isError: false, isFetched: true });
     render(<HomeState />);
     expect(screen.getAllByText('Send the SAID follow-up email').length).toBeGreaterThan(0);
     expect(screen.getByText(/waiting on your approval/)).toBeInTheDocument();
   });
 
-  it('falls back to the freshest project next-step when nothing is proposed', () => {
+  it('falls back to the life-first project next-step when nothing is proposed', () => {
     (useProjects as Mock).mockReturnValue({ data: [PROJECT], isPending: false, isError: false });
-    (useProjectNextSteps as Mock).mockReturnValue([
-      { data: STEP, isPending: false, isError: false },
-    ]);
+    (useWhatsNextSteps as Mock).mockReturnValue({ data: [STEP], isPending: false, isError: false, isFetched: true });
     const onNavigate = vi.fn();
     render(<HomeState onNavigate={onNavigate} />);
     expect(screen.getAllByText('Call SAID about the missing form').length).toBeGreaterThan(0);
@@ -558,9 +557,7 @@ describe('HomeState', () => {
     // A project step keeps the hero on "open projects", so the only "open tasks"
     // control is the Today header button.
     (useProjects as Mock).mockReturnValue({ data: [PROJECT], isPending: false, isError: false });
-    (useProjectNextSteps as Mock).mockReturnValue([
-      { data: STEP, isPending: false, isError: false },
-    ]);
+    (useWhatsNextSteps as Mock).mockReturnValue({ data: [STEP], isPending: false, isError: false, isFetched: true });
     (useTodos as Mock).mockReturnValue({
       data: [{ id: 1, content: 'write tests', status: 'pending' }],
       isPending: false,

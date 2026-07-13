@@ -1,0 +1,40 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "life-first-v1-integration",
+  "title": "Life-first integration: wire select_steps into user-facing paths",
+  "description": "Commit 66785ce added select_steps() to gateway/next_step.py but did not wire it into the rendered brief or Home 'What's Next' card. This packet completes LF-01 by integrating life-first ordering into the actual user-facing paths and adding integration coverage. It does not reimplement select_steps().",
+  "packets": [
+    {
+      "id": "LF-01b-life-first-integration",
+      "title": "Wire life-first ordering into brief and What's Next",
+      "objective": "Carry forward the select_steps() implementation from 66785ce. Change gateway/brief.py:get_next_steps_section() to use next_step.select_steps(). Add GET /projects/next-steps returning select_steps(). Update the Home 'What's Next' card to fetch from this endpoint. Add integration tests proving brief and route output follow life-first ordering, cap self-development when life steps exist, and preserve only-code behavior. Do not reimplement select_steps().",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "gateway/brief.py:get_next_steps_section() returns life-first ordered steps",
+        "GET /projects/next-steps returns life-first ordered steps",
+        "Home 'What's Next' card uses /projects/next-steps",
+        "Integration tests cover life-before-code, self-dev cap when life present, and only-code unchanged behavior",
+        "python3.12 -m pytest tests/test_next_step.py tests/test_brief.py -q passes",
+        "npm run build in gateway/kitty-chat passes",
+        "npm test -- --run in gateway/kitty-chat passes"
+      ],
+      "allowed_paths": [
+        "gateway/next_step.py",
+        "gateway/brief.py",
+        "gateway/routes/projects.py",
+        "gateway/kitty-chat/src/lib/gateway.ts",
+        "gateway/kitty-chat/src/lib/queries.ts",
+        "gateway/kitty-chat/src/components/HomeState.tsx",
+        "gateway/kitty-chat/tests/HomeState.test.tsx",
+        "tests/test_next_step.py",
+        "tests/test_brief.py"
+      ],
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_next_step.py tests/test_brief.py -q --tb=short",
+        "cd gateway/kitty-chat && npm run build",
+        "cd gateway/kitty-chat && npm test -- --run --maxWorkers=1"
+      ],
+      "policy": { "max_attempts": 2, "priority": 10 }
+    }
+  ]
+}

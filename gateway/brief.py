@@ -499,32 +499,15 @@ def summarize_headlines_to_bullets(
 def get_next_steps_section(limit: int = 3) -> list[dict]:
     """The "What's B" section: each active project's curated next step (P4, 016).
 
-    Ordered by last_touched ascending — the projects that have gone
-    quietest surface first, since those are the ones most likely to have
-    slipped Jacob's attention. Skips projects with no stored step (never
-    refreshed under this packet) rather than fabricating one.
+    Ordered life-first per ADR 0016: life projects (kind != "code") surface
+    before code projects when both have eligible stored steps, and at most one
+    Kitty-self-development suggestion is shown while any life-project step is
+    available. Skips projects with no stored step (never refreshed under this
+    packet) rather than fabricating one.
     """
-    from gateway import next_step, project_store
+    from gateway import next_step
 
-    projects = [p for p in project_store.list_projects() if p["status"] == "active"]
-    projects.sort(key=lambda p: p["last_touched"] or 0)
-
-    section: list[dict] = []
-    for project in projects:
-        step = next_step.get(project["id"])
-        if step is None:
-            continue
-        section.append(
-            {
-                "project_id": project["id"],
-                "project_name": project["name"],
-                "step": step["step"],
-                "why": step["why"],
-            }
-        )
-        if len(section) >= limit:
-            break
-    return section
+    return next_step.select_steps(limit=limit)
 
 
 def get_deadlines_section(limit: int = 3) -> list[dict]:

@@ -149,3 +149,95 @@ class TestLoadPreferencesFailLoud:
         monkeypatch.setattr(Path, "read_text", fake)
         with pytest.raises(NextStepError):
             next_step._load_preferences()
+
+
+class TestSelectSteps:
+    """Life-first ordering per ADR 0016 — select_steps()."""
+
+    def _gen(self, name: str, kind: str, step: str) -> dict:
+        """Create a project and generate a next step for it."""
+        proj = project_store.create(name, kind)
+        llm = _stub_llm({"step": step, "why": "test reason", "delegable": False})
+        next_step.generate(proj["id"], llm_fn=llm)
+        return proj
+
+    def test_life_project_comes_before_code(self):
+        """Given code and life projects both with steps, life surfaces first."""
+        self._gen("my-app", "code", "refactor auth")
+        self._gen("job-search", "education", "update resume")
+
+        steps = next_step.select_steps(limit=5)
+
+        assert len(steps) >= 2
+        assert steps[0]["project_name"] == "job-search"
+        assert steps[1]["project_name"] == "my-app"
+
+    def test_at_most_one_self_dev_when_life_exists(self):
+        """With one life step and multiple kitty-development steps,
+        at most one self-development suggestion appears."""
+        self._gen("job-search", "education", "update resume")
+        self._gen("kitty", "code", "fix the bug")
+        self._gen("kittybuilder", "code", "add feature")
+
+        steps = next_step.select_steps(limit=10)
+
+        # Life comes first.
+        assert steps[0]["project_name"] == "job-search"
+        # At most one kitty/code step after the life step.
+        kitty_entries = [s for s in steps if "kitty" in s["project_name"].lower()]
+        assert len(kitty_entries) <= 1
+
+    def test_self_dev_never_above_life(self):
+        """Self-development suggestion never appears above the life step."""
+        self._gen("job-search", "education", "update resume")
+        self._gen("kitty", "code", "fix the bug")
+
+        steps = next_step.select_steps(limit=5)
+
+        assert steps[0]["project_name"] == "job-search"
+
+    def test_no_life_all_code_present(self):
+        """Behavior with only code projects present is unchanged —
+        all steps show, ordered by id (natural insertion order)."""
+        self._gen("app1", "code", "step one")
+        self._gen("app2", "code", "step two")
+
+        steps = next_step.select_steps(limit=10)
+
+        # Both projects appear since there are no life steps to cause capping.
+        names = [s["project_name"] for s in steps]
+        assert "app1" in names
+        assert "app2" in names
+        # The seeded 'kitty' project might also appear if it had a step,
+        # but it doesn't — so only our two projects show.
+        assert len(steps) >= 2
+
+    def test_self_dev_without_life_all_appear(self):
+        """When no life steps exist, all self-development steps surface."""
+        self._gen("kitty", "code", "step one")
+        self._gen("app", "code", "step two")
+
+        steps = next_step.select_steps(limit=10)
+
+        names = [s["project_name"] for s in steps]
+        assert "kitty" in names
+        assert "app" in names
+
+    def test_limit_respected(self):
+        """select_steps returns at most limit entries."""
+        for i in range(5):
+            self._gen(f"proj-{i}", "education", f"step {i}")
+
+        steps = next_step.select_steps(limit=3)
+
+        assert len(steps) == 3
+
+    def test_projects_without_steps_are_skipped(self):
+        """Projects that have never been generated for are omitted."""
+        project_store.create("no-step-project", "education")
+        self._gen("job-search", "education", "update resume")
+
+        steps = next_step.select_steps(limit=5)
+
+        assert len(steps) == 1
+        assert steps[0]["project_name"] == "job-search"

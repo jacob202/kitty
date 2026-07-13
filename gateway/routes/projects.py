@@ -115,6 +115,17 @@ def get_resume(project_id: int) -> dict:
     return _handle(project_resume.resume, project_id)
 
 
+@router.get("/projects/next-steps")
+def get_next_steps(limit: int = 3) -> list[dict]:
+    """Life-first ordered next steps across all active projects (ADR 0016).
+
+    Used by the Home "What's Next" card so the rendered top step prefers
+    life projects over code projects and caps Kitty self-development when
+    life steps are available.
+    """
+    return next_step.select_steps(limit=limit)
+
+
 @router.get("/projects/{project_id}/next")
 def get_next(project_id: int) -> dict:
     # 404s if the project itself doesn't exist; a project that exists but

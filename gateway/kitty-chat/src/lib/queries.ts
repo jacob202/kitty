@@ -62,6 +62,7 @@ import {
   fetchActiveProject,
   setActiveProject,
   fetchProjectNext,
+  fetchProjectNextSteps,
   refreshProject,
   type GatewayProject,
   // deadlines
@@ -648,6 +649,15 @@ export function useChatsPersistence() {
     queryKey: ['chats', 'persistence'],
     queryFn: fetchChatsPersistence,
     refetchInterval: 120_000,
+  })
+}
+
+/** Life-first ordered next steps for the Home "What's Next" card (ADR 0016). */
+export function useWhatsNextSteps() {
+  return useQuery({
+    queryKey: ['projects', 'next-steps'],
+    queryFn: () => fetchProjectNextSteps(3),
+    staleTime: 60_000,
   })
 }
 
