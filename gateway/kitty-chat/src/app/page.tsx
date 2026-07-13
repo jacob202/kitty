@@ -520,9 +520,8 @@ function KittyChatInner() {
     const abort = new AbortController();
     abortRef.current = abort;
 
+    let accumulated = '';
     try {
-      let accumulated = '';
-
       for await (const chunk of streamChat(
         activeModel.id,
         history,
@@ -565,8 +564,30 @@ function KittyChatInner() {
         messages: [...history, { ...aiMsg, content: accumulated, mood }],
       });
     } catch (err: unknown) {
-      // User pressed Stop — keep whatever streamed so far, don't show an error.
       if (err instanceof DOMException && err.name === 'AbortError') {
+        const interruptedContent = accumulated
+          ? `${accumulated}\n\n⚠ generation stopped before completion.`
+          : '⚠ generation stopped before Kitty returned a response.';
+        const interruptedMessage: Message = {
+          ...aiMsg,
+          content: interruptedContent,
+          mood: 'confused',
+          turnStatus: 'interrupted',
+        };
+        updateChat(chat.id, (c) => ({
+          ...c,
+          updatedAt: new Date(),
+          messages: c.messages.map((m) => (m.id === aiMsgId ? interruptedMessage : m)),
+        }));
+        void persistChat({
+          id: chat.id,
+          title,
+          model: activeModel.id,
+          color: chat.color,
+          createdAt: chat.createdAt,
+          updatedAt: new Date(),
+          messages: [...history, interruptedMessage],
+        });
         return;
       }
       setLastOutcome('broke');
