@@ -1147,6 +1147,10 @@ export async function fetchProjectNext(projectId: number): Promise<GatewayNextSt
   }
 }
 
+export async function fetchProjectNextSteps(limit = 3): Promise<GatewayNextStep[]> {
+  return await gfetch<GatewayNextStep[]>(`/projects/next-steps?limit=${limit}`)
+}
+
 /** Blocks on git + LLM composition server-side — give it a long timeout. */
 export async function refreshProject(projectId: number): Promise<{ next_step?: { ok: boolean; step?: string; error?: string } }> {
   return await gfetch(`/projects/${projectId}/refresh`, { method: 'POST' }, 60_000)

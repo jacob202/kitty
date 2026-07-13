@@ -480,8 +480,8 @@ def test_synthesize_brief_includes_theme_context():
     assert "authentication" in prompt
 
 
-def test_get_next_steps_section_orders_by_staleness_and_skips_ungenerated(tmp_path, monkeypatch):
-    """P4/016: 'What's B' surfaces the quietest active projects with a stored step."""
+def test_get_next_steps_section_orders_life_first_and_skips_ungenerated(tmp_path, monkeypatch):
+    """P4/016 + ADR 0016: 'What's B' surfaces life projects before code projects."""
     import gateway.brief as b
     from gateway import next_step, project_store
 
@@ -489,22 +489,80 @@ def test_get_next_steps_section_orders_by_staleness_and_skips_ungenerated(tmp_pa
     monkeypatch.setattr(project_store, "PROJECTS_DB_FILE", db_file, raising=False)
     monkeypatch.setattr(next_step, "NEXT_STEP_DB_FILE", db_file, raising=False)
 
-    stale = project_store.create("stale project", "code")
-    fresh = project_store.create("fresh project", "code")
-    never_refreshed = project_store.create("no step yet", "code")
-    project_store.update_fields(stale["id"], last_touched=1.0)
-    project_store.update_fields(fresh["id"], last_touched=2.0)
-    project_store.update_fields(never_refreshed["id"], last_touched=0.5)
+    code = project_store.create("code project", "code")
+    life = project_store.create("life project", "education")
+    project_store.create("no step yet", "code")  # skipped: no generated step
 
     import json
 
     def llm(prompt, privacy_tier, content_class):
         return json.dumps({"step": "s", "why": "w", "delegable": False})
 
-    next_step.generate(stale["id"], llm_fn=llm)
-    next_step.generate(fresh["id"], llm_fn=llm)
+    next_step.generate(code["id"], llm_fn=llm)
+    next_step.generate(life["id"], llm_fn=llm)
 
     section = b.get_next_steps_section()
 
     names = [item["project_name"] for item in section]
-    assert names == ["stale project", "fresh project"]
+    assert names == ["life project", "code project"]
+
+
+def test_get_next_steps_section_caps_self_dev_when_life_present(tmp_path, monkeypatch):
+    """ADR 0016: at most one Kitty-self-development step when life steps exist."""
+    import gateway.brief as b
+    from gateway import next_step, project_store
+
+    db_file = tmp_path / "kitty" / "kitty.db"
+    monkeypatch.setattr(project_store, "PROJECTS_DB_FILE", db_file, raising=False)
+    monkeypatch.setattr(next_step, "NEXT_STEP_DB_FILE", db_file, raising=False)
+
+    life = project_store.create("job search", "education")
+    kitty_a = project_store.create("kitty auth", "code")
+    kitty_b = project_store.create("kitty builder", "code")
+    other_code = project_store.create("app", "code")
+
+    import json
+
+    def llm(prompt, privacy_tier, content_class):
+        return json.dumps({"step": "s", "why": "w", "delegable": False})
+
+    for proj in (life, kitty_a, kitty_b, other_code):
+        next_step.generate(proj["id"], llm_fn=llm)
+
+    section = b.get_next_steps_section(limit=10)
+    names = [item["project_name"] for item in section]
+
+    assert names[0] == "job search"
+    assert "app" in names
+    kitty_names = [n for n in names if n.startswith("kitty")]
+    assert len(kitty_names) <= 1
+
+
+def test_projects_next_steps_route_orders_life_first(tmp_path, monkeypatch):
+    """GET /projects/next-steps returns life-first ordered steps for the Home card."""
+    from fastapi.testclient import TestClient
+
+    from gateway import next_step, project_store
+    from gateway.app import app
+
+    db_file = tmp_path / "kitty" / "kitty.db"
+    monkeypatch.setattr(project_store, "PROJECTS_DB_FILE", db_file, raising=False)
+    monkeypatch.setattr(next_step, "NEXT_STEP_DB_FILE", db_file, raising=False)
+
+    code = project_store.create("code project", "code")
+    life = project_store.create("life project", "education")
+
+    import json
+
+    def llm(prompt, privacy_tier, content_class):
+        return json.dumps({"step": "s", "why": "w", "delegable": False})
+
+    next_step.generate(code["id"], llm_fn=llm)
+    next_step.generate(life["id"], llm_fn=llm)
+
+    client = TestClient(app)
+    response = client.get("/projects/next-steps?limit=10")
+    assert response.status_code == 200
+    payload = response.json()
+    names = [item["project_name"] for item in payload]
+    assert names == ["life project", "code project"]
