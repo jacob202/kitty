@@ -51,6 +51,7 @@ export interface Chat {
   messages: Message[]
   model: string
   color: ChatColor
+  objective?: string | null
   createdAt: Date
   updatedAt: Date
 }

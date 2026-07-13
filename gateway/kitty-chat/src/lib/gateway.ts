@@ -1380,3 +1380,11 @@ export interface LogTailPayload {
 export async function fetchLogTail(file = 'gateway', lines = 100): Promise<LogTailPayload> {
   return await gfetch<LogTailPayload>(`/logs/tail?file=${encodeURIComponent(file)}&lines=${lines}`)
 }
+
+export async function updateChatObjective(chatId: string, objective: string | null): Promise<void> {
+  await gfetch(`/chats/${encodeURIComponent(chatId)}/objective`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ objective }),
+  })
+}

@@ -32,6 +32,7 @@ import { CatCorner, CatBody, type CatState } from '@/components/CrayonCat';
 import {
   buildGatewayModels,
   fetchGatewaySearch,
+  updateChatObjective,
   uploadCaptureFile,
   type GatewaySearchSnapshot,
   type GatewayTriageEntry,
@@ -137,6 +138,108 @@ function ToolCard({ title, children }: { title: string; children: React.ReactNod
         {title}
       </div>
       {children}
+    </div>
+  );
+}
+
+function ObjectiveStrip({
+  objective,
+  onUpdate,
+}: {
+  objective: string | null | undefined;
+  onUpdate: (value: string | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const startEdit = () => {
+    setDraft(objective ?? '');
+    setEditing(true);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const save = () => {
+    const trimmed = draft.trim();
+    onUpdate(trimmed || null);
+    setEditing(false);
+  };
+
+  return (
+    <div
+      style={{
+        padding: '4px 26px',
+        borderBottom: '1px solid var(--line)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        fontFamily: 'var(--font-mono)',
+        fontSize: 11,
+        color: 'var(--ink-2)',
+        flexShrink: 0,
+        minHeight: 28,
+      }}
+    >
+      <span style={{ fontSize: 10, letterSpacing: '0.08em', fontWeight: 600, flexShrink: 0 }}>
+        goal
+      </span>
+      {editing ? (
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={save}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') save();
+            if (e.key === 'Escape') setEditing(false);
+          }}
+          placeholder="what's this thread about?"
+          style={{
+            flex: 1,
+            background: 'transparent',
+            border: 'none',
+            outline: 'none',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+            color: 'var(--ink)',
+            padding: 0,
+          }}
+        />
+      ) : (
+        <button
+          onClick={startEdit}
+          style={{
+            flex: 1,
+            textAlign: 'left',
+            background: 'transparent',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+            color: objective ? 'var(--ink)' : 'var(--ink-2)',
+          }}
+        >
+          {objective || 'set a goal for this thread…'}
+        </button>
+      )}
+      {objective && !editing && (
+        <button
+          onClick={() => onUpdate(null)}
+          title="clear goal"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            color: 'var(--ink-2)',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            padding: '0 2px',
+          }}
+        >
+          clear
+        </button>
+      )}
     </div>
   );
 }
@@ -687,6 +790,15 @@ function KittyChatInner() {
     setAttachments((prev) => prev.filter((a) => a.id !== id));
   }, []);
 
+  const handleUpdateObjective = useCallback(
+    (objective: string | null) => {
+      if (!activeChat) return;
+      updateChat(activeChat.id, (c) => ({ ...c, objective }));
+      void updateChatObjective(activeChat.id, objective).catch(() => {});
+    },
+    [activeChat, updateChat],
+  );
+
   const handleDecideInChat = useCallback(
     (entry: GatewayTriageEntry) => {
       handlePromptSelect(`Help me decide what to do with this: ${entry.text ?? `inbox entry ${entry.inbox_id}`}`);
@@ -854,6 +966,13 @@ function KittyChatInner() {
           installing={pwaInstall.installing}
           onInstall={handlePwaInstall}
         />
+
+        {activeView === 'chat' && activeChat && (
+          <ObjectiveStrip
+            objective={activeChat.objective}
+            onUpdate={handleUpdateObjective}
+          />
+        )}
 
         {modelGateway.loaded && !modelGateway.live && (
           <div
