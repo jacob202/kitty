@@ -228,6 +228,38 @@ class TestAttemptLifecycle:
         with pytest.raises(ba.AttemptError, match="outcome"):
             ba.close_attempt(attempt["id"], "done", db_path=db_path)
 
+    def test_crashed_attempt_can_be_closed(self, db_path: Path):
+        attempt = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+        updated = ba.close_attempt(attempt["id"], ba.ATTEMPT_CRASHED, db_path=db_path)
+        assert updated["outcome"] == "crashed"
+
+    def test_disallow_invalid_outcome_for_close(self, db_path: Path):
+        attempt = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+        with pytest.raises(ba.AttemptError, match="outcome"):
+            ba.close_attempt(attempt["id"], "done", db_path=db_path)
+
+    def test_crashed_attempt_does_not_consume_budget(self, db_path: Path):
+        """Crashed attempts should not count toward max_attempts budget."""
+        for _ in range(2):  # policy.max_attempts = 2, but crashes don't count
+            attempt = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+            ba.close_attempt(attempt["id"], ba.ATTEMPT_CRASHED, db_path=db_path)
+
+        # Third attempt should still be possible — budget was not consumed.
+        attempt = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+        assert attempt["attempt_no"] == 3
+
+    def test_list_stale_attempts_returns_open_attempts(self, db_path: Path):
+        assert ba.list_stale_attempts(INITIATIVE, PACKET, db_path=db_path) == []
+        attempt = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+        stale = ba.list_stale_attempts(INITIATIVE, PACKET, db_path=db_path)
+        assert len(stale) == 1
+        assert stale[0]["id"] == attempt["id"]
+        assert stale[0]["outcome"] is None
+
+        # After close, no longer stale.
+        ba.close_attempt(attempt["id"], ba.ATTEMPT_FAILED, db_path=db_path)
+        assert ba.list_stale_attempts(INITIATIVE, PACKET, db_path=db_path) == []
+
     def test_closed_attempt_rejects_mutation(self, db_path: Path):
         attempt = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
         ba.close_attempt(attempt["id"], "aborted", db_path=db_path)
@@ -309,6 +341,17 @@ class TestContextBundle:
         bundle = ba.build_context_bundle(INITIATIVE, PACKET, db_path=db_path)
         assert bundle["attempt_no"] == 1
         assert ba.list_attempts(INITIATIVE, db_path=db_path) == []
+
+    def test_crashed_attempt_appears_in_prior_attempts(self, db_path: Path):
+        """A crashed attempt should be visible in the next attempt's bundle."""
+        first = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+        ba.close_attempt(first["id"], ba.ATTEMPT_CRASHED, db_path=db_path)
+
+        second = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+        priors = second["bundle"]["prior_attempts"]
+        assert len(priors) == 1
+        assert priors[0]["attempt_no"] == 1
+        assert priors[0]["outcome"] == "crashed"
 
     def test_prior_window_is_bounded(self, db_path: Path):
         # Allow enough attempts to exceed the window.
