@@ -5,19 +5,21 @@
 Builder reliability chain (026/027) outrank it for build time
 **Best executor:** Claude Code / Codex; Part C slices are bounded enough for
 a free OpenCode worker once #176 lands
-**Intent:** when Kitty's model brain thinks, Jacob can see the thinking; Kitty
-gets an execution mode she can set per situation; and an optimization layer
-makes every answer cheaper and sharper — right context in, right model for
-the job, honest confidence out.
+**Intent:** when a model returns reasoning content, Jacob can see the
+provider-exposed reasoning; Kitty gets an execution mode she can set per
+situation; and an optimization layer makes every answer cheaper and sharper
+— right context in, right model for the job, honest confidence out.
 
 ## What this is (Jacob's words, decoded)
 
 Three things, one engine:
 
 1. **Show the reasoning.** Reasoning models (Claude extended thinking,
-   DeepSeek R1, OpenAI o-series) produce a thinking trace today and Kitty
-   throws it away — Jacob literally cannot see why the model said what it
-   said. Kitty shows it, collapsed, above the answer.
+   DeepSeek R1, OpenAI o-series) return provider-exposed reasoning content
+   or summaries today and Kitty throws them away — so Jacob sees none of the
+   reasoning the provider deliberately made available. Kitty shows that
+   provider-exposed reasoning, collapsed, above the answer. It never
+   promises, reconstructs, infers, or exposes hidden chain-of-thought.
 2. **Control the reasoning.** An execution mode — **Auto / Fast / Balanced
    / Deep** — that maps to each model's native knob. Jacob can set it;
    Auto (the default) lets Kitty's classifier pick, falling back to
@@ -85,11 +87,11 @@ Premises corrected against main, 2026-07-14:
 ## Demo contract
 
 - [ ] **See it think:** Jacob asks a real question in `Deep` mode, and a
-      collapsed "thinking" block renders above Kitty's answer in chat —
-      expand it, read the model's actual trace. Lowercase, collapsible,
-      mono — per design canon.
+      collapsed "reasoning" block renders above Kitty's answer in chat —
+      expand it, read the provider-exposed reasoning content the model
+      returned. Lowercase, collapsible, mono — per design canon.
 - [ ] **Turn the knob:** flip the mode Fast / Balanced / Deep on the same
-      question and watch the answer (and the thinking block) change; leave
+      question and watch the answer (and the reasoning block) change; leave
       it on Auto and see the classifier's pick in the receipt. On a model
       with no reasoning support the control visibly does nothing — never
       faked.
@@ -103,9 +105,10 @@ Premises corrected against main, 2026-07-14:
 
 ## Why this exists
 
-- **The thinking is invisible.** Jacob's paying (in tokens or trust) for
-  models that reason, and the reasoning never reaches him. When Kitty says
-  something surprising, there's no way to check *why*.
+- **The provider-exposed reasoning is discarded.** Jacob's paying (in
+  tokens or trust) for models that return reasoning content, and that
+  content never reaches him. When Kitty says something surprising, the
+  reasoning the provider already handed back isn't shown.
 - **Routing is a keyword list.** `route_model()` sends anything matching
   `_REASONING_KEYWORDS` ("why", "explain"…) to Sonnet and everything else
   to DeepSeek flash. "Why not!" pays for Sonnet; a ten-paragraph decision
@@ -122,7 +125,8 @@ Premises corrected against main, 2026-07-14:
 
 > Kitty shows her work and spends like it's her own money. The engine works
 > **with** the model — sharper context in, the cheapest model that can do
-> the job, the thinking visible, honest confidence out. Every decision it
+> the job, the provider-exposed reasoning visible, honest confidence out.
+> Every decision it
 > makes is logged with its trigger; a low-confidence flag is a flag, never a
 > silent retry.
 
@@ -144,9 +148,9 @@ Premises corrected against main, 2026-07-14:
 - **`/perf/stats`** (`gateway/routes/perf.py`) — the existing surface for
   aggregates; per-tier stats extend it.
 - **Privacy boundary** — `enforce_privacy_boundary()` in `llm_client.py` is
-  untouched. Level and tier only pick among already-permitted models.
+  untouched. Mode and tier only pick among already-permitted models.
 - **Design canon** (`design-system/v2-reference/KITTY.md` + behavioral laws
-  in `design-system/PHILOSOPHY.md`): thinking block is lowercase,
+  in `design-system/PHILOSOPHY.md`): reasoning block is lowercase,
   collapsible, mono on `--surface-2`, collapsed by default, no exclamation
   marks. Don't redraw the cat.
 
@@ -154,23 +158,30 @@ Premises corrected against main, 2026-07-14:
 
 ### Part A — show the reasoning
 
-**A1 — request + parse the trace.** Backend: when the effective mode wants
-thinking (Balanced/Deep) and the resolved model supports it, inject the
-model-native param into the
-LiteLLM payload (`thinking: {type: "enabled", budget_tokens: N}` for
-Claude-family, `reasoning_effort` for OpenAI o-series — LiteLLM translates;
-DeepSeek R1 emits `reasoning_content` unprompted). Support map lives in one
-dict in `gateway/reasoning.py`, keyed by LiteLLM alias, env-overridable.
-Frontend: `chat-client.ts` additionally yields
-`delta.reasoning_content ?? delta.thinking ?? ''` as a separate `thinking`
-field; `types.ts` message type grows `thinking?: string`.
+**Product contract (holds for all of Part A):** Kitty may display
+provider-exposed reasoning content or summaries, collapsed by default.
+Kitty must never promise, reconstruct, infer, or expose hidden
+chain-of-thought. If a provider returns no reasoning content, Kitty shows
+nothing — it never fabricates a rationale.
 
-**A2 — render it.** `ChatMessage.tsx`: collapsed "thinking" section above
-the answer body when `thinking` is non-empty — hairline border, lowercase
-label with duration if known, mono text, collapsed by default, state
-persists per message while the session lives. Vitest per component;
-verified live in the browser (screenshots) — UI is not done from code
-inspection.
+**A1 — request + parse provider-exposed reasoning.** Backend: when the
+effective mode wants reasoning (Balanced/Deep) and the resolved model
+supports it, inject the model-native param into the LiteLLM payload
+(`thinking: {type: "enabled", budget_tokens: N}` for Claude-family,
+`reasoning_effort` for OpenAI o-series — LiteLLM translates; DeepSeek R1
+returns `reasoning_content` unprompted). These knobs make the provider
+*return* reasoning content/summaries; they do not reach into any hidden
+trace. Support map lives in one dict in `gateway/reasoning.py`, keyed by
+LiteLLM alias, env-overridable. Frontend: `chat-client.ts` additionally
+yields `delta.reasoning_content ?? delta.thinking ?? ''` as a separate
+`reasoning` field; `types.ts` message type grows `reasoning?: string`.
+
+**A2 — render it.** `ChatMessage.tsx`: collapsed "reasoning" section above
+the answer body when the provider-exposed reasoning is non-empty — hairline
+border, lowercase label with duration if known, mono text, collapsed by
+default, state persists per message while the session lives. Vitest per
+component; verified live in the browser (screenshots) — UI is not done from
+code inspection.
 
 ### Part B — control the reasoning
 
@@ -269,14 +280,16 @@ seams), so C5's numbers are measured against fixed ground truth.
 ## Privacy / sensitivity
 
 - **Touches sensitive content?** yes — reads message text to classify;
-  renders model thinking traces which may restate personal context
+  renders provider-exposed reasoning content which may restate personal
+  context
 - **Content classes:** `chat`, `memory`
 - **Cloud allowed?** no change — classification is local heuristic; mode
   and tier only select among models the existing privacy boundary permits
-- **Forbidden:** raw message/response/thinking text in
-  `reasoning_log.jsonl` or token-log metadata (render thinking, don't log
-  it anywhere new); routing must never select a model the privacy tier
-  forbids; no silent re-ask on low confidence
+- **Forbidden:** raw message/response/reasoning-content text in
+  `reasoning_log.jsonl` or token-log metadata (render provider-exposed
+  reasoning, don't log it anywhere new); routing must never select a model
+  the privacy tier forbids; no silent re-ask on low confidence; never
+  promise, reconstruct, infer, or expose hidden chain-of-thought
 
 ## Files likely touched
 
@@ -301,10 +314,11 @@ seams), so C5's numbers are measured against fixed ground truth.
 
 ## Acceptance criteria
 
-1. With a reasoning-capable model in `Deep` mode, the thinking trace
-   renders in chat, collapsed by default; in `Fast` mode, no reasoning
-   params are sent and no block renders. Verified live in the browser with
-   screenshots, not from code inspection.
+1. With a reasoning-capable model in `Deep` mode, the provider-exposed
+   reasoning content renders in chat, collapsed by default; in `Fast` mode,
+   no reasoning params are sent and no block renders; when the provider
+   returns no reasoning content, nothing renders and nothing is fabricated.
+   Verified live in the browser with screenshots, not from code inspection.
 2. The mode control is visibly disabled (not hidden, not faked) on models
    without reasoning support, per the A1 support table; Deep respects the
    per-turn budget cap and the one-step escalation limit, with a test on
@@ -317,8 +331,8 @@ seams), so C5's numbers are measured against fixed ground truth.
 5. Receipt rows carry mode/tier metadata; `/perf/stats` returns per-tier
    aggregates; the close-out note states the *measured* trivial-vs-standard
    prompt-token delta.
-6. `reasoning_log.jsonl` rows contain no message/response/thinking bodies
-   (test inspects a written row).
+6. `reasoning_log.jsonl` rows contain no message/response/reasoning-content
+   bodies (test inspects a written row).
 7. Suites green: `python3.12 -m pytest tests/ -q --tb=short`, `make ui-test`,
    `make ui-build` (never `npm run` — exit-194 trap), ruff on touched files.
 
@@ -334,8 +348,9 @@ jq 'select(.metadata.tier != null)' data/kitty_token_log.jsonl | tail -5
 
 ## Review artifacts
 
-- Screenshots: thinking block expanded + collapsed, day and night themes;
-  mode control in its enabled and disabled states
+- Screenshots: reasoning block (provider-exposed content) expanded +
+  collapsed, day and night themes; mode control in its enabled and disabled
+  states
 - Terminal: the two-message demo (trivial vs deep) with gateway log lines
   showing tier, model, and context size
 - The measured per-tier token numbers, from real log rows
@@ -353,10 +368,11 @@ jq 'select(.metadata.tier != null)' data/kitty_token_log.jsonl | tail -5
 
 ## One-line build instruction
 
-Build the reasoning engine — visible thinking traces (A), Auto/Fast/
-Balanced/Deep execution modes honestly mapped to model-native knobs with a
-budget guard (B), and the per-message optimization layer with execution
-receipts in `gateway/reasoning.py` (C) — one slice per PR in the order
-above, without touching memory policy, the Council, or anything in the
-do-not-expand list, and close out with measured per-tier token numbers
+Build the reasoning engine — visible provider-exposed reasoning content,
+collapsed by default and never fabricated (A), Auto/Fast/Balanced/Deep
+execution modes honestly mapped to model-native knobs with a budget guard
+(B), and the per-message optimization layer with execution receipts in
+`gateway/reasoning.py` (C) — one slice per PR in the order above, without
+touching memory policy, the Council, or anything in the do-not-expand list,
+and close out with measured per-tier token numbers
 instead of the invented ones.

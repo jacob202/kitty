@@ -63,7 +63,7 @@ Wave 1–3 feature set. That becomes its own recovery track (§6).
 |---|---|---|---|---|
 | Reasoning display (frontend parse + ThinkingBlock) | Show model thinking traces collapsed above the answer | `chat-client.ts`, `types.ts`, `ChatMessage.tsx`, `page.tsx` | **Missing** — `chat-client.ts:63` still drops everything but `delta.content` | Recover via packet 028 Part A; #164's ThinkingBlock (~80 lines) is sound reference material |
 | Reasoning level knob (`_reasoning_params()` + TopBar `ReasoningSelector`) | off/normal/deep → `thinking.budget_tokens` / `reasoning_effort` | `routes/completions.py`, `types.ts`, `TopBar.tsx` | **Missing** | Rewrite via 028 Part B — the mapping logic is right, the support detection is unsafe (see §3) |
-| Thread-scoped goals | `objective` column + CRUD + PATCH + prompt injection | `migrations/026_chat_objective.sql`, `chat_lifecycle.py`, `routes/chats.py`, `context_assembler.py`, `page.tsx`, `TopBar.tsx`, `gateway.ts` | **Missing** — main's migrations stop at `019`, no `objective` anywhere | Recover, mostly as-is; renumber migration from main (020 is next free — the branch's "026" is its own numbering drift) |
+| Thread-scoped goals | `objective` column + CRUD + PATCH + prompt injection | `migrations/026_chat_objective.sql`, `chat_lifecycle.py`, `routes/chats.py`, `context_assembler.py`, `page.tsx`, `TopBar.tsx`, `gateway.ts` | **Missing** — main's migrations stop at `019`, no `objective` anywhere | Recover, mostly as-is; allocate the next free migration number from current main at implementation time (currently 020, but re-check before creating it — the branch's "026" is its own numbering drift) |
 | Memory visibility (trailer + MemoryBlock) | "kitty remembered…" — which memory items informed the answer | `routes/completions.py`, `chat-client.ts`, `ChatMessage.tsx`, `types.ts` | **Missing** | Recover redesigned — trailer protocol is fine; the implementation double-filters (see §3) |
 | Inline memory correction | Delete a wrong memory from the chat surface | `ChatMessage.tsx` (MemoryBlock delete), `gateway.ts` | **Missing** (frontend); `DELETE /memories/{id}` **already on main** | Recover with UX care — #164 deleted with no confirm/undo; destructive one-tap on phone is a footgun |
 | Goal sidebar (`GoalSidebar.tsx`) | Project/deadline/objective panel per thread | `GoalSidebar.tsx` (new, 144 lines), `page.tsx` | **Missing**; all three data hooks exist on main | Park — needs Jacob's UX call; overlaps HomeState, and phone-first (D12) has no sidebar room |
@@ -101,8 +101,10 @@ reading the same truth.
 
 **Thread goals.** Effort: small. Risk: low — additive column, guarded
 CRUD, clean PATCH endpoint; the `assemble_context(objective=…)` injection
-is 8 lines. Cherry-pick: **backend yes, with two fixes** — renumber the
-migration from main's table (020, not 026), and re-run its lifecycle tests.
+is 8 lines. Cherry-pick: **backend yes, with two fixes** — allocate the next free
+migration number from current main at implementation time (currently 020,
+but the implementer must re-check before creating the migration — not the
+branch's 026), and re-run its lifecycle tests.
 Frontend header UI: rewrite (page.tsx drift).
 
 **Memory visibility.** Effort: small-medium. Risk: medium — #164's stream
@@ -256,7 +258,7 @@ at authoring time per the intake gate — the numbers below are placeholders.
 | R1 | Fail-loud sweep, 11 modules | P1 | XS (~25 lines) | — | none | standalone chore | one PR, logging lines + one regression test per converted path (TL-05 pattern) |
 | R2 | Route contract tests, 5 files | P1 | S (additive) | — | med (route drift) | standalone chore | one PR; reconcile failures as route questions, not test edits |
 | R3 | CI ratchet: measured coverage + un-ignore council tests if green | P1 | XS | R2 | med | standalone chore | one PR, after measuring on post-R2 main |
-| R4 | Thread goals (migration 020 + lifecycle + PATCH + header UI) | P2 | S | — | low | chat-recovery-v1 | backend PR, then UI PR |
+| R4 | Thread goals (next free migration — re-check on main, currently 020 — + lifecycle + PATCH + header UI) | P2 | S | — | low | chat-recovery-v1 | backend PR, then UI PR |
 | R5 | Signal cards + `useSSE` in chat | P2 | S-M | — | low-med | chat-recovery-v1 | one PR; cherry-pick the two new files, rewrite page wiring |
 | R6 | Memory visibility (trailer + block, post-filter bundle fix) | P3 | M | 028 C-slices help but not required | med (hot stream path) | chat-recovery-v1 | backend trailer PR, then UI PR |
 | R7 | Inline memory correction (+ confirm/undo) | P3 | XS | R6 | med UX | chat-recovery-v1 | one PR |
@@ -309,7 +311,7 @@ point of making them measurable.
 
 **Directly recover (cherry-pick with re-validation):** the five route
 contract test files (R2); `lib/sse.ts` and `SignalCard.tsx` (R5); the
-thread-goals backend with migration renumbered (R4). These are additive,
+thread-goals backend with the migration allocated the next free number from current main at implementation time — currently 020, re-checked before creation (R4). These are additive,
 self-contained, and their targets on main are verified live.
 
 **Rewrite (keep the design, redo the code):** reasoning display + level
