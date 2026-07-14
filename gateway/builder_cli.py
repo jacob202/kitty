@@ -54,6 +54,48 @@ def _parse_json_object(value: str | None) -> dict[str, Any] | None:
     return parsed
 
 
+_FREE_ADAPTER_SCRIPTS = (
+    "scripts/kittybuilder_opencode_worker.sh",
+    "scripts/kittybuilder_opencode_reviewer.sh",
+)
+
+
+def _free_adapter_commands() -> tuple[list[str], list[str]]:
+    """Resolve the free OpenCode adapter scripts in this checkout."""
+    root = Path(__file__).resolve().parents[1]
+    commands: list[list[str]] = []
+    for rel in _FREE_ADAPTER_SCRIPTS:
+        script = root / rel
+        if not script.is_file():
+            raise ValueError(f"free adapter script missing: {script}")
+        commands.append(["bash", str(script)])
+    return commands[0], commands[1]
+
+
+def _resolve_loop_commands(
+    args: argparse.Namespace,
+) -> tuple[list[str], list[str] | None]:
+    """Turn --free or --worker-command/--review-command into loop commands."""
+    if args.free:
+        if args.worker_command or args.review_command:
+            raise ValueError(
+                "--free already selects the OpenCode adapter scripts; "
+                "drop --worker-command/--review-command or drop --free"
+            )
+        worker_command, review_command = _free_adapter_commands()
+        if args.model:
+            # The ladder in the adapter honours a forced single model.
+            os.environ["KITTYBUILDER_MODEL"] = args.model
+        return worker_command, review_command
+    worker_command = _parse_json_array(args.worker_command)
+    review_command = _parse_json_array(args.review_command)
+    if not worker_command:
+        raise ValueError(
+            "provide --free or a non-empty --worker-command JSON array"
+        )
+    return worker_command, review_command
+
+
 # ---------------------------------------------------------------------------
 # Not-enabled handler (preserved from Layer 1A)
 # ---------------------------------------------------------------------------
@@ -1220,14 +1262,13 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
     from gateway.builder_runner import RunnerError
 
     try:
-        worker_command = _parse_json_array(args.worker_command)
-        review_command = _parse_json_array(args.review_command)
+        worker_command, review_command = _resolve_loop_commands(args)
     except (json.JSONDecodeError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
-    if not worker_command:
-        print("error: --worker-command must be a non-empty JSON array", file=sys.stderr)
-        return 1
+    worker = args.worker
+    if args.free and worker == "packet-loop":
+        worker = "opencode-free"
 
     if args.watch and not args.json:
         print(f"watch: starting {args.id}/{args.packet}")
@@ -1238,7 +1279,7 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
             args.packet,
             worker_command=worker_command,
             review_command=review_command,
-            worker=args.worker,
+            worker=worker,
             model=args.model,
             provider=args.provider,
             timeout_seconds=args.timeout,
@@ -1270,21 +1311,20 @@ def _cmd_initiative_run(args: argparse.Namespace) -> int:
     from gateway.builder_run import run_initiative
 
     try:
-        worker_command = _parse_json_array(args.worker_command)
-        review_command = _parse_json_array(args.review_command)
+        worker_command, review_command = _resolve_loop_commands(args)
     except (json.JSONDecodeError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
-    if not worker_command:
-        print("error: --worker-command must be a non-empty JSON array", file=sys.stderr)
-        return 1
+    worker = args.worker
+    if args.free and worker == "packet-loop":
+        worker = "opencode-free"
 
     try:
         summary = run_initiative(
             args.id,
             worker_command=worker_command,
             review_command=review_command,
-            worker=args.worker,
+            worker=worker,
             model=args.model,
             provider=args.provider,
             timeout_seconds=args.timeout,
@@ -1677,7 +1717,8 @@ COMMANDS: list[CommandSpec] = [
                 _cmd_initiative_run_packet,
                 [_a("id", "initiative ID"),
                  _a("packet", "packet ID"),
-                 _a("--worker-command", "worker command as a JSON array, e.g. '[\"opencode\", \"run\"]'", required=True),
+                 _a("--free", "use the free OpenCode adapter scripts as worker and reviewer; --model then forces one free model", action="store_true"),
+                 _a("--worker-command", "worker command as a JSON array, e.g. '[\"opencode\", \"run\"]' (or use --free)", default=None),
                  _a("--review-command", "optional reviewer command as a JSON array (omit = validation-gated only)", default=None),
                  _a("--worker", "worker name", default="packet-loop"),
                  _a("--model", "model identifier (metadata)"),
@@ -1702,7 +1743,8 @@ COMMANDS: list[CommandSpec] = [
                 "implement/validate/review (S3b) then operator-gated publish (S4b)",
                 _cmd_initiative_run,
                 [_a("id", "initiative ID"),
-                 _a("--worker-command", "worker command as a JSON array, e.g. '[\"opencode\", \"run\"]'", required=True),
+                 _a("--free", "use the free OpenCode adapter scripts as worker and reviewer; --model then forces one free model", action="store_true"),
+                 _a("--worker-command", "worker command as a JSON array, e.g. '[\"opencode\", \"run\"]' (or use --free)", default=None),
                  _a("--review-command", "optional reviewer command as a JSON array (omit = validation-gated only)", default=None),
                  _a("--worker", "worker name", default="packet-loop"),
                  _a("--model", "model identifier (metadata)"),

@@ -86,14 +86,18 @@ prompts must use local staged copies, never an external queue path. A missing
 file, mismatched hash, invalid contract, or reviewer worktree mutation is a
 hard failure and leaves the attempt evidence available for inspection.
 
+Both adapters walk the same zero-cost ladder as the free train: a model that
+fails cleanly (no result written, worktree and `HEAD` untouched) hands off to
+the next free model inside the same attempt; any partial work stops fallback
+immediately. `KITTYBUILDER_MODEL` / `KITTYBUILDER_REVIEW_MODEL` force a single
+model, `KITTYBUILDER_MODELS` / `KITTYBUILDER_REVIEW_MODELS` (space-separated)
+replace the ladders.
+
 For a bounded launch with durable artifact paths, use the packet loop's watch
-surface:
+surface with the `--free` preset (see `docs/FREE_WORKERS.md`):
 
 ```bash
-./kitty builder initiative run-packet <initiative-id> <packet-id> \
-  --worker-command '["scripts/kittybuilder_opencode_worker.sh"]' \
-  --review-command '["scripts/kittybuilder_opencode_reviewer.sh"]' \
-  --watch
+./kitty builder initiative run-packet <initiative-id> <packet-id> --free --watch
 ```
 
 ## GitHub Credential Hygiene

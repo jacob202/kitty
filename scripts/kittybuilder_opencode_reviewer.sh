@@ -13,7 +13,22 @@ set -euo pipefail
 : "${KB_ATTEMPT_ID:?KB_ATTEMPT_ID is required}"
 : "${KB_TASK_ID:?KB_TASK_ID is required}"
 
-model="${KITTYBUILDER_REVIEW_MODEL:-opencode/nemotron-3-ultra-free}"
+# Free-reviewer ladder: KITTYBUILDER_REVIEW_MODEL forces exactly one model,
+# KITTYBUILDER_REVIEW_MODELS (space-separated) replaces the default ladder.
+# Keep it disjoint from the builder ladder head so the review stays independent.
+if [[ -n "${KITTYBUILDER_REVIEW_MODEL:-}" ]]; then
+  models=("${KITTYBUILDER_REVIEW_MODEL}")
+elif [[ -n "${KITTYBUILDER_REVIEW_MODELS:-}" ]]; then
+  read -r -a models <<<"${KITTYBUILDER_REVIEW_MODELS}"
+else
+  models=(
+    "opencode/nemotron-3-ultra-free"
+    "opencode/mimo-v2.5-free"
+    "opencode/north-mini-code-free"
+    "openrouter/tencent/hy3:free"
+    "openrouter/free"
+  )
+fi
 before=$(git rev-parse HEAD)
 before_status=$(git status --porcelain=v1 --untracked-files=all)
 if [[ "${before}" != "${KB_REVIEW_SHA}" ]]; then
@@ -98,13 +113,44 @@ Approve only if the acceptance criteria and validation evidence are honest.
 EOF
 )
 
-opencode run --auto --agent free-reviewer --model "${model}" \
-  --title "KittyBuilder free packet reviewer" "${prompt}"
+fingerprint() {
+  git rev-parse HEAD
+  git status --porcelain=v1 --untracked-files=all
+}
 
-if [[ ! -f "${local_review}" ]]; then
-  echo "ERROR: OpenCode did not write ${local_review}" >&2
+# A reviewer model may hand off to the next free model only when it failed
+# cleanly: no review written and no worktree mutation. A written review file
+# is never discarded in favour of another model, and any mutation is fatal.
+chosen_model=""
+for model in "${models[@]}"; do
+  attempt_before="$(fingerprint)"
+  echo "=== free reviewer attempt: ${model} ==="
+  set +e
+  opencode run --auto --agent free-reviewer --model "${model}" \
+    --title "KittyBuilder free packet reviewer" "${prompt}"
+  rc=$?
+  set -e
+  if [[ -f "${local_review}" ]]; then
+    if [[ ${rc} -ne 0 ]]; then
+      echo "ERROR: reviewer ${model} wrote ${local_review} but exited ${rc}; refusing the review." >&2
+      exit 1
+    fi
+    chosen_model="${model}"
+    break
+  fi
+  attempt_after="$(fingerprint)"
+  if [[ "${attempt_before}" != "${attempt_after}" ]]; then
+    echo "ERROR: read-only reviewer ${model} changed the worktree" >&2
+    exit 1
+  fi
+  echo "WARNING: reviewer ${model} exited ${rc} without a review; trying the next free model." >&2
+done
+
+if [[ -z "${chosen_model}" ]]; then
+  echo "ERROR: every free reviewer model failed without producing ${local_review}: ${models[*]}" >&2
   exit 1
 fi
+echo "Free review completed with ${chosen_model}."
 
 python3 - "${local_review}" <<'PY'
 import json

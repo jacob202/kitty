@@ -49,6 +49,7 @@ Read `.claude/HANDOFF.md` and `.claude/STATE.md` at the start of every session. 
 | Phase B plan        | `docs/phases/PHASE_B_PLAN.md`           |
 | Storage migration   | `docs/phases/STORAGE_MIGRATION_PLAN.md` |
 | Agent/runtime rules | `docs/AGENT_RUNTIME.md`          |
+| Free workers        | `docs/FREE_WORKERS.md`           |
 | Decisions           | `docs/DECISIONS.md`              |
 | Lessons             | `docs/LEARNINGS.md`              |
 | Handoff             | `.claude/HANDOFF.md`             |
@@ -91,5 +92,6 @@ If a command fails, report the failure exactly. Do not round up to passing.
 - "the journal thing" → `gateway/journal.py` + `gateway/journal_store.py`
 - "phase B" → `docs/phases/PHASE_B_PLAN.md` (shipped)
 - "phase C" → storage migrations (chats done, journal next)
+- "free workers" / "the free train" → `docs/FREE_WORKERS.md` (zero-cost OpenCode execution of packets)
 - "Goose" → external chat tool, not part of kitty runtime
 - "Honcho" → external mirror service, not properly wired up

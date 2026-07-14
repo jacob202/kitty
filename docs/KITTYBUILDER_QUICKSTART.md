@@ -10,6 +10,10 @@ All commands live under `./kitty builder queue ...` (or
 `python3.12 -m gateway.builder_cli queue ...`). Data-returning commands accept
 `--json`.
 
+To execute queued packets with zero-cost OpenCode models instead of paid
+tokens, see `docs/FREE_WORKERS.md` — the short version is
+`./kitty builder initiative run-packet <id> <packet> --free --watch`.
+
 ## Quickstart
 
 ```bash
