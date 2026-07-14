@@ -10,6 +10,8 @@ Kitty should not become a busier chatbot. It should become a trustworthy, contin
 
 This document records the capabilities that can take Kitty several levels beyond a conventional assistant. They are future product horizons, not permission to build a giant framework or to bundle them into one PR.
 
+For the detailed product principle that Kitty should feel like an unfair advantage, the first-class KittyBuilder tab, and the full model-harness efficiency roadmap, see `UNFAIR_ADVANTAGE_AND_HARNESS.md`.
+
 ## Product rules for all future capabilities
 
 1. **Progressive disclosure.** Powerful information must be available without crowding every response or screen.
