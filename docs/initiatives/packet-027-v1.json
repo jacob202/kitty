@@ -22,9 +22,16 @@
         "gateway/builder_attempt.py",
         "gateway/builder_queue.py",
         "tests/test_builder_loop.py",
-        "tests/test_builder_runner.py"
+        "tests/test_builder_runner.py",
+        "tests/test_builder_attempt.py"
       ],
-      "policy": { "max_attempts": 2, "priority": 10 },
+      "forbidden_paths": [
+        ".claude/STATE.md",
+        ".claude/HANDOFF.md",
+        ".claude/"
+      ],
+      "forbidden_paths_note": "Do not modify .claude/STATE.md, .claude/HANDOFF.md, or any runner-owned state files. These are managed by the orchestrator lifecycle.",
+      "policy": { "max_attempts": 3, "priority": 10, "attempt_3_authorization": "Operator-authorized retry: attempt 1 was interrupted (EXIT trap deleted result), attempt 2 failed due to manifest scope-definition error (test_builder_attempt.py not in allowed paths). Attempt 3 corrects the manifest and re-runs." },
       "validation_commands": [
         "python3.12 -m pytest tests/test_builder_loop.py tests/test_builder_runner.py tests/test_builder_initiative.py -q --tb=short"
       ]
