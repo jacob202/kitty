@@ -47,6 +47,12 @@ ATTEMPT_ABORTED = "aborted"
 ATTEMPT_CRASHED = "crashed"
 _OUTCOMES = frozenset({ATTEMPT_SUCCEEDED, ATTEMPT_FAILED, ATTEMPT_ABORTED, ATTEMPT_CRASHED})
 
+# Outcomes that consume the per-packet retry budget: a real terminal failure.
+# ``crashed`` is budget-neutral and ``succeeded`` completes the packet, so
+# neither counts toward exhaustion. Single source of truth, also used by
+# builder_initiative._attempts_exhausted so the rollup agrees with this module.
+_BUDGET_CONSUMING_OUTCOMES = frozenset({ATTEMPT_FAILED, ATTEMPT_ABORTED})
+
 _IMPL_STATUSES = frozenset({"completed", "failed", "aborted"})
 _REVIEW_VERDICTS = frozenset({"approve", "request_changes", "reject"})
 _FINDING_SEVERITIES = frozenset({"critical", "major", "minor"})
@@ -364,13 +370,21 @@ def _attempt_count(
     *,
     exclude_crashed: bool = False,
 ) -> int:
+    """Count attempts for a packet.
+
+    When ``exclude_crashed`` is true, only budget-consuming outcomes are
+    counted (``failed``/``aborted``) — ``crashed`` and ``succeeded`` never
+    consume the retry budget. This matches ``_BUDGET_CONSUMING_OUTCOMES``.
+    """
     if exclude_crashed:
+        placeholders = ",".join("?" * len(_BUDGET_CONSUMING_OUTCOMES))
         row = conn.execute(
-            """
+            f"""
             SELECT COUNT(*) FROM packet_attempts
-            WHERE initiative_id = ? AND packet_id = ? AND outcome IS DISTINCT FROM ?
+            WHERE initiative_id = ? AND packet_id = ?
+            AND outcome IN ({placeholders})
             """,
-            (initiative_id, packet_id, ATTEMPT_CRASHED),
+            (initiative_id, packet_id, *_BUDGET_CONSUMING_OUTCOMES),
         ).fetchone()
     else:
         row = conn.execute(
