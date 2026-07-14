@@ -141,6 +141,84 @@ class TestRunPacket:
         failure = next(event for event in events if event["type"] == "infrastructure_failed")
         assert failure["payload"]["counts_toward_budget"] is False
 
+    def test_stale_attempt_reconciled_on_entry(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """Open attempts from a previous crash are closed as crashed on entry."""
+        task_id = _apply(db_path)
+        # Simulate a stale attempt: open one, close it already crashed with budget
+        # exclusion, then open another and leave it in flight (outcome IS NULL).
+        first = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+        ba.close_attempt(first["id"], ba.ATTEMPT_FAILED, db_path=db_path)
+        stale = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+
+        # Now run_packet should reconcile the stale attempt before proceeding.
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == "succeeded"
+
+        # The stale attempt is now closed as crashed.
+        closed = ba.get_attempt(stale["id"], db_path=db_path)
+        assert closed is not None
+        assert closed["outcome"] == ba.ATTEMPT_CRASHED
+
+        # Run-manifest was written with crashed outcome.
+        attempt_dir = db_path.parent / "attempts" / task_id / str(stale["id"])
+        manifest_path = attempt_dir / "run-manifest.json"
+        assert manifest_path.exists()
+        manifest = json.loads(manifest_path.read_text())
+        assert manifest["outcome"] == "crashed"
+        assert manifest["failure"]["sha256"]
+
+        # infrastructure_failed event was logged.
+        events = bq.list_events(task_id, db_path=db_path)
+        stale_events = [
+            e
+            for e in events
+            if e["type"] == "infrastructure_failed"
+            and e.get("payload", {}).get("phase") == "stale_attempt_reconciliation"
+        ]
+        assert len(stale_events) == 1
+        assert (
+            stale_events[0]["payload"]["counts_toward_budget"] is False
+        )
+
+    def test_crashed_attempt_does_not_consume_budget(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """A crashed attempt preserves budget for real retries."""
+        _apply(db_path, max_attempts=2)
+
+        # Simulate two crashed attempts — neither should consume budget.
+        for _ in range(2):
+            a = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+            ba.close_attempt(a["id"], ba.ATTEMPT_CRASHED, db_path=db_path)
+
+        # Budget not exhausted (0/2 consumed) — attempt 3 is allowed.
+        third = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+        assert third["attempt_no"] == 3
+        # Close it as real failure — this consumes 1 of the 2 budget.
+        ba.close_attempt(third["id"], ba.ATTEMPT_FAILED, db_path=db_path)
+
+        # Budget still not exhausted (1/2 consumed) — attempt 4 is allowed.
+        fourth = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+        assert fourth["attempt_no"] == 4
+
+        # Close fourth as crashed too — budget still 1/2.
+        ba.close_attempt(fourth["id"], ba.ATTEMPT_CRASHED, db_path=db_path)
+
+        # Run a real loop — should use attempt 5 and succeed.
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == "succeeded"
+        assert result["attempts"][0]["attempt_no"] == 5
+
     def test_success_first_attempt(self, repo: Path, db_path: Path, tmp_path: Path):
         task_id = _apply(db_path)
         result = bl.run_packet(

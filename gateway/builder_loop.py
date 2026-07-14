@@ -163,6 +163,64 @@ def _validate_context_manifest(
     return parsed
 
 
+def _reconcile_stale_attempts(
+    initiative_id: str,
+    packet_id: str,
+    *,
+    db_path: Path | None = None,
+    repo_root: Path | None = None,
+) -> list[dict[str, Any]]:
+    """Detect open attempts left by crashed workers and close them as crashed.
+
+    Preserves each crashed attempt's run-manifest.json with ``outcome:'crashed'``
+    and the crash reason, and logs ``infrastructure_failed`` events with
+    ``counts_toward_budget: False``. Returns the list of reconciled attempt
+    dicts so callers can report them.
+    """
+    stale = ba.list_stale_attempts(initiative_id, packet_id, db_path=db_path)
+    reconciled: list[dict[str, Any]] = []
+    for attempt in stale:
+        task_id = attempt["task_id"]
+        attempt_id = attempt["id"]
+        attempt_dir_path = _attempt_dir(task_id, attempt_id, db_path)
+        manifest_path = attempt_dir_path / "run-manifest.json"
+
+        crash_reason = (
+            f"Builder run_packet process was interrupted or terminated "
+            f"while attempt {attempt['attempt_no']} was running"
+        )
+
+        manifest: dict[str, Any] = {}
+        if manifest_path.exists():
+            try:
+                manifest = json.loads(
+                    manifest_path.read_text(encoding="utf-8")
+                )
+            except (OSError, json.JSONDecodeError):
+                manifest = {}
+
+        manifest["outcome"] = "crashed"
+        manifest["failure"] = _text_evidence(crash_reason)
+        attempt_dir_path.mkdir(parents=True, exist_ok=True)
+        write_run_manifest(manifest_path, manifest)
+
+        ba.close_attempt(attempt_id, ba.ATTEMPT_CRASHED, db_path=db_path)
+        bq.append_event(
+            task_id,
+            "infrastructure_failed",
+            payload={
+                "reason": crash_reason,
+                "counts_toward_budget": False,
+                "phase": "stale_attempt_reconciliation",
+                "attempt_id": attempt_id,
+                "attempt_no": attempt["attempt_no"],
+            },
+            db_path=db_path,
+        )
+        reconciled.append(attempt)
+    return reconciled
+
+
 def _write_review_context(
     path: Path,
     *,
@@ -295,6 +353,13 @@ def run_packet(
             f"task {task_id} for {initiative_id}/{packet_id} is {state}; "
             "the loop only starts on a queued task"
         )
+
+    # Reconcile any stale open attempts left by a previous crashed process
+    # before entering the repair loop. Crashed attempts do not count toward
+    # the attempt budget (counts_toward_budget: False).
+    _reconcile_stale_attempts(
+        initiative_id, packet_id, db_path=db_path, repo_root=repo_root
+    )
 
     history: list[dict[str, Any]] = []
     while True:

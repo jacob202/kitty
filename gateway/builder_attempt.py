@@ -44,7 +44,8 @@ MAX_FINDINGS = 50
 ATTEMPT_SUCCEEDED = "succeeded"
 ATTEMPT_FAILED = "failed"
 ATTEMPT_ABORTED = "aborted"
-_OUTCOMES = frozenset({ATTEMPT_SUCCEEDED, ATTEMPT_FAILED, ATTEMPT_ABORTED})
+ATTEMPT_CRASHED = "crashed"
+_OUTCOMES = frozenset({ATTEMPT_SUCCEEDED, ATTEMPT_FAILED, ATTEMPT_ABORTED, ATTEMPT_CRASHED})
 
 _IMPL_STATUSES = frozenset({"completed", "failed", "aborted"})
 _REVIEW_VERDICTS = frozenset({"approve", "request_changes", "reject"})
@@ -323,20 +324,62 @@ def build_context_bundle(
 
 
 # ---------------------------------------------------------------------------
+# Stale attempt detection
+# ---------------------------------------------------------------------------
+
+
+def list_stale_attempts(
+    initiative_id: str, packet_id: str, db_path: Path | None = None
+) -> list[dict[str, Any]]:
+    """Return open attempts (outcome IS NULL) for a packet.
+
+    These are attempts left in-flight by a crashed run_packet process and
+    must be reconciled before starting a new one.
+    """
+    init_db(db_path)
+    conn = bq.connect(db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT * FROM packet_attempts
+            WHERE initiative_id = ? AND packet_id = ? AND outcome IS NULL
+            ORDER BY attempt_no
+            """,
+            (initiative_id, packet_id),
+        ).fetchall()
+        return [_row_to_attempt(r) for r in rows]
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
 # Attempt lifecycle
 # ---------------------------------------------------------------------------
 
 
 def _attempt_count(
-    conn: sqlite3.Connection, initiative_id: str, packet_id: str
+    conn: sqlite3.Connection,
+    initiative_id: str,
+    packet_id: str,
+    *,
+    exclude_crashed: bool = False,
 ) -> int:
-    row = conn.execute(
-        """
-        SELECT COUNT(*) FROM packet_attempts
-        WHERE initiative_id = ? AND packet_id = ?
-        """,
-        (initiative_id, packet_id),
-    ).fetchone()
+    if exclude_crashed:
+        row = conn.execute(
+            """
+            SELECT COUNT(*) FROM packet_attempts
+            WHERE initiative_id = ? AND packet_id = ? AND outcome IS DISTINCT FROM ?
+            """,
+            (initiative_id, packet_id, ATTEMPT_CRASHED),
+        ).fetchone()
+    else:
+        row = conn.execute(
+            """
+            SELECT COUNT(*) FROM packet_attempts
+            WHERE initiative_id = ? AND packet_id = ?
+            """,
+            (initiative_id, packet_id),
+        ).fetchone()
     return int(row[0])
 
 
@@ -383,10 +426,13 @@ def start_attempt(
         policy = json.loads(packet["policy_json"]) if packet["policy_json"] else {}
         max_attempts = policy.get("max_attempts", DEFAULT_MAX_ATTEMPTS)
         used = _attempt_count(conn, initiative_id, packet_id)
-        if used >= max_attempts:
+        used_for_budget = _attempt_count(
+            conn, initiative_id, packet_id, exclude_crashed=True
+        )
+        if used_for_budget >= max_attempts:
             raise AttemptLimitError(
-                f"{initiative_id}/{packet_id} has used {used}/{max_attempts} "
-                "attempts; operator intervention required"
+                f"{initiative_id}/{packet_id} has used {used_for_budget}/"
+                f"{max_attempts} attempts; operator intervention required"
             )
 
         attempt_no = used + 1
