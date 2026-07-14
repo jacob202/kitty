@@ -718,16 +718,19 @@ def _packet_max_attempts(packet: dict[str, Any]) -> int:
 def _attempts_exhausted(
     packet: dict[str, Any], attempts: list[dict[str, Any]]
 ) -> bool:
-    """True when every closed attempt failed and the budget is spent.
+    """True when the retry budget is spent on genuine failures.
 
-    A packet with a successful attempt is never exhausted. Open attempts do not
-    count toward the budget until they close. This keeps the rollup truthful
-    without mutating the underlying queue task.
+    Only real terminal failures (``failed``/``aborted``) consume the budget;
+    ``crashed`` is budget-neutral and ``succeeded`` completes the packet. Uses
+    ``ba._BUDGET_CONSUMING_OUTCOMES`` so this agrees with
+    ``builder_attempt.start_attempt``'s retry-budget check.
     """
-    closed = [a for a in attempts if a.get("outcome") is not None]
-    if any(a.get("outcome") == ba.ATTEMPT_SUCCEEDED for a in closed):
+    if any(a.get("outcome") == ba.ATTEMPT_SUCCEEDED for a in attempts):
         return False
-    return len(closed) >= _packet_max_attempts(packet)
+    consuming = [
+        a for a in attempts if a.get("outcome") in ba._BUDGET_CONSUMING_OUTCOMES
+    ]
+    return len(consuming) >= _packet_max_attempts(packet)
 
 
 def _exhausted_packet_ids(
