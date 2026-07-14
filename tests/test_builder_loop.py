@@ -114,6 +114,33 @@ def _approve_reviewer(tmp_path: Path) -> list[str]:
 
 
 class TestRunPacket:
+    def test_preflight_failure_does_not_consume_attempt_budget(
+        self, repo: Path, db_path: Path, tmp_path: Path, monkeypatch
+    ):
+        task_id = _apply(db_path)
+
+        def fail_preflight(*args, **kwargs):
+            from gateway.builder_runner import RunnerError
+
+            raise RunnerError("worktree root is not writable")
+
+        monkeypatch.setattr(bl, "preflight_worktree", fail_preflight, raising=False)
+
+        with pytest.raises(bl.LoopError, match="preflight failed"):
+            bl.run_packet(
+                INITIATIVE,
+                PACKET,
+                worker_command=["false"],
+                repo_root=repo,
+                db_path=db_path,
+            )
+
+        assert ba.list_attempts(INITIATIVE, PACKET, db_path=db_path) == []
+        assert bq.get_task(task_id, db_path=db_path)["state"] == bq.QUEUED
+        events = bq.list_events(task_id, db_path=db_path)
+        failure = next(event for event in events if event["type"] == "infrastructure_failed")
+        assert failure["payload"]["counts_toward_budget"] is False
+
     def test_success_first_attempt(self, repo: Path, db_path: Path, tmp_path: Path):
         task_id = _apply(db_path)
         result = bl.run_packet(
@@ -134,6 +161,9 @@ class TestRunPacket:
         assert manifest["outcome"] == "succeeded"
         assert manifest["worker_run"]["run_id"] == entry["run_id"]
         assert manifest["bundle_sha256"]
+        assert manifest["context_manifest"]["sha256"]
+        assert manifest["context_manifest"]["task_id"] == task_id
+        assert manifest["context_manifest"]["attempt_id"] == entry["attempt_id"]
         assert manifest["validation"]["commands"][0]["command_sha256"]
         assert "output_tail" not in manifest["validation"]["commands"][0]
         assert manifest["review"]["summary"]["sha256"]
@@ -289,6 +319,27 @@ class TestRunPacket:
         assert result["outcome"] == "exhausted"
         assert "request_changes" in result["attempts"][0]["failure"]
 
+    def test_reviewer_cannot_approve_a_changed_diff(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        _apply(db_path, max_attempts=1)
+        reviewer = _script(
+            tmp_path,
+            "drifting-reviewer.sh",
+            f"echo drift >> done.txt\n"
+            f"cat > \"$KB_REVIEW_RESULT_PATH\" <<'EOF'\n{_APPROVE}\nEOF\n",
+        )
+        result = bl.run_packet(
+            INITIATIVE,
+            PACKET,
+            worker_command=_good_worker(tmp_path),
+            review_command=reviewer,
+            repo_root=repo,
+            db_path=db_path,
+        )
+        assert result["outcome"] == "exhausted"
+        assert "review evidence invalid" in result["attempts"][0]["failure"]
+
     def test_refuses_non_queued_task(self, repo: Path, db_path: Path, tmp_path: Path):
         task_id = _apply(db_path)
         bq.claim_task(task_id, "someone-else", db_path=db_path)
@@ -377,3 +428,31 @@ class TestCli:
              "--worker-command", "not-json"]
         ) == 1
         assert "error" in capsys.readouterr().err
+
+    def test_run_packet_cli_accepts_watch_flag(
+        self, repo: Path, db_path: Path, tmp_path: Path, capsys, monkeypatch
+    ):
+        from gateway import builder_loop
+        from gateway.builder_cli import main
+
+        monkeypatch.setattr(bq, "BUILDER_QUEUE_DB", db_path)
+        _apply(db_path)
+        real_run_packet = builder_loop.run_packet
+
+        def patched(*args, **kwargs):
+            kwargs["repo_root"] = repo
+            return real_run_packet(*args, **kwargs)
+
+        monkeypatch.setattr(builder_loop, "run_packet", patched)
+        assert main(
+            [
+                "initiative",
+                "run-packet",
+                INITIATIVE,
+                PACKET,
+                "--worker-command",
+                json.dumps(_good_worker(tmp_path)),
+                "--watch",
+            ]
+        ) == 0
+        assert "manifest" in capsys.readouterr().out

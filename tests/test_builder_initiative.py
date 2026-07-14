@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+from gateway import builder_attempt as ba
 from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
 from gateway.builder_cli import main
@@ -646,9 +647,115 @@ class TestKbS1bEligibility:
         assert status["state"] == bi.INITIATIVE_ACTIVE
         assert status["next_packet"] == "KB-A1"
 
+    def test_status_exposes_truthful_operator_and_review_evidence(self, db_path: Path):
+        result = bi.apply_manifest(_manifest(), db_path=db_path)
+        task_id = result["packets"][0]["task_id"]
+        bq.append_event(task_id, "operator_completed", payload={"source": "human"}, db_path=db_path)
+        bq.append_event(
+            task_id,
+            "review_evidence_bound",
+            payload={"review_sha": "abc123", "diff_sha256": "def456"},
+            db_path=db_path,
+        )
+
+        evidence = bi.initiative_status("kitty-alpha-v1", db_path=db_path)["evidence"]["KB-A1"]
+        assert evidence["operator_completed"] is True
+        assert evidence["review_approved"] is False
+        assert evidence["review_binding"]["review_sha"] == "abc123"
+        assert evidence["done"] is False
+        assert evidence["infrastructure_failures"] == 0
+        assert evidence["latest_run_id"] is None
+        assert evidence["pr"] is None
+
     def test_status_not_found_raises(self, db_path: Path):
         with pytest.raises(bi.InitiativeNotFoundError):
             bi.initiative_status("ghost", db_path=db_path)
+
+
+class TestKbS1bAttemptExhaustion:
+    """Attempt-exhausted packets must not be reported as eligible or in progress."""
+
+    def _apply_and_exhaust(
+        self, db_path: Path, max_attempts: int = 2
+    ) -> tuple[str, str]:
+        manifest = _manifest(
+            packets=[
+                _packet(
+                    "KB-E1",
+                    policy={"max_attempts": max_attempts, "priority": 5},
+                ),
+                _packet("KB-E2", depends_on=["KB-E1"]),
+            ]
+        )
+        result = bi.apply_manifest(manifest, db_path=db_path)
+        task_id = result["packets"][0]["task_id"]
+        for attempt_no in range(1, max_attempts + 1):
+            attempt = ba.start_attempt(
+                "kitty-alpha-v1", "KB-E1", db_path=db_path
+            )
+            assert attempt["attempt_no"] == attempt_no
+            ba.close_attempt(
+                attempt["id"], ba.ATTEMPT_FAILED, db_path=db_path
+            )
+        return task_id, result["packets"][1]["task_id"]
+
+    def test_exhausted_packet_not_eligible(self, db_path: Path):
+        self._apply_and_exhaust(db_path)
+        eligible = bi.eligible_packets("kitty-alpha-v1", db_path=db_path)
+        assert [p["packet_id"] for p in eligible] == []
+
+    def test_exhausted_packet_reported_in_status(self, db_path: Path):
+        self._apply_and_exhaust(db_path)
+        status = bi.initiative_status("kitty-alpha-v1", db_path=db_path)
+        assert status["exhausted"] == ["KB-E1"]
+        assert "KB-E1" not in status["eligible"]
+        assert "KB-E1" not in status["in_progress"]
+        assert "KB-E1" not in status["pending"]
+
+    def test_exhausted_packet_marks_initiative_failed(self, db_path: Path):
+        self._apply_and_exhaust(db_path)
+        status = bi.initiative_status("kitty-alpha-v1", db_path=db_path)
+        assert status["state"] == bi.INITIATIVE_FAILED
+
+    def test_dependents_of_exhausted_packet_are_blocked(self, db_path: Path):
+        self._apply_and_exhaust(db_path)
+        blocked = bi.blocked_packets("kitty-alpha-v1", db_path=db_path)
+        assert {b["packet_id"] for b in blocked} == {"KB-E2"}
+
+    def test_successful_attempt_clears_exhaustion(self, db_path: Path):
+        manifest = _manifest(
+            packets=[
+                _packet(
+                    "KB-E1",
+                    policy={"max_attempts": 2, "priority": 5},
+                ),
+            ]
+        )
+        bi.apply_manifest(manifest, db_path=db_path)
+        # First attempt fails...
+        attempt1 = ba.start_attempt(
+            "kitty-alpha-v1", "KB-E1", db_path=db_path
+        )
+        ba.close_attempt(attempt1["id"], ba.ATTEMPT_FAILED, db_path=db_path)
+        # Second attempt succeeds.
+        attempt2 = ba.start_attempt(
+            "kitty-alpha-v1", "KB-E1", db_path=db_path
+        )
+        ba.close_attempt(
+            attempt2["id"], ba.ATTEMPT_SUCCEEDED, db_path=db_path
+        )
+
+        status = bi.initiative_status("kitty-alpha-v1", db_path=db_path)
+        assert status["exhausted"] == []
+        assert status["state"] == bi.INITIATIVE_ACTIVE
+
+    def test_historical_attempt_records_preserved(self, db_path: Path):
+        self._apply_and_exhaust(db_path, max_attempts=2)
+        attempts = ba.list_attempts(
+            "kitty-alpha-v1", "KB-E1", db_path=db_path
+        )
+        assert len(attempts) == 2
+        assert all(a["outcome"] == ba.ATTEMPT_FAILED for a in attempts)
 
 
 class TestKbS1bCli:

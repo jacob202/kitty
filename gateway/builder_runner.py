@@ -15,6 +15,7 @@ always survive for inspection — partial progress is never destroyed.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import shutil
 import signal
@@ -56,6 +57,65 @@ _EXTRA_ENV_BLOCKED = frozenset(
 
 class RunnerError(RuntimeError):
     """Raised for worktree or run-orchestration failures."""
+
+
+def _existing_parent(path: Path) -> Path:
+    """Return the nearest existing parent for a path we may create later."""
+    candidate = path
+    while not candidate.exists() and candidate != candidate.parent:
+        candidate = candidate.parent
+    return candidate
+
+
+def _require_writable_directory(path: Path, label: str) -> None:
+    """Fail before a run when a required directory cannot be used safely."""
+    existing = _existing_parent(path)
+    if not existing.is_dir():
+        raise RunnerError(f"{label} parent is not a directory: {existing}")
+    if not os.access(existing, os.W_OK | os.X_OK):
+        raise RunnerError(f"{label} is not writable/executable: {existing}")
+    if path.exists() and not path.is_dir():
+        raise RunnerError(f"{label} exists but is not a directory: {path}")
+
+
+def preflight_worktree(
+    task_id: str, *, repo_root: Path | None = None
+) -> dict[str, str]:
+    """Check worktree and Git metadata prerequisites without mutating state.
+
+    This is intentionally separate from ``ensure_worktree``: callers use it
+    before opening an implementation attempt so an infrastructure failure does
+    not consume the packet's attempt budget.
+    """
+    root = _repo_root(repo_root)
+    if not task_id or "/" in task_id or "\\" in task_id:
+        raise RunnerError(f"invalid builder task id for preflight: {task_id!r}")
+
+    _require_writable_directory(root, "repository root")
+    worktree_root = root / ".worktrees" / "kittybuilder"
+    _require_writable_directory(worktree_root, "Builder worktree root")
+
+    metadata_paths: dict[str, str] = {}
+    for flag in ("--git-common-dir", "--git-path refs/heads", "--git-path worktrees"):
+        result = _git(["rev-parse", flag], cwd=root)
+        if result.returncode != 0:
+            detail = result.stderr.strip() or result.stdout.strip() or "no output"
+            raise RunnerError(
+                f"git metadata preflight failed for {flag}: {detail}"
+            )
+        raw = result.stdout.strip()
+        path = Path(raw)
+        if not path.is_absolute():
+            path = root / path
+        _require_writable_directory(path, f"Git metadata ({flag})")
+        metadata_paths[flag] = str(path)
+
+    return {
+        "repo_root": str(root),
+        "worktree_root": str(worktree_root),
+        **{f"git_{key.replace(' ', '_').replace('/', '_')}": value
+           for key, value in metadata_paths.items()},
+    }
 
 
 def _repo_root(repo_root: Path | None) -> Path:
@@ -210,6 +270,61 @@ def _changed_paths(path: Path, start_sha: str) -> list[str]:
     return sorted(changed)
 
 
+def _diff_sha256(path: Path, start_sha: str) -> str:
+    """Hash the complete observable worktree diff since dispatch.
+
+    Git's binary diff output covers committed, staged, and unstaged tracked
+    changes. Untracked files are appended with explicit path/length framing so
+    two different file sets cannot produce the same digest by concatenation.
+    The digest is evidence only; it never substitutes for the changed-path
+    allowlist check.
+    """
+    digest = hashlib.sha256()
+    for label, args in (
+        (b"committed", ["diff", "--binary", f"{start_sha}..HEAD"]),
+        (b"unstaged", ["diff", "--binary"]),
+        (b"staged", ["diff", "--cached", "--binary"]),
+    ):
+        result = subprocess.run(
+            ["git", *args], cwd=path, capture_output=True, check=False
+        )
+        if result.returncode != 0:
+            detail = result.stderr.decode(errors="replace").strip() or "no output"
+            raise RunnerError(
+                f"git {' '.join(args)} failed in {path} "
+                f"(exit {result.returncode}): {detail}"
+            )
+        digest.update(label)
+        digest.update(len(result.stdout).to_bytes(8, "big"))
+        digest.update(result.stdout)
+
+    untracked = _git_output(
+        ["ls-files", "--others", "--exclude-standard", "-z"], cwd=path
+    ).split("\0")
+    for raw in sorted(item for item in untracked if item):
+        file_path = path / raw
+        if not file_path.is_file():
+            raise RunnerError(f"untracked path is not a regular file: {file_path}")
+        content = file_path.read_bytes()
+        encoded_path = raw.encode("utf-8")
+        digest.update(b"untracked")
+        digest.update(len(encoded_path).to_bytes(8, "big"))
+        digest.update(encoded_path)
+        digest.update(len(content).to_bytes(8, "big"))
+        digest.update(content)
+    return digest.hexdigest()
+
+
+def worktree_head(path: Path) -> str:
+    """Return the exact commit currently checked out in a worker worktree."""
+    return _git_output(["rev-parse", "HEAD"], cwd=path).strip()
+
+
+def worktree_diff_sha256(path: Path, start_sha: str) -> str:
+    """Return the stable digest used to bind reviewer evidence to a diff."""
+    return _diff_sha256(path, start_sha)
+
+
 def _scope_violations(
     changed_paths: list[str],
     allowed_paths: list[str] | None,
@@ -277,12 +392,14 @@ def _raise_worker_launch_error(
     inspection_error: str | None = None
     try:
         changed_paths = _changed_paths(wt_path, start_sha)
+        diff_sha256 = _diff_sha256(wt_path, start_sha)
         scope_violations = _scope_violations(
             changed_paths, task.get("allowed_paths")
         )
         worktree_state = _worktree_summary(wt_path)
     except Exception as inspect_exc:
         changed_paths = []
+        diff_sha256 = None
         scope_violations = []
         inspection_error = f"{type(inspect_exc).__name__}: {inspect_exc}"
         worktree_state = {"inspection_error": inspection_error}
@@ -303,6 +420,8 @@ def _raise_worker_launch_error(
         "model": model,
         "provider": provider,
         "changed_paths": changed_paths,
+        "diff_sha256": diff_sha256,
+        "worker_started": False,
         "scope_violations": scope_violations,
         "worktree_state": worktree_state,
     }
@@ -484,6 +603,7 @@ def run_worker(
                 "provider": provider,
                 "changed_paths": [],
                 "scope_violations": [],
+                "worker_started": False,
             }
             try:
                 bq.finalize_run(
@@ -738,6 +858,7 @@ def run_worker(
         control_error = RunnerError(f"run {run_id} has no recorded start SHA")
     try:
         changed_paths = _changed_paths(wt_path, start_sha)
+        diff_sha256 = _diff_sha256(wt_path, start_sha)
         scope_violations = _scope_violations(
             changed_paths,
             task.get("allowed_paths"),
@@ -747,6 +868,7 @@ def run_worker(
         if control_error is None:
             control_error = exc
         changed_paths = []
+        diff_sha256 = None
         scope_violations = []
         worktree_state = {"inspection_error": f"{type(exc).__name__}: {exc}"}
 
@@ -770,6 +892,8 @@ def run_worker(
         "model": model,
         "provider": provider,
         "changed_paths": changed_paths,
+        "diff_sha256": diff_sha256,
+        "worker_started": True,
         "scope_violations": scope_violations,
         "worktree_state": worktree_state,
     }

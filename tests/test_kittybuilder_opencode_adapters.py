@@ -85,6 +85,27 @@ def _env(fake: Path, *, bundle: Path, context: Path, result: Path) -> dict[str, 
     return env
 
 
+def _review_binding(tmp_path: Path, *, task_id: str = "task-1", attempt_id: int = 7) -> Path:
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=tmp_path, check=True,
+        capture_output=True, text=True,
+    ).stdout.strip()
+    path = tmp_path / "review-context.json"
+    path.write_text(
+        json.dumps(
+            {
+                "task_id": task_id,
+                "attempt_id": attempt_id,
+                "review_sha": head,
+                "diff_sha256": "0" * 64,
+                "changed_paths": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
 def test_worker_stages_and_validates_local_context(tmp_path: Path):
     bundle = tmp_path / "bundle.json"
     bundle.write_text('{"objective":"safe"}\n', encoding="utf-8")
@@ -171,12 +192,19 @@ def test_reviewer_copies_only_a_valid_immutable_review(tmp_path: Path):
     review = tmp_path / "runner" / "review.json"
     review.parent.mkdir()
     fake = _fake_opencode(tmp_path)
+    binding = _review_binding(tmp_path)
     env = _env(fake, bundle=bundle, context=context, result=tmp_path / "unused.json")
     env.update(
         {
             "KB_IMPL_RESULT_PATH": str(implementation),
             "KB_REVIEW_RESULT_PATH": str(review),
             "FAKE_OPENCODE_REVIEW": "1",
+            "KB_REVIEW_CONTEXT_PATH": str(binding),
+            "KB_REVIEW_SHA": subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=tmp_path, check=True,
+                capture_output=True, text=True,
+            ).stdout.strip(),
+            "KB_REVIEW_DIFF_SHA256": "0" * 64,
         }
     )
 
@@ -202,6 +230,7 @@ def test_reviewer_rejects_worktree_mutation_and_does_not_publish_review(tmp_path
     implementation.write_text('{"contract_version":1}\n', encoding="utf-8")
     review = tmp_path / "review.json"
     fake = _fake_opencode(tmp_path)
+    binding = _review_binding(tmp_path)
     env = _env(fake, bundle=bundle, context=context, result=tmp_path / "unused.json")
     env.update(
         {
@@ -209,6 +238,12 @@ def test_reviewer_rejects_worktree_mutation_and_does_not_publish_review(tmp_path
             "KB_REVIEW_RESULT_PATH": str(review),
             "FAKE_OPENCODE_REVIEW": "1",
             "FAKE_OPENCODE_MUTATE": "1",
+            "KB_REVIEW_CONTEXT_PATH": str(binding),
+            "KB_REVIEW_SHA": subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=tmp_path, check=True,
+                capture_output=True, text=True,
+            ).stdout.strip(),
+            "KB_REVIEW_DIFF_SHA256": "0" * 64,
         }
     )
 

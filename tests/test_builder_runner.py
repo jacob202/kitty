@@ -170,6 +170,7 @@ class TestRunWorker:
         report = json.loads(refreshed["final_report_json"])
         assert report["outcome"] == bq.RUN_EXITED
         assert report["run_id"] == run["id"]
+        assert len(report["diff_sha256"]) == 64
         # Partial progress discoverable: worktree + log survive.
         assert Path(run["worktree_path"]).exists()
         assert (Path(run["worktree_path"]) / "result.txt").exists()

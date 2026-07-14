@@ -31,6 +31,7 @@ from graphlib import CycleError, TopologicalSorter
 from pathlib import Path
 from typing import Any
 
+from gateway import builder_attempt as ba
 from gateway import builder_queue as bq
 
 MANIFEST_VERSION = 1
@@ -629,7 +630,7 @@ def _read_packets_with_states(
 
         rows = conn.execute(
             """
-            SELECT packet_id, seq, title, task_id, depends_on_json
+            SELECT packet_id, seq, title, task_id, depends_on_json, policy_json
             FROM initiative_packets
             WHERE initiative_id = ? ORDER BY seq
             """,
@@ -645,6 +646,7 @@ def _read_packets_with_states(
             )
             packets.append(
                 {
+                    "initiative_id": initiative_id,
                     "packet_id": r["packet_id"],
                     "seq": r["seq"],
                     "title": r["title"],
@@ -652,6 +654,9 @@ def _read_packets_with_states(
                     "depends_on": json.loads(r["depends_on_json"])
                     if r["depends_on_json"]
                     else [],
+                    "policy": json.loads(r["policy_json"])
+                    if r["policy_json"]
+                    else {},
                     "state": task["state"] if task else None,
                 }
             )
@@ -661,22 +666,29 @@ def _read_packets_with_states(
 
 
 def _compute_unreachable(
-    packets: list[dict[str, Any]]
+    packets: list[dict[str, Any]],
+    extra_blocking: set[str] | None = None,
 ) -> set[str]:
     """Packets that can never become eligible (transitive blocking closure).
 
     A packet is directly unreachable when a dependency's task is in a blocking
-    state (``failed``/``cancelled``). That unreachability propagates to any
-    packet depending on an already-unreachable packet, so a single failed
-    dependency surfaces every downstream packet that will never run instead of
-    silently leaving them perpetually non-eligible.
+    state (``failed``/``cancelled``) or when a dependency is in the optional
+    ``extra_blocking`` set (e.g., attempt-exhausted packets that remain
+    ``queued``). That unreachability propagates to any packet depending on an
+    already-unreachable packet, so a single blocked dependency surfaces every
+    downstream packet that will never run instead of silently leaving them
+    perpetually non-eligible.
     """
     by_id = {p["packet_id"]: p for p in packets}
+    blocking = extra_blocking or set()
     unreachable: set[str] = set()
 
     for p in packets:
         for dep in p["depends_on"]:
             dep_p = by_id.get(dep)
+            if dep in blocking:
+                unreachable.add(p["packet_id"])
+                break
             if dep_p is not None and dep_p["state"] in _BLOCKING_STATES:
                 unreachable.add(p["packet_id"])
                 break
@@ -694,24 +706,68 @@ def _compute_unreachable(
     return unreachable
 
 
+def _packet_max_attempts(packet: dict[str, Any]) -> int:
+    """Return the packet's attempt budget, defaulting when unspecified."""
+    policy = packet.get("policy") or {}
+    max_attempts = policy.get("max_attempts", ba.DEFAULT_MAX_ATTEMPTS)
+    if not isinstance(max_attempts, int) or max_attempts < 1:
+        return ba.DEFAULT_MAX_ATTEMPTS
+    return max_attempts
+
+
+def _attempts_exhausted(
+    packet: dict[str, Any], attempts: list[dict[str, Any]]
+) -> bool:
+    """True when every closed attempt failed and the budget is spent.
+
+    A packet with a successful attempt is never exhausted. Open attempts do not
+    count toward the budget until they close. This keeps the rollup truthful
+    without mutating the underlying queue task.
+    """
+    closed = [a for a in attempts if a.get("outcome") is not None]
+    if any(a.get("outcome") == ba.ATTEMPT_SUCCEEDED for a in closed):
+        return False
+    return len(closed) >= _packet_max_attempts(packet)
+
+
+def _exhausted_packet_ids(
+    initiative_id: str,
+    packets: list[dict[str, Any]],
+    db_path: Path | None = None,
+) -> set[str]:
+    """Read attempts once per packet and return the ids of exhausted packets."""
+    exhausted: set[str] = set()
+    for p in packets:
+        if p["state"] != bq.QUEUED:
+            continue
+        attempts = ba.list_attempts(initiative_id, p["packet_id"], db_path=db_path)
+        if _attempts_exhausted(p, attempts):
+            exhausted.add(p["packet_id"])
+    return exhausted
+
+
 def eligible_packets(
     initiative_id: str, db_path: Path | None = None
 ) -> list[dict[str, Any]]:
     """Packets ready to run now: own task ``queued`` and every dependency done.
 
     Unreachable packets (a blocking dependency) are excluded, as are packets
-    still waiting on in-flight dependencies. Returned in ``seq`` order so
-    selection is deterministic.
+    still waiting on in-flight dependencies. Attempt-exhausted packets are also
+    excluded so the rollup does not present a blocked packet as runnable.
+    Returned in ``seq`` order so selection is deterministic.
     """
     init_db(db_path)
     packets = _read_packets_with_states(initiative_id, db_path)
 
     by_id = {p["packet_id"]: p for p in packets}
-    unreachable = _compute_unreachable(packets)
+    exhausted = _exhausted_packet_ids(initiative_id, packets, db_path=db_path)
+    unreachable = _compute_unreachable(packets, extra_blocking=exhausted)
 
     eligible = []
     for p in packets:
         if p["packet_id"] in unreachable:
+            continue
+        if p["packet_id"] in exhausted:
             continue
         if p["state"] != bq.QUEUED:
             continue
@@ -738,21 +794,33 @@ def blocked_packets(
     packets = _read_packets_with_states(initiative_id, db_path)
 
     by_id = {p["packet_id"]: p for p in packets}
-    unreachable = _compute_unreachable(packets)
+    exhausted = _exhausted_packet_ids(initiative_id, packets, db_path=db_path)
+    unreachable = _compute_unreachable(packets, extra_blocking=exhausted)
 
     blocked = []
     for p in packets:
         if p["packet_id"] not in unreachable:
             continue
-        blockers = [
-            {
-                "packet_id": dep,
-                "task_id": by_id[dep]["task_id"],
-                "state": by_id[dep]["state"],
-            }
-            for dep in p["depends_on"]
-            if dep in by_id and by_id[dep]["state"] in _BLOCKING_STATES
-        ]
+        blockers = []
+        for dep in p["depends_on"]:
+            if dep not in by_id:
+                continue
+            if dep in exhausted:
+                blockers.append(
+                    {
+                        "packet_id": dep,
+                        "task_id": by_id[dep]["task_id"],
+                        "state": "exhausted",
+                    }
+                )
+            elif by_id[dep]["state"] in _BLOCKING_STATES:
+                blockers.append(
+                    {
+                        "packet_id": dep,
+                        "task_id": by_id[dep]["task_id"],
+                        "state": by_id[dep]["state"],
+                    }
+                )
         blocked.append(
             {
                 "packet_id": p["packet_id"],
@@ -797,7 +865,8 @@ def initiative_status(
         raise InitiativeNotFoundError(initiative_id)
 
     packets = _read_packets_with_states(initiative_id, db_path)
-    unreachable = _compute_unreachable(packets)
+    exhausted = _exhausted_packet_ids(initiative_id, packets, db_path=db_path)
+    unreachable = _compute_unreachable(packets, extra_blocking=exhausted)
     eligible = eligible_packets(initiative_id, db_path)
     blocked = blocked_packets(initiative_id, db_path)
 
@@ -816,6 +885,7 @@ def initiative_status(
         p["packet_id"]
         for p in packets
         if p["packet_id"] not in unreachable
+        and p["packet_id"] not in exhausted
         and p["state"] == bq.QUEUED
         and p["packet_id"] not in {e["packet_id"] for e in eligible}
     ]
@@ -825,7 +895,7 @@ def initiative_status(
         state = INITIATIVE_PAUSED
     elif len(done) == len(packets):
         state = INITIATIVE_COMPLETED
-    elif blocked or failed:
+    elif blocked or failed or exhausted:
         state = INITIATIVE_FAILED
     elif not eligible:
         state = INITIATIVE_PAUSED
@@ -833,6 +903,7 @@ def initiative_status(
         state = INITIATIVE_ACTIVE
 
     next_p = eligible[0] if eligible else None
+    evidence = _initiative_evidence(packets, db_path)
     return {
         "initiative_id": initiative_id,
         "state": state,
@@ -840,13 +911,162 @@ def initiative_status(
         "total_packets": len(packets),
         "eligible": [p["packet_id"] for p in eligible],
         "blocked": [p["packet_id"] for p in blocked],
+        "exhausted": sorted(exhausted),
         "done": done,
         "failed": failed,
         "in_progress": in_progress,
         "pending": pending,
         "next_packet": next_p["packet_id"] if next_p else None,
         "next_packet_task_id": next_p["task_id"] if next_p else None,
+        "evidence": evidence,
     }
+
+
+def _initiative_evidence(
+    packets: list[dict[str, Any]], db_path: Path | None
+) -> dict[str, dict[str, Any]]:
+    """Roll up durable attempt/events evidence without inferring hidden work."""
+    rollup: dict[str, dict[str, Any]] = {}
+    for packet in packets:
+        task = bq.get_task(packet["task_id"], db_path=db_path)
+        attempts = ba.list_attempts(
+            packet["initiative_id"],
+            packet["packet_id"],
+            db_path=db_path,
+        )
+        events = (
+            bq.list_events(packet["task_id"], db_path=db_path)
+            if task is not None
+            else []
+        )
+        runs = bq.list_runs(task_id=packet["task_id"], db_path=db_path)
+        pr_links = (
+            bq.get_pr_links(packet["task_id"], db_path=db_path)
+            if task is not None
+            else []
+        )
+        implementation_statuses = [
+            (attempt.get("implementation") or {}).get("status")
+            for attempt in attempts
+        ]
+        review_verdicts = [
+            (attempt.get("review") or {}).get("verdict")
+            for attempt in attempts
+        ]
+        bound = [
+            event["payload"]
+            for event in events
+            if event["type"] == "review_evidence_bound"
+            and isinstance(event.get("payload"), dict)
+        ]
+        infrastructure_events = [
+            event
+            for event in events
+            if event["type"] == "infrastructure_failed"
+            or (
+                event["type"] == "released"
+                and (event.get("payload") or {}).get("reason")
+                in {"runner_setup_failed", "run_cancelled_before_start"}
+            )
+        ]
+        infrastructure_runs = [
+            run
+            for run in runs
+            if isinstance(run.get("final_report"), dict)
+            and run["final_report"].get("worker_started") is False
+        ]
+        latest_run = runs[-1] if runs else None
+        operator_events = [
+            event
+            for event in events
+            if event["type"] in {
+                "operator_completed",
+                "operator_complete",
+                "operator_release",
+                "report_attached",
+                "pr_opened",
+                "pr_attached",
+            }
+        ]
+        artifacts = [
+            event["payload"]
+            for event in events
+            if event["type"] == "attempt_artifacts_created"
+            and isinstance(event.get("payload"), dict)
+        ]
+        rollup[packet["packet_id"]] = {
+            "initiative_id": packet["initiative_id"],
+            "packet_id": packet["packet_id"],
+            "task_id": packet["task_id"],
+            "current_state": packet["state"],
+            "blocked": packet["state"] == bq.BLOCKED,
+            "attempts_used": len(attempts),
+            "attempt_budget": packet["policy"].get("max_attempts"),
+            # Reuse the gating logic so the evidence blob can never disagree
+            # with the authoritative exhausted set used for eligibility.
+            "exhausted": _attempts_exhausted(packet, attempts),
+            "attempt_ids": [attempt.get("id") for attempt in attempts],
+            "attempt_outcomes": [attempt.get("outcome") for attempt in attempts],
+            "infrastructure_failures": len(infrastructure_events) + len(infrastructure_runs),
+            "latest_run_id": latest_run["id"] if latest_run else None,
+            "latest_run_outcome": latest_run["state"] if latest_run else None,
+            "worker_failed": "failed" in implementation_statuses
+            or any(event["type"] == "run_failed" for event in events)
+            or (
+                any(event["type"] == "run_exited" for event in events)
+                and any(
+                    attempt.get("outcome") == "failed"
+                    and attempt.get("implementation") is None
+                    for attempt in attempts
+                )
+            ),
+            "worker_aborted": "aborted" in implementation_statuses
+            or any(
+                event["type"]
+                in {"run_timeout", "run_cancelled", "run_interrupted", "run_lease_lost"}
+                for event in events
+            ),
+            "operator_completed": any(
+                event["type"] in {"operator_completed", "operator_complete"}
+                or (
+                    event["type"] == "report_attached"
+                    and (event.get("payload") or {}).get("operator") is True
+                )
+                for event in events
+            ),
+            "review_approved": (bool(review_verdicts) and review_verdicts[-1] == "approve")
+            or any(event["type"] == "review_approved" for event in events),
+            "pr_opened": packet["state"] == bq.PR_OPENED
+            or any(event["type"] == "pr_opened" for event in events)
+            or any(link.get("pr_url") and link.get("head_sha") for link in pr_links),
+            "review_verdict": review_verdicts[-1] if review_verdicts else None,
+            "operator_action": (
+                {
+                    "type": operator_events[-1]["type"],
+                    "payload": operator_events[-1].get("payload"),
+                }
+                if operator_events
+                else None
+            ),
+            "pr": pr_links[-1] if pr_links else None,
+            "done": packet["state"] == bq.DONE,
+            "review_binding": bound[-1] if bound else None,
+            "artifact_dir": (
+                (bound[-1] if bound else artifacts[-1]).get("artifact_dir")
+                if (bound or artifacts)
+                else None
+            ),
+            "next_action": (
+                "operator_review"
+                if packet["state"] == bq.BLOCKED
+                else "complete"
+                if packet["state"] == bq.DONE
+                else "run"
+            ),
+        }
+        if task is None:
+            rollup[packet["packet_id"]]["next_action"] = "repair_missing_task"
+    return rollup
 
 
 # ---------------------------------------------------------------------------

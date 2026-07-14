@@ -1114,12 +1114,28 @@ def _cmd_initiative_status(args: argparse.Namespace) -> int:
     print(f"  done:     {', '.join(status['done']) or '-'}")
     print(f"  in flight: {', '.join(status['in_progress']) or '-'}")
     print(f"  pending:  {', '.join(status['pending']) or '-'}")
+    if status["exhausted"]:
+        print("  exhausted (attempt budget spent, not runnable):")
+        for pid in status["exhausted"]:
+            print(f"    - {pid}")
     if status["blocked"]:
         print("  blocked (unreachable):")
         for pid in status["blocked"]:
             print(f"    - {pid}")
     if status["failed"]:
         print(f"  failed:   {', '.join(status['failed'])}")
+    for packet_id, evidence in status.get("evidence", {}).items():
+        binding = evidence.get("review_binding") or {}
+        review_sha = binding.get("review_sha", "-")
+        print(
+            f"  evidence {packet_id}: attempts={evidence['attempts_used']} "
+            f"worker_failed={evidence['worker_failed']} "
+            f"infra_failures={evidence['infrastructure_failures']} "
+            f"operator_completed={evidence['operator_completed']} "
+            f"review_approved={evidence['review_approved']} "
+            f"pr_opened={evidence['pr_opened']} done={evidence['done']} "
+            f"review_sha={review_sha}"
+        )
     return 0
 
 
@@ -1213,6 +1229,9 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
         print("error: --worker-command must be a non-empty JSON array", file=sys.stderr)
         return 1
 
+    if args.watch and not args.json:
+        print(f"watch: starting {args.id}/{args.packet}")
+
     try:
         result = run_packet(
             args.id,
@@ -1238,6 +1257,12 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
         for entry in result["attempts"]:
             detail = entry.get("failure") or "ok"
             print(f"  attempt {entry['attempt_no']}: {entry['outcome']} — {detail}")
+            if args.watch:
+                print(f"    manifest: {entry.get('manifest_path', '-')}")
+                if entry.get("run_id"):
+                    print(f"    run:      {entry['run_id']} ({entry.get('run_state', '-')})")
+        if args.watch:
+            print(f"watch: finished with {result['outcome']}")
     return 0 if result["outcome"] == "succeeded" else 1
 
 
@@ -1658,6 +1683,7 @@ COMMANDS: list[CommandSpec] = [
                  _a("--model", "model identifier (metadata)"),
                  _a("--provider", "provider identifier (metadata)"),
                  _a("--timeout", "worker timeout in seconds", type=int, default=3600),
+                 _a("--watch", "print launch, attempt, artifact, and final state updates", action="store_true"),
                  _a("--json", "output JSON", action="store_true")]),
     CommandSpec("initiative-run-validation", "initiative", "run-validation",
                 "run the packet's declared validation commands and record the verdict",
