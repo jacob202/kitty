@@ -95,9 +95,15 @@ def _good_worker(tmp_path: Path) -> list[str]:
 
 
 def _approve_reviewer(tmp_path: Path) -> list[str]:
+    # Enforce the same required-env contract as
+    # scripts/kittybuilder_opencode_reviewer.sh so a wiring regression in
+    # _run_review_command's env_extra fails loudly in every reviewer test.
     return _script(
         tmp_path,
         "reviewer.sh",
+        ': "${KB_TASK_ID:?KB_TASK_ID is required}"\n'
+        ': "${KB_ATTEMPT_ID:?KB_ATTEMPT_ID is required}"\n'
+        ': "${KB_CONTEXT_MANIFEST_PATH:?KB_CONTEXT_MANIFEST_PATH is required}"\n'
         f"cat > \"$KB_REVIEW_RESULT_PATH\" <<'EOF'\n{_APPROVE}\nEOF\n",
     )
 
@@ -122,6 +128,16 @@ class TestRunPacket:
         assert entry["implementation_status"] == "completed"
         assert entry["validation_status"] == "passed"
         assert entry["review_verdict"] == "approve"
+        manifest_path = Path(entry["manifest_path"])
+        assert manifest_path.parts[-4:-1] == ("attempts", task_id, "1")
+        manifest = json.loads((manifest_path).read_text())
+        assert manifest["outcome"] == "succeeded"
+        assert manifest["worker_run"]["run_id"] == entry["run_id"]
+        assert manifest["bundle_sha256"]
+        assert manifest["validation"]["commands"][0]["command_sha256"]
+        assert "output_tail" not in manifest["validation"]["commands"][0]
+        assert manifest["review"]["summary"]["sha256"]
+        assert "fine" not in json.dumps(manifest)
         assert entry["worktree_cleanup"] == "removed"
         assert not (repo / ".worktrees" / "kittybuilder" / task_id).exists()
 
@@ -282,6 +298,31 @@ class TestRunPacket:
                 worker_command=_good_worker(tmp_path),
                 repo_root=repo, db_path=db_path,
             )
+
+    def test_runner_error_is_recorded_before_re_raising(
+        self, repo: Path, db_path: Path, tmp_path: Path, monkeypatch
+    ):
+        task_id = _apply(db_path)
+
+        def fail_runner(*args, **kwargs):
+            raise RuntimeError("runner exploded")
+
+        monkeypatch.setattr(bl, "run_worker", fail_runner)
+        with pytest.raises(RuntimeError, match="runner exploded"):
+            bl.run_packet(
+                INITIATIVE, PACKET,
+                worker_command=_good_worker(tmp_path),
+                repo_root=repo, db_path=db_path,
+            )
+
+        attempt = ba.get_attempt(1, db_path=db_path)
+        assert attempt is not None
+        assert attempt["outcome"] == ba.ATTEMPT_FAILED
+        manifest_path = db_path.parent / "attempts" / task_id / "1" / "run-manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        assert manifest["outcome"] == "failed"
+        assert manifest["failure"]["sha256"]
+        assert "runner exploded" not in json.dumps(manifest)
 
     def test_extra_env_cannot_override_credential_isolation(self, db_path: Path):
         from gateway.builder_runner import run_worker
