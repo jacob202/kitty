@@ -731,7 +731,7 @@ class TestKbS1bAttemptExhaustion:
                 ),
             ]
         )
-        result = bi.apply_manifest(manifest, db_path=db_path)
+        bi.apply_manifest(manifest, db_path=db_path)
         # First attempt fails...
         attempt1 = ba.start_attempt(
             "kitty-alpha-v1", "KB-E1", db_path=db_path
