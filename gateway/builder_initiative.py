@@ -658,9 +658,6 @@ def _read_packets_with_states(
                     if r["policy_json"]
                     else {},
                     "state": task["state"] if task else None,
-                    "policy": json.loads(r["policy_json"])
-                    if r["policy_json"]
-                    else {},
                 }
             )
         return packets
@@ -929,9 +926,6 @@ def _initiative_evidence(
     packets: list[dict[str, Any]], db_path: Path | None
 ) -> dict[str, dict[str, Any]]:
     """Roll up durable attempt/events evidence without inferring hidden work."""
-    # Local import avoids the builder_attempt -> builder_initiative import cycle.
-    from gateway import builder_attempt as ba
-
     rollup: dict[str, dict[str, Any]] = {}
     for packet in packets:
         task = bq.get_task(packet["task_id"], db_path=db_path)
@@ -1008,16 +1002,9 @@ def _initiative_evidence(
             "blocked": packet["state"] == bq.BLOCKED,
             "attempts_used": len(attempts),
             "attempt_budget": packet["policy"].get("max_attempts"),
-            "budget_exhausted": (
-                packet["policy"].get("max_attempts") is not None
-                and len(attempts) >= packet["policy"]["max_attempts"]
-                and not any(attempt.get("outcome") == "succeeded" for attempt in attempts)
-            ),
-            "exhausted": (
-                packet["policy"].get("max_attempts") is not None
-                and len(attempts) >= packet["policy"]["max_attempts"]
-                and not any(attempt.get("outcome") == "succeeded" for attempt in attempts)
-            ),
+            # Reuse the gating logic so the evidence blob can never disagree
+            # with the authoritative exhausted set used for eligibility.
+            "exhausted": _attempts_exhausted(packet, attempts),
             "attempt_ids": [attempt.get("id") for attempt in attempts],
             "attempt_outcomes": [attempt.get("outcome") for attempt in attempts],
             "infrastructure_failures": len(infrastructure_events) + len(infrastructure_runs),
