@@ -1,0 +1,128 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "packet-027-builder-restart-recovery",
+  "title": "Packet 027: Builder restart/recovery proof",
+  "description": "Prove that a Builder run that crashes mid-attempt can be restarted without losing evidence or consuming extra budget. The operator sees exactly where the crash happened and whether recovery succeeded. This packet closes the restart/recovery gap left by Packet 026 (reliability rails).",
+  "packets": [
+    {
+      "id": "P027-stale-attempt-reconciliation",
+      "title": "Stale running attempt reconciliation on entry",
+      "objective": "When run_packet or a new run is opened, detect any stale 'running' attempts left by crashed workers and transition them to 'failed' with infrastructure_failed event before opening a new attempt. The crashed attempt's run-manifest.json must be preserved with outcome:'crashed' and the crash reason. The attempt budget must not be consumed by infrastructure crashes (counts_toward_budget: False).",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "run_packet detects stale running attempts on entry and marks them failed with infrastructure_failed event",
+        "A crashed attempt's run-manifest.json is preserved with outcome: crashed and the crash reason",
+        "initiative_status correctly reports the crashed attempt's evidence (not silently dropping it)",
+        "The attempt budget is not consumed by infrastructure crashes (counts_toward_budget: False)",
+        "python3.12 -m pytest tests/test_builder_loop.py tests/test_builder_runner.py -q passes"
+      ],
+      "allowed_paths": [
+        "gateway/builder_loop.py",
+        "gateway/builder_runner.py",
+        "gateway/builder_attempt.py",
+        "gateway/builder_queue.py",
+        "tests/test_builder_loop.py",
+        "tests/test_builder_runner.py"
+      ],
+      "policy": { "max_attempts": 2, "priority": 10 },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_builder_loop.py tests/test_builder_runner.py tests/test_builder_initiative.py -q --tb=short"
+      ]
+    },
+    {
+      "id": "P027-recovery-exercise",
+      "title": "Real restart/recovery exercise",
+      "objective": "Execute a real crash-recovery cycle: start a Builder attempt, kill the worker process mid-run, re-enter run_packet, verify the crashed attempt is marked failed with evidence preserved, a new attempt opens, and the budget is unchanged. This is the integration proof that the reconciliation logic works end-to-end.",
+      "depends_on": ["P027-stale-attempt-reconciliation"],
+      "acceptance_criteria": [
+        "A test starts an attempt, simulates a crash (SIGTERM/killed worker), and re-enters run_packet",
+        "After recovery: crashed attempt is marked failed with infrastructure_failed event",
+        "After recovery: new attempt opens successfully",
+        "After recovery: attempt budget is unchanged (crash did not consume budget)",
+        "After recovery: crash evidence is preserved in run-manifest.json with outcome: crashed",
+        "python3.12 -m pytest tests/test_builder_loop.py -q passes"
+      ],
+      "allowed_paths": [
+        "gateway/builder_loop.py",
+        "gateway/builder_runner.py",
+        "tests/test_builder_loop.py"
+      ],
+      "policy": { "max_attempts": 2, "priority": 10 },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_builder_loop.py -q --tb=short"
+      ]
+    },
+    {
+      "id": "P027-bounded-recovery-budget",
+      "title": "Bounded infrastructure-recovery budget",
+      "objective": "Implement a separate bounded infrastructure-recovery budget that limits how many consecutive infrastructure crashes are tolerated before the run stops with a truthful blocker. Repeated identical crashes must stop with a clear error message, not loop forever. This prevents infinite crash-recovery loops.",
+      "depends_on": ["P027-stale-attempt-reconciliation"],
+      "acceptance_criteria": [
+        "Infrastructure crashes are tracked separately from implementation attempt budget",
+        "After N consecutive identical crashes (configurable, default 3), the run stops with a truthful blocker",
+        "The blocker message includes the crash count, the crash reason, and the fact that recovery was attempted",
+        "Non-identical crashes (different error messages) are tracked independently",
+        "python3.12 -m pytest tests/test_builder_loop.py tests/test_builder_runner.py -q passes"
+      ],
+      "allowed_paths": [
+        "gateway/builder_loop.py",
+        "gateway/builder_runner.py",
+        "gateway/builder_queue.py",
+        "tests/test_builder_loop.py",
+        "tests/test_builder_runner.py"
+      ],
+      "policy": { "max_attempts": 2, "priority": 10 },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_builder_loop.py tests/test_builder_runner.py -q --tb=short"
+      ]
+    },
+    {
+      "id": "P027-no-stale-artifact-reuse",
+      "title": "No stale implementation/review artifact reuse",
+      "objective": "Ensure that after a crash and recovery, the new attempt does not reuse stale implementation artifacts (code changes, review results, or evidence) from the crashed attempt. Each attempt must start clean. The review binding (from Packet 026/0173) must reject reviews of stale SHAs.",
+      "depends_on": ["P027-stale-attempt-reconciliation"],
+      "acceptance_criteria": [
+        "A new attempt after crash recovery starts with a clean worktree (no stale code changes)",
+        "Implementation artifacts from the crashed attempt are not carried into the new attempt",
+        "Review binding rejects reviews of stale SHAs after recovery",
+        "python3.12 -m pytest tests/test_builder_loop.py tests/test_builder_context.py -q passes"
+      ],
+      "allowed_paths": [
+        "gateway/builder_loop.py",
+        "gateway/builder_context.py",
+        "gateway/builder_runner.py",
+        "tests/test_builder_loop.py",
+        "tests/test_builder_context.py"
+      ],
+      "policy": { "max_attempts": 2, "priority": 10 },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_builder_loop.py tests/test_builder_context.py -q --tb=short"
+      ]
+    },
+    {
+      "id": "P027-truthful-closeout",
+      "title": "Truthful task and initiative closeout",
+      "objective": "Ensure that after a successful crash-recovery cycle, the task and initiative can be truthfully closed out: the final state reflects the actual outcome (success after recovery, or blocked after exhausting recovery budget). No stale evidence is carried forward. The initiative status rollup correctly reports the final state.",
+      "depends_on": ["P027-stale-attempt-reconciliation", "P027-recovery-exercise", "P027-bounded-recovery-budget", "P027-no-stale-artifact-reuse"],
+      "acceptance_criteria": [
+        "After successful recovery and implementation, the task closes with outcome: succeeded",
+        "After exhausting recovery budget, the task closes with outcome: blocked and a truthful reason",
+        "initiative_status rollup correctly reports the final state (not stuck in running)",
+        "No stale evidence from crashed attempts appears in the closeout",
+        "python3.12 -m pytest tests/test_builder_initiative.py tests/test_builder_loop.py -q passes"
+      ],
+      "allowed_paths": [
+        "gateway/builder_loop.py",
+        "gateway/builder_initiative.py",
+        "gateway/builder_runner.py",
+        "gateway/builder_queue.py",
+        "tests/test_builder_initiative.py",
+        "tests/test_builder_loop.py"
+      ],
+      "policy": { "max_attempts": 2, "priority": 10 },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_builder_initiative.py tests/test_builder_loop.py tests/test_builder_runner.py -q --tb=short"
+      ]
+    }
+  ]
+}
