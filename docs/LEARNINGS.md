@@ -190,6 +190,20 @@
 - **Review trigger:** next packet authored by a session that didn't read this file.
 - **Promotion target:** the packet intake gate section in `docs/packets/README.md` (one added line), if it recurs.
 
+### L-CAND-13 — Packet 026 got double-assigned a third time; side branches don't own numbers
+
+- **Status:** candidate — promoted to one added line in the packet intake gate (L-CAND-12's named promotion target)
+- **Date:** 2026-07-14
+- **Source session:** reasoning-engine authoring (packet 028)
+- **Problem:** PR #164's session authored `026-chat-cutting-edge.md` on its branch (2026-07-12); a day later `026-builder-reliability.md` landed on main (2026-07-13, `00b018a`). Neither added a registry row. #164 then closed unmerged during stabilization, leaving a phantom 026 spec on a preserved branch and a real 026 file on main with no registry entry. Meanwhile packet 027 exists only as a Builder initiative manifest (`docs/initiatives/packet-027-v1.json`) — also invisible to the registry. The registry additionally contained two full copies of its own table (merge artifact), disagreeing on 016's status.
+- **Evidence:** `git show FETCH_HEAD:docs/packets/026-chat-cutting-edge.md` vs `docs/packets/026-builder-reliability.md` on main; `docs/packets/README.md` lines 89–143 before this fix.
+- **Scope:** any session authoring specs on a branch, and any merge that duplicates a registry table.
+- **Lesson:** A number is owned by main's registry table, not by whoever typed it first on a branch. Specs that live outside `docs/packets/` (initiative manifests) still consume numbers and need rows. A duplicated source-of-truth table is worse than a missing one — both copies look authoritative.
+- **Action for future agents:** Before naming a packet: read main's registry table (the one and only), take max(number)+1 across rows *and* `docs/initiatives/packet-*.json`, add the row in the same commit. If you find two tables, merging them is part of your job, not someone else's.
+- **Confidence:** high
+- **Review trigger:** next packet authored after a period of concurrent sessions.
+- **Promotion target:** done in this same PR — the intake gate's numbering paragraph now states the main-owns-numbers rule.
+
 ## Candidate Lessons (rejected or not promoted)
 
 Empty — nothing rejected this session that was strong enough to mention. The five above are the full candidate set.
