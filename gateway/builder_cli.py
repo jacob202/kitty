@@ -82,11 +82,10 @@ def _resolve_loop_commands(
                 "--free already selects the OpenCode adapter scripts; "
                 "drop --worker-command/--review-command or drop --free"
             )
-        worker_command, review_command = _free_adapter_commands()
         if args.model:
             # The ladder in the adapter honours a forced single model.
             os.environ["KITTYBUILDER_MODEL"] = args.model
-        return worker_command, review_command
+        return _free_adapter_commands()
     worker_command = _parse_json_array(args.worker_command)
     review_command = _parse_json_array(args.review_command)
     if not worker_command:
