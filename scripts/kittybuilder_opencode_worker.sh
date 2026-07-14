@@ -11,7 +11,29 @@ set -euo pipefail
 : "${KB_ATTEMPT_ID:?KB_ATTEMPT_ID is required}"
 : "${KB_TASK_ID:?KB_TASK_ID is required}"
 
-model="${KITTYBUILDER_MODEL:-opencode/deepseek-v4-flash-free}"
+if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
+  echo "ERROR: the free worker must run inside the task's isolated git worktree" >&2
+  exit 1
+fi
+
+# Free-model ladder: KITTYBUILDER_MODEL forces exactly one model,
+# KITTYBUILDER_MODELS (space-separated) replaces the default ladder.
+if [[ -n "${KITTYBUILDER_MODEL:-}" ]]; then
+  models=("${KITTYBUILDER_MODEL}")
+elif [[ -n "${KITTYBUILDER_MODELS:-}" ]]; then
+  read -r -a models <<<"${KITTYBUILDER_MODELS}"
+else
+  models=(
+    "opencode/deepseek-v4-flash-free"
+    "opencode/mimo-v2.5-free"
+    "opencode/nemotron-3-ultra-free"
+    "opencode/north-mini-code-free"
+    "openrouter/poolside/laguna-xs-2.1:free"
+    "openrouter/tencent/hy3:free"
+    "openrouter/free"
+  )
+fi
+
 local_bundle="${PWD}/.kittybuilder-bundle-${KB_ATTEMPT_ID}.json"
 local_context="${PWD}/.kittybuilder-context-${KB_ATTEMPT_ID}.json"
 local_result="${PWD}/.kittybuilder-result-${KB_ATTEMPT_ID}.json"
@@ -72,13 +94,44 @@ Then give a concise final report.
 EOF
 )
 
-opencode run --auto --agent free-builder --model "${model}" \
-  --title "KittyBuilder free packet worker" "${prompt}"
+fingerprint() {
+  git rev-parse HEAD
+  git status --porcelain=v1 --untracked-files=all
+}
 
-if [[ ! -f "${local_result}" ]]; then
-  echo "ERROR: OpenCode did not write ${local_result}" >&2
+# A model may hand off to the next free model only when it failed cleanly:
+# no result written and no change to HEAD or the worktree. Falling back over
+# partial work would let a second model build on debris the first left behind.
+chosen_model=""
+for model in "${models[@]}"; do
+  before="$(fingerprint)"
+  echo "=== free builder attempt: ${model} ==="
+  set +e
+  opencode run --auto --agent free-builder --model "${model}" \
+    --title "KittyBuilder free packet worker" "${prompt}"
+  rc=$?
+  set -e
+  if [[ -f "${local_result}" ]]; then
+    if [[ ${rc} -ne 0 ]]; then
+      echo "ERROR: ${model} wrote ${local_result} but exited ${rc}; refusing the result and any fallback." >&2
+      exit 1
+    fi
+    chosen_model="${model}"
+    break
+  fi
+  after="$(fingerprint)"
+  if [[ "${after}" != "${before}" ]]; then
+    echo "ERROR: ${model} changed the worktree without writing ${local_result}; no fallback over partial work." >&2
+    exit 1
+  fi
+  echo "WARNING: ${model} exited ${rc} without a result or worktree change; trying the next free model." >&2
+done
+
+if [[ -z "${chosen_model}" ]]; then
+  echo "ERROR: every free model failed cleanly without producing a result: ${models[*]}" >&2
   exit 1
 fi
+echo "Free builder completed with ${chosen_model}."
 
 python3 - "${local_result}" <<'PY'
 import json

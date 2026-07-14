@@ -1273,3 +1273,82 @@ class TestQueueRunnerCommands:
         assert rc == 0
         assert str(removed) in capsys.readouterr().out
         mock_remove.assert_called_once_with("kb_123")
+
+
+class TestInitiativeFreePreset:
+    _RESULT = {
+        "outcome": "succeeded",
+        "initiative_id": "init-1",
+        "packet_id": "p1",
+        "task_id": "kb_123",
+        "attempts": [],
+    }
+    _SUMMARY = {
+        "outcome": "idle",
+        "reason": None,
+        "processed": [],
+        "succeeded": 0,
+        "exhausted": 0,
+    }
+
+    def test_run_packet_free_dispatches_adapter_scripts(self):
+        with patch(
+            "gateway.builder_loop.run_packet", return_value=self._RESULT
+        ) as mock_rp:
+            rc = main(["initiative", "run-packet", "init-1", "p1", "--free", "--json"])
+
+        assert rc == 0
+        kwargs = mock_rp.call_args.kwargs
+        assert kwargs["worker_command"][0] == "bash"
+        assert kwargs["worker_command"][1].endswith(
+            "scripts/kittybuilder_opencode_worker.sh"
+        )
+        assert kwargs["review_command"][0] == "bash"
+        assert kwargs["review_command"][1].endswith(
+            "scripts/kittybuilder_opencode_reviewer.sh"
+        )
+        assert kwargs["worker"] == "opencode-free"
+
+    def test_run_packet_rejects_free_plus_explicit_worker_command(self, capsys):
+        rc = main([
+            "initiative", "run-packet", "init-1", "p1",
+            "--free", "--worker-command", '["true"]',
+        ])
+
+        assert rc == 1
+        assert "--free" in capsys.readouterr().err
+
+    def test_run_packet_requires_free_or_worker_command(self, capsys):
+        rc = main(["initiative", "run-packet", "init-1", "p1"])
+
+        assert rc == 1
+        assert "provide --free" in capsys.readouterr().err
+
+    def test_run_packet_free_model_forces_single_ladder_model(self, monkeypatch):
+        import os
+
+        monkeypatch.setenv("KITTYBUILDER_MODEL", "sentinel")
+        with patch("gateway.builder_loop.run_packet", return_value=self._RESULT):
+            rc = main([
+                "initiative", "run-packet", "init-1", "p1",
+                "--free", "--model", "opencode/mimo-v2.5-free", "--json",
+            ])
+
+        assert rc == 0
+        assert os.environ["KITTYBUILDER_MODEL"] == "opencode/mimo-v2.5-free"
+
+    def test_initiative_run_free_dispatches_adapter_scripts(self):
+        with patch(
+            "gateway.builder_run.run_initiative", return_value=self._SUMMARY
+        ) as mock_run:
+            rc = main(["initiative", "run", "init-1", "--free", "--json"])
+
+        assert rc == 0
+        kwargs = mock_run.call_args.kwargs
+        assert kwargs["worker_command"][1].endswith(
+            "scripts/kittybuilder_opencode_worker.sh"
+        )
+        assert kwargs["review_command"][1].endswith(
+            "scripts/kittybuilder_opencode_reviewer.sh"
+        )
+        assert kwargs["worker"] == "opencode-free"

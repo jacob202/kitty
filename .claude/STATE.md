@@ -1,3 +1,17 @@
+# Session State — 2026-07-14 (cloud branch `claude/free-workers-token-efficiency-2m06xb`)
+
+- Free workers are now a first-class launch surface: `./kitty builder
+  initiative run[-packet] ... --free` wires the OpenCode adapter scripts as
+  worker + reviewer (no hand-typed `--worker-command` JSON).
+- Both adapter scripts now walk the zero-cost model ladder inside one
+  attempt; fallback happens only on a clean failure (no result, no worktree
+  change) so partial work is never built on. `KITTYBUILDER_MODEL(S)` /
+  `KITTYBUILDER_REVIEW_MODEL(S)` override.
+- New playbook: `docs/FREE_WORKERS.md` (linked from CLAUDE.md, quickstart,
+  and the Orca setup doc).
+- Verified: 466 builder-slice tests pass (incl. 5 new adapter ladder tests,
+  5 new CLI preset tests); ruff clean; both scripts `bash -n` clean.
+
 # Session State — 2026-07-12
 
 ## Branch
