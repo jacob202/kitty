@@ -6,7 +6,7 @@ Builder reliability chain (026/027) outrank it for build time
 **Best executor:** Claude Code / Codex; Part C slices are bounded enough for
 a free OpenCode worker once #176 lands
 **Intent:** when Kitty's model brain thinks, Jacob can see the thinking; Kitty
-gets a reasoning level she can set per situation; and an optimization layer
+gets an execution mode she can set per situation; and an optimization layer
 makes every answer cheaper and sharper — right context in, right model for
 the job, honest confidence out.
 
@@ -18,9 +18,10 @@ Three things, one engine:
    DeepSeek R1, OpenAI o-series) produce a thinking trace today and Kitty
    throws it away — Jacob literally cannot see why the model said what it
    said. Kitty shows it, collapsed, above the answer.
-2. **Control the reasoning.** A reasoning level (off / normal / deep) that
-   maps to each model's native knob. Jacob can set it; Kitty's own
-   classifier picks a sensible default when he doesn't.
+2. **Control the reasoning.** An execution mode — **Auto / Fast / Balanced
+   / Deep** — that maps to each model's native knob. Jacob can set it;
+   Auto (the default) lets Kitty's classifier pick, falling back to
+   Balanced when classification is uncertain.
 3. **Optimize around the model.** The engine enhances the other models'
    answers and cuts wasted tokens: classify the question's complexity before
    dispatch, spend memory-context budget to match, route to the cheapest
@@ -36,11 +37,17 @@ unmerged 2026-07-13 during repo stabilization; branch preserved as prior
 art). Renumbered to 028 because main's registry had already assigned 026 to
 Builder reliability — the third numbering collision, see L-CAND-13.
 
+The full archaeology of PR #164 — what it built, what survives on main,
+what gets recovered where — is in `docs/plans/pr164-archaeology.md`. The
+built-but-lost Wave 1–3 features (thread goals, memory visibility, signal
+cards, model override) are tracked there as the `chat-recovery-v1` plan,
+**not** in this packet.
+
 Premises corrected against main, 2026-07-14:
 
 1. ~~Waves 1–3 of the cutting-edge plan are on main~~ — **none of it is.**
    PR #164 died whole: migrations stop at `019_idea_mine.sql`, no reasoning
-   passthrough anywhere. The reasoning-display and level-knob work is
+   passthrough anywhere. The reasoning-display and mode-control work is
    therefore **in scope here**, rebuilt from a clean branch, not assumed.
 2. ~~The gateway filters reasoning blocks out; "just stop filtering"~~ —
    **wrong layer.** `iter_chat_completions_stream()`
@@ -77,14 +84,15 @@ Premises corrected against main, 2026-07-14:
 
 ## Demo contract
 
-- [ ] **See it think:** Jacob asks a real question at level `deep`, and a
+- [ ] **See it think:** Jacob asks a real question in `Deep` mode, and a
       collapsed "thinking" block renders above Kitty's answer in chat —
       expand it, read the model's actual trace. Lowercase, collapsible,
       mono — per design canon.
-- [ ] **Turn the knob:** flip reasoning level off / normal / deep on the
-      same question and watch the answer (and the thinking block) change.
-      On a model with no reasoning support the knob visibly does nothing —
-      never faked.
+- [ ] **Turn the knob:** flip the mode Fast / Balanced / Deep on the same
+      question and watch the answer (and the thinking block) change; leave
+      it on Auto and see the classifier's pick in the receipt. On a model
+      with no reasoning support the control visibly does nothing — never
+      faked.
 - [ ] **Watch it save:** `jq 'select(.metadata.tier != null)'
       data/kitty_token_log.jsonl | tail` shows per-tier prompt-token
       counts — "thanks kitty" measurably stops paying for 1200 tokens of
@@ -146,8 +154,9 @@ Premises corrected against main, 2026-07-14:
 
 ### Part A — show the reasoning
 
-**A1 — request + parse the trace.** Backend: when reasoning level ≠ off and
-the resolved model supports it, inject the model-native param into the
+**A1 — request + parse the trace.** Backend: when the effective mode wants
+thinking (Balanced/Deep) and the resolved model supports it, inject the
+model-native param into the
 LiteLLM payload (`thinking: {type: "enabled", budget_tokens: N}` for
 Claude-family, `reasoning_effort` for OpenAI o-series — LiteLLM translates;
 DeepSeek R1 emits `reasoning_content` unprompted). Support map lives in one
@@ -165,15 +174,26 @@ inspection.
 
 ### Part B — control the reasoning
 
-**B1 — the level.** `off | normal | deep`, three places it can come from,
-in precedence order: per-message override (UI) → per-thread setting →
-Kitty's classifier default (Part C1; until C1 lands, default is `normal`).
-Backend accepts `reasoning_level` on the completions payload, validates it,
-maps it through the A1 support table (off → no param; normal → model
-default budget; deep → high budget/effort). UI: a quiet three-state control
-in `InputBar.tsx` or `TopBar.tsx` (executor picks the less cluttered spot,
+**B1 — the mode.** `auto | fast | balanced | deep`, three places it can
+come from, in precedence order: per-message override (UI) → per-thread
+setting → **Auto**, the default (decided by Jacob 2026-07-14). Auto means
+the Part C1 classifier picks; when classification is uncertain, Auto
+behaves as Balanced. Until C1 lands, Auto = Balanced flat. Backend accepts
+`reasoning_mode` on the completions payload, validates it, maps it through
+the A1 support table (fast → no thinking params; balanced → model default
+budget; deep → high budget/effort — #164's concrete numbers were 4096 /
+16000 `budget_tokens` for Claude and medium/high `reasoning_effort` for
+o-series; keep them as starting values). UI: a quiet control in
+`InputBar.tsx` or `TopBar.tsx` (executor picks the less cluttered spot,
 canon: lowercase, no new chrome); disabled state — not hidden, visibly
 inert — when the active model has no reasoning support.
+
+**B2 — the budget guard (Jacob, 2026-07-14).** Deep is hard-capped per
+turn at roughly 2–3× Balanced's token budget, enforced where the payload
+is built. Automatic escalation (classifier or fallback deciding to go
+higher than the user asked) moves **at most one step** and never
+automatically enters paid-deep beyond that. Cap hits and escalations are
+logged in the receipt (C5) — never silent, never faked down.
 
 ### Part C — the optimization engine
 
@@ -185,17 +205,20 @@ model call, <1ms: length, question structure, imperative-vs-smalltalk,
 absorbed `_REASONING_KEYWORDS`/`_BEST_TRIGGERS`, domain nudge
 (benefits/health lean deep). `route_model()` delegates:
 trivial/standard → `kitty-default`, deep → `kitty-sonnet`
-(`KITTY_REASONING_MODEL` overrides the deep alias). Classifier also sets
-the default reasoning level (trivial→off, standard→normal, deep→deep),
-which the Part B knob overrides. Honest note: v1 is three tiers, two model
+(`KITTY_REASONING_MODEL` overrides the deep alias). Under Auto, the
+classifier also sets the mode (trivial→Fast, standard→Balanced,
+deep→Deep, uncertain→Balanced), which an explicit Part B choice
+overrides. Honest note: v1 is three tiers, two model
 outcomes — trivial's payoff is C2's smaller context spend.
 
 **C2 — tier-aware context budget.** `assemble_context()` grows an optional
 `tier` param (default `standard` preserves current behavior byte-for-byte —
 test asserts it). Memory cap per tier: trivial 300 / standard 1200
 (unchanged) / deep 2400, flowing into `_format_memory_block()`.
-Enrichments (weather, calendar…) are **not** skipped in v1 — Jacob review
-question 3.
+Optional enrichments (weather, calendar…) are **skipped by default on
+the trivial tier** and included only when directly relevant to the message
+(decided by Jacob 2026-07-14); standard/deep keep today's enrichment
+behavior.
 
 **C3 — memory relevance re-rank.** Before formatting, rank policy-filtered
 items: `Item.score` where the store provided one, keyword overlap with the
@@ -210,13 +233,20 @@ only: deep tier + very short answer, provider fallback occurred,
 `memory_graph:` warnings during assembly, answer parrots the question.
 Flags append to `data/kitty/reasoning_log.jsonl` — tier, trigger, token
 counts, correlation id, **no raw message or response bodies**. Flag also
-rides the existing `log_chat_trace()` line. No auto-retry, ever.
+rides the existing `log_chat_trace()` line and surfaces **inline** in the
+chat UI as a quiet marker on the flagged message. **No push notifications
+in v1** (Jacob, 2026-07-14: pushes would be noisy and misleading). No
+auto-retry, ever.
 
-**C5 — tier telemetry.** `metadata={"tier": ..., "level": ...,
-"trigger": ...}` on existing `log_llm_usage()` call sites; per-tier
-aggregates (count, prompt/completion tokens) in `/perf/stats`. This
-produces the real answer to "how much does the engine save" — the number
-the original sketch made up.
+**C5 — execution receipts + telemetry.** Every turn produces one receipt:
+mode, tier, trigger, resolved model, token counts, cap-hit/escalation
+flags, confidence flag, correlation id — as `metadata` on the existing
+`log_llm_usage()` call sites plus the `log_chat_trace()` line, not a new
+subsystem. Per-tier aggregates (count, prompt/completion tokens) in
+`/perf/stats`. This produces the real answer to "how much does the engine
+save" — the number the original sketch made up. Classifier thresholds are
+tuned against a frozen labeled message set (reuse `gateway/eval_runner.py`
+seams), so C5's numbers are measured against fixed ground truth.
 
 ## Scope budget
 
@@ -228,8 +258,8 @@ the original sketch made up.
   `chat-client.ts`, `types.ts`, `ChatMessage.tsx`, `InputBar.tsx` or
   `TopBar.tsx`; matching tests
 - **Stop and split if:** the classifier wants a model call; a slice needs to
-  change `memory_policy` semantics; re-ranking wants embeddings; the level
-  knob wants per-model UI beyond enabled/disabled; any slice crosses the
+  change `memory_policy` semantics; re-ranking wants embeddings; the mode
+  control wants per-model UI beyond enabled/disabled; any slice crosses the
   diff budget
 - **Do not expand into:** Council decomposition, memory-visibility overlay
   ("kitty remembered…" — separate cutting-edge item), thread goals, SSE
@@ -241,7 +271,7 @@ the original sketch made up.
 - **Touches sensitive content?** yes — reads message text to classify;
   renders model thinking traces which may restate personal context
 - **Content classes:** `chat`, `memory`
-- **Cloud allowed?** no change — classification is local heuristic; level
+- **Cloud allowed?** no change — classification is local heuristic; mode
   and tier only select among models the existing privacy boundary permits
 - **Forbidden:** raw message/response/thinking text in
   `reasoning_log.jsonl` or token-log metadata (render thinking, don't log
@@ -271,18 +301,20 @@ the original sketch made up.
 
 ## Acceptance criteria
 
-1. With a reasoning-capable model and level `deep`, the thinking trace
-   renders in chat, collapsed by default; with level `off`, no reasoning
+1. With a reasoning-capable model in `Deep` mode, the thinking trace
+   renders in chat, collapsed by default; in `Fast` mode, no reasoning
    params are sent and no block renders. Verified live in the browser with
    screenshots, not from code inspection.
-2. The level control is visibly disabled (not hidden, not faked) on models
-   without reasoning support, per the A1 support table.
+2. The mode control is visibly disabled (not hidden, not faked) on models
+   without reasoning support, per the A1 support table; Deep respects the
+   per-turn budget cap and the one-step escalation limit, with a test on
+   the payload builder.
 3. `classify_complexity()` covered by table-driven tests including
    adversarial cases: short message with a reasoning keyword, long message
    with none, smalltalk containing "why".
 4. With no tier passed, `assemble_context()` output is byte-identical to
    pre-packet behavior (test asserts it).
-5. Token log rows carry tier/level metadata; `/perf/stats` returns per-tier
+5. Receipt rows carry mode/tier metadata; `/perf/stats` returns per-tier
    aggregates; the close-out note states the *measured* trivial-vs-standard
    prompt-token delta.
 6. `reasoning_log.jsonl` rows contain no message/response/thinking bodies
@@ -303,29 +335,28 @@ jq 'select(.metadata.tier != null)' data/kitty_token_log.jsonl | tail -5
 ## Review artifacts
 
 - Screenshots: thinking block expanded + collapsed, day and night themes;
-  level control in its enabled and disabled states
+  mode control in its enabled and disabled states
 - Terminal: the two-message demo (trivial vs deep) with gateway log lines
   showing tier, model, and context size
 - The measured per-tier token numbers, from real log rows
 
-## Jacob review questions
+## Decisions (Jacob, 2026-07-14 — these gated the build and are now set)
 
-1. Deep tier + deep level = `kitty-sonnet` with a thinking budget = real
-   Anthropic spend. Daily cap on deep calls, or trust the classifier and
-   watch the token log for a week first?
-2. Default level when you haven't touched the knob: classifier's pick, or
-   flat `normal` until you've watched it decide for a while?
-3. Should trivial messages also skip live enrichments (weather/calendar)?
-   Faster and cheaper, but "thanks" would stop refreshing ambient context.
-   v1 says no.
-4. Low-confidence flags: log-only, or worth a phone push when a deep answer
-   gets flagged?
+1. **Deep-tier spend:** hard per-turn cap at roughly 2–3× Balanced, no
+   automatic paid escalation beyond one step (→ B2).
+2. **Default mode:** Auto — classifier picks, Balanced when uncertain
+   (→ B1/C1).
+3. **Trivial-tier enrichments:** skip optional enrichments by default;
+   include weather/calendar/etc. only when directly relevant (→ C2).
+4. **Confidence flags:** inline + operational log only; no push in v1 —
+   pushes would be noisy and misleading (→ C4).
 
 ## One-line build instruction
 
-Build the reasoning engine — visible thinking traces (A), a three-state
-reasoning level honestly mapped to model-native knobs (B), and the
-per-message optimization layer in `gateway/reasoning.py` (C) — one slice per
-PR in the order above, without touching memory policy, the Council, or
-anything in the do-not-expand list, and close out with measured per-tier
-token numbers instead of the invented ones.
+Build the reasoning engine — visible thinking traces (A), Auto/Fast/
+Balanced/Deep execution modes honestly mapped to model-native knobs with a
+budget guard (B), and the per-message optimization layer with execution
+receipts in `gateway/reasoning.py` (C) — one slice per PR in the order
+above, without touching memory policy, the Council, or anything in the
+do-not-expand list, and close out with measured per-tier token numbers
+instead of the invented ones.

@@ -122,7 +122,7 @@ authored)
 | 025 | Imagegen pipeline v2: local-first, criteria-verified loop                            | Claude Code + Jacob (installs/taste) | 📋 spec authored 2026-07-05 — replaces fal (cost); Draw Things + ComfyUI                                                          |
 | 026 | Builder reliability and truthful state                                               | Codex / Claude Code + independent reviewer | ◐ rails landed; restart/recovery closeout runs as 027 (row added late — file predates it; see L-CAND-13)                    |
 | 027 | Builder restart/recovery proof                                                       | Builder free worker (KittyBuilder)   | 🚧 in Builder queue — spec is the initiative manifest `docs/initiatives/packet-027-v1.json` (#174/#175), not a packets/ file      |
-| 028 | Reasoning engine: visible thinking traces, reasoning-level knob, token optimizer     | Claude Code / Codex                  | 📋 spec authored 2026-07-14 — wave 4 of the chat cutting-edge plan (PR #164, closed), renumbered from that branch's 026           |
+| 028 | Reasoning engine: visible thinking, Auto/Fast/Balanced/Deep modes, token optimizer   | Claude Code / Codex                  | 📋 spec authored 2026-07-14 — wave 4 of the chat cutting-edge plan (PR #164, closed), renumbered from that branch's 026; #164 archaeology: `docs/plans/pr164-archaeology.md` |
 
 ## Execution order (set 2026-07-04, supersedes 2026-07-03)
 
