@@ -83,8 +83,9 @@ def test_explicit_doc_packet_proceeds():
     assert not any(f.category == "architectural_judgment_required" for f in findings)
 
 
-def test_implicit_adr_reference_proceeds():
-    """Packet referencing a governing ADR in objective → proceeds."""
+def test_adr_reference_without_named_path_escalates():
+    """An ADR reference alone is context, not authority: the protected file it
+    would touch must be named in the contract, otherwise escalate."""
     findings = validate_scope(
         _packet(
             objective="Implement ADR-0019: add Knowledge Model to repository index",
@@ -95,7 +96,7 @@ def test_implicit_adr_reference_proceeds():
             allowed_paths=["docs/INDEX.md", "docs/knowledge/KNOWLEDGE_MODEL.md"],
         )
     )
-    assert not any(f.category == "architectural_judgment_required" for f in findings)
+    assert any(f.category == "architectural_judgment_required" for f in findings)
 
 
 def test_constitutional_change_without_authority_escalates():
@@ -152,3 +153,63 @@ def test_escalation_error_carries_artifact():
     assert err.artifact["type"] == "scope_escalation"
     assert err.artifact["action"] == "stop_escalate_return_control"
     assert err.artifact["findings"]
+
+
+def test_make_it_better_is_not_measurable():
+    findings = validate_scope(
+        _packet(acceptance_criteria=["make it better"])
+    )
+    assert any(
+        f.category == "incomplete_contract"
+        and f.field == "acceptance_criteria"
+        and "not measurable" in f.message
+        for f in findings
+    )
+
+
+def test_docs_are_better_is_not_measurable():
+    findings = validate_scope(
+        _packet(acceptance_criteria=["docs are better"])
+    )
+    assert any(
+        f.category == "incomplete_contract"
+        and f.field == "acceptance_criteria"
+        and "not measurable" in f.message
+        for f in findings
+    )
+
+
+def test_measurable_criteria_pass():
+    measurable = [
+        "tests pass",
+        "no new deps",
+        "done.txt exists",
+        "frontmatter has title and owner fields",
+        "docs lint returns exit code 0",
+        "remove unused imports",
+    ]
+    for criterion in measurable:
+        findings = validate_scope(_packet(acceptance_criteria=[criterion]))
+        assert not any(
+            f.category == "incomplete_contract"
+            and "not measurable" in f.message
+            for f in findings
+        ), f"{criterion!r} was flagged as unmeasurable"
+
+
+def test_mixed_measurable_and_not():
+    findings = validate_scope(
+        _packet(
+            acceptance_criteria=[
+                "tests pass",
+                "make it better",
+                "no new deps",
+            ]
+        )
+    )
+    measurability_findings = [
+        f for f in findings
+        if f.category == "incomplete_contract" and "not measurable" in f.message
+    ]
+    assert len(measurability_findings) == 1
+    assert "make it better" in measurability_findings[0].message

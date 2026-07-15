@@ -19,6 +19,7 @@ runtime representation yet — ADR-0019).
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -51,6 +52,14 @@ class ScopeFinding:
     category: str
     field: str
     message: str
+
+
+UNMEASURABLE_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\b(make|get)\s+it\s+better\b"),
+    re.compile(r"\b(is|are)\s+(better|good|great|clean|nice|fast|well|fine)\b\s*$"),
+    re.compile(r"^\s*better\s*$"),
+    re.compile(r"^\s*improved?\s*$"),
+)
 
 
 class EscalationError(RuntimeError):
@@ -93,51 +102,80 @@ def _normalize_allowed_path(raw: str) -> str | None:
     return cleaned
 
 
-def _touches_protected_zone(normalized: str) -> bool:
+def _protected_zone(normalized: str) -> str | None:
+    """Classify a normalized path's protected zone.
+
+    Returns ``"file"`` for a top-level protected governance document, the
+    matched protected prefix (e.g. ``"docs/adr/"``) for a protected directory,
+    or ``None`` when the path is not protected.
+    """
     lowered = normalized.lower()
     if lowered in PROTECTED_FILES:
-        return True
-    return any(lowered.startswith(prefix) for prefix in PROTECTED_PREFIXES)
+        return "file"
+    for prefix in PROTECTED_PREFIXES:
+        if lowered.startswith(prefix):
+            return prefix
+    return None
+
+
+def _touches_protected_zone(normalized: str) -> bool:
+    return _protected_zone(normalized) is not None
 
 
 def _has_authority_for_protected_path(
     packet: dict[str, Any], normalized_path: str
 ) -> bool:
-    """Check whether the packet has ratified authority to modify a protected path.
+    """Check whether the packet explicitly authorizes the protected path.
 
-    A packet touching a protected architecture/governance path does NOT escalate
-    when it explicitly authorizes that work and references the governing authority.
+    Authority is never inferred from vague textual cues (an ADR mention, the
+    word "constitution", generic phrasing). It must be stated by the contract
+    itself:
 
-    Proceed when:
-      - The objective or acceptance criteria explicitly names this path or the
-        containing area, AND the work is clearly bounded (not generic).
-      - The packet objective references a ratified ADR or canonical contract.
+      - The exact protected file is named in the objective or acceptance
+        criteria (bounded, explicit work), OR
+      - For a protected *directory* (e.g. ``docs/adr/``), that directory is
+        named explicitly in the objective or acceptance criteria.
 
-    Escalate when:
-      - The path is protected but the objective is generic ("improve docs").
-      - The path is constitutional and no governing ADR is referenced.
+    Anything else escalates — including a generic objective that merely
+    references a ratified ADR without naming the file it touches.
     """
-    objective = (packet.get("objective") or "").lower()
+    zone = _protected_zone(normalized_path)
+    if zone is None:
+        return False
+    objective = packet.get("objective") or ""
     acceptance = " ".join(
-        str(a).lower() for a in (packet.get("acceptance_criteria") or [])
+        str(a) for a in (packet.get("acceptance_criteria") or [])
     )
-    combined = f"{objective} {acceptance}"
-    path_lower = normalized_path.lower()
+    contract_text = f"{objective}\n{acceptance}"
 
-    # Explicit path reference: objective or acceptance names the exact file
-    # or its parent directory (e.g. "update docs/adr/0001-db-scope.md" or
-    # "fix frontmatter in docs/adr/")
-    if path_lower in combined or path_lower.strip("docs/") in combined:
+    # Exact protected file named in the contract → explicit authority.
+    if normalized_path in contract_text:
         return True
-    parent = path_lower.rsplit("/", 1)[0] + "/" if "/" in path_lower else ""
-    if parent and parent in combined:
+    # For a protected directory, naming the directory (not the whole repo)
+    # bounds the work to that area.
+    if zone != "file" and zone in contract_text:
         return True
-
-    # ADR reference: objective cites a ratified decision
-    if "adr-" in combined or "adr " in combined or "adr/" in combined:
-        return True
-
     return False
+
+
+def _criterion_is_measurable(criterion: str) -> bool:
+    lowered = criterion.strip().lower()
+    if not lowered:
+        return False
+
+    if re.search(
+        r"\b(test|check|verify|assert|measure|file|exists|pass|fail|build|run|"
+        r"output|returns?|contain|no longer|lint|create|remove|add|update|delete|"
+        r"install|deploy|migrate|commit)\b",
+        lowered,
+    ):
+        return True
+
+    for pattern in UNMEASURABLE_PATTERNS:
+        if pattern.search(lowered):
+            return False
+
+    return True
 
 
 def validate_scope(packet: dict[str, Any]) -> list[ScopeFinding]:
@@ -168,6 +206,17 @@ def validate_scope(packet: dict[str, Any]) -> list[ScopeFinding]:
                 "acceptance_criteria is empty or missing; success is not measurable",
             )
         )
+    else:
+        for i, criterion in enumerate(acceptance):
+            if not _criterion_is_measurable(str(criterion)):
+                findings.append(
+                    ScopeFinding(
+                        "incomplete_contract",
+                        "acceptance_criteria",
+                        f"acceptance_criteria[{i}] is not measurable: {criterion!r} "
+                        f"— must describe a testable, observable condition",
+                    )
+                )
 
     if not allowed:
         findings.append(
