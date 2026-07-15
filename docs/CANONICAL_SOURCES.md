@@ -30,6 +30,7 @@ This document answers one question: **Where does truth live?** Every concept in 
 | Architecture (runtime) | `docs/engineering/ARCHITECTURE.md` |
 | Organizational model | `docs/architecture/ORGANIZATIONAL_MODEL.md` |
 | Subsystem interactions | `docs/architecture/SYSTEM_INTERACTIONS.md` |
+| Design principles | `docs/architecture/SYSTEM_DESIGN_PRINCIPLES.md` |
 | Capability model | `docs/architecture/CAPABILITY_MODEL.md` |
 | Capability lifecycle | `docs/architecture/CAPABILITY_MODEL.md` |
 | Evidence | `docs/knowledge/KNOWLEDGE_MODEL.md` |

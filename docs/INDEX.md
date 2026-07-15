@@ -51,6 +51,7 @@ No document may duplicate content that exists in another canonical document. Ref
 | `architecture/ORGANIZATIONAL_MODEL.md` | Offices, authority boundaries, governance | draft |
 | `architecture/SYSTEM_INTERACTIONS.md` | Subsystem interfaces and interaction contracts | draft |
 | `architecture/CAPABILITY_MODEL.md` | Capabilities, maturity levels, dependency graph | draft |
+| `architecture/SYSTEM_DESIGN_PRINCIPLES.md` | Engineering principles for subsystem design | draft |
 
 ### Knowledge
 
