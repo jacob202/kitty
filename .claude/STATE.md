@@ -17,8 +17,13 @@
 - P1-03 is blocked on its required architecture decision: define the
   measurability heuristic boundary before accepting any implementation. Its
   candidate also mixes an unrelated protected-path authority rewrite.
-- P1-05 is the next clean dispatchable packet. P1-04 overlaps the separately
-  preserved Phase 2 lease/base-SHA work and must be reconciled in its own lane.
+- P1-04 is next. It overlaps the separately preserved Phase 2 lease/base-SHA
+  work and must be reconciled in its own lane.
+- P1-05 is complete as `2fc061b`: the optional `forbidden_changes` contract
+  field validates safe repo-relative paths and rejects overlap with
+  `allowed_paths`. It does not enforce worker filesystem writes; P3-02 owns
+  that runtime detection. Focused validation: 34 scope/contract tests, Ruff,
+  mypy, docs lint, and independent review all pass.
 - The broad `tests/test_builder_*.py` slice did not reach a terminal summary in
   this environment and was stopped after targeted P1 validation passed. Do not
   call the broad Builder slice green without diagnosing that hang separately.

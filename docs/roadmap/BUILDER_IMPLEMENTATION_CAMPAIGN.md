@@ -204,7 +204,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 | Reviewer | Worker 1 |
 | Verification | `python3.12 -m pytest tests/test_builder_scope.py -v -k forbidden`; forbidden path detection works |
 | Architecture review | Not required (backward-compatible addition) |
-| Completed | No |
+| Completed | Yes — 2026-07-15 |
 
 #### P1.6 — Continuous Scope Enforcement
 

@@ -19,6 +19,11 @@
   documentation lint, system-map freshness, and Builder doctor (13 pass,
   1 expected first-run warning). The broad `tests/test_builder_*.py` slice did
   not finish in this environment, so it is not a green gate yet.
+- P1-05 is `2fc061b` on `codex/campaign-p1-05`. It adds optional
+  `forbidden_changes` contract validation and rejects overlap with
+  `allowed_paths`; runtime mutation detection remains P3-02. Its independent
+  review approved the normalized-path implementation; 34 scope/contract tests,
+  Ruff, mypy, and docs lint pass.
 - `feat/campaign-alpha-phase-2-integration` contains the canonical committed
   branch-lease/identity work. The root checkout's uncommitted Phase 2 lease
   patch is preserved in `stash@{0}` and must be compared with that branch,
@@ -35,9 +40,9 @@
 
 ## Next action
 
-Commit the verified P1-01/P1-02 recovery changes, then execute P1-05 in a
-separate clean Builder lane. Do not mark P1-03 complete without the owner
-policy decision, and do not mix the root checkout's Phase 2 patch into P1.
+Reconcile P1-04 with the canonical `feat/campaign-alpha-phase-2-integration`
+branch in a separate clean worktree. Do not mark P1-03 complete without the
+owner policy decision, and do not mix the root checkout's Phase 2 patch into P1.
 
 # Handoff — 2026-07-12
 
