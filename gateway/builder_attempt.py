@@ -31,8 +31,10 @@ from gateway import builder_queue as bq
 BUNDLE_VERSION = 1
 CONTRACT_VERSION = 1
 
-# ponytail: fixed caps, no config. Raise them in code if a real packet needs it.
-DEFAULT_MAX_ATTEMPTS = 2
+# Investigation budget: maximum execution attempts per packet (Builder
+# Operating Model §4). Each attempt is one investigation hop. When exhausted,
+# control returns to the operator with a structured report.
+DEFAULT_MAX_ATTEMPTS = 3
 PRIOR_ATTEMPT_WINDOW = 3
 SUMMARY_CAP = 4000
 OUTPUT_CAP = 8000

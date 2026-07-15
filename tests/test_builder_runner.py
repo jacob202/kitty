@@ -357,6 +357,29 @@ class TestRunWorker:
         assert refreshed["state"] == "blocked"
         assert refreshed["blocked_reason"] == "scope_violation"
 
+    def test_continuous_scope_terminates_worker_mid_execution(
+        self, repo: Path, db_path: Path
+    ):
+        task = _queued_task(db_path, allowed_paths=["in_bounds/"])
+        run = br.run_worker(
+            task["id"],
+            [
+                "sh", "-c",
+                "mkdir -p out_of_bounds && "
+                "echo drift > out_of_bounds/drift.txt && "
+                "sleep 5",
+            ],
+            timeout_seconds=30,
+            heartbeat_seconds=1,
+            repo_root=repo,
+            db_path=db_path,
+        )
+        assert run["state"] == bq.RUN_SCOPE_VIOLATION
+        assert "out_of_bounds/drift.txt" in run["final_report"]["scope_violations"]
+        refreshed = bq.get_task(task["id"], db_path=db_path)
+        assert refreshed["state"] == "blocked"
+        assert refreshed["blocked_reason"] == "scope_violation"
+
     def test_post_loop_lease_renewal_failure_is_captured(
         self, repo: Path, db_path: Path, monkeypatch
     ):

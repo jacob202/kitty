@@ -788,6 +788,25 @@ def run_worker(
                         outcome = bq.RUN_TIMEOUT
                         break
 
+                    # Continuous scope enforcement: detect scope expansion
+                    # during execution, not just at the boundary. If the
+                    # worker drifts outside allowed_paths mid-flight,
+                    # terminate immediately as scope_violation.
+                    try:
+                        changed = _changed_paths(wt_path, start_sha)
+                    except Exception:
+                        changed = None
+                    if changed is not None and changed:
+                        violations = _scope_violations(
+                            changed, task.get("allowed_paths")
+                        )
+                        if violations:
+                            _terminate_group(proc)
+                            exit_code = proc.returncode
+                            scope_violations = violations
+                            outcome = bq.RUN_SCOPE_VIOLATION
+                            break
+
                     try:
                         bq.renew_lease(
                             task_id,
