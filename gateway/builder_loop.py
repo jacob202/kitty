@@ -164,6 +164,50 @@ def _validate_context_manifest(
     return parsed
 
 
+def _reconcile_one_stale_attempt(
+    attempt: dict[str, Any],
+    *,
+    db_path: Path | None = None,
+) -> None:
+    task_id = attempt["task_id"]
+    attempt_id = attempt["id"]
+    attempt_dir_path = _attempt_dir(task_id, attempt_id, db_path)
+    manifest_path = attempt_dir_path / "run-manifest.json"
+
+    crash_reason = (
+        f"Builder run_packet process was interrupted or terminated "
+        f"while attempt {attempt['attempt_no']} was running"
+    )
+
+    manifest: dict[str, Any] = {}
+    if manifest_path.exists():
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            manifest = {}
+
+    manifest["outcome"] = "crashed"
+    manifest["failure"] = _text_evidence(crash_reason)
+    attempt_dir_path.mkdir(parents=True, exist_ok=True)
+    write_run_manifest(manifest_path, manifest)
+
+    ba.close_attempt(attempt_id, ba.ATTEMPT_CRASHED, db_path=db_path)
+    bq.append_event(
+        task_id,
+        "infrastructure_failed",
+        payload={
+            "reason": crash_reason,
+            "counts_toward_budget": False,
+            "phase": "stale_attempt_reconciliation",
+            "attempt_id": attempt_id,
+            "attempt_no": attempt["attempt_no"],
+            "initiative_id": attempt.get("initiative_id"),
+            "packet_id": attempt.get("packet_id"),
+        },
+        db_path=db_path,
+    )
+
+
 def _reconcile_stale_attempts(
     initiative_id: str,
     packet_id: str,
@@ -179,47 +223,9 @@ def _reconcile_stale_attempts(
     dicts so callers can report them.
     """
     stale = ba.list_stale_attempts(initiative_id, packet_id, db_path=db_path)
-    reconciled: list[dict[str, Any]] = []
     for attempt in stale:
-        task_id = attempt["task_id"]
-        attempt_id = attempt["id"]
-        attempt_dir_path = _attempt_dir(task_id, attempt_id, db_path)
-        manifest_path = attempt_dir_path / "run-manifest.json"
-
-        crash_reason = (
-            f"Builder run_packet process was interrupted or terminated "
-            f"while attempt {attempt['attempt_no']} was running"
-        )
-
-        manifest: dict[str, Any] = {}
-        if manifest_path.exists():
-            try:
-                manifest = json.loads(
-                    manifest_path.read_text(encoding="utf-8")
-                )
-            except (OSError, json.JSONDecodeError):
-                manifest = {}
-
-        manifest["outcome"] = "crashed"
-        manifest["failure"] = _text_evidence(crash_reason)
-        attempt_dir_path.mkdir(parents=True, exist_ok=True)
-        write_run_manifest(manifest_path, manifest)
-
-        ba.close_attempt(attempt_id, ba.ATTEMPT_CRASHED, db_path=db_path)
-        bq.append_event(
-            task_id,
-            "infrastructure_failed",
-            payload={
-                "reason": crash_reason,
-                "counts_toward_budget": False,
-                "phase": "stale_attempt_reconciliation",
-                "attempt_id": attempt_id,
-                "attempt_no": attempt["attempt_no"],
-            },
-            db_path=db_path,
-        )
-        reconciled.append(attempt)
-    return reconciled
+        _reconcile_one_stale_attempt(attempt, db_path=db_path)
+    return stale
 
 
 def _write_review_context(
@@ -373,12 +379,12 @@ def run_packet(
             ),
         )
 
-    # Reconcile any stale open attempts left by a previous crashed process
-    # before entering the repair loop. Crashed attempts do not count toward
-    # the attempt budget (counts_toward_budget: False).
-    _reconcile_stale_attempts(
-        initiative_id, packet_id, db_path=db_path, repo_root=repo_root
-    )
+    # Reconcile any stale open attempts left by crashed processes BEFORE
+    # entering the repair loop — across all initiatives, not just this one.
+    # Crashed attempts do not count toward the attempt budget
+    # (counts_toward_budget: False).
+    for attempt in ba.list_all_stale_attempts(db_path=db_path):
+        _reconcile_one_stale_attempt(attempt, db_path=db_path)
 
     history: list[dict[str, Any]] = []
     while True:

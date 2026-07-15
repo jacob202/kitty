@@ -334,6 +334,27 @@ def build_context_bundle(
 # ---------------------------------------------------------------------------
 
 
+def list_all_stale_attempts(db_path: Path | None = None) -> list[dict[str, Any]]:
+    """Return all open attempts (outcome IS NULL) across every initiative and packet.
+
+    These are attempts left in-flight by a crashed run_packet process and
+    must be reconciled before starting any new work.
+    """
+    init_db(db_path)
+    conn = bq.connect(db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT * FROM packet_attempts
+            WHERE outcome IS NULL
+            ORDER BY initiative_id, packet_id, attempt_no
+            """,
+        ).fetchall()
+        return [_row_to_attempt(r) for r in rows]
+    finally:
+        conn.close()
+
+
 def list_stale_attempts(
     initiative_id: str, packet_id: str, db_path: Path | None = None
 ) -> list[dict[str, Any]]:
