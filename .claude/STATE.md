@@ -10,9 +10,12 @@
 - The nested-worktree Builder doctor defect is fixed and verified together
   with the documentation gate by 47 focused tests. A real doctor run reports
   13 pass, 1 expected worktree-root warning, and 0 fail.
-- P1-01 through P1-05 are dispatchable. Candidate commits for P1-01 through
-  P1-03 exist on `feat/wip-campaign-and-runtime`, but remain unmerged and must
-  be reviewed packet by packet before campaign completion state changes.
+- P1-01 and P1-02 are integrated and independently reviewed on this recovery
+  branch. P1-03 is blocked on its required architecture decision: define the
+  measurability heuristic boundary before accepting any implementation. Its
+  candidate also mixes an unrelated protected-path authority rewrite.
+- P1-05 is the next clean dispatchable packet. P1-04 overlaps the separately
+  preserved Phase 2 lease/base-SHA work and must be reconciled in its own lane.
 - Root-checkout Phase 2 lease work is preserved separately in
   `stash@{0}` and remains uncommitted. Do not merge or recreate it until it is
   reconciled with `feat/campaign-alpha-phase-2-integration`.

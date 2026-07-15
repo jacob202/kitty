@@ -9,9 +9,11 @@
   nested worktrees, documentation lint validates the governed foundational
   corpus, repository-relative references resolve correctly, and SYSTEM_MAP is
   current (47 focused tests; real doctor: 13 pass, 1 expected warning, 0 fail).
-- `feat/wip-campaign-and-runtime` contains P1-01, P1-02, and P1-03 candidate
-  commits. They need packet-by-packet review and integration; do not mark them
-  complete simply because commits exist.
+- P1-01 and P1-02 are integrated and independently approved here. P1-03
+  remains blocked on the required owner architecture decision about the
+  measurability heuristic boundary; its candidate also mixes an unrelated
+  protected-path authority rewrite. Do not integrate it until that policy is
+  explicit.
 - `feat/campaign-alpha-phase-2-integration` contains the canonical committed
   branch-lease/identity work. The root checkout's uncommitted Phase 2 lease
   patch is preserved in `stash@{0}` and must be compared with that branch,
@@ -28,9 +30,9 @@
 
 ## Next action
 
-Review and integrate the existing P1-01 through P1-03 candidate commits one
-packet at a time. Do not mark a packet complete merely because its candidate
-commit exists, and do not mix the root checkout's Phase 2 patch into P1.
+Commit the verified P1-01/P1-02 recovery changes, then execute P1-05 in a
+separate clean Builder lane. Do not mark P1-03 complete without the owner
+policy decision, and do not mix the root checkout's Phase 2 patch into P1.
 
 # Handoff — 2026-07-12
 

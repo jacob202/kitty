@@ -156,7 +156,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 | Reviewer | Auto (10-min review) |
 | Verification | `python3 scripts/docs_lint.py` passes; both events have producer/consumer/payload/ordering |
 | Architecture review | Not required |
-| Completed | No |
+| Completed | Yes — 2026-07-15 |
 
 #### P1.2 — Initiative Event Emission
 
@@ -168,7 +168,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 | Reviewer | Worker 2 |
 | Verification | `python3.12 -m pytest tests/test_builder_initiative.py -v`; both events appear in events table |
 | Architecture review | Not required |
-| Completed | No |
+| Completed | Yes — 2026-07-15 |
 
 #### P1.3 — Semantic Contract Validation: Measurability
 
