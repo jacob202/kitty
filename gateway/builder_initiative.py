@@ -36,7 +36,30 @@ from gateway import builder_queue as bq
 
 MANIFEST_VERSION = 1
 
-# Initiative states. KB-S1A only creates 'active'. KB-S1B adds the read-only
+def _emit_initiative_applied_event(
+    initiative_id: str,
+    mappings: list[dict[str, Any]],
+    db_path: Path | None = None,
+) -> None:
+    """Emit initiative_applied event for the initiative's first task.
+
+    The events table is task-scoped, so we attach the initiative event to the
+    first task created. The payload carries the initiative metadata for
+    initiative-level consumers.
+    """
+    task_id = mappings[0]["task_id"] if mappings else None
+    if not task_id:
+        return
+    bq.append_event(
+        task_id,
+        "initiative_applied",
+        payload={
+            "initiative_id": initiative_id,
+            "packet_count": len(mappings),
+            "packet_ids": [m["packet_id"] for m in mappings],
+        },
+        db_path=db_path,
+    )
 # rollup states below, derived from per-packet task state — never by writing
 # task rows. Completion/pause *transitions* remain owned by later packets.
 INITIATIVE_ACTIVE = "active"
@@ -523,6 +546,8 @@ def apply_manifest(
         raise
     finally:
         conn.close()
+
+    _emit_initiative_applied_event(initiative_id, mappings, db_path)
 
     return {
         "status": "created",

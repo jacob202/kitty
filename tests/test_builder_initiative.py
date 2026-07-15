@@ -782,3 +782,19 @@ class TestKbS1bCli:
     def test_status_missing_initiative(self, cli_db, capsys):
         assert main(["initiative", "status", "ghost"]) == 1
         assert "not found" in capsys.readouterr().err
+
+
+def test_initiative_applied_event_emitted(db_path: Path) -> None:
+    from gateway.builder_queue import list_events
+    from gateway.builder_initiative import apply_manifest
+
+    manifest = _manifest()
+    result = apply_manifest(manifest, db_path=db_path)
+    assert result["status"] == "created"
+
+    task_id = result["packets"][0]["task_id"]
+    events = list_events(task_id, db_path=db_path)
+    applied = [e for e in events if e["type"] == "initiative_applied"]
+    assert len(applied) == 1
+    assert applied[0]["payload"]["initiative_id"] == "kitty-alpha-v1"
+    assert applied[0]["payload"]["packet_count"] == 2
