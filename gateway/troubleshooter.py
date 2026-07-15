@@ -9,7 +9,7 @@ logger = logging.getLogger("kitty.troubleshooter")
 
 
 async def initiate_troubleshooting(device: str, symptom: str) -> str:
-    from gateway.context_builder import build_worker_context
+    from gateway.context_assembler import build_worker_context
     from gateway.knowledge import search
     from gateway.llm_client import chat
 

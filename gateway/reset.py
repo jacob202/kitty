@@ -8,7 +8,7 @@ def generate_reset_prompt() -> str:
     Generate a character-driven prompt for the 9 PM Nightly Reset.
     """
     from gateway.brief import get_tasks_summary
-    from gateway.context_builder import build_worker_context
+    from gateway.context_assembler import build_worker_context
     from gateway.llm_client import call_llm
 
     task_summary = get_tasks_summary()

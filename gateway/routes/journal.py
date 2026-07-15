@@ -72,7 +72,7 @@ async def journal_synthesize(request: Request):
 
 @router.post("/journal/chat")
 async def journal_chat(payload: JournalChatRequest):
-    """Single journal interview turn — uses provided system_prompt, bypasses context_builder."""
+    """Single journal interview turn — uses provided system_prompt, bypasses context assembler."""
     if not payload.messages:
         raise ValidationError("messages required")
     model = route_model("")

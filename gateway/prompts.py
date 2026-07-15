@@ -4,9 +4,8 @@ domain modules.
 Why this exists: a handful of short system / user prompts lived inside
 the modules that use them (``journal.py``, ``parts.py``,
 ``inventory.py``). This module is also the home for loading versioned,
-on-disk prompts (soul, repair, health, research, code) via
-``load_prompt`` — previously a separate ``prompt_loader`` module that
-was a 25-line pass-through.
+on-disk prompts via ``load_prompt`` — previously a separate
+``prompt_loader`` module that was a 25-line pass-through.
 
 Why not promote them to disk files immediately: every inline prompt
 here is short (one paragraph or a few lines), and keeping them as
@@ -29,10 +28,6 @@ from gateway.paths import PROMPTS_DIR
 
 DOMAIN_TO_FILE = {
     "soul": "soul_v1.md",
-    "repair": "repair_v1.md",
-    "health": "health_v1.md",
-    "research": "research_v1.md",
-    "code": "code_v1.md",
 }
 
 

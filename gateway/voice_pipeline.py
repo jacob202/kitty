@@ -188,7 +188,7 @@ class VoicePipeline:
 
         # 2. LLM response
         try:
-            from gateway.context_builder import get_system_prompt
+            from gateway.context_assembler import get_system_prompt
             from gateway.domain_router import classify_domain
             from gateway.llm_client import (
                 chat_completions_non_stream,
