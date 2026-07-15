@@ -30,6 +30,7 @@ from gateway.builder_identity import (
     verify_and_escalate,
     verify_worker_identity,
 )
+from gateway.builder_scope import EscalationError as ScopeEscalationError
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -151,6 +152,19 @@ class TestBranchLease:
                 worker_id="w-2",
                 branch="feat/other",
                 worktree_path="/tmp/wt/shared",
+            )
+
+    def test_equivalent_worktree_paths_conflict(self, db_path: Path) -> None:
+        """Path aliases cannot create two leases for one worktree."""
+        worktree = "/tmp/wt/shared"
+        _claim(db_path, packet_id="ID-1", worktree_path=worktree)
+        with pytest.raises(bq.BranchLeaseConflictError, match="worktree_path"):
+            _claim(
+                db_path,
+                packet_id="ID-2",
+                worker_id="w-2",
+                branch="feat/other",
+                worktree_path=f"{worktree}/.",
             )
 
     def test_same_base_sha_allowed(self, db_path: Path) -> None:
@@ -494,6 +508,33 @@ class TestVerifyWorkerIdentity:
         assert "worktree_path" in fields
         assert "branch" in fields
 
+    @pytest.mark.parametrize(
+        "allowed_paths",
+        ["{", '["../outside.py"]', "{}"],
+    )
+    def test_corrupt_allowlist_fails_closed(
+        self, repo: Path, db_path: Path, allowed_paths: str
+    ) -> None:
+        """Corrupt stored scope data must block execution, never widen it."""
+        _apply_manifest(db_path)
+        base = _head_sha(repo)
+        bq.claim_branch_lease(
+            PACKET, "w-1", "main", str(repo), base, db_path=db_path,
+        )
+        with bq.connect(db_path) as conn:
+            conn.execute(
+                "UPDATE initiative_packets SET allowed_paths_json = ? "
+                "WHERE packet_id = ?",
+                (allowed_paths, PACKET),
+            )
+            conn.commit()
+
+        findings = verify_worker_identity(PACKET, repo_root=repo, db_path=db_path)
+
+        assert len(findings) == 1
+        assert findings[0].category == "identity_violation"
+        assert findings[0].field == "allowed_paths"
+
 
 # ---------------------------------------------------------------------------
 # verify_and_escalate convenience wrapper
@@ -505,6 +546,7 @@ class TestVerifyAndEscalate:
         _apply_manifest(db_path)
         with pytest.raises(EscalationError) as exc_info:
             verify_and_escalate(PACKET, repo_root=repo, db_path=db_path)
+        assert isinstance(exc_info.value, ScopeEscalationError)
         assert exc_info.value.artifact["type"] == "identity_escalation"
         assert exc_info.value.artifact["packet_id"] == PACKET
 

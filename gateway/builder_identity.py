@@ -22,39 +22,11 @@ from __future__ import annotations
 
 import json
 import subprocess
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from gateway import builder_queue as bq
-
-# ---------------------------------------------------------------------------
-# Local types (will consolidate with builder_scope.py on merge)
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class ScopeFinding:
-    category: str
-    field: str
-    message: str
-
-
-class EscalationError(RuntimeError):
-    """Raised when identity verification fails — return control to operator."""
-
-    def __init__(
-        self,
-        findings: list[ScopeFinding],
-        *,
-        evidence: dict[str, Any] | None = None,
-        artifact: dict[str, Any] | None = None,
-    ) -> None:
-        message = "; ".join(f.message for f in findings) or "identity verification failed"
-        super().__init__(message)
-        self.findings: list[ScopeFinding] = list(findings)
-        self.evidence: dict[str, Any] = evidence or {}
-        self.artifact: dict[str, Any] = artifact or {}
+from gateway.builder_scope import EscalationError, ScopeFinding
 
 # ---------------------------------------------------------------------------
 # Git helpers (local to this module — avoids importing builder_runner)
@@ -171,11 +143,8 @@ def _scope_violations(
 
 def _get_allowed_paths(
     packet_id: str, *, db_path: Path | None = None
-) -> list[str] | None:
-    """Fetch the allowed_paths list from initiative_packets for this packet.
-
-    Returns None if the packet is not found (caller should escalate).
-    """
+) -> list[str]:
+    """Fetch a valid allowlist or fail before scope could widen."""
     conn = bq.connect(db_path)
     try:
         # Packet IDs are unique across initiatives in the branch-lease
@@ -186,11 +155,32 @@ def _get_allowed_paths(
             (packet_id,),
         ).fetchone()
         if row is None:
-            return None
+            raise IdentityError(f"packet {packet_id!r} has no allowlist row")
         try:
-            return json.loads(row["allowed_paths_json"])
-        except (json.JSONDecodeError, TypeError):
-            return None
+            parsed = json.loads(row["allowed_paths_json"])
+        except (json.JSONDecodeError, TypeError) as exc:
+            raise IdentityError(
+                f"packet {packet_id!r} has malformed allowed_paths_json"
+            ) from exc
+        if not isinstance(parsed, list) or not all(
+            isinstance(path, str) and path.strip() for path in parsed
+        ):
+            raise IdentityError(
+                f"packet {packet_id!r} has an invalid allowed_paths allowlist"
+            )
+        for path in parsed:
+            candidate = path.strip().rstrip("/") or "."
+            if (
+                candidate == "."
+                or candidate.startswith("/")
+                or candidate.startswith("\\")
+                or ".." in candidate.split("/")
+            ):
+                raise IdentityError(
+                    f"packet {packet_id!r} has an unsafe allowed_paths entry "
+                    f"{path!r}"
+                )
+        return parsed
     finally:
         conn.close()
 
@@ -331,7 +321,13 @@ def verify_worker_identity(
         )
         return findings
 
-    allowed = _get_allowed_paths(packet_id, db_path=db_path)
+    try:
+        allowed = _get_allowed_paths(packet_id, db_path=db_path)
+    except IdentityError as exc:
+        findings.append(
+            ScopeFinding("identity_violation", "allowed_paths", str(exc))
+        )
+        return findings
     violations = _scope_violations(changed, allowed)
     if violations:
         examples = ", ".join(violations[:5])

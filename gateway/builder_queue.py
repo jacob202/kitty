@@ -2827,6 +2827,7 @@ def claim_branch_lease(
     if not base_sha or not base_sha.strip():
         raise ValueError("base_sha is required")
 
+    worktree_path = str(Path(worktree_path).expanduser().resolve())
     conn = connect(db_path)
     try:
         conn.execute("BEGIN IMMEDIATE")
