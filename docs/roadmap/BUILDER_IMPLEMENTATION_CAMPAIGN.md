@@ -230,6 +230,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 |---|---|
 | Files | `gateway/builder_scope.py`, `gateway/builder_queue.py` |
 | Requirement | Emit `contract_validated` event when scope validation completes |
+| Verification | `python3.12 -m pytest tests/test_builder_scope.py -v -k contract_validated` |
 | Depends on | P1.3 |
 
 #### P2.2 — Event Consumption Surface
@@ -238,6 +239,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 |---|---|
 | Files | `gateway/builder_cli.py` (new `--events` view) |
 | Requirement | Operator-visible event stream: latest N events across all tasks, filterable by event type, initiative |
+| Verification | `python3.12 -m pytest tests/test_builder_cli.py -v -k events` |
 | Depends on | P1.1 |
 
 #### P2.3 — Event Schema Documentation
@@ -246,6 +248,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 |---|---|
 | Files | `docs/builder/BUILDER_EVENT_MODEL.md` |
 | Requirement | Add JSON schema for every event payload; update Future Events section |
+| Verification | `python3 scripts/docs_lint.py` passes |
 | Depends on | P1.1, P1.2 |
 
 #### P2.4 — Initiative Status Events (full)
@@ -254,6 +257,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 |---|---|
 | Files | `gateway/builder_initiative.py` |
 | Requirement | Event-driven initiative status updates (active/paused/completed/failed) |
+| Verification | `python3.12 -m pytest tests/test_builder_initiative.py -v -k status_events` |
 | Depends on | P1.2 |
 
 ---
@@ -268,6 +272,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 |---|---|
 | Files | `gateway/builder_scope.py` |
 | Requirement | Implement measurability scoring for acceptance criteria |
+| Verification | `python3.12 -m pytest tests/test_builder_scope.py -v -k measurability` |
 | Depends on | P1.3 |
 
 #### P3.2 — Forbidden Changes Detection
@@ -276,6 +281,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 |---|---|
 | Files | `gateway/builder_scope.py`, `gateway/builder_runner.py` |
 | Requirement | Detect when worker modifies forbidden paths during execution |
+| Verification | `python3.12 -m pytest tests/test_builder_runner.py -v -k forbidden_change` |
 | Depends on | P1.5 |
 
 #### P3.3 — Architectural Authority Verification
@@ -284,6 +290,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 |---|---|
 | Files | `gateway/builder_scope.py` |
 | Requirement | Verify ADR references are valid (ADR exists, is accepted, is not superseded) |
+| Verification | `python3.12 -m pytest tests/test_builder_scope.py -v -k authority` |
 | Depends on | P1.3 |
 
 #### P3.4 — ADR Cross-Referencing
@@ -292,6 +299,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 |---|---|
 | Files | `gateway/builder_scope.py` |
 | Requirement | Validate that ADR references in packet contracts point to actual ADR files |
+| Verification | `python3.12 -m pytest tests/test_builder_scope.py -v -k adr_crossref` |
 | Depends on | P3.3 |
 
 ---
@@ -306,6 +314,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 |---|---|
 | Files | `gateway/builder_initiative.py` |
 | Requirement | Execute hook when all packets in initiative reach terminal state |
+| Verification | `python3.12 -m pytest tests/test_builder_initiative.py -v -k completion_hook` |
 | Depends on | P1.2 |
 
 #### P4.2 — Event-Driven Initiative Status
@@ -314,6 +323,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 |---|---|
 | Files | `gateway/builder_initiative.py` |
 | Requirement | Status transitions driven by events, not computed on read |
+| Verification | `python3.12 -m pytest tests/test_builder_initiative.py -v -k event_driven` |
 | Depends on | P2.4 |
 
 #### P4.3 — Initiative Pause/Resume
@@ -322,6 +332,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 |---|---|
 | Files | `gateway/builder_initiative.py`, `gateway/builder_queue.py` |
 | Requirement | Operator can pause/resume an initiative; paused initiatives skip queue selection |
+| Verification | `python3.12 -m pytest tests/test_builder_initiative.py -v -k pause_resume` |
 | Depends on | P4.1 |
 
 ---
@@ -336,6 +347,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 |---|---|
 | Files | `gateway/builder_receipt.py` (new) |
 | Requirement | Receipt schema: id, packet_id, initiative_id, outcome, evidence_refs, verification, recorded_at |
+| Verification | `python3.12 -m pytest tests/test_builder_receipt.py -v` |
 | Architecture review | Required — first runtime implementation of Knowledge Model concept |
 
 #### P5.2 — Receipt → Evidence Pipeline
@@ -344,6 +356,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 |---|---|
 | Files | `gateway/builder_receipt.py`, `gateway/builder_loop.py` |
 | Requirement | On packet completion, produce Receipt; Receipt feeds into evidence system |
+| Verification | `python3.12 -m pytest tests/test_builder_receipt.py -v -k evidence_pipeline` |
 | Depends on | P5.1 |
 
 #### P5.3 — Receipt Verification
@@ -352,6 +365,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 |---|---|
 | Files | `gateway/builder_receipt.py`, tests |
 | Requirement | Receipts are verifiable: hash chain from evidence to receipt, verification command output included |
+| Verification | `python3.12 -m pytest tests/test_builder_receipt.py -v -k verify` |
 | Depends on | P5.1 |
 
 ---
@@ -366,6 +380,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 |---|---|
 | Files | `docs/builder/BUILDER_RESEARCH_PHASE.md` (spec) |
 | Requirement | Specify research phase: inputs (packet contract, repo state), outputs (research findings), ADR/architecture query API |
+| Verification | `python3 scripts/docs_lint.py` passes; spec cross-references Knowledge Model terms correctly |
 | Architecture review | Required |
 | Implementation | Deferred — this phase produces design, not code |
 
@@ -375,6 +390,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 |---|---|
 | Files | `docs/builder/BUILDER_REFLECTION_AUTOMATION.md` (spec) |
 | Requirement | Specify reflection pipeline: run manifest → evidence extraction → knowledge candidates |
+| Verification | `python3 scripts/docs_lint.py` passes; pipeline maps to existing event model and run manifest structure |
 | Depends on | P5.2 |
 | Architecture review | Required |
 | Implementation | Deferred |
@@ -391,6 +407,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 |---|---|
 | Files | `gateway/builder_metrics.py` (new) |
 | Requirement | Track and surface: attempt success rate, review pass rate, recovery success, mean packet time |
+| Verification | `python3.12 -m pytest tests/test_builder_metrics.py -v` |
 | Depends on | P5.3 |
 
 #### P7.2 — Self-Building Capability Baseline
@@ -399,6 +416,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 |---|---|
 | Files | `gateway/builder_self_build.py` (new), `docs/builder/BUILDER_SELF_BUILD_CAPABILITY.md` |
 | Requirement | Baseline measurement: what percentage of Builder packets can Builder execute against itself |
+| Verification | `python3.12 -m pytest tests/test_builder_self_build.py -v` |
 | Depends on | P6.1 |
 
 ---
@@ -413,6 +431,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 |---|---|
 | Files | `gateway/builder_cli.py` |
 | Requirement | `builder status` shows all initiatives, their state, packet progress, recent events |
+| Verification | `python3.12 -m pytest tests/test_builder_cli.py -v -k dashboard` |
 | Depends on | P2.2 |
 
 #### P8.2 — Packet Status Visualization
@@ -421,6 +440,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 |---|---|
 | Files | `gateway/builder_cli.py` |
 | Requirement | `builder status --packet <id>` shows full packet lifecycle: attempts, evidence, events, PR links |
+| Verification | `python3.12 -m pytest tests/test_builder_cli.py -v -k packet_status` |
 | Depends on | P2.2 |
 
 #### P8.3 — Operator Intervention Surface
@@ -429,6 +449,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 |---|---|
 | Files | `gateway/builder_cli.py` |
 | Requirement | Pause/resume/cancel/release operations from CLI with confirmation prompts |
+| Verification | `python3.12 -m pytest tests/test_builder_cli.py -v -k intervene` |
 | Depends on | P8.1, P8.2 |
 
 ---
@@ -443,6 +464,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 |---|---|
 | Files | `tests/test_builder_*.py` |
 | Requirement | >90% line coverage on all `gateway/builder_*.py` files; integration tests for full packet lifecycle |
+| Verification | `python3.12 -m pytest tests/test_builder_*.py --cov=gateway --cov-report=term --cov-fail-under=90 -q` |
 | Depends on | All prior phases |
 
 #### P9.2 — Documentation Consistency
@@ -451,6 +473,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 |---|---|
 | Files | `docs/builder/*.md`, `docs/knowledge/KNOWLEDGE_MODEL.md` |
 | Requirement | All specs match implementation; no undocumented events; no stale field references |
+| Verification | `python3 scripts/docs_lint.py && python3 scripts/docs_system_map.py --check` |
 | Depends on | All prior phases |
 
 #### P9.3 — Performance Benchmarks
@@ -459,6 +482,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 |---|---|
 | Files | `tests/test_builder_performance.py` |
 | Requirement | Baseline: packet execution time, worktree creation time, review latency |
+| Verification | `python3.12 -m pytest tests/test_builder_performance.py -v` |
 | Depends on | All prior phases |
 
 #### P9.4 — Migration Path Validation
@@ -467,6 +491,7 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 |---|---|
 | Files | `gateway/builder_migration.py` |
 | Requirement | Existing queue data survives schema migrations; backwards compatibility with old packet contracts |
+| Verification | `python3.12 -m pytest tests/test_builder_migration.py -v` |
 | Depends on | P5.3 |
 
 ---

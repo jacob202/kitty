@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from gateway.builder_scope import (
     EscalationError,
-    ScopeFinding,
     build_scope_escalation_artifact,
     validate_scope,
 )
