@@ -4,15 +4,15 @@
   `.worktrees/reconcile-builder-campaign`; the shared root checkout remains
   active on `chore/engineering-leverage-phase-8-9` and must not be used for
   Builder execution.
-- The campaign state is now `verification: red`. Do not dispatch P1 work until
-  the remaining documentation gate is explicitly resolved or re-scoped.
-- Remaining blocker: `python3 scripts/docs_lint.py` reports 80 errors on the
-  clean campaign branch. The nested-worktree Builder doctor defect is fixed
-  and verified by 41 focused tests plus a real doctor run (13 pass, 1 expected
-  worktree-root warning, 0 fail).
-- Candidate commits for P1-01 through P1-03 exist on
-  `feat/wip-campaign-and-runtime`, but they are unmerged and not yet accepted
-  as completed campaign packets. The P1-03 scope suite passes (18 tests).
+- The campaign state is now `verification: green`. Documentation lint is
+  scoped to the governed foundational corpus, repository references resolve
+  correctly, and the generated system map is current.
+- The nested-worktree Builder doctor defect is fixed and verified together
+  with the documentation gate by 47 focused tests. A real doctor run reports
+  13 pass, 1 expected worktree-root warning, and 0 fail.
+- P1-01 through P1-05 are dispatchable. Candidate commits for P1-01 through
+  P1-03 exist on `feat/wip-campaign-and-runtime`, but remain unmerged and must
+  be reviewed packet by packet before campaign completion state changes.
 - Root-checkout Phase 2 lease work is preserved separately in
   `stash@{0}` and remains uncommitted. Do not merge or recreate it until it is
   reconciled with `feat/campaign-alpha-phase-2-integration`.

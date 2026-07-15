@@ -5,10 +5,10 @@
 - Use `.worktrees/reconcile-builder-campaign` on
   `reconcile-builder-campaign` for campaign recovery. Do not use the shared
   root checkout while its Engineering Leverage worker is active.
-- `docs/roadmap/campaign_state.json` is deliberately red and blocks dispatch:
-  `docs_lint.py` reports 80 errors. Builder doctor now supports linked nested
-  worktrees (41 focused tests; real doctor: 13 pass, 1 expected warning, 0
-  fail). Fix or explicitly re-scope the documentation gate before resuming P1.
+- `docs/roadmap/campaign_state.json` is green. Builder doctor supports linked
+  nested worktrees, documentation lint validates the governed foundational
+  corpus, repository-relative references resolve correctly, and SYSTEM_MAP is
+  current (47 focused tests; real doctor: 13 pass, 1 expected warning, 0 fail).
 - `feat/wip-campaign-and-runtime` contains P1-01, P1-02, and P1-03 candidate
   commits. They need packet-by-packet review and integration; do not mark them
   complete simply because commits exist.
@@ -21,15 +21,16 @@
 
 - `tests/bench/` passed 11 tests on the leverage branch before it was committed.
 - P1-03 candidate scope tests: `18 passed`.
-- `python3 scripts/docs_lint.py` on the clean campaign branch: 80 errors.
+- `python3 scripts/docs_lint.py`: passed across 45 governed documents.
+- `python3 scripts/docs_system_map.py --check`: passed.
 - `./kitty builder initiative doctor --json`: 13 pass, 1 expected
   worktree-root warning, 0 fail in the nested recovery worktree.
 
 ## Next action
 
-Create one focused gate-decision packet for documentation lint scope and
-remediation. Do not claim or dispatch a campaign packet until the gate is
-reviewed and campaign verification is green.
+Review and integrate the existing P1-01 through P1-03 candidate commits one
+packet at a time. Do not mark a packet complete merely because its candidate
+commit exists, and do not mix the root checkout's Phase 2 patch into P1.
 
 # Handoff — 2026-07-12
 
