@@ -172,6 +172,32 @@ class TestRepoIdentity:
         levels = {c.name: c.level for c in checks}
         assert levels["repo:identity"] == "FAIL"
 
+    def test_linked_worktree_uses_shared_repository_identity(
+        self, repo: Path, monkeypatch, tmp_path: Path
+    ):
+        """A nested worktree belongs to the parent Kitty repository."""
+        worktree = tmp_path / "nested" / "builder-packet"
+        subprocess.run(
+            ["git", "worktree", "add", "-q", "-b", "doctor-linked-worktree", str(worktree)],
+            cwd=repo,
+            check=True,
+        )
+        try:
+            monkeypatch.setattr(doctor, "EXPECTED_REPO_NAME", "kitty")
+            checks = doctor._check_repo_identity(worktree)
+            levels = {c.name: c.level for c in checks}
+            assert levels["repo:identity"] == "PASS"
+
+            root_check = doctor._check_worktree_root(worktree)[0]
+            assert root_check.level == "WARN"
+            assert str(repo / ".worktrees" / "kittybuilder") in root_check.detail
+        finally:
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(worktree)],
+                cwd=repo,
+                check=True,
+            )
+
     def test_missing_default_branch_fails(self, repo: Path, monkeypatch):
         monkeypatch.setattr(doctor, "EXPECTED_REPO_NAME", "kitty")
         monkeypatch.setattr(doctor, "EXPECTED_DEFAULT_BRANCH", "does-not-exist")

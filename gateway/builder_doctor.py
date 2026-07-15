@@ -54,6 +54,19 @@ def _repo_toplevel(repo_root: Path | None) -> subprocess.CompletedProcess[str]:
     return _git(["rev-parse", "--show-toplevel"], cwd=cwd)
 
 
+def _repository_root(toplevel: Path) -> tuple[Path | None, str | None]:
+    """Return the shared repository root for a normal or linked worktree."""
+    common_dir = _git(
+        ["rev-parse", "--path-format=absolute", "--git-common-dir"], cwd=toplevel
+    )
+    if common_dir.returncode != 0:
+        return None, common_dir.stderr.strip()
+    git_dir = Path(common_dir.stdout.strip())
+    if git_dir.name != ".git":
+        return None, f"unexpected Git common directory: {git_dir}"
+    return git_dir.parent, None
+
+
 # ---------------------------------------------------------------------------
 # Individual checks
 # ---------------------------------------------------------------------------
@@ -152,20 +165,29 @@ def _check_repo_identity(repo_root: Path | None) -> list[Check]:
             )
         ]
     toplevel = Path(top.stdout.strip())
+    identity_root, identity_error = _repository_root(toplevel)
     checks: list[Check] = []
 
-    if toplevel.name != EXPECTED_REPO_NAME:
+    if identity_root is None:
         checks.append(
             Check(
                 "FAIL",
                 "repo:identity",
-                f"expected repo {EXPECTED_REPO_NAME!r}, found {toplevel.name!r} at "
-                f"{toplevel} — confirm you are under ~/Projects/{EXPECTED_REPO_NAME} "
+                f"cannot resolve shared Git repository for {toplevel}: {identity_error}",
+            )
+        )
+    elif identity_root.name != EXPECTED_REPO_NAME:
+        checks.append(
+            Check(
+                "FAIL",
+                "repo:identity",
+                f"expected repo {EXPECTED_REPO_NAME!r}, found {identity_root.name!r} at "
+                f"{identity_root} — confirm you are under ~/Projects/{EXPECTED_REPO_NAME} "
                 "before running KittyBuilder",
             )
         )
     else:
-        checks.append(Check("PASS", "repo:identity", str(toplevel)))
+        checks.append(Check("PASS", "repo:identity", str(identity_root)))
 
     local_branch = _git(
         ["rev-parse", "--verify", "--quiet", EXPECTED_DEFAULT_BRANCH], cwd=toplevel
@@ -217,7 +239,16 @@ def _check_worktree_root(repo_root: Path | None) -> list[Check]:
     if top.returncode != 0:
         cwd = Path(repo_root) if repo_root is not None else Path.cwd()
         return [Check("FAIL", "worktree:root", f"cannot resolve repo root from {cwd}")]
-    root = Path(top.stdout.strip())
+    toplevel = Path(top.stdout.strip())
+    root, identity_error = _repository_root(toplevel)
+    if root is None:
+        return [
+            Check(
+                "FAIL",
+                "worktree:root",
+                f"cannot resolve shared Git repository for {toplevel}: {identity_error}",
+            )
+        ]
     worktree_root = root / ".worktrees" / "kittybuilder"
 
     if worktree_root.exists():
