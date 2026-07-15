@@ -67,7 +67,7 @@ the `.agents/skills/second-opinion/` copy was removed 2026-07-15.
 This file must be re-verified when:
 - a skill is added, removed, merged, or archived
 - a skill's wiring (scripts, config, endpoints) changes
-- the lev
-   
+- the leverage audit runs
+
 Last verified date: `2026-07-15`. If that date is older than 90 days at
 audit time, the registry should be re-walked.
