@@ -1,0 +1,16 @@
+{
+  "campaign": "alpha",
+  "phase": 1,
+  "completed_packets": 0,
+  "remaining_packets": 31,
+  "blocked": [],
+  "failed": [],
+  "review_pending": 0,
+  "in_progress": [],
+  "verification": "green",
+  "last_updated": "2026-07-14",
+  "next_dispatchable": ["P1-01", "P1-02", "P1-03", "P1-04", "P1-05"],
+  "concurrent_workers": 3,
+  "stalled_workers": [],
+  "contradictions": []
+}
