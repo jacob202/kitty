@@ -24,6 +24,11 @@
   `allowed_paths`; runtime mutation detection remains P3-02. Its independent
   review approved the normalized-path implementation; 34 scope/contract tests,
   Ruff, mypy, and docs lint pass.
+- `f4a0047` on `codex/reconcile-phase2-p104` cleanly transplants the canonical
+  branch-lease and worker-identity primitives; 26 focused identity tests pass,
+  but its independent review is pending. P1-04 must not globally reconcile
+  every open attempt until attempt creation is atomically bound to a lease and
+  every terminal path releases only its own lease.
 - `feat/campaign-alpha-phase-2-integration` contains the canonical committed
   branch-lease/identity work. The root checkout's uncommitted Phase 2 lease
   patch is preserved in `stash@{0}` and must be compared with that branch,
@@ -40,9 +45,10 @@
 
 ## Next action
 
-Reconcile P1-04 with the canonical `feat/campaign-alpha-phase-2-integration`
-branch in a separate clean worktree. Do not mark P1-03 complete without the
-owner policy decision, and do not mix the root checkout's Phase 2 patch into P1.
+Finish the independent review of `f4a0047`, then implement and test atomic
+lease-plus-attempt lifecycle wiring before P1-04 global reconciliation. Do not
+mark P1-03 complete without the owner policy decision, and do not mix the root
+checkout's Phase 2 patch into P1.
 
 # Handoff — 2026-07-12
 

@@ -19,6 +19,14 @@
   candidate also mixes an unrelated protected-path authority rewrite.
 - P1-04 is next. It overlaps the separately preserved Phase 2 lease/base-SHA
   work and must be reconciled in its own lane.
+- The canonical branch-lease and worker-identity primitives are integrated as
+  `f4a0047` on `codex/reconcile-phase2-p104`; 26 focused identity tests pass.
+  Independent review is still pending. Do not mark P1-04 complete: atomic
+  lease-plus-attempt creation and terminal lease release must be wired before
+  global stale-attempt recovery can safely distinguish an orphan from a live
+  worker.
+- The preserved root Phase 2 patch is reference-only. Its broad exception
+  swallowing around lease release violates fail-loud and must not be copied.
 - P1-05 is complete as `2fc061b`: the optional `forbidden_changes` contract
   field validates safe repo-relative paths and rejects overlap with
   `allowed_paths`. It does not enforce worker filesystem writes; P3-02 owns
