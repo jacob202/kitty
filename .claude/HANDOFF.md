@@ -14,6 +14,11 @@
   measurability heuristic boundary; its candidate also mixes an unrelated
   protected-path authority rewrite. Do not integrate it until that policy is
   explicit.
+- P1-01 is `790e71c`; P1-02 is `014eeb9`; campaign-state and handoff truth is
+  `acdc5b3`. Validation: 131 focused initiative/doctor/docs tests, Ruff,
+  documentation lint, system-map freshness, and Builder doctor (13 pass,
+  1 expected first-run warning). The broad `tests/test_builder_*.py` slice did
+  not finish in this environment, so it is not a green gate yet.
 - `feat/campaign-alpha-phase-2-integration` contains the canonical committed
   branch-lease/identity work. The root checkout's uncommitted Phase 2 lease
   patch is preserved in `stash@{0}` and must be compared with that branch,

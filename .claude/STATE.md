@@ -11,11 +11,17 @@
   with the documentation gate by 47 focused tests. A real doctor run reports
   13 pass, 1 expected worktree-root warning, and 0 fail.
 - P1-01 and P1-02 are integrated and independently reviewed on this recovery
-  branch. P1-03 is blocked on its required architecture decision: define the
+  branch as `790e71c` and `014eeb9`. Focused validation is green: 131
+  initiative/doctor/docs tests, Ruff, documentation lint, system-map freshness,
+  and Builder doctor (13 pass, 1 expected first-run warning).
+- P1-03 is blocked on its required architecture decision: define the
   measurability heuristic boundary before accepting any implementation. Its
   candidate also mixes an unrelated protected-path authority rewrite.
 - P1-05 is the next clean dispatchable packet. P1-04 overlaps the separately
   preserved Phase 2 lease/base-SHA work and must be reconciled in its own lane.
+- The broad `tests/test_builder_*.py` slice did not reach a terminal summary in
+  this environment and was stopped after targeted P1 validation passed. Do not
+  call the broad Builder slice green without diagnosing that hang separately.
 - Root-checkout Phase 2 lease work is preserved separately in
   `stash@{0}` and remains uncommitted. Do not merge or recreate it until it is
   reconciled with `feat/campaign-alpha-phase-2-integration`.
