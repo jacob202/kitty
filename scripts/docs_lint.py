@@ -2,7 +2,7 @@
 """docs_lint.py — Validate documentation governance.
 
 Checks:
-- All .md files in docs/ have valid YAML frontmatter with required fields.
+- Governed foundational documents have valid YAML frontmatter and required fields.
 - Referenced documents exist (derives_from, implements, referenced_by, superseded_by).
 - No orphan foundational documents.
 - SYSTEM_MAP.md is current (checked separately via --check).
@@ -13,18 +13,40 @@ Usage:
 """
 
 import os
+import subprocess
 import sys
-import yaml
 from pathlib import Path
+
+import yaml
 
 REQUIRED_FIELDS = {"type", "title", "status", "owner", "primary_purpose", "derives_from", "review_cycle"}
 FOUNDATIONAL_TYPES = {"vision", "constitution", "architecture", "governance", "model", "methodology", "roadmap", "index"}
-SKIP_DIRS = {"codemap", "archive", "retired", "examples", "fable-context", "packets", "evidence", "initiatives", ".DS_Store"}
-errors = []
+GOVERNED_ROOT_FILES = {
+    "README.md",
+    "VISION.md",
+    "CONSTITUTION.md",
+    "ROADMAP.md",
+    "GOVERNANCE.md",
+    "INDEX.md",
+    "CANONICAL_SOURCES.md",
+    "DECISIONS.md",
+    "audit-migration-table.md",
+}
+GOVERNED_DIRS = {
+    "adr",
+    "architecture",
+    "builder",
+    "engineering",
+    "knowledge",
+    "operations",
+    "product",
+    "repository",
+    "research",
+}
 
 
 def read_frontmatter(path: Path):
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         content = f.read()
     if not content.startswith("---"):
         return None
@@ -37,21 +59,41 @@ def read_frontmatter(path: Path):
         return None
 
 
-def collect_docs(root: Path):
-    docs = []
+def collect_docs(root: Path) -> list[Path]:
+    """Return the explicit documentation-governance corpus.
+
+    Historical plans and runbooks remain useful references, but ADR-0018 does
+    not make every Markdown artifact a foundational document.
+    """
+    docs: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith(".")]
+        dirnames[:] = [d for d in dirnames if not d.startswith(".")]
         for fname in filenames:
-            if fname.endswith(".md"):
-                docs.append(Path(dirpath) / fname)
-    return docs
+            if not fname.endswith(".md"):
+                continue
+            path = Path(dirpath) / fname
+            rel = path.relative_to(root)
+            if len(rel.parts) == 1 and rel.name in GOVERNED_ROOT_FILES:
+                docs.append(path)
+            elif len(rel.parts) > 1 and rel.parts[0] in GOVERNED_DIRS:
+                docs.append(path)
+    return sorted(docs)
 
 
-def main():
-    docs_root = Path(__file__).parent.parent / "docs"
+def reference_exists(ref: str, repo_root: Path, docs_root: Path) -> bool:
+    """Resolve structured references as repository- or docs-relative paths."""
+    path = Path(ref)
+    if path.is_absolute():
+        return False
+    if "*" in ref:
+        return any(repo_root.glob(ref)) or any(docs_root.glob(ref))
+    return (repo_root / path).exists() or (docs_root / path).exists()
+
+
+def lint_docs(repo_root: Path, *, check_system_map: bool = True) -> list[str]:
+    docs_root = repo_root / "docs"
     all_docs = collect_docs(docs_root)
-    doc_paths = {str(d.relative_to(docs_root)) for d in all_docs}
-    doc_paths |= {f"docs/{p}" for p in doc_paths}
+    errors: list[str] = []
 
     for doc in all_docs:
         rel = str(doc.relative_to(docs_root))
@@ -69,9 +111,7 @@ def main():
             if isinstance(refs, str):
                 refs = [refs]
             for ref in refs:
-                if ref == "docs/adr/*":
-                    continue
-                if ref not in doc_paths:
+                if not reference_exists(str(ref), repo_root, docs_root):
                     errors.append(f"{rel}: [broken-reference] {field} references '{ref}' which does not exist")
 
         doc_type = fm.get("type", "")
@@ -96,14 +136,22 @@ def main():
 
     # Check SYSTEM_MAP freshness
     system_map = docs_root / "SYSTEM_MAP.md"
-    if system_map.exists():
-        import subprocess
+    if check_system_map and system_map.exists():
         result = subprocess.run(
             [sys.executable, str(Path(__file__).parent / "docs_system_map.py"), "--check"],
-            capture_output=True, text=True
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
         )
         if result.returncode != 0:
             errors.append("docs/SYSTEM_MAP.md: [stale-system-map] SYSTEM_MAP.md is stale. Run: python3 scripts/docs_system_map.py")
+
+    return errors
+
+
+def main():
+    repo_root = Path(__file__).parent.parent
+    errors = lint_docs(repo_root)
 
     if errors:
         print(f"Documentation lint failed with {len(errors)} error(s):\n")

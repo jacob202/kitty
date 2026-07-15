@@ -8,7 +8,7 @@ derives_from:
   - docs/VISION.md
 implements: []
 referenced_by:
-  - docs/engineering/ARCHITECTURE.md
+  - docs/ARCHITECTURE.md
   - docs/adr/*
 review_cycle: annual (changes require an ADR)
 ---

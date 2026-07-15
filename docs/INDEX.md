@@ -81,14 +81,14 @@ No document may duplicate content that exists in another canonical document. Ref
 
 | Document | Purpose | Status |
 |---|---|---|
-| `engineering/ARCHITECTURE.md` | Canonical runtime architecture | canonical |
+| `ARCHITECTURE.md` | Canonical runtime architecture | canonical |
 
 ### Operations
 
 | Document | Purpose | Status |
 |---|---|---|
-| `operations/PROJECT_STATUS.md` | Current branch, shipped work, test state | canonical |
-| `operations/LEARNINGS.md` | Hard lessons and guardrails | canonical |
+| `PROJECT_STATUS.md` | Current branch, shipped work, test state | canonical |
+| `LEARNINGS.md` | Hard lessons and guardrails | canonical |
 
 ### ADRs
 

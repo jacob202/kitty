@@ -105,7 +105,7 @@ python3 -m ruff check gateway/ tests/
 python3 -m mypy gateway/ --ignore-missing-imports
 ```
 
-Architecture-touching packets also require:
+Governed-documentation packets also require:
 ```bash
 python3 scripts/docs_lint.py
 python3 scripts/docs_system_map.py --check

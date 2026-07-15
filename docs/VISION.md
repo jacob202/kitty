@@ -9,7 +9,7 @@ implements: []
 referenced_by:
   - docs/CONSTITUTION.md
   - docs/ROADMAP.md
-  - docs/engineering/ARCHITECTURE.md
+  - docs/ARCHITECTURE.md
 review_cycle: annual
 ---
 

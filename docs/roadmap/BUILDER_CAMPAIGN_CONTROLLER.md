@@ -135,8 +135,8 @@ Before merging a PR, the orchestrator must confirm:
 | Tests pass | `python3.12 -m pytest tests/test_builder_*.py -q -x` exit code 0 |
 | Lint passes | `python3 -m ruff check gateway/ tests/` exit code 0 |
 | Typecheck passes | `python3 -m mypy gateway/ --ignore-missing-imports` exit code 0 |
-| Docs lint passes | `python3 scripts/docs_lint.py` exit code 0 (if docs touched) |
-| SYSTEM_MAP current | `python3 scripts/docs_system_map.py --check` exit code 0 (if docs touched) |
+| Docs lint passes | `python3 scripts/docs_lint.py` exit code 0 (if governed docs touched) |
+| SYSTEM_MAP current | `python3 scripts/docs_system_map.py --check` exit code 0 (if governed docs touched) |
 | Frontend builds | `cd gateway/kitty-chat && npm run build` exit code 0 (if UI touched) |
 | Reviewer approved | Review verdict is `approve` |
 | No spec violation | Reviewer confirmed conformance to architecture, KM, operating model |

@@ -27,7 +27,7 @@ This document answers one question: **Where does truth live?** Every concept in 
 | Engineering principles | `docs/CONSTITUTION.md` |
 | Doctrine | `docs/CONSTITUTION.md` |
 | Architecture (target) | `docs/architecture/REFERENCE_ARCHITECTURE.md` |
-| Architecture (runtime) | `docs/engineering/ARCHITECTURE.md` |
+| Architecture (runtime) | `docs/ARCHITECTURE.md` |
 | Organizational model | `docs/architecture/ORGANIZATIONAL_MODEL.md` |
 | Subsystem interactions | `docs/architecture/SYSTEM_INTERACTIONS.md` |
 | Design principles | `docs/architecture/SYSTEM_DESIGN_PRINCIPLES.md` |
@@ -57,10 +57,10 @@ This document answers one question: **Where does truth live?** Every concept in 
 | Documentation governance | `docs/GOVERNANCE.md` |
 | ADR | `docs/adr/0000-template.md` |
 | Decisions index | `docs/DECISIONS.md` |
-| Product architecture | `docs/product/KITTY_PRODUCT_ARCHITECTURE.md` |
+| Product architecture | `docs/KITTY_PRODUCT_ARCHITECTURE.md` |
 | Roadmap | `docs/ROADMAP.md` |
-| Project status | `docs/operations/PROJECT_STATUS.md` |
-| Lessons learned | `docs/operations/LEARNINGS.md` |
+| Project status | `docs/PROJECT_STATUS.md` |
+| Lessons learned | `docs/LEARNINGS.md` |
 | Documentation index | `docs/INDEX.md` |
 | Canonical sources | `docs/CANONICAL_SOURCES.md` |
 

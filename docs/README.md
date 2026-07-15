@@ -95,11 +95,11 @@ Runtime architecture, Builder documentation, and operational guides.
 
 | Document | Purpose |
 |---|---|
-| [`engineering/ARCHITECTURE.md`](engineering/ARCHITECTURE.md) | Canonical runtime architecture |
-| [`engineering/KITTYBUILDER_QUICKSTART.md`](engineering/KITTYBUILDER_QUICKSTART.md) | Builder queue operations |
-| [`engineering/KITTYBUILDER_ORCA_SETUP.md`](engineering/KITTYBUILDER_ORCA_SETUP.md) | Orca worktree setup |
-| [`engineering/KITTYBUILDER_ORCHESTRATOR_PHASE1A.md`](engineering/KITTYBUILDER_ORCHESTRATOR_PHASE1A.md) | Builder orchestrator architecture |
-| [`engineering/KITTYBUILDER_SELF_BUILDING_MVP.md`](engineering/KITTYBUILDER_SELF_BUILDING_MVP.md) | Self-building roadmap |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Canonical runtime architecture |
+| [`KITTYBUILDER_QUICKSTART.md`](KITTYBUILDER_QUICKSTART.md) | Builder queue operations |
+| [`KITTYBUILDER_ORCA_SETUP.md`](KITTYBUILDER_ORCA_SETUP.md) | Orca worktree setup |
+| [`KITTYBUILDER_ORCHESTRATOR_PHASE1A.md`](KITTYBUILDER_ORCHESTRATOR_PHASE1A.md) | Builder orchestrator architecture |
+| [`KITTYBUILDER_SELF_BUILDING_MVP.md`](KITTYBUILDER_SELF_BUILDING_MVP.md) | Self-building roadmap |
 
 ## Product
 
@@ -107,11 +107,11 @@ Product architecture, feature documentation, and user-facing guides.
 
 | Document | Purpose |
 |---|---|
-| [`product/KITTY_PRODUCT_ARCHITECTURE.md`](product/KITTY_PRODUCT_ARCHITECTURE.md) | Definitive product architecture |
-| [`product/BLUEPRINT.md`](product/BLUEPRINT.md) | Product direction and execution plan |
-| [`product/QUICK_CAPTURE.md`](product/QUICK_CAPTURE.md) | Quick capture how-to |
-| [`product/SIRI_SHORTCUT.md`](product/SIRI_SHORTCUT.md) | Siri shortcut setup |
-| [`product/USER_PREFS.md`](product/USER_PREFS.md) | User preferences |
+| [`KITTY_PRODUCT_ARCHITECTURE.md`](KITTY_PRODUCT_ARCHITECTURE.md) | Definitive product architecture |
+| [`BLUEPRINT.md`](BLUEPRINT.md) | Product direction and execution plan |
+| [`QUICK_CAPTURE.md`](QUICK_CAPTURE.md) | Quick capture how-to |
+| [`SIRI_SHORTCUT.md`](SIRI_SHORTCUT.md) | Siri shortcut setup |
+| [`USER_PREFS.md`](USER_PREFS.md) | User preferences |
 
 ## Operations
 
@@ -119,10 +119,10 @@ Living status, learnings, workflows, and agent protocols.
 
 | Document | Purpose |
 |---|---|
-| [`operations/PROJECT_STATUS.md`](operations/PROJECT_STATUS.md) | Current branch, shipped work, test state |
-| [`operations/LEARNINGS.md`](operations/LEARNINGS.md) | Hard lessons and guardrails |
-| [`operations/AGENT_RUNTIME.md`](operations/AGENT_RUNTIME.md) | Agent entry/exit protocol |
-| [`operations/WORKFLOW.md`](operations/WORKFLOW.md) | PR review workflow |
+| [`PROJECT_STATUS.md`](PROJECT_STATUS.md) | Current branch, shipped work, test state |
+| [`LEARNINGS.md`](LEARNINGS.md) | Hard lessons and guardrails |
+| [`AGENT_RUNTIME.md`](AGENT_RUNTIME.md) | Agent entry/exit protocol |
+| [`WORKFLOW.md`](WORKFLOW.md) | PR review workflow |
 
 ## Research
 
@@ -130,8 +130,8 @@ Design specs, explorations, and candidate architectures.
 
 | Document | Purpose |
 |---|---|
-| [`research/council-routing-design.md`](research/council-routing-design.md) | Council routing spec |
-| [`research/tutor-design.md`](research/tutor-design.md) | Tutor RAG spec |
+| [`council-routing-design.md`](council-routing-design.md) | Council routing spec |
+| [`tutor-design.md`](tutor-design.md) | Tutor RAG spec |
 
 ## Architecture Decision Records
 

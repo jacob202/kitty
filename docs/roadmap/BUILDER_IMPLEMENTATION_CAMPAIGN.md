@@ -498,17 +498,17 @@ Total PRs: 31. Estimated time: 2-3 weeks at 2-3 PRs per day.
 
 ## Verification Gates
 
-Each PR must pass:
+Each PR must pass the gates relevant to its changed paths:
 
 | Gate | Command |
 |---|---|
 | Unit tests | `python3.12 -m pytest tests/test_builder_*.py -q -x` |
-| Docs lint | `python3 scripts/docs_lint.py` |
-| SYSTEM_MAP | `python3 scripts/docs_system_map.py --check` |
+| Docs lint (governed docs touched) | `python3 scripts/docs_lint.py` |
+| SYSTEM_MAP (governed docs touched) | `python3 scripts/docs_system_map.py --check` |
 | Ruff | `python3 -m ruff check gateway/ tests/` |
 | MyPy | `python3 -m mypy gateway/ --ignore-missing-imports` |
-| Frontend build | `cd gateway/kitty-chat && npm run build` |
-| Frontend tests | `cd gateway/kitty-chat && npm test` |
+| Frontend build (UI touched) | `cd gateway/kitty-chat && npm run build` |
+| Frontend tests (UI touched) | `cd gateway/kitty-chat && npm test` |
 
 Architecture review gates: required on packets marked "Architecture review: Required."
 
