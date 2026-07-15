@@ -45,7 +45,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install ruff
-          ruff check gateway/ tests/
+          ruff check gateway/ tests/ mcp/
 
   typecheck:
     runs-on: ubuntu-latest
@@ -61,7 +61,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install mypy types-requests
-          mypy gateway/
+          mypy gateway/ mcp/
 
   kitty-chat:
     runs-on: ubuntu-latest
@@ -118,3 +118,38 @@ jobs:
           name: playwright-report
           path: gateway/kitty-chat/playwright-report/
           retention-days: 7
+
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Dead code (vulture)
+        run: |
+          python -m pip install --upgrade pip
+          pip install vulture
+          vulture gateway/ --min-confidence 80 \
+            --exclude gateway/kitty-chat/
+
+      - name: Broken links (lychee)
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --base docs/ --no-progress docs/
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dependency analysis (deptry, advisory)
+        continue-on-error: true
+        run: |
+          pip install deptry
+          deptry .
+        # Advisory: 65 findings as of 2026-07-15, mostly optional deps not
+        # declared in requirements.txt (docx, fitz, pypdf) and transitive
+        # imports (starlette, google). Configure deptry.toml before gating.
