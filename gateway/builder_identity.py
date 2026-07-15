@@ -22,39 +22,11 @@ from __future__ import annotations
 
 import json
 import subprocess
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from gateway import builder_queue as bq
-
-# ---------------------------------------------------------------------------
-# Local types (will consolidate with builder_scope.py on merge)
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class ScopeFinding:
-    category: str
-    field: str
-    message: str
-
-
-class EscalationError(RuntimeError):
-    """Raised when identity verification fails — return control to operator."""
-
-    def __init__(
-        self,
-        findings: list[ScopeFinding],
-        *,
-        evidence: dict[str, Any] | None = None,
-        artifact: dict[str, Any] | None = None,
-    ) -> None:
-        message = "; ".join(f.message for f in findings) or "identity verification failed"
-        super().__init__(message)
-        self.findings: list[ScopeFinding] = list(findings)
-        self.evidence: dict[str, Any] = evidence or {}
-        self.artifact: dict[str, Any] = artifact or {}
+from gateway.builder_scope import EscalationError, ScopeFinding
 
 # ---------------------------------------------------------------------------
 # Git helpers (local to this module — avoids importing builder_runner)

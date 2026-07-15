@@ -320,6 +320,11 @@ def worktree_head(path: Path) -> str:
     return _git_output(["rev-parse", "HEAD"], cwd=path).strip()
 
 
+def worktree_branch(path: Path) -> str:
+    """Return the short branch name for a worker worktree."""
+    return _git_output(["rev-parse", "--abbrev-ref", "HEAD"], cwd=path).strip()
+
+
 def worktree_diff_sha256(path: Path, start_sha: str) -> str:
     """Return the stable digest used to bind reviewer evidence to a diff."""
     return _diff_sha256(path, start_sha)

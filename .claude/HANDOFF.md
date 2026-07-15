@@ -1,56 +1,33 @@
-# Handoff — 2026-07-12
+# Handoff — 2026-07-14 — feat/campaign-alpha-phase-2-integration (Engineering Leverage Audit)
 
-## TL;DR
+## Goal
+Full Engineering Leverage Audit completed and written to `docs/AUDIT_ENGINEERING_LEVERAGE_2026-07-14.md`. The audit is comprehensive across all 9 phases with evidence-backed findings.
 
-Workspace cleanup is merged into local `main` at `2b77f6b`. The Fable branch
-was already an ancestor of main, so no artificial merge commit was created.
-Builder cleanup, temporary-file hygiene, branch rescue, external archiving,
-and Nautilus removal are finished. Verification is complete with documented
-environment failures; main is ready for the authorized push.
+## State
 
-## Resume
+### Done
+- Phase 1: Current truth table (30+ subsystems mapped)
+- Phase 2: Underutilized capability audit (15+ findings)
+- Phase 3: Skills/prompts cull (25+ skills audited, concrete keep/merge/archive/delete decisions)
+- Phase 4: File/documentation cleanup (5 root temp files tracked in git, 37+ docs inspected)
+- Phase 5: External ecosystem research (14+ projects across 5 lanes)
+- Phase 6: Subsystem comparison matrix (14 subsystems)
+- Phase 7: 5 prototypes selected (vulture, lychee, codegraph freshness, test slice, KittyBench)
+- Phase 9: Prioritized execution plan with DO NOW/NEXT/LATER/REJECT/DELETE/ARCHIVE
 
-1. Preserve the active worktree
-   `.worktrees/kittybuilder/kb_mrh9ilha_f3d9`; it is running task
-   `kb_mrh9ilha_f3d9` and has modified `gateway/next_step.py` plus
-   `tests/test_next_step.py`.
-2. Treat `scripts/kittybuilder_opencode_worker.sh` and
-   `scripts/kittybuilder_opencode_reviewer.sh` as user work; they are
-   intentionally untracked and were not modified by this cleanup.
-3. `trust-lane-v1` is started at the queue level: TL-01 is claimed on its
-   isolated Builder branch. Implement TL-01, then proceed TL-02 → TL-03 →
-   TL-04 → TL-05; leave the T2 `0.0.0.0` binding and SSRF work visible and
-   separate.
-4. The next planned task is a model-usage map for ChatGPT's available models,
-  matching model strengths to Kitty tasks and routing rules.
+### In flight
+- Phases 8 (experiments) and 9 (implementations) are scoped but not executed
 
-## Preserved / archived
+### Key corrections from previous handoff
+- `honcho.py` is actively imported (14 references) — CLAUDE.md's "not wired" claim is stale
+- `builder.py` autonomous pipeline is actively used (routes, nudge, builder_contract)
+- `context_builder.py` has 5 callers, not 4
+- Root temp files are tracked in git (`git ls-files` confirmed)
 
-- `claude/kitty-prototype-sprint-srs5bl` remains because it contains a
-  committed `.env.bak`; do not delete or inspect it without an explicit secret-
-  handling decision.
-- `/Users/jacobbrizinski/Archive/Projects-2026-07-12/` contains the backup
-  tarball, extracted projects, Nautilus Git bundle, and Nautilus runtime state.
-- PR #151 and all remote branches remain untouched.
-- The final Fable launch config is portable and loopback-only. An intermediate
-  historical commit contained an absolute worktree path, but the tip fixed it;
-  history was not rewritten.
+## Next step
 
-## Verification
-
-- Frontend tests: 18 files / 129 passed; production build passed.
-- Full Python suite: 2,079 passed, 1 skipped, 8 failed on local optional
-  dependencies, Chroma/runtime, and resume timeout conditions.
-- Builder slice: 54 passed, 1 shared-queue lease-conflict failure; isolated
-  rerun of that failure passed.
-- Browser smoke reached onboarding and Home; core routes returned 200, with
-  LiteLLM/models, Chroma knowledge, and runtime freshness visibly degraded.
-- Ruff on all touched builder files: passed.
-- Active dependencies and runtime data were intentionally retained.
-
-## T2 (Jacob/Codex only)
-
-- Card A: UI binds 0.0.0.0; proxy injects gateway secret; SSRF in
-  capture/knowledge.
-- Card B: `agent_runner.py` / `task_runner.py` false-complete states;
-  `stop()` unreliable.
+Authorized worker execution of the low-risk audit recommendations. See
+`docs/packets/026-audit-implement-low-risk.md` and Builder queue
+`kb_mrm5ru85_9ea7`. Hand to a fresh worker on a new branch off `main` —
+do NOT execute on the current `feat/campaign-alpha-phase-2-integration`
+branch (diverged 871 commits, mixes scope).

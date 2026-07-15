@@ -36,9 +36,12 @@ from typing import Any
 
 from gateway import builder_attempt as ba
 from gateway import builder_queue as bq
+from gateway.builder_brief import default_branch_name
 from gateway.builder_context import build_context_manifest, write_run_manifest
+from gateway.builder_identity import verify_worker_identity
 from gateway.builder_runner import (
     RunnerError,
+    _repo_root,
     preflight_worktree,
     remove_worktree,
     run_worker,
@@ -61,9 +64,6 @@ class LoopError(RuntimeError):
 
 def _attempt_dir(task_id: str, attempt_id: int, db_path: Path | None) -> Path:
     queue_db = Path(db_path) if db_path is not None else BUILDER_QUEUE_DB
-    # Scope artifacts by task as well as numeric attempt ID. Test runs and
-    # concurrent initiatives can otherwise reuse attempt 1 and overwrite a
-    # different packet's bundle before its reviewer reads it.
     return queue_db.parent / "attempts" / task_id / str(attempt_id)
 
 
@@ -175,8 +175,11 @@ def _reconcile_stale_attempts(
 
     Preserves each crashed attempt's run-manifest.json with ``outcome:'crashed'``
     and the crash reason, and logs ``infrastructure_failed`` events with
-    ``counts_toward_budget: False``. Returns the list of reconciled attempt
-    dicts so callers can report them.
+    ``counts_toward_budget: False``. Also releases any branch lease attached to
+    the stale attempt via the ownership-checked release path, so the branch is
+    unblocked for the next attempt.
+
+    Returns the list of reconciled attempt dicts so callers can report them.
     """
     stale = ba.list_stale_attempts(initiative_id, packet_id, db_path=db_path)
     reconciled: list[dict[str, Any]] = []
@@ -204,6 +207,29 @@ def _reconcile_stale_attempts(
         manifest["failure"] = _text_evidence(crash_reason)
         attempt_dir_path.mkdir(parents=True, exist_ok=True)
         write_run_manifest(manifest_path, manifest)
+
+        # Release the branch lease attached to this stale attempt before
+        # closing it, so the branch is unblocked for the next attempt.
+        lease_id = attempt.get("lease_id")
+        if lease_id is not None:
+            try:
+                conn = bq.connect(db_path)
+                try:
+                    lease_row = conn.execute(
+                        "SELECT worker_id FROM branch_leases WHERE lease_id = ?",
+                        (lease_id,),
+                    ).fetchone()
+                finally:
+                    conn.close()
+                if lease_row is not None:
+                    bq.release_branch_lease(
+                        lease_id,
+                        packet_id=packet_id,
+                        worker_id=lease_row["worker_id"],
+                        db_path=db_path,
+                    )
+            except (bq.BranchLeaseConflictError, Exception):
+                pass  # Best-effort; lease may already be gone or DB closed.
 
         ba.close_attempt(attempt_id, ba.ATTEMPT_CRASHED, db_path=db_path)
         bq.append_event(
@@ -381,148 +407,168 @@ def run_packet(
     )
 
     history: list[dict[str, Any]] = []
-    while True:
-        try:
-            preflight_worktree(task_id, repo_root=repo_root)
-        except RunnerError as exc:
-            bq.append_event(
-                task_id,
-                "infrastructure_failed",
-                payload={
-                    "reason": str(exc),
-                    "counts_toward_budget": False,
-                    "phase": "preflight",
-                },
-                db_path=db_path,
-            )
-            raise LoopError(f"builder preflight failed: {exc}") from exc
+    lease_id: int | None = None
+    try:
+        while True:
+            try:
+                preflight_worktree(task_id, repo_root=repo_root)
+            except RunnerError as exc:
+                bq.append_event(
+                    task_id,
+                    "infrastructure_failed",
+                    payload={
+                        "reason": str(exc),
+                        "counts_toward_budget": False,
+                        "phase": "preflight",
+                    },
+                    db_path=db_path,
+                )
+                raise LoopError(f"builder preflight failed: {exc}") from exc
 
-        try:
-            attempt = ba.start_attempt(initiative_id, packet_id, db_path=db_path)
-        except ba.AttemptLimitError as exc:
-            return {
-                "outcome": LOOP_EXHAUSTED,
+            # Claim branch lease and start the attempt atomically.  Both the
+            # lease INSERT and the attempt INSERT happen in a single SQLite
+            # transaction, eliminating the crash window where a lease exists
+            # without its attempt.
+            wt_path = worktree_path(task_id, repo_root=repo_root)
+            if lease_id is None:
+                branch = default_branch_name({"id": task_id})
+                try:
+                    base_sha = ba.get_packet_base_sha(
+                        initiative_id, packet_id, db_path=db_path
+                    )
+                    attempt, lease = ba.claim_and_start_attempt(
+                        initiative_id,
+                        packet_id,
+                        worker_id=worker,
+                        branch=branch,
+                        worktree_path=str(wt_path),
+                        base_sha=base_sha,
+                        db_path=db_path,
+                    )
+                    lease_id = lease["lease_id"]
+                except (
+                    ba.AttemptError,
+                    ba.AttemptStateError,
+                    bq.BranchLeaseConflictError,
+                ) as exc:
+                    bq.append_event(
+                        task_id,
+                        "infrastructure_failed",
+                        payload={
+                            "reason": str(exc),
+                            "counts_toward_budget": False,
+                            "phase": "lease_and_attempt",
+                        },
+                        db_path=db_path,
+                    )
+                    raise LoopError(
+                        f"atomic lease+attempt claim failed: {exc}"
+                    ) from exc
+                except ba.AttemptLimitError as exc:
+                    # Release the lease we just claimed atomically since
+                    # the attempt budget is exhausted.
+                    try:
+                        bq.release_branch_lease(
+                            lease["lease_id"],
+                            packet_id=packet_id,
+                            worker_id=worker,
+                            db_path=db_path,
+                        )
+                    except Exception:
+                        pass
+                    return {
+                        "outcome": LOOP_EXHAUSTED,
+                        "initiative_id": initiative_id,
+                        "packet_id": packet_id,
+                        "task_id": task_id,
+                        "reason": str(exc),
+                        "investigation_budget": bundle_preview.get("policy", {}).get("max_attempts", ba.DEFAULT_MAX_ATTEMPTS),
+                        "investigation_hops": len(history),
+                        "budget_status": "exhausted",
+                        "recommendation": (
+                            "Investigation budget exhausted. State what was discovered, "
+                            "why execution is blocked, what evidence exists, and what "
+                            "decision is needed. Return control to the operator."
+                        ),
+                        "attempts": history,
+                    }
+            else:
+                try:
+                    attempt = ba.start_attempt(
+                        initiative_id, packet_id, lease_id=lease_id,
+                        db_path=db_path,
+                    )
+                except ba.AttemptLimitError as exc:
+                    return {
+                        "outcome": LOOP_EXHAUSTED,
+                        "initiative_id": initiative_id,
+                        "packet_id": packet_id,
+                        "task_id": task_id,
+                        "reason": str(exc),
+                        "investigation_budget": bundle_preview.get("policy", {}).get("max_attempts", ba.DEFAULT_MAX_ATTEMPTS),
+                        "investigation_hops": len(history),
+                        "budget_status": "exhausted",
+                        "recommendation": (
+                            "Investigation budget exhausted. State what was discovered, "
+                            "why execution is blocked, what evidence exists, and what "
+                            "decision is needed. Return control to the operator."
+                        ),
+                        "attempts": history,
+                    }
+
+            # A prior failed attempt's shadow run left the task blocked; hand it
+            # back to queued only now that the next attempt is secured, so budget
+            # exhaustion leaves the task blocked for the operator.
+            if attempt["attempt_no"] > 1:
+                task = bq.get_task(task_id, db_path=db_path)
+                if task is not None and task["state"] == bq.BLOCKED:
+                    bq.operator_release_task(
+                        task_id,
+                        reason=f"repair_loop_retry attempt {attempt['attempt_no']}",
+                        db_path=db_path,
+                    )
+                elif task is None or task["state"] != bq.QUEUED:
+                    raise LoopError(
+                        f"task {task_id} is {task['state'] if task else 'missing'} "
+                        "before retry; expected blocked or queued — not retrying"
+                    )
+
+            attempt_id = attempt["id"]
+            entry: dict[str, Any] = {"attempt_id": attempt_id, "attempt_no": attempt["attempt_no"]}
+            history.append(entry)
+
+            attempt_dir = _attempt_dir(task_id, attempt_id, db_path)
+            attempt_dir.mkdir(parents=True, exist_ok=True)
+            bundle_path = attempt_dir / "bundle.json"
+            result_path = attempt_dir / "implementation.json"
+            review_path = attempt_dir / "review.json"
+            manifest_path = attempt_dir / "run-manifest.json"
+            bundle_path.write_text(
+                json.dumps(attempt["bundle"], indent=2), encoding="utf-8"
+            )
+            manifest = {
                 "initiative_id": initiative_id,
                 "packet_id": packet_id,
                 "task_id": task_id,
-                "reason": str(exc),
-                "investigation_budget": bundle_preview.get("policy", {}).get("max_attempts", ba.DEFAULT_MAX_ATTEMPTS),
-                "investigation_hops": len(history),
-                "budget_status": "exhausted",
-                "recommendation": (
-                    "Investigation budget exhausted. State what was discovered, "
-                    "why execution is blocked, what evidence exists, and what "
-                    "decision is needed. Return control to the operator."
-                ),
-                "attempts": history,
-            }
-
-        # A prior failed attempt's shadow run left the task blocked; hand it
-        # back to queued only now that the next attempt is secured, so budget
-        # exhaustion leaves the task blocked for the operator.
-        if attempt["attempt_no"] > 1:
-            task = bq.get_task(task_id, db_path=db_path)
-            if task is not None and task["state"] == bq.BLOCKED:
-                bq.operator_release_task(
-                    task_id,
-                    reason=f"repair_loop_retry attempt {attempt['attempt_no']}",
-                    db_path=db_path,
-                )
-            elif task is None or task["state"] != bq.QUEUED:
-                raise LoopError(
-                    f"task {task_id} is {task['state'] if task else 'missing'} "
-                    "before retry; expected blocked or queued — not retrying"
-                )
-
-        attempt_id = attempt["id"]
-        entry: dict[str, Any] = {"attempt_id": attempt_id, "attempt_no": attempt["attempt_no"]}
-        history.append(entry)
-
-        attempt_dir = _attempt_dir(task_id, attempt_id, db_path)
-        attempt_dir.mkdir(parents=True, exist_ok=True)
-        bundle_path = attempt_dir / "bundle.json"
-        result_path = attempt_dir / "implementation.json"
-        review_path = attempt_dir / "review.json"
-        manifest_path = attempt_dir / "run-manifest.json"
-        bundle_path.write_text(
-            json.dumps(attempt["bundle"], indent=2), encoding="utf-8"
-        )
-        manifest = {
-            "initiative_id": initiative_id,
-            "packet_id": packet_id,
-            "task_id": task_id,
-            "attempt_id": attempt_id,
-            "attempt_no": attempt["attempt_no"],
-            "worker": worker,
-            "model": model,
-            "provider": provider,
-            "command_sha256": _command_digest(worker_command),
-            "artifact_dir": str(attempt_dir),
-            "bundle_sha256": hashlib.sha256(bundle_path.read_bytes()).hexdigest(),
-            "context": build_context_manifest(
-                Path(repo_root or Path.cwd()), bundle_path
-            ),
-            "worker_run": None,
-            "validation": None,
-            "review": None,
-            "outcome": "running",
-            "failure": None,
-        }
-        manifest["context_manifest"] = _context_manifest_metadata(manifest)
-        write_run_manifest(manifest_path, manifest)
-        _validate_context_manifest(
-            manifest_path,
-            attempt_dir=attempt_dir,
-            task_id=task_id,
-            attempt_id=attempt_id,
-            bundle_path=bundle_path,
-        )
-        bq.append_event(
-            task_id,
-            "attempt_artifacts_created",
-            payload={
                 "attempt_id": attempt_id,
+                "attempt_no": attempt["attempt_no"],
+                "worker": worker,
+                "model": model,
+                "provider": provider,
+                "command_sha256": _command_digest(worker_command),
                 "artifact_dir": str(attempt_dir),
-                "manifest_path": str(manifest_path),
-            },
-            db_path=db_path,
-        )
-        entry["manifest_path"] = str(manifest_path)
-
-        try:
-            run = run_worker(
-                task_id,
-                worker_command,
-                worker=worker,
-                model=model,
-                provider=provider,
-                timeout_seconds=timeout_seconds,
-                repo_root=repo_root,
-                db_path=db_path,
-                extra_env={
-                    "KB_ATTEMPT_ID": str(attempt_id),
-                    "KB_BUNDLE_PATH": str(bundle_path),
-                    "KB_RESULT_PATH": str(result_path),
-                    "KB_CONTEXT_MANIFEST_PATH": str(manifest_path),
-                },
-            )
-        except Exception as exc:
-            orchestration_failure = (
-                f"worker orchestration failed: {type(exc).__name__}: {exc}"
-            )
-            manifest["outcome"] = "failed"
-            manifest["failure"] = _text_evidence(orchestration_failure)
-            # If persisting the failure manifest itself fails, the attempt
-            # must still close as failed and the original exception must
-            # propagate (chained, not shadowed).
-            try:
-                write_run_manifest(manifest_path, manifest)
-            finally:
-                ba.close_attempt(attempt_id, ba.ATTEMPT_FAILED, db_path=db_path)
-            raise
-        entry["run_id"] = run["id"]
-        entry["run_state"] = run["state"]
-        try:
+                "bundle_sha256": hashlib.sha256(bundle_path.read_bytes()).hexdigest(),
+                "context": build_context_manifest(
+                    Path(repo_root or Path.cwd()), bundle_path
+                ),
+                "worker_run": None,
+                "validation": None,
+                "review": None,
+                "outcome": "running",
+                "failure": None,
+            }
+            manifest["context_manifest"] = _context_manifest_metadata(manifest)
+            write_run_manifest(manifest_path, manifest)
             _validate_context_manifest(
                 manifest_path,
                 attempt_dir=attempt_dir,
@@ -530,181 +576,272 @@ def run_packet(
                 attempt_id=attempt_id,
                 bundle_path=bundle_path,
             )
-        except ValueError as exc:
-            entry["outcome"] = ba.ATTEMPT_FAILED
-            entry["failure"] = f"context manifest invalid after worker: {exc}"
-            manifest["outcome"] = "failed"
-            manifest["failure"] = _text_evidence(entry["failure"])
-            write_run_manifest(manifest_path, manifest)
-            ba.close_attempt(attempt_id, ba.ATTEMPT_FAILED, db_path=db_path)
-            raise LoopError(entry["failure"]) from exc
-        run_report = run.get("final_report") or {}
-        manifest["worker_run"] = {
-            "run_id": run.get("id"),
-            "state": run.get("state"),
-            "exit_code": run.get("exit_code"),
-            "branch": run_report.get("branch"),
-            "worktree": run_report.get("worktree"),
-            "start_sha": run_report.get("start_sha"),
-            "changed_paths": run_report.get("changed_paths", []),
-            "scope_violations": run_report.get("scope_violations", []),
-            "log_path": run_report.get("log_path"),
-        }
-        write_run_manifest(manifest_path, manifest)
-
-        failure: str | None = None
-
-        impl, error = _read_contract(result_path, "implementation")
-        if impl is not None:
-            try:
-                ba.record_implementation_result(attempt_id, impl, db_path=db_path)
-            except ba.ResultContractError as exc:
-                failure = f"implementation contract invalid: {exc}"
-            else:
-                entry["implementation_status"] = impl.get("status")
-                if run["state"] != bq.RUN_EXITED:
-                    failure = f"worker run ended {run['state']}"
-                elif impl.get("status") != "completed":
-                    failure = f"worker reported status {impl.get('status')}"
-        else:
-            failure = error
-
-        if failure is None:
-            validated = ba.run_validation(
-                attempt_id,
-                cwd=worktree_path(task_id, repo_root=repo_root),
-                timeout_seconds=validation_timeout_seconds,
+            bq.append_event(
+                task_id,
+                "attempt_artifacts_created",
+                payload={
+                    "attempt_id": attempt_id,
+                    "artifact_dir": str(attempt_dir),
+                    "manifest_path": str(manifest_path),
+                },
                 db_path=db_path,
             )
-            entry["validation_status"] = validated["validation"]["status"]
-            manifest["validation"] = _validation_evidence(validated["validation"])
-            write_run_manifest(manifest_path, manifest)
-            if validated["validation"]["status"] == ba.VALIDATION_FAILED:
-                failure = "deterministic validation failed"
+            entry["manifest_path"] = str(manifest_path)
 
-        if failure is None and review_command:
-            review_context_path = attempt_dir / "review-context.json"
-            start_sha = str(run_report.get("start_sha") or "")
-            review_worktree = worktree_path(task_id, repo_root=repo_root)
-            review_context = _write_review_context(
-                review_context_path,
-                task_id=task_id,
-                attempt_id=attempt_id,
-                review_sha=worktree_head(review_worktree),
-                diff_sha256=str(run_report.get("diff_sha256") or ""),
-                changed_paths=list(run_report.get("changed_paths") or []),
-            )
-            manifest["review_context"] = {
-                "path": str(review_context_path),
-                "review_sha": review_context["review_sha"],
-                "diff_sha256": review_context["diff_sha256"],
-                "changed_paths": review_context["changed_paths"],
+            try:
+                run = run_worker(
+                    task_id,
+                    worker_command,
+                    worker=worker,
+                    model=model,
+                    provider=provider,
+                    timeout_seconds=timeout_seconds,
+                    repo_root=repo_root,
+                    db_path=db_path,
+                    extra_env={
+                        "KB_ATTEMPT_ID": str(attempt_id),
+                        "KB_BUNDLE_PATH": str(bundle_path),
+                        "KB_RESULT_PATH": str(result_path),
+                        "KB_CONTEXT_MANIFEST_PATH": str(manifest_path),
+                    },
+                )
+            except Exception as exc:
+                orchestration_failure = (
+                    f"worker orchestration failed: {type(exc).__name__}: {exc}"
+                )
+                manifest["outcome"] = "failed"
+                manifest["failure"] = _text_evidence(orchestration_failure)
+                # If persisting the failure manifest itself fails, the attempt
+                # must still close as failed and the original exception must
+                # propagate (chained, not shadowed).
+                try:
+                    write_run_manifest(manifest_path, manifest)
+                finally:
+                    ba.close_attempt(attempt_id, ba.ATTEMPT_FAILED, db_path=db_path)
+                raise
+            entry["run_id"] = run["id"]
+            entry["run_state"] = run["state"]
+            try:
+                _validate_context_manifest(
+                    manifest_path,
+                    attempt_dir=attempt_dir,
+                    task_id=task_id,
+                    attempt_id=attempt_id,
+                    bundle_path=bundle_path,
+                )
+            except ValueError as exc:
+                entry["outcome"] = ba.ATTEMPT_FAILED
+                entry["failure"] = f"context manifest invalid after worker: {exc}"
+                manifest["outcome"] = "failed"
+                manifest["failure"] = _text_evidence(entry["failure"])
+                write_run_manifest(manifest_path, manifest)
+                ba.close_attempt(attempt_id, ba.ATTEMPT_FAILED, db_path=db_path)
+                raise LoopError(entry["failure"]) from exc
+            run_report = run.get("final_report") or {}
+            manifest["worker_run"] = {
+                "run_id": run.get("id"),
+                "state": run.get("state"),
+                "exit_code": run.get("exit_code"),
+                "branch": run_report.get("branch"),
+                "worktree": run_report.get("worktree"),
+                "start_sha": run_report.get("start_sha"),
+                "changed_paths": run_report.get("changed_paths", []),
+                "scope_violations": run_report.get("scope_violations", []),
+                "log_path": run_report.get("log_path"),
             }
             write_run_manifest(manifest_path, manifest)
-            review_error = _run_review_command(
-                review_command,
-                cwd=worktree_path(task_id, repo_root=repo_root),
-                env_extra={
-                    "KB_TASK_ID": str(task_id),
-                    "KB_ATTEMPT_ID": str(attempt_id),
-                    "KB_BUNDLE_PATH": str(bundle_path),
-                    "KB_IMPL_RESULT_PATH": str(result_path),
-                    "KB_REVIEW_RESULT_PATH": str(review_path),
-                    "KB_CONTEXT_MANIFEST_PATH": str(manifest_path),
-                    "KB_REVIEW_CONTEXT_PATH": str(review_context_path),
-                    "KB_REVIEW_SHA": str(review_context["review_sha"]),
-                    "KB_REVIEW_DIFF_SHA256": str(review_context["diff_sha256"]),
-                },
-                timeout_seconds=review_timeout_seconds,
-            )
-            if review_error is not None:
-                failure = review_error
-            else:
+
+            failure: str | None = None
+
+            # Post-worker identity verification: confirm the worker stayed within
+            # the leased branch/worktree and did not introduce foreign commits or
+            # scope drift.  Any finding converts to a structured failure, not an
+            # escalation (we're mid-attempt — escalate at loop boundary).
+            try:
+                identity_findings = verify_worker_identity(
+                    packet_id, repo_root=wt_path, db_path=db_path
+                )
+            except Exception as exc:
+                identity_findings = []
+                failure = f"identity verification error: {exc}"
+
+            if not failure and identity_findings:
+                failure = (
+                    "post-worker identity check failed: "
+                    + "; ".join(f.message for f in identity_findings)
+                )
+                entry["identity_violations"] = [
+                    {"category": f.category, "field": f.field, "message": f.message}
+                    for f in identity_findings
+                ]
+
+            impl, error = _read_contract(result_path, "implementation")
+            if impl is not None:
                 try:
-                    _validate_context_manifest(
-                        manifest_path,
-                        attempt_dir=attempt_dir,
-                        task_id=task_id,
-                        attempt_id=attempt_id,
-                        bundle_path=bundle_path,
-                    )
-                except ValueError as exc:
-                    failure = f"context manifest invalid after reviewer: {exc}"
-                if failure is None:
-                    try:
-                        _validate_review_context(
-                            review_context_path,
-                            task_id=task_id,
-                            attempt_id=attempt_id,
-                            worktree=review_worktree,
-                            start_sha=start_sha,
-                        )
-                    except ValueError as exc:
-                        failure = f"review evidence invalid: {exc}"
-                review, error = _read_contract(review_path, "review")
-                if failure is not None:
-                    review = None
-                elif review is None:
-                    failure = error
+                    ba.record_implementation_result(attempt_id, impl, db_path=db_path)
+                except ba.ResultContractError as exc:
+                    failure = f"implementation contract invalid: {exc}"
+                else:
+                    entry["implementation_status"] = impl.get("status")
+                    if run["state"] != bq.RUN_EXITED:
+                        failure = f"worker run ended {run['state']}"
+                    elif impl.get("status") != "completed":
+                        failure = f"worker reported status {impl.get('status')}"
+            else:
+                failure = error
+
+            if failure is None:
+                validated = ba.run_validation(
+                    attempt_id,
+                    cwd=worktree_path(task_id, repo_root=repo_root),
+                    timeout_seconds=validation_timeout_seconds,
+                    db_path=db_path,
+                )
+                entry["validation_status"] = validated["validation"]["status"]
+                manifest["validation"] = _validation_evidence(validated["validation"])
+                write_run_manifest(manifest_path, manifest)
+                if validated["validation"]["status"] == ba.VALIDATION_FAILED:
+                    failure = "deterministic validation failed"
+
+            if failure is None and review_command:
+                review_context_path = attempt_dir / "review-context.json"
+                start_sha = str(run_report.get("start_sha") or "")
+                review_worktree = worktree_path(task_id, repo_root=repo_root)
+                review_context = _write_review_context(
+                    review_context_path,
+                    task_id=task_id,
+                    attempt_id=attempt_id,
+                    review_sha=worktree_head(review_worktree),
+                    diff_sha256=str(run_report.get("diff_sha256") or ""),
+                    changed_paths=list(run_report.get("changed_paths") or []),
+                )
+                manifest["review_context"] = {
+                    "path": str(review_context_path),
+                    "review_sha": review_context["review_sha"],
+                    "diff_sha256": review_context["diff_sha256"],
+                    "changed_paths": review_context["changed_paths"],
+                }
+                write_run_manifest(manifest_path, manifest)
+                review_error = _run_review_command(
+                    review_command,
+                    cwd=worktree_path(task_id, repo_root=repo_root),
+                    env_extra={
+                        "KB_TASK_ID": str(task_id),
+                        "KB_ATTEMPT_ID": str(attempt_id),
+                        "KB_BUNDLE_PATH": str(bundle_path),
+                        "KB_IMPL_RESULT_PATH": str(result_path),
+                        "KB_REVIEW_RESULT_PATH": str(review_path),
+                        "KB_CONTEXT_MANIFEST_PATH": str(manifest_path),
+                        "KB_REVIEW_CONTEXT_PATH": str(review_context_path),
+                        "KB_REVIEW_SHA": str(review_context["review_sha"]),
+                        "KB_REVIEW_DIFF_SHA256": str(review_context["diff_sha256"]),
+                    },
+                    timeout_seconds=review_timeout_seconds,
+                )
+                if review_error is not None:
+                    failure = review_error
                 else:
                     try:
-                        ba.record_review_result(attempt_id, review, db_path=db_path)
-                    except ba.ResultContractError as exc:
-                        failure = f"review contract invalid: {exc}"
+                        _validate_context_manifest(
+                            manifest_path,
+                            attempt_dir=attempt_dir,
+                            task_id=task_id,
+                            attempt_id=attempt_id,
+                            bundle_path=bundle_path,
+                        )
+                    except ValueError as exc:
+                        failure = f"context manifest invalid after reviewer: {exc}"
+                    if failure is None:
+                        try:
+                            _validate_review_context(
+                                review_context_path,
+                                task_id=task_id,
+                                attempt_id=attempt_id,
+                                worktree=review_worktree,
+                                start_sha=start_sha,
+                            )
+                        except ValueError as exc:
+                            failure = f"review evidence invalid: {exc}"
+                    review, error = _read_contract(review_path, "review")
+                    if failure is not None:
+                        review = None
+                    elif review is None:
+                        failure = error
                     else:
-                        entry["review_verdict"] = review.get("verdict")
-                        manifest["review"] = {
-                            **_review_evidence(review),
-                            "review_sha": review_context["review_sha"],
-                            "diff_sha256": review_context["diff_sha256"],
-                        }
-                        bq.append_event(
-                            task_id,
-                            "review_evidence_bound",
-                            payload={
-                                "attempt_id": attempt_id,
+                        try:
+                            ba.record_review_result(attempt_id, review, db_path=db_path)
+                        except ba.ResultContractError as exc:
+                            failure = f"review contract invalid: {exc}"
+                        else:
+                            entry["review_verdict"] = review.get("verdict")
+                            manifest["review"] = {
+                                **_review_evidence(review),
                                 "review_sha": review_context["review_sha"],
                                 "diff_sha256": review_context["diff_sha256"],
-                                "changed_paths": review_context["changed_paths"],
-                                "artifact_dir": str(attempt_dir),
-                            },
-                            db_path=db_path,
-                        )
-                        write_run_manifest(manifest_path, manifest)
-                        if review.get("verdict") != "approve":
-                            failure = f"review verdict {review.get('verdict')}"
+                            }
+                            bq.append_event(
+                                task_id,
+                                "review_evidence_bound",
+                                payload={
+                                    "attempt_id": attempt_id,
+                                    "review_sha": review_context["review_sha"],
+                                    "diff_sha256": review_context["diff_sha256"],
+                                    "changed_paths": review_context["changed_paths"],
+                                    "artifact_dir": str(attempt_dir),
+                                },
+                                db_path=db_path,
+                            )
+                            write_run_manifest(manifest_path, manifest)
+                            if review.get("verdict") != "approve":
+                                failure = f"review verdict {review.get('verdict')}"
 
-        if failure is None:
-            manifest["outcome"] = "succeeded"
+            if failure is None:
+                manifest["outcome"] = "succeeded"
+                write_run_manifest(manifest_path, manifest)
+                ba.close_attempt(attempt_id, ba.ATTEMPT_SUCCEEDED, db_path=db_path)
+                entry["outcome"] = ba.ATTEMPT_SUCCEEDED
+
+                # A worker's done marker is the explicit handoff boundary. Remove
+                # only after every success gate passes; failed or interrupted work
+                # must remain available for inspection and recovery.
+                task_worktree = worktree_path(task_id, repo_root=repo_root)
+                if (task_worktree / "done.txt").is_file():
+                    remove_worktree(
+                        task_id, repo_root=repo_root, discard_done_marker=True
+                    )
+                    entry["worktree_cleanup"] = "removed"
+                else:
+                    entry["worktree_cleanup"] = "kept_no_done_marker"
+
+                final_task = bq.get_task(task_id, db_path=db_path)
+
+                return {
+                    "outcome": LOOP_SUCCEEDED,
+                    "initiative_id": initiative_id,
+                    "packet_id": packet_id,
+                    "task_id": task_id,
+                    "task_state": final_task["state"] if final_task else None,
+                    "attempts": history,
+                }
+
+            entry["outcome"] = ba.ATTEMPT_FAILED
+            entry["failure"] = failure
+            manifest["outcome"] = "failed"
+            manifest["failure"] = _text_evidence(failure)
             write_run_manifest(manifest_path, manifest)
-            ba.close_attempt(attempt_id, ba.ATTEMPT_SUCCEEDED, db_path=db_path)
-            entry["outcome"] = ba.ATTEMPT_SUCCEEDED
-
-            # A worker's done marker is the explicit handoff boundary. Remove
-            # only after every success gate passes; failed or interrupted work
-            # must remain available for inspection and recovery.
-            task_worktree = worktree_path(task_id, repo_root=repo_root)
-            if (task_worktree / "done.txt").is_file():
-                remove_worktree(
-                    task_id, repo_root=repo_root, discard_done_marker=True
+            ba.close_attempt(attempt_id, ba.ATTEMPT_FAILED, db_path=db_path)
+    finally:
+        # Best-effort lease release on any exit path (success, exhaustion,
+        # or LoopError).  The lease may already be released on success or
+        # exhaustion; the ownership check in release_branch_lease ensures
+        # we only release what we own.
+        if lease_id is not None:
+            try:
+                bq.release_branch_lease(
+                    lease_id,
+                    packet_id=packet_id,
+                    worker_id=worker,
+                    db_path=db_path,
                 )
-                entry["worktree_cleanup"] = "removed"
-            else:
-                entry["worktree_cleanup"] = "kept_no_done_marker"
-
-            final_task = bq.get_task(task_id, db_path=db_path)
-            return {
-                "outcome": LOOP_SUCCEEDED,
-                "initiative_id": initiative_id,
-                "packet_id": packet_id,
-                "task_id": task_id,
-                "task_state": final_task["state"] if final_task else None,
-                "attempts": history,
-            }
-
-        entry["outcome"] = ba.ATTEMPT_FAILED
-        entry["failure"] = failure
-        manifest["outcome"] = "failed"
-        manifest["failure"] = _text_evidence(failure)
-        write_run_manifest(manifest_path, manifest)
-        ba.close_attempt(attempt_id, ba.ATTEMPT_FAILED, db_path=db_path)
+            except (bq.BranchLeaseConflictError, Exception):
+                pass  # Best-effort; lease may already be gone or DB closed.

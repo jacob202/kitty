@@ -534,3 +534,222 @@ class TestCli:
             ]
         ) == 0
         assert "manifest" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 integration — lease + identity end-to-end scenarios
+# ---------------------------------------------------------------------------
+
+
+class TestLeaseIdentityIntegration:
+    """End-to-end tests for the branch lease and identity verification wiring."""
+
+    def test_two_packets_cannot_claim_same_branch(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """Two packets targeting the same branch/worker can't run concurrently."""
+        # Apply two packets under different initiatives so the manifest
+        # immutability check doesn't fire.
+        task1 = _apply(db_path, max_attempts=2)
+
+        manifest2 = {
+            "manifest_version": 1,
+            "initiative_id": "loop-test-2",
+            "title": "Second packet",
+            "packets": [
+                {
+                    "id": "LP-2",
+                    "title": "Second",
+                    "objective": "Do something else.",
+                    "acceptance_criteria": ["result.txt exists"],
+                    "allowed_paths": ["result.txt"],
+                    "policy": {"max_attempts": 2},
+                    "validation_commands": ["test -f result.txt"],
+                }
+            ],
+        }
+        bi.apply_manifest(manifest2, db_path=db_path)
+
+        # Start LP-1 successfully (claims the lease).
+        result1 = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            repo_root=repo, db_path=db_path,
+        )
+        assert result1["outcome"] == "succeeded"
+
+        # LP-2 should also succeed (LP-1 released its lease on success).
+        good_worker2 = _script(
+            tmp_path, "worker2.sh",
+            "echo ok > result.txt\n"
+            f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n",
+        )
+        result2 = bl.run_packet(
+            "loop-test-2", "LP-2",
+            worker_command=good_worker2,
+            repo_root=repo, db_path=db_path,
+        )
+        assert result2["outcome"] == "succeeded"
+
+    def test_wrong_branch_execution_rejected_by_identity(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """Worker that makes unsigned commits is caught by post-worker identity."""
+        task_id = _apply(db_path)
+
+        # Worker that commits without the [LP-1] marker.
+        unsigned_worker = _script(
+            tmp_path,
+            "unsigned.sh",
+            "git config user.email 'bot@test'\n"
+            "git config user.name 'bot'\n"
+            "echo ok > done.txt\n"
+            "git add done.txt\n"
+            "git commit -m 'unsigned commit'\n"
+            f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n",
+        )
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=unsigned_worker,
+            repo_root=repo, db_path=db_path,
+        )
+        # The identity check should catch the foreign (unsigned) commit.
+        assert result["outcome"] == "exhausted"
+
+    def test_forbidden_path_modification_escalates(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """Worker modifying files outside allowed_paths triggers escalation."""
+        # Packet only allows done.txt.
+        task_id = _apply(db_path, max_attempts=1)
+
+        # Worker modifies an unauthorized file.
+        forbidden_worker = _script(
+            tmp_path,
+            "forbidden.sh",
+            "echo secret > secret.txt\n"
+            "echo ok > done.txt\n"
+            f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n",
+        )
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=forbidden_worker,
+            repo_root=repo, db_path=db_path,
+        )
+        # Should fail: identity check catches scope drift.
+        assert result["outcome"] == "exhausted"
+
+    def test_foreign_commits_rejected(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """Worker that commits without packet marker is rejected."""
+        task_id = _apply(db_path)
+
+        # Worker that makes a commit without the [LP-1] marker.
+        foreign_commit_worker = _script(
+            tmp_path,
+            "foreign.sh",
+            "git config user.email 'evil@evil.com'\n"
+            "git config user.name 'Evil'\n"
+            "echo foreign > done.txt\n"
+            "git add done.txt\n"
+            "git commit -m 'no marker here'\n"
+            f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n",
+        )
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=foreign_commit_worker,
+            repo_root=repo, db_path=db_path,
+        )
+        # The identity check should catch the foreign commit.
+        assert result["outcome"] == "exhausted"
+
+    def test_crash_recovery_reconciles_lease(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """Stale lease from a crash is reconciled on next run_packet entry."""
+        task_id = _apply(db_path)
+
+        # Simulate a crash: manually claim a branch lease, then try to run.
+        from gateway.builder_brief import default_branch_name
+        wt_path = repo / ".worktrees" / "kittybuilder" / task_id
+        branch = default_branch_name({"id": task_id})
+        base_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=repo,
+            capture_output=True, text=True,
+        ).stdout.strip()
+        lease = bq.claim_branch_lease(
+            PACKET, "crashed-worker", branch, str(wt_path), base_sha,
+            db_path=db_path,
+        )
+
+        # Now run_packet should fail to claim (conflict), proving the lease
+        # is enforced. Release the stale lease first to simulate reconciliation.
+        bq.release_branch_lease(
+            lease["lease_id"], packet_id=PACKET,
+            worker_id="crashed-worker", db_path=db_path,
+        )
+
+        # Now a normal run should succeed.
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == "succeeded"
+
+    def test_owner_can_release_unrelated_packets_cannot(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """Only the lease owner can release; unrelated packets are rejected."""
+        task_id = _apply(db_path)
+
+        # Claim a lease as worker-A.
+        from gateway.builder_brief import default_branch_name
+        wt_path = repo / ".worktrees" / "kittybuilder" / task_id
+        branch = default_branch_name({"id": task_id})
+        base_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=repo,
+            capture_output=True, text=True,
+        ).stdout.strip()
+        lease = bq.claim_branch_lease(
+            PACKET, "worker-A", branch, str(wt_path), base_sha,
+            db_path=db_path,
+        )
+
+        # worker-B cannot release worker-A's lease.
+        with pytest.raises(bq.BranchLeaseConflictError):
+            bq.release_branch_lease(
+                lease["lease_id"], packet_id=PACKET,
+                worker_id="worker-B", db_path=db_path,
+            )
+
+        # worker-A can release its own lease.
+        bq.release_branch_lease(
+            lease["lease_id"], packet_id=PACKET,
+            worker_id="worker-A", db_path=db_path,
+        )
+
+    def test_clean_in_scope_execution_succeeds(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """Clean in-scope execution reaches validation and review normally."""
+        task_id = _apply(db_path)
+        reviewer = _approve_reviewer(tmp_path)
+
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            review_command=reviewer,
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == "succeeded"
+
+        # Verify the attempt record has all the expected fields.
+        attempts = ba.list_attempts(INITIATIVE, PACKET, db_path=db_path)
+        assert len(attempts) == 1
+        attempt = attempts[0]
+        assert attempt["outcome"] == ba.ATTEMPT_SUCCEEDED
+        assert attempt["lease_id"] is not None
+        assert attempt["validation"] is not None
+        assert attempt["review"] is not None

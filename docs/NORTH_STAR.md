@@ -4,6 +4,10 @@ This file exists because the expensive reasoning model is leaving and the
 project must not depend on it. Three audiences, one truth. If any future doc
 contradicts this one on *purpose*, this one wins until Jacob says otherwise.
 
+The permanent engineering principles that govern *how* this North Star is
+built live in `docs/CONSTITUTION.md` — see Article II (Life-First Ordering)
+and Article III (Leverage Before Reinvention).
+
 ---
 
 ## 1. What Kitty is for (the part everyone keeps forgetting)

@@ -1,95 +1,58 @@
-# Session State — 2026-07-14 (cloud branch `claude/free-workers-token-efficiency-2m06xb`)
-
-- Free workers are now a first-class launch surface: `./kitty builder
-  initiative run[-packet] ... --free` wires the OpenCode adapter scripts as
-  worker + reviewer (no hand-typed `--worker-command` JSON).
-- Both adapter scripts now walk the zero-cost model ladder inside one
-  attempt; fallback happens only on a clean failure (no result, no worktree
-  change) so partial work is never built on. `KITTYBUILDER_MODEL(S)` /
-  `KITTYBUILDER_REVIEW_MODEL(S)` override.
-- New playbook: `docs/FREE_WORKERS.md` (linked from CLAUDE.md, quickstart,
-  and the Orca setup doc).
-- Verified: 466 builder-slice tests pass (incl. 5 new adapter ladder tests,
-  5 new CLI preset tests); ruff clean; both scripts `bash -n` clean.
-
-# Session State — 2026-07-12
-
-## Branch
-
-- `main` @ `1d2183f`, pushed to `origin/main`.
-- `origin/docs/fable-context` is already an ancestor of `main`; no merge
-  commit was needed.
+# Session State — 2026-07-14 (branch `feat/campaign-alpha-phase-2-integration`)
 
 ## Done this session
 
-- `dbee71a`: successful KittyBuilder loop runs remove their worktree when the
-  worker leaves exactly the ephemeral untracked `done.txt` marker; failed,
-  interrupted, dirty, or marker-less runs remain inspectable.
-- `f25e79e`: stopped tracking `tmp/IMG_0668.png` and added `tmp/` to
-  `.gitignore`.
-- `44c1fdc`: recorded the cleanup plan.
-- Preserved unique work locally on:
-  - `codex/recover-kb-s4-merge-tests` (`8bf3bab`, 135 tests)
-  - `codex/recover-orchestrator-research` (`5901a3a`, research document)
-- Retired the stale local KB-S4 and superseded UI branches. The credential-
-  bearing `claude/kitty-prototype-sprint-srs5bl` branch remains untouched.
-- Archived external project clutter under
-  `/Users/jacobbrizinski/Archive/Projects-2026-07-12/` and removed Nautilus
-  through Orca after preserving its Git bundle and runtime state.
-- Removed disposable root caches and `.next`; kept active dependencies,
-  runtime data, secrets, and active worktrees.
-- Reviewed the Fable session commits: final `.claude/launch.json` is relative
-  and loopback-only; no secrets or generated browser artifacts are present in
-  the final snapshot. One intermediate commit had an absolute worktree path,
-  corrected by the Fable tip without rewriting history.
+- Full 9-phase Engineering Leverage Audit completed and written to `docs/AUDIT_ENGINEERING_LEVERAGE_2026-07-14.md`
+- Phase 1: Current truth table for all 30+ subsystems produced
+- Phase 2: Underutilized capability audit — identified 15+ duplication/underuse signals
+- Phase 3: Skills/prompts cull — audited all 25+ repo/agent skills and prompts
+- Phase 4: File/documentation cleanup — inspected 37+ docs, 5 tracked root temp files
+- Phase 5: External ecosystem research — surveyed 14+ projects across 5 lanes
+- Phase 6: Subsystem comparison matrix — 14 subsystems compared against upstream
+- Phase 7: 5 high-value prototypes selected (vulture, lychee, codegraph, test slice, KittyBench)
+- Phase 8: Experiments identified, ready to run (vulture/lychee need pip/brew)
+- Phase 9: Prioritized execution plan with DO NOW/NEXT/LATER/REJECT/DELETE/ARCHIVE
+
+### Key corrections from handoff
+- `honcho.py` is NOT dead — verified 14 imports from `kitty_tools.py`, `memory_consolidation.py`, and tests. CLAUDE.md claim "not properly wired up" is stale.
+- `builder.py` autonomous pipeline IS actively used — verified imports from `routes/integrations.py`, `builder_contract.py`, `nudge.py`, and test files.
+- `context_builder.py` has 5 active callers (not 4) — `researcher.py`, `troubleshooter.py`, `voice_pipeline.py`, `telegram_bot.py`, `reset.py`
+- Root temp files are TRACKED in git — need `git rm`, not plain `rm`
+- `PROJECT_STATUS.md` branch claim is wrong (says `feat/council-routing`, actual is `feat/campaign-alpha-phase-2-integration`)
 
 ## In flight / preserve
 
-- `trust-lane-v1` has started at the queue level in packet order. TL-01
-  (`kb_mrgw1v45_019b`) is claimed by `codex-trust-lane-v1-tl01` on its
-  isolated Builder branch; implementation is not yet started in this root
-  checkout.
-- The root checkout has concurrent uncommitted Builder work. Preserve and do
-  not stage it: `config/imagen/criteria/hard-gate.json`,
-  `config/imagen/criteria/test-char.json`, `gateway/builder_loop.py`,
-  `tests/test_builder_loop.py`, plus untracked `gateway/builder_context.py`
-  and `tests/test_builder_context.py`.
-- Active builder worktree:
-  `.worktrees/kittybuilder/kb_mrh9ilha_f3d9`, task
-  `kb_mrh9ilha_f3d9`, currently modifies `gateway/next_step.py` and
-  `tests/test_next_step.py`; do not clean or remove it.
-- Untracked user scripts remain untouched:
-  `scripts/kittybuilder_opencode_worker.sh` and
-  `scripts/kittybuilder_opencode_reviewer.sh`.
-- `fix/search-route-query-param` and all remote branches remain untouched.
+- This is a read-only audit. No files modified except this STATE.md, HANDOFF.md, and the audit report.
+- Preserve all uncommitted work from previous session (config/imagen/, builder_loop.py changes, etc.)
+- Phases 8 (experiments) and 9 (implementation) are planned but not executed — next worker can pick up
 
-## Verification
+## Authorized for execution (2026-07-15, Jacob)
 
-- Frontend: `npm test -- --run --maxWorkers=1` → 18 files / 129 tests passed;
-  `npm run build` → passed.
-- Full Python suite: 2,079 passed, 1 skipped, 8 failed. Failures are known
-  local environment/dependency or timeout issues (`mem0`, `google.auth`,
-  Chroma/runtime, and resume subprocess); this is not a clean green gate.
-- Builder slice: 54 passed and 1 shared-queue lease-conflict failure; the
-  failed case passed when rerun alone (`1 passed`).
-- Browser smoke loaded onboarding and Home successfully. Core gateway routes
-  returned 200, while LiteLLM/models, Chroma knowledge, and runtime freshness
-  remained visibly degraded in this environment.
-- `venv/bin/ruff check gateway/builder_loop.py gateway/builder_runner.py
-  tests/test_builder_loop.py tests/test_builder_runner.py` → passed.
+Jacob authorized a focused worker to implement ONLY the low-risk / high-confidence
+recommendations from `docs/AUDIT_ENGINEERING_LEVERAGE_2026-07-14.md` §10.
 
-## Next actions
+- **Packet:** `docs/packets/026-audit-implement-low-risk.md`
+- **Builder queue ID:** `kb_mrm5ru85_9ea7` (pri=80, owner=-)
+- **Rule:** one fresh branch off `main`, one focused PR. No new research.
+  No new deps beyond what the audit vetted. Skip-with-reason over force.
+- **In scope:** stale doc fixes (CLAUDE.md honcho claim, PROJECT_STATUS.md
+  branch claim), vulture in CI (advisory), lychee link check (audit-vetted),
+  .codegraph freshness, skills registry consolidation (structural only),
+  KittyBench skeleton (not full suite).
+- **Out of scope:** large deps, Builder architecture refactors, doc rewrites
+  beyond audited corrections, deleting files requiring owner judgment
+  (H1–H6), new feature work.
+- **Evidence rule:** every implemented item cites the audit section and
+  includes before/after evidence.
 
-- Implement TL-01 in its isolated branch, then continue TL-02, TL-03, TL-04,
-  and TL-05 in that order. Do not stage the concurrent root-checkout edits
-  above.
-- Start `trust-lane-v1` in the established packet order after the push.
-- Later plan model usage across ChatGPT's available models by task, cost,
-  latency, reliability, and privacy boundary.
+This work is **not** for the current `feat/campaign-alpha-phase-2-integration`
+branch — it is a self-contained branch off `main`.
+
+## Next actions (host session)
+
+1. Hand the packet above to a fresh worker (Orca worktree / OpenCode session).
+2. When the worker's PR lands, update the audit report with resolved row
+   markers and re-evaluate H1–H6 for the next leverage pass.
 
 ## T2 (Jacob/Codex only — do not touch)
-
-- Card A: UI binds 0.0.0.0 in `./kitty` + proxy injects gateway secret; SSRF
-  in capture/knowledge routes.
-- Card B: `agent_runner.py` / `task_runner.py` can false-complete tasks;
-  `stop()` unreliable.
+- Same as previous STATE.md entries

@@ -99,6 +99,7 @@ CREATE TABLE IF NOT EXISTS packet_attempts (
     attempt_no INTEGER NOT NULL,
     task_id TEXT NOT NULL,
     bundle_json TEXT NOT NULL,
+    lease_id INTEGER,
     implementation_json TEXT,
     validation_json TEXT,
     review_json TEXT,
@@ -114,13 +115,15 @@ CREATE TABLE IF NOT EXISTS packet_attempts (
 
 
 def _ensure_attempt_columns(conn: sqlite3.Connection) -> None:
-    """Add KB-S3a columns to packet_attempts tables created before them."""
+    """Add KB-S3a and lease columns to packet_attempts tables created before them."""
     existing = {
         str(row["name"])
         for row in conn.execute("PRAGMA table_info(packet_attempts)").fetchall()
     }
     if existing and "validation_json" not in existing:
         conn.execute("ALTER TABLE packet_attempts ADD COLUMN validation_json TEXT")
+    if existing and "lease_id" not in existing:
+        conn.execute("ALTER TABLE packet_attempts ADD COLUMN lease_id INTEGER")
 
 
 def init_db(db_path: Path | None = None) -> None:
@@ -283,6 +286,28 @@ def _packet_row(
     return row
 
 
+def get_packet_base_sha(
+    initiative_id: str, packet_id: str, db_path: Path | None = None
+) -> str:
+    """Return the durable base SHA stored in the packet's initiative_packets row.
+
+    Raises AttemptError if the packet is missing or has no base_sha.
+    """
+    init_db(db_path)
+    conn = bq.connect(db_path)
+    try:
+        row = _packet_row(conn, initiative_id, packet_id)
+        base_sha = row["base_sha"] if "base_sha" in row.keys() else None
+        if not base_sha or not isinstance(base_sha, str) or not base_sha.strip():
+            raise AttemptError(
+                f"packet {initiative_id}/{packet_id} has no durable base_sha; "
+                "cannot proceed without a bound base SHA"
+            )
+        return base_sha
+    finally:
+        conn.close()
+
+
 def _build_bundle_on_conn(
     conn: sqlite3.Connection,
     packet: sqlite3.Row,
@@ -413,7 +438,11 @@ def _row_to_attempt(row: sqlite3.Row) -> dict[str, Any]:
 
 
 def start_attempt(
-    initiative_id: str, packet_id: str, db_path: Path | None = None
+    initiative_id: str,
+    packet_id: str,
+    *,
+    lease_id: int | None = None,
+    db_path: Path | None = None,
 ) -> dict[str, Any]:
     """Open attempt N+1 for a packet, persisting its context bundle.
 
@@ -456,8 +485,8 @@ def start_attempt(
         cursor = conn.execute(
             """
             INSERT INTO packet_attempts
-                (initiative_id, packet_id, attempt_no, task_id, bundle_json)
-            VALUES (?, ?, ?, ?, ?)
+                (initiative_id, packet_id, attempt_no, task_id, bundle_json, lease_id)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
                 initiative_id,
@@ -465,13 +494,18 @@ def start_attempt(
                 attempt_no,
                 packet["task_id"],
                 json.dumps(bundle),
+                lease_id,
             ),
         )
         attempt_id = cursor.lastrowid
         bq.append_event(
             packet["task_id"],
             "attempt_started",
-            payload={"attempt_id": attempt_id, "attempt_no": attempt_no},
+            payload={
+                "attempt_id": attempt_id,
+                "attempt_no": attempt_no,
+                "lease_id": lease_id,
+            },
             conn=conn,
         )
         conn.commit()
@@ -479,6 +513,163 @@ def start_attempt(
             "SELECT * FROM packet_attempts WHERE id = ?", (attempt_id,)
         ).fetchone()
         return _row_to_attempt(row)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def claim_and_start_attempt(
+    initiative_id: str,
+    packet_id: str,
+    *,
+    worker_id: str,
+    branch: str,
+    worktree_path: str,
+    base_sha: str,
+    db_path: Path | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Atomically claim a branch lease and start the next attempt.
+
+    Both the branch lease INSERT and the packet_attempts INSERT happen in a
+    single BEGIN IMMEDIATE transaction. If either operation fails, both are
+    rolled back — eliminating the reachable state ``lease exists with no
+    attempt`` during normal transactional execution.
+
+    Returns ``(attempt_dict, lease_dict)``.
+    """
+    if not packet_id or not packet_id.strip():
+        raise ValueError("packet_id is required")
+    if not worker_id or not worker_id.strip():
+        raise ValueError("worker_id is required")
+    if not branch or not branch.strip():
+        raise ValueError("branch is required")
+    if not worktree_path or not worktree_path.strip():
+        raise ValueError("worktree_path is required")
+    if not base_sha or not base_sha.strip():
+        raise ValueError("base_sha is required")
+
+    init_db(db_path)
+    conn = bq.connect(db_path)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+
+        # --- branch lease INSERT (mirrors bq.claim_branch_lease) ---
+        try:
+            conn.execute(
+                """
+                INSERT INTO branch_leases
+                    (packet_id, worker_id, branch, worktree_path, base_sha)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (packet_id, worker_id, branch, worktree_path, base_sha),
+            )
+        except sqlite3.IntegrityError as exc:
+            conn.rollback()
+            # Determine which field caused the conflict.
+            existing = conn.execute(
+                "SELECT packet_id, worker_id, branch, worktree_path "
+                "FROM branch_leases "
+                "WHERE packet_id = ? OR worker_id = ? "
+                "   OR branch = ? OR worktree_path = ?",
+                (packet_id, worker_id, branch, worktree_path),
+            ).fetchone()
+            if existing is None:
+                raise bq.BranchLeaseConflictError(
+                    f"branch lease conflict for packet {packet_id!r}"
+                ) from exc
+            conflicting_field = "unknown"
+            if existing["packet_id"] == packet_id:
+                conflicting_field = "packet_id"
+            elif existing["worker_id"] == worker_id:
+                conflicting_field = "worker_id"
+            elif existing["branch"] == branch:
+                conflicting_field = "branch"
+            elif existing["worktree_path"] == worktree_path:
+                conflicting_field = "worktree_path"
+            raise bq.BranchLeaseConflictError(
+                f"branch lease conflict: {conflicting_field} "
+                f"is already claimed by packet {existing['packet_id']!r}"
+            ) from exc
+
+        lease_row = conn.execute(
+            "SELECT * FROM branch_leases WHERE packet_id = ?",
+            (packet_id,),
+        ).fetchone()
+        if lease_row is None:
+            conn.rollback()
+            raise RuntimeError(
+                f"Branch lease for packet {packet_id!r} was committed "
+                "but is not retrievable"
+            )
+        lease = dict(lease_row)
+        lease_id = lease["lease_id"]
+
+        # --- attempt INSERT (mirrors start_attempt) ---
+        packet = _packet_row(conn, initiative_id, packet_id)
+
+        open_row = conn.execute(
+            """
+            SELECT attempt_no FROM packet_attempts
+            WHERE initiative_id = ? AND packet_id = ? AND outcome IS NULL
+            """,
+            (initiative_id, packet_id),
+        ).fetchone()
+        if open_row is not None:
+            conn.rollback()
+            raise AttemptStateError(
+                f"attempt {open_row['attempt_no']} for {initiative_id}/"
+                f"{packet_id} is still open; close it before starting another"
+            )
+
+        policy = json.loads(packet["policy_json"]) if packet["policy_json"] else {}
+        max_attempts = policy.get("max_attempts", DEFAULT_MAX_ATTEMPTS)
+        used = _attempt_count(conn, initiative_id, packet_id)
+        used_for_budget = _attempt_count(
+            conn, initiative_id, packet_id, exclude_crashed=True
+        )
+        if used_for_budget >= max_attempts:
+            conn.rollback()
+            raise AttemptLimitError(
+                f"{initiative_id}/{packet_id} has used {used_for_budget}/"
+                f"{max_attempts} attempts; operator intervention required"
+            )
+
+        attempt_no = used + 1
+        bundle = _build_bundle_on_conn(conn, packet, attempt_no)
+        cursor = conn.execute(
+            """
+            INSERT INTO packet_attempts
+                (initiative_id, packet_id, attempt_no, task_id, bundle_json, lease_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                initiative_id,
+                packet_id,
+                attempt_no,
+                packet["task_id"],
+                json.dumps(bundle),
+                lease_id,
+            ),
+        )
+        attempt_id = cursor.lastrowid
+        bq.append_event(
+            packet["task_id"],
+            "attempt_started",
+            payload={
+                "attempt_id": attempt_id,
+                "attempt_no": attempt_no,
+                "lease_id": lease_id,
+            },
+            conn=conn,
+        )
+        conn.commit()
+
+        attempt_row = conn.execute(
+            "SELECT * FROM packet_attempts WHERE id = ?", (attempt_id,)
+        ).fetchone()
+        return _row_to_attempt(attempt_row), lease
     except Exception:
         conn.rollback()
         raise
