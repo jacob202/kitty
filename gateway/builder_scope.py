@@ -4,12 +4,10 @@ Implements the mandatory "Validate Scope" Builder Loop stage (Builder
 Operating Model §5/§6) and the STOP → Escalate → Return Control decision
 boundary (§4).
 
-Scope is validated against the packet contract that already exists at
-execution time — no new schema fields are introduced. The contract fields
-(objective, acceptance_criteria, allowed_paths, validation_commands) are
-produced by ``builder_attempt.build_context_bundle`` and are sufficient to
-decide whether the work is clear, measurable, bounded, and free of
-architectural judgment.
+Scope is validated against the packet contract at execution time. The contract
+fields (objective, acceptance_criteria, allowed_paths, validation_commands,
+and optional forbidden_changes) decide whether the work is clear, measurable,
+bounded, and free of architectural judgment.
 
 Escalation is return-control only: it raises EscalationError with a structured
 artifact and leaves the task untouched. It does NOT add a new workflow state and
@@ -19,6 +17,7 @@ runtime representation yet — ADR-0019).
 
 from __future__ import annotations
 
+import posixpath
 from dataclasses import dataclass
 from typing import Any
 
@@ -84,13 +83,14 @@ def _normalize_allowed_path(raw: str) -> str | None:
         return None
     if cleaned.startswith("~"):
         return None
-    if cleaned.startswith("/") or cleaned.startswith("\\"):
+    if cleaned.startswith("/") or "\\" in cleaned:
         return None
-    if cleaned.startswith("./"):
-        cleaned = cleaned[2:]
-    if ".." in cleaned.split("/"):
+    normalized = posixpath.normpath(cleaned)
+    if normalized in {"", ".", ".."}:
         return None
-    return cleaned
+    if normalized.startswith("/") or normalized.startswith("../"):
+        return None
+    return normalized
 
 
 def _touches_protected_zone(normalized: str) -> bool:
@@ -98,6 +98,15 @@ def _touches_protected_zone(normalized: str) -> bool:
     if lowered in PROTECTED_FILES:
         return True
     return any(lowered.startswith(prefix) for prefix in PROTECTED_PREFIXES)
+
+
+def _paths_overlap(first: str, second: str) -> bool:
+    """Return whether two normalized file-or-directory paths overlap."""
+    return (
+        first == second
+        or first.startswith(f"{second.rstrip('/')}/")
+        or second.startswith(f"{first.rstrip('/')}/")
+    )
 
 
 def _has_authority_for_protected_path(
@@ -151,6 +160,8 @@ def validate_scope(packet: dict[str, Any]) -> list[ScopeFinding]:
     objective = (packet.get("objective") or "").strip()
     acceptance = packet.get("acceptance_criteria") or []
     allowed = packet.get("allowed_paths") or []
+    forbidden = packet.get("forbidden_changes")
+    normalized_allowed: list[str] = []
 
     if not objective:
         findings.append(
@@ -188,18 +199,59 @@ def validate_scope(packet: dict[str, Any]) -> list[ScopeFinding]:
                         f"allowed_paths entry is not a repo-relative safe path: {raw!r}",
                     )
                 )
-            elif _touches_protected_zone(normalized):
-                if not _has_authority_for_protected_path(packet, normalized):
+            else:
+                normalized_allowed.append(normalized)
+                if _touches_protected_zone(normalized):
+                    if not _has_authority_for_protected_path(packet, normalized):
+                        findings.append(
+                            ScopeFinding(
+                                "architectural_judgment_required",
+                                "allowed_paths",
+                                f"allowed_paths reaches a protected architecture/governance "
+                                f"zone that requires an ADR/architecture decision: {raw!r}. "
+                                f"To proceed, the objective or acceptance criteria must "
+                                f"explicitly name this path or reference the governing ADR.",
+                            )
+                        )
+
+    # P1-05 validates the contract declaration. P3-02 owns detecting an
+    # actual worker modification after execution begins.
+    if "forbidden_changes" in packet:
+        if not isinstance(forbidden, list) or not all(
+            isinstance(path, str) for path in forbidden
+        ):
+            findings.append(
+                ScopeFinding(
+                    "incomplete_contract",
+                    "forbidden_changes",
+                    "forbidden_changes must be a list of repo-relative paths",
+                )
+            )
+        else:
+            normalized_forbidden: list[str] = []
+            for raw in forbidden:
+                normalized = _normalize_allowed_path(raw)
+                if normalized is None:
                     findings.append(
                         ScopeFinding(
-                            "architectural_judgment_required",
-                            "allowed_paths",
-                            f"allowed_paths reaches a protected architecture/governance "
-                            f"zone that requires an ADR/architecture decision: {raw!r}. "
-                            f"To proceed, the objective or acceptance criteria must "
-                            f"explicitly name this path or reference the governing ADR.",
+                            "incomplete_contract",
+                            "forbidden_changes",
+                            f"forbidden_changes entry is not a repo-relative safe path: {raw!r}",
                         )
                     )
+                else:
+                    normalized_forbidden.append(normalized)
+            for allowed_path in normalized_allowed:
+                for forbidden_path in normalized_forbidden:
+                    if _paths_overlap(allowed_path, forbidden_path):
+                        findings.append(
+                            ScopeFinding(
+                                "forbidden_change",
+                                "forbidden_changes",
+                                f"allowed_paths permits forbidden path {forbidden_path!r} "
+                                f"through {allowed_path!r}",
+                            )
+                        )
 
     return findings
 

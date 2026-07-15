@@ -41,6 +41,20 @@ class TestValidateContract:
         errors = validate_contract({"goal": "x", "validation_commands": [1]})
         assert any("validation_commands" in e for e in errors)
 
+    def test_invalid_forbidden_changes_type(self):
+        errors = validate_contract({"goal": "x", "forbidden_changes": "gateway/"})
+        assert any("forbidden_changes" in error for error in errors)
+
+    def test_invalid_forbidden_changes_entry(self):
+        errors = validate_contract({"goal": "x", "forbidden_changes": [""]})
+        assert any("forbidden_changes" in error for error in errors)
+
+    def test_valid_forbidden_changes(self):
+        errors = validate_contract(
+            {"goal": "x", "forbidden_changes": ["gateway/secrets.py"]}
+        )
+        assert errors == []
+
 
 class TestLoadContract:
     def test_load_json(self, tmp_path: Path):

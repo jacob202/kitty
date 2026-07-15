@@ -41,6 +41,14 @@ def validate_contract(spec: dict[str, Any]) -> list[str]:
     commands = spec.get("validation_commands", [])
     if not isinstance(commands, list) or not all(isinstance(c, str) for c in commands):
         errors.append("contract.validation_commands must be a list of strings")
+    if "forbidden_changes" in spec:
+        forbidden_changes = spec["forbidden_changes"]
+        if not isinstance(forbidden_changes, list) or not all(
+            isinstance(path, str) and path.strip() for path in forbidden_changes
+        ):
+            errors.append(
+                "contract.forbidden_changes must be a list of non-empty strings"
+            )
     return errors
 
 

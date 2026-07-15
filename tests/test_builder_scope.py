@@ -44,6 +44,65 @@ def test_empty_allowed_paths_is_unbounded():
     assert any(f.category == "unbounded_scope" for f in findings)
 
 
+def test_forbidden_changes_requires_a_list_of_paths():
+    findings = validate_scope(_packet(forbidden_changes="gateway/secrets.py"))
+    assert any(
+        f.category == "incomplete_contract" and f.field == "forbidden_changes"
+        for f in findings
+    )
+
+
+def test_forbidden_changes_rejects_unsafe_paths():
+    findings = validate_scope(_packet(forbidden_changes=["../secrets", "./"]))
+    assert any(
+        f.category == "incomplete_contract" and f.field == "forbidden_changes"
+        for f in findings
+    )
+
+
+def test_forbidden_changes_rejects_overlapping_allowed_scope():
+    findings = validate_scope(
+        _packet(
+            allowed_paths=["gateway/"],
+            forbidden_changes=["gateway/secrets.py"],
+        )
+    )
+    assert any(
+        f.category == "forbidden_change" and f.field == "forbidden_changes"
+        for f in findings
+    )
+
+
+def test_forbidden_changes_rejects_allowed_path_inside_forbidden_directory():
+    findings = validate_scope(
+        _packet(
+            allowed_paths=["gateway/secrets.py"],
+            forbidden_changes=["gateway/"],
+        )
+    )
+    assert any(f.category == "forbidden_change" for f in findings)
+
+
+def test_forbidden_changes_detects_normalized_path_overlap():
+    findings = validate_scope(
+        _packet(
+            allowed_paths=["gateway/./secrets.py"],
+            forbidden_changes=["gateway/secrets.py"],
+        )
+    )
+    assert any(f.category == "forbidden_change" for f in findings)
+
+
+def test_forbidden_changes_allows_disjoint_scope():
+    findings = validate_scope(
+        _packet(
+            allowed_paths=["gateway/worker.py"],
+            forbidden_changes=["gateway/secrets.py"],
+        )
+    )
+    assert not any(f.category == "forbidden_change" for f in findings)
+
+
 def test_absolute_path_is_unbounded():
     findings = validate_scope(_packet(allowed_paths=["/etc/passwd"]))
     assert any(f.category == "unbounded_scope" for f in findings)
