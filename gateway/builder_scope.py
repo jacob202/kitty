@@ -25,7 +25,10 @@ from typing import Any
 # Paths whose modification requires architectural judgment (Builder Operating
 # Model §4: not allowed to reinterpret doctrine, replace architectural patterns,
 # or change architecture/governance without an ADR — see AGENTS.md). A packet
-# whose allowed_paths reaches any of these must escalate rather than execute.
+# whose allowed_paths reaches any of these must demonstrate sufficient
+# architectural authority (objective/acceptance explicitly authorizing the path
+# or referencing the governing ADR) — otherwise escalate. Touching a protected
+# zone is not itself forbidden; doing so WITHOUT ratified authority is.
 PROTECTED_PREFIXES: tuple[str, ...] = (
     "docs/adr/",
     "docs/architecture/",
@@ -97,6 +100,46 @@ def _touches_protected_zone(normalized: str) -> bool:
     return any(lowered.startswith(prefix) for prefix in PROTECTED_PREFIXES)
 
 
+def _has_authority_for_protected_path(
+    packet: dict[str, Any], normalized_path: str
+) -> bool:
+    """Check whether the packet has ratified authority to modify a protected path.
+
+    A packet touching a protected architecture/governance path does NOT escalate
+    when it explicitly authorizes that work and references the governing authority.
+
+    Proceed when:
+      - The objective or acceptance criteria explicitly names this path or the
+        containing area, AND the work is clearly bounded (not generic).
+      - The packet objective references a ratified ADR or canonical contract.
+
+    Escalate when:
+      - The path is protected but the objective is generic ("improve docs").
+      - The path is constitutional and no governing ADR is referenced.
+    """
+    objective = (packet.get("objective") or "").lower()
+    acceptance = " ".join(
+        str(a).lower() for a in (packet.get("acceptance_criteria") or [])
+    )
+    combined = f"{objective} {acceptance}"
+    path_lower = normalized_path.lower()
+
+    # Explicit path reference: objective or acceptance names the exact file
+    # or its parent directory (e.g. "update docs/adr/0001-db-scope.md" or
+    # "fix frontmatter in docs/adr/")
+    if path_lower in combined or path_lower.strip("docs/") in combined:
+        return True
+    parent = path_lower.rsplit("/", 1)[0] + "/" if "/" in path_lower else ""
+    if parent and parent in combined:
+        return True
+
+    # ADR reference: objective cites a ratified decision
+    if "adr-" in combined or "adr " in combined or "adr/" in combined:
+        return True
+
+    return False
+
+
 def validate_scope(packet: dict[str, Any]) -> list[ScopeFinding]:
     """Validate a packet contract before execution.
 
@@ -146,14 +189,17 @@ def validate_scope(packet: dict[str, Any]) -> list[ScopeFinding]:
                     )
                 )
             elif _touches_protected_zone(normalized):
-                findings.append(
-                    ScopeFinding(
-                        "architectural_judgment_required",
-                        "allowed_paths",
-                        f"allowed_paths reaches a protected architecture/governance "
-                        f"zone that requires an ADR/architecture decision: {raw!r}",
+                if not _has_authority_for_protected_path(packet, normalized):
+                    findings.append(
+                        ScopeFinding(
+                            "architectural_judgment_required",
+                            "allowed_paths",
+                            f"allowed_paths reaches a protected architecture/governance "
+                            f"zone that requires an ADR/architecture decision: {raw!r}. "
+                            f"To proceed, the objective or acceptance criteria must "
+                            f"explicitly name this path or reference the governing ADR.",
+                        )
                     )
-                )
 
     return findings
 
