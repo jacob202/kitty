@@ -96,6 +96,10 @@ class LeaseConflictError(ValueError):
     """Raised when a task cannot be claimed or lease fencing rejects a stale worker."""
 
 
+class BranchLeaseConflictError(ValueError):
+    """Raised when a branch lease cannot be claimed due to a conflict."""
+
+
 class DataCorruptionError(RuntimeError):
     """Raised when a DB column contains data that cannot be decoded."""
 
@@ -212,6 +216,18 @@ CREATE INDEX IF NOT EXISTS idx_runs_task ON runs(task_id, id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_runs_one_active_per_task
     ON runs(task_id)
     WHERE state IN ('starting', 'running', 'cancel_requested');
+
+-- Branch leases: exclusive per packet, worker, branch, and worktree.
+-- base_sha is verification metadata only — multiple packets may share it.
+CREATE TABLE IF NOT EXISTS branch_leases (
+    lease_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    packet_id TEXT NOT NULL UNIQUE,
+    worker_id TEXT NOT NULL UNIQUE,
+    branch TEXT NOT NULL UNIQUE,
+    worktree_path TEXT NOT NULL UNIQUE,
+    base_sha TEXT NOT NULL,
+    lease_ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 # Run lifecycle states (runs table). Terminal: exited/failed/timeout/
@@ -2774,3 +2790,155 @@ def recover_interrupted_runs(
         "claimed_tasks_requeued": claimed_tasks_requeued,
         "conflicts": conflicts,
     }
+
+
+# ---------------------------------------------------------------------------
+# Branch leases — exclusive per packet / worker / branch / worktree
+# ---------------------------------------------------------------------------
+
+
+def claim_branch_lease(
+    packet_id: str,
+    worker_id: str,
+    branch: str,
+    worktree_path: str,
+    base_sha: str,
+    *,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Claim an exclusive branch lease for a packet.
+
+    Atomic under concurrent attempts: ``BEGIN IMMEDIATE`` acquires the
+    write lock before the INSERT, and the UNIQUE constraints on packet_id,
+    worker_id, branch, and worktree_path reject any duplicate at the DB
+    level.  ``base_sha`` is intentionally NOT unique — multiple packets
+    may legitimately branch from the same commit.
+
+    Raises ``BranchLeaseConflictError`` if any field is already claimed.
+    """
+    if not packet_id or not packet_id.strip():
+        raise ValueError("packet_id is required")
+    if not worker_id or not worker_id.strip():
+        raise ValueError("worker_id is required")
+    if not branch or not branch.strip():
+        raise ValueError("branch is required")
+    if not worktree_path or not worktree_path.strip():
+        raise ValueError("worktree_path is required")
+    if not base_sha or not base_sha.strip():
+        raise ValueError("base_sha is required")
+
+    conn = connect(db_path)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            conn.execute(
+                """
+                INSERT INTO branch_leases
+                    (packet_id, worker_id, branch, worktree_path, base_sha)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (packet_id, worker_id, branch, worktree_path, base_sha),
+            )
+            conn.commit()
+        except sqlite3.IntegrityError as exc:
+            conn.rollback()
+            # Determine which field caused the conflict.
+            existing = conn.execute(
+                "SELECT packet_id, worker_id, branch, worktree_path "
+                "FROM branch_leases "
+                "WHERE packet_id = ? OR worker_id = ? "
+                "   OR branch = ? OR worktree_path = ?",
+                (packet_id, worker_id, branch, worktree_path),
+            ).fetchone()
+            if existing is None:
+                raise BranchLeaseConflictError(
+                    f"branch lease conflict for packet {packet_id!r}"
+                ) from exc
+            conflicting_field = "unknown"
+            if existing["packet_id"] == packet_id:
+                conflicting_field = "packet_id"
+            elif existing["worker_id"] == worker_id:
+                conflicting_field = "worker_id"
+            elif existing["branch"] == branch:
+                conflicting_field = "branch"
+            elif existing["worktree_path"] == worktree_path:
+                conflicting_field = "worktree_path"
+            raise BranchLeaseConflictError(
+                f"branch lease conflict: {conflicting_field} "
+                f"is already claimed by packet {existing['packet_id']!r}"
+            ) from exc
+        lease = conn.execute(
+            "SELECT * FROM branch_leases WHERE packet_id = ?",
+            (packet_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    if lease is None:
+        raise RuntimeError(
+            f"Branch lease for packet {packet_id!r} was committed "
+            "but is not retrievable"
+        )
+    return dict(lease)
+
+
+def release_branch_lease(
+    lease_id: int,
+    *,
+    packet_id: str,
+    worker_id: str,
+    db_path: Path | None = None,
+) -> None:
+    """Release a branch lease by ID, verifying caller ownership.
+
+    Performs an atomic conditional DELETE (no check-then-delete) requiring
+    the lease_id, packet_id, and worker_id to all match.  Exactly one row
+    must be affected; otherwise the caller either referenced another
+    packet's lease or the lease was already released.
+    """
+    conn = connect(db_path)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        cursor = conn.execute(
+            "DELETE FROM branch_leases "
+            "WHERE lease_id = ? AND packet_id = ? AND worker_id = ?",
+            (lease_id, packet_id, worker_id),
+        )
+        deleted = cursor.rowcount
+        conn.commit()
+        if deleted == 0:
+            raise BranchLeaseConflictError(
+                f"branch lease {lease_id} not found for "
+                f"packet {packet_id!r}, worker {worker_id!r}"
+            )
+        if deleted != 1:
+            raise RuntimeError(
+                f"branch lease DELETE affected {deleted} rows; "
+                "expected exactly 1 — database integrity violation"
+            )
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def verify_branch_lease(
+    packet_id: str,
+    *,
+    db_path: Path | None = None,
+) -> dict[str, Any] | None:
+    """Return the active branch lease for *packet_id*, or ``None`` if absent.
+
+    Used by worker preflight to confirm a lease exists and is valid before
+    any write.
+    """
+    conn = connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT * FROM branch_leases WHERE packet_id = ?",
+            (packet_id,),
+        ).fetchone()
+        return dict(row) if row is not None else None
+    finally:
+        conn.close()
