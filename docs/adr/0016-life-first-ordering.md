@@ -1,3 +1,14 @@
+---
+type: adr
+title: "Life-First Ordering"
+status: accepted
+owner: jacob
+primary_purpose: Life projects outrank code projects in every ranking, brief, and next-step surface
+derives_from:
+  - docs/CONSTITUTION.md
+review_cycle: as needed (superseded by replacement ADR)
+---
+
 # ADR 0016 — Life-First Ordering: Kitty Serves Jacob's Life Before Its Own Development
 
 **Date:** 2026-07-11

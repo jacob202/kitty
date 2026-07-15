@@ -1,3 +1,14 @@
+---
+type: adr
+title: "The Resume Loop Is The Product; Builder Is A Separate Control Plane"
+status: accepted
+owner: jacob
+primary_purpose: Kitty's defining experience is the resume loop; KittyBuilder is a separate system
+derives_from:
+  - docs/CONSTITUTION.md
+review_cycle: as needed (superseded by replacement ADR)
+---
+
 # ADR 0015 — The Resume Loop Is The Product; Builder Is A Separate Control Plane
 
 **Date:** 2026-07-11

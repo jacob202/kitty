@@ -1,3 +1,14 @@
+---
+type: adr
+title: "Magic Kitty: Cross-Project Insight Is The Point, Not A Feature"
+status: accepted
+owner: jacob
+primary_purpose: Cross-project insight is the core value proposition, not an optional feature
+derives_from:
+  - docs/CONSTITUTION.md
+review_cycle: as needed (superseded by replacement ADR)
+---
+
 # ADR-0014: Magic Kitty: Cross-Project Insight Is The Point, Not A Feature
 
 **Status:** Accepted

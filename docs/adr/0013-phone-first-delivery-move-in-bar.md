@@ -1,3 +1,14 @@
+---
+type: adr
+title: "Phone-First Delivery And The Move-In Bar"
+status: accepted
+owner: jacob
+primary_purpose: The phone is the primary delivery surface; the "move-in bar" gates what ships
+derives_from:
+  - docs/CONSTITUTION.md
+review_cycle: as needed (superseded by replacement ADR)
+---
+
 # ADR-0013: Phone-First Delivery And The Move-In Bar
 
 **Status:** Accepted

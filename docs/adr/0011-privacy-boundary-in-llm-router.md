@@ -1,3 +1,14 @@
+---
+type: adr
+title: "Privacy Boundary In The LLM Router"
+status: accepted
+owner: jacob
+primary_purpose: Local triage must fail loud rather than silently escalating to cloud models
+derives_from:
+  - docs/CONSTITUTION.md
+review_cycle: as needed (superseded by replacement ADR)
+---
+
 # ADR-0011: Privacy Boundary In The LLM Router
 
 **Status:** Accepted

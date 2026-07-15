@@ -1,3 +1,14 @@
+---
+type: adr
+title: "Gateway Is The Product"
+status: accepted
+owner: jacob
+primary_purpose: Establish that the FastAPI gateway owns all product logic; clients are thin views
+derives_from:
+  - docs/CONSTITUTION.md
+review_cycle: as needed (superseded by replacement ADR)
+---
+
 # ADR-0003: Gateway Is The Product
 
 **Status:** Accepted

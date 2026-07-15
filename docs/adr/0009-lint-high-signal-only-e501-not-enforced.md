@@ -1,3 +1,14 @@
+---
+type: adr
+title: "Lint Is High-Signal Only; E501 Not Enforced"
+status: accepted
+owner: jacob
+primary_purpose: Limit lint rules to high-signal checks; do not enforce E501 line length
+derives_from:
+  - docs/CONSTITUTION.md
+review_cycle: as needed (superseded by replacement ADR)
+---
+
 # ADR-0009: Lint Is High-Signal Only; E501 Not Enforced
 
 **Status:** Accepted

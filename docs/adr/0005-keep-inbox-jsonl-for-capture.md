@@ -1,3 +1,14 @@
+---
+type: adr
+title: "Keep Inbox JSONL For Capture"
+status: accepted
+owner: jacob
+primary_purpose: Keep the capture inbox as JSONL rather than migrating it to SQLite
+derives_from:
+  - docs/CONSTITUTION.md
+review_cycle: as needed (superseded by replacement ADR)
+---
+
 # ADR-0005: Keep Inbox JSONL For Capture
 
 **Status:** Accepted

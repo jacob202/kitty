@@ -1,3 +1,14 @@
+---
+type: adr
+title: "memory_graph Owns Context Reads"
+status: accepted
+owner: jacob
+primary_purpose: memory_graph is the single unified read path for all context stores
+derives_from:
+  - docs/CONSTITUTION.md
+review_cycle: as needed (superseded by replacement ADR)
+---
+
 # ADR-0004: memory_graph Owns Context Reads
 
 **Status:** Accepted

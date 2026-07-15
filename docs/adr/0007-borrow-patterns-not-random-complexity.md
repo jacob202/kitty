@@ -1,3 +1,14 @@
+---
+type: adr
+title: "Borrow Patterns, Not Random Complexity"
+status: accepted
+owner: jacob
+primary_purpose: Code sniping is encouraged; importing a repo's entire worldview is not
+derives_from:
+  - docs/CONSTITUTION.md
+review_cycle: as needed (superseded by replacement ADR)
+---
+
 # ADR-0007: Borrow Patterns, Not Random Complexity
 
 **Status:** Accepted
