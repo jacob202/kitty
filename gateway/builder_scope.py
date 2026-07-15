@@ -37,6 +37,7 @@ PROTECTED_FILES: frozenset[str] = frozenset(
         "docs/constitution.md",
         "docs/vision.md",
         "docs/index.md",
+        "docs/governance.md",
         "docs/reference_architecture.md",
     }
 )
@@ -75,11 +76,15 @@ def _normalize_allowed_path(raw: str) -> str | None:
     """Return a repo-relative normalized path, or None if it escapes the repo."""
     if not isinstance(raw, str):
         return None
-    cleaned = raw.strip().lstrip("./")
+    cleaned = raw.strip()
     if not cleaned:
+        return None
+    if cleaned.startswith("~"):
         return None
     if cleaned.startswith("/") or cleaned.startswith("\\"):
         return None
+    if cleaned.startswith("./"):
+        cleaned = cleaned[2:]
     if ".." in cleaned.split("/"):
         return None
     return cleaned

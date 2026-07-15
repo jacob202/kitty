@@ -79,6 +79,7 @@ See `docs/GOVERNANCE.md` for ownership, review, deprecation, and amendment rules
 | Subsystem interactions | `docs/architecture/SYSTEM_INTERACTIONS.md` |
 | Knowledge vocabulary | `docs/knowledge/KNOWLEDGE_MODEL.md` |
 | Builder operating model | `docs/builder/BUILDER_OPERATING_MODEL.md` |
+| Builder spec index | `docs/builder/BUILDER_SPECIFICATION_INDEX.md` |
 | Builder packet lifecycle | `docs/builder/BUILDER_PACKET_LIFECYCLE.md` |
 | Builder execution pipeline | `docs/builder/BUILDER_EXECUTION_PIPELINE.md` |
 | Builder event model | `docs/builder/BUILDER_EVENT_MODEL.md` |

@@ -66,6 +66,7 @@ Builder operating model, contracts, and execution standards.
 | Document | Purpose |
 |---|---|
 | [`builder/BUILDER_OPERATING_MODEL.md`](builder/BUILDER_OPERATING_MODEL.md) | How Builder operates as an engineering organization |
+| [`builder/BUILDER_SPECIFICATION_INDEX.md`](builder/BUILDER_SPECIFICATION_INDEX.md) | Which Builder spec owns which concepts |
 | [`builder/BUILDER_PACKET_LIFECYCLE.md`](builder/BUILDER_PACKET_LIFECYCLE.md) | Task/run/attempt state machines |
 | [`builder/BUILDER_EXECUTION_PIPELINE.md`](builder/BUILDER_EXECUTION_PIPELINE.md) | Canonical execution pipeline |
 | [`builder/BUILDER_EVENT_MODEL.md`](builder/BUILDER_EVENT_MODEL.md) | Event model — producers, consumers, payloads |

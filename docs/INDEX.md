@@ -65,6 +65,7 @@ No document may duplicate content that exists in another canonical document. Ref
 | Document | Purpose | Status |
 |---|---|---|
 | `builder/BUILDER_OPERATING_MODEL.md` | Builder as engineering organization | draft |
+| `builder/BUILDER_SPECIFICATION_INDEX.md` | Which Builder spec owns which concepts | canonical |
 | `builder/BUILDER_PACKET_LIFECYCLE.md` | Task/run/attempt state machines | canonical |
 | `builder/BUILDER_EXECUTION_PIPELINE.md` | Canonical execution pipeline with entry/exit criteria | canonical |
 | `builder/BUILDER_EVENT_MODEL.md` | Every event — producer, consumer, payload, guarantees | canonical |

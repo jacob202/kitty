@@ -136,10 +136,6 @@ Failure triggers retry up to `policy.max_attempts`. Crashed attempts are budget-
 
 ## Escalation
 
-Current implementation: no programmatic escalation. When a packet fails or an attempt cannot recover:
+Current implementation: no programmatic escalation. When a packet fails or an attempt cannot recover, the task transitions to `blocked` with a machine-readable reason. The operator (human or KB-S4) decides next action.
 
-- Task transitions to `blocked` with a machine-readable reason
-- Operator (human or KB-S4) decides next action
-- Escalation to architectural decision-making is not automated
-
-Future: the `BUILDER_OPERATING_MODEL.md` defines escalation as "STOP. Collect evidence. Escalate." This maps to a `blocked` task with evidence in the run manifest, awaiting operator judgment.
+The `gateway/builder_scope.py` module provides the escalation contract: `EscalationError` is raised when scope validation fails or architectural judgment is required (Builder Operating Model §4). See `BUILDER_EXECUTION_PIPELINE.md` §2 (Validate Scope) for the pipeline stage that triggers escalation.

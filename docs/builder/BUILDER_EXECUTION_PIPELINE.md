@@ -62,6 +62,7 @@ Complete   Retry (if attempts remain)
 | Entry criteria | Initiative applied and valid (`builder_initiative.apply()`); packet exists in queue with state `queued` |
 | Exit criteria | Packet claimed (`queued` → `claimed`), lease acquired |
 | Implements | `gateway/builder_runner.py` `run_packet()` claim logic |
+| Events produced | `claimed` task event (see `BUILDER_EVENT_MODEL.md` §Task Events) |
 | Inputs | Task ID, lease token |
 | Outputs | Claimed task row, lease expiry |
 
@@ -121,6 +122,7 @@ Complete   Retry (if attempts remain)
 | Implements | `gateway/builder_runner.py` `run_worker()` |
 | Inputs | Worktree path, worker command, env vars (KB_ATTEMPT_ID, KB_BUNDLE_PATH, KB_RESULT_PATH, KB_CONTEXT_MANIFEST_PATH) |
 | Outputs | Implementation result contract at `KB_RESULT_PATH`, run manifest |
+| Events produced | Run state transitions: `starting` → `running` → `exited`/`failed`/`timeout`/`cancelled`/`interrupted`/`lease_lost`/`scope_violation`. See `BUILDER_EVENT_MODEL.md` §Run Events. |
 | Failure mode | Crash → `interrupted`/`lease_lost`; scope violation → `scope_violation` |
 | Invariant | Shadow mode only — no GitHub mutations |
 

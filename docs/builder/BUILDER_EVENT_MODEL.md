@@ -32,6 +32,7 @@ Every event produced by the Builder runtime. Events are stored in the append-onl
 | Field | Value |
 |---|---|
 | Producer | `builder_queue.create_task()` |
+| Pipeline stage | Initiative application (pre-pipeline) |
 | Trigger | Task row inserted |
 | Payload | `{title, description, priority, initiative_id, packet_id, external_id}` |
 | Consumers | Operator CLI (`--brief`), initiative status rollup |
@@ -44,6 +45,7 @@ Every event produced by the Builder runtime. Events are stored in the append-onl
 | Field | Value |
 |---|---|
 | Producer | `builder_queue.claim_task()` |
+| Pipeline stage | Receive Packet (§1) |
 | Trigger | Worker claims task via lease |
 | Payload | `{lease_owner, lease_expires_at}` |
 | Consumers | Operator CLI, lease recovery scan |
@@ -56,6 +58,7 @@ Every event produced by the Builder runtime. Events are stored in the append-onl
 | Field | Value |
 |---|---|
 | Producer | `builder_queue.release_task()` |
+| Pipeline stage | Between repair retries; operator release from blocked |
 | Trigger | Worker releases claim (to `queued`) or operator releases blocked task |
 | Payload | `{reason}` |
 | Consumers | Queue scheduler, initiative status |
@@ -68,6 +71,7 @@ Every event produced by the Builder runtime. Events are stored in the append-onl
 | Field | Value |
 |---|---|
 | Producer | `builder_queue.operator_release_blocked_task()` |
+| Pipeline stage | Post-execution operator action |
 | Trigger | Operator manually releases `blocked` → `queued` |
 | Payload | `{operator, reason}` |
 | Consumers | CLI, initiative status |
@@ -80,6 +84,7 @@ Every event produced by the Builder runtime. Events are stored in the append-onl
 | Field | Value |
 |---|---|
 | Producer | `builder_queue.attach_run_report()` |
+| Pipeline stage | Validate Output / Review (§7-8) — after attempt verdict computed |
 | Trigger | Run report attached to task (worker exit) |
 | Payload | `{attempt_id, attempt_no, exit_code, implementation_status, validation_verdict, review_verdict, failure, evidence}` |
 | Consumers | Operator (`--brief`), initiative evidence rollup |
@@ -113,7 +118,7 @@ Every event produced by the Builder runtime. Events are stored in the append-onl
 
 ### Run Events
 
-Run state transitions are recorded as events with `event_type` equal to the new run state. Each transition appends an event row.
+Run state transitions are recorded as events with `event_type` equal to the new run state. Run events are produced during pipeline stage §6 (Execute Worker). Each transition appends an event row.
 
 | Event Type | Producer | Trigger |
 |---|---|---|

@@ -43,6 +43,7 @@ This document answers one question: **Where does truth live?** Every concept in 
 | Outcome | `docs/knowledge/KNOWLEDGE_MODEL.md` |
 | Reflection | `docs/knowledge/KNOWLEDGE_MODEL.md` |
 | Builder operating model | `docs/builder/BUILDER_OPERATING_MODEL.md` |
+| Builder specification index | `docs/builder/BUILDER_SPECIFICATION_INDEX.md` |
 | Packet lifecycle | `docs/builder/BUILDER_PACKET_LIFECYCLE.md` |
 | Execution pipeline | `docs/builder/BUILDER_EXECUTION_PIPELINE.md` |
 | Builder events | `docs/builder/BUILDER_EVENT_MODEL.md` |
