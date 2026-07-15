@@ -1259,6 +1259,7 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
     from gateway.builder_attempt import AttemptError
     from gateway.builder_loop import LoopError, run_packet
     from gateway.builder_runner import RunnerError
+    from gateway.builder_scope import EscalationError
 
     try:
         worker_command, review_command = _resolve_loop_commands(args)
@@ -1283,6 +1284,11 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
             provider=args.provider,
             timeout_seconds=args.timeout,
         )
+    except EscalationError as exc:
+        # STOP → Escalate → Return Control: surface the structured artifact and
+        # hand control back to the operator without creating any attempt.
+        print(json.dumps(exc.artifact, indent=2), file=sys.stderr)
+        return 1
     except (LoopError, RunnerError, AttemptError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

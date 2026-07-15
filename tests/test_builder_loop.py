@@ -71,6 +71,29 @@ def _apply(db_path: Path, *, max_attempts: int = 2,
     return result["packets"][0]["task_id"]
 
 
+def _apply_protected(db_path: Path) -> str:
+    """Apply a packet whose scope reaches a protected architecture/governance
+    zone. Valid at manifest time; must escalate at execution time."""
+    manifest = {
+        "manifest_version": 1,
+        "initiative_id": INITIATIVE,
+        "title": "Protected scope",
+        "packets": [
+            {
+                "id": PACKET,
+                "title": "Protected packet",
+                "objective": "Edit an ADR.",
+                "acceptance_criteria": ["adr updated"],
+                "allowed_paths": ["docs/adr/0020-x.md"],
+                "policy": {"max_attempts": 2},
+                "validation_commands": ["test -f docs/adr/0020-x.md"],
+            }
+        ],
+    }
+    result = bi.apply_manifest(manifest, db_path=db_path)
+    return result["packets"][0]["task_id"]
+
+
 _GOOD_IMPL = json.dumps(
     {"contract_version": 1, "status": "completed", "summary": "did it"}
 )
@@ -428,6 +451,24 @@ class TestRunPacket:
                 repo_root=repo, db_path=db_path,
             )
 
+    def test_scope_validation_escalates_before_any_attempt(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """A packet whose scope requires architectural judgment escalates and
+        returns control without creating a worktree or attempt."""
+        task_id = _apply_protected(db_path)
+        with pytest.raises(bl.EscalationError):
+            bl.run_packet(
+                INITIATIVE, PACKET,
+                worker_command=_good_worker(tmp_path),
+                repo_root=repo, db_path=db_path,
+            )
+        # No attempt was created; the task is untouched and still queued.
+        assert ba.list_attempts(INITIATIVE, PACKET, db_path=db_path) == []
+        assert bq.get_task(task_id, db_path=db_path)["state"] == bq.QUEUED
+        # No worktree was created.
+        assert not (repo / ".worktrees" / "kittybuilder" / task_id).exists()
+
     def test_runner_error_is_recorded_before_re_raising(
         self, repo: Path, db_path: Path, tmp_path: Path, monkeypatch
     ):
@@ -534,3 +575,28 @@ class TestCli:
             ]
         ) == 0
         assert "manifest" in capsys.readouterr().out
+
+    def test_run_packet_cli_escalates_on_protected_scope(
+        self, repo: Path, db_path: Path, tmp_path: Path, capsys, monkeypatch
+    ):
+        from gateway import builder_loop
+        from gateway.builder_cli import main
+
+        monkeypatch.setattr(bq, "BUILDER_QUEUE_DB", db_path)
+        _apply_protected(db_path)
+        real_run_packet = builder_loop.run_packet
+
+        def patched(*args, **kwargs):
+            kwargs["repo_root"] = repo
+            return real_run_packet(*args, **kwargs)
+
+        monkeypatch.setattr(builder_loop, "run_packet", patched)
+
+        rc = main(
+            ["initiative", "run-packet", INITIATIVE, PACKET,
+             "--worker-command", json.dumps(_good_worker(tmp_path))]
+        )
+        assert rc == 1
+        err = capsys.readouterr().err
+        assert "scope_escalation" in err
+        assert "architectural_judgment_required" in err
