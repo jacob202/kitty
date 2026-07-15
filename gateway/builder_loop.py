@@ -78,6 +78,18 @@ def _text_evidence(value: str) -> dict[str, int | str]:
     return {"sha256": hashlib.sha256(encoded).hexdigest(), "length": len(value)}
 
 
+def _close_attempt_and_release_branch_lease(
+    attempt_id: int,
+    outcome: str,
+    *,
+    packet_id: str,
+    db_path: Path | None = None,
+) -> None:
+    """Close an attempt, then release the packet's claimed branch lease."""
+    ba.close_attempt(attempt_id, outcome, db_path=db_path)
+    ba.release_attempt_branch_lease(packet_id, db_path=db_path)
+
+
 def _validation_evidence(validation: dict[str, Any]) -> dict[str, Any]:
     """Keep validation status and metadata while excluding command output."""
     commands = []
@@ -206,6 +218,7 @@ def _reconcile_stale_attempts(
         write_run_manifest(manifest_path, manifest)
 
         ba.close_attempt(attempt_id, ba.ATTEMPT_CRASHED, db_path=db_path)
+        ba.release_attempt_branch_lease(packet_id, db_path=db_path)
         bq.append_event(
             task_id,
             "infrastructure_failed",
@@ -398,7 +411,12 @@ def run_packet(
             raise LoopError(f"builder preflight failed: {exc}") from exc
 
         try:
-            attempt = ba.start_attempt(initiative_id, packet_id, db_path=db_path)
+            attempt = ba.start_attempt(
+                initiative_id,
+                packet_id,
+                db_path=db_path,
+                repo_root=repo_root,
+            )
         except ba.AttemptLimitError as exc:
             return {
                 "outcome": LOOP_EXHAUSTED,
@@ -408,6 +426,10 @@ def run_packet(
                 "reason": str(exc),
                 "attempts": history,
             }
+        except ba.AttemptError as exc:
+            raise LoopError(
+                f"failed to open attempt for {initiative_id}/{packet_id}: {exc}"
+            ) from exc
 
         # A prior failed attempt's shadow run left the task blocked; hand it
         # back to queued only now that the next attempt is secured, so budget
@@ -510,7 +532,12 @@ def run_packet(
             try:
                 write_run_manifest(manifest_path, manifest)
             finally:
-                ba.close_attempt(attempt_id, ba.ATTEMPT_FAILED, db_path=db_path)
+                _close_attempt_and_release_branch_lease(
+                    attempt_id,
+                    ba.ATTEMPT_FAILED,
+                    packet_id=packet_id,
+                    db_path=db_path,
+                )
             raise
         entry["run_id"] = run["id"]
         entry["run_state"] = run["state"]
@@ -528,7 +555,12 @@ def run_packet(
             manifest["outcome"] = "failed"
             manifest["failure"] = _text_evidence(entry["failure"])
             write_run_manifest(manifest_path, manifest)
-            ba.close_attempt(attempt_id, ba.ATTEMPT_FAILED, db_path=db_path)
+            _close_attempt_and_release_branch_lease(
+                attempt_id,
+                ba.ATTEMPT_FAILED,
+                packet_id=packet_id,
+                db_path=db_path,
+            )
             raise LoopError(entry["failure"]) from exc
         run_report = run.get("final_report") or {}
         manifest["worker_run"] = {
@@ -669,7 +701,12 @@ def run_packet(
         if failure is None:
             manifest["outcome"] = "succeeded"
             write_run_manifest(manifest_path, manifest)
-            ba.close_attempt(attempt_id, ba.ATTEMPT_SUCCEEDED, db_path=db_path)
+            _close_attempt_and_release_branch_lease(
+                attempt_id,
+                ba.ATTEMPT_SUCCEEDED,
+                packet_id=packet_id,
+                db_path=db_path,
+            )
             entry["outcome"] = ba.ATTEMPT_SUCCEEDED
 
             # A worker's done marker is the explicit handoff boundary. Remove
@@ -699,4 +736,9 @@ def run_packet(
         manifest["outcome"] = "failed"
         manifest["failure"] = _text_evidence(failure)
         write_run_manifest(manifest_path, manifest)
-        ba.close_attempt(attempt_id, ba.ATTEMPT_FAILED, db_path=db_path)
+        _close_attempt_and_release_branch_lease(
+            attempt_id,
+            ba.ATTEMPT_FAILED,
+            packet_id=packet_id,
+            db_path=db_path,
+        )

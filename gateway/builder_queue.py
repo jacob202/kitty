@@ -2883,6 +2883,62 @@ def claim_branch_lease(
     return dict(lease)
 
 
+def _claim_branch_lease_on_conn(
+    conn: sqlite3.Connection,
+    packet_id: str,
+    worker_id: str,
+    branch: str,
+    worktree_path: str,
+    base_sha: str,
+) -> sqlite3.Row:
+    """Insert a branch lease using the caller's transaction."""
+    try:
+        conn.execute(
+            """
+            INSERT INTO branch_leases
+                (packet_id, worker_id, branch, worktree_path, base_sha)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (packet_id, worker_id, branch, worktree_path, base_sha),
+        )
+    except sqlite3.IntegrityError as exc:
+        existing = conn.execute(
+            "SELECT packet_id, worker_id, branch, worktree_path "
+            "FROM branch_leases "
+            "WHERE packet_id = ? OR worker_id = ? "
+            "   OR branch = ? OR worktree_path = ?",
+            (packet_id, worker_id, branch, worktree_path),
+        ).fetchone()
+        if existing is None:
+            raise BranchLeaseConflictError(
+                f"branch lease conflict for packet {packet_id!r}"
+            ) from exc
+        conflicting_field = "unknown"
+        if existing["packet_id"] == packet_id:
+            conflicting_field = "packet_id"
+        elif existing["worker_id"] == worker_id:
+            conflicting_field = "worker_id"
+        elif existing["branch"] == branch:
+            conflicting_field = "branch"
+        elif existing["worktree_path"] == worktree_path:
+            conflicting_field = "worktree_path"
+        raise BranchLeaseConflictError(
+            f"branch lease conflict: {conflicting_field} "
+            f"is already claimed by packet {existing['packet_id']!r}"
+        ) from exc
+
+    lease = conn.execute(
+        "SELECT * FROM branch_leases WHERE packet_id = ?",
+        (packet_id,),
+    ).fetchone()
+    if lease is None:
+        raise RuntimeError(
+            f"Branch lease for packet {packet_id!r} was committed "
+            "but is not retrievable"
+        )
+    return lease
+
+
 def release_branch_lease(
     lease_id: int,
     *,

@@ -82,8 +82,8 @@ def _apply_protected(db_path: Path) -> str:
             {
                 "id": PACKET,
                 "title": "Protected packet",
-                "objective": "Edit an ADR.",
-                "acceptance_criteria": ["adr updated"],
+                "objective": "Improve the docs around protected scope.",
+                "acceptance_criteria": ["docs updated"],
                 "allowed_paths": ["docs/adr/0020-x.md"],
                 "policy": {"max_attempts": 2},
                 "validation_commands": ["test -f docs/adr/0020-x.md"],
@@ -171,9 +171,14 @@ class TestRunPacket:
         task_id = _apply(db_path)
         # Simulate a stale attempt: open one, close it already crashed with budget
         # exclusion, then open another and leave it in flight (outcome IS NULL).
-        first = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+        first = ba.start_attempt(
+            INITIATIVE, PACKET, db_path=db_path, repo_root=repo
+        )
         ba.close_attempt(first["id"], ba.ATTEMPT_FAILED, db_path=db_path)
-        stale = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+        ba.release_attempt_branch_lease(PACKET, db_path=db_path)
+        stale = ba.start_attempt(
+            INITIATIVE, PACKET, db_path=db_path, repo_root=repo
+        )
 
         # Now run_packet should reconcile the stale attempt before proceeding.
         result = bl.run_packet(
@@ -278,6 +283,7 @@ class TestRunPacket:
         assert attempt["review"]["verdict"] == "approve"
         # Shadow mode: the task ends blocked for the operator/KB-S4.
         assert bq.get_task(task_id, db_path=db_path)["state"] == bq.BLOCKED
+        assert bq.verify_branch_lease(PACKET, db_path=db_path) is None
 
     def test_validation_only_when_no_reviewer(
         self, repo: Path, db_path: Path, tmp_path: Path
@@ -358,6 +364,7 @@ class TestRunPacket:
         assert "2/2" in result["reason"]
         assert [e["outcome"] for e in result["attempts"]] == ["failed", "failed"]
         assert bq.get_task(task_id, db_path=db_path)["state"] == bq.BLOCKED
+        assert bq.verify_branch_lease(PACKET, db_path=db_path) is None
 
     def test_missing_result_file_fails_attempt(
         self, repo: Path, db_path: Path, tmp_path: Path

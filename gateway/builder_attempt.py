@@ -329,6 +329,22 @@ def build_context_bundle(
         conn.close()
 
 
+def _repo_head_sha(repo_root: Path) -> str:
+    """Return HEAD for a git repo or raise a loud attempt error."""
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or "no output"
+        raise AttemptError(
+            f"failed to read HEAD for branch lease claim in {repo_root}: {detail}"
+        )
+    return result.stdout.strip()
+
+
 # ---------------------------------------------------------------------------
 # Stale attempt detection
 # ---------------------------------------------------------------------------
@@ -411,12 +427,19 @@ def _row_to_attempt(row: sqlite3.Row) -> dict[str, Any]:
 
 
 def start_attempt(
-    initiative_id: str, packet_id: str, db_path: Path | None = None
+    initiative_id: str,
+    packet_id: str,
+    db_path: Path | None = None,
+    *,
+    repo_root: Path | None = None,
 ) -> dict[str, Any]:
     """Open attempt N+1 for a packet, persisting its context bundle.
 
     Refuses when a prior attempt is still open (one attempt at a time) or the
     packet's ``policy.max_attempts`` budget (default 2) is exhausted.
+    When ``repo_root`` is provided, the attempt also claims the packet's
+    branch lease inside the same transaction so the lease and attempt cannot
+    diverge.
     """
     init_db(db_path)
     conn = bq.connect(db_path)
@@ -449,6 +472,27 @@ def start_attempt(
                 f"{max_attempts} attempts; operator intervention required"
             )
 
+        if repo_root is not None:
+            try:
+                repo_root = Path(repo_root).expanduser().resolve()
+                branch = f"kittybuilder/{packet['task_id']}"
+                worktree_path = str(
+                    repo_root / ".worktrees" / "kittybuilder" / packet["task_id"]
+                )
+                base_sha = _repo_head_sha(repo_root)
+                bq._claim_branch_lease_on_conn(
+                    conn,
+                    packet_id,
+                    packet["task_id"],
+                    branch,
+                    worktree_path,
+                    base_sha,
+                )
+            except bq.BranchLeaseConflictError as exc:
+                raise AttemptError(
+                    f"branch lease claim failed for {initiative_id}/{packet_id}: {exc}"
+                ) from exc
+
         attempt_no = used + 1
         bundle = _build_bundle_on_conn(conn, packet, attempt_no)
         cursor = conn.execute(
@@ -480,6 +524,32 @@ def start_attempt(
     except Exception:
         conn.rollback()
         raise
+    finally:
+        conn.close()
+
+
+def release_attempt_branch_lease(
+    packet_id: str, db_path: Path | None = None
+) -> None:
+    """Release the branch lease claimed for a packet attempt."""
+    init_db(db_path)
+    conn = bq.connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT lease_id, worker_id FROM branch_leases WHERE packet_id = ?",
+            (packet_id,),
+        ).fetchone()
+        if row is None:
+            raise AttemptError(
+                f"no branch lease exists for packet {packet_id!r}; "
+                "cannot release"
+            )
+        bq.release_branch_lease(
+            row["lease_id"],
+            packet_id=packet_id,
+            worker_id=row["worker_id"],
+            db_path=db_path,
+        )
     finally:
         conn.close()
 

@@ -8,6 +8,7 @@ preserve prior-attempt digests, and the CLI surface.
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -57,6 +58,19 @@ def db_path(tmp_path: Path) -> Path:
     ba.init_db(p)
     bi.apply_manifest(_manifest(), db_path=p)
     return p
+
+
+@pytest.fixture
+def repo(tmp_path: Path) -> Path:
+    root = tmp_path / "repo"
+    root.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=root, check=True)
+    (root / "README.md").write_text("hello\n")
+    subprocess.run(["git", "add", "."], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=root, check=True)
+    return root
 
 
 def _impl(**overrides) -> dict:
@@ -171,6 +185,22 @@ class TestAttemptLifecycle:
         assert bundle["allowed_paths"] == ["gateway/a.py"]
         assert bundle["prior_attempts"] == []
         assert bundle["task_id"] == attempt["task_id"]
+
+    def test_start_claims_branch_lease_when_repo_root_is_provided(
+        self, repo: Path, db_path: Path
+    ):
+        attempt = ba.start_attempt(
+            INITIATIVE, PACKET, db_path=db_path, repo_root=repo
+        )
+        lease = bq.verify_branch_lease(PACKET, db_path=db_path)
+        assert lease is not None
+        assert lease["packet_id"] == PACKET
+        assert lease["worker_id"] == attempt["task_id"]
+        assert lease["branch"] == f"kittybuilder/{attempt['task_id']}"
+
+        ba.close_attempt(attempt["id"], ba.ATTEMPT_FAILED, db_path=db_path)
+        ba.release_attempt_branch_lease(PACKET, db_path=db_path)
+        assert bq.verify_branch_lease(PACKET, db_path=db_path) is None
 
     def test_unknown_packet_rejected(self, db_path: Path):
         with pytest.raises(ba.AttemptError, match="unknown packet"):
