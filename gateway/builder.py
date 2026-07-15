@@ -25,9 +25,7 @@ import sqlite3
 import time
 import uuid
 from pathlib import Path
-from typing import Any
 
-from gateway import llm_client
 from gateway.paths import BUILDS_DB, DATA_DIR
 
 logger = logging.getLogger("kitty.builder")
