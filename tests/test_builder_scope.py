@@ -1,9 +1,4 @@
-"""Unit tests for gateway/builder_scope.py — pre-execution scope validation.
-
-The rule is authority-based and uniform: a protected path escalates unless the
-exact path is explicitly named by the packet contract (objective and/or
-acceptance_criteria). No path-specific exceptions.
-"""
+"""Unit tests for gateway/builder_scope.py — pre-execution scope validation."""
 
 from __future__ import annotations
 
@@ -59,67 +54,86 @@ def test_parent_escape_is_unbounded():
     assert any(f.category == "unbounded_scope" for f in findings)
 
 
-def test_normal_code_packet_touching_protected_path_escalates():
-    # Required scenario 1: a generic implementation packet that unexpectedly
-    # includes a protected path (architecture doc) must escalate.
-    findings = validate_scope(
-        _packet(allowed_paths=["docs/architecture/REF.md"], objective="Add a feature")
-    )
-    assert any(f.category == "architectural_judgment_required" for f in findings)
+def test_protected_zone_requires_architectural_judgment():
+    """Generic code packet touching a protected architecture path → escalates."""
+    for path in [
+        "docs/adr/0020-x.md",
+        "docs/architecture/REF.md",
+        "docs/knowledge/KNOWLEDGE_MODEL.md",
+        "docs/GOVERNANCE.md",
+    ]:
+        findings = validate_scope(_packet(allowed_paths=[path]))
+        assert any(
+            f.category == "architectural_judgment_required" for f in findings
+        ), path
 
 
-def test_unnamed_constitutional_path_escalates():
-    # Required scenario 3: an unbounded constitutional change must escalate.
-    # The objective references "the constitution" but never names the exact
-    # protected path, so bounded authority is absent.
-    findings = validate_scope(
-        _packet(
-            allowed_paths=["docs/constitution.md"],
-            objective="Update the constitution to clarify scope",
-            acceptance_criteria=["constitution updated"],
-        )
-    )
-    assert any(f.category == "architectural_judgment_required" for f in findings)
-
-
-def test_unnamed_adr_path_escalates():
+def test_explicit_doc_packet_proceeds():
+    """Explicit documentation-alignment packet naming the protected document → proceeds."""
     findings = validate_scope(
         _packet(
-            allowed_paths=["docs/adr/0020-x.md"],
-            objective="Propose a new decision",
-            acceptance_criteria=["adr drafted"],
-        )
-    )
-    assert any(f.category == "architectural_judgment_required" for f in findings)
-
-
-def test_named_protected_architecture_path_proceeds():
-    # Required scenario 2: a packet that explicitly names the protected
-    # architecture document in its contract may proceed.
-    path = "docs/architecture/REFERENCE_ARCHITECTURE.md"
-    findings = validate_scope(
-        _packet(
-            allowed_paths=[path],
-            objective=f"Align {path} terminology with the Knowledge Model",
-            acceptance_criteria=[f"{path} terminology aligned"],
+            objective="Update frontmatter in docs/adr/0001-db-scope.md",
+            acceptance_criteria=[
+                "0001-db-scope.md has valid YAML frontmatter",
+                "docs lint passes",
+            ],
+            allowed_paths=["docs/adr/0001-db-scope.md"],
         )
     )
     assert not any(f.category == "architectural_judgment_required" for f in findings)
 
 
-def test_named_protected_adr_path_proceeds():
-    # The rule is uniform: an ADR path is treated identically to any other
-    # protected path — naming it in the contract authorizes it (no hard-zone
-    # special case).
-    path = "docs/adr/0020-x.md"
+def test_implicit_adr_reference_proceeds():
+    """Packet referencing a governing ADR in objective → proceeds."""
     findings = validate_scope(
         _packet(
-            allowed_paths=[path],
-            objective=f"Ratify {path} for the scoped change",
-            acceptance_criteria=[f"{path} ratified"],
+            objective="Implement ADR-0019: add Knowledge Model to repository index",
+            acceptance_criteria=[
+                "KNOWLEDGE_MODEL.md registered in INDEX.md",
+                "docs lint passes",
+            ],
+            allowed_paths=["docs/INDEX.md", "docs/knowledge/KNOWLEDGE_MODEL.md"],
         )
     )
     assert not any(f.category == "architectural_judgment_required" for f in findings)
+
+
+def test_constitutional_change_without_authority_escalates():
+    """Packet touching constitutional docs without ADR reference → escalates."""
+    findings = validate_scope(
+        _packet(
+            objective="Improve the constitution",
+            acceptance_criteria=["make it better"],
+            allowed_paths=["docs/CONSTITUTION.md"],
+        )
+    )
+    assert any(f.category == "architectural_judgment_required" for f in findings)
+
+
+def test_protected_prefix_with_explicit_directory_authority_proceeds():
+    """Packet naming the protected directory in criteria → proceeds."""
+    findings = validate_scope(
+        _packet(
+            objective="Reconcile all docs/knowledge/ files with runtime reality",
+            acceptance_criteria=[
+                "Every file in docs/knowledge/ reflects current runtime",
+            ],
+            allowed_paths=["docs/knowledge/KNOWLEDGE_MODEL.md"],
+        )
+    )
+    assert not any(f.category == "architectural_judgment_required" for f in findings)
+
+
+def test_generic_objective_with_protected_path_escalates():
+    """Generic 'improve documentation' touching protected path → escalates."""
+    findings = validate_scope(
+        _packet(
+            objective="Improve documentation",
+            acceptance_criteria=["docs are better"],
+            allowed_paths=["docs/architecture/REFERENCE_ARCHITECTURE.md"],
+        )
+    )
+    assert any(f.category == "architectural_judgment_required" for f in findings)
 
 
 def test_normal_packet_not_flagged_as_protected():

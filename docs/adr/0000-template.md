@@ -1,3 +1,14 @@
+---
+type: adr
+title: "<Title>"
+status: accepted
+owner: jacob
+primary_purpose: 
+derives_from:
+  - docs/CONSTITUTION.md
+review_cycle: as needed (superseded by replacement ADR)
+---
+
 # ADR-NNNN: <Title>
 
 **Status:** Accepted | Superseded by ADR-XXXX

@@ -1,3 +1,14 @@
+---
+type: adr
+title: "db.py is the SQLite seam for app-state stores only"
+status: accepted
+owner: jacob
+primary_purpose: Decide the scope and role of gateway/db.py as the single SQLite seam for app-state stores
+derives_from:
+  - docs/CONSTITUTION.md
+review_cycle: as needed (superseded by replacement ADR)
+---
+
 # ADR-0001: db.py is the SQLite seam for app-state stores only
 
 **Date:** 2026-07-02

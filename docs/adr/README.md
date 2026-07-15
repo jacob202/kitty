@@ -1,3 +1,14 @@
+---
+type: index
+title: "Architecture Decision Records"
+status: canonical
+owner: jacob
+primary_purpose: Index of all ADRs — one decision per file, numbered sequentially
+derives_from:
+  - docs/CONSTITUTION.md
+review_cycle: as needed (updated when ADRs are added or superseded)
+---
+
 # Architecture Decision Records
 
 This directory holds the project's ADRs — one decision per file,
@@ -27,5 +38,8 @@ Use [`0000-template.md`](0000-template.md) when adding a new ADR.
 | 0014 | [Magic Kitty: Cross-Project Insight](0014-magic-kitty-cross-project-insight.md)                | Accepted | 2026-07-05 |
 | 0015 | [The Resume Loop Is The Product; Builder Boundary](0015-resume-loop-and-builder-boundary.md)   | Accepted | 2026-07-11 |
 | 0016 | [Life-First Ordering](0016-life-first-ordering.md)                                             | Accepted | 2026-07-11 |
+| 0017 | [Kitty Is an Engineering Operating System](0017-kitty-is-engineering-operating-system.md)       | Accepted | 2026-07-14 |
+| 0018 | [Documentation Is Architecture; Repository Governance Foundation](0018-documentation-as-architecture.md) | Accepted | 2026-07-14 |
+| 0019 | [Knowledge Model Is a Foundational Prerequisite](0019-knowledge-model-prerequisite.md)          | Accepted | 2026-07-14 |
 
 Historical decision detail remains in [`docs/retired/DECISIONS_AND_ROADMAP.md`](../retired/DECISIONS_AND_ROADMAP.md).

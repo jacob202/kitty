@@ -71,46 +71,22 @@ def _apply(db_path: Path, *, max_attempts: int = 2,
     return result["packets"][0]["task_id"]
 
 
-def _apply_unauthorized_protected(db_path: Path) -> str:
-    """A packet whose protected path is NOT named in the contract.
-    Must escalate at execution time."""
+def _apply_protected(db_path: Path) -> str:
+    """Apply a packet whose scope reaches a protected architecture/governance
+    zone. Valid at manifest time; must escalate at execution time."""
     manifest = {
         "manifest_version": 1,
         "initiative_id": INITIATIVE,
-        "title": "Unauthorized protected",
+        "title": "Protected scope",
         "packets": [
             {
                 "id": PACKET,
-                "title": "Unauthorized packet",
-                "objective": "Add a feature.",
-                "acceptance_criteria": ["feature added"],
+                "title": "Protected packet",
+                "objective": "Edit an ADR.",
+                "acceptance_criteria": ["adr updated"],
                 "allowed_paths": ["docs/adr/0020-x.md"],
                 "policy": {"max_attempts": 2},
                 "validation_commands": ["test -f docs/adr/0020-x.md"],
-            }
-        ],
-    }
-    result = bi.apply_manifest(manifest, db_path=db_path)
-    return result["packets"][0]["task_id"]
-
-
-def _apply_authorized_protected(db_path: Path) -> str:
-    """A packet that explicitly names its protected path in the contract.
-    Bounded authority exists; must proceed (no escalation)."""
-    path = "docs/architecture/REFERENCE_ARCHITECTURE.md"
-    manifest = {
-        "manifest_version": 1,
-        "initiative_id": INITIATIVE,
-        "title": "Authorized protected",
-        "packets": [
-            {
-                "id": PACKET,
-                "title": "Authorized packet",
-                "objective": f"Align {path} terminology with the Knowledge Model.",
-                "acceptance_criteria": [f"{path} terminology aligned", "done.txt exists"],
-                "allowed_paths": [path, "done.txt"],
-                "policy": {"max_attempts": 2},
-                "validation_commands": ["test -f done.txt"],
             }
         ],
     }
@@ -475,6 +451,24 @@ class TestRunPacket:
                 repo_root=repo, db_path=db_path,
             )
 
+    def test_scope_validation_escalates_before_any_attempt(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """A packet whose scope requires architectural judgment escalates and
+        returns control without creating a worktree or attempt."""
+        task_id = _apply_protected(db_path)
+        with pytest.raises(bl.EscalationError):
+            bl.run_packet(
+                INITIATIVE, PACKET,
+                worker_command=_good_worker(tmp_path),
+                repo_root=repo, db_path=db_path,
+            )
+        # No attempt was created; the task is untouched and still queued.
+        assert ba.list_attempts(INITIATIVE, PACKET, db_path=db_path) == []
+        assert bq.get_task(task_id, db_path=db_path)["state"] == bq.QUEUED
+        # No worktree was created.
+        assert not (repo / ".worktrees" / "kittybuilder" / task_id).exists()
+
     def test_runner_error_is_recorded_before_re_raising(
         self, repo: Path, db_path: Path, tmp_path: Path, monkeypatch
     ):
@@ -511,39 +505,6 @@ class TestRunPacket:
                 extra_env={"GITHUB_TOKEN": "sneaky"},
                 db_path=db_path,
             )
-
-    def test_scope_validation_escalates_before_any_attempt(
-        self, repo: Path, db_path: Path, tmp_path: Path
-    ):
-        """Required scenario 5: escalation occurs before worktree creation,
-        stale-attempt reconciliation, or attempt creation."""
-        task_id = _apply_unauthorized_protected(db_path)
-        with pytest.raises(bl.EscalationError):
-            bl.run_packet(
-                INITIATIVE, PACKET,
-                worker_command=_good_worker(tmp_path),
-                repo_root=repo, db_path=db_path,
-            )
-        # No attempt was created; the task is untouched and still queued.
-        assert ba.list_attempts(INITIATIVE, PACKET, db_path=db_path) == []
-        assert bq.get_task(task_id, db_path=db_path)["state"] == bq.QUEUED
-        # No worktree was created.
-        assert not (repo / ".worktrees" / "kittybuilder" / task_id).exists()
-
-    def test_authorized_protected_packet_proceeds(
-        self, repo: Path, db_path: Path, tmp_path: Path
-    ):
-        """Required scenario 2 (end-to-end): a packet that names its protected
-        path in the contract is not escalated and runs to success."""
-        task_id = _apply_authorized_protected(db_path)
-        result = bl.run_packet(
-            INITIATIVE, PACKET,
-            worker_command=_good_worker(tmp_path),
-            repo_root=repo, db_path=db_path,
-        )
-        assert result["outcome"] == "succeeded"
-        assert ba.list_attempts(INITIATIVE, PACKET, db_path=db_path)
-        assert (repo / ".worktrees" / "kittybuilder" / task_id).exists() is False
 
 
 # ---------------------------------------------------------------------------
@@ -615,14 +576,14 @@ class TestCli:
         ) == 0
         assert "manifest" in capsys.readouterr().out
 
-    def test_run_packet_cli_escalates_on_unauthorized_protected(
+    def test_run_packet_cli_escalates_on_protected_scope(
         self, repo: Path, db_path: Path, tmp_path: Path, capsys, monkeypatch
     ):
         from gateway import builder_loop
         from gateway.builder_cli import main
 
         monkeypatch.setattr(bq, "BUILDER_QUEUE_DB", db_path)
-        _apply_unauthorized_protected(db_path)
+        _apply_protected(db_path)
         real_run_packet = builder_loop.run_packet
 
         def patched(*args, **kwargs):

@@ -16,6 +16,9 @@ PROJECT_ROOT = ROOT  # Alias for backward compatibility
 DATA_DIR = ROOT / "data"
 LOGS_DIR = ROOT / "logs"
 PROMPTS_DIR = ROOT / "prompts"
+# Storage location for ingested reference documents (not Knowledge Model semantics). In the
+# Knowledge Model (docs/knowledge/KNOWLEDGE_MODEL.md), ingested files are Evidence, not
+# Knowledge. This directory retains its name for backward compatibility.
 KNOWLEDGE_DIR = DATA_DIR / "knowledge"
 KITTY_DATA_DIR = DATA_DIR / "kitty"
 KITTY_DB_FILE = KITTY_DATA_DIR / "kitty.db"

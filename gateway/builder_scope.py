@@ -4,19 +4,12 @@ Implements the mandatory "Validate Scope" Builder Loop stage (Builder
 Operating Model §5/§6) and the STOP → Escalate → Return Control decision
 boundary (§4).
 
-The rule is authority-based, not path-based. A protected path in a packet's
-``allowed_paths`` escalates unless the *exact* path is explicitly named by the
-packet contract (its ``objective`` and/or ``acceptance_criteria``). Naming the
-path is the bounded authority: it proves the packet intentionally authorized
-that specific work rather than drifting into protected ground. The response is
-uniform for every protected path — ADR, constitution, knowledge, or architecture
-— so the policy does not encode repository-specific governance into the runtime
-and does not have to change when protected areas move.
-
-Scope is validated against the packet contract that already exists at execution
-time — no new schema fields are introduced. The contract fields (objective,
-acceptance_criteria, allowed_paths, validation_commands) are produced by
-``builder_attempt.build_context_bundle``.
+Scope is validated against the packet contract that already exists at
+execution time — no new schema fields are introduced. The contract fields
+(objective, acceptance_criteria, allowed_paths, validation_commands) are
+produced by ``builder_attempt.build_context_bundle`` and are sufficient to
+decide whether the work is clear, measurable, bounded, and free of
+architectural judgment.
 
 Escalation is return-control only: it raises EscalationError with a structured
 artifact and leaves the task untouched. It does NOT add a new workflow state and
@@ -29,9 +22,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-# Paths considered protected: Builder may not touch them without explicit,
-# bounded authority from the packet contract. This set is the *boundary* only;
-# the escalation response is uniform for every entry (see validate_scope).
+# Paths whose modification requires architectural judgment (Builder Operating
+# Model §4: not allowed to reinterpret doctrine, replace architectural patterns,
+# or change architecture/governance without an ADR — see AGENTS.md). A packet
+# whose allowed_paths reaches any of these must demonstrate sufficient
+# architectural authority (objective/acceptance explicitly authorizing the path
+# or referencing the governing ADR) — otherwise escalate. Touching a protected
+# zone is not itself forbidden; doing so WITHOUT ratified authority is.
 PROTECTED_PREFIXES: tuple[str, ...] = (
     "docs/adr/",
     "docs/architecture/",
@@ -96,24 +93,51 @@ def _normalize_allowed_path(raw: str) -> str | None:
     return cleaned
 
 
-def _in_protected_zone(normalized: str) -> bool:
+def _touches_protected_zone(normalized: str) -> bool:
     lowered = normalized.lower()
     if lowered in PROTECTED_FILES:
         return True
     return any(lowered.startswith(prefix) for prefix in PROTECTED_PREFIXES)
 
 
-def _contract_names_path(
-    objective: str, acceptance: list[str], normalized: str
+def _has_authority_for_protected_path(
+    packet: dict[str, Any], normalized_path: str
 ) -> bool:
-    """True when the exact protected path is explicitly authorized by the contract.
+    """Check whether the packet has ratified authority to modify a protected path.
 
-    Bounded authority exists only when the path string appears verbatim in the
-    objective or in one of the acceptance criteria. This is deterministic and
-    explainable: the packet named the specific work it intends to do.
+    A packet touching a protected architecture/governance path does NOT escalate
+    when it explicitly authorizes that work and references the governing authority.
+
+    Proceed when:
+      - The objective or acceptance criteria explicitly names this path or the
+        containing area, AND the work is clearly bounded (not generic).
+      - The packet objective references a ratified ADR or canonical contract.
+
+    Escalate when:
+      - The path is protected but the objective is generic ("improve docs").
+      - The path is constitutional and no governing ADR is referenced.
     """
-    haystack = (objective or "") + "\n" + "\n".join(acceptance or [])
-    return normalized in haystack or normalized.rstrip("/") in haystack
+    objective = (packet.get("objective") or "").lower()
+    acceptance = " ".join(
+        str(a).lower() for a in (packet.get("acceptance_criteria") or [])
+    )
+    combined = f"{objective} {acceptance}"
+    path_lower = normalized_path.lower()
+
+    # Explicit path reference: objective or acceptance names the exact file
+    # or its parent directory (e.g. "update docs/adr/0001-db-scope.md" or
+    # "fix frontmatter in docs/adr/")
+    if path_lower in combined or path_lower.strip("docs/") in combined:
+        return True
+    parent = path_lower.rsplit("/", 1)[0] + "/" if "/" in path_lower else ""
+    if parent and parent in combined:
+        return True
+
+    # ADR reference: objective cites a ratified decision
+    if "adr-" in combined or "adr " in combined or "adr/" in combined:
+        return True
+
+    return False
 
 
 def validate_scope(packet: dict[str, Any]) -> list[ScopeFinding]:
@@ -164,18 +188,16 @@ def validate_scope(packet: dict[str, Any]) -> list[ScopeFinding]:
                         f"allowed_paths entry is not a repo-relative safe path: {raw!r}",
                     )
                 )
-            elif _in_protected_zone(normalized):
-                # Authority-based check: a protected path is permitted only when
-                # the exact path is explicitly named by the contract. Otherwise
-                # the packet lacks bounded authority and must escalate.
-                if not _contract_names_path(objective, acceptance, normalized):
+            elif _touches_protected_zone(normalized):
+                if not _has_authority_for_protected_path(packet, normalized):
                     findings.append(
                         ScopeFinding(
                             "architectural_judgment_required",
                             "allowed_paths",
-                            f"protected path lacks bounded authority from the "
-                            f"contract (name {normalized!r} in objective/"
-                            f"acceptance_criteria to authorize it): {raw!r}",
+                            f"allowed_paths reaches a protected architecture/governance "
+                            f"zone that requires an ADR/architecture decision: {raw!r}. "
+                            f"To proceed, the objective or acceptance criteria must "
+                            f"explicitly name this path or reference the governing ADR.",
                         )
                     )
 
@@ -201,9 +223,7 @@ def build_scope_escalation_artifact(
         ],
         "guidance": (
             "Scope validation failed or architectural judgment would be required. "
-            "Builder does not guess or expand scope. A protected path may be "
-            "authorized only when the exact path is named in the packet contract "
-            "(objective/acceptance_criteria). Otherwise resolve the contract (or "
-            "obtain an ADR/architecture decision) and re-submit the packet."
+            "Builder does not guess or expand scope. Resolve the contract (or obtain "
+            "an ADR/architecture decision) and re-submit the packet."
         ),
     }

@@ -17,6 +17,8 @@ logger = logging.getLogger("kitty.search")
 
 SECTION_TO_KIND = {
     "memories": "memory",
+    # NOTE: "knowledge" here is a search category for ChromaDB-stored documents, not the
+    # Knowledge Model semantic level. See docs/knowledge/KNOWLEDGE_MODEL.md.
     "knowledge": "knowledge",
     "journal": "journal",
     "todos": "todo",

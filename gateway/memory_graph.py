@@ -51,6 +51,9 @@ class Source(str, Enum):
     value is what callers see in :attr:`Item.source`."""
 
     MEMORY = "memory"
+    # NOTE: "knowledge" here is a search index category tied to ChromaDB storage, not the
+    # Knowledge Model semantic level. In the Knowledge Model (docs/knowledge/KNOWLEDGE_MODEL.md),
+    # a stored file is Evidence; Knowledge is a reviewed, durable truth claim.
     KNOWLEDGE = "knowledge"
     JOURNAL = "journal"
     TRACES = "traces"
