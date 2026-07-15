@@ -36,6 +36,70 @@ from gateway import builder_queue as bq
 
 MANIFEST_VERSION = 1
 
+
+def _initiative_event_task_id(
+    conn: sqlite3.Connection, initiative_id: str
+) -> str:
+    """Return the first packet task used to anchor initiative-level events."""
+    row = conn.execute(
+        """
+        SELECT task_id FROM initiative_packets
+        WHERE initiative_id = ?
+        ORDER BY seq
+        LIMIT 1
+        """,
+        (initiative_id,),
+    ).fetchone()
+    if row is None:
+        raise bq.DataCorruptionError(
+            f"initiative {initiative_id!r} has no packet task for event storage"
+        )
+    return str(row["task_id"])
+
+
+def _emit_initiative_applied_event(
+    conn: sqlite3.Connection,
+    initiative_id: str,
+    mappings: list[dict[str, str]],
+) -> None:
+    """Append the durable apply event inside the manifest transaction."""
+    if not mappings:
+        raise bq.DataCorruptionError(
+            f"initiative {initiative_id!r} applied without packet mappings"
+        )
+    bq.append_event(
+        mappings[0]["task_id"],
+        "initiative_applied",
+        payload={
+            "initiative_id": initiative_id,
+            "packet_count": len(mappings),
+            "packet_ids": [mapping["packet_id"] for mapping in mappings],
+        },
+        conn=conn,
+    )
+
+
+def _emit_initiative_status_changed_event(
+    conn: sqlite3.Connection,
+    initiative_id: str,
+    previous_state: str,
+    new_state: str,
+    reason: str | None,
+) -> None:
+    """Append a state-transition event using the initiative's first task."""
+    bq.append_event(
+        _initiative_event_task_id(conn, initiative_id),
+        "initiative_status_changed",
+        payload={
+            "initiative_id": initiative_id,
+            "previous_state": previous_state,
+            "new_state": new_state,
+            "reason": reason,
+        },
+        conn=conn,
+    )
+
+
 # Initiative states. KB-S1A only creates 'active'. KB-S1B adds the read-only
 # rollup states below, derived from per-packet task state — never by writing
 # task rows. Completion/pause *transitions* remain owned by later packets.
@@ -517,6 +581,7 @@ def apply_manifest(
                 ),
             )
             mappings.append({"packet_id": packet["id"], "task_id": task["id"]})
+        _emit_initiative_applied_event(conn, initiative_id, mappings)
         conn.commit()
     except Exception:
         conn.rollback()
@@ -1104,9 +1169,13 @@ def get_initiative_state(
 
 
 def set_initiative_state(
-    initiative_id: str, state: str, db_path: Path | None = None
+    initiative_id: str,
+    state: str,
+    db_path: Path | None = None,
+    *,
+    reason: str | None = None,
 ) -> None:
-    """Persist an operator-set initiative ``state``. Validates the value."""
+    """Persist an operator-set initiative state and its transition event."""
     if state not in _VALID_STATES:
         raise ValueError(
             f"invalid initiative state {state!r}; expected one of "
@@ -1116,16 +1185,26 @@ def set_initiative_state(
     conn = bq.connect(db_path)
     try:
         row = conn.execute(
-            "SELECT 1 FROM initiatives WHERE id = ?", (initiative_id,)
+            "SELECT state FROM initiatives WHERE id = ?", (initiative_id,)
         ).fetchone()
         if row is None:
             raise InitiativeNotFoundError(initiative_id)
+        previous_state = str(row["state"])
+        event_reason = reason.strip() if reason and reason.strip() else None
+        pause_reason = event_reason if state == INITIATIVE_PAUSED else None
+        if state == INITIATIVE_PAUSED and pause_reason is None:
+            pause_reason = "operator state"
+            event_reason = pause_reason
         conn.execute(
             "UPDATE initiatives SET state = ?, pause_reason = ?, "
             "updated_at = CURRENT_TIMESTAMP "
             "WHERE id = ?",
-            (state, None if state != INITIATIVE_PAUSED else "operator state", initiative_id),
+            (state, pause_reason, initiative_id),
         )
+        if previous_state != state:
+            _emit_initiative_status_changed_event(
+                conn, initiative_id, previous_state, state, event_reason
+            )
         conn.commit()
     finally:
         conn.close()
@@ -1141,22 +1220,12 @@ def pause_initiative(
     """
     if not reason or not reason.strip():
         reason = "operator pause"
-    init_db(db_path)
-    conn = bq.connect(db_path)
-    try:
-        row = conn.execute(
-            "SELECT 1 FROM initiatives WHERE id = ?", (initiative_id,)
-        ).fetchone()
-        if row is None:
-            raise InitiativeNotFoundError(initiative_id)
-        conn.execute(
-            "UPDATE initiatives SET state = ?, pause_reason = ?, "
-            "updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-            (INITIATIVE_PAUSED, reason, initiative_id),
-        )
-        conn.commit()
-    finally:
-        conn.close()
+    set_initiative_state(
+        initiative_id,
+        INITIATIVE_PAUSED,
+        reason=reason,
+        db_path=db_path,
+    )
 
 
 def resume_initiative(

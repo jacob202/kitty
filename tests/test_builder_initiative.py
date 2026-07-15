@@ -782,3 +782,117 @@ class TestKbS1bCli:
     def test_status_missing_initiative(self, cli_db, capsys):
         assert main(["initiative", "status", "ghost"]) == 1
         assert "not found" in capsys.readouterr().err
+
+
+def test_initiative_applied_event_is_emitted_atomically(db_path: Path) -> None:
+    result = bi.apply_manifest(_manifest(), db_path=db_path)
+    task_id = result["packets"][0]["task_id"]
+
+    events = bq.list_events(task_id, db_path=db_path)
+    applied = [event for event in events if event["type"] == "initiative_applied"]
+
+    assert len(applied) == 1
+    assert applied[0]["payload"] == {
+        "initiative_id": "kitty-alpha-v1",
+        "packet_count": 2,
+        "packet_ids": ["KB-A1", "KB-A2"],
+    }
+
+
+def test_initiative_apply_rolls_back_when_event_write_fails(
+    db_path: Path, monkeypatch
+) -> None:
+    original_append_event = bq.append_event
+
+    def fail_initiative_event(task_id, event_type, **kwargs):
+        if event_type == "initiative_applied":
+            raise RuntimeError("event store unavailable")
+        return original_append_event(task_id, event_type, **kwargs)
+
+    monkeypatch.setattr(bq, "append_event", fail_initiative_event)
+
+    with pytest.raises(RuntimeError, match="event store unavailable"):
+        bi.apply_manifest(_manifest(), db_path=db_path)
+
+    assert bi.get_initiative("kitty-alpha-v1", db_path=db_path) is None
+    assert bq.list_tasks(db_path=db_path) == []
+
+
+def test_initiative_status_transition_events_are_durable(db_path: Path) -> None:
+    result = bi.apply_manifest(_manifest(), db_path=db_path)
+    task_id = result["packets"][0]["task_id"]
+
+    bi.pause_initiative("kitty-alpha-v1", "operator break", db_path=db_path)
+    bi.resume_initiative("kitty-alpha-v1", db_path=db_path)
+
+    events = [
+        event
+        for event in bq.list_events(task_id, db_path=db_path)
+        if event["type"] == "initiative_status_changed"
+    ]
+    assert [event["payload"]["new_state"] for event in events] == [
+        bi.INITIATIVE_PAUSED,
+        bi.INITIATIVE_ACTIVE,
+    ]
+    assert events[0]["payload"] == {
+        "initiative_id": "kitty-alpha-v1",
+        "previous_state": bi.INITIATIVE_ACTIVE,
+        "new_state": bi.INITIATIVE_PAUSED,
+        "reason": "operator break",
+    }
+    assert events[1]["payload"]["previous_state"] == bi.INITIATIVE_PAUSED
+    assert events[1]["payload"]["reason"] is None
+
+
+def test_initiative_status_transition_rolls_back_when_event_write_fails(
+    db_path: Path, monkeypatch
+) -> None:
+    result = bi.apply_manifest(_manifest(), db_path=db_path)
+    task_id = result["packets"][0]["task_id"]
+    original_append_event = bq.append_event
+
+    def fail_status_event(task_id, event_type, **kwargs):
+        if event_type == "initiative_status_changed":
+            raise RuntimeError("event store unavailable")
+        return original_append_event(task_id, event_type, **kwargs)
+
+    monkeypatch.setattr(bq, "append_event", fail_status_event)
+
+    with pytest.raises(RuntimeError, match="event store unavailable"):
+        bi.pause_initiative("kitty-alpha-v1", "operator break", db_path=db_path)
+
+    initiative = bi.get_initiative("kitty-alpha-v1", db_path=db_path)
+    assert initiative is not None
+    assert initiative["state"] == bi.INITIATIVE_ACTIVE
+    assert initiative["pause_reason"] is None
+    assert [
+        event
+        for event in bq.list_events(task_id, db_path=db_path)
+        if event["type"] == "initiative_status_changed"
+    ] == []
+
+
+def test_initiative_status_event_retains_non_pause_reason_and_positional_db_path(
+    db_path: Path,
+) -> None:
+    result = bi.apply_manifest(_manifest(), db_path=db_path)
+    task_id = result["packets"][0]["task_id"]
+
+    bi.set_initiative_state(
+        "kitty-alpha-v1",
+        bi.INITIATIVE_FAILED,
+        db_path,
+        reason="validation exhausted",
+    )
+
+    events = [
+        event
+        for event in bq.list_events(task_id, db_path=db_path)
+        if event["type"] == "initiative_status_changed"
+    ]
+    assert events[-1]["payload"] == {
+        "initiative_id": "kitty-alpha-v1",
+        "previous_state": bi.INITIATIVE_ACTIVE,
+        "new_state": bi.INITIATIVE_FAILED,
+        "reason": "validation exhausted",
+    }
