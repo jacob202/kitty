@@ -1,3 +1,14 @@
+---
+type: adr
+title: "Local-First Single User"
+status: accepted
+owner: jacob
+primary_purpose: Commit to local-first single-user architecture as a permanent design constraint
+derives_from:
+  - docs/CONSTITUTION.md
+review_cycle: as needed (superseded by replacement ADR)
+---
+
 # ADR-0002: Local-First Single User
 
 **Status:** Accepted

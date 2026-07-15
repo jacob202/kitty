@@ -1,72 +1,89 @@
-# Repository Guidelines
+# Kitty — Agent Instructions
+
+The documentation architecture begins at [`docs/INDEX.md`](docs/INDEX.md). Read it.
+
+## Constitutional Rule
+
+Every enduring idea has exactly one canonical home. Every other document references it. None duplicate it. Do not explain architecture here — point to it.
+
+## Session Start
+
+1. Read `.claude/HANDOFF.md` and `.claude/STATE.md`.
+2. Read `docs/operations/PROJECT_STATUS.md` for current branch, shipped work, and test state.
+3. Understand the current branch and any in-flight work before touching code.
 
 ## Prime Directive
 
-Fail loud, never mask. Raise errors with clear causes; do not swallow exceptions, return fake defaults, or add silent fallbacks. External calls may retry with a visible warning, then must raise the real error with useful context.
+Fail loud, never mask. Raise errors with clear causes. Do not swallow exceptions, return fake defaults, or add silent fallbacks. External calls may retry with a visible warning, then must raise the real error with useful context.
 
 ## Project Structure
 
-Kitty is a local-first personal AI companion. Backend code lives in `gateway/`, with FastAPI routes under `gateway/routes/` and path constants in `gateway/paths.py`. The main UI is `gateway/kitty-chat/` (Next.js). Tests live in `tests/`. Product, architecture, and planning docs live in `docs/`. Runtime data and logs live in `data/` and `logs/` and must not be committed.
+Kitty is a local-first personal AI companion. Backend code lives in `gateway/`, FastAPI routes in `gateway/routes/`, path constants in `gateway/paths.py`. UI is `gateway/kitty-chat/` (Next.js). Tests in `tests/`. Runtime data in `data/`, logs in `logs/` — both uncommitted.
 
-## Commands
+## Key Commands
 
-- `./kitty up`: start Gateway and LiteLLM locally.
-- `./kitty down`: stop local services.
-- `./kitty status`: show process and health status.
-- `./kitty doctor --json`: run preflight checks.
-- `python3.12 -m pytest tests/ -q --tb=short`: run the default Python suite.
-- `cd gateway/kitty-chat && npm run build`: verify the production UI build.
-- `cd gateway/kitty-chat && npm test`: run frontend tests.
-- `make agent-wrap`: write a session wrap-up template to `.agent/session_logs/`.
+```bash
+./kitty up                                    # start Gateway and LiteLLM
+./kitty down                                  # stop local services
+./kitty status                                # process and health status
+./kitty doctor --json                          # preflight checks
+python3.12 -m pytest tests/ -q --tb=short     # Python suite
+cd gateway/kitty-chat && npm run build         # UI production build
+cd gateway/kitty-chat && npm test              # frontend tests
+python3 scripts/docs_lint.py                   # documentation validation
+python3 scripts/docs_system_map.py             # regenerate SYSTEM_MAP
+```
 
-## Style
+Run docs lint and regenerate SYSTEM_MAP after adding, moving, or superseding any foundational document.
 
-Match the existing file before introducing new patterns. Python uses 4-space indentation, explicit errors, and small readable functions. TypeScript/React uses functional components and clear prop names. Comment the why, not the obvious what. Keep diffs focused; do not reformat unrelated code.
+## Code Style
 
-## Testing
-
-Use targeted tests while developing, then run the relevant full slice before claiming completion. UI changes need `npm test` and `npm run build` in `gateway/kitty-chat/`. Launch, auth, port, or env changes also need `./kitty status` and `./kitty doctor --json`.
+Match the existing file. Python: 4-space indent, explicit errors, small readable functions. TypeScript/React: functional components, clear prop names. Keep diffs focused; do not reformat unrelated code.
 
 ## Git and PRs
 
-Use small Conventional Commit messages such as `fix(auth): fail closed`. Never push, force-push, rewrite history, delete files, touch secrets/auth/payments/env, or add heavy dependencies without explicit confirmation. PRs should state user-facing impact, verification, skipped checks, and screenshots for visible UI changes.
+- Small Conventional Commit messages: `fix(auth): fail closed`.
+- Never push, force-push, rewrite history, delete files, touch secrets/auth/payments/env, or add heavy dependencies without explicit confirmation.
+- Before any `gh` or git push: check for stale `GITHUB_TOKEN`. If `env -u GITHUB_TOKEN gh auth status` succeeds, run GitHub commands with `env -u GITHUB_TOKEN`.
+- Before merging a PR: read Actions **check runs** — confirm each required job is `success`, not just the combined commit status. See `docs/operations/LEARNINGS.md` L-CAND-6.
+- After any non-trivial merge: compile/import touched files before declaring done.
 
-Before any `gh` command or `git push`, check whether `GITHUB_TOKEN` is set. If `env -u GITHUB_TOKEN gh auth status` succeeds, run GitHub commands with `env -u GITHUB_TOKEN` so a stale ambient token cannot override keyring authentication. Never print token values.
+## Builder
 
-Before merging a PR, read the Actions **check runs** and confirm each required job is `success` — not just the combined commit `status`. They are different GitHub surfaces; a green `status` (e.g. a review bot) can hide failing lint/typecheck/pytest check runs. A broken file reached `main` this way once (see `docs/LEARNINGS.md` L-CAND-6). After any non-trivial merge, compile/import the touched files before declaring done.
-
-## Kitty Builder (Layer 1A — coordination only)
-
-Safe, read-only coordination commands wired through `./kitty builder`. No autonomous loops, agent spawning, or budget enforcement yet.
-
-- `./kitty builder brief <task>` — print a repo brief (branch, dirty files, task context)
-- `./kitty builder contract validate <path>` — validate a JSON/markdown build contract
-- `./kitty builder queue ...` — durable local task queue (add/list/claim/transition/…); see `docs/KITTYBUILDER_QUICKSTART.md`
-- `python3.12 -m pytest tests/test_builder_cli.py tests/test_builder_queue.py tests/test_builder_contract.py -v` — run builder tests
-
-Disabled commands (`run`, `loop`, `repl`, `delegate`) return a clear "not enabled" message.
-
-### Orca/OpenCode Build Train
-
-Use Orca worktrees for isolated KittyBuilder work. Run
-`scripts/orca_worktree_setup.sh` as the Orca setup hook for this repo, and keep
-`docs/KITTYBUILDER_ORCA_SETUP.md` as the operating guide.
-
-Default to OpenCode for planning, implementation, packaging, and normal scoped
-review. Reserve Codex for high-risk safety reviews involving queue state,
-concurrency, auth/secrets/env, destructive operations, or blocked escalation.
-
-Do not let the same worker approve its own work. T0 work may proceed
-automatically, T1 work needs a separate model approval, and T2 work still needs
-Jacob: push, merge, deletes, auth/secrets/env, paid or heavy dependencies, and
-broad scope changes.
+- Review `docs/builder/BUILDER_OPERATING_MODEL.md` before executing Builder work.
+- Builder never invents architecture. If implementation requires architectural judgment: stop, collect evidence, escalate.
+- T0 work: auto-approve. T1 work: separate model approval. T2 work: Jacob only (push, merge, deletes, auth/secrets/env, paid dependencies, broad scope).
+- Same worker never approves its own work.
+- Before multi-file work, give a short plan. Prefer editing existing files over creating new structure.
 
 ## Agent Rules
 
-Before multi-file work, give a short plan. Prefer editing existing files over creating new structure.
+- **Research before invention.** Check whether something already exists in the repo, ADRs, or established patterns before building. See `docs/CONSTITUTION.md`.
+- **Judgment before execution.** Read architecture and decisions before touching code. See `docs/architecture/REFERENCE_ARCHITECTURE.md`.
+- **Reflection before closure.** Write `.claude/STATE.md` before stopping. Write `.claude/HANDOFF.md` if leaving unfinished work.
+- **Small diffs.** One packet per session. Do not broaden scope.
+- **Use Knowledge Model terminology.** See `docs/knowledge/KNOWLEDGE_MODEL.md`.
 
-### Session state (read on start, update before stopping)
+## Documentation Governance
 
-- Read `.claude/HANDOFF.md` and `.claude/STATE.md` at the start of every session.
-- Update `.claude/STATE.md` before stopping with: current branch, done items, in-flight work, blockers, and next actions.
-- Write `.claude/HANDOFF.md` at the end of any session that leaves unfinished work.
+See `docs/GOVERNANCE.md` for ownership, review, deprecation, and amendment rules. An ADR is required for: constitutional changes, new databases/queues/cloud services/frameworks, gateway API surface changes, approval tier changes, storage model changes, and cross-subsystem decisions. See `docs/adr/0000-template.md`.
+
+## Where to Find Things
+
+| Need | Go to |
+|---|---|
+| Why Kitty exists | `docs/VISION.md` |
+| Engineering principles | `docs/CONSTITUTION.md` |
+| Target architecture | `docs/architecture/REFERENCE_ARCHITECTURE.md` |
+| Organizational model | `docs/architecture/ORGANIZATIONAL_MODEL.md` |
+| Subsystem interactions | `docs/architecture/SYSTEM_INTERACTIONS.md` |
+| Knowledge vocabulary | `docs/knowledge/KNOWLEDGE_MODEL.md` |
+| Builder operating model | `docs/builder/BUILDER_OPERATING_MODEL.md` |
+| Current runtime architecture | `docs/engineering/ARCHITECTURE.md` |
+| All decisions | `docs/DECISIONS.md` |
+| Current status | `docs/operations/PROJECT_STATUS.md` |
+| Lessons learned | `docs/operations/LEARNINGS.md` |
+| Documentation governance | `docs/GOVERNANCE.md` |
+| Historical knowledge recovery | `docs/knowledge/HISTORICAL_KNOWLEDGE_RECOVERY.md` |
+| Repository evolution | `docs/repository/REPOSITORY_EVOLUTION.md` |
+| Full index | `docs/INDEX.md` |

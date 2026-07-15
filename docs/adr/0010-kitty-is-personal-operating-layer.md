@@ -1,3 +1,14 @@
+---
+type: adr
+title: "Kitty Is A Personal Operating Layer"
+status: accepted
+owner: jacob
+primary_purpose: Declare Kitty's product identity as a personal operating layer, not a chat assistant
+derives_from:
+  - docs/CONSTITUTION.md
+review_cycle: as needed (superseded by replacement ADR)
+---
+
 # ADR-0010: Kitty Is A Personal Operating Layer
 
 **Status:** Accepted

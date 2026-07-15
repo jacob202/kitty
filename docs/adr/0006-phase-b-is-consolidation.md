@@ -1,3 +1,14 @@
+---
+type: adr
+title: "Phase B Is Consolidation"
+status: accepted
+owner: jacob
+primary_purpose: Define Phase B as a consolidation pass rather than a feature expansion phase
+derives_from:
+  - docs/CONSTITUTION.md
+review_cycle: as needed (superseded by replacement ADR)
+---
+
 # ADR-0006: Phase B Is Consolidation
 
 **Status:** Accepted

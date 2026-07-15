@@ -1,6 +1,17 @@
+---
+type: index
+title: "Architecture Decision Index"
+status: canonical
+owner: jacob
+primary_purpose: Quick-reference index of all ADRs
+derives_from:
+  - docs/adr/README.md
+review_cycle: as needed (updated when ADRs are added)
+---
+
 # Decisions
 
-**Date:** 2026-07-05
+**Date:** 2026-07-14
 **Status:** Index. Each decision lives in `docs/adr/` as a one-record-per-file ADR.
 
 The full index is in [`docs/adr/README.md`](adr/README.md). Historical
@@ -26,3 +37,6 @@ detail that hasn't been promoted to a per-decision ADR remains in
 | D13 | Magic Kitty: Cross-Project Insight                  | [0014](adr/0014-magic-kitty-cross-project-insight.md)       |
 | D14 | Resume Loop Is The Product; Builder Boundary        | [0015](adr/0015-resume-loop-and-builder-boundary.md)        |
 | D15 | Life-First Ordering                                 | [0016](adr/0016-life-first-ordering.md)                     |
+| D16 | Kitty Is an Engineering Operating System            | [0017](adr/0017-kitty-is-engineering-operating-system.md)   |
+| D17 | Documentation Is Architecture                       | [0018](adr/0018-documentation-as-architecture.md)           |
+| D18 | Knowledge Model Is a Foundational Prerequisite      | [0019](adr/0019-knowledge-model-prerequisite.md)            |

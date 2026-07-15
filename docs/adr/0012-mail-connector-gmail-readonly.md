@@ -1,3 +1,14 @@
+---
+type: adr
+title: "Mail Connector Uses The Gmail API, Read-Only"
+status: accepted
+owner: jacob
+primary_purpose: The mail connector is read-only Gmail API, never IMAP or send
+derives_from:
+  - docs/CONSTITUTION.md
+review_cycle: as needed (superseded by replacement ADR)
+---
+
 # ADR-0012: Mail Connector Uses The Gmail API, Read-Only
 
 **Status:** Accepted

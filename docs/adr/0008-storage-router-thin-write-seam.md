@@ -1,3 +1,14 @@
+---
+type: adr
+title: "StorageRouter Is A Thin Write-Side Seam, Not A Port"
+status: accepted
+owner: jacob
+primary_purpose: storage_router is a thin dispatch seam, not an abstract port-and-adapter layer
+derives_from:
+  - docs/CONSTITUTION.md
+review_cycle: as needed (superseded by replacement ADR)
+---
+
 # ADR-0008: StorageRouter Is A Thin Write-Side Seam, Not A Port
 
 **Status:** Accepted
