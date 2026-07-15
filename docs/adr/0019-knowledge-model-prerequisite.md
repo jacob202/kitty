@@ -31,3 +31,5 @@ Kitty is becoming an organization that converts experience into reusable judgmen
 ## Consequences
 
 `docs/knowledge/KNOWLEDGE_MODEL.md` is ratified as the canonical vocabulary. No database, graph engine, or AI is required — only the semantic model. Any subsystem that uses knowledge terms must reference the canonical definitions. Historical chat mining becomes evidence processing, not knowledge generation.
+
+A semantic alignment pass (2026-07-14) reconciled existing code terminology: `KNOWLEDGE_DIR` and `Source.KNOWLEDGE` are storage/index categories (Evidence), not Knowledge Model semantics. The journal `reflection` theme is user-facing journaling, not architectural Reflection. Seven model concepts (Doctrine, Pattern, Judgment, Receipt, Outcome, Finding, Observation) have no runtime representation. All clarified via docstrings — no renames, no new systems.

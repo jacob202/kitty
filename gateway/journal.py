@@ -37,6 +37,9 @@ def save_journal_entry(entry: str, theme: str | None = None, session_id: str | N
     )
 
 
+# User-facing journal themes for the journal card selection. "reflection" here refers to
+# personal journaling (introspective writing), not the architectural Reflection defined in
+# the Knowledge Model (docs/knowledge/KNOWLEDGE_MODEL.md). These are distinct concepts.
 THEMES = ["recovery", "work", "mood", "relationships", "body", "creative", "reflection"]
 
 _OPENERS: dict[str, list[str]] = {

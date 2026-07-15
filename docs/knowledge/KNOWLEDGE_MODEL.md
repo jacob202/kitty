@@ -97,3 +97,17 @@ Never confuse: Evidence with knowledge. Knowledge with doctrine. Doctrine with i
 ## 9. Anti-Patterns
 
 Calling everything Knowledge. Skipping validation. Storing knowledge without provenance. Confusing product entities with knowledge entities. Codifying judgment without repetition. Treating superseded knowledge as waste.
+
+## 10. Semantic Alignment (Existing Codebase)
+
+The Knowledge Model is a semantic specification. The runtime codebase evolved independently. The following clarifies how existing code concepts map to Knowledge Model terms:
+
+| Code Concept | Code Location | Knowledge Model Equivalent | Notes |
+|---|---|---|---|
+| `KNOWLEDGE_DIR` | `gateway/paths.py` | Evidence (storage path) | Name retained for compatibility; see docstring |
+| `Source.KNOWLEDGE` | `gateway/memory_graph.py` | Evidence (ChromaDB index) | Search category, not semantic level; see docstring |
+| `"knowledge"` search key | `gateway/search.py` | Evidence (retrieval) | ChromaDB-stored documents as search results |
+| `knowledge routes` | `gateway/routes/knowledge.py` | Evidence ingestion | API surface for document pipeline |
+| `journal "reflection"` theme | `gateway/journal.py` | Personal journaling | User-facing, not architectural Reflection |
+
+No runtime abstractions exist for: Doctrine, Pattern, Judgment, Receipt, Outcome, Finding, Observation. These are defined in this model as semantic targets for future implementation. Do not implement them prematurely.
