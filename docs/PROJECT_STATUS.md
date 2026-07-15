@@ -1,7 +1,7 @@
 # Project Status
 
-**Date:** 2026-07-12
-**Branch:** `feat/council-routing` (based on `main`)
+**Date:** 2026-07-15
+**Branch:** `main`
 **Canonical repo:** `/Users/jacobbrizinski/Projects/kitty`
 
 ## What's Shipped
@@ -23,8 +23,7 @@
 
 ## Open PR
 
-None currently. Active feature branch: `feat/council-routing` (in-progress
-council routing supervisor and tutor endpoint).
+None currently. No active feature branch (working on `main`).
 
 Recent merged PRs: #149 (kittybuilder dogfood preflight), #148 (brief news
 source seam), #147 (builder CLI registry), #146 (KB-S5 run-loop).
@@ -53,7 +52,6 @@ file is gone. If the failures recur, re-isolate them with `tmp_path` fixtures (s
 
 | Issue                                          | Location                                                     | Priority                          |
 | ---------------------------------------------- | ------------------------------------------------------------ | --------------------------------─ |
-| No kitty-chat CI job                           | `.github/workflows/`                                         | High — add a UI test job          |
 | SIRI_SHORTCUT.md references dead launcher      | `docs/SIRI_SHORTCUT.md`                                      | Low — tombstone it                |
 | Codex Blockers #1/#5/#7 (security/worker/mem) | `gateway/kitty-chat/src/app/proxy/`, `gateway/agent_runner.py` | T2 — escalate to Jacob            |
 

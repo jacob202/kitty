@@ -46,8 +46,8 @@ Read `.claude/HANDOFF.md` and `.claude/STATE.md` at the start of every session. 
 | Orientation         | `START_HERE.md`                  |
 | Current status      | `docs/PROJECT_STATUS.md`         |
 | Architecture        | `docs/ARCHITECTURE.md`           |
-| Phase B plan        | `docs/phases/PHASE_B_PLAN.md`           |
-| Storage migration   | `docs/phases/STORAGE_MIGRATION_PLAN.md` |
+| Phase B plan        | `docs/phases/PHASE_B_PLAN.md`           | (shipped)
+| Storage migration   | `docs/phases/STORAGE_MIGRATION_PLAN.md` | (shipped)
 | Agent/runtime rules | `docs/AGENT_RUNTIME.md`          |
 | Free workers        | `docs/FREE_WORKERS.md`           |
 | Decisions           | `docs/DECISIONS.md`              |
@@ -76,7 +76,7 @@ bash scripts/preflight.sh      # run at session start to catch auth/env blockers
 ./kitty status
 ./kitty doctor --json
 python3.12 -m pytest tests/ -q --tb=short
-make ui-test && make ui-build   # npm run is broken on this machine (exit 194)
+make ui-test && make ui-build
 make agent-wrap
 ```
 
@@ -94,4 +94,4 @@ If a command fails, report the failure exactly. Do not round up to passing.
 - "phase C" → storage migrations (chats done, journal next)
 - "free workers" / "the free train" → `docs/FREE_WORKERS.md` (zero-cost OpenCode execution of packets)
 - "Goose" → external chat tool, not part of kitty runtime
-- "Honcho" → external mirror service, not properly wired up
+- "Honcho" → `gateway/honcho.py` — weekly pattern mirror, wired to kitty_tools route
