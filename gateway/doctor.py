@@ -441,11 +441,39 @@ def _level_order(level: str) -> int:
     return {"PASS": 0, "WARN": 1, "FAIL": 2}.get(level, 2)
 
 
+def _spend_report(json_mode: bool) -> int:
+    try:
+        from gateway.token_spend_report import (
+            format_report,
+            load_entries,
+            summarize_usage,
+        )
+    except ImportError as exc:
+        print(f"ERROR: cannot load spend report module: {exc}", file=sys.stderr)
+        return 1
+
+    entries = load_entries()
+    if not entries:
+        print("No token usage data found.")
+        return 0
+
+    summary = summarize_usage(entries)
+    if json_mode:
+        print(json.dumps(summary, indent=2, default=str))
+    else:
+        print(format_report(summary))
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Kitty health check")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--strict", "--fail-on-warn", action="store_true")
+    parser.add_argument("--spend", action="store_true", help="print LLM spend report from token log")
     args = parser.parse_args()
+
+    if args.spend:
+        return _spend_report(args.json)
 
     env = _load_env()
     checks: list[Check] = (
