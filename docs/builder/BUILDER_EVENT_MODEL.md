@@ -116,6 +116,32 @@ Every event produced by the Builder runtime. Events are stored in the append-onl
 | Idempotency | Idempotent by PR number |
 | Persistence | Durable |
 
+#### `attempt_artifacts_created`
+
+| Field | Value |
+|---|---|
+| Producer | `builder_loop.run_packet()` |
+| Pipeline stage | Build Context / Execute Worker (§5-6), after bundle and manifest creation and before worker spawn |
+| Trigger | Context bundle, run manifest, and attempt artifact directory are created |
+| Payload | `{attempt_id, artifact_dir, manifest_path}` |
+| Consumers | Operator debugging and initiative evidence rollup |
+| Ordering | One per attempt, before that attempt's worker starts |
+| Idempotency | Per `attempt_id` |
+| Persistence | Durable |
+
+#### `infrastructure_failed`
+
+| Field | Value |
+|---|---|
+| Producer | `builder_loop.run_packet()` and its `_reconcile_stale_attempts()` recovery helper |
+| Pipeline stage | Preflight (§3) or stale-attempt recovery before a new attempt |
+| Trigger | `preflight_worktree()` raises `RunnerError`, or a stale open attempt is closed as crashed |
+| Payload | `{reason, counts_toward_budget: false, phase}`; stale recovery also includes `{attempt_id, attempt_no}` |
+| Consumers | Operator and initiative infrastructure-failure evidence rollup |
+| Ordering | Preflight failures append before an attempt starts; stale-recovery failures append before a replacement attempt is considered |
+| Idempotency | Per occurrence; it does not consume the attempt budget |
+| Persistence | Durable |
+
 ### Run Events
 
 Run state transitions are recorded as events with `event_type` equal to the new run state. Run events are produced during pipeline stage §6 (Execute Worker). Each transition appends an event row.
@@ -138,8 +164,8 @@ Each run event payload includes: `{previous_state, new_state, reason, run_id}`.
 
 | Event Type | Producer | Trigger |
 |---|---|---|
-| `initiative_applied` | `builder_initiative.apply()` | Initiative manifest validated and applied |
-| `initiative_status_changed` | `builder_initiative` status roller | Initiative transitions between active/paused/completed/failed |
+| `initiative_applied` | `builder_initiative.apply_manifest()` | Initiative manifest rows, packet tasks, mappings, and event commit atomically |
+| `initiative_status_changed` | `builder_initiative.set_initiative_state()` | Stored operator state transitions; derived `initiative_status()` does not mutate state |
 
 ## Event Consumption
 
@@ -152,7 +178,7 @@ Each run event payload includes: `{previous_state, new_state, reason, run_id}`.
 
 ## Ordering Guarantees
 
-- Events are ordered by `created_at` within a task.
+- Events are ordered by append-only event ID within a task.
 - No global ordering across tasks — each task's events are independently ordered.
 - Run events are interleaved with task events within the same task ID.
 
