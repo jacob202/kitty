@@ -116,6 +116,32 @@ Every event produced by the Builder runtime. Events are stored in the append-onl
 | Idempotency | Idempotent by PR number |
 | Persistence | Durable |
 
+#### `attempt_artifacts_created`
+
+| Field | Value |
+|---|---|
+| Producer | `builder_loop.run_packet()` |
+| Pipeline stage | Build Context / Execute Worker (§5-6) — after bundle and manifest written, before worker spawn |
+| Trigger | Context bundle, run manifest, and artifact directory structure created |
+| Payload | `{attempt_id, artifact_dir, manifest_path}` |
+| Consumers | Operator (debugging), evidence preservation |
+| Ordering | One per attempt |
+| Idempotency | Per attempt_id |
+| Persistence | Durable |
+
+#### `infrastructure_failed`
+
+| Field | Value |
+|---|---|
+| Producer | `builder_loop.run_packet()` |
+| Pipeline stage | Preflight (§3) — worktree creation failure |
+| Trigger | `preflight_worktree()` raises `RunnerError` |
+| Payload | `{reason, counts_toward_budget: false, phase: "preflight"}` |
+| Consumers | Operator, initiative status (infrastructure_failures counter) |
+| Ordering | One per infrastructure event |
+| Idempotency | Per occurrence (not budget-consuming) |
+| Persistence | Durable |
+
 ### Run Events
 
 Run state transitions are recorded as events with `event_type` equal to the new run state. Run events are produced during pipeline stage §6 (Execute Worker). Each transition appends an event row.
