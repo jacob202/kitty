@@ -19,6 +19,7 @@ import pathlib
 import shutil
 import ssl
 import sys
+import time
 import urllib.request
 from dataclasses import dataclass
 
@@ -365,6 +366,63 @@ def _check_deadlines() -> list[Check]:
     ]
 
 
+def _check_codegraph() -> list[Check]:
+    """Check codegraph daemon health and index freshness."""
+    cg_dir = ROOT / ".codegraph"
+    db_path = cg_dir / "codegraph.db"
+    pid_path = cg_dir / "daemon.pid"
+
+    if not cg_dir.exists():
+        return [
+            Check(
+                "WARN",
+                "codegraph:daemon",
+                ".codegraph/ not found — run `codegraph init` to enable",
+            )
+        ]
+
+    if not pid_path.exists():
+        return [
+            Check(
+                "WARN",
+                "codegraph:daemon",
+                "daemon not running — codegraph index may be stale",
+            )
+        ]
+
+    try:
+        pid = int(pid_path.read_text().strip())
+        os.kill(pid, 0)  # signal 0 = process existence check
+    except (ValueError, ProcessLookupError, OSError):
+        return [
+            Check(
+                "WARN",
+                "codegraph:daemon",
+                "daemon PID file exists but process dead — index may be stale",
+            )
+        ]
+
+    # Daemon alive — check index age
+    if db_path.exists():
+        db_mtime = db_path.stat().st_mtime
+        age_s = time.time() - db_mtime
+        if age_s > 300:  # 5 minutes
+            import datetime
+            age = datetime.timedelta(seconds=int(age_s))
+            return [
+                Check(
+                    "WARN",
+                    "codegraph:index_freshness",
+                    f"index is {age} old — daemon may be stalled",
+                )
+            ]
+        return [
+            Check("PASS", "codegraph:index_freshness", f"index fresh ({int(age_s)}s old)")
+        ]
+
+    return [Check("WARN", "codegraph:index_freshness", "database missing")]
+
+
 def _check_venv() -> list[Check]:
     venv = ROOT / "venv"
     if (venv / "bin" / "python").exists():
@@ -402,6 +460,7 @@ def main() -> int:
         + _check_push_channel(env)
         + _check_deadlines()
         + _check_gateway_freshness()
+        + _check_codegraph()
     )
 
     failures = [c for c in checks if c.level == "FAIL"]
