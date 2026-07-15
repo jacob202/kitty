@@ -4,8 +4,7 @@
   "completed_packets": 0,
   "remaining_packets": 31,
   "blocked": [
-    "BLK-001: python3 scripts/docs_lint.py reports 80 documentation errors on the clean campaign branch; campaign verification cannot be green.",
-    "BLK-002: ./kitty builder initiative doctor --json rejects a valid nested Git worktree because repo identity is derived from the directory name."
+    "BLK-001: python3 scripts/docs_lint.py reports 80 documentation errors on the clean campaign branch; campaign verification cannot be green."
   ],
   "failed": [],
   "review_pending": 0,
@@ -18,7 +17,7 @@
   "concurrent_workers": 0,
   "stalled_workers": [],
   "contradictions": [
-    "The prior state reported verification=green, but the clean campaign worktree has a red docs lint gate and Builder doctor fails in the required isolated-worktree environment.",
+    "The prior state reported verification=green, but the clean campaign worktree has a red docs lint gate. Builder doctor now passes in the required isolated-worktree environment.",
     "feat/wip-campaign-and-runtime contains unmerged P1-01 through P1-03 candidate commits; they are not recorded as completed campaign packets."
   ],
   "metrics": {
@@ -30,8 +29,8 @@
     "human_interventions": 0,
     "architectural_escalations": 0,
     "regression_count": 0,
-    "validation_failures": 2,
-    "blocked_packet_count": 2,
+    "validation_failures": 1,
+    "blocked_packet_count": 1,
     "kill_switch_events": 0
   }
 }

@@ -5,11 +5,11 @@
   active on `chore/engineering-leverage-phase-8-9` and must not be used for
   Builder execution.
 - The campaign state is now `verification: red`. Do not dispatch P1 work until
-  the documented blockers are resolved and the state is green again.
-- Blockers: `python3 scripts/docs_lint.py` reports 80 errors on the clean
-  campaign branch, and `./kitty builder initiative doctor --json` rejects a
-  valid nested worktree because it checks the directory name instead of the
-  Git repository identity.
+  the remaining documentation gate is explicitly resolved or re-scoped.
+- Remaining blocker: `python3 scripts/docs_lint.py` reports 80 errors on the
+  clean campaign branch. The nested-worktree Builder doctor defect is fixed
+  and verified by 41 focused tests plus a real doctor run (13 pass, 1 expected
+  worktree-root warning, 0 fail).
 - Candidate commits for P1-01 through P1-03 exist on
   `feat/wip-campaign-and-runtime`, but they are unmerged and not yet accepted
   as completed campaign packets. The P1-03 scope suite passes (18 tests).
