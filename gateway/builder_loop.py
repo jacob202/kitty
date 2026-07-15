@@ -46,6 +46,7 @@ from gateway.builder_runner import (
     worktree_head,
     worktree_path,
 )
+from gateway.builder_scope import EscalationError, build_scope_escalation_artifact, validate_scope
 from gateway.paths import BUILDER_QUEUE_DB
 
 DEFAULT_REVIEW_TIMEOUT = 1800
@@ -352,6 +353,24 @@ def run_packet(
         raise LoopError(
             f"task {task_id} for {initiative_id}/{packet_id} is {state}; "
             "the loop only starts on a queued task"
+        )
+
+    # Mandatory pre-execution Validate Scope stage (Builder Operating Model
+    # §5/§6): confirm the contract is clear, measurable, and bounded, and that
+    # it does not require architectural judgment. Escalate and return control
+    # before any worktree or attempt exists — never guess, never expand scope.
+    scope_findings = validate_scope(bundle_preview)
+    if scope_findings:
+        raise EscalationError(
+            scope_findings,
+            evidence={
+                "initiative_id": initiative_id,
+                "packet_id": packet_id,
+                "task_id": task_id,
+            },
+            artifact=build_scope_escalation_artifact(
+                initiative_id, packet_id, task_id, scope_findings
+            ),
         )
 
     # Reconcile any stale open attempts left by a previous crashed process
