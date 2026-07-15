@@ -158,6 +158,32 @@ class TestInitiativePauseState:
 
 
 class TestRepoIdentity:
+    def test_shared_repository_resolution_fails_loudly(
+        self, repo: Path, monkeypatch
+    ):
+        result = subprocess.CompletedProcess(
+            args=["git"], returncode=1, stdout="", stderr="common-dir failed"
+        )
+        monkeypatch.setattr(doctor, "_git", lambda *_args, **_kwargs: result)
+
+        root, error = doctor._repository_root(repo)
+
+        assert root is None
+        assert error == "common-dir failed"
+
+    def test_unexpected_shared_repository_layout_fails_loudly(
+        self, repo: Path, monkeypatch
+    ):
+        result = subprocess.CompletedProcess(
+            args=["git"], returncode=0, stdout=str(repo / "git-data"), stderr=""
+        )
+        monkeypatch.setattr(doctor, "_git", lambda *_args, **_kwargs: result)
+
+        root, error = doctor._repository_root(repo)
+
+        assert root is None
+        assert error == f"unexpected Git common directory: {repo / 'git-data'}"
+
     def test_matching_repo_and_branch_pass(self, repo: Path, monkeypatch):
         monkeypatch.setattr(doctor, "EXPECTED_REPO_NAME", "kitty")
         monkeypatch.setattr(doctor, "EXPECTED_DEFAULT_BRANCH", "main")
