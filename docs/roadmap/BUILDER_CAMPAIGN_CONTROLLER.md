@@ -246,7 +246,130 @@ If the orchestrator process dies or is restarted:
 6. If verification is red: wait for owner.
 7. If state file is missing: reconstruct from campaign document (all packets mark `Completed: Yes` in git) and rebuild.
 
-## Section 15: The One Rule
+## Section 15: Campaign Kill Switch
+
+The orchestrator MUST stop the entire campaign immediately — halt all workers, block all dispatches — when any of these occur:
+
+1. **Canonical source conflict detected.** Two frozen documents disagree on the same concept. The invariant has been violated. Human must resolve which document is correct.
+2. **A packet requires architectural judgment beyond its scope.** The packet's allowed paths cannot be achieved without modifying architecture, doctrine, or frozen specs. Human must decide: expand scope or reject packet.
+3. **A packet proposes modifying a frozen architectural document.** Governance, KM, ADRs, Builder specs are frozen. Worker has overstepped. Human must approve or reject.
+4. **Repository-wide validation regresses unexpectedly.** A previously passing test or lint rule now fails systemically (not one test, not one file). Something deeper broke.
+5. **Two workers modify overlapping semantic ownership.** If Worker 1 changes `builder_scope.py` while Worker 2 also changes `builder_scope.py` without coordination. Ownership collision. Human must reconcile.
+6. **A reviewer rejects the same packet twice for architectural reasons.** Not fixable implementation errors — fundamental design disagreement. Human must break the tie.
+
+When the kill switch fires:
+- Halt ALL workers. No new dispatches.
+- Set `verification` to `"red"` in campaign state.
+- Record the kill-switch reason in `blocked` state entries.
+- Await human intervention.
+- Do NOT attempt to auto-resolve. Do NOT continue other packets.
+- The campaign is paused until the human clears the kill switch.
+
+Events that do NOT trigger the kill switch:
+- Test failures (retry).
+- Build failures (retry).
+- Worker crashes (reassign).
+- Merge conflicts (resolve).
+- Review rejections for fixable reasons (repair).
+- Infrastructure timeouts (retry).
+- Single regression on a new packet (expected during implementation).
+
+## Section 16: Campaign Metrics
+
+Tracked across the entire campaign, not per packet. Updated every 5 completed packets.
+
+| Metric | What | Why |
+|---|---|---|
+| Packets completed / hour | Throughput | Is the campaign making forward progress? |
+| First-pass review approval rate | % of packets approved on first review | Are specs clear enough for workers? |
+| Retry rate | Avg attempts per packet | Are workers succeeding or struggling? |
+| Mean time to green | Avg time from PR open to merge | Where's the bottleneck? |
+| Merge success rate | % of PRs merged without revert | Stability |
+| Human interventions | Count of escalation triggers | Is the autonomous boundary too tight or too loose? |
+| Architectural escalations | Count of spec contradictions, frozen document conflicts, authority oversteps | Is architecture drifting? |
+| Regression count | Number of previously passing tests that broke in non-touching areas | Is coupling too high? |
+| Validation failures | Count of lint/docs/typecheck failures across the campaign | Is quality holding? |
+| Blocked packet count | How many packets are stuck awaiting human/architectural decision | Is the campaign stalling? |
+| Kill switch events | Count of campaign-level halts | How often does the system need human intervention? |
+
+These metrics are appended to `metrics` in the campaign state file:
+
+```json
+{
+  "metrics": {
+    "packets_per_hour": 1.7,
+    "first_pass_approval_rate": "73%",
+    "avg_attempts": 1.4,
+    "mean_time_to_green_minutes": 45,
+    "merge_success_rate": "95%",
+    "human_interventions": 2,
+    "architectural_escalations": 1,
+    "regression_count": 0,
+    "validation_failures": 3,
+    "blocked_packet_count": 0,
+    "kill_switch_events": 0
+  }
+}
+```
+
+After each phase, evaluate: Did a control prevent a real mistake? Did a review gate catch an actual bug? Did an invariant stop architectural drift? Which steps produced no value? If a control never catches anything over many successful packets, flag it for simplification.
+
+## Section 17: Phase Retrospective
+
+After EVERY phase completion, before dispatching the next phase, generate a retrospective answering:
+
+1. **What assumptions were wrong?** Did any spec, ADR, or architecture document describe reality incorrectly?
+2. **What architecture proved correct?** Which decisions held up under implementation pressure?
+3. **What implementation friction repeated?** Same merge conflict? Same test failure pattern? Same worker misunderstanding?
+4. **What should change before the next phase?** Any spec needs clarification? Any invariant needs enforcement? Any process needs simplification?
+5. **Did any specification need clarification?** Which document was ambiguous during implementation?
+6. **Did any recurring pattern emerge that should become automation?** Something manual that could be encoded as a script, lint rule, or CI check?
+
+The retrospective is written to `docs/roadmap/retrospective_phase_N.md`. It is concise — findings, not narratives. It feeds directly into campaign metrics evaluation and process simplification.
+
+### Retrospective Template
+
+```markdown
+# Phase N Retrospective
+
+**Date:** YYYY-MM-DD
+**Packets:** X completed, Y retried, Z blocked
+**Duration:** N hours
+
+## Wrong Assumptions
+
+- [Assumption]: [What actually happened]. [Evidence].
+
+## Proven Architecture
+
+- [Decision]: [How it held up]. [Evidence].
+
+## Recurring Friction
+
+- [Pattern]: [Frequency]. [Impact].
+
+## Spec Changes Needed
+
+- [Document]: [Clarification needed].
+
+## Automation Candidates
+
+- [Manual work]: [Proposed automation].
+```
+
+## Section 18: Phased Rollout
+
+Do NOT launch all 31 packets at once.
+
+1. **Phase 1 only.** Run to completion. Merge.
+2. Generate Phase 1 retrospective.
+3. Evaluate campaign metrics: if merge success rate >90%, first-pass review >70%, kill switch events = 0.
+4. If healthy: authorize Phases 2+ to flow according to the dependency graph.
+5. If unhealthy: pause. Fix the orchestration machinery. Then resume Phase 2.
+
+This validates the campaign machinery against a real workload before the campaign becomes too large to reason about.
+
+## Section 19: The One Rule
 
 The orchestrator's overriding instruction:
 
