@@ -1,3 +1,22 @@
+# Session State — 2026-07-15 (Builder campaign recovery)
+
+- Campaign reconciliation runs on `reconcile-builder-campaign` in
+  `.worktrees/reconcile-builder-campaign`; the shared root checkout remains
+  active on `chore/engineering-leverage-phase-8-9` and must not be used for
+  Builder execution.
+- The campaign state is now `verification: red`. Do not dispatch P1 work until
+  the documented blockers are resolved and the state is green again.
+- Blockers: `python3 scripts/docs_lint.py` reports 80 errors on the clean
+  campaign branch, and `./kitty builder initiative doctor --json` rejects a
+  valid nested worktree because it checks the directory name instead of the
+  Git repository identity.
+- Candidate commits for P1-01 through P1-03 exist on
+  `feat/wip-campaign-and-runtime`, but they are unmerged and not yet accepted
+  as completed campaign packets. The P1-03 scope suite passes (18 tests).
+- Root-checkout Phase 2 lease work is preserved separately in
+  `stash@{0}` and remains uncommitted. Do not merge or recreate it until it is
+  reconciled with `feat/campaign-alpha-phase-2-integration`.
+
 # Session State — 2026-07-14 (cloud branch `claude/free-workers-token-efficiency-2m06xb`)
 
 - Free workers are now a first-class launch surface: `./kitty builder

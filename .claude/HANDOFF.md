@@ -1,3 +1,36 @@
+# Recovery Handoff — 2026-07-15
+
+## Current truth
+
+- Use `.worktrees/reconcile-builder-campaign` on
+  `reconcile-builder-campaign` for campaign recovery. Do not use the shared
+  root checkout while its Engineering Leverage worker is active.
+- `docs/roadmap/campaign_state.json` is deliberately red and blocks dispatch:
+  `docs_lint.py` reports 80 errors and Builder doctor rejects nested
+  worktrees. Fix or explicitly re-scope those gates before resuming P1.
+- `feat/wip-campaign-and-runtime` contains P1-01, P1-02, and P1-03 candidate
+  commits. They need packet-by-packet review and integration; do not mark them
+  complete simply because commits exist.
+- `feat/campaign-alpha-phase-2-integration` contains the canonical committed
+  branch-lease/identity work. The root checkout's uncommitted Phase 2 lease
+  patch is preserved in `stash@{0}` and must be compared with that branch,
+  not continued in place.
+
+## Verified evidence
+
+- `tests/bench/` passed 11 tests on the leverage branch before it was committed.
+- P1-03 candidate scope tests: `18 passed`.
+- `python3 scripts/docs_lint.py` on the clean campaign branch: 80 errors.
+- `./kitty builder initiative doctor --json`: fails `repo:identity` only in a
+  valid nested worktree; its remaining 12 checks pass and one worktree-root
+  warning is expected before first run.
+
+## Next action
+
+Create one focused recovery packet for Builder doctor worktree identity and
+the docs-lint gate decision. Do not claim or dispatch a campaign packet until
+that packet is reviewed and campaign verification is green.
+
 # Handoff — 2026-07-12
 
 ## TL;DR
