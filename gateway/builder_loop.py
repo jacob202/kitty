@@ -190,7 +190,7 @@ def _reconcile_stale_attempts(
     ``counts_toward_budget: False``. Returns the list of reconciled attempt
     dicts so callers can report them.
     """
-    stale = ba.list_stale_attempts(initiative_id, packet_id, db_path=db_path)
+    stale = ba.list_all_stale_attempts(db_path=db_path)
     reconciled: list[dict[str, Any]] = []
     for attempt in stale:
         task_id = attempt["task_id"]
@@ -218,7 +218,7 @@ def _reconcile_stale_attempts(
         write_run_manifest(manifest_path, manifest)
 
         ba.close_attempt(attempt_id, ba.ATTEMPT_CRASHED, db_path=db_path)
-        ba.release_attempt_branch_lease(packet_id, db_path=db_path)
+        ba.release_attempt_branch_lease(attempt["packet_id"], db_path=db_path)
         bq.append_event(
             task_id,
             "infrastructure_failed",

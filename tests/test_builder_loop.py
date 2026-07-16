@@ -19,6 +19,8 @@ from gateway import builder_queue as bq
 
 INITIATIVE = "loop-test"
 PACKET = "LP-1"
+OTHER_INITIATIVE = "loop-other"
+OTHER_PACKET = "LP-2"
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
@@ -87,6 +89,28 @@ def _apply_protected(db_path: Path) -> str:
                 "allowed_paths": ["docs/adr/0020-x.md"],
                 "policy": {"max_attempts": 2},
                 "validation_commands": ["test -f docs/adr/0020-x.md"],
+            }
+        ],
+    }
+    result = bi.apply_manifest(manifest, db_path=db_path)
+    return result["packets"][0]["task_id"]
+
+
+def _apply_other(db_path: Path) -> str:
+    """Apply a second initiative used to prove cross-initiative recovery."""
+    manifest = {
+        "manifest_version": 1,
+        "initiative_id": OTHER_INITIATIVE,
+        "title": "Other loop test",
+        "packets": [
+            {
+                "id": OTHER_PACKET,
+                "title": "Other packet",
+                "objective": "Produce other.txt.",
+                "acceptance_criteria": ["other.txt exists"],
+                "allowed_paths": ["other.txt"],
+                "policy": {"max_attempts": 2},
+                "validation_commands": ["test -f other.txt"],
             }
         ],
     }
@@ -213,6 +237,47 @@ class TestRunPacket:
         assert (
             stale_events[0]["payload"]["counts_toward_budget"] is False
         )
+
+    def test_stale_attempt_reconciled_across_initiatives(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """A stale attempt from another initiative is reconciled before entry."""
+        _apply(db_path)
+        other_task_id = _apply_other(db_path)
+        other_stale = ba.start_attempt(
+            OTHER_INITIATIVE, OTHER_PACKET, db_path=db_path, repo_root=repo
+        )
+
+        result = bl.run_packet(
+            INITIATIVE,
+            PACKET,
+            worker_command=_good_worker(tmp_path),
+            repo_root=repo,
+            db_path=db_path,
+        )
+        assert result["outcome"] == "succeeded"
+
+        closed = ba.get_attempt(other_stale["id"], db_path=db_path)
+        assert closed is not None
+        assert closed["outcome"] == ba.ATTEMPT_CRASHED
+
+        attempt_dir = db_path.parent / "attempts" / other_task_id / str(other_stale["id"])
+        manifest_path = attempt_dir / "run-manifest.json"
+        assert manifest_path.exists()
+        manifest = json.loads(manifest_path.read_text())
+        assert manifest["outcome"] == "crashed"
+        assert manifest["failure"]["sha256"]
+
+        events = bq.list_events(other_task_id, db_path=db_path)
+        stale_events = [
+            e
+            for e in events
+            if e["type"] == "infrastructure_failed"
+            and e.get("payload", {}).get("phase") == "stale_attempt_reconciliation"
+        ]
+        assert len(stale_events) == 1
+
+        assert bq.verify_branch_lease(OTHER_PACKET, db_path=db_path) is None
 
     def test_crashed_attempt_does_not_consume_budget(
         self, repo: Path, db_path: Path, tmp_path: Path
