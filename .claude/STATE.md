@@ -3,8 +3,8 @@
 <!-- kitty-state
 {
   "schema_version": 1,
-  "updated_at": "2026-07-17T10:09:52Z",
-  "head_sha": "97c297018449a3fcf209457d2b786bc73a8eff14",
+  "updated_at": "2026-07-17T10:20:53Z",
+  "head_sha": "f2b5b03ad8472e2d860b0be59d9e68a1a8d95811",
   "branch": "feat/project-control-plane-foundation",
   "worktree": ".",
   "status": "awaiting_review",
@@ -15,14 +15,15 @@
     "implemented deterministic agent context receipts and freshness checks",
     "passed focused continuity, doctor, and Builder regression tests",
     "passed cold-model acceptance and removed obsolete Builder capability descriptions",
-    "passed repository-wide Ruff and Markdown link checks plus mypy on all changed source files"
+    "passed repository-wide Ruff and Markdown link checks plus mypy on all changed source files",
+    "fixed and regression-tested context invocation from outside the checkout"
   ],
   "blockers": [
     "./kitty doctor --json reports five host/runtime failures: missing .env, missing venv, Gateway down, LiteLLM down, and unavailable mem0",
     "the complete tests/ run has 56 environment failures: restricted ps/process groups, blocked Hugging Face access, denied default Pictures writes, and missing optional google.auth",
     "repository-wide mypy has 22 pre-existing errors in 11 unrelated files; all four changed source modules pass"
   ],
-  "next_action": "Review the local continuity foundation commits and authorize push or PR publication if acceptable",
+  "next_action": "Open the authorized PR, verify every required check run, and merge if clean",
   "invalidation_conditions": [
     "HEAD changes outside one checkpoint-only commit",
     "the branch or registered worktree changes",
@@ -37,9 +38,8 @@
 
 ## Current checkpoint
 
-- Timestamp: 2026-07-17T10:09:52Z
-- Recorded parent HEAD: 97c297018449a3fcf209457d2b786bc73a8eff14
-- Implementation HEAD: e4497cdcdf9a39f610711d7c14fc936c29dd6490
+- Timestamp: 2026-07-17T10:20:53Z
+- Implementation HEAD: f2b5b03ad8472e2d860b0be59d9e68a1a8d95811
 - Branch: feat/project-control-plane-foundation
 - Worktree: .
 - Status: awaiting_review
@@ -54,6 +54,8 @@
 - Focused continuity, doctor, and Builder regression tests passed.
 - A clean model answered all eight cold-start questions and found one stale
   Builder description, which was corrected and added to freshness detection.
+- Senior review found and fixed context invocation outside the checkout; the
+  regression test now passes with PYTHONPATH removed.
 
 ## Blocker
 
@@ -68,8 +70,7 @@ files; all four changed source modules pass.
 
 ## Next action
 
-Review the local continuity foundation commits and authorize push or PR
-publication if acceptable.
+Open the authorized PR, verify every required check run, and merge if clean.
 
 This checkpoint is invalid if any structured invalidation condition above
 becomes true.
