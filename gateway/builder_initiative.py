@@ -781,6 +781,71 @@ def _attempts_exhausted(
     return len(consuming) >= _packet_max_attempts(packet)
 
 
+def derive_packet_eligibility(
+    *,
+    packet_id: str,
+    task_state: str | None,
+    depends_on: list[str],
+    task_states: dict[str, str | None],
+    exhausted_packet_ids: set[str],
+    data_available: bool = True,
+) -> dict[str, Any]:
+    """Classify one packet without creating a second scheduling state machine.
+
+    This pure helper is shared by read projections. Execution still uses
+    :func:`eligible_packets`; the helper only expresses the same durable task,
+    dependency, and retry-budget rules for status consumers.
+    """
+    if not data_available or task_state is None:
+        return {"state": "unavailable", "blocked_by": []}
+    if packet_id in exhausted_packet_ids:
+        return {"state": "blocked", "blocked_by": [packet_id]}
+    if task_state != bq.QUEUED:
+        return {"state": "not_queued", "blocked_by": []}
+
+    missing = [dependency for dependency in depends_on if dependency not in task_states]
+    if missing:
+        return {"state": "unavailable", "blocked_by": missing}
+    blocked_by = [
+        dependency
+        for dependency in depends_on
+        if dependency in exhausted_packet_ids
+        or task_states[dependency] in _BLOCKING_STATES
+    ]
+    if blocked_by:
+        return {"state": "blocked", "blocked_by": blocked_by}
+    waiting_on = [
+        dependency
+        for dependency in depends_on
+        if task_states[dependency] != bq.DONE
+    ]
+    if waiting_on:
+        return {"state": "waiting", "blocked_by": waiting_on}
+    return {"state": "eligible", "blocked_by": []}
+
+
+def derive_initiative_state(
+    *,
+    stored_state: str,
+    total_packets: int,
+    done_count: int,
+    has_blocked: bool,
+    has_failed: bool,
+    has_exhausted: bool,
+    has_eligible: bool,
+) -> str:
+    """Return the canonical initiative rollup from already-read facts."""
+    if stored_state == INITIATIVE_PAUSED:
+        return INITIATIVE_PAUSED
+    if total_packets > 0 and done_count == total_packets:
+        return INITIATIVE_COMPLETED
+    if has_blocked or has_failed or has_exhausted:
+        return INITIATIVE_FAILED
+    if not has_eligible:
+        return INITIATIVE_PAUSED
+    return INITIATIVE_ACTIVE
+
+
 def _exhausted_packet_ids(
     initiative_id: str,
     packets: list[dict[str, Any]],
@@ -942,16 +1007,15 @@ def initiative_status(
     ]
 
     stored_state = str(initiative.get("state", INITIATIVE_ACTIVE))
-    if stored_state == INITIATIVE_PAUSED:
-        state = INITIATIVE_PAUSED
-    elif len(done) == len(packets):
-        state = INITIATIVE_COMPLETED
-    elif blocked or failed or exhausted:
-        state = INITIATIVE_FAILED
-    elif not eligible:
-        state = INITIATIVE_PAUSED
-    else:
-        state = INITIATIVE_ACTIVE
+    state = derive_initiative_state(
+        stored_state=stored_state,
+        total_packets=len(packets),
+        done_count=len(done),
+        has_blocked=bool(blocked),
+        has_failed=bool(failed),
+        has_exhausted=bool(exhausted),
+        has_eligible=bool(eligible),
+    )
 
     next_p = eligible[0] if eligible else None
     evidence = _initiative_evidence(packets, db_path)

@@ -219,8 +219,22 @@ def _builder_fact(*, observed_at: str, valid_until: str) -> dict[str, Any]:
             reason="KITTY_BUILDER_QUEUE_ENABLED disables the Builder queue",
         )
     try:
+        snapshot = builder_status.build_status_snapshot()
+        partial_packets = snapshot["integrity"]["partial_packets"]
+        if partial_packets:
+            noun = "record" if partial_packets == 1 else "records"
+            return _fact(
+                snapshot,
+                source="builder_status",
+                observed_at=observed_at,
+                valid_until=valid_until,
+                state="degraded",
+                reason=(
+                    f"Builder status includes {partial_packets} partial packet {noun}."
+                ),
+            )
         return _fact(
-            builder_status.build_status_snapshot(),
+            snapshot,
             source="builder_status",
             observed_at=observed_at,
             valid_until=valid_until,
