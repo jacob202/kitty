@@ -11,6 +11,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Builder's immutable packet base must resolve from origin/main.
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -141,7 +144,7 @@ jobs:
       - name: Broken links (lychee)
         uses: lycheeverse/lychee-action@v2
         with:
-          args: --base docs/ --no-progress docs/
+          args: --root-dir docs --no-progress docs/
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

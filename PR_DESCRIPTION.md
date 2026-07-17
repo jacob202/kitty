@@ -6,6 +6,8 @@
 
 ## Summary
 
+- Strengthens Builder execution integrity and Engineering Leverage safeguards without rewriting the reviewed 21-commit history.
+
 This PR combines the low-risk Engineering Leverage implementation with the
 Builder Phase 2 integrity work required to make that tooling safe to dogfood.
 The result is one reviewable branch that removes verified friction, strengthens
