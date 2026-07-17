@@ -46,8 +46,8 @@ Read `.claude/HANDOFF.md` and `.claude/STATE.md` at the start of every session. 
 | Orientation         | `START_HERE.md`                  |
 | Current status      | `docs/PROJECT_STATUS.md`         |
 | Architecture        | `docs/ARCHITECTURE.md`           |
-| Phase B plan        | `docs/phases/PHASE_B_PLAN.md`           | (shipped)
-| Storage migration   | `docs/phases/STORAGE_MIGRATION_PLAN.md` | (shipped)
+| Phase B plan (shipped) | `docs/phases/PHASE_B_PLAN.md`        |
+| Storage migration (shipped) | `docs/phases/STORAGE_MIGRATION_PLAN.md` |
 | Agent/runtime rules | `docs/AGENT_RUNTIME.md`          |
 | Free workers        | `docs/FREE_WORKERS.md`           |
 | Decisions           | `docs/DECISIONS.md`              |

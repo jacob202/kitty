@@ -14,7 +14,7 @@
 > - **A2** — Archive 8 generic agent skills from active registry (per H5 decision; listed in `SKILL_REGISTRY.md`).
 > - **D4 / A3** — Migrate unique logic out of `scripts/curation/`, then deprecate.
 >
-> **Known uncommitted on a different branch** — `gateway/builder_loop.py`, `gateway/builder_attempt.py`, `gateway/builder_queue.py`, `gateway/builder_initiative.py`, `tests/test_builder_loop.py` carry Builder Phase 2 lease/identity work that landed on `chore/engineering-leverage-phase-8-9` via `ecb6ff7`. **Three identity-verification tests are `xfail strict=True`, documenting the exact next wiring gap:** `TestLeaseIdentityIntegration.test_wrong_branch_execution_rejected_by_identity`, `test_foreign_commits_rejected`, `test_clean_in_scope_execution_succeeds`. Flipping them green requires wiring `ba.claim_and_start_attempt` into `bl.run_packet` and adding post-worker identity verification.
+> **Builder Phase 2 closeout completed on this branch** — `7ceb511` wires atomic lease + attempt claims into `run_packet`, verifies post-worker Git/scope identity, and owner-fences every deliberate lease release. `aee7c4a` makes first-time manifest apply fail before mutation when no durable base ref resolves; `3a7e798` binds the initiative-driver integration harness to its temporary repository. The three former strict xfails are ordinary passing tests.
 
 **Branch (audit was written on):** `feat/campaign-alpha-phase-2-integration`
 **Branch (implementation landed on):** `chore/engineering-leverage-phase-8-9`
@@ -410,7 +410,7 @@ Five experiments selected for high value, low risk, reversibility, and local tes
 |---|---|---|---|---|
 | 6 | Migrate `context_builder.py` callers → `context_assembler`, then delete facade | ✓ | `839f1c4` | 5 caller files + 4 test files migrated; facade deleted |
 | 7 | Add lychee link checker to CI | ✓ | `dcbe491` | Hygiene job; 102 OK / 0 errors on first run |
-| 8 | Skills cull: archive generic skills, merge duplicates | ✓ partial | `74eb6d1` | Removed duplicate `second-opinion`; created `SKILL_REGISTRY.md`. H5 archive agents pending Jacob's call |
+| 8 | Skills cull: archive generic skills, merge duplicates | ✓ partial | `74eb6d1` | Removed duplicate `second-opinion`; created `SKILL_REGISTRY.md`. H5 archive work is intentionally deferred under the recorded decision |
 | 9 | Consolidate `builder.py` ISC logic into `builder_queue.py` | ✓ | `0e03943`, `ea7c639` | ISC extracted to `builder_isc.py` (cleaner than `builder_queue.py`); dead imports removed |
 | 10 | Wire `observability.py` into `./kitty doctor --spend` | ✓ | `c8d753b` | Doctor `--spend` flag added |
 

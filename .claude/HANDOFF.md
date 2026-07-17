@@ -1,162 +1,157 @@
-# Handoff — 2026-07-17 — `chore/engineering-leverage-phase-8-9`
+# Handoff — 2026-07-16 — Engineering Leverage closeout
 
-## Mission
+## Current truth
 
-The dogfooding loop is the highest-leverage move: make KittyBuilder strong
-enough to use on itself, surface the useful state in Kitty UI, and stop as
-soon as the next step stops paying back the tokens. Keep EL packaging and
-Builder Phase 2 work in the same branch **only if a concrete task explicitly
-combines them** — this branch (`chore/engineering-leverage-phase-8-9`)
-already carries both.
+- Branch: `chore/engineering-leverage-phase-8-9`
+- Base: `origin/main @ 6cd464fe6f867b6cd90a7f8d5e6c63ac8239c753`
+- Decision: keep Engineering Leverage and Builder integrity as one branch and one PR.
+- Builder Phase 2 lease/identity wiring is complete and its former xfails pass.
+- `kb_mrm5ru85_9ea7` is cancelled. Do not claim, recreate, or restart it.
+- No remote action has occurred. Pushing or creating the PR still requires Jacob.
 
-## Current Truth
+## Preserve these worktrees
 
-- **Branch:** `chore/engineering-leverage-phase-8-9`
-- **Base SHA:** `6cd464fe6f867b6cd90a7f8d5e6c63ac8239c753` (origin/main)
-- **Branch ahead of origin/main by 13 commits**
-- **Working tree:** clean (zero uncommitted, zero untracked)
-- **CodeGraph:** last sync reported `Already up to date`
-- **Doctor JSON:** `codegraph:daemon` shows WARN (expected — daemon not running in this sandbox)
-- **Builder queue:** `kb_mrm5ru85_9ea7` is **cancelled** — do not claim or restart it
+- `/Users/jacobbrizinski/Projects/kitty/.worktrees/campaign-p1-05` — `codex/campaign-p1-05`
+- `/Users/jacobbrizinski/Projects/kitty/.worktrees/reconcile-builder-campaign` — `reconcile-builder-campaign`
+- `/Users/jacobbrizinski/Projects/kitty/.worktrees/reconcile-phase2-p104` — `codex/reconcile-phase2-p104`
+- `/Users/jacobbrizinski/Projects/kitty/.worktrees/reconcile-wip-campaign` — `feat/wip-campaign-and-runtime`
 
-## What This Branch Already Carries
+## What landed in the closeout
 
-- 13 commits ahead of `origin/main`, all EL + Phase 2 alignment work + the
-  Doctor --spend flag and KittyBench skeleton (which were applied by a
-  concurrent worker onto this same branch).
-- 23 of ~25 audit recommendations from
-  `docs/AUDIT_ENGINEERING_LEVERAGE_2026-07-14.md` §10 now have a `✓` row
-  with a commit SHA in the Section 10 status column.
-- H1-H6 owner decisions are recorded in the audit's HUMAN DECISION table.
-- The 3 xfailed tests in `tests/test_builder_loop.py::TestLeaseIdentityIntegration`
-  (`test_wrong_branch_execution_rejected_by_identity`,
-  `test_foreign_commits_rejected`,
-  `test_clean_in_scope_execution_succeeds`) document the **single largest
-  remaining wiring gap**: `bl.run_packet` still calls `ba.start_attempt`
-  instead of `ba.claim_and_start_attempt`, and has no post-worker git
-  identity / commit-marker verification. `xfail strict=True` means these
-  flip to failing-on-pass the moment that wiring lands.
+- `7ceb511` — production `run_packet` uses atomic lease + attempt claims, verifies
+  post-worker Git/scope identity, and owner-fences deliberate release paths.
+- `aee7c4a` — new packets cannot persist without a resolvable durable base SHA.
+- `c2584bb` — the new MCP Ruff/mypy CI scope is green rather than known-red.
+- `3a7e798` — initiative integration tests use the base SHA from their own repo.
+- The audit bridge, project status, skill registry, canonical architecture,
+  PR description, STATE, and this handoff now describe current behavior.
 
-## Active Worktrees / Preserve
+The complete validation ledger and the single unchanged full-suite failure are in
+`.claude/STATE.md`.
 
-These are live and should be left alone unless the task explicitly switches scope:
+## Deferred audit work
 
-- `/Users/jacobbrizinski/Projects/kitty/.worktrees/campaign-p1-05` on `codex/campaign-p1-05`
-- `/Users/jacobbrizinski/Projects/kitty/.worktrees/reconcile-builder-campaign` on `reconcile-builder-campaign`
-- `/Users/jacobbrizinski/Projects/kitty/.worktrees/reconcile-phase2-p104` on `codex/reconcile-phase2-p104`
-- `/Users/jacobbrizinski/Projects/kitty/.worktrees/reconcile-wip-campaign` on `feat/wip-campaign-and-runtime`
+Do not reinterpret `✓` or `⏸` rows in
+`docs/AUDIT_ENGINEERING_LEVERAGE_2026-07-14.md`.
 
-## What Is Left To Do (highest-leverage first)
+- D2/A1: inspect references/history for the five root temporary artifacts before
+  proposing archive or deletion.
+- A2/H5: move the eight named generic skills out of the active registry while
+  preserving their content; Jacob chose archive, not permanent deletion.
+- D4/A3/H2: identify and migrate unique `scripts/curation/` behavior before removal.
 
-1. **Audit D2 / A1** — Subclass-by-subclass reference check on the
-   5 root temp files (`KITTY 2.md`, `PLAN.html`, `tokens 2.css`,
-   `Design system philosophy reimagine.zip`, `kitty-studio-handoff.tar.gz`).
-   For each one, `git grep -l <name>` and git log history. If zero
-   references, propose archive or `git rm`. If any reference, leave.
-2. **Audit A2 / H5** — Archive the 8 generic agent skills from the
-   active registry (already listed in `SKILL_REGISTRY.md`):
-   extract-wisdom, first-principles, iterative-depth,
-   iterative-self-review-meta-optimization, red-team,
-   root-cause-analysis, science-method, systems-thinking.
-   Per H5 decision: don't delete permanently — move to
-   `docs/archive/skills/` and keep the SKILL.md content.
-3. **Audit D4 / A3 / H2** — `scripts/curation/` has 21 files. Per H2
-   decision: migrate any unique logic into Builder, then
-   `git rm -r scripts/curation/`. If no unique logic after audit,
-   archive.
-4. **Builder Phase 2 identity gap** — wire
-   `ba.claim_and_start_attempt` into `bl.run_packet` and add
-   post-worker identity verification. Flips 3 xfailed tests
-   green. Concrete, bounded, and unblocked now that the
-   `branch_leases` schema and `release_branch_lease` exist.
-5. **One small UI surface** — make builder state (runs, attempts,
-   leases, last failure string) actually visible in the Kitty
-   chat UI. Do this **after** #4 so the UI surfaces real state,
-   not placeholder state.
+These are mechanical follow-ups and should not displace the Builder UI read model.
 
-## What Not To Do
+## Implementation-ready Builder UI task
 
-- Do not re-claim `kb_mrm5ru85_9ea7` — it's cancelled.
-- Do not restart the EL initiative from scratch — the audit's
-  Section 10 status column is the authoritative source of what
-  landed. Read it before any audit-row work.
-- Do not delete branches unless they are fully superseded
-  elsewhere and have no active worktree.
-- Do not spend tokens on broad repo archaeology unless you have
-  a new concrete reason.
-- Do not touch the 8 generic agent skills' content — only move
-  the files to `docs/archive/skills/` per H5.
+### Goal
 
-## Verification So Far
+Expose one truthful, read-only Builder status projection through the existing
+runtime-manifest API, then render that projection in the existing Kitty UI. Do not
+add mutation buttons in the first pass. The current
+`runtime_manifest._builder_fact()` exposes only queue counts and initiative rows,
+which is insufficient to explain an active or failed packet.
 
-- `python3.12 -m pytest tests/test_doctor.py -q --tb=short` → `55 passed`
-- `python3.12 -m pytest tests/test_builder_loop.py -q --tb=short` → `34 passed, 3 xfailed`
-- `python3.12 -m pytest tests/test_success_criteria.py -q --tb=short` → `9 passed`
-- `python3.12 -m pytest tests/test_run_gates_script.py -q --tb=short` → `15 passed`
-- `python3.12 -m pytest tests/bench/ -q --tb=short` → `11 passed`
-- `ruff check gateway/ tests/` → passed
-- `mypy gateway/doctor.py gateway/builder.py gateway/builder_attempt.py gateway/builder_queue.py gateway/builder_loop.py gateway/builder_initiative.py gateway/builder_isc.py gateway/context_assembler.py --ignore-missing-imports` → no issues
-- `vulture gateway/ --min-confidence 80 --exclude gateway/kitty-chat/` → exit 0
-- `lychee --root-dir docs docs/` → 102 OK / 0 errors
-- `git diff --check origin/main..HEAD` → exit 0
+### Canonical ownership
 
----
+| Concern | Owner | Canonical states/data |
+|---|---|---|
+| Initiative and packet definition/eligibility | `gateway/builder_initiative.py` | `active`, `paused`, `completed`, `failed`; dependencies, policy, allowed paths, durable `base_sha` |
+| Task lifecycle | `gateway/builder_queue.py` | `queued`, `claimed`, `running`, `blocked`, `pr_opened`, `awaiting_review`, `done`, `failed`, `cancelled` |
+| Attempt lifecycle | `gateway/builder_attempt.py` | open (`outcome is null`), `succeeded`, `failed`, `aborted`, `crashed`; attempt budget excludes `crashed` |
+| Branch ownership | `gateway/builder_queue.py` `branch_leases` | lease ID, packet, worker, branch, canonical worktree, base SHA |
+| Worker process | `gateway/builder_queue.py` + `builder_runner.py` | `starting`, `running`, `cancel_requested`, `exited`, `failed`, `timeout`, `cancelled`, `interrupted`, `lease_lost`, `scope_violation` |
+| Validation/review | `gateway/builder_attempt.py` | validation `passed`/`failed`/`skipped`; review `approve`/`request_changes`/`reject` |
+| Publication | `gateway/builder_publish.py` + `pr_links` | task publication states plus PR URL, checks, review, merged flag |
+| Timeline/failure class | `gateway/builder_queue.py` events | append-only events; `infrastructure_failed` carries `counts_toward_budget: false` |
 
-## Sol Prompt
+Packet status is a projection, not a new state machine. Derive it from the task,
+attempt budget, lease/run, dependencies, and last relevant event.
 
-You are continuing the KittyBuilder / Kitty convergence work in
-`/Users/jacobbrizinski/Projects/kitty` on branch
-`chore/engineering-leverage-phase-8-9`. This branch already carries
-the EL packaging + the Builder Phase 2 alignment work. **Treat the two
-as merged on this branch** — they are not separate lanes here.
+### Required read-only projection
 
-Your goal: get the most leverage per token and the farthest useful
-forward movement, not a polished recap.
+Add a small serializer module (recommended:
+`gateway/builder_status.py`) and have `runtime_manifest._builder_fact()` call it.
+Return a versioned value shaped like:
 
-### Read first (one time)
-
-- `AGENTS.md` — repository contract
-- This `.claude/HANDOFF.md` (you're reading it now)
-- `.claude/STATE.md` — what landed this session
-- `docs/AUDIT_ENGINEERING_LEVERAGE_2026-07-14.md` §10 status column —
-  authoritative source of which audit rows landed. **Do not redo work**
-  marked `✓`.
-- `tests/test_builder_loop.py::TestLeaseIdentityIntegration` — three
-  `xfail` markers document the exact next Builder Phase 2 wiring gap.
-
-### Rebuild live state once (no repeats)
-
-```
-git status --short --branch
-git worktree list --porcelain
-git for-each-ref --format='%(refname:short) %(objectname:short) %(committerdate:short) %(subject)' refs/heads
-./kitty doctor --json 2>&1 | head -50
+```text
+{
+  schema_version,
+  queue,
+  initiatives: [{
+    initiative_id, title, state, pause_reason, next_packet, counts,
+    packets: [{
+      packet_id, title, task_id, task_state, eligibility,
+      budget: {used, max, exhausted},
+      attempt: {id, number, outcome, validation_status, review_verdict,
+                failure_kind, updated_at} | null,
+      lease: {id, worker_id, branch, base_sha, created_at} | null,
+      run: {id, state, started_at, last_heartbeat_at, ended_at, exit_code} | null,
+      publication: {pr_url, checks_state, review_state, merged} | null,
+      last_event: {id, type, created_at, reason, counts_toward_budget} | null
+    }]
+  }]
+}
 ```
 
-### Pick one strong move
+Use bounded/cursor-like reads: latest attempt, latest run, latest relevant event,
+and current lease only. Do not return every event on each 15-second poll.
 
-Priority order:
+### Truthful client behavior
 
-1. **One** audit item from "What Is Left To Do" above (D2/A1,
-   A2/H5, D4/A3/H2) **or** the Builder Phase 2 identity gap.
-2. A small, ugly, shippable UI surface — only if #1 is blocked.
-3. **Never** polisher work — no broad doc rewrites, no "let me also..."
+- Loading: show a neutral skeleton; do not imply an empty queue.
+- Stale: when `valid_until` has passed, keep the last snapshot visibly marked
+  stale and disable future mutation controls.
+- Unavailable/unknown: show the runtime fact's exact `reason`; never convert it to
+  an empty Builder state.
+- Cancelled: distinguish task `cancelled`, run `cancelled`, and attempt `aborted`.
+- Crashed/infrastructure failure: show retryable infrastructure failure and that it
+  did not consume attempt budget; do not label it implementation failure.
+- Exhausted: derive from budget and show operator intervention required even when
+  the underlying task is `blocked`.
+- Live progress: retain the current 15-second runtime-manifest poll initially.
+  Add a faster poll only while a run is active; no websocket is required for v1.
 
-### Hard boundaries
+### Operator actions for a later mutation pass
 
-- Do not touch live worktrees (see list above).
-- `kb_mrm5ru85_9ea7` is cancelled — do not claim it.
-- Do not delete branches or files outside the audited sets above.
-- Do not push, force-push, or merge.
-- If the audit §10 row is `✓` or `⏸`, do **not** redo it. Read the
-  Status column carefully.
-- Do not over-engineer. Ship the smallest thing that proves the
-  move.
+- `queued`: run packet or cancel.
+- `claimed`: inspect; operator release only when no live run owns it.
+- `running`: request cancellation; never release directly.
+- `blocked`: inspect evidence, retry through the existing release/run path, or
+  publish only when successful attempt evidence exists.
+- `pr_opened` / `awaiting_review`: sync PR/check/review state.
+- `done` / `failed` / `cancelled`: read/archive only.
 
-### What I want back
+Do not expose these as enabled UI actions until explicit backend action endpoints
+enforce the same fencing and legal transitions as the CLI.
 
-- The concrete next action you chose and why it wins on leverage.
-- Exact files touched.
-- Exact verification (commands + counts).
-- Blockers, if any.
-- The next thing the next model should do.
+### Fields that are unsafe or not ready
+
+- Do not expose absolute worktree/log/artifact paths, command arrays, environment
+  variables, process IDs, raw validation output, raw review output, or unbounded
+  error payloads. They may leak local paths, prompts, or credentials.
+- There is no public bounded `list_branch_leases`/status-projection API yet.
+  Add the read serializer instead of making the UI join SQLite concepts.
+- `list_events()` is unbounded; the projection needs a latest-event query rather
+  than shipping full history.
+- Failure reason needs a small enum (`implementation`, `identity`, `validation`,
+  `review`, `infrastructure`, `cancelled`, `exhausted`) plus a sanitized message.
+
+### Files and tests for the cheaper implementation pass
+
+- Backend: `gateway/builder_status.py` (new),
+  `gateway/runtime_manifest.py`, and focused `tests/test_builder_status.py` plus
+  runtime-manifest contract coverage.
+- Client: `gateway/kitty-chat/src/lib/gateway.ts`,
+  `gateway/kitty-chat/src/lib/queries.ts`, and the existing Builder/RightPanel
+  surface; add a focused component test.
+- Acceptance: projection is deterministic on an isolated DB, handles missing DB
+  as an explicit runtime fact, caps events, omits unsafe fields, represents every
+  state above, and the UI distinguishes loading/stale/unavailable/crashed/exhausted.
+
+## Stop conditions
+
+- Do not push, merge, rewrite history, delete worktrees, or restart the cancelled
+  initiative without explicit authorization.
+- Do not build a second Builder state machine in TypeScript.
+- Do not start deferred destructive audit work while implementing the UI read model.

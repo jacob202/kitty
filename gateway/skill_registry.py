@@ -168,7 +168,7 @@ def invoke(name: str, context: Optional[str] = None) -> dict:
     """Prepare a skill for invocation. Returns the skill data with a rendered prompt.
 
     This doesn't execute the skill — it returns the system prompt and metadata
-    so the caller (context_builder or LLM) can inject it into the session.
+    so the caller (context assembler or LLM) can inject it into the session.
     """
     skill = get(name)
     if not skill:
