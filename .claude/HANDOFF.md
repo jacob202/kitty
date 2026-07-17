@@ -52,10 +52,11 @@
   UI issue. Focus return, all failure classes, truncated history, partial data,
   duplicate IDs, stale/unavailable/empty/fetch failure, and Kitty isolation were
   exercised.
-- Production Webpack compilation succeeds but the final Next 16 route check is
-  blocked by an unchanged main-branch export in
-  `gateway/kitty-chat/src/app/proxy/[...path]/route.ts`. Keep that separate from
-  this PR unless Jacob explicitly expands scope.
+- Production Webpack compilation and standalone TypeScript validation pass after
+  moving proxy configuration helpers out of
+  `gateway/kitty-chat/src/app/proxy/[...path]/route.ts`; the route now exports
+  only HTTP handlers as Next 16 requires. Proxy configuration precedence and
+  secret handling are unchanged and remain covered by the existing proxy tests.
 
 ## Known deferral
 
@@ -66,10 +67,9 @@ command, environment value, or credential-bearing payload.
 
 ## Next action
 
-Read PR #183 checks and review comments. Address only Builder-slice findings,
-rerun the narrow affected suite plus the complete frontend/Builder suites when
-warranted, and push normal commits only. Do not merge, force-push, rewrite
-history, delete worktrees, or introduce Builder mutation endpoints.
+Push the focused release repairs, wait for refreshed PR #183 checks, and merge
+only when every required run is successful. Preserve existing worktrees and do
+not add Builder mutation endpoints.
 
 ---
 

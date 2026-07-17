@@ -67,10 +67,11 @@
   ten attempts, partial evidence, duplicate IDs, stale/unavailable/empty/fetch
   failure, focus restoration, and Chats/Home isolation. No reproducible Builder
   UI defect was found and the mobile document had no horizontal overflow.
-- Production Webpack compilation succeeds, then Next 16 route validation fails
-  on unchanged `origin/main` code: `src/app/proxy/[...path]/route.ts` exports
-  `resolveGatewayUrl`, which is not a permitted route export. That file is not in
-  `origin/main..HEAD` and was not expanded into this Builder PR.
+- Production Webpack compilation and standalone TypeScript validation pass after
+  moving proxy configuration helpers out of
+  `src/app/proxy/[...path]/route.ts`. The route now exports only HTTP handlers,
+  as required by Next 16; configuration precedence and secret handling are
+  unchanged and remain covered by the existing proxy tests.
 
 ## Repository hygiene
 
@@ -84,8 +85,9 @@
 
 ## Remaining action
 
-- Review PR #183 and its GitHub checks. Do not merge, force-push, delete
-  worktrees, or add mutation endpoints as part of this handoff.
+- Push the focused release repairs, verify the refreshed required checks on PR
+  #183, then merge. Keep the Builder surface read-only and preserve the existing
+  worktrees.
 
 ---
 
