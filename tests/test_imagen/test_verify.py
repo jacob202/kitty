@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -138,10 +139,16 @@ def test_load_criteria_missing_returns_default():
     assert criteria.mechanical is None
 
 
-def test_load_criteria_from_file(tmp_path):
+def _criteria_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    faces_dir = tmp_path / "faces"
+    monkeypatch.setattr(settings, "faces_dir", faces_dir)
+    return faces_dir.parent / "criteria"
+
+
+def test_load_criteria_from_file(tmp_path, monkeypatch):
     from mcp.imagen.verify import load_criteria
 
-    criteria_dir = settings.faces_dir.parent / "criteria"
+    criteria_dir = _criteria_dir(tmp_path, monkeypatch)
     criteria_dir.mkdir(parents=True, exist_ok=True)
     file_path = criteria_dir / "test-char.json"
     file_path.write_text(
@@ -159,10 +166,10 @@ def test_load_criteria_from_file(tmp_path):
     assert criteria.mechanical == {"min_width": 512}
 
 
-def test_load_criteria_rubric_dicts(tmp_path):
+def test_load_criteria_rubric_dicts(tmp_path, monkeypatch):
     from mcp.imagen.verify import load_criteria
 
-    criteria_dir = settings.faces_dir.parent / "criteria"
+    criteria_dir = _criteria_dir(tmp_path, monkeypatch)
     criteria_dir.mkdir(parents=True, exist_ok=True)
     file_path = criteria_dir / "hard-gate.json"
     file_path.write_text(
