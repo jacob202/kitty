@@ -720,6 +720,10 @@ def inspect_continuity(
     branch = _current_branch(repo_root)
     worktrees = _worktree_paths(repo_root)
     canonical_checkout = worktrees[0]
+    if expected_canonical is None:
+        env_override = os.environ.get("KITTY_EXPECTED_CANONICAL_CHECKOUT")
+        if env_override:
+            expected_canonical = Path(env_override)
     expected = (expected_canonical or EXPECTED_CANONICAL_CHECKOUT).expanduser().resolve()
     observed_at = (now or _utc_now()).astimezone(timezone.utc)
     lookup = github_lookup or _github_pr_status
