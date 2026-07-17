@@ -58,14 +58,19 @@ def _worker(tmp_path: Path) -> list[str]:
     return ["/bin/sh", str(path)]
 
 
-def _apply(db_path: Path, packets: list[dict[str, Any]]) -> None:
+def _apply(
+    db_path: Path,
+    packets: list[dict[str, Any]],
+    *,
+    repo_root: Path | None = None,
+) -> None:
     manifest = {
         "manifest_version": 1,
         "initiative_id": INITIATIVE,
         "title": "Run loop test",
         "packets": packets,
     }
-    bi.apply_manifest(manifest, db_path=db_path)
+    bi.apply_manifest(manifest, db_path=db_path, repo_root=repo_root)
 
 
 def _packet(packet_id: str, depends_on: list[str] | None = None) -> dict[str, Any]:
@@ -97,7 +102,7 @@ class TestRunInitiative:
     def test_independent_packets_run_in_seq_order(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):
-        _apply(db_path, [_packet("P1"), _packet("P2")])
+        _apply(db_path, [_packet("P1"), _packet("P2")], repo_root=repo)
         summary = _run(repo, db_path, tmp_path)
         assert summary["outcome"] == "idle", summary
         assert summary["succeeded"] == 2, summary
@@ -108,7 +113,7 @@ class TestRunInitiative:
     def test_decision_events_logged(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):
-        _apply(db_path, [_packet("P1"), _packet("P2")])
+        _apply(db_path, [_packet("P1"), _packet("P2")], repo_root=repo)
         summary = _run(repo, db_path, tmp_path)
         assert summary["outcome"] == "idle", summary
         conn = bq.connect(db_path)
@@ -129,7 +134,7 @@ class TestRunInitiative:
     def test_pause_gate_stops_before_any_packet(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):
-        _apply(db_path, [_packet("P1")])
+        _apply(db_path, [_packet("P1")], repo_root=repo)
         bi.pause_initiative(INITIATIVE, "halt", db_path=db_path)
         summary = _run(repo, db_path, tmp_path)
         assert summary["outcome"] == "paused"
@@ -139,7 +144,7 @@ class TestRunInitiative:
     def test_attempt_budget_pauses_with_reason(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):
-        _apply(db_path, [_packet("P1"), _packet("P2")])
+        _apply(db_path, [_packet("P1"), _packet("P2")], repo_root=repo)
         summary = _run(repo, db_path, tmp_path, max_initiative_attempts=0)
         assert summary["outcome"] == "paused"
         assert summary["processed"] == []
@@ -148,7 +153,11 @@ class TestRunInitiative:
     def test_dependency_gates_next_packet(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):
-        _apply(db_path, [_packet("P1"), _packet("P2", depends_on=["P1"])])
+        _apply(
+            db_path,
+            [_packet("P1"), _packet("P2", depends_on=["P1"])],
+            repo_root=repo,
+        )
         summary = _run(repo, db_path, tmp_path)
         assert summary["succeeded"] == 1, summary
         assert [e["packet_id"] for e in summary["processed"]] == ["P1"]
