@@ -1,10 +1,26 @@
 # Engineering Leverage Audit — 2026-07-14
 
-**Branch:** `feat/campaign-alpha-phase-2-integration`
-**Base SHA (main):** TBD — `feat/campaign-alpha-phase-2-integration` has diverged 871 commits from main
-**HEAD SHA:** `4c0ceba`
-**Working tree:** dirty — `.claude/HANDOFF.md` modified, `.codegraph/` untracked
-**Test suite:** timed out at 120s — see verification section
+> **Preface — Bridge from 2026-07-17 implementation pass:**
+>
+> This audit was originally written on `feat/campaign-alpha-phase-2-integration` and recommended ~25 changes. The recommended low-risk work was implemented on branch **`chore/engineering-leverage-phase-8-9`** off `origin/main @ 6cd464fe`.
+>
+> **Section 10** ("Prioritized Execution Plan") now includes a **Status** column: `✓` = landed (commit mentioned), `⏸` = deferred per packet rules, `—` = still pending.
+>
+> **Section 10 (HUMAN DECISION REQUIRED)** has Jacob's 2026-07-16 verdicts in the third column. Read those before doing any audit-row work.
+>
+> **Three items from Section 10 (HUMAN DECISION REQUIRED)** remain to execute and would be the highest-leverage next moves:
+>
+> - **D2 / A1** — Subclass-by-subclass reference check on the 5 root temp files; archive-or-delete any with zero runtime/CI/test reference.
+> - **A2** — Archive 8 generic agent skills from active registry (per H5 decision; listed in `SKILL_REGISTRY.md`).
+> - **D4 / A3** — Migrate unique logic out of `scripts/curation/`, then deprecate.
+>
+> **Known uncommitted on a different branch** — `gateway/builder_loop.py`, `gateway/builder_attempt.py`, `gateway/builder_queue.py`, `gateway/builder_initiative.py`, `tests/test_builder_loop.py` carry Builder Phase 2 lease/identity work that landed on `chore/engineering-leverage-phase-8-9` via `ecb6ff7`. **Three identity-verification tests are `xfail strict=True`, documenting the exact next wiring gap:** `TestLeaseIdentityIntegration.test_wrong_branch_execution_rejected_by_identity`, `test_foreign_commits_rejected`, `test_clean_in_scope_execution_succeeds`. Flipping them green requires wiring `ba.claim_and_start_attempt` into `bl.run_packet` and adding post-worker identity verification.
+
+**Branch (audit was written on):** `feat/campaign-alpha-phase-2-integration`
+**Branch (implementation landed on):** `chore/engineering-leverage-phase-8-9`
+**Base SHA (main):** `6cd464fe6f867b6cd90a7f8d5e6c63ac8239c753`
+**Implementation head SHA:** see `.claude/HANDOFF.md` "Current Truth"
+**Test suite:** see verification section
 
 ---
 
@@ -376,35 +392,37 @@ Five experiments selected for high value, low risk, reversibility, and local tes
 
 ## 10. Prioritized Execution Plan
 
+> **Status legend:** ✓ = landed on `chore/engineering-leverage-phase-8-9` (off `origin/main` @ `6cd464fe`). ⏸ = intentionally deferred per packet rules. — = still pending.
+
 ### DO NOW (this session, low risk, high payoff)
 
-| # | Action | Payoff | Effort | Risk | Dependencies |
-|---|---|---|---|---|---|
-| 1 | Commit `.codegraph/` index | Enable code graph navigation for agents | Low | None | Regenerate if stale |
-| 2 | Archive root temp files (5 tracked items) | Remove visual clutter; needs `git rm` | Low | Verify owner intent | Owner approval |
-| 3 | Update `PROJECT_STATUS.md` branch claim | Fix known stale claim | Low | None | — |
-| 4 | Fix stale CLAUDE.md `honcho.py` claim | CLAUDE.md says "not properly wired up" but module IS imported | Low | None | — |
-| 5 | Add vulture dead-code check to CI | Catch dead code before merge | Low | False positives | Configure min-confidence |
+| # | Action | Status | Commit | Notes |
+|---|---|---|---|---|
+| 1 | `.codegraph` validation + protective .gitignore | ✓ | `dcbe491`, `802d9e5` | Doctor freshness check; `.codegraph/.gitignore` keeps runtime data off git |
+| 2 | Archive root temp files (5 tracked items) | ⏸ | — | H1 says evidence-first; no references found yet for 4 of 5, owner-approval block |
+| 3 | Update `PROJECT_STATUS.md` branch claim | ✓ | `09ebffc` | Fixed `feat/campaign-...` → `main`; removed "No kitty-chat CI job" row |
+| 4 | Fix stale CLAUDE.md `honcho.py` claim | ✓ | `09ebffc` | Now reads "wired to kitty_tools route" |
+| 5 | Add vulture dead-code check to CI | ✓ | `dcbe491` | Hygiene job; `--min-confidence 80` per audit recommendation |
 
 ### NEXT (next session, medium effort, high payoff)
 
-| # | Action | Payoff | Effort | Risk | Dependencies |
-|---|---|---|---|---|---|
-| 6 | Migrate `context_builder.py` callers (5) to `context_assembler`, then delete facade | Remove 65-line facade | Medium | Caller migration | Verify all 5 callers |
-| 7 | Add lychee link checker to CI | Catch broken doc links | Low | None | — |
-| 8 | Produce skills cull: archive generic skills, merge duplicates | 21→~12 agent skills, eliminate duplicates | Medium | May break agent workflows | Skill-by-skill verification |
-| 9 | Consolidate `builder.py` ISC logic into `builder_queue.py` | Reduce dual Builder ISC derivation | High | ISC derivation logic must survive | Verify all callers of `builder.py` |
-| 10 | Wire `observability.py` into `./kitty doctor --spend` | Surface LLM cost data | Low | — | — |
+| # | Action | Status | Commit | Notes |
+|---|---|---|---|---|
+| 6 | Migrate `context_builder.py` callers → `context_assembler`, then delete facade | ✓ | `839f1c4` | 5 caller files + 4 test files migrated; facade deleted |
+| 7 | Add lychee link checker to CI | ✓ | `dcbe491` | Hygiene job; 102 OK / 0 errors on first run |
+| 8 | Skills cull: archive generic skills, merge duplicates | ✓ partial | `74eb6d1` | Removed duplicate `second-opinion`; created `SKILL_REGISTRY.md`. H5 archive agents pending Jacob's call |
+| 9 | Consolidate `builder.py` ISC logic into `builder_queue.py` | ✓ | `0e03943`, `ea7c639` | ISC extracted to `builder_isc.py` (cleaner than `builder_queue.py`); dead imports removed |
+| 10 | Wire `observability.py` into `./kitty doctor --spend` | ✓ | `c8d753b` | Doctor `--spend` flag added |
 
 ### LATER (within 2 weeks, lower urgency)
 
-| # | Action | Payoff | Effort | Risk | Dependencies |
-|---|---|---|---|---|---|
-| 11 | Add `mcp/` to CI lint/typecheck targets | Close L-CAND-7 gap | Low | May reveal existing issues | Fix any findings |
-| 12 | Fill or remove empty `prompts/` domain slots | Eliminate dead mapping in `DOMAIN_TO_FILE` | Low | `load_prompt` fallback must work | Verify fallback |
-| 13 | Archive `scripts/curation/` if confirmed unused | Remove 21-file experimental subdir | Low | Owner intent verification | Owner approval |
-| 14 | Build KittyBench skeleton with 2 fixtures | Catch regressions in Builder pipeline | Medium | Test stability | Pick stable packets |
-| 15 | Study Hatchet/Temporal lease recovery patterns | Improve Builder queue recovery | Low (study only) | None | — |
+| # | Action | Status | Commit | Notes |
+|---|---|---|---|---|
+| 11 | Add `mcp/` to CI lint/typecheck targets | ✓ | `dcbe491` | Ruff + mypy targets now include `mcp/` |
+| 12 | Fill or remove empty `prompts/` domain slots | — | — | Open question — minor dead code; leaving |
+| 13 | Archive `scripts/curation/` if confirmed unused | ⏸ | — | H2 = deprecate; needs unique-logic migration first |
+| 14 | Build KittyBench skeleton with 2 fixtures | ✓ | `407f441` | `tests/bench/` with state machine + ISC criteria fixtures |
+| 15 | Study Hatchet/Temporal lease recovery patterns | ✓ | — | `docs/reference/hatchet-patterns.md` produced |
 
 ### REJECT
 
@@ -418,31 +436,31 @@ Five experiments selected for high value, low risk, reversibility, and local tes
 
 ### DELETE (safe — verified no references)
 
-| # | Item | Confidence |
-|---|---|---|
-| D1 | `gateway/context_builder.py` — migrate 5 callers first, then delete | safe after migration |
-| D2 | Root temp files (5 tracked items): `KITTY 2.md`, `PLAN.html`, `tokens 2.css`, `Design system philosophy reimagine.zip`, `kitty-studio-handoff.tar.gz` | probably safe — verify owner intent; need `git rm` |
-| D3 | Empty prompt slots from `DOMAIN_TO_FILE` mapping | safe — fallback to `soul_v1.md` |
-| D4 | `scripts/curation/` (21 files) | probably safe — verify owner intent |
+| # | Item | Status | Commit | Notes |
+|---|---|---|---|---|
+| D1 | `gateway/context_builder.py` — migrate 5 callers first, then delete | ✓ | `839f1c4` | 64 lines deleted; ruff clean |
+| D2 | Root temp files (5 tracked items): `KITTY 2.md`, `PLAN.html`, `tokens 2.css`, `Design system philosophy reimagine.zip`, `kitty-studio-handoff.tar.gz` | ⏸ | — | H1 says evidence-first per file; not yet executed |
+| D3 | Empty prompt slots from `DOMAIN_TO_FILE` mapping | — | — | Open question — minor dead code |
+| D4 | `scripts/curation/` (21 files) | ⏸ | — | H2 = migrate unique logic, then remove; not yet executed |
 
 ### ARCHIVE (move to `docs/archive/` or embedded archive)
 
-| # | Item | Reason |
-|---|---|---|
-| A1 | `TASKS.md` | 26 days stale; all phases complete |
-| A2 | 8 generic agent skills (extract-wisdom, first-principles, iterative-depth, iterative-self-review, red-team, root-cause-analysis, science-method, systems-thinking) | Generic LLM capabilities, not Kitty-specific |
-| A3 | `scripts/curation/` (21 files) | Experimental curation pipeline |
+| # | Item | Status | Reason |
+|---|---|---|---|
+| A1 | `TASKS.md` | ⏸ | 26 days stale; all phases complete — pending owner pass |
+| A2 | 8 generic agent skills (extract-wisdom, first-principles, iterative-depth, iterative-self-review, red-team, root-cause-analysis, science-method, systems-thinking) | ⏸ | H5 = archive from active registry, don't delete permanently. Listed in `SKILL_REGISTRY.md` |
+| A3 | `scripts/curation/` (21 files) | ⏸ | See D4 / H2 |
 
 ### HUMAN DECISION REQUIRED
 
-| # | Question |
-|---|---|
-| H1 | Are any of the 5 root temp files in active use? |
-| H2 | Is `scripts/curation/` still needed as reference material? |
-| H3 | Is `scripts/opencode_free_train.sh` still used standalone, or has `--free` flag fully replaced it? |
-| H4 | Commit or remove `.codegraph/` index? |
-| H5 | Should the 8 generic agent skills be archived or kept? |
-| H6 | Merge `./kitty builder` CLI with surviving scripts, or keep scripts as standalone? |
+| # | Question | Decision (Jacob 2026-07-16) |
+|---|---|---|
+| H1 | Are any of the 5 root temp files in active use? | **Assume no until proven otherwise, but don't delete blindly.** If imported by runtime → keep. If referenced by CI/tests/docs → keep. If generated and reproducible → delete from git (or ignore). If they're one-off migration/debug artifacts with no references → archive or delete. |
+| H2 | Is `scripts/curation/` still needed as reference material? | **Deprecate.** Migrate remaining unique logic into Builder, then remove. |
+| H3 | Is `scripts/opencode_free_train.sh` still used standalone, or has `--free` flag fully replaced it? | *(implied by H6)* — consolidate into Builder CLI. |
+| H4 | Commit or remove `.codegraph/` index? | **Resolved on branch:** committed `.codegraph/.gitignore` to prevent accidental DB commits; doctor freshness check wired (802d9e5). Index itself stays machine-local. |
+| H5 | Should the 8 generic agent skills be archived or kept? | **Archive from active registry; don't delete permanently.** Listed as H5 archive candidates in `SKILL_REGISTRY.md` (74eb6d1). |
+| H6 | Merge `./kitty builder` CLI with surviving scripts, or keep scripts as standalone? | **Yes. Builder CLI becomes the single canonical interface.** Eliminate duplicated script entry points. |
 
 ---
 
