@@ -109,16 +109,6 @@ CREATE TABLE IF NOT EXISTS packet_attempts (
         REFERENCES initiative_packets(initiative_id, packet_id),
     FOREIGN KEY (task_id) REFERENCES tasks(id)
 );
-
-CREATE TABLE IF NOT EXISTS branch_leases (
-    lease_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    packet_id TEXT NOT NULL UNIQUE,
-    worker_id TEXT NOT NULL,
-    branch TEXT NOT NULL UNIQUE,
-    worktree_path TEXT NOT NULL UNIQUE,
-    base_sha TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
 """
 
 
@@ -553,59 +543,14 @@ def claim_and_start_attempt(
     conn = bq.connect(db_path)
     try:
         conn.execute("BEGIN IMMEDIATE")
-
-        # --- branch lease INSERT (mirrors bq.claim_branch_lease) ---
-        try:
-            conn.execute(
-                """
-                INSERT INTO branch_leases
-                    (packet_id, worker_id, branch, worktree_path, base_sha)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (packet_id, worker_id, branch, worktree_path, base_sha),
-            )
-        except sqlite3.IntegrityError as exc:
-            conn.rollback()
-            existing = conn.execute(
-                "SELECT packet_id, worker_id, branch, worktree_path "
-                "FROM branch_leases "
-                "WHERE packet_id = ? OR worker_id = ? "
-                "   OR branch = ? OR worktree_path = ?",
-                (packet_id, worker_id, branch, worktree_path),
-            ).fetchone()
-            if existing is None:
-                raise bq.BranchLeaseConflictError(
-                    f"branch lease conflict for packet {packet_id!r}"
-                ) from exc
-            conflicting_field = "unknown"
-            if existing["packet_id"] == packet_id:
-                conflicting_field = "packet_id"
-            elif existing["worker_id"] == worker_id:
-                conflicting_field = "worker_id"
-            elif existing["branch"] == branch:
-                conflicting_field = "branch"
-            elif existing["worktree_path"] == worktree_path:
-                conflicting_field = "worktree_path"
-            raise bq.BranchLeaseConflictError(
-                f"branch lease conflict: {conflicting_field} "
-                f"is already claimed by packet {existing['packet_id']!r}"
-            ) from exc
-
-        lease_row = conn.execute(
-            "SELECT * FROM branch_leases WHERE packet_id = ?",
-            (packet_id,),
-        ).fetchone()
-        if lease_row is None:
-            conn.rollback()
-            raise RuntimeError(
-                f"Branch lease for packet {packet_id!r} was committed "
-                "but is not retrievable"
-            )
-        lease = dict(lease_row)
-        lease_id = lease["lease_id"]
-
-        # --- attempt INSERT (mirrors start_attempt) ---
         packet = _packet_row(conn, initiative_id, packet_id)
+        durable_base_sha = packet["base_sha"]
+        if durable_base_sha != base_sha:
+            raise AttemptStateError(
+                f"branch lease base_sha {base_sha!r} does not match durable "
+                f"packet base_sha {durable_base_sha!r} for "
+                f"{initiative_id}/{packet_id}"
+            )
 
         open_row = conn.execute(
             """
@@ -628,11 +573,21 @@ def claim_and_start_attempt(
             conn, initiative_id, packet_id, exclude_crashed=True
         )
         if used_for_budget >= max_attempts:
-            conn.rollback()
             raise AttemptLimitError(
                 f"{initiative_id}/{packet_id} has used {used_for_budget}/"
                 f"{max_attempts} attempts; operator intervention required"
             )
+
+        lease_row = bq._claim_branch_lease_on_conn(
+            conn,
+            packet_id,
+            worker_id,
+            branch,
+            worktree_path,
+            base_sha,
+        )
+        lease = dict(lease_row)
+        lease_id = lease["lease_id"]
 
         attempt_no = used + 1
         bundle = _build_bundle_on_conn(conn, packet, attempt_no)
@@ -668,6 +623,69 @@ def claim_and_start_attempt(
             "SELECT * FROM packet_attempts WHERE id = ?", (attempt_id,)
         ).fetchone()
         return _row_to_attempt(attempt_row), lease
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def close_attempt_and_release_lease(
+    attempt_id: int,
+    outcome: str,
+    *,
+    lease_id: int,
+    packet_id: str,
+    worker_id: str,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """Atomically close an attempt and release its exact owner-fenced lease."""
+    if outcome not in _OUTCOMES:
+        raise AttemptError(f"outcome must be one of {sorted(_OUTCOMES)}")
+    init_db(db_path)
+    conn = bq.connect(db_path)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = _open_attempt_row(conn, attempt_id)
+        if row["packet_id"] != packet_id:
+            raise AttemptStateError(
+                f"attempt {attempt_id} belongs to packet {row['packet_id']!r}, "
+                f"not {packet_id!r}"
+            )
+        if row["lease_id"] != lease_id:
+            raise AttemptStateError(
+                f"attempt {attempt_id} is bound to lease {row['lease_id']!r}, "
+                f"not {lease_id!r}"
+            )
+        bq._release_branch_lease_on_conn(
+            conn,
+            lease_id,
+            packet_id=packet_id,
+            worker_id=worker_id,
+        )
+        conn.execute(
+            """
+            UPDATE packet_attempts
+            SET outcome = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (outcome, attempt_id),
+        )
+        bq.append_event(
+            row["task_id"],
+            "attempt_closed",
+            payload={
+                "attempt_id": attempt_id,
+                "outcome": outcome,
+                "lease_id": lease_id,
+            },
+            conn=conn,
+        )
+        conn.commit()
+        updated = conn.execute(
+            "SELECT * FROM packet_attempts WHERE id = ?", (attempt_id,)
+        ).fetchone()
+        return _row_to_attempt(updated)
     except Exception:
         conn.rollback()
         raise

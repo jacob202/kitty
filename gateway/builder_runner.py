@@ -156,6 +156,7 @@ def ensure_worktree(
     branch: str,
     *,
     repo_root: Path | None = None,
+    base_sha: str | None = None,
 ) -> Path:
     """Create (or safely reuse) the deterministic worktree for a task.
 
@@ -193,9 +194,18 @@ def ensure_worktree(
     if branch_exists:
         result = _git(["worktree", "add", str(path), branch], cwd=root)
     else:
-        base = "origin/main"
+        base = base_sha
+        if base is None:
+            base = "origin/main"
+            if (
+                _git(["rev-parse", "--verify", "--quiet", base], cwd=root).returncode
+                != 0
+            ):
+                base = "main"
         if _git(["rev-parse", "--verify", "--quiet", base], cwd=root).returncode != 0:
-            base = "main"
+            raise RunnerError(
+                f"cannot create worktree {path}: base {base!r} does not exist"
+            )
         result = _git(["worktree", "add", str(path), "-b", branch, base], cwd=root)
 
     if result.returncode != 0:
@@ -462,6 +472,7 @@ def run_worker(
     repo_root: Path | None = None,
     db_path: Path | None = None,
     extra_env: dict[str, str] | None = None,
+    base_sha: str | None = None,
 ) -> dict[str, Any]:
     """Claim *task_id*, run *command* in its isolated worktree, record all.
 
@@ -514,7 +525,9 @@ def run_worker(
                 )
         _scope_violations([], task.get("allowed_paths"))
         branch = default_branch_name(task)
-        wt_path = ensure_worktree(task_id, branch, repo_root=root)
+        wt_path = ensure_worktree(
+            task_id, branch, repo_root=root, base_sha=base_sha
+        )
     except Exception:
         # Nothing started yet — hand the claim back cleanly.
         bq.worker_release_task(task_id, lease_token, claim_version, db_path=db_path)
