@@ -1,5 +1,11 @@
 # Kitty Product Architecture
 
+> **Control-plane ratification (2026-07-17):** ADR 0017 makes Kitty the
+> principal agent and intent compiler, a versioned approved Mission the command
+> boundary, and KittyBuilder the execution organization. This supersedes any
+> read-only-only delegation wording in older documents. It defines the contract
+> but does not enable autonomous mutation.
+
 **Status:** Definitive product architecture and execution plan
 **Date:** 2026-07-10
 **Inspected commit:** `0f05ae09ad6a6f90cda4e3bf116278466f72536b`
@@ -436,6 +442,15 @@ project and manifest context are revalidated before dispatch.
 Builder is the governed execution engine behind user-visible **Work**. Its
 internal terms remain available in diagnostics, while normal product language
 uses plans, tasks, runs, reviews, and results.
+
+Kitty—not a separate project-manager runtime—owns conversation, selective
+context retrieval, missing-context detection, assumption challenge, evidence
+planning, and Mission compilation. Builder owns decomposition, worker/model
+routing, context packaging, budgets, attempts, validation, recovery,
+publication, and evidence. Workers are replaceable and never own project truth.
+Routing targets 90–95% of available quality at materially lower cost and
+escalates only when evidence or risk justifies it. Results include concise
+teach-back, while proactivity remains relevant and permission-scoped.
 
 ### End-to-end delegation flow
 

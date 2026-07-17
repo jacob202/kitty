@@ -1,10 +1,11 @@
 # Kitty Blueprint — 2026-07-11
 
-Decisive architecture + product direction, written by Fable from the
+Product direction, written by Fable from the
 `docs/fable-context` bundle, the Codex audit, the verified visual references,
-and the live system state (doctor: 12 pass / 3 warn / 0 fail). This supersedes
-older roadmaps where they conflict. Durable decisions extracted here also go in
-`docs/DECISIONS.md`.
+and the live system state observed on 2026-07-11. Durable decisions extracted
+here live in `docs/DECISIONS.md`. ADR 0017 supersedes this document's former
+read-only Kitty/Builder boundary; current status comes from
+`docs/PROJECT_STATUS.md`, not the dated doctor result above.
 
 ---
 
@@ -28,14 +29,15 @@ watch worker logs scroll.
 
 | | Kitty (product) | KittyBuilder (control plane) |
 |---|---|---|
-| Owns | chat, memory, capture, projects, tasks, briefs, tools, images, continuity, UI | initiatives, packets, attempts, worktrees, verification, evidence, publish |
+| Owns | conversation, product intent, selective context, mission compilation, chat, memory, capture, projects, tasks, briefs, tools, images, continuity, UI | accepted missions, initiatives, packets, attempts, worktrees, worker/model routing, verification, recovery, evidence, publish |
 | Truth store | `data/` (chat DB, memory, journal) | builder queue DB + run manifests |
-| Writes to the other? | **No.** Reads Builder state read-only for the "delegated work" card | **No.** Never touches Kitty user data, `data/` personal stores, or `.env` |
+| Contract between them | Submits only a versioned, validated, authorized Mission through a supported interface; reads structured results/evidence | Accepts the governed Mission and returns versioned execution state and evidence; never owns Kitty personal stores or `.env` |
 | Fails independently? | Kitty must be fully usable with Builder offline | Builder runs headless; Kitty UI is optional over it |
 
-Shared: the FastAPI gateway process, the risk-tier vocabulary (T0/T1/T2), and
-the run-manifest contract. Nothing else. No implicit shared state; if Kitty
-needs Builder info it calls Builder's read API, never its tables.
+Shared: versioned mission/result identifiers, the FastAPI gateway process, the
+risk-tier vocabulary (T0/T1/T2), and evidence contracts. No implicit shared
+state. Kitty and its UI use supported Builder interfaces, never Builder tables.
+The Mission write boundary is defined but not autonomously enabled.
 
 **Orca is an adapter, not a system.** It transports tasks to worker terminals
 and reports back. Durable task state lives only in the Builder queue
@@ -56,6 +58,9 @@ the packet is retryable. Orca must never be the only place a task exists.
 4. **Risk tiers** — T0/T1: free workers in isolated worktrees, no secrets, no
    push. T2 (security, auth, persistence, concurrency, destructive): Codex or
    Jacob only. Publish is always operator-gated.
+5. **Mission contract** — approved intent, selected/missing context,
+   assumptions, authority, budgets, acceptance evidence, and base identity cross
+   into Builder as one versioned object (ADR 0017).
 
 Everything else — internal module layout, storage engines, route module
 grouping — is internal and may churn freely.
@@ -135,9 +140,10 @@ user loop touches it is a deletion candidate — complexity is not sacred.
    appear in While You Were Away.
 4. **P4 Mascot + cosmic identity** — SVG line-art cats in logo/empty states,
    cosmic default.
-5. **P5 Delegated-work card** — Kitty reads Builder queue read-only: "3 packets
-   done overnight, 1 needs review." This is where the two systems meet, and
-   the only place.
+5. **P5 Governed delegation** — Kitty compiles an approval-ready Mission,
+   submits it only through the authorized boundary, and reads Builder's bounded
+   result/evidence projection. The shipped Builder UI remains read-only until
+   mutation endpoints enforce the same policy and fencing as the CLI.
 6. **P6 Mobile/PWA pass**, then **P7 Image Lab** once ComfyUI is actually up.
 
 Each slice ships browser-verified or it isn't shipped. Free workers get
@@ -147,11 +153,10 @@ handoff, independent review).
 
 ## 8. Continuity model
 
-- `.claude/STATE.md` — coordinator-owned session truth; workers report, never race.
-- `.claude/HANDOFF.md` — written whenever unfinished work remains.
+- `.claude/STATE.md` — one current structured checkpoint, never an append-only ledger.
+- `.claude/HANDOFF.md` — one current resumable handoff, explicitly invalidated when stale.
 - Builder queue — durable machine state for delegated work.
-- After each milestone: objective, SHAs, evidence, blockers, next step —
-  recorded before the session can be considered ended.
+- Git and archives own history; active checkpoint files do not preserve old checkpoints.
 - Kitty-the-product mirrors this for Jacob: session close → consolidation
   record → next session's What's Next. The engineering discipline and the
   product feature are the same idea; P2 makes them literally share a shape.

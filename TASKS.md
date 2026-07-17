@@ -1,4 +1,9 @@
-# Tasks
+# Tasks — Superseded Status Ledger
+
+> **Superseded 2026-07-17.** This file is retained as historical narrative and
+> is not an active task or status authority. Read `docs/ACTIVE_MISSION.md` for
+> approved work, `docs/PROJECT_STATUS.md` for shipped state, and supported
+> Builder projections for execution state. Git history owns prior task lists.
 
 Last updated: **2026-06-18**
 
@@ -80,7 +85,7 @@ Last updated: **2026-06-18**
 
 ---
 
-## Next
+## Historical next ideas (not active)
 
 All phases complete. Possible future work:
 - Image generation UI when ComfyUI is available

@@ -1,6 +1,6 @@
 # Decisions
 
-**Date:** 2026-07-05
+**Date:** 2026-07-17
 **Status:** Index. Each decision lives in `docs/adr/` as a one-record-per-file ADR.
 
 The full index is in [`docs/adr/README.md`](adr/README.md). Historical
@@ -26,3 +26,4 @@ detail that hasn't been promoted to a per-decision ADR remains in
 | D13 | Magic Kitty: Cross-Project Insight                  | [0014](adr/0014-magic-kitty-cross-project-insight.md)       |
 | D14 | Resume Loop Is The Product; Builder Boundary        | [0015](adr/0015-resume-loop-and-builder-boundary.md)        |
 | D15 | Life-First Ordering                                 | [0016](adr/0016-life-first-ordering.md)                     |
+| D16 | Kitty → Mission → KittyBuilder Control Plane        | [0017](adr/0017-kitty-mission-builder-control-plane.md)     |

@@ -4,6 +4,19 @@
 
 Fail loud, never mask. Raise errors with clear causes; do not swallow exceptions, return fake defaults, or add silent fallbacks. External calls may retry with a visible warning, then must raise the real error with useful context.
 
+## Cold-start bootloader
+
+Before acting, execute the bootloader in `START_HERE.md`. At minimum:
+
+1. verify this worktree belongs to the canonical `~/Projects/kitty` checkout;
+2. inspect live Git state;
+3. run `./kitty context --agent` and reject any stale or contradictory receipt;
+4. follow the receipt's canonical reading order and authority map;
+5. read `docs/ACTIVE_MISSION.md` and the current session checkpoint;
+6. inspect Builder through supported interfaces when execution state matters;
+7. treat handoffs and prose as invalid when live evidence disagrees; and
+8. verify relevant facts and authorization before mutation.
+
 ## Project Structure
 
 Kitty is a local-first personal AI companion. Backend code lives in `gateway/`, with FastAPI routes under `gateway/routes/` and path constants in `gateway/paths.py`. The main UI is `gateway/kitty-chat/` (Next.js). Tests live in `tests/`. Product, architecture, and planning docs live in `docs/`. Runtime data and logs live in `data/` and `logs/` and must not be committed.
@@ -35,16 +48,19 @@ Before any `gh` command or `git push`, check whether `GITHUB_TOKEN` is set. If `
 
 Before merging a PR, read the Actions **check runs** and confirm each required job is `success` — not just the combined commit `status`. They are different GitHub surfaces; a green `status` (e.g. a review bot) can hide failing lint/typecheck/pytest check runs. A broken file reached `main` this way once (see `docs/LEARNINGS.md` L-CAND-6). After any non-trivial merge, compile/import the touched files before declaring done.
 
-## Kitty Builder (Layer 1A — coordination only)
+## KittyBuilder execution control plane
 
-Safe, read-only coordination commands wired through `./kitty builder`. No autonomous loops, agent spawning, or budget enforcement yet.
+KittyBuilder has durable initiatives, packets, queue state, leases, attempts,
+isolated worker runs, validation/review, recovery, budgets, publication rails,
+and a bounded read-only status projection. Use `./kitty builder --help` and
+`docs/KITTYBUILDER_QUICKSTART.md` for the supported surface; use
+`./kitty builder initiative doctor --json` before execution-sensitive work.
 
-- `./kitty builder brief <task>` — print a repo brief (branch, dirty files, task context)
-- `./kitty builder contract validate <path>` — validate a JSON/markdown build contract
-- `./kitty builder queue ...` — durable local task queue (add/list/claim/transition/…); see `docs/KITTYBUILDER_QUICKSTART.md`
-- `python3.12 -m pytest tests/test_builder_cli.py tests/test_builder_queue.py tests/test_builder_contract.py -v` — run builder tests
-
-Disabled commands (`run`, `loop`, `repl`, `delegate`) return a clear "not enabled" message.
+Builder owns execution state, not product intent. The accepted boundary is the
+versioned, authorized Mission in ADR 0017. This repository does not yet permit
+Kitty to submit that Mission autonomously. Never infer Builder state from
+handoff prose, worker output, or UI emptiness, and never join its SQLite tables
+into another state machine.
 
 ### Orca/OpenCode Build Train
 
