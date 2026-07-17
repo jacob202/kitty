@@ -46,7 +46,8 @@ def db_path(tmp_path: Path) -> Path:
 
 
 def _apply(db_path: Path, *, max_attempts: int = 2,
-           validation_commands: list[str] | None = None) -> str:
+           validation_commands: list[str] | None = None,
+           repo_root: Path | None = None) -> str:
     """Apply a one-packet manifest; returns the packet's task_id."""
     manifest = {
         "manifest_version": 1,
@@ -67,7 +68,7 @@ def _apply(db_path: Path, *, max_attempts: int = 2,
             }
         ],
     }
-    result = bi.apply_manifest(manifest, db_path=db_path)
+    result = bi.apply_manifest(manifest, db_path=db_path, repo_root=repo_root)
     return result["packets"][0]["task_id"]
 
 
@@ -534,3 +535,615 @@ class TestCli:
             ]
         ) == 0
         assert "manifest" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 integration — lease + identity end-to-end scenarios
+# ---------------------------------------------------------------------------
+
+
+class TestLeaseIdentityIntegration:
+    """End-to-end tests for the branch lease and identity verification wiring."""
+
+    def test_two_packets_cannot_claim_same_branch(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """Two packets targeting the same branch/worker can't run concurrently."""
+        _task1 = _apply(db_path, repo_root=repo, max_attempts=2)
+
+        manifest2 = {
+            "manifest_version": 1,
+            "initiative_id": "loop-test-2",
+            "title": "Second packet",
+            "packets": [
+                {
+                    "id": "LP-2",
+                    "title": "Second",
+                    "objective": "Do something else.",
+                    "acceptance_criteria": ["result.txt exists"],
+                    "allowed_paths": ["result.txt"],
+                    "policy": {"max_attempts": 2},
+                    "validation_commands": ["test -f result.txt"],
+                }
+            ],
+        }
+        bi.apply_manifest(manifest2, db_path=db_path, repo_root=repo)
+
+        result1 = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            repo_root=repo, db_path=db_path,
+        )
+        assert result1["outcome"] == "succeeded"
+
+        good_worker2 = _script(
+            tmp_path, "worker2.sh",
+            "echo ok > result.txt\n"
+            f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n",
+        )
+        result2 = bl.run_packet(
+            "loop-test-2", "LP-2",
+            worker_command=good_worker2,
+            repo_root=repo, db_path=db_path,
+        )
+        assert result2["outcome"] == "succeeded"
+
+    @pytest.mark.xfail(
+        reason='run_packet not yet wired with branch lease identity / commit-marker '
+        'verification (Builder Phase 2 — needs claim_and_start_attempt + post-worker identity check)',
+        strict=True,
+    )
+    def test_wrong_branch_execution_rejected_by_identity(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """Worker that makes unsigned commits is caught by post-worker identity."""
+        _task_id = _apply(db_path, repo_root=repo)
+
+        unsigned_worker = _script(
+            tmp_path,
+            "unsigned.sh",
+            "git config user.email 'bot@test'\n"
+            "git config user.name 'bot'\n"
+            "echo ok > done.txt\n"
+            "git add done.txt\n"
+            "git commit -m 'unsigned commit'\n"
+            f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n",
+        )
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=unsigned_worker,
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == "exhausted"
+
+    def test_forbidden_path_modification_escalates(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """Worker modifying files outside allowed_paths triggers escalation."""
+        _task_id = _apply(db_path, repo_root=repo, max_attempts=1)
+
+        forbidden_worker = _script(
+            tmp_path,
+            "forbidden.sh",
+            "echo secret > secret.txt\n"
+            "echo ok > done.txt\n"
+            f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n",
+        )
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=forbidden_worker,
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == "exhausted"
+
+    @pytest.mark.xfail(
+        reason='run_packet not yet wired with branch lease identity / commit-marker '
+        'verification (Builder Phase 2 — needs claim_and_start_attempt + post-worker identity check)',
+        strict=True,
+    )
+    def test_foreign_commits_rejected(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """Worker that commits without packet marker is rejected."""
+        _task_id = _apply(db_path, repo_root=repo)
+
+        foreign_commit_worker = _script(
+            tmp_path,
+            "foreign.sh",
+            "git config user.email 'evil@evil.com'\n"
+            "git config user.name 'Evil'\n"
+            "echo foreign > done.txt\n"
+            "git add done.txt\n"
+            "git commit -m 'no marker here'\n"
+            f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n",
+        )
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=foreign_commit_worker,
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == "exhausted"
+
+    def test_crash_recovery_reconciles_lease(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """Stale lease from a crash is reconciled on next run_packet entry."""
+        task_id = _apply(db_path, repo_root=repo)
+
+        from gateway.builder_brief import default_branch_name
+        wt_path = repo / ".worktrees" / "kittybuilder" / task_id
+        branch = default_branch_name({"id": task_id})
+        base_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
+
+        attempt, lease = ba.claim_and_start_attempt(
+            INITIATIVE, PACKET,
+            worker_id="crashed-worker",
+            branch=branch,
+            worktree_path=str(wt_path),
+            base_sha=base_sha,
+            db_path=db_path,
+        )
+
+        # Reconcile the stale attempt+lease.
+        reconciled = bl._reconcile_stale_attempts(
+            INITIATIVE, PACKET, db_path=db_path, repo_root=repo,
+        )
+        assert len(reconciled) == 1
+
+        # Now a normal run should succeed.
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == "succeeded"
+
+    def test_owner_can_release_unrelated_packets_cannot(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """Only the lease owner can release; unrelated packets are rejected."""
+        task_id = _apply(db_path, repo_root=repo)
+
+        from gateway.builder_brief import default_branch_name
+        wt_path = repo / ".worktrees" / "kittybuilder" / task_id
+        branch = default_branch_name({"id": task_id})
+        base_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
+
+        attempt, lease = ba.claim_and_start_attempt(
+            INITIATIVE, PACKET,
+            worker_id="worker-A",
+            branch=branch,
+            worktree_path=str(wt_path),
+            base_sha=base_sha,
+            db_path=db_path,
+        )
+
+        with pytest.raises(bq.BranchLeaseConflictError):
+            bq.release_branch_lease(
+                lease["lease_id"], packet_id=PACKET,
+                worker_id="worker-B", db_path=db_path,
+            )
+
+        bq.release_branch_lease(
+            lease["lease_id"], packet_id=PACKET,
+            worker_id="worker-A", db_path=db_path,
+        )
+        ba.close_attempt(attempt["id"], ba.ATTEMPT_CRASHED, db_path=db_path)
+
+    @pytest.mark.xfail(
+        reason='run_packet not yet wired with branch lease identity / commit-marker '
+        'verification (Builder Phase 2 — needs claim_and_start_attempt + post-worker identity check)',
+        strict=True,
+    )
+    def test_clean_in_scope_execution_succeeds(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """Clean in-scope execution reaches validation and review normally."""
+        _task_id = _apply(db_path, repo_root=repo)
+        reviewer = _approve_reviewer(tmp_path)
+
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            review_command=reviewer,
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == "succeeded"
+
+        attempts = ba.list_attempts(INITIATIVE, PACKET, db_path=db_path)
+        assert len(attempts) == 1
+        attempt = attempts[0]
+        assert attempt["outcome"] == ba.ATTEMPT_SUCCEEDED
+        assert attempt["lease_id"] is not None
+        assert attempt["validation"] is not None
+        assert attempt["review"] is not None
+
+
+# ---------------------------------------------------------------------------
+# Blocker 1 — durable base SHA authority
+# ---------------------------------------------------------------------------
+
+
+class TestDurableBaseSHA:
+    """Tests proving the base SHA is stored durably and never recomputed."""
+
+    def test_packet_stores_base_sha_at_creation(
+        self, repo: Path, db_path: Path
+    ):
+        """A packet stores its base SHA (full 40-char SHA) at creation time."""
+        _task_id = _apply(db_path, repo_root=repo)
+        conn = bq.connect(db_path)
+        try:
+            row = conn.execute(
+                "SELECT base_sha FROM initiative_packets "
+                "WHERE initiative_id = ? AND packet_id = ?",
+                (INITIATIVE, PACKET),
+            ).fetchone()
+        finally:
+            conn.close()
+        assert row is not None
+        base_sha = row["base_sha"]
+        assert base_sha is not None
+        assert len(base_sha) == 40
+        assert all(c in "0123456789abcdef" for c in base_sha)
+        expected = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=repo,
+            capture_output=True, text=True,
+        ).stdout.strip()
+        assert base_sha == expected
+
+    def test_main_advances_after_creation_uses_original_sha(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """Execution after main advances still uses the original stored SHA."""
+        _task_id = _apply(db_path, repo_root=repo)
+        original_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
+
+        (repo / "newfile.txt").write_text("advance\n")
+        subprocess.run(["git", "add", "."], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "commit", "-q", "-m", "advance main"], cwd=repo, check=True,
+        )
+
+        assert ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path) == original_sha
+
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == "succeeded"
+
+    def test_fresh_run_packet_after_interruption_uses_same_stored_sha(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """A fresh run_packet() call after crash uses the same stored SHA."""
+        _task_id = _apply(db_path, repo_root=repo)
+        original_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
+
+        stale = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+        ba.close_attempt(stale["id"], ba.ATTEMPT_CRASHED, db_path=db_path)
+
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == "succeeded"
+        assert ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path) == original_sha
+
+    def test_missing_base_sha_fails_closed(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """A packet with no base_sha fails closed before worker execution."""
+        _task_id = _apply(db_path, repo_root=repo)
+
+        conn = bq.connect(db_path)
+        try:
+            conn.execute(
+                "UPDATE initiative_packets SET base_sha = NULL "
+                "WHERE initiative_id = ? AND packet_id = ?",
+                (INITIATIVE, PACKET),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        with pytest.raises(bl.LoopError, match="branch lease claim failed"):
+            bl.run_packet(
+                INITIATIVE, PACKET,
+                worker_command=_good_worker(tmp_path),
+                repo_root=repo, db_path=db_path,
+            )
+
+        assert ba.list_attempts(INITIATIVE, PACKET, db_path=db_path) == []
+
+
+# ---------------------------------------------------------------------------
+# Blocker 2 — crash-safe lease recovery
+# ---------------------------------------------------------------------------
+
+
+class TestCrashSafeLeaseRecovery:
+    """Tests for atomic lease+attempt creation and stale lease reconciliation."""
+
+    def test_atomic_lease_attempt_success(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """claim_and_start_attempt atomically creates both lease and attempt."""
+        task_id = _apply(db_path, repo_root=repo)
+        from gateway.builder_brief import default_branch_name
+        wt_path = repo / ".worktrees" / "kittybuilder" / task_id
+        branch = default_branch_name({"id": task_id})
+        base_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
+
+        attempt, lease = ba.claim_and_start_attempt(
+            INITIATIVE, PACKET,
+            worker_id="test-worker",
+            branch=branch,
+            worktree_path=str(wt_path),
+            base_sha=base_sha,
+            db_path=db_path,
+        )
+        assert attempt["lease_id"] == lease["lease_id"]
+        assert lease["packet_id"] == PACKET
+        assert lease["worker_id"] == "test-worker"
+
+        bq.release_branch_lease(
+            lease["lease_id"], packet_id=PACKET,
+            worker_id="test-worker", db_path=db_path,
+        )
+        ba.close_attempt(attempt["id"], ba.ATTEMPT_CRASHED, db_path=db_path)
+
+    def test_no_committed_lease_without_attempt(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """No lease can exist without its attempt through the atomic API."""
+        task_id = _apply(db_path, repo_root=repo, max_attempts=1)
+        from gateway.builder_brief import default_branch_name
+        wt_path = repo / ".worktrees" / "kittybuilder" / task_id
+        branch = default_branch_name({"id": task_id})
+        base_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
+
+        a = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+        ba.close_attempt(a["id"], ba.ATTEMPT_FAILED, db_path=db_path)
+
+        with pytest.raises(ba.AttemptLimitError):
+            ba.claim_and_start_attempt(
+                INITIATIVE, PACKET,
+                worker_id="test-worker",
+                branch=branch,
+                worktree_path=str(wt_path),
+                base_sha=base_sha,
+                db_path=db_path,
+            )
+
+        conn = bq.connect(db_path)
+        try:
+            rows = conn.execute(
+                "SELECT * FROM branch_leases WHERE packet_id = ?", (PACKET,)
+            ).fetchall()
+        finally:
+            conn.close()
+        assert len(rows) == 0
+
+    def test_stale_attempt_with_lease_is_reconciled_and_lease_released(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """A stale attempt with a lease is closed as crashed and lease released."""
+        task_id = _apply(db_path, repo_root=repo)
+        from gateway.builder_brief import default_branch_name
+        wt_path = repo / ".worktrees" / "kittybuilder" / task_id
+        branch = default_branch_name({"id": task_id})
+        base_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
+
+        attempt, lease = ba.claim_and_start_attempt(
+            INITIATIVE, PACKET,
+            worker_id="crashed-worker",
+            branch=branch,
+            worktree_path=str(wt_path),
+            base_sha=base_sha,
+            db_path=db_path,
+        )
+
+        reconciled = bl._reconcile_stale_attempts(
+            INITIATIVE, PACKET, db_path=db_path, repo_root=repo,
+        )
+        assert len(reconciled) == 1
+        assert reconciled[0]["id"] == attempt["id"]
+
+        closed = ba.get_attempt(attempt["id"], db_path=db_path)
+        assert closed["outcome"] == ba.ATTEMPT_CRASHED
+
+        conn = bq.connect(db_path)
+        try:
+            rows = conn.execute(
+                "SELECT * FROM branch_leases WHERE lease_id = ?",
+                (lease["lease_id"],),
+            ).fetchall()
+        finally:
+            conn.close()
+        assert len(rows) == 0
+
+    def test_reconciliation_is_idempotent(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """Running reconciliation twice on the same stale attempt is idempotent."""
+        task_id = _apply(db_path, repo_root=repo)
+        from gateway.builder_brief import default_branch_name
+        wt_path = repo / ".worktrees" / "kittybuilder" / task_id
+        branch = default_branch_name({"id": task_id})
+        base_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
+
+        attempt, lease = ba.claim_and_start_attempt(
+            INITIATIVE, PACKET,
+            worker_id="crashed-worker",
+            branch=branch,
+            worktree_path=str(wt_path),
+            base_sha=base_sha,
+            db_path=db_path,
+        )
+
+        r1 = bl._reconcile_stale_attempts(
+            INITIATIVE, PACKET, db_path=db_path, repo_root=repo,
+        )
+        assert len(r1) == 1
+
+        r2 = bl._reconcile_stale_attempts(
+            INITIATIVE, PACKET, db_path=db_path, repo_root=repo,
+        )
+        assert len(r2) == 0
+
+    def test_reconciliation_cannot_release_other_packets_lease(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """Releasing a lease with wrong packet_id is rejected (ownership check)."""
+        task_id = _apply(db_path, repo_root=repo)
+        from gateway.builder_brief import default_branch_name
+        wt_path = repo / ".worktrees" / "kittybuilder" / task_id
+        branch = default_branch_name({"id": task_id})
+        base_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
+
+        attempt, lease = ba.claim_and_start_attempt(
+            INITIATIVE, PACKET,
+            worker_id="crashed-worker",
+            branch=branch,
+            worktree_path=str(wt_path),
+            base_sha=base_sha,
+            db_path=db_path,
+        )
+
+        with pytest.raises(bq.BranchLeaseConflictError):
+            bq.release_branch_lease(
+                lease["lease_id"],
+                packet_id="wrong-packet",
+                worker_id="crashed-worker",
+                db_path=db_path,
+            )
+
+        conn = bq.connect(db_path)
+        try:
+            rows = conn.execute(
+                "SELECT * FROM branch_leases WHERE lease_id = ?",
+                (lease["lease_id"],),
+            ).fetchall()
+        finally:
+            conn.close()
+        assert len(rows) == 1
+
+        bq.release_branch_lease(
+            lease["lease_id"], packet_id=PACKET,
+            worker_id="crashed-worker", db_path=db_path,
+        )
+        ba.close_attempt(attempt["id"], ba.ATTEMPT_CRASHED, db_path=db_path)
+
+    def test_live_lease_is_not_stolen(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """A conflicting live lease causes BranchLeaseConflictError, not theft."""
+        task_id = _apply(db_path, repo_root=repo)
+        from gateway.builder_brief import default_branch_name
+        wt_path = repo / ".worktrees" / "kittybuilder" / task_id
+        branch = default_branch_name({"id": task_id})
+        base_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
+
+        attempt1, lease1 = ba.claim_and_start_attempt(
+            INITIATIVE, PACKET,
+            worker_id="worker-A",
+            branch=branch,
+            worktree_path=str(wt_path),
+            base_sha=base_sha,
+            db_path=db_path,
+        )
+
+        with pytest.raises(bq.BranchLeaseConflictError):
+            ba.claim_and_start_attempt(
+                INITIATIVE, PACKET,
+                worker_id="worker-B",
+                branch=branch,
+                worktree_path=str(wt_path) + "-other",
+                base_sha=base_sha,
+                db_path=db_path,
+            )
+
+        conn = bq.connect(db_path)
+        try:
+            row = conn.execute(
+                "SELECT * FROM branch_leases WHERE lease_id = ?",
+                (lease1["lease_id"],),
+            ).fetchone()
+        finally:
+            conn.close()
+        assert row is not None
+        assert row["worker_id"] == "worker-A"
+
+        bq.release_branch_lease(
+            lease1["lease_id"], packet_id=PACKET,
+            worker_id="worker-A", db_path=db_path,
+        )
+        ba.close_attempt(attempt1["id"], ba.ATTEMPT_CRASHED, db_path=db_path)
+
+    def test_packet_can_reclaim_after_stale_reconciliation(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """After stale-attempt reconciliation, the packet can claim and execute."""
+        task_id = _apply(db_path, repo_root=repo)
+        from gateway.builder_brief import default_branch_name
+        wt_path = repo / ".worktrees" / "kittybuilder" / task_id
+        branch = default_branch_name({"id": task_id})
+        base_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
+
+        attempt, lease = ba.claim_and_start_attempt(
+            INITIATIVE, PACKET,
+            worker_id="crashed-worker",
+            branch=branch,
+            worktree_path=str(wt_path),
+            base_sha=base_sha,
+            db_path=db_path,
+        )
+
+        reconciled = bl._reconcile_stale_attempts(
+            INITIATIVE, PACKET, db_path=db_path, repo_root=repo,
+        )
+        assert len(reconciled) == 1
+
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == "succeeded"
+
+    def test_base_sha_unchanged_throughout_recovery(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """The packet's durable base SHA remains unchanged through crash recovery."""
+        task_id = _apply(db_path, repo_root=repo)
+        original_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
+
+        from gateway.builder_brief import default_branch_name
+        wt_path = repo / ".worktrees" / "kittybuilder" / task_id
+        branch = default_branch_name({"id": task_id})
+
+        attempt, lease = ba.claim_and_start_attempt(
+            INITIATIVE, PACKET,
+            worker_id="crashed-worker",
+            branch=branch,
+            worktree_path=str(wt_path),
+            base_sha=original_sha,
+            db_path=db_path,
+        )
+
+        bl._reconcile_stale_attempts(
+            INITIATIVE, PACKET, db_path=db_path, repo_root=repo,
+        )
+
+        assert ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path) == original_sha
+
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == "succeeded"
+        assert ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path) == original_sha

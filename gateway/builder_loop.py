@@ -205,6 +205,17 @@ def _reconcile_stale_attempts(
         write_run_manifest(manifest_path, manifest)
 
         ba.close_attempt(attempt_id, ba.ATTEMPT_CRASHED, db_path=db_path)
+
+        # Release the branch lease associated with this crashed attempt.
+        lease_id = attempt.get("lease_id")
+        if lease_id is not None:
+            try:
+                bq.release_branch_lease(
+                    lease_id, packet_id=packet_id, db_path=db_path,
+                )
+            except bq.BranchLeaseConflictError:
+                pass  # Lease was already released or claimed by another packet.
+
         bq.append_event(
             task_id,
             "infrastructure_failed",
@@ -360,6 +371,16 @@ def run_packet(
     _reconcile_stale_attempts(
         initiative_id, packet_id, db_path=db_path, repo_root=repo_root
     )
+
+    # Verify the packet has a durable base SHA before entering the repair
+    # loop. Without it, branch lease claims cannot proceed safely.
+    try:
+        ba.get_packet_base_sha(initiative_id, packet_id, db_path=db_path)
+    except ba.AttemptError:
+        raise LoopError(
+            f"branch lease claim failed: no durable base_sha for "
+            f"{initiative_id}/{packet_id}"
+        )
 
     history: list[dict[str, Any]] = []
     while True:

@@ -96,6 +96,10 @@ class LeaseConflictError(ValueError):
     """Raised when a task cannot be claimed or lease fencing rejects a stale worker."""
 
 
+class BranchLeaseConflictError(ValueError):
+    """Raised when a branch lease is already held or a release is attempted by the wrong owner."""
+
+
 class DataCorruptionError(RuntimeError):
     """Raised when a DB column contains data that cannot be decoded."""
 
@@ -2774,3 +2778,48 @@ def recover_interrupted_runs(
         "claimed_tasks_requeued": claimed_tasks_requeued,
         "conflicts": conflicts,
     }
+
+
+# ---------------------------------------------------------------------------
+# Branch leases (KB-S2 atomic claim_and_start_attempt support)
+# ---------------------------------------------------------------------------
+
+
+def release_branch_lease(
+    lease_id: int,
+    *,
+    packet_id: str | None = None,
+    worker_id: str | None = None,
+    db_path: Path | None = None,
+) -> None:
+    """Release a branch lease, validating caller identity.
+
+    Raises ``BranchLeaseConflictError`` when the provided ``packet_id`` or
+    ``worker_id`` do not match the stored lease — preventing one packet
+    from releasing another's lease.
+    """
+    conn = connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT packet_id, worker_id FROM branch_leases WHERE lease_id = ?",
+            (lease_id,),
+        ).fetchone()
+        if row is None:
+            return  # Already released — idempotent.
+        if packet_id is not None and row["packet_id"] != packet_id:
+            raise BranchLeaseConflictError(
+                f"lease {lease_id} belongs to packet {row['packet_id']!r}, "
+                f"not {packet_id!r}"
+            )
+        if worker_id is not None and row["worker_id"] != worker_id:
+            raise BranchLeaseConflictError(
+                f"lease {lease_id} belongs to worker {row['worker_id']!r}, "
+                f"not {worker_id!r}"
+            )
+        conn.execute("DELETE FROM branch_leases WHERE lease_id = ?", (lease_id,))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()

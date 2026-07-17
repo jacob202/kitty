@@ -27,6 +27,7 @@ import hashlib
 import json
 import re
 import sqlite3
+import subprocess
 from graphlib import CycleError, TopologicalSorter
 from pathlib import Path
 from typing import Any
@@ -120,6 +121,7 @@ CREATE TABLE IF NOT EXISTS initiative_packets (
     allowed_paths_json TEXT NOT NULL,
     policy_json TEXT,
     validation_commands_json TEXT,
+    base_sha TEXT,
     task_id TEXT NOT NULL UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (initiative_id, packet_id),
@@ -130,7 +132,7 @@ CREATE TABLE IF NOT EXISTS initiative_packets (
 
 
 def _ensure_packet_columns(conn: sqlite3.Connection) -> None:
-    """Add KB-S3a columns to initiative_packets tables created before them."""
+    """Add columns to initiative_packets tables created before them."""
     existing = {
         str(row["name"])
         for row in conn.execute("PRAGMA table_info(initiative_packets)").fetchall()
@@ -139,6 +141,8 @@ def _ensure_packet_columns(conn: sqlite3.Connection) -> None:
         conn.execute(
             "ALTER TABLE initiative_packets ADD COLUMN validation_commands_json TEXT"
         )
+    if existing and "base_sha" not in existing:
+        conn.execute("ALTER TABLE initiative_packets ADD COLUMN base_sha TEXT")
 
 
 def _ensure_initiative_columns(conn: sqlite3.Connection) -> None:
@@ -162,6 +166,35 @@ def init_db(db_path: Path | None = None) -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+class BaseSHAResolutionError(RuntimeError):
+    """Raised when a base SHA cannot be resolved from any branch ref."""
+
+
+def resolve_base_sha(repo_root: Path | None = None) -> str | None:
+    """Resolve an immutable full SHA from the current main branch HEAD.
+
+    Reads ``origin/main`` first, falls back to ``main``. The result is a full
+    40-character hex SHA (not a branch name) captured once at packet creation
+    time. This value is stored in ``initiative_packets.base_sha`` and is never
+    recomputed from live refs during execution, retry, or recovery.
+
+    Returns ``None`` if no valid branch ref can be resolved (e.g. empty repo).
+    """
+    root = Path(repo_root) if repo_root else Path.cwd()
+    for ref in ("origin/main", "main"):
+        result = subprocess.run(
+            ["git", "rev-parse", "--verify", "--quiet", ref],
+            cwd=root,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            sha = result.stdout.strip()
+            if len(sha) == 40 and all(c in "0123456789abcdef" for c in sha):
+                return sha
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -391,6 +424,7 @@ def apply_manifest(
     *,
     dry_run: bool = False,
     db_path: Path | None = None,
+    repo_root: Path | None = None,
 ) -> dict[str, Any]:
     """Validate and apply a manifest. Atomic and idempotent.
 
@@ -415,6 +449,10 @@ def apply_manifest(
     digest = manifest_sha256(manifest)
     canonical = canonicalize_manifest(manifest)
     packets = manifest["packets"]
+
+    # Resolve base SHA once at creation time. This is stored durably in each
+    # packet row and never recomputed from live refs during execution.
+    base_sha = resolve_base_sha(repo_root)
 
     init_db(db_path)
     conn = bq.connect(db_path)
@@ -499,8 +537,8 @@ def apply_manifest(
                     initiative_id, packet_id, seq, title, objective,
                     depends_on_json, acceptance_criteria_json,
                     allowed_paths_json, policy_json,
-                    validation_commands_json, task_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    validation_commands_json, base_sha, task_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     initiative_id,
@@ -513,6 +551,7 @@ def apply_manifest(
                     json.dumps(packet["allowed_paths"]),
                     json.dumps(policy) if policy else None,
                     json.dumps(validation_commands) if validation_commands else None,
+                    base_sha,
                     task["id"],
                 ),
             )
