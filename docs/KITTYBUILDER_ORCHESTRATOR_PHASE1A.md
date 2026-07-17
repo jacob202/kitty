@@ -1,6 +1,8 @@
-# KittyBuilder Orchestrator — Final Architecture & Phase 1A Build Plan
+# KittyBuilder Orchestrator — Historical Phase 1A Build Plan
 
-**Status:** Final architecture baseline. Phase 1A may proceed only after the implementation PR breakdown is approved.
+**Status:** Superseded historical baseline. Phase 1A shipped and Builder advanced
+beyond the constraints below. Current architecture is owned by
+`docs/ARCHITECTURE.md`; the Kitty → Mission → KittyBuilder decision is ADR 0017.
 **Date:** 2026‑07‑09
 
 ## 1. Executive Summary
@@ -9,7 +11,12 @@ KittyBuilder currently relies on manual coordination via GitHub issue #127 and P
 
 We have surveyed major agent‑orchestration systems and converged on a **local‑first, SQLite‑backed orchestrator** that uses GitHub as an integration layer only.
 
-This document is the **final, opinionated architecture**. It clearly separates what will be built in **Phase 1A** (the durable local queue foundation), what is deferred to later phases, and what is explicitly rejected. Phase 1A is intentionally minimal: a library‑mode SQLite queue with a strict state machine, fencing tokens, and CLI, with **no worker spawning, no GitHub automation, no UI, and no frameworks**.
+This document records the **original Phase 1A architecture**. It separated the
+durable local queue foundation from capabilities deferred at that time. Those
+constraints describe that historical slice, not current Builder capability.
+Phase 1A was intentionally minimal: a library-mode SQLite queue with a strict
+state machine, fencing tokens, CLI, and no worker spawning, GitHub automation,
+UI, or frameworks in that phase.
 
 ---
 

@@ -1,12 +1,14 @@
-"""Kitty Builder CLI — Layer 1A (coordination only).
+"""KittyBuilder execution control-plane CLI.
 
-Safe commands:
+Primary command groups:
   brief <task>             print the repo brief for a task
   contract validate <path>  check a builder contract file
-  queue <subcommand> ...    manage the durable builder queue
+  queue <subcommand> ...    manage the durable builder queue and worker runs
+  initiative <subcommand>   apply and execute bounded initiative packets
 
-Commands intentionally disabled in Layer 1A:
-  run, loop, repl, delegate — each prints a clear "not enabled" message.
+The legacy top-level ``run``, ``loop``, ``repl``, and ``delegate`` names remain
+as fail-loud tombstones. Governed execution lives under ``queue`` and
+``initiative``; the tombstones never imply that Builder execution is absent.
 
 The command surface is declared once in ``COMMANDS`` (a declarative registry);
 ``build_parser`` turns that table into the argparse tree and attaches each
@@ -96,17 +98,18 @@ def _resolve_loop_commands(
 
 
 # ---------------------------------------------------------------------------
-# Not-enabled handler (preserved from Layer 1A)
+# Retired top-level command handler
 # ---------------------------------------------------------------------------
 
 
 def _cmd_not_enabled(args: argparse.Namespace) -> int:
     print(
-        f"'{args.command}' is not enabled in Kitty Builder Layer 1A.",
+        f"'{args.command}' is a retired top-level KittyBuilder command and does not execute work.",
         file=sys.stderr,
     )
     print(
-        "This layer provides coordination-only commands: brief, contract validate, queue.",
+        "Use the fenced queue and initiative commands; for packet execution, "
+        "run './kitty builder initiative run-packet --help'.",
         file=sys.stderr,
     )
     return 1
@@ -1504,14 +1507,14 @@ def _a(name: str, help: str = "", **kwargs: Any) -> ArgSpec:
 
 
 COMMANDS: list[CommandSpec] = [
-    # -- top-level (Layer 1A disabled) --------------------------------------
-    CommandSpec("run", None, "run", "[NOT ENABLED] start a build session",
+    # -- retired top-level names ---------------------------------------------
+    CommandSpec("run", None, "run", "retired; use initiative run",
                 _cmd_not_enabled, [_a("goal", "goal for the builder", nargs="+")]),
-    CommandSpec("loop", None, "loop", "[NOT ENABLED] start an interactive session",
+    CommandSpec("loop", None, "loop", "retired; no interactive Builder shell",
                 _cmd_not_enabled, [_a("goal", "goal for the builder", nargs="+")]),
-    CommandSpec("repl", None, "repl", "[NOT ENABLED] alias for 'loop'",
+    CommandSpec("repl", None, "repl", "retired alias for loop",
                 _cmd_not_enabled, [_a("goal", "goal for the builder", nargs="+")]),
-    CommandSpec("delegate", None, "delegate", "[NOT ENABLED] hand a task to a worker CLI",
+    CommandSpec("delegate", None, "delegate", "retired; use initiative run-packet",
                 _cmd_not_enabled,
                 [_a("cli", "worker CLI alias (e.g. opencode)"),
                  _a("task", "task description", nargs="+")]),
@@ -1769,7 +1772,7 @@ def build_parser() -> argparse.ArgumentParser:
     """Build the argparse tree from the declarative ``COMMANDS`` table."""
     parser = argparse.ArgumentParser(
         prog="kitty builder",
-        description="Kitty Builder control-plane (Layer 1A — coordination only).",
+        description="KittyBuilder execution control plane with fenced queue and initiative workflows.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
     group_subs: dict[str, argparse._SubParsersAction] = {}

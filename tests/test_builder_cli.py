@@ -1,4 +1,4 @@
-"""Tests for gateway/builder_cli.py Layer 1A — argparse shape and command dispatch."""
+"""Tests for the KittyBuilder control-plane CLI."""
 
 import json
 from pathlib import Path
@@ -60,6 +60,13 @@ class TestParser:
         parser = build_parser()
         with pytest.raises(SystemExit):
             parser.parse_args(["--help"])
+
+    def test_help_describes_current_execution_capabilities(self):
+        help_text = build_parser().format_help()
+
+        assert "execution control plane" in help_text
+        assert "coordination only" not in help_text
+        assert "NOT ENABLED" not in help_text
 
     def test_contract_validate_requires_path(self):
         parser = build_parser()

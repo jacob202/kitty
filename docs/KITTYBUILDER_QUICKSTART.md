@@ -145,7 +145,9 @@ sqlite3 data/kittybuilder/builder_queue.db "PRAGMA integrity_check;"
 
 ## Expired lease recovery & worker takeover
 
-Leases default to 30 minutes (no heartbeat until Phase 1C). Recovery rules:
+Manual queue claims default to 30 minutes. Runner-owned executions use a
+short renewable lease and heartbeat (60-second lease and 10-second heartbeat
+by default). Recovery rules:
 
 - `claimed` + expired lease → back to `queued` (safe: execution never started)
 - `running` + expired lease → `blocked` with reason `stale_heartbeat`
@@ -189,8 +191,11 @@ so the next worker starts from what actually happened instead of a stale chat.
 
 ## Known limitations
 
-- No worker spawning, no PR automation, no daemon, no UI. Those are Phases
-  1C–2 and gated separately.
+- The shipped Builder investigation UI is read-only. Queue and initiative
+  mutations remain fenced CLI operations.
+- Builder can run bounded worker/reviewer commands and can reach an
+  operator-gated publication step. It does not accept Missions autonomously,
+  run as an always-on autonomous daemon, or bypass human push/merge authority.
 
 ## Cutting over from GitHub issue #127
 

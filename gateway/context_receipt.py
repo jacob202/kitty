@@ -90,11 +90,14 @@ _DUPLICATE_AUTHORITY_PATTERNS = (
 )
 _OUTDATED_BUILDER_PATTERNS = (
     "Layer 1A — coordination only",
+    "Layer 1A (coordination only)",
     "Safe, read-only coordination commands",
     "No autonomous loops, agent spawning, or budget enforcement yet",
     "Disabled commands (`run`, `loop`, `repl`, `delegate`)",
     "The Builder UI was not implemented",
     "Add a read-only Builder status projection before implementing UI controls",
+    "No worker spawning, no PR automation, no daemon, no UI",
+    "no heartbeat until Phase 1C",
 )
 _CLAIM_SCAN_PATHS = (
     Path("AGENTS.md"),
@@ -110,6 +113,8 @@ _BUILDER_DESCRIPTION_PATHS = (
     Path("docs/BLUEPRINT.md"),
     Path("docs/NORTH_STAR.md"),
     Path("docs/PROJECT_STATUS.md"),
+    Path("docs/KITTYBUILDER_QUICKSTART.md"),
+    Path("gateway/builder_cli.py"),
 )
 
 
