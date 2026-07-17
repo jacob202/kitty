@@ -3,8 +3,8 @@
 <!-- kitty-state
 {
   "schema_version": 1,
-  "updated_at": "2026-07-17T11:23:43Z",
-  "head_sha": "e0a7fb69d251c01654f5c3e335d50e9f6bf680b5",
+  "updated_at": "2026-07-17T11:34:08Z",
+  "head_sha": "00c82341e53f1abd98cf466573e2110523d34458",
   "branch": "feat/project-control-plane-foundation",
   "worktree": ".",
   "status": "awaiting_review",
@@ -18,7 +18,8 @@
     "passed repository-wide Ruff and Markdown link checks plus mypy on all changed source files",
     "fixed and regression-tested context invocation from outside the checkout",
     "opened PR #185 non-draft against origin/main; 6/7 checks green on first pass",
-    "fixed CI pytest checkout so continuity freshness check reads the branch tip instead of the merge-preview HEAD"
+    "fixed CI pytest checkout so continuity freshness check reads the branch tip instead of the merge-preview HEAD",
+    "attached CI pytest HEAD to the branch ref and let CI override the expected canonical checkout via KITTY_EXPECTED_CANONICAL_CHECKOUT so git:branch and repo:canonical_checkout stop reading CI runners as local violations"
   ],
   "blockers": [
     "./kitty doctor --json reports five host/runtime failures: missing .env, missing venv, Gateway down, LiteLLM down, and unavailable mem0",
@@ -40,8 +41,8 @@
 
 ## Current checkpoint
 
-- Timestamp: 2026-07-17T11:23:43Z
-- Implementation HEAD: e0a7fb69d251c01654f5c3e335d50e9f6bf680b5
+- Timestamp: 2026-07-17T11:34:08Z
+- Implementation HEAD: 00c82341e53f1abd98cf466573e2110523d34458
 - Branch: feat/project-control-plane-foundation
 - Worktree: .
 - Status: awaiting_review
