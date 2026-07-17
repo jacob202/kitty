@@ -775,6 +775,88 @@ class TestKbS1bAttemptExhaustion:
         assert all(a["outcome"] == ba.ATTEMPT_FAILED for a in attempts)
 
 
+class TestReadProjectionDerivation:
+    """Pure status helpers must stay aligned with scheduler-owned semantics."""
+
+    @pytest.mark.parametrize(
+        ("dependency_state", "expected_state"),
+        [
+            (bq.DONE, "eligible"),
+            (bq.RUNNING, "waiting"),
+            (bq.BLOCKED, "waiting"),
+            (bq.FAILED, "blocked"),
+            (bq.CANCELLED, "blocked"),
+        ],
+    )
+    def test_packet_eligibility_matches_dependency_semantics(
+        self,
+        dependency_state: str,
+        expected_state: str,
+    ):
+        result = bi.derive_packet_eligibility(
+            packet_id="KB-A2",
+            task_state=bq.QUEUED,
+            depends_on=["KB-A1"],
+            task_states={"KB-A1": dependency_state, "KB-A2": bq.QUEUED},
+            exhausted_packet_ids=set(),
+        )
+
+        assert result == {
+            "state": expected_state,
+            "blocked_by": [] if expected_state == "eligible" else ["KB-A1"],
+        }
+
+    def test_packet_eligibility_reports_missing_dependency_data(self):
+        result = bi.derive_packet_eligibility(
+            packet_id="KB-A2",
+            task_state=bq.QUEUED,
+            depends_on=["KB-A1"],
+            task_states={"KB-A2": bq.QUEUED},
+            exhausted_packet_ids=set(),
+        )
+
+        assert result == {"state": "unavailable", "blocked_by": ["KB-A1"]}
+
+    @pytest.mark.parametrize(
+        ("kwargs", "expected_state"),
+        [
+            ({"total_packets": 2, "done_count": 2}, bi.INITIATIVE_COMPLETED),
+            ({"has_failed": True}, bi.INITIATIVE_FAILED),
+            ({"has_exhausted": True}, bi.INITIATIVE_FAILED),
+            ({"has_eligible": False}, bi.INITIATIVE_PAUSED),
+            ({}, bi.INITIATIVE_ACTIVE),
+        ],
+    )
+    def test_initiative_state_uses_canonical_rollup_precedence(
+        self,
+        kwargs: dict,
+        expected_state: str,
+    ):
+        inputs = {
+            "stored_state": bi.INITIATIVE_ACTIVE,
+            "total_packets": 2,
+            "done_count": 0,
+            "has_blocked": False,
+            "has_failed": False,
+            "has_exhausted": False,
+            "has_eligible": True,
+        }
+        inputs.update(kwargs)
+
+        assert bi.derive_initiative_state(**inputs) == expected_state
+
+    def test_stored_pause_takes_precedence(self):
+        assert bi.derive_initiative_state(
+            stored_state=bi.INITIATIVE_PAUSED,
+            total_packets=1,
+            done_count=1,
+            has_blocked=False,
+            has_failed=False,
+            has_exhausted=False,
+            has_eligible=False,
+        ) == bi.INITIATIVE_PAUSED
+
+
 class TestKbS1bCli:
     def test_status_active(self, cli_db, capsys):
         path = _write_manifest(cli_db.parent.parent, _manifest())

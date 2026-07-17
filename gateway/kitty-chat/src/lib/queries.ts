@@ -86,6 +86,7 @@ import {
   type GatewayLoopsPayload,
   type GatewayInsightsPayload,
   type GatewayPersonality,
+  type GatewayRuntimeManifest,
 } from '@/lib/gateway'
 
 // ── Dashboard payload queries ────────────────────────────────────────────────
@@ -149,9 +150,18 @@ export function useGatewayRuntimeManifest(projectId?: number) {
   return useQuery({
     queryKey: ['runtime-manifest', projectId ?? null],
     queryFn: () => fetchGatewayRuntimeManifest(projectId),
-    refetchInterval: 15_000,
+    refetchInterval: (query) => hasActiveBuilderRun(query.state.data) ? 5_000 : 15_000,
     staleTime: 10_000,
   })
+}
+
+function hasActiveBuilderRun(manifest: GatewayRuntimeManifest | undefined): boolean {
+  const initiatives = manifest?.execution.builder.value?.initiatives
+  return initiatives?.some((initiative) => initiative.packets.some((packet) => (
+    packet.run?.state === 'starting'
+    || packet.run?.state === 'running'
+    || packet.run?.state === 'cancel_requested'
+  ))) ?? false
 }
 
 export function useGatewaySearch(query: string, limit = 3) {

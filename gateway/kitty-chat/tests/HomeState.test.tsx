@@ -20,6 +20,7 @@ import {
   useSessionContext,
   useDeadlines,
   useDeadlineSweep,
+  useGatewayRuntimeManifest,
 } from '../src/lib/queries';
 import { HomeState } from '../src/components/HomeState';
 
@@ -50,6 +51,7 @@ vi.mock('../src/lib/queries', () => ({
   useSessionContext: vi.fn(),
   useDeadlines: vi.fn(),
   useDeadlineSweep: vi.fn(),
+  useGatewayRuntimeManifest: vi.fn(),
 }));
 
 const LIVE_MODELS = [
@@ -134,6 +136,25 @@ function setDefaultMocks() {
     isPending: false,
     mutate: vi.fn(),
     data: undefined,
+  });
+  (useGatewayRuntimeManifest as Mock).mockReturnValue({
+    data: {
+      execution: {
+        builder: {
+          state: 'available',
+          value: {
+            schema_version: 1,
+            queue: { total: 0, queued: 0, claimed: 0, running: 0, blocked: 0, pr_opened: 0, awaiting_review: 0, done: 0, failed: 0, cancelled: 0 },
+            initiatives: [],
+          },
+          source: 'builder_status',
+          observed_at: '2026-07-17T03:00:00Z',
+          valid_until: '2026-07-17T03:05:00Z',
+        },
+      },
+    },
+    isLoading: false,
+    error: null,
   });
 }
 

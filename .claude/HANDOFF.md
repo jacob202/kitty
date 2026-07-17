@@ -1,4 +1,81 @@
-# Handoff — 2026-07-16 — Engineering Leverage closeout
+# Handoff — 2026-07-16 — Continue Builder UI V1 at review
+
+## Start here; do not repeat recovery
+
+- Worktree:
+  `/Users/jacobbrizinski/Projects/kitty/.worktrees/builder-ui-v1-complete`
+- Branch: `feat/builder-ui-v1-complete`
+- Verified base: `719ee15072ae53fcfb284a7865af06a0892ccf60`
+- Draft PR: https://github.com/jacob202/kitty/pull/183
+- Commits in order:
+  - `da5a117` — recovered original read-only runtime status surface
+  - `8f63233` — completed bounded schema-v2 backend projection and tests
+  - `95cfd3e` — completed investigation UI, focus handling, and tests
+- Original source `b1c1d7` from closed stacked PR #182 was missing from main.
+  It has already been recovered. Do not cherry-pick it again and do not recreate
+  either Builder UI worktree.
+
+## Review surface
+
+- Backend source/tests:
+  `gateway/builder_status.py`, `gateway/builder_initiative.py`,
+  `gateway/runtime_manifest.py`, `tests/test_builder_status.py`, and
+  `tests/test_builder_initiative.py`.
+- Client completion source/tests:
+  `gateway/kitty-chat/src/components/BuilderSurface.tsx`,
+  `gateway/kitty-chat/src/lib/gateway.ts`, and
+  `gateway/kitty-chat/tests/BuilderSurface.test.tsx`.
+- Recovered navigation/polling files are already in `da5a117`:
+  `page.tsx`, `HomeState.tsx`, `Rail.tsx`, `queries.ts`, and their focused tests.
+
+## Contract reviewers should protect
+
+- Eight bulk snapshot queries; no per-packet SQL loop.
+- Attempt history limited to ten with total/truncation metadata and newest first.
+- Retry budget counts `failed`/`aborted`, not `crashed`.
+- Eligibility/initiative derivation delegates to pure helpers beside the
+  canonical scheduler semantics.
+- Per-packet degraded records stay visible and do not collapse the whole
+  manifest.
+- Safe bounded summaries only; no raw output, local paths, process IDs, command
+  arrays, environment, or secrets.
+- Only canonical HTTPS GitHub PR links are clickable.
+- Composite initiative + packet identity is used in the backend and UI.
+- No mutation controls in V1.
+
+## Verification ledger
+
+- Backend: `616 passed` broad; `115 passed` focused.
+- Frontend: `150 passed` complete; `52 passed` focused.
+- TypeScript, Ruff, mypy, and `git diff --check`: passed.
+- Browser: 24 scenarios passed across desktop/mobile; no reproducible Builder
+  UI issue. Focus return, all failure classes, truncated history, partial data,
+  duplicate IDs, stale/unavailable/empty/fetch failure, and Kitty isolation were
+  exercised.
+- Production Webpack compilation and standalone TypeScript validation pass after
+  moving proxy configuration helpers out of
+  `gateway/kitty-chat/src/app/proxy/[...path]/route.ts`; the route now exports
+  only HTTP handlers as Next 16 requires. Proxy configuration precedence and
+  secret handling are unchanged and remain covered by the existing proxy tests.
+
+## Known deferral
+
+Logs and artifacts intentionally render unavailable. A future safe delivery API
+must be bounded/cursor-based, keyed by durable resource IDs, report content type,
+limits, and truncation, redact server-side, and never expose a local path,
+command, environment value, or credential-bearing payload.
+
+## Next action
+
+Push the focused release repairs, wait for refreshed PR #183 checks, and merge
+only when every required run is successful. Preserve existing worktrees and do
+not add Builder mutation endpoints.
+
+---
+
+## Historical checkpoint preserved below
+
+### Handoff — 2026-07-16 — Engineering Leverage closeout
 
 ## Current truth
 

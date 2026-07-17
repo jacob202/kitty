@@ -5,7 +5,7 @@ import {
   resolveGatewaySecret,
   resolveGatewayUrl,
   resolveProxyConfig,
-} from '../src/app/proxy/[...path]/route'
+} from '../src/lib/gateway-proxy-config'
 
 describe('resolveGatewayUrl', () => {
   it('defaults to the canonical local gateway port', () => {
