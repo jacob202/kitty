@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+import types
 from unittest.mock import MagicMock, patch
 
 
@@ -235,22 +236,22 @@ def test_check_mem0_fails_on_import_error() -> None:
 
 
 def test_check_mem0_warns_on_init_exception() -> None:
-    import mem0 as _mem0
-
     from gateway import doctor
 
-    with patch.object(_mem0, "Memory", side_effect=RuntimeError("config error")):
+    fake_mem0 = types.SimpleNamespace(
+        Memory=MagicMock(side_effect=RuntimeError("config error"))
+    )
+    with patch.dict(sys.modules, {"mem0": fake_mem0}):
         checks = doctor._check_mem0({})
     assert checks[0].level == "WARN"
     assert "config error" in checks[0].detail
 
 
 def test_check_mem0_passes_local_mode() -> None:
-    import mem0 as _mem0
-
     from gateway import doctor
 
-    with patch.object(_mem0, "Memory", return_value=MagicMock()):
+    fake_mem0 = types.SimpleNamespace(Memory=MagicMock(return_value=MagicMock()))
+    with patch.dict(sys.modules, {"mem0": fake_mem0}):
         checks = doctor._check_mem0({})
     assert checks[0].level == "PASS"
     assert "local" in checks[0].detail
