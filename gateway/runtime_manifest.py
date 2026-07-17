@@ -19,7 +19,7 @@ from typing import Any
 
 import httpx
 
-from gateway import builder_initiative, builder_queue, project_store
+from gateway import builder_status, project_store
 from gateway.http_client import get_http_client
 from gateway.llm_client import PROVIDERS
 from gateway.paths import ACTION_TIERS_FILE, LITELLM_BASE, LITELLM_KEY, ROOT
@@ -220,17 +220,14 @@ def _builder_fact(*, observed_at: str, valid_until: str) -> dict[str, Any]:
         )
     try:
         return _fact(
-            {
-                "queue": builder_queue.queue_status(),
-                "initiatives": builder_initiative.list_initiatives(),
-            },
-            source="builder_queue + builder_initiative",
+            builder_status.build_status_snapshot(),
+            source="builder_status",
             observed_at=observed_at,
             valid_until=valid_until,
         )
     except (OSError, RuntimeError, ValueError, sqlite3.Error) as exc:
         return _unknown(
-            source="builder_queue + builder_initiative",
+            source="builder_status",
             observed_at=observed_at,
             valid_until=valid_until,
             reason=f"Builder state read failed: {exc}",
