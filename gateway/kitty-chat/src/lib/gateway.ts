@@ -143,29 +143,67 @@ export interface BuilderQueueStatus {
   cancelled: number
 }
 
+export type BuilderFailureKind =
+  | 'implementation'
+  | 'infrastructure'
+  | 'identity'
+  | 'scope'
+  | 'validation'
+  | 'review'
+  | 'cancelled'
+  | 'blocked'
+  | 'exhausted'
+
+export interface BuilderDataQuality {
+  state: 'complete' | 'partial'
+  issues: string[]
+}
+
 export interface BuilderAttemptStatus {
   id: number
   number: number
   outcome: 'succeeded' | 'failed' | 'aborted' | 'crashed' | null
+  counts_toward_budget: boolean
   implementation_status: string | null
   validation_status: 'passed' | 'failed' | 'skipped' | null
   review_verdict: 'approve' | 'request_changes' | 'reject' | null
+  implementation: {
+    status: string | null
+    summary: string | null
+    diff_summary: string | null
+  } | null
+  validation: {
+    status: 'passed' | 'failed' | 'skipped' | null
+    command_count: number
+    failed_command_count: number
+    summary: string
+  } | null
+  review: {
+    verdict: 'approve' | 'request_changes' | 'reject' | null
+    summary: string | null
+    findings: Array<{ severity: string | null; note: string | null }>
+    findings_truncated: boolean
+  } | null
   lease_id: number | null
   created_at: string | null
   updated_at: string | null
+  data_quality: BuilderDataQuality
 }
 
 export interface BuilderPacketStatus {
+  initiative_id: string
   packet_id: string
   title: string
+  objective: string | null
   task_id: string
   task_state: string | null
   depends_on: string[]
   eligibility: { state: 'eligible' | 'waiting' | 'blocked' | 'not_queued' | 'unavailable'; blocked_by: string[] }
-  budget: { used: number; max: number; exhausted: boolean }
-  attempt: BuilderAttemptStatus | null
-  previous_attempt: BuilderAttemptStatus | null
-  lease: { id: number; worker_id: string; branch: string; base_sha: string; created_at: string | null } | null
+  budget: { used: number; max: number | null; exhausted: boolean | null }
+  attempt_count: number
+  attempt_history_truncated: boolean
+  attempt_history: BuilderAttemptStatus[]
+  lease: { id: number; worker_id: string | null; branch: string | null; base_sha: string | null; created_at: string | null } | null
   run: {
     id: string
     state: string
@@ -173,8 +211,18 @@ export interface BuilderPacketStatus {
     last_heartbeat_at: string | null
     ended_at: string | null
     exit_code: number | null
+    updated_at: string | null
   } | null
-  publication: { pr_url: string | null; checks_state: string | null; review_state: string | null; merged: boolean } | null
+  publication: {
+    pr_number: number
+    pr_url: string | null
+    head_sha: string | null
+    checks_state: string | null
+    review_state: string | null
+    merged: boolean
+    merged_at: string | null
+    updated_at: string | null
+  } | null
   last_event: {
     id: number
     type: string
@@ -182,11 +230,16 @@ export interface BuilderPacketStatus {
     reason: string | null
     counts_toward_budget: boolean | null
   } | null
-  failure_kind: 'implementation' | 'identity' | 'validation' | 'review' | 'infrastructure' | 'cancelled' | 'exhausted' | null
+  failure_kind: BuilderFailureKind | null
   blocked_reason: string | null
   last_error: string | null
   updated_at: string | null
   base_sha: string | null
+  data_quality: BuilderDataQuality
+  investigation: {
+    logs: { state: 'unavailable'; reason: string }
+    artifacts: { state: 'unavailable'; reason: string }
+  }
 }
 
 export interface BuilderInitiativeStatus {
@@ -196,6 +249,7 @@ export interface BuilderInitiativeStatus {
   pause_reason: string | null
   next_packet: string | null
   counts: BuilderQueueStatus & { exhausted: number }
+  data_quality: { state: 'complete' | 'partial'; partial_packets: number }
   created_at: string | null
   updated_at: string | null
   packets: BuilderPacketStatus[]
@@ -203,6 +257,12 @@ export interface BuilderInitiativeStatus {
 
 export interface BuilderStatusSnapshot {
   schema_version: number
+  attempt_history_limit: number
+  integrity: {
+    state: 'complete' | 'partial'
+    partial_packets: number
+    total_packets: number
+  }
   queue: BuilderQueueStatus
   initiatives: BuilderInitiativeStatus[]
 }
