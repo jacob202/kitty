@@ -3,8 +3,8 @@
 <!-- kitty-handoff
 {
   "schema_version": 1,
-  "updated_at": "2026-07-17T11:34:08Z",
-  "head_sha": "00c82341e53f1abd98cf466573e2110523d34458",
+  "updated_at": "2026-07-17T11:44:20Z",
+  "head_sha": "a28adef362251a6cca6b6c6bf5f4e617491db75d",
   "branch": "feat/project-control-plane-foundation",
   "worktree": ".",
   "status": "valid",
@@ -19,7 +19,8 @@
     "fixed and regression-tested context invocation from outside the checkout",
     "opened PR #185 non-draft against origin/main; 6/7 checks green on first pass",
     "fixed CI pytest checkout so continuity freshness check reads the branch tip instead of the merge-preview HEAD",
-    "attached CI pytest HEAD to the branch ref and let CI override the expected canonical checkout via KITTY_EXPECTED_CANONICAL_CHECKOUT so git:branch and repo:canonical_checkout stop reading CI runners as local violations"
+    "attached CI pytest HEAD to the branch ref and let CI override the expected canonical checkout via KITTY_EXPECTED_CANONICAL_CHECKOUT so git:branch and repo:canonical_checkout stop reading CI runners as local violations",
+    "pushed the KITTY_EXPECTED_CANONICAL_CHECKOUT fallback down into inspect_continuity so ./kitty context --agent respects it too (previously only scripts/check_continuity_state.py did)"
   ],
   "blockers": [
     "./kitty doctor --json reports five host/runtime failures: missing .env, missing venv, Gateway down, LiteLLM down, and unavailable mem0",
@@ -41,8 +42,8 @@
 
 ## Resume here
 
-- Timestamp: 2026-07-17T11:34:08Z
-- Implementation HEAD: 00c82341e53f1abd98cf466573e2110523d34458
+- Timestamp: 2026-07-17T11:44:20Z
+- Implementation HEAD: a28adef362251a6cca6b6c6bf5f4e617491db75d
 - Branch: feat/project-control-plane-foundation
 - Worktree: .
 - Status: valid handoff; work is awaiting review
