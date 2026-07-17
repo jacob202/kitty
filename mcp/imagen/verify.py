@@ -14,7 +14,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from mcp.imagen import engines
 from mcp.imagen.config import settings
@@ -137,11 +137,13 @@ def _is_blank(image_data: bytes, threshold: int = 32) -> bool:
             pil_img = pil_img.convert("RGB")
         extrema = pil_img.getextrema()
         if isinstance(extrema[0], tuple):
-            avg_max = sum(mx for _, mx in extrema) / len(extrema)
-            avg_min = sum(mn for mn, _ in extrema) / len(extrema)
+            channel_extrema = cast(tuple[tuple[int, int], ...], extrema)
+            avg_max = sum(mx for _, mx in channel_extrema) / len(channel_extrema)
+            avg_min = sum(mn for mn, _ in channel_extrema) / len(channel_extrema)
         else:
-            avg_max = float(extrema[1])
-            avg_min = float(extrema[0])
+            scalar_extrema = cast(tuple[float, float], extrema)
+            avg_max = float(scalar_extrema[1])
+            avg_min = float(scalar_extrema[0])
         return avg_max < threshold and avg_min < threshold
     except Exception:
         return False

@@ -58,8 +58,8 @@ class DalleEngine:
         response = client.images.generate(
             model="dall-e-3",
             prompt=prompt,
-            size=size,  # type: ignore[arg-type]
-            quality=quality,  # type: ignore[arg-type]
+            size=size,
+            quality=quality,
             n=1,
         )
         url = response.data[0].url

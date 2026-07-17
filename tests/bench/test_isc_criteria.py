@@ -12,7 +12,6 @@ from unittest.mock import patch
 
 from gateway import builder_isc as isc
 
-
 SAMPLE_GOAL = "Add a --no-color flag to the CLI that suppresses ANSI output"
 SAMPLE_CRITERIA = [
     "no-color flag is accepted without error",

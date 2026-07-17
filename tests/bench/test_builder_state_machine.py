@@ -59,6 +59,7 @@ def test_lease_fencing_rejects_stale_worker(db_path):
     )
     bq.operator_release_task(task_id, db_path=db_path)
     claim_2 = bq.claim_task(task_id, "worker-b", db_path=db_path)
+    assert claim_2["claim_version"] > claim_1["claim_version"]
 
     try:
         bq.worker_transition_task(

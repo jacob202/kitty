@@ -79,11 +79,14 @@ class DrawThingsEngine:
 
             from PIL import Image as PILImage
             with PILImage.open(init_image) as img:
-                if img.mode != "RGB":
-                    img = img.convert("RGB")
-                img = img.resize((w, h), PILImage.Resampling.LANCZOS)
+                prepared: PILImage.Image = (
+                    img.convert("RGB") if img.mode != "RGB" else img
+                )
+                prepared = prepared.resize(
+                    (w, h), PILImage.Resampling.LANCZOS
+                )
                 buf = io.BytesIO()
-                img.save(buf, format="PNG")
+                prepared.save(buf, format="PNG")
                 img_data = base64.b64encode(buf.getvalue()).decode("utf-8")
             payload["init_images"] = [img_data]
             payload["denoising_strength"] = denoising_strength
