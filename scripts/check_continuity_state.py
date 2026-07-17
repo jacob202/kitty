@@ -4,9 +4,17 @@
 This is the CI-friendly wrapper over the same checks used by
 ``./kitty context --agent`` and ``./kitty doctor``. It does not repair, fetch,
 or mutate state.
+
+Environment overrides (for CI runners whose checkout does not live under
+``~/Projects/kitty``):
+
+- ``KITTY_EXPECTED_CANONICAL_CHECKOUT`` — absolute path the runner used for
+  the checkout. When set, ``repo:canonical_checkout`` compares against this
+  instead of the default ``~/Projects/kitty``.
 """
 import argparse
 import json
+import os
 import sys
 from dataclasses import asdict
 from datetime import timedelta
@@ -34,12 +42,26 @@ def main(argv: list[str] | None = None) -> int:
         help="maximum age of active STATE/HANDOFF checkpoints (default: 7)",
     )
     parser.add_argument("--json", action="store_true", help="emit structured JSON")
+    parser.add_argument(
+        "--expected-canonical",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="override the expected canonical checkout path "
+        "(defaults to $KITTY_EXPECTED_CANONICAL_CHECKOUT if set, then ~/Projects/kitty)",
+    )
     args = parser.parse_args(argv)
     if args.max_age_days < 0:
         parser.error("--max-age-days must be zero or greater")
+    expected_canonical = args.expected_canonical
+    if expected_canonical is None:
+        env_override = os.environ.get("KITTY_EXPECTED_CANONICAL_CHECKOUT")
+        if env_override:
+            expected_canonical = Path(env_override)
     try:
         checks = run_continuity_checks(
             ROOT,
+            expected_canonical=expected_canonical,
             max_age=timedelta(days=args.max_age_days),
         )
     except (ContextReceiptError, OSError, RuntimeError, ValueError) as exc:
