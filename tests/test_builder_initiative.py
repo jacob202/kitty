@@ -310,6 +310,23 @@ class TestApply:
         assert bi.list_initiatives(db_path=db_path) == []
         assert bq.list_tasks(db_path=db_path) == []
 
+    def test_dry_run_does_not_require_git_refs(
+        self, db_path: Path, tmp_path: Path
+    ):
+        result = bi.apply_manifest(
+            _manifest(), dry_run=True, db_path=db_path, repo_root=tmp_path
+        )
+        assert result["status"] == "would_create"
+
+    def test_first_apply_without_base_ref_fails_without_mutation(
+        self, db_path: Path, tmp_path: Path
+    ):
+        with pytest.raises(bi.BaseSHAResolutionError, match="durable packet base SHA"):
+            bi.apply_manifest(_manifest(), db_path=db_path, repo_root=tmp_path)
+
+        assert bi.list_initiatives(db_path=db_path) == []
+        assert bq.list_tasks(db_path=db_path) == []
+
     def test_dry_run_on_existing_reports_unchanged(self, db_path: Path):
         bi.apply_manifest(_manifest(), db_path=db_path)
         result = bi.apply_manifest(_manifest(), dry_run=True, db_path=db_path)

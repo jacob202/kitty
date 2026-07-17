@@ -172,7 +172,7 @@ class BaseSHAResolutionError(RuntimeError):
     """Raised when a base SHA cannot be resolved from any branch ref."""
 
 
-def resolve_base_sha(repo_root: Path | None = None) -> str | None:
+def resolve_base_sha(repo_root: Path | None = None) -> str:
     """Resolve an immutable full SHA from the current main branch HEAD.
 
     Reads ``origin/main`` first, falls back to ``main``. The result is a full
@@ -180,9 +180,10 @@ def resolve_base_sha(repo_root: Path | None = None) -> str | None:
     time. This value is stored in ``initiative_packets.base_sha`` and is never
     recomputed from live refs during execution, retry, or recovery.
 
-    Returns ``None`` if no valid branch ref can be resolved (e.g. empty repo).
+    Raises ``BaseSHAResolutionError`` if neither ref resolves to a valid SHA.
     """
     root = Path(repo_root) if repo_root else Path.cwd()
+    failures: list[str] = []
     for ref in ("origin/main", "main"):
         result = subprocess.run(
             ["git", "rev-parse", "--verify", "--quiet", ref],
@@ -194,7 +195,14 @@ def resolve_base_sha(repo_root: Path | None = None) -> str | None:
             sha = result.stdout.strip()
             if len(sha) == 40 and all(c in "0123456789abcdef" for c in sha):
                 return sha
-    return None
+            failures.append(f"{ref}: returned invalid SHA {sha!r}")
+        else:
+            detail = result.stderr.strip() or result.stdout.strip() or "ref not found"
+            failures.append(f"{ref}: exit {result.returncode} ({detail})")
+    raise BaseSHAResolutionError(
+        f"cannot resolve durable packet base SHA in {root}; "
+        + "; ".join(failures)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -450,10 +458,6 @@ def apply_manifest(
     canonical = canonicalize_manifest(manifest)
     packets = manifest["packets"]
 
-    # Resolve base SHA once at creation time. This is stored durably in each
-    # packet row and never recomputed from live refs during execution.
-    base_sha = resolve_base_sha(repo_root)
-
     init_db(db_path)
     conn = bq.connect(db_path)
     try:
@@ -499,6 +503,11 @@ def apply_manifest(
                     {"packet_id": p["id"], "task_id": None} for p in packets
                 ],
             }
+
+        # Resolve only for a first real apply. Dry runs and immutable re-applies
+        # do not depend on live refs; newly created packets must never persist
+        # an unbound base.
+        base_sha = resolve_base_sha(repo_root)
 
         conn.execute(
             """
