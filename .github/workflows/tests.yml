@@ -14,6 +14,9 @@ jobs:
         with:
           # Builder's immutable packet base must resolve from origin/main.
           fetch-depth: 0
+          # Continuity checks compare recorded HEAD to the branch tip; the
+          # default refs/pull/N/merge preview is detached and reads as stale.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
