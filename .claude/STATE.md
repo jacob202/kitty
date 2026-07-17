@@ -1,95 +1,63 @@
-# Session State — 2026-07-14 (cloud branch `claude/free-workers-token-efficiency-2m06xb`)
-
-- Free workers are now a first-class launch surface: `./kitty builder
-  initiative run[-packet] ... --free` wires the OpenCode adapter scripts as
-  worker + reviewer (no hand-typed `--worker-command` JSON).
-- Both adapter scripts now walk the zero-cost model ladder inside one
-  attempt; fallback happens only on a clean failure (no result, no worktree
-  change) so partial work is never built on. `KITTYBUILDER_MODEL(S)` /
-  `KITTYBUILDER_REVIEW_MODEL(S)` override.
-- New playbook: `docs/FREE_WORKERS.md` (linked from CLAUDE.md, quickstart,
-  and the Orca setup doc).
-- Verified: 466 builder-slice tests pass (incl. 5 new adapter ladder tests,
-  5 new CLI preset tests); ruff clean; both scripts `bash -n` clean.
-
-# Session State — 2026-07-12
-
-## Branch
-
-- `main` @ `1d2183f`, pushed to `origin/main`.
-- `origin/docs/fable-context` is already an ancestor of `main`; no merge
-  commit was needed.
+# Session State — 2026-07-17 (branch `chore/engineering-leverage-phase-8-9`)
 
 ## Done this session
 
-- `dbee71a`: successful KittyBuilder loop runs remove their worktree when the
-  worker leaves exactly the ephemeral untracked `done.txt` marker; failed,
-  interrupted, dirty, or marker-less runs remain inspectable.
-- `f25e79e`: stopped tracking `tmp/IMG_0668.png` and added `tmp/` to
-  `.gitignore`.
-- `44c1fdc`: recorded the cleanup plan.
-- Preserved unique work locally on:
-  - `codex/recover-kb-s4-merge-tests` (`8bf3bab`, 135 tests)
-  - `codex/recover-orchestrator-research` (`5901a3a`, research document)
-- Retired the stale local KB-S4 and superseded UI branches. The credential-
-  bearing `claude/kitty-prototype-sprint-srs5bl` branch remains untouched.
-- Archived external project clutter under
-  `/Users/jacobbrizinski/Archive/Projects-2026-07-12/` and removed Nautilus
-  through Orca after preserving its Git bundle and runtime state.
-- Removed disposable root caches and `.next`; kept active dependencies,
-  runtime data, secrets, and active worktrees.
-- Reviewed the Fable session commits: final `.claude/launch.json` is relative
-  and loopback-only; no secrets or generated browser artifacts are present in
-  the final snapshot. One intermediate commit had an absolute worktree path,
-  corrected by the Fable tip without rewriting history.
+- **`ecb6ff7`** Builder Phase 2 schema/test-harness alignment:
+  - Added `branch_leases` table to `_SCHEMA_SQL` (was referenced but never created)
+  - Added `release_branch_lease()` + `BranchLeaseConflictError` to `builder_queue.py`
+  - `_reconcile_stale_attempts` now releases branch leases before closing as crashed
+  - `run_packet` validates `base_sha` before entering the repair loop
+  - Fixed 19 `_apply()` calls in Phase 2 tests (missing `repo_root=repo`)
+  - Fixed 9 ruff F841 unused locals (`task1`/`task_id` → `_task1`/`_task_id`)
+  - Marked 3 identity-verification tests as `xfail strict=True` (run_packet not yet wired with branch-lease identity / commit-marker verification)
+- **`f490a39`** Mock `mem0` in doctor tests via `sys.modules` (fixes 2 pre-existing failures)
+- **`2c42a01`** Mock `chromadb` in doctor tests via `sys.modules` (same pattern; same 2 pre-existing failures, diff deps)
+- **`ef79752`** Audit doc: Section 10 status column with per-row commit refs; H1-H6 verdicts added to HUMAN DECISION table
 
-## In flight / preserve
+## Validation (committed branch HEAD)
 
-- `trust-lane-v1` has started at the queue level in packet order. TL-01
-  (`kb_mrgw1v45_019b`) is claimed by `codex-trust-lane-v1-tl01` on its
-  isolated Builder branch; implementation is not yet started in this root
-  checkout.
-- The root checkout has concurrent uncommitted Builder work. Preserve and do
-  not stage it: `config/imagen/criteria/hard-gate.json`,
-  `config/imagen/criteria/test-char.json`, `gateway/builder_loop.py`,
-  `tests/test_builder_loop.py`, plus untracked `gateway/builder_context.py`
-  and `tests/test_builder_context.py`.
-- Active builder worktree:
-  `.worktrees/kittybuilder/kb_mrh9ilha_f3d9`, task
-  `kb_mrh9ilha_f3d9`, currently modifies `gateway/next_step.py` and
-  `tests/test_next_step.py`; do not clean or remove it.
-- Untracked user scripts remain untouched:
-  `scripts/kittybuilder_opencode_worker.sh` and
-  `scripts/kittybuilder_opencode_reviewer.sh`.
-- `fix/search-route-query-param` and all remote branches remain untouched.
+- Ruff `All checks passed`
+- Mypy `no issues` on 8 source files
+- Vulture `--min-confidence 80` exit 0
+- Lychee 102 OK / 0 errors
+- `tests/test_builder_loop.py` — **34 passed, 3 xfailed** (the 3 known-unimplemented identity checks)
+- `tests/test_doctor.py` — 55 passed, 0 failed
+- `tests/test_success_criteria.py` — 9 passed
+- `tests/test_run_gates_script.py` — 15 passed
+- `tests/bench/` — 11 passed
+- Working tree clean (zero uncommitted)
 
-## Verification
+## Branch ahead of `origin/main` by 13 commits
 
-- Frontend: `npm test -- --run --maxWorkers=1` → 18 files / 129 tests passed;
-  `npm run build` → passed.
-- Full Python suite: 2,079 passed, 1 skipped, 8 failed. Failures are known
-  local environment/dependency or timeout issues (`mem0`, `google.auth`,
-  Chroma/runtime, and resume subprocess); this is not a clean green gate.
-- Builder slice: 54 passed and 1 shared-queue lease-conflict failure; the
-  failed case passed when rerun alone (`1 passed`).
-- Browser smoke loaded onboarding and Home successfully. Core gateway routes
-  returned 200, while LiteLLM/models, Chroma knowledge, and runtime freshness
-  remained visibly degraded in this environment.
-- `venv/bin/ruff check gateway/builder_loop.py gateway/builder_runner.py
-  tests/test_builder_loop.py tests/test_builder_runner.py` → passed.
+```
+f490a39 fix(tests): mock mem0 in doctor tests via sys.modules
+2c42a01 fix(tests): mock chromadb in doctor tests via sys.modules
+ef79752 docs(audit): apply 2026-07-17 implementation status + Jacob's H1-H6 decisions
+ecb6ff7 fix(builder): add branch_leases schema, release_branch_lease, reconcile lease, fix test harness
+407f441 test: add KittyBench skeleton with state machine and ISC fixtures
+c8d753b feat(doctor): add --spend flag for LLM cost visibility
+ea7c639 fixup! refactor(builder): extract ISC logic to builder_isc.py (NEXT 9)
+875bab1 docs: engineering leverage audit reports + constitution + execution packet
+0e03943 refactor(builder): extract ISC logic to builder_isc.py (NEXT 9)
+839f1c4 refactor: migrate context_builder facade into context_assembler (NEXT 6)
+dcbe491 ci(hygiene): wire vulture/lychee/deptry; codegraph-check; trufflehog
+09ebffc docs: fix stale honcho and branch claims
+802d9e5 feat(doctor): add codegraph freshness check
+74eb6d1 chore(skills): remove duplicate second-opinion, add SKILL_REGISTRY.md
+```
 
-## Next actions
+## Active blockers / human decisions still in flight
 
-- Implement TL-01 in its isolated branch, then continue TL-02, TL-03, TL-04,
-  and TL-05 in that order. Do not stage the concurrent root-checkout edits
-  above.
-- Start `trust-lane-v1` in the established packet order after the push.
-- Later plan model usage across ChatGPT's available models by task, cost,
-  latency, reliability, and privacy boundary.
+- H1 (root temp files): per-file evidence-based cleanup pending
+- H2 (scripts/curation/): migrate unique logic then delete
+- A2 (8 generic agent skills): archive from registry, don't delete
+- The 3 xfailed `TestLeaseIdentityIntegration` tests document the next Builder Phase 2 wiring gap: `run_packet` needs to call `ba.claim_and_start_attempt` instead of `ba.start_attempt`, plus add post-worker identity verification
+
+## Queue status
+
+- `kb_mrm5ru85_9ea7` (the EL implementation task) was **cancelled** with reason pointer to HANDOFF.md / audit §10. Prevents a fresh worker from re-running the entire initiative.
 
 ## T2 (Jacob/Codex only — do not touch)
 
-- Card A: UI binds 0.0.0.0 in `./kitty` + proxy injects gateway secret; SSRF
-  in capture/knowledge routes.
-- Card B: `agent_runner.py` / `task_runner.py` can false-complete tasks;
-  `stop()` unreliable.
+- Card A: UI binds 0.0.0.0 in `./kitty` + proxy injects gateway secret; SSRF in capture/knowledge routes.
+- Card B: `agent_runner.py` / `task_runner.py` can false-complete tasks; `stop()` unreliable.
