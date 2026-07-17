@@ -30,8 +30,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 # so `from gateway...` imports (connector:mail, push:channel) fail with
 # "No module named 'gateway'" regardless of cwd. Put the repo root on the
 # path so lazy `gateway.*` imports resolve the same as under pytest.
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+# Put this checkout first even when an ambient PYTHONPATH names another Kitty
+# worktree. Doctor must inspect the checkout that owns this script.
+sys.path.insert(0, str(ROOT))
 
 
 @dataclass
@@ -423,6 +424,26 @@ def _check_codegraph() -> list[Check]:
     return [Check("WARN", "codegraph:index_freshness", "database missing")]
 
 
+def _check_repository_continuity() -> list[Check]:
+    """Expose the same fail-loud continuity checks used by context receipts."""
+    from gateway.context_receipt import ContextReceiptError, run_continuity_checks
+
+    try:
+        continuity_checks = run_continuity_checks(ROOT)
+    except (ContextReceiptError, OSError, RuntimeError, ValueError) as exc:
+        return [
+            Check(
+                "FAIL",
+                "continuity:receipt",
+                f"repository continuity could not be established: {type(exc).__name__}: {exc}",
+            )
+        ]
+    return [
+        Check(check.level, f"continuity:{check.name}", check.detail)
+        for check in continuity_checks
+    ]
+
+
 def _check_venv() -> list[Check]:
     venv = ROOT / "venv"
     if (venv / "bin" / "python").exists():
@@ -489,6 +510,7 @@ def main() -> int:
         + _check_deadlines()
         + _check_gateway_freshness()
         + _check_codegraph()
+        + _check_repository_continuity()
     )
 
     failures = [c for c in checks if c.level == "FAIL"]

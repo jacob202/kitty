@@ -99,6 +99,38 @@ def test_empty_snapshot_has_no_fabricated_builder_activity(tmp_path: Path):
     assert snapshot["initiatives"] == []
 
 
+def test_control_plane_summary_does_not_create_a_missing_database(tmp_path: Path):
+    db_path = tmp_path / "missing" / "builder.db"
+
+    with pytest.raises(FileNotFoundError, match="does not exist"):
+        builder_status.build_control_plane_summary(db_path=db_path)
+
+    assert not db_path.exists()
+    assert not db_path.parent.exists()
+
+
+def test_control_plane_summary_reads_queue_and_initiatives(tmp_path: Path):
+    db_path, _repo, _task_id = _apply_manifest(tmp_path)
+    before = db_path.read_bytes()
+
+    summary = builder_status.build_control_plane_summary(db_path=db_path)
+
+    assert db_path.read_bytes() == before
+    assert summary["schema_version"] == 1
+    assert summary["queue"]["total"] == 1
+    assert summary["queue"]["queued"] == 1
+    assert summary["initiatives"] == [
+        {
+            "initiative_id": INITIATIVE_ID,
+            "title": "Builder UI test initiative",
+            "state": "active",
+            "pause_reason": None,
+            "packet_count": 1,
+            "updated_at": summary["initiatives"][0]["updated_at"],
+        }
+    ]
+
+
 def test_snapshot_exposes_bounded_attempt_evidence_and_omits_unsafe_fields(tmp_path: Path):
     db_path, repo, task_id = _apply_manifest(tmp_path)
     first_attempt = ba.start_attempt(INITIATIVE_ID, PACKET_ID, db_path=db_path)

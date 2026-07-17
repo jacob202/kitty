@@ -1,6 +1,6 @@
 # Kitty Architecture
 
-**Date:** 2026-07-02
+**Date:** 2026-07-17
 **Status:** Canonical current architecture
 
 ## Runtime
@@ -28,6 +28,29 @@ Browser / Raycast / Telegram / Siri
 
 The gateway is the product. Clients should be thin views over gateway APIs.
 
+## Project control plane
+
+ADR 0017 defines the control-plane boundary:
+
+```text
+Jacob ↔ Kitty → approved Mission → KittyBuilder → Result/Evidence → Kitty
+```
+
+Kitty is the principal product agent and intent compiler. It selectively
+retrieves relevant context, identifies missing or contradictory inputs,
+challenges assumptions, plans evidence, and selects an execution strategy. A
+versioned Mission is the only durable command crossing into Builder.
+
+KittyBuilder is the execution organization. Its existing initiative, packet,
+task, attempt, lease, run, review, recovery, budget, and publication stores own
+execution truth. Replaceable models and Orca are workers/adapters, never
+authorities. Builder returns structured result and evidence references. Direct
+table coupling, a second Builder state machine, and a permanent project-manager
+agent runtime are not part of this architecture.
+
+The contract is ratified but autonomous Mission submission is not implemented.
+Current user-facing Builder controls remain read-only.
+
 ## Important Modules
 
 | Path | Responsibility |
@@ -47,6 +70,8 @@ The gateway is the product. Clients should be thin views over gateway APIs.
 | `gateway/desktop_store.py` | Quick Capture inbox writer/status helper |
 | `gateway/cron.py` | Local scheduled actions |
 | `gateway/kitty-chat/` | Next.js UI |
+| `gateway/builder_status.py` | Bounded read-only projection over Builder-owned state |
+| `gateway/context_receipt.py` | Derived repository/continuity receipt; owns no durable state |
 
 ## Domain Modules (route islands)
 
@@ -104,6 +129,9 @@ Phase B consolidates app-owned episodic state behind a single SQLite story. It d
 - Do not put product logic in route files — delegate to domain modules.
 - Do not silently recover from storage or network failures; surface the failure clearly.
 - Do not add a new database, queue, cloud service, or mobile sync without an ADR.
+- Keep access, retrieval, monitoring, memory, and action permissions separate.
+- Build context selectively; missing context and stale evidence remain explicit.
+- Optimize routing for verified quality per cost, escalating only when justified.
 
 ## Removed Modules
 

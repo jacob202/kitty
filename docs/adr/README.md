@@ -27,5 +27,6 @@ Use [`0000-template.md`](0000-template.md) when adding a new ADR.
 | 0014 | [Magic Kitty: Cross-Project Insight](0014-magic-kitty-cross-project-insight.md)                | Accepted | 2026-07-05 |
 | 0015 | [The Resume Loop Is The Product; Builder Boundary](0015-resume-loop-and-builder-boundary.md)   | Accepted | 2026-07-11 |
 | 0016 | [Life-First Ordering](0016-life-first-ordering.md)                                             | Accepted | 2026-07-11 |
+| 0017 | [Kitty → Mission → KittyBuilder Control-Plane Boundary](0017-kitty-mission-builder-control-plane.md) | Accepted | 2026-07-17 |
 
 Historical decision detail remains in [`docs/retired/DECISIONS_AND_ROADMAP.md`](../retired/DECISIONS_AND_ROADMAP.md).

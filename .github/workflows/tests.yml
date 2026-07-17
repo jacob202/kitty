@@ -8,12 +8,21 @@ on:
 jobs:
   pytest:
     runs-on: ubuntu-latest
+    env:
+      # The continuity check defaults to ~/Projects/kitty; on CI runners the
+      # checkout lives under $GITHUB_WORKSPACE. This override keeps the check
+      # honest without hardcoding runner paths in the source.
+      KITTY_EXPECTED_CANONICAL_CHECKOUT: ${{ github.workspace }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           # Builder's immutable packet base must resolve from origin/main.
           fetch-depth: 0
+          # Attach HEAD to the actual branch (not the merge preview or a bare
+          # SHA), so continuity checks read a proper git:branch and matched
+          # recorded HEAD instead of a detached-HEAD false positive.
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
 
       - name: Setup Python
         uses: actions/setup-python@v5

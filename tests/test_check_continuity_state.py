@@ -1,11 +1,13 @@
-"""Contract tests for scripts/check_continuity_state.py."""
+"""Contract tests for the continuity CI wrapper."""
+import json
 import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / "scripts" / "check_continuity_state.py"
-HANDOFF = ROOT / "docs" / "AGENT_HANDOFF.md"
+STATE = ROOT / ".claude" / "STATE.md"
+HANDOFF = ROOT / ".claude" / "HANDOFF.md"
 
 
 def _run(max_age_days: int) -> subprocess.CompletedProcess:
@@ -34,45 +36,51 @@ class TestScriptExists:
         assert result.returncode == 0, result.stderr
 
 
-class TestHandoffPresent:
-    """Verify docs/AGENT_HANDOFF.md exists and contains a parseable date."""
+class TestCheckpointFiles:
+    """Verify both active checkpoint files use strict structured metadata."""
 
     def test_handoff_file_present(self):
-        """docs/AGENT_HANDOFF.md must exist at the repo root."""
-        assert HANDOFF.exists(), f"docs/AGENT_HANDOFF.md not found at {HANDOFF}"
+        assert HANDOFF.exists(), f".claude/HANDOFF.md not found at {HANDOFF}"
 
-    def test_handoff_contains_date(self):
-        """docs/AGENT_HANDOFF.md must contain at least one ISO date."""
-        import re
-        text = HANDOFF.read_text(encoding="utf-8")
-        dates = re.findall(r"\b\d{4}-\d{2}-\d{2}\b", text)
-        assert dates, "docs/AGENT_HANDOFF.md contains no ISO date (YYYY-MM-DD)"
+    def test_state_file_present(self):
+        assert STATE.exists(), f".claude/STATE.md not found at {STATE}"
+
+    def test_checkpoint_markers_present(self):
+        assert "<!-- kitty-state" in STATE.read_text(encoding="utf-8")
+        assert "<!-- kitty-handoff" in HANDOFF.read_text(encoding="utf-8")
 
 
 class TestScriptBehavior:
     """Verify exit codes and output for various --max-age-days values."""
 
     def test_passes_with_generous_limit(self):
-        """A 10-year window should always produce an OK exit."""
+        """The repository's current checkpoint must satisfy the full contract."""
         result = _run(max_age_days=3650)
         assert result.returncode == 0, f"Expected pass but got:\n{result.stdout}{result.stderr}"
-        assert "OK:" in result.stdout
+        assert "PASS:" in result.stdout
 
     def test_fails_with_zero_days(self):
-        """A 0-day limit means any handoff is stale; exit code must be 1."""
+        """A zero-day limit makes the recorded checkpoint stale."""
         result = _run(max_age_days=0)
         assert result.returncode == 1, f"Expected fail but got:\n{result.stdout}{result.stderr}"
         assert "FAIL:" in result.stdout
 
-    def test_current_handoff_within_21_days(self):
-        """Real CI gate: docs/AGENT_HANDOFF.md must be less than 21 days old."""
-        result = _run(max_age_days=21)
+    def test_current_checkpoint_within_seven_days(self):
+        """Real CI gate: both active checkpoints must be fresh and consistent."""
+        result = _run(max_age_days=7)
         assert result.returncode == 0, (
-            f"docs/AGENT_HANDOFF.md is more than 21 days old — update it!\n"
+            "active checkpoint is stale or inconsistent — replace it before stopping\n"
             f"{result.stdout}{result.stderr}"
         )
 
-    def test_output_contains_age(self):
-        """Output must report the age in days regardless of pass/fail."""
-        result = _run(max_age_days=3650)
-        assert "days old" in result.stdout
+    def test_json_output_is_structured(self):
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--max-age-days", "3650", "--json"],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        payload = json.loads(result.stdout)
+        assert payload["ok"] is True
+        assert payload["summary"]["fail"] == 0
+        assert payload["checks"]

@@ -374,6 +374,7 @@ def test_main_exits_zero_on_all_pass(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(doctor, "_check_mem0", lambda _e: [pass_check])
     monkeypatch.setattr(doctor, "_check_disk", lambda: [pass_check])
     monkeypatch.setattr(doctor, "_check_venv", lambda: [doctor.Check("PASS", "runtime:venv", "ok")])
+    monkeypatch.setattr(doctor, "_check_repository_continuity", lambda: [pass_check])
 
     import sys
 
@@ -401,6 +402,7 @@ def test_main_strict_fails_on_warn(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(doctor, "_check_mem0", lambda _e: [pass_check])
     monkeypatch.setattr(doctor, "_check_disk", lambda: [pass_check])
     monkeypatch.setattr(doctor, "_check_venv", lambda: [doctor.Check("PASS", "runtime:venv", "ok")])
+    monkeypatch.setattr(doctor, "_check_repository_continuity", lambda: [pass_check])
 
     import sys
 
@@ -431,6 +433,7 @@ def test_main_json_output_shape(monkeypatch, tmp_path, capsys) -> None:
     monkeypatch.setattr(doctor, "_check_mem0", lambda _e: [pass_check])
     monkeypatch.setattr(doctor, "_check_disk", lambda: [pass_check])
     monkeypatch.setattr(doctor, "_check_venv", lambda: [doctor.Check("PASS", "runtime:venv", "ok")])
+    monkeypatch.setattr(doctor, "_check_repository_continuity", lambda: [pass_check])
 
     import sys
 
@@ -452,6 +455,41 @@ def test_main_json_output_shape(monkeypatch, tmp_path, capsys) -> None:
         assert "level" in c
         assert "name" in c
         assert "detail" in c
+
+
+def test_repository_continuity_checks_are_exposed_by_doctor(monkeypatch) -> None:
+    from gateway import context_receipt, doctor
+
+    monkeypatch.setattr(
+        context_receipt,
+        "run_continuity_checks",
+        lambda _root: [
+            context_receipt.ContinuityCheck("PASS", "state:head", "matches"),
+            context_receipt.ContinuityCheck("FAIL", "docs:front_door_links", "broken"),
+        ],
+    )
+
+    checks = doctor._check_repository_continuity()
+
+    assert checks == [
+        doctor.Check("PASS", "continuity:state:head", "matches"),
+        doctor.Check("FAIL", "continuity:docs:front_door_links", "broken"),
+    ]
+
+
+def test_repository_continuity_internal_error_fails_loud(monkeypatch) -> None:
+    from gateway import context_receipt, doctor
+
+    def fail(_root):
+        raise context_receipt.ContextReceiptError("git evidence unavailable")
+
+    monkeypatch.setattr(context_receipt, "run_continuity_checks", fail)
+
+    checks = doctor._check_repository_continuity()
+
+    assert checks[0].level == "FAIL"
+    assert checks[0].name == "continuity:receipt"
+    assert "git evidence unavailable" in checks[0].detail
 
 
 # --- _check_mail_connector (P3, docs/packets/005) ---

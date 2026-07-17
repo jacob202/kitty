@@ -1,7 +1,7 @@
 # ADR 0015 — The Resume Loop Is The Product; Builder Is A Separate Control Plane
 
 **Date:** 2026-07-11
-**Status:** Accepted
+**Status:** Accepted; decision 2's read-only-only boundary is superseded by ADR 0017
 **Source:** `docs/BLUEPRINT.md` (Fable blueprint session)
 
 ## Decision
@@ -12,9 +12,11 @@
    whether they serve this loop.
 2. **Kitty and KittyBuilder are separate systems.** Kitty owns user experience
    and personal data (`data/`); Builder owns engineering truth (queue DB, run
-   manifests, worktrees). Neither writes the other's stores. Kitty reads
-   Builder state only through Builder's read API, only for the delegated-work
-   card. Kitty must remain fully usable with Builder offline.
+   manifests, worktrees). Direct cross-store writes remain forbidden and Kitty
+   must remain fully usable with Builder offline. **Superseded in part by ADR
+   0017:** Kitty may submit a versioned, validated, authorized Mission through a
+   supported Builder interface and may read structured result/evidence through
+   supported projections. Autonomous submission is not yet enabled.
 3. **Orca is an adapter.** Durable delegated-task state lives only in the
    Builder queue; Orca transports and reports. A dead Orca means an expired
    lease, never a lost task.

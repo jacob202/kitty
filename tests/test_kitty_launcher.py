@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import os
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -44,3 +47,29 @@ def test_launcher_exposes_backup_and_restore_drill() -> None:
     assert 'scripts/kitty_backup.py" restore-drill' in launcher
     assert "backup)    shift; cmd_backup" in launcher
     assert "restore-drill) shift; cmd_restore_drill" in launcher
+
+
+def test_launcher_exposes_agent_context_receipt() -> None:
+    launcher = (ROOT / "kitty").read_text(encoding="utf-8")
+
+    assert "cmd_context()" in launcher
+    assert '-m gateway.context_receipt "$@"' in launcher
+    assert 'context)   shift; cmd_context "$@"' in launcher
+
+
+def test_agent_context_receipt_runs_outside_checkout(tmp_path: Path) -> None:
+    """The bootloader must import the checkout that owns the invoked launcher."""
+    env = dict(os.environ)
+    env.pop("PYTHONPATH", None)
+
+    result = subprocess.run(
+        [str(ROOT / "kitty"), "context", "--agent"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert json.loads(result.stdout)["repository"]["repo_path"] == str(ROOT)

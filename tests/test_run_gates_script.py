@@ -22,9 +22,15 @@ class TestRequiredFiles:
         """config/SOUL.md is Kitty's core identity file and must always exist."""
         assert (ROOT / "config" / "SOUL.md").exists(), "config/SOUL.md is Kitty's soul — it must exist"
 
-    def test_agent_handoff_present(self):
-        """docs/AGENT_HANDOFF.md must exist for continuity checks."""
-        assert (ROOT / "docs" / "AGENT_HANDOFF.md").exists()
+    def test_active_continuity_files_present(self):
+        """The active mission, authority map, and current checkpoints must exist."""
+        required = [
+            ROOT / "docs" / "ACTIVE_MISSION.md",
+            ROOT / "docs" / "AUTHORITY_MAP.md",
+            ROOT / ".claude" / "STATE.md",
+            ROOT / ".claude" / "HANDOFF.md",
+        ]
+        assert all(path.exists() for path in required), required
 
     def test_env_example_present(self):
         """.env.example must exist to document required secrets."""
@@ -35,7 +41,7 @@ class TestRequiredFiles:
         assert (ROOT / "CLAUDE.md").exists()
 
     def test_tasks_md_present(self):
-        """TASKS.md must exist for project task tracking."""
+        """The historical TASKS.md tombstone must remain discoverable."""
         assert (ROOT / "TASKS.md").exists()
 
     def test_requirements_txt_present(self):

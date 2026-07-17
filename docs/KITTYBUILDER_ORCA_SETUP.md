@@ -1,13 +1,14 @@
 # KittyBuilder Orca Setup
 
-KittyBuilder uses Orca as the outer worktree and agent coordinator while the local SQLite queue grows into the source of truth.
+KittyBuilder may use Orca as an outer worktree/worker adapter. The local SQLite
+queue is already the durable Builder task authority.
 
 ## Current Role Split
 
 - **Orca** creates isolated worktrees, tracks task dispatch, carries worker messages, and exposes decision gates.
 - **OpenCode** is the default implementation, planning, packaging, and cheap review lane.
 - **Codex** is reserved for high-risk review or blocked escalation.
-- **KittyBuilder queue** remains the future authoritative task state.
+- **KittyBuilder queue** remains the authoritative task state.
 - **GitHub issue #127** is only a temporary bridge inbox.
 
 ## Setup Hook

@@ -5,14 +5,28 @@ Start here: `START_HERE.md`.
 ## Project Paths
 
 - Active project: `~/Projects/kitty` (NOT Desktop backups)
-- Always verify `pwd` resolves under `~/Projects/` before any file operations
+- Always verify the Git common directory belongs to `~/Projects/kitty`; an
+  isolated worktree may live below that canonical checkout
 - If working directory is under `~/Desktop/` or a backup folder, STOP and ask user to confirm
+
+## Cold-start bootloader
+
+Do this before relying on inherited context:
+
+1. Verify the canonical checkout and current worktree.
+2. Inspect `git status --short --branch`, HEAD, worktrees, and `origin/main`.
+3. Run `./kitty context --agent`; stop on failed freshness checks.
+4. Follow the receipt's reading order beginning with `docs/AUTHORITY_MAP.md`.
+5. Read `docs/ACTIVE_MISSION.md` and `.claude/STATE.md`.
+6. Read `.claude/HANDOFF.md` only when its structured status is `valid`.
+7. Inspect Builder through `./kitty builder ... --json` when Builder state is relevant.
+8. Re-verify scope, evidence, and authorization before acting.
 
 ## Execution Defaults
 
 - When user requests a feature/fix, complete the FULL loop: implement + install/setup + verify locally. Do not stop after writing code.
 - Run the test suite after any non-trivial code change and report pass/fail counts.
-- After commits, push unless explicitly told otherwise.
+- Local commits are expected; pushing still requires Jacob's explicit approval.
 
 ## Auth & Environment
 
@@ -39,22 +53,11 @@ See `.claude/rules/initiative.md`. Persona and noticing rules live in `config/SO
 
 Read `.claude/HANDOFF.md` and `.claude/STATE.md` at the start of every session. Update `.claude/STATE.md` before stopping; write `.claude/HANDOFF.md` at the end of any session that leaves unfinished work.
 
-## Current Sources Of Truth
+## Authority
 
-| Need                | File                             |
-| ------------------- | -------------------------------- |
-| Orientation         | `START_HERE.md`                  |
-| Current status      | `docs/PROJECT_STATUS.md`         |
-| Architecture        | `docs/ARCHITECTURE.md`           |
-| Phase B plan (shipped) | `docs/phases/PHASE_B_PLAN.md`        |
-| Storage migration (shipped) | `docs/phases/STORAGE_MIGRATION_PLAN.md` |
-| Agent/runtime rules | `docs/AGENT_RUNTIME.md`          |
-| Free workers        | `docs/FREE_WORKERS.md`           |
-| Decisions           | `docs/DECISIONS.md`              |
-| Lessons             | `docs/LEARNINGS.md`              |
-| Handoff             | `.claude/HANDOFF.md`             |
-| State               | `.claude/STATE.md`               |
-| Voice/persona       | `config/SOUL.md`                 |
+`docs/AUTHORITY_MAP.md` is the only routing map for project truth. This file is
+a bootloader and Claude-specific glossary, not a second status or architecture
+authority.
 
 ## Runtime Shape
 
@@ -93,5 +96,7 @@ If a command fails, report the failure exactly. Do not round up to passing.
 - "phase B" → `docs/phases/PHASE_B_PLAN.md` (shipped)
 - "phase C" → storage migrations (chats done, journal next)
 - "free workers" / "the free train" → `docs/FREE_WORKERS.md` (zero-cost OpenCode execution of packets)
+- "mission" → `docs/ACTIVE_MISSION.md` (approved intent and acceptance contract)
+- "execution state" → Builder's durable store through supported Builder projections
 - "Goose" → external chat tool, not part of kitty runtime
 - "Honcho" → `gateway/honcho.py` — weekly pattern mirror, wired to kitty_tools route
