@@ -130,6 +130,83 @@ export interface RuntimeFact<T = unknown> {
   reason?: string
 }
 
+export interface BuilderQueueStatus {
+  total: number
+  queued: number
+  claimed: number
+  running: number
+  blocked: number
+  pr_opened: number
+  awaiting_review: number
+  done: number
+  failed: number
+  cancelled: number
+}
+
+export interface BuilderAttemptStatus {
+  id: number
+  number: number
+  outcome: 'succeeded' | 'failed' | 'aborted' | 'crashed' | null
+  implementation_status: string | null
+  validation_status: 'passed' | 'failed' | 'skipped' | null
+  review_verdict: 'approve' | 'request_changes' | 'reject' | null
+  lease_id: number | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface BuilderPacketStatus {
+  packet_id: string
+  title: string
+  task_id: string
+  task_state: string | null
+  depends_on: string[]
+  eligibility: { state: 'eligible' | 'waiting' | 'blocked' | 'not_queued' | 'unavailable'; blocked_by: string[] }
+  budget: { used: number; max: number; exhausted: boolean }
+  attempt: BuilderAttemptStatus | null
+  previous_attempt: BuilderAttemptStatus | null
+  lease: { id: number; worker_id: string; branch: string; base_sha: string; created_at: string | null } | null
+  run: {
+    id: string
+    state: string
+    started_at: string | null
+    last_heartbeat_at: string | null
+    ended_at: string | null
+    exit_code: number | null
+  } | null
+  publication: { pr_url: string | null; checks_state: string | null; review_state: string | null; merged: boolean } | null
+  last_event: {
+    id: number
+    type: string
+    created_at: string | null
+    reason: string | null
+    counts_toward_budget: boolean | null
+  } | null
+  failure_kind: 'implementation' | 'identity' | 'validation' | 'review' | 'infrastructure' | 'cancelled' | 'exhausted' | null
+  blocked_reason: string | null
+  last_error: string | null
+  updated_at: string | null
+  base_sha: string | null
+}
+
+export interface BuilderInitiativeStatus {
+  initiative_id: string
+  title: string
+  state: 'active' | 'paused' | 'completed' | 'failed'
+  pause_reason: string | null
+  next_packet: string | null
+  counts: BuilderQueueStatus & { exhausted: number }
+  created_at: string | null
+  updated_at: string | null
+  packets: BuilderPacketStatus[]
+}
+
+export interface BuilderStatusSnapshot {
+  schema_version: number
+  queue: BuilderQueueStatus
+  initiatives: BuilderInitiativeStatus[]
+}
+
 export interface GatewayRuntimeManifest {
   schema_version: number
   manifest_id: string
@@ -154,7 +231,7 @@ export interface GatewayRuntimeManifest {
     }>
   }
   execution: {
-    builder: RuntimeFact<Record<string, unknown>>
+    builder: RuntimeFact<BuilderStatusSnapshot>
   }
   inference: {
     routing_mode: string

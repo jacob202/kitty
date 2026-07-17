@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { card, cardHeader, cardTitle, cardMeta, itemCard, emptyState, bodyText } from '@/lib/ui';
 import { CapturePanel } from '@/components/CapturePanel';
+import { BuilderGlance } from '@/components/BuilderSurface';
 import { useDashboardConfig } from '@/hooks/useDashboardConfig';
 import {
   useStateChanges,
@@ -1173,6 +1174,7 @@ export function HomeState({
       }}
     >
       {visibleTiles['health'] !== false && <HealthStrip />}
+      <BuilderGlance onOpen={() => onNavigate('builder')} />
       {visibleTiles['whats-next'] !== false && (
         <WhatsNext onDecideInChat={onDecideInChat} onNavigate={onNavigate} />
       )}

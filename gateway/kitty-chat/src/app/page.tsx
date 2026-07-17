@@ -20,6 +20,7 @@ import { ProjectsPanel } from '@/components/ProjectsPanel';
 import { DocumentsPanel } from '@/components/DocumentsPanel';
 import { ProviderCenter } from '@/components/ProviderCenter';
 import { SettingsPanel } from '@/components/SettingsPanel';
+import { BuilderPanel } from '@/components/BuilderSurface';
 import { OnboardingModal } from '@/components/OnboardingModal';
 import { LoopWatch } from '@/components/LoopWatch';
 import { InsightFeed } from '@/components/InsightFeed';
@@ -1045,6 +1046,10 @@ function KittyChatInner() {
             ) : activeView === 'settings' ? (
               <div style={panelPadding(isMobile)}>
                 <SettingsPanel theme={theme} onToggleTheme={handleToggleTheme} />
+              </div>
+            ) : activeView === 'builder' ? (
+              <div style={panelPadding(isMobile)}>
+                <BuilderPanel onBack={() => setActiveView('home')} />
               </div>
             ) : activeView === 'chat' && activeChat && activeChat.messages.length > 0 ? (
               <div
