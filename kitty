@@ -261,7 +261,8 @@ cmd_context() {
   if [[ ! -x "$python_bin" ]]; then
     python_bin="$(command -v python3.12)"
   fi
-  "$python_bin" -m gateway.context_receipt "$@"
+  PYTHONPATH="$KITTY_ROOT${PYTHONPATH:+:$PYTHONPATH}" \
+    "$python_bin" -m gateway.context_receipt "$@"
 }
 
 cmd_logs() {
