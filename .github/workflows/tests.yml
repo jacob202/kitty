@@ -107,7 +107,7 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
       - name: Build
-        run: node node_modules/next/dist/bin/next build
+        run: node node_modules/next/dist/bin/next build --webpack
       - name: Start server
         run: node node_modules/next/dist/bin/next start -p 4000 &
       - name: Wait for server
