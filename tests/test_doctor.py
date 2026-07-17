@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+import types
 from unittest.mock import MagicMock, patch
 
 
@@ -191,10 +192,10 @@ def test_check_chromadb_fails_on_client_exception(monkeypatch, tmp_path) -> None
     from gateway import doctor
 
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
-
-    import chromadb as _chroma
-
-    with patch.object(_chroma, "PersistentClient", side_effect=RuntimeError("locked")):
+    fake_chroma = types.SimpleNamespace(
+        PersistentClient=MagicMock(side_effect=RuntimeError("locked"))
+    )
+    with patch.dict(sys.modules, {"chromadb": fake_chroma}):
         checks = doctor._check_chromadb()
     assert checks[0].level == "FAIL"
     assert "locked" in checks[0].detail
@@ -204,12 +205,12 @@ def test_check_chromadb_passes_when_working(monkeypatch, tmp_path) -> None:
     from gateway import doctor
 
     monkeypatch.setattr(doctor, "ROOT", tmp_path)
-
-    import chromadb as _chroma
-
     fake_client = MagicMock()
     fake_client.list_collections.return_value = ["col1", "col2"]
-    with patch.object(_chroma, "PersistentClient", return_value=fake_client):
+    fake_chroma = types.SimpleNamespace(
+        PersistentClient=MagicMock(return_value=fake_client)
+    )
+    with patch.dict(sys.modules, {"chromadb": fake_chroma}):
         checks = doctor._check_chromadb()
     assert checks[0].level == "PASS"
     assert "2" in checks[0].detail
@@ -235,22 +236,22 @@ def test_check_mem0_fails_on_import_error() -> None:
 
 
 def test_check_mem0_warns_on_init_exception() -> None:
-    import mem0 as _mem0
-
     from gateway import doctor
 
-    with patch.object(_mem0, "Memory", side_effect=RuntimeError("config error")):
+    fake_mem0 = types.SimpleNamespace(
+        Memory=MagicMock(side_effect=RuntimeError("config error"))
+    )
+    with patch.dict(sys.modules, {"mem0": fake_mem0}):
         checks = doctor._check_mem0({})
     assert checks[0].level == "WARN"
     assert "config error" in checks[0].detail
 
 
 def test_check_mem0_passes_local_mode() -> None:
-    import mem0 as _mem0
-
     from gateway import doctor
 
-    with patch.object(_mem0, "Memory", return_value=MagicMock()):
+    fake_mem0 = types.SimpleNamespace(Memory=MagicMock(return_value=MagicMock()))
+    with patch.dict(sys.modules, {"mem0": fake_mem0}):
         checks = doctor._check_mem0({})
     assert checks[0].level == "PASS"
     assert "local" in checks[0].detail

@@ -159,7 +159,7 @@ async def run_enrichments(
 async def enrich_dynamic_context(base: str, message: str) -> str:
     """Append live-state blocks to ``base`` (legacy single-string return).
 
-    Kept for backward compatibility with ``context_builder.get_system_prompt``
+    Kept for compatibility with ``context_assembler.get_system_prompt``
     and any caller that imports it directly. New code should use
     :func:`run_enrichments` via the assembler.
 

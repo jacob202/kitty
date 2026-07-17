@@ -293,15 +293,22 @@ def _parse_comfy(prompt: str) -> dict:
     explicit = any(k in low for k in EXPLICIT_KW)
     if sdxl:
         w, h, steps, cfg = 1024, 1024, 6, 1.5
-        if "portrait" in low: w, h = 832, 1216
-        if "landscape" in low: w, h = 1216, 832
-        if "detailed" in low: steps, cfg = 10, 2.0
+        if "portrait" in low:
+            w, h = 832, 1216
+        if "landscape" in low:
+            w, h = 1216, 832
+        if "detailed" in low:
+            steps, cfg = 10, 2.0
     else:
         w, h, steps, cfg = 512, 512, 25, 7.0
-        if "portrait" in low: w, h = 512, 768
-        if "landscape" in low: w, h = 768, 512
-        if "fast" in low: steps = 15
-        if "detailed" in low: steps = 35
+        if "portrait" in low:
+            w, h = 512, 768
+        if "landscape" in low:
+            w, h = 768, 512
+        if "fast" in low:
+            steps = 15
+        if "detailed" in low:
+            steps = 35
     lstr = 1.0 if "more bear" in low else 0.5 if "less bear" in low else 0.8
     neg = "worst quality, low quality, bad anatomy, deformed, ugly, watermark, text, blurry"
     if sdxl:
@@ -511,8 +518,8 @@ def generate_image_dalle(
     response = client.images.generate(
         model="dall-e-3",
         prompt=prompt,
-        size=size,  # type: ignore[arg-type]
-        quality=quality,  # type: ignore[arg-type]
+        size=size,
+        quality=quality,
         n=1,
     )
 

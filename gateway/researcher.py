@@ -115,7 +115,7 @@ class DeepResearcher:
 
     def _synthesize_findings(self, topic: str, findings: str) -> str:
         """Uses LLM to summarize findings in Kitty's voice."""
-        from gateway.context_builder import build_worker_context
+        from gateway.context_assembler import build_worker_context
         from gateway.llm_client import chat
 
         task_desc = f"""Jacob needs deep technical info on: "{topic}"

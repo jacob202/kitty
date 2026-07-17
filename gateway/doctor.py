@@ -19,6 +19,7 @@ import pathlib
 import shutil
 import ssl
 import sys
+import time
 import urllib.request
 from dataclasses import dataclass
 
@@ -365,6 +366,63 @@ def _check_deadlines() -> list[Check]:
     ]
 
 
+def _check_codegraph() -> list[Check]:
+    """Check codegraph daemon health and index freshness."""
+    cg_dir = ROOT / ".codegraph"
+    db_path = cg_dir / "codegraph.db"
+    pid_path = cg_dir / "daemon.pid"
+
+    if not cg_dir.exists():
+        return [
+            Check(
+                "WARN",
+                "codegraph:daemon",
+                ".codegraph/ not found — run `codegraph init` to enable",
+            )
+        ]
+
+    if not pid_path.exists():
+        return [
+            Check(
+                "WARN",
+                "codegraph:daemon",
+                "daemon not running — codegraph index may be stale",
+            )
+        ]
+
+    try:
+        pid = int(pid_path.read_text().strip())
+        os.kill(pid, 0)  # signal 0 = process existence check
+    except (ValueError, ProcessLookupError, OSError):
+        return [
+            Check(
+                "WARN",
+                "codegraph:daemon",
+                "daemon PID file exists but process dead — index may be stale",
+            )
+        ]
+
+    # Daemon alive — check index age
+    if db_path.exists():
+        db_mtime = db_path.stat().st_mtime
+        age_s = time.time() - db_mtime
+        if age_s > 300:  # 5 minutes
+            import datetime
+            age = datetime.timedelta(seconds=int(age_s))
+            return [
+                Check(
+                    "WARN",
+                    "codegraph:index_freshness",
+                    f"index is {age} old — daemon may be stalled",
+                )
+            ]
+        return [
+            Check("PASS", "codegraph:index_freshness", f"index fresh ({int(age_s)}s old)")
+        ]
+
+    return [Check("WARN", "codegraph:index_freshness", "database missing")]
+
+
 def _check_venv() -> list[Check]:
     venv = ROOT / "venv"
     if (venv / "bin" / "python").exists():
@@ -383,11 +441,39 @@ def _level_order(level: str) -> int:
     return {"PASS": 0, "WARN": 1, "FAIL": 2}.get(level, 2)
 
 
+def _spend_report(json_mode: bool) -> int:
+    try:
+        from gateway.token_spend_report import (
+            format_report,
+            load_entries,
+            summarize_usage,
+        )
+    except ImportError as exc:
+        print(f"ERROR: cannot load spend report module: {exc}", file=sys.stderr)
+        return 1
+
+    entries = load_entries()
+    if not entries:
+        print("No token usage data found.")
+        return 0
+
+    summary = summarize_usage(entries)
+    if json_mode:
+        print(json.dumps(summary, indent=2, default=str))
+    else:
+        print(format_report(summary))
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Kitty health check")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--strict", "--fail-on-warn", action="store_true")
+    parser.add_argument("--spend", action="store_true", help="print LLM spend report from token log")
     args = parser.parse_args()
+
+    if args.spend:
+        return _spend_report(args.json)
 
     env = _load_env()
     checks: list[Check] = (
@@ -402,6 +488,7 @@ def main() -> int:
         + _check_push_channel(env)
         + _check_deadlines()
         + _check_gateway_freshness()
+        + _check_codegraph()
     )
 
     failures = [c for c in checks if c.level == "FAIL"]

@@ -91,7 +91,7 @@ class TestGatewayStructure:
     REQUIRED_MODULES = [
         "app.py",
         "llm_client.py",
-        "context_builder.py",
+        "context_assembler.py",
         "memory_graph.py",
         "buddy.py",
         "paths.py",

@@ -1,95 +1,70 @@
-# Session State — 2026-07-14 (cloud branch `claude/free-workers-token-efficiency-2m06xb`)
+# Session State — 2026-07-16 — Engineering Leverage closeout
 
-- Free workers are now a first-class launch surface: `./kitty builder
-  initiative run[-packet] ... --free` wires the OpenCode adapter scripts as
-  worker + reviewer (no hand-typed `--worker-command` JSON).
-- Both adapter scripts now walk the zero-cost model ladder inside one
-  attempt; fallback happens only on a clean failure (no result, no worktree
-  change) so partial work is never built on. `KITTYBUILDER_MODEL(S)` /
-  `KITTYBUILDER_REVIEW_MODEL(S)` override.
-- New playbook: `docs/FREE_WORKERS.md` (linked from CLAUDE.md, quickstart,
-  and the Orca setup doc).
-- Verified: 466 builder-slice tests pass (incl. 5 new adapter ladder tests,
-  5 new CLI preset tests); ruff clean; both scripts `bash -n` clean.
+## Current truth
 
-# Session State — 2026-07-12
+- Branch: `chore/engineering-leverage-phase-8-9`
+- Base: `origin/main @ 6cd464fe6f867b6cd90a7f8d5e6c63ac8239c753`
+- One-branch/one-PR decision remains intentional; history was not rewritten.
+- The four worktrees listed in `.claude/HANDOFF.md` were inspected read-only and preserved.
+- Builder initiative `kb_mrm5ru85_9ea7` remains cancelled and was not restarted.
+- No push, merge, force-push, branch deletion, or worktree cleanup occurred.
 
-## Branch
+## Builder Phase 2 identity gap closed
 
-- `main` @ `1d2183f`, pushed to `origin/main`.
-- `origin/docs/fable-context` is already an ancestor of `main`; no merge
-  commit was needed.
+- `7ceb511` — atomic packet lease + attempt creation is now the production path in
+  `run_packet`; attempts retain their lease ID and every deliberate close releases
+  the exact packet/worker-owned lease in the same transaction.
+- Post-worker verification now checks the active lease, worker, branch, canonical
+  worktree path, durable base ancestry, packet marker on every commit (including
+  merges), and committed/staged/unstaged/untracked scope drift before validation.
+- Success, implementation failure, identity failure, validation failure,
+  cancellation, lease loss, orchestration exception, retry, exhaustion, and stale
+  crash reconciliation all have explicit lease and attempt outcomes.
+- The three former strict xfails are ordinary passing integration tests.
+- `aee7c4a` — first manifest apply now fails before mutation if neither
+  `origin/main` nor `main` resolves to a durable full SHA; dry runs and immutable
+  re-applies do not unnecessarily depend on live refs.
+- `3a7e798` — the initiative-driver tests bind manifest creation to their isolated
+  temporary Git repository.
 
-## Done this session
+## Whole-branch integration corrections
 
-- `dbee71a`: successful KittyBuilder loop runs remove their worktree when the
-  worker leaves exactly the ephemeral untracked `done.txt` marker; failed,
-  interrupted, dirty, or marker-less runs remain inspectable.
-- `f25e79e`: stopped tracking `tmp/IMG_0668.png` and added `tmp/` to
-  `.gitignore`.
-- `44c1fdc`: recorded the cleanup plan.
-- Preserved unique work locally on:
-  - `codex/recover-kb-s4-merge-tests` (`8bf3bab`, 135 tests)
-  - `codex/recover-orchestrator-research` (`5901a3a`, research document)
-- Retired the stale local KB-S4 and superseded UI branches. The credential-
-  bearing `claude/kitty-prototype-sprint-srs5bl` branch remains untouched.
-- Archived external project clutter under
-  `/Users/jacobbrizinski/Archive/Projects-2026-07-12/` and removed Nautilus
-  through Orca after preserving its Git bundle and runtime state.
-- Removed disposable root caches and `.next`; kept active dependencies,
-  runtime data, secrets, and active worktrees.
-- Reviewed the Fable session commits: final `.claude/launch.json` is relative
-  and loopback-only; no secrets or generated browser artifacts are present in
-  the final snapshot. One intermediate commit had an absolute worktree path,
-  corrected by the Fable tip without rewriting history.
+- `c2584bb` — the newly expanded `mcp/` Ruff/mypy CI target is actually green;
+  the branch no longer adds a known-red required check.
+- Removed stale active-code and canonical-architecture references to the deleted
+  `gateway/context_builder.py` facade.
+- Corrected `SKILL_REGISTRY.md`: the live `.agents/skills/` count is 17, three
+  nonexistent skills were removed, and Jacob's H5 archive decision is recorded
+  as deferred execution rather than an open decision.
+- Updated the audit bridge, project status, handoff, and PR narrative to match the
+  implemented identity contract. No audit `—` or `⏸` row was promoted to `✓`.
 
-## In flight / preserve
+## Validation
 
-- `trust-lane-v1` has started at the queue level in packet order. TL-01
-  (`kb_mrgw1v45_019b`) is claimed by `codex-trust-lane-v1-tl01` on its
-  isolated Builder branch; implementation is not yet started in this root
-  checkout.
-- The root checkout has concurrent uncommitted Builder work. Preserve and do
-  not stage it: `config/imagen/criteria/hard-gate.json`,
-  `config/imagen/criteria/test-char.json`, `gateway/builder_loop.py`,
-  `tests/test_builder_loop.py`, plus untracked `gateway/builder_context.py`
-  and `tests/test_builder_context.py`.
-- Active builder worktree:
-  `.worktrees/kittybuilder/kb_mrh9ilha_f3d9`, task
-  `kb_mrh9ilha_f3d9`, currently modifies `gateway/next_step.py` and
-  `tests/test_next_step.py`; do not clean or remove it.
-- Untracked user scripts remain untouched:
-  `scripts/kittybuilder_opencode_worker.sh` and
-  `scripts/kittybuilder_opencode_reviewer.sh`.
-- `fix/search-route-query-param` and all remote branches remain untouched.
+- Combined closeout suite: **504 passed** in 114.65s.
+- Identity + loop suite: **65 passed**.
+- Focused queue/attempt/runner/identity/loop suite: **324 passed**.
+- Manifest/attempt/loop suite after durable-base fix: **179 passed**.
+- Initiative driver: **7 passed**.
+- Ruff: `gateway/ tests/ mcp/` — all checks passed.
+- Mypy: 36 affected Builder/context/doctor/MCP source files — no issues.
+- MCP-only mypy: 25 source files — no issues.
+- Vulture: `gateway/ --min-confidence 80` — 0 findings.
+- Lychee: 102 links OK, 0 errors, 7 redirects.
+- Full suite: 2241 passed, 1 skipped, 2 deselected, 4 failed before closeout
+  fixes. The three Builder failures were caused by the temporary-repo base mismatch
+  and now pass in `tests/test_builder_run.py` (7/7). The one remaining unchanged
+  failure is `test_expired_creds_refresh`, which cannot import optional
+  `google.auth`; neither the mail connector nor its test differs from `origin/main`.
+- `./kitty doctor --json`: 4 PASS, 4 WARN, 5 FAIL. The failures are local runtime
+  prerequisites/services (`.env`, `venv`, Gateway, LiteLLM, mem0), not code-test
+  failures; CodeGraph reports its existing dead-daemon warning.
 
-## Verification
+## Remaining scope
 
-- Frontend: `npm test -- --run --maxWorkers=1` → 18 files / 129 tests passed;
-  `npm run build` → passed.
-- Full Python suite: 2,079 passed, 1 skipped, 8 failed. Failures are known
-  local environment/dependency or timeout issues (`mem0`, `google.auth`,
-  Chroma/runtime, and resume subprocess); this is not a clean green gate.
-- Builder slice: 54 passed and 1 shared-queue lease-conflict failure; the
-  failed case passed when rerun alone (`1 passed`).
-- Browser smoke loaded onboarding and Home successfully. Core gateway routes
-  returned 200, while LiteLLM/models, Chroma knowledge, and runtime freshness
-  remained visibly degraded in this environment.
-- `venv/bin/ruff check gateway/builder_loop.py gateway/builder_runner.py
-  tests/test_builder_loop.py tests/test_builder_runner.py` → passed.
-
-## Next actions
-
-- Implement TL-01 in its isolated branch, then continue TL-02, TL-03, TL-04,
-  and TL-05 in that order. Do not stage the concurrent root-checkout edits
-  above.
-- Start `trust-lane-v1` in the established packet order after the push.
-- Later plan model usage across ChatGPT's available models by task, cost,
-  latency, reliability, and privacy boundary.
-
-## T2 (Jacob/Codex only — do not touch)
-
-- Card A: UI binds 0.0.0.0 in `./kitty` + proxy injects gateway secret; SSRF
-  in capture/knowledge routes.
-- Card B: `agent_runner.py` / `task_runner.py` can false-complete tasks;
-  `stop()` unreliable.
+- Mechanical audit rows D2/A1, A2/H5, and D4/A3 remain intentionally deferred
+  under their evidence/migration gates. They are suitable for a cheaper worker.
+- The Builder UI was not implemented. `.claude/HANDOFF.md` contains the exact
+  read-only projection contract and implementation-ready next task.
+- T2 cards remain untouched: UI/auth/SSRF boundaries and agent/task-runner
+  false-completion/stop reliability.

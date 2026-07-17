@@ -1,7 +1,7 @@
 # Project Status
 
-**Date:** 2026-07-12
-**Branch:** `feat/council-routing` (based on `main`)
+**Date:** 2026-07-16
+**Branch:** `chore/engineering-leverage-phase-8-9` (local PR branch)
 **Canonical repo:** `/Users/jacobbrizinski/Projects/kitty`
 
 ## What's Shipped
@@ -23,17 +23,19 @@
 
 ## Open PR
 
-None currently. Active feature branch: `feat/council-routing` (in-progress
-council routing supervisor and tutor endpoint).
+The Engineering Leverage + Builder Phase 2 integrity branch is locally
+review-ready. It has not been pushed and no remote PR has been created.
 
 Recent merged PRs: #149 (kittybuilder dogfood preflight), #148 (brief news
 source seam), #147 (builder CLI registry), #146 (KB-S5 run-loop).
 
-## Test State (2026-07-12)
+## Test State (2026-07-16)
 
 ```
-Collected: 2036 (2 deselected; test_council.py excluded — new, not yet wired)
-Fail-loud suite: 24 passed
+Full suite: 2241 passed, 1 skipped, 2 deselected, 4 failed before closeout fixes
+Branch-caused failures fixed and re-run: tests/test_builder_run.py — 7 passed
+Remaining unchanged failure: mail credential-refresh test needs optional google.auth
+Builder identity + loop: 65 passed
 ```
 
 The 2026-07-02 entries for `test_action_queue.py::test_t0_executes_from_proposed_and_records_result`,
@@ -53,7 +55,6 @@ file is gone. If the failures recur, re-isolate them with `tmp_path` fixtures (s
 
 | Issue                                          | Location                                                     | Priority                          |
 | ---------------------------------------------- | ------------------------------------------------------------ | --------------------------------─ |
-| No kitty-chat CI job                           | `.github/workflows/`                                         | High — add a UI test job          |
 | SIRI_SHORTCUT.md references dead launcher      | `docs/SIRI_SHORTCUT.md`                                      | Low — tombstone it                |
 | Codex Blockers #1/#5/#7 (security/worker/mem) | `gateway/kitty-chat/src/app/proxy/`, `gateway/agent_runner.py` | T2 — escalate to Jacob            |
 
@@ -73,13 +74,10 @@ file is gone. If the failures recur, re-isolate them with `tmp_path` fixtures (s
 
 ## What's Next
 
-1. Council routing (T0) — `feat/council-routing` branch, in progress
-2. Tutor endpoint (T0) — `feat/council-routing` branch, in progress
-3. Codex Blockers #1/#5/#7 (T2, escalate) — security/auth, worker failure states, memory consolidation
-4. Upload limits / streaming caps (T1) — Blocker #8
-5. Doc reconciliation (T1) — this file + `START_HERE.md` + `docs/packets/README.md`
-6. CI alignment + coverage threshold (T1) — Blocker #10
-7. Browser smoke tests (T1) — Blocker #9, needs Playwright setup
+1. Review and publish the Engineering Leverage + Builder integrity PR (push requires Jacob approval)
+2. Add a read-only Builder status projection before implementing UI controls
+3. Execute deferred audit rows D2/A1, A2/H5, and D4/A3 with their recorded evidence gates
+4. Codex Blockers #1/#5/#7 (T2, escalate) — security/auth, worker failure states, memory consolidation
 
 ## Sources of Truth
 
@@ -89,7 +87,7 @@ file is gone. If the failures recur, re-isolate them with `tmp_path` fixtures (s
 | Architecture        | `docs/ARCHITECTURE.md`   |
 | Settled decisions   | `docs/DECISIONS.md`      |
 | Hard lessons        | `docs/LEARNINGS.md`      |
-| Handoff             | `docs/AGENT_HANDOFF.md`  |
+| Handoff             | `.claude/HANDOFF.md`     |
 | Work queue          | `docs/packets/README.md` |
 | Voice/persona       | `config/SOUL.md`         |
 | Agent/runtime rules | `docs/AGENT_RUNTIME.md`  |

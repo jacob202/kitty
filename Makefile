@@ -1,4 +1,4 @@
-.PHONY: agent-wrap test lint typecheck ci ui-test ui-build ui-tailnet smoke-test
+.PHONY: agent-wrap test lint typecheck ci ui-test ui-build ui-tailnet smoke-test codegraph-check
 
 agent-wrap:
 	python3.12 scripts/agent_wrapup.py
@@ -27,3 +27,12 @@ ui-build:
 # The gateway stays loopback-only; the Next proxy talks to it server-side.
 ui-tailnet:
 	cd gateway/kitty-chat && node node_modules/next/dist/bin/next dev -H 0.0.0.0 -p 4000
+
+codegraph-check:
+	@if [ ! -f .codegraph/codegraph.db ]; then \
+		echo "WARNING: codegraph index not initialized. Run: codegraph init"; \
+	elif [ "$$(find .codegraph/codegraph.db -mtime +7 2>/dev/null)" ]; then \
+		echo "WARNING: codegraph index is over 7 days old. Consider regenerating."; \
+	else \
+		echo "codegraph index: fresh"; \
+	fi

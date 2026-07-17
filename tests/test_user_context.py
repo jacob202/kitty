@@ -56,14 +56,14 @@ def test_ordering_mission_before_goals(user_dir):
 @pytest.mark.asyncio
 async def test_injected_into_system_prompt(user_dir, monkeypatch):
     (user_dir / "MISSION.md").write_text("# Mission\nUNIQUE_TELOS_MARKER mission.\n")
-    cb = importlib.import_module("gateway.context_builder")
+    cb = importlib.import_module("gateway.context_assembler")
 
     async def fake_assemble(message, parts_mode=False, domain=None, deps=None):
         from gateway.context_assembler import ContextBundle
 
         return ContextBundle(system=cb.build_worker_context.__module__ + ":" + "base")
 
-    # The façade in context_builder now delegates to assemble_context. Patch
+    # The public helper in context_assembler delegates to assemble_context. Patch
     # the assembler to return a minimal bundle so the test exercises the
     # wiring (TELOS injection happens in the assembler).
     import gateway.context_assembler as assembler

@@ -68,7 +68,7 @@ async def send_message(chat_id: int, text: str) -> bool:
 async def _process_message(chat_id: int, text: str) -> None:
     """Route a user message through Kitty's pipeline and reply."""
     try:
-        from gateway.context_builder import get_system_prompt
+        from gateway.context_assembler import get_system_prompt
         from gateway.domain_router import classify_domain
         from gateway.llm_client import (
             chat_completions_non_stream,

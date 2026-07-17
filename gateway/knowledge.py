@@ -592,10 +592,10 @@ def get_knowledge_block(query: str, limit: int = 5) -> str:
     """Format a knowledge context block for **synchronous** callers (scripts, tests).
 
     **Do not** call this from inside an async request handler or running event loop:
-    use ``await knowledge.search(...)`` or ``await context_builder.get_system_prompt(...)``
+    use ``await knowledge.search(...)`` or ``await context_assembler.get_system_prompt(...)``
     instead. Inside a loop, this function returns an empty string to avoid nest-async bugs.
 
-    For new code, prefer ``await search()`` and assemble prompts in ``context_builder``.
+    For new code, prefer ``await search()`` and assemble prompts in ``context_assembler``.
     """
     import asyncio
 

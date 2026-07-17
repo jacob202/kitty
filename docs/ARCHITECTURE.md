@@ -37,7 +37,6 @@ The gateway is the product. Clients should be thin views over gateway APIs.
 | `gateway/routes/` | API route modules (thin — delegate to domain modules) |
 | `gateway/paths.py` | Path constants |
 | `gateway/context_assembler.py` | Deep prompt/context assembly pipeline (10-step) |
-| `gateway/context_builder.py` | Thin re-export facade over `context_assembler` |
 | `gateway/memory_graph.py` | Unified read path across memory stores (adapters, `Item`, `GraphResult`) |
 | `gateway/llm_client.py` | Table-driven provider dispatcher + 6-provider fallback chain |
 | `gateway/storage_router.py` | Write seam for app-state stores |

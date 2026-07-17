@@ -2,19 +2,19 @@
 
 from unittest.mock import patch
 
-from gateway import builder as sc
+from gateway import builder_isc as sc
 
 
 def test_derive_parses_and_strips_numbering():
     raw = "1. Output has no color\n- Anti: no new warnings\n* Exit code is 0\n"
-    with patch("gateway.builder.llm_client.chat", return_value=raw):
+    with patch("gateway.builder_isc.llm_client.chat", return_value=raw):
         out = sc.derive_criteria("add --no-color flag")
     assert out == ["Output has no color", "Anti: no new warnings", "Exit code is 0"]
 
 
 def test_derive_caps_at_max():
     raw = "\n".join(f"criterion {i}" for i in range(20))
-    with patch("gateway.builder.llm_client.chat", return_value=raw):
+    with patch("gateway.builder_isc.llm_client.chat", return_value=raw):
         out = sc.derive_criteria("big goal")
     assert len(out) == sc.MAX_CRITERIA
 
@@ -24,7 +24,7 @@ def test_derive_empty_goal_returns_empty():
 
 
 def test_derive_llm_failure_returns_empty():
-    with patch("gateway.builder.llm_client.chat", side_effect=RuntimeError("boom")):
+    with patch("gateway.builder_isc.llm_client.chat", side_effect=RuntimeError("boom")):
         assert sc.derive_criteria("goal") == []
 
 
@@ -33,7 +33,7 @@ def test_check_parses_json_array():
         'Here you go: [{"criterion": "no color", "passed": true, "note": "ok"}, '
         '{"criterion": "exit 0", "passed": false, "note": "rc=1"}]'
     )
-    with patch("gateway.builder.llm_client.chat", return_value=resp):
+    with patch("gateway.builder_isc.llm_client.chat", return_value=resp):
         out = sc.check_criteria("goal", ["no color", "exit 0"], "evidence")
     assert out[0] == {"criterion": "no color", "passed": True, "note": "ok"}
     assert out[1]["passed"] is False
@@ -44,7 +44,7 @@ def test_check_no_criteria_returns_empty():
 
 
 def test_check_llm_failure_is_neutral():
-    with patch("gateway.builder.llm_client.chat", side_effect=RuntimeError("x")):
+    with patch("gateway.builder_isc.llm_client.chat", side_effect=RuntimeError("x")):
         out = sc.check_criteria("goal", ["a", "b"], "evidence")
     assert [r["passed"] for r in out] == [False, False]
     assert all(r["note"] == "unverified" for r in out)

@@ -68,6 +68,8 @@ async def batch_generate(
             log.warning("batch prompt failed: %s", str(result)[:200])
             out.append(f"FAILED: {prompt[:80]!r}: {str(result)[:100]}")
             continue
+        if isinstance(result, BaseException):
+            raise result
         path = save_image(
             result, prefix=f"batch-{eng_name}", metadata={"batch_prompt": prompt[:200]}
         )

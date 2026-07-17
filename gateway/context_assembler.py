@@ -2,8 +2,7 @@
 
 After Phase 2, the request-time read path is one module with one testable
 surface. ``assemble_context`` is the only public entry point; everything else
-in this module is an internal seam. ``context_builder`` is now a thin façade
-(see :mod:`gateway.context_builder`).
+in this module is an internal seam.
 
 Public surface:
 
@@ -33,7 +32,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Callable, Optional
 
 from gateway import (
     domain_router,
@@ -311,9 +310,37 @@ def assert_not_total_failure(bundle: ContextBundle) -> ContextBundle:
     return bundle
 
 
+async def get_system_prompt(
+    message: str, parts_mode: bool = False, domain: Optional[str] = None
+) -> str:
+    """Return the joined system prompt string.
+
+    Equivalent to ``(await assemble_context(message, parts_mode, domain)).system``.
+    Kept as a convenience wrapper for callers that only need the system string.
+    """
+    bundle = await assemble_context(message, parts_mode=parts_mode, domain=domain)
+    return bundle.system
+
+
+def build_worker_context(context_type: str, **kwargs) -> str:
+    """Build a plain-text context block for synchronous worker tasks."""
+    if context_type in ("learning", "reset", "troubleshooter"):
+        return kwargs.get("task_desc", "")
+
+    if context_type == "researcher":
+        topic = kwargs.get("topic", "")
+        chunks = kwargs.get("chunks", "")
+        header = f"Research topic: {topic}" if topic else ""
+        return f"{header}\n\n{chunks or ''}".strip()
+
+    return ""
+
+
 __all__ = [
     "ContextBundle",
     "SkillHintFn",
     "assemble_context",
     "assert_not_total_failure",
+    "get_system_prompt",
+    "build_worker_context",
 ]
