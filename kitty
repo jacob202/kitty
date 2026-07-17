@@ -7,6 +7,7 @@
 #   kitty down      Stop both
 #   kitty status    Show what's running + health check
 #   kitty doctor    Full preflight check (gateway/doctor.py)
+#   kitty context --agent  Print deterministic repository continuity JSON
 #   kitty logs      Tail live logs for both services
 #   kitty backup    Back up app-owned data under data/backups/kitty/
 #   kitty restore-drill BACKUP_DIR RESTORE_DIR
@@ -253,6 +254,14 @@ cmd_doctor() {
   else
     python3 "$KITTY_ROOT/gateway/doctor.py" "$@"
   fi
+}
+
+cmd_context() {
+  local python_bin="$KITTY_ROOT/venv/bin/python"
+  if [[ ! -x "$python_bin" ]]; then
+    python_bin="$(command -v python3.12)"
+  fi
+  "$python_bin" -m gateway.context_receipt "$@"
 }
 
 cmd_logs() {
@@ -582,6 +591,7 @@ case "${1:-start}" in
   down)      cmd_down ;;
   status)    cmd_status ;;
   doctor)    shift; cmd_doctor "$@" ;;
+  context)   shift; cmd_context "$@" ;;
   logs)      cmd_logs ;;
   backup)    shift; cmd_backup "$@" ;;
   restore-drill) shift; cmd_restore_drill "$@" ;;

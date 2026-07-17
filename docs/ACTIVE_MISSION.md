@@ -4,7 +4,7 @@
 {
   "schema_version": 1,
   "mission_id": "PCPF-001",
-  "status": "approved_in_progress",
+  "status": "running",
   "approved_at": "2026-07-17T00:00:00Z",
   "approved_by": "Jacob",
   "base_sha": "167fa24accb0ff1b574a0a833786a6cdf22957d8",

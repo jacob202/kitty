@@ -20,6 +20,7 @@ from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
 
 SCHEMA_VERSION = 2
+CONTROL_PLANE_SUMMARY_VERSION = 1
 ATTEMPT_HISTORY_LIMIT = 10
 REVIEW_FINDING_LIMIT = 5
 SNAPSHOT_QUERY_COUNT = 8
@@ -105,6 +106,52 @@ def build_status_snapshot(*, db_path: Path | None = None) -> dict[str, Any]:
                 "partial_packets": partial_packets,
                 "total_packets": len(all_packets),
             },
+            "queue": _queue_projection(conn),
+            "initiatives": initiatives,
+        }
+    finally:
+        conn.close()
+
+
+def build_control_plane_summary(*, db_path: Path) -> dict[str, Any]:
+    """Return a minimal Builder summary through a genuinely read-only connection.
+
+    Context receipts must never initialize or migrate the queue as a side effect
+    of inspection. The detailed UI projection retains its existing initialization
+    contract; this smaller control-plane interface fails loudly when the durable
+    database or required schema is unavailable.
+    """
+    path = Path(db_path).expanduser().resolve()
+    if not path.exists():
+        raise FileNotFoundError(f"Builder queue database does not exist: {path}")
+    uri = f"{path.as_uri()}?mode=ro"
+    conn = sqlite3.connect(uri, uri=True)
+    conn.row_factory = sqlite3.Row
+    try:
+        conn.execute("PRAGMA query_only = ON")
+        initiative_rows = conn.execute(
+            """
+            SELECT i.id, i.title, i.state, i.pause_reason, i.updated_at,
+                   COUNT(p.packet_id) AS packet_count
+            FROM initiatives i
+            LEFT JOIN initiative_packets p ON p.initiative_id = i.id
+            GROUP BY i.id
+            ORDER BY i.created_at ASC, i.id ASC
+            """
+        ).fetchall()
+        initiatives = [
+            {
+                "initiative_id": str(row["id"]),
+                "title": str(row["title"]),
+                "state": str(row["state"]),
+                "pause_reason": _safe_message(row["pause_reason"]),
+                "packet_count": int(row["packet_count"]),
+                "updated_at": row["updated_at"],
+            }
+            for row in initiative_rows
+        ]
+        return {
+            "schema_version": CONTROL_PLANE_SUMMARY_VERSION,
             "queue": _queue_projection(conn),
             "initiatives": initiatives,
         }

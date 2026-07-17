@@ -44,3 +44,11 @@ def test_launcher_exposes_backup_and_restore_drill() -> None:
     assert 'scripts/kitty_backup.py" restore-drill' in launcher
     assert "backup)    shift; cmd_backup" in launcher
     assert "restore-drill) shift; cmd_restore_drill" in launcher
+
+
+def test_launcher_exposes_agent_context_receipt() -> None:
+    launcher = (ROOT / "kitty").read_text(encoding="utf-8")
+
+    assert "cmd_context()" in launcher
+    assert '-m gateway.context_receipt "$@"' in launcher
+    assert 'context)   shift; cmd_context "$@"' in launcher
