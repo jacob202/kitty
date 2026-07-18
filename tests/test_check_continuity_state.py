@@ -59,11 +59,13 @@ class TestScriptBehavior:
         assert result.returncode == 0, f"Expected pass but got:\n{result.stdout}{result.stderr}"
         assert "PASS:" in result.stdout
 
-    def test_fails_with_zero_days(self):
-        """A zero-day limit makes the recorded checkpoint stale."""
+    def test_zero_days_warns_but_does_not_block(self):
+        """A zero-day limit makes the checkpoint stale, which is advisory (WARN),
+        not a blocking failure — a committed checkpoint only ages and must not
+        red-gate unrelated CI."""
         result = _run(max_age_days=0)
-        assert result.returncode == 1, f"Expected fail but got:\n{result.stdout}{result.stderr}"
-        assert "FAIL:" in result.stdout
+        assert result.returncode == 0, f"Expected pass but got:\n{result.stdout}{result.stderr}"
+        assert "WARN: state:age" in result.stdout
 
     def test_current_checkpoint_within_seven_days(self):
         """Real CI gate: both active checkpoints must be fresh and consistent."""

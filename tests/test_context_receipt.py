@@ -354,10 +354,23 @@ def test_completed_mission_cannot_keep_active_session(tmp_path: Path):
     assert levels["mission:active_state"] == "FAIL"
 
 
-def test_checkpoint_age_limit_is_enforced(tmp_path: Path):
+def test_checkpoint_age_over_limit_warns(tmp_path: Path):
+    # An aging committed checkpoint is advisory (WARN), not a hard gate: main's
+    # checkpoint only gets older and must not re-red CI weekly.
     repo, _head = _repo(tmp_path)
 
     levels = _levels(repo, max_age=timedelta(minutes=30))
+
+    assert levels["state:age"] == "WARN"
+    assert levels["handoff:age"] == "WARN"
+
+
+def test_future_dated_checkpoint_fails(tmp_path: Path):
+    # A timestamp after 'now' is corruption, not age, and stays a hard FAIL.
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(repo, head, updated_at="2026-07-17T13:00:00Z")
+
+    levels = _levels(repo)
 
     assert levels["state:age"] == "FAIL"
     assert levels["handoff:age"] == "FAIL"
