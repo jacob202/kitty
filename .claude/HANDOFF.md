@@ -1,38 +1,27 @@
-# Handoff — Project Control Plane / Continuity Foundation
+# Handoff — Free-Worker Initiative Queue, Ready to Launch
 
 <!-- kitty-handoff
 {
   "schema_version": 1,
-  "updated_at": "2026-07-17T11:44:20Z",
-  "head_sha": "a28adef362251a6cca6b6c6bf5f4e617491db75d",
-  "branch": "feat/project-control-plane-foundation",
+  "updated_at": "2026-07-18T00:38:31Z",
+  "head_sha": "41a18b44bc92d3a259caa4df8e7104297c9c8daf",
+  "branch": "claude/kitty-test-hardening-0j2yn0",
   "worktree": ".",
   "status": "valid",
   "completed_items": [
-    "audited live Git, GitHub, documentation, and Builder state",
-    "ratified the Kitty to Mission to KittyBuilder contract",
-    "reconciled canonical documents and stable bootloaders",
-    "implemented deterministic agent context receipts and freshness checks",
-    "passed focused continuity, doctor, and Builder regression tests",
-    "passed cold-model acceptance and removed obsolete Builder capability descriptions",
-    "passed repository-wide Ruff and Markdown link checks plus mypy on all changed source files",
-    "fixed and regression-tested context invocation from outside the checkout",
-    "opened PR #185 non-draft against origin/main; 6/7 checks green on first pass",
-    "fixed CI pytest checkout so continuity freshness check reads the branch tip instead of the merge-preview HEAD",
-    "attached CI pytest HEAD to the branch ref and let CI override the expected canonical checkout via KITTY_EXPECTED_CANONICAL_CHECKOUT so git:branch and repo:canonical_checkout stop reading CI runners as local violations",
-    "pushed the KITTY_EXPECTED_CANONICAL_CHECKOUT fallback down into inspect_continuity so ./kitty context --agent respects it too (previously only scripts/check_continuity_state.py did)"
+    "authored and applied builder-test-hardening-v1 (3 packets), chat-recovery-v1 (7), reasoning-backend-v1 (3)",
+    "repaired packet-027-v1.json to today's manifest schema and applied it (5 packets)",
+    "proved the free ladder is unreachable from the remote container (egress proxy 403s opencode.ai/models.dev/openrouter.ai) with evidence under data/kittybuilder/attempts/kb_mrpmm5qy_e78a/"
   ],
   "blockers": [
-    "./kitty doctor --json reports five host/runtime failures: missing .env, missing venv, Gateway down, LiteLLM down, and unavailable mem0",
-    "the complete tests/ run has 56 environment failures: restricted ps/process groups, blocked Hugging Face access, denied default Pictures writes, and missing optional google.auth",
-    "repository-wide mypy has 22 pre-existing errors in 11 unrelated files; all four changed source modules pass"
+    "free-worker execution requires a host that can reach the free endpoints - run from the Mac, not a remote Claude container with default network policy"
   ],
-  "next_action": "Re-verify PR #185 required checks after CI fix; merge with expected-head protection if clean",
+  "next_action": "On the Mac: apply the four manifests, launch TH-01 then TH-02 with --free --watch, review final diffs, operator-gated publish",
   "invalidation_conditions": [
     "HEAD changes outside one checkpoint-only commit",
     "the branch or registered worktree changes",
     "a fetch changes origin/main",
-    "the active mission or canonical Builder database changes",
+    "any of the four initiative manifests under docs/initiatives/ changes",
     "a pull request is opened or changes state"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
@@ -42,51 +31,62 @@
 
 ## Resume here
 
-- Timestamp: 2026-07-17T11:44:20Z
-- Implementation HEAD: a28adef362251a6cca6b6c6bf5f4e617491db75d
-- Branch: feat/project-control-plane-foundation
-- Worktree: .
-- Status: valid handoff; work is awaiting review
-- Active mission: docs/ACTIVE_MISSION.md
-- Pull request: https://github.com/jacob202/kitty/pull/185
+Everything paid is done: the work queue from docs/plans/pr164-archaeology.md §6
+is fully authored as validated initiative manifests. What remains is launching
+free workers from a host that can reach the free endpoints, then reviewing
+final diffs. No packet has produced a reviewable diff yet - nothing is claimed,
+nothing is in publish.
 
-Generate ./kitty context --agent, follow the reading order it returns, and
-reject this handoff if a structured invalidation condition is true.
+## Launch order (on the Mac, canonical checkout)
 
-## Completed
+```bash
+./kitty builder initiative apply docs/initiatives/builder-test-hardening-v1.json
+./kitty builder initiative apply docs/initiatives/packet-027-v1.json
+./kitty builder initiative apply docs/initiatives/chat-recovery-v1.json
+./kitty builder initiative apply docs/initiatives/reasoning-backend-v1.json
 
-- The authority map and ADR establish the Kitty → Mission → KittyBuilder
-  boundary without enabling autonomous mutation.
-- Canonical docs and front-door bootloaders describe current roles and state.
-- Context receipts derive Git, continuity, documentation, and Builder evidence
-  without creating a second durable state system.
-- Doctor and the CI continuity wrapper share the same fail-loud freshness checks.
-- Focused implementation and Builder regression suites passed.
-- A clean model answered all eight cold-start questions. Its one ambiguity—the
-  stale Builder CLI/quickstart capability copy—was corrected and added to the
-  detector.
-- Senior review found and fixed context invocation outside the checkout; the
-  regression test now passes with PYTHONPATH removed.
-- PR #185 was opened non-draft against origin/main; 6/7 required checks passed
-  on the first run. The pytest job initially failed because actions/checkout
-  defaults to refs/pull/N/merge — a synthesized detached-HEAD merge preview
-  that the new continuity check correctly reads as stale. The pytest job now
-  pins its checkout to github.event.pull_request.head.sha (falling back to
-  github.sha for push events on main).
+# 1. Standalone chores first (no feature risk)
+./kitty builder initiative run-packet builder-test-hardening-v1 TH-01-fail-loud-sweep --free --watch
+./kitty builder initiative run-packet builder-test-hardening-v1 TH-02-route-contract-tests --free --watch
+# TH-03-ci-ratchet: DO NOT run until TH-02 is published AND merged to main.
 
-## Blocker
+# 2. Builder reliability
+./kitty builder initiative run packet-027-builder-restart-recovery --free --watch
 
-./kitty doctor --json reports missing .env, missing venv, Gateway down, LiteLLM
-down, and unavailable mem0. These are pre-existing host/runtime prerequisites;
-no credential or environment mutation was authorized. The complete tests/ run passed 2,246 tests
-but retained 56 environment failures from restricted process inspection/groups,
-blocked Hugging Face access, denied default Pictures writes, and missing optional
-google.auth. The 91 affected Builder process tests pass with host permissions.
-Repository-wide mypy has 22 pre-existing errors in 11 unrelated files; all four
-changed source modules pass.
+# 3. Chat recovery (each packet = one PR; CR-02/05/06 depend on earlier packets)
+./kitty builder initiative run chat-recovery-v1 --free --watch
 
-## Next action
+# 4. Reasoning engine backend
+./kitty builder initiative run reasoning-backend-v1 --free --watch
+```
 
-Re-verify PR #185 required checks after the CI fix, then merge with expected-head
-protection when clean. Do not delete branches or worktrees or rewrite history
-without Jacob's explicit authorization.
+Per-packet loop: on success read ONLY the final diff, then operator-gated
+publish (draft PR). On failure read the attempt evidence, refine the packet
+once, re-run. ADR 0016: if any life-first initiative is queued, it outranks
+all of this.
+
+## What happened in the remote container (2026-07-18)
+
+- TH-01 ran twice on `--free`; every ladder model failed identically:
+  the container egress proxy answers 403 CONNECT for opencode.ai,
+  models.dev, and openrouter.ai (network policy, not auth). No model ever
+  executed; no worktree was touched. Evidence:
+  `data/kittybuilder/attempts/kb_mrpmm5qy_e78a/{1,2}/run-manifest.json` and
+  `data/kittybuilder/runs/run_mrpmqaj1_2c64/combined.log` (container-local,
+  gitignored - re-applying manifests on the Mac starts clean).
+- Those two burned attempts are exactly the counts_toward_budget
+  infrastructure-crash case P027-stale-attempt-reconciliation addresses.
+- packet-027-v1.json on disk predated the manifest schema (forbidden_paths,
+  forbidden_paths_note, policy.attempt_3_authorization are unknown keys and
+  fail validation). Fixed by folding that intent into the objective text;
+  the file now validates and applies cleanly.
+
+## Decisions already encoded in the manifests (don't re-litigate)
+
+- Goal sidebar (R9) is parked - deliberately absent from chat-recovery-v1.
+- Thread-goals migration allocates the next free number verified at
+  implementation time (highest today: 019_idea_mine.sql → expect 020).
+- 028 Parts A/B (UI, needs live browser verify) are NOT in
+  reasoning-backend-v1 - human/UI pass later.
+- TH-03 sets --cov-fail-under to a measured number minus 3, never a guess,
+  and un-ignores the two council tests only with passing evidence.

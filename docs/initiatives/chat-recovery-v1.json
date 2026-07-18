@@ -1,0 +1,170 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "chat-recovery-v1",
+  "title": "Chat recovery: thread goals, signal cards, memory visibility, correction, model override",
+  "description": "Recovery items R4-R8 from docs/plans/pr164-archaeology.md section 6, rewritten against today's main per section 8 - never cherry-picked from the dead #164 branch. One packet = one branch = one PR. Goal sidebar (R9) is PARKED and deliberately absent. UI packets validate with make ui-test (never npm run - exit-194 trap).",
+  "packets": [
+    {
+      "id": "CR-01-thread-goals-backend",
+      "title": "Thread-scoped goals: migration + lifecycle + CRUD + context injection",
+      "objective": "Add an optional per-thread objective to chats. (1) New migration allocating the NEXT FREE number from gateway/migrations/ at implementation time - verify with ls; as of authoring the highest is 019_idea_mine.sql so the expected name is 020_chat_objective.sql, but re-check before creating it. The migration adds a nullable objective TEXT column to the chats table. (2) gateway/chat_lifecycle.py carries objective through the chat lifecycle. (3) gateway/routes/chats.py returns objective in chat reads and adds a PATCH endpoint to set/clear it, validating length (cap around 500 chars) and returning the updated chat. (4) gateway/context_assembler.py assemble_context() accepts an optional objective and injects a short 'Thread goal: ...' line into the assembled prompt context; with no objective passed, output is byte-identical to today (test asserts it). Do not touch gateway/memory_policy.py or the UI.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "Migration uses the next free number verified against gateway/migrations/ on the working tree, not a number copied from any plan",
+        "PATCH on a chat sets and clears the objective; reads include it; invalid payloads get a 4xx with a clear error envelope",
+        "assemble_context() with an objective injects it; without one, output is byte-identical to pre-packet behavior and a test asserts that",
+        "python3.12 -m pytest tests/test_chats_route.py tests/test_chats_store.py tests/test_context_assembler.py -q passes",
+        "ruff check passes on touched files"
+      ],
+      "allowed_paths": [
+        "gateway/migrations/",
+        "gateway/chat_lifecycle.py",
+        "gateway/chats_store.py",
+        "gateway/routes/chats.py",
+        "gateway/context_assembler.py",
+        "tests/test_chats_route.py",
+        "tests/test_chats_store.py",
+        "tests/test_chat_lifecycle.py",
+        "tests/test_context_assembler.py"
+      ],
+      "policy": { "max_attempts": 2, "priority": 9 },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_chats_route.py tests/test_chats_store.py tests/test_context_assembler.py -q --tb=short",
+        "python3.12 -m ruff check gateway/chat_lifecycle.py gateway/routes/chats.py gateway/context_assembler.py"
+      ]
+    },
+    {
+      "id": "CR-02-thread-goals-ui",
+      "title": "Thread goals: header UI",
+      "objective": "Surface the CR-01 objective in the chat header: display the current thread goal, allow setting/editing/clearing it inline, calling the PATCH endpoint from CR-01 via the gateway client. Keep it phone-first (D12): a compact header affordance, no sidebar. Rewrite against today's page.tsx/TopBar.tsx - do not port #164's page.tsx hunk.",
+      "depends_on": ["CR-01-thread-goals-backend"],
+      "acceptance_criteria": [
+        "A thread's goal is visible in the header when set, editable inline, and clearable; empty state offers setting one",
+        "Component tests cover set, edit, clear, and the no-goal state",
+        "make ui-test passes"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components/",
+        "gateway/kitty-chat/src/app/",
+        "gateway/kitty-chat/src/lib/gateway.ts",
+        "gateway/kitty-chat/src/lib/types.ts",
+        "gateway/kitty-chat/src/__tests__/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 6 },
+      "validation_commands": ["make ui-test"]
+    },
+    {
+      "id": "CR-03-signal-cards-sse",
+      "title": "Proactive signal cards + useSSE hook in chat",
+      "objective": "The backend already broadcasts expert signals (gateway/signal_store.py, routes in gateway/routes/experts.py) with no frontend listening - highest-leverage lost feature per the archaeology. Add (1) a new src/lib/sse.ts with a useSSE hook: subscribe to the gateway SSE signal stream, parse events, reconnect with backoff on drop; (2) a new src/components/SignalCard.tsx rendering a signal as a card in the chat surface (title, body, source expert, timestamp, dismiss); (3) wiring in the chat page so live signals appear without reload. Write fresh against today's page structure; #164's sse.ts/SignalCard.tsx are reference-only and unavailable here.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "A mocked SSE signal event renders a SignalCard in the chat surface; dismiss removes it",
+        "useSSE reconnects after a dropped connection (test with a mocked EventSource)",
+        "No backend changes",
+        "make ui-test passes"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/lib/sse.ts",
+        "gateway/kitty-chat/src/components/SignalCard.tsx",
+        "gateway/kitty-chat/src/app/",
+        "gateway/kitty-chat/src/lib/types.ts",
+        "gateway/kitty-chat/src/__tests__/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 8 },
+      "validation_commands": ["make ui-test"]
+    },
+    {
+      "id": "CR-04-memory-trailer-backend",
+      "title": "Memory visibility: post-filter bundle + stream trailer",
+      "objective": "Make 'which memories informed this answer' observable. (1) gateway/context_assembler.py: expose the POST-policy-filter memory items on the ContextBundle (today it exposes pre-filter items; #164 compensated by re-filtering in the route - the clean fix is one filtered list on the bundle, filtered exactly once). gateway/memory_policy.py itself must not change. (2) gateway/routes/completions.py: after the streamed content finishes and before the final [DONE] event, emit one trailer SSE event of the shape {\"memory_items\": [...]} listing the post-filter items that were injected, each truncated to 200 chars. The trailer must never reorder or delay content chunks and must be absent when no memory items were injected. This touches the hot path of every chat - keep the wrapper minimal and covered by streaming tests.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "ContextBundle exposes post-filter memory items; policy filtering happens exactly once (no double filter)",
+        "Streaming a chat with injected memories yields content chunks unchanged and in order, then one memory_items trailer, then [DONE]; with no memories, no trailer",
+        "Items in the trailer are truncated to 200 chars",
+        "gateway/memory_policy.py is unmodified",
+        "python3.12 -m pytest tests/test_chat_completions.py tests/test_context_assembler.py tests/test_context_assembler_memory_policy.py -q passes"
+      ],
+      "allowed_paths": [
+        "gateway/context_assembler.py",
+        "gateway/routes/completions.py",
+        "tests/test_chat_completions.py",
+        "tests/test_context_assembler.py",
+        "tests/test_context_assembler_memory_policy.py"
+      ],
+      "policy": { "max_attempts": 2, "priority": 7 },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_chat_completions.py tests/test_context_assembler.py tests/test_context_assembler_memory_policy.py -q --tb=short",
+        "python3.12 -m ruff check gateway/context_assembler.py gateway/routes/completions.py"
+      ]
+    },
+    {
+      "id": "CR-05-memory-block-ui",
+      "title": "Memory visibility: 'kitty remembered' block in chat",
+      "objective": "Consume the CR-04 trailer in the frontend: src/lib/chat-client.ts parses the memory_items trailer event from the stream without disturbing content handling; ChatMessage.tsx renders a collapsed 'kitty remembered...' block listing the items beneath the assistant message that used them. No block renders when the trailer is absent.",
+      "depends_on": ["CR-04-memory-trailer-backend"],
+      "acceptance_criteria": [
+        "A mocked stream with a memory_items trailer renders the collapsed memory block with its items; a stream without one renders no block",
+        "Content rendering is unchanged for streams with and without the trailer",
+        "make ui-test passes"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/lib/chat-client.ts",
+        "gateway/kitty-chat/src/lib/types.ts",
+        "gateway/kitty-chat/src/components/ChatMessage.tsx",
+        "gateway/kitty-chat/src/__tests__/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 6 },
+      "validation_commands": ["make ui-test"]
+    },
+    {
+      "id": "CR-06-memory-correction",
+      "title": "Inline memory correction with confirm/undo",
+      "objective": "From the CR-05 memory block, let Jacob delete a wrong memory. Backend DELETE /memories/{id} already exists on main - frontend only. HARD UX REQUIREMENT (phone-first, destructive): a single tap must never delete - require either an explicit confirm step or a grace-period undo (several seconds before the DELETE fires, with a visible cancel). Wire through the gateway client.",
+      "depends_on": ["CR-05-memory-block-ui"],
+      "acceptance_criteria": [
+        "Delete requires confirm or offers undo within a grace period; the DELETE request fires only after confirmation or grace expiry, verified by tests",
+        "Cancelling leaves the memory intact and the UI consistent",
+        "No backend changes",
+        "make ui-test passes"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components/ChatMessage.tsx",
+        "gateway/kitty-chat/src/lib/gateway.ts",
+        "gateway/kitty-chat/src/lib/types.ts",
+        "gateway/kitty-chat/src/__tests__/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 5 },
+      "validation_commands": ["make ui-test"]
+    },
+    {
+      "id": "CR-07-model-override",
+      "title": "Per-message model override under the privacy boundary",
+      "objective": "Let a single message run on a chosen model. Frontend: a compact chip/selector in InputBar.tsx sending an optional model override with that one message. Backend: gateway/routes/completions.py accepts the override but resolves it through the SAME privacy gate as routed models - call the existing enforce_privacy_boundary path in gateway/llm_client.py EXPLICITLY on the overridden model (the invariant: an override can never select a model the message's privacy tier forbids; #164 only did this implicitly). A forbidden override is a clear 4xx error, not a silent fallback to another model.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "An allowed override routes that one message to the chosen model; the next message reverts to normal routing",
+        "An override forbidden by the privacy tier returns an explicit 4xx error and routes nothing - no silent substitution, with a test proving it",
+        "python3.12 -m pytest tests/test_chat_completions.py tests/test_llm_privacy_boundary.py tests/test_llm_routing.py -q passes",
+        "make ui-test passes"
+      ],
+      "allowed_paths": [
+        "gateway/routes/completions.py",
+        "gateway/llm_client.py",
+        "gateway/kitty-chat/src/components/InputBar.tsx",
+        "gateway/kitty-chat/src/lib/chat-client.ts",
+        "gateway/kitty-chat/src/lib/types.ts",
+        "gateway/kitty-chat/src/__tests__/",
+        "tests/test_chat_completions.py",
+        "tests/test_llm_privacy_boundary.py",
+        "tests/test_llm_routing.py"
+      ],
+      "policy": { "max_attempts": 2, "priority": 4 },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_chat_completions.py tests/test_llm_privacy_boundary.py tests/test_llm_routing.py -q --tb=short",
+        "make ui-test"
+      ]
+    }
+  ]
+}

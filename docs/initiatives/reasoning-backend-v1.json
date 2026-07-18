@@ -1,0 +1,86 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "reasoning-backend-v1",
+  "title": "Packet 028 backend slices: complexity classifier, tier budget, execution receipts",
+  "description": "The free-worker-safe backend slices of docs/packets/028-reasoning-engine.md: C1 (classifier + adaptive routing), C2 (tier-aware context budget), C5 (execution receipts). Parts A/B (UI) and C3/C4 are deliberately absent - A/B need live browser verification a free worker cannot do, C3/C4 come later. Never touch gateway/memory_policy.py, gateway/council.py, gateway/litellm_config.yaml, gateway/self_review.py, or .env - see the packet's 'Files not to touch'.",
+  "packets": [
+    {
+      "id": "RE-C1-complexity-classifier",
+      "title": "C1: heuristic complexity classifier + adaptive routing",
+      "objective": "New gateway/reasoning.py with classify_complexity(message, domain) -> Classification carrying tier ('trivial' | 'standard' | 'deep') and trigger (str naming which signal decided - always set). Pure heuristic, no model call, <1ms: message length, question structure, imperative-vs-smalltalk, the keyword sets absorbed from gateway/llm_client.py's _REASONING_KEYWORDS/_BEST_TRIGGERS (move the logic, keep llm_client behavior equivalent), and a domain nudge (benefits/health lean deep). route_model() in gateway/llm_client.py delegates to the classifier: trivial/standard -> the 'kitty-default' alias, deep -> 'kitty-sonnet' with env KITTY_REASONING_MODEL overriding the deep alias. Routing selects only among existing LiteLLM aliases - no new aliases, no provider changes, and the existing privacy boundary path is untouched and still enforced.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "classify_complexity is covered by table-driven tests including the adversarial cases from the packet: short message containing a reasoning keyword, long message with none, smalltalk containing 'why'",
+        "Every Classification carries a non-empty trigger",
+        "route_model routes trivial/standard to kitty-default and deep to kitty-sonnet, with KITTY_REASONING_MODEL overriding the deep alias, proven by tests",
+        "gateway/memory_policy.py, gateway/council.py, gateway/litellm_config.yaml unmodified",
+        "python3.12 -m pytest tests/test_reasoning.py tests/test_llm_routing.py tests/test_llm_client.py -q passes and ruff is clean on touched files"
+      ],
+      "allowed_paths": [
+        "gateway/reasoning.py",
+        "gateway/llm_client.py",
+        "tests/test_reasoning.py",
+        "tests/test_llm_routing.py",
+        "tests/test_llm_client.py"
+      ],
+      "policy": { "max_attempts": 2, "priority": 9 },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_reasoning.py tests/test_llm_routing.py tests/test_llm_client.py -q --tb=short",
+        "python3.12 -m ruff check gateway/reasoning.py gateway/llm_client.py"
+      ]
+    },
+    {
+      "id": "RE-C2-tier-context-budget",
+      "title": "C2: tier-aware context budget",
+      "objective": "assemble_context() in gateway/context_assembler.py grows an optional tier param whose default 'standard' preserves current behavior byte-for-byte (a test must assert byte-identical output when tier is omitted). Memory cap per tier: trivial 300 / standard 1200 (today's value, unchanged) / deep 2400, flowing into the existing memory formatting path; gateway/memory_graph.py changes are cap parameterization ONLY. Optional enrichments (weather, calendar, similar) are skipped by default on the trivial tier and included only when directly relevant to the message (Jacob's 2026-07-14 decision); standard and deep keep today's enrichment behavior exactly. memory_policy.should_surface() and everything in gateway/memory_policy.py stay untouched - this budgets what policy already allowed.",
+      "depends_on": ["RE-C1-complexity-classifier"],
+      "acceptance_criteria": [
+        "With no tier passed, assemble_context() output is byte-identical to pre-packet behavior and a test asserts it",
+        "Per-tier caps 300/1200/2400 are applied and tested; trivial tier skips optional enrichments by default with a test proving standard/deep behavior is unchanged",
+        "gateway/memory_policy.py is unmodified; memory_graph.py diff is cap parameterization only",
+        "python3.12 -m pytest tests/test_context_assembler.py tests/test_context_enrichment.py tests/test_context_assembler_memory_policy.py -q passes and ruff is clean on touched files"
+      ],
+      "allowed_paths": [
+        "gateway/context_assembler.py",
+        "gateway/memory_graph.py",
+        "gateway/reasoning.py",
+        "tests/test_context_assembler.py",
+        "tests/test_context_enrichment.py",
+        "tests/test_context_assembler_memory_policy.py"
+      ],
+      "policy": { "max_attempts": 2, "priority": 8 },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_context_assembler.py tests/test_context_enrichment.py tests/test_context_assembler_memory_policy.py -q --tb=short",
+        "python3.12 -m ruff check gateway/context_assembler.py gateway/memory_graph.py"
+      ]
+    },
+    {
+      "id": "RE-C5-execution-receipts",
+      "title": "C5: execution receipts + per-tier aggregates",
+      "objective": "Every chat turn produces one receipt as metadata on the EXISTING log_llm_usage() call sites plus the existing log_chat_trace() line - not a new subsystem: mode, tier, trigger, resolved model, token counts, cap-hit/escalation flags, correlation id. /perf/stats in gateway/routes/perf.py returns per-tier aggregates (count, prompt tokens, completion tokens). HARD PRIVACY RULE from the packet: no raw message, response, or reasoning-content bodies anywhere in receipt metadata or logs - a test must write a receipt and inspect the row to prove no body text is present. This slice produces the measured answer to 'how much does the engine save'; the close-out report must state the measured trivial-vs-standard prompt-token delta from the tests.",
+      "depends_on": ["RE-C1-complexity-classifier", "RE-C2-tier-context-budget"],
+      "acceptance_criteria": [
+        "Receipt rows carry mode/tier/trigger/model/token metadata on existing logging call sites; no new logging subsystem is introduced",
+        "/perf/stats returns per-tier aggregates, covered by a route test",
+        "A test inspects a written receipt row and proves it contains no message/response/reasoning body text",
+        "python3.12 -m pytest tests/test_chat_completions.py tests/test_usage_route.py tests/test_reasoning.py -q passes and ruff is clean on touched files"
+      ],
+      "allowed_paths": [
+        "gateway/routes/completions.py",
+        "gateway/routes/ask.py",
+        "gateway/routes/perf.py",
+        "gateway/llm_client.py",
+        "gateway/reasoning.py",
+        "tests/test_chat_completions.py",
+        "tests/test_usage_route.py",
+        "tests/test_reasoning.py",
+        "tests/test_perf_stats.py"
+      ],
+      "policy": { "max_attempts": 2, "priority": 7 },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_chat_completions.py tests/test_usage_route.py tests/test_reasoning.py -q --tb=short",
+        "python3.12 -m ruff check gateway/routes/completions.py gateway/routes/ask.py gateway/routes/perf.py gateway/llm_client.py gateway/reasoning.py"
+      ]
+    }
+  ]
+}
