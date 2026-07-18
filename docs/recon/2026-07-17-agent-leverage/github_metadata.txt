@@ -1,0 +1,230 @@
+====== stanfordnlp/dspy ======
+{"archived":false,"default_branch":"main","description":"DSPy: The framework for programming—not prompting—language models","disabled":false,"full_name":"stanfordnlp/dspy","homepage":"https://dspy.ai","language":"Python","license":"MIT","open_issues_count":606,"pushed_at":"2026-07-16T19:12:53Z","stargazers_count":36185,"updated_at":"2026-07-17T10:49:57Z"}
+--- latest release ---
+{"name":"3.2.1","prerelease":false,"published_at":"2026-05-05T19:37:48Z","tag_name":"3.2.1"}
+--- top-level files ---
+.github
+.gitignore
+.pre-commit-config.yaml
+CONTRIBUTING.md
+LICENSE
+README.md
+SECURITY.md
+docs
+dspy
+pyproject.toml
+tests
+uv.lock
+
+====== pydantic/pydantic-ai ======
+{"archived":false,"default_branch":"main","description":"AI Agent Framework, the Pydantic way","disabled":false,"full_name":"pydantic/pydantic-ai","homepage":"https://pydantic.dev/pydantic-ai","language":"Python","license":"MIT","open_issues_count":489,"pushed_at":"2026-07-17T10:52:10Z","stargazers_count":18616,"updated_at":"2026-07-17T11:12:17Z"}
+--- latest release ---
+{"name":"v2.12.0 (2026-07-16)","prerelease":false,"published_at":"2026-07-17T02:37:27Z","tag_name":"v2.12.0"}
+--- top-level files ---
+.agents
+.claude
+.gemini
+.gitattributes
+.github
+.gitignore
+.pre-commit-config.yaml
+AGENTS.md
+CITATION.cff
+CLAUDE.md
+CONTRIBUTING.md
+LICENSE
+Makefile
+README.md
+agent_docs
+clai
+docs
+examples
+mkdocs.yml
+pydantic_ai_slim
+pydantic_evals
+pydantic_graph
+pyproject.toml
+scripts
+tests
+uv.lock
+
+====== langchain-ai/langgraph ======
+{"archived":false,"default_branch":"main","description":"Build resilient agents.","disabled":false,"full_name":"langchain-ai/langgraph","homepage":"https://docs.langchain.com/oss/python/langgraph/","language":"Python","license":"MIT","open_issues_count":621,"pushed_at":"2026-07-16T16:29:30Z","stargazers_count":37499,"updated_at":"2026-07-17T10:42:41Z"}
+--- latest release ---
+{"name":"langgraph==1.2.9","prerelease":false,"published_at":"2026-07-10T01:30:24Z","tag_name":"1.2.9"}
+--- top-level files ---
+.github
+.gitignore
+.markdownlint.json
+AGENTS.md
+CLAUDE.md
+LICENSE
+Makefile
+README.md
+docs
+examples
+libs
+
+====== microsoft/agent-framework ======
+{"archived":false,"default_branch":"main","description":"A framework for building, orchestrating and deploying AI agents and multi-agent workflows with support for Python and .NET.","disabled":false,"full_name":"microsoft/agent-framework","homepage":"https://aka.ms/agent-framework","language":"Python","license":"MIT","open_issues_count":656,"pushed_at":"2026-07-16T22:12:21Z","stargazers_count":12178,"updated_at":"2026-07-17T10:51:45Z"}
+--- latest release ---
+{"name":"python-1.11.0","prerelease":false,"published_at":"2026-07-10T03:19:16Z","tag_name":"python-1.11.0"}
+--- top-level files ---
+.devcontainer
+.gitattributes
+.github
+.gitignore
+CODE_OF_CONDUCT.md
+COMMUNITY.md
+CONTRIBUTING.md
+LICENSE
+README.md
+SECURITY.md
+SUPPORT.md
+TRANSPARENCY_FAQ.md
+declarative-agents
+docs
+dotnet
+python
+schemas
+
+====== openai/openai-agents-python ======
+{"archived":false,"default_branch":"main","description":"A lightweight, powerful framework for multi-agent workflows","disabled":false,"full_name":"openai/openai-agents-python","homepage":"https://openai.github.io/openai-agents-python/","language":"Python","license":"MIT","open_issues_count":54,"pushed_at":"2026-07-17T09:32:32Z","stargazers_count":27966,"updated_at":"2026-07-17T11:01:27Z"}
+--- latest release ---
+{"name":"v0.18.3","prerelease":false,"published_at":"2026-07-17T03:39:51Z","tag_name":"v0.18.3"}
+--- top-level files ---
+.agents
+.github
+.gitignore
+.prettierrc
+.vscode
+AGENTS.md
+CLAUDE.md
+LICENSE
+Makefile
+PLANS.md
+README.md
+SECURITY.md
+docs
+examples
+mkdocs.yml
+pyproject.toml
+pyrightconfig.json
+src
+tests
+uv.lock
+
+====== letta-ai/letta ======
+{"archived":false,"default_branch":"main","description":"Platform for stateful agents: AI with advanced memory that can learn and self-improve over time.","disabled":false,"full_name":"letta-ai/letta","homepage":"https://docs.letta.com/","language":"Python","license":"Apache-2.0","open_issues_count":49,"pushed_at":"2026-07-03T18:53:41Z","stargazers_count":23831,"updated_at":"2026-07-17T09:58:12Z"}
+--- latest release ---
+{"name":"v0.16.8","prerelease":false,"published_at":"2026-05-14T17:14:24Z","tag_name":"0.16.8"}
+--- top-level files ---
+.dockerignore
+.env.example
+.gitattributes
+.github
+.gitignore
+.pre-commit-config.yaml
+.python-version
+AGENTS.md
+AI_POLICY.md
+CITATION.cff
+CONTRIBUTING.md
+Dockerfile
+LICENSE
+PRIVACY.md
+README.md
+SECURITY.md
+TERMS.md
+WEBHOOK_SETUP.md
+alembic.ini
+alembic
+assets
+certs
+compose.yaml
+conf.yaml
+db
+dev-compose.yaml
+development.compose.yml
+docker-compose-vllm.yaml
+examples
+fern
+
+====== run-llama/llama_index ======
+{"archived":false,"default_branch":"main","description":"LlamaIndex is the leading document agent and OCR platform","disabled":false,"full_name":"run-llama/llama_index","homepage":"https://developers.llamaindex.ai","language":"Python","license":"MIT","open_issues_count":554,"pushed_at":"2026-07-16T05:24:11Z","stargazers_count":50904,"updated_at":"2026-07-17T10:39:30Z"}
+--- latest release ---
+{"name":"v0.14.23","prerelease":false,"published_at":"2026-06-24T19:36:43Z","tag_name":"v0.14.23"}
+--- top-level files ---
+.github
+.gitignore
+.pre-commit-config.yaml
+.readthedocs.yaml
+CHANGELOG.md
+CITATION.cff
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+LICENSE
+Makefile
+README.md
+RELEASE_HEAD.md
+SECURITY.md
+STALE.md
+docs.config.mjs
+docs
+llama-dev
+llama-index-core
+llama-index-instrumentation
+llama-index-integrations
+llama-index-utils
+pyproject.toml
+scripts
+uv.lock
+
+====== microsoft/agent-lightning ======
+{"archived":false,"default_branch":"main","description":"The absolute trainer to light up AI agents.","disabled":false,"full_name":"microsoft/agent-lightning","homepage":"https://microsoft.github.io/agent-lightning/","language":"Python","license":"MIT","open_issues_count":152,"pushed_at":"2026-07-16T03:26:45Z","stargazers_count":17395,"updated_at":"2026-07-17T03:34:03Z"}
+--- latest release ---
+{"name":"Agent Lightning v0.3.0","prerelease":false,"published_at":"2025-12-24T01:54:25Z","tag_name":"v0.3.0"}
+--- top-level files ---
+.dockerignore
+.github
+.gitignore
+.pre-commit-config.yaml
+.python-version
+AGENTS.md
+CLAUDE.md
+LICENSE
+RAI_README.md
+README.md
+SECURITY.md
+agentlightning
+contrib
+dashboard
+docker
+docs
+examples
+mkdocs.yml
+pyproject.toml
+pyrightconfig.fast.json
+pyrightconfig.json
+scripts
+tests
+uv.lock
+
+====== zou-group/textgrad ======
+{"archived":false,"default_branch":"main","description":"TextGrad: Automatic ''Differentiation'' via Text -- using large language models to backpropagate textual gradients. Published in Nature.","disabled":false,"full_name":"zou-group/textgrad","homepage":"http://textgrad.com/","language":"Python","license":"MIT","open_issues_count":66,"pushed_at":"2025-07-25T14:30:39Z","stargazers_count":3654,"updated_at":"2026-07-16T20:16:00Z"}
+--- latest release ---
+{"name":"v0.1.6","prerelease":false,"published_at":"2024-12-15T14:06:27Z","tag_name":"v0.1.6"}
+--- top-level files ---
+.github
+.gitignore
+LICENSE
+MANIFEST.in
+README.md
+assets
+evaluation
+examples
+requirements.txt
+setup.py
+tests
+textgrad
+
