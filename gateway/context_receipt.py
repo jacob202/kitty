@@ -430,22 +430,32 @@ def _checkpoint_checks(
             )
         )
     else:
+        # A recorded head that is missing or no longer an ancestor is WARN, not
+        # FAIL: a squash-merge collapses a feature branch into a new commit and
+        # orphans the tip the checkpoint recorded, so on main (and in CI, which
+        # checks out the merged history) this is the normal post-merge state,
+        # not a broken checkpoint. Genuine defects — a malformed SHA above, a
+        # stale age below — still FAIL.
         exists = _git(repo_root, ["cat-file", "-e", f"{recorded_head}^{{commit}}"], required=False)
         if exists.returncode != 0:
             checks.append(
-                ContinuityCheck("FAIL", f"{prefix}:head", f"recorded commit does not exist: {recorded_head}")
+                ContinuityCheck("WARN", f"{prefix}:head", f"recorded commit is not in this history: {recorded_head}")
             )
         else:
             fresh, detail = _checkpoint_head_is_fresh(repo_root, recorded_head, head)
-            checks.append(ContinuityCheck("PASS" if fresh else "FAIL", f"{prefix}:head", detail))
+            checks.append(ContinuityCheck("PASS" if fresh else "WARN", f"{prefix}:head", detail))
 
     recorded_branch = str(metadata["branch"])
     if branch is None:
         checks.append(ContinuityCheck("FAIL", f"{prefix}:branch", "current HEAD is detached"))
     elif recorded_branch != branch:
+        # Reading a checkpoint from a branch other than the one it was written on
+        # is WARN, not FAIL: after any merge to main the checkpoint's feature
+        # branch can never match, and CI reads it from the target branch. The
+        # branch name is informative, not a gate.
         checks.append(
             ContinuityCheck(
-                "FAIL",
+                "WARN",
                 f"{prefix}:branch",
                 f"recorded branch {recorded_branch!r} does not match current branch {branch!r}",
             )
