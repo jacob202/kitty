@@ -32,6 +32,7 @@ def _load_cursors() -> dict:
             with open(paths.EXPERT_CURSORS_FILE, "r") as f:
                 return json.load(f)
         except json.JSONDecodeError:
+            logger.warning("_load_cursors: corrupt cursors file, starting fresh")
             return {}
     return {}
 
@@ -261,7 +262,7 @@ Reply only YES or NO."""
                 if res == "YES":
                     return True
             except Exception:
-                pass
+                logger.warning("_is_duplicate_signal: LLM duplicate check failed")
 
     return False
 

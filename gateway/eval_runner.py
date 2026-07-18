@@ -75,6 +75,7 @@ async def run_smoke() -> dict:
                 "output": stdout.decode()[:500],
             }
         except Exception as e:
+            logger.warning("Smoke gate %s failed: %s", gate["name"], e)
             total_failed += 1
             results[gate["name"]] = {
                 "description": gate["description"],
@@ -139,5 +140,5 @@ def _get_last_record() -> dict | None:
         if lines:
             return json.loads(lines[-1])
     except (json.JSONDecodeError, Exception):
-        pass
+        logger.warning("Failed to read last eval record from %s", EVAL_LOG)
     return None

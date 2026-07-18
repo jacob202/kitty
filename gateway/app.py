@@ -75,7 +75,7 @@ async def lifespan(app: FastAPI):
                 try:
                     await check_now(w["watch_id"])
                 except Exception:
-                    pass
+                    logger.warning("Monitor check failed for watch %s", w.get("watch_id"))
 
         async def _action_memory_consolidate():
             from gateway.memory_consolidation import nightly_dream
@@ -130,13 +130,13 @@ async def lifespan(app: FastAPI):
         if _http_client and not _http_client.is_closed:
             await _http_client.aclose()
     except Exception:
-        pass
+        logger.warning("Failed to close HTTP client during shutdown")
     try:
         from gateway.telegram_bot import stop as tg_stop
 
         await tg_stop()
     except Exception:
-        pass
+        logger.warning("Failed to stop Telegram bot during shutdown")
 
 
 app = FastAPI(title="Kitty Gateway", lifespan=lifespan)
@@ -203,6 +203,7 @@ async def health():
         resp = await client.get(f"{LITELLM_BASE}/health/readiness", timeout=1.5)
         litellm_reachable = resp.status_code == 200
     except Exception:  # noqa: BLE001 — any failure means "not reachable", which is the answer
+        logger.warning("Health check: LiteLLM unreachable")
         litellm_reachable = False
     return {
         "status": "ok",
