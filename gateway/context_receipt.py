@@ -487,11 +487,16 @@ def _checkpoint_checks(
             )
         )
     elif age > max_age:
+        # An aging committed checkpoint is WARN, not FAIL: main's checkpoint is
+        # frozen at its last commit and only gets older, so a hard age gate
+        # re-reds CI for every contributor about once a week until someone
+        # refreshes a scratch file. The staleness still surfaces as a warning.
+        # A future-dated timestamp above stays FAIL — that is corruption, not age.
         checks.append(
             ContinuityCheck(
-                "FAIL",
+                "WARN",
                 f"{prefix}:age",
-                f"checkpoint is {age.days} day(s) old; maximum is {max_age.days} day(s)",
+                f"checkpoint is {age.days} day(s) old; recommended maximum is {max_age.days} day(s)",
             )
         )
     else:
