@@ -196,7 +196,11 @@ def test_receipt_reads_builder_through_read_only_summary(tmp_path: Path):
     assert receipt["builder"]["initiatives"] == []
 
 
-def test_mismatched_head_fails_when_new_commit_changes_non_checkpoint_file(tmp_path: Path):
+def test_mismatched_head_warns_when_new_commit_changes_non_checkpoint_file(tmp_path: Path):
+    # A checkpoint whose head lags real (non-checkpoint) work is WARN, not FAIL:
+    # main advances with such commits after every merge, and a hard gate here
+    # would red-flag main's own committed checkpoint on every unrelated PR. The
+    # age check still FAILs a checkpoint that is genuinely too old.
     repo, _head = _repo(tmp_path)
     _write(repo / "AGENTS.md", "# changed doctrine\n")
     _git(repo, "add", "AGENTS.md")
@@ -204,8 +208,8 @@ def test_mismatched_head_fails_when_new_commit_changes_non_checkpoint_file(tmp_p
 
     levels = _levels(repo)
 
-    assert levels["state:head"] == "FAIL"
-    assert levels["handoff:head"] == "FAIL"
+    assert levels["state:head"] == "WARN"
+    assert levels["handoff:head"] == "WARN"
 
 
 def test_checkpoint_only_commit_is_a_valid_self_referential_checkpoint(tmp_path: Path):
@@ -247,15 +251,18 @@ def test_stale_pr_claim_fails_against_live_github_state(tmp_path: Path):
     assert levels["handoff:pull_request"] == "FAIL"
 
 
-def test_invalid_branch_and_worktree_fail(tmp_path: Path):
+def test_mismatched_branch_warns_and_invalid_worktree_fails(tmp_path: Path):
+    # Branch name is informative (WARN): a checkpoint written on a feature
+    # branch can never match main after a merge, and CI reads it from the
+    # target branch. A wrong worktree path is still a hard FAIL.
     repo, head = _repo(tmp_path)
     _write_checkpoint_pair(repo, head, branch="old-branch", worktree="/tmp/old-kitty")
 
     levels = _levels(repo)
 
-    assert levels["state:branch"] == "FAIL"
+    assert levels["state:branch"] == "WARN"
     assert levels["state:worktree"] == "FAIL"
-    assert levels["handoff:branch"] == "FAIL"
+    assert levels["handoff:branch"] == "WARN"
     assert levels["handoff:worktree"] == "FAIL"
 
 
