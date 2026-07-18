@@ -1,0 +1,95 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "builder-test-hardening-v1",
+  "title": "Test hardening: fail-loud sweep, route contract tests, CI ratchet",
+  "description": "Recovery items R1-R3 from docs/plans/pr164-archaeology.md section 6. Standalone chores with no feature risk. TH-01 and TH-02 are independent; TH-03 must only run after TH-02 has been published and merged to main, because its coverage measurement is meaningless without TH-02's tests in the tree.",
+  "packets": [
+    {
+      "id": "TH-01-fail-loud-sweep",
+      "title": "Fail-loud sweep: log the silent except blocks in 11 modules",
+      "objective": "In exactly these modules - gateway/cron.py, gateway/librarian.py, gateway/pdf_pipeline.py, gateway/clerk.py, gateway/eval_runner.py, gateway/expert_state.py, gateway/expert_proactive.py, gateway/brief.py, gateway/nudge.py, gateway/honcho.py, gateway/app.py - find except blocks that swallow an exception silently (return a fallback like [] / None / False / {} , pass, or continue, with no logging) and add a logger.warning or logger.error line naming the operation and including the exception. Pure additive: log lines only. Do not change control flow, return values, fallback values, response shapes, or exception types. Do not convert any fallback into a raise. Follow the landed fail-loud pattern visible in gateway/memories.py and gateway/monitors.py (TL-05, already on main). If a module has no module-level logger, add the standard logging.getLogger(__name__) line.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "Every silent-swallow except block in the 11 listed modules now logs before returning its existing fallback; grep for except blocks whose body has no logging call comes back clean for swallow-and-return patterns in those files",
+        "Zero behavior change: no return value, control flow, or response shape differs; the diff contains only added logging lines (plus logger setup where missing)",
+        "New tests/test_fail_loud_sweep.py proves, with caplog, at least one converted path per touched module emits its log line when the underlying operation raises",
+        "python3.12 -m pytest tests/test_fail_loud_sweep.py tests/test_expert_proactive.py -q passes",
+        "ruff check passes on every touched file"
+      ],
+      "allowed_paths": [
+        "gateway/cron.py",
+        "gateway/librarian.py",
+        "gateway/pdf_pipeline.py",
+        "gateway/clerk.py",
+        "gateway/eval_runner.py",
+        "gateway/expert_state.py",
+        "gateway/expert_proactive.py",
+        "gateway/brief.py",
+        "gateway/nudge.py",
+        "gateway/honcho.py",
+        "gateway/app.py",
+        "tests/test_fail_loud_sweep.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 10
+      },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_fail_loud_sweep.py tests/test_expert_proactive.py -q --tb=short",
+        "python3.12 -m ruff check gateway/cron.py gateway/librarian.py gateway/pdf_pipeline.py gateway/clerk.py gateway/eval_runner.py gateway/expert_state.py gateway/expert_proactive.py gateway/brief.py gateway/nudge.py gateway/honcho.py gateway/app.py tests/test_fail_loud_sweep.py"
+      ]
+    },
+    {
+      "id": "TH-02-route-contract-tests",
+      "title": "Route contract tests for the 5 untested route modules",
+      "objective": "Author HTTP-layer contract tests, via FastAPI TestClient against the real app, for the five route modules that have no dedicated tests on main today: gateway/routes/artifacts.py, gateway/routes/experts.py, gateway/routes/integrations.py, gateway/routes/memories.py, gateway/routes/runtime.py. One new test file per module, named tests/test_artifacts_routes.py, tests/test_experts_routes.py, tests/test_integrations_routes.py, tests/test_memories_routes.py, tests/test_runtime_routes.py. Validate against TODAY'S actual route behavior - read each route module first, then assert what it really does (status codes, response shape/keys, error envelopes, validation failures). Mock or stub external stores/services the routes call, following the patterns in existing route tests like tests/test_actions_route.py and tests/test_state_route.py. HARD RULE: do not modify any file under gateway/. If a route's observed behavior looks wrong or inconsistent, do NOT change the route and do NOT assert a value you believe is wrong as silently correct - mark that test with pytest.mark.xfail(reason='route question: <describe>') and describe the question in your final report so the operator can decide whether the route changed on purpose.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "Each of the five files exercises every route function in its module with at least a happy-path test (status code + response shape) and an error-path test where the route has one",
+        "No file under gateway/ is modified",
+        "Any suspected route defect appears as an xfail with a 'route question' reason, never as a silently-green assertion or a route edit",
+        "python3.12 -m pytest on the five new files passes",
+        "ruff check passes on the five new files"
+      ],
+      "allowed_paths": [
+        "tests/test_artifacts_routes.py",
+        "tests/test_experts_routes.py",
+        "tests/test_integrations_routes.py",
+        "tests/test_memories_routes.py",
+        "tests/test_runtime_routes.py"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 8
+      },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_artifacts_routes.py tests/test_experts_routes.py tests/test_integrations_routes.py tests/test_memories_routes.py tests/test_runtime_routes.py -q --tb=short",
+        "python3.12 -m ruff check tests/test_artifacts_routes.py tests/test_experts_routes.py tests/test_integrations_routes.py tests/test_memories_routes.py tests/test_runtime_routes.py"
+      ]
+    },
+    {
+      "id": "TH-03-ci-ratchet",
+      "title": "CI ratchet: measured coverage floor + un-ignore council tests only if green",
+      "objective": "OPERATOR GATE: run this packet only after TH-02 has been published AND merged to origin/main - the coverage number is meaningless without TH-02's tests in the tree. Then: (1) measure real coverage with the workflow's own invocation (python -m pytest tests/ -q --tb=short --cov=gateway --cov-report=term-missing, keeping the two --ignore flags for the measurement) and set --cov-fail-under in .github/workflows/tests.yml to the measured whole-number percentage minus 3 points - never a guessed or aspirational number; (2) run tests/test_council_graph.py and tests/test_mcp_council_server.py directly; remove their --ignore flags from the workflow ONLY if both pass cleanly - if either fails, keep its ignore and paste the failure output in your final report. Do not edit any test file to make it pass.",
+      "depends_on": [
+        "TH-02-route-contract-tests"
+      ],
+      "acceptance_criteria": [
+        "--cov-fail-under in .github/workflows/tests.yml equals a locally measured coverage percentage minus 3, and the report states the measured number and the command that produced it",
+        "Each --ignore flag is removed only with evidence its test file passes; a failing council test keeps its ignore and its failure output appears verbatim in the report",
+        "The full workflow pytest invocation, reproduced locally with the new threshold, exits 0",
+        "No test files are modified"
+      ],
+      "allowed_paths": [
+        ".github/workflows/tests.yml"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 5
+      },
+      "validation_commands": [
+        "python3.12 -m pytest tests/ -q --tb=short --cov=gateway --cov-report=term-missing"
+      ]
+    }
+  ]
+}
