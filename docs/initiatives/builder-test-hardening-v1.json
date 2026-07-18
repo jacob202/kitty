@@ -1,0 +1,88 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "builder-test-hardening-v1",
+  "title": "Builder test + fail-loud hardening (recovered from PR #164)",
+  "description": "Recover the three lowest-risk, highest-certainty items from the PR #164 archaeology (docs/plans/pr164-archaeology.md section 6, R1-R3): the fail-loud logging sweep across 11 silent-except modules, the HTTP contract tests for five untested route modules, and a measured CI coverage ratchet. All additive or test-only; no product behavior changes. Ideal free-worker (OpenCode via Orca) work: mechanically verifiable, no design judgment, no UI/browser verification required. The runner enforces allowed_paths as a hard write boundary; anything not listed there is forbidden.",
+  "packets": [
+    {
+      "id": "BTH-01-fail-loud-sweep",
+      "title": "Fail-loud sweep: log the 11 silent except blocks",
+      "objective": "Every silent exception handler (an except that swallows via pass/continue/return None with no log) in the 11 modules listed in allowed_paths gains a logger.warning/error via that module's existing logger, naming what failed and why. This is ADDITIVE LOGGING ONLY: the handler still swallows exactly as before (no new raises, no changed return values, no control-flow change). Verified in the PR #164 archaeology line-by-line: zero of these log lines are on main today; main's TL-05 sweep (#167) covered different modules (memories/monitors), so there is no overlap. Do not touch security/auth, model config, memory policy, the Council, or any .claude/ state file — none are in allowed_paths.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "In each of gateway/{cron,librarian,pdf_pipeline,clerk,eval_runner,expert_state,expert_proactive,brief,nudge,honcho,app}.py, every previously-silent except block now logs via that module's existing logger with a message naming the failure",
+        "No control-flow change: handlers that swallowed still swallow (no new raises, no changed return values)",
+        "One focused regression test per converted path is added under tests/ following the existing TL-05 logging-assertion pattern, or the packet records precisely why a given handler cannot be exercised in a test",
+        "ruff check passes on all 11 modules",
+        "python3.12 -m pytest tests/ -q --tb=short shows no regression versus the pre-packet baseline"
+      ],
+      "allowed_paths": [
+        "gateway/cron.py",
+        "gateway/librarian.py",
+        "gateway/pdf_pipeline.py",
+        "gateway/clerk.py",
+        "gateway/eval_runner.py",
+        "gateway/expert_state.py",
+        "gateway/expert_proactive.py",
+        "gateway/brief.py",
+        "gateway/nudge.py",
+        "gateway/honcho.py",
+        "gateway/app.py",
+        "tests/"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 20
+      },
+      "validation_commands": [
+        "venv/bin/ruff check gateway/cron.py gateway/librarian.py gateway/pdf_pipeline.py gateway/clerk.py gateway/eval_runner.py gateway/expert_state.py gateway/expert_proactive.py gateway/brief.py gateway/nudge.py gateway/honcho.py gateway/app.py",
+        "python3.12 -m pytest tests/ -q --tb=short"
+      ]
+    },
+    {
+      "id": "BTH-02-route-contract-tests",
+      "title": "HTTP contract tests for five untested route modules",
+      "objective": "Add HTTP-layer contract tests for the five route modules that have zero tests on main today (artifacts, experts, integrations, memories, runtime). Recover the intent of PR #164's ~90 tests, but REVALIDATE every assertion against the route as it exists on current main — the routes evolved during stabilization since #164, so any mismatch is a question about the route's real contract, never a reason to edit a route to fit an old test. TESTS ONLY: allowed_paths is tests/ alone; do not modify any route or gateway source. If a test cannot pass without changing a route, record that as a finding in the attempt evidence rather than editing source.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "New files tests/test_artifacts_routes.py, tests/test_experts_routes.py, tests/test_integrations_routes.py, tests/test_memories_routes.py, tests/test_runtime_routes.py exercise each route module's endpoints at the HTTP layer (status codes, response shape, error paths)",
+        "Every test asserts the CURRENT behavior of the route on main; no route source is modified to make a test pass",
+        "python3.12 -m pytest tests/test_artifacts_routes.py tests/test_experts_routes.py tests/test_integrations_routes.py tests/test_memories_routes.py tests/test_runtime_routes.py -q passes",
+        "ruff check passes on the five new test files"
+      ],
+      "allowed_paths": [
+        "tests/"
+      ],
+      "policy": {
+        "max_attempts": 3,
+        "priority": 15
+      },
+      "validation_commands": [
+        "venv/bin/ruff check tests/test_artifacts_routes.py tests/test_experts_routes.py tests/test_integrations_routes.py tests/test_memories_routes.py tests/test_runtime_routes.py",
+        "python3.12 -m pytest tests/test_artifacts_routes.py tests/test_experts_routes.py tests/test_integrations_routes.py tests/test_memories_routes.py tests/test_runtime_routes.py -q"
+      ]
+    },
+    {
+      "id": "BTH-03-ci-coverage-ratchet",
+      "title": "Measured CI coverage ratchet + un-ignore council tests if green",
+      "objective": "Raise the CI coverage floor honestly: measure actual coverage on main AFTER BTH-02 lands, set --cov-fail-under in .github/workflows/tests.yml to the measured value minus a small stated margin (do NOT transplant PR #164's literal 65), and remove the two --ignore flags (test_council_graph.py, test_mcp_council_server.py) ONLY after confirming those suites pass. Recover the intent of #164's ratchet without its blind number. CI CONFIG ONLY: allowed_paths is .github/workflows/tests.yml alone; do not lower any existing gate, delete tests, or edit source/tests to inflate coverage.",
+      "depends_on": ["BTH-02-route-contract-tests"],
+      "acceptance_criteria": [
+        "Actual coverage is measured with the current test suite and the measured percentage is recorded in the attempt evidence",
+        "--cov-fail-under in .github/workflows/tests.yml is set to the measured value minus a stated small margin, not a copied constant",
+        "python3.12 -m pytest tests/test_council_graph.py tests/test_mcp_council_server.py -q passes before their --ignore flags are removed; if either fails, the ignore stays and the packet records why",
+        "The pytest job command in tests.yml is internally consistent (threshold matches the recorded measurement)"
+      ],
+      "allowed_paths": [
+        ".github/workflows/tests.yml"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 10
+      },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_council_graph.py tests/test_mcp_council_server.py -q"
+      ]
+    }
+  ]
+}
