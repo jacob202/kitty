@@ -3,11 +3,11 @@
 <!-- kitty-state
 {
   "schema_version": 1,
-  "updated_at": "2026-07-18T00:45:00Z",
-  "head_sha": "4cc68aa53f2dc0e32ed3c8df65831751ff16ba1a",
+  "updated_at": "2026-07-18T00:38:31Z",
+  "head_sha": "41a18b44bc92d3a259caa4df8e7104297c9c8daf",
   "branch": "claude/kitty-test-hardening-0j2yn0",
   "worktree": ".",
-  "status": "blocked_on_environment",
+  "status": "blocked",
   "completed_items": [
     "authored docs/initiatives/builder-test-hardening-v1.json (TH-01 fail-loud sweep, TH-02 route contract tests, TH-03 CI ratchet) from pr164-archaeology section 6 R1-R3",
     "authored docs/initiatives/chat-recovery-v1.json (7 packets, R4-R8; goal sidebar excluded as parked)",
@@ -20,7 +20,7 @@
     "this remote container's network policy 403s opencode.ai, models.dev, and openrouter.ai at the egress proxy, so the entire free-model ladder is unreachable; no free worker can run here",
     "TH-01 shows exhausted in this container's Builder store from those two infra-only failures (no model ever ran, no worktree changes) - the budget-poisoning case packet 027 exists to fix"
   ],
-  "next_action": "On Jacob's Mac (where free endpoints are reachable): apply the four manifests, then run-packet builder-test-hardening-v1 TH-01-fail-loud-sweep --free --watch, then TH-02; review final diffs before operator-gated publish",
+  "next_action": "On the Mac: apply the four manifests, launch TH-01 then TH-02 with --free --watch, review final diffs, operator-gated publish",
   "invalidation_conditions": [
     "HEAD changes outside one checkpoint-only commit",
     "the branch or registered worktree changes",
@@ -35,7 +35,7 @@
 
 ## Current checkpoint
 
-- Timestamp: 2026-07-18T00:45:00Z
+- Timestamp: 2026-07-18T00:38:31Z
 - Branch: claude/kitty-test-hardening-0j2yn0 (remote Claude Code container, not the Mac)
 - Status: paid-side authoring complete; free-worker execution blocked by container network policy
 

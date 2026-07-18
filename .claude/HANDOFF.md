@@ -3,8 +3,8 @@
 <!-- kitty-handoff
 {
   "schema_version": 1,
-  "updated_at": "2026-07-18T00:45:00Z",
-  "head_sha": "4cc68aa53f2dc0e32ed3c8df65831751ff16ba1a",
+  "updated_at": "2026-07-18T00:38:31Z",
+  "head_sha": "41a18b44bc92d3a259caa4df8e7104297c9c8daf",
   "branch": "claude/kitty-test-hardening-0j2yn0",
   "worktree": ".",
   "status": "valid",
