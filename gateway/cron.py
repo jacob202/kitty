@@ -216,6 +216,7 @@ def start() -> None:
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
+        logger.warning("Cron start skipped: no running event loop")
         return  # no event loop, skip in sync contexts
     if _runner_task is None or _runner_task.done():
         _runner_task = loop.create_task(_runner())
@@ -265,6 +266,7 @@ def _should_fire(s: dict, now: float) -> bool:
             interval = int(s_value) * 60
             return (now - last_run) >= interval
         except ValueError:
+            logger.warning("Cron interval schedule invalid: %s", s_value)
             return False
 
     if s_type == "daily":
@@ -277,6 +279,7 @@ def _should_fire(s: dict, now: float) -> bool:
             ).timestamp()
             return now >= today_target and last_run < today_target
         except (ValueError, IndexError):
+            logger.warning("Cron daily schedule invalid: %s", s_value)
             return False
 
     if s_type == "once":
@@ -285,6 +288,7 @@ def _should_fire(s: dict, now: float) -> bool:
             target = datetime.datetime.fromisoformat(s_value).timestamp()
             return now >= target and last_run == 0
         except (ValueError, TypeError):
+            logger.warning("Cron once schedule invalid: %s", s_value)
             return False
 
     return False

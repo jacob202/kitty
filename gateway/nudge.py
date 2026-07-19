@@ -206,7 +206,7 @@ def _load_dismissed() -> set:
             data = json.loads(NUDGE_STORE.read_text())
             return set(data.get("dismissed", []))
     except Exception:
-        pass
+        logger.warning("_load_dismissed: failed to read or parse %s", NUDGE_STORE)
     return set()
 
 

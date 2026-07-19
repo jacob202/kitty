@@ -146,9 +146,13 @@ def generate_source_summary(source_name: str, text_preview: str, doc_type: str) 
                 if score > 1.0:
                     data["authority_score"] = score / 5.0
             except (ValueError, TypeError):
-                pass
+                logger.warning(
+                    "librarian authority_score normalization failed for %s: score=%r",
+                    source_name, data.get("authority_score"),
+                )
 
         # Ensure all keys exist
         return LibrarianReport(**{**default_data, **data})
     except Exception:
+        logger.warning("librarian JSON parse or validation failed for %s", source_name)
         return LibrarianReport(**default_data)

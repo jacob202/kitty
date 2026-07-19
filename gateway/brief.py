@@ -199,7 +199,7 @@ def _enrich_with_bodies(headlines: List[NewsHeadline]) -> List[NewsHeadline]:
                 if body:
                     headline.body = body
             except Exception:
-                pass
+                logger.warning("_enrich_with_bodies: future.result() failed for %s", headline.url)
     return headlines
 
 
@@ -391,6 +391,7 @@ def _fetch_memory_snippet() -> str:
 
         return _run_async(unified_context("morning brief"))
     except Exception:
+        logger.warning("_fetch_memory_snippet: unified_context failed")
         return ""
 
 
@@ -399,6 +400,7 @@ def _fetch_recent_journal_text(limit: int = 3) -> str:
     try:
         entries = recent_entries(days=7, limit=limit)
     except Exception:
+        logger.warning("_fetch_recent_journal_text: recent_entries failed")
         return ""
     if not entries:
         return ""
@@ -410,6 +412,7 @@ def _fetch_recent_journal_text(limit: int = 3) -> str:
             try:
                 dt = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%a %b %-d")
             except Exception:
+                logger.warning("_fetch_recent_journal_text: datetime conversion failed for ts=%s", ts)
                 dt = ""
             lines.append(f"  [{dt}] {text[:200]}")
     return "\n".join(lines)

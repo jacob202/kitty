@@ -74,6 +74,7 @@ def _extract_text(path: Path) -> str:
         try:
             first_char = path.read_text(errors="ignore").lstrip()[:1]
         except Exception:
+            logger.warning("Cannot read first char of %s for JSON type detection", path.name)
             first_char = ""
         if first_char == "[":
             return _extract_chatgpt_json(path)
@@ -84,6 +85,7 @@ def _extract_text(path: Path) -> str:
         try:
             return path.read_text(errors="ignore")
         except Exception:
+            logger.warning("Cannot read file %s", path.name)
             return ""
 
 

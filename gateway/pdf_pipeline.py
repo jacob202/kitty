@@ -87,12 +87,13 @@ def _extract_text_fallback(path: Path) -> str:
         doc = fitz.open(str(path))
         return "\n".join(page.get_text() for page in doc)
     except Exception:
-        pass
+        logger.warning("PyMuPDF extraction failed for %s", path.name)
     try:
         import pdfplumber
         with pdfplumber.open(str(path)) as pdf:
             return "\n".join(p.extract_text() or "" for p in pdf.pages)
     except Exception:
+        logger.warning("pdfplumber extraction failed for %s", path.name)
         return ""
 
 
