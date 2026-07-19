@@ -643,6 +643,108 @@ class TestNoStaleArtifactReuse:
 
 
 # ---------------------------------------------------------------------------
+# P027 — real restart/recovery exercise
+# ---------------------------------------------------------------------------
+
+
+class TestRecoveryExercise:
+    def test_killed_run_packet_recovers_end_to_end(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """Kill a live run_packet mid-attempt, then re-enter and recover.
+
+        max_attempts=1 makes budget neutrality load-bearing: if the crashed
+        attempt consumed budget, the retry would exhaust instead of succeed."""
+        import os
+        import signal
+        import sys
+        import time
+
+        task_id = _apply(db_path, max_attempts=1, repo_root=repo)
+        slow_worker = _script(
+            tmp_path, "slow.sh", "echo partial > junk.txt\nsleep 300\n"
+        )
+        snippet = (
+            "from pathlib import Path\n"
+            "from gateway import builder_loop as bl\n"
+            f"bl.run_packet({INITIATIVE!r}, {PACKET!r},\n"
+            f"    worker_command={slow_worker!r},\n"
+            "    lease_seconds=2, heartbeat_seconds=1,\n"
+            f"    repo_root=Path({str(repo)!r}),\n"
+            f"    db_path=Path({str(db_path)!r}))\n"
+        )
+        proc = subprocess.Popen(
+            [sys.executable, "-c", snippet],
+            cwd=Path(bl.__file__).parents[1],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        try:
+            # Wait until the worker has really started producing partial work.
+            wt = repo / ".worktrees" / "kittybuilder" / task_id
+            deadline = time.time() + 60
+            while time.time() < deadline and not (wt / "junk.txt").exists():
+                time.sleep(0.1)
+            assert (wt / "junk.txt").exists(), "worker never started"
+
+            proc.kill()  # SIGKILL: the orchestrator dies without cleanup
+            proc.wait()
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+        # Reap the orphaned worker (the unique tmp_path makes -f precise).
+        runs = bq.list_runs(task_id=task_id, db_path=db_path)
+        assert runs, "no run row recorded before the kill"
+        pid = runs[-1].get("pid")
+        if pid:
+            try:
+                os.killpg(int(pid), signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+        subprocess.run(["pkill", "-9", "-f", str(tmp_path / "slow.sh")], check=False)
+
+        # The dead orchestrator's lease expires; the recovery scan blocks the
+        # task exactly as `kitty builder queue recover` would.
+        time.sleep(2.5)
+        recovered = bq.recover_expired_leases(db_path=db_path)
+        assert recovered["running_blocked"] == 1
+        runs_recovered = bq.recover_interrupted_runs(db_path=db_path)
+        assert runs_recovered["runs_interrupted"] >= 1, (
+            "dead run row was not marked interrupted"
+        )
+        stale = ba.list_stale_attempts(INITIATIVE, PACKET, db_path=db_path)
+        assert len(stale) == 1
+        crashed_id = stale[0]["id"]
+
+        # Re-enter run_packet: reconcile, archive, and complete the packet.
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == bl.LOOP_SUCCEEDED
+
+        # Crashed attempt closed as crashed with its evidence preserved.
+        closed = ba.get_attempt(crashed_id, db_path=db_path)
+        assert closed["outcome"] == ba.ATTEMPT_CRASHED
+        attempt_dir = db_path.parent / "attempts" / task_id / str(crashed_id)
+        manifest = json.loads((attempt_dir / "run-manifest.json").read_text())
+        assert manifest["outcome"] == "crashed"
+        patch = (attempt_dir / "crashed-worktree.patch").read_text()
+        assert "partial" in patch
+
+        # The crash was recorded budget-neutral.
+        events = bq.list_events(task_id, db_path=db_path)
+        infra = [
+            e for e in events
+            if e["type"] == "infrastructure_failed"
+            and e.get("payload", {}).get("phase") == "stale_attempt_reconciliation"
+        ]
+        assert len(infra) == 1
+        assert infra[0]["payload"]["counts_toward_budget"] is False
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
