@@ -335,6 +335,13 @@ def worktree_diff_sha256(path: Path, start_sha: str) -> str:
     return _diff_sha256(path, start_sha)
 
 
+# Session-state bookkeeping that repo convention (CLAUDE.md "Session State")
+# requires every worker to write before stopping. Residue here finalized two
+# completed packets as scope_violation (TH-01 attempt 3, TH-02), so these
+# paths stay visible in changed_paths but never count as violations.
+_SESSION_STATE_RESIDUE = frozenset({".claude/STATE.md", ".claude/HANDOFF.md"})
+
+
 def _scope_violations(
     changed_paths: list[str],
     allowed_paths: list[str] | None,
@@ -360,7 +367,11 @@ def _scope_violations(
             for prefix in normalized
         )
 
-    return [path for path in changed_paths if not allowed(path)]
+    return [
+        path
+        for path in changed_paths
+        if not allowed(path) and path not in _SESSION_STATE_RESIDUE
+    ]
 
 
 def _terminate_group(proc: subprocess.Popen[Any]) -> None:
