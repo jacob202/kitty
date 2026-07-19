@@ -41,6 +41,7 @@ from gateway.builder_brief import default_branch_name
 from gateway.builder_context import build_context_manifest, write_run_manifest
 from gateway.builder_runner import (
     RunnerError,
+    archive_and_reset_worktree,
     preflight_worktree,
     remove_worktree,
     run_worker,
@@ -256,6 +257,13 @@ def _reconcile_stale_attempts(
         attempt_dir_path.mkdir(parents=True, exist_ok=True)
         write_run_manifest(manifest_path, manifest)
 
+        # P027: the crashed attempt's partial work is evidence, not a starting
+        # point — archive it into the attempt dir, then reset the worktree so
+        # the next attempt starts clean.
+        worktree_evidence = archive_and_reset_worktree(
+            worktree_path(task_id, repo_root=repo_root), attempt_dir_path
+        )
+
         lease_id = attempt.get("lease_id")
         if lease_id is None:
             # Legacy attempts predate branch-lease binding. Their lack of a
@@ -286,6 +294,7 @@ def _reconcile_stale_attempts(
                 "phase": "stale_attempt_reconciliation",
                 "attempt_id": attempt_id,
                 "attempt_no": attempt["attempt_no"],
+                "worktree": worktree_evidence,
             },
             db_path=db_path,
         )

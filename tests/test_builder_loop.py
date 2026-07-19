@@ -565,6 +565,84 @@ class TestRunPacket:
 
 
 # ---------------------------------------------------------------------------
+# P027 — no stale implementation artifact reuse after crash recovery
+# ---------------------------------------------------------------------------
+
+
+class TestNoStaleArtifactReuse:
+    def test_crashed_dirty_worktree_is_archived_and_next_attempt_starts_clean(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """A crashed worker's dirty worktree must not poison the next attempt.
+
+        Before P027 this deadlocked: ensure_worktree refuses dirty worktrees,
+        so every re-entry crashed on orchestration forever."""
+        from gateway import builder_runner as br
+        from gateway.builder_brief import default_branch_name
+
+        task_id = _apply(db_path, repo_root=repo)
+        branch = default_branch_name({"id": task_id})
+        stale, _lease = ba.claim_and_start_attempt(
+            INITIATIVE,
+            PACKET,
+            worker_id="dead-packet-worker",
+            branch=branch,
+            worktree_path=str(repo / ".worktrees" / "kittybuilder" / task_id),
+            base_sha=ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path),
+            db_path=db_path,
+        )
+        # Simulate the crash: worktree exists with tracked + untracked changes.
+        wt = br.ensure_worktree(task_id, branch, repo_root=repo)
+        (wt / "README.md").write_text("half-finished edit\n")
+        (wt / "junk.txt").write_text("partial progress\n")
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == bl.LOOP_SUCCEEDED
+
+        # Crash evidence was preserved in the stale attempt's artifact dir.
+        attempt_dir = db_path.parent / "attempts" / task_id / str(stale["id"])
+        patch = (attempt_dir / "crashed-worktree.patch").read_text()
+        assert "half-finished edit" in patch
+        assert "partial progress" in patch
+        status = (attempt_dir / "crashed-worktree-status.txt").read_text()
+        assert "junk.txt" in status
+
+        # The new attempt did not inherit the stale changes: its run saw a
+        # clean tree, so only the worker's own output shows as changed.
+        runs = bq.list_runs(task_id=task_id, db_path=db_path)
+        report = runs[-1]["final_report"]
+        assert "junk.txt" not in report["changed_paths"]
+        assert "README.md" not in report["changed_paths"]
+        assert "done.txt" in report["changed_paths"]
+
+        events = bq.list_events(task_id, db_path=db_path)
+        stale_events = [
+            e for e in events
+            if e["type"] == "infrastructure_failed"
+            and e.get("payload", {}).get("phase") == "stale_attempt_reconciliation"
+        ]
+        assert stale_events[0]["payload"]["worktree"]["state"] == "archived_and_reset"
+
+    def test_clean_worktree_reconciliation_archives_nothing(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        task_id = _apply(db_path, repo_root=repo)
+        stale = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == bl.LOOP_SUCCEEDED
+        attempt_dir = db_path.parent / "attempts" / task_id / str(stale["id"])
+        assert not (attempt_dir / "crashed-worktree.patch").exists()
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
