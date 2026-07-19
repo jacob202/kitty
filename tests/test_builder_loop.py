@@ -565,6 +565,45 @@ class TestRunPacket:
 
 
 # ---------------------------------------------------------------------------
+# P027 — truthful closeout after a crash-recovery cycle
+# ---------------------------------------------------------------------------
+
+
+class TestTruthfulCloseout:
+    def test_rollup_reports_recovered_success_truthfully(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """After crash + recovery + success, the rollup tells the whole story:
+        the crash is visible as an infrastructure failure, the attempt ledger
+        shows crashed → succeeded, and the packet awaits operator review
+        rather than reading as stuck in progress."""
+        _apply(db_path, repo_root=repo)
+        ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)  # stale crash
+
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == bl.LOOP_SUCCEEDED
+
+        status = bi.initiative_status(INITIATIVE, db_path=db_path)
+        assert status["in_progress"] == [PACKET]
+        assert status["failed"] == []
+        assert status["exhausted"] == []
+
+        evidence = status["evidence"][PACKET]
+        assert evidence["infrastructure_failures"] == 1
+        assert evidence["next_action"] == "operator_review"
+
+        attempts = ba.list_attempts(INITIATIVE, PACKET, db_path=db_path)
+        assert [a["outcome"] for a in attempts] == [
+            ba.ATTEMPT_CRASHED,
+            ba.ATTEMPT_SUCCEEDED,
+        ]
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
