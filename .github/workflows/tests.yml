@@ -38,10 +38,11 @@ jobs:
 
       - name: Run test suite
         run: |
+          # TH-03 ratchet: floor = measured 76% (2026-07-19, pristine
+          # worktree at origin/main) minus 3. Council --ignore flags removed:
+          # both files were deleted in d260309 (2026-06-18).
           python -m pytest tests/ -q --tb=short \
-            --ignore=tests/test_council_graph.py \
-            --ignore=tests/test_mcp_council_server.py \
-            --cov=gateway --cov-report=term-missing --cov-fail-under=10
+            --cov=gateway --cov-report=term-missing --cov-fail-under=73
 
   lint:
     runs-on: ubuntu-latest

@@ -626,6 +626,10 @@ class TestRecoveryBudget:
         assert exhausted[0]["payload"]["crash_count"] == 3
         # No new attempt was opened after the budget stop.
         assert ba.list_stale_attempts(INITIATIVE, PACKET, db_path=db_path) == []
+        # Truthful closeout: the task is durably blocked with the real reason.
+        task = bq.get_task(task_id, db_path=db_path)
+        assert task["state"] == bq.BLOCKED
+        assert task["blocked_reason"] == "recovery_budget_exhausted"
 
     def test_non_identical_crashes_do_not_stop_the_run(
         self, repo: Path, db_path: Path, tmp_path: Path

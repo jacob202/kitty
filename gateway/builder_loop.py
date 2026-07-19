@@ -604,6 +604,21 @@ def run_packet(
             },
             db_path=db_path,
         )
+        # Truthful closeout: leave the task durably blocked with the real
+        # reason instead of queued, so the rollup and the operator both see
+        # why the loop stopped. (QUEUED tasks walk the legal state chain.)
+        current = bq.get_task(task_id, db_path=db_path)
+        if current is not None and current["state"] == bq.QUEUED:
+            bq.transition_task(task_id, bq.CLAIMED, db_path=db_path)
+            bq.transition_task(task_id, bq.RUNNING, db_path=db_path)
+        current = bq.get_task(task_id, db_path=db_path)
+        if current is not None and current["state"] == bq.RUNNING:
+            bq.transition_task(
+                task_id,
+                bq.BLOCKED,
+                payload={"reason": "recovery_budget_exhausted"},
+                db_path=db_path,
+            )
         raise LoopError(blocker)
 
     # Verify the packet has a durable base SHA before entering the repair
