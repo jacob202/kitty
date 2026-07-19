@@ -38,6 +38,38 @@ async def delete_chat(chat_id: str):
     return {"ok": True}
 
 
+@router.patch("/chats/{chat_id}/objective")
+async def patch_chat_objective(chat_id: str, request: Request):
+    """Set or clear a chat's per-thread objective."""
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise HTTPException(status_code=400, detail=f"invalid JSON body: {exc}") from exc
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="request body must be an object")
+    if "objective" not in body:
+        raise HTTPException(status_code=400, detail="objective field required")
+    objective = body["objective"]
+    if objective is not None:
+        if not isinstance(objective, str):
+            raise HTTPException(
+                status_code=400,
+                detail="objective must be a string or null",
+            )
+        if len(objective) > 500:
+            raise HTTPException(
+                status_code=400,
+                detail=f"objective must be at most 500 characters, got {len(objective)}",
+            )
+    try:
+        updated = chats_store.patch_objective(chat_id, objective)
+    except chats_store.ChatNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return updated
+
+
 @router.get("/chats/{chat_id}/lifecycle")
 def get_chat_lifecycle(chat_id: str) -> dict:
     try:

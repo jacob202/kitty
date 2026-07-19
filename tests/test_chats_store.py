@@ -155,6 +155,30 @@ class TestLegacyImport:
 
         assert result == []
 
+    def test_patch_objective_sets_and_returns(self):
+        """Set an objective via patch_objective and verify it appears in list."""
+        chats_store.upsert_chat({"id": "goal", "title": "test"})
+        updated = chats_store.patch_objective("goal", "Find the answer")
+        assert updated["objective"] == "Find the answer"
+
+        listed = chats_store.list_chats()
+        assert listed[0]["objective"] == "Find the answer"
+
+    def test_patch_objective_clears_when_none(self):
+        """Clearing also removes an objective supplied in the legacy payload."""
+        chats_store.upsert_chat(
+            {"id": "goal", "title": "test", "objective": "Find the answer"}
+        )
+        chats_store.patch_objective("goal", None)
+
+        listed = chats_store.list_chats()
+        assert "objective" not in listed[0] or listed[0].get("objective") is None
+
+    def test_patch_objective_raises_on_missing_chat(self):
+        """patch_objective on a non-existent chat raises ValueError."""
+        with pytest.raises(ValueError, match="does not exist"):
+            chats_store.patch_objective("no-such-chat", "anything")
+
     def test_bad_json_raises_runtime_error(self, tmp_path):
         legacy = tmp_path / "kitty" / "chats.json"
         legacy.parent.mkdir(parents=True, exist_ok=True)
@@ -183,7 +207,8 @@ class TestLegacyImport:
         assert first == [{"id": "x", "title": "from json"}]
 
         # Simulate rollback: drop the table, clear the import marker, and
-        # clear the migration marker so migrate re-applies 004_chats.sql.
+        # clear migration markers so migrate re-applies 004_chats.sql
+        # and 020_chat_objective.sql (which adds the objective column back).
         with sqlite3.connect(chats_store.CHATS_DB_FILE) as conn:
             conn.execute("DROP TABLE chats")
             conn.execute(
@@ -191,7 +216,7 @@ class TestLegacyImport:
                 (chats_store.LEGACY_IMPORT_SETTING,),
             )
             conn.execute(
-                "DELETE FROM schema_migrations WHERE name = '004_chats.sql'"
+                "DELETE FROM schema_migrations WHERE name IN ('004_chats.sql', '020_chat_objective.sql')"
             )
             conn.commit()
 

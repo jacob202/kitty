@@ -5,6 +5,50 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 
 
+def test_thread_objective_reaches_lifecycle_and_context():
+    mock_payload = {
+        "choices": [{"message": {"role": "assistant", "content": "next step"}}],
+        "usage": {"total_tokens": 10},
+        "model": "kitty-default",
+    }
+    mock_chat = AsyncMock(return_value=mock_payload)
+    mock_bundle = MagicMock(system="FULL_SYSTEM")
+    mock_assemble = AsyncMock(return_value=mock_bundle)
+    mock_handle = MagicMock(turn_id="turn-1")
+
+    with patch(
+        "gateway.routes.completions.classify_domain", return_value="soul"
+    ), patch(
+        "gateway.routes.completions.route_model", return_value="kitty-default"
+    ), patch(
+        "gateway.routes.completions.chats_store.get_chat",
+        return_value={"id": "chat-1", "objective": "Submit one application"},
+    ), patch(
+        "gateway.routes.completions.chat_lifecycle.start_turn",
+        return_value=mock_handle,
+    ) as mock_start, patch(
+        "gateway.routes.completions.chat_lifecycle.finish_turn"
+    ), patch(
+        "gateway.context_assembler.assemble_context", new=mock_assemble
+    ), patch(
+        "gateway.routes.completions.chat_completions_non_stream", new=mock_chat
+    ):
+        from gateway.app import app
+
+        response = TestClient(app).post(
+            "/v1/chat/completions",
+            json={
+                "conversation_id": "chat-1",
+                "messages": [{"role": "user", "content": "what next?"}],
+                "stream": False,
+            },
+        )
+
+    assert response.status_code == 200
+    assert mock_start.call_args.kwargs["objective"] == "Submit one application"
+    assert mock_assemble.call_args.kwargs["objective"] == "Submit one application"
+
+
 def test_chat_completions_non_stream_health_uses_route_model_and_passes_domain():
     """Health domain goes through route_model (no longer hardcoded kitty-private)."""
     mock_resp = MagicMock()

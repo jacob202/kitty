@@ -29,6 +29,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import time
 
 from gateway import db as kitty_db
 from gateway.paths import DATA_DIR, KITTY_DB_FILE
@@ -38,6 +39,10 @@ logger = logging.getLogger("kitty.chats_store")
 CHATS_DB_FILE = KITTY_DB_FILE
 LEGACY_CHATS_FILE = DATA_DIR / "kitty" / "chats.json"
 LEGACY_IMPORT_SETTING = "chats_legacy_imported"
+
+
+class ChatNotFoundError(ValueError):
+    """Raised when a requested chat does not exist."""
 
 
 def init_db() -> None:
@@ -51,9 +56,19 @@ def list_chats() -> list[dict]:
     init_db()
     with kitty_db.connect(CHATS_DB_FILE) as conn:
         rows = conn.execute(
-            "SELECT id, payload FROM chats ORDER BY updated_at DESC, id ASC"
+            "SELECT id, payload, objective FROM chats ORDER BY updated_at DESC, id ASC"
         ).fetchall()
     return [_row_to_chat(r) for r in rows]
+
+
+def get_chat(chat_id: str) -> dict | None:
+    """Return one chat by id, or ``None`` when it does not exist."""
+    init_db()
+    with kitty_db.connect(CHATS_DB_FILE) as conn:
+        row = conn.execute(
+            "SELECT id, payload, objective FROM chats WHERE id = ?", (chat_id,)
+        ).fetchone()
+    return _row_to_chat(row) if row is not None else None
 
 
 def upsert_chat(chat: dict) -> None:
@@ -78,7 +93,12 @@ def delete_chat(chat_id: str) -> bool:
 
 def _upsert_chat_raw(conn: sqlite3.Connection, chat: dict) -> None:
     """Insert or replace a chat using an existing connection. No init_db call."""
-    payload = json.dumps(chat, ensure_ascii=False)
+    payload_chat = dict(chat)
+    objective_present = "objective" in payload_chat
+    objective = payload_chat.pop("objective", None)
+    if objective_present:
+        _validate_objective(objective)
+    payload = json.dumps(payload_chat, ensure_ascii=False)
     conn.execute(
         """
         INSERT INTO chats (id, payload) VALUES (?, ?)
@@ -88,10 +108,58 @@ def _upsert_chat_raw(conn: sqlite3.Connection, chat: dict) -> None:
         """,
         (chat["id"], payload),
     )
+    if objective_present:
+        conn.execute(
+            "UPDATE chats SET objective = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (objective, chat["id"]),
+        )
 
 
 def _row_to_chat(row: sqlite3.Row) -> dict:
-    return json.loads(row["payload"])
+    chat = json.loads(row["payload"])
+    # Old payloads may contain objective; the normalized column is authoritative.
+    chat.pop("objective", None)
+    obj = row["objective"] if "objective" in row.keys() else None
+    if obj is not None:
+        chat["objective"] = obj
+    return chat
+
+
+def patch_objective(chat_id: str, objective: str | None) -> dict:
+    """Set or clear a chat's objective. Returns the updated chat dict.
+
+    Args:
+        chat_id: The chat to update.
+        objective: New objective text, or None to clear it.
+
+    Raises:
+        ValueError: If the chat does not exist.
+    """
+    _validate_objective(objective)
+    init_db()
+    with kitty_db.connect(CHATS_DB_FILE) as conn:
+        cursor = conn.execute(
+            "UPDATE chats SET objective = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (objective, chat_id),
+        )
+        if cursor.rowcount == 0:
+            raise ChatNotFoundError(f"chat {chat_id!r} does not exist")
+        conn.execute(
+            "UPDATE chat_conversations SET objective = ?, updated_at = ? WHERE id = ?",
+            (objective, time.time(), chat_id),
+        )
+        row = conn.execute(
+            "SELECT id, payload, objective FROM chats WHERE id = ?", (chat_id,)
+        ).fetchone()
+        conn.commit()
+        return _row_to_chat(row)
+
+
+def _validate_objective(objective: object) -> None:
+    if objective is not None and not isinstance(objective, str):
+        raise ValueError("objective must be a string or null")
+    if isinstance(objective, str) and len(objective) > 500:
+        raise ValueError(f"objective must be at most 500 characters, got {len(objective)}")
 
 
 def _import_legacy_chats_once() -> None:

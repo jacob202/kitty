@@ -225,6 +225,7 @@ async def assemble_context(
     parts_mode: bool = False,
     domain: str | None = None,
     deps: _AssemblerDeps | None = None,
+    objective: str | None = None,
 ) -> ContextBundle:
     """The single deep entry point for request-time context.
 
@@ -240,6 +241,9 @@ async def assemble_context(
             from the message.
         deps: Internal — test override seam. Production callers should
             leave this as ``None``.
+        objective: Optional per-thread goal. When set, a ``Thread goal:``
+            line is injected into the system prompt. When ``None`` the
+            assembled output is byte-identical to pre-packet behaviour.
     """
     deps = deps or _AssemblerDeps()
     warnings: list[str] = []
@@ -247,6 +251,9 @@ async def assemble_context(
     base_prompt = _domain_prompt(message, domain)
     if parts_mode or _should_surface_parts(message):
         base_prompt = _build_parts_system_prompt(base_prompt)
+
+    if objective:
+        base_prompt = _join_blocks(base_prompt, f"Thread goal: {objective}")
 
     user_block = user_context.load_user_context()
     if user_block:
@@ -311,14 +318,22 @@ def assert_not_total_failure(bundle: ContextBundle) -> ContextBundle:
 
 
 async def get_system_prompt(
-    message: str, parts_mode: bool = False, domain: Optional[str] = None
+    message: str,
+    parts_mode: bool = False,
+    domain: Optional[str] = None,
+    objective: str | None = None,
 ) -> str:
     """Return the joined system prompt string.
 
-    Equivalent to ``(await assemble_context(message, parts_mode, domain)).system``.
+    Equivalent to ``(await assemble_context(..., objective=objective)).system``.
     Kept as a convenience wrapper for callers that only need the system string.
     """
-    bundle = await assemble_context(message, parts_mode=parts_mode, domain=domain)
+    if objective is None:
+        bundle = await assemble_context(message, parts_mode=parts_mode, domain=domain)
+    else:
+        bundle = await assemble_context(
+            message, parts_mode=parts_mode, domain=domain, objective=objective
+        )
     return bundle.system
 
 
