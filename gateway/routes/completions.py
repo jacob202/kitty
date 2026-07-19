@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
-from gateway import chat_lifecycle
+from gateway import chat_lifecycle, chats_store
 from gateway.constants import MAX_BODY_BYTES
 from gateway.domain_router import classify_domain
 from gateway.http_client import get_http_client
@@ -159,8 +159,17 @@ async def chat_completions(request: Request):
 
     lifecycle_handle: chat_lifecycle.TurnHandle | None = None
     lifecycle_done = False
+    thread_objective: str | None = None
     if conversation_id is not None:
         try:
+            chat = chats_store.get_chat(conversation_id)
+            if chat is not None:
+                stored_objective = chat.get("objective")
+                if stored_objective is not None and not isinstance(stored_objective, str):
+                    raise RuntimeError(
+                        f"chat {conversation_id!r} has a non-string objective"
+                    )
+                thread_objective = stored_objective
             lifecycle_handle = chat_lifecycle.start_turn(
                 conversation_id=conversation_id,
                 project_id=scoped_project_id,
@@ -170,6 +179,7 @@ async def chat_completions(request: Request):
                 manifest_revision=runtime_manifest["revision"],
                 requested_model=model,
                 attachment_ids=attachment_ids,
+                objective=thread_objective,
             )
         except Exception:
             on_request_error()
@@ -179,7 +189,12 @@ async def chat_completions(request: Request):
 
     try:
         on_context_fetch()
-        bundle = await assemble_context(user_text, parts_mode=False, domain=domain)
+        bundle = await assemble_context(
+            user_text,
+            parts_mode=False,
+            domain=domain,
+            objective=thread_objective,
+        )
         system_prompt = f"{bundle.system}\n\n{compact_runtime_context(runtime_manifest)}"
     except Exception as exc:
         if lifecycle_handle is not None and not lifecycle_done:

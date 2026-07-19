@@ -47,6 +47,7 @@ def start_turn(
     manifest_revision: str,
     requested_model: str,
     attachment_ids: list[str] | None = None,
+    objective: str | None = None,
 ) -> TurnHandle:
     """Persist the user message and running attempt before provider dispatch."""
     if not conversation_id.strip():
@@ -64,6 +65,8 @@ def start_turn(
             isinstance(a, str) and a.strip() for a in attachment_ids
         ):
             raise ChatLifecycleError("attachment_ids must be a list of non-empty strings")
+    if objective is not None and not isinstance(objective, str):
+        raise ChatLifecycleError("objective must be a string or None")
     artifact_ids_json = json.dumps(attachment_ids or [])
 
     init_db()
@@ -74,17 +77,19 @@ def start_turn(
     with kitty_db.connect(LIFECYCLE_DB_FILE) as conn:
         conn.execute(
             """
-            INSERT INTO chat_conversations (id, project_id, title, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO chat_conversations
+                (id, project_id, title, objective, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 project_id = COALESCE(excluded.project_id, chat_conversations.project_id),
                 title = CASE
                     WHEN excluded.title = '' THEN chat_conversations.title
                     ELSE excluded.title
                 END,
+                objective = COALESCE(excluded.objective, chat_conversations.objective),
                 updated_at = excluded.updated_at
             """,
-            (conversation_id, project_id, title, now, now),
+            (conversation_id, project_id, title, objective, now, now),
         )
         sequence = conn.execute(
             "SELECT COALESCE(MAX(sequence), 0) + 1 FROM chat_turns WHERE conversation_id = ?",

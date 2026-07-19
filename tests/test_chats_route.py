@@ -62,3 +62,62 @@ def test_delete_missing_is_ok(client):
 
     assert r.status_code == 200
     assert r.json() == {"ok": True}
+
+
+def test_patch_objective_sets_and_returns(client):
+    client.post("/chats", json={"id": "abc", "title": "test"})
+
+    patch = client.patch("/chats/abc/objective", json={"objective": "Find the answer"})
+    assert patch.status_code == 200
+    assert patch.json()["objective"] == "Find the answer"
+
+    get = client.get("/chats")
+    assert get.json()["chats"][0]["objective"] == "Find the answer"
+
+
+def test_patch_objective_clears(client):
+    client.post("/chats", json={"id": "abc", "title": "test"})
+    client.patch("/chats/abc/objective", json={"objective": "thing"})
+    patch = client.patch("/chats/abc/objective", json={"objective": None})
+
+    assert patch.status_code == 200
+    assert patch.json().get("objective") is None
+
+
+def test_patch_objective_rejects_long_string(client):
+    client.post("/chats", json={"id": "abc", "title": "test"})
+    r = client.patch("/chats/abc/objective", json={"objective": "x" * 501})
+
+    assert r.status_code == 400
+    assert "500" in r.json()["detail"]
+
+
+def test_patch_objective_rejects_non_string(client):
+    client.post("/chats", json={"id": "abc", "title": "test"})
+    r = client.patch("/chats/abc/objective", json={"objective": 42})
+
+    assert r.status_code == 400
+
+
+def test_patch_objective_requires_field(client):
+    client.post("/chats", json={"id": "abc", "title": "test"})
+
+    r = client.patch("/chats/abc/objective", json={})
+
+    assert r.status_code == 400
+    assert "objective" in r.json()["detail"]
+
+
+def test_patch_objective_rejects_non_object_payload(client):
+    client.post("/chats", json={"id": "abc", "title": "test"})
+
+    r = client.patch("/chats/abc/objective", json=[])
+
+    assert r.status_code == 400
+    assert "object" in r.json()["detail"]
+
+
+def test_patch_objective_missing_chat_returns_404(client):
+    r = client.patch("/chats/no-such/objective", json={"objective": "goal"})
+
+    assert r.status_code == 404

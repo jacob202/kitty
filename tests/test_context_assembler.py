@@ -358,6 +358,69 @@ def test_format_unified_skips_empty_sources():
 
 
 # ---------------------------------------------------------------------------
+# Objective injection in assemble_context
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_assemble_context_with_objective_injects_thread_goal():
+    """An objective value produces a 'Thread goal:' line in the prompt."""
+    dep = _AssemblerDeps(
+        adapters=[FakeAdapter("memory", items=[Item(text="x", source=Source.MEMORY)])],
+        enrichments=(),
+    )
+    bundle = await assemble_context("hello", objective="Find the answer", deps=dep)
+
+    assert "Thread goal: Find the answer" in bundle.system
+
+
+@pytest.mark.asyncio
+async def test_assemble_context_without_objective_byte_identical():
+    """No objective → output identical to calling without the kwarg."""
+    dep = _AssemblerDeps(
+        adapters=[FakeAdapter("memory", items=[Item(text="x", source=Source.MEMORY)])],
+        enrichments=(_fake_enrichment("block-a"),),
+    )
+
+    ref = await assemble_context("hello", deps=dep)
+    actual = await assemble_context("hello", objective=None, deps=dep)
+
+    assert ref.system == actual.system
+    assert ref.memory_items == actual.memory_items
+    assert ref.live_blocks == actual.live_blocks
+    assert ref.warnings == actual.warnings
+
+
+@pytest.mark.asyncio
+async def test_assemble_context_with_empty_objective_is_byte_identical():
+    """Empty string objective is treated the same as None."""
+    dep = _AssemblerDeps(
+        adapters=[FakeAdapter("memory", items=[Item(text="x", source=Source.MEMORY)])],
+        enrichments=(),
+    )
+
+    ref = await assemble_context("hello", deps=dep)
+    actual = await assemble_context("hello", objective="", deps=dep)
+
+    assert ref.system == actual.system
+
+
+@pytest.mark.asyncio
+async def test_assemble_context_preserves_positional_deps_contract():
+    """Adding the optional objective must not reinterpret the existing deps slot."""
+    dep = _AssemblerDeps(
+        adapters=[FakeAdapter("memory", items=[])],
+        enrichments=(),
+        skill_hint_fn=lambda _message: "",
+    )
+
+    positional = await assemble_context("hello", False, None, dep)
+    keyword = await assemble_context("hello", deps=dep)
+
+    assert positional == keyword
+
+
+# ---------------------------------------------------------------------------
 # Real adapter classes still implement the contract
 # ---------------------------------------------------------------------------
 

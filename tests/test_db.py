@@ -85,7 +85,7 @@ def test_default_migrations_create_chats_table(tmp_path):
             row[1] for row in conn.execute("PRAGMA table_info(chats)").fetchall()
         }
     assert table == ("chats",)
-    assert columns == {"id", "payload", "updated_at"}
+    assert columns == {"id", "payload", "updated_at", "objective"}
 
 
 def test_default_migrations_create_journal_entries_table(tmp_path):
@@ -161,6 +161,8 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "017_artifacts.sql",
         "018_message_attachments.sql",
         "019_idea_mine.sql",
+        "020_chat_objective.sql",
+        "021_chat_lifecycle_objective.sql",
     ]
 
 
