@@ -1,77 +1,62 @@
-# Session State — Lead Run 2026-07-19 (Claude as project lead, one-shot)
+# Session State — Free-Worker Initiative Authoring (remote container)
 
 <!-- kitty-state
 {
   "schema_version": 1,
-  "updated_at": "2026-07-19T00:00:00Z",
-  "head_sha": "92303efbbde0dd91293fd3fd5ad3ef2507597a0b",
-  "branch": "main",
+  "updated_at": "2026-07-18T00:38:31Z",
+  "head_sha": "41a18b44bc92d3a259caa4df8e7104297c9c8daf",
+  "branch": "claude/kitty-test-hardening-0j2yn0",
   "worktree": ".",
-  "status": "running",
+  "status": "blocked",
   "completed_items": [
-    "TH-01 recovered earlier (PR #191, open), TH-02 recovered + validated (PR #192, CI green), scope-gate residue fix (PR #193, CI green)"
+    "authored docs/initiatives/builder-test-hardening-v1.json (TH-01 fail-loud sweep, TH-02 route contract tests, TH-03 CI ratchet) from pr164-archaeology section 6 R1-R3",
+    "authored docs/initiatives/chat-recovery-v1.json (7 packets, R4-R8; goal sidebar excluded as parked)",
+    "authored docs/initiatives/reasoning-backend-v1.json (028 slices C1/C2/C5 only; Parts A/B left for a human/UI pass)",
+    "fixed docs/initiatives/packet-027-v1.json schema drift (forbidden_paths / attempt_3_authorization keys are not in today's manifest schema; intent folded into objective text)",
+    "validated and applied all four manifests: 18 packets materialized in this container's Builder store",
+    "launched TH-01-fail-loud-sweep with --free --watch; both attempts failed as pure infrastructure failures"
   ],
-  "blockers": [],
-  "next_action": "CP1: merge green PRs (#191 if green, #192, #193), true-up builder DB rows; then CP2: implement TH-03 CI ratchet; then CP3+: P027 packets in queue order",
+  "blockers": [
+    "this remote container's network policy 403s opencode.ai, models.dev, and openrouter.ai at the egress proxy, so the entire free-model ladder is unreachable; no free worker can run here",
+    "TH-01 shows exhausted in this container's Builder store from those two infra-only failures (no model ever ran, no worktree changes) - the budget-poisoning case packet 027 exists to fix"
+  ],
+  "next_action": "On the Mac: apply the four manifests, launch TH-01 then TH-02 with --free --watch, review final diffs, operator-gated publish",
   "invalidation_conditions": [
-    "HEAD changes outside this lead run's own merges/commits",
-    "a pull request changes state outside this run"
+    "HEAD changes outside one checkpoint-only commit",
+    "the branch or registered worktree changes",
+    "a fetch changes origin/main",
+    "any of the four initiative manifests under docs/initiatives/ changes",
+    "a pull request is opened or changes state"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
 }
 -->
 
-## Lead run plan (checkpoints)
+## Current checkpoint
 
-Jacob delegated project lead 2026-07-19: "take us as far as you can go in one
-shot" with clear checkpoints. Each CP updates this file when reached. If this
-run dies mid-flight, resume at the first unchecked CP.
+- Timestamp: 2026-07-18T00:38:31Z
+- Branch: claude/kitty-test-hardening-0j2yn0 (remote Claude Code container, not the Mac)
+- Status: paid-side authoring complete; free-worker execution blocked by container network policy
 
-- [x] CP0 — this plan written
-- [x] CP1 — #191/#192/#193 all merged to main (found already merged).
-      Fixed live bug found en route: gh >= 2.80 removed `merged` JSON field,
-      breaking sync-pr/reconcile-merges → PR #194 (fix/builder-gh-merged-field).
-      TH-01 + TH-02 task rows walked to done via transition_task with operator
-      payloads (reconcile-merges refuses operator-recovered tasks — gap flagged
-      as background-task chip task_897318ac).
-- [~] CP2 — TH-03 CI ratchet: in flight. Discrepancy found: the workflow's
-      --ignore flags point at tests deleted in d260309 (2026-06-18) — they
-      are dead config, remove both. First coverage run was tainted by my own
-      STATE.md rewrite (continuity tests) + mid-run branch edits; clean
-      measurement now running in a pristine worktree at origin/main
-      (scratchpad/th03-measure, bg task bwi2lhngk). Threshold = measured − 3.
-- [x] CP3 — P027-stale-attempt-reconciliation: ALREADY IMPLEMENTED on main
-      (commits 7a0a167 + 7ceb511, tests in test_builder_loop.py). Verified
-      all ACs, validation suites green, task kb_mrpo81g0_16d0 closed done
-      with evidence payload.
-- [x] CP4 — P027-bounded-recovery-budget: implemented. run_packet stops with
-      truthful blocker after 3 consecutive identical infra crashes
-      (configurable); recovery_budget_exhausted event; run_exited resets
-      window. PR #195. Task row not yet closed (close after merge).
-- [ ] CP5 — P027-no-stale-artifact-reuse (kb_mrpo81g1_be1e): reconciliation
-      must archive crashed-worktree changes as attempt evidence then reset
-      the worktree clean; verify review-binding stale-SHA tests exist.
-- [ ] CP6 — P027-recovery-exercise (kb_mrpo81g1_565a): kill-mid-run
-      integration test proving reconcile + budget + clean-start end to end.
-- [ ] CP7 — P027-truthful-closeout (kb_mrpo81g1_9c41): verify ACs vs main
-      (initiative_status rollup after recovery), implement any gap.
-- [ ] CP8 — final report to Jacob + this file flipped to completed; close
-      merged P027 task rows; merge green PRs (#194, #195, later ones)
+## Completed
 
-## Where I was
+- Four initiative manifests authored/repaired, validated, and applied
+  (builder-test-hardening-v1, chat-recovery-v1, reasoning-backend-v1,
+  packet-027-builder-restart-recovery): 18 packets total.
+- TH-01 launched on the free ladder; every free endpoint was rejected by this
+  container's egress proxy (403 CONNECT to opencode.ai / models.dev /
+  openrouter.ai). Failure evidence preserved under
+  data/kittybuilder/attempts/kb_mrpmm5qy_e78a/.
 
-TH-02 forensic recovery complete (see
-data/kittybuilder/recovery/TH-02-operator-report.json). PRs #192/#193 CI
-fully green. google-auth env gap fixed. Full local suite green.
+## Blocker
 
-## Where I am
+The free-model ladder is unreachable from this container by network policy.
+The Builder store here is ephemeral; the manifests in docs/initiatives/ are
+the durable artifact. Re-applying them on the Mac starts with a fresh attempt
+budget, which also clears TH-01's infra-poisoned "exhausted" state.
 
-Starting CP1.
+## Next action
 
-## Where I'm going
-
-Priority order = builder queue priority: P027 reliability packets protect the
-free-worker train and are queue priority 10; TH-03 closes the test-hardening
-initiative first since it is small and its precondition (TH-02 merged) lands
-in CP1.
+Run the queue from the Mac per .claude/HANDOFF.md launch order. TH-03 stays
+parked until TH-02 has merged to main.
