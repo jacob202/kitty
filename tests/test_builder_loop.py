@@ -565,6 +565,181 @@ class TestRunPacket:
 
 
 # ---------------------------------------------------------------------------
+# P027 — no stale implementation artifact reuse after crash recovery
+# ---------------------------------------------------------------------------
+
+
+class TestNoStaleArtifactReuse:
+    def test_crashed_dirty_worktree_is_archived_and_next_attempt_starts_clean(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """A crashed worker's dirty worktree must not poison the next attempt.
+
+        Before P027 this deadlocked: ensure_worktree refuses dirty worktrees,
+        so every re-entry crashed on orchestration forever."""
+        from gateway import builder_runner as br
+        from gateway.builder_brief import default_branch_name
+
+        task_id = _apply(db_path, repo_root=repo)
+        branch = default_branch_name({"id": task_id})
+        stale, _lease = ba.claim_and_start_attempt(
+            INITIATIVE,
+            PACKET,
+            worker_id="dead-packet-worker",
+            branch=branch,
+            worktree_path=str(repo / ".worktrees" / "kittybuilder" / task_id),
+            base_sha=ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path),
+            db_path=db_path,
+        )
+        # Simulate the crash: worktree exists with tracked + untracked changes.
+        wt = br.ensure_worktree(task_id, branch, repo_root=repo)
+        (wt / "README.md").write_text("half-finished edit\n")
+        (wt / "junk.txt").write_text("partial progress\n")
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == bl.LOOP_SUCCEEDED
+
+        # Crash evidence was preserved in the stale attempt's artifact dir.
+        attempt_dir = db_path.parent / "attempts" / task_id / str(stale["id"])
+        patch = (attempt_dir / "crashed-worktree.patch").read_text()
+        assert "half-finished edit" in patch
+        assert "partial progress" in patch
+        status = (attempt_dir / "crashed-worktree-status.txt").read_text()
+        assert "junk.txt" in status
+
+        # The new attempt did not inherit the stale changes: its run saw a
+        # clean tree, so only the worker's own output shows as changed.
+        runs = bq.list_runs(task_id=task_id, db_path=db_path)
+        report = runs[-1]["final_report"]
+        assert "junk.txt" not in report["changed_paths"]
+        assert "README.md" not in report["changed_paths"]
+        assert "done.txt" in report["changed_paths"]
+
+        events = bq.list_events(task_id, db_path=db_path)
+        stale_events = [
+            e for e in events
+            if e["type"] == "infrastructure_failed"
+            and e.get("payload", {}).get("phase") == "stale_attempt_reconciliation"
+        ]
+        assert stale_events[0]["payload"]["worktree"]["state"] == "archived_and_reset"
+
+    def test_clean_worktree_reconciliation_archives_nothing(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        task_id = _apply(db_path, repo_root=repo)
+        stale = ba.start_attempt(INITIATIVE, PACKET, db_path=db_path)
+
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == bl.LOOP_SUCCEEDED
+        attempt_dir = db_path.parent / "attempts" / task_id / str(stale["id"])
+        assert not (attempt_dir / "crashed-worktree.patch").exists()
+
+
+# ---------------------------------------------------------------------------
+# P027 — bounded infrastructure-recovery budget
+# ---------------------------------------------------------------------------
+
+
+class TestRecoveryBudget:
+    def _crash(self, task_id: str, db_path: Path, reason: str = "worktree exploded"):
+        bq.append_event(
+            task_id,
+            "infrastructure_failed",
+            payload={"reason": reason, "counts_toward_budget": False},
+            db_path=db_path,
+        )
+
+    def test_counts_trailing_identical_crashes(self, repo: Path, db_path: Path):
+        task_id = _apply(db_path, repo_root=repo)
+        for _ in range(3):
+            self._crash(task_id, db_path)
+        count, reason = bl._consecutive_identical_crashes(task_id, db_path=db_path)
+        assert (count, reason) == (3, "worktree exploded")
+
+    def test_different_reason_breaks_the_run(self, repo: Path, db_path: Path):
+        task_id = _apply(db_path, repo_root=repo)
+        self._crash(task_id, db_path, reason="disk full")
+        self._crash(task_id, db_path, reason="disk full")
+        self._crash(task_id, db_path, reason="worktree exploded")
+        count, reason = bl._consecutive_identical_crashes(task_id, db_path=db_path)
+        assert (count, reason) == (1, "worktree exploded")
+
+    def test_run_exited_resets_the_window(self, repo: Path, db_path: Path):
+        task_id = _apply(db_path, repo_root=repo)
+        for _ in range(3):
+            self._crash(task_id, db_path)
+        bq.append_event(task_id, "run_exited", payload={}, db_path=db_path)
+        count, _reason = bl._consecutive_identical_crashes(task_id, db_path=db_path)
+        assert count == 0
+
+    def test_stops_with_truthful_blocker_after_identical_crashes(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        task_id = _apply(db_path, repo_root=repo)
+        for _ in range(3):
+            self._crash(task_id, db_path)
+
+        with pytest.raises(bl.LoopError) as exc:
+            bl.run_packet(
+                INITIATIVE, PACKET,
+                worker_command=_good_worker(tmp_path),
+                repo_root=repo, db_path=db_path,
+            )
+        message = str(exc.value)
+        assert "recovery budget exhausted" in message
+        assert "3 consecutive identical" in message
+        assert "worktree exploded" in message
+        assert "recovery was attempted" in message
+
+        events = bq.list_events(task_id, db_path=db_path)
+        exhausted = [e for e in events if e["type"] == "recovery_budget_exhausted"]
+        assert len(exhausted) == 1
+        assert exhausted[0]["payload"]["crash_count"] == 3
+        # No new attempt was opened after the budget stop.
+        assert ba.list_stale_attempts(INITIATIVE, PACKET, db_path=db_path) == []
+        # Truthful closeout: the task is durably blocked with the real reason.
+        task = bq.get_task(task_id, db_path=db_path)
+        assert task["state"] == bq.BLOCKED
+        assert task["blocked_reason"] == "recovery_budget_exhausted"
+
+    def test_non_identical_crashes_do_not_stop_the_run(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        task_id = _apply(db_path, repo_root=repo)
+        self._crash(task_id, db_path, reason="disk full")
+        self._crash(task_id, db_path, reason="worktree exploded")
+        self._crash(task_id, db_path, reason="lease vanished")
+
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == "succeeded"
+
+    def test_limit_is_configurable(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        task_id = _apply(db_path, repo_root=repo)
+        self._crash(task_id, db_path)
+
+        with pytest.raises(bl.LoopError, match="recovery budget exhausted"):
+            bl.run_packet(
+                INITIATIVE, PACKET,
+                worker_command=_good_worker(tmp_path),
+                max_consecutive_recoveries=1,
+                repo_root=repo, db_path=db_path,
+            )
+
+
+# ---------------------------------------------------------------------------
 # P027 — truthful closeout after a crash-recovery cycle
 # ---------------------------------------------------------------------------
 

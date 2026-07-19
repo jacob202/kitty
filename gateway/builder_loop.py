@@ -41,6 +41,7 @@ from gateway.builder_brief import default_branch_name
 from gateway.builder_context import build_context_manifest, write_run_manifest
 from gateway.builder_runner import (
     RunnerError,
+    archive_and_reset_worktree,
     preflight_worktree,
     remove_worktree,
     run_worker,
@@ -51,6 +52,10 @@ from gateway.builder_runner import (
 from gateway.paths import BUILDER_QUEUE_DB
 
 DEFAULT_REVIEW_TIMEOUT = 1800
+
+# P027: consecutive identical infrastructure crashes tolerated before the
+# loop stops with a truthful blocker instead of recovering forever.
+DEFAULT_MAX_CONSECUTIVE_RECOVERIES = 3
 
 LOOP_SUCCEEDED = "succeeded"
 LOOP_EXHAUSTED = "exhausted"
@@ -207,6 +212,34 @@ def _validate_context_manifest(
     return parsed
 
 
+def _consecutive_identical_crashes(
+    task_id: str,
+    *,
+    db_path: Path | None = None,
+) -> tuple[int, str]:
+    """Return (count, reason) of the trailing run of identical infra crashes.
+
+    Walks the task's event log newest-first, counting ``infrastructure_failed``
+    events that share one reason. A ``run_exited`` event breaks the run — a
+    worker completing a run is proof the infrastructure works. A crash with a
+    different reason also breaks it, so distinct failure modes are tracked
+    independently.
+    """
+    count = 0
+    reason = ""
+    for event in reversed(bq.list_events(task_id, db_path=db_path)):
+        etype = event["type"]
+        if etype == "infrastructure_failed":
+            this_reason = str((event.get("payload") or {}).get("reason") or "")
+            if count and this_reason != reason:
+                break
+            reason = this_reason
+            count += 1
+        elif etype == "run_exited":
+            break
+    return count, reason
+
+
 def _reconcile_stale_attempts(
     initiative_id: str,
     packet_id: str,
@@ -256,6 +289,13 @@ def _reconcile_stale_attempts(
         attempt_dir_path.mkdir(parents=True, exist_ok=True)
         write_run_manifest(manifest_path, manifest)
 
+        # P027: the crashed attempt's partial work is evidence, not a starting
+        # point — archive it into the attempt dir, then reset the worktree so
+        # the next attempt starts clean.
+        worktree_evidence = archive_and_reset_worktree(
+            worktree_path(task_id, repo_root=repo_root), attempt_dir_path
+        )
+
         lease_id = attempt.get("lease_id")
         if lease_id is None:
             # Legacy attempts predate branch-lease binding. Their lack of a
@@ -286,6 +326,7 @@ def _reconcile_stale_attempts(
                 "phase": "stale_attempt_reconciliation",
                 "attempt_id": attempt_id,
                 "attempt_no": attempt["attempt_no"],
+                "worktree": worktree_evidence,
             },
             db_path=db_path,
         )
@@ -485,6 +526,7 @@ def run_packet(
     timeout_seconds: int = 3600,
     validation_timeout_seconds: int = ba.DEFAULT_VALIDATION_TIMEOUT,
     review_timeout_seconds: int = DEFAULT_REVIEW_TIMEOUT,
+    max_consecutive_recoveries: int = DEFAULT_MAX_CONSECUTIVE_RECOVERIES,
     repo_root: Path | None = None,
     db_path: Path | None = None,
 ) -> dict[str, Any]:
@@ -550,6 +592,43 @@ def run_packet(
             f"{task['state']}; the loop only starts on a queued task or a "
             "blocked task with a stale attempt"
         )
+
+    crash_count, crash_reason = _consecutive_identical_crashes(
+        task_id, db_path=db_path
+    )
+    if max_consecutive_recoveries > 0 and crash_count >= max_consecutive_recoveries:
+        blocker = (
+            f"recovery budget exhausted: {crash_count} consecutive identical "
+            f"infrastructure crashes (reason: {crash_reason}); recovery was "
+            f"attempted after each crash. Operator inspection required before "
+            f"another run."
+        )
+        bq.append_event(
+            task_id,
+            "recovery_budget_exhausted",
+            payload={
+                "crash_count": crash_count,
+                "reason": crash_reason,
+                "max_consecutive_recoveries": max_consecutive_recoveries,
+            },
+            db_path=db_path,
+        )
+        # Truthful closeout: leave the task durably blocked with the real
+        # reason instead of queued, so the rollup and the operator both see
+        # why the loop stopped. (QUEUED tasks walk the legal state chain.)
+        current = bq.get_task(task_id, db_path=db_path)
+        if current is not None and current["state"] == bq.QUEUED:
+            bq.transition_task(task_id, bq.CLAIMED, db_path=db_path)
+            bq.transition_task(task_id, bq.RUNNING, db_path=db_path)
+        current = bq.get_task(task_id, db_path=db_path)
+        if current is not None and current["state"] == bq.RUNNING:
+            bq.transition_task(
+                task_id,
+                bq.BLOCKED,
+                payload={"reason": "recovery_budget_exhausted"},
+                db_path=db_path,
+            )
+        raise LoopError(blocker)
 
     # Verify the packet has a durable base SHA before entering the repair
     # loop. Without it, branch lease claims cannot proceed safely.
