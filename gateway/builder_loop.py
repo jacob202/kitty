@@ -40,6 +40,8 @@ from gateway import builder_queue as bq
 from gateway.builder_brief import default_branch_name
 from gateway.builder_context import build_context_manifest, write_run_manifest
 from gateway.builder_runner import (
+    DEFAULT_HEARTBEAT_SECONDS,
+    DEFAULT_LEASE_SECONDS,
     RunnerError,
     archive_and_reset_worktree,
     preflight_worktree,
@@ -526,6 +528,8 @@ def run_packet(
     timeout_seconds: int = 3600,
     validation_timeout_seconds: int = ba.DEFAULT_VALIDATION_TIMEOUT,
     review_timeout_seconds: int = DEFAULT_REVIEW_TIMEOUT,
+    lease_seconds: int = DEFAULT_LEASE_SECONDS,
+    heartbeat_seconds: int = DEFAULT_HEARTBEAT_SECONDS,
     max_consecutive_recoveries: int = DEFAULT_MAX_CONSECUTIVE_RECOVERIES,
     repo_root: Path | None = None,
     db_path: Path | None = None,
@@ -780,6 +784,8 @@ def run_packet(
                 model=model,
                 provider=provider,
                 timeout_seconds=timeout_seconds,
+                lease_seconds=lease_seconds,
+                heartbeat_seconds=heartbeat_seconds,
                 repo_root=repo_root,
                 db_path=db_path,
                 base_sha=base_sha,
