@@ -325,6 +325,35 @@ def _diff_sha256(path: Path, start_sha: str) -> str:
     return digest.hexdigest()
 
 
+def archive_and_reset_worktree(path: Path, evidence_dir: Path) -> dict[str, Any]:
+    """Preserve a crashed worker's uncommitted changes, then reset the worktree.
+
+    Stages everything (so untracked files land in one patch), writes the patch
+    and porcelain status into *evidence_dir*, then hard-resets and cleans the
+    worktree so the next attempt starts from a clean tree instead of tripping
+    ``ensure_worktree``'s dirty refusal forever. A missing or clean worktree is
+    a no-op. Returns ``{"state", "patch_path"}``.
+    """
+    if not path.exists():
+        return {"state": "missing", "patch_path": None}
+    status = _git_output(
+        ["status", "--porcelain=v1", "--untracked-files=all"], cwd=path
+    )
+    if not status.strip():
+        return {"state": "clean", "patch_path": None}
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    _git_output(["add", "-A"], cwd=path)
+    patch = _git_output(["diff", "--cached", "HEAD"], cwd=path)
+    patch_path = evidence_dir / "crashed-worktree.patch"
+    patch_path.write_text(patch, encoding="utf-8")
+    (evidence_dir / "crashed-worktree-status.txt").write_text(
+        status, encoding="utf-8"
+    )
+    _git_output(["reset", "--hard", "HEAD"], cwd=path)
+    _git_output(["clean", "-fd"], cwd=path)
+    return {"state": "archived_and_reset", "patch_path": str(patch_path)}
+
+
 def worktree_head(path: Path) -> str:
     """Return the exact commit currently checked out in a worker worktree."""
     return _git_output(["rev-parse", "HEAD"], cwd=path).strip()
