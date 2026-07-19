@@ -223,6 +223,30 @@ class TestRunWorker:
         assert refreshed["state"] == bq.BLOCKED
         assert refreshed["blocked_reason"] == "scope_violation"
 
+    def test_session_state_residue_is_not_a_scope_violation(
+        self, repo: Path, db_path: Path
+    ):
+        task = _queued_task(db_path, allowed_paths=["gateway/"])
+        command = [
+            "sh",
+            "-c",
+            "mkdir -p gateway .claude && echo ok > gateway/ok.py && "
+            "echo residue > .claude/STATE.md",
+        ]
+
+        run = br.run_worker(
+            task["id"],
+            command,
+            timeout_seconds=30,
+            heartbeat_seconds=1,
+            repo_root=repo,
+            db_path=db_path,
+        )
+
+        assert run["state"] == bq.RUN_EXITED
+        assert ".claude/STATE.md" in run["final_report"]["changed_paths"]
+        assert run["final_report"]["scope_violations"] == []
+
     def test_scope_check_includes_commits_since_start_sha(
         self, repo: Path, db_path: Path
     ):
