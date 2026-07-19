@@ -1743,7 +1743,9 @@ def _gh_pr_status(pr_number: int) -> dict[str, Any]:
                 "view",
                 str(pr_number),
                 "--json",
-                "merged,url,headRefOid,statusCheckRollup,reviews,reviewDecision",
+                # "state" not "merged": gh >= 2.80 dropped the boolean
+                # "merged" field from `pr view --json`.
+                "state,url,headRefOid,statusCheckRollup,reviews,reviewDecision",
             ],
             capture_output=True,
             text=True,
@@ -1769,7 +1771,7 @@ def _gh_pr_status(pr_number: int) -> dict[str, Any]:
         data.get("reviews") or [], decision=data.get("reviewDecision")
     )
     return {
-        "merged": bool(data.get("merged")),
+        "merged": data.get("state") == "MERGED",
         "url": data.get("url"),
         "head_sha": data.get("headRefOid"),
         "checks_state": checks_state,
