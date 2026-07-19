@@ -565,6 +565,99 @@ class TestRunPacket:
 
 
 # ---------------------------------------------------------------------------
+# P027 — bounded infrastructure-recovery budget
+# ---------------------------------------------------------------------------
+
+
+class TestRecoveryBudget:
+    def _crash(self, task_id: str, db_path: Path, reason: str = "worktree exploded"):
+        bq.append_event(
+            task_id,
+            "infrastructure_failed",
+            payload={"reason": reason, "counts_toward_budget": False},
+            db_path=db_path,
+        )
+
+    def test_counts_trailing_identical_crashes(self, repo: Path, db_path: Path):
+        task_id = _apply(db_path, repo_root=repo)
+        for _ in range(3):
+            self._crash(task_id, db_path)
+        count, reason = bl._consecutive_identical_crashes(task_id, db_path=db_path)
+        assert (count, reason) == (3, "worktree exploded")
+
+    def test_different_reason_breaks_the_run(self, repo: Path, db_path: Path):
+        task_id = _apply(db_path, repo_root=repo)
+        self._crash(task_id, db_path, reason="disk full")
+        self._crash(task_id, db_path, reason="disk full")
+        self._crash(task_id, db_path, reason="worktree exploded")
+        count, reason = bl._consecutive_identical_crashes(task_id, db_path=db_path)
+        assert (count, reason) == (1, "worktree exploded")
+
+    def test_run_exited_resets_the_window(self, repo: Path, db_path: Path):
+        task_id = _apply(db_path, repo_root=repo)
+        for _ in range(3):
+            self._crash(task_id, db_path)
+        bq.append_event(task_id, "run_exited", payload={}, db_path=db_path)
+        count, _reason = bl._consecutive_identical_crashes(task_id, db_path=db_path)
+        assert count == 0
+
+    def test_stops_with_truthful_blocker_after_identical_crashes(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        task_id = _apply(db_path, repo_root=repo)
+        for _ in range(3):
+            self._crash(task_id, db_path)
+
+        with pytest.raises(bl.LoopError) as exc:
+            bl.run_packet(
+                INITIATIVE, PACKET,
+                worker_command=_good_worker(tmp_path),
+                repo_root=repo, db_path=db_path,
+            )
+        message = str(exc.value)
+        assert "recovery budget exhausted" in message
+        assert "3 consecutive identical" in message
+        assert "worktree exploded" in message
+        assert "recovery was attempted" in message
+
+        events = bq.list_events(task_id, db_path=db_path)
+        exhausted = [e for e in events if e["type"] == "recovery_budget_exhausted"]
+        assert len(exhausted) == 1
+        assert exhausted[0]["payload"]["crash_count"] == 3
+        # No new attempt was opened after the budget stop.
+        assert ba.list_stale_attempts(INITIATIVE, PACKET, db_path=db_path) == []
+
+    def test_non_identical_crashes_do_not_stop_the_run(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        task_id = _apply(db_path, repo_root=repo)
+        self._crash(task_id, db_path, reason="disk full")
+        self._crash(task_id, db_path, reason="worktree exploded")
+        self._crash(task_id, db_path, reason="lease vanished")
+
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == "succeeded"
+
+    def test_limit_is_configurable(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        task_id = _apply(db_path, repo_root=repo)
+        self._crash(task_id, db_path)
+
+        with pytest.raises(bl.LoopError, match="recovery budget exhausted"):
+            bl.run_packet(
+                INITIATIVE, PACKET,
+                worker_command=_good_worker(tmp_path),
+                max_consecutive_recoveries=1,
+                repo_root=repo, db_path=db_path,
+            )
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
