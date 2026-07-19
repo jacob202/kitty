@@ -2792,6 +2792,29 @@ class TestMergeDetection:
         bq.attach_pr(task["id"], 42, pr_url="https://example.test/42", db_path=db_path)
         return bq.get_task(task["id"], db_path=db_path)
 
+    def test_gh_pr_status_derives_merged_from_state(self, monkeypatch):
+        """gh >= 2.80 has no boolean `merged` field; state == MERGED is the source."""
+        payload = {
+            "state": "MERGED",
+            "url": "https://example.test/7",
+            "headRefOid": "abc123",
+            "statusCheckRollup": [],
+            "reviews": [],
+            "reviewDecision": None,
+        }
+
+        def fake_run(cmd, **kwargs):
+            assert "state" in cmd[-1] and "merged" not in cmd[-1]
+            return bq.subprocess.CompletedProcess(cmd, 0, stdout=json.dumps(payload), stderr="")
+
+        monkeypatch.setattr(bq.subprocess, "run", fake_run)
+        status = bq._gh_pr_status(7)
+        assert status["merged"] is True
+        assert status["head_sha"] == "abc123"
+
+        payload["state"] = "OPEN"
+        assert bq._gh_pr_status(7)["merged"] is False
+
     def test_sync_pr_status_updates_checks_without_task_mutation(self, db_path: Path):
         task = self._task_with_pr(db_path)
         before = task["state"]
