@@ -1,0 +1,75 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "chat-recovery-continuation-v1",
+  "title": "Chat recovery continuation: safe memory correction and model override",
+  "description": "Replacement execution packets for CR-06 and CR-07. The original initiative is immutable and pinned before CR-05 was merged; these packets run against the current published base while preserving the original task history. CR-06b deliberately adds identity plumbing because the shipped memory trailer contains display text only, which cannot safely identify a deletable memory.",
+  "packets": [
+    {
+      "id": "CR-06b-memory-correction-with-identity",
+      "title": "Safe memory correction with opaque identity",
+      "objective": "Make the existing 'kitty remembered' evidence actionable without text matching. Carry the selected, policy-approved memory evidence as opaque IDs plus display text from ContextBundle through the completion SSE trailer and durable chat lifecycle/readback. Preserve the current text-only memory_items compatibility surface for existing clients. In the chat UI, render one explicit remove control per memory only when it has a memory ID; a tap must open an inline confirmation state, and DELETE /memories/{id} may run only after confirmation. Cancellation must make no request and keep the item visible. After confirmed deletion succeeds, remove only that evidence item locally. Deletion errors must stay visible and leave the item unchanged. Do not delete non-memory source evidence, do not add fuzzy text lookup, and do not change gateway/memory_policy.py.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "The completion trailer and recovered lifecycle messages retain text plus an opaque ID only for deletable memory-source evidence; text-only clients still receive the existing memory_items list",
+        "The UI never issues DELETE on a first tap; confirm issues exactly one encoded DELETE request, cancel issues none, and an error is rendered without hiding the item",
+        "Duplicate display text cannot cause an ambiguous deletion because the request uses the selected opaque ID",
+        "Non-memory evidence is displayed but has no deletion control",
+        "gateway/memory_policy.py is unchanged",
+        "Focused backend and frontend tests pass"
+      ],
+      "allowed_paths": [
+        "gateway/context_assembler.py",
+        "gateway/memory_graph.py",
+        "gateway/chat_lifecycle.py",
+        "gateway/routes/chats.py",
+        "gateway/routes/completions.py",
+        "gateway/kitty-chat/src/components/ChatMessage.tsx",
+        "gateway/kitty-chat/src/lib/chat-client.ts",
+        "gateway/kitty-chat/src/lib/gateway.ts",
+        "gateway/kitty-chat/src/lib/types.ts",
+        "gateway/kitty-chat/src/app/page.tsx",
+        "gateway/kitty-chat/tests/",
+        "tests/test_context_assembler.py",
+        "tests/test_chat_completions.py",
+        "tests/test_chat_lifecycle.py",
+        "tests/test_chats_route.py"
+      ],
+      "policy": { "max_attempts": 2, "priority": 9 },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_context_assembler.py tests/test_chat_completions.py tests/test_chat_lifecycle.py tests/test_chats_route.py -q --tb=short",
+        "cd gateway/kitty-chat && npm test -- --run ChatMessage.test.tsx chatClient.test.ts",
+        "cd gateway/kitty-chat && npm run build"
+      ]
+    },
+    {
+      "id": "CR-07b-model-override",
+      "title": "Per-message model override under the privacy boundary",
+      "objective": "Implement the original CR-07 behavior against the current chat surface. Add a compact, phone-first per-message model selector in InputBar and pass the chosen override for that request only. The gateway must validate the override, explicitly enforce the same privacy boundary as routed requests before any provider call, and return a clear 4xx for a forbidden override with no silent substitution. The following message must revert to normal routing. Reuse existing model discovery and routing seams; do not alter credentials, environment files, or provider configuration.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "An allowed override affects exactly one message and the next request returns to normal routing",
+        "A privacy-forbidden override produces an explicit 4xx before any provider call, with a focused backend test",
+        "The control is compact, keyboard-accessible, and usable at a phone viewport",
+        "Focused backend and frontend tests pass"
+      ],
+      "allowed_paths": [
+        "gateway/routes/completions.py",
+        "gateway/llm_client.py",
+        "gateway/kitty-chat/src/components/InputBar.tsx",
+        "gateway/kitty-chat/src/lib/chat-client.ts",
+        "gateway/kitty-chat/src/lib/types.ts",
+        "gateway/kitty-chat/src/app/page.tsx",
+        "gateway/kitty-chat/tests/",
+        "tests/test_chat_completions.py",
+        "tests/test_llm_privacy_boundary.py",
+        "tests/test_llm_routing.py"
+      ],
+      "policy": { "max_attempts": 2, "priority": 8 },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_chat_completions.py tests/test_llm_privacy_boundary.py tests/test_llm_routing.py -q --tb=short",
+        "cd gateway/kitty-chat && npm test -- --run",
+        "cd gateway/kitty-chat && npm run build"
+      ]
+    }
+  ]
+}
