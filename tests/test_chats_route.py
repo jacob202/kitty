@@ -121,3 +121,37 @@ def test_patch_objective_missing_chat_returns_404(client):
     r = client.patch("/chats/no-such/objective", json={"objective": "goal"})
 
     assert r.status_code == 404
+
+
+def test_ledger_recovery_carries_memory_evidence(client, monkeypatch, tmp_path):
+    """CR-05b: /chats/{id}/messages restores the memory items recorded on the
+    assistant message so the 'kitty remembered' block survives recovery."""
+    from gateway import chat_lifecycle
+
+    db_file = tmp_path / "kitty" / "kitty.db"
+    monkeypatch.setattr(chat_lifecycle, "LIFECYCLE_DB_FILE", db_file, raising=False)
+
+    handle = chat_lifecycle.start_turn(
+        conversation_id="chat-mem",
+        project_id=None,
+        title="Memory chat",
+        user_message_id="message-1",
+        user_text="what informed this?",
+        manifest_revision="test-revision",
+        requested_model="kitty-default",
+    )
+    chat_lifecycle.finish_turn(
+        handle,
+        status="succeeded",
+        assistant_text="here is the answer",
+        resolved_model="kitty-default",
+        memory_items=["decided on FastAPI", "prefers dark mode"],
+    )
+
+    payload = client.get("/chats/chat-mem/messages").json()
+    roles = {m["role"]: m for m in payload["messages"]}
+    assert roles["assistant"]["memory_items"] == [
+        "decided on FastAPI",
+        "prefers dark mode",
+    ]
+    assert roles["user"]["memory_items"] == []

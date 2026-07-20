@@ -180,6 +180,43 @@ class TestMemoryTrailer:
         assert finish_kwargs["assistant_text"] == "Hello"
         assert finish_kwargs["status"] == "succeeded"
 
+    def test_ledger_evidence_mirrors_the_delivered_trailer(self):
+        """CR-05b: finish_turn records exactly the (truncated) items the
+        client received — evidence follows the wire."""
+        bundle = ContextBundle(
+            system="SYS", injected_memory_items=["short", "y" * 300]
+        )
+        _, mocks = _post_stream(
+            [CONTENT_CHUNK_1, DONE_CHUNK],
+            bundle,
+            body={
+                "conversation_id": "chat-1",
+                "messages": [{"role": "user", "content": "hi"}],
+                "stream": True,
+            },
+            lifecycle_patches=True,
+        )
+        finish_kwargs = mocks["finish"].call_args.kwargs
+        assert finish_kwargs["memory_items"] == ["short", "y" * 200]
+
+    def test_no_ledger_evidence_when_trailer_was_never_delivered(self):
+        """A cut stream (no [DONE]) delivered no trailer — the ledger must
+        not claim evidence the client never saw."""
+        bundle = ContextBundle(system="SYS", injected_memory_items=["evidence"])
+        _, mocks = _post_stream(
+            [CONTENT_CHUNK_1],
+            bundle,
+            body={
+                "conversation_id": "chat-1",
+                "messages": [{"role": "user", "content": "hi"}],
+                "stream": True,
+            },
+            lifecycle_patches=True,
+        )
+        finish_kwargs = mocks["finish"].call_args.kwargs
+        assert finish_kwargs["status"] == "succeeded"
+        assert finish_kwargs["memory_items"] is None
+
 
 def test_thread_objective_reaches_lifecycle_and_context():
     mock_payload = {
