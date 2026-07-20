@@ -29,6 +29,21 @@ BEAR_LORA     = "Muscle_Bear_Baker_v2_for_transfer.safetensors"
 EXPLICIT_LORA = "erect_penis_epoch_80.safetensors"
 SDXL_PHOTONIC = "photonicFusionSDXL_final.safetensors"
 
+# These are the built-in node types emitted by Kitty's two workflow variants.
+# Checking them through /object_info turns a ComfyUI upgrade or stripped custom
+# install into an honest health failure before a user submits a job.
+COMFY_REQUIRED_NODES = frozenset(
+    {
+        "CheckpointLoaderSimple",
+        "LoraLoader",
+        "CLIPTextEncode",
+        "EmptyLatentImage",
+        "KSampler",
+        "VAEDecode",
+        "SaveImage",
+    }
+)
+
 EXPLICIT_KW = {"explicit", "erect", "hard cock", "erection", "boner", "cock", "nude explicit"}
 SDXL_KW     = {"realistic", "sdxl", "photo", "photorealistic", "high res", "high quality", "photonic"}
 
@@ -223,9 +238,22 @@ async def cancel(job_id: str) -> dict:
 async def is_available() -> bool:
     try:
         async with httpx.AsyncClient(timeout=3) as c:
-            r = await c.get(f"{COMFY_URL}/system_stats")
-            return r.status_code == 200
-    except Exception:
+            stats = await c.get(f"{COMFY_URL}/system_stats")
+            if stats.status_code != 200:
+                return False
+            object_info = await c.get(f"{COMFY_URL}/object_info")
+            if object_info.status_code != 200:
+                return False
+            payload = object_info.json()
+            if not isinstance(payload, dict):
+                raise RuntimeError(
+                    f"ComfyUI /object_info returned {type(payload).__name__}, expected an object"
+                )
+            missing = sorted(COMFY_REQUIRED_NODES.difference(payload))
+            if missing:
+                return False
+            return True
+    except httpx.RequestError:
         return False
 
 
