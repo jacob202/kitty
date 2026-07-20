@@ -1,12 +1,12 @@
-# Handoff — Chat Recovery Delivered; Next: Push Decision + IMG-02+
+# Handoff — Image Packets Integrated; Next: Kitty-Wide Frontend Harvest
 
 <!-- kitty-handoff
 {
   "schema_version": 1,
-  "updated_at": "2026-07-20T12:02:00Z",
-  "head_sha": "cf6a95c",
-  "branch": "feat/image-packets-current",
-  "worktree": ".worktrees/image-packets-current",
+  "updated_at": "2026-07-20T10:00:00Z",
+  "head_sha": "082a2e8b3d08ea87a1f4f0d6d150e4e0b8db5739",
+  "branch": "main",
+  "worktree": ".",
   "status": "valid",
   "completed_items": [
     "all 7 chat-recovery packets delivered (CR-06/07 directly on main: 78143f6, 9bd57af)",
@@ -14,14 +14,15 @@
     "tutor DTH-03/04 wired through routes and a TutorPanel, verified live (033cea0)",
     "audit refactor committed and green (c83eb91..33ee509)",
     "branch_leases migration fix for live builder DB (8a434cc)",
-    "19 branches + 11 worktrees cleaned; chat-recovery initiatives paused with evidence"
+    "19 branches + 11 worktrees cleaned; chat-recovery initiatives paused with evidence",
+    "feat/image-packets-current integrated into main (a55a19c..8dd3b21 merged at 082a2e8): Image Lab routes, health, errors, lineage, persist, router tests, provider center, gallery paths",
+    "origin/main synced (PR #215 feature-adjacent audit merged at ea6c140)"
   ],
   "blockers": [],
-  "next_action": "Ask Jacob whether to merge this isolated image-packet branch; COMFY_COMMIT pin still needs an operator-selected revision",
+  "next_action": "Kitty-wide frontend and product-experience harvest (in progress); do not start KX Builder initiatives until Jacob reviews the design direction",
   "invalidation_conditions": [
-    "HEAD changes beyond da5fc579bdabf20c6d9595c7e25c28becb36868d",
-    "branch or registered worktree changes",
-    "the active Mission changes"
+    "HEAD changes beyond 082a2e8b3d08ea87a1f4f0d6d150e4e0b8db5739",
+    "branch or registered worktree changes"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
@@ -30,48 +31,24 @@
 
 ## Resume here
 
-1. Image Lab packets IMG-02..IMG-06 and IMG-G8 are complete on
-   `feat/image-packets-current` at `cf6a95c`; backend and frontend checks are
-   green. The branch has not been merged or pushed.
-2. The ComfyUI workflow is validated against `/object_info`. Set a concrete
-   `COMFY_COMMIT` only after Jacob chooses the revision to pin.
-
-1. `main` has 12 unpushed local commits (`221aea6..da5fc57`). Pushing needs
-   Jacob's explicit yes — ask before any `git push`.
-2. Do NOT rerun chat-recovery packets: `chat-recovery-v1` and
-   `chat-recovery-continuation-v1` are paused with evidence notes because
-   CR-06/CR-07 (and their b-variants) landed directly on main. Resuming
-   those initiatives would rebuild shipped work.
-3. The gateway was restarted onto current code and is healthy; the
-   kitty-chat dev server may still be running on :4000 (preview session).
-4. Next candidates, in rough value order:
-   - IMG-02 ComfyUI cancellation + reconciliation (the IMG-01 store it
-     needs is now on main), then IMG-03 atomic persistence.
-   - Review/land or discard the kept campaign branches (see STATE.md list);
-     several reimplement builder governance features and are months of
-     drift behind main.
-   - reasoning-backend-v1 packets.
+1. `main` is at `082a2e8`: `feat/image-packets-current` integrated (a55a19c..8dd3b21) and `origin/main` synced (PR #215). `main` is 11 commits ahead of `origin/main`. Pushing needs Jacob's explicit approval.
+2. Image packets delivered on main: Image Lab routes, ComfyUI workflow health validation, legacy generation call preservation, status payload typing preservation, gallery path encoding, engine health visibility, route Image Lab across local engines, persist ComfyUI outputs and lineage. Final handoff doc at a55a19c.
+3. No COMFY_COMMIT was invented. The ComfyUI cancel commit (6e495c8) landed on main before the image-branch integration.
+4. ComfyUI being offline is an explicitly recorded validation limitation. The ComfyUI cancel, health, and engine routes were merged but have not been validated against a live ComfyUI instance.
+5. Do NOT rerun image packets or look for IMG-02 as a next step — the image branch delivered its full scope and is merged.
+6. The active work is now the Kitty-wide frontend and product-experience harvest. This is NOT an Image-Lab-only audit.
 
 ## Evidence
 
-- Live verification: tutor quiz answered end-to-end in the browser
-  (mastery 51% rendered from a real /tutor/attempt), model-override chip
-  armed/cleared, builder home tile healthy after the lease migration.
-- `make ui-test && make ui-build` exit 0 (233 UI tests). Python: full suite
-  green pre-CR-06 (2537 passed after refactor fixes); every touched area
-  re-ran green after (completions 40, tutor 18, imagen 139, builder queue
-  13+29 subtests, knowledge 15).
-- Worktree drafts discarded during cleanup were all superseded versions of
-  the memory-evidence work (confirm-only delete draft, {id,text,index}
-  trailer draft); the merged branch + CR-06 implementation covers both.
+- Image branch merged: a55a19c (8 image commits) integrated via merge commit 082a2e8
+- `feature-adjacent` audit PR #215 merged into main via ea6c140
+- `./kitty context --agent` passes 25/27 checks (2 stale-HEAD warnings now resolved by this repair)
+- `./kitty doctor --json` passes
+- Builder doctor: 13 PASS, 1 WARN (paused chat-recovery initiatives)
+- Validation limitation: no live ComfyUI available during integration
 
 ## Continuity details
 
-- PR descriptions must contain exact `## Summary` and `## Test plan`
-  headings. Continue explicit-path staging; never `git add -u` in a mixed
-  worktree.
-- The preview harness had a stale root binding; `.worktrees/fable-ux-phase`
-  is now a symlink to the repo root so `preview_start` works. Harmless, but
-  if it confuses anything, delete the symlink.
-- Test residue (37 fake image_jobs rows, 2 seeded tutor terms) was wiped
-  from the live DBs; current test fixtures are leak-free.
+- PR descriptions must contain exact `## Summary` and `## Test plan` headings.
+- ComfyUI offline state must remain recorded as a validation limitation until a live test is run.
+- The image-packets worktree (`feat/image-packets-current` at `.worktrees/image-packets-current`) is now merged and may be cleaned up after Jacob reviews.
