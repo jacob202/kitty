@@ -81,6 +81,24 @@ export const COLOR_CYCLE: ChatColor[] = ['teal', 'purple', 'blue', 'mint', 'oran
 
 export const STREAMING_LABEL = 'thinking…'
 
+/**
+ * One proactive expert signal from the gateway signal store (CR-03). Mirrors
+ * the wire shape of GET /experts/signals/unprocessed; `source` is always
+ * `expert.<expert_id>` and suggestion payloads carry headline/action/analysis.
+ */
+export interface ExpertSignal {
+  id: number
+  ts: number
+  source: string
+  kind: string
+  payload: {
+    headline?: string
+    action?: string
+    analysis?: string
+    topic_hash?: string
+  }
+}
+
 export type KittyMode = 'gentle' | 'balanced' | 'blunt' | 'auto'
 
 export type NavTab = 'chats' | 'journal' | 'knowledge' | 'tasks'
