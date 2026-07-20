@@ -4,7 +4,7 @@
     {
       "name": "kitty-chat",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["gateway/kitty-chat/node_modules/next/dist/bin/next", "dev", "gateway/kitty-chat", "-H", "127.0.0.1", "-p", "4000"],
+      "runtimeArgs": ["/Users/jacobbrizinski/Projects/kitty/gateway/kitty-chat/node_modules/next/dist/bin/next", "dev", "/Users/jacobbrizinski/Projects/kitty/gateway/kitty-chat", "-H", "127.0.0.1", "-p", "4000"],
       "port": 4000
     }
   ]

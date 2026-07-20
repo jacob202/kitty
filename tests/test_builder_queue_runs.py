@@ -20,6 +20,7 @@ consistent.
 from __future__ import annotations
 
 import os
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -386,3 +387,37 @@ class IdHelpersTest(unittest.TestCase):
         run_id = idh.generate_id_with_base36("run")
         self.assertRegex(task_id, r"^kb_[0-9a-z]+_[0-9a-f]{4}$")
         self.assertRegex(run_id, r"^run_[0-9a-z]+_[0-9a-f]{4}$")
+
+
+def test_init_db_migrates_legacy_lease_ts_column(tmp_path):
+    """A pre-rename DB (branch_leases.lease_ts) is migrated to created_at."""
+    legacy = tmp_path / "legacy.db"
+    conn = sqlite3.connect(legacy)
+    conn.execute(
+        """
+        CREATE TABLE branch_leases (
+            lease_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            packet_id TEXT NOT NULL UNIQUE,
+            worker_id TEXT NOT NULL UNIQUE,
+            branch TEXT NOT NULL UNIQUE,
+            worktree_path TEXT NOT NULL UNIQUE,
+            base_sha TEXT NOT NULL,
+            lease_ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    conn.execute(
+        "INSERT INTO branch_leases (packet_id, worker_id, branch, worktree_path, base_sha) "
+        "VALUES ('p', 'w', 'b', '/wt', 'sha')"
+    )
+    conn.commit()
+    conn.close()
+
+    bq.init_db(legacy)
+
+    conn = sqlite3.connect(legacy)
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(branch_leases)")}
+    row = conn.execute("SELECT created_at FROM branch_leases").fetchone()
+    conn.close()
+    assert "created_at" in cols and "lease_ts" not in cols
+    assert row[0] is not None

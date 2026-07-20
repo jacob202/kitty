@@ -253,6 +253,19 @@ def _apply_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(_SCHEMA_SQL)
     _ensure_run_columns(conn)
     _ensure_pr_link_columns(conn)
+    _ensure_branch_lease_columns(conn)
+
+
+def _ensure_branch_lease_columns(conn: sqlite3.Connection) -> None:
+    """Migrate pre-rename databases where branch_leases used ``lease_ts``.
+
+    The schema renamed the column to ``created_at`` without a migration, so
+    live DBs created before the rename break every reader (builder_status's
+    lease join being the visible one).
+    """
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(branch_leases)")}
+    if "lease_ts" in cols and "created_at" not in cols:
+        conn.execute("ALTER TABLE branch_leases RENAME COLUMN lease_ts TO created_at")
 
 
 def _ensure_pr_link_columns(conn: sqlite3.Connection) -> None:
