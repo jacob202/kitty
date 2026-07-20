@@ -241,7 +241,19 @@ def poll_now() -> dict[str, Any]:
         logger.warning("github.poll skipped: GITHUB_TOKEN not present")
         return {"new": 0, "deduped": 0, "errors": 0, "skipped": "unconfigured"}
 
-    token = os.environ["GITHUB_TOKEN"].strip()
+    raw_token = os.environ.get("GITHUB_TOKEN")
+    if not raw_token or not raw_token.strip():
+        # is_configured() returned True but the env may have been cleared
+        # between the two reads; treat as an auth miss instead of a KeyError
+        # crash. See audit §2.4 / AUDIT_FULL_ENGINEERING_2026-07-20.md.
+        logger.warning("github.poll aborted: GITHUB_TOKEN missing at fetch")
+        return {
+            "new": 0,
+            "deduped": 0,
+            "errors": 1,
+            "skipped": "token-missing-at-fetch",
+        }
+    token = raw_token.strip()
     repos_env = os.environ.get("GITHUB_WATCH_REPOS", "").strip()
     repos = [r.strip() for r in repos_env.split(",")] if repos_env else GITHUB_DEFAULT_REPOS
 

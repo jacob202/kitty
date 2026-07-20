@@ -144,12 +144,33 @@ app = FastAPI(title="Kitty Gateway", lifespan=lifespan)
 app.add_middleware(VoiceGateMiddleware)
 app.add_middleware(BearerAuthMiddleware)
 _cors_origins = ["http://localhost:3000", "http://localhost:4000", "http://localhost:4001"]
+
+# Explicit CORS allow-lists. Wildcard methods/headers with credentials is the
+# canonical RCE primitive the moment allow_origins widens to any external host
+# (browsers will then let any page on a wildcarded origin call the gateway as
+# the user). Keep narrow; expand only with a reviewer ticket.
+# See docs/AUDIT_FULL_ENGINEERING_2026-07-20.md §1.4.
+_CORS_ALLOWED_METHODS: list[str] = [
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS",
+]
+_CORS_ALLOWED_HEADERS: list[str] = [
+    "Authorization",
+    "Content-Type",
+    "X-Requested-With",
+    "Accept",
+    "Origin",
+]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=_CORS_ALLOWED_METHODS,
+    allow_headers=_CORS_ALLOWED_HEADERS,
 )
 
 

@@ -407,8 +407,20 @@ import sys
 import urllib.error
 import urllib.request
 
-base = os.environ["KITTY_PROJECT_BASE"]
-secret = os.environ["GATEWAY_SECRET"]
+try:
+    # Both expected to be set by cmd_project() before this heredoc runs;
+    # treat absent as a hard fail so we don't chase a phantom error through
+    # the rest of the function. See audit §2.4 / AUDIT_FULL_ENGINEERING_2026-07-20.md.
+    base = os.environ["KITTY_PROJECT_BASE"]
+    secret = os.environ["GATEWAY_SECRET"]
+except KeyError as exc:
+    missing = exc.args[0]
+    print(
+        f"missing env var: {missing} — run: kitty up "
+        f"(it writes GATEWAY_SECRET into .env)",
+        file=sys.stderr,
+    )
+    sys.exit(2)
 mode = sys.argv[1]
 args = sys.argv[2:]
 
