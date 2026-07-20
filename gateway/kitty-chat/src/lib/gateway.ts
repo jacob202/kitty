@@ -1423,6 +1423,56 @@ export interface KnowledgeIngestResult {
   reason: string
 }
 
+// ── Tutor (DTH-03/04 wiring) ─────────────────────────────────────────────────
+
+export interface TutorQuizQuestion {
+  question: string
+  options: string[]
+  answer_label: string
+}
+
+export interface TutorQuizPayload {
+  questions: TutorQuizQuestion[]
+  due: number
+}
+
+export interface TutorAttemptResult {
+  term: string
+  mastery: number
+  stage: 'new' | 'learning' | 'mastered'
+  next_action: string
+}
+
+export interface TutorAnswer {
+  vocab: string[]
+  explain: string
+  question: string
+}
+
+export async function fetchTutorQuiz(limit = 5): Promise<TutorQuizPayload> {
+  return await gfetch<TutorQuizPayload>(`/tutor/quiz?limit=${limit}`, undefined, 10_000)
+}
+
+export async function postTutorAttempt(
+  term: string,
+  correct: boolean,
+  kpType = 'memory',
+): Promise<TutorAttemptResult> {
+  return await gfetch<TutorAttemptResult>('/tutor/attempt', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ term, correct, kp_type: kpType }),
+  })
+}
+
+export async function askTutor(topic: string): Promise<TutorAnswer> {
+  return await gfetch<TutorAnswer>('/tutor/ask', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ topic }),
+  }, 60_000)
+}
+
 export async function fetchKnowledgeSources(): Promise<KnowledgeSourcesPayload> {
   return await gfetch<KnowledgeSourcesPayload>('/knowledge/sources', undefined, 10_000)
 }

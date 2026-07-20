@@ -28,6 +28,7 @@ import { TerminalStrip } from '@/components/TerminalStrip';
 import { AgentPanel } from '@/components/AgentPanel';
 import { MonitorPanel } from '@/components/MonitorPanel';
 import { ImageGenPanel } from '@/components/ImageGenPanel';
+import { TutorPanel } from '@/components/TutorPanel';
 import { ProjectsPanel } from '@/components/ProjectsPanel';
 import { DocumentsPanel } from '@/components/DocumentsPanel';
 import { ProviderCenter } from '@/components/ProviderCenter';
@@ -1047,6 +1048,9 @@ function KittyChatInner() {
                 <ToolCard title="image gen">
                   <ImageGenPanel />
                 </ToolCard>
+                <ToolCard title="tutor">
+                  <TutorPanel />
+                </ToolCard>
                 <LoopWatch loops={loops} onToggle={handleLoopToggle} isLoading={loopsQuery.isLoading} />
                 <InsightFeed
                   insights={insights}
@@ -1105,6 +1109,12 @@ function KittyChatInner() {
                   runs on the local engine via the gateway. ComfyUI stays an external service —
                   planned, not wired.
                 </p>
+              </div>
+            ) : activeView === 'tutor' ? (
+              <div style={panelPadding(isMobile)}>
+                <ToolCard title="tutor — learn, quiz, master">
+                  <TutorPanel />
+                </ToolCard>
               </div>
             ) : activeView === 'settings' ? (
               <div style={panelPadding(isMobile)}>
