@@ -8,13 +8,22 @@ creates new KBs as needed, and moves files via the Open WebUI API.
 from __future__ import annotations
 
 import argparse
+import logging
 import re
 import sqlite3
-import sys
 import time
 from pathlib import Path
 
 import requests
+
+logger = logging.getLogger(__name__)
+# Idempotent basicConfig: do not overwrite if the caller already
+# wired logs (e.g. a future pytest or --log-level invocation).
+if not logging.getLogger().handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
 
 DB_PATH = Path.home() / "kitty-services/open-webui-data/webui.db"
 WEBUI_URL = "http://127.0.0.1:3001"
@@ -527,24 +536,24 @@ def main() -> int:
     parser.add_argument("--pause", type=float, default=0.1)
     args = parser.parse_args()
 
-    print("Authenticating...")
+    logger.info("Authenticating...")
     token = login()
 
     kb_map = get_kb_map(token)
-    print(f"Existing KBs: {list(kb_map.keys())}")
+    logger.info(f"Existing KBs: {list(kb_map.keys())}")
 
     # Create new KBs if needed
     for name, desc in NEW_KBS:
         if name not in kb_map:
             if args.dry_run:
-                print(f"[dry-run] would create KB: {name}")
+                logger.info(f"[dry-run] would create KB: {name}")
                 continue
             kb_map[name] = create_kb(token, name, desc)
-            print(f"created KB: {name}")
+            logger.info(f"created KB: {name}")
 
     # Get all files in general reference
     gen_files = get_files_in_kb_from_db(GENERAL_REF_ID)
-    print(f"\nFiles in general reference: {len(gen_files)}")
+    logger.info(f"\nFiles in general reference: {len(gen_files)}")
 
     # Classify each file
     moves: dict[str, list[tuple[str, str]]] = {}  # kb_name -> [(file_id, filename)]
@@ -557,13 +566,13 @@ def main() -> int:
         else:
             keep.append((file_id, filename))
 
-    print(f"\nClassification summary:")
-    print(f"  Keep in general reference: {len(keep)}")
+    logger.info("\nClassification summary:")
+    logger.info(f"  Keep in general reference: {len(keep)}")
     for kb_name, files in sorted(moves.items()):
-        print(f"  Move to '{kb_name}': {len(files)}")
+        logger.info(f"  Move to '{kb_name}': {len(files)}")
 
     if args.dry_run:
-        print("\n[dry-run] Done.")
+        logger.info("\n[dry-run] Done.")
         return 0
 
     # Execute moves
@@ -573,7 +582,7 @@ def main() -> int:
 
     for kb_name, files in sorted(moves.items()):
         kb_id = kb_map[kb_name]
-        print(f"\nMoving {len(files)} files to '{kb_name}'...")
+        logger.info(f"\nMoving {len(files)} files to '{kb_name}'...")
         for file_id, filename in files:
             done += 1
             # Add to new KB
@@ -583,14 +592,14 @@ def main() -> int:
                 remove_file_from_kb(token, GENERAL_REF_ID, file_id)
             else:
                 errors += 1
-                print(f"  FAIL: {filename}")
+                logger.error(f"  FAIL: {filename}")
             if args.pause:
                 time.sleep(args.pause)
             if done % 50 == 0:
-                print(f"  {done}/{total} done, {errors} errors")
+                logger.error(f"  {done}/{total} done, {errors} errors")
 
-    print(f"\nDone. Moved {done - errors}/{total}, {errors} errors")
-    print(f"Remaining in general reference: {len(keep)}")
+    logger.error(f"\nDone. Moved {done - errors}/{total}, {errors} errors")
+    logger.info(f"Remaining in general reference: {len(keep)}")
     return 1 if errors else 0
 
 

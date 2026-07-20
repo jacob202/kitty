@@ -1,8 +1,7 @@
-import subprocess
 import json
-import time
 import re
-import sqlite3
+import subprocess
+import time
 from pathlib import Path
 
 DB_PATH = Path("data/curation_status.db")
@@ -13,7 +12,7 @@ def run_orca(args):
     result = subprocess.run(cmd, capture_output=True, text=True)
     try:
         return json.loads(result.stdout)
-    except:
+    except (json.JSONDecodeError, ValueError):
         return None
 
 

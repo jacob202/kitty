@@ -13,16 +13,24 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import re
 import sqlite3
 import sys
-import time
-import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import requests
+
+logger = logging.getLogger(__name__)
+# Idempotent basicConfig: do not overwrite if the caller already
+# wired logs (e.g. a future pytest or --log-level invocation).
+if not logging.getLogger().handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
 
 WEBUI_URL = os.environ.get("WEBUI_URL", "http://127.0.0.1:3001")
 EMAIL = os.environ.get("OWUI_EMAIL", "")
@@ -162,13 +170,13 @@ def add_file_to_kb(token: str, kb_id: str, file_id: str) -> bool:
         )
     except requests.exceptions.ReadTimeout:
         # Open WebUI may still finish processing in the background; treat as ok.
-        print(f"  WARN timeout on {file_id} — skipping (WebUI may still embed it)", file=sys.stderr)
+        logger.warning(f"  WARN timeout on {file_id} — skipping (WebUI may still embed it)", file=sys.stderr)
         return True
     if r.status_code == 200:
         return True
     if r.status_code == 400 and "already" in r.text.lower():
         return True  # already linked
-    print(f"  WARN {r.status_code}: {r.text[:80]}", file=sys.stderr)
+    logger.warning(f"  WARN {r.status_code}: {r.text[:80]}", file=sys.stderr)
     return False
 
 

@@ -2,13 +2,23 @@
 import asyncio
 import hashlib
 import json
-import os
+import logging
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
 import yaml
-from gateway import clerk, llm_client
+
 from contracts.smart_file_schema import FileMetadata
+from gateway import clerk, llm_client
+
+logger = logging.getLogger(__name__)
+# Idempotent basicConfig: do not overwrite if the caller already
+# wired logs (e.g. a future pytest or --log-level invocation).
+if not logging.getLogger().handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
 
 # --- Configuration ---
 TEST_FILE = Path("/Volumes/DATA/Books/ingestion_curated_deep_ocr/Engineering/Automotive/Engineering & Physical Systems/2006 2008 Honda Ridgeline Service Manual PNO SC 61SJC02 (Honda).pdf")
@@ -16,7 +26,7 @@ PROTOTYPE_DIR = Path("data/prototypes")
 
 async def generate_soul_analysis(filename: str, text_sample: str) -> Dict[str, Any]:
     """Calls LLM to generate the 'Soul, Hooks, and Takes' metadata."""
-    
+
     prompt = f"""
 You are the Lead Librarian for the Kitty system. Your task is to perform a deep "Soul Analysis" of a document to transform it into a Smart Markdown Asset.
 
@@ -46,7 +56,7 @@ RESPONSE MUST BE PURE JSON.
         max_tokens=2000,
         temperature=0.2
     )
-    
+
     # Try to extract JSON from response
     try:
         # Simple cleanup if LLM wraps in markdown blocks
@@ -55,7 +65,7 @@ RESPONSE MUST BE PURE JSON.
             clean_json = clean_json[7:-3].strip()
         elif clean_json.startswith("```"):
             clean_json = clean_json[3:-3].strip()
-            
+
         return json.loads(clean_json)
     except Exception as e:
         print(f"Error parsing LLM response: {e}")
@@ -65,26 +75,26 @@ RESPONSE MUST BE PURE JSON.
 async def create_smart_asset(file_path: Path):
     """Orchestrates the creation of a Smart Markdown Asset (SMA)."""
     if not file_path.exists():
-        print(f"File not found: {file_path}")
+        logger.info(f"File not found: {file_path}")
         return
 
-    print(f"🚀 Starting Smart Asset Prototype for: {file_path.name}")
-    
+    logger.info(f"🚀 Starting Smart Asset Prototype for: {file_path.name}")
+
     # 1. Extract Text
-    print("  Step 1: Extracting raw text...")
+    logger.info("  Step 1: Extracting raw text...")
     raw_text = clerk._extract_text(file_path)
     if not raw_text:
-        print("  ❌ Extraction failed.")
+        logger.error("  ❌ Extraction failed.")
         return
-    
+
     # 2. Generate Hash
     file_hash = hashlib.sha256(file_path.read_bytes()).hexdigest()
-    
+
     # 3. Deep Analysis
-    print("  Step 2: Performing Soul Analysis via LLM...")
+    logger.info("  Step 2: Performing Soul Analysis via LLM...")
     analysis = await generate_soul_analysis(file_path.name, raw_text[:6000])
     if not analysis:
-        print("  ❌ LLM Analysis failed.")
+        logger.error("  ❌ LLM Analysis failed.")
         return
 
     # 4. Assemble Metadata (Pydantic)
@@ -106,11 +116,11 @@ async def create_smart_asset(file_path: Path):
     )
 
     # 5. Assemble the Smart Markdown File
-    print("  Step 3: Assembling Smart Markdown Asset...")
-    
+    logger.info("  Step 3: Assembling Smart Markdown Asset...")
+
     # Frontmatter
     frontmatter = yaml.dump(metadata.model_dump(), sort_keys=False)
-    
+
     # Intelligence Header
     header = f"""
 # {metadata.canonical_name}
@@ -136,14 +146,14 @@ async def create_smart_asset(file_path: Path):
 
     # Final Content
     full_markdown = f"---\n{frontmatter}---\n{header}\n{raw_text}"
-    
+
     # 6. Save
     PROTOTYPE_DIR.mkdir(parents=True, exist_ok=True)
     target_path = PROTOTYPE_DIR / f"{metadata.canonical_name}.md"
     target_path.write_text(full_markdown)
-    
-    print(f"✅ Prototype Complete: {target_path}")
-    print(f"   Category: {metadata.primary_category} > {metadata.sub_category}")
+
+    logger.info(f"✅ Prototype Complete: {target_path}")
+    logger.info(f"   Category: {metadata.primary_category} > {metadata.sub_category}")
 
 if __name__ == "__main__":
     asyncio.run(create_smart_asset(TEST_FILE))

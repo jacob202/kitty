@@ -1,13 +1,14 @@
 
-import subprocess
 import json
+import subprocess
+
 
 def run_orca(args):
     cmd = ["orca"] + args + ["--json"]
     result = subprocess.run(cmd, capture_output=True, text=True)
     try:
         return json.loads(result.stdout)
-    except:
+    except (json.JSONDecodeError, ValueError):
         return None
 
 def main():
@@ -16,7 +17,7 @@ def main():
     if not inbox or "result" not in inbox:
         print("Inbox empty or error")
         return
-    
+
     messages = inbox["result"]["messages"]
     print(f"Found {len(messages)} completion messages.")
 

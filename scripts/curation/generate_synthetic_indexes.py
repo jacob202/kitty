@@ -1,8 +1,8 @@
 import os
-import json
-import logging
 from pathlib import Path
+
 from pypdf import PdfReader
+
 from gateway.llm_client import call_llm
 
 CURATED_ROOT = Path("/Volumes/DATA/books/ingestion_curated_deep")
@@ -12,9 +12,9 @@ def generate_book_index(folder_path):
     files = sorted([f for f in folder_path.iterdir() if f.is_file() and not f.name.startswith(".")])
     if not files:
         return
-    
+
     print(f"Indexing: {folder_path.name}")
-    
+
     # Sample the first and middle chapter for context
     previews = []
     for f in [files[0], files[len(files)//2]]:
@@ -23,7 +23,11 @@ def generate_book_index(folder_path):
                 reader = PdfReader(f)
                 text = reader.pages[0].extract_text() or ""
                 previews.append(f"File: {f.name}\nPreview: {text[:1000]}")
-        except: pass
+        except (pypdf.errors.PdfReadError, OSError, AttributeError, ValueError):
+            # Preview extraction can fail on encrypted / corrupted / missing-
+            # pages PDFs. Swallow so the loop survives; KeyboardInterrupt
+            # still propagates so the operator can abort the pass.
+            pass
 
     prompt = f"""You are a Master Librarian. I have a collection of files for a single book titled '{folder_path.name}'.
     Here are previews of some chapters:
@@ -39,13 +43,13 @@ def generate_book_index(folder_path):
     
     Format the output as a Markdown file.
     """
-    
+
     response = call_llm(
         messages=[{"role": "user", "content": prompt}],
         model="kitty-default",
         operation="synthetic_indexing"
     )
-    
+
     if response:
         with open(folder_path / "00_OVERVIEW.md", "w") as f:
             f.write(response)
@@ -56,7 +60,7 @@ def main():
     for root, dirs, files in os.walk(CURATED_ROOT):
         folder = Path(root)
         if folder == CURATED_ROOT: continue
-        
+
         # If it's a leaf node folder (a book folder)
         if not dirs and len(files) > 2:
             generate_book_index(folder)

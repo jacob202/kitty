@@ -1,7 +1,8 @@
 import os
-import shutil
 import re
+import shutil
 from pathlib import Path
+
 from pypdf import PdfReader
 
 # Paths
@@ -46,8 +47,10 @@ def peek_content(path):
                 content = " ".join([reader.pages[i].extract_text() or "" for i in range(pages_to_read)])
                 if len(content) > 3000:
                     content = content[:3000]
-            except Exception:
-                # If PDF reading fails, just use the filename
+            except (pypdf.errors.PdfReadError, OSError, AttributeError, ValueError):
+                # If PDF reading fails (corrupt, encrypted, missing pages,
+                # etc.), just use the filename. KeyboardInterrupt still
+                # propagates so Ctrl-C aborts the curation pass cleanly.
                 pass
         elif ext in [".txt", ".md"]:
             with open(path, "r", errors="ignore") as f:
@@ -58,7 +61,7 @@ def peek_content(path):
 
 def get_best_category(filename, content):
     full_text = (filename + " " + content).lower()
-    
+
     # Priority 1: Audio Repair (Very specific)
     for kw in STRUCTURE["Engineering"]["Audio Repair"]:
         if kw in full_text:
@@ -76,7 +79,7 @@ def get_best_category(filename, content):
             for kw in keywords:
                 if len(kw.split()) > 1 and kw in full_text:
                     return f"{cat}/{sub}"
-    
+
     # Tier 2: Single word matches
     for cat, subs in STRUCTURE.items():
         if cat == "AI & Software": continue
@@ -84,7 +87,7 @@ def get_best_category(filename, content):
             for kw in keywords:
                 if kw in full_text:
                     return f"{cat}/{sub}"
-    
+
     return "Miscellaneous"
 
 def clean_filename(name):
@@ -95,20 +98,20 @@ def clean_filename(name):
 def process():
     if not TARGET_ROOT.exists():
         TARGET_ROOT.mkdir(parents=True)
-    
+
     for cat, subs in STRUCTURE.items():
         for sub in subs.keys():
             (TARGET_ROOT / cat / sub).mkdir(parents=True, exist_ok=True)
     (TARGET_ROOT / "Miscellaneous").mkdir(exist_ok=True)
 
     print("Starting deep analysis and move...")
-    
+
     # Track files already processed to avoid duplicates
     processed_hashes = set()
 
     for root, dirs, files in os.walk(SOURCE_ROOT):
         if "ingestion_curated_deep" in root: continue
-        
+
         # 1. Group chapter-based fragments
         chapter_files = [f for f in files if re.search(r"(chapter|appendix|section|part|lesson|lec|L\d+|SN\d+)\s*\d*", f, re.I)]
         if len(chapter_files) > 2:
@@ -119,19 +122,20 @@ def process():
                 try:
                     reader = PdfReader(sample_path)
                     book_title = reader.metadata.title or "Unknown Book"
-                except: pass
-            
+                except (pypdf.errors.PdfReadError, OSError, AttributeError, ValueError):
+                    pass
+
             book_title = re.sub(r'[\\/*?:"<>|]', "", book_title).strip()
             cat_path = get_best_category(book_title, content)
             dest_dir = TARGET_ROOT / cat_path / book_title
             dest_dir.mkdir(parents=True, exist_ok=True)
-            
+
             for f in files:
                 if f.startswith("."): continue
                 dest_path = dest_dir / f
                 shutil.copy2(Path(root) / f, dest_path)
                 print(f"GROUPED: {book_title} -> {cat_path}")
-                
+
                 try:
                     from gateway.ingestion_queue import enqueue_file
                     enqueue_file(dest_path)
@@ -146,19 +150,20 @@ def process():
             content = peek_content(old_path)
             cat_path = get_best_category(f, content)
             new_name = clean_filename(f)
-            
+
             if len(Path(new_name).stem) < 5:
                 try:
                     reader = PdfReader(old_path)
                     title = reader.metadata.title
                     if title and len(title) > 5:
                         new_name = f"{title.strip()}{Path(f).suffix}"
-                except: pass
-            
+                except (pypdf.errors.PdfReadError, OSError, AttributeError, ValueError):
+                    pass
+
             dest_path = TARGET_ROOT / cat_path / new_name
             shutil.copy2(old_path, dest_path)
             print(f"MOVED: {f} -> {cat_path}/{new_name}")
-            
+
             try:
                 from gateway.ingestion_queue import enqueue_file
                 enqueue_file(dest_path)

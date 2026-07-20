@@ -1,7 +1,7 @@
-import subprocess
 import json
-import time
 import re
+import subprocess
+import time
 
 
 def run_orca(args):
@@ -9,7 +9,7 @@ def run_orca(args):
     result = subprocess.run(cmd, capture_output=True, text=True)
     try:
         return json.loads(result.stdout)
-    except:
+    except (json.JSONDecodeError, ValueError):
         print(f"Error parsing Orca output: {result.stdout}")
         return None
 

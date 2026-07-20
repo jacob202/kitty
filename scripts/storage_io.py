@@ -13,18 +13,29 @@ transactionally (the whole import either succeeds or raises).
 from __future__ import annotations
 
 import json
+import logging
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+# path-insert above must precede this import; scripts/ lives below repo root
 from gateway import storage_sync  # noqa: E402
+
+logger = logging.getLogger(__name__)
+# Idempotent basicConfig: do not overwrite if the caller already
+# wired logs (e.g. a future pytest or --log-level invocation).
+if not logging.getLogger().handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
 
 
 def main(argv: list[str]) -> int:
     if len(argv) < 2 or argv[1] in {"-h", "--help"}:
-        print(__doc__)
+        logger.info(__doc__)
         return 0
 
     cmd = argv[1]
@@ -35,29 +46,29 @@ def main(argv: list[str]) -> int:
         counts = {
             k: len(v) if isinstance(v, (list, dict)) else 0 for k, v in snapshot["stores"].items()
         }
-        print(f"exported → {written}")
-        print(f"  format_version: {snapshot['format_version']}")
-        print(f"  exported_at:    {snapshot['exported_at']}")
+        logger.info(f"exported → {written}")
+        logger.info(f"  format_version: {snapshot['format_version']}")
+        logger.info(f"  exported_at:    {snapshot['exported_at']}")
         for store, count in counts.items():
-            print(f"  {store}: {count} record(s)")
+            logger.info(f"  {store}: {count} record(s)")
         return 0
 
     if cmd == "import":
         if len(argv) < 3:
-            print("usage: storage_io.py import <path>", file=sys.stderr)
+            logger.info("usage: storage_io.py import <path>", file=sys.stderr)
             return 2
         path = Path(argv[2])
         try:
             counts = storage_sync.import_from_file(path)
         except (ValueError, FileNotFoundError) as exc:
-            print(f"import failed: {exc}", file=sys.stderr)
+            logger.error(f"import failed: {exc}", file=sys.stderr)
             return 1
-        print(f"imported ← {path}")
+        logger.info(f"imported ← {path}")
         for store, count in counts.items():
-            print(f"  {store}: {count} record(s)")
+            logger.info(f"  {store}: {count} record(s)")
         return 0
 
-    print(f"unknown command: {cmd!r}. use 'export' or 'import'.", file=sys.stderr)
+    logger.warning(f"unknown command: {cmd!r}. use 'export' or 'import'.", file=sys.stderr)
     return 2
 
 

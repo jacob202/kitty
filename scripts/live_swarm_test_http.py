@@ -4,13 +4,24 @@
 Simulates heavy parallel traffic against the real FastAPI endpoints to ensure
 WAL scaling, ThreadPoolExecutor starvation handling, and SSE stream health.
 """
-import concurrent.futures
-import time
-import requests
 import argparse
+import concurrent.futures
+import logging
 import os
-from dotenv import load_dotenv
+import time
 from typing import NamedTuple
+
+import requests
+from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
+# Idempotent basicConfig: do not overwrite if the caller already
+# wired logs (e.g. a future pytest or --log-level invocation).
+if not logging.getLogger().handlers:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
 
 load_dotenv()
 
@@ -34,7 +45,7 @@ def hit_project_create() -> float:
             timeout=5.0
         )
         resp.raise_for_status()
-    except Exception as e:
+    except Exception:
         raise
     return time.time() - start
 
@@ -43,7 +54,7 @@ def hit_project_list() -> float:
     try:
         resp = requests.get("http://localhost:8000/projects", headers={"Authorization": f"Bearer {os.environ.get('GATEWAY_SECRET', 'kitty')}"}, timeout=5.0)
         resp.raise_for_status()
-    except Exception as e:
+    except Exception:
         raise
     return time.time() - start
 
@@ -66,7 +77,7 @@ def main():
     parser.add_argument("--iterations", type=int, default=10)
     args = parser.parse_args()
 
-    print(f"Starting swarm test with {args.workers} workers, {args.iterations} iter/worker...")
+    logger.info(f"Starting swarm test with {args.workers} workers, {args.iterations} iter/worker...")
     start_time = time.time()
 
     all_latencies = []
@@ -82,25 +93,25 @@ def main():
                 all_latencies.extend(f.result())
             except Exception as e:
                 errors += 1
-                print(f"Worker failed: {e}")
+                logger.error(f"Worker failed: {e}")
 
     duration = time.time() - start_time
     total_reqs = len(all_latencies)
 
-    print("\n--- Swarm Test Results ---")
-    print(f"Duration:   {duration:.2f}s")
-    print(f"Total Reqs: {total_reqs + errors}")
-    print(f"Successes:  {total_reqs}")
-    print(f"Errors:     {errors}")
+    logger.info("\n--- Swarm Test Results ---")
+    logger.info(f"Duration:   {duration:.2f}s")
+    logger.error(f"Total Reqs: {total_reqs + errors}")
+    logger.info(f"Successes:  {total_reqs}")
+    logger.error(f"Errors:     {errors}")
 
     if all_latencies:
         all_latencies.sort()
         p50 = all_latencies[int(len(all_latencies) * 0.5)]
         p95 = all_latencies[int(len(all_latencies) * 0.95)]
         p99 = all_latencies[int(len(all_latencies) * 0.99)]
-        print(f"p50 Latency: {p50*1000:.1f}ms")
-        print(f"p95 Latency: {p95*1000:.1f}ms")
-        print(f"p99 Latency: {p99*1000:.1f}ms")
+        logger.info(f"p50 Latency: {p50*1000:.1f}ms")
+        logger.info(f"p95 Latency: {p95*1000:.1f}ms")
+        logger.info(f"p99 Latency: {p99*1000:.1f}ms")
 
 if __name__ == "__main__":
     main()
