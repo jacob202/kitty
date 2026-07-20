@@ -1,10 +1,19 @@
 """ComfyUI image generation — calls the ComfyUI REST API (local or Colab tunnel)."""
 import asyncio
+import hashlib
+import json
 import os
 import time
 from typing import Optional
 
 import httpx
+
+from gateway.image_jobs import (
+    ImageJobStatus,
+    create_job,
+    transition,
+    update_job,
+)
 
 # Set COMFY_URL to the cloudflared tunnel URL when running on Colab, e.g.:
 #   COMFY_URL=https://abc-xyz.trycloudflare.com
@@ -135,28 +144,68 @@ async def is_available() -> bool:
 
 
 async def generate(prompt: str) -> dict:
-    """Submit prompt to ComfyUI, poll until done, return {prompt_id, filename}."""
+    """Submit prompt to ComfyUI, poll until done, return {prompt_id, filename, job_id}."""
     p = _parse(prompt)
 
     if p["sdxl"]:
         workflow = _wf_sdxl(prompt, p["negative"], p["w"], p["h"], p["steps"], p["cfg"], SDXL_PHOTONIC)
+        model_id, sampler, scheduler = SDXL_PHOTONIC, "euler", "sgm_uniform"
+        template = "sdxl_photonic"
     else:
         workflow = _wf_sd15(prompt, p["negative"], p["w"], p["h"], p["steps"], p["cfg"],
                             p["lstr"], p["explicit"], p["estr"])
+        model_id, sampler, scheduler = SD15_CKPT, "euler_ancestral", "karras"
+        template = "sd15_basic"
 
-    async with httpx.AsyncClient(timeout=30) as client:
-        r = await client.post(f"{COMFY_URL}/prompt", json={"prompt": workflow})
-        if r.status_code != 200:
-            raise RuntimeError(f"ComfyUI rejected prompt: {r.text}")
-        prompt_id = r.json()["prompt_id"]
-        filename = await _poll(client, prompt_id)
+    workflow_hash = hashlib.sha256(json.dumps(workflow, sort_keys=True).encode()).hexdigest()[:16]
+    provider_params = {"lora_strength": p["lstr"], "explicit": p["explicit"]}
+
+    # Record the job before submitting so it survives a crash mid-generation.
+    job = create_job(
+        provider="comfyui",
+        operation="txt2img",
+        prompt=prompt,
+        negative_prompt=p["negative"],
+        seed=None,  # seed is embedded in workflow but not surfaced back
+        model_id=model_id,
+        width=p["w"],
+        height=p["h"],
+        steps=p["steps"],
+        guidance=p["cfg"],
+        sampler=sampler,
+        scheduler=scheduler,
+        provider_params_json=json.dumps(provider_params),
+        workflow_template_id=template,
+        workflow_hash=workflow_hash,
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(f"{COMFY_URL}/prompt", json={"prompt": workflow})
+            if r.status_code != 200:
+                raise RuntimeError(f"ComfyUI rejected prompt: {r.text}")
+            prompt_id = r.json()["prompt_id"]
+            update_job(job.job_id, provider_job_id=prompt_id)
+            transition(job.job_id, ImageJobStatus.SUBMITTED)
+            filename = await _poll(client, prompt_id)
+    except Exception as exc:
+        update_job(job.job_id, normalized_error=str(exc)[:500])
+        transition(job.job_id, ImageJobStatus.FAILED)
+        raise
 
     if not filename:
+        update_job(job.job_id, normalized_error="Image generation timed out (6 min)")
+        transition(job.job_id, ImageJobStatus.FAILED)
         raise TimeoutError("Image generation timed out (6 min)")
 
-    entry = {"prompt_id": prompt_id, "filename": filename, "prompt": prompt, "created_at": time.time()}
+    # filename lives under ComfyUI's output dir; verified separately (IMG-03).
+    update_job(job.job_id, output_path=filename)
+    transition(job.job_id, ImageJobStatus.SUCCEEDED)
+
+    entry = {"prompt_id": prompt_id, "filename": filename, "prompt": prompt,
+             "created_at": time.time(), "job_id": job.job_id}
     _history.append(entry)
     if len(_history) > MAX_HISTORY:
         _history.pop(0)
 
-    return {"prompt_id": prompt_id, "filename": filename}
+    return {"prompt_id": prompt_id, "filename": filename, "job_id": job.job_id}
