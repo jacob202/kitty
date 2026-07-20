@@ -1,43 +1,38 @@
 # Session State — 2026-07-15 (Builder campaign recovery)
 
-- Campaign reconciliation runs on `reconcile-builder-campaign` in
+- Campaign recovery still lives on `reconcile-builder-campaign` in
   `.worktrees/reconcile-builder-campaign`; the shared root checkout remains
   active on `chore/engineering-leverage-phase-8-9` and must not be used for
   Builder execution.
-- The campaign state is now `verification: green`. Documentation lint is
-  scoped to the governed foundational corpus, repository references resolve
-  correctly, and the generated system map is current.
-- The nested-worktree Builder doctor defect is fixed and verified together
-  with the documentation gate by 47 focused tests. A real doctor run reports
-  13 pass, 1 expected worktree-root warning, and 0 fail.
-- P1-01 and P1-02 are integrated and independently reviewed on this recovery
-  branch as `790e71c` and `014eeb9`. Focused validation is green: 131
-  initiative/doctor/docs tests, Ruff, documentation lint, system-map freshness,
-  and Builder doctor (13 pass, 1 expected first-run warning).
-- P1-03 is blocked on its required architecture decision: define the
-  measurability heuristic boundary before accepting any implementation. Its
-  candidate also mixes an unrelated protected-path authority rewrite.
-- P1-04 is next. It overlaps the separately preserved Phase 2 lease/base-SHA
-  work and must be reconciled in its own lane.
-- The canonical branch-lease and worker-identity primitives are integrated as
-  `f4a0047` on `codex/reconcile-phase2-p104`; 26 focused identity tests pass.
-  Independent review is still pending. Do not mark P1-04 complete: atomic
-  lease-plus-attempt creation and terminal lease release must be wired before
-  global stale-attempt recovery can safely distinguish an orphan from a live
-  worker.
+- Current branch: `codex/reconcile-phase2-p104`.
+- The Phase 2 identity hardening is committed as `85ede59`
+  (`fix(builder): harden branch lease identity checks`) and the remaining
+  lease lifecycle wiring is committed as `b8e0287`
+  (`fix(builder): bind attempts to branch leases`).
+- The cross-initiative stale-attempt reconciliation packet is committed as
+  `bd45539` (`fix(builder): reconcile stale attempts globally`).
+- P1-6 is implemented in the isolated worktree: the runner now checks
+  `allowed_paths` on each heartbeat, terminates a live worker on in-flight
+  scope expansion, and preserves the violating path snapshot in the final
+  report.
+- Verified on the isolated worktree: `tests/test_builder_runner.py -k scope`
+  passed (8 tests), and `ruff check` passed. The broader runner suite did not
+  produce a terminal summary in this recovery session; re-run it before
+  publication. `mypy` still reports the existing runner test typing noise that
+  was already present before this change.
+- Branch attempts now claim a packet lease inside the same transaction as the
+  attempt row, and terminal/reconciled attempts release that lease again.
+- In flight: P1-3 remains blocked on the owner architecture decision.
+- `f4a0047` now has independent approval. The allowlist hardening keeps the
+  fail-closed behavior explicit if packet scope data is missing, malformed, or
+  unsafe.
 - The preserved root Phase 2 patch is reference-only. Its broad exception
   swallowing around lease release violates fail-loud and must not be copied.
-- P1-05 is complete as `2fc061b`: the optional `forbidden_changes` contract
-  field validates safe repo-relative paths and rejects overlap with
-  `allowed_paths`. It does not enforce worker filesystem writes; P3-02 owns
-  that runtime detection. Focused validation: 34 scope/contract tests, Ruff,
-  mypy, docs lint, and independent review all pass.
-- The broad `tests/test_builder_*.py` slice did not reach a terminal summary in
-  this environment and was stopped after targeted P1 validation passed. Do not
-  call the broad Builder slice green without diagnosing that hang separately.
-- Root-checkout Phase 2 lease work is preserved separately in
-  `stash@{0}` and remains uncommitted. Do not merge or recreate it until it is
-  reconciled with `feat/campaign-alpha-phase-2-integration`.
+- P1-01, P1-02, and P1-05 remain as previously recorded; keep the current root
+  checkout edits and the active Builder worktree separate from this lane.
+- The free-worker path is documented and available on this base via `--free`
+  plus the OpenCode adapter scripts. Do not assume any deeper router changes
+  until they are verified in the active branch.
 
 # Session State — 2026-07-14 (cloud branch `claude/free-workers-token-efficiency-2m06xb`)
 

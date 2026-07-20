@@ -25,10 +25,26 @@
   review approved the normalized-path implementation; 34 scope/contract tests,
   Ruff, mypy, and docs lint pass.
 - `f4a0047` on `codex/reconcile-phase2-p104` cleanly transplants the canonical
-  branch-lease and worker-identity primitives; 26 focused identity tests pass,
-  but its independent review is pending. P1-04 must not globally reconcile
-  every open attempt until attempt creation is atomically bound to a lease and
-  every terminal path releases only its own lease.
+  branch-lease and worker-identity primitives, and its independent review now
+  approves. `85ede59` layers the allowlist hardening on top: missing, malformed,
+  or unsafe packet scope data now fails closed instead of widening execution.
+- `b8e0287` completes the lifecycle glue: attempts now claim the packet lease
+  in the same transaction as `start_attempt()`, and terminal or reconciled
+  attempts release that lease before control returns.
+- `bd45539` closes the remaining stale-attempt gap by reconciling all open
+  attempts across every initiative before the next packet starts.
+- `P1-6` is now implemented in `codex/reconcile-phase2-p104`: the runner
+  heartbeats scope on every lease renewal, terminates live workers on in-flight
+  scope expansion, and preserves the violating path snapshot in the final
+  report.
+- Current recovery verification is focused: `tests/test_builder_runner.py -k
+  scope` passed (8 tests). The broader runner suite did not produce a terminal
+  summary in this session, so it must be re-run before publication.
+- Validation for `bd45539` is green: `tests/test_builder_attempt.py` and
+  `tests/test_builder_loop.py` pass, Ruff passes, mypy passes, and
+  `git diff --check` passes.
+- P1-04 and P1-6 are now complete. The next open Builder lane is still P1-03,
+  which remains blocked on the owner architecture decision.
 - `feat/campaign-alpha-phase-2-integration` contains the canonical committed
   branch-lease/identity work. The root checkout's uncommitted Phase 2 lease
   patch is preserved in `stash@{0}` and must be compared with that branch,
@@ -45,10 +61,8 @@
 
 ## Next action
 
-Finish the independent review of `f4a0047`, then implement and test atomic
-lease-plus-attempt lifecycle wiring before P1-04 global reconciliation. Do not
-mark P1-03 complete without the owner policy decision, and do not mix the root
-checkout's Phase 2 patch into P1.
+Implement P1-03 only after the architecture review gate is satisfied. Do not
+mix the root checkout's Phase 2 patch into P1.
 
 # Handoff — 2026-07-12
 
