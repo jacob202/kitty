@@ -6,12 +6,12 @@
 
 ---
 
-## 0. Repository Identifiers
+## 0. Repository Identifiers (audit starting state)
+
+> These identifiers describe the repository state **at the start of the audit**. The audit branch (`docs/audit-imagelab-2026-07-20`) was later created from `origin/main` at the SHA below.
 
 | Item | Value |
 |---|---|
-| **Kitty branch** | `feat/deeptutor-dth04-dth05` |
-| **Kitty HEAD SHA** | `d7f7a8d306858258862a3d155fa41ae152d3a249` |
 | **Kitty origin/main SHA** | `d7f7a8d306858258862a3d155fa41ae152d3a249` |
 | **Kitty working tree** | unrelated in-progress DTH-04/DTH-05 changes (`.claude/HANDOFF.md`, `.claude/STATE.md`, `.gitignore`, `gateway/tutor.py`, `gateway/skill_import.py`) — **not part of this audit, left untouched** |
 | **InvokeAI remote** | `https://github.com/invoke-ai/InvokeAI.git` |
@@ -149,7 +149,7 @@ Across the requested dimensions. **K** = Kitty, **DT** = Draw Things, **CU** = C
 
 Mechanisms already solved well upstream that Kitty should reuse **conceptually** (reimplement, don't copy — especially ComfyUI, which is GPL):
 
-1. **Prompt→image correlation key = `prompt_id`** (ComfyUI `server.py:1083`). Kitty already grabs it (`image_gen.py:151`); keep it as the job PK.
+1. **Provider-side job correlation** — ComfyUI assigns a `prompt_id` (`server.py:1083`); Kitty already grabs it (`image_gen.py:151`). Use it as a nullable `provider_job_id`, not as Kitty's primary key. Kitty generates and owns a provider-neutral `job_id`.
 2. **Output discovery via `/history/{prompt_id}` → `outputs[<node>].images[]` → `/view`** (ComfyUI `server.py:1035,517`). Kitty's poll loop already does this shape; just add error extraction.
 3. **Cancellation = `/interrupt` with optional `prompt_id`** (ComfyUI `server.py:1150`). Targeted + global; Kitty adds nothing new, just calls it.
 4. **Reproducibility = persist the full request (prompt/seed/params/workflow)** (InvokeAI `metadata.py:188`, `images_default.py:171 get_workflow`). Kitty's `artifact_store` can hold this.
@@ -221,15 +221,34 @@ A **small, provider-neutral** model — no graph, no InvokeAI weight:
 ```sql
 -- lives in Kitty's existing SQLite (reuse artifact_store DB)
 CREATE TABLE image_jobs (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  prompt_id   TEXT,                       -- ComfyUI prompt_id or DT job id
-  engine      TEXT NOT NULL,              -- 'drawthings' | 'comfyui'
-  kind        TEXT NOT NULL,              -- 'txt2img'|'img2img'|'variation'|'upscale'|'inpaint'
-  parent_id   INTEGER REFERENCES image_jobs(id),  -- NULL = generated from prompt
-  seed        INTEGER,
-  params_json TEXT,                       -- provider-specific (LoRA/strength/size) as JSON
-  output_path TEXT NOT NULL,              -- path inside Kitty's store (not CU output folder)
-  created_at  TEXT NOT NULL
+  job_id              TEXT PRIMARY KEY,   -- Kitty-owned (UUID), NOT provider-dependent
+  provider            TEXT NOT NULL,      -- 'drawthings' | 'comfyui'
+  provider_job_id     TEXT,               -- nullable: ComfyUI prompt_id or DT job id
+  operation           TEXT NOT NULL,      -- 'txt2img'|'img2img'|'variation'|'upscale'|'inpaint'
+  status              TEXT NOT NULL,      -- lifecycle: created|submitted|running|succeeded|failed|canceled
+  prompt              TEXT,
+  negative_prompt     TEXT,
+  seed                INTEGER,
+  model_id            TEXT,
+  preset_id           TEXT,
+  width               INTEGER,
+  height              INTEGER,
+  steps               INTEGER,
+  guidance            REAL,
+  sampler             TEXT,
+  scheduler           TEXT,
+  provider_params_json TEXT,              -- bounded provider-specific extension data
+  workflow_template_id TEXT,              -- nullable: Kitty-owned template identifier
+  workflow_hash       TEXT,               -- nullable: reproducibility hash
+  artifact_id         TEXT,               -- nullable: reference to Kitty's existing artifact system
+  output_path         TEXT,               -- nullable: set only after Kitty verifies and persists artifact
+  normalized_error    TEXT,               -- nullable: bounded user-safe failure description
+  provider_diagnostics_json TEXT,         -- nullable: bounded provider diagnostics
+  parent_id           TEXT REFERENCES image_jobs(job_id), -- nullable: NULL = generated from prompt
+  created_at          TEXT NOT NULL,
+  updated_at          TEXT NOT NULL,
+  started_at          TEXT,
+  finished_at         TEXT
 );
 ```
 
@@ -259,12 +278,12 @@ Ranked by user value + reliability gain + architectural leverage − implementat
 ### Packet IMG-01 — Durable image-job + metadata store
 - **Problem:** no provenance; seed/params lost; history volatile (G1).
 - **User value:** exact re-runs; gallery survives restart; reproducibility.
-- **Kitty files:** `gateway/artifact_store.py` (new table) or new `gateway/image_jobs.py`; `gateway/image_gen.py` (write row); `mcp/imagen/io.py` (write row).
+- **Kitty files:** new `gateway/image_jobs.py` (ImageJobStore + schema); `gateway/image_gen.py` (write row); `mcp/imagen/io.py` (write row).
 - **Refs:** InvokeAI `image_records_sqlite.py:151`, `metadata.py:188`.
-- **Scope:** SQLite `image_jobs` table (§10); record on every generation.
-- **Non-goals:** UI, lineage graph, WS.
-- **Acceptance:** store→retrieve round-trip; row survives process restart; seed persisted.
-- **Tests:** `tests/test_image_jobs.py` (round-trip + restart).
+- **Scope:** SQLite `image_jobs` table (§10); Kitty-owned `job_id` (UUID, not provider-dependent); lifecycle states + timestamps from the start; nullable `output_path` (set only after Kitty verifies the artifact); nullable `provider_job_id` for backend correlation. Establishes the durable artifact relationship; atomic copying and crash-safe file persistence are **IMG-03** work.
+- **Non-goals:** UI, lineage graph, WS, atomic file copy, crash-safe persistence.
+- **Acceptance:** store→retrieve round-trip; row survives process restart; seed persisted; lifecycle transitions enforced; terminal states immutable.
+- **Tests:** `tests/test_image_jobs.py` (round-trip + restart + lifecycle + normalization).
 - **Provider cases:** both Draw Things + ComfyUI write the row.
 - **Deps:** none. **Migration:** new table, forward-only. **Risk:** Low. **Tier:** T0. **Free worker:** Yes. **ADR:** No (extends artifact_store).
 
@@ -324,13 +343,25 @@ Ranked by user value + reliability gain + architectural leverage − implementat
 - **Provider cases:** both.
 - **Deps:** none. **Risk:** Low/Medium. **Tier:** T0/T1. **Free worker:** Yes. **ADR:** No.
 
+### Packet IMG-G8 — Honest ComfyUI error extraction (G8)
+- **Problem:** `image_gen.py:119` only checks `prompt_id in hist`, not `status.status_str`; errored jobs poll to 360s timeout (G8, §9).
+- **User value:** immediate, honest error message instead of misleading `TimeoutError`. Satisfies fail-loud constitution.
+- **Kitty files:** `gateway/image_gen.py` — read `status.status_str` and `execution_error` from `/history/{prompt_id}` response body.
+- **Refs:** ComfyUI `execution.py:1287`.
+- **Scope:** Extract and surface ComfyUI terminal error message from history response body.
+- **Non-goals:** error classification, retry logic, UI changes.
+- **Acceptance:** errored job returns user-readable error; no more 360s poll-to-timeout on known failures.
+- **Tests:** mock `/history/{prompt_id}` returning `status.status_str: "error"`.
+- **Provider cases:** ComfyUI only (Draw Things: no equivalent error surface).
+- **Deps:** none. **Risk:** Low. **Tier:** T0. **Free worker:** Yes. **ADR:** No.
+
 ---
 
 ## 13. First-Packet Recommendation
 
 **IMG-01 — Durable image-job + metadata store.**
 
-It maximizes reliability + user value (reproducibility, restart-surviving gallery, exact re-runs) with **minimal architectural disruption**: it adds one SQLite table to Kitty's existing store, writes a row on every generation, and touches no provider schema. Low risk, no new dependencies, free-worker capable, no ADR required. It is also the **prerequisite** for IMG-02 (job record), IMG-03 (output_path), IMG-04 (lineage), and IMG-05 (engine-neutral record) — so it unlocks the rest in order.
+It maximizes reliability + user value (reproducibility, restart-surviving gallery, exact re-runs) with **minimal architectural disruption**: it adds one SQLite table to Kitty's existing store with a Kitty-owned provider-neutral `job_id` (UUID) as primary key, writes a row on every generation, and touches no provider schema. Lifecycle states and timestamps are present from the start so IMG-02 does not need to redesign the table. `output_path` is nullable until Kitty verifies and persists the artifact; atomic copying and crash-safe file persistence remain IMG-03 work. Low risk, no new dependencies, free-worker capable, no ADR required. It is also the **prerequisite** for IMG-02 (job record → cancellation), IMG-03 (output_path → atomic copy), IMG-04 (lineage → parent_id), and IMG-05 (engine-neutral record → convergence) — so it unlocks the rest in order.
 
 ---
 
@@ -356,6 +387,7 @@ It maximizes reliability + user value (reproducibility, restart-surviving galler
 - **Commit SHA:** _(see commit below)_
 - **Validation:** `git diff --check` clean; link check noted below
 - **Executive verdict:** Keep both backends; stay API-only to ComfyUI (GPL); converge three implementations onto the existing `engines/` abstraction; add durability/provenance/cancellation/lineage onto Kitty's own store. Study InvokeAI's *shape*, adopt none of its weight.
+- **IMG-01 design corrections applied:** Kitty-owned provider-neutral `job_id` (UUID) replaces `prompt_id` as PK; `provider_job_id` is nullable; `output_path` is nullable until artifact verified; lifecycle states + timestamps present from the start; G8 receives bounded follow-up packet IMG-G8; atomic copying deferred to IMG-03.
 - **Verified Kitty gaps:** G1–G9 (§4).
 - **Top ten:** §11.
 - **Recommended first packet:** IMG-01 (§13).
