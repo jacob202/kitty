@@ -74,7 +74,7 @@ export function TopBar({
             fontSize: 20, letterSpacing: '-0.02em', color: 'var(--ink)',
           }}>kitty</span>
           <StateBadge state={catState} />
-          <RuntimeBadge state={runtimeState} detail={runtimeDetail} />
+          <RuntimeBadge state={runtimeState} detail={runtimeDetail} compact />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <ProjectSelector
@@ -180,24 +180,30 @@ function ProjectSelector({
 function RuntimeBadge({
   state,
   detail,
+  compact = false,
 }: {
   state: 'available' | 'unavailable' | 'degraded' | 'stale' | 'unknown'
   detail?: string
+  /** Phone layout: the label wraps in the crowded top row, so show only the
+   *  status dot and carry the words via title/aria-label instead. */
+  compact?: boolean
 }) {
   const healthy = state === 'available'
   const color = healthy ? 'var(--c-green)' : 'var(--c-red)'
+  const label = healthy ? 'runtime live' : `runtime ${state}`
   return (
     <span
       title={detail ?? `runtime state: ${state}`}
+      aria-label={label}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 5,
-        fontFamily: 'var(--font-mono)', fontSize: 10,
+        fontFamily: 'var(--font-mono)', fontSize: 10, whiteSpace: 'nowrap',
         color, border: `1px solid ${color}`, borderRadius: 999,
-        padding: '3px 7px', opacity: 0.9,
+        padding: compact ? 4 : '3px 7px', opacity: 0.9,
       }}
     >
       <span style={{ width: 5, height: 5, borderRadius: 99, background: color }} />
-      {healthy ? 'runtime live' : `runtime ${state}`}
+      {!compact && label}
     </span>
   )
 }

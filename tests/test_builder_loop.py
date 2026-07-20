@@ -697,11 +697,29 @@ class TestRecoveryExercise:
         assert runs, "no run row recorded before the kill"
         pid = runs[-1].get("pid")
         if pid:
-            try:
-                os.killpg(int(pid), signal.SIGKILL)
-            except (ProcessLookupError, PermissionError):
-                pass
+            for send in (os.killpg, os.kill):
+                try:
+                    send(int(pid), signal.SIGKILL)
+                except (ProcessLookupError, PermissionError):
+                    pass
         subprocess.run(["pkill", "-9", "-f", str(tmp_path / "slow.sh")], check=False)
+        if pid:
+            # recover_interrupted_runs correctly refuses to interrupt a run
+            # whose pid is alive with a matching identity, so the reap must
+            # be COMPLETE before recovery is asserted. On slow CI runners the
+            # group kill alone sometimes leaves the worker briefly alive —
+            # wait for the pid to actually vanish instead of racing it.
+            deadline = time.time() + 10
+            while time.time() < deadline:
+                try:
+                    os.kill(int(pid), 0)
+                except ProcessLookupError:
+                    break
+                time.sleep(0.1)
+            else:
+                raise AssertionError(
+                    f"worker pid {pid} survived SIGKILL reaping; cannot assert recovery"
+                )
 
         # The dead orchestrator's lease expires; the recovery scan blocks the
         # task exactly as `kitty builder queue recover` would.
