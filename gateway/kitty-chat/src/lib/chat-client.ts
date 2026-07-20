@@ -1,4 +1,4 @@
-import { Message } from './types';
+import { Message, normalizeMemoryEvidence, type MemoryEvidence } from './types';
 
 // All gateway calls go through the Next.js proxy route — avoids CORS and keeps key server-side
 const GATEWAY_BASE = '/proxy';
@@ -7,7 +7,7 @@ export interface StreamChunk {
   content: string;
   done: boolean;
   /** Present on the single trailer event listing memories that informed the reply. */
-  memoryItems?: string[];
+  memoryItems?: MemoryEvidence[];
 }
 
 export async function* streamChat(
@@ -64,9 +64,7 @@ export async function* streamChat(
         const json = JSON.parse(data);
         // CR-04 memory trailer: one non-content event before [DONE].
         if (Array.isArray(json.memory_items)) {
-          const memoryItems = json.memory_items.filter(
-            (item: unknown): item is string => typeof item === 'string',
-          );
+          const memoryItems = normalizeMemoryEvidence(json.memory_items);
           if (memoryItems.length) yield { content: '', done: false, memoryItems };
           continue;
         }

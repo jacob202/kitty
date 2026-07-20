@@ -4,7 +4,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import { Copy, Check, RotateCcw, Paperclip, ThumbsUp, ThumbsDown } from 'lucide-react'
-import { Message } from '@/lib/types'
+import { Message, type MemoryEvidence } from '@/lib/types'
 import { useSubmitMessageFeedback, type MessageFeedbackRating } from '@/lib/queries'
 import { CatFaceBadge, type CatState } from './CrayonCat'
 
@@ -276,7 +276,7 @@ function Attribution({ message }: { message: Message }) {
 }
 
 /** Collapsed list of the memories that informed a reply (CR-05). */
-function MemoryBlock({ items }: { items: string[] }) {
+function MemoryBlock({ items }: { items: MemoryEvidence[] }) {
   const [open, setOpen] = useState(false)
   return (
     <div style={{ paddingLeft: 6, maxWidth: 560 }}>
@@ -290,8 +290,8 @@ function MemoryBlock({ items }: { items: string[] }) {
       </button>
       {open && (
         <ul style={memoryListStyle}>
-          {items.map((text, i) => (
-            <li key={i} style={memoryItemStyle}>{text}</li>
+          {items.map((item, i) => (
+            <li key={i} style={memoryItemStyle}>{item.text}</li>
           ))}
         </ul>
       )}

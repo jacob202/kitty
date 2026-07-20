@@ -42,6 +42,7 @@ out/
 .aura/
 .claude/settings.local.json
 .claude/handoff-archive/
+.claude/worktrees/
 reflection-notes.md
 
 # Misc

@@ -43,7 +43,10 @@ def test_finish_turn_stores_memory_evidence_on_assistant_message(monkeypatch, tm
         status="succeeded",
         assistant_text="here is the answer",
         resolved_model="kitty-default",
-        memory_items=["decided on FastAPI", "prefers dark mode"],
+        memory_items=[
+            {"text": "decided on FastAPI", "memory_id": "mem-fastapi"},
+            {"text": "prefers dark mode"},
+        ],
     )
 
     turn = chat_lifecycle.get_turn(handle.turn_id)
@@ -51,8 +54,8 @@ def test_finish_turn_stores_memory_evidence_on_assistant_message(monkeypatch, tm
     import json as _json
 
     assert _json.loads(assistant["memory_items"]) == [
-        "decided on FastAPI",
-        "prefers dark mode",
+        {"text": "decided on FastAPI", "memory_id": "mem-fastapi"},
+        {"text": "prefers dark mode"},
     ]
 
 
@@ -68,7 +71,7 @@ def test_finish_turn_without_memory_evidence_stores_null(monkeypatch, tmp_path):
     assert assistant["memory_items"] is None
 
 
-def test_finish_turn_rejects_non_string_memory_items(monkeypatch, tmp_path):
+def test_finish_turn_rejects_invalid_memory_evidence(monkeypatch, tmp_path):
     handle = _start(tmp_path / "kitty" / "kitty.db", monkeypatch)
 
     import pytest
@@ -78,5 +81,5 @@ def test_finish_turn_rejects_non_string_memory_items(monkeypatch, tmp_path):
             handle,
             status="succeeded",
             assistant_text="answer",
-            memory_items=["ok", 42],  # type: ignore[list-item]
+            memory_items=[{"text": "ok"}, {"memory_id": "missing-text"}],
         )

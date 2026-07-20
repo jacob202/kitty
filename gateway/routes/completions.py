@@ -21,6 +21,7 @@ from gateway.llm_client import (
     log_chat_trace,
     route_model,
 )
+from gateway.memory_graph import MemoryEvidence
 from gateway.paths import LITELLM_BASE, LITELLM_KEY, LOG_FILE
 from gateway.runtime_manifest import compact_runtime_context, compose_manifest
 
@@ -40,7 +41,7 @@ def _finish_lifecycle_or_raise(
     assistant_text: str,
     resolved_model: str | None = None,
     error: str | None = None,
-    memory_items: list[str] | None = None,
+    memory_items: list[MemoryEvidence] | None = None,
 ) -> None:
     try:
         chat_lifecycle.finish_turn(
@@ -228,7 +229,7 @@ async def chat_completions(request: Request):
         # Memory-evidence trailer (CR-04): built before streaming starts so
         # the hot path only pays a byte comparison per chunk. None when no
         # memories were injected — the trailer must then be absent.
-        trailer_items: list[str] | None = None
+        trailer_items: list[MemoryEvidence] | None = None
         memory_trailer: bytes | None = None
         if bundle.injected_memory_items:
             # Full injected texts, untruncated (Jacob, 2026-07-20): the render
