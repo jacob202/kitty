@@ -1,6 +1,6 @@
 'use client'
 import type { CSSProperties } from 'react'
-import { usePlugins, useTogglePlugin, useMcpServers, useMcpTools, useGatewayModels } from '@/lib/queries'
+import { usePlugins, useTogglePlugin, useMcpServers, useMcpTools, useGatewayModels, useImageStatus } from '@/lib/queries'
 
 // Honest lanes — these are how Jacob actually reaches each thing today.
 // A subscription in a browser is not an API; don't dress it up as one.
@@ -37,7 +37,12 @@ const EXTERNAL_LANES: Array<{
   {
     name: 'ComfyUI',
     lane: 'external / later',
-    note: 'will run as its own service Kitty calls — not vendored into the gateway. not wired yet.',
+    note: 'local image engine Kitty calls through the gateway. health is shown below; the renderer remains external.',
+  },
+  {
+    name: 'Draw Things',
+    lane: 'external / later',
+    note: 'A1111-compatible local image engine. Kitty can route Image Lab requests here when its API server is enabled.',
   },
 ]
 
@@ -53,6 +58,7 @@ export function ProviderCenter() {
   const togglePlugin = useTogglePlugin()
   const serversQuery = useMcpServers()
   const toolsQuery = useMcpTools()
+  const imageStatusQuery = useImageStatus()
 
   const modelsLive = modelsQuery.data?.fromLiveGateway ?? false
   const models = modelsQuery.data?.models ?? []
@@ -119,6 +125,39 @@ export function ProviderCenter() {
             </button>
           </div>
         ))}
+      </div>
+
+      {/* ── image engines ── */}
+      <div style={cardStyle}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={sectionLabelStyle}>image engines — gateway routed</span>
+          <span style={{ flex: 1 }} />
+          <button
+            type="button"
+            onClick={() => void imageStatusQuery.refetch()}
+            disabled={imageStatusQuery.isFetching}
+            style={refreshStyle}
+          >
+            {imageStatusQuery.isFetching ? 'checking…' : 'refresh'}
+          </button>
+        </div>
+        {imageStatusQuery.isError && (
+          <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
+            couldn&apos;t read image engine health — gateway error
+          </p>
+        )}
+        {(imageStatusQuery.data?.engines ?? []).map(engine => (
+          <div key={engine.name} style={rowStyle}>
+            <div style={{ display: 'grid', gap: 2, minWidth: 0 }}>
+              <span style={rowNameStyle}>{engine.label}</span>
+              <span style={rowNoteStyle}>{engine.name}</span>
+            </div>
+            <StatusDot ok={engine.available} okLabel="online" badLabel="offline" />
+          </div>
+        ))}
+        {imageStatusQuery.data?.engines?.length === 0 && (
+          <p style={mutedStyle}>no image engine status returned by the gateway.</p>
+        )}
       </div>
 
       {/* ── mcp ── */}
@@ -258,6 +297,17 @@ const toggleStyle: CSSProperties = {
   cursor: 'pointer',
   flexShrink: 0,
   marginLeft: 'auto',
+}
+
+const refreshStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  padding: '3px 8px',
+  color: 'var(--ink-2)',
+  background: 'transparent',
+  border: '1px solid var(--line)',
+  borderRadius: 4,
+  cursor: 'pointer',
 }
 
 const chipStyle: CSSProperties = {
