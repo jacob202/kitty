@@ -13,6 +13,7 @@
     "gen:api-types": "openapi-typescript http://127.0.0.1:8000/openapi.json -o src/lib/gen/gateway-schema.d.ts"
   },
   "dependencies": {
+    "@assistant-ui/react": "^0.14.27",
     "@tanstack/react-query": "^5.62.7",
     "cmdk": "^1.1.1",
     "highlight.js": "^11.11.1",
@@ -21,8 +22,10 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-markdown": "^9.0.1",
+    "react-photo-album": "^3.6.0",
     "rehype-highlight": "^7.0.2",
-    "remark-gfm": "^4.0.0"
+    "remark-gfm": "^4.0.0",
+    "yet-another-react-lightbox": "^3.32.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",

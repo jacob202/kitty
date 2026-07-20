@@ -50,6 +50,7 @@ import {
   type GatewaySearchSnapshot,
   type GatewayTriageEntry,
 } from '@/lib/gateway';
+import { validateAttachments, type AttachmentError } from '@/lib/attachment-validation';
 import { usePwaInstall } from '@/lib/pwa';
 import {
   useGatewayBrief,
@@ -202,7 +203,7 @@ function KittyChatInner() {
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [activeModel, setActiveModel] = useState<Model>(MODELS[0]);
-  const [showModelMenu, setShowModelMenu] = useState(false);
+
   const [tokenCount, setTokenCount] = useState(0);
   const [searchSnapshot, setSearchSnapshot] = useState<GatewaySearchSnapshot | null>(null);
   const [searchGateway, setSearchGateway] = useState<{
@@ -723,14 +724,17 @@ function KittyChatInner() {
     setTimeout(() => textareaRef.current?.focus(), 0);
   }, []);
 
-  // Upload picked files to the gateway, registering each as a durable artifact
-  // linked to this conversation. Only successful registrations become pending
-  // attachments; a null result means upload failed and the chip is dropped.
+  const [attachmentErrors, setAttachmentErrors] = useState<AttachmentError[]>([]);
+
   const handleAddFiles = useCallback(
     async (files: FileList) => {
       if (!activeChat) return;
+      const { valid, errors } = validateAttachments(files);
+      if (errors.length) setAttachmentErrors(errors);
+      else setAttachmentErrors([]);
+
       const added: MessageAttachment[] = [];
-      for (const file of Array.from(files)) {
+      for (const file of valid) {
         const result = await uploadCaptureFile(file, {
           conversationId: activeChat.id,
           projectId: activeProject?.id,
@@ -806,7 +810,7 @@ function KittyChatInner() {
         color: 'var(--ink)',
         fontFamily: 'var(--font-body)',
       }}
-      onClick={() => showModelMenu && setShowModelMenu(false)}
+      onClick={undefined}
     >
       <WobFilters />
       {showOnboarding && (
@@ -889,8 +893,7 @@ function KittyChatInner() {
           activeModel={activeModel}
           models={availableModels}
           onSelectModel={handleSelectModel}
-          showModelMenu={showModelMenu}
-          setShowModelMenu={setShowModelMenu}
+
           isStreaming={isStreaming}
           activeChat={activeChat}
           modelFromGateway={modelGateway.live}
@@ -1344,6 +1347,26 @@ function KittyChatInner() {
                 retry
               </button>
             )}
+          </div>
+        )}
+
+        {activeView === 'chat' && attachmentErrors.length > 0 && (
+          <div
+            role="alert"
+            style={{
+              padding: '4px 28px',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              color: 'var(--c-red)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+              flexShrink: 0,
+            }}
+          >
+            {attachmentErrors.map((err, i) => (
+              <span key={i}>{err.file}: {err.reason}</span>
+            ))}
           </div>
         )}
 
