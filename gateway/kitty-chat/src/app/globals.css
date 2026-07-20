@@ -249,6 +249,55 @@ button, input, textarea { font: inherit; }
 
 /* Hide the decorative corner mascot on narrow viewports so it cannot overlap
    interactive controls such as the deadlines sweep button. */
+/* ── Accessibility ────────────────────────────────────────── */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 16px;
+  z-index: 999;
+  padding: 8px 16px;
+  background: var(--primary);
+  color: var(--on-primary);
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.skip-link:focus {
+  top: 8px;
+}
+
+*:focus-visible {
+  outline: 3px solid var(--primary) !important;
+  outline-offset: 2px !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes tool-call-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.tool-call-spin { animation: tool-call-spin 1s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-call-spin { animation: none; }
+}
+
+/* Bottom nav safe area for mobile */
+.body-has-bottom-nav {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 @media (max-width: 480px) {
   .cat-corner { display: none !important; }
 }

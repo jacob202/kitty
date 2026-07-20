@@ -64,8 +64,10 @@ import {
   useToggleLoop,
   useDismissInsight,
 } from '@/lib/queries';
-
-const MOBILE_BREAKPOINT = 900;
+import { useMobileLayout } from '@/hooks/useMobileLayout';
+import { useTheme } from '@/hooks/useTheme';
+import { useViewRouter, type KittyView } from '@/hooks/useViewRouter';
+import { BottomNav } from '@/components/BottomNav';
 
 let chatCounter = 0;
 function newChatId() {
@@ -197,7 +199,7 @@ export default function KittyChat() {
 
 function KittyChatInner() {
   const [chats, setChats] = useState<Chat[]>(() => [makeChat('teal')]);
-  const [activeView, setActiveView] = useState('home');
+  const { activeView, setActiveView, navigate, navigateChat } = useViewRouter()
   const [activeChatId, setActiveChatId] = useState<string | null>(() => null);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -210,10 +212,8 @@ function KittyChatInner() {
     error: string | null;
   }>({ live: true, error: null });
   const [kittyMode, setKittyMode] = useState('default');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [theme, setTheme] = useState<'cosmic' | 'day' | 'night'>('cosmic');
+  const { isMobile, sidebarCollapsed, mobileSidebarOpen, toggleSidebar, closeMobileSidebar } = useMobileLayout()
+  const { theme, setTheme, toggleTheme } = useTheme()
   const [preferredName, setPreferredName] = useState('');
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'failed' | 'offline'>(
@@ -274,35 +274,9 @@ function KittyChatInner() {
       .catch(() => {});
   }, []);
 
+  // Local prefs that aren't in the extracted hooks
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const media = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`);
-    const syncViewport = () => setIsMobile(media.matches);
-
-    syncViewport();
-    if (typeof media.addEventListener === 'function') {
-      media.addEventListener('change', syncViewport);
-      return () => media.removeEventListener('change', syncViewport);
-    }
-
-    media.addListener(syncViewport);
-    return () => media.removeListener(syncViewport);
-  }, []);
-
-  useEffect(() => {
-    if (!isMobile) {
-      setMobileSidebarOpen(false);
-    }
-  }, [isMobile]);
-
-  useEffect(() => {
-    const savedTheme = window.localStorage.getItem('kitty-theme');
     setPreferredName(window.localStorage.getItem('kitty-preferred-name') ?? '');
-    if (savedTheme === 'cosmic' || savedTheme === 'day' || savedTheme === 'night') {
-      setTheme(savedTheme);
-      document.documentElement.setAttribute('data-theme', savedTheme);
-    }
     setShowOnboarding(window.localStorage.getItem('kitty-onboarded') !== 'true');
   }, []);
 
@@ -425,29 +399,12 @@ function KittyChatInner() {
     setInput('');
   }, [activeModel.id]);
 
-  const handleToggleTheme = useCallback(() => {
-    setTheme((t) => {
-      const next = t === 'cosmic' ? 'day' : t === 'day' ? 'night' : 'cosmic';
-      document.documentElement.setAttribute('data-theme', next);
-      window.localStorage.setItem('kitty-theme', next);
-      return next;
-    });
-  }, []);
-
-  const handleToggleSidebar = useCallback(() => {
-    if (isMobile) {
-      setMobileSidebarOpen((open) => !open);
-      return;
-    }
-    setSidebarCollapsed((collapsed) => !collapsed);
-  }, [isMobile]);
-
   const handleSelectChat = useCallback(
     (id: string) => {
       setActiveChatId(id);
       setActiveView('chat');
       if (isMobile) {
-        setMobileSidebarOpen(false);
+        closeMobileSidebar();
       }
     },
     [isMobile],
@@ -457,7 +414,7 @@ function KittyChatInner() {
     handleNewChat();
     setActiveView('chat');
     if (isMobile) {
-      setMobileSidebarOpen(false);
+      closeMobileSidebar();
     }
   }, [handleNewChat, isMobile]);
 
@@ -825,7 +782,7 @@ function KittyChatInner() {
           activeView={activeView}
           onViewChange={setActiveView}
           theme={theme}
-          onToggleTheme={handleToggleTheme}
+          onToggleTheme={toggleTheme}
         />
       )}
 
@@ -843,7 +800,7 @@ function KittyChatInner() {
       {isMobile && mobileSidebarOpen && activeView === 'chat' && (
         <>
           <div
-            onClick={() => setMobileSidebarOpen(false)}
+            onClick={() => closeMobileSidebar()}
             style={{
               position: 'fixed',
               inset: 0,
@@ -899,7 +856,7 @@ function KittyChatInner() {
           kittyMode={kittyMode}
           onKittyModeChange={setKittyMode}
           sidebarCollapsed={sidebarCollapsed}
-          onToggleSidebar={handleToggleSidebar}
+          onToggleSidebar={toggleSidebar}
           isMobile={isMobile}
           catState={catState}
           activeProject={activeProject}
@@ -1118,7 +1075,7 @@ function KittyChatInner() {
               </div>
             ) : activeView === 'settings' ? (
               <div style={panelPadding(isMobile)}>
-                <SettingsPanel theme={theme} onToggleTheme={handleToggleTheme} />
+                <SettingsPanel theme={theme} onToggleTheme={toggleTheme} />
               </div>
             ) : activeView === 'builder' ? (
               <div style={panelPadding(isMobile)}>
@@ -1380,8 +1337,12 @@ function KittyChatInner() {
         onNewChat={handleSidebarNewChat}
         onSelectChat={handleSelectChat}
         onViewChange={setActiveView}
-        onToggleSidebar={handleToggleSidebar}
+        onToggleSidebar={toggleSidebar}
       />
+
+      {isMobile && (
+        <BottomNav activeView={activeView} onNavigate={setActiveView} />
+      )}
     </div>
   );
 }

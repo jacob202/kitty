@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Chat, Model, STREAMING_LABEL } from '@/lib/types'
+import { StatusBadge, type StatusState } from './ui/StatusBadge'
 import { StateBadge, type CatState } from './CrayonCat'
 
 interface Props {
@@ -184,26 +185,23 @@ function RuntimeBadge({
 }: {
   state: 'available' | 'unavailable' | 'degraded' | 'stale' | 'unknown'
   detail?: string
-  /** Phone layout: the label wraps in the crowded top row, so show only the
-   *  status dot and carry the words via title/aria-label instead. */
   compact?: boolean
 }) {
-  const healthy = state === 'available'
-  const color = healthy ? 'var(--c-green)' : 'var(--c-red)'
-  const label = healthy ? 'runtime live' : `runtime ${state}`
+  const statusState: StatusState = state === 'available' ? 'completed'
+    : state === 'unavailable' ? 'unavailable'
+    : state === 'degraded' ? 'degraded'
+    : state === 'stale' ? 'degraded'
+    : 'paused'
+
+  const label = state === 'available' ? 'live'
+    : state === 'unavailable' ? 'offline'
+    : state === 'degraded' ? 'limited'
+    : state === 'stale' ? 'stale'
+    : 'unknown'
+
   return (
-    <span
-      title={detail ?? `runtime state: ${state}`}
-      aria-label={label}
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: 5,
-        fontFamily: 'var(--font-mono)', fontSize: 10, whiteSpace: 'nowrap',
-        color, border: `1px solid ${color}`, borderRadius: 999,
-        padding: compact ? 4 : '3px 7px', opacity: 0.9,
-      }}
-    >
-      <span style={{ width: 5, height: 5, borderRadius: 99, background: color }} />
-      {!compact && label}
+    <span title={detail ?? `runtime state: ${state}`} aria-label={`runtime ${label}`}>
+      <StatusBadge state={statusState} label={label} variant={compact ? 'dot' : 'pill'} />
     </span>
   )
 }

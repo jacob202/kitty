@@ -28,13 +28,13 @@ describe('TopBar runtime badge', () => {
 
   it('desktop shows the runtime label text', () => {
     renderTopBar(false)
-    expect(screen.getByText('runtime live')).toBeInTheDocument()
+    expect(screen.getByText('live')).toBeInTheDocument()
   })
 
   it('mobile collapses to a dot-only badge that keeps its accessible label', () => {
     renderTopBar(true)
     // The words would wrap the crowded 320px top row — dot only, label via aria.
-    expect(screen.queryByText('runtime live')).not.toBeInTheDocument()
+    expect(screen.queryByText('live')).not.toBeInTheDocument()
     expect(screen.getByLabelText('runtime live')).toBeInTheDocument()
   })
 })
