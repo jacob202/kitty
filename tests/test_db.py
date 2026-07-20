@@ -164,6 +164,7 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "020_chat_objective.sql",
         "021_chat_lifecycle_objective.sql",
         "022_chat_message_memory.sql",
+        "023_image_jobs.sql",
     ]
 
 

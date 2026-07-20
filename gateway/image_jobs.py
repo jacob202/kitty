@@ -16,6 +16,7 @@ Design boundaries:
 from __future__ import annotations
 
 import json
+import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -56,7 +57,7 @@ class ImageJobStore:
     def __init__(self, db_file: Path = KITTY_DB_FILE) -> None:
         self._db_file = Path(db_file)
 
-    def _conn(self) -> object:
+    def _conn(self) -> sqlite3.Connection:
         conn = connect(self._db_file)
         # Self-contained: ensure only our table exists so the store works on a
         # fresh DB without running the full (ALTER-based) migration chain.
@@ -124,13 +125,13 @@ class ImageJobStore:
             )
             return int(cur.lastrowid)
 
-    def _require_job(self, conn: object, job_id: int) -> dict:
+    def _require_job(self, conn: sqlite3.Connection, job_id: int) -> dict:
         row = conn.execute("SELECT * FROM image_jobs WHERE id = ?", (job_id,)).fetchone()
         if row is None:
             raise JobNotFoundError(f"job {job_id} not found")
         return dict(row)
 
-    def _transition(self, conn: object, job_id: int, to: str) -> None:
+    def _transition(self, conn: sqlite3.Connection, job_id: int, to: str) -> None:
         job = self._require_job(conn, job_id)
         current = job["provider_status"]
         allowed = _TRANSITIONS.get(current, set())
