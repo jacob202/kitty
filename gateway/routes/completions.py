@@ -231,7 +231,10 @@ async def chat_completions(request: Request):
         trailer_items: list[str] | None = None
         memory_trailer: bytes | None = None
         if bundle.injected_memory_items:
-            trailer_items = [text[:200] for text in bundle.injected_memory_items]
+            # Full injected texts, untruncated (Jacob, 2026-07-20): the render
+            # budget already bounds them, and a mid-sentence chop reads worse
+            # than a longer line in the "kitty remembered" block.
+            trailer_items = list(bundle.injected_memory_items)
             trailer_json = json.dumps(
                 {"memory_items": trailer_items}, ensure_ascii=False
             )
