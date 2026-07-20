@@ -1101,7 +1101,7 @@ export interface ImageEngineStatus {
 export interface ImageStatus {
   available: boolean
   backend?: string
-  engines: ImageEngineStatus[]
+  engines?: ImageEngineStatus[]
 }
 
 export async function fetchImageStatus(): Promise<ImageStatus> {
