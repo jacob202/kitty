@@ -344,8 +344,9 @@ It maximizes reliability + user value (reproducibility, restart-surviving galler
 
 ## 15. Final Report
 
-- **Kitty branch:** `feat/deeptutor-dth04-dth05`
-- **Kitty HEAD / origin/main:** `d7f7a8d306858258862a3d155fa41ae152d3a249`
+- **Kitty branch:** `docs/audit-imagelab-2026-07-20`
+- **Audit branch HEAD:** `c2388651e3846b5bfe60c13f0e956ce61a7d028c`
+- **origin/main (base):** `d7f7a8d306858258862a3d155fa41ae152d3a249`
 - **Kitty working tree:** unrelated DTH-04/DTH-05 in-progress (untouched by this audit)
 - **InvokeAI remote / SHA:** `invoke-ai/InvokeAI` @ `82e26811264701477683cfc937d05c6977c5ecda` (Apache-2.0)
 - **ComfyUI remote / SHA:** `comfyanonymous/ComfyUI` @ `66655153499f89052aa72d5a869f556b25f0e9c6` (GPL-3.0)
