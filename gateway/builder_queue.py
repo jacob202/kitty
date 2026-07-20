@@ -27,367 +27,215 @@ from __future__ import annotations
 import json
 import logging
 import os
-import secrets
 import sqlite3
 import subprocess
-import time
 from pathlib import Path
 from typing import Any
 
 from gateway.paths import BUILDER_QUEUE_DB
 
+from .query_builder import WhereClause, build_where
+
 logger = logging.getLogger("kitty.builder_queue")
 
+__all__ = [
+    # Re-exports from gateway.builder_queue_db (DB layer; audit §2.2 first cut).
+    "AWAITING_REVIEW",
+    "BLOCKED",
+    "BranchLeaseConflictError",
+    "CANCELLED",
+    "CLAIMED",
+    "connect",
+    "DataCorruptionError",
+    "DONE",
+    "FAILED",
+    "IllegalTransitionError",
+    "init_db",
+    "LeaseConflictError",
+    "LEGAL_TRANSITIONS",
+    "PR_OPENED",
+    "QUEUED",
+    "RUNNING",
+    "TaskNotFoundError",
+    "TERMINAL_STATES",
+    # Re-exports from gateway.builder_queue_leases (lease lifecycle; audit §2.2 second cut).
+    "claim_next",
+    "claim_task",
+    "operator_release_task",
+    "recover_expired_leases",
+    "renew_lease",
+    "worker_release_task",
+    "worker_transition_task",
+    # Run-state machine constants and transitions.
+    "RUN_ACTIVE_STATES",
+    "RUN_CANCELLED",
+    "RUN_CANCEL_REQUESTED",
+    "RUN_EXITED",
+    "RUN_FAILED",
+    "RUN_INTERRUPTED",
+    "RUN_LEASE_LOST",
+    "RUN_RUNNING",
+    "RUN_SCOPE_VIOLATION",
+    "RUN_STARTING",
+    "RUN_TERMINAL_STATES",
+    "RUN_TIMEOUT",
+    "RUN_TRANSITIONS",
+    # Library functions (defined in this module; select non-underscore surface).
+    "ActiveRunConflictError",
+    "append_event",
+    "archive_tasks",
+    "attach_final_report",
+    "attach_pr",
+    "capture_process_identity",
+    "claim_branch_lease",
+    "create_run",
+    "create_task",
+    "detect_merged_prs",
+    "edit_task",
+    "finalize_run",
+    "generate_run_id",
+    "generate_task_id",
+    "get_branch_lease",
+    "get_pr_links",
+    "get_run",
+    "get_task",
+    "list_events",
+    "list_runs",
+    "list_tasks",
+    "queue_status",
+    "recover_interrupted_runs",
+    "release_branch_lease",
+    "RunNotFoundError",
+    "RunStateConflictError",
+    "sync_pr_status",
+    "transition_task",
+    "update_run",
+    "verify_branch_lease",
+]
+
 # ---------------------------------------------------------------------------
-# State constants (Section 4.3 — legal state machine)
+# Re-exports from gateway.builder_queue_db (audit §2.2 first cut).
+# Keep ``from gateway.builder_queue import X`` and
+# ``import gateway.builder_queue as bq`` working for tests and
+# sibling modules (gateway.builder_attempt, gateway.builder_runner,
+# gateway.builder_initiative, gateway.builder_cli, tests/...).
 # ---------------------------------------------------------------------------
+# Shared ID-generation helper (audit §2.2 fourth-cut cleanup).
+from ._id_helpers import generate_id_with_base36
 
-QUEUED = "queued"
-CLAIMED = "claimed"
-RUNNING = "running"
-PR_OPENED = "pr_opened"
-AWAITING_REVIEW = "awaiting_review"
-DONE = "done"
-FAILED = "failed"
-CANCELLED = "cancelled"
-BLOCKED = "blocked"
-
-TERMINAL_STATES = frozenset({DONE, FAILED, CANCELLED})
-
-_VALID_STATES = frozenset({
-    QUEUED,
-    CLAIMED,
-    RUNNING,
-    PR_OPENED,
+# -------------------------------------------------------------------------
+# Re-exports from gateway.builder_queue_branch_leases (audit §2.2 #4).
+# Keep ``from gateway.builder_queue import X`` working for
+# ``gateway.builder_identity``, ``gateway.builder_loop``, the CLI,
+# and tests.
+# Cycle: builder_queue_branch_leases imports connect/init_db from
+# builder_queue_db (no cycle); no lazy ``_bq`` import needed.
+# -------------------------------------------------------------------------
+from .builder_queue_branch_leases import (  # noqa: E402,F401 — façade re-exports.
+    _claim_branch_lease_on_conn,
+    _release_branch_lease_on_conn,
+    _validate_branch_lease_fields,
+    claim_branch_lease,
+    get_branch_lease,
+    release_branch_lease,
+    verify_branch_lease,
+)
+from . import builder_queue_db as _queue_db
+from .builder_queue_db import (  # noqa: E402 — placed after logger by design; facades re-exports.
+    _VALID_STATES,
     AWAITING_REVIEW,
+    BLOCKED,
+    CANCELLED,
+    CLAIMED,
     DONE,
     FAILED,
-    CANCELLED,
-    BLOCKED,
-})
-
-LEGAL_TRANSITIONS: dict[str, frozenset[str]] = {
-    QUEUED: frozenset({CLAIMED, FAILED, CANCELLED}),
-    CLAIMED: frozenset({RUNNING, FAILED, CANCELLED, QUEUED}),
-    RUNNING: frozenset({BLOCKED, PR_OPENED, FAILED, CANCELLED}),
-    PR_OPENED: frozenset({AWAITING_REVIEW, FAILED, CANCELLED}),
-    AWAITING_REVIEW: frozenset({DONE, FAILED, CANCELLED}),
-    # Operator publish (KB-S4) may advance shadow-blocked work to pr_opened.
-    BLOCKED: frozenset({RUNNING, QUEUED, FAILED, CANCELLED, PR_OPENED}),
-    DONE: frozenset(),
-    FAILED: frozenset(),
-    CANCELLED: frozenset(),
-}
-
-# ---------------------------------------------------------------------------
-# Error classes
-# ---------------------------------------------------------------------------
-
-
-class TaskNotFoundError(ValueError):
-    """Raised when a task ID does not exist."""
-
-
-class IllegalTransitionError(ValueError):
-    """Raised when a state transition is not legal or the task is archived."""
-
-
-class LeaseConflictError(ValueError):
-    """Raised when a task cannot be claimed or lease fencing rejects a stale worker."""
-
-
-class BranchLeaseConflictError(ValueError):
-    """Raised when a branch lease is already held or a release is attempted by the wrong owner."""
-
-
-class DataCorruptionError(RuntimeError):
-    """Raised when a DB column contains data that cannot be decoded."""
-
-
-# ---------------------------------------------------------------------------
-# Schema (Phase 1A — tasks + events only; runs/pr_links/artifacts are future)
-# ---------------------------------------------------------------------------
-
-_SCHEMA_SQL = """
-CREATE TABLE IF NOT EXISTS tasks (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    description TEXT,
-    state TEXT NOT NULL DEFAULT 'queued',
-    priority INTEGER DEFAULT 0,
-    lease_owner TEXT,
-    lease_token TEXT,
-    lease_expires_at TIMESTAMP,
-    claim_version INTEGER DEFAULT 0,
-    acceptance_criteria_json TEXT,
-    bridge_source TEXT,
-    bridge_issue TEXT,
-    bridge_external_id TEXT,
-    bridge_comment_url TEXT,
-    workflow_ref TEXT,
-    workflow_sha TEXT,
-    repo_path TEXT,
-    allowed_paths_json TEXT,
-    blocked_reason TEXT,
-    last_error TEXT,
-    final_report_json TEXT,
-    archived_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_tasks_claim
-    ON tasks(state, priority DESC, id ASC);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_bridge_external
-    ON tasks(bridge_source, bridge_external_id)
-    WHERE bridge_source IS NOT NULL AND bridge_external_id IS NOT NULL;
-
-CREATE TABLE IF NOT EXISTS events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_id TEXT NOT NULL,
-    run_id TEXT,
-    type TEXT NOT NULL,
-    payload_json TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (task_id) REFERENCES tasks(id)
-);
-
--- Append-only enforcement: block UPDATE and DELETE on the event log.
-CREATE TRIGGER IF NOT EXISTS prevent_event_updates BEFORE UPDATE ON events
-BEGIN
-    SELECT RAISE(ABORT, 'Event log is append-only; UPDATE is not permitted');
-END;
-CREATE TRIGGER IF NOT EXISTS prevent_event_deletes BEFORE DELETE ON events
-BEGIN
-    SELECT RAISE(ABORT, 'Event log is append-only; DELETE is not permitted');
-END;
-
--- Phase 1B: PR metadata links. Advisory only — GitHub data never mutates
--- task state (Section 11.4). One row per (task, PR number), updated in
--- place as checks/review state are synced.
-CREATE TABLE IF NOT EXISTS pr_links (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_id TEXT NOT NULL,
-    pr_number INTEGER NOT NULL,
-    pr_url TEXT,
-    head_sha TEXT,
-    checks_state TEXT,
-    review_state TEXT,
-    merged INTEGER NOT NULL DEFAULT 0,
-    merged_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (task_id) REFERENCES tasks(id)
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_pr_links_task_pr
-    ON pr_links(task_id, pr_number);
-
--- Phase 1C-alpha: worker run records. One row per execution attempt,
--- updated in place as the attempt progresses. History = multiple rows.
-CREATE TABLE IF NOT EXISTS runs (
-    id TEXT PRIMARY KEY,
-    task_id TEXT NOT NULL,
-    state TEXT NOT NULL DEFAULT 'starting',
-    command_json TEXT NOT NULL,
-    claim_version INTEGER,
-    worker TEXT,
-    model TEXT,
-    provider TEXT,
-    pid INTEGER,
-    process_identity TEXT,
-    branch TEXT,
-    worktree_path TEXT,
-    start_sha TEXT,
-    log_path TEXT,
-    exit_code INTEGER,
-    final_report_json TEXT,
-    started_at TIMESTAMP,
-    ended_at TIMESTAMP,
-    last_heartbeat_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (task_id) REFERENCES tasks(id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_runs_task ON runs(task_id, id);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_runs_one_active_per_task
-    ON runs(task_id)
-    WHERE state IN ('starting', 'running', 'cancel_requested');
-
--- Branch leases: exclusive per packet, worker, branch, and worktree.
--- base_sha is verification metadata only; several packets may share it.
-CREATE TABLE IF NOT EXISTS branch_leases (
-    lease_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    packet_id TEXT NOT NULL UNIQUE,
-    worker_id TEXT NOT NULL,
-    branch TEXT NOT NULL UNIQUE,
-    worktree_path TEXT NOT NULL UNIQUE,
-    base_sha TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Databases created by the partial Phase 2 port did not make worker_id
--- unique. Creating the index migrates clean databases and fails loudly if
--- contradictory live leases already exist.
-CREATE UNIQUE INDEX IF NOT EXISTS idx_branch_leases_worker
-    ON branch_leases(worker_id);
-"""
-
-# Run lifecycle states (runs table). Terminal: exited/failed/timeout/
-# cancelled/interrupted.
-RUN_STARTING = "starting"
-RUN_RUNNING = "running"
-RUN_CANCEL_REQUESTED = "cancel_requested"
-RUN_EXITED = "exited"
-RUN_FAILED = "failed"
-RUN_TIMEOUT = "timeout"
-RUN_CANCELLED = "cancelled"
-RUN_INTERRUPTED = "interrupted"
-RUN_LEASE_LOST = "lease_lost"
-RUN_SCOPE_VIOLATION = "scope_violation"
-
-RUN_ACTIVE_STATES = frozenset({RUN_STARTING, RUN_RUNNING, RUN_CANCEL_REQUESTED})
-RUN_TERMINAL_STATES = frozenset(
-    {
-        RUN_EXITED,
-        RUN_FAILED,
-        RUN_TIMEOUT,
-        RUN_CANCELLED,
-        RUN_INTERRUPTED,
-        RUN_LEASE_LOST,
-        RUN_SCOPE_VIOLATION,
-    }
+    LEGAL_TRANSITIONS,
+    PR_OPENED,
+    # State constants + transition map (Section 4.3)
+    QUEUED,
+    RUNNING,
+    TERMINAL_STATES,
+    BranchLeaseConflictError,
+    DataCorruptionError,
+    IllegalTransitionError,
+    LeaseConflictError,
+    # Exception classes
+    TaskNotFoundError,
 )
-
-RUN_TRANSITIONS: dict[str, frozenset[str]] = {
-    RUN_STARTING: frozenset(
-        {
-            RUN_RUNNING,
-            RUN_CANCEL_REQUESTED,
-            RUN_EXITED,
-            RUN_FAILED,
-            RUN_CANCELLED,
-            RUN_INTERRUPTED,
-            RUN_LEASE_LOST,
-        }
-    ),
-    RUN_RUNNING: frozenset(
-        {
-            RUN_CANCEL_REQUESTED,
-            RUN_EXITED,
-            RUN_FAILED,
-            RUN_TIMEOUT,
-            RUN_CANCELLED,
-            RUN_INTERRUPTED,
-            RUN_LEASE_LOST,
-            RUN_SCOPE_VIOLATION,
-        }
-    ),
-    RUN_CANCEL_REQUESTED: frozenset(
-        {
-            RUN_CANCEL_REQUESTED,
-            RUN_CANCELLED,
-            RUN_INTERRUPTED,
-            RUN_LEASE_LOST,
-            RUN_SCOPE_VIOLATION,
-        }
-    ),
-    **{state: frozenset() for state in RUN_TERMINAL_STATES},
-}
-
-_PRAGMAS = (
-    "PRAGMA journal_mode=WAL;",
-    "PRAGMA busy_timeout=5000;",
-    "PRAGMA foreign_keys=ON;",
-    "PRAGMA synchronous=NORMAL;",
-)
-
-
-def _apply_pragmas(conn: sqlite3.Connection) -> None:
-    """Apply the Phase 1A connection pragmas (Section 4.2)."""
-    for pragma in _PRAGMAS:
-        conn.execute(pragma)
-
-
-def _apply_schema(conn: sqlite3.Connection) -> None:
-    """Create tables, indexes, and triggers if absent. Idempotent."""
-    conn.executescript(_SCHEMA_SQL)
-    _ensure_run_columns(conn)
-    _ensure_pr_link_columns(conn)
-
-
-def _ensure_pr_link_columns(conn: sqlite3.Connection) -> None:
-    """Add KB-S4 merge-tracking columns to databases created pre-migration."""
-    existing = {
-        str(row["name"] if isinstance(row, sqlite3.Row) else row[1])
-        for row in conn.execute("PRAGMA table_info(pr_links)").fetchall()
-    }
-    additions = {
-        "merged": "INTEGER NOT NULL DEFAULT 0",
-        "merged_at": "TIMESTAMP",
-    }
-    for column, sql_type in additions.items():
-        if column not in existing:
-            conn.execute(f"ALTER TABLE pr_links ADD COLUMN {column} {sql_type}")
-
-
-def _ensure_run_columns(conn: sqlite3.Connection) -> None:
-    """Add Phase 1C-alpha run columns to databases created by the draft."""
-    existing = {
-        str(row["name"] if isinstance(row, sqlite3.Row) else row[1])
-        for row in conn.execute("PRAGMA table_info(runs)").fetchall()
-    }
-    additions = {
-        "claim_version": "INTEGER",
-        "process_identity": "TEXT",
-        "start_sha": "TEXT",
-        "final_report_json": "TEXT",
-    }
-    for column, sql_type in additions.items():
-        if column not in existing:
-            conn.execute(f"ALTER TABLE runs ADD COLUMN {column} {sql_type}")
-
-
-# ---------------------------------------------------------------------------
-# Connection / init helpers
-# ---------------------------------------------------------------------------
-
-
-def init_db(db_path: Path | None = None) -> None:
-    """Initialize the Builder queue DB: create parent dir, schema, pragmas.
-
-    Safe to call repeatedly. Does not drop existing tables or rows.
-    """
-    path = Path(db_path) if db_path is not None else BUILDER_QUEUE_DB
-    path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(path))
-    try:
-        _apply_pragmas(conn)
-        _apply_schema(conn)
-        conn.commit()
-    finally:
-        conn.close()
-    logger.info("Initialized KittyBuilder queue DB at %s", path)
 
 
 def connect(db_path: Path | None = None) -> sqlite3.Connection:
-    """Open a connection to the Builder queue DB with pragmas + Row factory.
+    """Open the queue DB, preserving the legacy façade path override."""
+    return _queue_db.connect(BUILDER_QUEUE_DB if db_path is None else db_path)
 
-    The caller is responsible for committing/closing. ``init_db`` is NOT
-    called here — callers that need a schema-fresh DB should call
-    ``init_db`` first. Most library paths go through the helpers below,
-    which call this internally.
-    """
-    path = Path(db_path) if db_path is not None else BUILDER_QUEUE_DB
-    path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(path))
-    conn.row_factory = sqlite3.Row
-    _apply_pragmas(conn)
-    return conn
 
+def init_db(db_path: Path | None = None) -> None:
+    """Initialize the queue DB, preserving the legacy façade path override."""
+    _queue_db.init_db(BUILDER_QUEUE_DB if db_path is None else db_path)
+
+# ---------------------------------------------------------------------------
+# Re-exports from gateway.builder_queue_leases (audit §2.2 second cut).
+# Keep ``from gateway.builder_queue import X`` working for
+# ``gateway.builder_runner`` (renew_lease heartbeat), ``builder_attempt``
+# (claim / release worker paths), the CLI, and tests.
+# ---------------------------------------------------------------------------
+from .builder_queue_leases import (  # noqa: E402,F401 — façade re-exports; placed after logger by design.
+    claim_next,
+    claim_task,
+    operator_release_task,
+    recover_expired_leases,
+    renew_lease,
+    worker_release_task,
+    worker_transition_task,
+)
+
+# ---------------------------------------------------------------------------
+# Re-exports from gateway.builder_queue_runs (audit §2.2 third cut).
+# Keep ``from gateway.builder_queue import X`` working for
+# ``gateway.builder_runner`` (run_worker finalize + heartbeat), the CLI,
+# and tests.
+# Cycle break: builder_queue_runs.py lazy-imports
+# ``gateway.builder_queue`` inside functions that need ``append_event`` or
+# ``_apply_transition``; this top-level re-export is safe because
+# builder_queue is fully loaded before builder_queue_runs is reached.
+# ---------------------------------------------------------------------------
+from .builder_queue_runs import (  # noqa: E402,F401 — façade re-exports; placed after logger by design.
+    RUN_ACTIVE_STATES,
+    RUN_CANCEL_REQUESTED,
+    RUN_CANCELLED,
+    RUN_EXITED,
+    RUN_FAILED,
+    RUN_INTERRUPTED,
+    RUN_LEASE_LOST,
+    RUN_RUNNING,
+    RUN_SCOPE_VIOLATION,
+    RUN_STARTING,
+    RUN_TERMINAL_STATES,
+    RUN_TIMEOUT,
+    RUN_TRANSITIONS,
+    ActiveRunConflictError,
+    RunNotFoundError,
+    RunStateConflictError,
+    capture_process_identity,
+    create_run,
+    finalize_run,
+    generate_run_id,
+    get_run,
+    list_runs,
+    recover_interrupted_runs,
+    update_run,
+)
+
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# SQLite schema (Phase 1A — tasks + events; runs/pr_links/artifacts future).
+# The DDL has moved to gateway.builder_queue_db._SCHEMA_SQL (audit §2.2).
+# This banner stays so the surrounding run-state section remains visually
+# grouped with the schema location.
+# Run-state machine constants live in :mod:`gateway.builder_queue_runs`
+# (audit §2.2 third cut) and are re-exported via the façade so
+# ``from gateway.builder_queue import RUN_ACTIVE_STATES`` /
+# ``bq.RUN_INTERRUPTED`` continue to work.
 
 # ---------------------------------------------------------------------------
 # Task ID helper (no-dependency, roughly time-sortable)
@@ -397,34 +245,14 @@ def connect(db_path: Path | None = None) -> sqlite3.Connection:
 def generate_task_id() -> str:
     """Return ``kb_<base36_unix_ms>_<hex4>``.
 
-    base36 of the millisecond timestamp keeps the ID compact and
-    monotonically increasing on a single machine; ``hex4`` adds 16 bits of
-    local disambiguation so two creates in the same millisecond do not
-    collide in practice.
+    Delegates to :func:`gateway._id_helpers.generate_id_with_base36` so the
+    time-sortable + disambiguation pattern is shared with the runs module.
     """
-    unix_ms = int(time.time() * 1000)
-    base36 = _to_base36(unix_ms)
-    hex4 = secrets.token_hex(2)  # 2 bytes -> 4 hex chars
-    return f"kb_{base36}_{hex4}"
+    return generate_id_with_base36("kb")
 
 
-def _generate_lease_token() -> str:
-    """Return a 64-character hex token for lease fencing."""
-    return secrets.token_hex(32)
 
 
-def _to_base36(n: int) -> str:
-    """Encode a non-negative integer as lowercase base36 (no leading zeros)."""
-    if n < 0:
-        raise ValueError("base36 encoding requires a non-negative integer")
-    if n == 0:
-        return "0"
-    digits = "0123456789abcdefghijklmnopqrstuvwxyz"
-    out = []
-    while n > 0:
-        n, rem = divmod(n, 36)
-        out.append(digits[rem])
-    return "".join(reversed(out))
 
 
 # ---------------------------------------------------------------------------
@@ -622,21 +450,19 @@ def list_tasks(
     """
     conn = connect(db_path)
     try:
-        where_parts = []
-        params: list[Any] = []
+        clauses: list[WhereClause] = []
         if state is not None:
-            where_parts.append("state = ?")
-            params.append(state)
+            clauses.append(WhereClause("state", "=", state))
         if not include_archived:
-            where_parts.append("archived_at IS NULL")
-        where_clause = " AND ".join(where_parts) if where_parts else "1 = 1"
+            clauses.append(WhereClause("archived_at", is_null=True))
+        where_sql, params = build_where(clauses)
         rows = conn.execute(
             f"""
             SELECT * FROM tasks
-            WHERE {where_clause}
+            WHERE {where_sql or "1 = 1"}
             ORDER BY state ASC, priority DESC, id ASC
             """,
-            params,
+            params if where_sql else (),
         ).fetchall()
         return [_row_to_task(r) for r in rows]
     finally:
@@ -839,412 +665,12 @@ def transition_task(
     return result
 
 
-# ---------------------------------------------------------------------------
-# Claiming / lease fencing
-# ---------------------------------------------------------------------------
+# Claiming / lease-fencing functions were extracted to :mod:`gateway.builder_queue_leases` (audit §2.2 #2).
 
 
-def _claim_impl(
-    conn: sqlite3.Connection,
-    task_id: str,
-    worker_id: str,
-    *,
-    lease_seconds: int = 1800,
-) -> tuple[str, int]:
-    """Claim *task_id* on an open transaction and return token/version."""
-    if lease_seconds <= 0:
-        raise ValueError("lease_seconds must be greater than zero")
-
-    row = conn.execute(
-        "SELECT id, state, archived_at FROM tasks WHERE id = ?",
-        (task_id,),
-    ).fetchone()
-    if row is None:
-        raise TaskNotFoundError(f"task not found: {task_id}")
-    if row["archived_at"] is not None:
-        raise IllegalTransitionError(
-            f"task {task_id} is archived and cannot be claimed"
-        )
-
-    lease_token = _generate_lease_token()
-    lease_modifier = f"+{lease_seconds} seconds"
-    cursor = conn.execute(
-        """
-        UPDATE tasks
-        SET state = ?,
-            lease_owner = ?,
-            lease_token = ?,
-            claim_version = claim_version + 1,
-            lease_expires_at = strftime('%Y-%m-%d %H:%M:%f', 'now', ?),
-            updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
-        WHERE id = ?
-          AND state = ?
-          AND archived_at IS NULL
-          AND (
-              lease_token IS NULL
-              OR lease_expires_at IS NULL
-              OR lease_expires_at <= strftime('%Y-%m-%d %H:%M:%f', 'now')
-          )
-        """,
-        (
-            CLAIMED,
-            worker_id,
-            lease_token,
-            lease_modifier,
-            task_id,
-            QUEUED,
-        ),
-    )
-    if cursor.rowcount != 1:
-        raise LeaseConflictError(
-            f"task {task_id} is not claimable; it is claimed, running, or leased"
-        )
-
-    claimed_row = conn.execute(
-        "SELECT claim_version FROM tasks WHERE id = ?", (task_id,)
-    ).fetchone()
-    if claimed_row is None:
-        raise RuntimeError(f"Task {task_id} was claimed but is not retrievable")
-
-    claim_version = int(claimed_row["claim_version"])
-    append_event(
-        task_id,
-        CLAIMED,
-        payload={"worker": worker_id, "claim_version": claim_version},
-        conn=conn,
-    )
-    return lease_token, claim_version
 
 
-def claim_task(
-    task_id: str,
-    worker_id: str,
-    *,
-    lease_seconds: int = 1800,
-    db_path: Path | None = None,
-) -> dict[str, Any]:
-    """Claim a queued task for *worker_id* and return the updated task."""
-    conn = connect(db_path)
-    result: dict[str, Any] | None = None
-    try:
-        conn.execute("BEGIN IMMEDIATE")
-        _claim_impl(
-            conn,
-            task_id,
-            worker_id,
-            lease_seconds=lease_seconds,
-        )
-        result = _get_task_on_conn(conn, task_id)
-        if result is None:
-            raise RuntimeError(
-                f"Task {task_id} was claimed but is not retrievable"
-            )
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
 
-    return result
-
-
-def claim_next(
-    worker_id: str,
-    *,
-    lease_seconds: int = 1800,
-    db_path: Path | None = None,
-) -> dict[str, Any] | None:
-    """Claim the highest-priority eligible queued task, or ``None``."""
-    if lease_seconds <= 0:
-        raise ValueError("lease_seconds must be greater than zero")
-
-    conn = connect(db_path)
-    claimed_task_id: str | None = None
-    result: dict[str, Any] | None = None
-    try:
-        conn.execute("BEGIN IMMEDIATE")
-        row = conn.execute(
-            """
-            SELECT id FROM tasks
-            WHERE state = ?
-              AND archived_at IS NULL
-              AND (
-                  lease_token IS NULL
-                  OR lease_expires_at IS NULL
-                  OR lease_expires_at <= strftime('%Y-%m-%d %H:%M:%f', 'now')
-              )
-            ORDER BY priority DESC, id ASC
-            LIMIT 1
-            """,
-            (QUEUED,),
-        ).fetchone()
-        if row is None:
-            conn.commit()
-            return None
-
-        claimed_task_id = row["id"]
-        try:
-            _claim_impl(
-                conn,
-                claimed_task_id,
-                worker_id,
-                lease_seconds=lease_seconds,
-            )
-        except LeaseConflictError:
-            conn.rollback()
-            return None
-        result = _get_task_on_conn(conn, claimed_task_id)
-        if result is None:
-            raise RuntimeError(
-                f"Task {claimed_task_id} was claimed but is not retrievable"
-            )
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-    if claimed_task_id is None:
-        raise RuntimeError("claim_next committed without selecting a task")
-    return result
-
-
-def _transition_subject(conn: sqlite3.Connection, task_id: str) -> sqlite3.Row:
-    row = conn.execute(
-        "SELECT id, state, archived_at FROM tasks WHERE id = ?",
-        (task_id,),
-    ).fetchone()
-    if row is None:
-        raise TaskNotFoundError(f"task not found: {task_id}")
-    if row["archived_at"] is not None:
-        raise IllegalTransitionError(
-            f"task {task_id} is archived and cannot be transitioned"
-        )
-    return row
-
-
-def worker_transition_task(
-    task_id: str,
-    new_state: str,
-    lease_token: str,
-    claim_version: int,
-    *,
-    payload: dict[str, Any] | None = None,
-    db_path: Path | None = None,
-) -> dict[str, Any]:
-    """Transition a task using worker lease fencing."""
-    conn = connect(db_path)
-    result: dict[str, Any] | None = None
-    try:
-        conn.execute("BEGIN IMMEDIATE")
-        row = _transition_subject(conn, task_id)
-        _apply_transition(
-            conn,
-            task_id,
-            row["state"],
-            new_state,
-            payload=payload,
-            extra_where=(
-                "AND lease_token = ? "
-                "AND claim_version = ? "
-                "AND lease_expires_at > strftime('%Y-%m-%d %H:%M:%f', 'now')"
-            ),
-            extra_params=(lease_token, claim_version),
-        )
-        result = _get_task_on_conn(conn, task_id)
-        if result is None:
-            raise RuntimeError(
-                f"Task {task_id} was transitioned but is not retrievable"
-            )
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-    return result
-
-
-def worker_release_task(
-    task_id: str,
-    lease_token: str,
-    claim_version: int,
-    *,
-    db_path: Path | None = None,
-) -> dict[str, Any]:
-    """Release a worker-held task back to ``queued`` with lease fencing."""
-    conn = connect(db_path)
-    result: dict[str, Any] | None = None
-    try:
-        conn.execute("BEGIN IMMEDIATE")
-        row = _transition_subject(conn, task_id)
-        _apply_transition(
-            conn,
-            task_id,
-            row["state"],
-            QUEUED,
-            event_type="released",
-            extra_where=(
-                "AND lease_token = ? "
-                "AND claim_version = ? "
-                "AND lease_expires_at > strftime('%Y-%m-%d %H:%M:%f', 'now')"
-            ),
-            extra_params=(lease_token, claim_version),
-        )
-        result = _get_task_on_conn(conn, task_id)
-        if result is None:
-            raise RuntimeError(
-                f"Task {task_id} was released but is not retrievable"
-            )
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-    return result
-
-
-def operator_release_task(
-    task_id: str,
-    *,
-    reason: str | None = None,
-    db_path: Path | None = None,
-) -> dict[str, Any]:
-    """Privileged release from ``claimed`` or ``blocked`` back to ``queued``."""
-    conn = connect(db_path)
-    result: dict[str, Any] | None = None
-    try:
-        conn.execute("BEGIN IMMEDIATE")
-        row = _transition_subject(conn, task_id)
-        if row["state"] == RUNNING:
-            raise IllegalTransitionError(
-                "running tasks must be blocked before operator release"
-            )
-
-        payload = {"reason": reason} if reason is not None else None
-        _apply_transition(
-            conn,
-            task_id,
-            row["state"],
-            QUEUED,
-            payload=payload,
-            event_type="operator_released",
-        )
-        result = _get_task_on_conn(conn, task_id)
-        if result is None:
-            raise RuntimeError(
-                f"Task {task_id} was released but is not retrievable"
-            )
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-    return result
-
-
-def recover_expired_leases(*, db_path: Path | None = None) -> dict[str, int]:
-    """Recover expired worker leases in one transaction."""
-    conn = connect(db_path)
-    claimed_requeued = 0
-    running_blocked = 0
-    try:
-        conn.execute("BEGIN IMMEDIATE")
-        expired_claimed = conn.execute(
-            """
-            SELECT id FROM tasks
-            WHERE state = ?
-              AND archived_at IS NULL
-              AND lease_expires_at IS NOT NULL
-              AND lease_expires_at <= strftime('%Y-%m-%d %H:%M:%f', 'now')
-            ORDER BY id ASC
-            """,
-            (CLAIMED,),
-        ).fetchall()
-        for row in expired_claimed:
-            cursor = conn.execute(
-                """
-                UPDATE tasks
-                SET state = ?,
-                    lease_owner = NULL,
-                    lease_token = NULL,
-                    lease_expires_at = NULL,
-                    updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
-                WHERE id = ?
-                  AND state = ?
-                  AND archived_at IS NULL
-                  AND lease_expires_at IS NOT NULL
-                  AND lease_expires_at <= strftime('%Y-%m-%d %H:%M:%f', 'now')
-                """,
-                (QUEUED, row["id"], CLAIMED),
-            )
-            if cursor.rowcount == 1:
-                claimed_requeued += 1
-                append_event(
-                    row["id"],
-                    "released",
-                    payload={"reason": "lease_expired"},
-                    conn=conn,
-                )
-
-        expired_running = conn.execute(
-            """
-            SELECT id FROM tasks
-            WHERE state = ?
-              AND archived_at IS NULL
-              AND lease_expires_at IS NOT NULL
-              AND lease_expires_at <= strftime('%Y-%m-%d %H:%M:%f', 'now')
-            ORDER BY id ASC
-            """,
-            (RUNNING,),
-        ).fetchall()
-        for row in expired_running:
-            cursor = conn.execute(
-                """
-                UPDATE tasks
-                SET state = ?,
-                    blocked_reason = ?,
-                    lease_owner = NULL,
-                    lease_token = NULL,
-                    lease_expires_at = NULL,
-                    updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
-                WHERE id = ?
-                  AND state = ?
-                  AND archived_at IS NULL
-                  AND lease_expires_at IS NOT NULL
-                  AND lease_expires_at <= strftime('%Y-%m-%d %H:%M:%f', 'now')
-                """,
-                (BLOCKED, "stale_heartbeat", row["id"], RUNNING),
-            )
-            if cursor.rowcount == 1:
-                running_blocked += 1
-                append_event(
-                    row["id"],
-                    BLOCKED,
-                    payload={"reason": "stale_heartbeat"},
-                    conn=conn,
-                )
-
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-    total = claimed_requeued + running_blocked
-    return {
-        "claimed_requeued": claimed_requeued,
-        "running_blocked": running_blocked,
-        "total": total,
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -2044,946 +1470,19 @@ def get_pr_links(
 # ---------------------------------------------------------------------------
 
 
-def renew_lease(
-    task_id: str,
-    lease_token: str,
-    claim_version: int,
-    *,
-    lease_seconds: int = 60,
-    db_path: Path | None = None,
-) -> dict[str, Any]:
-    """Extend a live lease by *lease_seconds* from now (heartbeat).
-
-    Fenced: requires the current token + version AND an unexpired lease —
-    a worker whose lease already lapsed must not resurrect it (the recovery
-    scan owns that task now). Appends no event by design: renewals are not
-    state changes and would flood the log at 10s cadence.
-
-    Raises LeaseConflictError when fencing fails or the lease is expired.
-    """
-    if lease_seconds <= 0:
-        raise ValueError("lease_seconds must be positive")
-
-    conn = connect(db_path)
-    try:
-        conn.execute("BEGIN IMMEDIATE")
-        cursor = conn.execute(
-            """
-            UPDATE tasks
-            SET lease_expires_at = strftime('%Y-%m-%d %H:%M:%f', 'now', ?),
-                updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
-            WHERE id = ?
-              AND lease_token = ?
-              AND claim_version = ?
-              AND lease_expires_at > strftime('%Y-%m-%d %H:%M:%f', 'now')
-            """,
-            (f"+{lease_seconds} seconds", task_id, lease_token, claim_version),
-        )
-        if cursor.rowcount != 1:
-            raise LeaseConflictError(
-                f"cannot renew lease for task {task_id}: stale token/version "
-                "or lease already expired"
-            )
-        result = _get_task_on_conn(conn, task_id)
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-    if result is None:
-        raise RuntimeError(f"Task {task_id} lease renewed but not retrievable")
-    return result
 
 
+# Run lifecycle functions (``generate_run_id``, ``create_run``,
+# ``get_run``, ``list_runs``, ``update_run``, ``finalize_run``,
+# ``capture_process_identity``, ``recover_interrupted_runs``, plus
+# ``RunNotFoundError`` / ``ActiveRunConflictError`` /
+# ``RunStateConflictError`` / ``_validate_run_transition``) live in
+# :mod:`gateway.builder_queue_runs` (audit §2.2 third cut) and are
+# re-exported via the façade below so callers keep working.
 # ---------------------------------------------------------------------------
-# Phase 1C-alpha — run records
-# ---------------------------------------------------------------------------
-
-
-def generate_run_id() -> str:
-    """Return ``run_<base36_unix_ms>_<hex4>`` (same shape as task IDs)."""
-    unix_ms = int(time.time() * 1000)
-    return f"run_{_to_base36(unix_ms)}_{secrets.token_hex(2)}"
-
-
-def create_run(
-    task_id: str,
-    command: list[str],
-    *,
-    lease_token: str,
-    claim_version: int,
-    worker: str | None = None,
-    model: str | None = None,
-    provider: str | None = None,
-    branch: str | None = None,
-    worktree_path: str | None = None,
-    start_sha: str | None = None,
-    log_path: str | None = None,
-    db_path: Path | None = None,
-) -> dict[str, Any]:
-    """Create a run record in state ``starting`` for an existing task."""
-    if not command:
-        raise ValueError("command must be a non-empty list")
-
-    run_id = generate_run_id()
-    conn = connect(db_path)
-    try:
-        conn.execute("BEGIN IMMEDIATE")
-        task_row = conn.execute(
-            "SELECT id FROM tasks WHERE id = ?", (task_id,)
-        ).fetchone()
-        if task_row is None:
-            raise TaskNotFoundError(f"task not found: {task_id}")
-        fenced_task = conn.execute(
-            """
-            SELECT id FROM tasks
-            WHERE id = ?
-              AND state = ?
-              AND lease_token = ?
-              AND claim_version = ?
-              AND lease_expires_at > strftime('%Y-%m-%d %H:%M:%f', 'now')
-            """,
-            (task_id, CLAIMED, lease_token, claim_version),
-        ).fetchone()
-        if fenced_task is None:
-            raise LeaseConflictError(
-                f"cannot create run for task {task_id}: a current claimed task "
-                "with matching lease token and claim version is required"
-            )
-        active = conn.execute(
-            """
-            SELECT id FROM runs
-            WHERE task_id = ?
-              AND state IN ('starting', 'running', 'cancel_requested')
-            """,
-            (task_id,),
-        ).fetchone()
-        if active is not None:
-            raise ActiveRunConflictError(
-                f"task {task_id} already has active run {active['id']}"
-            )
-        conn.execute(
-            """
-            INSERT INTO runs
-                (id, task_id, command_json, claim_version, worker, model, provider,
-                 branch, worktree_path, start_sha, log_path)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                run_id,
-                task_id,
-                json.dumps(list(command)),
-                claim_version,
-                worker,
-                model,
-                provider,
-                branch,
-                worktree_path,
-                start_sha,
-                log_path,
-            ),
-        )
-        row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-    return _row_to_run(row)
-
-
-def _row_to_run(row: sqlite3.Row) -> dict[str, Any]:
-    run = dict(row)
-    try:
-        run["command"] = json.loads(run.get("command_json") or "null")
-    except (json.JSONDecodeError, TypeError):
-        run["command"] = None
-    try:
-        run["final_report"] = json.loads(run.get("final_report_json") or "null")
-    except (json.JSONDecodeError, TypeError):
-        run["final_report"] = None
-    return run
-
-
-class RunNotFoundError(ValueError):
-    """Raised when a run ID does not exist."""
-
-
-class ActiveRunConflictError(ValueError):
-    """Raised when a task already has an active execution attempt."""
-
-
-class RunStateConflictError(ValueError):
-    """Raised when a run lifecycle transition is illegal or stale."""
-
-
-def _validate_run_transition(current_state: str, new_state: str) -> None:
-    if current_state not in RUN_TRANSITIONS:
-        raise RunStateConflictError(
-            f"run has unknown current state {current_state!r}"
-        )
-    if new_state not in RUN_TRANSITIONS:
-        raise ValueError(
-            f"unknown run state: {new_state!r}; valid: {sorted(RUN_TRANSITIONS)}"
-        )
-    if new_state not in RUN_TRANSITIONS[current_state]:
-        raise RunStateConflictError(
-            f"illegal run transition: {current_state} -> {new_state}"
-        )
-
-
-def get_run(run_id: str, db_path: Path | None = None) -> dict[str, Any] | None:
-    conn = connect(db_path)
-    try:
-        row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
-        return _row_to_run(row) if row is not None else None
-    finally:
-        conn.close()
-
-
-def list_runs(
-    task_id: str | None = None,
-    state: str | None = None,
-    db_path: Path | None = None,
-) -> list[dict[str, Any]]:
-    """List runs, optionally filtered by task and/or run state. Oldest first."""
-    query = "SELECT * FROM runs"
-    clauses: list[str] = []
-    params: list[Any] = []
-    if task_id is not None:
-        clauses.append("task_id = ?")
-        params.append(task_id)
-    if state is not None:
-        clauses.append("state = ?")
-        params.append(state)
-    if clauses:
-        query += " WHERE " + " AND ".join(clauses)
-    query += " ORDER BY id ASC"
-
-    conn = connect(db_path)
-    try:
-        rows = conn.execute(query, params).fetchall()
-        return [_row_to_run(r) for r in rows]
-    finally:
-        conn.close()
-
-
-def update_run(
-    run_id: str,
-    *,
-    state: str | None = None,
-    pid: int | None = None,
-    process_identity: str | None = None,
-    exit_code: int | None = None,
-    log_path: str | None = None,
-    mark_started: bool = False,
-    mark_ended: bool = False,
-    mark_heartbeat: bool = False,
-    expected_states: frozenset[str] | None = None,
-    db_path: Path | None = None,
-) -> dict[str, Any]:
-    """Update a run record in place.
-
-    ``expected_states`` makes the update conditional on the current state
-    (used for cancel_requested handoff); a mismatch raises ValueError so
-    callers cannot silently clobber a concurrent cancellation.
-    """
-    set_parts = ["updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')"]
-    params: list[Any] = []
-    if state is not None:
-        set_parts.append("state = ?")
-        params.append(state)
-    if pid is not None:
-        set_parts.append("pid = ?")
-        params.append(pid)
-    if process_identity is not None:
-        set_parts.append("process_identity = ?")
-        params.append(process_identity)
-    if exit_code is not None:
-        set_parts.append("exit_code = ?")
-        params.append(exit_code)
-    if log_path is not None:
-        set_parts.append("log_path = ?")
-        params.append(log_path)
-    if mark_started:
-        set_parts.append("started_at = strftime('%Y-%m-%d %H:%M:%f', 'now')")
-    if mark_ended:
-        set_parts.append("ended_at = strftime('%Y-%m-%d %H:%M:%f', 'now')")
-    if mark_heartbeat:
-        set_parts.append("last_heartbeat_at = strftime('%Y-%m-%d %H:%M:%f', 'now')")
-
-    where = "id = ?"
-    where_params: list[Any] = [run_id]
-    if expected_states is not None:
-        placeholders = ",".join("?" for _ in expected_states)
-        where += f" AND state IN ({placeholders})"
-        where_params.extend(sorted(expected_states))
-
-    conn = connect(db_path)
-    try:
-        conn.execute("BEGIN IMMEDIATE")
-        current = conn.execute(
-            "SELECT state FROM runs WHERE id = ?", (run_id,)
-        ).fetchone()
-        if current is None:
-            raise RunNotFoundError(f"run not found: {run_id}")
-        current_state = str(current["state"])
-        if state is not None:
-            _validate_run_transition(current_state, state)
-        cursor = conn.execute(
-            f"UPDATE runs SET {', '.join(set_parts)} WHERE {where}",
-            (*params, *where_params),
-        )
-        if cursor.rowcount != 1:
-            raise RunStateConflictError(
-                f"run {run_id} not in expected state for this update"
-            )
-        row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-    return _row_to_run(row)
-
-
-def finalize_run(
-    run_id: str,
-    outcome: str,
-    *,
-    exit_code: int | None,
-    report: dict[str, Any],
-    lease_token: str,
-    claim_version: int,
-    block_reason: str | None,
-    db_path: Path | None = None,
-) -> dict[str, Any]:
-    """Atomically finish a run and, while still fenced, block its task.
-
-    If ownership changed after the runner's last heartbeat, the durable
-    outcome is upgraded to ``lease_lost`` and the task row is left untouched.
-    The per-run report is always retained on the run row.
-    """
-    if outcome not in RUN_TERMINAL_STATES:
-        raise ValueError(f"run outcome must be terminal, got {outcome!r}")
-    if not isinstance(report, dict) or not report:
-        raise ValueError("run report must be a non-empty object")
-
-    conn = connect(db_path)
-    try:
-        conn.execute("BEGIN IMMEDIATE")
-        run_row = conn.execute(
-            "SELECT * FROM runs WHERE id = ?", (run_id,)
-        ).fetchone()
-        if run_row is None:
-            raise RunNotFoundError(f"run not found: {run_id}")
-
-        task_id = str(run_row["task_id"])
-        task_row = conn.execute(
-            """
-            SELECT state, blocked_reason, claim_version,
-                   CASE
-                       WHEN lease_token = ?
-                        AND claim_version = ?
-                        AND lease_expires_at > strftime('%Y-%m-%d %H:%M:%f', 'now')
-                       THEN 1 ELSE 0
-                   END AS lease_matches
-            FROM tasks
-            WHERE id = ?
-            """,
-            (lease_token, claim_version, task_id),
-        ).fetchone()
-        if task_row is None:
-            raise TaskNotFoundError(f"task not found for run {run_id}: {task_id}")
-
-        task_state = str(task_row["state"])
-        same_claim = int(task_row["claim_version"]) == claim_version
-        lease_matches = bool(task_row["lease_matches"])
-        runner_owns_running_task = task_state == RUNNING and lease_matches
-        runner_owns_claimed_task = (
-            task_state == CLAIMED
-            and lease_matches
-            and run_row["state"] in {RUN_STARTING, RUN_CANCEL_REQUESTED}
-        )
-        worker_advanced_task = (
-            same_claim
-            and task_state
-            in {BLOCKED, PR_OPENED, AWAITING_REVIEW, DONE, FAILED, CANCELLED}
-            and not (
-                task_state == BLOCKED
-                and task_row["blocked_reason"] == "stale_heartbeat"
-            )
-        )
-
-        effective_outcome = outcome
-        if (
-            not runner_owns_running_task
-            and not runner_owns_claimed_task
-            and not worker_advanced_task
-        ):
-            effective_outcome = RUN_LEASE_LOST
-
-        _validate_run_transition(str(run_row["state"]), effective_outcome)
-        final_report = dict(report)
-        final_report["outcome"] = effective_outcome
-        final_report["task_state_at_finalize"] = task_state
-        if runner_owns_running_task:
-            final_report["task_update"] = "blocked_by_runner"
-        elif runner_owns_claimed_task:
-            final_report["task_update"] = "released_after_setup_failure"
-        elif worker_advanced_task:
-            final_report["task_update"] = "preserved_worker_state"
-        else:
-            final_report["task_update"] = "skipped_lease_lost"
-        conn.execute(
-            """
-            UPDATE runs
-            SET state = ?, exit_code = ?, final_report_json = ?,
-                ended_at = strftime('%Y-%m-%d %H:%M:%f', 'now'),
-                updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
-            WHERE id = ?
-            """,
-            (effective_outcome, exit_code, json.dumps(final_report), run_id),
-        )
-        append_event(
-            task_id,
-            f"run_{effective_outcome}",
-            payload={"run_id": run_id, "exit_code": exit_code},
-            run_id=run_id,
-            conn=conn,
-        )
-
-        if runner_owns_running_task:
-            conn.execute(
-                """
-                UPDATE tasks
-                SET final_report_json = ?,
-                    updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
-                WHERE id = ?
-                """,
-                (json.dumps(final_report), task_id),
-            )
-            append_event(
-                task_id,
-                "report_attached",
-                payload={"report": final_report},
-                run_id=run_id,
-                conn=conn,
-            )
-            _apply_transition(
-                conn,
-                task_id,
-                RUNNING,
-                BLOCKED,
-                payload={
-                    "reason": block_reason,
-                    "run_id": run_id,
-                    "exit_code": exit_code,
-                },
-                extra_where=(
-                    "AND lease_token = ? AND claim_version = ? "
-                    "AND lease_expires_at > strftime('%Y-%m-%d %H:%M:%f', 'now')"
-                ),
-                extra_params=(lease_token, claim_version),
-            )
-        elif runner_owns_claimed_task:
-            _apply_transition(
-                conn,
-                task_id,
-                CLAIMED,
-                QUEUED,
-                payload={
-                    "reason": "run_cancelled_before_start"
-                    if effective_outcome == RUN_CANCELLED
-                    else "runner_setup_failed",
-                    "run_id": run_id,
-                },
-                event_type="released",
-                extra_where=(
-                    "AND lease_token = ? AND claim_version = ? "
-                    "AND lease_expires_at > strftime('%Y-%m-%d %H:%M:%f', 'now')"
-                ),
-                extra_params=(lease_token, claim_version),
-            )
-        elif worker_advanced_task:
-            append_event(
-                task_id,
-                "runner_note",
-                payload={
-                    "run_id": run_id,
-                    "note": "task state already advanced; runner preserved it",
-                    "task_state": task_state,
-                },
-                run_id=run_id,
-                conn=conn,
-            )
-
-        final_row = conn.execute(
-            "SELECT * FROM runs WHERE id = ?", (run_id,)
-        ).fetchone()
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-    return _row_to_run(final_row)
-
-
-def capture_process_identity(pid: int) -> str | None:
-    """Return the OS-reported process start time for PID-reuse fencing."""
-    result = subprocess.run(
-        ["ps", "-o", "lstart=", "-p", str(pid)],
-        capture_output=True,
-        text=True,
-    )
-    identity = " ".join(result.stdout.split())
-    if result.returncode != 0 or not identity:
-        return None
-    return identity
-
-
-def recover_interrupted_runs(
-    db_path: Path | None = None,
-    *,
-    starting_grace_seconds: int = 30,
-) -> dict[str, Any]:
-    """Atomically mark dead active attempts as ``interrupted``.
-
-    A newly inserted ``starting`` row has a short grace window so a recovery
-    command cannot race the launcher before it records the child PID. For a
-    live PID, the stored process start time must match before the attempt is
-    treated as still running. Older rows without identity metadata are left
-    untouched and reported as unverified rather than risking a reused PID.
-    """
-    import os as _os
-
-    if starting_grace_seconds < 0:
-        raise ValueError("starting_grace_seconds must be non-negative")
-
-    interrupted: list[str] = []
-    deferred: list[str] = []
-    unverified: list[dict[str, str]] = []
-    running_tasks_blocked = 0
-    claimed_tasks_requeued = 0
-    conflicts = 0
-    conn = connect(db_path)
-    try:
-        # The write lock keeps launch activation from changing a row between
-        # our liveness decision and the terminal update.
-        conn.execute("BEGIN IMMEDIATE")
-        placeholders = ",".join("?" for _ in RUN_ACTIVE_STATES)
-        rows = conn.execute(
-            f"SELECT * FROM runs WHERE state IN ({placeholders}) ORDER BY id ASC",
-            tuple(sorted(RUN_ACTIVE_STATES)),
-        ).fetchall()
-
-        for row in rows:
-            run = _row_to_run(row)
-            run_id = str(run["id"])
-            pid = run.get("pid")
-            reason: str | None = None
-
-            if run["state"] == RUN_STARTING and pid is None:
-                age_row = conn.execute(
-                    """
-                    SELECT (julianday('now') - julianday(created_at)) * 86400.0
-                    AS age_seconds
-                    FROM runs WHERE id = ?
-                    """,
-                    (run_id,),
-                ).fetchone()
-                if age_row is None or age_row["age_seconds"] is None:
-                    # Corrupt timestamp: skip this row and let the next
-                    # recovery pass retry it rather than aborting the whole
-                    # scan over one bad row.
-                    unverified.append(
-                        {"run_id": run_id, "reason": "invalid_created_at"}
-                    )
-                    continue
-                age_seconds = float(age_row["age_seconds"])
-                if age_seconds < starting_grace_seconds:
-                    deferred.append(run_id)
-                    continue
-                reason = "starting_without_pid"
-            elif pid is None:
-                reason = "active_run_missing_pid"
-            else:
-                try:
-                    numeric_pid = int(pid)
-                except (TypeError, ValueError):
-                    # Corrupt pid: skip rather than abort the scan.
-                    unverified.append(
-                        {"run_id": run_id, "reason": "invalid_pid"}
-                    )
-                    continue
-
-                try:
-                    _os.kill(numeric_pid, 0)
-                except ProcessLookupError:
-                    reason = "pid_not_running"
-                except PermissionError:
-                    unverified.append(
-                        {"run_id": run_id, "reason": "pid_permission_denied"}
-                    )
-                    continue
-                else:
-                    expected_identity = run.get("process_identity")
-                    if not expected_identity:
-                        unverified.append(
-                            {"run_id": run_id, "reason": "process_identity_missing"}
-                        )
-                        continue
-                    # Capture identity immediately after the liveness check
-                    # to minimize (but not eliminate) the PID-reuse TOCTOU
-                    # window.  On macOS there is no O_CLOEXEC-equivalent for
-                    # the process table, so a sufficiently fast reuse can
-                    # still occur between kill(0) and ps(1).  We accept this
-                    # residual risk and fail-safe to "unverifiable" when the
-                    # identity cannot be proven.
-                    current_identity = capture_process_identity(numeric_pid)
-                    if current_identity is None:
-                        # ps failed; re-check liveness before marking
-                        # unverifiable — the process may have exited.
-                        try:
-                            _os.kill(numeric_pid, 0)
-                        except ProcessLookupError:
-                            reason = "pid_not_running"
-                        else:
-                            unverified.append(
-                                {
-                                    "run_id": run_id,
-                                    "reason": "process_identity_unavailable",
-                                }
-                            )
-                            continue
-                    elif current_identity == expected_identity:
-                        continue
-                    else:
-                        reason = "process_identity_mismatch"
-
-            cursor = conn.execute(
-                """
-                UPDATE runs
-                SET state = ?,
-                    ended_at = strftime('%Y-%m-%d %H:%M:%f', 'now'),
-                    updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
-                WHERE id = ? AND state = ?
-                """,
-                (RUN_INTERRUPTED, run_id, run["state"]),
-            )
-            if cursor.rowcount != 1:
-                # Run changed between the SELECT and this UPDATE.  Under
-                # normal SQLite write-lock semantics this is unreachable
-                # (BEGIN IMMEDIATE prevents concurrent writes), but
-                # exotic filesystem/NFS configurations may allow it.
-                # The run is still active and will be retried on a
-                # subsequent recovery pass.
-                conflicts += 1
-                continue
-            append_event(
-                str(run["task_id"]),
-                "run_interrupted",
-                payload={"run_id": run_id, "pid": pid, "reason": reason},
-                run_id=run_id,
-                conn=conn,
-            )
-
-            run_claim_version = run.get("claim_version")
-            if run_claim_version is not None:
-                task_id = str(run["task_id"])
-                task_row = conn.execute(
-                    "SELECT state, claim_version FROM tasks WHERE id = ?",
-                    (task_id,),
-                ).fetchone()
-                if (
-                    task_row is not None
-                    and int(task_row["claim_version"]) == int(run_claim_version)
-                ):
-                    if task_row["state"] == RUNNING:
-                        task_cursor = conn.execute(
-                            """
-                            UPDATE tasks
-                            SET state = ?, blocked_reason = ?,
-                                lease_owner = NULL, lease_token = NULL,
-                                lease_expires_at = NULL,
-                                updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
-                            WHERE id = ? AND state = ? AND claim_version = ?
-                            """,
-                            (
-                                BLOCKED,
-                                "run_interrupted",
-                                task_id,
-                                RUNNING,
-                                run_claim_version,
-                            ),
-                        )
-                        if task_cursor.rowcount != 1:
-                            # Task row changed concurrently (exotic
-                            # filesystem).  The run is already marked
-                            # INTERRUPTED above; the task remains in
-                            # its prior state and will be reconciled
-                            # by the next recovery pass.
-                            conflicts += 1
-                            continue
-                        append_event(
-                            task_id,
-                            BLOCKED,
-                            payload={
-                                "reason": "run_interrupted",
-                                "run_id": run_id,
-                            },
-                            run_id=run_id,
-                            conn=conn,
-                        )
-                        running_tasks_blocked += 1
-                    elif (
-                        task_row["state"] == CLAIMED
-                        and run["state"] in {RUN_STARTING, RUN_CANCEL_REQUESTED}
-                    ):
-                        task_cursor = conn.execute(
-                            """
-                            UPDATE tasks
-                            SET state = ?, blocked_reason = NULL,
-                                lease_owner = NULL, lease_token = NULL,
-                                lease_expires_at = NULL,
-                                updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
-                            WHERE id = ? AND state = ? AND claim_version = ?
-                            """,
-                            (QUEUED, task_id, CLAIMED, run_claim_version),
-                        )
-                        if task_cursor.rowcount != 1:
-                            # Task row changed concurrently (exotic
-                            # filesystem).  The run is already marked
-                            # INTERRUPTED above; the task remains in
-                            # its prior state and will be reconciled
-                            # by the next recovery pass.
-                            conflicts += 1
-                            continue
-                        append_event(
-                            task_id,
-                            "released",
-                            payload={
-                                "reason": "run_interrupted_before_start",
-                                "run_id": run_id,
-                            },
-                            run_id=run_id,
-                            conn=conn,
-                        )
-                        claimed_tasks_requeued += 1
-            interrupted.append(run_id)
-
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-    return {
-        "runs_interrupted": len(interrupted),
-        "run_ids": interrupted,
-        "starting_runs_deferred": len(deferred),
-        "starting_run_ids": deferred,
-        "runs_unverified": len(unverified),
-        "unverified_runs": unverified,
-        "running_tasks_blocked": running_tasks_blocked,
-        "claimed_tasks_requeued": claimed_tasks_requeued,
-        "conflicts": conflicts,
-    }
-
-
-# ---------------------------------------------------------------------------
-# Branch leases (KB-S2 atomic claim_and_start_attempt support)
-# ---------------------------------------------------------------------------
-
-
-def _validate_branch_lease_fields(
-    packet_id: str,
-    worker_id: str,
-    branch: str,
-    worktree_path: str,
-    base_sha: str,
-) -> str:
-    """Validate and canonicalize values shared by every lease claim path."""
-    for name, value in (
-        ("packet_id", packet_id),
-        ("worker_id", worker_id),
-        ("branch", branch),
-        ("worktree_path", worktree_path),
-        ("base_sha", base_sha),
-    ):
-        if not isinstance(value, str) or not value.strip():
-            raise ValueError(f"{name} is required")
-    if len(base_sha) != 40 or any(
-        character not in "0123456789abcdef" for character in base_sha
-    ):
-        raise ValueError("base_sha must be a full lowercase 40-character Git SHA")
-    return str(Path(worktree_path).expanduser().resolve())
-
-
-def _claim_branch_lease_on_conn(
-    conn: sqlite3.Connection,
-    packet_id: str,
-    worker_id: str,
-    branch: str,
-    worktree_path: str,
-    base_sha: str,
-) -> sqlite3.Row:
-    """Insert a branch lease inside the caller's active transaction."""
-    canonical_worktree = _validate_branch_lease_fields(
-        packet_id, worker_id, branch, worktree_path, base_sha
-    )
-    try:
-        conn.execute(
-            """
-            INSERT INTO branch_leases
-                (packet_id, worker_id, branch, worktree_path, base_sha)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (packet_id, worker_id, branch, canonical_worktree, base_sha),
-        )
-    except sqlite3.IntegrityError as exc:
-        existing = conn.execute(
-            "SELECT packet_id, worker_id, branch, worktree_path "
-            "FROM branch_leases "
-            "WHERE packet_id = ? OR worker_id = ? "
-            "   OR branch = ? OR worktree_path = ?",
-            (packet_id, worker_id, branch, canonical_worktree),
-        ).fetchone()
-        if existing is None:
-            raise BranchLeaseConflictError(
-                f"branch lease conflict for packet {packet_id!r}"
-            ) from exc
-        conflicting_field = "unknown"
-        if existing["packet_id"] == packet_id:
-            conflicting_field = "packet_id"
-        elif existing["worker_id"] == worker_id:
-            conflicting_field = "worker_id"
-        elif existing["branch"] == branch:
-            conflicting_field = "branch"
-        elif existing["worktree_path"] == canonical_worktree:
-            conflicting_field = "worktree_path"
-        raise BranchLeaseConflictError(
-            f"branch lease conflict: {conflicting_field} is already claimed "
-            f"by packet {existing['packet_id']!r}"
-        ) from exc
-
-    lease = conn.execute(
-        "SELECT * FROM branch_leases WHERE packet_id = ?", (packet_id,)
-    ).fetchone()
-    if lease is None:
-        raise RuntimeError(
-            f"branch lease for packet {packet_id!r} was inserted but is not retrievable"
-        )
-    return lease
-
-
-def claim_branch_lease(
-    packet_id: str,
-    worker_id: str,
-    branch: str,
-    worktree_path: str,
-    base_sha: str,
-    *,
-    db_path: Path | None = None,
-) -> dict[str, Any]:
-    """Atomically claim an exclusive packet/worker/branch/worktree lease."""
-    init_db(db_path)
-    conn = connect(db_path)
-    try:
-        conn.execute("BEGIN IMMEDIATE")
-        lease = _claim_branch_lease_on_conn(
-            conn, packet_id, worker_id, branch, worktree_path, base_sha
-        )
-        conn.commit()
-        return dict(lease)
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-
-def verify_branch_lease(
-    packet_id: str, *, db_path: Path | None = None
-) -> dict[str, Any] | None:
-    """Return the active lease for ``packet_id``, or ``None`` when absent."""
-    init_db(db_path)
-    conn = connect(db_path)
-    try:
-        row = conn.execute(
-            "SELECT * FROM branch_leases WHERE packet_id = ?", (packet_id,)
-        ).fetchone()
-        return dict(row) if row is not None else None
-    finally:
-        conn.close()
-
-
-def get_branch_lease(
-    lease_id: int, *, db_path: Path | None = None
-) -> dict[str, Any] | None:
-    """Return one active lease by ID, or ``None`` when absent."""
-    init_db(db_path)
-    conn = connect(db_path)
-    try:
-        row = conn.execute(
-            "SELECT * FROM branch_leases WHERE lease_id = ?", (lease_id,)
-        ).fetchone()
-        return dict(row) if row is not None else None
-    finally:
-        conn.close()
-
-
-def _release_branch_lease_on_conn(
-    conn: sqlite3.Connection,
-    lease_id: int,
-    *,
-    packet_id: str,
-    worker_id: str,
-) -> None:
-    """Delete exactly one owner-matched lease in the caller's transaction."""
-    cursor = conn.execute(
-        "DELETE FROM branch_leases "
-        "WHERE lease_id = ? AND packet_id = ? AND worker_id = ?",
-        (lease_id, packet_id, worker_id),
-    )
-    if cursor.rowcount != 1:
-        raise BranchLeaseConflictError(
-            f"branch lease {lease_id} not found for packet {packet_id!r}, "
-            f"worker {worker_id!r}"
-        )
-
-
-def release_branch_lease(
-    lease_id: int,
-    *,
-    packet_id: str,
-    worker_id: str,
-    db_path: Path | None = None,
-) -> None:
-    """Release one lease using an atomic owner-fenced delete.
-
-    Missing leases and mismatched packet/worker identities are conflicts, not
-    idempotent success: a caller must never silently release stale ownership.
-    """
-    init_db(db_path)
-    conn = connect(db_path)
-    try:
-        conn.execute("BEGIN IMMEDIATE")
-        _release_branch_lease_on_conn(
-            conn, lease_id, packet_id=packet_id, worker_id=worker_id
-        )
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
+# Branch-lease lifecycle (``claim_branch_lease``,
+# ``verify_branch_lease``, ``get_branch_lease``,
+# ``release_branch_lease``, plus the ``_claim_branch_lease_on_conn``
+# / ``_release_branch_lease_on_conn`` / ``_validate_branch_lease_fields``
+# helpers) lives in :mod:`gateway.builder_queue_branch_leases`
+# (audit §2.2 fourth cut) and is re-exported via the façade below.

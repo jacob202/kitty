@@ -806,9 +806,17 @@ def run_validation(
     for command in commands:
         started = time.monotonic()
         try:
+            # shell=True is intentional here: these commands originate from
+            # operator-authored packet manifests in the builder queue DB, not
+            # from arbitrary user input. Bandit flags subprocess shell=True in
+            # any context (S602); we accept the risk consciously.
+            # See docs/AUDIT_FULL_ENGINEERING_2026-07-20.md §1.2 (ticket
+            # kitty-sec-002b). Hardening plan: argv-form parsing of
+            # validation_commands_json + a CHECK constraint rejecting |, ;, &,
+            # `, >, < at insert time.
             proc = subprocess.run(
                 command,
-                shell=True,
+                shell=True,  # noqa: S602 — see safety note above
                 cwd=str(cwd),
                 capture_output=True,
                 text=True,
