@@ -1,26 +1,29 @@
-# Session State — CR-01 Shipped; Chat Recovery Continues
+# Session State — Chat Recovery Complete; Heists Wired; Tree Cleaned
 
 <!-- kitty-state
 {
   "schema_version": 1,
-  "updated_at": "2026-07-19T22:00:16Z",
-  "head_sha": "77a1389cf907743faf5ab7693eb443205d17d41d",
+  "updated_at": "2026-07-20T11:15:08Z",
+  "head_sha": "da5fc579bdabf20c6d9595c7e25c28becb36868d",
   "branch": "main",
   "worktree": ".",
   "status": "in_progress",
   "completed_items": [
-    "builder-test-hardening-v1 remains completed on main through PR #197",
-    "packet-027-builder-restart-recovery remains completed on main through PR #199",
-    "chat-recovery-v1/CR-01 thread-goals backend merged in PR #200 at 77a1389cf907743faf5ab7693eb443205d17d41d",
-    "CR-01 Builder task kb_mrpo81j1_89cb reconciled to done with merged PR, validation, review, and operator-recovery evidence",
-    "post-merge CR-01 verification passed: py_compile plus 73 focused tests; Builder doctor passed 14 of 14"
+    "audit-refactor work committed: builder_queue split into layered modules, CORS allow-lists, async httpx knowledge download, curation except tightening (c83eb91..33ee509)",
+    "feat/memory-evidence-ids merged: typed MemoryEvidence with memory ids in the CR-04 trailer (2a9162d)",
+    "CR-06 shipped directly: forget-with-5s-undo-grace on the memory block, DELETE only after grace (78143f6)",
+    "CR-07 shipped directly: one-shot model override chip + explicit D10 privacy gate on overrides, forbidden = 400 (9bd57af)",
+    "imagen heist finished: feat/imagen-img01-v2 merged (UUID/6-state IMG-01 store per harvest doc), /image/history reads durable store (b9a8a5d)",
+    "tutor heist wired: /tutor/quiz|attempt|grade|term routes + TutorPanel in kitty-chat, verified live in browser (033cea0)",
+    "fixed latent branch_leases.lease_ts->created_at migration gap breaking builder status on live DB (8a434cc)",
+    "chat-recovery-v1 and chat-recovery-continuation-v1 paused with evidence notes: all packets delivered",
+    "19 stale branches deleted, 11 stale worktrees removed; kept only branches with unmerged work"
   ],
   "blockers": [],
-  "next_action": "Run chat-recovery-v1/CR-02-thread-goals-ui with ./kitty builder initiative run-packet chat-recovery-v1 CR-02-thread-goals-ui --free --watch",
+  "next_action": "Ask Jacob whether to push main (12 local commits); then pick: IMG-02 (ComfyUI cancellation) via builder, or review the kept campaign/reconcile branches",
   "invalidation_conditions": [
-    "HEAD changes beyond 77a1389cf907743faf5ab7693eb443205d17d41d",
+    "HEAD changes beyond da5fc579bdabf20c6d9595c7e25c28becb36868d",
     "branch or registered worktree changes",
-    "CR-02-thread-goals-ui changes state",
     "the active Mission changes"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
@@ -30,38 +33,47 @@
 
 ## Current checkpoint
 
-- `main` is at `77a1389cf907743faf5ab7693eb443205d17d41d`.
-- PR #200 is merged. It adds persistent per-thread objectives, a validated
-  `PATCH /chats/{chat_id}/objective` API, lifecycle synchronization, and
-  explicit objective injection into completion context.
-- `chat-recovery-v1` now has CR-01 done. CR-02 is the next packet.
+- `main` at `da5fc57`, 12 commits ahead of the session start (`221aea6`).
+  Nothing pushed — pushing needs Jacob's explicit approval.
+- All 7 chat-recovery packets are delivered. CR-01..05 via the Builder loop
+  (pre-session); CR-06/CR-07 directly on main this session, superseding the
+  CR-06b/CR-07b replacement packets. Both initiatives are paused with
+  evidence notes pointing at the commits.
+- Verified live in the running app (gateway restarted on current code, UI
+  dev server on :4000): tutor quiz loop end-to-end, model-override chip,
+  thread-goal strip, builder home tile (was crashing on `l.created_at`).
+- `make ui-test && make ui-build` green (233 UI tests). Final full pytest:
+  2565 passed; the only failures were the continuity checks reading these
+  docs mid-rewrite, and they pass against the final docs (10/10).
 
-## CR-01 recovery ledger
+## Landed this session (all local commits on main)
 
-- Builder attempt 1 produced useful code but failed the immutable scope gate
-  because the packet omitted an existing migration-contract test. Attempt 2
-  then crashed rather than overwriting the dirty partial worktree.
-- Operator recovery kept the same task and worktree, repaired the missing
-  completion-path wiring, and committed only the intended 13 files.
-- Independent review approved commit
-  `c26d07d3cb7725c8e8f12232db1cff6a67ad513c` and diff
-  `45058b8e51cbdb9ca3aae29d1fdcd6000e007a72c81935eee46755690c253413`.
-- CI: all seven individual check runs succeeded. Local full-suite evidence was
-  2318 passed, 1 skipped, 2 deselected; merged-main focused verification was
-  73 passed plus `py_compile` success.
-- Builder task `kb_mrpo81j1_89cb` is `done`, linked to merged PR #200, and has
-  no active lease. Durable review evidence is under
-  `data/kittybuilder/attempts/kb_mrpo81j1_89cb/7/operator-recovery-review.json`.
+| commit  | what |
+|---------|------|
+| c83eb91 | builder_queue split (audit §2.2) + monkeypatch-safe DB default |
+| 1673510 | CORS allow-lists, kitty env fail-loud, github token guard |
+| 3613b57 | knowledge URL download requests→httpx async |
+| 99d61e4 | curation scripts bare-except tightening |
+| 33ee509 | audit doc + PR210 refs + session state |
+| 2a9162d | merge feat/memory-evidence-ids (memory ids in trailer) |
+| 78143f6 | CR-06 forget with undo grace |
+| 9bd57af | CR-07 model override + explicit privacy gate |
+| b9a8a5d | merge feat/imagen-img01-v2 + durable /image/history |
+| 033cea0 | tutor routes + TutorPanel wiring |
+| 8a434cc | branch_leases lease_ts→created_at migration |
+| da5fc57 | record continuation manifest (paused) |
 
-## Next action
+## Known follow-ups (named, not built)
 
-Run exactly one packet:
-
-```bash
-./kitty builder initiative doctor --json
-./kitty builder initiative run-packet chat-recovery-v1 CR-02-thread-goals-ui --free --watch
-```
-
-Do not rerun CR-01. Its worker branch and worktree remain preserved; the only
-uncommitted file there is worker-written `.claude/STATE.md` residue, excluded
-from PR #200.
+- IMG-02..IMG-06 remain unstarted (cancellation, atomic persistence,
+  lineage, engine unification, health) — see the imagelab harvest doc.
+- Builder projection for CR-06/07 still shows the original tasks as
+  eligible-but-paused; a formal operator closeout would need the
+  attempt-CLI roundtrip if Jacob wants the ledger spotless.
+- reasoning-backend-v1 (3 packets) and builder-test-hardening follow-ups
+  untouched.
+- Campaign/reconcile branches kept for review: codex/campaign-p1-05 (25
+  ahead), codex/reconcile-phase2-p104 (30), reconcile-builder-campaign (23),
+  feat/project-control-plane-foundation (14), feat/wip-campaign-and-runtime
+  (4), feat/campaign-alpha-phase-2-integration (3), recon/agent-leverage (2),
+  kittybuilder/kb_mrpo81ct_9885 (2).
