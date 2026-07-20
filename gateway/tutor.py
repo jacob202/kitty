@@ -13,8 +13,10 @@ what you struggle with and reviews it later — no effort from you.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
+import re
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from enum import Enum
@@ -194,6 +196,15 @@ def _conn() -> sqlite3.Connection:
         "CREATE TABLE IF NOT EXISTS user_confidence_logs ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT, term TEXT, score INTEGER, ts TEXT)"
     )
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS tutor_attempts ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, term TEXT, correct INTEGER, ts TEXT)"
+    )
+    # mastery column added after the first DTH-04 release; tolerate older DBs.
+    try:
+        conn.execute("ALTER TABLE vocabulary_terms ADD COLUMN mastery REAL DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
     return conn
 
 
@@ -242,3 +253,191 @@ def due_review(now: datetime | None = None) -> list[dict]:
         {"term": r[0], "subject": r[1], "last_score": r[2], "next_review": r[3]}
         for r in rows
     ]
+
+
+# ── Mastery gates + learning stages (DTH-04) ─────────────────────────────────
+
+# Adapted from deeptutor/learning/policy.py. Quantitative knowledge types must
+# clear a high recency-weighted accuracy (≈ Alpha School's "90% before you
+# advance"); CONCEPT / DESIGN are gated qualitatively (a Feynman-style check)
+# and map to full mastery on a recorded pass.
+MASTERY_GATE: dict[KnowledgeType, float] = {
+    KnowledgeType.MEMORY: 0.9,
+    KnowledgeType.PROCEDURE: 0.9,
+    KnowledgeType.CONCEPT: 1.0,
+    KnowledgeType.DESIGN: 1.0,
+}
+
+# Recency weights for the most recent attempts (oldest -> newest); mirrored
+# from deeptutor/learning/mastery.py so recovery after early mistakes counts.
+_RECENCY_WEIGHTS: tuple[float, ...] = (0.5, 0.7, 0.85, 0.95, 1.0)
+# Mastery cannot exceed this until enough attempts accumulate, so one or two
+# correct answers cannot declare a point "mastered".
+_CONFIDENCE_CAP: dict[int, float] = {1: 0.5, 2: 0.8}
+
+
+def compute_mastery(correctness: list[bool]) -> float:
+    """Recency-weighted mastery in [0, 1] with a low-confidence cap.
+
+    Adapted from deeptutor/learning/mastery.py: newer attempts weigh more and
+    a single lucky answer cannot "master" a point — mastery is capped until
+    there is enough evidence. The one place the pedagogy math lives.
+    """
+    if not correctness:
+        return 0.0
+    recent = correctness[-len(_RECENCY_WEIGHTS) :]
+    weights = _RECENCY_WEIGHTS[-len(recent) :]
+    score = sum(w * (1.0 if c else 0.0) for c, w in zip(recent, weights, strict=True)) / sum(
+        weights
+    )
+    return min(score, _CONFIDENCE_CAP.get(len(recent), 1.0))
+
+
+class LearningStage(str, Enum):
+    """Coarse progression derived from proven mastery (gate-driven, like
+    DeepTutor's policy — never a mere stage counter).
+
+    * NEW       — never attempted.
+    * LEARNING  — attempted but not yet through its gate.
+    * MASTERED  — cleared its per-type mastery gate.
+    """
+
+    NEW = "new"
+    LEARNING = "learning"
+    MASTERED = "mastered"
+
+
+def log_attempt(
+    term: str,
+    correct: bool,
+    kp_type: KnowledgeType = KnowledgeType.MEMORY,
+    subject: str = "",
+) -> float:
+    """Record one quiz attempt, recompute mastery, and reschedule review.
+
+    Returns the resulting mastery score. Qualitative types (CONCEPT/DESIGN)
+    record a pass as full mastery on a correct answer.
+    """
+    if not isinstance(kp_type, KnowledgeType):
+        raise TutorError(f"kp_type must be a KnowledgeType, got {kp_type!r}")
+    now = datetime.now(timezone.utc)
+    with _conn() as conn:
+        conn.execute(
+            "INSERT INTO tutor_attempts (term, correct, ts) VALUES (?,?,?)",
+            (term, 1 if correct else 0, now.isoformat()),
+        )
+        rows = conn.execute(
+            "SELECT correct FROM tutor_attempts WHERE term=?", (term,)
+        ).fetchall()
+        correctness = [bool(r[0]) for r in rows]
+        mastery = compute_mastery(correctness)
+        if kp_type in (KnowledgeType.CONCEPT, KnowledgeType.DESIGN) and correct:
+            mastery = 1.0
+        # last_score 1 = got it, 3 = lost -> drives review cadence.
+        last = 1 if correct else 3
+        days = KNOWLEDGE_TYPE_INTERVALS[kp_type][last]
+        next_review = (now + timedelta(days=days)).isoformat()
+        conn.execute(
+            "INSERT INTO vocabulary_terms (term, subject, last_score, next_review, mastery) "
+            "VALUES (?,?,?,?,?) "
+            "ON CONFLICT(term) DO UPDATE SET "
+            "last_score=excluded.last_score, next_review=excluded.next_review, "
+            "mastery=excluded.mastery",
+            (term, subject, last, next_review, mastery),
+        )
+    return mastery
+
+
+def mastery_of(term: str) -> float:
+    """Proven mastery in [0, 1] for a term, or 0.0 if never attempted."""
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT mastery FROM vocabulary_terms WHERE term=?", (term,)
+        ).fetchone()
+    return float(row[0]) if row else 0.0
+
+
+def is_mastered(term: str, kp_type: KnowledgeType = KnowledgeType.MEMORY) -> bool:
+    """Whether ``term`` clears its per-type mastery gate (DeepTutor policy)."""
+    if kp_type in (KnowledgeType.CONCEPT, KnowledgeType.DESIGN):
+        return mastery_of(term) >= 1.0
+    return mastery_of(term) >= MASTERY_GATE.get(kp_type, 0.9)
+
+
+def stage_of(term: str, kp_type: KnowledgeType = KnowledgeType.MEMORY) -> LearningStage:
+    """Coarse stage from proven mastery — never a stage cursor."""
+    if is_mastered(term, kp_type):
+        return LearningStage.MASTERED
+    with _conn() as conn:
+        seen = conn.execute(
+            "SELECT 1 FROM tutor_attempts WHERE term=?", (term,)
+        ).fetchone()
+    return LearningStage.LEARNING if seen else LearningStage.NEW
+
+
+def next_action(term: str, kp_type: KnowledgeType = KnowledgeType.MEMORY) -> str:
+    """Advisory next action, mirroring deeptutor/learning/policy.NextStep.action.
+
+    One of: ``probe`` (new), ``practice`` (quantitative, below gate),
+    ``assess`` (qualitative, awaiting a Feynman check), ``complete`` (mastered).
+    """
+    if is_mastered(term, kp_type):
+        return "complete"
+    if stage_of(term, kp_type) == LearningStage.NEW:
+        return "probe"
+    return "assess" if kp_type in (KnowledgeType.CONCEPT, KnowledgeType.DESIGN) else "practice"
+
+
+# ── Quiz generation (DTH-04c) ────────────────────────────────────────────────
+
+# Adapted from deeptutor/capabilities/mastery/choices.py: a choice question is
+# a {label: body} map so the model, the learner's card, and deterministic
+# grading all speak the same shape. We resolve the correct answer to its stable
+# label at build time so grade_answer("choice") compares like with like.
+_OPTION_PREFIX_RE = re.compile(r"^\s*([A-Z])\s*[.:：、)）-]\s*(.+)$", re.IGNORECASE)
+
+
+def _stable_key(text: str) -> str:
+    """Content-addressed sort key — stable across processes (no RNG/hash seed)."""
+    return hashlib.md5(text.encode("utf-8")).hexdigest()
+
+
+def build_choice_question(question: str, answer: str, distractors: Sequence[str]) -> dict:
+    """Build one deterministic multiple-choice question.
+
+    ``answer`` is the correct body; ``distractors`` are wrong bodies. Option
+    order is stable (md5 of content) so re-runs agree — no randomness. Returns
+    the canonical option strings and the answer's stable label for grading.
+    """
+    if not answer:
+        raise TutorError("choice question requires a non-empty answer")
+    if not distractors:
+        raise TutorError("choice question requires at least one distractor")
+    options = sorted({answer, *distractors}, key=_stable_key)
+    labeled = {chr(ord("A") + i): body for i, body in enumerate(options)}
+    answer_label = next(label for label, body in labeled.items() if body == answer)
+    return {
+        "question": question,
+        "options": [f"{label}: {body}" for label, body in labeled.items()],
+        "answer_label": answer_label,
+    }
+
+
+def generate_recall_quiz(
+    terms: Sequence[str], question_template: str = "What does {term} mean?"
+) -> list[dict]:
+    """Deterministic multiple-choice quiz from a term list.
+
+    Each term becomes the answer to one question; the remaining terms are its
+    distractors. Useful for a spaced-repetition check-in without an LLM.
+    """
+    terms = [t for t in terms if t]
+    if len(terms) < 2:
+        raise TutorError("recall quiz needs at least two terms")
+    questions = []
+    for i, term in enumerate(terms):
+        distractors = [t for j, t in enumerate(terms) if j != i]
+        questions.append(
+            build_choice_question(question_template.format(term=term), term, distractors)
+        )
+    return questions
