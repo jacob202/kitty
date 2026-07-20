@@ -28,7 +28,7 @@
     "branch or registered worktree changes"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": null
+  "pull_request": "https://github.com/jacob202/kitty/pull/216"
 }
 -->
 
