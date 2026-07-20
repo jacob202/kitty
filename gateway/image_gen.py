@@ -18,6 +18,7 @@ from gateway.image_jobs import (
     transition,
     update_job,
 )
+from mcp.imagen.io import save_image
 
 # Set COMFY_URL to the cloudflared tunnel URL when running on Colab, e.g.:
 #   COMFY_URL=https://abc-xyz.trycloudflare.com
@@ -162,7 +163,18 @@ async def _poll(
         hist = r.json()
         if prompt_id not in hist:
             continue
-        outputs = hist[prompt_id].get("outputs", {})
+        prompt_history = hist[prompt_id]
+        status = prompt_history.get("status", {})
+        status_str = status.get("status_str") if isinstance(status, dict) else None
+        if status_str in {"error", "failed"}:
+            detail = prompt_history.get("execution_error")
+            if not detail and isinstance(status, dict):
+                detail = status.get("messages")
+            raise RuntimeError(
+                f"ComfyUI generation failed for prompt {prompt_id}: "
+                f"{detail or status_str}"
+            )
+        outputs = prompt_history.get("outputs", {})
         for out in outputs.values():
             for img in out.get("images", []):
                 return img["filename"]
@@ -217,7 +229,7 @@ async def is_available() -> bool:
         return False
 
 
-async def generate(prompt: str) -> dict:
+async def generate(prompt: str, parent_id: str | None = None) -> dict:
     """Submit prompt to ComfyUI, poll until done, return {prompt_id, filename, job_id}."""
     p = _parse(prompt)
 
@@ -237,7 +249,7 @@ async def generate(prompt: str) -> dict:
     # Record the job before submitting so it survives a crash mid-generation.
     job = create_job(
         provider="comfyui",
-        operation="txt2img",
+        operation="variation" if parent_id else "txt2img",
         prompt=prompt,
         negative_prompt=p["negative"],
         seed=None,  # seed is embedded in workflow but not surfaced back
@@ -251,6 +263,7 @@ async def generate(prompt: str) -> dict:
         provider_params_json=json.dumps(provider_params),
         workflow_template_id=template,
         workflow_hash=workflow_hash,
+        parent_id=parent_id,
     )
 
     try:
@@ -278,8 +291,27 @@ async def generate(prompt: str) -> dict:
         transition(job.job_id, ImageJobStatus.FAILED)
         raise TimeoutError("Image generation timed out (6 min)")
 
-    # filename lives under ComfyUI's output dir; verified separately (IMG-03).
-    update_job(job.job_id, output_path=filename)
+    # ComfyUI owns its output directory, which may be ephemeral (for example
+    # a restarted Colab process). Copy the completed artifact into Kitty's
+    # durable image store before marking the job succeeded.
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            view_response = await client.get(
+                f"{COMFY_URL}/view",
+                params={"filename": filename, "subfolder": "", "type": "output"},
+            )
+            view_response.raise_for_status()
+            if not view_response.content:
+                raise RuntimeError(
+                    f"ComfyUI returned an empty image for completed prompt {prompt_id} "
+                    f"(filename={filename!r})"
+                )
+            local_path = await asyncio.to_thread(save_image, view_response.content, prefix="comfy")
+    except Exception as exc:
+        _mark_failed(job.job_id, str(exc)[:500])
+        raise
+
+    update_job(job.job_id, output_path=str(local_path))
     transition(job.job_id, ImageJobStatus.SUCCEEDED)
 
-    return {"prompt_id": prompt_id, "filename": filename, "job_id": job.job_id}
+    return {"prompt_id": prompt_id, "filename": str(local_path), "job_id": job.job_id}

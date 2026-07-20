@@ -81,6 +81,12 @@ async def test_generate_marks_a_submitted_job_running_before_completion(monkeypa
         def json(self):
             return {"prompt-123": {"outputs": {"save": {"images": [{"filename": "cat.png"}]}}}}
 
+    class _ViewResponse:
+        content = b"png-bytes"
+
+        def raise_for_status(self):
+            return None
+
     class _Client:
         async def __aenter__(self):
             return self
@@ -93,15 +99,19 @@ async def test_generate_marks_a_submitted_job_running_before_completion(monkeypa
             assert json["prompt"]
             return _PromptResponse()
 
-        async def get(self, url: str):
-            assert url == f"{image_gen.COMFY_URL}/history/prompt-123"
-            return _HistoryResponse()
+        async def get(self, url: str, **kwargs):
+            if url == f"{image_gen.COMFY_URL}/history/prompt-123":
+                return _HistoryResponse()
+            assert url == f"{image_gen.COMFY_URL}/view"
+            assert kwargs["params"] == {"filename": "cat.png", "subfolder": "", "type": "output"}
+            return _ViewResponse()
 
     async def no_wait(_seconds: float) -> None:
         return None
 
     monkeypatch.setattr(image_gen.httpx, "AsyncClient", lambda **_kwargs: _Client())
     monkeypatch.setattr(image_gen.asyncio, "sleep", no_wait)
+    monkeypatch.setattr(image_gen, "save_image", lambda data, prefix: Path("/tmp/kitty-test-image.png"))
 
     result = await image_gen.generate("a cat")
 
