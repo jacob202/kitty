@@ -1,0 +1,5 @@
+# External hosts that answer link checks with bot-hostile or flaky status
+# codes unrelated to link validity. Each entry has blocked an unrelated PR
+# at least once (see the hygiene job in .github/workflows/tests.yml).
+# textgrad.com answers HEAD requests with 415 Unsupported Media Type.
+https?://textgrad\.com.*
