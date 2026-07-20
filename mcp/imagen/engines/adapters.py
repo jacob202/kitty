@@ -47,6 +47,22 @@ class DrawThingsHttpAdapter:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
 
+    def is_available(self) -> bool:
+        """Return whether the A1111-compatible server answers its health API.
+
+        Health is intentionally a bounded probe: an offline optional engine is
+        a normal status result, while generation continues to raise provider
+        errors with their full response context.
+        """
+        try:
+            response = httpx.get(
+                f"{self.base_url}/sdapi/v1/samplers",
+                timeout=min(self.timeout, 5.0),
+            )
+            return response.status_code == 200
+        except httpx.RequestError:
+            return False
+
     # The adapter is the single network boundary; retry/refusal semantics live
     # here so the engine stays a pure payload builder (prime directive: fail loud).
     def _post(self, endpoint: str, payload: dict) -> list[bytes]:

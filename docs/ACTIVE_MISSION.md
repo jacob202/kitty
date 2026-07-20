@@ -1,88 +1,85 @@
-# Active Mission — Project Control Plane / Continuity Foundation
+# Active Mission — Kitty-Wide Frontend + Product-Experience Harvest
 
 <!-- kitty-mission
 {
   "schema_version": 1,
-  "mission_id": "PCPF-001",
+  "mission_id": "KFX-001",
   "status": "running",
-  "approved_at": "2026-07-17T00:00:00Z",
+  "approved_at": "2026-07-20T00:00:00Z",
   "approved_by": "Jacob",
-  "base_sha": "167fa24accb0ff1b574a0a833786a6cdf22957d8",
+  "base_sha": "082a2e8b3d08ea87a1f4f0d6d150e4e0b8db5739",
   "authority": "docs/ACTIVE_MISSION.md"
 }
 -->
 
 ## Objective
 
-Establish the first durable Kitty Project Control Plane / Continuity Foundation
-so Jacob can brainstorm naturally with Kitty, approve a precise mission, and
-hand execution to KittyBuilder without manually reconstructing context.
+Define one coherent Kitty-wide product experience through a comprehensive
+frontend audit of all Kitty surfaces, all feature-adjacent repositories, and
+all discovered frontend references. Produce a product-experience plan, code-
+harvest register, and bounded KX initiative manifests.
 
-This mission ratifies the contract only. It does not add autonomous mutation or
-a permanent project-manager agent runtime.
+This is NOT an Image-Lab-only audit and NOT a backend architecture audit.
+It is a frontend and product-experience harvest covering every product lane.
 
 ## Product decision
 
-- Jacob interacts with Kitty, not a roster of worker models.
-- Kitty is the principal agent: thinking partner, intent compiler, product
-  lead, and project manager.
-- Kitty selectively retrieves relevant context, identifies what is missing,
-  challenges assumptions, plans evidence, and compiles an approval-ready
-  mission.
-- Kitty chooses whether to reason, retrieve, research, use tools or experts, or
-  delegate an approved mission to Builder.
-- KittyBuilder is the execution control plane. It owns decomposition, worker
-  and model routing, context packaging, authority enforcement, budgets,
-  attempts, validation, recovery, publication, and evidence.
-- Models are replaceable workers. They do not own project truth.
-- The system optimizes for verified truth and roughly 90–95% of the available
-  quality at materially lower cost; expensive escalation requires evidence that
-  the cheaper route is insufficient for the risk or reasoning need.
-- Kitty should increase Jacob's independent capability through concise
-  teach-back, visible decisions, and relevance-gated proactivity.
+- Kitty must feel like one product, not nine panels wearing the same CSS variables.
+- Every feature lane (chat, image, tutor, memory, builder, automations,
+  integrations, evaluation) must go through the same quality process.
+- The standard is not "is the feature wired" — it's "does the product feel
+  coherent."
 
 ## Scope
 
-1. Reconcile the architecture and canonical authority stack.
-2. Ratify the Kitty → Mission → KittyBuilder boundary in an ADR.
-3. Standardize `AGENTS.md`, `CLAUDE.md`, and `START_HERE.md` as bootloaders.
-4. Normalize the active state and handoff files to one current checkpoint.
-5. Implement deterministic `./kitty context --agent` receipts.
-6. Share repository freshness enforcement with `./kitty doctor`.
-7. Prove cold-start continuity from only the repository, receipt, and reading
-   order.
+1. Reconcile repository continuity state, integrate completed image branch.
+2. Inventory every Kitty product surface with live inspection.
+3. Revisit all feature-adjacent repositories from a frontend perspective.
+4. Discover additional mature frontend references.
+5. Create a code-harvest register with license disposition.
+6. Define one Kitty-wide product experience system.
+7. Render a cross-product spike with fixture data.
+8. Derive bounded, dependency-aware KX initiative manifests.
+9. Define experience acceptance gates.
+10. Commit and open the design PR.
 
 ## Authority granted
 
-- Read the repository, local Builder state, Git history, and public GitHub
-  repository state.
-- Edit documentation, CLI/runtime source, and tests within this isolated branch.
-- Run formatting, static checks, tests, link validation, and read-only doctors.
-- Create small local commits.
+- Read the repository, Builder state, Git history, and public GitHub state.
+- Edit documentation and audit deliverables.
+- Integrate the approved feat/image-packets-current branch.
+- Repair HANDOFF.md and STATE.md with accurate continuity state.
+- Create a planning branch, commit deliverables, and open a PR for Jacob's review.
+- Run formatting, static checks, tests, and read-only doctors.
 
-The mission does not authorize push, merge, branch/worktree deletion, history
-rewrites, secrets/auth/env changes, paid execution, heavy dependencies, or
-autonomous Builder mutation.
+The mission does NOT authorize pushing to main, merging without review, starting
+Builder KX initiatives, or mutating runtime code.
 
-## Evidence plan
+## Deliverables
 
-- Record the refreshed `origin/main` SHA and isolated worktree identity.
-- Derive context from Git, strict checkpoint metadata, the authority map, and
-  supported Builder read projections.
-- Unit-test stale HEAD, PR, branch/path, link, authority, Builder-description,
-  and completed-action failures.
-- Run targeted CLI/Builder tests, Ruff, mypy, link validation,
-  `git diff --check`, and `./kitty doctor --json`.
-- Give a clean model only the receipt and reading order and require correct
-  answers to the eight cold-start questions.
+- `docs/AUDIT_KITTY_FRONTEND_EXPERIENCE_HARVEST_2026-07-20.md`
+- `docs/plans/KITTY_PRODUCT_EXPERIENCE_V1.md`
+- Repaired `HANDOFF.md` and `STATE.md`
+- Updated `ACTIVE_MISSION.md` (this file)
+- PR for Jacob's review of the cross-product experience direction
 
 ## Acceptance contract
 
-The mission is locally complete when the requested documentation and commands
-work, freshness failures are explicit, validation evidence is recorded, and a
-clean model can identify purpose, boundary, shipped state, active work, next
-action, uncertainty, and authority without prior conversation.
+The mission is complete when:
+1. Continuity checks pass (27/27).
+2. Image branch is integrated and documented.
+3. All Kitty surfaces are inventoried.
+4. All feature-adjacent repos are inspected for frontend evidence.
+5. Code-harvest register is complete with license disposition.
+6. Product-experience plan covers all 10 required domains.
+7. KX initiative program is derived with dependencies.
+8. PR is open for Jacob's review.
+9. The approval command for KX-01 is explicit and actionable.
 
-Publication remains a separate human-authorized action. Until the work is
-merged into `main`, the mission remains active with the next action owned by the
-current session checkpoint.
+## Evidence plan
+
+- Continuity check output (27 PASS).
+- Git log showing image branch integration + origin/main sync.
+- Frontend source code inspection (page.tsx, all 36 components, globals.css).
+- Existing audit docs cross-referenced.
+- Screenshots and browser evidence for surface inventory (to be added in spike stage).

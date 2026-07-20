@@ -1092,21 +1092,44 @@ export interface ImageEntry {
   created_at?: number | string
 }
 
-export async function fetchImageStatus(): Promise<{ available: boolean }> {
+export interface ImageEngineStatus {
+  name: string
+  label: string
+  available: boolean
+}
+
+export interface ImageStatus {
+  available: boolean
+  backend?: string
+  engines?: ImageEngineStatus[]
+}
+
+export async function fetchImageStatus(): Promise<ImageStatus> {
   try {
-    const json = await gfetch<{ available?: boolean }>('/image/status')
-    return { available: json.available === true }
+    const json = await gfetch<{
+      available?: boolean
+      backend?: string
+      engines?: ImageEngineStatus[]
+    }>('/image/status')
+    return {
+      available: json.available === true,
+      backend: json.backend,
+      engines: json.engines ?? [],
+    }
   } catch {
-    return { available: false }
+    return { available: false, engines: [] }
   }
 }
 
-export async function generateImage(prompt: string): Promise<{ filename: string } | null> {
+export async function generateImage(
+  prompt: string,
+  engine = 'comfyui',
+): Promise<{ filename: string; job_id?: string; engine?: string } | null> {
   try {
-    return await gfetch<{ filename: string }>('/image/generate', {
+    return await gfetch<{ filename: string; job_id?: string; engine?: string }>('/image/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({ prompt, engine }),
     })
   } catch {
     return null

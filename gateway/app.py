@@ -21,6 +21,15 @@ logger = logging.getLogger("kitty.gateway")
 logging.basicConfig(level=logging.INFO)
 
 
+def _reconcile_image_jobs_on_startup() -> None:
+    """Close image jobs whose generating gateway coroutine no longer exists."""
+    from gateway.image_jobs import reconcile_stale
+
+    reconciled = reconcile_stale()
+    if reconciled:
+        logger.warning("reconciled %d orphaned image job(s) at startup", reconciled)
+
+
 async def _brief_bg_loop():
     """Warm the brief cache on startup, then refresh every 15 minutes."""
     from gateway.brief import generate_brief
@@ -39,6 +48,7 @@ async def _brief_bg_loop():
 async def lifespan(app: FastAPI):
     validate_dirs()
     validate_env()
+    _reconcile_image_jobs_on_startup()
     try:
         from gateway.telegram_bot import is_configured as tg_configured
         from gateway.telegram_bot import start_polling

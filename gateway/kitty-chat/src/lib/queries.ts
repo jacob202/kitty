@@ -460,7 +460,8 @@ export function useImageHistory() {
 export function useGenerateImage() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (prompt: string) => generateImage(prompt),
+    mutationFn: (args: string | { prompt: string; engine: string }) =>
+      typeof args === 'string' ? generateImage(args) : generateImage(args.prompt, args.engine),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['image', 'history'] }),
   })
 }
