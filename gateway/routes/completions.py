@@ -223,12 +223,33 @@ async def chat_completions(request: Request):
     }
 
     if stream:
+        # Memory-evidence trailer (CR-04): built before streaming starts so
+        # the hot path only pays a byte comparison per chunk. None when no
+        # memories were injected — the trailer must then be absent.
+        memory_trailer: bytes | None = None
+        if bundle.injected_memory_items:
+            trailer_json = json.dumps(
+                {"memory_items": [text[:200] for text in bundle.injected_memory_items]},
+                ensure_ascii=False,
+            )
+            memory_trailer = b"data: " + trailer_json.encode("utf-8") + b"\n\n"
 
         async def stream_with_trace():
             nonlocal lifecycle_done
             accumulated = ""
+            trailer = memory_trailer
             try:
                 async for chunk in iter_chat_completions_stream(payload):
+                    # The trailer rides immediately before the upstream [DONE].
+                    # A stream that never reaches [DONE] (error, cancellation,
+                    # cut connection) gets no memory evidence.
+                    if (
+                        trailer is not None
+                        and chunk.startswith(b"data: ")
+                        and chunk[6:].strip() == b"[DONE]"
+                    ):
+                        yield trailer
+                        trailer = None
                     yield chunk
                     if lifecycle_handle is not None and chunk.startswith(b"data: "):
                         raw_chunk = chunk[6:].strip()

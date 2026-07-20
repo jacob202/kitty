@@ -51,6 +51,14 @@ BLOCKED_ITEM = Item(
     source=Source.MEMORY,
     metadata={"blocked": True},
 )
+# Passes memory policy (pinned) but is dropped by the render-time privacy
+# gate (health tag, neutral query) — the case where "post-policy" and
+# "actually rendered" diverge.
+PINNED_TAGGED_HEALTH = Item(
+    text="blood pressure log for March",
+    source=Source.MEMORY,
+    metadata={"pinned": True, "tags": ["health"]},
+)
 
 
 @pytest.fixture
@@ -105,3 +113,70 @@ class TestAssemblerMemoryPolicy:
         assert PREFERENCE_ITEM.text in texts
         assert PINNED_SENSITIVE.text in texts
         assert BLOCKED_ITEM.text in texts
+
+
+class TestInjectedMemoryEvidence:
+    """CR-04: bundle.injected_memory_items is the truthful record of what
+    actually entered the prompt — post-policy, post-privacy-gate, post-budget."""
+
+    async def test_injected_items_match_prompt_exactly(self, deps):
+        """Evidence lists exactly the surfaced items, in prompt order."""
+        bundle = await assemble_context("how is the project going", deps=deps)
+        assert bundle.injected_memory_items == [
+            PROJECT_ITEM.text,
+            PREFERENCE_ITEM.text,
+            PINNED_SENSITIVE.text,
+        ]
+        for text in bundle.injected_memory_items:
+            assert f"- {text}" in bundle.system
+
+    async def test_suppressed_items_absent_from_evidence(self, deps):
+        """Policy-suppressed items appear in neither prompt nor evidence."""
+        bundle = await assemble_context("how is the project going", deps=deps)
+        assert SENSITIVE_ITEM.text not in bundle.injected_memory_items
+        assert BLOCKED_ITEM.text not in bundle.injected_memory_items
+
+    async def test_privacy_gated_item_absent_from_evidence(self):
+        """An item that passes memory policy but is dropped by the render-time
+        privacy gate must be absent from both the prompt and the evidence —
+        otherwise the trailer would leak what the gate deliberately withheld."""
+        adapter = _ControlledAdapter(
+            "memory", [PROJECT_ITEM, PINNED_TAGGED_HEALTH]
+        )
+        deps = _AssemblerDeps(adapters=[adapter], enrichments=())
+        bundle = await assemble_context("how is the project going", deps=deps)
+        assert PINNED_TAGGED_HEALTH.text not in bundle.system
+        assert PINNED_TAGGED_HEALTH.text not in bundle.injected_memory_items
+        assert bundle.injected_memory_items == [PROJECT_ITEM.text]
+
+    async def test_policy_filter_runs_exactly_once_per_item(self, deps, monkeypatch):
+        """should_surface is consulted once per retrieved item — no re-filtering
+        anywhere downstream."""
+        from gateway import context_assembler
+        from gateway.memory_policy import should_surface as real_should_surface
+
+        calls: list[str] = []
+
+        def counting_should_surface(item, query=""):
+            calls.append(item.text)
+            return real_should_surface(item, query=query)
+
+        monkeypatch.setattr(
+            context_assembler, "should_surface", counting_should_surface
+        )
+        await assemble_context("how is the project going", deps=deps)
+        assert sorted(calls) == sorted(
+            [
+                SENSITIVE_ITEM.text,
+                PROJECT_ITEM.text,
+                PREFERENCE_ITEM.text,
+                PINNED_SENSITIVE.text,
+                BLOCKED_ITEM.text,
+            ]
+        )
+
+    async def test_no_memories_yields_empty_evidence(self):
+        adapter = _ControlledAdapter("memory", [])
+        deps = _AssemblerDeps(adapters=[adapter], enrichments=())
+        bundle = await assemble_context("hello", deps=deps)
+        assert bundle.injected_memory_items == []

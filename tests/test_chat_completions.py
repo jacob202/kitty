@@ -2,7 +2,183 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
+
+from gateway.context_assembler import ContextBundle
+
+
+def _post_stream(chunks, bundle, *, body=None, lifecycle_patches=False):
+    """POST a streaming completion with a canned upstream and real bundle.
+
+    Returns (response, mocks) where mocks holds start/finish turn mocks when
+    ``lifecycle_patches`` is set.
+    """
+
+    async def fake_stream(_payload):
+        for chunk in chunks:
+            yield chunk
+
+    request_body = body or {
+        "messages": [{"role": "user", "content": "hi"}],
+        "stream": True,
+    }
+    mocks = {}
+    patches = [
+        patch("gateway.routes.completions.classify_domain", return_value="soul"),
+        patch("gateway.routes.completions.route_model", return_value="kitty-default"),
+        patch(
+            "gateway.context_assembler.assemble_context",
+            new=AsyncMock(return_value=bundle),
+        ),
+        patch(
+            "gateway.routes.completions.iter_chat_completions_stream",
+            new=fake_stream,
+        ),
+    ]
+    if lifecycle_patches:
+        handle = MagicMock(turn_id="turn-1", attempt_id="attempt-1")
+        start = patch(
+            "gateway.routes.completions.chat_lifecycle.start_turn",
+            return_value=handle,
+        )
+        finish = patch("gateway.routes.completions.chat_lifecycle.finish_turn")
+        chats = patch(
+            "gateway.routes.completions.chats_store.get_chat",
+            return_value={"id": "chat-1"},
+        )
+        patches.extend([start, finish, chats])
+
+    from gateway.app import app
+
+    with patches[0], patches[1], patches[2], patches[3]:
+        if lifecycle_patches:
+            with patches[4] as mock_start, patches[5] as mock_finish, patches[6]:
+                mocks["start"] = mock_start
+                mocks["finish"] = mock_finish
+                response = TestClient(app).post("/v1/chat/completions", json=request_body)
+        else:
+            response = TestClient(app).post("/v1/chat/completions", json=request_body)
+    return response, mocks
+
+
+CONTENT_CHUNK_1 = b'data: {"choices":[{"delta":{"content":"Hel"}}]}\n\n'
+CONTENT_CHUNK_2 = b'data: {"choices":[{"delta":{"content":"lo"}}]}\n\n'
+DONE_CHUNK = b"data: [DONE]\n\n"
+
+
+class TestMemoryTrailer:
+    """CR-04: one memory_items trailer between content and [DONE]."""
+
+    def test_trailer_rides_between_content_and_done(self):
+        bundle = ContextBundle(
+            system="SYS",
+            injected_memory_items=["decided on FastAPI", "prefers dark mode"],
+        )
+        response, _ = _post_stream(
+            [CONTENT_CHUNK_1, CONTENT_CHUNK_2, DONE_CHUNK], bundle
+        )
+        assert response.status_code == 200
+        assert response.content == (
+            CONTENT_CHUNK_1
+            + CONTENT_CHUNK_2
+            + b'data: {"memory_items": ["decided on FastAPI", "prefers dark mode"]}\n\n'
+            + DONE_CHUNK
+        )
+
+    def test_no_memories_means_no_trailer(self):
+        bundle = ContextBundle(system="SYS", injected_memory_items=[])
+        response, _ = _post_stream(
+            [CONTENT_CHUNK_1, CONTENT_CHUNK_2, DONE_CHUNK], bundle
+        )
+        assert response.status_code == 200
+        assert response.content == CONTENT_CHUNK_1 + CONTENT_CHUNK_2 + DONE_CHUNK
+        assert b"memory_items" not in response.content
+
+    def test_trailer_absent_when_stream_never_reaches_done(self):
+        """A cut stream (no [DONE]) reached no completion boundary — no
+        memory evidence may be emitted for it."""
+        bundle = ContextBundle(system="SYS", injected_memory_items=["evidence"])
+        response, _ = _post_stream([CONTENT_CHUNK_1, CONTENT_CHUNK_2], bundle)
+        assert response.content == CONTENT_CHUNK_1 + CONTENT_CHUNK_2
+        assert b"memory_items" not in response.content
+
+    def test_empty_completion_still_gets_trailer_at_done(self):
+        bundle = ContextBundle(system="SYS", injected_memory_items=["evidence"])
+        response, _ = _post_stream([DONE_CHUNK], bundle)
+        assert response.content == (
+            b'data: {"memory_items": ["evidence"]}\n\n' + DONE_CHUNK
+        )
+
+    def test_trailer_items_truncated_to_200_chars(self):
+        long_text = "x" * 300
+        bundle = ContextBundle(system="SYS", injected_memory_items=[long_text])
+        response, _ = _post_stream([DONE_CHUNK], bundle)
+        assert (
+            b'data: {"memory_items": ["' + b"x" * 200 + b'"]}\n\n' + DONE_CHUNK
+            == response.content
+        )
+
+    def test_trailer_preserves_injection_order_and_unicode(self):
+        bundle = ContextBundle(
+            system="SYS",
+            injected_memory_items=["première note", "deuxième — 🎯"],
+        )
+        response, _ = _post_stream([DONE_CHUNK], bundle)
+        assert response.content == (
+            'data: {"memory_items": ["première note", "deuxième — 🎯"]}\n\n'.encode("utf-8")
+            + DONE_CHUNK
+        )
+
+    def test_upstream_error_mid_stream_propagates_without_trailer(self):
+        """Errors are not swallowed to force a trailer or [DONE]."""
+
+        async def broken_stream(_payload):
+            yield CONTENT_CHUNK_1
+            raise RuntimeError("upstream died mid-stream")
+
+        bundle = ContextBundle(system="SYS", injected_memory_items=["evidence"])
+        with patch(
+            "gateway.routes.completions.classify_domain", return_value="soul"
+        ), patch(
+            "gateway.routes.completions.route_model", return_value="kitty-default"
+        ), patch(
+            "gateway.context_assembler.assemble_context",
+            new=AsyncMock(return_value=bundle),
+        ), patch(
+            "gateway.routes.completions.iter_chat_completions_stream",
+            new=broken_stream,
+        ):
+            from gateway.app import app
+
+            with pytest.raises(RuntimeError, match="upstream died mid-stream"):
+                TestClient(app).post(
+                    "/v1/chat/completions",
+                    json={
+                        "messages": [{"role": "user", "content": "hi"}],
+                        "stream": True,
+                    },
+                )
+
+    def test_lifecycle_transcript_excludes_trailer(self):
+        """The recorded assistant text is the model's content only — the
+        trailer never leaks into the lifecycle ledger."""
+        bundle = ContextBundle(system="SYS", injected_memory_items=["evidence"])
+        response, mocks = _post_stream(
+            [CONTENT_CHUNK_1, CONTENT_CHUNK_2, DONE_CHUNK],
+            bundle,
+            body={
+                "conversation_id": "chat-1",
+                "messages": [{"role": "user", "content": "hi"}],
+                "stream": True,
+            },
+            lifecycle_patches=True,
+        )
+        assert response.status_code == 200
+        assert b'data: {"memory_items": ["evidence"]}\n\n' in response.content
+        finish_kwargs = mocks["finish"].call_args.kwargs
+        assert finish_kwargs["assistant_text"] == "Hello"
+        assert finish_kwargs["status"] == "succeeded"
 
 
 def test_thread_objective_reaches_lifecycle_and_context():

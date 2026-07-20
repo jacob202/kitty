@@ -51,7 +51,7 @@ from gateway.memory_graph import (
     Item,
     MemoryGraph,
     StoreAdapter,
-    _format_unified_items,
+    _select_unified_items,
 )
 from gateway.memory_policy import should_surface
 
@@ -142,12 +142,18 @@ class ContextBundle:
         warnings: Per-source failure strings in the form
             ``{source_name}: {exc_type}: {message}``. Empty when every
             source succeeded.
+        injected_memory_items: The exact memory texts rendered into
+            ``system`` for this request, in prompt order — after memory
+            policy, the privacy gate, and token budgeting. This is the
+            truthful "which memories informed this answer" evidence;
+            ``memory_items`` above remains the raw pre-filter audit list.
     """
 
     system: str
     memory_items: list[Item] = field(default_factory=list)
     live_blocks: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    injected_memory_items: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -208,13 +214,6 @@ def _filter_items_by_policy(
     return filtered
 
 
-def _format_memory_block(results: dict[str, list[Item]], cap: int) -> str:
-    """Render ``results`` (keyed by source) as the memory-graph section."""
-    if not any(results.values()):
-        return ""
-    return _format_unified_items(results, cap=cap)
-
-
 def _join_blocks(*blocks: str) -> str:
     """Concatenate non-empty blocks with a blank line between them."""
     return "\n\n".join(b for b in blocks if b)
@@ -268,8 +267,14 @@ async def assemble_context(
     graph_result = await graph.search_all(message)
     warnings.extend(f"memory_graph:{err}" for err in graph_result.errors)
 
+    # Policy filtering happens here, once; the render gates (privacy, budget)
+    # run once inside _select_unified_items. The same selection produces both
+    # the prompt block and the injected-memory evidence, so they cannot drift.
     filtered_results = _filter_items_by_policy(graph_result.results, message)
-    memory_block = _format_memory_block(filtered_results, CONTEXT_TOKEN_CAP)
+    memory_sections, injected_memory_items = _select_unified_items(
+        filtered_results, CONTEXT_TOKEN_CAP
+    )
+    memory_block = "\n\n".join(memory_sections)
 
     enrichment_blocks, enrichment_warnings = await run_enrichments(deps.enrichments, message)
     warnings.extend(enrichment_warnings)
@@ -285,6 +290,7 @@ async def assemble_context(
         memory_items=_flatten_items(graph_result.results),
         live_blocks=list(enrichment_blocks),
         warnings=warnings,
+        injected_memory_items=injected_memory_items,
     )
 
 
