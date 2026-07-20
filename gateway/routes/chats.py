@@ -118,6 +118,16 @@ def _recover_messages(conversation_id: str) -> list[dict]:
                         "size": artifact["size_bytes"],
                     }
                 )
+            raw_memory = msg.get("memory_items")
+            try:
+                memory_items = json.loads(raw_memory) if isinstance(raw_memory, str) else []
+            except json.JSONDecodeError:
+                memory_items = []
+            if not (
+                isinstance(memory_items, list)
+                and all(isinstance(item, str) for item in memory_items)
+            ):
+                memory_items = []
             messages.append(
                 {
                     "id": msg["id"],
@@ -127,6 +137,7 @@ def _recover_messages(conversation_id: str) -> list[dict]:
                     "model": attempt_model if msg["role"] == "assistant" else None,
                     "status": turn_status,
                     "attachments": attachments,
+                    "memory_items": memory_items,
                 }
             )
     return messages

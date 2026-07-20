@@ -110,12 +110,15 @@ class TestMemoryTrailer:
             b'data: {"memory_items": ["evidence"]}\n\n' + DONE_CHUNK
         )
 
-    def test_trailer_items_truncated_to_200_chars(self):
+    def test_long_trailer_items_pass_through_untruncated(self):
+        """Injected texts arrive whole — the prompt's render budget already
+        bounds their length, and a mid-sentence chop is worse UX than a long
+        line (Jacob, 2026-07-20)."""
         long_text = "x" * 300
         bundle = ContextBundle(system="SYS", injected_memory_items=[long_text])
         response, _ = _post_stream([DONE_CHUNK], bundle)
         assert (
-            b'data: {"memory_items": ["' + b"x" * 200 + b'"]}\n\n' + DONE_CHUNK
+            b'data: {"memory_items": ["' + b"x" * 300 + b'"]}\n\n' + DONE_CHUNK
             == response.content
         )
 
@@ -179,6 +182,43 @@ class TestMemoryTrailer:
         finish_kwargs = mocks["finish"].call_args.kwargs
         assert finish_kwargs["assistant_text"] == "Hello"
         assert finish_kwargs["status"] == "succeeded"
+
+    def test_ledger_evidence_mirrors_the_delivered_trailer(self):
+        """CR-05b: finish_turn records exactly the items the client received
+        — evidence follows the wire, whole and untruncated."""
+        bundle = ContextBundle(
+            system="SYS", injected_memory_items=["short", "y" * 300],
+        )
+        _, mocks = _post_stream(
+            [CONTENT_CHUNK_1, DONE_CHUNK],
+            bundle,
+            body={
+                "conversation_id": "chat-1",
+                "messages": [{"role": "user", "content": "hi"}],
+                "stream": True,
+            },
+            lifecycle_patches=True,
+        )
+        finish_kwargs = mocks["finish"].call_args.kwargs
+        assert finish_kwargs["memory_items"] == ["short", "y" * 300]
+
+    def test_no_ledger_evidence_when_trailer_was_never_delivered(self):
+        """A cut stream (no [DONE]) delivered no trailer — the ledger must
+        not claim evidence the client never saw."""
+        bundle = ContextBundle(system="SYS", injected_memory_items=["evidence"])
+        _, mocks = _post_stream(
+            [CONTENT_CHUNK_1],
+            bundle,
+            body={
+                "conversation_id": "chat-1",
+                "messages": [{"role": "user", "content": "hi"}],
+                "stream": True,
+            },
+            lifecycle_patches=True,
+        )
+        finish_kwargs = mocks["finish"].call_args.kwargs
+        assert finish_kwargs["status"] == "succeeded"
+        assert finish_kwargs["memory_items"] is None
 
 
 def test_thread_objective_reaches_lifecycle_and_context():

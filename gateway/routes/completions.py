@@ -40,6 +40,7 @@ def _finish_lifecycle_or_raise(
     assistant_text: str,
     resolved_model: str | None = None,
     error: str | None = None,
+    memory_items: list[str] | None = None,
 ) -> None:
     try:
         chat_lifecycle.finish_turn(
@@ -48,6 +49,7 @@ def _finish_lifecycle_or_raise(
             assistant_text=assistant_text,
             resolved_model=resolved_model,
             error=error,
+            memory_items=memory_items,
         )
     except Exception as exc:
         raise RuntimeError(
@@ -226,11 +228,15 @@ async def chat_completions(request: Request):
         # Memory-evidence trailer (CR-04): built before streaming starts so
         # the hot path only pays a byte comparison per chunk. None when no
         # memories were injected — the trailer must then be absent.
+        trailer_items: list[str] | None = None
         memory_trailer: bytes | None = None
         if bundle.injected_memory_items:
+            # Full injected texts, untruncated (Jacob, 2026-07-20): the render
+            # budget already bounds them, and a mid-sentence chop reads worse
+            # than a longer line in the "kitty remembered" block.
+            trailer_items = list(bundle.injected_memory_items)
             trailer_json = json.dumps(
-                {"memory_items": [text[:200] for text in bundle.injected_memory_items]},
-                ensure_ascii=False,
+                {"memory_items": trailer_items}, ensure_ascii=False
             )
             memory_trailer = b"data: " + trailer_json.encode("utf-8") + b"\n\n"
 
@@ -272,11 +278,15 @@ async def chat_completions(request: Request):
                                 )
                             accumulated += content
                 if lifecycle_handle is not None:
+                    # Ledger evidence mirrors the wire exactly: recorded only
+                    # when the trailer was actually delivered to the client.
+                    trailer_emitted = memory_trailer is not None and trailer is None
                     _finish_lifecycle_or_raise(
                         lifecycle_handle,
                         status="succeeded",
                         assistant_text=accumulated,
                         resolved_model=model,
+                        memory_items=trailer_items if trailer_emitted else None,
                     )
                     lifecycle_done = True
                 log_chat_trace(

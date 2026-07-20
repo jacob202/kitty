@@ -131,10 +131,21 @@ def finish_turn(
     assistant_text: str,
     resolved_model: str | None = None,
     error: str | None = None,
+    memory_items: list[str] | None = None,
 ) -> None:
-    """Atomically finalize an attempt, assistant message, and parent turn."""
+    """Atomically finalize an attempt, assistant message, and parent turn.
+
+    ``memory_items`` is the CR-04 memory evidence actually delivered to the
+    client for this reply; it is stored on the assistant message so ledger
+    recovery can restore the "kitty remembered" block.
+    """
     if status not in _TURN_STATUSES or status == "running":
         raise ChatLifecycleError(f"invalid terminal chat status {status!r}")
+    if memory_items is not None and (
+        not isinstance(memory_items, list)
+        or not all(isinstance(item, str) for item in memory_items)
+    ):
+        raise ChatLifecycleError("memory_items must be a list of strings or None")
     now = time.time()
     message_status = {
         "succeeded": "complete",
@@ -165,14 +176,15 @@ def finish_turn(
             conn.execute(
                 """
                 INSERT INTO chat_messages
-                    (id, turn_id, role, content, status, created_at)
-                VALUES (?, ?, 'assistant', ?, ?, ?)
+                    (id, turn_id, role, content, status, memory_items, created_at)
+                VALUES (?, ?, 'assistant', ?, ?, ?, ?)
                 """,
                 (
                     f"message_{handle.attempt_id}",
                     handle.turn_id,
                     assistant_text,
                     message_status,
+                    json.dumps(memory_items) if memory_items else None,
                     now,
                 ),
             )

@@ -84,6 +84,7 @@ interface RecoveredMessage {
   model?: string | null;
   status?: string;
   attachments?: MessageAttachment[];
+  memory_items?: string[];
 }
 
 /** Map a saved legacy chat blob into the UI shape with Date timestamps. */
@@ -240,6 +241,7 @@ function KittyChatInner() {
                   ...(m.attachments?.length
                     ? { attachments: m.attachments as MessageAttachment[] }
                     : {}),
+                  ...(m.memory_items?.length ? { memoryItems: m.memory_items } : {}),
                 })),
               };
             } catch {
