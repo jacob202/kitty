@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import urlparse
 
-import requests
+import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -108,7 +108,7 @@ async def post_ingest(body: IngestRequest) -> IngestResponse:
     Returns an explicit status (success | skipped | failed | pending) and a
     reason. Status is never implied from HTTP code alone.
     """
-    target_path, downloaded, download_reason = _resolve_target(body)
+    target_path, downloaded, download_reason = await _resolve_target(body)
 
     if target_path is None:
         return IngestResponse(
@@ -234,10 +234,16 @@ async def post_expert(body: ExpertRequest) -> dict:
 # --- Helpers ---
 
 
-def _resolve_target(
+async def _resolve_target(
     body: IngestRequest,
 ) -> tuple[Optional[Path], bool, Optional[str]]:
-    """Return (path_to_ingest, was_downloaded, failure_reason)."""
+    """Return (path_to_ingest, was_downloaded, failure_reason).
+
+    Async because ``_download_url`` is an async streaming caller; previously
+    a sync ``requests.get`` blocks the FastAPI event loop from inside
+    ``async def post_ingest`` (the classic async-route, sync-call gotcha).
+    See docs/AUDIT_FULL_ENGINEERING_2026-07-20.md §2.1.
+    """
     if body.path:
         from gateway.document_validator import (
             DocumentValidationError,
@@ -255,31 +261,41 @@ def _resolve_target(
     if parsed.scheme not in ("http", "https"):
         return None, False, f"unsupported url scheme: {parsed.scheme!r}"
 
-    return _download_url(body.url)
+    return await _download_url(body.url)
 
 
-def _download_url(url: str) -> tuple[Optional[Path], bool, Optional[str]]:
-    """Stream a URL into KNOWLEDGE_DIR/inbox and return the temp path."""
+async def _download_url(url: str) -> tuple[Optional[Path], bool, Optional[str]]:
+    """Stream a URL into KNOWLEDGE_DIR/inbox and return the temp path.
+
+    Async: ``_resolve_target`` is ``async`` so the upstream
+    ``async def post_ingest`` route stays cooperative. Bounded by
+    ``URL_DOWNLOAD_TIMEOUT_SECONDS`` and ``URL_DOWNLOAD_MAX_BYTES`` (200 MB
+    hard cap) — same as the prior ``requests``-based implementation.
+    See docs/AUDIT_FULL_ENGINEERING_2026-07-20.md §2.1.
+    """
     try:
-        with requests.get(
-            url, timeout=URL_DOWNLOAD_TIMEOUT_SECONDS, stream=True, allow_redirects=True
-        ) as resp:
-            resp.raise_for_status()
-            filename = _safe_filename(url, resp)
-            target = URL_DOWNLOAD_DIR / filename
-            written = 0
-            with target.open("wb") as out:
-                for chunk in resp.iter_content(chunk_size=64 * 1024):
-                    if not chunk:
-                        continue
-                    written += len(chunk)
-                    if written > URL_DOWNLOAD_MAX_BYTES:
-                        out.close()
-                        target.unlink(missing_ok=True)
-                        return None, False, (f"download exceeded {URL_DOWNLOAD_MAX_BYTES} bytes")
-                    out.write(chunk)
+        async with httpx.AsyncClient(timeout=URL_DOWNLOAD_TIMEOUT_SECONDS) as client:
+            async with client.stream(
+                "GET", url, follow_redirects=True
+            ) as resp:
+                resp.raise_for_status()
+                filename = _safe_filename(url, resp)
+                target = URL_DOWNLOAD_DIR / filename
+                written = 0
+                with target.open("wb") as out:
+                    async for chunk in resp.aiter_bytes(chunk_size=64 * 1024):
+                        if not chunk:
+                            continue
+                        written += len(chunk)
+                        if written > URL_DOWNLOAD_MAX_BYTES:
+                            out.close()
+                            target.unlink(missing_ok=True)
+                            return None, False, (
+                                f"download exceeded {URL_DOWNLOAD_MAX_BYTES} bytes"
+                            )
+                        out.write(chunk)
         return target, True, None
-    except requests.RequestException as exc:
+    except httpx.HTTPError as exc:
         return None, False, f"download failed: {exc}"
     except OSError as exc:
         return None, False, f"could not write download: {exc}"
@@ -288,7 +304,7 @@ def _download_url(url: str) -> tuple[Optional[Path], bool, Optional[str]]:
 _SAFE_NAME_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
 
-def _safe_filename(url: str, resp: requests.Response) -> str:
+def _safe_filename(url: str, resp: httpx.Response) -> str:
     """Pick a filesystem-safe filename for a downloaded URL."""
     parsed = urlparse(url)
     name = Path(parsed.path).name or "download"
@@ -298,7 +314,7 @@ def _safe_filename(url: str, resp: requests.Response) -> str:
     return f"{int(time.time())}_{stem}{ext}"
 
 
-def _guess_ext(resp: requests.Response) -> str:
+def _guess_ext(resp: httpx.Response) -> str:
     ctype = (resp.headers.get("content-type") or "").split(";", 1)[0].strip().lower()
     return {
         "application/pdf": ".pdf",

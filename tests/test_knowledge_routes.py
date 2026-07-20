@@ -213,14 +213,38 @@ def test_ingest_url_download_succeeds(client, mock_kb_collection):
     )
     cms = _patched_ingest_with_coll(mock_kb_collection, [0.1, 0.2, 0.3, 0.4])
 
-    fake_response = MagicMock()
-    fake_response.__enter__.return_value = fake_response
-    fake_response.__exit__.return_value = False
-    fake_response.headers = {"content-type": "text/plain"}
-    fake_response.raise_for_status.return_value = None
-    fake_response.iter_content.return_value = [sample_bytes]
+    # _download_url is httpx.AsyncClient.stream-based (audit §2.1); fake the
+    # async client + streaming response pair it enters.
+    class FakeStreamResponse:
+        headers = {"content-type": "text/plain"}
 
-    cms.append(patch("gateway.routes.knowledge.requests.get", return_value=fake_response))
+        def raise_for_status(self):
+            return None
+
+        async def aiter_bytes(self, chunk_size=None):
+            yield sample_bytes
+
+    class FakeStreamCM:
+        async def __aenter__(self):
+            return FakeStreamResponse()
+
+        async def __aexit__(self, *args):
+            return False
+
+    class FakeAsyncClient:
+        def __init__(self, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        def stream(self, method, url, **kwargs):
+            return FakeStreamCM()
+
+    cms.append(patch("gateway.routes.knowledge.httpx.AsyncClient", FakeAsyncClient))
     _enter_all(cms)
     try:
         r = client.post(
