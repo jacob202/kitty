@@ -6,6 +6,8 @@ from typing import Optional
 
 import httpx
 
+from gateway.image_jobs import ImageJobStore
+
 # Set COMFY_URL to the cloudflared tunnel URL when running on Colab, e.g.:
 #   COMFY_URL=https://abc-xyz.trycloudflare.com
 COMFY_URL = os.environ.get("COMFY_URL", "http://127.0.0.1:8188")
@@ -20,6 +22,10 @@ SDXL_KW     = {"realistic", "sdxl", "photo", "photorealistic", "high res", "high
 
 _history: list[dict] = []
 MAX_HISTORY = 20
+
+# Durable, provider-neutral job store (IMG-01). Replaces the in-memory _history
+# as the source of record; _history is retained for the existing UI poll path.
+_job_store = ImageJobStore()
 
 
 def get_history() -> list[dict]:
@@ -135,28 +141,58 @@ async def is_available() -> bool:
 
 
 async def generate(prompt: str) -> dict:
-    """Submit prompt to ComfyUI, poll until done, return {prompt_id, filename}."""
+    """Submit prompt to ComfyUI, poll until done, return {prompt_id, filename, job_id}."""
     p = _parse(prompt)
 
     if p["sdxl"]:
         workflow = _wf_sdxl(prompt, p["negative"], p["w"], p["h"], p["steps"], p["cfg"], SDXL_PHOTONIC)
+        model, sampler, scheduler = SDXL_PHOTONIC, "euler", "sgm_uniform"
+        template = "sdxl_photonic"
     else:
         workflow = _wf_sd15(prompt, p["negative"], p["w"], p["h"], p["steps"], p["cfg"],
                             p["lstr"], p["explicit"], p["estr"])
+        model, sampler, scheduler = SD15_CKPT, "euler_ancestral", "karras"
+        template = "sd15_basic"
 
-    async with httpx.AsyncClient(timeout=30) as client:
-        r = await client.post(f"{COMFY_URL}/prompt", json={"prompt": workflow})
-        if r.status_code != 200:
-            raise RuntimeError(f"ComfyUI rejected prompt: {r.text}")
-        prompt_id = r.json()["prompt_id"]
-        filename = await _poll(client, prompt_id)
+    # Record the job before submitting so it survives a crash mid-generation.
+    job_id = _job_store.create_job(
+        engine="comfyui",
+        prompt=prompt,
+        negative_prompt=p["negative"],
+        width=p["w"],
+        height=p["h"],
+        steps=p["steps"],
+        guidance=p["cfg"],
+        sampler=sampler,
+        scheduler=scheduler,
+        model=model,
+        provider_params={"lora_strength": p["lstr"], "explicit": p["explicit"]},
+        workflow_template=template,
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(f"{COMFY_URL}/prompt", json={"prompt": workflow})
+            if r.status_code != 200:
+                raise RuntimeError(f"ComfyUI rejected prompt: {r.text}")
+            prompt_id = r.json()["prompt_id"]
+            _job_store.start_job(job_id, prompt_id)
+            filename = await _poll(client, prompt_id)
+    except Exception as exc:
+        _job_store.fail_job(job_id, error_type="submit_error", error_message=str(exc)[:500])
+        raise
 
     if not filename:
+        _job_store.fail_job(job_id, error_type="timeout", error_message="Image generation timed out (6 min)")
         raise TimeoutError("Image generation timed out (6 min)")
 
-    entry = {"prompt_id": prompt_id, "filename": filename, "prompt": prompt, "created_at": time.time()}
+    # filename lives under ComfyUI's output dir; verified separately (IMG-03).
+    _job_store.complete_job(job_id, output_path=filename, output_verified=False)
+
+    entry = {"prompt_id": prompt_id, "filename": filename, "prompt": prompt,
+             "created_at": time.time(), "job_id": job_id}
     _history.append(entry)
     if len(_history) > MAX_HISTORY:
         _history.pop(0)
 
-    return {"prompt_id": prompt_id, "filename": filename}
+    return {"prompt_id": prompt_id, "filename": filename, "job_id": job_id}
