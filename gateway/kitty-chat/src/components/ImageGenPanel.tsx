@@ -170,7 +170,9 @@ export function ImageGenPanel() {
             <div key={img.prompt_id} style={thumbWrapStyle}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={`/proxy/image/view/${img.filename}`}
+                // Keep absolute Kitty-store paths in one proxy segment so the
+                // catch-all route does not drop the leading slash.
+                src={`/proxy/image/view/${encodeURIComponent(img.filename)}`}
                 alt={img.prompt}
                 style={thumbStyle}
                 title={img.prompt}
