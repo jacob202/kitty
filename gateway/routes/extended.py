@@ -530,6 +530,54 @@ async def studio_add_character_ref(character_id: str, file: UploadFile):
         raise HTTPException(status_code=400, detail=str(exc))
 
 
+@router.get("/studio/characters/{character_id}/quality")
+async def studio_character_quality(character_id: str):
+    from gateway.image_characters import CharacterNotFoundError, get_character, list_character_refs
+    from gateway.image_quality import check_reference_image
+
+    try:
+        get_character(character_id)
+        refs = list_character_refs(character_id)
+    except CharacterNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+    if not refs:
+        return {"quality": None, "message": "no reference images uploaded"}
+
+    results = []
+    for ref in refs:
+        try:
+            path = Path(ref.storage_path)
+            if path.exists():
+                data = path.read_bytes()
+                qr = check_reference_image(data)
+                results.append({
+                    "ref_id": ref.ref_id,
+                    "is_primary": ref.is_primary,
+                    "original_name": ref.original_name,
+                    "has_blockers": qr.has_blockers,
+                    "has_warnings": qr.has_warnings,
+                    "is_perfect": qr.is_perfect,
+                    "summary": qr.summary(),
+                    "advice": qr.advice(),
+                    "dimensions": f"{qr.width}×{qr.height}" if qr.width else None,
+                })
+        except Exception:
+            results.append({
+                "ref_id": ref.ref_id,
+                "is_primary": ref.is_primary,
+                "original_name": ref.original_name,
+                "has_blockers": True,
+                "has_warnings": False,
+                "is_perfect": False,
+                "summary": "could not read reference file",
+                "advice": ["the reference file may be missing or corrupted"],
+                "dimensions": None,
+            })
+
+    return {"quality": results}
+
+
 @router.delete("/studio/characters/{character_id}/references/{ref_id}")
 async def studio_delete_character_ref(character_id: str, ref_id: str):
     from gateway.image_characters import CharacterError, CharacterNotFoundError, delete_character_ref
