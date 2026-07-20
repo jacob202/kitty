@@ -73,7 +73,10 @@ class TestMemoryTrailer:
     def test_trailer_rides_between_content_and_done(self):
         bundle = ContextBundle(
             system="SYS",
-            injected_memory_items=["decided on FastAPI", "prefers dark mode"],
+            injected_memory_items=[
+                {"text": "decided on FastAPI"},
+                {"text": "prefers dark mode"},
+            ],
         )
         response, _ = _post_stream(
             [CONTENT_CHUNK_1, CONTENT_CHUNK_2, DONE_CHUNK], bundle
@@ -82,7 +85,7 @@ class TestMemoryTrailer:
         assert response.content == (
             CONTENT_CHUNK_1
             + CONTENT_CHUNK_2
-            + b'data: {"memory_items": ["decided on FastAPI", "prefers dark mode"]}\n\n'
+            + b'data: {"memory_items": [{"text": "decided on FastAPI"}, {"text": "prefers dark mode"}]}\n\n'
             + DONE_CHUNK
         )
 
@@ -98,16 +101,16 @@ class TestMemoryTrailer:
     def test_trailer_absent_when_stream_never_reaches_done(self):
         """A cut stream (no [DONE]) reached no completion boundary — no
         memory evidence may be emitted for it."""
-        bundle = ContextBundle(system="SYS", injected_memory_items=["evidence"])
+        bundle = ContextBundle(system="SYS", injected_memory_items=[{"text": "evidence"}])
         response, _ = _post_stream([CONTENT_CHUNK_1, CONTENT_CHUNK_2], bundle)
         assert response.content == CONTENT_CHUNK_1 + CONTENT_CHUNK_2
         assert b"memory_items" not in response.content
 
     def test_empty_completion_still_gets_trailer_at_done(self):
-        bundle = ContextBundle(system="SYS", injected_memory_items=["evidence"])
+        bundle = ContextBundle(system="SYS", injected_memory_items=[{"text": "evidence"}])
         response, _ = _post_stream([DONE_CHUNK], bundle)
         assert response.content == (
-            b'data: {"memory_items": ["evidence"]}\n\n' + DONE_CHUNK
+            b'data: {"memory_items": [{"text": "evidence"}]}\n\n' + DONE_CHUNK
         )
 
     def test_long_trailer_items_pass_through_untruncated(self):
@@ -115,21 +118,24 @@ class TestMemoryTrailer:
         bounds their length, and a mid-sentence chop is worse UX than a long
         line (Jacob, 2026-07-20)."""
         long_text = "x" * 300
-        bundle = ContextBundle(system="SYS", injected_memory_items=[long_text])
+        bundle = ContextBundle(system="SYS", injected_memory_items=[{"text": long_text}])
         response, _ = _post_stream([DONE_CHUNK], bundle)
         assert (
-            b'data: {"memory_items": ["' + b"x" * 300 + b'"]}\n\n' + DONE_CHUNK
+            b'data: {"memory_items": [{"text": "' + b"x" * 300 + b'"}]}\n\n' + DONE_CHUNK
             == response.content
         )
 
     def test_trailer_preserves_injection_order_and_unicode(self):
         bundle = ContextBundle(
             system="SYS",
-            injected_memory_items=["première note", "deuxième — 🎯"],
+            injected_memory_items=[
+                {"text": "première note"},
+                {"text": "deuxième — 🎯"},
+            ],
         )
         response, _ = _post_stream([DONE_CHUNK], bundle)
         assert response.content == (
-            'data: {"memory_items": ["première note", "deuxième — 🎯"]}\n\n'.encode("utf-8")
+            'data: {"memory_items": [{"text": "première note"}, {"text": "deuxième — 🎯"}]}\n\n'.encode("utf-8")
             + DONE_CHUNK
         )
 
@@ -140,7 +146,7 @@ class TestMemoryTrailer:
             yield CONTENT_CHUNK_1
             raise RuntimeError("upstream died mid-stream")
 
-        bundle = ContextBundle(system="SYS", injected_memory_items=["evidence"])
+        bundle = ContextBundle(system="SYS", injected_memory_items=[{"text": "evidence"}])
         with patch(
             "gateway.routes.completions.classify_domain", return_value="soul"
         ), patch(
@@ -166,7 +172,7 @@ class TestMemoryTrailer:
     def test_lifecycle_transcript_excludes_trailer(self):
         """The recorded assistant text is the model's content only — the
         trailer never leaks into the lifecycle ledger."""
-        bundle = ContextBundle(system="SYS", injected_memory_items=["evidence"])
+        bundle = ContextBundle(system="SYS", injected_memory_items=[{"text": "evidence"}])
         response, mocks = _post_stream(
             [CONTENT_CHUNK_1, CONTENT_CHUNK_2, DONE_CHUNK],
             bundle,
@@ -178,7 +184,7 @@ class TestMemoryTrailer:
             lifecycle_patches=True,
         )
         assert response.status_code == 200
-        assert b'data: {"memory_items": ["evidence"]}\n\n' in response.content
+        assert b'data: {"memory_items": [{"text": "evidence"}]}\n\n' in response.content
         finish_kwargs = mocks["finish"].call_args.kwargs
         assert finish_kwargs["assistant_text"] == "Hello"
         assert finish_kwargs["status"] == "succeeded"
@@ -187,7 +193,8 @@ class TestMemoryTrailer:
         """CR-05b: finish_turn records exactly the items the client received
         — evidence follows the wire, whole and untruncated."""
         bundle = ContextBundle(
-            system="SYS", injected_memory_items=["short", "y" * 300],
+            system="SYS",
+            injected_memory_items=[{"text": "short"}, {"text": "y" * 300}],
         )
         _, mocks = _post_stream(
             [CONTENT_CHUNK_1, DONE_CHUNK],
@@ -200,12 +207,12 @@ class TestMemoryTrailer:
             lifecycle_patches=True,
         )
         finish_kwargs = mocks["finish"].call_args.kwargs
-        assert finish_kwargs["memory_items"] == ["short", "y" * 300]
+        assert finish_kwargs["memory_items"] == [{"text": "short"}, {"text": "y" * 300}]
 
     def test_no_ledger_evidence_when_trailer_was_never_delivered(self):
         """A cut stream (no [DONE]) delivered no trailer — the ledger must
         not claim evidence the client never saw."""
-        bundle = ContextBundle(system="SYS", injected_memory_items=["evidence"])
+        bundle = ContextBundle(system="SYS", injected_memory_items=[{"text": "evidence"}])
         _, mocks = _post_stream(
             [CONTENT_CHUNK_1],
             bundle,

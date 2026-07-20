@@ -33,7 +33,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any
+from typing import Any, NotRequired, TypedDict
 
 from gateway.paths import INBOX_FILE, LOG_FILE
 
@@ -83,6 +83,13 @@ class Item:
     score: float | None = None
     ts: datetime | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+
+
+class MemoryEvidence(TypedDict):
+    """One prompt-injected memory, with a delete ID when one exists."""
+
+    text: str
+    memory_id: NotRequired[str]
 
 
 # --- Store Adapter Interface ---
@@ -624,7 +631,7 @@ def _is_sensitive(item: Item, query_terms: set[str]) -> bool:
 
 def _select_unified_items(
     results: dict[str, list[Item]], cap: int = CONTEXT_TOKEN_CAP, query: str = ""
-) -> tuple[list[str], list[str]]:
+) -> tuple[list[str], list[MemoryEvidence]]:
     """Apply the render gates (top-5 per store, Privacy Gate, Token-Aware
     Budgeting) in one walk.
 
@@ -636,7 +643,7 @@ def _select_unified_items(
     """
     query_terms = set(query.lower().split())
     sections: list[str] = []
-    rendered: list[str] = []
+    rendered: list[MemoryEvidence] = []
     current_tokens = 0
 
     for source_name, items in results.items():
@@ -651,7 +658,7 @@ def _select_unified_items(
         heading_tokens = len(heading) // 4
 
         added_any = False
-        section_rendered: list[str] = []
+        section_rendered: list[MemoryEvidence] = []
         for item in items[:5]: # Allow up to 5 if budget permits
             if _is_sensitive(item, query_terms):
                 continue
@@ -674,7 +681,11 @@ def _select_unified_items(
                 added_any = True
 
             lines.append(f"- {text}")
-            section_rendered.append(text)
+            evidence: MemoryEvidence = {"text": text}
+            memory_id = item.metadata.get("id") if item.source is Source.MEMORY else None
+            if isinstance(memory_id, str) and memory_id.strip():
+                evidence["memory_id"] = memory_id
+            section_rendered.append(evidence)
             current_tokens += item_tokens + 2
 
         if added_any:

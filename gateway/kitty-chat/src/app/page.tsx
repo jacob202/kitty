@@ -1,7 +1,17 @@
 'use client';
 import { startTransition, useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Chat, Message, MessageAttachment, Model, MODELS, COLOR_CYCLE, ChatColor } from '@/lib/types';
+import {
+  Chat,
+  Message,
+  MessageAttachment,
+  MemoryEvidence,
+  Model,
+  MODELS,
+  COLOR_CYCLE,
+  ChatColor,
+  normalizeMemoryEvidence,
+} from '@/lib/types';
 import { streamChat } from '@/lib/chat-client';
 import { inferMood } from '@/lib/mood';
 import { TopBar } from '@/components/TopBar';
@@ -84,7 +94,7 @@ interface RecoveredMessage {
   model?: string | null;
   status?: string;
   attachments?: MessageAttachment[];
-  memory_items?: string[];
+  memory_items?: unknown;
 }
 
 /** Map a saved legacy chat blob into the UI shape with Date timestamps. */
@@ -93,10 +103,14 @@ function legacyChat(c: Chat): Chat {
     ...c,
     createdAt: new Date(c.createdAt),
     updatedAt: new Date(c.updatedAt),
-    messages: (c.messages ?? []).map((m: Message) => ({
-      ...m,
-      timestamp: new Date(m.timestamp),
-    })),
+    messages: (c.messages ?? []).map((m: Message) => {
+      const memoryItems = normalizeMemoryEvidence(m.memoryItems)
+      return {
+        ...m,
+        timestamp: new Date(m.timestamp),
+        ...(memoryItems.length ? { memoryItems } : {}),
+      }
+    }),
   };
 }
 
@@ -231,18 +245,21 @@ function KittyChatInner() {
                 ...c,
                 createdAt: new Date(c.createdAt),
                 updatedAt: new Date(c.updatedAt),
-                messages: ledgerMessages.map((m: RecoveredMessage) => ({
-                  id: m.id,
-                  role: m.role,
-                  content: m.content,
-                  timestamp: new Date(m.created_at * 1000),
-                  ...(m.model ? { model: m.model } : {}),
-                  ...(m.status ? { turnStatus: m.status as Message['turnStatus'] } : {}),
-                  ...(m.attachments?.length
-                    ? { attachments: m.attachments as MessageAttachment[] }
-                    : {}),
-                  ...(m.memory_items?.length ? { memoryItems: m.memory_items } : {}),
-                })),
+                messages: ledgerMessages.map((m: RecoveredMessage) => {
+                  const memoryItems = normalizeMemoryEvidence(m.memory_items)
+                  return {
+                    id: m.id,
+                    role: m.role,
+                    content: m.content,
+                    timestamp: new Date(m.created_at * 1000),
+                    ...(m.model ? { model: m.model } : {}),
+                    ...(m.status ? { turnStatus: m.status as Message['turnStatus'] } : {}),
+                    ...(m.attachments?.length
+                      ? { attachments: m.attachments as MessageAttachment[] }
+                      : {}),
+                    ...(memoryItems.length ? { memoryItems } : {}),
+                  }
+                }),
               };
             } catch {
               return legacyChat(c);
@@ -540,7 +557,7 @@ function KittyChatInner() {
     abortRef.current = abort;
 
     let accumulated = '';
-    let memoryItems: string[] | undefined;
+    let memoryItems: MemoryEvidence[] | undefined;
     try {
       for await (const chunk of streamChat(
         activeModel.id,

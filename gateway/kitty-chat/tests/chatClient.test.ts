@@ -30,11 +30,11 @@ describe('streamChat memory trailer (CR-05)', () => {
     vi.unstubAllGlobals()
   })
 
-  it('parses the memory_items trailer without disturbing content chunks', async () => {
+  it('parses structured memory evidence without disturbing content chunks', async () => {
     const chunks = await collect([
       'data: {"choices":[{"delta":{"content":"Hel"}}]}\n\n',
       'data: {"choices":[{"delta":{"content":"lo"}}]}\n\n',
-      'data: {"memory_items": ["decided on FastAPI", "prefers dark mode"]}\n\n',
+      'data: {"memory_items": [{"text":"decided on FastAPI","memory_id":"mem-fastapi"},{"text":"prefers dark mode"}]}\n\n',
       'data: [DONE]\n\n',
     ])
     expect(chunks).toEqual([
@@ -43,7 +43,10 @@ describe('streamChat memory trailer (CR-05)', () => {
       {
         content: '',
         done: false,
-        memoryItems: ['decided on FastAPI', 'prefers dark mode'],
+        memoryItems: [
+          { text: 'decided on FastAPI', memoryId: 'mem-fastapi' },
+          { text: 'prefers dark mode' },
+        ],
       },
       { content: '', done: true },
     ])
@@ -70,7 +73,11 @@ describe('streamChat memory trailer (CR-05)', () => {
       'data: [DONE]\n\n',
     ])
     expect(chunks).toEqual([
-      { content: '', done: false, memoryItems: ['kept', 'also kept'] },
+      {
+        content: '',
+        done: false,
+        memoryItems: [{ text: 'kept' }, { text: 'also kept' }],
+      },
       { content: 'Hi', done: false },
       { content: '', done: true },
     ])

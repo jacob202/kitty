@@ -8,6 +8,29 @@ export interface MessageAttachment {
   size?: number
 }
 
+/** A prompt-injected memory, optionally linked to its durable delete target. */
+export interface MemoryEvidence {
+  text: string
+  memoryId?: string
+}
+
+/** Accept current records and legacy string-only memory evidence from storage. */
+export function normalizeMemoryEvidence(value: unknown): MemoryEvidence[] {
+  if (!Array.isArray(value)) return []
+
+  return value.flatMap((item): MemoryEvidence[] => {
+    if (typeof item === 'string' && item) return [{ text: item }]
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return []
+
+    const record = item as { text?: unknown; memory_id?: unknown; memoryId?: unknown }
+    if (typeof record.text !== 'string' || !record.text) return []
+    const memoryId = record.memory_id ?? record.memoryId
+    if (memoryId === undefined) return [{ text: record.text }]
+    if (typeof memoryId !== 'string' || !memoryId) return []
+    return [{ text: record.text, memoryId }]
+  })
+}
+
 export interface Message {
   id: string
   role: 'user' | 'assistant'
@@ -20,11 +43,11 @@ export interface Message {
   /** Terminal status of the lifecycle turn that produced this message. */
   turnStatus?: 'running' | 'succeeded' | 'failed' | 'interrupted' | 'cancelled'
   /**
-   * Memory texts that informed this assistant reply — the CR-04 stream
+   * Memory records that informed this assistant reply — the CR-04 stream
    * trailer, already policy/privacy/budget-gated server-side. Absent when no
    * memories were injected into the completion.
    */
-  memoryItems?: string[]
+  memoryItems?: MemoryEvidence[]
   /**
    * Council routing metadata — which expert/agent produced each part of the
    * answer. Present when a reply is assembled from multiple routed tasks; lets

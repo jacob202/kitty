@@ -158,7 +158,7 @@ describe('ChatMessage memory block (CR-05)', () => {
 
   const remembered: Message = {
     ...kittyMsg,
-    memoryItems: ['decided on FastAPI', 'prefers dark mode'],
+    memoryItems: [{ text: 'decided on FastAPI' }, { text: 'prefers dark mode' }],
   }
 
   it('renders a collapsed kitty-remembered block when memories are present', () => {
@@ -196,7 +196,7 @@ describe('ChatMessage memory block (CR-05)', () => {
   })
 
   it('uses singular phrasing for one memory', () => {
-    renderMessage({ ...kittyMsg, memoryItems: ['only one'] })
+    renderMessage({ ...kittyMsg, memoryItems: [{ text: 'only one' }] })
     expect(screen.getByRole('button', { name: /kitty remembered 1 thing…/ })).toBeInTheDocument()
   })
 })

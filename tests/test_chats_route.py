@@ -145,13 +145,25 @@ def test_ledger_recovery_carries_memory_evidence(client, monkeypatch, tmp_path):
         status="succeeded",
         assistant_text="here is the answer",
         resolved_model="kitty-default",
-        memory_items=["decided on FastAPI", "prefers dark mode"],
+        memory_items=[
+            {"text": "decided on FastAPI", "memory_id": "mem-fastapi"},
+            {"text": "prefers dark mode"},
+        ],
     )
 
     payload = client.get("/chats/chat-mem/messages").json()
     roles = {m["role"]: m for m in payload["messages"]}
     assert roles["assistant"]["memory_items"] == [
-        "decided on FastAPI",
-        "prefers dark mode",
+        {"text": "decided on FastAPI", "memory_id": "mem-fastapi"},
+        {"text": "prefers dark mode"},
     ]
     assert roles["user"]["memory_items"] == []
+
+
+def test_ledger_recovery_normalizes_legacy_string_memory_evidence():
+    """Older ledger rows remain readable after evidence gained memory IDs."""
+    from gateway.routes.chats import _recover_memory_items
+
+    assert _recover_memory_items('["decided on FastAPI"]') == [
+        {"text": "decided on FastAPI"}
+    ]

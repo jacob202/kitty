@@ -49,6 +49,7 @@ from gateway.context_enrichment import (
 from gateway.memory_graph import (
     CONTEXT_TOKEN_CAP,
     Item,
+    MemoryEvidence,
     MemoryGraph,
     StoreAdapter,
     _select_unified_items,
@@ -142,7 +143,7 @@ class ContextBundle:
         warnings: Per-source failure strings in the form
             ``{source_name}: {exc_type}: {message}``. Empty when every
             source succeeded.
-        injected_memory_items: The exact memory texts rendered into
+        injected_memory_items: The exact memory records rendered into
             ``system`` for this request, in prompt order — after memory
             policy, the privacy gate, and token budgeting. This is the
             truthful "which memories informed this answer" evidence;
@@ -153,7 +154,7 @@ class ContextBundle:
     memory_items: list[Item] = field(default_factory=list)
     live_blocks: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
-    injected_memory_items: list[str] = field(default_factory=list)
+    injected_memory_items: list[MemoryEvidence] = field(default_factory=list)
 
 
 @dataclass

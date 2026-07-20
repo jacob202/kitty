@@ -15,6 +15,35 @@ from gateway import artifact_store, chat_lifecycle, chats_store
 router = APIRouter(tags=["chats"])
 
 
+def _recover_memory_items(raw_memory: object) -> list[dict[str, str]]:
+    """Normalize legacy strings and current records from durable ledger JSON."""
+    try:
+        decoded = json.loads(raw_memory) if isinstance(raw_memory, str) else []
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(decoded, list):
+        return []
+
+    normalized: list[dict[str, str]] = []
+    for item in decoded:
+        if isinstance(item, str) and item:
+            normalized.append({"text": item})
+            continue
+        if not isinstance(item, dict) or set(item) - {"text", "memory_id"}:
+            return []
+        text = item.get("text")
+        if not isinstance(text, str) or not text:
+            return []
+        record = {"text": text}
+        memory_id = item.get("memory_id")
+        if memory_id is not None:
+            if not isinstance(memory_id, str) or not memory_id:
+                return []
+            record["memory_id"] = memory_id
+        normalized.append(record)
+    return normalized
+
+
 @router.get("/chats")
 async def get_chats():
     """Return all saved chat sessions."""
@@ -118,16 +147,7 @@ def _recover_messages(conversation_id: str) -> list[dict]:
                         "size": artifact["size_bytes"],
                     }
                 )
-            raw_memory = msg.get("memory_items")
-            try:
-                memory_items = json.loads(raw_memory) if isinstance(raw_memory, str) else []
-            except json.JSONDecodeError:
-                memory_items = []
-            if not (
-                isinstance(memory_items, list)
-                and all(isinstance(item, str) for item in memory_items)
-            ):
-                memory_items = []
+            memory_items = _recover_memory_items(msg.get("memory_items"))
             messages.append(
                 {
                     "id": msg["id"],

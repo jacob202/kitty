@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from gateway import db as kitty_db
+from gateway.memory_graph import MemoryEvidence
 from gateway.paths import KITTY_DB_FILE
 
 LIFECYCLE_DB_FILE = KITTY_DB_FILE
@@ -31,6 +32,37 @@ class TurnHandle:
     turn_id: str
     attempt_id: str
     sequence: int
+
+
+def _validate_memory_items(
+    memory_items: list[MemoryEvidence] | None,
+) -> list[MemoryEvidence] | None:
+    """Validate the exact structured evidence that reached the client."""
+    if memory_items is None:
+        return None
+    if not isinstance(memory_items, list):
+        raise ChatLifecycleError("memory_items must be a list of memory evidence records or None")
+
+    validated: list[MemoryEvidence] = []
+    for item in memory_items:
+        if not isinstance(item, dict):
+            raise ChatLifecycleError("each memory_items entry must be an object")
+        unexpected = set(item) - {"text", "memory_id"}
+        if unexpected:
+            raise ChatLifecycleError(
+                f"memory_items entry contains unsupported fields: {sorted(unexpected)!r}"
+            )
+        text = item.get("text")
+        if not isinstance(text, str) or not text.strip():
+            raise ChatLifecycleError("each memory_items entry must contain non-empty string text")
+        record: MemoryEvidence = {"text": text}
+        memory_id = item.get("memory_id")
+        if memory_id is not None:
+            if not isinstance(memory_id, str) or not memory_id.strip():
+                raise ChatLifecycleError("memory_id must be a non-empty string when provided")
+            record["memory_id"] = memory_id
+        validated.append(record)
+    return validated
 
 
 def init_db() -> None:
@@ -131,7 +163,7 @@ def finish_turn(
     assistant_text: str,
     resolved_model: str | None = None,
     error: str | None = None,
-    memory_items: list[str] | None = None,
+    memory_items: list[MemoryEvidence] | None = None,
 ) -> None:
     """Atomically finalize an attempt, assistant message, and parent turn.
 
@@ -141,11 +173,7 @@ def finish_turn(
     """
     if status not in _TURN_STATUSES or status == "running":
         raise ChatLifecycleError(f"invalid terminal chat status {status!r}")
-    if memory_items is not None and (
-        not isinstance(memory_items, list)
-        or not all(isinstance(item, str) for item in memory_items)
-    ):
-        raise ChatLifecycleError("memory_items must be a list of strings or None")
+    validated_memory_items = _validate_memory_items(memory_items)
     now = time.time()
     message_status = {
         "succeeded": "complete",
@@ -184,7 +212,7 @@ def finish_turn(
                     handle.turn_id,
                     assistant_text,
                     message_status,
-                    json.dumps(memory_items) if memory_items else None,
+                    json.dumps(validated_memory_items) if validated_memory_items else None,
                     now,
                 ),
             )

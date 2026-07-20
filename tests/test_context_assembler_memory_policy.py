@@ -123,18 +123,35 @@ class TestInjectedMemoryEvidence:
         """Evidence lists exactly the surfaced items, in prompt order."""
         bundle = await assemble_context("how is the project going", deps=deps)
         assert bundle.injected_memory_items == [
-            PROJECT_ITEM.text,
-            PREFERENCE_ITEM.text,
-            PINNED_SENSITIVE.text,
+            {"text": PROJECT_ITEM.text},
+            {"text": PREFERENCE_ITEM.text},
+            {"text": PINNED_SENSITIVE.text},
         ]
-        for text in bundle.injected_memory_items:
-            assert f"- {text}" in bundle.system
+        for item in bundle.injected_memory_items:
+            assert f"- {item['text']}" in bundle.system
+
+    async def test_memory_store_id_survives_injected_evidence(self):
+        """A deletable memory keeps its ID paired with its rendered text."""
+        memory = Item(
+            text="prefers dark mode in all UIs",
+            source=Source.MEMORY,
+            metadata={"id": "mem-dark-mode"},
+        )
+        deps = _AssemblerDeps(
+            adapters=[_ControlledAdapter("memory", [memory])], enrichments=()
+        )
+
+        bundle = await assemble_context("what UI preferences do I have", deps=deps)
+
+        assert bundle.injected_memory_items == [
+            {"text": memory.text, "memory_id": "mem-dark-mode"}
+        ]
 
     async def test_suppressed_items_absent_from_evidence(self, deps):
         """Policy-suppressed items appear in neither prompt nor evidence."""
         bundle = await assemble_context("how is the project going", deps=deps)
-        assert SENSITIVE_ITEM.text not in bundle.injected_memory_items
-        assert BLOCKED_ITEM.text not in bundle.injected_memory_items
+        assert {"text": SENSITIVE_ITEM.text} not in bundle.injected_memory_items
+        assert {"text": BLOCKED_ITEM.text} not in bundle.injected_memory_items
 
     async def test_privacy_gated_item_absent_from_evidence(self):
         """An item that passes memory policy but is dropped by the render-time
@@ -146,8 +163,8 @@ class TestInjectedMemoryEvidence:
         deps = _AssemblerDeps(adapters=[adapter], enrichments=())
         bundle = await assemble_context("how is the project going", deps=deps)
         assert PINNED_TAGGED_HEALTH.text not in bundle.system
-        assert PINNED_TAGGED_HEALTH.text not in bundle.injected_memory_items
-        assert bundle.injected_memory_items == [PROJECT_ITEM.text]
+        assert {"text": PINNED_TAGGED_HEALTH.text} not in bundle.injected_memory_items
+        assert bundle.injected_memory_items == [{"text": PROJECT_ITEM.text}]
 
     async def test_policy_filter_runs_exactly_once_per_item(self, deps, monkeypatch):
         """should_surface is consulted once per retrieved item — no re-filtering
