@@ -123,7 +123,9 @@ class ImageJobStore:
                     _now(),
                 ),
             )
-            return int(cur.lastrowid)
+            last_id = cur.lastrowid
+            assert last_id is not None
+            return int(last_id)
 
     def _require_job(self, conn: sqlite3.Connection, job_id: int) -> dict:
         row = conn.execute("SELECT * FROM image_jobs WHERE id = ?", (job_id,)).fetchone()
