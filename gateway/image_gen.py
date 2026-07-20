@@ -311,6 +311,12 @@ async def generate(prompt: str, parent_id: str | None = None) -> dict:
         _mark_failed(job.job_id, str(exc)[:500])
         raise
 
+    current_job = get_job(job.job_id)
+    if current_job is None:
+        raise JobNotFoundError(f"job {job.job_id} disappeared before persistence")
+    if current_job.status is ImageJobStatus.CANCELED:
+        raise ImageGenerationCancelled(f"Image generation canceled for job {job.job_id}")
+
     update_job(job.job_id, output_path=str(local_path))
     transition(job.job_id, ImageJobStatus.SUCCEEDED)
 

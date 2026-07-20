@@ -116,7 +116,10 @@ export function ImageGenPanel() {
             </option>
           ))}
         </select>
-        <span style={onlineStyle}>{engines.find(item => item.name === engine)?.label ?? engine} online</span>
+        <span style={onlineStyle}>
+          {engines.find(item => item.name === engine)?.label ?? engine}{' '}
+          {engines.find(item => item.name === engine)?.available ? 'online' : 'offline'}
+        </span>
       </div>
 
       {/* Prompt input */}

@@ -270,19 +270,13 @@ async def image_status():
 
     # Draw Things is an optional local engine.  Its health probe is kept on
     # the adapter so this route reports the transport Kitty actually uses.
-    drawthings_available = False
-    try:
-        from mcp.imagen.engines import get
+    from mcp.imagen.engines import get
 
-        drawthings = get("drawthings")
-        probe = getattr(getattr(drawthings, "_adapter", None), "is_available", None)
-        if probe is not None:
-            drawthings_available = bool(await asyncio.to_thread(probe))
-    except Exception:
-        # A health endpoint must remain truthful when an optional engine is
-        # unavailable, while the generation endpoint still raises the real
-        # provider error when selected.
-        drawthings_available = False
+    drawthings = get("drawthings")
+    probe = getattr(getattr(drawthings, "_adapter", None), "is_available", None)
+    if probe is None:
+        raise RuntimeError("drawthings engine adapter does not expose is_available()")
+    drawthings_available = bool(await asyncio.to_thread(probe))
 
     engines = [
         {"name": "comfyui", "label": "ComfyUI", "available": comfy_available},
