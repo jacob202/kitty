@@ -623,6 +623,35 @@ async def studio_generate(req: StudioGenerateRequest):
         if not await comfy_available():
             raise HTTPException(status_code=503, detail="ComfyUI is not running")
 
+        if has_character and recipe.supports_characters:
+            from gateway.image_characters import (
+                CharacterNotFoundError,
+                get_character,
+                list_character_refs,
+            )
+            from gateway.image_gen import generate_with_character
+
+            try:
+                char = get_character(req.character_id)
+                refs = list_character_refs(req.character_id)
+                primary = next((r for r in refs if r.is_primary), refs[0] if refs else None)
+                if not primary:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"character {char.name!r} has no reference images — upload at least one reference photo",
+                    )
+                result = await generate_with_character(
+                    prompt=req.prompt,
+                    character_ref_path=primary.storage_path,
+                    identity_mode=req.identity,
+                    negative_prompt=req.negative_prompt,
+                )
+                result["recipe"] = recipe.recipe_id
+                result["routing_reason"] = decision.reason
+                return result
+            except CharacterNotFoundError as exc:
+                raise HTTPException(status_code=404, detail=str(exc))
+
         result = await comfy_generate(req.prompt)
         result["recipe"] = recipe.recipe_id
         result["routing_reason"] = decision.reason
