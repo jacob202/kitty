@@ -54,7 +54,7 @@ export function ImageGenPanel() {
     if (!full || state === 'generating') return
     setState('generating')
     setErrMsg('')
-    generate.mutate({ prompt: full, engine }, {
+    generate.mutate(engine === 'comfyui' ? full : { prompt: full, engine }, {
       onSuccess: result => {
         if (!result) {
           setState('error')
@@ -83,7 +83,9 @@ export function ImageGenPanel() {
   if (available === false && availableEngines.length === 0) {
     return (
       <div style={unavailableStyle}>
-        <p style={unavailableTitleStyle}>image engines offline</p>
+        <p style={unavailableTitleStyle}>
+          {statusQuery.data?.engines?.length ? 'image engines offline' : 'ComfyUI offline'}
+        </p>
         <p style={unavailableBodyStyle}>
           Start ComfyUI or Draw Things and check again. Kitty reports each configured renderer
           independently; generation stays disabled until at least one engine is reachable.
@@ -117,7 +119,7 @@ export function ImageGenPanel() {
           ))}
         </select>
         <span style={onlineStyle}>
-          {engines.find(item => item.name === engine)?.label ?? engine}{' '}
+          {engine}{' '}
           {engines.find(item => item.name === engine)?.available ? 'online' : 'offline'}
         </span>
       </div>
