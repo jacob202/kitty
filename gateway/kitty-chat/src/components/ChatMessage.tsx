@@ -8,6 +8,7 @@ import { Message, type MemoryEvidence } from '@/lib/types'
 import { deleteMemory } from '@/lib/gateway'
 import { useSubmitMessageFeedback, type MessageFeedbackRating } from '@/lib/queries'
 import { CatFaceBadge, type CatState } from './CrayonCat'
+import { ToolCallCard, detectToolCalls, stripToolBlocks, type ToolCallState } from './shared/ToolCallCard'
 
 interface Props {
   message: Message
@@ -104,9 +105,12 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
             {isStreaming && !message.content ? (
               <TypingDots />
             ) : (
-              <MessageContent content={message.content} isUser={isUser} />
+              <MessageContent content={isKitty ? stripToolBlocks(message.content) : message.content} isUser={isUser} />
             )}
           </div>
+        {isKitty && !isStreaming && message.content && (
+          <ToolCalls content={message.content} turnStatus={message.turnStatus} />
+        )}
         {isKitty && !isStreaming && message.memoryItems && message.memoryItems.length > 0 && (
           <MemoryBlock items={message.memoryItems} />
         )}
@@ -271,6 +275,37 @@ function Attribution({ message }: { message: Message }) {
         >
           {r.agent} · p{r.priority}
         </span>
+      ))}
+    </div>
+  )
+}
+
+function ToolCalls({ content, turnStatus }: { content: string; turnStatus?: string }) {
+  const calls = detectToolCalls(content)
+  if (!calls.length) return null
+
+  const state: ToolCallState = turnStatus === 'failed' ? 'failed' : 'done'
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4, maxWidth: 560 }}>
+      {calls.map((call, i) => (
+        <ToolCallCard key={`${call.toolName}-${i}`} name={call.toolName} state={state}>
+          {call.blocks.length > 0 ? (
+            <pre style={{
+              margin: 0,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 12,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+            }}>
+              {call.blocks.join('\n')}
+            </pre>
+          ) : (
+            <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--ink-2)' }}>
+              completed
+            </span>
+          )}
+        </ToolCallCard>
       ))}
     </div>
   )
