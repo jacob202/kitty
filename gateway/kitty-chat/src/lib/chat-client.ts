@@ -6,6 +6,8 @@ const GATEWAY_BASE = '/proxy';
 export interface StreamChunk {
   content: string;
   done: boolean;
+  /** Present on the single trailer event listing memories that informed the reply. */
+  memoryItems?: string[];
 }
 
 export async function* streamChat(
@@ -60,6 +62,14 @@ export async function* streamChat(
       }
       try {
         const json = JSON.parse(data);
+        // CR-04 memory trailer: one non-content event before [DONE].
+        if (Array.isArray(json.memory_items)) {
+          const memoryItems = json.memory_items.filter(
+            (item: unknown): item is string => typeof item === 'string',
+          );
+          if (memoryItems.length) yield { content: '', done: false, memoryItems };
+          continue;
+        }
         const content = json.choices?.[0]?.delta?.content ?? '';
         if (content) yield { content, done: false };
       } catch {
