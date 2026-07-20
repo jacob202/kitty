@@ -143,3 +143,60 @@ describe('ChatMessage actions', () => {
     )
   })
 })
+
+describe('ChatMessage memory block (CR-05)', () => {
+  afterEach(cleanup)
+
+  function renderMessage(message: Message, props: Partial<React.ComponentProps<typeof ChatMessage>> = {}) {
+    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <ChatMessage message={message} chatId="chat-123" messageIndex={2} {...props} />
+      </QueryClientProvider>
+    )
+  }
+
+  const remembered: Message = {
+    ...kittyMsg,
+    memoryItems: ['decided on FastAPI', 'prefers dark mode'],
+  }
+
+  it('renders a collapsed kitty-remembered block when memories are present', () => {
+    renderMessage(remembered)
+    const toggle = screen.getByRole('button', { name: /kitty remembered 2 things/ })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    // Collapsed: items are not visible until expanded.
+    expect(screen.queryByText('decided on FastAPI')).not.toBeInTheDocument()
+    // Message content renders unchanged alongside the block.
+    expect(screen.getByText('hi. i checked the thing.')).toBeInTheDocument()
+  })
+
+  it('expands to list the memories and collapses again', () => {
+    renderMessage(remembered)
+    const toggle = screen.getByRole('button', { name: /kitty remembered/ })
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('decided on FastAPI')).toBeInTheDocument()
+    expect(screen.getByText('prefers dark mode')).toBeInTheDocument()
+    fireEvent.click(toggle)
+    expect(screen.queryByText('decided on FastAPI')).not.toBeInTheDocument()
+  })
+
+  it('renders no block when the message has no memory items', () => {
+    renderMessage(kittyMsg)
+    expect(screen.queryByText(/kitty remembered/)).not.toBeInTheDocument()
+  })
+
+  it('renders no block on user messages or while streaming', () => {
+    renderMessage({ ...remembered, role: 'user' })
+    expect(screen.queryByText(/kitty remembered/)).not.toBeInTheDocument()
+    cleanup()
+    renderMessage(remembered, { isStreaming: true })
+    expect(screen.queryByText(/kitty remembered/)).not.toBeInTheDocument()
+  })
+
+  it('uses singular phrasing for one memory', () => {
+    renderMessage({ ...kittyMsg, memoryItems: ['only one'] })
+    expect(screen.getByRole('button', { name: /kitty remembered 1 thing…/ })).toBeInTheDocument()
+  })
+})

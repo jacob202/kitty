@@ -106,6 +106,9 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
               <MessageContent content={message.content} isUser={isUser} />
             )}
           </div>
+        {isKitty && !isStreaming && message.memoryItems && message.memoryItems.length > 0 && (
+          <MemoryBlock items={message.memoryItems} />
+        )}
         {showActions && (
           <div className="msg-actions" style={{ ...actionRowStyle, opacity: actionsVisible ? 1 : 0 }}>
             <button onClick={copyMessage} style={actionBtnStyle} title="copy message">
@@ -272,6 +275,30 @@ function Attribution({ message }: { message: Message }) {
   )
 }
 
+/** Collapsed list of the memories that informed a reply (CR-05). */
+function MemoryBlock({ items }: { items: string[] }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ paddingLeft: 6, maxWidth: 560 }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        style={memoryToggleStyle}
+      >
+        <span aria-hidden="true">{open ? '▾' : '▸'}</span>
+        kitty remembered {items.length === 1 ? '1 thing' : `${items.length} things`}…
+      </button>
+      {open && (
+        <ul style={memoryListStyle}>
+          {items.map((text, i) => (
+            <li key={i} style={memoryItemStyle}>{text}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 function TypingDots() {
   return (
     <span style={{ display: 'flex', gap: 5, alignItems: 'center', height: 16 }}>
@@ -280,6 +307,24 @@ function TypingDots() {
       <span style={{ width: 6, height: 6, borderRadius: 99, background: 'var(--ink-2)', animation: 'dot3 1.2s ease-in-out infinite' }} />
     </span>
   )
+}
+
+const memoryToggleStyle: CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 5,
+  minHeight: 32, background: 'transparent', border: 'none',
+  padding: '2px 4px', color: 'var(--ink-2)',
+  fontFamily: 'var(--font-mono)', fontSize: 10,
+  cursor: 'pointer', borderRadius: 4,
+}
+const memoryListStyle: CSSProperties = {
+  margin: '2px 0 4px', padding: '8px 12px 8px 26px',
+  listStyle: 'disc', background: 'var(--surface-2)',
+  border: '1px solid var(--line)', borderRadius: 8,
+  display: 'flex', flexDirection: 'column', gap: 4,
+}
+const memoryItemStyle: CSSProperties = {
+  fontFamily: 'var(--font-body)', fontSize: 12,
+  lineHeight: 1.45, color: 'var(--ink-2)', wordBreak: 'break-word',
 }
 
 const actionRowStyle: CSSProperties = {

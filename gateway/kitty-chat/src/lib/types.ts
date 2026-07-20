@@ -20,6 +20,12 @@ export interface Message {
   /** Terminal status of the lifecycle turn that produced this message. */
   turnStatus?: 'running' | 'succeeded' | 'failed' | 'interrupted' | 'cancelled'
   /**
+   * Memory texts that informed this assistant reply — the CR-04 stream
+   * trailer, already policy/privacy/budget-gated server-side. Absent when no
+   * memories were injected into the completion.
+   */
+  memoryItems?: string[]
+  /**
    * Council routing metadata — which expert/agent produced each part of the
    * answer. Present when a reply is assembled from multiple routed tasks; lets
    * the UI show *who* answered so the user can trust the result. The `model`

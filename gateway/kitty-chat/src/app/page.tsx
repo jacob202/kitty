@@ -538,6 +538,7 @@ function KittyChatInner() {
     abortRef.current = abort;
 
     let accumulated = '';
+    let memoryItems: string[] | undefined;
     try {
       for await (const chunk of streamChat(
         activeModel.id,
@@ -550,6 +551,10 @@ function KittyChatInner() {
         attachmentIds,
       )) {
         if (chunk.done) break;
+        if (chunk.memoryItems?.length) {
+          memoryItems = chunk.memoryItems;
+          continue;
+        }
         accumulated += chunk.content;
         const content = accumulated;
         updateChat(chat.id, (c) => ({
@@ -563,7 +568,9 @@ function KittyChatInner() {
         ...c,
         updatedAt: new Date(),
         messages: c.messages.map((m) =>
-          m.id === aiMsgId ? { ...m, content: accumulated, mood } : m,
+          m.id === aiMsgId
+            ? { ...m, content: accumulated, mood, ...(memoryItems ? { memoryItems } : {}) }
+            : m,
         ),
       }));
       setLastOutcome('done');
@@ -578,7 +585,10 @@ function KittyChatInner() {
         color: chat.color,
         createdAt: chat.createdAt,
         updatedAt: new Date(),
-        messages: [...history, { ...aiMsg, content: accumulated, mood }],
+        messages: [
+          ...history,
+          { ...aiMsg, content: accumulated, mood, ...(memoryItems ? { memoryItems } : {}) },
+        ],
       });
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') {
