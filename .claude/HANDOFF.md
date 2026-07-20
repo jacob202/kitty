@@ -1,28 +1,27 @@
-# Handoff — Free-Worker Initiative Queue, Ready to Launch
+# Handoff — CR-01 Merged; Resume at CR-02
 
 <!-- kitty-handoff
 {
   "schema_version": 1,
-  "updated_at": "2026-07-18T00:38:31Z",
-  "head_sha": "41a18b44bc92d3a259caa4df8e7104297c9c8daf",
-  "branch": "claude/kitty-test-hardening-0j2yn0",
+  "updated_at": "2026-07-19T22:00:16Z",
+  "head_sha": "77a1389cf907743faf5ab7693eb443205d17d41d",
+  "branch": "main",
   "worktree": ".",
   "status": "valid",
   "completed_items": [
-    "authored and applied builder-test-hardening-v1 (3 packets), chat-recovery-v1 (7), reasoning-backend-v1 (3)",
-    "repaired packet-027-v1.json to today's manifest schema and applied it (5 packets)",
-    "proved the free ladder is unreachable from the remote container (egress proxy 403s opencode.ai/models.dev/openrouter.ai) with evidence under data/kittybuilder/attempts/kb_mrpmm5qy_e78a/"
+    "builder-test-hardening-v1 remains completed on main through PR #197",
+    "packet-027-builder-restart-recovery remains completed on main through PR #199",
+    "chat-recovery-v1/CR-01 thread-goals backend merged in PR #200 at 77a1389cf907743faf5ab7693eb443205d17d41d",
+    "CR-01 Builder task kb_mrpo81j1_89cb reconciled to done with merged PR, validation, review, and operator-recovery evidence",
+    "post-merge CR-01 verification passed: py_compile plus 73 focused tests; Builder doctor passed 14 of 14"
   ],
-  "blockers": [
-    "free-worker execution requires a host that can reach the free endpoints - run from the Mac, not a remote Claude container with default network policy"
-  ],
-  "next_action": "On the Mac: apply the four manifests, launch TH-01 then TH-02 with --free --watch, review final diffs, operator-gated publish",
+  "blockers": [],
+  "next_action": "Run chat-recovery-v1/CR-02-thread-goals-ui with ./kitty builder initiative run-packet chat-recovery-v1 CR-02-thread-goals-ui --free --watch",
   "invalidation_conditions": [
-    "HEAD changes outside one checkpoint-only commit",
-    "the branch or registered worktree changes",
-    "a fetch changes origin/main",
-    "any of the four initiative manifests under docs/initiatives/ changes",
-    "a pull request is opened or changes state"
+    "HEAD changes beyond 77a1389cf907743faf5ab7693eb443205d17d41d",
+    "branch or registered worktree changes",
+    "CR-02-thread-goals-ui changes state",
+    "the active Mission changes"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
@@ -31,62 +30,40 @@
 
 ## Resume here
 
-Everything paid is done: the work queue from docs/plans/pr164-archaeology.md §6
-is fully authored as validated initiative manifests. What remains is launching
-free workers from a host that can reach the free endpoints, then reviewing
-final diffs. No packet has produced a reviewable diff yet - nothing is claimed,
-nothing is in publish.
-
-## Launch order (on the Mac, canonical checkout)
+CR-01 is finished; do not recreate or rerun it. The next bounded packet is
+CR-02, the UI for the thread-goal backend now on `main`:
 
 ```bash
-./kitty builder initiative apply docs/initiatives/builder-test-hardening-v1.json
-./kitty builder initiative apply docs/initiatives/packet-027-v1.json
-./kitty builder initiative apply docs/initiatives/chat-recovery-v1.json
-./kitty builder initiative apply docs/initiatives/reasoning-backend-v1.json
-
-# 1. Standalone chores first (no feature risk)
-./kitty builder initiative run-packet builder-test-hardening-v1 TH-01-fail-loud-sweep --free --watch
-./kitty builder initiative run-packet builder-test-hardening-v1 TH-02-route-contract-tests --free --watch
-# TH-03-ci-ratchet: DO NOT run until TH-02 is published AND merged to main.
-
-# 2. Builder reliability
-./kitty builder initiative run packet-027-builder-restart-recovery --free --watch
-
-# 3. Chat recovery (each packet = one PR; CR-02/05/06 depend on earlier packets)
-./kitty builder initiative run chat-recovery-v1 --free --watch
-
-# 4. Reasoning engine backend
-./kitty builder initiative run reasoning-backend-v1 --free --watch
+./kitty builder initiative doctor --json
+./kitty builder initiative run-packet chat-recovery-v1 CR-02-thread-goals-ui --free --watch
 ```
 
-Per-packet loop: on success read ONLY the final diff, then operator-gated
-publish (draft PR). On failure read the attempt evidence, refine the packet
-once, re-run. ADR 0016: if any life-first initiative is queued, it outranks
-all of this.
+The initiative currently reports CR-02, CR-03, CR-04, and CR-07 eligible;
+CR-05 and CR-06 remain dependency-gated. The three reasoning-backend packets
+remain untouched. Respect the one-packet-per-session boundary.
 
-## What happened in the remote container (2026-07-18)
+## CR-01 evidence
 
-- TH-01 ran twice on `--free`; every ladder model failed identically:
-  the container egress proxy answers 403 CONNECT for opencode.ai,
-  models.dev, and openrouter.ai (network policy, not auth). No model ever
-  executed; no worktree was touched. Evidence:
-  `data/kittybuilder/attempts/kb_mrpmm5qy_e78a/{1,2}/run-manifest.json` and
-  `data/kittybuilder/runs/run_mrpmqaj1_2c64/combined.log` (container-local,
-  gitignored - re-applying manifests on the Mac starts clean).
-- Those two burned attempts are exactly the counts_toward_budget
-  infrastructure-crash case P027-stale-attempt-reconciliation addresses.
-- packet-027-v1.json on disk predated the manifest schema (forbidden_paths,
-  forbidden_paths_note, policy.attempt_3_authorization are unknown keys and
-  fail validation). Fixed by folding that intent into the objective text;
-  the file now validates and applies cleanly.
+- Merged PR: https://github.com/jacob202/kitty/pull/200
+- Merge SHA: `77a1389cf907743faf5ab7693eb443205d17d41d`
+- Builder task: `kb_mrpo81j1_89cb`, state `done`, lease cleared
+- Independent review: approved and hash-bound; durable copy at
+  `data/kittybuilder/attempts/kb_mrpo81j1_89cb/7/operator-recovery-review.json`
+- Validation: 73 focused tests after merge; local full suite 2318 passed,
+  1 skipped, 2 deselected; all seven Actions check runs successful
+- Pre-run backup:
+  `data/kittybuilder/backups/builder_queue_20260719_pre_cr01_150905.db`
 
-## Decisions already encoded in the manifests (don't re-litigate)
+## Known continuity details
 
-- Goal sidebar (R9) is parked - deliberately absent from chat-recovery-v1.
-- Thread-goals migration allocates the next free number verified at
-  implementation time (highest today: 019_idea_mine.sql → expect 020).
-- 028 Parts A/B (UI, needs live browser verify) are NOT in
-  reasoning-backend-v1 - human/UI pass later.
-- TH-03 sets --cov-fail-under to a measured number minus 3, never a guess,
-  and un-ignores the two council tests only with passing evidence.
+- The CR-01 worker branch/worktree is intentionally preserved. Its only dirty
+  file is worker-written `.claude/STATE.md`; it was not committed or merged.
+- The initiative projection retains the original failed/crashed attempt rows
+  and therefore shows their latest-run fields. The task row itself is `done`,
+  its final report says `outcome=succeeded`, and the merged PR link is durable.
+- The derived `operator_completed` and `review_approved` booleans only consume
+  dedicated event/attempt types; the current manual legal closeout cannot emit
+  those types. This is the remaining reason for operator-closeout chip
+  `task_897318ac`; it does not change CR-01's terminal task state.
+- PR descriptions must contain exact `## Summary` and `## Test plan` headings.
+- Continue using explicit-path staging; never `git add -u` in a mixed worktree.
