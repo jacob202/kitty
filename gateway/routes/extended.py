@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
@@ -255,24 +256,79 @@ async def task_cancel(task_id: str):
 
 class ImageGenRequest(BaseModel):
     prompt: str
+    engine: str = "comfyui"
+    parent_id: Optional[str] = None
 
 
 @router.get("/image/status")
 async def image_status():
+    import asyncio
+
     from gateway.image_gen import is_available
 
-    available = await is_available()
-    return {"available": available, "backend": "comfyui"}
+    comfy_available = await is_available()
+
+    # Draw Things is an optional local engine.  Its health probe is kept on
+    # the adapter so this route reports the transport Kitty actually uses.
+    from mcp.imagen.engines import get
+
+    drawthings = get("drawthings")
+    probe = getattr(getattr(drawthings, "_adapter", None), "is_available", None)
+    if probe is None:
+        raise RuntimeError("drawthings engine adapter does not expose is_available()")
+    drawthings_available = bool(await asyncio.to_thread(probe))
+
+    engines = [
+        {"name": "comfyui", "label": "ComfyUI", "available": comfy_available},
+        {"name": "drawthings", "label": "Draw Things", "available": drawthings_available},
+    ]
+    return {"available": comfy_available or drawthings_available, "backend": "comfyui", "engines": engines}
 
 
 @router.post("/image/generate")
 async def image_generate(req: ImageGenRequest):
+    import asyncio
+
     from gateway.image_gen import generate, is_available
+
+    engine = req.engine.strip().lower()
+    if engine not in {"comfyui", "drawthings"}:
+        raise HTTPException(status_code=422, detail="engine must be 'comfyui' or 'drawthings'")
+
+    if engine == "drawthings":
+        from gateway import image_jobs
+        from mcp.imagen.engines import get
+        from mcp.imagen.io import save_image
+
+        drawthings = get("drawthings")
+        probe = getattr(getattr(drawthings, "_adapter", None), "is_available", None)
+        if probe is not None and not await asyncio.to_thread(probe):
+            raise HTTPException(status_code=503, detail="Draw Things is not running")
+        job = image_jobs.create_job(
+            provider="drawthings",
+            operation="variation" if req.parent_id else "txt2img",
+            prompt=req.prompt,
+            parent_id=req.parent_id,
+            model_id=getattr(drawthings, "model_name", None),
+        )
+        try:
+            image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.SUBMITTED)
+            image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.RUNNING)
+            data = await drawthings.generate_async(req.prompt)
+            path = await asyncio.to_thread(save_image, data, prefix="drawthings")
+            image_jobs.update_job(job.job_id, output_path=str(path))
+            image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.SUCCEEDED)
+        except Exception as exc:
+            image_jobs.update_job(job.job_id, normalized_error=str(exc)[:500])
+            image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.FAILED)
+            raise
+        return {"filename": str(path), "job_id": job.job_id, "engine": engine}
 
     if not await is_available():
         raise HTTPException(status_code=503, detail="ComfyUI is not running")
     try:
-        result = await generate(req.prompt)
+        result = await generate(req.prompt, parent_id=req.parent_id)
+        result["engine"] = engine
         return result
     except TimeoutError as e:
         raise HTTPException(status_code=504, detail=str(e))
@@ -300,11 +356,28 @@ async def image_cancel(job_id: str):
         ) from exc
 
 
-@router.get("/image/view/{filename}")
+@router.get("/image/view/{filename:path}")
 async def image_view(filename: str):
     """Proxy an output image from ComfyUI (works with both local and Colab tunnel URLs)."""
     import httpx
-    from fastapi.responses import Response
+    from fastapi.responses import FileResponse, Response
+
+    from mcp.imagen.config import settings
+
+    # Draw Things and the converged ComfyUI path persist artifacts in Kitty's
+    # local image store.  Serve only files below that configured directory;
+    # all other names retain the legacy ComfyUI proxy behavior.
+    candidate = Path(filename)
+    if not candidate.is_absolute():
+        candidate = settings.output_dir / candidate
+    try:
+        candidate = candidate.resolve()
+        output_root = settings.output_dir.resolve()
+        candidate.relative_to(output_root)
+    except ValueError:
+        candidate = Path()
+    if candidate.is_file():
+        return FileResponse(candidate)
 
     from gateway.image_gen import COMFY_URL
 

@@ -350,6 +350,27 @@ def list_recent(limit: int = 50) -> list[ImageJob]:
     return [_row_to_job(r) for r in rows]
 
 
+def list_children(parent_id: str, limit: int = 200) -> list[ImageJob]:
+    """Return variation/derivative jobs linked to ``parent_id``.
+
+    Creation order is stable across restarts by ordering on the durable
+    timestamp and UUID.  Rejecting an empty parent id avoids accidentally
+    turning a lineage query into an unbounded gallery query.
+    """
+    if not parent_id or not parent_id.strip():
+        raise ImageJobError("parent_id must not be empty")
+    if limit <= 0 or limit > 200:
+        raise ImageJobError(f"limit must be between 1 and 200, got {limit}")
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        rows = conn.execute(
+            "SELECT * FROM image_jobs "
+            "WHERE parent_id = ? ORDER BY created_at ASC, job_id ASC LIMIT ?",
+            (parent_id, limit),
+        ).fetchall()
+    return [_row_to_job(r) for r in rows]
+
+
 def transition(job_id: str, new_status: ImageJobStatus) -> ImageJob:
     """Transition a job's lifecycle state. Raises on illegal transition."""
     job = get_job(job_id)
@@ -569,6 +590,7 @@ __all__ = [
     "get_job",
     "find_by_provider",
     "list_recent",
+    "list_children",
     "transition",
     "update_job",
     "normalize_drawthings_request",

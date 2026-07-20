@@ -3,10 +3,10 @@
 <!-- kitty-state
 {
   "schema_version": 1,
-  "updated_at": "2026-07-20T11:15:08Z",
-  "head_sha": "da5fc579bdabf20c6d9595c7e25c28becb36868d",
-  "branch": "main",
-  "worktree": ".",
+  "updated_at": "2026-07-20T12:02:00Z",
+  "head_sha": "cf6a95c",
+  "branch": "feat/image-packets-current",
+  "worktree": ".worktrees/image-packets-current",
   "status": "in_progress",
   "completed_items": [
     "audit-refactor work committed: builder_queue split into layered modules, CORS allow-lists, async httpx knowledge download, curation except tightening (c83eb91..33ee509)",
@@ -20,7 +20,7 @@
     "19 stale branches deleted, 11 stale worktrees removed; kept only branches with unmerged work"
   ],
   "blockers": [],
-  "next_action": "Ask Jacob whether to push main (12 local commits); then pick: IMG-02 (ComfyUI cancellation) via builder, or review the kept campaign/reconcile branches",
+  "next_action": "Ask Jacob whether to merge this isolated image-packet branch; COMFY_COMMIT pin still needs an operator-selected revision",
   "invalidation_conditions": [
     "HEAD changes beyond da5fc579bdabf20c6d9595c7e25c28becb36868d",
     "branch or registered worktree changes",
@@ -32,6 +32,13 @@
 -->
 
 ## Current checkpoint
+
+- Image Lab packets IMG-02 through IMG-06 and IMG-G8 are implemented on
+  `feat/image-packets-current` through `cf6a95c`. The branch is clean and
+  intentionally isolated from `main`; merging/pushing still needs Jacob's
+  explicit approval.
+- ComfyUI workflows are revalidated against `/object_info`. A fixed
+  `COMFY_COMMIT` pin is not set because no target revision was supplied.
 
 - `main` at `da5fc57`, 12 commits ahead of the session start (`221aea6`).
   Nothing pushed — pushing needs Jacob's explicit approval.

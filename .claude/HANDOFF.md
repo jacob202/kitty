@@ -3,10 +3,10 @@
 <!-- kitty-handoff
 {
   "schema_version": 1,
-  "updated_at": "2026-07-20T11:15:08Z",
-  "head_sha": "da5fc579bdabf20c6d9595c7e25c28becb36868d",
-  "branch": "main",
-  "worktree": ".",
+  "updated_at": "2026-07-20T12:02:00Z",
+  "head_sha": "cf6a95c",
+  "branch": "feat/image-packets-current",
+  "worktree": ".worktrees/image-packets-current",
   "status": "valid",
   "completed_items": [
     "all 7 chat-recovery packets delivered (CR-06/07 directly on main: 78143f6, 9bd57af)",
@@ -17,7 +17,7 @@
     "19 branches + 11 worktrees cleaned; chat-recovery initiatives paused with evidence"
   ],
   "blockers": [],
-  "next_action": "Ask Jacob whether to push main (12 local commits); then pick: IMG-02 (ComfyUI cancellation) via builder, or review the kept campaign/reconcile branches",
+  "next_action": "Ask Jacob whether to merge this isolated image-packet branch; COMFY_COMMIT pin still needs an operator-selected revision",
   "invalidation_conditions": [
     "HEAD changes beyond da5fc579bdabf20c6d9595c7e25c28becb36868d",
     "branch or registered worktree changes",
@@ -29,6 +29,12 @@
 -->
 
 ## Resume here
+
+1. Image Lab packets IMG-02..IMG-06 and IMG-G8 are complete on
+   `feat/image-packets-current` at `cf6a95c`; backend and frontend checks are
+   green. The branch has not been merged or pushed.
+2. The ComfyUI workflow is validated against `/object_info`. Set a concrete
+   `COMFY_COMMIT` only after Jacob chooses the revision to pin.
 
 1. `main` has 12 unpushed local commits (`221aea6..da5fc57`). Pushing needs
    Jacob's explicit yes — ask before any `git push`.
