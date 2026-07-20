@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 router = APIRouter(tags=["extended"])
@@ -406,3 +406,229 @@ async def image_history(limit: int = 20):
     from gateway.image_gen import get_history
 
     return {"images": get_history(limit=limit)}
+
+
+# --- Image Studio V1: Characters ---
+
+from pydantic import BaseModel as PydanticBaseModel
+from typing import Optional as Opt, List
+
+
+class CharacterCreate(PydanticBaseModel):
+    name: str
+    description: Opt[str] = None
+    preferred_recipe: Opt[str] = None
+    identity_preset: str = "balanced"
+
+
+class CharacterUpdate(PydanticBaseModel):
+    name: Opt[str] = None
+    description: Opt[str] = None
+    preferred_recipe: Opt[str] = None
+    identity_preset: Opt[str] = None
+
+
+class RecipeUpdate(PydanticBaseModel):
+    available: bool
+
+
+class StudioGenerateRequest(PydanticBaseModel):
+    prompt: str
+    quality: str = "quality"
+    identity: str = "balanced"
+    character_id: Opt[str] = None
+    reference_ids: Opt[List[str]] = None
+    aspect_ratio: Opt[str] = None
+    image_count: int = 1
+    recipe_id: Opt[str] = None
+    seed: Opt[int] = None
+    negative_prompt: Opt[str] = None
+
+
+@router.get("/studio/characters")
+async def studio_list_characters():
+    from gateway.image_characters import list_characters
+    from gateway.image_recipes import seed_default_recipes
+
+    seed_default_recipes()
+    chars = list_characters()
+    return {"characters": [c.to_dict() for c in chars]}
+
+
+@router.post("/studio/characters")
+async def studio_create_character(req: CharacterCreate):
+    from gateway.image_characters import CharacterError, create_character
+    try:
+        char = create_character(
+            name=req.name,
+            description=req.description,
+            preferred_recipe=req.preferred_recipe,
+            identity_preset=req.identity_preset,
+        )
+        return char.to_dict()
+    except CharacterError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/studio/characters/{character_id}")
+async def studio_get_character(character_id: str):
+    from gateway.image_characters import CharacterNotFoundError, get_character, list_character_refs
+    try:
+        char = get_character(character_id)
+        refs = list_character_refs(character_id)
+        result = char.to_dict()
+        result["references"] = [r.to_dict() for r in refs]
+        return result
+    except CharacterNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.patch("/studio/characters/{character_id}")
+async def studio_update_character(character_id: str, req: CharacterUpdate):
+    from gateway.image_characters import CharacterError, CharacterNotFoundError, update_character
+    try:
+        char = update_character(
+            character_id,
+            name=req.name,
+            description=req.description,
+            preferred_recipe=req.preferred_recipe,
+            identity_preset=req.identity_preset,
+        )
+        return char.to_dict()
+    except CharacterNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except CharacterError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.delete("/studio/characters/{character_id}")
+async def studio_delete_character(character_id: str):
+    from gateway.image_characters import CharacterNotFoundError, soft_delete_character
+    try:
+        char = soft_delete_character(character_id)
+        return char.to_dict()
+    except CharacterNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.post("/studio/characters/{character_id}/references")
+async def studio_add_character_ref(character_id: str, file: UploadFile):
+    from gateway.image_characters import CharacterError, CharacterNotFoundError, add_character_ref
+    data = await file.read()
+    if len(data) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="file too large (max 20 MB)")
+    try:
+        ref = add_character_ref(
+            character_id, data,
+            original_name=file.filename,
+            media_type=file.content_type,
+        )
+        return ref.to_dict()
+    except CharacterNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except CharacterError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.delete("/studio/characters/{character_id}/references/{ref_id}")
+async def studio_delete_character_ref(character_id: str, ref_id: str):
+    from gateway.image_characters import CharacterError, CharacterNotFoundError, delete_character_ref
+    try:
+        delete_character_ref(character_id, ref_id)
+        return {"deleted": True}
+    except CharacterNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except CharacterError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+# --- Image Studio V1: Recipes ---
+
+@router.get("/studio/recipes")
+async def studio_list_recipes(available_only: bool = False):
+    from gateway.image_recipes import list_recipes, seed_default_recipes
+    seed_default_recipes()
+    recipes = list_recipes(available_only=available_only)
+    return {"recipes": [r.to_dict() for r in recipes]}
+
+
+@router.patch("/studio/recipes/{recipe_id}")
+async def studio_update_recipe(recipe_id: str, req: RecipeUpdate):
+    from gateway.image_recipes import RecipeError, set_recipe_available
+    try:
+        recipe = set_recipe_available(recipe_id, req.available)
+        return recipe.to_dict()
+    except RecipeError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+# --- Image Studio V1: Generate (Auto-routed) ---
+
+@router.post("/studio/generate")
+async def studio_generate(req: StudioGenerateRequest):
+    import asyncio
+    import json
+    import os
+
+    from gateway import image_jobs, image_recipes
+    from gateway.image_gen import generate as comfy_generate, is_available as comfy_available
+    from mcp.imagen.engines import get
+    from mcp.imagen.io import save_image
+
+    if not req.prompt or not req.prompt.strip():
+        raise HTTPException(status_code=400, detail="prompt must not be empty")
+
+    image_recipes.seed_default_recipes()
+
+    has_character = bool(req.character_id)
+    character_count = 1 if has_character else 0
+
+    try:
+        decision = image_recipes.auto_route(
+            has_character=has_character,
+            character_count=character_count,
+            quality_tier=req.quality,
+            identity_mode=req.identity,
+            operation="txt2img",
+            preferred_recipe=req.recipe_id,
+        )
+    except image_recipes.RecipeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+    recipe = decision.recipe
+
+    try:
+        if recipe.provider == "drawthings":
+            drawthings = get("drawthings")
+            job = image_jobs.create_job(
+                provider="drawthings",
+                operation="txt2img",
+                prompt=req.prompt,
+                recipe_id=recipe.recipe_id,
+                model_id=getattr(drawthings, "model_name", None),
+            )
+            image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.SUBMITTED)
+            image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.RUNNING)
+            data = await drawthings.generate_async(req.prompt)
+            path = await asyncio.to_thread(save_image, data, prefix="studio_dt")
+            image_jobs.update_job(job.job_id, output_path=str(path))
+            image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.SUCCEEDED)
+            return {
+                "job_id": job.job_id,
+                "filename": str(path),
+                "recipe": recipe.recipe_id,
+                "routing_reason": decision.reason,
+            }
+
+        if not await comfy_available():
+            raise HTTPException(status_code=503, detail="ComfyUI is not running")
+
+        result = await comfy_generate(req.prompt)
+        result["recipe"] = recipe.recipe_id
+        result["routing_reason"] = decision.reason
+        return result
+
+    except TimeoutError as exc:
+        raise HTTPException(status_code=504, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))

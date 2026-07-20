@@ -28,6 +28,7 @@ import { TerminalStrip } from '@/components/TerminalStrip';
 import { AgentPanel } from '@/components/AgentPanel';
 import { MonitorPanel } from '@/components/MonitorPanel';
 import { ImageGenPanel } from '@/components/ImageGenPanel';
+import { ImageStudio } from '@/components/ImageStudio';
 import { TutorPanel } from '@/components/TutorPanel';
 import { ProjectsPanel } from '@/components/ProjectsPanel';
 import { DocumentsPanel } from '@/components/DocumentsPanel';
@@ -1093,6 +1094,8 @@ function KittyChatInner() {
                   <AgentPanel />
                 </ToolCard>
               </div>
+            ) : activeView === 'studio' ? (
+              <ImageStudio />
             ) : activeView === 'images' ? (
               <div style={panelPadding(isMobile)}>
                 <ToolCard title="image lab — local pipeline">

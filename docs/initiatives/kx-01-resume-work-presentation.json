@@ -1,0 +1,160 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kx-01-resume-work-presentation",
+  "title": "KX-01: Resume loop and shared work presentation",
+  "description": "First KX initiative — must ship before all others. Establishes the shared vocabulary, WorkCard, ArtifactCard, StatusBadge, new navigation structure, and the Home resume view. This is NOT a generic design-system rewrite; it produces a visible upgrade to the home/resume loop with the shared components needed by every other KX lane. Components extracted only when a real vertical slice needs them.",
+  "packets": [
+    {
+      "id": "KX-01-01-shared-components",
+      "title": "Shared status vocabulary, WorkCard, ArtifactCard, StatusBadge, EmptyState, LoadingSkeleton",
+      "objective": "Create the shared component library in gateway/kitty-chat/src/components/shared/. Extract no existing component — write new fresh against the product experience plan (docs/plans/KITTY_PRODUCT_EXPERIENCE_V1.md). StatusBadge supports all 9 states (working/needs_user/scheduled/paused/failed/completed/unavailable/degraded/canceled) with dot/pill/chip variants and optional animation. WorkCard accepts source chat link, status, progress, artifacts, and actions. ArtifactCard renders per-type (image/document/note/report/quiz/code) with provenance. EmptyState and LoadingSkeleton are one implementation each — delete the scattered inline versions as they're replaced by later packets. This packet produces components but wires them nowhere yet.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "All 9 StatusBadge states render with correct color and label per the plan",
+        "WorkCard renders with source chat link, status, progress bar, artifact slots, and action buttons",
+        "ArtifactCard renders each type with correct visual model (image=thumbnail, document=excerpt, etc.)",
+        "EmptyState and LoadingSkeleton are single implementations with content projection",
+        "make ui-test passes with new component tests",
+        "npm run build passes"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components/shared/",
+        "gateway/kitty-chat/src/lib/types.ts",
+        "gateway/kitty-chat/src/lib/ui.ts",
+        "gateway/kitty-chat/src/app/globals.css",
+        "gateway/kitty-chat/src/__tests__/shared/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 10 },
+      "validation_commands": ["make ui-test", "npm run build"]
+    },
+    {
+      "id": "KX-01-02-navigation",
+      "title": "New navigation: 7-item rail (desktop) + bottom tab bar (mobile)",
+      "objective": "Replace the current 4-item Rail with a 7-item navigation per the plan: Home, Chat, Create, Learn, Memory, Work, Integrations. Desktop: keep rail layout but with 7 items + icons. Mobile (≤767px): replace hamburger+overlay with a fixed bottom tab bar (5 items + More menu). Extract the view-routing state machine from page.tsx into lib/navigation.tsx. The old Rail.tsx is replaced. Theme toggle and user avatar move to a UserMenu dropdown in the top-right corner. Routes: /home, /chat, /create, /learn, /memory, /work, /integrations. Backwards-compatible: the existing activeView string state continues to work until page.tsx is decomposed in KX-01-03.",
+      "depends_on": ["KX-01-01-shared-components"],
+      "acceptance_criteria": [
+        "Desktop: 7-item rail renders with icons and labels; active state matches current route",
+        "Mobile: bottom tab bar renders with 5 primary tabs + More; tapping navigates",
+        "UserMenu shows theme toggle and settings link; avatar replaces the standalone 'j' circle",
+        "lib/navigation.tsx exports a useNavigation hook with view, setView, and isMobile",
+        "make ui-test passes",
+        "npm run build passes",
+        "No horizontal overflow at 320px on any view"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components/Rail.tsx",
+        "gateway/kitty-chat/src/components/TopBar.tsx",
+        "gateway/kitty-chat/src/components/shared/BottomNav.tsx",
+        "gateway/kitty-chat/src/components/shared/UserMenu.tsx",
+        "gateway/kitty-chat/src/components/shared/ThemeToggle.tsx",
+        "gateway/kitty-chat/src/lib/navigation.tsx",
+        "gateway/kitty-chat/src/app/globals.css",
+        "gateway/kitty-chat/src/app/page.tsx",
+        "gateway/kitty-chat/src/__tests__/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 9 },
+      "validation_commands": ["make ui-test", "npm run build"]
+    },
+    {
+      "id": "KX-01-03-home-resume",
+      "title": "Home/resume view: attention hierarchy, active work, recent artifacts",
+      "objective": "Rewrite the Home view per the product experience plan: what needs you (attention-required items sorted by priority), active work (in-progress items with progress), today's schedule, and recent results/artifacts. Use WorkCard for active work items, ArtifactCard for recent results, and StatusBadge for all states. The Home view must link to the originating conversation for every item. Retain the existing Gateway query hooks but restructure the layout. This is a vertical slice — it must visibly improve the resume loop, not just rearrange components.",
+      "depends_on": ["KX-01-02-navigation"],
+      "acceptance_criteria": [
+        "Home view shows: What needs you, Active work, Today (scheduled), Recent results — in that order",
+        "Each item uses shared WorkCard or ArtifactCard (not a custom card)",
+        "Each work item links to its originating conversation or feature surface",
+        "Desktop: two-column layout; Mobile: single-column stacked",
+        "Screenshot evidence at 320px, 375px, 768px, 1440px",
+        "make ui-test passes",
+        "npm run build passes"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components/HomeState.tsx",
+        "gateway/kitty-chat/src/components/shared/",
+        "gateway/kitty-chat/src/lib/queries.ts",
+        "gateway/kitty-chat/src/lib/gateway.ts",
+        "gateway/kitty-chat/src/lib/types.ts",
+        "gateway/kitty-chat/src/__tests__/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 8 },
+      "validation_commands": ["make ui-test", "npm run build"]
+    },
+    {
+      "id": "KX-01-04-visual-refinement",
+      "title": "Visual language enforcement: min 12px text, mono limits, unified borders, decoration limits",
+      "objective": "Apply the visual language refinements from the plan globally. Enforce: no text below 12px (audit all components, fix RuntimeBadge/projectStatus/section headers/card labels/status text); monospace font reserved for code blocks, timestamps, and technical metadata only (replace mono in labels, badges, nav items); standardize borders to 1px (currently 1.5px in most places); reduce glass to dialogs/sheets only; reduce paper grain opacity to 0.03/0.025; limit wob filter to cat marks and headings. This packet touches CSS and inline styles globally but must not break any layout.",
+      "depends_on": ["KX-01-01-shared-components"],
+      "acceptance_criteria": [
+        "Zero instances of font-size < 12px anywhere in the app (grep font-size.*[0-9]+px)",
+        "Monospace used only in code blocks, timestamps, and technical data (not in nav labels, badges, status text)",
+        "All border widths are 1px (not 1.5px)",
+        "Glass effect only on dialogs, sheets, and the UserMenu dropdown (not on cards)",
+        "Paper grain opacity ≤ 0.03 in day, ≤ 0.025 in night",
+        "No visual regressions: all 3 themes look correct, no layout breaks",
+        "Screenshot evidence of before/after for each theme at 1440px",
+        "make ui-test passes",
+        "npm run build passes"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/app/globals.css",
+        "gateway/kitty-chat/src/components/*.tsx",
+        "gateway/kitty-chat/src/components/shared/",
+        "gateway/kitty-chat/src/lib/ui.ts",
+        "gateway/kitty-chat/src/app/page.tsx"
+      ],
+      "policy": { "max_attempts": 2, "priority": 7 },
+      "validation_commands": ["make ui-test", "npm run build"]
+    },
+    {
+      "id": "KX-01-05-mobile-layout",
+      "title": "Mobile-first responsive behavior at 320px and 375px",
+      "objective": "Ensure every view renders correctly at 320px without horizontal overflow. The current isMobile flag (≤900px) is too coarse — and the desktop-to-mobile transformation is just 'stack vertically with less padding.' Implement per-viewport layouts per the plan: 320-374px single column, 375-767px single column with more padding, 768-1023px sidebar+collapsible, 1024px+ full layout. The Home view on mobile shows 3 compact summary cards, not all 8 sections. Chat on mobile is full-screen with auto-hide topbar on scroll. Bottom navigation is the primary mobile navigation.",
+      "depends_on": ["KX-01-03-home-resume", "KX-01-04-visual-refinement"],
+      "acceptance_criteria": [
+        "Zero horizontal overflow at 320px on every view (home, chat, create, learn, memory, work, integrations, settings)",
+        "Home shows 3 compact summary cards on mobile, not all sections",
+        "Chat is full-screen on mobile; topbar auto-hides on scroll down, shows on scroll up",
+        "Bottom tab bar is primary mobile navigation (visible at ≤767px)",
+        "Interactive elements have min 44px touch targets on mobile",
+        "Screenshot evidence at 320px and 375px for every view",
+        "make ui-test passes",
+        "npm run build passes"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components/",
+        "gateway/kitty-chat/src/app/",
+        "gateway/kitty-chat/src/lib/navigation.tsx",
+        "gateway/kitty-chat/src/app/globals.css"
+      ],
+      "policy": { "max_attempts": 2, "priority": 6 },
+      "validation_commands": ["make ui-test", "npm run build"]
+    },
+    {
+      "id": "KX-01-06-accessibility",
+      "title": "Accessibility baseline: focus, keyboard, ARIA, reduced motion, contrast",
+      "objective": "Implement the accessibility system from the plan: visible focus ring (3px primary + 2px offset) on all interactive elements; semantic landmarks (nav/main/aside/header); aria-live regions for streaming content and status changes; reduced-motion media query that disables all animations; minimum contrast 4.5:1 verification; skip-to-content link. Add aria-labels to all icon-only buttons. Wire aria-describedby for error linkage. Focus trap in dialogs and modals.",
+      "depends_on": ["KX-01-04-visual-refinement"],
+      "acceptance_criteria": [
+        "Every interactive element has a visible focus ring (Tab through all views)",
+        "Skip-to-content link visible on first Tab press",
+        "aria-live='polite' region announces streaming content changes",
+        "aria-live='assertive' region announces errors",
+        "reduced-motion query disables bob/throb/hop/pop animations and transitions",
+        "All icon-only buttons have aria-label",
+        "Dialog focus is trapped; Escape closes and returns focus",
+        "Keyboard-only navigation of primary flows (home→chat→compose→send)",
+        "make ui-test passes",
+        "npm run build passes"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/app/globals.css",
+        "gateway/kitty-chat/src/app/layout.tsx",
+        "gateway/kitty-chat/src/components/",
+        "gateway/kitty-chat/src/__tests__/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 5 },
+      "validation_commands": ["make ui-test", "npm run build"]
+    }
+  ]
+}
