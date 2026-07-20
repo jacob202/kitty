@@ -622,13 +622,21 @@ def _is_sensitive(item: Item, query_terms: set[str]) -> bool:
     return False
 
 
-def _format_unified_items(results: dict[str, list[Item]], cap: int = CONTEXT_TOKEN_CAP, query: str = "") -> str:
-    """Render ``results`` (keyed by adapter name) as the memory section.
+def _select_unified_items(
+    results: dict[str, list[Item]], cap: int = CONTEXT_TOKEN_CAP, query: str = ""
+) -> tuple[list[str], list[str]]:
+    """Apply the render gates (top-5 per store, Privacy Gate, Token-Aware
+    Budgeting) in one walk.
 
-    Uses Token-Aware Budgeting and a Privacy Gate.
+    Returns ``(sections, rendered_texts)``: the formatted section strings and
+    the exact item texts rendered into them, in prompt order. The selection is
+    separate from formatting so the assembler can expose truthful "what
+    actually entered the prompt" evidence without re-running the gates — a
+    second, independent walk is how evidence and prompt drift apart.
     """
     query_terms = set(query.lower().split())
     sections: list[str] = []
+    rendered: list[str] = []
     current_tokens = 0
 
     for source_name, items in results.items():
@@ -643,6 +651,7 @@ def _format_unified_items(results: dict[str, list[Item]], cap: int = CONTEXT_TOK
         heading_tokens = len(heading) // 4
 
         added_any = False
+        section_rendered: list[str] = []
         for item in items[:5]: # Allow up to 5 if budget permits
             if _is_sensitive(item, query_terms):
                 continue
@@ -665,11 +674,22 @@ def _format_unified_items(results: dict[str, list[Item]], cap: int = CONTEXT_TOK
                 added_any = True
 
             lines.append(f"- {text}")
+            section_rendered.append(text)
             current_tokens += item_tokens + 2
 
         if added_any:
             sections.append("\n".join(lines))
+            rendered.extend(section_rendered)
 
+    return sections, rendered
+
+
+def _format_unified_items(results: dict[str, list[Item]], cap: int = CONTEXT_TOKEN_CAP, query: str = "") -> str:
+    """Render ``results`` (keyed by adapter name) as the memory section.
+
+    Uses Token-Aware Budgeting and a Privacy Gate.
+    """
+    sections, _ = _select_unified_items(results, cap=cap, query=query)
     if not sections:
         return ""
     return "\n\n".join(sections)
