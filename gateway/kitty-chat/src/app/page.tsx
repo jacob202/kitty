@@ -39,6 +39,7 @@ import { LoopWatch } from '@/components/LoopWatch';
 import { InsightFeed } from '@/components/InsightFeed';
 import { PromptToolkit } from '@/components/PromptToolkit';
 import { CommandPalette } from '@/components/CommandPalette';
+import { KittyRuntimeProvider } from '@/components/KittyRuntimeProvider';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PwaInstallBanner } from '@/components/PwaInstallBanner';
 import { WobFilters, PaperGrain } from '@/components/WobFilters';
@@ -718,6 +719,28 @@ function KittyChatInner() {
     abortRef.current?.abort();
   }, []);
 
+  const handleRuntimeSend = useCallback((text: string) => {
+    if (!text.trim() || isStreaming || !activeChat) return;
+    const userMsg: Message = {
+      id: newMsgId(),
+      role: 'user',
+      content: text.trim(),
+      timestamp: new Date(),
+    };
+    const isFirst = activeChat.messages.length === 0;
+    const title = isFirst ? text.slice(0, 32) + (text.length > 32 ? '…' : '') : activeChat.title;
+    updateChat(activeChat.id, (c) => ({
+      ...c,
+      title,
+      messages: [...c.messages, userMsg],
+      updatedAt: new Date(),
+    }));
+    setInput('');
+    setAttachments([]);
+    setActiveView('chat');
+    void runStream(activeChat, [...activeChat.messages, userMsg], title);
+  }, [isStreaming, activeChat, updateChat, runStream]);
+
   const handlePromptSelect = useCallback((text: string) => {
     setInput(text);
     setActiveView('chat');
@@ -810,7 +833,6 @@ function KittyChatInner() {
         color: 'var(--ink)',
         fontFamily: 'var(--font-body)',
       }}
-      onClick={undefined}
     >
       <WobFilters />
       {showOnboarding && (
@@ -878,6 +900,14 @@ function KittyChatInner() {
         </>
       )}
 
+      <KittyRuntimeProvider
+        messages={activeChat?.messages ?? []}
+        isStreaming={isStreaming}
+        activeModel={activeModel}
+        onSend={handleRuntimeSend}
+        onCancel={handleStop}
+        onReload={handleRetry}
+      >
       <main
         style={{
           flex: 1,
@@ -895,7 +925,6 @@ function KittyChatInner() {
           onSelectModel={handleSelectModel}
 
           isStreaming={isStreaming}
-          activeChat={activeChat}
           modelFromGateway={modelGateway.live}
           activeView={activeView}
           onViewChange={setActiveView}
@@ -1373,7 +1402,7 @@ function KittyChatInner() {
         {activeView === 'chat' && (
           <InputBar
             value={input}
-            onChange={setInput}
+            onChange={(v: string) => { setInput(v); if (attachmentErrors.length) setAttachmentErrors([]); }}
             onSend={handleSend}
             onStop={handleStop}
             isStreaming={isStreaming}
@@ -1394,6 +1423,7 @@ function KittyChatInner() {
           />
         )}
       </main>
+      </KittyRuntimeProvider>
 
       <CatCorner state={catState} />
       <PaperGrain />

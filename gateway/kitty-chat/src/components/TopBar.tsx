@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
-import { Chat, Model, STREAMING_LABEL } from '@/lib/types'
+import { Model, STREAMING_LABEL } from '@/lib/types'
 import { StateBadge, type CatState } from './CrayonCat'
 import { ModelSelectorCmdk } from './ModelSelectorCmdk'
 
@@ -9,12 +9,7 @@ interface Props {
   activeModel: Model
   models: Model[]
   onSelectModel: (m: Model) => void
-  /** @deprecated Model menu state is now managed internally by ModelSelectorCmdk. */
-  showModelMenu?: boolean
-  /** @deprecated Model menu state is now managed internally by ModelSelectorCmdk. */
-  setShowModelMenu?: (v: boolean) => void
   isStreaming: boolean
-  activeChat: Chat | null
   modelFromGateway?: boolean
   activeView: string
   onViewChange: (view: string) => void
@@ -39,8 +34,6 @@ export function TopBar({
   activeModel,
   models,
   onSelectModel,
-  showModelMenu,
-  setShowModelMenu,
   isStreaming,
   modelFromGateway = true,
   catState = 'idle',
