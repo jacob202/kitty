@@ -5,6 +5,7 @@ import { Chat, Message, MessageAttachment, Model, MODELS, COLOR_CYCLE, ChatColor
 import { streamChat } from '@/lib/chat-client';
 import { inferMood } from '@/lib/mood';
 import { TopBar } from '@/components/TopBar';
+import { ThreadGoal } from '@/components/ThreadGoal';
 import { ChatMessage } from '@/components/ChatMessage';
 import { InputBar } from '@/components/InputBar';
 import { HomeState } from '@/components/HomeState';
@@ -473,7 +474,9 @@ function KittyChatInner() {
 
   // Persist a chat to SQLite via the gateway, tracking the outcome so the UI
   // can say saved / failed / offline instead of silently dropping history.
-  const persistChat = useCallback(async (chat: Chat) => {
+  // Returns whether the save landed so callers (ThreadGoal's create-then-patch
+  // path) can react instead of guessing.
+  const persistChat = useCallback(async (chat: Chat): Promise<boolean> => {
     setSaveState('saving');
     try {
       const res = await fetch('/proxy/chats', {
@@ -483,14 +486,26 @@ function KittyChatInner() {
       });
       if (res.ok) {
         setSaveState('saved');
-      } else {
-        // The proxy answers 5xx when the gateway itself is unreachable.
-        setSaveState(res.status >= 500 ? 'offline' : 'failed');
+        return true;
       }
+      // The proxy answers 5xx when the gateway itself is unreachable.
+      setSaveState(res.status >= 500 ? 'offline' : 'failed');
+      return false;
     } catch {
       setSaveState('offline');
+      return false;
     }
   }, []);
+
+  // Server-confirmed objective from PATCH /chats/{id}/objective — keyed by
+  // chat id so a response landing after a thread switch still updates the
+  // right chat. undefined mirrors how loaded chats represent "no goal".
+  const handleObjectiveSaved = useCallback(
+    (chatId: string, objective: string | null) => {
+      updateChat(chatId, (c) => ({ ...c, objective: objective ?? undefined }));
+    },
+    [updateChat],
+  );
 
   const handleRetrySave = useCallback(() => {
     const chat = chats.find((c) => c.id === activeChatId);
@@ -860,6 +875,15 @@ function KittyChatInner() {
             ?? (runtimeQuery.error instanceof Error ? runtimeQuery.error.message : undefined)
           }
         />
+
+        {activeView === 'chat' && (
+          <ThreadGoal
+            chat={activeChat}
+            compact={isMobile}
+            onObjectiveSaved={handleObjectiveSaved}
+            onEnsurePersisted={persistChat}
+          />
+        )}
 
         <PwaInstallBanner
           state={pwaInstall.state}

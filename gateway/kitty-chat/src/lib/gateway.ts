@@ -573,6 +573,29 @@ async function gfetch<T = unknown>(path: string, init?: RequestInit, timeoutMs =
   }
 }
 
+// ── Thread goals (per-chat objective, CR-01) ─────────────────────────────────
+
+/** Gateway-enforced objective length cap, mirrored so the editor can stop at
+ *  the boundary instead of round-tripping a 400. */
+export const OBJECTIVE_MAX_LENGTH = 500
+
+/** Set or clear a chat's thread goal. The gateway returns the updated chat and
+ *  omits `objective` when cleared; callers get the server-confirmed value. */
+export async function patchChatObjective(
+  chatId: string,
+  objective: string | null,
+): Promise<{ objective: string | null }> {
+  const chat = await gfetch<{ objective?: unknown }>(
+    `/chats/${encodeURIComponent(chatId)}/objective`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ objective }),
+    },
+  )
+  return { objective: typeof chat.objective === 'string' ? chat.objective : null }
+}
+
 export async function fetchGatewayPersonality(): Promise<GatewayPersonality> {
   const payload = await gfetch<unknown>('/settings/personality')
   if (!isRecord(payload) || typeof payload.soul !== 'string' || typeof payload.preferences !== 'string') {

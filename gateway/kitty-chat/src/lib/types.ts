@@ -44,6 +44,12 @@ export interface Chat {
   color: ChatColor
   createdAt: Date
   updatedAt: Date
+  /**
+   * Per-thread goal (CR-01). The gateway stores it in a normalized column and
+   * omits the key when unset, so absent and null both mean "no goal". Written
+   * only through PATCH /chats/{id}/objective — never through the chat blob save.
+   */
+  objective?: string | null
 }
 
 export type ChatColor = 'teal' | 'purple' | 'blue' | 'mint' | 'orange'
