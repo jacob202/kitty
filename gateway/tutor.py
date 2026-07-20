@@ -17,6 +17,7 @@ import json
 import logging
 import sqlite3
 from datetime import datetime, timedelta, timezone
+from enum import Enum
 from pathlib import Path
 from typing import Awaitable, Callable, Sequence
 
@@ -28,6 +29,32 @@ logger = logging.getLogger("kitty.tutor")
 # Reuses the same ChromaDB collection the rest of Kitty already indexes into.
 TUTOR_COLLECTION = "tutor"
 MEMORY_DB = KITTY_DATA_DIR / "tutor_memory.db"
+
+
+class KnowledgeType(str, Enum):
+    """Category of a learning term, driving its review cadence.
+
+    Adapted from DeepTutor's four-type model
+    (``deeptutor/learning/scheduler.py``): memory and procedure facts need
+    tighter early review than concepts and designs. Each type maps a 1-3
+    confidence score to a review delay in days.
+    """
+
+    MEMORY = "memory"
+    CONCEPT = "concept"
+    PROCEDURE = "procedure"
+    DESIGN = "design"
+
+
+# Review delay (days) per (knowledge type, confidence score).
+# score 1 = got it, 2 = needs review, 3 = lost (due next session).
+# MEMORY preserves the pre-existing {1: 3, 2: 1, 3: 0} behavior.
+KNOWLEDGE_TYPE_INTERVALS: dict[KnowledgeType, dict[int, int]] = {
+    KnowledgeType.MEMORY: {1: 3, 2: 1, 3: 0},
+    KnowledgeType.CONCEPT: {1: 7, 2: 3, 3: 0},
+    KnowledgeType.PROCEDURE: {1: 7, 2: 3, 3: 0},
+    KnowledgeType.DESIGN: {1: 28, 2: 14, 3: 0},
+}
 
 
 class TutorError(Exception):
@@ -105,6 +132,54 @@ def _default_llm(messages: list[dict]) -> str:
     return call_llm(messages, max_tokens=600, temperature=0.3)
 
 
+def _similarity(a: str, b: str) -> float:
+    """Normalized Levenshtein similarity in [0, 1]."""
+    a, b = a.lower().strip(), b.lower().strip()
+    if a == b:
+        return 1.0
+    if not a or not b:
+        return 0.0
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    distance = prev[-1]
+    return 1.0 - distance / max(len(a), len(b))
+
+
+def grade_answer(
+    user_answer: str,
+    expected_answer: str,
+    question_type: str = "open",
+) -> bool:
+    """Deterministic grading — no LLM variance.
+
+    Adapted from DeepTutor's ``deeptutor/learning/grading.py``:
+      - choice: exact match (case/space-insensitive)
+      - short:  exact match, or similarity >= 0.85 when <= 30 chars
+      - open:   keyword-overlap ratio >= 0.6
+    """
+    user = user_answer.strip()
+    expected = expected_answer.strip()
+    if question_type == "choice":
+        return user.lower() == expected.lower()
+    if question_type == "short":
+        if user.lower() == expected.lower():
+            return True
+        if len(user) <= 30:
+            return _similarity(user, expected) >= 0.85
+        return False
+    # open-ended
+    exp_words = {w for w in expected.lower().split() if len(w) > 2}
+    if not exp_words:
+        return user.lower() == expected.lower()
+    user_words = set(user.lower().split())
+    overlap = len(exp_words & user_words) / len(exp_words)
+    return overlap >= 0.6
+
+
 # ── Memory: confidence logging + spaced repetition ────────────────────────────
 
 
@@ -122,13 +197,23 @@ def _conn() -> sqlite3.Connection:
     return conn
 
 
-def log_confidence(term: str, score: int, subject: str = "") -> None:
-    """Record a 1-3 confidence rating and schedule the next review."""
+def log_confidence(
+    term: str,
+    score: int,
+    subject: str = "",
+    knowledge_type: KnowledgeType = KnowledgeType.MEMORY,
+) -> None:
+    """Record a 1-3 confidence rating and schedule the next review.
+
+    ``knowledge_type`` selects the review cadence. Defaults to MEMORY, which
+    preserves the original fixed-interval behavior.
+    """
     if score not in (1, 2, 3):
         raise TutorError("confidence score must be 1, 2, or 3")
+    if not isinstance(knowledge_type, KnowledgeType):
+        raise TutorError(f"knowledge_type must be a KnowledgeType, got {knowledge_type!r}")
     now = datetime.now(timezone.utc)
-    # 1 = got it -> 3 days; 2 = needs review -> 1 day; 3 = lost -> next session.
-    days = {1: 3, 2: 1, 3: 0}[score]
+    days = KNOWLEDGE_TYPE_INTERVALS[knowledge_type][score]
     next_review = (now + timedelta(days=days)).isoformat()
     with _conn() as conn:
         conn.execute(

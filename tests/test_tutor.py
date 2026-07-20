@@ -81,3 +81,48 @@ def test_log_confidence_rejects_bad_score():
         pass
     else:
         raise AssertionError("expected TutorError on invalid score")
+
+
+def test_log_confidence_rejects_bad_knowledge_type():
+    try:
+        tutor.log_confidence("x", 1, knowledge_type="bogus")
+    except tutor.TutorError:
+        pass
+    else:
+        raise AssertionError("expected TutorError on invalid knowledge_type")
+
+
+def test_type_specific_intervals():
+    # CONCEPT score 1 schedules 7 days out; not due immediately.
+    tutor.log_confidence("design-pattern", 1, knowledge_type=tutor.KnowledgeType.CONCEPT)
+    assert all(d["term"] != "design-pattern" for d in tutor.due_review())
+
+    # CONCEPT score 3 is due next session (0 days).
+    tutor.log_confidence("design-pattern", 3, knowledge_type=tutor.KnowledgeType.CONCEPT)
+    due = tutor.due_review()
+    assert any(d["term"] == "design-pattern" for d in due)
+
+
+def test_memory_interval_preserved():
+    # Default MEMORY type keeps the original {1: 3, 2: 1, 3: 0} behavior.
+    tutor.log_confidence("term-x", 1)
+    assert all(d["term"] != "term-x" for d in tutor.due_review())
+    tutor.log_confidence("term-x", 3)
+    assert any(d["term"] == "term-x" for d in tutor.due_review())
+
+
+def test_grade_choice_exact():
+    assert tutor.grade_answer("B", "b", question_type="choice")
+    assert not tutor.grade_answer("A", "B", question_type="choice")
+
+
+def test_grade_short_similarity():
+    assert tutor.grade_answer("analyse", "analyze", question_type="short")
+    assert not tutor.grade_answer("completely different", "refactoring", question_type="short")
+
+
+def test_grade_open_keyword_overlap():
+    assert tutor.grade_answer(
+        "refactoring preserves behavior", "refactoring preserves behavior", question_type="open"
+    )
+    assert not tutor.grade_answer("unrelated text here", "refactoring preserves behavior", question_type="open")

@@ -239,11 +239,15 @@ def _resolve_target(
 ) -> tuple[Optional[Path], bool, Optional[str]]:
     """Return (path_to_ingest, was_downloaded, failure_reason)."""
     if body.path:
-        p = Path(body.path).expanduser()
-        if not p.exists():
-            return None, False, f"file not found: {p}"
-        if not p.is_file():
-            return None, False, f"not a regular file: {p}"
+        from gateway.document_validator import (
+            DocumentValidationError,
+            validate_document,
+        )
+
+        try:
+            p = validate_document(body.path)
+        except DocumentValidationError as exc:
+            return None, False, f"validation failed: {exc}"
         return p, False, None
 
     assert body.url is not None  # validated by IngestRequest
