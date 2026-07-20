@@ -42,6 +42,15 @@ def db_path(tmp_path: Path) -> Path:
     return p
 
 
+@pytest.fixture(autouse=True)
+def _stub_process_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        bq,
+        "capture_process_identity",
+        lambda pid: f"pid:{pid}",
+    )
+
+
 def _queued_task(db_path: Path, **kwargs) -> dict:
     return bq.create_task("runner test task", db_path=db_path, **kwargs)
 
@@ -274,6 +283,29 @@ class TestRunWorker:
         assert run["final_report"]["scope_violations"] == [
             "gateway/foo.py.backup"
         ]
+
+    def test_in_flight_scope_breach_is_stopped_during_execution(
+        self, repo: Path, db_path: Path
+    ):
+        task = _queued_task(db_path, allowed_paths=["gateway/"])
+        start = time.monotonic()
+
+        run = br.run_worker(
+            task["id"],
+            ["sh", "-c", "echo nope > outside.txt; sleep 60"],
+            timeout_seconds=120,
+            heartbeat_seconds=1,
+            repo_root=repo,
+            db_path=db_path,
+        )
+
+        elapsed = time.monotonic() - start
+        assert elapsed < 15
+        assert run["state"] == bq.RUN_SCOPE_VIOLATION
+        assert run["final_report"]["scope_violations"] == ["outside.txt"]
+        refreshed = bq.get_task(task["id"], db_path=db_path)
+        assert refreshed is not None
+        assert refreshed["blocked_reason"] == "scope_violation"
 
     def test_scope_rejects_absolute_paths(self, repo: Path, db_path: Path):
         """allowed_paths containing an absolute path must raise RunnerError."""
