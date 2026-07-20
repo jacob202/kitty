@@ -514,16 +514,30 @@ async def studio_delete_character(character_id: str):
 @router.post("/studio/characters/{character_id}/references")
 async def studio_add_character_ref(character_id: str, file: UploadFile):
     from gateway.image_characters import CharacterError, CharacterNotFoundError, add_character_ref
+    from gateway.image_quality import check_reference_image
+
     data = await file.read()
     if len(data) > 20 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="file too large (max 20 MB)")
     try:
+        quality = check_reference_image(data)
+        quality_notes = quality.summary()
         ref = add_character_ref(
             character_id, data,
             original_name=file.filename,
             media_type=file.content_type,
+            quality_notes=quality_notes,
         )
-        return ref.to_dict()
+        result = ref.to_dict()
+        result["quality"] = {
+            "has_blockers": quality.has_blockers,
+            "has_warnings": quality.has_warnings,
+            "is_perfect": quality.is_perfect,
+            "summary": quality.summary(),
+            "advice": quality.advice(),
+            "dimensions": f"{quality.width}×{quality.height}" if quality.width else None,
+        }
+        return result
     except CharacterNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except CharacterError as exc:

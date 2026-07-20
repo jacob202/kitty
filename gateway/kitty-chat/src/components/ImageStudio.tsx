@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { Image, User, Sparkles, Zap, Shield, ChevronDown, X, Upload, Plus } from 'lucide-react'
+import { Image, User, Sparkles, Zap, Shield, ChevronDown, X, Upload, Plus, AlertTriangle, CheckCircle2, RefreshCw, Square } from 'lucide-react'
 
 interface Character {
   character_id: string
@@ -31,6 +31,16 @@ interface GenerateResult {
   filename: string
   recipe?: string
   routing_reason?: string
+  character_weight?: number
+}
+
+interface QualityInfo {
+  has_blockers: boolean
+  has_warnings: boolean
+  is_perfect: boolean
+  summary: string
+  advice: string[]
+  dimensions: string | null
 }
 
 type QualityTier = 'fast' | 'quality' | 'maximum'
@@ -111,6 +121,9 @@ export function ImageStudio() {
   const [showNewChar, setShowNewChar] = useState(false)
   const [charRefFile, setCharRefFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [refQuality, setRefQuality] = useState<QualityInfo | null>(null)
+  const [activeJobId, setActiveJobId] = useState<string | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { characters, loading: charsLoading, createChar, refetch: refetchChars } = useStudioCharacters()
@@ -125,13 +138,12 @@ export function ImageStudio() {
     setGenerating(true)
     setError('')
     setRoutingReason('')
+    const controller = new AbortController()
+    abortRef.current = controller
 
     try {
       const body: Record<string, unknown> = {
-        prompt: prompt.trim(),
-        quality,
-        identity,
-        image_count: 1,
+        prompt: prompt.trim(), quality, identity, image_count: 1,
       }
       if (selectedChar) body.character_id = selectedChar.character_id
       if (seed) body.seed = parseInt(seed, 10)
@@ -141,6 +153,7 @@ export function ImageStudio() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal: controller.signal,
       })
 
       if (!r.ok) {
@@ -152,9 +165,19 @@ export function ImageStudio() {
       setResults(prev => [result, ...prev])
       if (result.routing_reason) setRoutingReason(result.routing_reason)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'generation failed')
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setError('generation canceled')
+      } else {
+        setError(err instanceof Error ? err.message : 'generation failed')
+      }
     }
     setGenerating(false)
+    setActiveJobId(null)
+    abortRef.current = null
+  }
+
+  function handleCancel() {
+    abortRef.current?.abort()
   }
 
   const handleCreateCharacter = useCallback(async () => {
@@ -169,7 +192,14 @@ export function ImageStudio() {
           method: 'POST',
           body: form,
         })
-        if (!r.ok) console.warn('ref upload failed', await r.text())
+        if (r.ok) {
+          const refResult = await r.json()
+          if (refResult.quality) {
+            setRefQuality(refResult.quality)
+          }
+        } else {
+          console.warn('ref upload failed', await r.text())
+        }
         setCharRefFile(null)
         setUploading(false)
         refetchChars()
@@ -310,7 +340,7 @@ export function ImageStudio() {
                   ))
                 )}
                 <div style={{ borderTop: '1px solid var(--line)', padding: 4 }} />
-                <button onClick={() => { setShowNewChar(true); setShowCharPicker(false) }} style={pickerItemStyle}>
+                <button onClick={() => { setShowNewChar(true); setRefQuality(null); setShowCharPicker(false) }} style={pickerItemStyle}>
                   <Plus size={13} />
                   <span>new character</span>
                 </button>
@@ -364,25 +394,39 @@ export function ImageStudio() {
             <ChevronDown size={12} style={{ transform: showAdvanced ? 'rotate(180deg)' : '' }} />
           </button>
 
-          {/* Generate */}
-          <button
-            onClick={handleGenerate}
-            disabled={!prompt.trim() || generating}
-            style={{
-              border: 'none',
-              borderRadius: 10,
-              background: generating ? 'var(--ink-2)' : 'var(--primary)',
-              color: generating ? 'var(--bg)' : 'var(--on-primary)',
-              padding: '8px 18px',
-              fontFamily: 'var(--font-body)',
-              fontSize: 14,
-              fontWeight: 700,
-              cursor: generating ? 'not-allowed' : 'pointer',
-              opacity: !prompt.trim() && !generating ? 0.5 : 1,
-            }}
-          >
-            {generating ? 'generating…' : 'generate'}
-          </button>
+          {/* Generate / Cancel */}
+          <div style={{ display: 'flex', gap: 6 }}>
+            {generating && (
+              <button onClick={handleCancel} style={{
+                border: '1px solid var(--c-red)', borderRadius: 10,
+                background: 'transparent', color: 'var(--c-red)',
+                padding: '8px 14px', fontFamily: 'var(--font-body)',
+                fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 5,
+              }}>
+                <Square size={12} />
+                cancel
+              </button>
+            )}
+            <button
+              onClick={handleGenerate}
+              disabled={!prompt.trim() || generating}
+              style={{
+                border: 'none', borderRadius: 10,
+                background: generating ? 'var(--ink-2)' : 'var(--primary)',
+                color: generating ? 'var(--bg)' : 'var(--on-primary)',
+                padding: '8px 18px', fontFamily: 'var(--font-body)',
+                fontSize: 14, fontWeight: 700,
+                cursor: generating ? 'not-allowed' : 'pointer',
+                opacity: !prompt.trim() && !generating ? 0.5 : 1,
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              {generating ? (
+                <><RefreshCw size={13} className="tool-call-spin" /> generating…</>
+              ) : 'generate'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -480,6 +524,20 @@ export function ImageStudio() {
                   }}
                   loading="lazy"
                 />
+                <div style={{ padding: '6px 8px', fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)' }}>
+                  {res.routing_reason?.length ? (
+                    <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {res.routing_reason.length > 40 ? res.routing_reason.slice(0, 37) + '…' : res.routing_reason}
+                    </span>
+                  ) : res.recipe ? (
+                    <span>{res.recipe}</span>
+                  ) : null}
+                  {res.character_weight !== undefined && (
+                    <span style={{ color: 'var(--cat-ginger)' }}>
+                      identity: {Math.round(res.character_weight * 100)}%
+                    </span>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -554,6 +612,36 @@ export function ImageStudio() {
                 {uploading ? 'uploading…' : 'create'}
               </button>
             </div>
+            {refQuality && (
+              <div style={{
+                marginTop: 12, padding: '10px 14px', borderRadius: 10,
+                background: refQuality.is_perfect ? 'rgba(127, 176, 105, 0.10)' :
+                  refQuality.has_blockers ? 'rgba(217, 122, 102, 0.12)' :
+                  'rgba(232, 196, 106, 0.10)',
+                border: `1px solid ${refQuality.is_perfect ? 'var(--c-green)' :
+                  refQuality.has_blockers ? 'var(--c-red)' : 'var(--c-yellow)'}`,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  {refQuality.is_perfect
+                    ? <CheckCircle2 size={14} style={{ color: 'var(--c-green)' }} />
+                    : <AlertTriangle size={14} style={{ color: refQuality.has_blockers ? 'var(--c-red)' : 'var(--c-yellow)' }} />
+                  }
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
+                    {refQuality.summary}
+                  </span>
+                </div>
+                {refQuality.dimensions && (
+                  <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--ink-2)' }}>
+                    {refQuality.dimensions}
+                  </span>
+                )}
+                {refQuality.advice.map((a, i) => (
+                  <div key={i} style={{ fontSize: 12, color: 'var(--ink-2)', marginTop: 3 }}>
+                    {a}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
