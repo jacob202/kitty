@@ -596,6 +596,17 @@ export async function patchChatObjective(
   return { objective: typeof chat.objective === 'string' ? chat.objective : null }
 }
 
+// ── Memory correction (CR-06) ────────────────────────────────────────────────
+
+/** Permanently delete a stored memory by id. The gateway 404s when the id is
+ *  unknown; callers surface that instead of pretending the forget landed. */
+export async function deleteMemory(memoryId: string): Promise<void> {
+  await gfetch<{ deleted?: unknown }>(
+    `/memories/${encodeURIComponent(memoryId)}`,
+    { method: 'DELETE' },
+  )
+}
+
 export async function fetchGatewayPersonality(): Promise<GatewayPersonality> {
   const payload = await gfetch<unknown>('/settings/personality')
   if (!isRecord(payload) || typeof payload.soul !== 'string' || typeof payload.preferences !== 'string') {

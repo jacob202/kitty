@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import { Copy, Check, RotateCcw, Paperclip, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { Message, type MemoryEvidence } from '@/lib/types'
+import { deleteMemory } from '@/lib/gateway'
 import { useSubmitMessageFeedback, type MessageFeedbackRating } from '@/lib/queries'
 import { CatFaceBadge, type CatState } from './CrayonCat'
 
@@ -275,7 +276,90 @@ function Attribution({ message }: { message: Message }) {
   )
 }
 
-/** Collapsed list of the memories that informed a reply (CR-05). */
+/** How long a "forget" stays cancellable before the DELETE fires (CR-06).
+ *  Destructive + phone-first: a single tap must never delete. */
+export const FORGET_GRACE_MS = 5000
+
+type ForgetState = 'idle' | 'pending' | 'deleting' | 'forgotten' | 'error'
+
+/** One memory row: text + (when deletable) a forget flow with undo grace. */
+function MemoryRow({ item }: { item: MemoryEvidence }) {
+  const [state, setState] = useState<ForgetState>('idle')
+  const [error, setError] = useState<string | null>(null)
+  const timerRef = useRef<number | null>(null)
+
+  const fire = async (memoryId: string) => {
+    setState('deleting')
+    try {
+      await deleteMemory(memoryId)
+      setState('forgotten')
+    } catch (err) {
+      setState('error')
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  const arm = () => {
+    if (!item.memoryId) return
+    const memoryId = item.memoryId
+    setState('pending')
+    setError(null)
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = null
+      void fire(memoryId)
+    }, FORGET_GRACE_MS)
+  }
+
+  const undo = () => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+    setState('idle')
+    setError(null)
+  }
+
+  // ponytail: no unmount cleanup for the timer — firing after unmount still
+  // performs exactly the confirmed delete; only the label update is lost.
+
+  if (state === 'forgotten') {
+    return (
+      <li style={{ ...memoryItemStyle, opacity: 0.55 }}>
+        <s>{item.text}</s>
+        <span style={forgetHintStyle}> · forgotten</span>
+      </li>
+    )
+  }
+
+  return (
+    <li style={memoryItemStyle}>
+      {state === 'pending' ? <s>{item.text}</s> : item.text}
+      {item.memoryId && state === 'idle' && (
+        <button onClick={arm} aria-label={`Forget memory: ${item.text}`} style={forgetBtnStyle}>
+          forget
+        </button>
+      )}
+      {state === 'pending' && (
+        <button
+          onClick={undo}
+          aria-label={`Undo forgetting: ${item.text}`}
+          style={{ ...forgetBtnStyle, color: 'var(--c-red)', fontWeight: 700 }}
+        >
+          undo
+        </button>
+      )}
+      {state === 'deleting' && <span style={forgetHintStyle}> forgetting…</span>}
+      {state === 'error' && (
+        <span role="alert" style={{ ...forgetHintStyle, color: 'var(--c-red)' }}>
+          {' '}not forgotten — {error}
+        </span>
+      )}
+    </li>
+  )
+}
+
+/** Collapsed list of the memories that informed a reply (CR-05), with inline
+ *  forget-with-undo correction (CR-06). */
 function MemoryBlock({ items }: { items: MemoryEvidence[] }) {
   const [open, setOpen] = useState(false)
   return (
@@ -291,7 +375,7 @@ function MemoryBlock({ items }: { items: MemoryEvidence[] }) {
       {open && (
         <ul style={memoryListStyle}>
           {items.map((item, i) => (
-            <li key={i} style={memoryItemStyle}>{item.text}</li>
+            <MemoryRow key={item.memoryId ?? `text-${i}`} item={item} />
           ))}
         </ul>
       )}
@@ -325,6 +409,15 @@ const memoryListStyle: CSSProperties = {
 const memoryItemStyle: CSSProperties = {
   fontFamily: 'var(--font-body)', fontSize: 12,
   lineHeight: 1.45, color: 'var(--ink-2)', wordBreak: 'break-word',
+}
+const forgetBtnStyle: CSSProperties = {
+  marginLeft: 8, padding: '2px 8px', minHeight: 24,
+  fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)',
+  background: 'transparent', border: '1px solid var(--line)',
+  borderRadius: 6, cursor: 'pointer', verticalAlign: 'middle',
+}
+const forgetHintStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)',
 }
 
 const actionRowStyle: CSSProperties = {
