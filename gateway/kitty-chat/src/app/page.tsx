@@ -6,6 +6,7 @@ import { streamChat } from '@/lib/chat-client';
 import { inferMood } from '@/lib/mood';
 import { TopBar } from '@/components/TopBar';
 import { ThreadGoal } from '@/components/ThreadGoal';
+import { SignalFeed } from '@/components/SignalCard';
 import { ChatMessage } from '@/components/ChatMessage';
 import { InputBar } from '@/components/InputBar';
 import { HomeState } from '@/components/HomeState';
@@ -884,6 +885,8 @@ function KittyChatInner() {
             onEnsurePersisted={persistChat}
           />
         )}
+
+        {activeView === 'chat' && <SignalFeed compact={isMobile} />}
 
         <PwaInstallBanner
           state={pwaInstall.state}
