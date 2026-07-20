@@ -1,9 +1,7 @@
-"""Tests for the durable image-job metadata store (IMG-01).
+"""Tests for the durable image-job metadata store (IMG-01), repaired.
 
-The store replaces gateway/image_gen.py's in-memory _history with a SQLite
-table so jobs, seeds, and outputs survive restarts. These tests exercise the
-public ImageJobStore API; the store is provider-neutral (Draw Things + ComfyUI
-both record through it) and never stores an executable ComfyUI workflow graph.
+Tests cover the corrected contract: Kitty-owned job_id, proper lifecycle,
+honest success semantics, exact seed capture, and provider normalization.
 """
 
 from __future__ import annotations
@@ -15,9 +13,17 @@ from pathlib import Path
 import pytest
 
 from gateway.image_jobs import (
+    ArtifactNotFoundError,
     IllegalTransitionError,
     ImageJobStore,
+    JobNotFoundError,
 )
+
+
+def _get(store: ImageJobStore, job_id: str) -> dict:
+    job = store.get_job(job_id)
+    assert job is not None, f"job {job_id!r} not found"
+    return job
 
 
 @pytest.fixture
@@ -25,79 +31,141 @@ def store(tmp_path: Path) -> ImageJobStore:
     return ImageJobStore(db_file=tmp_path / "test_kitty.db")
 
 
-def test_create_and_retrieve(store: ImageJobStore) -> None:
+def _make_fake_png(path: Path) -> str:
+    path.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+    return str(path)
+
+
+# ── Identity ────────────────────────────────────────────────────────────────
+
+def test_job_id_is_string_with_prefix(store: ImageJobStore) -> None:
     job_id = store.create_job(engine="drawthings", prompt="a cat")
-    job = store.get_job(job_id)
-    assert job is not None
-    assert job["id"] == job_id
-    assert job["engine"] == "drawthings"
-    assert job["prompt"] == "a cat"
-    assert job["provider_status"] == "pending"
+    assert isinstance(job_id, str)
+    assert job_id.startswith("job_")
+    assert len(job_id) > 4
 
 
-def test_persistence_across_instances(tmp_path: Path) -> None:
-    db = tmp_path / "test_kitty.db"
-    s1 = ImageJobStore(db_file=db)
-    job_id = s1.create_job(engine="comfyui", prompt="a dog")
-    s2 = ImageJobStore(db_file=db)
-    job = s2.get_job(job_id)
-    assert job is not None
-    assert job["prompt"] == "a dog"
+def test_job_id_unique_across_calls(store: ImageJobStore) -> None:
+    ids = {store.create_job(engine="drawthings", prompt=f"p{i}") for i in range(20)}
+    assert len(ids) == 20
 
 
-def test_legal_transitions(store: ImageJobStore, tmp_path: Path) -> None:
-    job_id = store.create_job(engine="drawthings", prompt="x")
-    store.start_job(job_id, provider_job_id="abc123")
-    job = store.get_job(job_id)
-    assert job["provider_status"] == "running"
-    assert job["provider_job_id"] == "abc123"
-    assert job["started_at"] is not None
+def test_get_job_returns_correct_public_identity(store: ImageJobStore) -> None:
+    job_id = store.create_job(engine="drawthings", prompt="a cat")
+    job = _get(store, job_id)
+    assert job["job_id"] == job_id
 
-    out = tmp_path / "out.png"
-    out.write_bytes(b"fake")
-    store.complete_job(job_id, output_path=str(out))
-    job = store.get_job(job_id)
-    assert job["provider_status"] == "success"
-    assert job["output_path"] == str(out)
+
+# ── Lifecycle ───────────────────────────────────────────────────────────────
+
+def test_initial_status_is_created(store: ImageJobStore) -> None:
+    job_id = store.create_job(engine="drawthings", prompt="a cat")
+    assert _get(store, job_id)["provider_status"] == "created"
+
+
+def test_submit_transition(store: ImageJobStore) -> None:
+    job_id = store.create_job(engine="drawthings", prompt="a cat")
+    store.submit_job(job_id, provider_job_id="p_001")
+    job = _get(store, job_id)
+    assert job["provider_status"] == "submitted"
+    assert job["provider_job_id"] == "p_001"
+    assert job["submitted_at"] is not None
+
+
+def test_full_success_lifecycle(store: ImageJobStore, tmp_path: Path) -> None:
+    out = _make_fake_png(tmp_path / "out.png")
+    job_id = store.create_job(engine="drawthings", prompt="a cat", seed=42)
+    store.submit_job(job_id, provider_job_id="p_001")
+    store.complete_job(job_id, output_path=out)
+    job = _get(store, job_id)
+    assert job["provider_status"] == "succeeded"
+    assert job["output_path"] == out
     assert job["output_verified"] == 1
+    assert job["finished_at"] is not None
     assert job["completed_at"] is not None
 
 
-def test_failed_transition(store: ImageJobStore) -> None:
-    job_id = store.create_job(engine="drawthings", prompt="x")
-    store.start_job(job_id, provider_job_id="p1")
-    store.fail_job(job_id, error_type="timeout", error_message="boom")
-    job = store.get_job(job_id)
+def test_fail_lifecycle(store: ImageJobStore) -> None:
+    job_id = store.create_job(engine="drawthings", prompt="a cat")
+    store.submit_job(job_id, provider_job_id="p_001")
+    store.fail_job(job_id, error_type="timeout", error_message="too slow")
+    job = _get(store, job_id)
     assert job["provider_status"] == "failed"
     assert job["error_type"] == "timeout"
-    assert job["error_message"] == "boom"
-    assert job["completed_at"] is not None
+    assert job["error_message"] == "too slow"
+    assert job["finished_at"] is not None
 
 
-def test_illegal_transition_pending_to_success(store: ImageJobStore, tmp_path: Path) -> None:
-    job_id = store.create_job(engine="drawthings", prompt="x")
-    out = tmp_path / "out.png"
-    out.write_bytes(b"fake")
+def test_cancel_after_fail(store: ImageJobStore) -> None:
+    job_id = store.create_job(engine="drawthings", prompt="a cat")
+    store.submit_job(job_id, provider_job_id="p_001")
+    store.fail_job(job_id, error_type="timeout", error_message="too slow")
+    store.cancel_job(job_id)
+    assert _get(store, job_id)["provider_status"] == "canceled"
+
+
+def test_cancel_requires_failed_first(store: ImageJobStore) -> None:
+    job_id = store.create_job(engine="drawthings", prompt="a cat")
     with pytest.raises(IllegalTransitionError):
-        store.complete_job(job_id, output_path=str(out))
+        store.cancel_job(job_id)
 
 
-def test_illegal_transition_success_to_failed(store: ImageJobStore, tmp_path: Path) -> None:
+# ── Illegal transitions ─────────────────────────────────────────────────────
+
+def test_created_to_succeeded_illegal(store: ImageJobStore, tmp_path: Path) -> None:
     job_id = store.create_job(engine="drawthings", prompt="x")
-    store.start_job(job_id, provider_job_id="p1")
-    out = tmp_path / "out.png"
-    out.write_bytes(b"fake")
-    store.complete_job(job_id, output_path=str(out))
+    out = _make_fake_png(tmp_path / "out.png")
+    with pytest.raises(IllegalTransitionError):
+        store.complete_job(job_id, output_path=out)
+
+
+def test_succeeded_to_failed_illegal(store: ImageJobStore, tmp_path: Path) -> None:
+    job_id = store.create_job(engine="drawthings", prompt="x")
+    store.submit_job(job_id, provider_job_id="p1")
+    out = _make_fake_png(tmp_path / "out.png")
+    store.complete_job(job_id, output_path=out)
     with pytest.raises(IllegalTransitionError):
         store.fail_job(job_id, error_type="timeout", error_message="boom")
 
 
-def test_drawthings_metadata_normalization(store: ImageJobStore) -> None:
+# ── Honest success ──────────────────────────────────────────────────────────
+
+def test_complete_job_verifies_artifact_exists(store: ImageJobStore) -> None:
+    job_id = store.create_job(engine="drawthings", prompt="x")
+    store.submit_job(job_id, provider_job_id="p1")
+    with pytest.raises(ArtifactNotFoundError):
+        store.complete_job(job_id, output_path=str(Path("/nonexistent/out.png")))
+    assert _get(store, job_id)["provider_status"] == "submitted"
+
+
+def test_complete_job_sets_output_verified_one(store: ImageJobStore, tmp_path: Path) -> None:
+    job_id = store.create_job(engine="drawthings", prompt="x")
+    store.submit_job(job_id, provider_job_id="p1")
+    out = _make_fake_png(tmp_path / "out.png")
+    store.complete_job(job_id, output_path=out)
+    assert _get(store, job_id)["output_verified"] == 1
+
+
+# ── Seed capture ────────────────────────────────────────────────────────────
+
+def test_seed_persisted_exactly(store: ImageJobStore) -> None:
+    job_id = store.create_job(engine="drawthings", prompt="cat", seed=12345)
+    assert _get(store, job_id)["seed"] == 12345
+
+
+def test_seed_none_when_omitted(store: ImageJobStore) -> None:
+    job_id = store.create_job(engine="drawthings", prompt="cat")
+    assert _get(store, job_id)["seed"] is None
+
+
+# ── Metadata normalization ──────────────────────────────────────────────────
+
+def test_drawthings_metadata(store: ImageJobStore) -> None:
     job_id = store.create_job(
         engine="drawthings",
         prompt="sunset",
         negative_prompt="blurry",
-        seed=12345,
+        seed=42,
         model="sd_xl_base_1.0",
         width=512,
         height=512,
@@ -106,9 +174,9 @@ def test_drawthings_metadata_normalization(store: ImageJobStore) -> None:
         sampler="Euler a",
         scheduler="karras",
     )
-    job = store.get_job(job_id)
+    job = _get(store, job_id)
     assert job["negative_prompt"] == "blurry"
-    assert job["seed"] == 12345
+    assert job["seed"] == 42
     assert job["model"] == "sd_xl_base_1.0"
     assert job["width"] == 512
     assert job["height"] == 512
@@ -118,7 +186,7 @@ def test_drawthings_metadata_normalization(store: ImageJobStore) -> None:
     assert job["scheduler"] == "karras"
 
 
-def test_comfyui_metadata_normalization(store: ImageJobStore) -> None:
+def test_comfyui_metadata(store: ImageJobStore) -> None:
     job_id = store.create_job(
         engine="comfyui",
         prompt="portrait",
@@ -128,7 +196,7 @@ def test_comfyui_metadata_normalization(store: ImageJobStore) -> None:
         provider_params={"lora_strength": 0.7, "explicit": True},
         workflow_template="sd15_basic",
     )
-    job = store.get_job(job_id)
+    job = _get(store, job_id)
     assert job["engine"] == "comfyui"
     assert job["model"] == "SD15_CKPT"
     assert job["sampler"] == "euler_ancestral"
@@ -137,73 +205,65 @@ def test_comfyui_metadata_normalization(store: ImageJobStore) -> None:
     assert json.loads(job["provider_params"]) == {"lora_strength": 0.7, "explicit": True}
 
 
+# ── Provider params bounds ──────────────────────────────────────────────────
+
 def test_provider_params_bounded(store: ImageJobStore) -> None:
     huge = {"data": "x" * 5000}
     with pytest.raises(ValueError):
         store.create_job(engine="drawthings", prompt="x", provider_params=huge)
 
 
-def test_complete_job_verifies_artifact(store: ImageJobStore, tmp_path: Path) -> None:
-    job_id = store.create_job(engine="drawthings", prompt="x")
-    store.start_job(job_id, provider_job_id="p1")
-    # Default verification: missing artifact -> fail loud, status unchanged.
-    with pytest.raises(RuntimeError):
-        store.complete_job(job_id, output_path=str(tmp_path / "missing.png"))
-    assert store.get_job(job_id)["provider_status"] == "running"
-    # Explicit output_verified=False: trust caller, transition to success.
-    store.complete_job(job_id, output_path=str(tmp_path / "missing.png"), output_verified=False)
-    job = store.get_job(job_id)
-    assert job["provider_status"] == "success"
-    assert job["output_verified"] == 0
+# ── Validation ──────────────────────────────────────────────────────────────
 
-
-def test_atomic_terminal_state(store: ImageJobStore, tmp_path: Path) -> None:
-    job_id = store.create_job(engine="drawthings", prompt="x")
-    store.start_job(job_id, provider_job_id="p1")
-    out = tmp_path / "out.png"
-    out.write_bytes(b"fake")
-    store.complete_job(job_id, output_path=str(out))
-    job = store.get_job(job_id)
-    assert job["provider_status"] == "success"
-    assert job["output_path"] == str(out)
-    assert job["completed_at"] is not None
-
-
-def test_failure_persistence(store: ImageJobStore) -> None:
-    job_id = store.create_job(engine="drawthings", prompt="x")
-    store.start_job(job_id, provider_job_id="p1")
-    store.fail_job(job_id, error_type="http_error", error_message="500")
-    job = store.get_job(job_id)
-    assert job["provider_status"] == "failed"
-    assert job["error_type"] == "http_error"
-    assert job["error_message"] == "500"
-    assert job["completed_at"] is not None
-
-
-def test_malformed_metadata_rejection(store: ImageJobStore) -> None:
+def test_rejects_invalid_engine(store: ImageJobStore) -> None:
     with pytest.raises(ValueError):
-        store.create_job(engine="bogus_engine", prompt="x")
+        store.create_job(engine="bogus", prompt="x")
 
 
-def test_migration_from_existing_db(tmp_path: Path) -> None:
+def test_rejects_invalid_kind(store: ImageJobStore) -> None:
+    with pytest.raises(ValueError):
+        store.create_job(engine="drawthings", prompt="x", kind="bogus")
+
+
+def test_rejects_empty_prompt(store: ImageJobStore) -> None:
+    with pytest.raises(ValueError):
+        store.create_job(engine="drawthings", prompt="")
+
+
+# ── Lookup ──────────────────────────────────────────────────────────────────
+
+def test_missing_job_returns_none(store: ImageJobStore) -> None:
+    assert store.get_job("job_nonexistent") is None
+
+
+def test_missing_job_raises_on_transition(store: ImageJobStore) -> None:
+    with pytest.raises(JobNotFoundError):
+        store.submit_job("job_nonexistent", provider_job_id="x")
+
+
+def test_find_by_provider(store: ImageJobStore) -> None:
+    job_id = store.create_job(engine="drawthings", prompt="cat")
+    store.submit_job(job_id, provider_job_id="p_abc")
+    found = store.find_by_provider("p_abc")
+    assert found is not None
+    assert found["job_id"] == job_id
+
+
+def test_find_by_provider_missing(store: ImageJobStore) -> None:
+    assert store.find_by_provider("p_nonexistent") is None
+
+
+# ── Persistence ─────────────────────────────────────────────────────────────
+
+def test_persistence_across_store_instances(tmp_path: Path) -> None:
     db = tmp_path / "test_kitty.db"
-    conn = sqlite3.connect(db)
-    conn.execute("CREATE TABLE existing_table (id INTEGER PRIMARY KEY)")
-    conn.commit()
-    conn.close()
-    s = ImageJobStore(db_file=db)
-    job_id = s.create_job(engine="drawthings", prompt="x")
-    assert s.get_job(job_id) is not None
-    conn = sqlite3.connect(db)
-    rows = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='existing_table'"
-    ).fetchall()
-    assert len(rows) == 1
-
-
-def test_concurrent_no_id_collision(store: ImageJobStore) -> None:
-    ids = [store.create_job(engine="drawthings", prompt=f"p{i}") for i in range(10)]
-    assert len(set(ids)) == 10
+    s1 = ImageJobStore(db_file=db)
+    job_id = s1.create_job(engine="comfyui", prompt="a dog")
+    s2 = ImageJobStore(db_file=db)
+    job = s2.get_job(job_id)
+    assert job is not None
+    assert job["prompt"] == "a dog"
+    assert job["job_id"] == job_id
 
 
 def test_get_recent(store: ImageJobStore) -> None:
@@ -215,11 +275,80 @@ def test_get_recent(store: ImageJobStore) -> None:
     assert recent[-1]["prompt"] == "p2"
 
 
+# ── Reconciliation stub ─────────────────────────────────────────────────────
+
 def test_reconcile_stale_returns_zero(store: ImageJobStore) -> None:
     job_id = store.create_job(engine="drawthings", prompt="x")
-    store.start_job(job_id, provider_job_id="p1")
+    store.submit_job(job_id, provider_job_id="p1")
     assert store.reconcile_stale() == 0
 
 
-def test_missing_job_returns_none(store: ImageJobStore) -> None:
-    assert store.get_job(99999) is None
+# ── Timestamps ──────────────────────────────────────────────────────────────
+
+def test_created_at_and_updated_at_set_on_create(store: ImageJobStore) -> None:
+    job_id = store.create_job(engine="drawthings", prompt="cat")
+    job = _get(store, job_id)
+    assert job["created_at"] is not None
+    assert job["updated_at"] == job["created_at"]
+
+
+def test_updated_at_changes_on_transition(store: ImageJobStore) -> None:
+    job_id = store.create_job(engine="drawthings", prompt="cat")
+    created = _get(store, job_id)["updated_at"]
+    store.submit_job(job_id, provider_job_id="p1")
+    assert _get(store, job_id)["updated_at"] != created
+
+
+# ── Migration from 023-shaped database ──────────────────────────────────────
+
+def test_migration_023_to_024(tmp_path: Path) -> None:
+    """Simulate a database created by the merged PR #208 (migration 023 only),
+    then verify the repair migration adds job_id and backfills existing rows."""
+    db = tmp_path / "legacy.db"
+    raw = sqlite3.connect(db)
+    raw.execute("PRAGMA foreign_keys = ON")
+    raw.execute("PRAGMA journal_mode = WAL")
+    mig = Path(__file__).resolve().parent.parent / "gateway" / "migrations"
+    raw.executescript((mig / "023_image_jobs.sql").read_text(encoding="utf-8"))
+    raw.execute(
+        """INSERT INTO image_jobs (engine, prompt, provider_status, created_at)
+           VALUES ('drawthings', 'legacy cat', 'pending', '2026-07-19T12:00:00')""",
+    )
+    old_id = raw.execute(
+        "SELECT id FROM image_jobs ORDER BY id DESC LIMIT 1"
+    ).fetchone()[0]
+    raw.commit()
+    raw.close()
+
+    store = ImageJobStore(db_file=db)
+    job = store.get_job(f"job_{old_id:020d}")
+    assert job is None, "fallback-id lookup should not match"
+
+    all_jobs = store.get_recent(limit=100)
+    migrated = [j for j in all_jobs if j["prompt"] == "legacy cat"]
+    assert len(migrated) == 1
+    m = migrated[0]
+    assert m["job_id"].startswith("job_")
+    assert m["engine"] == "drawthings"
+    assert m["prompt"] == "legacy cat"
+
+
+# ── Normalized error field ──────────────────────────────────────────────────
+
+def test_normalized_error_stored(store: ImageJobStore) -> None:
+    job_id = store.create_job(engine="drawthings", prompt="cat")
+    store.submit_job(job_id, provider_job_id="p1")
+    store.fail_job(
+        job_id,
+        error_type="http_error",
+        error_message="500",
+        normalized_error="provider_internal_error",
+    )
+    assert _get(store, job_id)["normalized_error"] == "provider_internal_error"
+
+
+def test_normalized_error_none_when_omitted(store: ImageJobStore) -> None:
+    job_id = store.create_job(engine="drawthings", prompt="cat")
+    store.submit_job(job_id, provider_job_id="p1")
+    store.fail_job(job_id, error_type="http_error", error_message="500")
+    assert _get(store, job_id)["normalized_error"] is None
