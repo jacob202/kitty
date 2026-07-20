@@ -280,6 +280,26 @@ async def image_generate(req: ImageGenRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/image/{job_id}/cancel")
+async def image_cancel(job_id: str):
+    """Stop the ComfyUI worker for a non-terminal durable image job."""
+    import httpx
+
+    from gateway.image_gen import cancel
+    from gateway.image_jobs import IllegalTransitionError, JobNotFoundError
+
+    try:
+        return await cancel(job_id)
+    except JobNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except IllegalTransitionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=502, detail=f"ComfyUI interruption failed: {exc}"
+        ) from exc
+
+
 @router.get("/image/view/{filename}")
 async def image_view(filename: str):
     """Proxy an output image from ComfyUI (works with both local and Colab tunnel URLs)."""

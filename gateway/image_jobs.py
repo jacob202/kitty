@@ -533,8 +533,30 @@ def normalize_comfyui_request(
 
 
 def reconcile_stale() -> int:
-    """Flip orphaned running jobs to failed. Stub for IMG-02 (returns 0)."""
-    return 0
+    """Cancel jobs orphaned by a gateway restart (IMG-02).
+
+    Every non-terminal row found at startup belongs to a ``generate()``
+    coroutine that no longer exists, so nothing will ever drive it to a
+    terminal state — flip it to canceled with an explanatory error.
+    Returns the number of rows reconciled.
+    """
+    non_terminal = [s.value for s in ImageJobStatus if not s.is_terminal()]
+    now = _now_iso()
+    placeholders = ",".join("?" for _ in non_terminal)
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        cur = conn.execute(
+            "UPDATE image_jobs SET status = ?, normalized_error = ?, "
+            f"updated_at = ?, finished_at = ? WHERE status IN ({placeholders})",
+            (
+                ImageJobStatus.CANCELED.value,
+                "orphaned by gateway restart",
+                now,
+                now,
+                *non_terminal,
+            ),
+        )
+    return cur.rowcount
 
 
 __all__ = [

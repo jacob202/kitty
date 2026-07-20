@@ -9,8 +9,11 @@ from typing import Optional
 import httpx
 
 from gateway.image_jobs import (
+    IllegalTransitionError,
     ImageJobStatus,
+    JobNotFoundError,
     create_job,
+    get_job,
     list_recent,
     transition,
     update_job,
@@ -27,6 +30,11 @@ SDXL_PHOTONIC = "photonicFusionSDXL_final.safetensors"
 
 EXPLICIT_KW = {"explicit", "erect", "hard cock", "erection", "boner", "cock", "nude explicit"}
 SDXL_KW     = {"realistic", "sdxl", "photo", "photorealistic", "high res", "high quality", "photonic"}
+
+
+class ImageGenerationCancelled(RuntimeError):
+    """The caller canceled this job while ComfyUI was generating it."""
+
 
 def get_history(limit: int = 20) -> list[dict]:
     """Gallery history from the durable job store (IMG-01) — survives restarts.
@@ -135,10 +143,21 @@ def _wf_sdxl(prompt: str, neg: str, w: int, h: int, steps: int, cfg: float, ckpt
     }
 
 
-async def _poll(client: httpx.AsyncClient, prompt_id: str, timeout: int = 360) -> Optional[str]:
+async def _poll(
+    client: httpx.AsyncClient,
+    prompt_id: str,
+    timeout: int = 360,
+    job_id: str | None = None,
+) -> Optional[str]:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         await asyncio.sleep(4)
+        # A cancel (IMG-02) marks the job canceled out-of-band; stop polling
+        # instead of burning the remaining timeout.
+        if job_id is not None:
+            job = get_job(job_id)
+            if job is not None and job.status is ImageJobStatus.CANCELED:
+                return None
         r = await client.get(f"{COMFY_URL}/history/{prompt_id}")
         hist = r.json()
         if prompt_id not in hist:
@@ -148,6 +167,45 @@ async def _poll(client: httpx.AsyncClient, prompt_id: str, timeout: int = 360) -
             for img in out.get("images", []):
                 return img["filename"]
     return None
+
+
+def _mark_failed(job_id: str, message: str) -> None:
+    """Record a failure unless the job already reached a terminal state.
+
+    A cancel racing the generate() coroutine wins: the canceled state stays,
+    and the failure that the interrupt provoked is not an error to report.
+    """
+    job = get_job(job_id)
+    if job is None:
+        raise JobNotFoundError(f"job {job_id} not found while recording failure")
+    if job.status is ImageJobStatus.CANCELED:
+        return
+    update_job(job_id, normalized_error=message)
+    transition(job_id, ImageJobStatus.FAILED)
+
+
+async def cancel(job_id: str) -> dict:
+    """Cancel an in-flight generation: interrupt ComfyUI, mark job canceled.
+
+    Raises JobNotFoundError for unknown ids and IllegalTransitionError when
+    the job is already terminal. ComfyUI's /interrupt stops the currently
+    executing prompt.
+    """
+    job = get_job(job_id)
+    if job is None:
+        raise JobNotFoundError(f"job {job_id} not found")
+    if job.status.is_terminal():
+        raise IllegalTransitionError(
+            f"job {job_id} is already {job.status.value}; nothing to cancel"
+        )
+    # /interrupt only stops the prompt ComfyUI is executing right now; a job
+    # queued behind others needs DELETE /queue with the prompt_id. That is a
+    # separate multi-job queueing capability, not a silent no-op here.
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.post(f"{COMFY_URL}/interrupt")
+        r.raise_for_status()
+    updated = transition(job_id, ImageJobStatus.CANCELED)
+    return {"canceled": True, "job_id": job_id, "status": updated.status.value}
 
 
 async def is_available() -> bool:
@@ -203,11 +261,17 @@ async def generate(prompt: str) -> dict:
             prompt_id = r.json()["prompt_id"]
             update_job(job.job_id, provider_job_id=prompt_id)
             transition(job.job_id, ImageJobStatus.SUBMITTED)
-            filename = await _poll(client, prompt_id)
+            transition(job.job_id, ImageJobStatus.RUNNING)
+            filename = await _poll(client, prompt_id, job_id=job.job_id)
     except Exception as exc:
-        update_job(job.job_id, normalized_error=str(exc)[:500])
-        transition(job.job_id, ImageJobStatus.FAILED)
+        _mark_failed(job.job_id, str(exc)[:500])
         raise
+
+    current_job = get_job(job.job_id)
+    if current_job is None:
+        raise JobNotFoundError(f"job {job.job_id} disappeared during generation")
+    if current_job.status is ImageJobStatus.CANCELED:
+        raise ImageGenerationCancelled(f"Image generation canceled for job {job.job_id}")
 
     if not filename:
         update_job(job.job_id, normalized_error="Image generation timed out (6 min)")
