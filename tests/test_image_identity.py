@@ -6,7 +6,7 @@ import json
 from gateway.image_gen import (
     _wf_ipadapter_sdxl,
     _wf_ipadapter_identity,
-    IPADAPTER_SDXL_MODEL,
+    IPADAPTER_MODEL,
     IPADAPTER_CLIP_VISION,
     SDXL_PHOTONIC,
     COMFY_IDENTITY_NODES,
@@ -25,20 +25,20 @@ class TestIPAdapterWorkflows:
             identity_weight=0.7,
         )
         assert wf["1"]["class_type"] == "CheckpointLoaderSimple"
-        assert wf["1"]["inputs"]["ckpt_name"] == SDXL_PHOTONIC
         assert wf["2"]["inputs"]["text"] == "a person on a rooftop at sunset"
         assert wf["3"]["inputs"]["text"] == "ugly, deformed"
         assert wf["4"]["inputs"]["width"] == 1024
         assert wf["4"]["inputs"]["height"] == 1024
         assert wf["10"]["class_type"] == "LoadImage"
         assert wf["10"]["inputs"]["image"] == "char_ref.png"
-        assert wf["11"]["class_type"] == "CLIPVisionLoader"
-        assert wf["11"]["inputs"]["clip_name"] == IPADAPTER_CLIP_VISION
-        assert wf["12"]["class_type"] == "IPAdapterApply"
+        assert wf["11"]["class_type"] == "IPAdapterModelLoader"
+        assert wf["11"]["inputs"]["ipadapter_file"] == IPADAPTER_MODEL
+        assert wf["12"]["class_type"] == "IPAdapter"
         assert wf["12"]["inputs"]["weight"] == 0.7
-        assert wf["12"]["inputs"]["weight_type"] == "original"
-        assert wf["12"]["inputs"]["combine_embeds"] == "concat"
-        # Model passes through IPAdapterApply before KSampler
+        assert wf["12"]["inputs"]["weight_type"] == "standard"
+        assert wf["12"]["inputs"]["model"] == ["1", 0]
+        assert wf["12"]["inputs"]["ipadapter"] == ["11", 0]
+        assert wf["12"]["inputs"]["image"] == ["10", 0]
         assert wf["5"]["inputs"]["model"] == ["12", 0]
         assert wf["6"]["class_type"] == "VAEDecode"
         assert wf["7"]["class_type"] == "SaveImage"
@@ -97,8 +97,8 @@ class TestIPAdapterWorkflows:
 
 class TestRequiredNodes:
     def test_identity_nodes_defined(self):
-        assert "IPAdapterApply" in COMFY_IDENTITY_NODES
-        assert "CLIPVisionLoader" in COMFY_IDENTITY_NODES
+        assert "IPAdapter" in COMFY_IDENTITY_NODES
+        assert "IPAdapterModelLoader" in COMFY_IDENTITY_NODES
 
     def test_required_nodes_include_load_image(self):
         from gateway.image_gen import COMFY_REQUIRED_NODES

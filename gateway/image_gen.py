@@ -24,15 +24,19 @@ from mcp.imagen.io import save_image
 #   COMFY_URL=https://abc-xyz.trycloudflare.com
 COMFY_URL = os.environ.get("COMFY_URL", "http://127.0.0.1:8188")
 
+# Checkpoint names — update these to match what's in ComfyUI's models/checkpoints/.
 SD15_CKPT     = "homofidelis_v50.safetensors"
+SDXL_CKPT     = "RealCoreXL.safetensors"
 BEAR_LORA     = "Muscle_Bear_Baker_v2_for_transfer.safetensors"
 EXPLICIT_LORA = "erect_penis_epoch_80.safetensors"
-SDXL_PHOTONIC = "photonicFusionSDXL_final.safetensors"
+SDXL_PHOTONIC = "RealCoreXL.safetensors"
 
 # IP-Adapter models for identity-preserving generation.
 # These must be present in ComfyUI's models/ipadapter/ directory.
-IPADAPTER_SDXL_MODEL   = "ip-adapter-plus_sdxl_vit-h.safetensors"
-IPADAPTER_CLIP_VISION  = "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
+# The currently installed model is SD1.5 FaceID — download ip-adapter-plus_sdxl_vit-h.safetensors
+# for SDXL identity generation.
+IPADAPTER_MODEL  = "ip-adapter-faceid_sd15.bin"
+IPADAPTER_CLIP_VISION = "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
 
 # These are the built-in node types emitted by Kitty's workflow variants.
 # Checking them through /object_info turns a ComfyUI upgrade or stripped custom
@@ -50,10 +54,10 @@ COMFY_REQUIRED_NODES = frozenset(
     }
 )
 
-# IP-Adapter requires the IPAdapterApply node from ComfyUI_IPAdapter_plus.
-# Marked as optional so basic generation works without it; identity generation
-# verifies this node explicitly before building the workflow.
-COMFY_IDENTITY_NODES = frozenset({"IPAdapterApply", "CLIPVisionLoader"})
+# IP-Adapter requires these node types from ComfyUI_IPAdapter_plus.
+# Marked as optional so basic generation works without them; identity generation
+# verifies these explicitly before building the workflow.
+COMFY_IDENTITY_NODES = frozenset({"IPAdapter", "IPAdapterModelLoader"})
 
 EXPLICIT_KW = {"explicit", "erect", "hard cock", "erection", "boner", "cock", "nude explicit"}
 SDXL_KW     = {"realistic", "sdxl", "photo", "photorealistic", "high res", "high quality", "photonic"}
@@ -175,20 +179,22 @@ def _wf_ipadapter_sdxl(
     steps: int, cfg: float, ckpt: str,
     ref_image_name: str, identity_weight: float = 0.7,
 ) -> dict:
-    """SDXL workflow with IP-Adapter identity preservation."""
+    """SDXL workflow with IP-Adapter FaceID identity preservation."""
     return {
         "1":  {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": ckpt}},
         "2":  {"class_type": "CLIPTextEncode", "inputs": {"text": prompt, "clip": ["1", 1]}},
         "3":  {"class_type": "CLIPTextEncode", "inputs": {"text": neg,    "clip": ["1", 1]}},
         "4":  {"class_type": "EmptyLatentImage", "inputs": {"width": w, "height": h, "batch_size": 1}},
         "10": {"class_type": "LoadImage", "inputs": {"image": ref_image_name}},
-        "11": {"class_type": "CLIPVisionLoader", "inputs": {"clip_name": IPADAPTER_CLIP_VISION}},
-        "12": {"class_type": "IPAdapterApply",
+        "11": {"class_type": "IPAdapterModelLoader", "inputs": {"ipadapter_file": IPADAPTER_MODEL}},
+        "12": {"class_type": "IPAdapter",
                "inputs": {
-                   "ipadapter": ["11", 0], "clip_vision": ["11", 0],
-                   "image": ["10", 0], "model": ["1", 0],
-                   "weight": identity_weight, "weight_type": "original",
-                   "combine_embeds": "concat", "start_at": 0.0, "end_at": 1.0,
+                   "model": ["1", 0],
+                   "ipadapter": ["11", 0],
+                   "image": ["10", 0],
+                   "weight": identity_weight,
+                   "start_at": 0.0, "end_at": 1.0,
+                   "weight_type": "standard",
                }},
         "5":  {"class_type": "KSampler",
                "inputs": {
@@ -240,7 +246,15 @@ async def is_identity_ready() -> bool:
             if not isinstance(payload, dict):
                 return False
             missing = sorted(COMFY_IDENTITY_NODES.difference(payload))
-            return len(missing) == 0
+            if missing:
+                return False
+            # Also verify IPAdapterModelLoader actually finds a model
+            loader_inputs = payload.get("IPAdapterModelLoader", {}).get("input", {}).get("required", {})
+            model_opts = loader_inputs.get("ipadapter_file", [[]])
+            if isinstance(model_opts, list) and len(model_opts) > 1:
+                if not model_opts[0]:
+                    return False
+            return True
     except httpx.RequestError:
         return False
 
@@ -489,10 +503,9 @@ async def generate(prompt: str, parent_id: str | None = None) -> dict:
         model_id, sampler, scheduler = SDXL_PHOTONIC, "euler", "sgm_uniform"
         template = "sdxl_photonic"
     else:
-        workflow = _wf_sd15(prompt, p["negative"], p["w"], p["h"], p["steps"], p["cfg"],
-                            p["lstr"], p["explicit"], p["estr"])
-        model_id, sampler, scheduler = SD15_CKPT, "euler_ancestral", "karras"
-        template = "sd15_basic"
+        workflow = _wf_sdxl(prompt, p["negative"], p["w"], p["h"], p["steps"], p["cfg"], SDXL_PHOTONIC)
+        model_id, sampler, scheduler = SDXL_PHOTONIC, "euler", "sgm_uniform"
+        template = "sdxl_photonic"
 
     workflow_hash = hashlib.sha256(json.dumps(workflow, sort_keys=True).encode()).hexdigest()[:16]
     provider_params = {"lora_strength": p["lstr"], "explicit": p["explicit"]}
