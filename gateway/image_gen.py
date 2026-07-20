@@ -1,12 +1,20 @@
 """ComfyUI image generation — calls the ComfyUI REST API (local or Colab tunnel)."""
 import asyncio
+import hashlib
+import json
 import os
 import time
 from typing import Optional
 
 import httpx
 
-from gateway.image_jobs import ImageJobStore
+from gateway.image_jobs import (
+    ImageJobStatus,
+    create_job,
+    list_recent,
+    transition,
+    update_job,
+)
 
 # Set COMFY_URL to the cloudflared tunnel URL when running on Colab, e.g.:
 #   COMFY_URL=https://abc-xyz.trycloudflare.com
@@ -20,16 +28,27 @@ SDXL_PHOTONIC = "photonicFusionSDXL_final.safetensors"
 EXPLICIT_KW = {"explicit", "erect", "hard cock", "erection", "boner", "cock", "nude explicit"}
 SDXL_KW     = {"realistic", "sdxl", "photo", "photorealistic", "high res", "high quality", "photonic"}
 
-_history: list[dict] = []
-MAX_HISTORY = 20
+def get_history(limit: int = 20) -> list[dict]:
+    """Gallery history from the durable job store (IMG-01) — survives restarts.
 
-# Durable, provider-neutral job store (IMG-01). Replaces the in-memory _history
-# as the source of record; _history is retained for the existing UI poll path.
-_job_store = ImageJobStore()
-
-
-def get_history() -> list[dict]:
-    return list(reversed(_history))
+    Only succeeded jobs with an artifact are gallery entries; the response
+    keeps the legacy {prompt_id, filename, prompt, created_at} shape the UI
+    polls, plus the durable job_id.
+    """
+    entries: list[dict] = []
+    for job in list_recent(limit=max(limit, 1)):
+        if job.status is not ImageJobStatus.SUCCEEDED or not job.output_path:
+            continue
+        entries.append(
+            {
+                "prompt_id": job.provider_job_id or job.job_id,
+                "job_id": job.job_id,
+                "filename": job.output_path,
+                "prompt": job.prompt or "",
+                "created_at": job.created_at,
+            }
+        )
+    return entries
 
 
 def _parse(prompt: str) -> dict:
@@ -146,28 +165,34 @@ async def generate(prompt: str) -> dict:
 
     if p["sdxl"]:
         workflow = _wf_sdxl(prompt, p["negative"], p["w"], p["h"], p["steps"], p["cfg"], SDXL_PHOTONIC)
-        model, sampler, scheduler = SDXL_PHOTONIC, "euler", "sgm_uniform"
+        model_id, sampler, scheduler = SDXL_PHOTONIC, "euler", "sgm_uniform"
         template = "sdxl_photonic"
     else:
         workflow = _wf_sd15(prompt, p["negative"], p["w"], p["h"], p["steps"], p["cfg"],
                             p["lstr"], p["explicit"], p["estr"])
-        model, sampler, scheduler = SD15_CKPT, "euler_ancestral", "karras"
+        model_id, sampler, scheduler = SD15_CKPT, "euler_ancestral", "karras"
         template = "sd15_basic"
 
+    workflow_hash = hashlib.sha256(json.dumps(workflow, sort_keys=True).encode()).hexdigest()[:16]
+    provider_params = {"lora_strength": p["lstr"], "explicit": p["explicit"]}
+
     # Record the job before submitting so it survives a crash mid-generation.
-    job_id = _job_store.create_job(
-        engine="comfyui",
+    job = create_job(
+        provider="comfyui",
+        operation="txt2img",
         prompt=prompt,
         negative_prompt=p["negative"],
+        seed=None,  # seed is embedded in workflow but not surfaced back
+        model_id=model_id,
         width=p["w"],
         height=p["h"],
         steps=p["steps"],
         guidance=p["cfg"],
         sampler=sampler,
         scheduler=scheduler,
-        model=model,
-        provider_params={"lora_strength": p["lstr"], "explicit": p["explicit"]},
-        workflow_template=template,
+        provider_params_json=json.dumps(provider_params),
+        workflow_template_id=template,
+        workflow_hash=workflow_hash,
     )
 
     try:
@@ -176,23 +201,21 @@ async def generate(prompt: str) -> dict:
             if r.status_code != 200:
                 raise RuntimeError(f"ComfyUI rejected prompt: {r.text}")
             prompt_id = r.json()["prompt_id"]
-            _job_store.start_job(job_id, prompt_id)
+            update_job(job.job_id, provider_job_id=prompt_id)
+            transition(job.job_id, ImageJobStatus.SUBMITTED)
             filename = await _poll(client, prompt_id)
     except Exception as exc:
-        _job_store.fail_job(job_id, error_type="submit_error", error_message=str(exc)[:500])
+        update_job(job.job_id, normalized_error=str(exc)[:500])
+        transition(job.job_id, ImageJobStatus.FAILED)
         raise
 
     if not filename:
-        _job_store.fail_job(job_id, error_type="timeout", error_message="Image generation timed out (6 min)")
+        update_job(job.job_id, normalized_error="Image generation timed out (6 min)")
+        transition(job.job_id, ImageJobStatus.FAILED)
         raise TimeoutError("Image generation timed out (6 min)")
 
     # filename lives under ComfyUI's output dir; verified separately (IMG-03).
-    _job_store.complete_job(job_id, output_path=filename, output_verified=False)
+    update_job(job.job_id, output_path=filename)
+    transition(job.job_id, ImageJobStatus.SUCCEEDED)
 
-    entry = {"prompt_id": prompt_id, "filename": filename, "prompt": prompt,
-             "created_at": time.time(), "job_id": job_id}
-    _history.append(entry)
-    if len(_history) > MAX_HISTORY:
-        _history.pop(0)
-
-    return {"prompt_id": prompt_id, "filename": filename, "job_id": job_id}
+    return {"prompt_id": prompt_id, "filename": filename, "job_id": job.job_id}

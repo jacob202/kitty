@@ -304,4 +304,4 @@ async def image_view(filename: str):
 async def image_history(limit: int = 20):
     from gateway.image_gen import get_history
 
-    return {"images": get_history()[:limit]}
+    return {"images": get_history(limit=limit)}

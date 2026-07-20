@@ -1085,9 +1085,11 @@ export async function fetchPerfStats(windowHours = 24): Promise<PerfStats> {
 
 export interface ImageEntry {
   prompt_id: string
+  /** Durable IMG-01 job id — stable across gateway restarts. */
+  job_id?: string
   filename: string
   prompt: string
-  created_at?: number
+  created_at?: number | string
 }
 
 export async function fetchImageStatus(): Promise<{ available: boolean }> {

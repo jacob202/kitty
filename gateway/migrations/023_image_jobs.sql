@@ -1,33 +1,37 @@
--- IMG-01: durable, provider-neutral image-job metadata store.
--- Replaces gateway/image_gen.py's in-memory _history so jobs, seeds, and
--- outputs survive restarts. Provider-neutral: Draw Things and ComfyUI both
--- record through it. API-only to ComfyUI (GPL-3.0): we store only a workflow
--- template name/hash, never the executable graph.
+-- IMG-01: durable provider-neutral image-job metadata store.
+-- Kitty owns the primary key (job_id). Provider identifiers (ComfyUI prompt_id)
+-- live in a nullable provider_job_id column. output_path is nullable until Kitty
+-- verifies and persists the artifact. Lifecycle states and timestamps present
+-- from the start so IMG-02 does not need to redesign the table.
+-- workflow_hash stores a content hash of the ComfyUI workflow for reproducibility
+-- without storing the executable graph (GPL-3.0 boundary).
 CREATE TABLE IF NOT EXISTS image_jobs (
-  id              INTEGER PRIMARY KEY AUTOINCREMENT,
-  engine          TEXT    NOT NULL,
-  provider_job_id TEXT,
-  kind            TEXT    NOT NULL DEFAULT 'txt2img',
-  prompt          TEXT    NOT NULL,
-  negative_prompt TEXT,
-  seed            INTEGER,
-  model           TEXT,
-  preset          TEXT,
-  width           INTEGER,
-  height          INTEGER,
-  steps           INTEGER,
-  guidance        REAL,
-  sampler         TEXT,
-  scheduler       TEXT,
-  provider_params TEXT,
-  workflow_template TEXT,
-  provider_status TEXT    NOT NULL DEFAULT 'pending',
-  output_path     TEXT,
-  output_verified INTEGER NOT NULL DEFAULT 0,
-  error_type      TEXT,
-  error_message   TEXT,
-  parent_id       INTEGER REFERENCES image_jobs(id),
-  created_at      TEXT    NOT NULL,
-  started_at      TEXT,
-  completed_at    TEXT
+    job_id                   TEXT PRIMARY KEY,
+    provider                 TEXT NOT NULL,
+    provider_job_id          TEXT,
+    operation                TEXT NOT NULL,
+    status                   TEXT NOT NULL,
+    prompt                   TEXT,
+    negative_prompt          TEXT,
+    seed                     INTEGER,
+    model_id                 TEXT,
+    preset_id                TEXT,
+    width                    INTEGER,
+    height                   INTEGER,
+    steps                    INTEGER,
+    guidance                 REAL,
+    sampler                  TEXT,
+    scheduler                TEXT,
+    provider_params_json     TEXT,
+    workflow_template_id     TEXT,
+    workflow_hash            TEXT,
+    artifact_id              TEXT,
+    output_path              TEXT,
+    normalized_error         TEXT,
+    provider_diagnostics_json TEXT,
+    parent_id                TEXT REFERENCES image_jobs(job_id),
+    created_at               TEXT NOT NULL,
+    updated_at               TEXT NOT NULL,
+    started_at               TEXT,
+    finished_at              TEXT
 );
