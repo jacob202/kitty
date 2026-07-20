@@ -4,8 +4,8 @@
 {
   "schema_version": 1,
   "updated_at": "2026-07-20T10:00:00Z",
-  "head_sha": "082a2e8b3d08ea87a1f4f0d6d150e4e0b8db5739",
-  "branch": "main",
+  "head_sha": "23ff7860b231592a4e07d6370c4031f18ede74f1",
+  "branch": "docs/kitty-frontend-experience-harvest-2026-07-20",
   "worktree": ".",
   "status": "valid",
   "completed_items": [
@@ -25,7 +25,7 @@
     "branch or registered worktree changes"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": "https://github.com/jacob202/kitty/pull/216"
+  "pull_request": {"number": 216, "state": "OPEN", "head_sha": "23ff7860b231592a4e07d6370c4031f18ede74f1"}
 }
 -->
 

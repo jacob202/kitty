@@ -338,10 +338,14 @@ async def image_generate(req: ImageGenRequest):
 
 @router.post("/image/{job_id}/cancel")
 async def image_cancel(job_id: str):
-    """Stop the ComfyUI worker for a non-terminal durable image job."""
+    """Cancel a ComfyUI image job after verifying prompt ownership."""
     import httpx
 
-    from gateway.image_gen import cancel
+    from gateway.image_gen import (
+        CancellationConflictError,
+        CancellationUnsupportedError,
+        cancel,
+    )
     from gateway.image_jobs import IllegalTransitionError, JobNotFoundError
 
     try:
@@ -350,9 +354,13 @@ async def image_cancel(job_id: str):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except IllegalTransitionError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except CancellationUnsupportedError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except CancellationConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except httpx.HTTPError as exc:
         raise HTTPException(
-            status_code=502, detail=f"ComfyUI interruption failed: {exc}"
+            status_code=502, detail=f"ComfyUI cancellation failed: {exc}"
         ) from exc
 
 

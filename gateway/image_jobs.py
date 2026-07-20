@@ -554,30 +554,51 @@ def normalize_comfyui_request(
 
 
 def reconcile_stale() -> int:
-    """Cancel jobs orphaned by a gateway restart (IMG-02).
+    """Reconcile jobs orphaned by a gateway restart.
 
-    Every non-terminal row found at startup belongs to a ``generate()``
-    coroutine that no longer exists, so nothing will ever drive it to a
-    terminal state — flip it to canceled with an explanatory error.
+    Jobs that were never submitted (no provider_job_id) are marked canceled
+    — their generating coroutine is gone and no provider work exists.
+
+    Jobs that were submitted (have a provider_job_id) are marked failed
+    with a diagnostic message, because the provider may have completed
+    the work while the gateway was down. Marking them canceled would be
+    dishonest when provider state is unknown.
+
     Returns the number of rows reconciled.
     """
     non_terminal = [s.value for s in ImageJobStatus if not s.is_terminal()]
     now = _now_iso()
     placeholders = ",".join("?" for _ in non_terminal)
+    total = 0
     with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
         _ensure_db(conn)
         cur = conn.execute(
             "UPDATE image_jobs SET status = ?, normalized_error = ?, "
-            f"updated_at = ?, finished_at = ? WHERE status IN ({placeholders})",
+            f"updated_at = ?, finished_at = ? WHERE status IN ({placeholders}) "
+            "AND (provider_job_id IS NULL OR provider_job_id = '')",
             (
                 ImageJobStatus.CANCELED.value,
-                "orphaned by gateway restart",
+                "orphaned by gateway restart (never submitted to provider)",
                 now,
                 now,
                 *non_terminal,
             ),
         )
-    return cur.rowcount
+        total += cur.rowcount
+        cur2 = conn.execute(
+            "UPDATE image_jobs SET status = ?, normalized_error = ?, "
+            f"updated_at = ?, finished_at = ? WHERE status IN ({placeholders}) "
+            "AND provider_job_id IS NOT NULL AND provider_job_id != ''",
+            (
+                ImageJobStatus.FAILED.value,
+                "gateway restarted; provider state unknown — manual check needed",
+                now,
+                now,
+                *non_terminal,
+            ),
+        )
+        total += cur2.rowcount
+    return total
 
 
 __all__ = [

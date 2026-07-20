@@ -211,12 +211,29 @@ def _mark_failed(job_id: str, message: str) -> None:
     transition(job_id, ImageJobStatus.FAILED)
 
 
-async def cancel(job_id: str) -> dict:
-    """Cancel an in-flight generation: interrupt ComfyUI, mark job canceled.
+class CancellationUnsupportedError(RuntimeError):
+    """The job's provider does not support cancellation."""
 
-    Raises JobNotFoundError for unknown ids and IllegalTransitionError when
-    the job is already terminal. ComfyUI's /interrupt stops the currently
-    executing prompt.
+
+class CancellationConflictError(RuntimeError):
+    """The job cannot be canceled in its current provider-side state."""
+
+
+async def cancel(job_id: str) -> dict:
+    """Cancel an in-flight ComfyUI generation after verifying prompt ownership.
+
+    Safety rules enforced:
+    - Only comfyui jobs are cancellable (other providers have no implemented
+      cancellation mechanism).
+    - The job must have a stored provider_job_id (prompt was submitted).
+    - ComfyUI's queue/running state is queried to determine whether the
+      requested prompt is currently executing or queued.
+    - /interrupt is sent only when the requested prompt is proven to be the
+      active prompt.
+    - Queued prompts are removed via the /queue DELETE API.
+    - Durable status changes to canceled only after provider-side cancellation
+      succeeds.
+    - Terminal jobs are rejected.
     """
     job = get_job(job_id)
     if job is None:
@@ -225,12 +242,55 @@ async def cancel(job_id: str) -> dict:
         raise IllegalTransitionError(
             f"job {job_id} is already {job.status.value}; nothing to cancel"
         )
-    # /interrupt only stops the prompt ComfyUI is executing right now; a job
-    # queued behind others needs DELETE /queue with the prompt_id. That is a
-    # separate multi-job queueing capability, not a silent no-op here.
+    if job.provider != "comfyui":
+        raise CancellationUnsupportedError(
+            f"cancellation is not supported for provider {job.provider!r}; "
+            f"only comfyui jobs can be canceled"
+        )
+    if not job.provider_job_id:
+        raise CancellationConflictError(
+            f"job {job_id} has no provider_job_id; it was never submitted to ComfyUI"
+        )
+
+    prompt_id = job.provider_job_id
+
     async with httpx.AsyncClient(timeout=10) as client:
-        r = await client.post(f"{COMFY_URL}/interrupt")
-        r.raise_for_status()
+        queue_resp = await client.get(f"{COMFY_URL}/queue")
+        queue_resp.raise_for_status()
+        queue_data = queue_resp.json()
+
+        running_ids = {
+            entry[1] for entry in queue_data.get("queue_running", [])
+            if isinstance(entry, list) and len(entry) > 1
+        }
+        pending_ids = {
+            entry[1] for entry in queue_data.get("queue_pending", [])
+            if isinstance(entry, list) and len(entry) > 1
+        }
+
+        if prompt_id in running_ids:
+            r = await client.post(f"{COMFY_URL}/interrupt")
+            r.raise_for_status()
+        elif prompt_id in pending_ids:
+            r = await client.post(
+                f"{COMFY_URL}/queue",
+                json={"delete": [prompt_id]},
+            )
+            r.raise_for_status()
+        else:
+            history_resp = await client.get(f"{COMFY_URL}/history/{prompt_id}")
+            history_resp.raise_for_status()
+            history = history_resp.json()
+            if prompt_id in history:
+                raise CancellationConflictError(
+                    f"prompt {prompt_id} already completed in ComfyUI; "
+                    f"cannot cancel"
+                )
+            raise CancellationConflictError(
+                f"prompt {prompt_id} is not running, queued, or in history; "
+                f"provider state cannot be determined"
+            )
+
     updated = transition(job_id, ImageJobStatus.CANCELED)
     return {"canceled": True, "job_id": job_id, "status": updated.status.value}
 

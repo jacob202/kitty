@@ -119,19 +119,9 @@ __all__ = [
 # ``import gateway.builder_queue as bq`` working for tests and
 # sibling modules (gateway.builder_attempt, gateway.builder_runner,
 # gateway.builder_initiative, gateway.builder_cli, tests/...).
-# ---------------------------------------------------------------------------
-# Shared ID-generation helper (audit §2.2 fourth-cut cleanup).
-from ._id_helpers import generate_id_with_base36
-
-# -------------------------------------------------------------------------
-# Re-exports from gateway.builder_queue_branch_leases (audit §2.2 #4).
-# Keep ``from gateway.builder_queue import X`` working for
-# ``gateway.builder_identity``, ``gateway.builder_loop``, the CLI,
-# and tests.
-# Cycle: builder_queue_branch_leases imports connect/init_db from
-# builder_queue_db (no cycle); no lazy ``_bq`` import needed.
-# -------------------------------------------------------------------------
-from .builder_queue_branch_leases import (  # noqa: E402,F401 — façade re-exports.
+from . import builder_queue_db as _queue_db  # noqa: E402 — façade re-exports below logger.
+from ._id_helpers import generate_id_with_base36  # noqa: E402
+from .builder_queue_branch_leases import (  # noqa: E402,F401
     _claim_branch_lease_on_conn,
     _release_branch_lease_on_conn,
     _validate_branch_lease_fields,
@@ -140,8 +130,7 @@ from .builder_queue_branch_leases import (  # noqa: E402,F401 — façade re-exp
     release_branch_lease,
     verify_branch_lease,
 )
-from . import builder_queue_db as _queue_db
-from .builder_queue_db import (  # noqa: E402 — placed after logger by design; facades re-exports.
+from .builder_queue_db import (  # noqa: E402,F401
     _VALID_STATES,
     AWAITING_REVIEW,
     BLOCKED,
@@ -151,7 +140,6 @@ from .builder_queue_db import (  # noqa: E402 — placed after logger by design;
     FAILED,
     LEGAL_TRANSITIONS,
     PR_OPENED,
-    # State constants + transition map (Section 4.3)
     QUEUED,
     RUNNING,
     TERMINAL_STATES,
@@ -159,7 +147,6 @@ from .builder_queue_db import (  # noqa: E402 — placed after logger by design;
     DataCorruptionError,
     IllegalTransitionError,
     LeaseConflictError,
-    # Exception classes
     TaskNotFoundError,
 )
 
