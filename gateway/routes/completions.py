@@ -16,7 +16,9 @@ from gateway.constants import MAX_BODY_BYTES
 from gateway.domain_router import classify_domain
 from gateway.http_client import get_http_client
 from gateway.llm_client import (
+    PrivacyBoundaryError,
     chat_completions_non_stream,
+    enforce_privacy_boundary,
     iter_chat_completions_stream,
     log_chat_trace,
     route_model,
@@ -125,8 +127,22 @@ async def chat_completions(request: Request):
     t_start = time.monotonic()
 
     domain = classify_domain(user_text)
+    content_class = body.get("content_class")
+    if content_class is not None and not isinstance(content_class, str):
+        raise HTTPException(
+            status_code=400,
+            detail=f"content_class must be a string, got {content_class!r}",
+        )
     model_from_request = body.get("model", "kitty-default")
     if model_from_request and not model_from_request.startswith("kitty-"):
+        # CR-07: an explicit per-message model override targets a concrete
+        # external (cloud) model, so it must clear the same D10 privacy gate
+        # routed models clear — explicitly, not implicitly (#164). A forbidden
+        # override is a clear 4xx and routes nothing; never a silent fallback.
+        try:
+            enforce_privacy_boundary("cloud_ok", content_class)
+        except PrivacyBoundaryError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         model = model_from_request
     else:
         model = route_model(user_text)
@@ -218,7 +234,7 @@ async def chat_completions(request: Request):
         **{
             key: value
             for key, value in body.items()
-            if key not in {"project_id", "conversation_id", "conversation_title", "user_message_id"}
+            if key not in {"project_id", "conversation_id", "conversation_title", "user_message_id", "content_class"}
         },
         "messages": enriched,
         "model": model,

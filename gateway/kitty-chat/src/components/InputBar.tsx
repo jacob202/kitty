@@ -1,7 +1,7 @@
 'use client'
 import { useRef, useEffect, useState, KeyboardEvent, RefObject } from 'react'
-import { Mic, Square, Paperclip, X } from 'lucide-react'
-import { MessageAttachment } from '@/lib/types'
+import { Mic, Square, Paperclip, X, Zap } from 'lucide-react'
+import { MessageAttachment, Model } from '@/lib/types'
 
 interface Props {
   value: string
@@ -20,6 +20,10 @@ interface Props {
   attachments?: MessageAttachment[]
   onAddFiles?: (files: FileList) => void
   onRemoveAttachment?: (id: string) => void
+  /** CR-07: model list + one-shot override for the next message only. */
+  models?: Model[]
+  overrideModel?: Model | null
+  onOverrideModel?: (m: Model | null) => void
 }
 
 type RecState = 'idle' | 'recording' | 'transcribing'
@@ -38,6 +42,9 @@ export function InputBar({
   attachments = [],
   onAddFiles,
   onRemoveAttachment,
+  models = [],
+  overrideModel = null,
+  onOverrideModel,
 }: Props) {
   const internalRef = useRef<HTMLTextAreaElement>(null)
   const ref = textareaRef ?? internalRef
@@ -46,6 +53,17 @@ export function InputBar({
   const [recState, setRecState] = useState<RecState>('idle')
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
+  const [modelMenuOpen, setModelMenuOpen] = useState(false)
+  const modelMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!modelMenuOpen) return
+    const close = (e: MouseEvent) => {
+      if (!modelMenuRef.current?.contains(e.target as Node)) setModelMenuOpen(false)
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [modelMenuOpen])
 
   useEffect(() => {
     if (!ref.current) return
@@ -187,6 +205,32 @@ export function InputBar({
         </div>
       )}
 
+      {onOverrideModel && overrideModel && (
+        <div style={{ display: 'flex', marginBottom: 8, paddingLeft: 4 }}>
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            fontFamily: 'var(--font-mono)', fontSize: 10,
+            color: overrideModel.color,
+            border: `1.5px solid ${overrideModel.color}`,
+            borderRadius: 99, padding: '3px 10px',
+          }}>
+            <Zap size={10} />
+            next message → {overrideModel.name}
+            <button
+              type="button"
+              onClick={() => onOverrideModel(null)}
+              aria-label="clear model override"
+              style={{
+                display: 'flex', border: 'none', background: 'transparent',
+                color: 'inherit', cursor: 'pointer', padding: 0,
+              }}
+            >
+              <X size={11} />
+            </button>
+          </span>
+        </div>
+      )}
+
       <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -197,6 +241,7 @@ export function InputBar({
         padding: '12px 16px',
         boxShadow: 'var(--input-glow)',
         maxWidth: compact ? '100%' : undefined,
+        position: 'relative',
       }}>
         <span style={{
           fontFamily: 'var(--font-mono)',
@@ -228,6 +273,78 @@ export function InputBar({
           onChange={onFileChange}
           style={{ display: 'none' }}
         />
+
+        {onOverrideModel && models.length > 0 && (
+          <div ref={modelMenuRef} style={{ position: 'relative', flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={() => setModelMenuOpen((o) => !o)}
+              disabled={disabled}
+              title="use a different model for the next message"
+              aria-label="model override for next message"
+              aria-expanded={modelMenuOpen}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 36, height: 36,
+                background: 'transparent', border: 'none', borderRadius: 99,
+                color: overrideModel ? overrideModel.color : 'var(--ink-2)',
+                cursor: disabled ? 'not-allowed' : 'pointer',
+              }}
+            >
+              <Zap size={15} />
+            </button>
+            {modelMenuOpen && (
+              <div
+                role="menu"
+                aria-label="model override menu"
+                style={{
+                  position: 'absolute', bottom: 44, right: 0, zIndex: 30,
+                  minWidth: 160,
+                  background: 'var(--surface)',
+                  border: '1.5px solid var(--line)',
+                  borderRadius: 12,
+                  padding: 6,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+                  display: 'flex', flexDirection: 'column', gap: 2,
+                }}
+              >
+                <div style={{
+                  fontFamily: 'var(--font-mono)', fontSize: 9,
+                  color: 'var(--ink-2)', padding: '4px 8px 6px',
+                  letterSpacing: '0.08em',
+                }}>
+                  next message only
+                </div>
+                {models.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      onOverrideModel(overrideModel?.id === m.id ? null : m)
+                      setModelMenuOpen(false)
+                    }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      fontFamily: 'var(--font-mono)', fontSize: 11,
+                      textAlign: 'left',
+                      color: overrideModel?.id === m.id ? m.color : 'var(--ink)',
+                      background: overrideModel?.id === m.id ? 'var(--surface-2)' : 'transparent',
+                      border: 'none', borderRadius: 8,
+                      padding: '7px 10px', cursor: 'pointer',
+                    }}
+                  >
+                    <span aria-hidden="true" style={{
+                      width: 7, height: 7, borderRadius: 99,
+                      background: m.color, flexShrink: 0,
+                    }} />
+                    {m.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <button
           type="button"

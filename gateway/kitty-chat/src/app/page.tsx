@@ -221,6 +221,8 @@ function KittyChatInner() {
   const pwaInstall = usePwaInstall();
   const [lastOutcome, setLastOutcome] = useState<'done' | 'broke' | null>(null);
   const [attachments, setAttachments] = useState<MessageAttachment[]>([]);
+  // CR-07: one-shot model override — applies to the next message only.
+  const [overrideModel, setOverrideModel] = useState<Model | null>(null);
 
   const catState: CatState = isStreaming ? 'working' : (lastOutcome ?? 'idle');
 
@@ -534,11 +536,14 @@ function KittyChatInner() {
 
   /** Stream one assistant reply into `chat` given `history` (ends with a user
    *  message). Shared by send and retry so the cat's outcome states stay honest. */
-  const runStream = useCallback(async (chat: Chat, history: Message[], title: string, attachmentIds: string[] = []) => {
+  const runStream = useCallback(async (chat: Chat, history: Message[], title: string, attachmentIds: string[] = [], modelOverride?: Model) => {
     const latestUserMessage = [...history].reverse().find((message) => message.role === 'user');
     if (!latestUserMessage) {
       throw new Error('Cannot start a chat turn without a user message');
     }
+    // CR-07: a one-shot override applies to this turn only; the next message
+    // reverts to normal routing via activeModel.
+    const turnModel = modelOverride ?? activeModel;
     setIsStreaming(true);
     setLastOutcome(null);
 
@@ -548,7 +553,7 @@ function KittyChatInner() {
       role: 'assistant',
       content: '',
       timestamp: new Date(),
-      model: activeModel.name,
+      model: turnModel.name,
     };
 
     updateChat(chat.id, (c) => ({ ...c, messages: [...history, aiMsg] }));
@@ -560,7 +565,7 @@ function KittyChatInner() {
     let memoryItems: MemoryEvidence[] | undefined;
     try {
       for await (const chunk of streamChat(
-        activeModel.id,
+        turnModel.id,
         history,
         abort.signal,
         activeProject?.id,
@@ -600,7 +605,7 @@ function KittyChatInner() {
       void persistChat({
         id: chat.id,
         title,
-        model: activeModel.id,
+        model: turnModel.id,
         color: chat.color,
         createdAt: chat.createdAt,
         updatedAt: new Date(),
@@ -628,7 +633,7 @@ function KittyChatInner() {
         void persistChat({
           id: chat.id,
           title,
-          model: activeModel.id,
+          model: turnModel.id,
           color: chat.color,
           createdAt: chat.createdAt,
           updatedAt: new Date(),
@@ -654,7 +659,7 @@ function KittyChatInner() {
       void persistChat({
         id: chat.id,
         title,
-        model: activeModel.id,
+        model: turnModel.id,
         color: chat.color,
         createdAt: chat.createdAt,
         updatedAt: new Date(),
@@ -692,8 +697,10 @@ function KittyChatInner() {
     setAttachments([]);
     setActiveView('chat');
     const attachmentIds = attachments.map((a) => a.id);
-    void runStream(activeChat, [...activeChat.messages, userMsg], title, attachmentIds);
-  }, [input, isStreaming, activeChat, runStream]);
+    const oneShot = overrideModel ?? undefined;
+    setOverrideModel(null);
+    void runStream(activeChat, [...activeChat.messages, userMsg], title, attachmentIds, oneShot);
+  }, [input, isStreaming, activeChat, runStream, overrideModel]);
 
 
   const handleRetry = useCallback(() => {
@@ -1348,6 +1355,9 @@ function KittyChatInner() {
             attachments={attachments}
             onAddFiles={handleAddFiles}
             onRemoveAttachment={handleRemoveAttachment}
+            models={availableModels}
+            overrideModel={overrideModel}
+            onOverrideModel={setOverrideModel}
           />
         )}
       </main>
