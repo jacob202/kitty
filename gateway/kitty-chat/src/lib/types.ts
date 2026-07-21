@@ -31,6 +31,12 @@ export function normalizeMemoryEvidence(value: unknown): MemoryEvidence[] {
   })
 }
 
+export interface ToolCall {
+  id: string
+  name: string
+  arguments: string
+}
+
 export interface Message {
   id: string
   role: 'user' | 'assistant'
@@ -40,6 +46,7 @@ export interface Message {
   mood?: KittyMood
   tags?: string[]
   attachments?: MessageAttachment[]
+  toolCalls?: ToolCall[]
   /** Terminal status of the lifecycle turn that produced this message. */
   turnStatus?: 'running' | 'succeeded' | 'failed' | 'interrupted' | 'cancelled'
   /**

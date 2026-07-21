@@ -39,6 +39,7 @@ import { LoopWatch } from '@/components/LoopWatch';
 import { InsightFeed } from '@/components/InsightFeed';
 import { PromptToolkit } from '@/components/PromptToolkit';
 import { CommandPalette } from '@/components/CommandPalette';
+import { ActiveTaskCards } from '@/components/ActiveTaskCards';
 import { KittyRuntimeProvider } from '@/components/KittyRuntimeProvider';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PwaInstallBanner } from '@/components/PwaInstallBanner';
@@ -566,6 +567,7 @@ function KittyChatInner() {
 
     let accumulated = '';
     let memoryItems: MemoryEvidence[] | undefined;
+    let toolCalls: import('@/lib/types').ToolCall[] | undefined;
     try {
       for await (const chunk of streamChat(
         turnModel.id,
@@ -582,6 +584,14 @@ function KittyChatInner() {
           memoryItems = chunk.memoryItems;
           continue;
         }
+        if (chunk.toolCalls?.length) {
+          toolCalls = chunk.toolCalls;
+          updateChat(chat.id, (c) => ({
+            ...c,
+            messages: c.messages.map((m) => (m.id === aiMsgId ? { ...m, toolCalls } : m)),
+          }));
+          continue;
+        }
         accumulated += chunk.content;
         const content = accumulated;
         updateChat(chat.id, (c) => ({
@@ -591,20 +601,22 @@ function KittyChatInner() {
       }
 
       const mood = inferMood(accumulated, 'assistant');
+      const extras = {
+        ...(memoryItems ? { memoryItems } : {}),
+        ...(toolCalls?.length ? { toolCalls } : {}),
+      };
       updateChat(chat.id, (c) => ({
         ...c,
         updatedAt: new Date(),
         messages: c.messages.map((m) =>
           m.id === aiMsgId
-            ? { ...m, content: accumulated, mood, ...(memoryItems ? { memoryItems } : {}) }
+            ? { ...m, content: accumulated, mood, ...extras }
             : m,
         ),
       }));
       setLastOutcome('done');
       window.setTimeout(() => setLastOutcome((o) => (o === 'done' ? null : o)), 2500);
 
-      // Persist to SQLite — React state stays the source of truth, but the
-      // outcome is surfaced (saving / saved / failed / offline), never swallowed.
       void persistChat({
         id: chat.id,
         title,
@@ -614,7 +626,7 @@ function KittyChatInner() {
         updatedAt: new Date(),
         messages: [
           ...history,
-          { ...aiMsg, content: accumulated, mood, ...(memoryItems ? { memoryItems } : {}) },
+          { ...aiMsg, content: accumulated, mood, ...extras },
         ],
       });
     } catch (err: unknown) {
@@ -1398,6 +1410,8 @@ function KittyChatInner() {
             ))}
           </div>
         )}
+
+        {activeView === 'chat' && <ActiveTaskCards compact={isMobile} />}
 
         {activeView === 'chat' && (
           <InputBar

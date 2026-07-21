@@ -9,10 +9,22 @@ import type { ThreadMessageLike } from '@assistant-ui/react'
 import type { Message, Model } from './types'
 
 function toThreadMessage(msg: Message): ThreadMessageLike {
+  const parts: Array<
+    | { type: 'text'; text: string }
+    | { type: 'tool-call'; toolCallId: string; toolName: string; argsText: string }
+  > = []
+  if (msg.content) {
+    parts.push({ type: 'text', text: msg.content })
+  }
+  if (msg.toolCalls?.length) {
+    for (const tc of msg.toolCalls) {
+      parts.push({ type: 'tool-call', toolCallId: tc.id, toolName: tc.name, argsText: tc.arguments })
+    }
+  }
   return {
     id: msg.id,
     role: msg.role === 'user' ? 'user' : 'assistant',
-    content: [{ type: 'text' as const, text: msg.content }],
+    content: parts,
     createdAt: msg.timestamp,
     ...(msg.model ? { metadata: { custom: { model: msg.model } } } : {}),
   }
