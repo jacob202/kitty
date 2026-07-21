@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext, useCallback, type CSSProperties } from 'react'
-import { ThreadPrimitive } from '@assistant-ui/react'
+import { ThreadPrimitive, useThreadViewport } from '@assistant-ui/react'
 import type { Message } from '@/lib/types'
 import { ChatMessage } from './ChatMessage'
 import { CatBody, type CatState } from './CrayonCat'
@@ -68,9 +68,7 @@ export function KittyThread({
           <MessageList />
 
           <ThreadPrimitive.ViewportFooter style={footerStyle}>
-            <ThreadPrimitive.ScrollToBottom style={scrollBtnStyle}>
-              <span style={scrollBtnArrow}>↓</span>
-            </ThreadPrimitive.ScrollToBottom>
+            <ScrollToBottomButton />
           </ThreadPrimitive.ViewportFooter>
         </ThreadPrimitive.Viewport>
       </ThreadPrimitive.Root>
@@ -113,6 +111,16 @@ function MessageList() {
   )
 
   return <ThreadPrimitive.Messages>{renderMessage}</ThreadPrimitive.Messages>
+}
+
+function ScrollToBottomButton() {
+  const isAtBottom = useThreadViewport((s) => s.isAtBottom)
+  if (isAtBottom) return null
+  return (
+    <ThreadPrimitive.ScrollToBottom style={scrollBtnStyle}>
+      <span style={scrollBtnArrow}>↓</span>
+    </ThreadPrimitive.ScrollToBottom>
+  )
 }
 
 function TodayDivider() {
