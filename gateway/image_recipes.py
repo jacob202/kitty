@@ -270,7 +270,6 @@ def auto_route(
     *,
     has_character: bool = False,
     character_count: int = 0,
-    reference_kinds: set[str] | None = None,
     quality_tier: str = "quality",
     identity_mode: str = "balanced",
     operation: str = "txt2img",
