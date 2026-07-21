@@ -1,9 +1,6 @@
 """Tests for the image runner module — job lifecycle and engine dispatch."""
 from __future__ import annotations
 
-import asyncio
-import sqlite3
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -145,7 +142,7 @@ class TestDrawThingsPath:
             patch("mcp.imagen.engines.get", return_value=fake_engine),
             patch("mcp.imagen.io.save_image", return_value=tmp_path / "dt_out.png"),
         ):
-            result = await run("drawthings", "a bear", recipe=recipe)
+            await run("drawthings", "a bear", recipe=recipe)
 
         jobs = image_jobs.list_recent(limit=1)
         assert len(jobs) == 1

@@ -9,8 +9,6 @@ Invariant: if run() returns or raises, the job is in a terminal state.
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import json
 from dataclasses import dataclass
 from typing import Any
 
@@ -69,9 +67,6 @@ async def run(
     engine = engine.strip().lower()
     if engine not in {"comfyui", "drawthings"}:
         raise ImageRunnerError(f"unknown engine {engine!r}; must be 'comfyui' or 'drawthings'")
-
-    recipe_id = recipe.recipe_id if recipe else None
-    routing_reason = None
 
     if engine == "drawthings":
         return await _run_drawthings(

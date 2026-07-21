@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 router = APIRouter(tags=["extended"])
@@ -384,36 +384,33 @@ async def image_history(limit: int = 20):
 
 # --- Image Studio V1: Characters ---
 
-from pydantic import BaseModel as PydanticBaseModel
-from typing import Optional as Opt, List
 
-
-class CharacterCreate(PydanticBaseModel):
+class CharacterCreate(BaseModel):
     name: str
-    description: Opt[str] = None
-    preferred_recipe: Opt[str] = None
+    description: Optional[str] = None
+    preferred_recipe: Optional[str] = None
     identity_preset: str = "balanced"
 
 
-class CharacterUpdate(PydanticBaseModel):
-    name: Opt[str] = None
-    description: Opt[str] = None
-    preferred_recipe: Opt[str] = None
-    identity_preset: Opt[str] = None
+class CharacterUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    preferred_recipe: Optional[str] = None
+    identity_preset: Optional[str] = None
 
 
-class RecipeUpdate(PydanticBaseModel):
+class RecipeUpdate(BaseModel):
     available: bool
 
 
-class StudioGenerateRequest(PydanticBaseModel):
+class StudioGenerateRequest(BaseModel):
     prompt: str
     quality: str = "quality"
     identity: str = "balanced"
-    character_id: Opt[str] = None
-    reference_ids: Opt[List[str]] = None
-    recipe_id: Opt[str] = None
-    negative_prompt: Opt[str] = None
+    character_id: Optional[str] = None
+    reference_ids: Optional[List[str]] = None
+    recipe_id: Optional[str] = None
+    negative_prompt: Optional[str] = None
 
 
 @router.get("/studio/characters")
@@ -563,7 +560,11 @@ async def studio_character_quality(character_id: str):
 
 @router.delete("/studio/characters/{character_id}/references/{ref_id}")
 async def studio_delete_character_ref(character_id: str, ref_id: str):
-    from gateway.image_characters import CharacterError, CharacterNotFoundError, delete_character_ref
+    from gateway.image_characters import (
+        CharacterError,
+        CharacterNotFoundError,
+        delete_character_ref,
+    )
     try:
         delete_character_ref(character_id, ref_id)
         return {"deleted": True}

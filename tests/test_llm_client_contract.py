@@ -1,7 +1,7 @@
 """Contract tests for call_llm's ProviderChainExhausted error."""
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 

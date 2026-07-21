@@ -4,12 +4,11 @@ from __future__ import annotations
 import json
 
 from gateway.image_gen import (
-    _wf_ipadapter_sdxl,
-    _wf_ipadapter_identity,
-    IPADAPTER_MODEL,
-    IPADAPTER_CLIP_VISION,
-    SDXL_PHOTONIC,
     COMFY_IDENTITY_NODES,
+    IPADAPTER_MODEL,
+    SDXL_PHOTONIC,
+    _wf_ipadapter_identity,
+    _wf_ipadapter_sdxl,
 )
 
 

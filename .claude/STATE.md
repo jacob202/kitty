@@ -3,8 +3,8 @@
 <!-- kitty-state
 {
   "schema_version": 1,
-  "updated_at": "2026-07-20T18:00:00Z",
-  "head_sha": "9f2960683031f37ca2e08bd610ad8efd1186865d",
+  "updated_at": "2026-07-21T18:25:00Z",
+  "head_sha": "1c3dc5bd8d3374f98b0a1819b721bb93d0a89162",
   "branch": "feat/image-studio-v1",
   "worktree": ".",
   "status": "in_progress",
@@ -16,14 +16,15 @@
     "kitty-chat vitest: 33 files / 256 tests all pass on this branch",
     "call_llm fail-loud contract implemented: new ProviderChainExhausted(RuntimeError, code='llm.chain_exhausted') in gateway/llm_client.py replaces silent return \"\" on chain deadline and provider exhaustion; tests/test_llm_client_contract.py added; tests/test_llm_client.py updated to assert new raise contract",
     "redundant seed_default_recipes() calls removed from 3 route handlers in gateway/routes/extended.py (already seeded once in app.py lifespan)",
-    "STATE and HANDOFF continuity docs rewritten to match live git + PR state; ./kitty context --agent now returns 27/27 PASS",
-    "full pytest: 2676 passed / 1 skipped / 4 deselected (2 pre-existing timing flakes in test_builder_loop and test_builder_runner + the 2 old assert-empty-string tests replaced by the raise-contract tests)",
-    "Architecture deepening review: 4 candidates identified and crystallized with implementation plans (see docs/plans/) — all 4 verified as delivered against live code"
+    "Architecture deepening review: 4 candidates identified and crystallized with implementation plans (see docs/plans/) — all 4 verified as delivered against live code",
+    "committed 74cdffd (image_runner extraction + llm_client/memory_graph fail-loud contracts), 5040fc8 (book ingestion script), 3a0acc5 (skill cleanup/archive), 1c3dc5b (continuity state update)",
+    "restored missing kitty-handoff metadata block in .claude/HANDOFF.md, dropped by a /compact hook rewrite earlier this session and committed without validation — root cause of 6 test failures",
+    "confirmed the third full pytest run's 148 errors were disk-space exhaustion (OSError: could not create numbered dir ... after 10 tries), not code regressions"
   ],
   "blockers": [],
-  "next_action": "Smoke-test Image Studio V1 end-to-end against a live ComfyUI (character add → recipe pick → generate → gallery). ComfyUI IPAdapter_FaceID node names in 9f29606 are unverified against a running engine; that is the last unbounded validation limitation on this branch. Do not push feat/image-studio-v1 or open a PR without Jacob's explicit approval.",
+  "next_action": "Rerun tests/test_check_continuity_state.py and tests/test_cold_start_acceptance.py to confirm the HANDOFF metadata fix resolves all failures, then smoke-test Image Studio V1 end-to-end against a live ComfyUI (character add -> recipe pick -> generate -> gallery). ComfyUI IPAdapter_FaceID node names in 9f29606 are unverified against a running engine. Do not push feat/image-studio-v1 or open a PR without Jacob's explicit approval.",
   "invalidation_conditions": [
-    "HEAD changes beyond 9f2960683031f37ca2e08bd610ad8efd1186865d",
+    "HEAD changes beyond 1c3dc5bd8d3374f98b0a1819b721bb93d0a89162",
     "branch or registered worktree changes",
     "origin/main advances beyond f2f79dc39096f140826c05fb85ce480f5f7ee625"
   ],

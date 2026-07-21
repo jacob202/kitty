@@ -10,7 +10,6 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from gateway.memory_graph import (
-    GraphResult,
     InboxAdapter,
     Item,
     JournalAdapter,
@@ -20,10 +19,8 @@ from gateway.memory_graph import (
     SignalsAdapter,
     Source,
     TodosAdapter,
-    TracesAdapter,
     WeaveAdapter,
 )
-
 
 # ── Failure isolation contract ───────────────────────────────────────────────
 
