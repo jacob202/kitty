@@ -17,7 +17,7 @@ import { inferMood } from '@/lib/mood';
 import { TopBar } from '@/components/TopBar';
 import { ThreadGoal } from '@/components/ThreadGoal';
 import { SignalFeed } from '@/components/SignalCard';
-import { ChatMessage } from '@/components/ChatMessage';
+import { KittyThread } from '@/components/KittyThread';
 import { InputBar } from '@/components/InputBar';
 import { HomeState } from '@/components/HomeState';
 import { Rail } from '@/components/Rail';
@@ -44,7 +44,7 @@ import { KittyRuntimeProvider } from '@/components/KittyRuntimeProvider';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PwaInstallBanner } from '@/components/PwaInstallBanner';
 import { WobFilters, PaperGrain } from '@/components/WobFilters';
-import { CatCorner, CatBody, type CatState } from '@/components/CrayonCat';
+import { CatCorner, type CatState } from '@/components/CrayonCat';
 import {
   buildGatewayModels,
   fetchGatewaySearch,
@@ -358,7 +358,6 @@ function KittyChatInner() {
   );
 
   const abortRef = useRef<AbortController | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
   const colorIndexRef = useRef(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -375,10 +374,6 @@ function KittyChatInner() {
       setActiveChatId(chats[0].id);
     }
   }, [chats, activeChatId]);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [activeChat?.messages.length, isStreaming]);
 
   // Sync activeModel with the authoritative runtime model list once it loads.
   useEffect(() => {
@@ -1168,158 +1163,20 @@ function KittyChatInner() {
               <div style={panelPadding(isMobile)}>
                 <BuilderPanel onBack={() => setActiveView('home')} />
               </div>
-            ) : activeView === 'chat' && activeChat && activeChat.messages.length > 0 ? (
-              <div
-                style={{
-                  padding: isMobile ? '18px 14px 16px' : '30px 44px 16px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 18,
-                  paddingBottom: isMobile ? 176 : 140,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, opacity: 0.7 }}>
-                  <span style={{ flex: 1, height: 1.5, background: 'var(--line)' }} />
-                  <span
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 10,
-                      letterSpacing: '0.1em',
-                      textTransform: 'uppercase',
-                      color: 'var(--ink-2)',
-                    }}
-                  >
-                    today
-                  </span>
-                  <span style={{ flex: 1, height: 1.5, background: 'var(--line)' }} />
-                </div>
-                {activeChat.messages.map((msg, i) => {
-                  const isLast = i === activeChat.messages.length - 1;
-                  const prev = i > 0 ? activeChat.messages[i - 1] : null;
-                  const isFirstInRun = !prev || prev.role !== msg.role;
-                  return (
-                    <ChatMessage
-                      key={msg.id}
-                      message={msg}
-                      chatId={activeChat.id}
-                      messageIndex={i}
-                      isStreaming={isStreaming && isLast && msg.role === 'assistant'}
-                      isFirstInRun={isFirstInRun}
-                      catState={catState}
-                      compact={isMobile}
-                      onRetry={isLast && msg.role === 'assistant' && !isStreaming ? handleRetry : undefined}
-                    />
-                  );
-                })}
-                <div ref={bottomRef} />
-              </div>
             ) : activeView === 'chat' ? (
-              <div
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 30,
-                  paddingBottom: 100,
-                  maxWidth: 420,
-                  margin: '0 auto',
-                  textAlign: 'center',
-                  padding: 40,
+              <KittyThread
+                messages={activeChat?.messages ?? []}
+                chatId={activeChat?.id ?? ''}
+                isStreaming={isStreaming}
+                catState={catState}
+                compact={isMobile}
+                onRetry={handleRetry}
+                onStartClick={() => textareaRef.current?.focus()}
+                onChipClick={(chip) => {
+                  setInput(chip);
+                  textareaRef.current?.focus();
                 }}
-              >
-                <div className="cat-idle" style={{ position: 'relative' }}>
-                  <CatBody size={140} />
-                </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 12,
-                    alignItems: 'center',
-                  }}
-                >
-                  <h1
-                    style={{
-                      fontFamily: 'var(--font-display)',
-                      fontWeight: 800,
-                      fontSize: 64,
-                      letterSpacing: '-0.035em',
-                      color: 'var(--ink)',
-                      lineHeight: 0.86,
-                    }}
-                  >
-                    hey.
-                  </h1>
-                  <p
-                    style={{
-                      fontSize: 16,
-                      lineHeight: 1.6,
-                      color: 'var(--ink-2)',
-                      maxWidth: 300,
-                    }}
-                  >
-                    {
-                      "i'm kitty. drawn by a six-year-old, allegedly. here when you need me — let's get things done."
-                    }
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    textareaRef.current?.focus();
-                  }}
-                  style={{
-                    background: 'var(--primary)',
-                    color: 'var(--on-primary)',
-                    border: 'none',
-                    borderRadius: 14,
-                    padding: '14px 40px',
-                    fontFamily: 'var(--font-body)',
-                    fontSize: 16,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    boxShadow: 'var(--btn-shadow)',
-                    letterSpacing: '-0.01em',
-                  }}
-                >
-                  {"let's go →"}
-                </button>
-
-                <div
-                  style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: 9,
-                    justifyContent: 'center',
-                    marginTop: 8,
-                  }}
-                >
-                  {['plan my week', 'draft a reply', "what's on today", 'summarise a doc'].map(
-                    (chip) => (
-                      <button
-                        key={chip}
-                        onClick={() => {
-                          setInput(chip);
-                          textareaRef.current?.focus();
-                        }}
-                        style={{
-                          fontFamily: 'var(--font-body)',
-                          fontSize: 13,
-                          color: 'var(--ink)',
-                          background: 'var(--surface)',
-                          border: '1.5px solid var(--line)',
-                          borderRadius: 12,
-                          padding: '8px 16px',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {chip}
-                      </button>
-                    ),
-                  )}
-                </div>
-              </div>
+              />
             ) : activeView === 'home' ? (
               <HomeState
                 compact={isMobile}
