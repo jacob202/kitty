@@ -64,6 +64,41 @@ from .builder_queue_db import (  # noqa: F401
     LeaseConflictError,
     TaskNotFoundError,
 )
+from .builder_queue_leases import (  # noqa: F401
+    claim_next,
+    claim_task,
+    operator_release_task,
+    recover_expired_leases,
+    renew_lease,
+    worker_release_task,
+    worker_transition_task,
+)
+from .builder_queue_runs import (  # noqa: F401
+    RUN_ACTIVE_STATES,
+    RUN_CANCEL_REQUESTED,
+    RUN_CANCELLED,
+    RUN_EXITED,
+    RUN_FAILED,
+    RUN_INTERRUPTED,
+    RUN_LEASE_LOST,
+    RUN_RUNNING,
+    RUN_SCOPE_VIOLATION,
+    RUN_STARTING,
+    RUN_TERMINAL_STATES,
+    RUN_TIMEOUT,
+    RUN_TRANSITIONS,
+    ActiveRunConflictError,
+    RunNotFoundError,
+    RunStateConflictError,
+    capture_process_identity,
+    create_run,
+    finalize_run,
+    generate_run_id,
+    get_run,
+    list_runs,
+    recover_interrupted_runs,
+    update_run,
+)
 from .query_builder import WhereClause, build_where
 
 logger = logging.getLogger("kitty.builder_queue")
@@ -143,44 +178,6 @@ __all__ = [
     "verify_branch_lease",
 ]
 
-# ---------------------------------------------------------------------------
-# Re-exports from gateway.builder_queue_db (audit §2.2 first cut).
-# Keep ``from gateway.builder_queue import X`` and
-# ``import gateway.builder_queue as bq`` working for tests and
-# sibling modules (gateway.builder_attempt, gateway.builder_runner,
-# gateway.builder_initiative, gateway.builder_cli, tests/...).
-from . import builder_queue_db as _queue_db  # noqa: E402 — façade re-exports below logger.
-from ._id_helpers import generate_id_with_base36  # noqa: E402
-from .builder_queue_branch_leases import (  # noqa: E402,F401
-    _claim_branch_lease_on_conn,
-    _release_branch_lease_on_conn,
-    _validate_branch_lease_fields,
-    claim_branch_lease,
-    get_branch_lease,
-    release_branch_lease,
-    verify_branch_lease,
-)
-from .builder_queue_db import (  # noqa: E402,F401
-    _VALID_STATES,
-    AWAITING_REVIEW,
-    BLOCKED,
-    CANCELLED,
-    CLAIMED,
-    DONE,
-    FAILED,
-    LEGAL_TRANSITIONS,
-    PR_OPENED,
-    QUEUED,
-    RUNNING,
-    TERMINAL_STATES,
-    BranchLeaseConflictError,
-    DataCorruptionError,
-    IllegalTransitionError,
-    LeaseConflictError,
-    TaskNotFoundError,
-)
-
-
 def connect(db_path: Path | None = None) -> sqlite3.Connection:
     """Open the queue DB, preserving the legacy façade path override."""
     return _queue_db.connect(BUILDER_QUEUE_DB if db_path is None else db_path)
@@ -189,59 +186,6 @@ def connect(db_path: Path | None = None) -> sqlite3.Connection:
 def init_db(db_path: Path | None = None) -> None:
     """Initialize the queue DB, preserving the legacy façade path override."""
     _queue_db.init_db(BUILDER_QUEUE_DB if db_path is None else db_path)
-
-# ---------------------------------------------------------------------------
-# Re-exports from gateway.builder_queue_leases (audit §2.2 second cut).
-# Keep ``from gateway.builder_queue import X`` working for
-# ``gateway.builder_runner`` (renew_lease heartbeat), ``builder_attempt``
-# (claim / release worker paths), the CLI, and tests.
-# ---------------------------------------------------------------------------
-from .builder_queue_leases import (  # noqa: E402,F401 — façade re-exports; placed after logger by design.
-    claim_next,
-    claim_task,
-    operator_release_task,
-    recover_expired_leases,
-    renew_lease,
-    worker_release_task,
-    worker_transition_task,
-)
-
-# ---------------------------------------------------------------------------
-# Re-exports from gateway.builder_queue_runs (audit §2.2 third cut).
-# Keep ``from gateway.builder_queue import X`` working for
-# ``gateway.builder_runner`` (run_worker finalize + heartbeat), the CLI,
-# and tests.
-# Cycle break: builder_queue_runs.py lazy-imports
-# ``gateway.builder_queue`` inside functions that need ``append_event`` or
-# ``_apply_transition``; this top-level re-export is safe because
-# builder_queue is fully loaded before builder_queue_runs is reached.
-# ---------------------------------------------------------------------------
-from .builder_queue_runs import (  # noqa: E402,F401 — façade re-exports; placed after logger by design.
-    RUN_ACTIVE_STATES,
-    RUN_CANCEL_REQUESTED,
-    RUN_CANCELLED,
-    RUN_EXITED,
-    RUN_FAILED,
-    RUN_INTERRUPTED,
-    RUN_LEASE_LOST,
-    RUN_RUNNING,
-    RUN_SCOPE_VIOLATION,
-    RUN_STARTING,
-    RUN_TERMINAL_STATES,
-    RUN_TIMEOUT,
-    RUN_TRANSITIONS,
-    ActiveRunConflictError,
-    RunNotFoundError,
-    RunStateConflictError,
-    capture_process_identity,
-    create_run,
-    finalize_run,
-    generate_run_id,
-    get_run,
-    list_runs,
-    recover_interrupted_runs,
-    update_run,
-)
 
 # ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------

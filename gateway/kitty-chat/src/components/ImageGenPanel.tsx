@@ -169,28 +169,6 @@ export function ImageGenPanel() {
       {/* Image gallery with lightbox */}
       {state !== 'generating' && (
         <ImageGallery images={history} />
-      {/* Image history grid */}
-      {history.length > 0 && (
-        <div style={gridStyle}>
-          {history.map(img => (
-            <div key={img.prompt_id} style={thumbWrapStyle}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                // Keep absolute Kitty-store paths in one proxy segment so the
-                // catch-all route does not drop the leading slash.
-                src={`/proxy/image/view/${encodeURIComponent(img.filename)}`}
-                alt={img.prompt}
-                style={thumbStyle}
-                title={img.prompt}
-                loading="lazy"
-              />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {history.length === 0 && state !== 'generating' && (
-        <p style={emptyStyle}>no images yet</p>
       )}
     </div>
   )
