@@ -99,6 +99,7 @@ DEFAULT_RECIPES: list[dict[str, Any]] = [
         "supported_aspects": ["1:1", "3:2", "2:3", "16:9"],
         "supports_img2img": True,
         "supports_variation": True,
+        "is_available": False,
         "priority": 10,
     },
     {
@@ -149,6 +150,7 @@ DEFAULT_RECIPES: list[dict[str, Any]] = [
         "required_models": ["sd_xl_base_1.0.safetensors"],
         "required_nodes": ["ComfyUI_PuLID"],
         "license_notes": "PuLID: Apache-2.0. Requires InsightFace (research/non-commercial for some backends — verify model license). SDXL: CreativeML Open RAIL++-M.",
+        "is_available": False,
         "priority": 30,
     },
     {
@@ -163,6 +165,7 @@ DEFAULT_RECIPES: list[dict[str, Any]] = [
         "supported_aspects": ["1:1", "3:2", "2:3"],
         "supports_img2img": True,
         "supports_variation": True,
+        "is_available": False,
         "priority": 5,
     },
 ]

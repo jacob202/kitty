@@ -25,10 +25,9 @@ from mcp.imagen.io import save_image
 COMFY_URL = os.environ.get("COMFY_URL", "http://127.0.0.1:8188")
 
 # Checkpoint names — update these to match what's in ComfyUI's models/checkpoints/.
-SD15_CKPT     = "homofidelis_v50.safetensors"
+# Legacy checkpoint names — SD15_CKPT is unused (SDXL-only generation).
+# Kept for reference; _wf_sd15 was removed in the recipe-cleanup deepening.
 SDXL_CKPT     = "RealCoreXL.safetensors"
-BEAR_LORA     = "Muscle_Bear_Baker_v2_for_transfer.safetensors"
-EXPLICIT_LORA = "erect_penis_epoch_80.safetensors"
 SDXL_PHOTONIC = "RealCoreXL.safetensors"
 
 # IP-Adapter models for identity-preserving generation.
@@ -60,7 +59,6 @@ COMFY_REQUIRED_NODES = frozenset(
 COMFY_IDENTITY_NODES = frozenset({"IPAdapter", "IPAdapterModelLoader"})
 
 EXPLICIT_KW = {"explicit", "erect", "hard cock", "erection", "boner", "cock", "nude explicit"}
-SDXL_KW     = {"realistic", "sdxl", "photo", "photorealistic", "high res", "high quality", "photonic"}
 
 
 class ImageGenerationCancelled(RuntimeError):
@@ -91,71 +89,31 @@ def get_history(limit: int = 20) -> list[dict]:
 
 
 def _parse(prompt: str) -> dict:
+    """Extract keyword-derived params for an SDXL workflow.
+
+    Always returns SDXL-native defaults (1024×1024, 6 steps, cfg 1.5).
+    Keyword overrides for dimensions and quality are preserved.
+    """
     low = prompt.lower()
-    sdxl     = any(k in low for k in SDXL_KW)
-    photonic = "photonic" in low
     explicit = any(k in low for k in EXPLICIT_KW)
 
-    if sdxl:
-        w, h, steps, cfg = 1024, 1024, 6, 1.5
-        if "portrait" in low:
-            w, h = 832, 1216
-        if "landscape" in low:
-            w, h = 1216, 832
-        if "detailed" in low:
-            steps, cfg = 10, 2.0
-    else:
-        w, h, steps, cfg = 512, 512, 25, 7.0
-        if "portrait" in low:
-            w, h = 512, 768
-        if "landscape" in low:
-            w, h = 768, 512
-        if "fast" in low:
-            steps = 15
-        if "detailed" in low:
-            steps = 35
-
-    lstr = 1.0 if "more bear" in low else 0.5 if "less bear" in low else 0.8
-    estr = 0.75
+    w, h, steps, cfg = 1024, 1024, 6, 1.5
+    if "portrait" in low:
+        w, h = 832, 1216
+    if "landscape" in low:
+        w, h = 1216, 832
+    if "detailed" in low:
+        steps, cfg = 10, 2.0
 
     neg = "worst quality, low quality, bad anatomy, deformed, ugly, watermark, text, blurry"
-    if sdxl:
-        neg += ", illustration, painting, drawing, cartoon"
+    neg += ", illustration, painting, drawing, cartoon"
 
-    return dict(sdxl=sdxl, photonic=photonic, explicit=explicit,
-                w=w, h=h, steps=steps, cfg=cfg, lstr=lstr, estr=estr,
+    return dict(explicit=explicit, w=w, h=h, steps=steps, cfg=cfg,
                 negative=neg)
 
 
 def _seed() -> int:
     return int.from_bytes(os.urandom(8), "little") & 0xFFFFFFFFFFFFFFFF
-
-
-def _wf_sd15(prompt: str, neg: str, w: int, h: int, steps: int, cfg: float,
-             lstr: float, explicit: bool, estr: float) -> dict:
-    wf = {
-        "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": SD15_CKPT}},
-        "4": {"class_type": "LoraLoader",
-              "inputs": {"model": ["1", 0], "clip": ["1", 1],
-                         "lora_name": BEAR_LORA, "strength_model": lstr, "strength_clip": lstr}},
-    }
-    model_node, clip_node = "4", "4"
-    if explicit:
-        wf["9"] = {"class_type": "LoraLoader",
-                   "inputs": {"model": [model_node, 0], "clip": [clip_node, 1],
-                              "lora_name": EXPLICIT_LORA, "strength_model": estr, "strength_clip": 0.0}}
-        model_node = "9"
-    wf["2"] = {"class_type": "CLIPTextEncode", "inputs": {"text": prompt, "clip": [clip_node, 1]}}
-    wf["3"] = {"class_type": "CLIPTextEncode", "inputs": {"text": neg,    "clip": [clip_node, 1]}}
-    wf["5"] = {"class_type": "EmptyLatentImage", "inputs": {"width": w, "height": h, "batch_size": 1}}
-    wf["6"] = {"class_type": "KSampler",
-               "inputs": {"seed": _seed(), "steps": steps, "cfg": cfg,
-                          "sampler_name": "euler_ancestral", "scheduler": "karras",
-                          "denoise": 1.0, "model": [model_node, 0],
-                          "positive": ["2", 0], "negative": ["3", 0], "latent_image": ["5", 0]}}
-    wf["7"] = {"class_type": "VAEDecode",  "inputs": {"samples": ["6", 0], "vae": ["1", 2]}}
-    wf["8"] = {"class_type": "SaveImage",  "inputs": {"filename_prefix": "Kitty", "images": ["7", 0]}}
-    return wf
 
 
 def _wf_sdxl(prompt: str, neg: str, w: int, h: int, steps: int, cfg: float, ckpt: str) -> dict:
@@ -498,17 +456,12 @@ async def generate(prompt: str, parent_id: str | None = None) -> dict:
     """Submit prompt to ComfyUI, poll until done, return {prompt_id, filename, job_id}."""
     p = _parse(prompt)
 
-    if p["sdxl"]:
-        workflow = _wf_sdxl(prompt, p["negative"], p["w"], p["h"], p["steps"], p["cfg"], SDXL_PHOTONIC)
-        model_id, sampler, scheduler = SDXL_PHOTONIC, "euler", "sgm_uniform"
-        template = "sdxl_photonic"
-    else:
-        workflow = _wf_sdxl(prompt, p["negative"], p["w"], p["h"], p["steps"], p["cfg"], SDXL_PHOTONIC)
-        model_id, sampler, scheduler = SDXL_PHOTONIC, "euler", "sgm_uniform"
-        template = "sdxl_photonic"
+    workflow = _wf_sdxl(prompt, p["negative"], p["w"], p["h"], p["steps"], p["cfg"], SDXL_PHOTONIC)
+    model_id, sampler, scheduler = SDXL_PHOTONIC, "euler", "sgm_uniform"
+    template = "sdxl_photonic"
 
     workflow_hash = hashlib.sha256(json.dumps(workflow, sort_keys=True).encode()).hexdigest()[:16]
-    provider_params = {"lora_strength": p["lstr"], "explicit": p["explicit"]}
+    provider_params = {"explicit": p["explicit"]}
 
     # Record the job before submitting so it survives a crash mid-generation.
     job = create_job(

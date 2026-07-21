@@ -49,6 +49,8 @@ async def lifespan(app: FastAPI):
     validate_dirs()
     validate_env()
     _reconcile_image_jobs_on_startup()
+    from gateway.image_recipes import seed_default_recipes
+    seed_default_recipes()
     try:
         from gateway.telegram_bot import is_configured as tg_configured
         from gateway.telegram_bot import start_polling

@@ -287,49 +287,23 @@ async def image_status():
 
 @router.post("/image/generate")
 async def image_generate(req: ImageGenRequest):
-    import asyncio
-
-    from gateway.image_gen import generate, is_available
+    from gateway.image_runner import ImageRunnerError, run
 
     engine = req.engine.strip().lower()
     if engine not in {"comfyui", "drawthings"}:
         raise HTTPException(status_code=422, detail="engine must be 'comfyui' or 'drawthings'")
 
-    if engine == "drawthings":
-        from gateway import image_jobs
-        from mcp.imagen.engines import get
-        from mcp.imagen.io import save_image
-
-        drawthings = get("drawthings")
-        probe = getattr(getattr(drawthings, "_adapter", None), "is_available", None)
-        if probe is not None and not await asyncio.to_thread(probe):
-            raise HTTPException(status_code=503, detail="Draw Things is not running")
-        job = image_jobs.create_job(
-            provider="drawthings",
-            operation="variation" if req.parent_id else "txt2img",
-            prompt=req.prompt,
-            parent_id=req.parent_id,
-            model_id=getattr(drawthings, "model_name", None),
-        )
-        try:
-            image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.SUBMITTED)
-            image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.RUNNING)
-            data = await drawthings.generate_async(req.prompt)
-            path = await asyncio.to_thread(save_image, data, prefix="drawthings")
-            image_jobs.update_job(job.job_id, output_path=str(path))
-            image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.SUCCEEDED)
-        except Exception as exc:
-            image_jobs.update_job(job.job_id, normalized_error=str(exc)[:500])
-            image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.FAILED)
-            raise
-        return {"filename": str(path), "job_id": job.job_id, "engine": engine}
-
-    if not await is_available():
-        raise HTTPException(status_code=503, detail="ComfyUI is not running")
     try:
-        result = await generate(req.prompt, parent_id=req.parent_id)
-        result["engine"] = engine
-        return result
+        result = await run(engine, req.prompt, parent_id=req.parent_id)
+        return {
+            "prompt_id": result.prompt_id,
+            "filename": result.filename,
+            "job_id": result.job_id,
+            "engine": result.engine,
+        }
+    except ImageRunnerError as e:
+        status = 503 if "not running" in str(e).lower() else 400
+        raise HTTPException(status_code=status, detail=str(e))
     except TimeoutError as e:
         raise HTTPException(status_code=504, detail=str(e))
     except Exception as e:
@@ -438,19 +412,14 @@ class StudioGenerateRequest(PydanticBaseModel):
     identity: str = "balanced"
     character_id: Opt[str] = None
     reference_ids: Opt[List[str]] = None
-    aspect_ratio: Opt[str] = None
-    image_count: int = 1
     recipe_id: Opt[str] = None
-    seed: Opt[int] = None
     negative_prompt: Opt[str] = None
 
 
 @router.get("/studio/characters")
 async def studio_list_characters():
     from gateway.image_characters import list_characters
-    from gateway.image_recipes import seed_default_recipes
 
-    seed_default_recipes()
     chars = list_characters()
     return {"characters": [c.to_dict() for c in chars]}
 
@@ -608,8 +577,7 @@ async def studio_delete_character_ref(character_id: str, ref_id: str):
 
 @router.get("/studio/recipes")
 async def studio_list_recipes(available_only: bool = False):
-    from gateway.image_recipes import list_recipes, seed_default_recipes
-    seed_default_recipes()
+    from gateway.image_recipes import list_recipes
     recipes = list_recipes(available_only=available_only)
     return {"recipes": [r.to_dict() for r in recipes]}
 
@@ -628,19 +596,11 @@ async def studio_update_recipe(recipe_id: str, req: RecipeUpdate):
 
 @router.post("/studio/generate")
 async def studio_generate(req: StudioGenerateRequest):
-    import asyncio
-    import json
-    import os
-
-    from gateway import image_jobs, image_recipes
-    from gateway.image_gen import generate as comfy_generate, is_available as comfy_available
-    from mcp.imagen.engines import get
-    from mcp.imagen.io import save_image
+    from gateway import image_recipes
+    from gateway.image_runner import ImageRunnerError, run
 
     if not req.prompt or not req.prompt.strip():
         raise HTTPException(status_code=400, detail="prompt must not be empty")
-
-    image_recipes.seed_default_recipes()
 
     has_character = bool(req.character_id)
     character_count = 1 if has_character else 0
@@ -660,65 +620,22 @@ async def studio_generate(req: StudioGenerateRequest):
     recipe = decision.recipe
 
     try:
-        if recipe.provider == "drawthings":
-            drawthings = get("drawthings")
-            job = image_jobs.create_job(
-                provider="drawthings",
-                operation="txt2img",
-                prompt=req.prompt,
-                recipe_id=recipe.recipe_id,
-                model_id=getattr(drawthings, "model_name", None),
-            )
-            image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.SUBMITTED)
-            image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.RUNNING)
-            data = await drawthings.generate_async(req.prompt)
-            path = await asyncio.to_thread(save_image, data, prefix="studio_dt")
-            image_jobs.update_job(job.job_id, output_path=str(path))
-            image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.SUCCEEDED)
-            return {
-                "job_id": job.job_id,
-                "filename": str(path),
-                "recipe": recipe.recipe_id,
-                "routing_reason": decision.reason,
-            }
-
-        if not await comfy_available():
-            raise HTTPException(status_code=503, detail="ComfyUI is not running")
-
-        if has_character and recipe.supports_characters:
-            from gateway.image_characters import (
-                CharacterNotFoundError,
-                get_character,
-                list_character_refs,
-            )
-            from gateway.image_gen import generate_with_character
-
-            try:
-                char = get_character(req.character_id)
-                refs = list_character_refs(req.character_id)
-                primary = next((r for r in refs if r.is_primary), refs[0] if refs else None)
-                if not primary:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"character {char.name!r} has no reference images — upload at least one reference photo",
-                    )
-                result = await generate_with_character(
-                    prompt=req.prompt,
-                    character_ref_path=primary.storage_path,
-                    identity_mode=req.identity,
-                    negative_prompt=req.negative_prompt,
-                )
-                result["recipe"] = recipe.recipe_id
-                result["routing_reason"] = decision.reason
-                return result
-            except CharacterNotFoundError as exc:
-                raise HTTPException(status_code=404, detail=str(exc))
-
-        result = await comfy_generate(req.prompt)
-        result["recipe"] = recipe.recipe_id
-        result["routing_reason"] = decision.reason
-        return result
-
+        result = await run(
+            recipe.provider if recipe else "comfyui",
+            req.prompt,
+            recipe=recipe,
+            character_id=req.character_id,
+            negative_prompt=req.negative_prompt,
+        )
+        return {
+            "job_id": result.job_id,
+            "filename": result.filename,
+            "recipe": result.recipe,
+            "routing_reason": decision.reason,
+        }
+    except ImageRunnerError as e:
+        status = 503 if "not running" in str(e).lower() else 400
+        raise HTTPException(status_code=status, detail=str(e))
     except TimeoutError as exc:
         raise HTTPException(status_code=504, detail=str(exc))
     except Exception as exc:

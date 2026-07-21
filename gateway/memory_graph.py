@@ -57,6 +57,8 @@ class Source(str, Enum):
     TODOS = "todos"
     INBOX = "inbox"
     MEMORY_PALACE = "memory_palace"
+    SIGNALS = "signals"
+    FACTS = "facts"
 
     def __str__(self) -> str:  # pragma: no cover - trivial
         return self.value
@@ -162,7 +164,7 @@ class KnowledgeAdapter(StoreAdapter):
     async def fetch(self, query: str) -> list[Item]:
         from gateway.knowledge import search
 
-        rows = await asyncio.to_thread(lambda: asyncio.run(search(query, limit=3)))
+        rows = await search(query, limit=3)
         items: list[Item] = []
         for c in rows:
             if not isinstance(c, dict):
@@ -386,39 +388,35 @@ class SignalsAdapter(StoreAdapter):
         return "signals"
 
     async def fetch(self, query: str) -> list[Item]:
-        try:
-            from gateway.signal_store import list_recent
+        from gateway.signal_store import list_recent
 
-            signals = await asyncio.to_thread(list_recent, 20)
-            terms = [term for term in query.lower().split() if term]
-            chosen = signals if not terms else [
-                s for s in signals
-                if any(
-                    term in " ".join([
-                        str(s.get("source") or ""),
-                        str(s.get("kind") or ""),
-                        str(s.get("payload") or ""),
-                    ]).lower()
-                    for term in terms
-                )
-            ]
-            items: list[Item] = []
-            for s in chosen[:5]:
-                payload = s.get("payload") or {}
-                summary = str(payload.get("message") or payload.get("label") or s.get("kind", ""))
-                seen = "seen" if s.get("processed_at") else "unseen"
-                source = s.get("source", "unknown")
-                items.append(Item(
-                    text=f"[{source} | {seen}] {summary[:200]}",
-                    source=Source.TRACES,
-                    score=None,
-                    ts=None,
-                    metadata={k: v for k, v in s.items() if k not in {"payload"}},
-                ))
-            return items
-        except Exception as e:
-            logger.warning("Signals fetch failed: %s", e)
-            return []
+        signals = await asyncio.to_thread(list_recent, 20)
+        terms = [term for term in query.lower().split() if term]
+        chosen = signals if not terms else [
+            s for s in signals
+            if any(
+                term in " ".join([
+                    str(s.get("source") or ""),
+                    str(s.get("kind") or ""),
+                    str(s.get("payload") or ""),
+                ]).lower()
+                for term in terms
+            )
+        ]
+        items: list[Item] = []
+        for s in chosen[:5]:
+            payload = s.get("payload") or {}
+            summary = str(payload.get("message") or payload.get("label") or s.get("kind", ""))
+            seen = "seen" if s.get("processed_at") else "unseen"
+            source = s.get("source", "unknown")
+            items.append(Item(
+                text=f"[{source} | {seen}] {summary[:200]}",
+                source=Source.SIGNALS,
+                score=None,
+                ts=None,
+                metadata={k: v for k, v in s.items() if k not in {"payload"}},
+            ))
+        return items
 
 
 class WeaveAdapter(StoreAdapter):
@@ -429,45 +427,41 @@ class WeaveAdapter(StoreAdapter):
         return "facts"
 
     async def fetch(self, query: str) -> list[Item]:
-        try:
-            from gateway.memory_weave import get_weave
+        from gateway.memory_weave import get_weave
 
-            weave = get_weave()
-            results = await asyncio.to_thread(weave.search, query, limit=5)
+        weave = get_weave()
+        results = await asyncio.to_thread(weave.search, query, limit=5)
 
-            items: list[Item] = []
+        items: list[Item] = []
 
-            # Check for exact conflicts on matched entities
-            for q in results:
-                # Basic token extraction to guess entity/relation
-                parts = q.fact.split("=")
-                if len(parts) == 2:
-                    left_parts = parts[0].strip().split(" ", 1)
-                    if len(left_parts) == 2:
-                        conflict_check = weave.surface_conflict(left_parts[0], left_parts[1])
-                        if conflict_check.get("has_conflict"):
-                            stale_marker = " [CONFLICT DETECTED]"
-                            items.append(Item(
-                                text=f"{q.fact}{stale_marker} (confidence: {q.confidence:.2f}) - Warning: multiple conflicting facts exist. {conflict_check.get('recommendation', '')}",
-                                source=Source.MEMORY,
-                                score=q.confidence,
-                                ts=datetime.fromisoformat(q.last_verified) if q.last_verified else None,
-                                metadata=q.to_dict(),
-                            ))
-                            continue
+        # Check for exact conflicts on matched entities
+        for q in results:
+            # Basic token extraction to guess entity/relation
+            parts = q.fact.split("=")
+            if len(parts) == 2:
+                left_parts = parts[0].strip().split(" ", 1)
+                if len(left_parts) == 2:
+                    conflict_check = weave.surface_conflict(left_parts[0], left_parts[1])
+                    if conflict_check.get("has_conflict"):
+                        stale_marker = " [CONFLICT DETECTED]"
+                        items.append(Item(
+                            text=f"{q.fact}{stale_marker} (confidence: {q.confidence:.2f}) - Warning: multiple conflicting facts exist. {conflict_check.get('recommendation', '')}",
+                            source=Source.FACTS,
+                            score=q.confidence,
+                            ts=datetime.fromisoformat(q.last_verified) if q.last_verified else None,
+                            metadata=q.to_dict(),
+                        ))
+                        continue
 
-                stale_marker = " [STALE]" if q.is_stale else ""
-                items.append(Item(
-                    text=f"{q.fact}{stale_marker} (confidence: {q.confidence:.2f})",
-                    source=Source.MEMORY, # we use Source.MEMORY as a fallback type, or we could add FACTS to Source
-                    score=q.confidence,
-                    ts=datetime.fromisoformat(q.last_verified) if q.last_verified else None,
-                    metadata=q.to_dict(),
-                ))
-            return items
-        except Exception as e:
-            logger.warning("Weave fetch failed: %s", e)
-            return []
+            stale_marker = " [STALE]" if q.is_stale else ""
+            items.append(Item(
+                text=f"{q.fact}{stale_marker} (confidence: {q.confidence:.2f})",
+                source=Source.FACTS,
+                score=q.confidence,
+                ts=datetime.fromisoformat(q.last_verified) if q.last_verified else None,
+                metadata=q.to_dict(),
+            ))
+        return items
 
 
 # --- Adapter registry ---
