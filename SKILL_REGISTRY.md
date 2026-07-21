@@ -4,7 +4,7 @@ Single source of truth for every skill bundled with this repo.
 User-installed skills (`~/.config/opencode/skills/`, `~/.claude/skills/`)
 are intentionally not listed here — this registry covers repo-owned only.
 
-**Last verified:** 2026-07-15 by engineering leverage audit (phase 8/9)
+**Last verified:** 2026-07-21 — executed pending H5 archive + the 4 MCP-dependent deletions (Jacob confirmed unused; `code-review-graph` MCP confirmed disconnected, superseded by `.codegraph`).
 
 ## Canonical skill locations
 
@@ -28,35 +28,27 @@ the `.agents/skills/second-opinion/` copy was removed 2026-07-15.
 | remember | 2026-07-15 | KEEP | Wired to `scripts/remember.py` + `config/PREFERENCES.md` |
 | second-opinion | 2026-07-15 | KEEP (canonical) | Independent model review before asking Jacob |
 
-### `.agents/skills/` (17 skills after dedup)
+### `.agents/skills/` (7 active + 8 archived)
 
 | Skill | Verified | Verdict | Why |
 |---|---|---|---|
-| autonomy_tune | 2026-07-15 | KEEP | Core to Builder loop — fixes autonomy stalls |
 | engineering/improve-codebase-architecture | 2026-07-15 | KEEP | Architecture improvement guided by domain docs |
-| explore-codebase | 2026-07-15 | **DELETE pending** | Redundant with codegraph + codemap |
-| extract-wisdom | 2026-07-15 | **H5 archive deferred** | Generic; archive decision recorded |
-| first-principles | 2026-07-15 | **H5 archive deferred** | Generic; archive decision recorded |
 | image-gen | 2026-07-15 | KEEP | Wired to ComfyUI endpoint |
-| isa | 2026-07-15 | KEEP | Ideal State Artifact — core to Builder packets |
-| iterative-depth | 2026-07-15 | **H5 archive deferred** | Generic; archive decision recorded |
-| iterative-self-review-meta-optimization | 2026-07-15 | **H5 archive deferred** | Generic; archive decision recorded |
+| isa | 2026-07-21 | KEEP | 27 commits reference it — genuinely load-bearing, not ceremony |
 | journal-entry | 2026-07-15 | KEEP | Wired to Kitty journal subsystem |
 | mcp-kitty-council | 2026-07-15 | KEEP | Council routing — active |
 | provider-credit-debugging | 2026-07-15 | KEEP | Kitty-specific debugging |
-| red-team | 2026-07-15 | **H5 archive deferred** | Generic; archive decision recorded |
-| root-cause-analysis | 2026-07-15 | **H5 archive deferred** | Generic; archive decision recorded |
-| science-method | 2026-07-15 | **H5 archive deferred** | Generic; archive decision recorded |
-| systems-thinking | 2026-07-15 | **H5 archive deferred** | Generic; archive decision recorded |
-| tune | 2026-07-15 | **MERGE pending** → autonomy_tune | Overlapping autonomy tuning |
+
+**Deleted 2026-07-21** (Jacob confirmed unused; `code-review-graph` MCP confirmed not connected in this environment, superseded by `.codegraph`): `debug-issue`, `explore-codebase`, `refactor-safely`, `review-changes`.
+
+**Deleted 2026-07-21** — `autonomy_tune`, `tune`. The registry's prior "KEEP — core to Builder loop" verdict for `autonomy_tune` was never verified against actual code: zero references in `gateway/`, `scripts/`, or the `kitty` CLI. Jacob confirmed directly he never used either. The 2026-06-20 consolidation plan's proposed merge is moot now that both are gone.
+
+**Archived 2026-07-21** to `.agents/skills/_archive/` (H5 executed — Jacob confirmed unused, content preserved not deleted, 1-3 lifetime commits each): `extract-wisdom`, `first-principles`, `iterative-depth`, `iterative-self-review-meta-optimization`, `red-team`, `root-cause-analysis`, `science-method`, `systems-thinking`.
 
 ## Recorded human decisions (from audit)
 
-- **H5**: Archive the 8 generic agent skills (extract-wisdom, first-principles,
-  iterative-depth, iterative-self-review-meta-optimization, red-team,
-  root-cause-analysis, science-method, systems-thinking) from the active
-  registry, but do not delete their content permanently. Execution remains
-  intentionally deferred — see
+- **H5** (recorded 2026-07-15, executed 2026-07-21): Archive the 8 generic agent
+  skills — see list above. Original record:
   `docs/AUDIT_ENGINEERING_LEVERAGE_2026-07-14.md` §10 ARCHIVE A2.
 
 ## Freshness check
