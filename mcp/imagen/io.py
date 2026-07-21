@@ -6,7 +6,10 @@ focused on API calls.
 
 from __future__ import annotations
 
+import os
+import tempfile
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -20,8 +23,29 @@ def save_image(data: bytes, prefix: str = "img", metadata: dict[str, Any] | None
     not yet written to disk.
     """
     settings.output_dir.mkdir(parents=True, exist_ok=True)
-    path = settings.output_dir / f"{prefix}_{int(time.time() * 1000)}.png"
-    path.write_bytes(data)
+    path = settings.output_dir / f"{prefix}_{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}.png"
+
+    # Materialize the input before creating a temporary file.  Besides
+    # normalizing bytes-like values, this ensures an invalid provider payload
+    # cannot leave a partial artifact behind.
+    payload = bytes(data)
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=settings.output_dir,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as temp:
+            temp_path = Path(temp.name)
+            temp.write(payload)
+            temp.flush()
+            os.fsync(temp.fileno())
+        os.replace(temp_path, path)
+    finally:
+        if temp_path is not None and temp_path.exists():
+            temp_path.unlink()
     return path
 
 

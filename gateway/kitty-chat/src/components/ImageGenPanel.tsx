@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useImageStatus, useImageHistory, useGenerateImage } from '@/lib/queries'
 import { ImageGallery } from './ImageGallery'
@@ -21,12 +21,23 @@ export function ImageGenPanel() {
   const generate = useGenerateImage()
 
   const available = statusQuery.data?.available ?? null
+  const engines = statusQuery.data?.engines?.length
+    ? statusQuery.data.engines
+    : [{ name: 'comfyui', label: 'ComfyUI', available: available === true }]
   const history = historyQuery.data ?? []
 
   const [prompt, setPrompt] = useState('')
   const [chips, setChips] = useState<string[]>([])
+  const [engine, setEngine] = useState('comfyui')
   const [state, setState] = useState<GenState>('idle')
   const [errMsg, setErrMsg] = useState('')
+
+  useEffect(() => {
+    if (!engines.some(item => item.name === engine && item.available)) {
+      const firstAvailable = engines.find(item => item.available)
+      if (firstAvailable) setEngine(firstAvailable.name)
+    }
+  }, [engine, engines])
 
   function toggleChip(label: string) {
     setChips(prev =>
@@ -44,7 +55,7 @@ export function ImageGenPanel() {
     if (!full || state === 'generating') return
     setState('generating')
     setErrMsg('')
-    generate.mutate(full, {
+    generate.mutate(engine === 'comfyui' ? full : { prompt: full, engine }, {
       onSuccess: result => {
         if (!result) {
           setState('error')
@@ -69,14 +80,16 @@ export function ImageGenPanel() {
     )
   }
 
-  if (available === false) {
+  const availableEngines = engines.filter(item => item.available)
+  if (available === false && availableEngines.length === 0) {
     return (
       <div style={unavailableStyle}>
-        <p style={unavailableTitleStyle}>ComfyUI offline</p>
+        <p style={unavailableTitleStyle}>
+          {statusQuery.data?.engines?.length ? 'image engines offline' : 'ComfyUI offline'}
+        </p>
         <p style={unavailableBodyStyle}>
-          Start ComfyUI locally or from the Colab notebook. If it is not on the default local
-          address, set COMFY_URL in .env and restart the gateway. Image generation is wired
-          through the gateway; the renderer itself is the external ComfyUI service.
+          Start ComfyUI or Draw Things and check again. Kitty reports each configured renderer
+          independently; generation stays disabled until at least one engine is reachable.
         </p>
         <button
           type="button"
@@ -92,7 +105,25 @@ export function ImageGenPanel() {
 
   return (
     <div style={{ display: 'grid', gap: 8 }}>
-      {available === true && <p style={onlineStyle}>comfyui online</p>}
+      <div style={engineRowStyle}>
+        <label htmlFor="image-engine" style={engineLabelStyle}>engine</label>
+        <select
+          id="image-engine"
+          value={engine}
+          onChange={event => setEngine(event.target.value)}
+          style={engineSelectStyle}
+        >
+          {engines.map(item => (
+            <option key={item.name} value={item.name} disabled={!item.available}>
+              {item.label}{item.available ? '' : ' (offline)'}
+            </option>
+          ))}
+        </select>
+        <span style={onlineStyle}>
+          {engine}{' '}
+          {engines.find(item => item.name === engine)?.available ? 'online' : 'offline'}
+        </span>
+      </div>
 
       {/* Prompt input */}
       <textarea
@@ -138,6 +169,28 @@ export function ImageGenPanel() {
       {/* Image gallery with lightbox */}
       {state !== 'generating' && (
         <ImageGallery images={history} />
+      {/* Image history grid */}
+      {history.length > 0 && (
+        <div style={gridStyle}>
+          {history.map(img => (
+            <div key={img.prompt_id} style={thumbWrapStyle}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                // Keep absolute Kitty-store paths in one proxy segment so the
+                // catch-all route does not drop the leading slash.
+                src={`/proxy/image/view/${encodeURIComponent(img.filename)}`}
+                alt={img.prompt}
+                style={thumbStyle}
+                title={img.prompt}
+                loading="lazy"
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {history.length === 0 && state !== 'generating' && (
+        <p style={emptyStyle}>no images yet</p>
       )}
     </div>
   )
@@ -154,6 +207,29 @@ const textareaStyle: CSSProperties = {
   outline: 'none',
   resize: 'vertical',
   lineHeight: 1.5,
+}
+
+const engineRowStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+}
+
+const engineLabelStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  color: 'var(--ink-2)',
+  textTransform: 'lowercase',
+}
+
+const engineSelectStyle: CSSProperties = {
+  background: 'var(--surface-2)',
+  border: '1px solid var(--line)',
+  borderRadius: 4,
+  padding: '4px 7px',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  color: 'var(--ink-2)',
 }
 
 const chipsRowStyle: CSSProperties = {

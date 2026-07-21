@@ -9,12 +9,16 @@ from typing import Optional
 import httpx
 
 from gateway.image_jobs import (
+    IllegalTransitionError,
     ImageJobStatus,
+    JobNotFoundError,
     create_job,
+    get_job,
     list_recent,
     transition,
     update_job,
 )
+from mcp.imagen.io import save_image
 
 # Set COMFY_URL to the cloudflared tunnel URL when running on Colab, e.g.:
 #   COMFY_URL=https://abc-xyz.trycloudflare.com
@@ -25,8 +29,28 @@ BEAR_LORA     = "Muscle_Bear_Baker_v2_for_transfer.safetensors"
 EXPLICIT_LORA = "erect_penis_epoch_80.safetensors"
 SDXL_PHOTONIC = "photonicFusionSDXL_final.safetensors"
 
+# These are the built-in node types emitted by Kitty's two workflow variants.
+# Checking them through /object_info turns a ComfyUI upgrade or stripped custom
+# install into an honest health failure before a user submits a job.
+COMFY_REQUIRED_NODES = frozenset(
+    {
+        "CheckpointLoaderSimple",
+        "LoraLoader",
+        "CLIPTextEncode",
+        "EmptyLatentImage",
+        "KSampler",
+        "VAEDecode",
+        "SaveImage",
+    }
+)
+
 EXPLICIT_KW = {"explicit", "erect", "hard cock", "erection", "boner", "cock", "nude explicit"}
 SDXL_KW     = {"realistic", "sdxl", "photo", "photorealistic", "high res", "high quality", "photonic"}
+
+
+class ImageGenerationCancelled(RuntimeError):
+    """The caller canceled this job while ComfyUI was generating it."""
+
 
 def get_history(limit: int = 20) -> list[dict]:
     """Gallery history from the durable job store (IMG-01) — survives restarts.
@@ -135,31 +159,165 @@ def _wf_sdxl(prompt: str, neg: str, w: int, h: int, steps: int, cfg: float, ckpt
     }
 
 
-async def _poll(client: httpx.AsyncClient, prompt_id: str, timeout: int = 360) -> Optional[str]:
+async def _poll(
+    client: httpx.AsyncClient,
+    prompt_id: str,
+    timeout: int = 360,
+    job_id: str | None = None,
+) -> Optional[str]:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         await asyncio.sleep(4)
+        # A cancel (IMG-02) marks the job canceled out-of-band; stop polling
+        # instead of burning the remaining timeout.
+        if job_id is not None:
+            job = get_job(job_id)
+            if job is not None and job.status is ImageJobStatus.CANCELED:
+                return None
         r = await client.get(f"{COMFY_URL}/history/{prompt_id}")
         hist = r.json()
         if prompt_id not in hist:
             continue
-        outputs = hist[prompt_id].get("outputs", {})
+        prompt_history = hist[prompt_id]
+        status = prompt_history.get("status", {})
+        status_str = status.get("status_str") if isinstance(status, dict) else None
+        if status_str in {"error", "failed"}:
+            detail = prompt_history.get("execution_error")
+            if not detail and isinstance(status, dict):
+                detail = status.get("messages")
+            raise RuntimeError(
+                f"ComfyUI generation failed for prompt {prompt_id}: "
+                f"{detail or status_str}"
+            )
+        outputs = prompt_history.get("outputs", {})
         for out in outputs.values():
             for img in out.get("images", []):
                 return img["filename"]
     return None
 
 
+def _mark_failed(job_id: str, message: str) -> None:
+    """Record a failure unless the job already reached a terminal state.
+
+    A cancel racing the generate() coroutine wins: the canceled state stays,
+    and the failure that the interrupt provoked is not an error to report.
+    """
+    job = get_job(job_id)
+    if job is None:
+        raise JobNotFoundError(f"job {job_id} not found while recording failure")
+    if job.status is ImageJobStatus.CANCELED:
+        return
+    update_job(job_id, normalized_error=message)
+    transition(job_id, ImageJobStatus.FAILED)
+
+
+class CancellationUnsupportedError(RuntimeError):
+    """The job's provider does not support cancellation."""
+
+
+class CancellationConflictError(RuntimeError):
+    """The job cannot be canceled in its current provider-side state."""
+
+
+async def cancel(job_id: str) -> dict:
+    """Cancel an in-flight ComfyUI generation after verifying prompt ownership.
+
+    Safety rules enforced:
+    - Only comfyui jobs are cancellable (other providers have no implemented
+      cancellation mechanism).
+    - The job must have a stored provider_job_id (prompt was submitted).
+    - ComfyUI's queue/running state is queried to determine whether the
+      requested prompt is currently executing or queued.
+    - /interrupt is sent only when the requested prompt is proven to be the
+      active prompt.
+    - Queued prompts are removed via the /queue DELETE API.
+    - Durable status changes to canceled only after provider-side cancellation
+      succeeds.
+    - Terminal jobs are rejected.
+    """
+    job = get_job(job_id)
+    if job is None:
+        raise JobNotFoundError(f"job {job_id} not found")
+    if job.status.is_terminal():
+        raise IllegalTransitionError(
+            f"job {job_id} is already {job.status.value}; nothing to cancel"
+        )
+    if job.provider != "comfyui":
+        raise CancellationUnsupportedError(
+            f"cancellation is not supported for provider {job.provider!r}; "
+            f"only comfyui jobs can be canceled"
+        )
+    if not job.provider_job_id:
+        raise CancellationConflictError(
+            f"job {job_id} has no provider_job_id; it was never submitted to ComfyUI"
+        )
+
+    prompt_id = job.provider_job_id
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        queue_resp = await client.get(f"{COMFY_URL}/queue")
+        queue_resp.raise_for_status()
+        queue_data = queue_resp.json()
+
+        running_ids = {
+            entry[1] for entry in queue_data.get("queue_running", [])
+            if isinstance(entry, list) and len(entry) > 1
+        }
+        pending_ids = {
+            entry[1] for entry in queue_data.get("queue_pending", [])
+            if isinstance(entry, list) and len(entry) > 1
+        }
+
+        if prompt_id in running_ids:
+            r = await client.post(f"{COMFY_URL}/interrupt")
+            r.raise_for_status()
+        elif prompt_id in pending_ids:
+            r = await client.post(
+                f"{COMFY_URL}/queue",
+                json={"delete": [prompt_id]},
+            )
+            r.raise_for_status()
+        else:
+            history_resp = await client.get(f"{COMFY_URL}/history/{prompt_id}")
+            history_resp.raise_for_status()
+            history = history_resp.json()
+            if prompt_id in history:
+                raise CancellationConflictError(
+                    f"prompt {prompt_id} already completed in ComfyUI; "
+                    f"cannot cancel"
+                )
+            raise CancellationConflictError(
+                f"prompt {prompt_id} is not running, queued, or in history; "
+                f"provider state cannot be determined"
+            )
+
+    updated = transition(job_id, ImageJobStatus.CANCELED)
+    return {"canceled": True, "job_id": job_id, "status": updated.status.value}
+
+
 async def is_available() -> bool:
     try:
         async with httpx.AsyncClient(timeout=3) as c:
-            r = await c.get(f"{COMFY_URL}/system_stats")
-            return r.status_code == 200
-    except Exception:
+            stats = await c.get(f"{COMFY_URL}/system_stats")
+            if stats.status_code != 200:
+                return False
+            object_info = await c.get(f"{COMFY_URL}/object_info")
+            if object_info.status_code != 200:
+                return False
+            payload = object_info.json()
+            if not isinstance(payload, dict):
+                raise RuntimeError(
+                    f"ComfyUI /object_info returned {type(payload).__name__}, expected an object"
+                )
+            missing = sorted(COMFY_REQUIRED_NODES.difference(payload))
+            if missing:
+                return False
+            return True
+    except httpx.RequestError:
         return False
 
 
-async def generate(prompt: str) -> dict:
+async def generate(prompt: str, parent_id: str | None = None) -> dict:
     """Submit prompt to ComfyUI, poll until done, return {prompt_id, filename, job_id}."""
     p = _parse(prompt)
 
@@ -179,7 +337,7 @@ async def generate(prompt: str) -> dict:
     # Record the job before submitting so it survives a crash mid-generation.
     job = create_job(
         provider="comfyui",
-        operation="txt2img",
+        operation="variation" if parent_id else "txt2img",
         prompt=prompt,
         negative_prompt=p["negative"],
         seed=None,  # seed is embedded in workflow but not surfaced back
@@ -193,6 +351,7 @@ async def generate(prompt: str) -> dict:
         provider_params_json=json.dumps(provider_params),
         workflow_template_id=template,
         workflow_hash=workflow_hash,
+        parent_id=parent_id,
     )
 
     try:
@@ -203,19 +362,50 @@ async def generate(prompt: str) -> dict:
             prompt_id = r.json()["prompt_id"]
             update_job(job.job_id, provider_job_id=prompt_id)
             transition(job.job_id, ImageJobStatus.SUBMITTED)
-            filename = await _poll(client, prompt_id)
+            transition(job.job_id, ImageJobStatus.RUNNING)
+            filename = await _poll(client, prompt_id, job_id=job.job_id)
     except Exception as exc:
-        update_job(job.job_id, normalized_error=str(exc)[:500])
-        transition(job.job_id, ImageJobStatus.FAILED)
+        _mark_failed(job.job_id, str(exc)[:500])
         raise
+
+    current_job = get_job(job.job_id)
+    if current_job is None:
+        raise JobNotFoundError(f"job {job.job_id} disappeared during generation")
+    if current_job.status is ImageJobStatus.CANCELED:
+        raise ImageGenerationCancelled(f"Image generation canceled for job {job.job_id}")
 
     if not filename:
         update_job(job.job_id, normalized_error="Image generation timed out (6 min)")
         transition(job.job_id, ImageJobStatus.FAILED)
         raise TimeoutError("Image generation timed out (6 min)")
 
-    # filename lives under ComfyUI's output dir; verified separately (IMG-03).
-    update_job(job.job_id, output_path=filename)
+    # ComfyUI owns its output directory, which may be ephemeral (for example
+    # a restarted Colab process). Copy the completed artifact into Kitty's
+    # durable image store before marking the job succeeded.
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            view_response = await client.get(
+                f"{COMFY_URL}/view",
+                params={"filename": filename, "subfolder": "", "type": "output"},
+            )
+            view_response.raise_for_status()
+            if not view_response.content:
+                raise RuntimeError(
+                    f"ComfyUI returned an empty image for completed prompt {prompt_id} "
+                    f"(filename={filename!r})"
+                )
+            local_path = await asyncio.to_thread(save_image, view_response.content, prefix="comfy")
+    except Exception as exc:
+        _mark_failed(job.job_id, str(exc)[:500])
+        raise
+
+    current_job = get_job(job.job_id)
+    if current_job is None:
+        raise JobNotFoundError(f"job {job.job_id} disappeared before persistence")
+    if current_job.status is ImageJobStatus.CANCELED:
+        raise ImageGenerationCancelled(f"Image generation canceled for job {job.job_id}")
+
+    update_job(job.job_id, output_path=str(local_path))
     transition(job.job_id, ImageJobStatus.SUCCEEDED)
 
-    return {"prompt_id": prompt_id, "filename": filename, "job_id": job.job_id}
+    return {"prompt_id": prompt_id, "filename": str(local_path), "job_id": job.job_id}

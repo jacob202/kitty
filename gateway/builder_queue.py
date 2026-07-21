@@ -143,6 +143,43 @@ __all__ = [
     "verify_branch_lease",
 ]
 
+# ---------------------------------------------------------------------------
+# Re-exports from gateway.builder_queue_db (audit §2.2 first cut).
+# Keep ``from gateway.builder_queue import X`` and
+# ``import gateway.builder_queue as bq`` working for tests and
+# sibling modules (gateway.builder_attempt, gateway.builder_runner,
+# gateway.builder_initiative, gateway.builder_cli, tests/...).
+from . import builder_queue_db as _queue_db  # noqa: E402 — façade re-exports below logger.
+from ._id_helpers import generate_id_with_base36  # noqa: E402
+from .builder_queue_branch_leases import (  # noqa: E402,F401
+    _claim_branch_lease_on_conn,
+    _release_branch_lease_on_conn,
+    _validate_branch_lease_fields,
+    claim_branch_lease,
+    get_branch_lease,
+    release_branch_lease,
+    verify_branch_lease,
+)
+from .builder_queue_db import (  # noqa: E402,F401
+    _VALID_STATES,
+    AWAITING_REVIEW,
+    BLOCKED,
+    CANCELLED,
+    CLAIMED,
+    DONE,
+    FAILED,
+    LEGAL_TRANSITIONS,
+    PR_OPENED,
+    QUEUED,
+    RUNNING,
+    TERMINAL_STATES,
+    BranchLeaseConflictError,
+    DataCorruptionError,
+    IllegalTransitionError,
+    LeaseConflictError,
+    TaskNotFoundError,
+)
+
 
 def connect(db_path: Path | None = None) -> sqlite3.Connection:
     """Open the queue DB, preserving the legacy façade path override."""

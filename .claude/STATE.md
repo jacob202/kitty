@@ -1,11 +1,11 @@
-# Session State — Chat Recovery Complete; Heists Wired; Tree Cleaned
+# Session State — Image Packets Integrated; Frontend Harvest Active
 
 <!-- kitty-state
 {
   "schema_version": 1,
-  "updated_at": "2026-07-20T11:15:08Z",
-  "head_sha": "da5fc579bdabf20c6d9595c7e25c28becb36868d",
-  "branch": "main",
+  "updated_at": "2026-07-20T10:00:00Z",
+  "head_sha": "23ff7860b231592a4e07d6370c4031f18ede74f1",
+  "branch": "docs/kitty-frontend-experience-harvest-2026-07-20",
   "worktree": ".",
   "status": "in_progress",
   "completed_items": [
@@ -17,63 +17,51 @@
     "tutor heist wired: /tutor/quiz|attempt|grade|term routes + TutorPanel in kitty-chat, verified live in browser (033cea0)",
     "fixed latent branch_leases.lease_ts->created_at migration gap breaking builder status on live DB (8a434cc)",
     "chat-recovery-v1 and chat-recovery-continuation-v1 paused with evidence notes: all packets delivered",
-    "19 stale branches deleted, 11 stale worktrees removed; kept only branches with unmerged work"
+    "19 stale branches deleted, 11 stale worktrees removed; kept only branches with unmerged work",
+    "origin/main synced: PR #215 feature-adjacent audit merged (ea6c140)",
+    "feat/image-packets-current integrated at 082a2e8 (a55a19c..8dd3b21, 8 image commits)"
   ],
   "blockers": [],
-  "next_action": "Ask Jacob whether to push main (12 local commits); then pick: IMG-02 (ComfyUI cancellation) via builder, or review the kept campaign/reconcile branches",
+  "next_action": "Kitty-wide frontend and product-experience harvest (in progress); do not start KX Builder initiatives until Jacob reviews the design direction",
   "invalidation_conditions": [
-    "HEAD changes beyond da5fc579bdabf20c6d9595c7e25c28becb36868d",
-    "branch or registered worktree changes",
-    "the active Mission changes"
+    "HEAD changes beyond 082a2e8b3d08ea87a1f4f0d6d150e4e0b8db5739",
+    "branch or registered worktree changes"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": null
+  "pull_request": {"number": 216, "state": "OPEN", "head_sha": "23ff7860b231592a4e07d6370c4031f18ede74f1"}
 }
 -->
 
 ## Current checkpoint
 
-- `main` at `da5fc57`, 12 commits ahead of the session start (`221aea6`).
-  Nothing pushed — pushing needs Jacob's explicit approval.
-- All 7 chat-recovery packets are delivered. CR-01..05 via the Builder loop
-  (pre-session); CR-06/CR-07 directly on main this session, superseding the
-  CR-06b/CR-07b replacement packets. Both initiatives are paused with
-  evidence notes pointing at the commits.
-- Verified live in the running app (gateway restarted on current code, UI
-  dev server on :4000): tutor quiz loop end-to-end, model-override chip,
-  thread-goal strip, builder home tile (was crashing on `l.created_at`).
-- `make ui-test && make ui-build` green (233 UI tests). Final full pytest:
-  2565 passed; the only failures were the continuity checks reading these
-  docs mid-rewrite, and they pass against the final docs (10/10).
+- `main` at `082a2e8`. Image packets branch fully integrated. `origin/main` synced via PR #215 merge. 11 commits ahead of origin/main. Nothing pushed.
+- ComfyUI being offline is an explicitly recorded validation limitation. No COMFY_COMMIT was invented.
+- IMG-02 through IMG-06 are complete on the merged image branch. Do not look for additional image packets.
+- Active work: Kitty-wide frontend and product-experience harvest (NOT Image-Lab-only).
 
-## Landed this session (all local commits on main)
+## Integration commits (new this session)
 
 | commit  | what |
 |---------|------|
-| c83eb91 | builder_queue split (audit §2.2) + monkeypatch-safe DB default |
-| 1673510 | CORS allow-lists, kitty env fail-loud, github token guard |
-| 3613b57 | knowledge URL download requests→httpx async |
-| 99d61e4 | curation scripts bare-except tightening |
-| 33ee509 | audit doc + PR210 refs + session state |
-| 2a9162d | merge feat/memory-evidence-ids (memory ids in trailer) |
-| 78143f6 | CR-06 forget with undo grace |
-| 9bd57af | CR-07 model override + explicit privacy gate |
-| b9a8a5d | merge feat/imagen-img01-v2 + durable /image/history |
-| 033cea0 | tutor routes + TutorPanel wiring |
-| 8a434cc | branch_leases lease_ts→created_at migration |
-| da5fc57 | record continuation manifest (paused) |
+| ea6c140 | merge origin/main (PR #215 feature-adjacent audit) |
+| 082a2e8 | merge feat/image-packets-current (8 image commits: a55a19c..8dd3b21) |
 
-## Known follow-ups (named, not built)
+## Image packet commits merged (a55a19c..8dd3b21)
 
-- IMG-02..IMG-06 remain unstarted (cancellation, atomic persistence,
-  lineage, engine unification, health) — see the imagelab harvest doc.
-- Builder projection for CR-06/07 still shows the original tasks as
-  eligible-but-paused; a formal operator closeout would need the
-  attempt-CLI roundtrip if Jacob wants the ledger spotless.
-- reasoning-backend-v1 (3 packets) and builder-test-hardening follow-ups
-  untouched.
-- Campaign/reconcile branches kept for review: codex/campaign-p1-05 (25
-  ahead), codex/reconcile-phase2-p104 (30), reconcile-builder-campaign (23),
-  feat/project-control-plane-foundation (14), feat/wip-campaign-and-runtime
-  (4), feat/campaign-alpha-phase-2-integration (3), recon/agent-leverage (2),
-  kittybuilder/kb_mrpo81ct_9885 (2).
+| commit  | what |
+|---------|------|
+| 015a9eb | feat(image): route Image Lab across local engines |
+| 25050b2 | feat(image): persist ComfyUI outputs and lineage |
+| 8d17734 | fix(image): keep engine health failures visible |
+| 8dd3b21 | fix(image): encode persisted gallery paths |
+| b23b4e3 | fix(image): preserve legacy status payload typing |
+| 9e71cf1 | fix(image): preserve legacy chat generation calls |
+| cf6a95c | fix(image): validate ComfyUI workflow health |
+| a55a19c | docs(image): hand off completed image packets |
+
+## Known follow-ups
+
+- Builder projection for CR-06/07 shows original tasks as eligible-but-paused; operator closeout via attempt-CLI if Jacob wants ledger spotless.
+- reasoning-backend-v1 (3 packets) and builder-test-hardening follow-ups untouched.
+- Campaign/reconcile branches kept for review.
+- Image worktree `.worktrees/image-packets-current` at feat/image-packets-current can be cleaned.

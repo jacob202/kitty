@@ -350,6 +350,27 @@ def list_recent(limit: int = 50) -> list[ImageJob]:
     return [_row_to_job(r) for r in rows]
 
 
+def list_children(parent_id: str, limit: int = 200) -> list[ImageJob]:
+    """Return variation/derivative jobs linked to ``parent_id``.
+
+    Creation order is stable across restarts by ordering on the durable
+    timestamp and UUID.  Rejecting an empty parent id avoids accidentally
+    turning a lineage query into an unbounded gallery query.
+    """
+    if not parent_id or not parent_id.strip():
+        raise ImageJobError("parent_id must not be empty")
+    if limit <= 0 or limit > 200:
+        raise ImageJobError(f"limit must be between 1 and 200, got {limit}")
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        rows = conn.execute(
+            "SELECT * FROM image_jobs "
+            "WHERE parent_id = ? ORDER BY created_at ASC, job_id ASC LIMIT ?",
+            (parent_id, limit),
+        ).fetchall()
+    return [_row_to_job(r) for r in rows]
+
+
 def transition(job_id: str, new_status: ImageJobStatus) -> ImageJob:
     """Transition a job's lifecycle state. Raises on illegal transition."""
     job = get_job(job_id)
@@ -533,8 +554,51 @@ def normalize_comfyui_request(
 
 
 def reconcile_stale() -> int:
-    """Flip orphaned running jobs to failed. Stub for IMG-02 (returns 0)."""
-    return 0
+    """Reconcile jobs orphaned by a gateway restart.
+
+    Jobs that were never submitted (no provider_job_id) are marked canceled
+    — their generating coroutine is gone and no provider work exists.
+
+    Jobs that were submitted (have a provider_job_id) are marked failed
+    with a diagnostic message, because the provider may have completed
+    the work while the gateway was down. Marking them canceled would be
+    dishonest when provider state is unknown.
+
+    Returns the number of rows reconciled.
+    """
+    non_terminal = [s.value for s in ImageJobStatus if not s.is_terminal()]
+    now = _now_iso()
+    placeholders = ",".join("?" for _ in non_terminal)
+    total = 0
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        cur = conn.execute(
+            "UPDATE image_jobs SET status = ?, normalized_error = ?, "
+            f"updated_at = ?, finished_at = ? WHERE status IN ({placeholders}) "
+            "AND (provider_job_id IS NULL OR provider_job_id = '')",
+            (
+                ImageJobStatus.CANCELED.value,
+                "orphaned by gateway restart (never submitted to provider)",
+                now,
+                now,
+                *non_terminal,
+            ),
+        )
+        total += cur.rowcount
+        cur2 = conn.execute(
+            "UPDATE image_jobs SET status = ?, normalized_error = ?, "
+            f"updated_at = ?, finished_at = ? WHERE status IN ({placeholders}) "
+            "AND provider_job_id IS NOT NULL AND provider_job_id != ''",
+            (
+                ImageJobStatus.FAILED.value,
+                "gateway restarted; provider state unknown — manual check needed",
+                now,
+                now,
+                *non_terminal,
+            ),
+        )
+        total += cur2.rowcount
+    return total
 
 
 __all__ = [
@@ -547,6 +611,7 @@ __all__ = [
     "get_job",
     "find_by_provider",
     "list_recent",
+    "list_children",
     "transition",
     "update_job",
     "normalize_drawthings_request",
