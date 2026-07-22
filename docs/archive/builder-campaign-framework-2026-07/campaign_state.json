@@ -1,0 +1,33 @@
+{
+  "campaign": "alpha",
+  "phase": 1,
+  "completed_packets": 3,
+  "remaining_packets": 28,
+  "blocked": [
+    "P1-03: Architecture review required to define the measurability heuristic boundary; its candidate also mixes an unrelated protected-path authority rewrite."
+  ],
+  "failed": [],
+  "review_pending": 0,
+  "in_progress": [],
+  "verification": "green",
+  "kill_switch": false,
+  "kill_switch_reason": null,
+  "last_updated": "2026-07-15",
+  "next_dispatchable": ["P1-04"],
+  "concurrent_workers": 3,
+  "stalled_workers": [],
+  "contradictions": [],
+  "metrics": {
+    "packets_per_hour": 0,
+    "first_pass_approval_rate": "0%",
+    "avg_attempts": 0,
+    "mean_time_to_green_minutes": 0,
+    "merge_success_rate": "0%",
+    "human_interventions": 0,
+    "architectural_escalations": 1,
+    "regression_count": 0,
+    "validation_failures": 2,
+    "blocked_packet_count": 1,
+    "kill_switch_events": 0
+  }
+}
