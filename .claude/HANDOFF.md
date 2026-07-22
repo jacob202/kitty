@@ -3,26 +3,25 @@
 <!-- kitty-handoff
 {
   "schema_version": 1,
-  "updated_at": "2026-07-22T02:08:00Z",
-  "head_sha": "3815dbfedc27c8fff624a1218ec6e3962df3285f",
+  "updated_at": "2026-07-22T05:20:00Z",
+  "head_sha": "PENDING_PR_222_MERGE",
   "branch": "main",
-  "worktree": ".",
-  "status": "blocked",
+  "worktree": "cloud session — no visibility into ~/Projects/kitty",
+  "status": "in_progress",
   "completed_items": [
-    "audited the 8 stale branches carried over from the prior session's HANDOFF; resolved all 8",
-    "deleted 7 confirmed-dead branches (2 fully merged via PR #216, 1 subsumed ancestor, 1 redundant backup snapshot, 3 with runtime code superseded by main's shipped gateway/builder_*.py)",
-    "archived the unique piece before deletion: a 4-doc campaign governance framework (kill switch, escalation thresholds, phased rollout, retrospective template) from codex/campaign-p1-05, kept verbatim at docs/archive/builder-campaign-framework-2026-07/ plus a full-history git tag",
-    "left feat/reasoning-engine-current alone at Jacob's request (live WIP, resuming himself)",
-    "ran a grounded audit of current KittyBuilder (queue/initiative/loop/identity modules, PROJECT_STATUS/ARCHITECTURE/QUICKSTART/SELF_BUILDING_MVP docs) to find real gaps: no mission ingress, no clarification phase, no prototype gate, KB-S5 continuation loop half-shipped, no merge automation, no artifact delivery",
-    "synthesized and delivered a self-contained planning prompt for Opus 4.8 / Fable 5 (run outside Claude Code, per Jacob's chat-app-for-thinking / CLI-for-executing workflow) asking for: a campaign lifecycle (clarify -> prototype gate -> build) that attaches to the existing builder_queue/builder_initiative state machine, a packet-sized roadmap + effort estimate to daily-use, a test plan for short/long x free/paid campaign shapes, and a light audit challenging the current design",
-    "committed and pushed the archive to origin/main"
+    "merged PR #217: chat thread migrated to Assistant UI ThreadPrimitive, scroll-to-bottom fix",
+    "triaged ~85 non-kittybuilder stale branches: 25 resolved with real evidence, all dead; 60 given a free ranked pass only, left alone",
+    "caught and corrected a false-positive merge candidate (packet-022) before touching main",
+    "confirmed via commit authorship that this session's branch audit and the Mac-session's campaign audit (below) never overlapped — different checkouts, not a disagreement",
+    "declined to comply with stop-hook-git-check.sh's suggested rebase — it was asking to rewrite Jacob's own real commits as Claude-authored, which would have been wrong",
+    "shipped and merged PR #222: GET /network/tailnet + Home dashboard phone-access tile, salvaged from stale branch claude/home-dashboard-final-polish (its other half was already superseded)",
+    "deleted the 25 confirmed-dead branches"
   ],
   "blockers": [],
-  "next_action": "Blocked on Jacob running the delivered KittyBuilder planning prompt in a separate Opus 4.8 / Fable 5 session; the resulting roadmap/packets are the next work item",
+  "next_action": "Jacob confirms the phone-access card reaches an iPhone over real Tailscale; decide on the 60 ranked-but-unverified branches whenever there's appetite (not urgent — nothing there scored as clearly valuable)",
   "invalidation_conditions": [
-    "HEAD changes beyond 3815dbfedc27c8fff624a1218ec6e3962df3285f",
     "branch or registered worktree changes",
-    "origin/main advances beyond 3815dbfedc27c8fff624a1218ec6e3962df3285f"
+    "the 60-branch ranked list changes"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
@@ -30,18 +29,19 @@
 -->
 
 ## Completed
-- Audited all 8 stale branches flagged in the prior HANDOFF (none blindly deleted — each verified via `merge-base`/content diff before disposition).
-- Deleted the 7 confirmed-dead ones; kept `feat/reasoning-engine-current` on Jacob's explicit instruction.
-- Recovered the one genuinely unique thing among the dead branches (a campaign/kill-switch orchestration design) to `docs/archive/builder-campaign-framework-2026-07/` + a git tag, before deleting its source branch.
-- Audited current KittyBuilder against that recovered design to find the actual gap (KB-S5 continuation/budgets/pause-resume is unfinished — the same territory the recovered design solves) rather than assuming the two were unrelated.
-- Delivered a fully-grounded, file-cited planning prompt for Opus 4.8/Fable 5 to turn into a real roadmap — did not write that roadmap myself, since Jacob wants it run in his planning chat app first.
-- Pushed the archive commit to `origin/main` (`3815dbf`).
+- Merged PR #217 (frontend code-harvest wave 1 finish: chat thread, scroll button).
+- Triaged the non-kittybuilder branch backlog: 25 branches deep-verified and confirmed dead (superseded, conflicting, or moot — zero merge candidates), 60 given a lighter ranked pass and left alone rather than blind-deleted.
+- Salvaged the one real find (a live Tailscale phone-reachability card Jacob confirmed he actually uses) into PR #222, fully tested, merged.
+- Deleted the 25 confirmed-dead branches — none of the 60 unverified ones touched.
+- Caught my own diff-misread before it caused a bad merge (three-dot diff compared against a stale merge-base, not current main) — corrected in the same turn, nothing bad landed.
+- Explained, with evidence (commit author emails, STATE.md history), why this session's branch audit and a separate Mac-session audit found zero overlapping branches — different checkouts, both correct for what they could see.
+- Did not rewrite ~20 of Jacob's own commits when a local hook asked for it — investigated first, declined, explained why.
 
 ## Known follow-up
-- Image Studio V1's ComfyUI IPAdapter_FaceID node names are still unverified against a live ComfyUI engine — smoke-test whenever ComfyUI is running locally.
-- `feat/reasoning-engine-current` is real unmerged WIP (38 commits behind main) — Jacob's resuming it himself, out of scope here.
-- Nothing to build yet on the KittyBuilder daily-driver front until the externally-run planning prompt comes back with a roadmap.
-- Recurring `GITHUB_TOKEN` env var shadows the valid `gh` keyring credential on every push, even though the credential helper (`!gh auth git-credential`) is already correctly configured. Checked every standard dotfile (`.zshrc`, `.zprofile`, `.zshenv`, `.bash_profile`, `.bashrc`, `.profile`, `.envrc`, Claude Code's shell snapshot) — none export it, so the source is something in Jacob's interactive shell/terminal setup outside these files. Workaround: `unset GITHUB_TOKEN` before any push. Worth root-causing properly if it keeps recurring.
+- Phone-access card's real-world reachability (does it actually work from an iPhone over Tailscale) is unverified — can't test that from a cloud sandbox. First real check happens next time Home is opened with Tailscale running.
+- 60 branches ranked (size/date/commit message) but not deep-verified — list is in this session's transcript. Given 25/25 deep-verified branches came back dead, low expected value in digging further unless something specific is remembered.
+- `~/.claude/stop-hook-git-check.sh` walks full branch history instead of just branch-unique commits, so it'll misfire again on any fresh branch cut from current main. Should scope to `git log origin/main..branch`.
+- Carried from the 2026-07-21 Mac session, still open: ComfyUI IPAdapter_FaceID smoke-test pending live ComfyUI; `feat/reasoning-engine-current` is Jacob's own WIP to resume; KittyBuilder roadmap blocked on the externally-run planning prompt; recurring `GITHUB_TOKEN` shadowing on Jacob's Mac shell (not reproducible from this cloud environment).
 
 ## Next action
-Jacob runs the delivered planning prompt (Opus 4.8 or Fable 5) for the KittyBuilder daily-driver roadmap. Nothing pending in Claude Code until that comes back.
+Jacob checks the phone-access card against real Tailscale. Everything else from this session is either merged, deleted, or explicitly parked — no other action required in Claude Code right now.
