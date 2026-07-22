@@ -17,7 +17,7 @@ import { inferMood } from '@/lib/mood';
 import { TopBar } from '@/components/TopBar';
 import { ThreadGoal } from '@/components/ThreadGoal';
 import { SignalFeed } from '@/components/SignalCard';
-import { ChatMessage } from '@/components/ChatMessage';
+import { KittyThread } from '@/components/KittyThread';
 import { InputBar } from '@/components/InputBar';
 import { HomeState } from '@/components/HomeState';
 import { Rail } from '@/components/Rail';
@@ -40,10 +40,12 @@ import { LoopWatch } from '@/components/LoopWatch';
 import { InsightFeed } from '@/components/InsightFeed';
 import { PromptToolkit } from '@/components/PromptToolkit';
 import { CommandPalette } from '@/components/CommandPalette';
+import { ActiveTaskCards } from '@/components/ActiveTaskCards';
+import { KittyRuntimeProvider } from '@/components/KittyRuntimeProvider';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PwaInstallBanner } from '@/components/PwaInstallBanner';
 import { WobFilters, PaperGrain } from '@/components/WobFilters';
-import { CatCorner, CatBody, type CatState } from '@/components/CrayonCat';
+import { CatCorner, type CatState } from '@/components/CrayonCat';
 import {
   buildGatewayModels,
   fetchGatewaySearch,
@@ -51,6 +53,7 @@ import {
   type GatewaySearchSnapshot,
   type GatewayTriageEntry,
 } from '@/lib/gateway';
+import { validateAttachments, type AttachmentError } from '@/lib/attachment-validation';
 import { usePwaInstall } from '@/lib/pwa';
 import {
   useGatewayBrief,
@@ -203,7 +206,7 @@ function KittyChatInner() {
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [activeModel, setActiveModel] = useState<Model>(MODELS[0]);
-  const [showModelMenu, setShowModelMenu] = useState(false);
+
   const [tokenCount, setTokenCount] = useState(0);
   const [searchSnapshot, setSearchSnapshot] = useState<GatewaySearchSnapshot | null>(null);
   const [searchGateway, setSearchGateway] = useState<{
@@ -356,7 +359,6 @@ function KittyChatInner() {
   );
 
   const abortRef = useRef<AbortController | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
   const colorIndexRef = useRef(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -373,10 +375,6 @@ function KittyChatInner() {
       setActiveChatId(chats[0].id);
     }
   }, [chats, activeChatId]);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [activeChat?.messages.length, isStreaming]);
 
   // Sync activeModel with the authoritative runtime model list once it loads.
   useEffect(() => {
@@ -565,6 +563,7 @@ function KittyChatInner() {
 
     let accumulated = '';
     let memoryItems: MemoryEvidence[] | undefined;
+    let toolCalls: import('@/lib/types').ToolCall[] | undefined;
     try {
       for await (const chunk of streamChat(
         turnModel.id,
@@ -581,6 +580,14 @@ function KittyChatInner() {
           memoryItems = chunk.memoryItems;
           continue;
         }
+        if (chunk.toolCalls?.length) {
+          toolCalls = chunk.toolCalls;
+          updateChat(chat.id, (c) => ({
+            ...c,
+            messages: c.messages.map((m) => (m.id === aiMsgId ? { ...m, toolCalls } : m)),
+          }));
+          continue;
+        }
         accumulated += chunk.content;
         const content = accumulated;
         updateChat(chat.id, (c) => ({
@@ -590,20 +597,22 @@ function KittyChatInner() {
       }
 
       const mood = inferMood(accumulated, 'assistant');
+      const extras = {
+        ...(memoryItems ? { memoryItems } : {}),
+        ...(toolCalls?.length ? { toolCalls } : {}),
+      };
       updateChat(chat.id, (c) => ({
         ...c,
         updatedAt: new Date(),
         messages: c.messages.map((m) =>
           m.id === aiMsgId
-            ? { ...m, content: accumulated, mood, ...(memoryItems ? { memoryItems } : {}) }
+            ? { ...m, content: accumulated, mood, ...extras }
             : m,
         ),
       }));
       setLastOutcome('done');
       window.setTimeout(() => setLastOutcome((o) => (o === 'done' ? null : o)), 2500);
 
-      // Persist to SQLite — React state stays the source of truth, but the
-      // outcome is surfaced (saving / saved / failed / offline), never swallowed.
       void persistChat({
         id: chat.id,
         title,
@@ -613,7 +622,7 @@ function KittyChatInner() {
         updatedAt: new Date(),
         messages: [
           ...history,
-          { ...aiMsg, content: accumulated, mood, ...(memoryItems ? { memoryItems } : {}) },
+          { ...aiMsg, content: accumulated, mood, ...extras },
         ],
       });
     } catch (err: unknown) {
@@ -718,20 +727,45 @@ function KittyChatInner() {
     abortRef.current?.abort();
   }, []);
 
+  const handleRuntimeSend = useCallback((text: string) => {
+    if (!text.trim() || isStreaming || !activeChat) return;
+    const userMsg: Message = {
+      id: newMsgId(),
+      role: 'user',
+      content: text.trim(),
+      timestamp: new Date(),
+    };
+    const isFirst = activeChat.messages.length === 0;
+    const title = isFirst ? text.slice(0, 32) + (text.length > 32 ? '…' : '') : activeChat.title;
+    updateChat(activeChat.id, (c) => ({
+      ...c,
+      title,
+      messages: [...c.messages, userMsg],
+      updatedAt: new Date(),
+    }));
+    setInput('');
+    setAttachments([]);
+    setActiveView('chat');
+    void runStream(activeChat, [...activeChat.messages, userMsg], title);
+  }, [isStreaming, activeChat, updateChat, runStream]);
+
   const handlePromptSelect = useCallback((text: string) => {
     setInput(text);
     setActiveView('chat');
     setTimeout(() => textareaRef.current?.focus(), 0);
   }, []);
 
-  // Upload picked files to the gateway, registering each as a durable artifact
-  // linked to this conversation. Only successful registrations become pending
-  // attachments; a null result means upload failed and the chip is dropped.
+  const [attachmentErrors, setAttachmentErrors] = useState<AttachmentError[]>([]);
+
   const handleAddFiles = useCallback(
     async (files: FileList) => {
       if (!activeChat) return;
+      const { valid, errors } = validateAttachments(files);
+      if (errors.length) setAttachmentErrors(errors);
+      else setAttachmentErrors([]);
+
       const added: MessageAttachment[] = [];
-      for (const file of Array.from(files)) {
+      for (const file of valid) {
         const result = await uploadCaptureFile(file, {
           conversationId: activeChat.id,
           projectId: activeProject?.id,
@@ -807,7 +841,6 @@ function KittyChatInner() {
         color: 'var(--ink)',
         fontFamily: 'var(--font-body)',
       }}
-      onClick={() => showModelMenu && setShowModelMenu(false)}
     >
       <WobFilters />
       {showOnboarding && (
@@ -875,6 +908,14 @@ function KittyChatInner() {
         </>
       )}
 
+      <KittyRuntimeProvider
+        messages={activeChat?.messages ?? []}
+        isStreaming={isStreaming}
+        activeModel={activeModel}
+        onSend={handleRuntimeSend}
+        onCancel={handleStop}
+        onReload={handleRetry}
+      >
       <main
         style={{
           flex: 1,
@@ -890,10 +931,8 @@ function KittyChatInner() {
           activeModel={activeModel}
           models={availableModels}
           onSelectModel={handleSelectModel}
-          showModelMenu={showModelMenu}
-          setShowModelMenu={setShowModelMenu}
+
           isStreaming={isStreaming}
-          activeChat={activeChat}
           modelFromGateway={modelGateway.live}
           activeView={activeView}
           onViewChange={setActiveView}
@@ -1127,158 +1166,20 @@ function KittyChatInner() {
               <div style={panelPadding(isMobile)}>
                 <BuilderPanel onBack={() => setActiveView('home')} />
               </div>
-            ) : activeView === 'chat' && activeChat && activeChat.messages.length > 0 ? (
-              <div
-                style={{
-                  padding: isMobile ? '18px 14px 16px' : '30px 44px 16px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 18,
-                  paddingBottom: isMobile ? 176 : 140,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, opacity: 0.7 }}>
-                  <span style={{ flex: 1, height: 1.5, background: 'var(--line)' }} />
-                  <span
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 10,
-                      letterSpacing: '0.1em',
-                      textTransform: 'uppercase',
-                      color: 'var(--ink-2)',
-                    }}
-                  >
-                    today
-                  </span>
-                  <span style={{ flex: 1, height: 1.5, background: 'var(--line)' }} />
-                </div>
-                {activeChat.messages.map((msg, i) => {
-                  const isLast = i === activeChat.messages.length - 1;
-                  const prev = i > 0 ? activeChat.messages[i - 1] : null;
-                  const isFirstInRun = !prev || prev.role !== msg.role;
-                  return (
-                    <ChatMessage
-                      key={msg.id}
-                      message={msg}
-                      chatId={activeChat.id}
-                      messageIndex={i}
-                      isStreaming={isStreaming && isLast && msg.role === 'assistant'}
-                      isFirstInRun={isFirstInRun}
-                      catState={catState}
-                      compact={isMobile}
-                      onRetry={isLast && msg.role === 'assistant' && !isStreaming ? handleRetry : undefined}
-                    />
-                  );
-                })}
-                <div ref={bottomRef} />
-              </div>
             ) : activeView === 'chat' ? (
-              <div
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 30,
-                  paddingBottom: 100,
-                  maxWidth: 420,
-                  margin: '0 auto',
-                  textAlign: 'center',
-                  padding: 40,
+              <KittyThread
+                messages={activeChat?.messages ?? []}
+                chatId={activeChat?.id ?? ''}
+                isStreaming={isStreaming}
+                catState={catState}
+                compact={isMobile}
+                onRetry={handleRetry}
+                onStartClick={() => textareaRef.current?.focus()}
+                onChipClick={(chip) => {
+                  setInput(chip);
+                  textareaRef.current?.focus();
                 }}
-              >
-                <div className="cat-idle" style={{ position: 'relative' }}>
-                  <CatBody size={140} />
-                </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 12,
-                    alignItems: 'center',
-                  }}
-                >
-                  <h1
-                    style={{
-                      fontFamily: 'var(--font-display)',
-                      fontWeight: 800,
-                      fontSize: 64,
-                      letterSpacing: '-0.035em',
-                      color: 'var(--ink)',
-                      lineHeight: 0.86,
-                    }}
-                  >
-                    hey.
-                  </h1>
-                  <p
-                    style={{
-                      fontSize: 16,
-                      lineHeight: 1.6,
-                      color: 'var(--ink-2)',
-                      maxWidth: 300,
-                    }}
-                  >
-                    {
-                      "i'm kitty. drawn by a six-year-old, allegedly. here when you need me — let's get things done."
-                    }
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    textareaRef.current?.focus();
-                  }}
-                  style={{
-                    background: 'var(--primary)',
-                    color: 'var(--on-primary)',
-                    border: 'none',
-                    borderRadius: 14,
-                    padding: '14px 40px',
-                    fontFamily: 'var(--font-body)',
-                    fontSize: 16,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    boxShadow: 'var(--btn-shadow)',
-                    letterSpacing: '-0.01em',
-                  }}
-                >
-                  {"let's go →"}
-                </button>
-
-                <div
-                  style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: 9,
-                    justifyContent: 'center',
-                    marginTop: 8,
-                  }}
-                >
-                  {['plan my week', 'draft a reply', "what's on today", 'summarise a doc'].map(
-                    (chip) => (
-                      <button
-                        key={chip}
-                        onClick={() => {
-                          setInput(chip);
-                          textareaRef.current?.focus();
-                        }}
-                        style={{
-                          fontFamily: 'var(--font-body)',
-                          fontSize: 13,
-                          color: 'var(--ink)',
-                          background: 'var(--surface)',
-                          border: '1.5px solid var(--line)',
-                          borderRadius: 12,
-                          padding: '8px 16px',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {chip}
-                      </button>
-                    ),
-                  )}
-                </div>
-              </div>
+              />
             ) : activeView === 'home' ? (
               <HomeState
                 compact={isMobile}
@@ -1350,10 +1251,32 @@ function KittyChatInner() {
           </div>
         )}
 
+        {activeView === 'chat' && attachmentErrors.length > 0 && (
+          <div
+            role="alert"
+            style={{
+              padding: '4px 28px',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              color: 'var(--c-red)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+              flexShrink: 0,
+            }}
+          >
+            {attachmentErrors.map((err, i) => (
+              <span key={i}>{err.file}: {err.reason}</span>
+            ))}
+          </div>
+        )}
+
+        {activeView === 'chat' && <ActiveTaskCards compact={isMobile} />}
+
         {activeView === 'chat' && (
           <InputBar
             value={input}
-            onChange={setInput}
+            onChange={(v: string) => { setInput(v); if (attachmentErrors.length) setAttachmentErrors([]); }}
             onSend={handleSend}
             onStop={handleStop}
             isStreaming={isStreaming}
@@ -1374,6 +1297,7 @@ function KittyChatInner() {
           />
         )}
       </main>
+      </KittyRuntimeProvider>
 
       <CatCorner state={catState} />
       <PaperGrain />

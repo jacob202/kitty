@@ -8,6 +8,7 @@ import { Message, type MemoryEvidence } from '@/lib/types'
 import { deleteMemory } from '@/lib/gateway'
 import { useSubmitMessageFeedback, type MessageFeedbackRating } from '@/lib/queries'
 import { CatFaceBadge, type CatState } from './CrayonCat'
+import { ToolCallList } from './ToolCallBlock'
 
 interface Props {
   message: Message
@@ -101,10 +102,15 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
             border: isKitty ? '1.5px solid var(--line)' : 'none',
             boxShadow: 'var(--shadow-soft)',
           }}>
-            {isStreaming && !message.content ? (
+            {isStreaming && !message.content && !message.toolCalls?.length ? (
               <TypingDots />
             ) : (
-              <MessageContent content={message.content} isUser={isUser} />
+              <>
+                <MessageContent content={message.content} isUser={isUser} />
+                {message.toolCalls && message.toolCalls.length > 0 && (
+                  <ToolCallList toolCalls={message.toolCalls} isStreaming={isStreaming} />
+                )}
+              </>
             )}
           </div>
         {isKitty && !isStreaming && message.memoryItems && message.memoryItems.length > 0 && (

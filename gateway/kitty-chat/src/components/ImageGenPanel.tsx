@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useImageStatus, useImageHistory, useGenerateImage } from '@/lib/queries'
+import { ImageGallery } from './ImageGallery'
 
 const STYLE_CHIPS = [
   { label: 'portrait',    hint: 'portrait orientation' },
@@ -165,28 +166,9 @@ export function ImageGenPanel() {
       {/* Error */}
       {state === 'error' && <p style={errorStyle}>{errMsg}</p>}
 
-      {/* Image history grid */}
-      {history.length > 0 && (
-        <div style={gridStyle}>
-          {history.map(img => (
-            <div key={img.prompt_id} style={thumbWrapStyle}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                // Keep absolute Kitty-store paths in one proxy segment so the
-                // catch-all route does not drop the leading slash.
-                src={`/proxy/image/view/${encodeURIComponent(img.filename)}`}
-                alt={img.prompt}
-                style={thumbStyle}
-                title={img.prompt}
-                loading="lazy"
-              />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {history.length === 0 && state !== 'generating' && (
-        <p style={emptyStyle}>no images yet</p>
+      {/* Image gallery with lightbox */}
+      {state !== 'generating' && (
+        <ImageGallery images={history} />
       )}
     </div>
   )
@@ -255,39 +237,11 @@ const genBtnStyle: CSSProperties = {
   textAlign: 'left',
 }
 
-const gridStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(2, 1fr)',
-  gap: 5,
-}
-
-const thumbWrapStyle: CSSProperties = {
-  aspectRatio: '1',
-  overflow: 'hidden',
-  borderRadius: 4,
-  border: '1px solid var(--line)',
-  background: 'var(--surface-2)',
-}
-
-const thumbStyle: CSSProperties = {
-  width: '100%',
-  height: '100%',
-  objectFit: 'cover',
-  display: 'block',
-}
-
 const errorStyle: CSSProperties = {
   margin: 0,
   fontFamily: 'var(--font-mono)',
   fontSize: 10,
   color: 'var(--cat-ginger)',
-}
-
-const emptyStyle: CSSProperties = {
-  margin: 0,
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  color: 'var(--ink-2)',
 }
 
 const unavailableStyle: CSSProperties = {
