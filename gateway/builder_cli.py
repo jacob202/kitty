@@ -1218,6 +1218,23 @@ def _cmd_initiative_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_initiative_report(args: argparse.Namespace) -> int:
+    from gateway.builder_initiative import InitiativeNotFoundError
+    from gateway.builder_report import generate_report
+
+    try:
+        path = generate_report(args.id)
+    except InitiativeNotFoundError as exc:
+        print(f"error: initiative not found: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(json.dumps({"report_path": str(path)}, indent=2))
+    else:
+        print(f"report written: {path}")
+    return 0
+
+
 def _cmd_initiative_attempts(args: argparse.Namespace) -> int:
     from gateway.builder_attempt import list_attempts
 
@@ -1725,6 +1742,10 @@ COMMANDS: list[CommandSpec] = [
     CommandSpec("initiative-status", "initiative", "status",
                 "roll up packet eligibility and initiative status (KB-S1B)",
                 _cmd_initiative_status,
+                [_a("id", "initiative ID"), _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("initiative-report", "initiative", "report",
+                "write a bounded markdown campaign report to data/kittybuilder/reports/ (CP-05)",
+                _cmd_initiative_report,
                 [_a("id", "initiative ID"), _a("--json", "output JSON", action="store_true")]),
     CommandSpec("initiative-attempts", "initiative", "attempts", "list packet attempts for an initiative",
                 _cmd_initiative_attempts,
