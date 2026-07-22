@@ -14,6 +14,59 @@ from typing import Any
 # Recent-event window: enough for takeover context without dumping history.
 _EVENT_TAIL = 10
 
+# CP-07 — mechanical path-prefix -> (scripts, skills) mapping. Deliberately
+# NOT inference: an allowed_path that matches no prefix here gets an empty
+# resources section, never a guessed script. Extend this table, don't teach
+# the matcher to reason about paths it doesn't recognize.
+RESOURCE_MAP: list[tuple[str, list[str], list[str]]] = [
+    (
+        "gateway/builder_",
+        [
+            "scripts/kittybuilder_opencode_worker.sh",
+            "scripts/kittybuilder_opencode_reviewer.sh",
+            "scripts/opencode_free_train.sh",
+        ],
+        ["catchup", "debug-fix"],
+    ),
+    (
+        "gateway/mempalace",
+        ["scripts/mempalace_preflight.py"],
+        ["debug-fix"],
+    ),
+    (
+        "gateway/kitty-chat/",
+        [],
+        ["catchup"],
+    ),
+    (
+        "tests/",
+        [],
+        ["debug-fix"],
+    ),
+    (
+        "docs/",
+        [],
+        ["catchup"],
+    ),
+]
+
+
+def resources_for_paths(allowed_paths: list[str]) -> dict[str, list[str]]:
+    """Mechanical prefix match against RESOURCE_MAP. No inference — a path
+    matching no prefix contributes nothing, on purpose."""
+    scripts: list[str] = []
+    skills: list[str] = []
+    for path in allowed_paths:
+        for prefix, mapped_scripts, mapped_skills in RESOURCE_MAP:
+            if path.startswith(prefix):
+                for s in mapped_scripts:
+                    if s not in scripts:
+                        scripts.append(s)
+                for sk in mapped_skills:
+                    if sk not in skills:
+                        skills.append(sk)
+    return {"scripts": scripts, "skills": skills}
+
 
 def default_branch_name(task: dict[str, Any]) -> str:
     return f"kittybuilder/{task['id']}"
@@ -82,6 +135,25 @@ def render_worker_brief(
     add("Never touch: secrets/auth/env files, `.claude/`, unrelated code,")
     add("or anything requiring deletion/force-push. Do not add dependencies.")
     add("")
+
+    resources = resources_for_paths(list(allowed))
+    if resources["scripts"] or resources["skills"]:
+        add("## Resources (CP-07)")
+        add("")
+        add("Prefer invoking an existing script or skill over reimplementing —")
+        add("cite which you used (or that none applied) in your final report's")
+        add("`summary` or `claims`.")
+        add("")
+        if resources["scripts"]:
+            add("Repo scripts relevant to this packet's paths:")
+            for s in resources["scripts"]:
+                add(f"- `{s}`")
+            add("")
+        if resources["skills"]:
+            add("Repo skills relevant to this packet's paths (`.claude/skills/`):")
+            for sk in resources["skills"]:
+                add(f"- `{sk}`")
+            add("")
 
     add("## Validation required before reporting")
     add("")

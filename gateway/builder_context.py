@@ -54,8 +54,20 @@ def _context_files(repo_root: Path) -> list[Path]:
     return files
 
 
-def build_context_manifest(repo_root: Path, bundle_path: Path) -> dict[str, Any]:
-    """Hash the bounded worker context without persisting its contents."""
+def build_context_manifest(
+    repo_root: Path,
+    bundle_path: Path,
+    *,
+    allowed_paths: list[str] | None = None,
+) -> dict[str, Any]:
+    """Hash the bounded worker context without persisting its contents.
+
+    ``allowed_paths`` (CP-07, optional) drives a mechanical resources
+    lookup (``gateway.builder_brief.resources_for_paths``) — repo scripts
+    and skills relevant to the packet's scope, so workers stop
+    rediscovering what already exists. Omitted paths get an empty
+    resources block, never a guess.
+    """
     root = repo_root.resolve()
     files: list[dict[str, Any]] = []
     for path in _context_files(root):
@@ -69,7 +81,7 @@ def build_context_manifest(repo_root: Path, bundle_path: Path) -> dict[str, Any]
         )
 
     bundle = bundle_path.resolve()
-    return {
+    manifest: dict[str, Any] = {
         "manifest_version": CONTEXT_MANIFEST_VERSION,
         "generated_at": time.time(),
         "context_files": files,
@@ -79,6 +91,11 @@ def build_context_manifest(repo_root: Path, bundle_path: Path) -> dict[str, Any]
             "size_bytes": bundle.stat().st_size,
         },
     }
+    if allowed_paths:
+        from gateway.builder_brief import resources_for_paths
+
+        manifest["resources"] = resources_for_paths(allowed_paths)
+    return manifest
 
 
 def write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
