@@ -71,6 +71,7 @@ import {
   // cockpit health
   fetchGatewayHealth,
   fetchChatsPersistence,
+  fetchGatewayTailnet,
   // knowledge
   fetchKnowledgeSources,
   searchKnowledge,
@@ -652,6 +653,15 @@ export function useGatewayHealth() {
     queryKey: ['health'],
     queryFn: fetchGatewayHealth,
     refetchInterval: 30_000,
+  })
+}
+
+export function useTailnet() {
+  return useQuery({
+    queryKey: ['network', 'tailnet'],
+    queryFn: fetchGatewayTailnet,
+    refetchInterval: 30_000,
+    retry: false,
   })
 }
 

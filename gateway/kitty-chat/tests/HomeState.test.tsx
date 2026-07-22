@@ -21,6 +21,7 @@ import {
   useDeadlines,
   useDeadlineSweep,
   useGatewayRuntimeManifest,
+  useTailnet,
 } from '../src/lib/queries';
 import { HomeState } from '../src/components/HomeState';
 
@@ -52,6 +53,7 @@ vi.mock('../src/lib/queries', () => ({
   useDeadlines: vi.fn(),
   useDeadlineSweep: vi.fn(),
   useGatewayRuntimeManifest: vi.fn(),
+  useTailnet: vi.fn(),
 }));
 
 const LIVE_MODELS = [
@@ -136,6 +138,12 @@ function setDefaultMocks() {
     isPending: false,
     mutate: vi.fn(),
     data: undefined,
+  });
+  (useTailnet as Mock).mockReturnValue({
+    data: { ok: false, tailnetIp: null, uiUrl: null },
+    isPending: false,
+    isError: false,
+    isFetched: true,
   });
   (useGatewayRuntimeManifest as Mock).mockReturnValue({
     data: {
@@ -666,6 +674,25 @@ describe('HomeState', () => {
     render(<HomeState />);
     screen.getByText('sweep').click();
     expect(mutate).toHaveBeenCalled();
+  });
+
+  // ── phone access card ──
+
+  it('shows an honest not-detected state when tailscale is unreachable', () => {
+    render(<HomeState />);
+    expect(screen.getByText(/tailscale not detected/)).toBeInTheDocument();
+  });
+
+  it('shows the tailnet URL when reachable', () => {
+    (useTailnet as Mock).mockReturnValue({
+      data: { ok: true, tailnetIp: '100.64.1.2', uiUrl: 'http://100.64.1.2:4000' },
+      isPending: false,
+      isError: false,
+      isFetched: true,
+    });
+    render(<HomeState />);
+    expect(screen.getByText('http://100.64.1.2:4000')).toBeInTheDocument();
+    expect(screen.queryByText(/tailscale not detected/)).not.toBeInTheDocument();
   });
 
   // ── error-before-loading regressions ──

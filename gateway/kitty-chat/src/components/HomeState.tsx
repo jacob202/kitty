@@ -24,6 +24,7 @@ import {
   useSessionContext,
   useDeadlines,
   useDeadlineSweep,
+  useTailnet,
 } from '@/lib/queries';
 import type {
   GatewayAction,
@@ -617,6 +618,45 @@ function dueTone(dueDate: string): string {
   return 'var(--ink-2)';
 }
 
+function PhoneAccessCard() {
+  const tailnet = useTailnet();
+
+  if (tailnet.isPending) {
+    return (
+      <SectionCard title="phone access">
+        <div role="status" style={emptyState}>
+          loading…
+        </div>
+      </SectionCard>
+    );
+  }
+
+  if (!tailnet.data?.ok || !tailnet.data.uiUrl) {
+    return (
+      <SectionCard title="phone access">
+        <div style={{ ...emptyState, textAlign: 'left', padding: '12px 2px' }}>
+          tailscale not detected — start the UI with{' '}
+          <code style={{ fontFamily: 'var(--font-mono)' }}>make ui-tailnet</code> and make sure
+          Tailscale is running on this Mac.
+        </div>
+      </SectionCard>
+    );
+  }
+
+  return (
+    <SectionCard title="phone access">
+      <div style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>
+          reachable from your iPhone
+        </div>
+        <div style={{ ...bodyText, fontFamily: 'var(--font-mono)', color: 'var(--primary)' }}>
+          {tailnet.data.uiUrl}
+        </div>
+      </div>
+    </SectionCard>
+  );
+}
+
 function Deadlines() {
   const deadlines = useDeadlines('open');
   const sweep = useDeadlineSweep();
@@ -1180,6 +1220,7 @@ export function HomeState({
       )}
       {visibleTiles['needs-you'] !== false && <NeedsYou onDecideInChat={onDecideInChat} />}
       {visibleTiles['deadlines'] !== false && <Deadlines />}
+      {visibleTiles['phone-access'] !== false && <PhoneAccessCard />}
       {visibleTiles['active-projects'] !== false && <ActiveProjects onNavigate={onNavigate} />}
       {visibleTiles['what-changed'] !== false && <WhatChanged />}
       {visibleTiles['today'] !== false && (
