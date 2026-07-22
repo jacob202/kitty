@@ -1108,3 +1108,121 @@ class TestKbS1bCli:
     def test_status_missing_initiative(self, cli_db, capsys):
         assert main(["initiative", "status", "ghost"]) == 1
         assert "not found" in capsys.readouterr().err
+
+
+class TestCp04HealthMetrics:
+    """CP-04: read-only health block derived from attempts/events."""
+
+    def _implementation(self, status: str = "completed") -> dict:
+        return {
+            "contract_version": ba.CONTRACT_VERSION,
+            "status": status,
+            "summary": "did the thing",
+        }
+
+    def _review(self, verdict: str) -> dict:
+        return {
+            "contract_version": ba.CONTRACT_VERSION,
+            "verdict": verdict,
+            "summary": "reviewed",
+        }
+
+    def test_attempts_per_packet_and_first_pass_approval(self, db_path: Path):
+        manifest = _manifest(
+            packets=[
+                _packet("KB-H1", policy={"max_attempts": 3}),
+                _packet("KB-H2", depends_on=[]),
+            ]
+        )
+        bi.apply_manifest(manifest, db_path=db_path)
+
+        # KB-H1: first attempt request_changes, second attempt approve.
+        a1 = ba.start_attempt("kitty-alpha-v1", "KB-H1", db_path=db_path)
+        ba.record_implementation_result(a1["id"], self._implementation(), db_path=db_path)
+        ba.record_review_result(a1["id"], self._review("request_changes"), db_path=db_path)
+        ba.close_attempt(a1["id"], ba.ATTEMPT_FAILED, db_path=db_path)
+
+        a2 = ba.start_attempt("kitty-alpha-v1", "KB-H1", db_path=db_path)
+        ba.record_implementation_result(a2["id"], self._implementation(), db_path=db_path)
+        ba.record_review_result(a2["id"], self._review("approve"), db_path=db_path)
+        ba.close_attempt(a2["id"], ba.ATTEMPT_SUCCEEDED, db_path=db_path)
+
+        # KB-H2: single attempt, first-pass approve.
+        b1 = ba.start_attempt("kitty-alpha-v1", "KB-H2", db_path=db_path)
+        ba.record_implementation_result(b1["id"], self._implementation(), db_path=db_path)
+        ba.record_review_result(b1["id"], self._review("approve"), db_path=db_path)
+        ba.close_attempt(b1["id"], ba.ATTEMPT_SUCCEEDED, db_path=db_path)
+
+        health = bi.initiative_status("kitty-alpha-v1", db_path=db_path)["health"]
+        assert health["attempts_per_packet"]["avg"] == 1.5
+        assert health["attempts_per_packet"]["max"] == 2
+        # 1 of 2 packets had an approving *first* attempt.
+        assert health["first_pass_review_approval_rate"] == 0.5
+        assert health["exhausted_count"] == 0
+
+    def test_exhausted_count_reflects_attempt_budget_spent(self, db_path: Path):
+        manifest = _manifest(
+            packets=[_packet("KB-H1", policy={"max_attempts": 1})]
+        )
+        bi.apply_manifest(manifest, db_path=db_path)
+        attempt = ba.start_attempt("kitty-alpha-v1", "KB-H1", db_path=db_path)
+        ba.close_attempt(attempt["id"], ba.ATTEMPT_FAILED, db_path=db_path)
+
+        health = bi.initiative_status("kitty-alpha-v1", db_path=db_path)["health"]
+        assert health["exhausted_count"] == 1
+
+    def test_stop_class_counts_absent_when_no_decisions_made(self, db_path: Path):
+        bi.apply_manifest(_manifest(), db_path=db_path)
+        health = bi.initiative_status("kitty-alpha-v1", db_path=db_path)["health"]
+        assert health["stop_class_counts"] == {}
+
+    def test_stop_class_counts_tallied_from_decision_events(self, db_path: Path):
+        result = bi.apply_manifest(_manifest(), db_path=db_path)
+        task_id = result["packets"][0]["task_id"]
+        bq.append_event(
+            task_id,
+            "initiative_decision",
+            payload={"stop_class": "needs_decision", "decision": "packet_exhausted"},
+            db_path=db_path,
+        )
+        bq.append_event(
+            task_id,
+            "initiative_decision",
+            payload={"stop_class": "routine", "decision": "packet_succeeded"},
+            db_path=db_path,
+        )
+
+        health = bi.initiative_status("kitty-alpha-v1", db_path=db_path)["health"]
+        assert health["stop_class_counts"] == {"needs_decision": 1, "routine": 1}
+
+    def test_health_metrics_are_read_only(self, db_path: Path):
+        bi.apply_manifest(_manifest(), db_path=db_path)
+        before = sqlite3.connect(db_path).execute(
+            "SELECT COUNT(*) FROM events"
+        ).fetchone()[0]
+
+        bi.initiative_status("kitty-alpha-v1", db_path=db_path)
+
+        after = sqlite3.connect(db_path).execute(
+            "SELECT COUNT(*) FROM events"
+        ).fetchone()[0]
+        assert after == before
+
+    def test_health_block_present_in_cli_json_status(self, cli_db, capsys):
+        path = _write_manifest(cli_db.parent.parent, _manifest())
+        assert main(["initiative", "apply", str(path)]) == 0
+        capsys.readouterr()
+
+        assert main(["initiative", "status", "kitty-alpha-v1", "--json"]) == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert "health" in payload
+        assert "attempts_per_packet" in payload["health"]
+
+    def test_health_summary_line_in_human_readable_status(self, cli_db, capsys):
+        path = _write_manifest(cli_db.parent.parent, _manifest())
+        assert main(["initiative", "apply", str(path)]) == 0
+        capsys.readouterr()
+
+        assert main(["initiative", "status", "kitty-alpha-v1"]) == 0
+        out = capsys.readouterr().out
+        assert "health:" in out

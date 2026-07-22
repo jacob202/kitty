@@ -1231,7 +1231,96 @@ def initiative_status(
         "next_packet": next_p["packet_id"] if next_p else None,
         "next_packet_task_id": next_p["task_id"] if next_p else None,
         "evidence": evidence,
+        "health": _initiative_health(packets, evidence, db_path),
     }
+
+
+def _initiative_health(
+    packets: list[dict[str, Any]],
+    evidence: dict[str, dict[str, Any]],
+    db_path: Path | None,
+) -> dict[str, Any]:
+    """Derive-only health metrics (CP-04) — no new writes, no new table.
+
+    Everything here is computed at read time from the same attempts/events
+    rows ``_initiative_evidence`` and ``_latest_stop_class_decision`` already
+    read. Per the plan's own sunset clause: a control that never fires
+    across the first ~10 campaigns should be deleted, not accumulated on.
+    """
+    attempts_used = [e["attempts_used"] for e in evidence.values()]
+    first_pass_results: list[bool] = []
+    stop_class_counts: dict[str, int] = {}
+    wall_clock_seconds: dict[str, float | None] = {}
+
+    for packet in packets:
+        task_id = packet["task_id"]
+        packet_id = packet["packet_id"]
+
+        attempts = ba.list_attempts(
+            packet["initiative_id"], packet_id, db_path=db_path
+        )
+        if attempts:
+            first_verdict = (attempts[0].get("review") or {}).get("verdict")
+            if first_verdict is not None:
+                first_pass_results.append(first_verdict == "approve")
+
+        if bq.get_task(task_id, db_path=db_path) is None:
+            wall_clock_seconds[packet_id] = None
+            continue
+        events = bq.list_events(task_id, db_path=db_path)
+        for event in events:
+            payload = event.get("payload") or {}
+            if event["type"] != "initiative_decision" or "stop_class" not in payload:
+                continue
+            stop_class = payload["stop_class"]
+            stop_class_counts[stop_class] = stop_class_counts.get(stop_class, 0) + 1
+        timestamps = [
+            event["created_at"] for event in events if event.get("created_at")
+        ]
+        if len(timestamps) >= 2:
+            wall_clock_seconds[packet_id] = _seconds_between(
+                min(timestamps), max(timestamps)
+            )
+        else:
+            wall_clock_seconds[packet_id] = None
+
+    return {
+        "attempts_per_packet": {
+            "avg": round(sum(attempts_used) / len(attempts_used), 2)
+            if attempts_used
+            else None,
+            "max": max(attempts_used) if attempts_used else None,
+        },
+        "first_pass_review_approval_rate": (
+            round(sum(first_pass_results) / len(first_pass_results), 2)
+            if first_pass_results
+            else None
+        ),
+        "exhausted_count": sum(1 for e in evidence.values() if e["exhausted"]),
+        "stop_class_counts": stop_class_counts,
+        "wall_clock_seconds_per_packet": wall_clock_seconds,
+    }
+
+
+def _seconds_between(start: Any, end: Any) -> float | None:
+    """Parse two sqlite TIMESTAMP values (str or datetime) into elapsed seconds."""
+    from datetime import datetime
+
+    def _parse(value: Any) -> datetime | None:
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M:%S.%f"):
+                try:
+                    return datetime.strptime(value, fmt)
+                except ValueError:
+                    continue
+        return None
+
+    start_dt, end_dt = _parse(start), _parse(end)
+    if start_dt is None or end_dt is None:
+        return None
+    return (end_dt - start_dt).total_seconds()
 
 
 def _latest_stop_class_decision(

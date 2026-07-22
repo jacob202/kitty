@@ -1189,6 +1189,20 @@ def _cmd_initiative_status(args: argparse.Namespace) -> int:
             print(f"    - {pid}")
     if status["failed"]:
         print(f"  failed:   {', '.join(status['failed'])}")
+    health = status.get("health") or {}
+    if health:
+        attempts = health.get("attempts_per_packet") or {}
+        approval = health.get("first_pass_review_approval_rate")
+        approval_str = f"{approval:.0%}" if approval is not None else "-"
+        stop_counts = health.get("stop_class_counts") or {}
+        stop_str = (
+            ", ".join(f"{k}={v}" for k, v in sorted(stop_counts.items())) or "-"
+        )
+        print(
+            f"  health:  attempts avg={attempts.get('avg', '-')} "
+            f"max={attempts.get('max', '-')}  first-pass-approval={approval_str}  "
+            f"exhausted={health.get('exhausted_count', 0)}  stop-classes: {stop_str}"
+        )
     for packet_id, evidence in status.get("evidence", {}).items():
         binding = evidence.get("review_binding") or {}
         review_sha = binding.get("review_sha", "-")
