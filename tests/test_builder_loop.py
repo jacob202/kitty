@@ -478,6 +478,38 @@ class TestRunPacket:
         assert result["outcome"] == "exhausted"
         assert "request_changes" in result["attempts"][0]["failure"]
 
+    def test_review_rejection_records_finding_class(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """CP-03: rejection findings' severities are captured so run_initiative
+        can compare failure signatures across attempts."""
+        _apply(db_path, max_attempts=1, repo_root=repo)
+        reviewer = _script(
+            tmp_path,
+            "reject_with_findings.sh",
+            "cat > \"$KB_REVIEW_RESULT_PATH\" <<'EOF'\n"
+            + json.dumps(
+                {
+                    "contract_version": 1,
+                    "verdict": "reject",
+                    "summary": "architectural issue",
+                    "findings": [
+                        {"severity": "critical", "note": "wrong approach"},
+                        {"severity": "minor", "note": "nit"},
+                    ],
+                }
+            )
+            + "\nEOF\n",
+        )
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=_good_worker(tmp_path),
+            review_command=reviewer,
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == "exhausted"
+        assert result["attempts"][0]["review_finding_class"] == ["critical", "minor"]
+
     def test_reviewer_cannot_approve_a_changed_diff(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):
@@ -1118,6 +1150,32 @@ class TestLeaseIdentityIntegration:
         )
         assert result["outcome"] == "exhausted"
 
+    def test_forbidden_path_modification_stops_before_budget_exhausted(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """CP-03: scope escalation halts the packet immediately with
+        structured findings, instead of grinding through the full attempt
+        budget on a worker that will violate scope the same way again."""
+        _apply(db_path, repo_root=repo, max_attempts=5)
+
+        forbidden_worker = _script(
+            tmp_path,
+            "forbidden2.sh",
+            "echo secret > secret.txt\n"
+            "echo ok > done.txt\n"
+            f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n",
+        )
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=forbidden_worker,
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == "exhausted"
+        # Stopped after the first attempt, not after grinding all 5.
+        assert len(result["attempts"]) == 1
+        assert result["escalation"]["category"] == "scope_violation"
+        assert result["escalation"]["findings"]
+
     def test_foreign_commits_rejected(
         self, repo: Path, db_path: Path, tmp_path: Path
     ):
@@ -1141,6 +1199,34 @@ class TestLeaseIdentityIntegration:
         )
         assert result["outcome"] == "exhausted"
         assert bq.verify_branch_lease(PACKET, db_path=db_path) is None
+
+    def test_identity_violation_stops_before_budget_exhausted(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """CP-03: identity escalation (foreign, unmarked commit) halts the
+        packet immediately with structured findings — same fail-loud
+        direction as the scope-violation case above."""
+        _apply(db_path, repo_root=repo, max_attempts=5)
+
+        foreign_commit_worker = _script(
+            tmp_path,
+            "foreign2.sh",
+            "git config user.email 'evil@evil.com'\n"
+            "git config user.name 'Evil'\n"
+            "echo foreign > done.txt\n"
+            "git add done.txt\n"
+            "git commit -m 'no marker here'\n"
+            f"cat > \"$KB_RESULT_PATH\" <<'EOF'\n{_GOOD_IMPL}\nEOF\n",
+        )
+        result = bl.run_packet(
+            INITIATIVE, PACKET,
+            worker_command=foreign_commit_worker,
+            repo_root=repo, db_path=db_path,
+        )
+        assert result["outcome"] == "exhausted"
+        assert len(result["attempts"]) == 1
+        assert result["escalation"]["category"] == "identity_violation"
+        assert result["escalation"]["findings"]
 
     def test_crash_recovery_reconciles_lease(
         self, repo: Path, db_path: Path, tmp_path: Path

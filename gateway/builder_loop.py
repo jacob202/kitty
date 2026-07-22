@@ -858,6 +858,11 @@ def run_packet(
         write_run_manifest(manifest_path, manifest)
 
         failure: str | None = None
+        # CP-03: set only when this attempt's failure needs a human decision
+        # (scope/identity escalation) rather than a routine retry. Carries
+        # structured findings so run_initiative can classify the packet
+        # exhaustion without re-deriving them.
+        scope_escalation: dict[str, Any] | None = None
 
         if run["state"] == bq.RUN_CANCELLED:
             entry["outcome"] = ba.ATTEMPT_ABORTED
@@ -898,6 +903,22 @@ def run_packet(
             )
             raise LoopError(infrastructure_failure)
 
+        if run["state"] == bq.RUN_SCOPE_VIOLATION:
+            violation_paths = list(run_report.get("scope_violations") or [])
+            failure = "worker changed files outside the packet's allowed scope"
+            scope_escalation = {
+                "category": "scope_violation",
+                "findings": [
+                    {
+                        "category": "scope_drift",
+                        "field": "changed_paths",
+                        "message": f"file outside allowed scope: {path}",
+                    }
+                    for path in violation_paths
+                ],
+            }
+            entry["scope_violations"] = violation_paths
+
         identity_findings = bid.verify_worker_identity(
             packet_id,
             repo_root=expected_worktree,
@@ -909,9 +930,6 @@ def run_packet(
             expected_base_sha=base_sha,
         )
         if identity_findings:
-            failure = "worker identity verification failed: " + "; ".join(
-                finding.message for finding in identity_findings
-            )
             entry["identity_findings"] = [
                 {
                     "category": finding.category,
@@ -931,6 +949,18 @@ def run_packet(
                 },
                 db_path=db_path,
             )
+            # A scope violation on this same attempt already set failure and
+            # scope_escalation above; identity is the more specific finding
+            # when both fire, but scope_violation's failure text stands so
+            # the earlier detection isn't silently discarded.
+            if failure is None:
+                failure = "worker identity verification failed: " + "; ".join(
+                    finding.message for finding in identity_findings
+                )
+                scope_escalation = {
+                    "category": "identity_violation",
+                    "findings": entry["identity_findings"],
+                }
 
         if failure is None:
             impl, error = _read_contract(result_path, "implementation")
@@ -960,6 +990,22 @@ def run_packet(
             write_run_manifest(manifest_path, manifest)
             if validated["validation"]["status"] == ba.VALIDATION_FAILED:
                 failure = "deterministic validation failed"
+                # CP-03 failure signature: (validation command, exit code,
+                # review finding class) — crude and mechanical by design, see
+                # docs/plans/KITTYBUILDER_DAILY_DRIVER_PLAN.md §1.3/§4.4.
+                failed_command = next(
+                    (
+                        c
+                        for c in validated["validation"]["commands"]
+                        if not c.get("passed")
+                    ),
+                    None,
+                )
+                if failed_command is not None:
+                    entry["validation_failure"] = {
+                        "command": failed_command.get("command"),
+                        "exit_code": failed_command.get("exit_code"),
+                    }
 
         if failure is None and review_command:
             review_context_path = attempt_dir / "review-context.json"
@@ -1052,6 +1098,15 @@ def run_packet(
                         write_run_manifest(manifest_path, manifest)
                         if review.get("verdict") != "approve":
                             failure = f"review verdict {review.get('verdict')}"
+                            # CP-03 failure signature component: the set of
+                            # finding severities the reviewer raised.
+                            entry["review_finding_class"] = sorted(
+                                {
+                                    f.get("severity")
+                                    for f in review.get("findings", [])
+                                    if isinstance(f, dict) and f.get("severity")
+                                }
+                            )
 
         if failure is None:
             manifest["outcome"] = "succeeded"
@@ -1091,3 +1146,19 @@ def run_packet(
         _close_bound_attempt(
             attempt, lease, ba.ATTEMPT_FAILED, db_path=db_path
         )
+
+        if scope_escalation is not None:
+            # CP-03: scope/identity escalation needs a human decision, not
+            # more retries against the same worktree — stop the packet here
+            # instead of grinding the remaining attempt budget.
+            final_task = bq.get_task(task_id, db_path=db_path)
+            return {
+                "outcome": LOOP_EXHAUSTED,
+                "initiative_id": initiative_id,
+                "packet_id": packet_id,
+                "task_id": task_id,
+                "task_state": final_task["state"] if final_task else None,
+                "reason": failure,
+                "attempts": history,
+                "escalation": scope_escalation,
+            }
