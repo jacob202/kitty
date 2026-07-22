@@ -72,6 +72,32 @@ def _apply(db_path: Path, *, max_attempts: int = 2,
     return result["packets"][0]["task_id"]
 
 
+OTHER_INITIATIVE = "loop-other"
+OTHER_PACKET = "LP-2"
+
+
+def _apply_other(db_path: Path, *, repo_root: Path | None = None) -> str:
+    """Apply a second initiative used to prove cross-initiative reconciliation."""
+    manifest = {
+        "manifest_version": 1,
+        "initiative_id": OTHER_INITIATIVE,
+        "title": "Other loop test",
+        "packets": [
+            {
+                "id": OTHER_PACKET,
+                "title": "Other packet",
+                "objective": "Produce other.txt.",
+                "acceptance_criteria": ["other.txt exists"],
+                "allowed_paths": ["other.txt"],
+                "policy": {"max_attempts": 2},
+                "validation_commands": ["test -f other.txt"],
+            }
+        ],
+    }
+    result = bi.apply_manifest(manifest, db_path=db_path, repo_root=repo_root)
+    return result["packets"][0]["task_id"]
+
+
 _GOOD_IMPL = json.dumps(
     {"contract_version": 1, "status": "completed", "summary": "did it"}
 )
@@ -1480,6 +1506,50 @@ class TestCrashSafeLeaseRecovery:
             INITIATIVE, PACKET, db_path=db_path, repo_root=repo,
         )
         assert len(r2) == 0
+
+    def test_reconciliation_reaches_other_initiatives(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """A stale attempt from another initiative is reconciled too.
+
+        Reconciliation runs in the context of the packet being entered, but
+        must not be scoped to only that packet — otherwise a crashed attempt
+        on an unrelated initiative/packet keeps its branch lease held forever.
+        """
+        _apply(db_path, repo_root=repo)
+        _apply_other(db_path, repo_root=repo)
+        from gateway.builder_brief import default_branch_name
+
+        base_sha = ba.get_packet_base_sha(OTHER_INITIATIVE, OTHER_PACKET, db_path=db_path)
+        wt_path = repo / ".worktrees" / "kittybuilder" / "other-crashed"
+        branch = default_branch_name({"id": "other-crashed"})
+
+        other_attempt, other_lease = ba.claim_and_start_attempt(
+            OTHER_INITIATIVE, OTHER_PACKET,
+            worker_id="crashed-worker",
+            branch=branch,
+            worktree_path=str(wt_path),
+            base_sha=base_sha,
+            db_path=db_path,
+        )
+
+        reconciled = bl._reconcile_stale_attempts(
+            INITIATIVE, PACKET, db_path=db_path, repo_root=repo,
+        )
+
+        assert any(a["id"] == other_attempt["id"] for a in reconciled)
+        closed = ba.get_attempt(other_attempt["id"], db_path=db_path)
+        assert closed["outcome"] == ba.ATTEMPT_CRASHED
+
+        conn = bq.connect(db_path)
+        try:
+            rows = conn.execute(
+                "SELECT * FROM branch_leases WHERE lease_id = ?",
+                (other_lease["lease_id"],),
+            ).fetchall()
+        finally:
+            conn.close()
+        assert len(rows) == 0
 
     def test_reconciliation_cannot_release_other_packets_lease(
         self, repo: Path, db_path: Path, tmp_path: Path

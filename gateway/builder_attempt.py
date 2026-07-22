@@ -383,6 +383,29 @@ def list_stale_attempts(
         conn.close()
 
 
+def list_all_stale_attempts(db_path: Path | None = None) -> list[dict[str, Any]]:
+    """Return every open attempt (outcome IS NULL) across all initiatives.
+
+    A crashed run_packet process leaves its attempt's branch lease held
+    forever if reconciliation only looks within the packet currently being
+    entered — a stale attempt from a different initiative/packet is never
+    found. This is the global counterpart to ``list_stale_attempts``.
+    """
+    init_db(db_path)
+    conn = bq.connect(db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT * FROM packet_attempts
+            WHERE outcome IS NULL
+            ORDER BY initiative_id, packet_id, attempt_no
+            """
+        ).fetchall()
+        return [_row_to_attempt(r) for r in rows]
+    finally:
+        conn.close()
+
+
 # ---------------------------------------------------------------------------
 # Attempt lifecycle
 # ---------------------------------------------------------------------------
