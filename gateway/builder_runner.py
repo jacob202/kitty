@@ -403,6 +403,16 @@ def _scope_violations(
     ]
 
 
+def _scope_snapshot(
+    path: Path,
+    start_sha: str,
+    allowed_paths: list[str] | None,
+) -> tuple[list[str], list[str]]:
+    """Capture the current changed-path set and any scope violations."""
+    changed_paths = _changed_paths(path, start_sha)
+    return changed_paths, _scope_violations(changed_paths, allowed_paths)
+
+
 def _terminate_group(proc: subprocess.Popen[Any]) -> None:
     """SIGTERM the worker's process group, escalate to SIGKILL after grace."""
     try:
@@ -773,6 +783,7 @@ def run_worker(
         lost_lease = False
         cancelled_before_start = False
         control_error: Exception | None = None
+        scope_violation_snapshot: tuple[list[str], list[str]] | None = None
         try:
             process_identity = bq.capture_process_identity(proc.pid)
             bq.update_run(
@@ -835,12 +846,6 @@ def run_worker(
                         outcome = bq.RUN_CANCELLED
                         break
 
-                    if time.monotonic() - started > timeout_seconds:
-                        _terminate_group(proc)
-                        exit_code = proc.returncode
-                        outcome = bq.RUN_TIMEOUT
-                        break
-
                     try:
                         bq.renew_lease(
                             task_id,
@@ -856,6 +861,36 @@ def run_worker(
                         _terminate_group(proc)
                         exit_code = proc.returncode
                         lost_lease = True
+                        break
+                    except Exception as exc:
+                        _terminate_group(proc)
+                        exit_code = proc.returncode
+                        control_error = exc
+                        break
+
+                    try:
+                        changed_paths, scope_violations = _scope_snapshot(
+                            wt_path,
+                            start_sha,
+                            task.get("allowed_paths"),
+                        )
+                    except Exception as exc:
+                        _terminate_group(proc)
+                        exit_code = proc.returncode
+                        control_error = exc
+                        break
+
+                    if scope_violations:
+                        scope_violation_snapshot = (changed_paths, scope_violations)
+                        _terminate_group(proc)
+                        exit_code = proc.returncode
+                        outcome = bq.RUN_SCOPE_VIOLATION
+                        break
+
+                    if time.monotonic() - started > timeout_seconds:
+                        _terminate_group(proc)
+                        exit_code = proc.returncode
+                        outcome = bq.RUN_TIMEOUT
                         break
             except Exception as exc:
                 _terminate_group(proc)
@@ -903,7 +938,12 @@ def run_worker(
 
     if control_error is not None and not lost_lease:
         outcome = bq.RUN_FAILED
-    elif outcome not in (bq.RUN_CANCELLED, bq.RUN_TIMEOUT, bq.RUN_LEASE_LOST):
+    elif outcome not in (
+        bq.RUN_CANCELLED,
+        bq.RUN_TIMEOUT,
+        bq.RUN_LEASE_LOST,
+        bq.RUN_SCOPE_VIOLATION,
+    ):
         outcome = bq.RUN_EXITED if exit_code == 0 else bq.RUN_FAILED
 
     start_sha = str(run.get("start_sha") or "")
@@ -924,6 +964,11 @@ def run_worker(
         diff_sha256 = None
         scope_violations = []
         worktree_state = {"inspection_error": f"{type(exc).__name__}: {exc}"}
+
+    if scope_violation_snapshot is not None:
+        changed_paths, scope_violations = scope_violation_snapshot
+        outcome = bq.RUN_SCOPE_VIOLATION
+        control_error = None
 
     if control_error is not None and outcome != bq.RUN_LEASE_LOST:
         outcome = bq.RUN_FAILED

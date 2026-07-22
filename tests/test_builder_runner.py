@@ -223,6 +223,31 @@ class TestRunWorker:
         assert refreshed["state"] == bq.BLOCKED
         assert refreshed["blocked_reason"] == "scope_violation"
 
+    def test_in_flight_scope_breach_is_stopped_during_execution(
+        self, repo: Path, db_path: Path
+    ):
+        """A long-running worker that breaches scope is killed at the next
+        heartbeat, not left running until it exits or times out."""
+        task = _queued_task(db_path, allowed_paths=["gateway/"])
+        start = time.monotonic()
+
+        run = br.run_worker(
+            task["id"],
+            ["sh", "-c", "echo nope > outside.txt; sleep 60"],
+            timeout_seconds=120,
+            heartbeat_seconds=1,
+            repo_root=repo,
+            db_path=db_path,
+        )
+
+        elapsed = time.monotonic() - start
+        assert elapsed < 15
+        assert run["state"] == bq.RUN_SCOPE_VIOLATION
+        assert run["final_report"]["scope_violations"] == ["outside.txt"]
+        refreshed = bq.get_task(task["id"], db_path=db_path)
+        assert refreshed is not None
+        assert refreshed["blocked_reason"] == "scope_violation"
+
     def test_session_state_residue_is_not_a_scope_violation(
         self, repo: Path, db_path: Path
     ):
