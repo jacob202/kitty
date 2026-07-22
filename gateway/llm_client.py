@@ -44,6 +44,21 @@ class PrivacyBoundaryError(RuntimeError):
     code = "privacy.boundary"
 
 
+class ProviderChainExhausted(RuntimeError):
+    """Raised when LiteLLM and every fallback provider fail to produce a completion.
+
+    Replaces the previous silent ``return ""`` so callers see the failure instead
+    of downstream code interpreting an empty string as a real answer.
+    """
+
+    code = "llm.chain_exhausted"
+
+    def __init__(self, errors: list[str]) -> None:
+        self.errors = list(errors)
+        summary = "; ".join(errors) if errors else "no diagnostics"
+        super().__init__(f"LLM provider chain exhausted: {summary}")
+
+
 def enforce_privacy_boundary(privacy_tier: str, content_class: str | None) -> None:
     """Reject cloud routing for content classes that D10 marks local-only.
 
@@ -636,6 +651,7 @@ def call_llm(
         )
     except Exception as e:
         logger.warning("LLM call failed via LiteLLM (%s), trying fallbacks: %s", model, e)
+        errors: list[str] = [f"litellm: {e}"]
 
         deadline = time.monotonic() + _LLM_CHAIN_DEADLINE
 
@@ -648,6 +664,7 @@ def call_llm(
 
         for provider_name in PROVIDER_FALLBACK_ORDER:
             if provider_name == "agentrouter" and _is_agentrouter_disabled():
+                errors.append(f"{provider_name}: disabled")
                 continue
             _at = _budget_timeout()
             if _at is None:
@@ -655,7 +672,8 @@ def call_llm(
                     "LLM fallback chain exceeded %.0fs deadline; giving up",
                     _LLM_CHAIN_DEADLINE,
                 )
-                return ""
+                errors.append(f"chain: deadline {_LLM_CHAIN_DEADLINE}s exceeded")
+                raise ProviderChainExhausted(errors)
             out = _call_provider(
                 PROVIDERS[provider_name],
                 messages,
@@ -669,8 +687,9 @@ def call_llm(
             )
             if out:
                 return out
+            errors.append(f"{provider_name}: no response")
 
-        return ""
+        raise ProviderChainExhausted(errors)
 
 
 def chat(model: str, messages: list[dict], max_tokens: int = 500, temperature: float = 0.7) -> str:

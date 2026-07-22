@@ -24,12 +24,20 @@ from mcp.imagen.io import save_image
 #   COMFY_URL=https://abc-xyz.trycloudflare.com
 COMFY_URL = os.environ.get("COMFY_URL", "http://127.0.0.1:8188")
 
-SD15_CKPT     = "homofidelis_v50.safetensors"
-BEAR_LORA     = "Muscle_Bear_Baker_v2_for_transfer.safetensors"
-EXPLICIT_LORA = "erect_penis_epoch_80.safetensors"
-SDXL_PHOTONIC = "photonicFusionSDXL_final.safetensors"
+# Checkpoint names — update these to match what's in ComfyUI's models/checkpoints/.
+# Legacy checkpoint names — SD15_CKPT is unused (SDXL-only generation).
+# Kept for reference; _wf_sd15 was removed in the recipe-cleanup deepening.
+SDXL_CKPT     = "RealCoreXL.safetensors"
+SDXL_PHOTONIC = "RealCoreXL.safetensors"
 
-# These are the built-in node types emitted by Kitty's two workflow variants.
+# IP-Adapter models for identity-preserving generation.
+# These must be present in ComfyUI's models/ipadapter/ directory.
+# The currently installed model is SD1.5 FaceID — download ip-adapter-plus_sdxl_vit-h.safetensors
+# for SDXL identity generation.
+IPADAPTER_MODEL  = "ip-adapter-faceid_sd15.bin"
+IPADAPTER_CLIP_VISION = "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
+
+# These are the built-in node types emitted by Kitty's workflow variants.
 # Checking them through /object_info turns a ComfyUI upgrade or stripped custom
 # install into an honest health failure before a user submits a job.
 COMFY_REQUIRED_NODES = frozenset(
@@ -41,11 +49,16 @@ COMFY_REQUIRED_NODES = frozenset(
         "KSampler",
         "VAEDecode",
         "SaveImage",
+        "LoadImage",
     }
 )
 
+# IP-Adapter requires these node types from ComfyUI_IPAdapter_plus.
+# Marked as optional so basic generation works without them; identity generation
+# verifies these explicitly before building the workflow.
+COMFY_IDENTITY_NODES = frozenset({"IPAdapter", "IPAdapterModelLoader"})
+
 EXPLICIT_KW = {"explicit", "erect", "hard cock", "erection", "boner", "cock", "nude explicit"}
-SDXL_KW     = {"realistic", "sdxl", "photo", "photorealistic", "high res", "high quality", "photonic"}
 
 
 class ImageGenerationCancelled(RuntimeError):
@@ -76,71 +89,31 @@ def get_history(limit: int = 20) -> list[dict]:
 
 
 def _parse(prompt: str) -> dict:
+    """Extract keyword-derived params for an SDXL workflow.
+
+    Always returns SDXL-native defaults (1024×1024, 6 steps, cfg 1.5).
+    Keyword overrides for dimensions and quality are preserved.
+    """
     low = prompt.lower()
-    sdxl     = any(k in low for k in SDXL_KW)
-    photonic = "photonic" in low
     explicit = any(k in low for k in EXPLICIT_KW)
 
-    if sdxl:
-        w, h, steps, cfg = 1024, 1024, 6, 1.5
-        if "portrait" in low:
-            w, h = 832, 1216
-        if "landscape" in low:
-            w, h = 1216, 832
-        if "detailed" in low:
-            steps, cfg = 10, 2.0
-    else:
-        w, h, steps, cfg = 512, 512, 25, 7.0
-        if "portrait" in low:
-            w, h = 512, 768
-        if "landscape" in low:
-            w, h = 768, 512
-        if "fast" in low:
-            steps = 15
-        if "detailed" in low:
-            steps = 35
-
-    lstr = 1.0 if "more bear" in low else 0.5 if "less bear" in low else 0.8
-    estr = 0.75
+    w, h, steps, cfg = 1024, 1024, 6, 1.5
+    if "portrait" in low:
+        w, h = 832, 1216
+    if "landscape" in low:
+        w, h = 1216, 832
+    if "detailed" in low:
+        steps, cfg = 10, 2.0
 
     neg = "worst quality, low quality, bad anatomy, deformed, ugly, watermark, text, blurry"
-    if sdxl:
-        neg += ", illustration, painting, drawing, cartoon"
+    neg += ", illustration, painting, drawing, cartoon"
 
-    return dict(sdxl=sdxl, photonic=photonic, explicit=explicit,
-                w=w, h=h, steps=steps, cfg=cfg, lstr=lstr, estr=estr,
+    return dict(explicit=explicit, w=w, h=h, steps=steps, cfg=cfg,
                 negative=neg)
 
 
 def _seed() -> int:
     return int.from_bytes(os.urandom(8), "little") & 0xFFFFFFFFFFFFFFFF
-
-
-def _wf_sd15(prompt: str, neg: str, w: int, h: int, steps: int, cfg: float,
-             lstr: float, explicit: bool, estr: float) -> dict:
-    wf = {
-        "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": SD15_CKPT}},
-        "4": {"class_type": "LoraLoader",
-              "inputs": {"model": ["1", 0], "clip": ["1", 1],
-                         "lora_name": BEAR_LORA, "strength_model": lstr, "strength_clip": lstr}},
-    }
-    model_node, clip_node = "4", "4"
-    if explicit:
-        wf["9"] = {"class_type": "LoraLoader",
-                   "inputs": {"model": [model_node, 0], "clip": [clip_node, 1],
-                              "lora_name": EXPLICIT_LORA, "strength_model": estr, "strength_clip": 0.0}}
-        model_node = "9"
-    wf["2"] = {"class_type": "CLIPTextEncode", "inputs": {"text": prompt, "clip": [clip_node, 1]}}
-    wf["3"] = {"class_type": "CLIPTextEncode", "inputs": {"text": neg,    "clip": [clip_node, 1]}}
-    wf["5"] = {"class_type": "EmptyLatentImage", "inputs": {"width": w, "height": h, "batch_size": 1}}
-    wf["6"] = {"class_type": "KSampler",
-               "inputs": {"seed": _seed(), "steps": steps, "cfg": cfg,
-                          "sampler_name": "euler_ancestral", "scheduler": "karras",
-                          "denoise": 1.0, "model": [model_node, 0],
-                          "positive": ["2", 0], "negative": ["3", 0], "latent_image": ["5", 0]}}
-    wf["7"] = {"class_type": "VAEDecode",  "inputs": {"samples": ["6", 0], "vae": ["1", 2]}}
-    wf["8"] = {"class_type": "SaveImage",  "inputs": {"filename_prefix": "Kitty", "images": ["7", 0]}}
-    return wf
 
 
 def _wf_sdxl(prompt: str, neg: str, w: int, h: int, steps: int, cfg: float, ckpt: str) -> dict:
@@ -157,6 +130,168 @@ def _wf_sdxl(prompt: str, neg: str, w: int, h: int, steps: int, cfg: float, ckpt
         "6": {"class_type": "VAEDecode", "inputs": {"samples": ["5", 0], "vae": ["1", 2]}},
         "7": {"class_type": "SaveImage", "inputs": {"filename_prefix": "KittyXL", "images": ["6", 0]}},
     }
+
+
+def _wf_ipadapter_sdxl(
+    prompt: str, neg: str, w: int, h: int,
+    steps: int, cfg: float, ckpt: str,
+    ref_image_name: str, identity_weight: float = 0.7,
+) -> dict:
+    """SDXL workflow with IP-Adapter FaceID identity preservation."""
+    return {
+        "1":  {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": ckpt}},
+        "2":  {"class_type": "CLIPTextEncode", "inputs": {"text": prompt, "clip": ["1", 1]}},
+        "3":  {"class_type": "CLIPTextEncode", "inputs": {"text": neg,    "clip": ["1", 1]}},
+        "4":  {"class_type": "EmptyLatentImage", "inputs": {"width": w, "height": h, "batch_size": 1}},
+        "10": {"class_type": "LoadImage", "inputs": {"image": ref_image_name}},
+        "11": {"class_type": "IPAdapterModelLoader", "inputs": {"ipadapter_file": IPADAPTER_MODEL}},
+        "12": {"class_type": "IPAdapter",
+               "inputs": {
+                   "model": ["1", 0],
+                   "ipadapter": ["11", 0],
+                   "image": ["10", 0],
+                   "weight": identity_weight,
+                   "start_at": 0.0, "end_at": 1.0,
+                   "weight_type": "standard",
+               }},
+        "5":  {"class_type": "KSampler",
+               "inputs": {
+                   "seed": _seed(), "steps": steps, "cfg": cfg,
+                   "sampler_name": "euler", "scheduler": "sgm_uniform",
+                   "denoise": 1.0, "model": ["12", 0],
+                   "positive": ["2", 0], "negative": ["3", 0],
+                   "latent_image": ["4", 0],
+               }},
+        "6":  {"class_type": "VAEDecode", "inputs": {"samples": ["5", 0], "vae": ["1", 2]}},
+        "7":  {"class_type": "SaveImage", "inputs": {"filename_prefix": "KittyIdentity", "images": ["6", 0]}},
+    }
+
+
+def _wf_ipadapter_identity(
+    prompt: str, neg: str, w: int, h: int,
+    steps: int, cfg: float, ckpt: str, ref_image_name: str,
+) -> dict:
+    return _wf_ipadapter_sdxl(
+        prompt=prompt, neg=neg, w=w, h=h,
+        steps=max(steps, 12), cfg=max(cfg, 3.5),
+        ckpt=ckpt, ref_image_name=ref_image_name,
+        identity_weight=0.85,
+    )
+
+
+async def _upload_ref_to_comfy(ref_path: str, client: httpx.AsyncClient) -> str:
+    from pathlib import Path
+    path = Path(ref_path)
+    if not path.exists():
+        raise RuntimeError(f"reference image not found: {ref_path}")
+    with open(ref_path, "rb") as f:
+        r = await client.post(
+            f"{COMFY_URL}/upload/image",
+            files={"image": (path.name, f, "image/png")},
+        )
+        if r.status_code != 200:
+            raise RuntimeError(f"ComfyUI rejected reference upload ({r.status_code})")
+    return path.name
+
+
+async def is_identity_ready() -> bool:
+    try:
+        async with httpx.AsyncClient(timeout=3) as c:
+            r = await c.get(f"{COMFY_URL}/object_info")
+            if r.status_code != 200:
+                return False
+            payload = r.json()
+            if not isinstance(payload, dict):
+                return False
+            missing = sorted(COMFY_IDENTITY_NODES.difference(payload))
+            if missing:
+                return False
+            # Also verify IPAdapterModelLoader actually finds a model
+            loader_inputs = payload.get("IPAdapterModelLoader", {}).get("input", {}).get("required", {})
+            model_opts = loader_inputs.get("ipadapter_file", [[]])
+            if isinstance(model_opts, list) and len(model_opts) > 1:
+                if not model_opts[0]:
+                    return False
+            return True
+    except httpx.RequestError:
+        return False
+
+
+async def generate_with_character(
+    prompt: str, *,
+    character_ref_path: str,
+    identity_mode: str = "balanced",
+    negative_prompt: str | None = None,
+    width: int = 1024, height: int = 1024,
+    steps: int = 8, cfg: float = 4.5,
+    seed: int | None = None,
+) -> dict:
+    state_seed = seed or _seed()
+    neg = negative_prompt or "worst quality, low quality, bad anatomy, deformed, ugly, watermark, blurry"
+
+    weight_map = {"identity_first": 0.85, "creative": 0.5, "balanced": 0.7}
+    identity_weight = weight_map.get(identity_mode, 0.7)
+
+    job = create_job(
+        provider="comfyui", operation="txt2img",
+        prompt=prompt, negative_prompt=neg, seed=state_seed,
+        model_id=SDXL_PHOTONIC, width=width, height=height,
+        steps=steps, guidance=cfg, sampler="euler", scheduler="sgm_uniform",
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            ref_name = await _upload_ref_to_comfy(character_ref_path, client)
+            workflow = _wf_ipadapter_sdxl(
+                prompt=prompt, neg=neg, w=width, h=height,
+                steps=steps, cfg=cfg, ckpt=SDXL_PHOTONIC,
+                ref_image_name=ref_name, identity_weight=identity_weight,
+            )
+            workflow_hash = hashlib.sha256(
+                json.dumps(workflow, sort_keys=True).encode()
+            ).hexdigest()[:16]
+            update_job(job.job_id, workflow_hash=workflow_hash)
+
+            r = await client.post(f"{COMFY_URL}/prompt", json={"prompt": workflow})
+            if r.status_code != 200:
+                raise RuntimeError(f"ComfyUI rejected prompt: {r.text}")
+            prompt_id = r.json()["prompt_id"]
+            update_job(job.job_id, provider_job_id=prompt_id)
+            transition(job.job_id, ImageJobStatus.SUBMITTED)
+            transition(job.job_id, ImageJobStatus.RUNNING)
+            filename = await _poll(client, prompt_id, job_id=job.job_id)
+    except Exception as exc:
+        _mark_failed(job.job_id, str(exc)[:500])
+        raise
+
+    if not filename:
+        _mark_failed(job.job_id, "timed out (6 min)")
+        raise TimeoutError("Image generation timed out")
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            vr = await client.get(
+                f"{COMFY_URL}/view",
+                params={"filename": filename, "subfolder": "", "type": "output"},
+            )
+            vr.raise_for_status()
+            if not vr.content:
+                raise RuntimeError(f"empty image for prompt {prompt_id}")
+            local_path = await asyncio.to_thread(save_image, vr.content, prefix="identity")
+    except Exception as exc:
+        _mark_failed(job.job_id, str(exc)[:500])
+        raise
+
+    update_job(job.job_id, output_path=str(local_path))
+    transition(job.job_id, ImageJobStatus.SUCCEEDED)
+
+    return {
+        "prompt_id": prompt_id, "filename": str(local_path),
+        "job_id": job.job_id, "character_weight": identity_weight,
+    }
+
+
+# ── polling, cancellation, and generation ────────────────────────────────────
 
 
 async def _poll(
@@ -321,18 +456,12 @@ async def generate(prompt: str, parent_id: str | None = None) -> dict:
     """Submit prompt to ComfyUI, poll until done, return {prompt_id, filename, job_id}."""
     p = _parse(prompt)
 
-    if p["sdxl"]:
-        workflow = _wf_sdxl(prompt, p["negative"], p["w"], p["h"], p["steps"], p["cfg"], SDXL_PHOTONIC)
-        model_id, sampler, scheduler = SDXL_PHOTONIC, "euler", "sgm_uniform"
-        template = "sdxl_photonic"
-    else:
-        workflow = _wf_sd15(prompt, p["negative"], p["w"], p["h"], p["steps"], p["cfg"],
-                            p["lstr"], p["explicit"], p["estr"])
-        model_id, sampler, scheduler = SD15_CKPT, "euler_ancestral", "karras"
-        template = "sd15_basic"
+    workflow = _wf_sdxl(prompt, p["negative"], p["w"], p["h"], p["steps"], p["cfg"], SDXL_PHOTONIC)
+    model_id, sampler, scheduler = SDXL_PHOTONIC, "euler", "sgm_uniform"
+    template = "sdxl_photonic"
 
     workflow_hash = hashlib.sha256(json.dumps(workflow, sort_keys=True).encode()).hexdigest()[:16]
-    provider_params = {"lora_strength": p["lstr"], "explicit": p["explicit"]}
+    provider_params = {"explicit": p["explicit"]}
 
     # Record the job before submitting so it survives a crash mid-generation.
     job = create_job(

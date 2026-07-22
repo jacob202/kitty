@@ -112,8 +112,8 @@ async def test_slow_optional_store_is_bounded(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_knowledge_adapter_does_not_block_event_loop(monkeypatch):
-    def blocking_search(query, limit):
-        time.sleep(0.2)
+    async def blocking_search(query, limit):
+        await asyncio.sleep(0.2)
         return [{"text": query}]
 
     monkeypatch.setattr("gateway.knowledge.search", blocking_search)

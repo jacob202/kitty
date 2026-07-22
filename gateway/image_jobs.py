@@ -427,6 +427,7 @@ def update_job(
     normalized_error: str | None = None,
     provider_diagnostics_json: str | None = None,
     started_at: str | None = None,
+    workflow_hash: str | None = None,
 ) -> ImageJob:
     """Update mutable fields on an existing job. Fails loud on bad input."""
     job = get_job(job_id)
@@ -451,6 +452,8 @@ def update_job(
         cols["provider_diagnostics_json"] = provider_diagnostics_json
     if started_at is not None:
         cols["started_at"] = started_at
+    if workflow_hash is not None:
+        cols["workflow_hash"] = workflow_hash
 
     set_clauses = ", ".join(f"{k} = ?" for k in cols)
     values = list(cols.values()) + [job_id]

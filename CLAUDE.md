@@ -44,7 +44,7 @@ See `.claude/rules/initiative.md`. Persona and noticing rules live in `config/SO
 ## Non-Negotiables
 
 1. Fail loud. No silent exception swallowing, fake defaults, or invented data.
-2. Verify before claiming. "Done" means a command ran and the output was read.
+2. Verify before claiming. "Done" means a command ran and the output was read — name the command or MCP server used (e.g. `pytest tests/ -q`, `codegraph_explore`, a `claude-in-chrome` screenshot). If a claim can't actually be checked, say so explicitly instead of implying it was.
 3. Keep diffs small. Do not reformat or rewrite unrelated code.
 4. Do not push, force-push, rewrite history, delete files, touch secrets/auth/env, or add heavy dependencies without explicit confirmation.
 5. New durable architecture decisions go in `docs/DECISIONS.md`; workflow lessons go in `docs/LEARNINGS.md`.

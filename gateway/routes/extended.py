@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 router = APIRouter(tags=["extended"])
@@ -287,49 +287,23 @@ async def image_status():
 
 @router.post("/image/generate")
 async def image_generate(req: ImageGenRequest):
-    import asyncio
-
-    from gateway.image_gen import generate, is_available
+    from gateway.image_runner import ImageRunnerError, run
 
     engine = req.engine.strip().lower()
     if engine not in {"comfyui", "drawthings"}:
         raise HTTPException(status_code=422, detail="engine must be 'comfyui' or 'drawthings'")
 
-    if engine == "drawthings":
-        from gateway import image_jobs
-        from mcp.imagen.engines import get
-        from mcp.imagen.io import save_image
-
-        drawthings = get("drawthings")
-        probe = getattr(getattr(drawthings, "_adapter", None), "is_available", None)
-        if probe is not None and not await asyncio.to_thread(probe):
-            raise HTTPException(status_code=503, detail="Draw Things is not running")
-        job = image_jobs.create_job(
-            provider="drawthings",
-            operation="variation" if req.parent_id else "txt2img",
-            prompt=req.prompt,
-            parent_id=req.parent_id,
-            model_id=getattr(drawthings, "model_name", None),
-        )
-        try:
-            image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.SUBMITTED)
-            image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.RUNNING)
-            data = await drawthings.generate_async(req.prompt)
-            path = await asyncio.to_thread(save_image, data, prefix="drawthings")
-            image_jobs.update_job(job.job_id, output_path=str(path))
-            image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.SUCCEEDED)
-        except Exception as exc:
-            image_jobs.update_job(job.job_id, normalized_error=str(exc)[:500])
-            image_jobs.transition(job.job_id, image_jobs.ImageJobStatus.FAILED)
-            raise
-        return {"filename": str(path), "job_id": job.job_id, "engine": engine}
-
-    if not await is_available():
-        raise HTTPException(status_code=503, detail="ComfyUI is not running")
     try:
-        result = await generate(req.prompt, parent_id=req.parent_id)
-        result["engine"] = engine
-        return result
+        result = await run(engine, req.prompt, parent_id=req.parent_id)
+        return {
+            "prompt_id": result.prompt_id,
+            "filename": result.filename,
+            "job_id": result.job_id,
+            "engine": result.engine,
+        }
+    except ImageRunnerError as e:
+        status = 503 if "not running" in str(e).lower() else 400
+        raise HTTPException(status_code=status, detail=str(e))
     except TimeoutError as e:
         raise HTTPException(status_code=504, detail=str(e))
     except Exception as e:
@@ -406,3 +380,264 @@ async def image_history(limit: int = 20):
     from gateway.image_gen import get_history
 
     return {"images": get_history(limit=limit)}
+
+
+# --- Image Studio V1: Characters ---
+
+
+class CharacterCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    preferred_recipe: Optional[str] = None
+    identity_preset: str = "balanced"
+
+
+class CharacterUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    preferred_recipe: Optional[str] = None
+    identity_preset: Optional[str] = None
+
+
+class RecipeUpdate(BaseModel):
+    available: bool
+
+
+class StudioGenerateRequest(BaseModel):
+    prompt: str
+    quality: str = "quality"
+    identity: str = "balanced"
+    character_id: Optional[str] = None
+    reference_ids: Optional[List[str]] = None
+    recipe_id: Optional[str] = None
+    negative_prompt: Optional[str] = None
+
+
+@router.get("/studio/characters")
+async def studio_list_characters():
+    from gateway.image_characters import list_characters
+
+    chars = list_characters()
+    return {"characters": [c.to_dict() for c in chars]}
+
+
+@router.post("/studio/characters")
+async def studio_create_character(req: CharacterCreate):
+    from gateway.image_characters import CharacterError, create_character
+    try:
+        char = create_character(
+            name=req.name,
+            description=req.description,
+            preferred_recipe=req.preferred_recipe,
+            identity_preset=req.identity_preset,
+        )
+        return char.to_dict()
+    except CharacterError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/studio/characters/{character_id}")
+async def studio_get_character(character_id: str):
+    from gateway.image_characters import CharacterNotFoundError, get_character, list_character_refs
+    try:
+        char = get_character(character_id)
+        refs = list_character_refs(character_id)
+        result = char.to_dict()
+        result["references"] = [r.to_dict() for r in refs]
+        return result
+    except CharacterNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.patch("/studio/characters/{character_id}")
+async def studio_update_character(character_id: str, req: CharacterUpdate):
+    from gateway.image_characters import CharacterError, CharacterNotFoundError, update_character
+    try:
+        char = update_character(
+            character_id,
+            name=req.name,
+            description=req.description,
+            preferred_recipe=req.preferred_recipe,
+            identity_preset=req.identity_preset,
+        )
+        return char.to_dict()
+    except CharacterNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except CharacterError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.delete("/studio/characters/{character_id}")
+async def studio_delete_character(character_id: str):
+    from gateway.image_characters import CharacterNotFoundError, soft_delete_character
+    try:
+        char = soft_delete_character(character_id)
+        return char.to_dict()
+    except CharacterNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.post("/studio/characters/{character_id}/references")
+async def studio_add_character_ref(character_id: str, file: UploadFile):
+    from gateway.image_characters import CharacterError, CharacterNotFoundError, add_character_ref
+    from gateway.image_quality import check_reference_image
+
+    data = await file.read()
+    if len(data) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="file too large (max 20 MB)")
+    try:
+        quality = check_reference_image(data)
+        quality_notes = quality.summary()
+        ref = add_character_ref(
+            character_id, data,
+            original_name=file.filename,
+            media_type=file.content_type,
+            quality_notes=quality_notes,
+        )
+        result = ref.to_dict()
+        result["quality"] = {
+            "has_blockers": quality.has_blockers,
+            "has_warnings": quality.has_warnings,
+            "is_perfect": quality.is_perfect,
+            "summary": quality.summary(),
+            "advice": quality.advice(),
+            "dimensions": f"{quality.width}×{quality.height}" if quality.width else None,
+        }
+        return result
+    except CharacterNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except CharacterError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/studio/characters/{character_id}/quality")
+async def studio_character_quality(character_id: str):
+    from gateway.image_characters import CharacterNotFoundError, get_character, list_character_refs
+    from gateway.image_quality import check_reference_image
+
+    try:
+        get_character(character_id)
+        refs = list_character_refs(character_id)
+    except CharacterNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+    if not refs:
+        return {"quality": None, "message": "no reference images uploaded"}
+
+    results = []
+    for ref in refs:
+        try:
+            path = Path(ref.storage_path)
+            if path.exists():
+                data = path.read_bytes()
+                qr = check_reference_image(data)
+                results.append({
+                    "ref_id": ref.ref_id,
+                    "is_primary": ref.is_primary,
+                    "original_name": ref.original_name,
+                    "has_blockers": qr.has_blockers,
+                    "has_warnings": qr.has_warnings,
+                    "is_perfect": qr.is_perfect,
+                    "summary": qr.summary(),
+                    "advice": qr.advice(),
+                    "dimensions": f"{qr.width}×{qr.height}" if qr.width else None,
+                })
+        except Exception:
+            results.append({
+                "ref_id": ref.ref_id,
+                "is_primary": ref.is_primary,
+                "original_name": ref.original_name,
+                "has_blockers": True,
+                "has_warnings": False,
+                "is_perfect": False,
+                "summary": "could not read reference file",
+                "advice": ["the reference file may be missing or corrupted"],
+                "dimensions": None,
+            })
+
+    return {"quality": results}
+
+
+@router.delete("/studio/characters/{character_id}/references/{ref_id}")
+async def studio_delete_character_ref(character_id: str, ref_id: str):
+    from gateway.image_characters import (
+        CharacterError,
+        CharacterNotFoundError,
+        delete_character_ref,
+    )
+    try:
+        delete_character_ref(character_id, ref_id)
+        return {"deleted": True}
+    except CharacterNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except CharacterError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+# --- Image Studio V1: Recipes ---
+
+@router.get("/studio/recipes")
+async def studio_list_recipes(available_only: bool = False):
+    from gateway.image_recipes import list_recipes
+    recipes = list_recipes(available_only=available_only)
+    return {"recipes": [r.to_dict() for r in recipes]}
+
+
+@router.patch("/studio/recipes/{recipe_id}")
+async def studio_update_recipe(recipe_id: str, req: RecipeUpdate):
+    from gateway.image_recipes import RecipeError, set_recipe_available
+    try:
+        recipe = set_recipe_available(recipe_id, req.available)
+        return recipe.to_dict()
+    except RecipeError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+# --- Image Studio V1: Generate (Auto-routed) ---
+
+@router.post("/studio/generate")
+async def studio_generate(req: StudioGenerateRequest):
+    from gateway import image_recipes
+    from gateway.image_runner import ImageRunnerError, run
+
+    if not req.prompt or not req.prompt.strip():
+        raise HTTPException(status_code=400, detail="prompt must not be empty")
+
+    has_character = bool(req.character_id)
+    character_count = 1 if has_character else 0
+
+    try:
+        decision = image_recipes.auto_route(
+            has_character=has_character,
+            character_count=character_count,
+            quality_tier=req.quality,
+            identity_mode=req.identity,
+            operation="txt2img",
+            preferred_recipe=req.recipe_id,
+        )
+    except image_recipes.RecipeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+    recipe = decision.recipe
+
+    try:
+        result = await run(
+            recipe.provider if recipe else "comfyui",
+            req.prompt,
+            recipe=recipe,
+            character_id=req.character_id,
+            negative_prompt=req.negative_prompt,
+        )
+        return {
+            "job_id": result.job_id,
+            "filename": result.filename,
+            "recipe": result.recipe,
+            "routing_reason": decision.reason,
+        }
+    except ImageRunnerError as e:
+        status = 503 if "not running" in str(e).lower() else 400
+        raise HTTPException(status_code=status, detail=str(e))
+    except TimeoutError as exc:
+        raise HTTPException(status_code=504, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
