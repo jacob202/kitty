@@ -27,3 +27,4 @@ detail that hasn't been promoted to a per-decision ADR remains in
 | D14 | Resume Loop Is The Product; Builder Boundary        | [0015](adr/0015-resume-loop-and-builder-boundary.md)        |
 | D15 | Life-First Ordering                                 | [0016](adr/0016-life-first-ordering.md)                     |
 | D16 | Kitty → Mission → KittyBuilder Control Plane        | [0017](adr/0017-kitty-mission-builder-control-plane.md)     |
+| D17 | Evidence-Gated Auto-Merge For Campaign Work         | [0018](adr/0018-builder-campaign-auto-merge.md)              |

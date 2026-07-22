@@ -4,6 +4,8 @@ Composes the existing KB stages into a single continuation loop:
 
     next eligible packet  ->  run_packet (KB-S3b: implement/validate/review/repair)
                           ->  publish_task (KB-S4b: operator-gated push + PR)
+                          ->  merge_and_verify (CP-06: evidence-gated auto-merge,
+                              gate="auto" only; ADR 0018)
 
 The loop runs until no packet is eligible, or a budget (per-initiative attempt
 count or wall-clock runtime) is exhausted, or an operator pause is observed.
@@ -11,13 +13,14 @@ Each packet decision is written durably to the events table so a restart can
 reconcile what already happened.
 
 The loop is deliberately thin: it owns orchestration and budgets only. All
-real work (worker execution, validation, review, publish) is delegated to the
-stage modules. It never force-pushes, never merges, and never advances a task
-past the state its workers leave it in.
+real work (worker execution, validation, review, publish, merge) is delegated
+to the stage modules. It never force-pushes and never advances a task past
+the state its workers (or, for merges, the CP-06 evidence gate) leave it in.
 """
 
 from __future__ import annotations
 
+import json
 import time
 from pathlib import Path
 from typing import Any
@@ -29,6 +32,14 @@ from gateway import builder_publish as bp
 from gateway import builder_queue as bq
 
 EVENT_DECISION = "initiative_decision"
+
+# CP-06 gate modes for ``initiative run``. "auto" (default) merges behind
+# the evidence gate (validation green + reviewer approve + scope clean,
+# already true by the time a packet reaches "succeeded") with auto-revert
+# on post-merge red. "manual" restores the pre-CP-06 park-at-awaiting_review
+# behavior for campaigns Jacob wants to eyeball by hand.
+GATE_AUTO = "auto"
+GATE_MANUAL = "manual"
 
 # CP-03 stop classification. See docs/plans/KITTYBUILDER_DAILY_DRIVER_PLAN.md
 # §1.3/§4.4: budget/exhaustion/timeouts with differing failure signatures are
@@ -88,6 +99,110 @@ def _decide(
     bq.append_event(task_id, EVENT_DECISION, payload, db_path=db_path)
 
 
+def _packet_validation_commands(
+    initiative_id: str, packet_id: str, db_path: Path | None
+) -> list[str]:
+    conn = bq.connect(db_path)
+    try:
+        row = conn.execute(
+            """
+            SELECT validation_commands_json FROM initiative_packets
+            WHERE initiative_id = ? AND packet_id = ?
+            """,
+            (initiative_id, packet_id),
+        ).fetchone()
+    finally:
+        conn.close()
+    if row is None or not row["validation_commands_json"]:
+        return []
+    return json.loads(row["validation_commands_json"])
+
+
+def _attempt_auto_merge(
+    initiative_id: str,
+    packet_id: str,
+    task_id: str,
+    *,
+    repo_root: Path | None,
+    db_path: Path | None,
+) -> dict[str, Any]:
+    """CP-06: merge behind the evidence gate, revalidate, revert on red.
+
+    Never raises — a merge-path failure degrades to the pre-CP-06
+    park-at-awaiting_review shape (``outcome: "merge_failed"``) rather than
+    aborting the whole initiative run over an infrastructure hiccup.
+    """
+    validation_commands = _packet_validation_commands(
+        initiative_id, packet_id, db_path
+    )
+    try:
+        result = bp.merge_and_verify(
+            task_id,
+            validation_commands=validation_commands,
+            repo_root=repo_root,
+            db_path=db_path,
+        )
+    except bp.MergeError as exc:
+        _decide(
+            task_id,
+            {
+                "initiative_id": initiative_id,
+                "packet_id": packet_id,
+                "decision": "merge_failed",
+                "reason": str(exc),
+                "stop_class": STOP_ROUTINE,
+            },
+            db_path,
+        )
+        return {"outcome": "merge_failed", "reason": str(exc)}
+
+    if result["outcome"] == "merged":
+        _decide(
+            task_id,
+            {
+                "initiative_id": initiative_id,
+                "packet_id": packet_id,
+                "decision": "auto_merged",
+                "pr_number": result.get("pr_number"),
+                "merge_commit_sha": result.get("merge_commit_sha"),
+                "stop_class": STOP_ROUTINE,
+            },
+            db_path,
+        )
+    elif result["outcome"] == "reverted":
+        _decide(
+            task_id,
+            {
+                "initiative_id": initiative_id,
+                "packet_id": packet_id,
+                "decision": "auto_merge_reverted",
+                "reason": "post-merge validation failed on main",
+                "revalidation": result.get("revalidation"),
+                "revert": result.get("revert"),
+                "stop_class": STOP_NEEDS_DECISION,
+                "stop_class_reason": "post-merge validation failed on main",
+            },
+            db_path,
+        )
+    else:  # skipped_tripwire
+        _decide(
+            task_id,
+            {
+                "initiative_id": initiative_id,
+                "packet_id": packet_id,
+                "decision": "auto_merge_skipped_tripwire",
+                "reason": (
+                    f"{bp.TRIPWIRE_THRESHOLD}+ reverts in the last "
+                    f"{bp.TRIPWIRE_WINDOW} auto-merges — parking at "
+                    "awaiting_review until enough clean merges clear it"
+                ),
+                "stop_class": STOP_ROUTINE,
+            },
+            db_path,
+        )
+    return result
+
+
 def run_initiative(
     initiative_id: str,
     *,
@@ -100,6 +215,7 @@ def run_initiative(
     validation_timeout_seconds: int = 900,
     review_timeout_seconds: int = 900,
     publish: bool = False,
+    gate: str = GATE_AUTO,
     max_initiative_attempts: int | None = None,
     max_runtime_seconds: int | None = None,
     repo_root: Path | None = None,
@@ -116,6 +232,8 @@ def run_initiative(
         raise ValueError("max_initiative_attempts must be non-negative")
     if max_runtime_seconds is not None and max_runtime_seconds <= 0:
         raise ValueError("max_runtime_seconds must be positive")
+    if gate not in (GATE_AUTO, GATE_MANUAL):
+        raise ValueError(f"gate must be {GATE_AUTO!r} or {GATE_MANUAL!r}, got {gate!r}")
 
     bi.init_db(db_path)
     # Restart reconciliation is part of the durable loop contract: stale
@@ -265,6 +383,7 @@ def run_initiative(
             }
 
         total_attempts += len(loop_result.get("attempts", []))
+        classification: dict[str, Any] | None = None
 
         if loop_result["outcome"] == "succeeded":
             succeeded += 1
@@ -294,6 +413,43 @@ def run_initiative(
                         },
                         db_path,
                     )
+                    if gate == GATE_AUTO:
+                        merge_result = _attempt_auto_merge(
+                            initiative_id,
+                            packet_id,
+                            task_id,
+                            repo_root=repo_root,
+                            db_path=db_path,
+                        )
+                        if merge_result["outcome"] == "reverted":
+                            processed.append(
+                                {
+                                    "packet_id": packet_id,
+                                    "task_id": task_id,
+                                    "outcome": loop_result["outcome"],
+                                }
+                            )
+                            bi.pause_initiative(
+                                initiative_id,
+                                f"auto-merge reverted for {task_id}: "
+                                "post-merge validation failed on main",
+                                db_path=db_path,
+                            )
+                            return {
+                                "outcome": "paused",
+                                "reason": f"auto-merge reverted for {task_id}",
+                                "stop_class": STOP_NEEDS_DECISION,
+                                "processed": processed,
+                                "succeeded": succeeded,
+                                "exhausted": exhausted,
+                            }
+                        # "merged": task is now DONE; the next while-loop
+                        # iteration's next_packet() picks up newly-eligible
+                        # downstream packets in this same invocation.
+                        # "skipped_tripwire" / "merge_failed": task stays at
+                        # awaiting_review; next_packet() finds nothing more
+                        # eligible under this packet and the loop exits idle
+                        # — the same shape as pre-CP-06 park-and-wait.
                 except bp.PublishError as exc:
                     _decide(
                         task_id,
@@ -350,6 +506,7 @@ def run_initiative(
         )
 
         if loop_result["outcome"] != "succeeded":
+            assert classification is not None  # set in the exhaustion branch above
             pause_reason = f"packet {packet_id} exhausted"
             if classification["stop_class"] == STOP_NEEDS_DECISION:
                 pause_reason += f" [needs_decision: {classification['reason']}]"

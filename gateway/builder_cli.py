@@ -1383,6 +1383,7 @@ def _cmd_initiative_run(args: argparse.Namespace) -> int:
             provider=args.provider,
             timeout_seconds=args.timeout,
             publish=args.publish,
+            gate=args.gate,
             max_initiative_attempts=args.max_attempts,
             max_runtime_seconds=args.max_runtime,
         )
@@ -1810,6 +1811,7 @@ COMMANDS: list[CommandSpec] = [
                  _a("--provider", "provider identifier (metadata)"),
                  _a("--timeout", "worker timeout in seconds", type=int, default=3600),
                  _a("--publish", "run KB-S4b publish (operator-gated push + PR) on each succeeded packet", action="store_true"),
+                 _a("--gate", "with --publish: 'auto' (default, CP-06 evidence-gated auto-merge + auto-revert) or 'manual' (park at awaiting_review for a human merge)", default="auto", choices=["auto", "manual"]),
                  _a("--max-attempts", "per-initiative attempt budget; exceeding it pauses the initiative", type=int, default=None),
                  _a("--max-runtime", "per-initiative wall-clock budget (seconds); exceeding it pauses the initiative", type=int, default=None),
                  _a("--json", "output JSON", action="store_true")]),

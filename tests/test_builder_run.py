@@ -391,3 +391,129 @@ class TestStopClassIntegration:
         assert status["stop_class"] == br.STOP_NEEDS_DECISION
         assert status["stop_class_reason"] == "requirement may be ambiguous"
         assert "requirement may be ambiguous" in status["pause_reason"]
+
+
+class TestCp06AutoMerge:
+    """CP-06: run_initiative's gate="auto"/"manual" wiring around publish.
+
+    publish_task and merge_and_verify are stubbed at the bp module
+    reference builder_run imports — the merge mechanics themselves are
+    covered end-to-end in tests/test_builder_publish.py with real gh/git
+    call stubs. This class only proves the *loop* wiring: does auto-merge
+    get attempted, does a green merge unlock downstream in the same
+    invocation, does a revert pause the initiative.
+    """
+
+    def _stub_publish(self, monkeypatch, pr_number: int = 1):
+        calls: list[str] = []
+
+        def fake_publish(task_id: str, **kwargs: Any) -> dict[str, Any]:
+            calls.append(task_id)
+            bq.transition_task(task_id, bq.PR_OPENED, db_path=kwargs.get("db_path"))
+            bq.transition_task(task_id, bq.AWAITING_REVIEW, db_path=kwargs.get("db_path"))
+            return {"pr": {"pr_number": pr_number, "action": "create"}}
+
+        monkeypatch.setattr(br.bp, "publish_task", fake_publish)
+        return calls
+
+    def test_gate_manual_never_attempts_merge(
+        self, repo: Path, db_path: Path, tmp_path: Path, monkeypatch
+    ):
+        self._stub_publish(monkeypatch)
+
+        def explode(*args: Any, **kwargs: Any) -> Any:
+            raise AssertionError("merge_and_verify must not be called under gate=manual")
+
+        monkeypatch.setattr(br.bp, "merge_and_verify", explode)
+
+        _apply(db_path, [_packet("P1")], repo_root=repo)
+        summary = _run(repo, db_path, tmp_path, publish=True, gate="manual")
+
+        assert summary["outcome"] == "idle"
+        assert summary["succeeded"] == 1
+        # Task parks at awaiting_review — the pre-CP-06 shape.
+        status = bi.initiative_status(INITIATIVE, db_path=db_path)
+        assert "P1" not in status["done"]
+        assert "P1" in status["in_progress"]
+
+    def test_gate_auto_merges_and_unlocks_downstream_same_invocation(
+        self, repo: Path, db_path: Path, tmp_path: Path, monkeypatch
+    ):
+        self._stub_publish(monkeypatch)
+        merge_calls: list[str] = []
+
+        def fake_merge(task_id: str, **kwargs: Any) -> dict[str, Any]:
+            merge_calls.append(task_id)
+            db_path_arg = kwargs.get("db_path")
+            bq._mark_pr_merged(task_id, 1, db_path_arg)
+            bq._promote_merged_task(task_id, db_path_arg)
+            return {"outcome": "merged", "pr_number": 1, "merge_commit_sha": "abc123"}
+
+        monkeypatch.setattr(br.bp, "merge_and_verify", fake_merge)
+
+        _apply(
+            db_path,
+            [_packet("P1"), _packet("P2", depends_on=["P1"])],
+            repo_root=repo,
+        )
+        summary = _run(repo, db_path, tmp_path, publish=True, gate="auto")
+
+        assert summary["outcome"] == "idle"
+        assert summary["succeeded"] == 2, summary
+        assert len(merge_calls) == 2
+        status = bi.initiative_status(INITIATIVE, db_path=db_path)
+        assert set(status["done"]) == {"P1", "P2"}
+
+    def test_gate_auto_revert_pauses_needs_decision(
+        self, repo: Path, db_path: Path, tmp_path: Path, monkeypatch
+    ):
+        self._stub_publish(monkeypatch)
+
+        def fake_merge(task_id: str, **kwargs: Any) -> dict[str, Any]:
+            return {
+                "outcome": "reverted",
+                "pr_number": 1,
+                "merge_commit_sha": "abc123",
+                "revalidation": {"passed": False, "commands": []},
+                "revert": {"revert_commit_sha": "revertsha"},
+            }
+
+        monkeypatch.setattr(br.bp, "merge_and_verify", fake_merge)
+
+        _apply(
+            db_path,
+            [_packet("P1"), _packet("P2", depends_on=["P1"])],
+            repo_root=repo,
+        )
+        summary = _run(repo, db_path, tmp_path, publish=True, gate="auto")
+
+        assert summary["outcome"] == "paused"
+        assert summary["stop_class"] == br.STOP_NEEDS_DECISION
+        assert "reverted" in summary["reason"]
+        status = bi.initiative_status(INITIATIVE, db_path=db_path)
+        assert "P1" not in status["done"]
+        assert "P2" not in status["done"]
+
+    def test_gate_auto_skipped_tripwire_degrades_to_idle_without_pausing(
+        self, repo: Path, db_path: Path, tmp_path: Path, monkeypatch
+    ):
+        self._stub_publish(monkeypatch)
+
+        def fake_merge(task_id: str, **kwargs: Any) -> dict[str, Any]:
+            return {"outcome": "skipped_tripwire", "pr_number": 1}
+
+        monkeypatch.setattr(br.bp, "merge_and_verify", fake_merge)
+
+        _apply(db_path, [_packet("P1")], repo_root=repo)
+        summary = _run(repo, db_path, tmp_path, publish=True, gate="auto")
+
+        # Not merged, so nothing unlocks — the loop exits idle rather than
+        # pausing loudly, matching pre-CP-06 park-and-wait.
+        assert summary["outcome"] == "idle"
+        status = bi.initiative_status(INITIATIVE, db_path=db_path)
+        assert "P1" not in status["done"]
+
+    def test_invalid_gate_value_raises(self, repo: Path, db_path: Path, tmp_path: Path):
+        _apply(db_path, [_packet("P1")], repo_root=repo)
+        with pytest.raises(ValueError, match="gate must be"):
+            _run(repo, db_path, tmp_path, publish=True, gate="bogus")
