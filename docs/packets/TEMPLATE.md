@@ -1,5 +1,10 @@
 # NNN — Packet Title
 
+For Builder campaign work (multi-packet initiatives with clarification and
+an optional prototype gate), use `docs/CAMPAIGN_PLAYBOOK.md` instead — it
+targets the manifest schema Builder actually runs, not this narrative doc
+format.
+
 **Status:** 📋 spec authored, not built
 **Activation:** `idea_seed | decision | spec_candidate | active_packet | after_move_in | parked | reject`
 **Best executor:** Claude Code / Codex / strongest-model prompt / Jacob / other
