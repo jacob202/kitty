@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -228,6 +229,209 @@ class TestValidation:
         p.write_text("[1,2]", encoding="utf-8")
         with pytest.raises(bi.ManifestError):
             bi.load_manifest(p)
+
+
+# ---------------------------------------------------------------------------
+# Lint warnings (CP-02)
+# ---------------------------------------------------------------------------
+
+
+def _init_git_repo(tmp_path: Path) -> Path:
+    """A throwaway git repo so T3's ``git ls-files`` has something to answer,
+    independent of whatever the real kitty checkout happens to contain."""
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "t@example.com"], cwd=tmp_path, check=True
+    )
+    subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, check=True)
+    return tmp_path
+
+
+class TestWarnings:
+    # -- (a) acceptance_criteria without validation_commands -----------------
+
+    def test_missing_validation_commands_warns(self, tmp_path: Path):
+        m = _manifest(packets=[_packet("KB-W1")])
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert any("validation_commands" in w for w in warnings)
+
+    def test_present_validation_commands_no_false_positive(self, tmp_path: Path):
+        m = _manifest(
+            packets=[_packet("KB-W1", validation_commands=["pytest tests/"])]
+        )
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert not any("validation_commands" in w for w in warnings)
+
+    # -- (b) allowed_paths collision without a dependency relation -----------
+
+    def test_path_collision_without_dependency_warns(self, tmp_path: Path):
+        m = _manifest(
+            packets=[
+                _packet(
+                    "KB-C1",
+                    depends_on=[],
+                    allowed_paths=["gateway/shared/"],
+                    validation_commands=["true"],
+                ),
+                _packet(
+                    "KB-C2",
+                    depends_on=[],
+                    allowed_paths=["gateway/shared/a.py"],
+                    validation_commands=["true"],
+                ),
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert any("allowed_paths collide" in w for w in warnings)
+
+    def test_path_collision_with_dependency_no_false_positive(self, tmp_path: Path):
+        m = _manifest(
+            packets=[
+                _packet(
+                    "KB-C1",
+                    depends_on=[],
+                    allowed_paths=["gateway/shared/"],
+                    validation_commands=["true"],
+                ),
+                _packet(
+                    "KB-C2",
+                    depends_on=["KB-C1"],
+                    allowed_paths=["gateway/shared/a.py"],
+                    validation_commands=["true"],
+                ),
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert not any("allowed_paths collide" in w for w in warnings)
+
+    def test_disjoint_paths_no_false_positive(self, tmp_path: Path):
+        m = _manifest(
+            packets=[
+                _packet(
+                    "KB-C1",
+                    depends_on=[],
+                    allowed_paths=["gateway/a.py"],
+                    validation_commands=["true"],
+                ),
+                _packet(
+                    "KB-C2",
+                    depends_on=[],
+                    allowed_paths=["gateway/b.py"],
+                    validation_commands=["true"],
+                ),
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert not any("allowed_paths collide" in w for w in warnings)
+
+    # -- (c) prototype-shaped manifest without a "-proto" packet -------------
+
+    def test_t1_four_packets_no_proto_warns(self, tmp_path: Path):
+        m = _manifest(
+            packets=[
+                _packet(f"KB-T1-{n}", depends_on=[], allowed_paths=[f"gateway/f{n}.py"], validation_commands=["true"])
+                for n in range(4)
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert any("prototype-shaped" in w and "T1" in w for w in warnings)
+
+    def test_t2_two_subsystems_no_proto_warns(self, tmp_path: Path):
+        m = _manifest(
+            packets=[
+                _packet(
+                    "KB-T2-1",
+                    depends_on=[],
+                    allowed_paths=["gateway/f.py"],
+                    validation_commands=["true"],
+                ),
+                _packet(
+                    "KB-T2-2",
+                    depends_on=[],
+                    allowed_paths=["docs/f.md"],
+                    validation_commands=["true"],
+                ),
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert any("prototype-shaped" in w and "T2" in w for w in warnings)
+
+    def test_t3_new_directory_no_proto_warns(self, tmp_path: Path):
+        repo = _init_git_repo(tmp_path)
+        m = _manifest(
+            packets=[
+                _packet(
+                    "KB-T3-1",
+                    depends_on=[],
+                    allowed_paths=["gateway/brand_new_module/"],
+                    validation_commands=["true"],
+                )
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=repo)
+        assert any("prototype-shaped" in w and "T3" in w for w in warnings)
+
+    def test_tracked_directory_no_false_positive(self, tmp_path: Path):
+        repo = _init_git_repo(tmp_path)
+        (repo / "gateway").mkdir()
+        tracked = repo / "gateway" / "existing.py"
+        tracked.write_text("# tracked\n", encoding="utf-8")
+        subprocess.run(["git", "add", "gateway/existing.py"], cwd=repo, check=True)
+
+        m = _manifest(
+            packets=[
+                _packet(
+                    "KB-T3-2",
+                    depends_on=[],
+                    allowed_paths=["gateway/existing.py"],
+                    validation_commands=["true"],
+                )
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=repo)
+        assert not any("prototype-shaped" in w for w in warnings)
+
+    def test_proto_packet_suppresses_prototype_shaped_warning(self, tmp_path: Path):
+        m = _manifest(
+            packets=[
+                _packet(
+                    f"KB-P-{n}",
+                    depends_on=[],
+                    allowed_paths=[f"gateway/f{n}.py"],
+                    validation_commands=["true"],
+                )
+                for n in range(3)
+            ]
+            + [
+                _packet(
+                    "kitty-alpha-v1-proto",
+                    depends_on=[],
+                    allowed_paths=["docs/f.md"],
+                    validation_commands=["true"],
+                )
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert not any("prototype-shaped" in w for w in warnings)
+
+    def test_clean_manifest_has_no_warnings(self, tmp_path: Path):
+        repo = _init_git_repo(tmp_path)
+        (repo / "gateway").mkdir()
+        tracked = repo / "gateway" / "a.py"
+        tracked.write_text("# tracked\n", encoding="utf-8")
+        subprocess.run(["git", "add", "gateway/a.py"], cwd=repo, check=True)
+
+        m = _manifest(
+            packets=[
+                _packet(
+                    "KB-CLEAN-1",
+                    depends_on=[],
+                    allowed_paths=["gateway/a.py"],
+                    validation_commands=["pytest"],
+                )
+            ]
+        )
+        assert bi.warn_manifest(m, repo_root=repo) == []
 
 
 # ---------------------------------------------------------------------------
@@ -530,6 +734,29 @@ class TestCli:
         example = Path("docs/examples/kitty_alpha_initiative.example.json")
         assert example.exists(), "example manifest must ship with KB-S1A"
         assert main(["initiative", "validate", str(example)]) == 0
+
+    def test_validate_json_output_includes_warnings(
+        self, tmp_path: Path, cli_db, capsys
+    ):
+        path = _write_manifest(
+            tmp_path,
+            _manifest(packets=[_packet("KB-J1")]),  # no validation_commands
+        )
+        assert main(["initiative", "validate", str(path), "--json"]) == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["valid"] is True
+        assert payload["initiative_id"] == "kitty-alpha-v1"
+        assert any("validation_commands" in w for w in payload["warnings"])
+
+    def test_validate_warnings_do_not_change_exit_code(
+        self, tmp_path: Path, cli_db, capsys
+    ):
+        path = _write_manifest(
+            tmp_path, _manifest(packets=[_packet("KB-J2")])
+        )
+        assert main(["initiative", "validate", str(path)]) == 0
+        err = capsys.readouterr().err
+        assert "warning:" in err
 
 
 # ---------------------------------------------------------------------------

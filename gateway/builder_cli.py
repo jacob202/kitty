@@ -1034,6 +1034,7 @@ def _cmd_initiative_validate(args: argparse.Namespace) -> int:
         load_manifest,
         manifest_sha256,
         validate_manifest,
+        warn_manifest,
     )
 
     try:
@@ -1048,6 +1049,26 @@ def _cmd_initiative_validate(args: argparse.Namespace) -> int:
         for error in errors:
             print(f"error: {error}", file=sys.stderr)
         return 1
+
+    warnings = warn_manifest(manifest)
+    for warning in warnings:
+        print(f"warning: {warning}", file=sys.stderr)
+
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "valid": True,
+                    "initiative_id": manifest["initiative_id"],
+                    "packet_count": len(manifest["packets"]),
+                    "manifest_sha256": manifest_sha256(manifest),
+                    "warnings": warnings,
+                },
+                indent=2,
+                default=str,
+            )
+        )
+        return 0
 
     print(
         f"OK: initiative {manifest['initiative_id']!r}, "
@@ -1674,7 +1695,8 @@ COMMANDS: list[CommandSpec] = [
     # -- initiative group ------------------------------------------------------
     CommandSpec("initiative-validate", "initiative", "validate", "validate an initiative manifest file",
                 _cmd_initiative_validate,
-                [_a("manifest", "path to the manifest JSON file")]),
+                [_a("manifest", "path to the manifest JSON file"),
+                 _a("--json", "output JSON", action="store_true")]),
     CommandSpec("initiative-apply", "initiative", "apply",
                 "apply a manifest: create the initiative and one queue task per packet",
                 _cmd_initiative_apply,
