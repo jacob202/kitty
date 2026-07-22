@@ -1,4 +1,4 @@
-import { Message, normalizeMemoryEvidence, type MemoryEvidence } from './types';
+import { Message, normalizeMemoryEvidence, type MemoryEvidence, type ToolCall } from './types';
 
 // All gateway calls go through the Next.js proxy route — avoids CORS and keeps key server-side
 const GATEWAY_BASE = '/proxy';
@@ -8,6 +8,14 @@ export interface StreamChunk {
   done: boolean;
   /** Present on the single trailer event listing memories that informed the reply. */
   memoryItems?: MemoryEvidence[];
+  /** Accumulated tool calls snapshot — present on every delta that touches tool_calls. */
+  toolCalls?: ToolCall[];
+}
+
+interface ToolCallAccumulator {
+  id: string;
+  name: string;
+  arguments: string;
 }
 
 export async function* streamChat(
@@ -45,6 +53,7 @@ export async function* streamChat(
   if (!reader) return;
 
   let buffer = '';
+  const toolAccum: ToolCallAccumulator[] = [];
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -62,13 +71,32 @@ export async function* streamChat(
       }
       try {
         const json = JSON.parse(data);
-        // CR-04 memory trailer: one non-content event before [DONE].
         if (Array.isArray(json.memory_items)) {
           const memoryItems = normalizeMemoryEvidence(json.memory_items);
           if (memoryItems.length) yield { content: '', done: false, memoryItems };
           continue;
         }
-        const content = json.choices?.[0]?.delta?.content ?? '';
+        const delta = json.choices?.[0]?.delta;
+        if (!delta) continue;
+
+        const tcDeltas = delta.tool_calls as
+          | Array<{ index: number; id?: string; function?: { name?: string; arguments?: string } }>
+          | undefined;
+        if (tcDeltas) {
+          for (const tc of tcDeltas) {
+            const idx = tc.index;
+            if (!toolAccum[idx]) {
+              toolAccum[idx] = { id: tc.id ?? '', name: '', arguments: '' };
+            }
+            if (tc.id) toolAccum[idx].id = tc.id;
+            if (tc.function?.name) toolAccum[idx].name = tc.function.name;
+            if (tc.function?.arguments) toolAccum[idx].arguments += tc.function.arguments;
+          }
+          yield { content: '', done: false, toolCalls: toolAccum.map((t) => ({ ...t })) };
+          continue;
+        }
+
+        const content = delta.content ?? '';
         if (content) yield { content, done: false };
       } catch {
         /* skip malformed */

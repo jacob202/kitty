@@ -1,17 +1,15 @@
 'use client'
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
-import { Chat, Model, STREAMING_LABEL } from '@/lib/types'
+import { Model, STREAMING_LABEL } from '@/lib/types'
 import { StateBadge, type CatState } from './CrayonCat'
+import { ModelSelectorCmdk } from './ModelSelectorCmdk'
 
 interface Props {
   activeModel: Model
   models: Model[]
   onSelectModel: (m: Model) => void
-  showModelMenu: boolean
-  setShowModelMenu: (v: boolean) => void
   isStreaming: boolean
-  activeChat: Chat | null
   modelFromGateway?: boolean
   activeView: string
   onViewChange: (view: string) => void
@@ -36,8 +34,6 @@ export function TopBar({
   activeModel,
   models,
   onSelectModel,
-  showModelMenu,
-  setShowModelMenu,
   isStreaming,
   modelFromGateway = true,
   catState = 'idle',
@@ -84,12 +80,10 @@ export function TopBar({
             loading={projectLoading}
             busy={projectBusy}
           />
-          <ModelSelector
+          <ModelSelectorCmdk
             activeModel={activeModel}
             models={models}
             onSelectModel={onSelectModel}
-            showModelMenu={showModelMenu}
-            setShowModelMenu={setShowModelMenu}
             modelFromGateway={modelFromGateway}
           />
         </div>
@@ -131,12 +125,10 @@ export function TopBar({
           loading={projectLoading}
           busy={projectBusy}
         />
-        <ModelSelector
+        <ModelSelectorCmdk
           activeModel={activeModel}
           models={models}
           onSelectModel={onSelectModel}
-          showModelMenu={showModelMenu}
-          setShowModelMenu={setShowModelMenu}
           modelFromGateway={modelFromGateway}
         />
       </div>
@@ -208,70 +200,6 @@ function RuntimeBadge({
   )
 }
 
-function ModelSelector({
-  activeModel,
-  models,
-  onSelectModel,
-  showModelMenu,
-  setShowModelMenu,
-  modelFromGateway,
-}: {
-  activeModel: Model
-  models: Model[]
-  onSelectModel: (m: Model) => void
-  showModelMenu: boolean
-  setShowModelMenu: (v: boolean) => void
-  modelFromGateway?: boolean
-}) {
-  return (
-    <div style={{ position: 'relative' }}>
-      <button
-        onClick={() => setShowModelMenu(!showModelMenu)}
-        style={{
-          ...chipBtnStyle,
-          display: 'flex', alignItems: 'center', gap: 6,
-        }}
-      >
-        <span
-          title={modelFromGateway ? undefined : 'using offline model list'}
-          style={{
-            width: 7, height: 7, borderRadius: 99,
-            background: modelFromGateway ? activeModel.color : 'var(--c-red)',
-          }}
-        />
-        {activeModel.name}
-      </button>
-
-      {showModelMenu && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 6px)', right: 0,
-          background: 'var(--surface)', border: '1.5px solid var(--line)',
-          borderRadius: 12, minWidth: 200, zIndex: 100,
-          boxShadow: 'var(--shadow)', padding: 6,
-          display: 'flex', flexDirection: 'column', gap: 2,
-        }}>
-          {models.map(m => (
-            <button
-              key={m.id}
-              onClick={() => { onSelectModel(m); setShowModelMenu(false) }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                width: '100%', padding: '8px 12px', borderRadius: 8,
-                background: m.id === activeModel.id ? 'var(--ginger-fade)' : 'transparent',
-                border: 'none', cursor: 'pointer',
-                fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500,
-                color: 'var(--ink)',
-              }}
-            >
-              <span style={{ width: 7, height: 7, borderRadius: 99, background: m.color, flexShrink: 0 }} />
-              {m.name}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
 
 const chipBtnStyle: CSSProperties = {
   fontFamily: 'var(--font-mono)',
