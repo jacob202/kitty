@@ -39,11 +39,7 @@ Uses a **single-line** `tools/call` envelope; this server replies with a MCP-sha
 Manual smoke:
 
 ```bash
-cd /ABS/PATH/TO/kitty
-printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \
-  '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
-  '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"consult_council","arguments":{"query":"repair an audio amplifier with ML"}}}' \
-  | python3 gateway/mcp_council_server.py
+./scripts/mcp_council_smoketest.sh
 ```
 
 Expect JSON lines on stdout; errors on stderr.

@@ -5,30 +5,23 @@ description: Generate images via the local ComfyUI-backed image endpoint. Use wh
 
 # Skill: image-gen
 
-Generate images via ComfyUI running locally at port 8188.
+Generate images via `scripts/generate_image.py`, which checks ComfyUI
+availability and submits the prompt to the gateway. Model/style keyword
+routing ("portrait", "sdxl", "explicit", etc.) happens server-side in
+`gateway/image_gen.py` — pass the user's description straight through.
 
 ## When to use
 User asks Kitty to generate, draw, create, or make an image or picture.
 
-## Check availability first
-GET /image/status → {"available": true/false}
-If false, tell the user ComfyUI isn't running and they should start it.
+## Run
 
-## Generate
-POST /image/generate
-Body: {"prompt": "<the user's description>"}
+```bash
+python3.12 scripts/generate_image.py "<the user's description>"
+```
 
-Returns: {"filename": "Kitty_00001_.png", "path": "/full/path/to/file", "prompt_id": "..."}
-
-The output file lands in ComfyUI's output folder.
-Tell the user the filename and that it's ready in the ComfyUI output folder.
-
-## Model behavior
-- Default (SD1.5): homofidelis_v50 + bear LoRA. Good for character art.
-- Keywords that trigger SDXL (photonicFusionSDXL): "realistic", "photo", "photonic", "sdxl"
-- Keywords that add explicit LoRA: "explicit", "erect", "cock", "nude explicit"
-- Orientation: add "portrait" or "landscape"
-- Speed: add "fast" (fewer steps) or "detailed" (more steps)
+Prints the output filename on success, or the reason it failed
+(ComfyUI not running, timeout, etc.) on stderr.
 
 ## Timing
-Generation takes 2–5 minutes on M1. Tell the user upfront so they don't think it's stuck.
+Generation takes 2–5 minutes on M1 and the script blocks until done — tell
+the user upfront so they don't think it's stuck.

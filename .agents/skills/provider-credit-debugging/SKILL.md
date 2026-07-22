@@ -19,9 +19,7 @@ Use when a provider shows credits but requests fail, or when routing or spend lo
 From the repo root:
 
 ```bash
-/opt/homebrew/bin/python3.12 -m pytest tests/test_agentrouter_config.py tests/test_llm_routing.py tests/test_token_spend_report.py -q --tb=short
-python3 scripts/spend_report.py --since 2026-05-18
-python3 scripts/spend_report.py --provider agentrouter --since 2026-05-18 --credits 150
+./scripts/provider_credit_checks.sh --since 2026-05-18
 ```
 
 ## OpenCode checks
