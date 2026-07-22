@@ -1600,6 +1600,25 @@ export async function fetchGatewayHealth(): Promise<GatewayHealthPayload> {
   }
 }
 
+export interface GatewayTailnetPayload {
+  ok: boolean
+  tailnetIp: string | null
+  uiUrl: string | null
+}
+
+export async function fetchGatewayTailnet(): Promise<GatewayTailnetPayload> {
+  try {
+    const json = await gfetch<{ ok?: boolean; tailnet_ip?: string | null; ui_url?: string | null }>(
+      '/network/tailnet',
+      undefined,
+      1500,
+    )
+    return { ok: json.ok === true, tailnetIp: json.tailnet_ip ?? null, uiUrl: json.ui_url ?? null }
+  } catch {
+    return { ok: false, tailnetIp: null, uiUrl: null }
+  }
+}
+
 export interface ChatsPersistencePayload {
   ok: boolean
   count: number

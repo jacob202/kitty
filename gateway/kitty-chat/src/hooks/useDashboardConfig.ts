@@ -44,6 +44,7 @@ function defaultTiles(): Record<string, boolean> {
     'what-changed': true,
     today: true,
     health: true,
+    'phone-access': true,
     capture: true,
   }
 }
