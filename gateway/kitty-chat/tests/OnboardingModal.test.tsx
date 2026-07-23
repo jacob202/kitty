@@ -20,6 +20,7 @@ describe('OnboardingModal', () => {
     fireEvent.change(screen.getByLabelText('what should kitty call you?'), { target: { value: 'Jacob' } })
     fireEvent.click(screen.getByRole('button', { name: 'night theme' }))
     fireEvent.click(screen.getByRole('button', { name: 'continue' }))
+    fireEvent.click(screen.getByRole('button', { name: 'continue' }))
     fireEvent.click(screen.getByRole('button', { name: 'finish setup' }))
 
     expect(onComplete).toHaveBeenCalledWith({ name: 'Jacob', theme: 'night' })

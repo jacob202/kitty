@@ -22,6 +22,9 @@ import {
   useDeadlineSweep,
   useGatewayRuntimeManifest,
   useTailnet,
+  useRepairs,
+  useExecuteRepair,
+  useExpertList,
 } from '../src/lib/queries';
 import { HomeState } from '../src/components/HomeState';
 
@@ -54,6 +57,9 @@ vi.mock('../src/lib/queries', () => ({
   useDeadlineSweep: vi.fn(),
   useGatewayRuntimeManifest: vi.fn(),
   useTailnet: vi.fn(),
+  useRepairs: vi.fn(),
+  useExecuteRepair: vi.fn(),
+  useExpertList: vi.fn(),
 }));
 
 const LIVE_MODELS = [
@@ -164,6 +170,24 @@ function setDefaultMocks() {
     isLoading: false,
     error: null,
   });
+  (useRepairs as Mock).mockReturnValue({
+    data: {
+      ok: true,
+      checks_run: 1,
+      issues: 0,
+      repairs: [{ id: 'test', severity: 'ok', title: 'All systems healthy', detail: '' }],
+    },
+    isPending: false,
+    isError: false,
+    isFetched: true,
+  });
+  (useExecuteRepair as Mock).mockReturnValue({ isPending: false, mutate: vi.fn() });
+  (useExpertList as Mock).mockReturnValue({
+    data: [],
+    isPending: false,
+    isError: false,
+    isFetched: true,
+  });
 }
 
 const DEADLINE = {
@@ -227,7 +251,7 @@ describe('HomeState', () => {
     });
     render(<HomeState />);
     expect(screen.getByText(/not enough signal yet/)).toBeInTheDocument();
-    expect(screen.getByText(/no projects registered — \.\/kitty project add/)).toBeInTheDocument();
+    expect(screen.getByText(/no projects registered — add one from the projects view/)).toBeInTheDocument();
     expect(screen.getByText('nothing new since last snapshot')).toBeInTheDocument();
     expect(screen.getByText('nothing waiting for you')).toBeInTheDocument();
     expect(screen.getByText('nothing on the list')).toBeInTheDocument();
@@ -243,25 +267,25 @@ describe('HomeState', () => {
     expect(screen.getByText('retry')).toBeInTheDocument();
   });
 
-  it('shows the ./kitty up fix when the gateway is down', () => {
+  it('shows the gateway down fix when the gateway is down', () => {
     (useGatewayHealth as Mock).mockReturnValue({
       data: { ok: false, litellmReachable: false, error: 'Could not reach the gateway' },
       isPending: false,
     });
     render(<HomeState />);
     expect(
-      screen.getAllByText(/gateway offline — start it with \.\/kitty up/).length,
+      screen.getAllByText(/gateway is not reachable — check if Kitty is running/).length,
     ).toBeGreaterThan(0);
     expect(screen.getByText('routing unknown')).toBeInTheDocument();
   });
 
-  it('shows litellm down from the /health probe, never a fake routing-live', () => {
+  it('shows model routing unavailable from the /health probe, never a fake routing-live', () => {
     (useGatewayHealth as Mock).mockReturnValue({
       data: { ok: true, litellmReachable: false, error: null },
       isPending: false,
     });
     render(<HomeState />);
-    expect(screen.getByText(/litellm unreachable — \.\/kitty up starts it/)).toBeInTheDocument();
+    expect(screen.getByText(/model routing is unavailable/)).toBeInTheDocument();
     expect(screen.queryByText(/routing live/)).not.toBeInTheDocument();
   });
 

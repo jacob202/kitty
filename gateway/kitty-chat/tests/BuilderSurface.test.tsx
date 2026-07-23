@@ -9,6 +9,11 @@ import type {
   RuntimeFact,
 } from '../src/lib/gateway'
 
+vi.mock('../src/lib/queries', () => ({
+  useGatewayRuntimeManifest: vi.fn(),
+  useBuilderAction: vi.fn(() => ({ isPending: false, mutate: vi.fn() })),
+}))
+
 const NOW = '2026-07-17T03:00:00Z'
 
 afterEach(cleanup)

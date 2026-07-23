@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, type CSSProperties } from 'react'
+import { useRef, type CSSProperties } from 'react'
 import { AlertCircle, ArrowDownToLine, Share2 } from 'lucide-react'
 import type { AttachmentError } from '@/lib/attachment-validation'
 import type { PwaInstallState } from '@/lib/pwa'
@@ -48,13 +48,11 @@ export function StatusBar({
 }: Props) {
   const offlineStreakRef = useRef(0)
 
-  useEffect(() => {
-    if (gatewayOffline) {
-      offlineStreakRef.current++
-    } else {
-      offlineStreakRef.current = 0
-    }
-  }, [gatewayOffline])
+  if (gatewayOffline) {
+    offlineStreakRef.current++
+  } else {
+    offlineStreakRef.current = 0
+  }
 
   const confirmedOffline = offlineStreakRef.current >= FAILS_REQUIRED
 

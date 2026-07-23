@@ -36,14 +36,15 @@ describe('StatusBar', () => {
 
   it('shows gateway offline above save-state failures and retries on click', () => {
     const onRetryGateway = vi.fn()
-    render(
-      <StatusBar
-        {...baseProps}
-        gatewayOffline
-        onRetryGateway={onRetryGateway}
-        saveState="failed"
-      />,
-    )
+    const props = {
+      ...baseProps,
+      gatewayOffline: true,
+      onRetryGateway,
+      saveState: 'failed' as const,
+    }
+    const { rerender } = render(<StatusBar {...props} />)
+    rerender(<StatusBar {...props} />)
+    rerender(<StatusBar {...props} />)
     expect(screen.getByText('gateway offline')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'retry' }))
     expect(onRetryGateway).toHaveBeenCalledTimes(1)
