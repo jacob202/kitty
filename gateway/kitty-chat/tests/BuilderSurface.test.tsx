@@ -295,6 +295,77 @@ describe('BuilderSurface', () => {
     ])
   })
 
+  it('shows the deterministic next action and opens an accessible all-packets modal', async () => {
+    render(<BuilderSurface fact={builderFact(SNAPSHOT)} isLoading={false} />)
+
+    expect(screen.getByLabelText('Builder next action')).toHaveTextContent(
+      'Investigate: Expose truthful Builder status',
+    )
+    expect(screen.getByText('worker failed')).toBeInTheDocument()
+
+    const trigger = screen.getByRole('button', { name: 'View all packets' })
+    fireEvent.click(trigger)
+
+    const dialog = screen.getByRole('dialog', { name: 'All Builder packets' })
+    expect(dialog).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'All Builder packets' })).toHaveFocus())
+    expect(screen.getByRole('button', {
+      name: 'Open packet Expose truthful Builder status from all packets',
+    })).toBeInTheDocument()
+
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await waitFor(() => expect(trigger).toHaveFocus())
+  })
+
+  it('explains when a packet is ready without implying the UI can run it', () => {
+    const readyPacket: BuilderPacketStatus = {
+      ...PACKET,
+      task_state: 'queued',
+      eligibility: { state: 'eligible', blocked_by: [] },
+      failure_kind: null,
+      blocked_reason: null,
+      last_error: null,
+      run: null,
+    }
+    const readySnapshot: BuilderStatusSnapshot = {
+      ...SNAPSHOT,
+      queue: { ...SNAPSHOT.queue, queued: 1, blocked: 0 },
+      initiatives: [{
+        ...SNAPSHOT.initiatives[0],
+        state: 'active',
+        next_packet: readyPacket.packet_id,
+        counts: { ...SNAPSHOT.initiatives[0].counts, queued: 1, blocked: 0 },
+        packets: [readyPacket],
+      }],
+    }
+
+    render(<BuilderSurface fact={builderFact(readySnapshot)} isLoading={false} />)
+
+    expect(screen.getByLabelText('Builder next action')).toHaveTextContent(
+      'Ready for an authorized run: BUILDER-UI-1',
+    )
+    expect(screen.getByText(/This UI does not start Builder work/)).toBeInTheDocument()
+  })
+
+  it('prioritizes a paused initiative reason as the next decision', () => {
+    const pausedSnapshot: BuilderStatusSnapshot = {
+      ...SNAPSHOT,
+      initiatives: [{
+        ...SNAPSHOT.initiatives[0],
+        state: 'paused',
+        pause_reason: 'packet requires scope or identity judgment',
+      }],
+    }
+
+    render(<BuilderSurface fact={builderFact(pausedSnapshot)} isLoading={false} />)
+
+    expect(screen.getByLabelText('Builder next action')).toHaveTextContent(
+      'Needs a decision: Builder UI test initiative',
+    )
+    expect(screen.getAllByText('packet requires scope or identity judgment')).toHaveLength(2)
+  })
+
   it.each<[BuilderFailureKind, string]>([
     ['implementation', 'Implementation failure'],
     ['infrastructure', 'Infrastructure failure'],

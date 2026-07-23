@@ -37,8 +37,8 @@ performed 2026-07-21, not assumption:
 - Identity/scope enforcement (`gateway/builder_identity.py`, `builder_scope.py`):
   fail-closed — a worker that touches paths outside its allowed scope gets stopped
   and returns structured evidence, not a silent widening of scope.
-- CLI: `./kitty builder queue ...` (24 subcommands) and
-  `./kitty builder initiative ...` (15 subcommands) — this is genuinely usable
+- CLI: `./kitty builder queue ...` (25 subcommands) and
+  `./kitty builder initiative ...` (16 subcommands) — this is genuinely usable
   today for manual dogfooding (add a task, claim it, run it, publish a PR for human
   merge).
 - 201 files / 47k LOC in `gateway/`, 191 test files / 37.7k LOC, 2,681 tests passing
@@ -58,12 +58,25 @@ performed 2026-07-21, not assumption:
 3. **No prototype-first step.** Each packet goes straight from
    implement → validate → review → repair. There's no "show a rough draft, confirm
    direction, then build for real" phase before committing to a full implementation.
-4. **KB-S5 (continuation loop, budgets, pause/resume) is only partially shipped.**
-   The `run` driver exists but budget enforcement and clean pause/resume aren't
-   complete. This is the same territory — run-length control, stop conditions,
-   resuming after interruption — that the abandoned campaign framework below was
-   designed to solve. Treat that framework as raw material for finishing KB-S5, not
-   as a parallel system to bolt on.
+   (Note, verified 2026-07-21: the *gating mechanism* for this already exists —
+   `builder_initiative.eligible_packets` only satisfies a dependency when the
+   upstream task reaches `done`, and `done` requires human merge. A prototype
+   packet that everything else `depends_on` is therefore a hard human gate with
+   zero schema change. What's missing is the convention, authoring support, and
+   prototype-grade acceptance criteria — not runtime machinery.)
+4. **KB-S5 (continuation loop, budgets, pause/resume) is closer to done than the
+   docs imply.** Verified 2026-07-21 against code: `builder_run.run_initiative`
+   already enforces per-initiative attempt and runtime budgets (pausing with a
+   stated reason), per-packet attempt budgets come from `policy.max_attempts`
+   (`builder_initiative._attempts_exhausted`), pause/resume ship as CLI commands
+   (`initiative pause` / `initiative resume`), and restart reconciliation runs at
+   loop start (`recover_expired_leases` + `recover_interrupted_runs`). What KB-S5
+   still lacks is the *judgment layer* the abandoned campaign framework designed:
+   the kill-switch asymmetry (real ambiguity halts; routine failures don't), the
+   escalate-vs-retry thresholds, and health metrics. Also lacking: a verified
+   dogfood pass marking KB-S5 ✅ in `docs/KITTYBUILDER_SELF_BUILDING_MVP.md`.
+   Treat the framework as raw material for that judgment layer, not as a parallel
+   system to bolt on.
 5. **No merge automation** (by design so far, but worth re-litigating) —
    `queue publish` opens/updates a PR; a human merges.
 6. **Read-only investigation UI only** — all mutations are fenced CLI operations,

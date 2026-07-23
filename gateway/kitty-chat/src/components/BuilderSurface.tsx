@@ -28,6 +28,11 @@ interface PacketSelection {
   packetId: string
 }
 
+interface BuilderNextAction {
+  label: string
+  detail: string
+}
+
 const actionButton: CSSProperties = {
   border: '1px solid var(--line)',
   borderRadius: 4,
@@ -98,7 +103,9 @@ export function BuilderPanel({ onBack }: { onBack?: () => void }) {
 
 export function BuilderSurface({ fact, isLoading, error, onBack }: BuilderSurfaceProps) {
   const [selection, setSelection] = useState<PacketSelection | null>(null)
+  const [allPacketsOpen, setAllPacketsOpen] = useState(false)
   const packetButtonRefs = useRef(new Map<string, HTMLButtonElement>())
+  const allPacketsButtonRef = useRef<HTMLButtonElement>(null)
   const snapshot = fact?.value
   const stale = fact?.state === 'stale' || isExpired(fact?.valid_until)
   const selectedPacket = selection ? findPacket(snapshot, selection) : null
@@ -121,6 +128,11 @@ export function BuilderSurface({ fact, isLoading, error, onBack }: BuilderSurfac
     } else {
       packetButtonRefs.current.delete(key)
     }
+  }
+
+  const closeAllPackets = () => {
+    setAllPacketsOpen(false)
+    requestAnimationFrame(() => allPacketsButtonRef.current?.focus())
   }
 
   if (isLoading && !fact) {
@@ -155,11 +167,28 @@ export function BuilderSurface({ fact, isLoading, error, onBack }: BuilderSurfac
           <p style={{ ...emptyState, margin: 0 }}>No Builder work is recorded yet.</p>
         </div>
       ) : (
-        <BuilderOverview
-          snapshot={snapshot}
-          onSelectPacket={setSelection}
-          registerPacketButton={registerPacketButton}
-        />
+        <>
+          <BuilderNextActionCard
+            snapshot={snapshot}
+            onOpenAllPackets={() => setAllPacketsOpen(true)}
+            allPacketsButtonRef={allPacketsButtonRef}
+          />
+          <BuilderOverview
+            snapshot={snapshot}
+            onSelectPacket={setSelection}
+            registerPacketButton={registerPacketButton}
+          />
+          {allPacketsOpen && (
+            <AllPacketsModal
+              snapshot={snapshot}
+              onClose={closeAllPackets}
+              onSelectPacket={(packet) => {
+                setAllPacketsOpen(false)
+                setSelection(packet)
+              }}
+            />
+          )}
+        </>
       )}
     </section>
   )
@@ -240,6 +269,112 @@ function DataQualityNotice({ detail }: { detail: string }) {
         Partial Builder data
       </strong>
       <span style={{ ...bodyText, overflowWrap: 'anywhere' }}>{detail}</span>
+    </div>
+  )
+}
+
+function BuilderNextActionCard({
+  snapshot,
+  onOpenAllPackets,
+  allPacketsButtonRef,
+}: {
+  snapshot: BuilderStatusSnapshot
+  onOpenAllPackets: () => void
+  allPacketsButtonRef: React.RefObject<HTMLButtonElement | null>
+}) {
+  const nextAction = deriveNextAction(snapshot)
+  return (
+    <section style={{ ...card, display: 'grid', gap: 8 }} aria-label="Builder next action">
+      <div style={cardHeader}>
+        <div style={cardTitle}>next action</div>
+        <span style={cardMeta}>read-only</span>
+      </div>
+      <strong style={{ fontFamily: 'var(--font-body)', color: 'var(--ink)' }}>{nextAction.label}</strong>
+      <p style={{ ...bodyText, margin: 0, overflowWrap: 'anywhere' }}>{nextAction.detail}</p>
+      <div>
+        <button ref={allPacketsButtonRef} type="button" onClick={onOpenAllPackets} style={actionButton}>
+          View all packets
+        </button>
+      </div>
+    </section>
+  )
+}
+
+function AllPacketsModal({
+  snapshot,
+  onClose,
+  onSelectPacket,
+}: {
+  snapshot: BuilderStatusSnapshot
+  onClose: () => void
+  onSelectPacket: (selection: PacketSelection) => void
+}) {
+  const headingRef = useRef<HTMLHeadingElement>(null)
+
+  useEffect(() => {
+    headingRef.current?.focus()
+  }, [])
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="all-builder-packets-heading"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') onClose()
+      }}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 20,
+        display: 'grid',
+        placeItems: 'center',
+        padding: 16,
+        background: 'rgba(0, 0, 0, 0.55)',
+      }}
+    >
+      <section style={{ ...card, width: 'min(860px, 100%)', maxHeight: 'min(760px, 100%)', overflow: 'auto', display: 'grid', gap: 14 }}>
+        <header style={cardHeader}>
+          <div>
+            <h2
+              ref={headingRef}
+              id="all-builder-packets-heading"
+              tabIndex={-1}
+              style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 24, color: 'var(--ink)' }}
+            >
+              All Builder packets
+            </h2>
+            <p style={{ ...bodyText, margin: '4px 0 0' }}>
+              Read-only status from durable Builder records.
+            </p>
+          </div>
+          <button type="button" onClick={onClose} style={actionButton}>Close</button>
+        </header>
+        {snapshot.initiatives.map((initiative) => (
+          <section key={initiative.initiative_id} style={{ ...itemCard, display: 'grid', gap: 8 }}>
+            <div style={cardHeader}>
+              <strong style={{ fontFamily: 'var(--font-body)', color: 'var(--ink)' }}>{initiative.title}</strong>
+              <span style={cardMeta}>{displayState(initiative.state)} · {initiative.counts.total} packets</span>
+            </div>
+            {initiative.pause_reason && (
+              <p style={{ ...bodyText, margin: 0, overflowWrap: 'anywhere' }}>{initiative.pause_reason}</p>
+            )}
+            {sortPacketsForAttention(initiative.packets).map((packet) => (
+              <button
+                key={`${packet.initiative_id}:${packet.packet_id}`}
+                type="button"
+                onClick={() => onSelectPacket({ initiativeId: packet.initiative_id, packetId: packet.packet_id })}
+                aria-label={`Open packet ${packet.title} from all packets`}
+                style={{ ...itemCard, cursor: 'pointer', textAlign: 'left', color: 'var(--ink)', display: 'grid', gap: 4 }}
+              >
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600 }}>{packet.title}</span>
+                <span style={cardMeta}>{packetSummary(packet)} · {eligibilityLabel(packet)}</span>
+                <span style={{ ...cardMeta, opacity: 0.8 }}>{packet.packet_id}</span>
+              </button>
+            ))}
+          </section>
+        ))}
+      </section>
     </div>
   )
 }
@@ -719,6 +854,71 @@ function builderGlanceDetail(
 function packetSummary(packet: BuilderPacketStatus): string {
   return failureLabel(packet.failure_kind)
     || displayState(packet.task_state ?? packet.eligibility.state)
+}
+
+function eligibilityLabel(packet: BuilderPacketStatus): string {
+  if (packet.eligibility.blocked_by.length > 0) {
+    return `blocked by ${packet.eligibility.blocked_by.join(', ')}`
+  }
+  return displayState(packet.eligibility.state)
+}
+
+function deriveNextAction(snapshot: BuilderStatusSnapshot): BuilderNextAction {
+  const pausedWithReason = snapshot.initiatives.find(
+    (initiative) => initiative.state === 'paused' && initiative.pause_reason,
+  )
+  if (pausedWithReason) {
+    return {
+      label: `Needs a decision: ${pausedWithReason.title}`,
+      detail: pausedWithReason.pause_reason!,
+    }
+  }
+
+  const attentionPacket = snapshot.initiatives
+    .flatMap((initiative) => initiative.packets)
+    .find(packetNeedsAttention)
+  if (attentionPacket) {
+    const reason = attentionPacket.blocked_reason
+      || attentionPacket.last_error
+      || failureLabel(attentionPacket.failure_kind)
+      || 'This packet needs investigation before work can continue.'
+    return {
+      label: `Investigate: ${attentionPacket.title}`,
+      detail: reason,
+    }
+  }
+
+  const activePacket = snapshot.initiatives
+    .flatMap((initiative) => initiative.packets)
+    .find(isPacketActive)
+  if (activePacket) {
+    return {
+      label: `Work is running: ${activePacket.title}`,
+      detail: 'This surface will refresh while the durable Builder run reports activity.',
+    }
+  }
+
+  const readyInitiative = snapshot.initiatives.find(
+    (initiative) => initiative.state === 'active' && initiative.next_packet,
+  )
+  if (readyInitiative) {
+    return {
+      label: `Ready for an authorized run: ${readyInitiative.next_packet}`,
+      detail: `${readyInitiative.title} has an eligible next packet. This UI does not start Builder work.`,
+    }
+  }
+
+  if (snapshot.queue.total > 0 && snapshot.queue.done === snapshot.queue.total) {
+    return {
+      label: 'No action needed',
+      detail: 'Every recorded Builder packet is complete.',
+    }
+  }
+
+  return {
+    label: 'No eligible packet is reported',
+    detail: 'Open all packets to inspect durable state, dependencies, and the latest event.',
+  }
 }
 
 function eventSummary(packet: BuilderPacketStatus): string | null {
