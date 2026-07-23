@@ -1113,7 +1113,11 @@ def _cmd_initiative_apply(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_list(args: argparse.Namespace) -> int:
-    from gateway.builder_initiative import list_initiatives
+    from gateway.builder_initiative import (
+        InitiativeNotFoundError,
+        initiative_status,
+        list_initiatives,
+    )
 
     initiatives = list_initiatives()
     if args.json:
@@ -1123,9 +1127,29 @@ def _cmd_initiative_list(args: argparse.Namespace) -> int:
         print("No initiatives found.")
         return 0
     for item in initiatives:
+        # Fetch per-initiative health/stop_class for the compact indicator.
+        # N+1 is acceptable here: the list is typically short (single digits).
+        try:
+            status = initiative_status(item["id"])
+        except InitiativeNotFoundError:
+            status = {}
+        stop_class = status.get("stop_class")
+        health = status.get("health") or {}
+        stop_counts = (health.get("stop_class_counts") or {})
+        stop_str = (
+            ", ".join(f"{k}={v}" for k, v in sorted(stop_counts.items()))
+            if stop_counts
+            else ""
+        )
+        health_parts = []
+        if stop_class:
+            health_parts.append(f"stop={stop_class}")
+        if stop_str:
+            health_parts.append(f"classes={stop_str}")
+        health_indicator = f"  {'  '.join(health_parts)}" if health_parts else ""
         print(
             f"{item['id']}  [{item['state']}]  {item['title']}  "
-            f"({item['packet_count']} packet(s))"
+            f"({item['packet_count']} packet(s)){health_indicator}"
         )
     return 0
 
