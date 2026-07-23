@@ -1,0 +1,155 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kitty-endgame-init-2-daily-driver-v1",
+  "title": "Kitty Endgame INIT-2: Daily Driver",
+  "description": "L0 planning manifest for the Kitty Endgame Daily Driver lane. Recommended worker tier for every packet: Luna medium reasoning. Manifest v1 does not support a model_tier policy key, so the tier is recorded as prose. This manifest is planning-only until INIT-1 closeout establishes a canonical Builder lane. D1 changes network exposure and requires explicit Jacob confirmation immediately before execution; D2-D6 must not be started while overlapping UI work is active.",
+  "packets": [
+    {
+      "id": "D1-tailnet-serve",
+      "title": "D1: Tailscale Serve for authenticated phone access",
+      "objective": "[Luna medium] Replace ad-hoc Tailnet dev-server exposure with a documented, authenticated Tailscale Serve configuration for Kitty's intended phone-facing UI route. Preserve loopback-only backend binding, do not expose LiteLLM directly, and fail loudly if HTTPS, identity, origin, or service reachability checks fail. This packet requires Jacob's explicit confirmation immediately before any Tailscale configuration mutation.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "The UI is reachable through a documented authenticated Tailnet HTTPS URL",
+        "Gateway and LiteLLM remain inaccessible from non-loopback interfaces",
+        "The configuration has a reproducible status/rollback procedure",
+        "Local, Tailnet, and browser-origin probes pass with explicit results",
+        "No Tailscale mutation occurs without a recorded Jacob confirmation"
+      ],
+      "allowed_paths": [
+        "docs/initiatives/",
+        "scripts/",
+        "Makefile"
+      ],
+      "policy": { "max_attempts": 2, "priority": 10 },
+      "validation_commands": [
+        "./kitty verify-home",
+        "tailscale status"
+      ]
+    },
+    {
+      "id": "D2-phone-pwa-polish",
+      "title": "D2: Phone and PWA polish",
+      "objective": "[Luna medium] Make Kitty's established mobile UI installable and reliable as a PWA without introducing a parallel navigation or design system. Cover manifest metadata, install affordance, safe-area layout, offline/error messaging, and the existing Tailnet origin. Coordinate with active frontend work before execution.",
+      "depends_on": ["D1-tailnet-serve"],
+      "acceptance_criteria": [
+        "A phone browser can install the app and relaunch it from its home screen",
+        "Mobile layouts have no horizontal overflow at 320px and 375px",
+        "Offline and unavailable-service states are explicit rather than blank",
+        "PWA metadata and install behavior have targeted tests or browser evidence",
+        "Frontend tests and production build pass"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/app/",
+        "gateway/kitty-chat/src/components/",
+        "gateway/kitty-chat/public/",
+        "gateway/kitty-chat/tests/",
+        "gateway/kitty-chat/next.config.ts"
+      ],
+      "policy": { "max_attempts": 2, "priority": 9 },
+      "validation_commands": [
+        "cd gateway/kitty-chat && npm test",
+        "cd gateway/kitty-chat && npm run build"
+      ]
+    },
+    {
+      "id": "D3-kitty-open",
+      "title": "D3: kitty open command",
+      "objective": "[Luna medium] Add a clear local command that opens the canonical Kitty UI URL and prints the selected URL and failure context. It must not start duplicate servers, guess a port, or silently fall back to a different host; if the UI is unavailable it must fail with the probe result and the exact start command.",
+      "depends_on": ["D1-tailnet-serve"],
+      "acceptance_criteria": [
+        "./kitty open resolves and opens only the configured canonical UI URL",
+        "When the UI probe fails, the command exits non-zero with the URL, status/error, and recovery command",
+        "The command neither starts services nor changes network configuration",
+        "Focused CLI tests pass"
+      ],
+      "allowed_paths": [
+        "kitty",
+        "tests/test_kitty_launcher.py"
+      ],
+      "policy": { "max_attempts": 2, "priority": 8 },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_kitty*.py tests/test_cli*.py -q --tb=short",
+        "./kitty --help"
+      ]
+    },
+    {
+      "id": "D4-one-next-move-card",
+      "title": "D4: One next move card",
+      "objective": "[Luna medium] Add one truthful daily-driver card that recommends the single highest-priority next move with its source, reason, authority owner, and direct destination. It must use live gateway data, visibly distinguish unavailable/stale/partial data, and never fabricate or silently default a recommendation.",
+      "depends_on": ["D2-phone-pwa-polish", "D3-kitty-open"],
+      "acceptance_criteria": [
+        "The card shows exactly one recommended move with source, reason, authority owner, and destination",
+        "No recommendation is rendered as certain when its source data is unavailable, stale, or partial",
+        "Empty state explains why no next move is available",
+        "Component tests cover recommended, empty, unavailable, stale, and partial states",
+        "Frontend tests and production build pass"
+      ],
+      "allowed_paths": [
+        "gateway/routes/",
+        "gateway/next_step.py",
+        "gateway/kitty-chat/src/components/",
+        "gateway/kitty-chat/src/lib/",
+        "gateway/kitty-chat/tests/",
+        "tests/test_next_step.py",
+        "tests/test_*route*.py"
+      ],
+      "policy": { "max_attempts": 2, "priority": 7 },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_next_step.py -q --tb=short",
+        "cd gateway/kitty-chat && npm test",
+        "cd gateway/kitty-chat && npm run build"
+      ]
+    },
+    {
+      "id": "D5-morning-brief-hardening",
+      "title": "D5: Morning brief hardening",
+      "objective": "[Luna medium] Harden the morning brief as the daily-driver entry point: deterministic section order, explicit source freshness, concrete next action, and clear unavailable/error states. Preserve the life-first ordering contract and do not hide provider or source failures.",
+      "depends_on": ["D4-one-next-move-card"],
+      "acceptance_criteria": [
+        "The brief leads with the truthful next move and identifies its source/freshness",
+        "Missing provider or source data produces a visible, specific unavailable state",
+        "Life-first ordering remains covered by regression tests",
+        "Backend and frontend targeted tests pass"
+      ],
+      "allowed_paths": [
+        "gateway/brief.py",
+        "gateway/routes/brief.py",
+        "gateway/kitty-chat/src/components/",
+        "gateway/kitty-chat/tests/",
+        "tests/test_brief.py",
+        "tests/test_next_step.py"
+      ],
+      "policy": { "max_attempts": 2, "priority": 6 },
+      "validation_commands": [
+        "python3.12 -m pytest tests/test_brief.py tests/test_next_step.py -q --tb=short",
+        "cd gateway/kitty-chat && npm test",
+        "cd gateway/kitty-chat && npm run build"
+      ]
+    },
+    {
+      "id": "D6-click-everything-smoke",
+      "title": "D6: Click-everything daily-driver smoke",
+      "objective": "[Luna medium] Add a bounded browser smoke suite for the established daily-driver paths: launch/open, Home, one-next-move, morning brief, Builder status, chat navigation, and failure/empty states. The suite must use real user-visible assertions, report precise failing routes/actions, and never treat missing data as success.",
+      "depends_on": ["D5-morning-brief-hardening"],
+      "acceptance_criteria": [
+        "The smoke suite exercises the documented daily-driver path and reports each route/action",
+        "A deliberately unavailable or empty fixture state is asserted as a visible failure/empty UI, not silently skipped",
+        "The suite has a documented local command and produces actionable failure output",
+        "Frontend tests, smoke suite, and production build pass"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/tests/",
+        "gateway/kitty-chat/src/",
+        "gateway/kitty-chat/package.json",
+        "gateway/kitty-chat/playwright.config.*",
+        "tests/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 5 },
+      "validation_commands": [
+        "cd gateway/kitty-chat && npm test",
+        "cd gateway/kitty-chat && npm run build"
+      ]
+    }
+  ]
+}

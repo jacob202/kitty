@@ -205,7 +205,107 @@
 - **Review trigger:** next packet authored after a period of concurrent sessions.
 - **Promotion target:** done in this same PR — the intake gate's numbering paragraph now states the main-owns-numbers rule.
 
-### L-CAND-14 — `.claude/STATE.md`/`HANDOFF.md` are a single shared file, not a session-scoped journal; concurrent writers stomp each other
+## Candidate Lessons (CP-08 dogfood session, 2026-07-22)
+
+KB-S5 sign-off (`docs/KITTYBUILDER_SELF_BUILDING_MVP.md`): two real
+initiatives run unattended on free workers through CP-06 evidence-gated
+auto-merge, zero fixtures. Campaign A (single doc-fix packet) needed five
+live attempts before a clean one landed — the first four each surfaced a
+real, previously-unexercised bug in the free-worker/auto-merge path, fixed
+and shipped to `main` in the same session. Campaign B (4-packet,
+prototype-gated) proved the prototype-gate gates the field, and that
+same-invocation continuation to downstream packets works once the gate
+opens — 3 of 4 packets auto-merged live; the 4th correctly stopped
+`needs_decision` on a genuine scope overreach, not an infra bug. **What
+fired as designed:** the scope enforcement (both checks, post-fix), CP-03's
+stop classification, CP-06's auto-merge + the tripwire's absence-of-false-
+triggering, CP-02's lint warning (predicted the exact file collision that
+later caused a real merge conflict). **What never fired:** the tripwire
+itself (no reverts occurred) and CP-06's auto-revert path — both remain
+unexercised in this session; a deliberate revert drill (§3.3 negative test
+4 in the daily-driver plan) is still owed before trusting them blind.
+
+### L-CAND-14 — Two independent scope-check implementations silently drifted
+
+- **Status:** candidate
+- **Date:** 2026-07-22
+- **Source session:** CP-08 dogfood, Campaign A/B live runs
+- **Problem:** `builder_runner.py`'s live heartbeat scope check and
+  `builder_identity.py`'s post-hoc identity verification both exist to
+  enforce the same rule (stay in `allowed_paths`) but were two separate
+  implementations. One had grown exemptions for repo convention residue
+  (`.claude/STATE.md`/`HANDOFF.md`) and the runner's own worker-staging
+  files; the other hadn't. A free worker that dutifully followed
+  CLAUDE.md's own "update STATE.md before stopping" convention failed
+  identity verification for doing exactly that — not a modeling error, an
+  enforcement-layer inconsistency.
+- **Evidence:** `gateway/builder_runner.py` commit `7a5f2e7` (runner-side
+  fix), `gateway/builder_scope.py` commit `28bd51c` (centralized the
+  exemption as `is_expected_residue`, both checks now call it).
+- **Scope:** any pair of independently-evolved safety mechanisms meant to
+  enforce the same invariant.
+- **Lesson:** When two modules implement "the same" safety check
+  separately, they will drift, and the drift surfaces as a false positive
+  against legitimate work, not as a caught violation — the failure mode is
+  silent and expensive (burned attempt budget) rather than loud. Prefer one
+  canonical implementation with importers, even at the cost of an extra
+  import, over two.
+- **Action for future agents:** Before adding a new "safety check" near an
+  existing one, grep for the existing one's exemption list first — a new
+  duplicate is the default failure mode, not the exception.
+- **Confidence:** high
+- **Review trigger:** any future "worker did the right thing but got
+  flagged" report.
+- **Promotion target:** candidate; promote if a third independent scope
+  check ever appears.
+
+### L-CAND-15 — Sequential auto-merged packets in one initiative can genuinely conflict, and `.claude/STATE.md` guarantees they eventually will
+
+- **Status:** candidate, not yet fixed (named follow-up)
+- **Date:** 2026-07-22
+- **Source session:** CP-08 dogfood, Campaign B (`cp08b-column`,
+  `cp08b-filter`)
+- **Problem:** Every packet's worktree branches from the same `base_sha`.
+  When an upstream packet in the initiative auto-merges, `main` moves; a
+  sibling packet's branch — cut from the *old* base — can develop a real
+  git conflict against the new `main` before its own merge is attempted.
+  This isn't hypothetical: it happened twice in one campaign, both times on
+  `.claude/STATE.md` specifically, because every worker convention-writes
+  to that one shared file, so any two concurrent-ish commits touching it
+  will eventually collide. `cp08b-column` and `cp08b-filter` also
+  genuinely collided on `tests/test_builder_cli.py` — the exact file CP-02's
+  own lint warning had already named as a collision risk at manifest-apply
+  time.
+- **Evidence:** PR #226/#227 both showed `mergeStateStatus: DIRTY` /
+  `CONFLICTING` before manual resolution; `gh pr view --json
+  mergeable,mergeStateStatus`.
+- **Scope:** any multi-packet initiative where sibling packets' allowed
+  paths don't share a dependency edge (exactly what CP-02's collision
+  warning flags) — `.claude/STATE.md` conflicts specifically are universal
+  regardless of allowed_paths, since every worker touches it.
+- **Lesson:** CP-06's auto-merge never rebases a packet's branch onto a
+  freshly-advanced `main` before attempting its own merge — it assumes the
+  branch is still current. It was operator-resolved by hand this session,
+  not automatically.
+- **Action for future agents:** Two candidate fixes, not yet chosen: (a)
+  `merge_and_verify` rebases onto current `main` before attempting `gh pr
+  merge`, retrying once on a clean rebase; (b) stop instructing free
+  workers to touch `.claude/STATE.md` at all — Builder tracks its own state
+  via the queue DB, not that file, and CLAUDE.md's "Session State"
+  convention was written for Jacob's own Claude Code sessions, not for
+  isolated Builder attempts. (b) is cheaper and removes the universal
+  collision source; (a) is still needed for genuine content collisions
+  like the `test_builder_cli.py` case. Do both when this is picked up.
+- **Confidence:** high
+- **Review trigger:** the next multi-packet campaign with siblings that
+  share an allowed-path prefix (CP-02 will warn) or run long enough for
+  another session's commit to land on `main` mid-campaign.
+- **Promotion target:** `docs/DECISIONS.md` once a fix is chosen — this is
+  an architecture gap in CP-06, not just an observation.
+
+## Candidate Lessons (branch-sprawl triage + frontend harvest, 2026-07-22/23)
+
+### L-CAND-16 — `.claude/STATE.md`/`HANDOFF.md` are a single shared file, not a session-scoped journal; concurrent writers stomp each other
 
 - **Status:** candidate
 - **Date:** 2026-07-22/23
@@ -219,7 +319,7 @@
 - **Review trigger:** next time two sessions or an autonomous campaign are confirmed active on the same repo in the same window.
 - **Promotion target:** `docs/AGENT_RUNTIME.md` — this has now recurred across two completely different actor-pairs (Codex/opencode on `gateway/db.py`, per L-CAND-1; Mac-session/cloud-session/Campaign-B on `.claude/STATE.md`, here). That's a repo-wide, repeated, high-risk pattern, not a one-off.
 
-### L-CAND-15 — A three-dot git diff (`main...branch`) shows what's unique since the fork point, not what's missing from main *now*
+### L-CAND-17 — A three-dot git diff (`main...branch`) shows what's unique since the fork point, not what's missing from main *now*
 
 - **Status:** candidate
 - **Date:** 2026-07-22
@@ -235,7 +335,7 @@
 
 ## Candidate Lessons (rejected or not promoted)
 
-Empty — nothing rejected this session that was strong enough to mention. The five above are the full candidate set.
+Empty — nothing rejected this session that was strong enough to mention.
 
 ## Promotion criteria (do not change these)
 

@@ -172,6 +172,19 @@ class TestRepoIdentity:
         levels = {c.name: c.level for c in checks}
         assert levels["repo:identity"] == "FAIL"
 
+    def test_worker_worktree_with_matching_origin_passes(self, repo: Path, monkeypatch):
+        subprocess.run(
+            ["git", "remote", "add", "origin", "https://github.com/jacob202/kitty.git"],
+            cwd=repo,
+            check=True,
+        )
+        worker = repo.parent / "kb_mrwxasc5_85a0"
+        repo.rename(worker)
+        monkeypatch.setattr(doctor, "EXPECTED_REPO_NAME", "kitty")
+        checks = doctor._check_repo_identity(worker)
+        levels = {c.name: c.level for c in checks}
+        assert levels["repo:identity"] == "PASS"
+
     def test_missing_default_branch_fails(self, repo: Path, monkeypatch):
         monkeypatch.setattr(doctor, "EXPECTED_REPO_NAME", "kitty")
         monkeypatch.setattr(doctor, "EXPECTED_DEFAULT_BRANCH", "does-not-exist")
