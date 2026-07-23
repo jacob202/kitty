@@ -48,6 +48,7 @@ def _fake_task(task_id: str = "kb_test0000_abcd", **overrides) -> dict:
 
 _QUEUE_PATCH = "gateway.builder_queue"
 _CLI_PATCH = "gateway.builder_cli"  # noqa
+_INITIATIVE_PATCH = "gateway.builder_initiative"
 
 
 # ---------------------------------------------------------------------------
@@ -1359,6 +1360,193 @@ class TestInitiativeFreePreset:
             "scripts/kittybuilder_opencode_reviewer.sh"
         )
         assert kwargs["worker"] == "opencode-free"
+
+
+# ---------------------------------------------------------------------------
+# Initiative — list --needs-attention
+# ---------------------------------------------------------------------------
+
+
+class TestInitiativeListNeedsAttention:
+    """Tests for initiative list --needs-attention (CP-08 campaign, packet cp08b-filter)."""
+
+    _FAKE_INITIATIVES = [
+        {"id": "init-paused", "title": "paused campaign", "state": "paused",
+         "packet_count": 2, "manifest_version": 1, "manifest_sha256": "a",
+         "created_at": "2026-07-01", "updated_at": "2026-07-01"},
+        {"id": "init-needs-dec", "title": "needs decision", "state": "active",
+         "packet_count": 1, "manifest_version": 1, "manifest_sha256": "b",
+         "created_at": "2026-07-02", "updated_at": "2026-07-02"},
+        {"id": "init-active", "title": "normal active", "state": "active",
+         "packet_count": 3, "manifest_version": 1, "manifest_sha256": "c",
+         "created_at": "2026-07-03", "updated_at": "2026-07-03"},
+        {"id": "init-done", "title": "completed", "state": "completed",
+         "packet_count": 0, "manifest_version": 1, "manifest_sha256": "d",
+         "created_at": "2026-07-04", "updated_at": "2026-07-04"},
+        {"id": "init-failed", "title": "failed", "state": "failed",
+         "packet_count": 0, "manifest_version": 1, "manifest_sha256": "e",
+         "created_at": "2026-07-05", "updated_at": "2026-07-05"},
+    ]
+
+    @staticmethod
+    def _status_for(init_id: str, db_path=None) -> dict:
+        statuses = {
+            "init-paused": {"state": "paused", "stop_class": None},
+            "init-needs-dec": {"state": "active", "stop_class": "needs_decision"},
+            "init-active": {"state": "active", "stop_class": None},
+            "init-done": {"state": "completed", "stop_class": None},
+            "init-failed": {"state": "failed", "stop_class": None},
+        }
+        return statuses[init_id]
+
+    # -- parser-level tests ---------------------------------------------------
+
+    def test_flag_parses(self):
+        """The --needs-attention flag is accepted by the parser."""
+        parser = build_parser()
+        args = parser.parse_args(["initiative", "list", "--needs-attention"])
+        assert args.initiative_command == "list"
+        assert args.needs_attention is True
+
+    def test_flag_with_json_parses(self):
+        """--needs-attention combined with --json is accepted."""
+        parser = build_parser()
+        args = parser.parse_args(["initiative", "list", "--needs-attention", "--json"])
+        assert args.needs_attention is True
+        assert args.json is True
+
+    # -- no-filter behaviour unchanged ----------------------------------------
+
+    def test_list_empty_no_flag(self, capsys):
+        with patch(f"{_INITIATIVE_PATCH}.init_db"):
+            with patch(f"{_INITIATIVE_PATCH}.list_initiatives", return_value=[]):
+                rc = main(["initiative", "list"])
+        assert rc == 0
+        assert "No initiatives found" in capsys.readouterr().out
+
+    def test_list_human_no_flag(self, capsys):
+        with patch(f"{_INITIATIVE_PATCH}.init_db"):
+            with patch(
+                f"{_INITIATIVE_PATCH}.list_initiatives",
+                return_value=self._FAKE_INITIATIVES,
+            ):
+                rc = main(["initiative", "list"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        for item in self._FAKE_INITIATIVES:
+            assert item["id"] in out
+
+    # -- needs-attention human mode -------------------------------------------
+
+    def test_filters_to_paused_and_needs_decision(self, capsys):
+        with patch(f"{_INITIATIVE_PATCH}.init_db"):
+            with patch(
+                f"{_INITIATIVE_PATCH}.list_initiatives",
+                return_value=self._FAKE_INITIATIVES,
+            ):
+                with patch(
+                    f"{_INITIATIVE_PATCH}.initiative_status",
+                    side_effect=self._status_for,
+                ):
+                    rc = main(["initiative", "list", "--needs-attention"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "init-paused" in out
+        assert "init-needs-dec" in out
+        assert "init-active" not in out
+        assert "init-done" not in out
+        assert "init-failed" not in out
+
+    def test_nothing_needs_attention(self, capsys):
+        """When --needs-attention is active but no initiative matches."""
+        initiatives = self._FAKE_INITIATIVES
+        # All initiatives are active or completed — none needs attention.
+        all_boring = {
+            "init-paused": {"state": "active", "stop_class": None},
+            "init-needs-dec": {"state": "completed", "stop_class": None},
+            "init-active": {"state": "active", "stop_class": None},
+            "init-done": {"state": "completed", "stop_class": None},
+            "init-failed": {"state": "active", "stop_class": None},
+        }
+        with patch(f"{_INITIATIVE_PATCH}.init_db"):
+            with patch(
+                f"{_INITIATIVE_PATCH}.list_initiatives", return_value=initiatives
+            ):
+                with patch(
+                    f"{_INITIATIVE_PATCH}.initiative_status",
+                    side_effect=lambda i, **kw: all_boring[i],
+                ):
+                    rc = main(["initiative", "list", "--needs-attention"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "nothing needs attention" in out.lower()
+
+    def test_empty_initiative_list(self, capsys):
+        """--needs-attention with no initiatives at all."""
+        with patch(f"{_INITIATIVE_PATCH}.init_db"):
+            with patch(
+                f"{_INITIATIVE_PATCH}.list_initiatives", return_value=[]
+            ):
+                rc = main(["initiative", "list", "--needs-attention"])
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "nothing needs attention" in out.lower()
+
+    # -- needs-attention json mode --------------------------------------------
+
+    def test_json_filtered(self, capsys):
+        with patch(f"{_INITIATIVE_PATCH}.init_db"):
+            with patch(
+                f"{_INITIATIVE_PATCH}.list_initiatives",
+                return_value=self._FAKE_INITIATIVES,
+            ):
+                with patch(
+                    f"{_INITIATIVE_PATCH}.initiative_status",
+                    side_effect=self._status_for,
+                ):
+                    rc = main([
+                        "initiative", "list", "--needs-attention", "--json",
+                    ])
+        assert rc == 0
+        parsed = json.loads(capsys.readouterr().out)
+        assert len(parsed) == 2
+        ids = {p["id"] for p in parsed}
+        assert "init-paused" in ids
+        assert "init-needs-dec" in ids
+
+    def test_json_empty(self, capsys):
+        """--needs-attention --json with no matches returns []."""
+        initiatives = [self._FAKE_INITIATIVES[2]]  # only init-active
+        boring_status = {
+            "init-active": {"state": "active", "stop_class": None},
+        }
+        with patch(f"{_INITIATIVE_PATCH}.init_db"):
+            with patch(
+                f"{_INITIATIVE_PATCH}.list_initiatives", return_value=initiatives
+            ):
+                with patch(
+                    f"{_INITIATIVE_PATCH}.initiative_status",
+                    side_effect=lambda i, **kw: boring_status[i],
+                ):
+                    rc = main([
+                        "initiative", "list", "--needs-attention", "--json",
+                    ])
+        assert rc == 0
+        parsed = json.loads(capsys.readouterr().out)
+        assert parsed == []
+
+    def test_json_empty_no_initiatives(self, capsys):
+        """--needs-attention --json with zero initiatives returns []."""
+        with patch(f"{_INITIATIVE_PATCH}.init_db"):
+            with patch(
+                f"{_INITIATIVE_PATCH}.list_initiatives", return_value=[]
+            ):
+                rc = main([
+                    "initiative", "list", "--needs-attention", "--json",
+                ])
+        assert rc == 0
+        parsed = json.loads(capsys.readouterr().out)
+        assert parsed == []
 
 
 # ---------------------------------------------------------------------------
