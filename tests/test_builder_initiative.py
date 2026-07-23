@@ -625,6 +625,27 @@ class TestReadHelpers:
     def test_get_initiative_missing_returns_none(self, db_path: Path):
         assert bi.get_initiative("nope", db_path=db_path) is None
 
+    def test_list_initiatives_has_health_summary(self, db_path: Path):
+        bi.apply_manifest(_manifest(), db_path=db_path)
+        items = bi.list_initiatives(db_path=db_path)
+        assert len(items) == 1
+        hs = items[0].get("health_summary")
+        assert hs is not None
+        # A fresh applied initiative with queued tasks and no failures is active.
+        assert hs["state"] == "active"
+        assert hs["stop_class"] is None
+        assert hs["stop_class_reason"] is None
+
+    def test_list_initiatives_health_summary_reflects_completion(self, db_path: Path):
+        result = bi.apply_manifest(_manifest(), db_path=db_path)
+        for mapping in result["packets"]:
+            _drive_to_done(mapping["task_id"], db_path)
+
+        items = bi.list_initiatives(db_path=db_path)
+        hs = items[0]["health_summary"]
+        assert hs["state"] == bi.INITIATIVE_COMPLETED
+        assert hs["stop_class"] is None
+
 
 # ---------------------------------------------------------------------------
 # CLI
@@ -757,6 +778,21 @@ class TestCli:
         assert main(["initiative", "validate", str(path)]) == 0
         err = capsys.readouterr().err
         assert "warning:" in err
+
+    def test_list_json_includes_health_summary(self, tmp_path: Path, cli_db, capsys):
+        path = _write_manifest(tmp_path, _manifest())
+        assert main(["initiative", "apply", str(path)]) == 0
+        capsys.readouterr()
+
+        assert main(["initiative", "list", "--json"]) == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert len(payload) == 1
+        entry = payload[0]
+        assert entry["id"] == "kitty-alpha-v1"
+        assert "health_summary" in entry
+        assert entry["health_summary"]["state"] == "active"
+        assert "stop_class" in entry["health_summary"]
+        assert "stop_class_reason" in entry["health_summary"]
 
 
 # ---------------------------------------------------------------------------

@@ -1547,3 +1547,120 @@ class TestInitiativeListNeedsAttention:
         assert rc == 0
         parsed = json.loads(capsys.readouterr().out)
         assert parsed == []
+
+
+# ---------------------------------------------------------------------------
+# Initiative — list with health indicator (CP-08B)
+# ---------------------------------------------------------------------------
+
+
+class TestInitiativeListHealthIndicator:
+    """Compact health indicator per line in non-JSON initiative list output."""
+
+    _INIT_PATCH = "gateway.builder_initiative"
+
+    def _fake_initiatives(self) -> list[dict]:
+        return [
+            {
+                "id": "init-alpha",
+                "title": "Alpha Initiative",
+                "state": "active",
+                "packet_count": 3,
+                "manifest_version": 1,
+                "manifest_sha256": "abc",
+                "created_at": "2026-07-01",
+                "updated_at": "2026-07-01",
+            },
+            {
+                "id": "init-beta",
+                "title": "Beta Initiative",
+                "state": "completed",
+                "packet_count": 1,
+                "manifest_version": 1,
+                "manifest_sha256": "def",
+                "created_at": "2026-07-02",
+                "updated_at": "2026-07-02",
+            },
+        ]
+
+    def _status_for(self, initiative_id: str) -> dict:
+        statuses = {
+            "init-alpha": {
+                "stop_class": None,
+                "health": {
+                    "stop_class_counts": {},
+                    "attempts_per_packet": {"avg": None, "max": None},
+                    "first_pass_review_approval_rate": None,
+                    "exhausted_count": 0,
+                    "wall_clock_seconds_per_packet": {},
+                },
+            },
+            "init-beta": {
+                "stop_class": "campaign_complete",
+                "health": {
+                    "stop_class_counts": {"campaign_complete": 1},
+                    "attempts_per_packet": {"avg": 2.5, "max": 3},
+                    "first_pass_review_approval_rate": 0.67,
+                    "exhausted_count": 0,
+                    "wall_clock_seconds_per_packet": {},
+                },
+            },
+        }
+        return statuses.get(initiative_id, {})
+
+    def test_list_shows_health_indicator_when_stop_class_set(self, capsys):
+        """Initiative with stop_class shows a compact indicator."""
+        with patch(f"{self._INIT_PATCH}.list_initiatives", return_value=self._fake_initiatives()):
+            with patch(f"{self._INIT_PATCH}.initiative_status", side_effect=lambda iid, db_path=None: self._status_for(iid)):
+                rc = main(["initiative", "list"])
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        # init-alpha has no stop_class — no health indicator
+        assert "init-alpha" in out
+        assert "stop=campaign_complete" in out
+        # init-beta has stop_class
+        assert "init-beta" in out
+        assert "classes=campaign_complete=1" in out
+
+    def test_list_without_stop_class_renders_cleanly(self, capsys):
+        """Initiative with no stop_class has no crash and no indicator."""
+        with patch(f"{self._INIT_PATCH}.list_initiatives", return_value=[self._fake_initiatives()[0]]):
+            with patch(f"{self._INIT_PATCH}.initiative_status", return_value={
+                "stop_class": None,
+                "health": {"stop_class_counts": {}, "attempts_per_packet": {"avg": None, "max": None}},
+            }):
+                rc = main(["initiative", "list"])
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "init-alpha" in out
+        # No health indicator when stop_class is absent
+        assert "stop=" not in out
+
+    def test_list_still_works_when_status_raises(self, capsys):
+        """If initiative_status raises, list still shows the initiative."""
+        from gateway.builder_initiative import InitiativeNotFoundError
+
+        with patch(f"{self._INIT_PATCH}.list_initiatives", return_value=[self._fake_initiatives()[0]]):
+            with patch(
+                f"{self._INIT_PATCH}.initiative_status",
+                side_effect=InitiativeNotFoundError("init-alpha"),
+            ):
+                rc = main(["initiative", "list"])
+
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "init-alpha" in out
+
+    def test_list_json_unchanged(self, capsys):
+        """JSON output mode is unaffected by the health indicator change."""
+        initiatives = self._fake_initiatives()
+        with patch(f"{self._INIT_PATCH}.list_initiatives", return_value=initiatives):
+            rc = main(["initiative", "list", "--json"])
+
+        assert rc == 0
+        parsed = json.loads(capsys.readouterr().out)
+        assert len(parsed) == 2
+        assert parsed[0]["id"] == "init-alpha"
+        assert parsed[1]["id"] == "init-beta"
