@@ -53,10 +53,11 @@
 - **Scope:** any session that uses `gh` and has `GITHUB_TOKEN` set in the env (kitty/.env or shell rc).
 - **Lesson:** When `gh` says "check your internet," run `gh auth status` first. If a `GITHUB_TOKEN` is in env and marked invalid, `unset GITHUB_TOKEN` to fall through to the keyring.
 - **Action for future agents:** None required at the runtime-rules level; this is operator-side. Note in the operator runbook.
-- **Confidence:** medium
+- **Confidence:** medium → **high** (recurred)
 - **Review trigger:** any future `gh` "connection" error.
 - **Promotion target:** none.
 - **Notes:** Worth a paragraph in `docs/AGENT_RUNTIME.md` if this recurs, but not a stable operating rule.
+- **Recurrence (2026-07-22):** Same failure, this time on a raw `git push` (not `gh`): "Invalid username or token. Password authentication is not supported for Git operations." The operator-side note did not prevent it happening again a month later. `unset GITHUB_TOKEN` still fixes it in the moment, but root cause was never found — every standard dotfile was checked twice (`.zshrc`, `.zprofile`, `.zshenv`, `.bash_profile`, `.bashrc`, `.profile`, `.envrc`, Claude Code's shell snapshot) and none export it. Handed Jacob a real diagnostic instead of another workaround: `zsh -xv 2>&1 | grep -i github_token` traces every sourced file and will show the exact line. **Confidence raised to high given the second occurrence; promote to `docs/AGENT_RUNTIME.md` if it recurs a third time without the trace having been run.**
 
 ### L-CAND-4 — Test counts vary between runs of the same suite (warnings count specifically)
 
@@ -301,6 +302,36 @@ unexercised in this session; a deliberate revert drill (§3.3 negative test
   another session's commit to land on `main` mid-campaign.
 - **Promotion target:** `docs/DECISIONS.md` once a fix is chosen — this is
   an architecture gap in CP-06, not just an observation.
+
+## Candidate Lessons (branch-sprawl triage + frontend harvest, 2026-07-22/23)
+
+### L-CAND-16 — `.claude/STATE.md`/`HANDOFF.md` are a single shared file, not a session-scoped journal; concurrent writers stomp each other
+
+- **Status:** candidate
+- **Date:** 2026-07-22/23
+- **Source session:** frontend code-harvest wave 1 + branch-sprawl triage (cloud session, `claude/session-3pgcib`)
+- **Problem:** This is L-CAND-1's pattern (concurrent agents racing on the same file) recurring in a new domain. Within roughly one hour, three different actors wrote to `.claude/STATE.md`/`HANDOFF.md`: a Mac-local session (stale-branch audit), this cloud session (frontend harvest + branch triage), and an autonomous KittyBuilder Campaign B loop running packets on its own schedule. A carefully-written, CI-verified hygiene update (PR #223) was fully overwritten by Campaign B's own state-tracking commits within about 20 minutes of merging — not through conflict, just through last-write-wins on a single shared file with no per-actor scoping.
+- **Evidence:** `git log --format='%an %s' -- .claude/STATE.md` around 2026-07-22T05:00–2026-07-23T01:40 shows alternating authorship (this session, `jacobbrizinski@MacBookAir...`, and Campaign B's own commits) each replacing the prior narrative wholesale. `origin/main`'s `STATE.md` went from "Frontend Harvest + Tailnet Card Shipped" to "CP-08 Campaign B In Progress" with zero trace of the prior content beyond git history.
+- **Scope:** any session or automated loop (KittyBuilder campaigns included) that writes `.claude/STATE.md` or `HANDOFF.md`, whenever more than one such actor can be active in the same window.
+- **Lesson:** Do not treat a fresh read of STATE.md/HANDOFF.md from earlier in a long conversation as still current — re-read immediately before writing, every time, because another actor may have replaced it since. Do not assume "session hygiene" means "write my session's full narrative" when the file's current content belongs to a different, still-active workstream (autonomous campaign, another human's session) — check whose story is currently there before overwriting it wholesale.
+- **Action for future agents:** Before writing STATE.md/HANDOFF.md, `git fetch` and read the live `origin/main` copy fresh, not a cached read. If the current content is clearly a different active workstream's narrative (different mission, recent `updated_at`, unfamiliar branch/PR references), don't clobber it — either leave it alone and put your own findings in chat / a durable doc (`docs/LEARNINGS.md`, a dated note), or scope your addition narrowly instead of replacing the whole file. Preserve the continuity schema's accepted status values (`complete`, `in_progress`, `blocked`, and related states); `done` is not valid metadata.
+- **Confidence:** high
+- **Review trigger:** next time two sessions or an autonomous campaign are confirmed active on the same repo in the same window.
+- **Promotion target:** `docs/AGENT_RUNTIME.md` — this has now recurred across two completely different actor-pairs (Codex/opencode on `gateway/db.py`, per L-CAND-1; Mac-session/cloud-session/Campaign-B on `.claude/STATE.md`, here). That's a repo-wide, repeated, high-risk pattern, not a one-off.
+
+### L-CAND-17 — A three-dot git diff (`main...branch`) shows what's unique since the fork point, not what's missing from main *now*
+
+- **Status:** candidate
+- **Date:** 2026-07-22
+- **Source session:** branch-sprawl triage (cloud session, `claude/session-3pgcib`)
+- **Problem:** While auditing `feat/packet-022-magic-kitty` for unique work, `git diff origin/main...origin/feat/packet-022-magic-kitty -- gateway/magic_kitty.py` showed a privacy-tier fix as a `+` addition, read as "the branch adds this, main lacks it." It was wrong: the branch's merge-base predates a same-day commit (`7f278d9`, #153) that added the identical fix directly to main. `git diff A...B` diffs `merge-base(A,B)` against `B` — it cannot see what happened on `A`'s side after the fork. Confirmed only by comparing final file contents directly (`git show branch:path` vs the working tree file) — byte-identical, nothing unique.
+- **Evidence:** `git merge-base origin/main origin/feat/packet-022-magic-kitty` → `2986c6a` (2026-07-12 03:56); the privacy fix landed on main via `7f278d9` at 2026-07-12 04:02 — six minutes later, on a different branch entirely. The three-dot diff still showed it as a `+` because the merge-base lacked it, even though current `main` has had it the whole time.
+- **Scope:** any stale-branch audit that uses `git diff origin/main...branch` to decide if a branch contributes something main lacks — which was the primary method for the other ~84 branches audited this session.
+- **Lesson:** A three-dot diff proves a branch is *different from its own history*; it does not prove main is *currently missing* what the branch adds. For a genuine "is this unique" call, do a direct comparison of the specific files against current `main`'s working tree (or `git show origin/main:path`), not just the ancestry-relative diff. This matters most for old branches whose fork point is far behind current main, and most of all right after a fast-moving day of merges (exactly when superseding commits are most likely to have landed a different way).
+- **Action for future agents:** When a stale-branch audit's diff shows a "unique" addition worth flagging as a real candidate, confirm it with a direct file-content comparison against current main before reporting it as a find. Don't stop at the three-dot diff.
+- **Confidence:** high
+- **Review trigger:** next stale-branch or dead-code audit using diff-based supersession checks.
+- **Promotion target:** none yet — one confirmed occurrence; would promote to `docs/AGENT_RUNTIME.md` if it recurs.
 
 ## Candidate Lessons (rejected or not promoted)
 
