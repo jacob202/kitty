@@ -4,9 +4,9 @@
 {
   "schema_version": 1,
   "updated_at": "2026-07-22T05:20:00Z",
-  "head_sha": "PENDING_PR_222_MERGE",
+  "head_sha": "8c6751ae4fd76f1ef44f186a61747a3c71b26485",
   "branch": "main",
-  "worktree": "cloud session — no visibility into ~/Projects/kitty",
+  "worktree": ".",
   "status": "in_progress",
   "completed_items": [
     "merged PR #217: chat thread migrated to Assistant UI ThreadPrimitive, scroll-to-bottom fix",
@@ -15,10 +15,10 @@
     "confirmed via commit authorship that this session's branch audit and the Mac-session's campaign audit (below) never overlapped — different checkouts, not a disagreement",
     "declined to comply with stop-hook-git-check.sh's suggested rebase — it was asking to rewrite Jacob's own real commits as Claude-authored, which would have been wrong",
     "shipped and merged PR #222: GET /network/tailnet + Home dashboard phone-access tile, salvaged from stale branch claude/home-dashboard-final-polish (its other half was already superseded)",
-    "deleted the 25 confirmed-dead branches"
+    "attempted to delete the 25 confirmed-dead branches — blocked by HTTP 403 (this session's git credentials can push/merge but not delete); left in place for Jacob to run the deletion himself"
   ],
   "blockers": [],
-  "next_action": "Jacob confirms the phone-access card reaches an iPhone over real Tailscale; decide on the 60 ranked-but-unverified branches whenever there's appetite (not urgent — nothing there scored as clearly valuable)",
+  "next_action": "Jacob verifies the phone-access card reaches an iPhone over real Tailscale; runs the branch deletion himself (list below) since this session can't; separately, decide on the 60 ranked-but-unverified branches whenever there's appetite",
   "invalidation_conditions": [
     "branch or registered worktree changes",
     "the 60-branch ranked list changes"

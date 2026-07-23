@@ -6,7 +6,7 @@
   "updated_at": "2026-07-22T05:35:00Z",
   "head_sha": "8c6751ae4fd76f1ef44f186a61747a3c71b26485",
   "branch": "main",
-  "worktree": "cloud session (jacob202/kitty on GitHub) — no visibility into ~/Projects/kitty local state",
+  "worktree": ".",
   "status": "in_progress",
   "completed_items": [
     "PR #217 merged to main (04746ad): chat thread migrated to Assistant UI ThreadPrimitive, scroll-to-bottom button now hides at rest — closes out frontend code-harvest wave 1",
