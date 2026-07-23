@@ -133,7 +133,7 @@ if [[ -z "${chosen_model}" ]]; then
 fi
 echo "Free builder completed with ${chosen_model}."
 
-python3 - "${local_result}" <<'PY'
+result_status=$(python3 - "${local_result}" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -143,6 +143,27 @@ if not isinstance(result, dict) or result.get("contract_version") != 1:
     raise SystemExit("ERROR: worker result is not a contract_version=1 object")
 if result.get("status") not in {"completed", "failed"}:
     raise SystemExit("ERROR: worker result has an invalid status")
+print(result["status"])
 PY
+)
 
 cp "${local_result}" "${KB_RESULT_PATH}"
+
+# Drop the runner's own staging files BEFORE inspecting git status below —
+# otherwise they'd show up as untracked changes and get swept into the
+# commit. The EXIT trap still runs too (harmless no-op on an already-clean
+# set of paths); it stays as the safety net for every other exit path.
+rm -f "${local_bundle}" "${local_context}" "${local_result}"
+
+# CP-08 dogfood finding: the worker prompt never told the model to commit,
+# so a genuinely correct free-model implementation still failed publish
+# ("worktree is dirty") because nothing durable ever landed on the branch.
+# Commit on the model's behalf rather than trust it remembers — this is the
+# adapter's job, not a modeling task. Only for a real success; a "failed"
+# result leaves the worktree as evidence and is never committed.
+if [[ "${result_status}" == "completed" ]]; then
+  if [[ -n "$(git status --porcelain=v1 --untracked-files=all)" ]]; then
+    git add -A
+    git commit --quiet -m "kittybuilder: ${KB_TASK_ID} attempt ${KB_ATTEMPT_ID} (${chosen_model})"
+  fi
+fi
