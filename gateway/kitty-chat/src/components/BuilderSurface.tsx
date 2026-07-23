@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 
 import { bodyText, card, cardHeader, cardMeta, cardTitle, emptyState, itemCard } from '@/lib/ui'
-import { useGatewayRuntimeManifest } from '@/lib/queries'
+import { useGatewayRuntimeManifest, useBuilderAction } from '@/lib/queries'
 import { Button } from '@/components/ui/Button'
 import { ArrowLeft, Home } from 'lucide-react'
 import type {
@@ -175,6 +175,11 @@ export function BuilderSurface({ fact, isLoading, error, onBack }: BuilderSurfac
             onOpenAllPackets={() => setAllPacketsOpen(true)}
             allPacketsButtonRef={allPacketsButtonRef}
           />
+          <BuilderControls
+            snapshot={snapshot}
+            selection={selection}
+            onRefresh={() => document.location.reload()}
+          />
           <BuilderOverview
             snapshot={snapshot}
             onSelectPacket={setSelection}
@@ -289,7 +294,6 @@ function BuilderNextActionCard({
     <section style={{ ...card, display: 'grid', gap: 8 }} aria-label="Builder next action">
       <div style={cardHeader}>
         <div style={cardTitle}>next action</div>
-        <span style={cardMeta}>read-only</span>
       </div>
       <strong style={{ fontFamily: 'var(--font-body)', color: 'var(--ink)' }}>{nextAction.label}</strong>
       <p style={{ ...bodyText, margin: 0, overflowWrap: 'anywhere' }}>{nextAction.detail}</p>
@@ -298,6 +302,96 @@ function BuilderNextActionCard({
           View all packets
         </button>
       </div>
+    </section>
+  )
+}
+
+function BuilderControls({
+  snapshot,
+  selection,
+  onRefresh,
+}: {
+  snapshot: BuilderStatusSnapshot
+  selection: PacketSelection | null
+  onRefresh: () => void
+}) {
+  const action = useBuilderAction()
+  const [busy, setBusy] = useState(false)
+
+  const pausedInitiatives = snapshot.initiatives.filter((i) => i.state === 'paused')
+  const activeInitiatives = snapshot.initiatives.filter((i) => i.state === 'active')
+  const zombiePackets = snapshot.initiatives.flatMap((i) =>
+    i.packets.filter((p) => p.task_state === 'cancelled' || p.task_state === 'failed')
+  )
+
+  const runAction = (builderAction: string, initiativeId?: string, packetId?: string) => {
+    setBusy(true)
+    action.mutate(
+      { action: builderAction, initiativeId, packetId },
+      {
+        onSettled: () => setBusy(false),
+      },
+    )
+  }
+
+  if (
+    activeInitiatives.length === 0 &&
+    pausedInitiatives.length === 0 &&
+    zombiePackets.length === 0
+  ) {
+    return null
+  }
+
+  return (
+    <section style={{ ...card, display: 'grid', gap: 12 }} aria-label="Builder controls">
+      <div style={cardHeader}>
+        <div style={cardTitle}>controls</div>
+      </div>
+
+      {pausedInitiatives.map((initiative) => (
+        <div key={initiative.initiative_id} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink)', flex: 1, minWidth: 120 }}>
+            {initiative.title} is paused
+          </span>
+          {initiative.pause_reason && (
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)', flex: 1, minWidth: 120 }}>
+              {initiative.pause_reason}
+            </span>
+          )}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => runAction('resume', initiative.initiative_id)}
+            style={actionButton}
+          >
+            resume
+          </button>
+        </div>
+      ))}
+
+      {activeInitiatives.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink)', flex: 1 }}>
+            {activeInitiatives.map((i) => i.title).join(', ')}
+          </span>
+        </div>
+      )}
+
+      {zombiePackets.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)' }}>
+            {zombiePackets.length} dead task{zombiePackets.length === 1 ? '' : 's'} — cancelled or failed
+          </span>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => runAction('cleanup')}
+            style={{ ...actionButton, alignSelf: 'flex-start', borderColor: 'var(--c-red)', color: 'var(--c-red)' }}
+          >
+            {busy ? '…' : 'clean up dead work'}
+          </button>
+        </div>
+      )}
     </section>
   )
 }
@@ -777,7 +871,6 @@ function packetPriority(packet: BuilderPacketStatus): number {
 function packetNeedsAttention(packet: BuilderPacketStatus): boolean {
   return packet.task_state === 'blocked'
     || packet.task_state === 'failed'
-    || packet.task_state === 'cancelled'
     || packet.budget.exhausted === true
     || packet.failure_kind !== null
     || packet.data_quality.state === 'partial'

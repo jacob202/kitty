@@ -72,6 +72,13 @@ import {
   fetchGatewayHealth,
   fetchChatsPersistence,
   fetchGatewayTailnet,
+  // repairs
+  fetchRepairs,
+  executeRepair,
+  // builder control
+  executeBuilderAction,
+  // experts
+  fetchExpertList,
   // knowledge
   fetchKnowledgeSources,
   searchKnowledge,
@@ -653,6 +660,54 @@ export function useGatewayHealth() {
     queryKey: ['health'],
     queryFn: fetchGatewayHealth,
     refetchInterval: 30_000,
+  })
+}
+
+export function useRepairs() {
+  return useQuery({
+    queryKey: ['repairs'],
+    queryFn: fetchRepairs,
+    refetchInterval: 60_000,
+    staleTime: 10_000,
+  })
+}
+
+export function useExecuteRepair() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ repairId, actionKind, checkName }: { repairId: string; actionKind: string; checkName: string }) =>
+      executeRepair(repairId, actionKind, checkName),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['repairs'] })
+    },
+  })
+}
+
+export function useBuilderAction() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      action,
+      initiativeId,
+      packetId,
+      reason,
+    }: {
+      action: string
+      initiativeId?: string
+      packetId?: string
+      reason?: string
+    }) => executeBuilderAction(action, initiativeId, packetId, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['runtime'] })
+    },
+  })
+}
+
+export function useExpertList() {
+  return useQuery({
+    queryKey: ['experts'],
+    queryFn: fetchExpertList,
+    staleTime: 300_000,
   })
 }
 

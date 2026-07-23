@@ -8,12 +8,52 @@ export function OnboardingModal({ onComplete }: { onComplete: (preferences: { na
   const [step, setStep] = useState(0)
   const [name, setName] = useState('')
   const [theme, setTheme] = useState<Theme>('cosmic')
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importBusy, setImportBusy] = useState(false)
+  const [importResult, setImportResult] = useState<{ items: number; message: string } | null>(null)
 
-  const finish = () => {
+  const persist = async () => {
+    try {
+      await fetch('/proxy/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ onboarded: true, preferredName: name.trim(), theme }),
+      })
+    } catch {
+      // gateway unreachable — local state still works
+    }
     window.localStorage.setItem('kitty-onboarded', 'true')
     window.localStorage.setItem('kitty-preferred-name', name.trim())
     window.localStorage.setItem('kitty-theme', theme)
     onComplete({ name: name.trim(), theme })
+  }
+
+  const handleImport = async () => {
+    if (!importFile) return
+    setImportBusy(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', importFile)
+      const res = await fetch('/proxy/import/chatgpt', { method: 'POST', body: formData })
+      if (res.ok) {
+        const data = await res.json()
+        setImportResult({ items: data.items ?? 0, message: data.message ?? 'Import complete' })
+      } else {
+        setImportResult({ items: 0, message: 'Import failed — the file may not be a valid ChatGPT export' })
+      }
+    } catch {
+      setImportResult({ items: 0, message: 'Could not reach the gateway to process the import' })
+    } finally {
+      setImportBusy(false)
+    }
+  }
+
+  const finish = () => {
+    void persist()
+  }
+
+  const skipImport = () => {
+    void persist()
   }
 
   return (
@@ -52,8 +92,44 @@ export function OnboardingModal({ onComplete }: { onComplete: (preferences: { na
         )}
         {step === 2 && (
           <>
+            <div style={eyebrowStyle}>bring your history</div>
+            <h2 style={titleStyle}>import past chats</h2>
+            <p style={copyStyle}>Got a ChatGPT conversations.json export? Drop it here and Kitty will pull out the useful threads for memory. You can skip this and import later.</p>
+            {!importResult && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <label style={{
+                  border: '1px dashed var(--line)',
+                  borderRadius: 6,
+                  padding: '8px 14px',
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  color: 'var(--ink-2)',
+                }}>
+                  {importFile ? importFile.name : 'choose file'}
+                  <input type="file" accept=".json" onChange={(e) => setImportFile(e.target.files?.[0] ?? null)} style={{ display: 'none' }} />
+                </label>
+                {importFile && (
+                  <button type="button" onClick={() => void handleImport()} disabled={importBusy} style={buttonStyle}>
+                    {importBusy ? 'processing…' : 'import'}
+                  </button>
+                )}
+              </div>
+            )}
+            {importResult && (
+              <div style={{ ...copyStyle, padding: '8px 0' }}>
+                {importResult.message}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" onClick={() => setStep(3)} style={buttonStyle}>continue</button>
+              <button type="button" onClick={skipImport} style={{ ...buttonStyle, background: 'transparent', border: '1px solid var(--line)', color: 'var(--ink-2)' }}>skip</button>
+            </div>
+          </>
+        )}
+        {step === 3 && (
+          <>
             <div style={eyebrowStyle}>ready</div>
-            <h2 style={titleStyle}>you&apos;re set.</h2>
+            <h2 style={titleStyle}>you&apos;re set{name ? `, ${name}` : ''}.</h2>
             <p style={copyStyle}>Start with whatever is actually on your mind. Kitty will keep the useful bits and show clear errors when a service is unavailable.</p>
             <button type="button" onClick={finish} style={buttonStyle}>finish setup</button>
           </>

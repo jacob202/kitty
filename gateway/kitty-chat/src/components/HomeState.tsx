@@ -25,6 +25,9 @@ import {
   useDeadlines,
   useDeadlineSweep,
   useTailnet,
+  useRepairs,
+  useExecuteRepair,
+  useExpertList,
 } from '@/lib/queries';
 import type {
   GatewayAction,
@@ -33,6 +36,8 @@ import type {
   GatewayProject,
   GatewayTriageEntry,
   StateChange,
+  RepairItem,
+  ExpertProfile,
 } from '@/lib/gateway';
 
 // ── shared micro-components ──────────────────────────────────────────────────
@@ -160,6 +165,130 @@ function ErrorCard({ message, onRetry }: { message: string; onRetry?: () => void
 }
 
 const OFFLINE_FIX = 'gateway is not reachable — check if Kitty is running';
+
+// ── Repairs card ──────────────────────────────────────────────────────────────
+
+const SEVERITY_COLORS: Record<string, string> = {
+  ok: 'var(--c-green)',
+  warn: 'var(--c-yellow)',
+  error: 'var(--c-red)',
+}
+
+function RepairsCard() {
+  const repairs = useRepairs()
+  const execRepair = useExecuteRepair()
+  const queryClient = useQueryClient()
+
+  if (repairs.isPending) {
+    return (
+      <SectionCard title="system">
+        <div role="status" style={emptyState}>
+          checking…
+        </div>
+      </SectionCard>
+    )
+  }
+
+  if (repairs.isError || !repairs.data) {
+    return (
+      <SectionCard title="system">
+        <ErrorCard message="unavailable" />
+      </SectionCard>
+    )
+  }
+
+  const issues = repairs.data.repairs.filter((r) => r.severity !== 'ok')
+
+  if (issues.length === 0) {
+    return (
+      <SectionCard title="system">
+        <div style={{ ...emptyState, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div>everything looks healthy</div>
+          <div style={{ fontSize: 10 }}>{repairs.data.checks_run} checks passed — all services are responding</div>
+        </div>
+      </SectionCard>
+    )
+  }
+
+  return (
+    <SectionCard title="system" count={issues.length}>
+      {issues.map((item) => (
+        <div key={item.id} style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: SEVERITY_COLORS[item.severity] ?? 'var(--ink-2)',
+                flexShrink: 0,
+              }}
+            />
+            <span
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--ink)',
+                flex: 1,
+              }}
+            >
+              {item.title}
+            </span>
+          </div>
+          {item.detail && (
+            <div style={{ ...bodyText, fontSize: 11, color: 'var(--ink-2)', paddingLeft: 14 }}>
+              {item.detail}
+            </div>
+          )}
+          {item.fix && (
+            <div style={{ display: 'flex', gap: 6, paddingLeft: 14 }}>
+              <button
+                type="button"
+                disabled={execRepair.isPending}
+                onClick={() =>
+                  execRepair.mutate({
+                    repairId: item.id,
+                    actionKind: item.fix!.action_kind,
+                    checkName: item.fix!.check_name,
+                  })
+                }
+                style={actionButtonStyle}
+              >
+                {execRepair.isPending ? '…' : item.fix.label}
+              </button>
+              <button
+                type="button"
+                disabled={execRepair.isPending}
+                onClick={() =>
+                  execRepair.mutate({
+                    repairId: item.id,
+                    actionKind: 'repair.dismiss',
+                    checkName: item.id,
+                  })
+                }
+                style={{ ...actionButtonStyle, color: 'var(--ink-2)', opacity: 0.7 }}
+              >
+                dismiss
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+      <div style={{ paddingTop: 4 }}>
+        <button
+          type="button"
+          onClick={() => {
+            queryClient.invalidateQueries({ queryKey: ['repairs'] })
+          }}
+          style={{ ...actionButtonStyle, width: '100%', textAlign: 'center' }}
+        >
+          refresh
+        </button>
+      </div>
+    </SectionCard>
+  )
+}
 
 // ── Health strip ─────────────────────────────────────────────────────────────
 
@@ -446,11 +575,11 @@ function WhatsNext({
           <span aria-hidden style={{ color: 'var(--cat-ginger)', flexShrink: 0, pointerEvents: 'none' }}>
             <KidCatDoodle size={40} opacity={0.7} />
           </span>
-          <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
-              {greeting(new Date().getHours())} — not enough signal yet
-            </span>
-            <span>
+      <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
+          {greeting(new Date().getHours())} — not enough signal yet
+        </span>
+        <span>
               nothing proposed, no decisions waiting, no project next-steps, and today's list
               is empty. refresh a project in the projects tab or capture a thought below.
             </span>
@@ -588,6 +717,63 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
       )}
     </SectionCard>
   );
+}
+
+// ── Experts shelf ────────────────────────────────────────────────────────────
+
+function ExpertStrip({ onNavigate }: { onNavigate: (view: string) => void }) {
+  const expertList = useExpertList()
+  const experts = expertList.data ?? []
+
+  if (expertList.isPending) return null
+
+  if (experts.length === 0) return null
+
+  return (
+    <SectionCard title="experts" count={experts.length}>
+      {experts.slice(0, 4).map((expert) => (
+        <button
+          key={expert.id}
+          type="button"
+          onClick={() => onNavigate('chat')}
+          style={{
+            ...itemCard,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+            textAlign: 'left',
+            width: '100%',
+            cursor: 'pointer',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <span
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--ink)',
+              }}
+            >
+              {expert.label}
+            </span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}>
+              {expert.book_count} books
+            </span>
+          </div>
+          <div style={{ ...bodyText, fontSize: 12 }}>
+            {expert.sample_title}
+            {expert.tags.length > 0 && ` · ${expert.tags.slice(0, 2).join(', ')}`}
+          </div>
+        </button>
+      ))}
+      {experts.length > 4 && (
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)', textAlign: 'center' }}>
+          +{experts.length - 4} more experts
+        </div>
+      )}
+    </SectionCard>
+  )
 }
 
 // ── Deadlines (urgent paper) ─────────────────────────────────────────────────
@@ -1213,6 +1399,7 @@ export function HomeState({
       }}
     >
       {visibleTiles['health'] !== false && <HealthStrip />}
+      {visibleTiles['health'] !== false && <RepairsCard />}
       <BuilderGlance onOpen={() => onNavigate('builder')} />
       {visibleTiles['whats-next'] !== false && (
         <WhatsNext onDecideInChat={onDecideInChat} onNavigate={onNavigate} />
@@ -1221,6 +1408,7 @@ export function HomeState({
       {visibleTiles['deadlines'] !== false && <Deadlines />}
       {visibleTiles['phone-access'] !== false && <PhoneAccessCard />}
       {visibleTiles['active-projects'] !== false && <ActiveProjects onNavigate={onNavigate} />}
+      {visibleTiles['active-projects'] !== false && <ExpertStrip onNavigate={onNavigate} />}
       {visibleTiles['what-changed'] !== false && <WhatChanged />}
       {visibleTiles['today'] !== false && (
         <TodayPanel onNavigate={onNavigate} />

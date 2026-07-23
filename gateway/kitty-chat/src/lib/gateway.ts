@@ -1649,3 +1649,85 @@ export interface LogTailPayload {
 export async function fetchLogTail(file = 'gateway', lines = 100): Promise<LogTailPayload> {
   return await gfetch<LogTailPayload>(`/logs/tail?file=${encodeURIComponent(file)}&lines=${lines}`)
 }
+
+// ── Repairs ────────────────────────────────────────────────────────────────────
+
+export interface RepairItem {
+  id: string
+  severity: 'ok' | 'warn' | 'error'
+  title: string
+  detail: string
+  fix?: {
+    label: string
+    action_kind: string
+    check_name: string
+  } | null
+}
+
+export interface RepairsPayload {
+  ok: boolean
+  checks_run: number
+  issues: number
+  repairs: RepairItem[]
+  error?: string
+}
+
+export async function fetchRepairs(): Promise<RepairsPayload> {
+  try {
+    return await gfetch<RepairsPayload>('/repairs', undefined, 8000)
+  } catch (err) {
+    return { ok: false, checks_run: 0, issues: 0, repairs: [], error: describeFetchError(err, null) }
+  }
+}
+
+export async function executeRepair(repairId: string, actionKind: string, checkName: string) {
+  const endpoint = actionKind === 'repair.dismiss' ? '/repairs/dismiss' : '/repairs/check'
+  return await gfetch<{ ok: boolean; action_id?: number; error?: string }>(
+    endpoint,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ repair_id: repairId, check_name: checkName }),
+    },
+    8000,
+  )
+}
+
+export interface BuilderActionResult {
+  ok: boolean
+  action_id?: number
+  error?: string
+}
+
+export async function executeBuilderAction(
+  action: string,
+  initiativeId?: string,
+  packetId?: string,
+  reason?: string,
+): Promise<BuilderActionResult> {
+  return await gfetch<BuilderActionResult>(
+    '/builder/action',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, initiative_id: initiativeId, packet_id: packetId, reason }),
+    },
+    8000,
+  )
+}
+
+// ── Experts ────────────────────────────────────────────────────────────────────
+
+export interface ExpertProfile {
+  id: string
+  label: string
+  book_count: number
+  tags: string[]
+  formats: string[]
+  sample_title: string
+}
+
+export async function fetchExpertList(): Promise<ExpertProfile[]> {
+  const payload = await gfetch<{ experts: ExpertProfile[] }>('/knowledge/experts')
+  return payload.experts ?? []
+}

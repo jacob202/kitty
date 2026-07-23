@@ -19,6 +19,7 @@ import { ThreadGoal } from '@/components/ThreadGoal';
 import { SignalFeed } from '@/components/SignalCard';
 import { InputBar } from '@/components/InputBar';
 import { Rail } from '@/components/Rail';
+import { BottomNav } from '@/components/BottomNav';
 import { SessionSidebar } from '@/components/SessionSidebar';
 import { OnboardingModal } from '@/components/OnboardingModal';
 import { CommandPalette } from '@/components/CommandPalette';
@@ -254,12 +255,37 @@ function KittyChatInner() {
 
   useEffect(() => {
     const savedTheme = window.localStorage.getItem('kitty-theme');
-    setPreferredName(window.localStorage.getItem('kitty-preferred-name') ?? '');
+    const savedName = window.localStorage.getItem('kitty-preferred-name');
+    setPreferredName(savedName ?? '');
     if (savedTheme === 'cosmic' || savedTheme === 'day' || savedTheme === 'night') {
       setTheme(savedTheme);
       document.documentElement.setAttribute('data-theme', savedTheme);
     }
-    setShowOnboarding(window.localStorage.getItem('kitty-onboarded') !== 'true');
+    const hasLocal = window.localStorage.getItem('kitty-onboarded') === 'true';
+    if (hasLocal) {
+      setShowOnboarding(false);
+      return;
+    }
+    fetch('/proxy/onboarding')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.onboarded) {
+          setShowOnboarding(false);
+          if (d.preferredName) setPreferredName(d.preferredName);
+          if (d.theme) {
+            setTheme(d.theme);
+            document.documentElement.setAttribute('data-theme', d.theme);
+          }
+          window.localStorage.setItem('kitty-onboarded', 'true');
+          if (d.preferredName) window.localStorage.setItem('kitty-preferred-name', d.preferredName);
+          if (d.theme) window.localStorage.setItem('kitty-theme', d.theme);
+        } else {
+          setShowOnboarding(true);
+        }
+      })
+      .catch(() => {
+        setShowOnboarding(!hasLocal);
+      });
   }, []);
 
   // Gateway status queries — models for TopBar, brief for the offline banner.
@@ -821,6 +847,8 @@ function KittyChatInner() {
         />
       )}
 
+      {isMobile && <BottomNav activeView={activeView} onViewChange={setActiveView} />}
+
       {!isMobile && activeView === 'chat' && (
         <SessionSidebar
           chats={chats}
@@ -1015,6 +1043,9 @@ function KittyChatInner() {
       </KittyRuntimeProvider>
 
       <CatCorner state={catState} />
+      <div aria-live="polite" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>
+        {catState === 'working' ? 'Kitty is working' : catState === 'broke' ? 'Kitty needs attention' : catState === 'done' ? 'Kitty completed the task' : ''}
+      </div>
       <PaperGrain />
 
       <CommandPalette

@@ -6,6 +6,11 @@
   "calendar.event.create": "T2",
   "repair.check": "T0",
   "repair.dismiss": "T0",
+  "builder.run_next": "T0",
+  "builder.pause_initiative": "T0",
+  "builder.resume_initiative": "T0",
+  "builder.cancel_task": "T0",
+  "builder.cleanup": "T0",
   "_disabled_v1": [
     "payments",
     "data.delete",

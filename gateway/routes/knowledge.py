@@ -178,6 +178,49 @@ async def get_sources() -> dict:
     }
 
 
+@router.get("/knowledge/experts")
+def list_experts():
+    """Return expert profiles derived from the books manifest."""
+    import json
+    from pathlib import Path
+    from collections import defaultdict
+
+    manifest_path = Path(__file__).resolve().parent.parent.parent / "data" / "books_manifest.json"
+    if not manifest_path.exists():
+        return {"experts": []}
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    by_expert = defaultdict(lambda: {"book_count": 0, "tags": set(), "formats": set(), "sample_title": ""})
+    for entry in manifest:
+        expert = entry.get("expert")
+        if not expert:
+            continue
+        info = by_expert[expert]
+        info["book_count"] += 1
+        if not info["sample_title"]:
+            info["sample_title"] = entry.get("source_label", "")
+        for tag in entry.get("tags", []):
+            info["tags"].add(tag)
+        fmt = entry.get("format", "")
+        if fmt:
+            info["formats"].add(fmt)
+
+    experts = []
+    for expert_id, info in by_expert.items():
+        experts.append({
+            "id": expert_id,
+            "label": expert_id.capitalize().replace("_", " "),
+            "book_count": info["book_count"],
+            "tags": sorted(info["tags"])[:5],
+            "formats": sorted(info["formats"]),
+            "sample_title": info["sample_title"],
+        })
+
+    experts.sort(key=lambda e: e["book_count"], reverse=True)
+    return {"experts": experts}
+
+
 @router.get("/knowledge/search")
 async def get_search(q: str = "", limit: int = 5) -> dict:
     """Search the knowledge base. Returns references per chunk.

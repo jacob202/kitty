@@ -123,6 +123,12 @@ async def chat_completions(request: Request):
             user_text = m.get("content", "")
             break
 
+    # KX-05-02: detect repairs intent and inject the current repair feed
+    if _is_repairs_intent(user_text):
+        repairs_context = _build_repairs_context()
+        if repairs_context:
+            messages = [{"role": "system", "content": repairs_context}] + list(messages)
+
     correlation_id = str(uuid.uuid4())[:8]
     t_start = time.monotonic()
 
@@ -425,5 +431,84 @@ async def close_session(payload: CloseSessionRequest):
     from gateway.memory import consolidate_session
 
     consolidate_session(payload.session_id, payload.messages)
+
+
+_REPAIRS_INTENT_PATTERNS = [
+    "what's wrong",
+    "what is wrong",
+    "anything broken",
+    "is anything wrong",
+    "is something wrong",
+    "any issues",
+    "system health",
+    "run diagnostics",
+    "check the system",
+    "how's the system",
+    "what needs fixing",
+    "any problems",
+]
+
+
+def _is_repairs_intent(user_text: str) -> bool:
+    lower = user_text.strip().lower()
+    return any(pattern in lower for pattern in _REPAIRS_INTENT_PATTERNS)
+
+
+def _build_repairs_context() -> str | None:
+    import pathlib
+    import sys
+
+    ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
+    sys.path.insert(0, str(ROOT))
+
+    try:
+        from gateway.doctor import (
+            Check,
+            _check_disk,
+            _check_env,
+            _check_services,
+            _check_venv,
+            _check_mem0,
+            _check_gateway_freshness,
+            _check_codegraph,
+            _load_env,
+        )
+        from gateway.routes.repairs import _to_repair
+
+        env = _load_env()
+        checks: list[Check] = []
+        checks.extend(_check_env(env))
+        checks.extend(_check_disk())
+        checks.extend(_check_services(env))
+        checks.extend(_check_mem0(env))
+        checks.extend(_check_venv())
+        checks.extend(_check_codegraph())
+        checks.extend(_check_gateway_freshness())
+
+        repairs = [_to_repair(c) for c in checks]
+        issues = [r for r in repairs if r["severity"] != "ok"]
+        all_ok = len(issues) == 0
+
+        lines = ["You are Kitty's self-diagnosis system. The user asked what's wrong with the system. Here is the current status:"]
+        if all_ok:
+            lines.append("All systems are healthy — {0} checks passed with no issues. Tell the user everything is running fine.".format(len(repairs)))
+        else:
+            lines.append("{0} issues found out of {1} checks:".format(len(issues), len(repairs)))
+            for item in issues:
+                sev = {"ok": "OK", "warn": "WARNING", "error": "ERROR"}.get(item["severity"], "UNKNOWN")
+                lines.append("  [{0}] {1} — {2}".format(sev, item["title"], item["detail"]))
+                if item.get("fix"):
+                    fix = item["fix"]
+                    lines.append("    Fix available: {0}".format(fix["label"]))
+            lines.append("Summarize the issues for the user in plain English. For each issue, mention the fix if one is available. Do not use file paths or CLI commands in your answer.")
+
+        # Also inject a listing of fixes that work through the action queue
+        lines.append("")
+        lines.append("Fix buttons are available in the Home view under the System card. The /repairs endpoint re-checks each issue and the action queue records every fix.")
+
+        return "\n".join(lines)
+    except Exception as exc:
+        logger.warning("Failed to build repairs context: %s", exc)
+        return None
 
     return {"status": "ok", "session_id": payload.session_id}
