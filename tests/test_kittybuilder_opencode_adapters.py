@@ -121,7 +121,7 @@ def _review_binding(tmp_path: Path, *, task_id: str = "task-1", attempt_id: int 
 def test_worker_stages_and_validates_local_context(tmp_path: Path):
     _init_git_repo(tmp_path)
     bundle = tmp_path / "bundle.json"
-    bundle.write_text('{"objective":"safe"}\n', encoding="utf-8")
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
     context = _manifest(bundle)
     result = tmp_path / "runner" / "implementation.json"
     result.parent.mkdir()
@@ -157,7 +157,9 @@ def test_worker_commits_a_real_completed_change(tmp_path: Path):
         capture_output=True, text=True,
     ).stdout.strip()
     bundle = tmp_path / "bundle.json"
-    bundle.write_text('{"objective":"safe"}\n', encoding="utf-8")
+    bundle.write_text(
+        '{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8"
+    )
     context = _manifest(bundle)
     result = tmp_path / "runner" / "implementation.json"
     result.parent.mkdir()
@@ -184,6 +186,7 @@ def test_worker_commits_a_real_completed_change(tmp_path: Path):
         ["git", "log", "-1", "--pretty=%s"], cwd=repo, check=True,
         capture_output=True, text=True,
     ).stdout
+    assert "[pkt-1]" in log
     assert "task-1" in log and "7" in log
     show = subprocess.run(
         ["git", "show", "--name-only", "--pretty=", "HEAD"], cwd=repo,
@@ -203,7 +206,7 @@ def test_worker_does_not_commit_a_failed_result(tmp_path: Path):
         capture_output=True, text=True,
     ).stdout.strip()
     bundle = tmp_path / "bundle.json"
-    bundle.write_text('{"objective":"safe"}\n', encoding="utf-8")
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
     context = _manifest(bundle)
     result = tmp_path / "runner" / "implementation.json"
     result.parent.mkdir()
@@ -230,7 +233,7 @@ def test_worker_does_not_commit_a_failed_result(tmp_path: Path):
 def test_worker_rejects_mismatched_context_before_opencode(tmp_path: Path):
     _init_git_repo(tmp_path)
     bundle = tmp_path / "bundle.json"
-    bundle.write_text('{"objective":"safe"}\n', encoding="utf-8")
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
     context = tmp_path / "run-manifest.json"
     context.write_text(
         json.dumps(
@@ -262,7 +265,7 @@ def test_worker_rejects_mismatched_context_before_opencode(tmp_path: Path):
 def test_worker_refuses_to_delete_a_preexisting_staging_file(tmp_path: Path):
     _init_git_repo(tmp_path)
     bundle = tmp_path / "bundle.json"
-    bundle.write_text('{"objective":"safe"}\n', encoding="utf-8")
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
     context = _manifest(bundle)
     result = tmp_path / "implementation.json"
     (tmp_path / ".kittybuilder-bundle-7.json").write_text(
@@ -286,7 +289,7 @@ def test_worker_refuses_to_delete_a_preexisting_staging_file(tmp_path: Path):
 
 def test_worker_requires_a_git_worktree(tmp_path: Path):
     bundle = tmp_path / "bundle.json"
-    bundle.write_text('{"objective":"safe"}\n', encoding="utf-8")
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
     context = _manifest(bundle)
     result = tmp_path / "implementation.json"
     fake = _fake_opencode(tmp_path)
@@ -307,7 +310,7 @@ def test_worker_requires_a_git_worktree(tmp_path: Path):
 def test_worker_falls_through_ladder_on_clean_model_failure(tmp_path: Path):
     _init_git_repo(tmp_path)
     bundle = tmp_path / "bundle.json"
-    bundle.write_text('{"objective":"safe"}\n', encoding="utf-8")
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
     context = _manifest(bundle)
     result = tmp_path / "implementation.json"
     fake = _fake_opencode(tmp_path)
@@ -332,7 +335,7 @@ def test_worker_falls_through_ladder_on_clean_model_failure(tmp_path: Path):
 def test_worker_never_falls_back_over_partial_work(tmp_path: Path):
     _init_git_repo(tmp_path)
     bundle = tmp_path / "bundle.json"
-    bundle.write_text('{"objective":"safe"}\n', encoding="utf-8")
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
     context = _manifest(bundle)
     result = tmp_path / "implementation.json"
     fake = _fake_opencode(tmp_path)
@@ -358,7 +361,7 @@ def test_worker_never_falls_back_over_partial_work(tmp_path: Path):
 def test_worker_forced_single_model_disables_the_ladder(tmp_path: Path):
     _init_git_repo(tmp_path)
     bundle = tmp_path / "bundle.json"
-    bundle.write_text('{"objective":"safe"}\n', encoding="utf-8")
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
     context = _manifest(bundle)
     result = tmp_path / "implementation.json"
     fake = _fake_opencode(tmp_path)
@@ -382,7 +385,7 @@ def test_worker_forced_single_model_disables_the_ladder(tmp_path: Path):
 def test_reviewer_copies_only_a_valid_immutable_review(tmp_path: Path):
     _init_git_repo(tmp_path)
     bundle = tmp_path / "bundle.json"
-    bundle.write_text('{"objective":"safe"}\n', encoding="utf-8")
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
     context = _manifest(bundle)
     implementation = tmp_path / "implementation.json"
     implementation.write_text('{"contract_version":1}\n', encoding="utf-8")
@@ -421,7 +424,7 @@ def test_reviewer_copies_only_a_valid_immutable_review(tmp_path: Path):
 def test_reviewer_rejects_worktree_mutation_and_does_not_publish_review(tmp_path: Path):
     _init_git_repo(tmp_path)
     bundle = tmp_path / "bundle.json"
-    bundle.write_text('{"objective":"safe"}\n', encoding="utf-8")
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
     context = _manifest(bundle)
     implementation = tmp_path / "implementation.json"
     implementation.write_text('{"contract_version":1}\n', encoding="utf-8")
@@ -460,7 +463,7 @@ def test_reviewer_rejects_worktree_mutation_and_does_not_publish_review(tmp_path
 def test_reviewer_falls_through_ladder_on_clean_model_failure(tmp_path: Path):
     _init_git_repo(tmp_path)
     bundle = tmp_path / "bundle.json"
-    bundle.write_text('{"objective":"safe"}\n', encoding="utf-8")
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
     context = _manifest(bundle)
     implementation = tmp_path / "implementation.json"
     implementation.write_text('{"contract_version":1}\n', encoding="utf-8")

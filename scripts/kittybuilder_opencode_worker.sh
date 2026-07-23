@@ -159,11 +159,20 @@ rm -f "${local_bundle}" "${local_context}" "${local_result}"
 # so a genuinely correct free-model implementation still failed publish
 # ("worktree is dirty") because nothing durable ever landed on the branch.
 # Commit on the model's behalf rather than trust it remembers — this is the
-# adapter's job, not a modeling task. Only for a real success; a "failed"
-# result leaves the worktree as evidence and is never committed.
-if [[ "${result_status}" == "completed" ]]; then
-  if [[ -n "$(git status --porcelain=v1 --untracked-files=all)" ]]; then
-    git add -A
-    git commit --quiet -m "kittybuilder: ${KB_TASK_ID} attempt ${KB_ATTEMPT_ID} (${chosen_model})"
-  fi
+# adapter's job, not a modeling task. Only for a real success with a real
+# change; a "failed" result leaves the worktree as evidence and is never
+# committed, and nothing runs (including the packet_id read below) when
+# there's nothing to commit.
+if [[ "${result_status}" == "completed" ]] \
+  && [[ -n "$(git status --porcelain=v1 --untracked-files=all)" ]]; then
+  # builder_identity.verify_and_escalate requires every commit since the
+  # lease's base_sha to carry a "[<packet_id>]" marker in its subject line
+  # (a second CP-08 dogfood finding — a marker-less commit fails identity
+  # verification identically to a foreign/unauthorized one). packet_id
+  # isn't in any env var; it's read from the bundle we already staged a
+  # copy of above — reuse the KB_BUNDLE_PATH original since the local copy
+  # was just removed.
+  packet_id=$(python3 -c "import json; print(json.load(open('${KB_BUNDLE_PATH}'))['packet_id'])")
+  git add -A
+  git commit --quiet -m "[${packet_id}] kittybuilder: ${KB_TASK_ID} attempt ${KB_ATTEMPT_ID} (${chosen_model})"
 fi
