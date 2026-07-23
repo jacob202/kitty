@@ -13,7 +13,7 @@
     "KB-S5 marked shipped with evidence in docs/KITTYBUILDER_SELF_BUILDING_MVP.md; retro in docs/LEARNINGS.md (L-CAND-14, L-CAND-15)."
   ],
   "blockers": [],
-  "next_action": "None required — nothing in flight. Optional pickup: the filed sequential-auto-merge-conflict follow-up (docs/LEARNINGS.md L-CAND-15), or author a real daily-use campaign via docs/CAMPAIGN_PLAYBOOK.md.",
+  "next_action": "none",
   "invalidation_conditions": [
     "HEAD changes beyond 9058c085fa7e75dc3902d73fc781f3031d5164ad",
     "origin/main advances beyond 9058c085fa7e75dc3902d73fc781f3031d5164ad"

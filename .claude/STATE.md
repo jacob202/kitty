@@ -18,7 +18,7 @@
     "Cleaned up ~40GB of disk (Draw Things/ComfyUI model weights + dev caches) earlier in the session, unrelated to the Builder plan."
   ],
   "blockers": [],
-  "next_action": "None required. Optional: pick up the filed sequential-auto-merge-conflict follow-up, or author a real campaign for daily use via docs/CAMPAIGN_PLAYBOOK.md.",
+  "next_action": "none",
   "invalidation_conditions": [
     "HEAD changes beyond 9058c085fa7e75dc3902d73fc781f3031d5164ad",
     "branch or registered worktree changes",
