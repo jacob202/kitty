@@ -304,7 +304,7 @@ function WhatsNext({
     const retry = () => queryClient.invalidateQueries({ queryKey: ['session', 'context'] });
     return (
       <SectionCard title="what's next" span>
-        <ErrorCard message={`gateway offline — ${message}`} onRetry={retry} />
+        <ErrorCard message={message} onRetry={retry} />
       </SectionCard>
     );
   }
@@ -312,7 +312,7 @@ function WhatsNext({
   if (actionsQuery.isError || projectsQuery.isError || stepQueries.isError) {
     return (
       <SectionCard title="what's next" span>
-        <ErrorCard message={OFFLINE_FIX} />
+        <ErrorCard message="unavailable" />
       </SectionCard>
     );
   }
@@ -324,7 +324,7 @@ function WhatsNext({
     const retry = () => queryClient.invalidateQueries({ queryKey: retryKey });
     return (
       <SectionCard title="what's next" span>
-        <ErrorCard message={`gateway offline — ${message}`} onRetry={retry} />
+        <ErrorCard message={message} onRetry={retry} />
       </SectionCard>
     );
   }
@@ -495,7 +495,7 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
   if (projectsQuery.isError) {
     return (
       <SectionCard title="active projects">
-        <ErrorCard message={OFFLINE_FIX} />
+        <ErrorCard message="unavailable" />
       </SectionCard>
     );
   }
@@ -687,7 +687,7 @@ function Deadlines() {
   if (deadlines.data?.fromLiveGateway === false) {
     return (
       <SectionCard title="deadlines" action={sweepButton}>
-        <ErrorCard message="gateway offline — deadlines unavailable" />
+        <ErrorCard message="unavailable" />
       </SectionCard>
     );
   }
@@ -800,7 +800,7 @@ function WhatChanged() {
   if (isError || !data) {
     return (
       <SectionCard title="what changed">
-        <ErrorCard message="gateway offline — changes unavailable" />
+        <ErrorCard message="unavailable" />
       </SectionCard>
     );
   }
@@ -902,7 +902,7 @@ function NeedsYou({ onDecideInChat }: { onDecideInChat: (entry: GatewayTriageEnt
   if (isError) {
     return (
       <SectionCard title="needs you">
-        <ErrorCard message="gateway offline — action queue unavailable" />
+        <ErrorCard message="unavailable" />
       </SectionCard>
     );
   }
@@ -1093,7 +1093,7 @@ function TodayPanel({
     const message = error instanceof Error ? error.message : 'Could not reach the gateway';
     return (
       <SectionCard title="today">
-        <ErrorCard message={`gateway offline — ${message}`} />
+        <ErrorCard message={message} />
       </SectionCard>
     );
   }

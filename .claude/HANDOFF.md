@@ -16,7 +16,7 @@
     "Verified live via the runtime manifest endpoint the Builder UI actually consumes — not just code inspection."
   ],
   "blockers": [],
-  "next_action": "Jacob runs B1-dogfood-preflight (INIT-1 v2) himself via KittyBuilder's CLI/UI — explicitly his ask, not something to run unattended.",
+  "next_action": "Jacob runs B1-dogfood-preflight (and the rest of INIT-1 v2's chain) himself via KittyBuilder's CLI/UI now that the queue is clean and the merge rail is fixed — this was his explicit ask, not something to run unattended on his behalf.",
   "invalidation_conditions": [
     "HEAD changes beyond 5533deb376540309e0948cadb7a4d9e7eb815d6c",
     "origin/main advances beyond 5533deb376540309e0948cadb7a4d9e7eb815d6c"

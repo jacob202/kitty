@@ -43,7 +43,7 @@ import { CommandPalette } from '@/components/CommandPalette';
 import { ActiveTaskCards } from '@/components/ActiveTaskCards';
 import { KittyRuntimeProvider } from '@/components/KittyRuntimeProvider';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { PwaInstallBanner } from '@/components/PwaInstallBanner';
+import { StatusBar } from '@/components/StatusBar';
 import { WobFilters, PaperGrain } from '@/components/WobFilters';
 import { CatCorner, type CatState } from '@/components/CrayonCat';
 import {
@@ -965,85 +965,22 @@ function KittyChatInner() {
 
         {activeView === 'chat' && <SignalFeed compact={isMobile} />}
 
-        <PwaInstallBanner
-          state={pwaInstall.state}
-          error={pwaInstall.error}
-          installing={pwaInstall.installing}
-          onInstall={handlePwaInstall}
+        <StatusBar
+          showChatSignals={activeView === 'chat'}
+          attachmentErrors={attachmentErrors}
+          gatewayOffline={modelGateway.loaded && !modelGateway.live}
+          onRetryGateway={retryGatewayBootstrap}
+          saveState={saveState}
+          onRetrySave={handleRetrySave}
+          briefUnavailable={
+            modelGateway.loaded && modelGateway.live && briefGateway.loaded && !briefGateway.live
+          }
+          briefError={briefGateway.error}
+          pwaState={pwaInstall.state}
+          pwaError={pwaInstall.error}
+          pwaInstalling={pwaInstall.installing}
+          onPwaInstall={handlePwaInstall}
         />
-
-        {modelGateway.loaded && !modelGateway.live && (
-          <div
-            role="status"
-            style={{
-              padding: '4px 16px',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 11,
-              color: 'var(--ink-2)',
-              borderBottom: '1px solid var(--line)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-              flexShrink: 0,
-            }}
-          >
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  background: 'var(--c-red)',
-                  flexShrink: 0,
-                  display: 'inline-block',
-                }}
-              />
-              gateway offline
-            </span>
-            <button
-              type="button"
-              onClick={retryGatewayBootstrap}
-              style={{
-                border: 'none',
-                borderRadius: 4,
-                padding: '2px 8px',
-                fontFamily: 'var(--font-mono)',
-                fontSize: 10,
-                fontWeight: 600,
-                cursor: 'pointer',
-                background: 'transparent',
-                color: 'var(--ink-2)',
-                flexShrink: 0,
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink)';
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-2)';
-              }}
-            >
-              retry
-            </button>
-          </div>
-        )}
-
-        {modelGateway.loaded && modelGateway.live && briefGateway.loaded && !briefGateway.live && (
-          <div
-            role="status"
-            style={{
-              padding: '6px 16px',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 11,
-              color: 'var(--ink-2)',
-              background: 'rgba(26, 20, 16, 0.5)',
-              borderBottom: '1px solid var(--line)',
-              flexShrink: 0,
-            }}
-          >
-            Brief unavailable ({briefGateway.error ?? 'unknown'}). Chat still works.
-          </div>
-        )}
 
         <div
           style={{
@@ -1208,68 +1145,6 @@ function KittyChatInner() {
             )}
           </ErrorBoundary>
         </div>
-
-        {activeView === 'chat' && saveState !== 'idle' && (
-          <div
-            role="status"
-            style={{
-              padding: '2px 28px',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              display: 'flex',
-              justifyContent: 'flex-start',
-              alignItems: 'center',
-              gap: 8,
-              flexShrink: 0,
-              color:
-                saveState === 'saved'
-                  ? 'var(--ink-2)'
-                  : saveState === 'saving'
-                    ? 'var(--ink-2)'
-                    : 'var(--c-red)',
-            }}
-          >
-            {saveState === 'saving' && <span>saving…</span>}
-            {saveState === 'saved' && <span>saved</span>}
-            {saveState === 'failed' && <span>save failed — chat not persisted</span>}
-            {saveState === 'offline' && <span>gateway offline — chat not saved</span>}
-            {(saveState === 'failed' || saveState === 'offline') && (
-              <button
-                type="button"
-                onClick={handleRetrySave}
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 10,
-                  fontWeight: 600,
-                  textDecoration: 'underline',
-                  color: 'inherit',
-                }}
-              >
-                retry
-              </button>
-            )}
-          </div>
-        )}
-
-        {activeView === 'chat' && attachmentErrors.length > 0 && (
-          <div
-            role="alert"
-            style={{
-              padding: '4px 28px',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              color: 'var(--c-red)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 2,
-              flexShrink: 0,
-            }}
-          >
-            {attachmentErrors.map((err, i) => (
-              <span key={i}>{err.file}: {err.reason}</span>
-            ))}
-          </div>
-        )}
 
         {activeView === 'chat' && <ActiveTaskCards compact={isMobile} />}
 

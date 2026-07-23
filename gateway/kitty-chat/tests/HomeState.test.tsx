@@ -318,12 +318,10 @@ describe('HomeState', () => {
     expect(screen.getByText('last session: UI wiring fix pass')).toBeInTheDocument();
   });
 
-  it('shows the offline fix in the hero when the gateway is down', () => {
+  it('shows an unavailable card in the hero when actions fail, without repeating the gateway-offline banner', () => {
     (useActions as Mock).mockReturnValue({ data: undefined, isPending: false, isError: true });
     render(<HomeState />);
-    expect(
-      screen.getAllByText(/gateway offline — start it with \.\/kitty up/).length,
-    ).toBeGreaterThan(0);
+    expect(screen.getAllByText('unavailable').length).toBeGreaterThan(0);
   });
 
   it("shows an error with a retry button when /session/context fails, not a loading spinner", () => {
@@ -334,9 +332,9 @@ describe('HomeState', () => {
       error: new Error('404 Not Found'),
     });
     render(<HomeState />);
-    // Must show an error alert, not a loading spinner
+    // Must show an error alert with the real failure, not a loading spinner
     const alert = screen.getByRole('alert');
-    expect(alert.textContent).toMatch(/gateway offline/);
+    expect(alert.textContent).toMatch(/404 Not Found/);
     expect(screen.queryByText('loading…')).not.toBeInTheDocument();
     // Must include a retry control (HealthStrip also has one, so at least 1)
     expect(screen.getAllByRole('button', { name: 'retry' }).length).toBeGreaterThanOrEqual(1);
@@ -403,16 +401,17 @@ describe('HomeState', () => {
     expect(statuses.length).toBeGreaterThan(0);
   });
 
-  it('shows gateway offline error when actions query fails', () => {
+  it('shows an unavailable card when the actions query fails, without repeating the gateway-offline banner', () => {
     (useActions as Mock).mockReturnValue({ data: undefined, isPending: false, isError: true });
     render(<HomeState />);
-    expect(screen.getByText(/gateway offline — action queue unavailable/)).toBeInTheDocument();
+    // Both "what's next" and "needs you" read useActions, so both go unavailable.
+    expect(screen.getAllByText('unavailable').length).toBeGreaterThan(0);
   });
 
-  it('shows gateway offline error when state changes query fails', () => {
+  it('shows an unavailable card when the state changes query fails, without repeating the gateway-offline banner', () => {
     (useStateChanges as Mock).mockReturnValue({ data: undefined, isPending: false, isError: true });
     render(<HomeState />);
-    expect(screen.getByText(/gateway offline — changes unavailable/)).toBeInTheDocument();
+    expect(screen.getByText('unavailable')).toBeInTheDocument();
   });
 
   it('shows proposed actions with approve and reject buttons in needs you', () => {
@@ -552,7 +551,7 @@ describe('HomeState', () => {
       error: new Error('Could not reach the gateway'),
     });
     render(<HomeState />);
-    expect(screen.getAllByText(/gateway offline — Could not reach the gateway/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Could not reach the gateway').length).toBeGreaterThan(0);
     expect(screen.queryByText('nothing on the list')).not.toBeInTheDocument();
   });
 
@@ -665,7 +664,7 @@ describe('HomeState', () => {
       isError: false,
     });
     render(<HomeState />);
-    expect(screen.getByText('gateway offline — deadlines unavailable')).toBeInTheDocument();
+    expect(screen.getByText('unavailable')).toBeInTheDocument();
   });
 
   it('runs a sweep from the deadlines card', () => {
@@ -717,7 +716,6 @@ describe('HomeState', () => {
     // At least one alert carries the /session/context error
     const sessionAlert = alerts.find((a) => a.textContent?.includes('404'));
     expect(sessionAlert).toBeTruthy();
-    expect(sessionAlert!.textContent).toMatch(/gateway offline/);
     // The error card has a retry button inside the alert
     expect(sessionAlert!.querySelector('button')).toBeTruthy();
     // The What's Next section heading should be visible (proving the section
