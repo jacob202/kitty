@@ -59,6 +59,39 @@ def normalize_allowed_paths(allowed_paths: Any) -> list[str]:
     return [normalize_allowed_path(path) for path in allowed_paths]
 
 
+# CP-08 dogfood finding: this exemption started as a builder_runner.py-only
+# local copy (its own _SESSION_STATE_RESIDUE constant). It's canonical here
+# instead, because builder_identity.verify_and_escalate calls
+# find_changed_path_violations independently of builder_runner's own live
+# scope check and had drifted without it — a worker that dutifully followed
+# repo convention (CLAUDE.md "Session State": update .claude/STATE.md
+# before stopping) failed identity verification for doing exactly that.
+#
+# Session-state bookkeeping repo convention requires every worker to write
+# before stopping. Residue here finalized two completed packets as
+# scope_violation (TH-01 attempt 3, TH-02) before builder_runner.py's own
+# check gained this exemption.
+SESSION_STATE_RESIDUE = frozenset({".claude/STATE.md", ".claude/HANDOFF.md"})
+
+# The --free worker adapter (scripts/kittybuilder_opencode_worker.sh) stages
+# the task bundle/context/result as .kittybuilder-{bundle,context,result}-
+# <attempt_id>.json at the worktree root so the model can read them via a
+# relative path, and cleans them up before finishing. A run that's killed or
+# inspected mid-attempt can still show these as changed paths.
+WORKER_STAGING_PREFIXES = (
+    ".kittybuilder-bundle-",
+    ".kittybuilder-context-",
+    ".kittybuilder-result-",
+)
+
+
+def is_expected_residue(path: str) -> bool:
+    """True for paths every attempt may legitimately touch outside its
+    allowlist — repo session-state convention or the runner's own staging
+    files — never for anything the model actually implemented."""
+    return path in SESSION_STATE_RESIDUE or path.startswith(WORKER_STAGING_PREFIXES)
+
+
 def find_changed_path_violations(
     changed_paths: list[str], allowed_paths: Any
 ) -> list[str]:
@@ -74,6 +107,6 @@ def find_changed_path_violations(
     violations: list[str] = []
     for path in changed_paths:
         normalized_path = normalize_allowed_path(path)
-        if not is_allowed(normalized_path):
+        if not is_allowed(normalized_path) and not is_expected_residue(normalized_path):
             violations.append(normalized_path)
     return violations

@@ -272,6 +272,58 @@ class TestRunWorker:
         assert ".claude/STATE.md" in run["final_report"]["changed_paths"]
         assert run["final_report"]["scope_violations"] == []
 
+    def test_worker_staging_residue_is_not_a_scope_violation(
+        self, repo: Path, db_path: Path
+    ):
+        """CP-08 dogfood finding: the --free worker adapter stages
+        .kittybuilder-{bundle,context,result}-<attempt>.json at the worktree
+        root so the model can read them; the live heartbeat scope check must
+        not treat the runner's own staging files as a violation."""
+        task = _queued_task(db_path, allowed_paths=["gateway/"])
+        command = [
+            "sh",
+            "-c",
+            "mkdir -p gateway && echo ok > gateway/ok.py && "
+            "echo staged > .kittybuilder-bundle-1.json && "
+            "echo staged > .kittybuilder-context-1.json && "
+            "echo staged > .kittybuilder-result-1.json",
+        ]
+
+        run = br.run_worker(
+            task["id"],
+            command,
+            timeout_seconds=30,
+            heartbeat_seconds=1,
+            repo_root=repo,
+            db_path=db_path,
+        )
+
+        assert run["state"] == bq.RUN_EXITED
+        assert run["final_report"]["scope_violations"] == []
+        assert ".kittybuilder-bundle-1.json" in run["final_report"]["changed_paths"]
+
+    def test_worker_staging_residue_does_not_mask_a_real_violation(
+        self, repo: Path, db_path: Path
+    ):
+        task = _queued_task(db_path, allowed_paths=["gateway/"])
+        command = [
+            "sh",
+            "-c",
+            "echo staged > .kittybuilder-bundle-1.json && echo nope > outside.txt",
+        ]
+
+        run = br.run_worker(
+            task["id"],
+            command,
+            timeout_seconds=30,
+            heartbeat_seconds=1,
+            repo_root=repo,
+            db_path=db_path,
+        )
+
+        assert run["state"] == bq.RUN_SCOPE_VIOLATION
+        assert run["final_report"]["scope_violations"] == ["outside.txt"]
+
     def test_scope_check_includes_commits_since_start_sha(
         self, repo: Path, db_path: Path
     ):

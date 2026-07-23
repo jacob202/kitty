@@ -25,6 +25,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, NoReturn
 
 from gateway import builder_queue as bq
+from gateway import builder_scope as bs
 from gateway.builder_brief import default_branch_name, render_worker_brief
 from gateway.paths import BUILDER_QUEUE_DB
 
@@ -364,13 +365,13 @@ def worktree_diff_sha256(path: Path, start_sha: str) -> str:
     return _diff_sha256(path, start_sha)
 
 
-# Session-state bookkeeping that repo convention (CLAUDE.md "Session State")
-# requires every worker to write before stopping. Residue here finalized two
-# completed packets as scope_violation (TH-01 attempt 3, TH-02), so these
-# paths stay visible in changed_paths but never count as violations.
-_SESSION_STATE_RESIDUE = frozenset({".claude/STATE.md", ".claude/HANDOFF.md"})
-
-
+# Residue every attempt may legitimately touch outside its allowlist (repo
+# session-state convention, the runner's own worker-staging files) is
+# canonical in builder_scope.is_expected_residue — builder_identity's own
+# independent scope check calls the same function, and the two diverging
+# was itself a CP-08 dogfood finding (a worker that dutifully updated
+# .claude/STATE.md per CLAUDE.md convention failed identity verification
+# because that check didn't know about the exemption this one has).
 def _scope_violations(
     changed_paths: list[str],
     allowed_paths: list[str] | None,
@@ -399,7 +400,7 @@ def _scope_violations(
     return [
         path
         for path in changed_paths
-        if not allowed(path) and path not in _SESSION_STATE_RESIDUE
+        if not allowed(path) and not bs.is_expected_residue(path)
     ]
 
 

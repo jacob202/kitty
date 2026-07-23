@@ -57,10 +57,13 @@ if not match:
 output = Path(match.group(1))
 if os.environ.get("FAKE_OPENCODE_MUTATE"):
     Path("reviewer-mutated.txt").write_text("mutation\\n", encoding="utf-8")
+if os.environ.get("FAKE_OPENCODE_IMPLEMENT_CHANGE"):
+    Path("implemented.txt").write_text("real change\\n", encoding="utf-8")
 if os.environ.get("FAKE_OPENCODE_REVIEW"):
     payload = {"contract_version": 1, "verdict": "approve", "summary": "ok"}
 else:
-    payload = {"contract_version": 1, "status": "completed", "summary": "ok"}
+    status = os.environ.get("FAKE_OPENCODE_STATUS", "completed")
+    payload = {"contract_version": 1, "status": status, "summary": "ok"}
 output.write_text(json.dumps(payload), encoding="utf-8")
 """,
         encoding="utf-8",
@@ -118,7 +121,7 @@ def _review_binding(tmp_path: Path, *, task_id: str = "task-1", attempt_id: int 
 def test_worker_stages_and_validates_local_context(tmp_path: Path):
     _init_git_repo(tmp_path)
     bundle = tmp_path / "bundle.json"
-    bundle.write_text('{"objective":"safe"}\n', encoding="utf-8")
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
     context = _manifest(bundle)
     result = tmp_path / "runner" / "implementation.json"
     result.parent.mkdir()
@@ -137,10 +140,100 @@ def test_worker_stages_and_validates_local_context(tmp_path: Path):
     assert not list(tmp_path.glob(".kittybuilder-*"))
 
 
+def test_worker_commits_a_real_completed_change(tmp_path: Path):
+    """CP-08 dogfood finding: publish failed on a genuinely correct free
+    implementation because nothing ever committed it. The adapter must
+    commit on the model's behalf for a real "completed" result.
+
+    Bundle/context/result live outside the worktree (as they do in
+    production — the runner passes attempt-dir paths, not in-worktree
+    ones) so the committed diff can be asserted to be exactly the model's
+    change, nothing else."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _init_git_repo(repo)
+    before_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True,
+        capture_output=True, text=True,
+    ).stdout.strip()
+    bundle = tmp_path / "bundle.json"
+    bundle.write_text(
+        '{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8"
+    )
+    context = _manifest(bundle)
+    result = tmp_path / "runner" / "implementation.json"
+    result.parent.mkdir()
+    fake = _fake_opencode(tmp_path)
+    env = _env(fake, bundle=bundle, context=context, result=result)
+    env["FAKE_OPENCODE_IMPLEMENT_CHANGE"] = "1"
+
+    completed = subprocess.run(
+        [str(WORKER)], cwd=repo, env=env, capture_output=True, text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    status = subprocess.run(
+        ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+        cwd=repo, check=True, capture_output=True, text=True,
+    ).stdout
+    assert status == ""
+    after_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True,
+        capture_output=True, text=True,
+    ).stdout.strip()
+    assert after_head != before_head
+    log = subprocess.run(
+        ["git", "log", "-1", "--pretty=%s"], cwd=repo, check=True,
+        capture_output=True, text=True,
+    ).stdout
+    assert "[pkt-1]" in log
+    assert "task-1" in log and "7" in log
+    show = subprocess.run(
+        ["git", "show", "--name-only", "--pretty=", "HEAD"], cwd=repo,
+        check=True, capture_output=True, text=True,
+    ).stdout
+    # The committed diff is exactly the model's real change — none of the
+    # runner's own staging residue got swept in.
+    assert show.split() == ["implemented.txt"]
+
+
+def test_worker_does_not_commit_a_failed_result(tmp_path: Path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _init_git_repo(repo)
+    before_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True,
+        capture_output=True, text=True,
+    ).stdout.strip()
+    bundle = tmp_path / "bundle.json"
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
+    context = _manifest(bundle)
+    result = tmp_path / "runner" / "implementation.json"
+    result.parent.mkdir()
+    fake = _fake_opencode(tmp_path)
+    env = _env(fake, bundle=bundle, context=context, result=result)
+    env["FAKE_OPENCODE_IMPLEMENT_CHANGE"] = "1"
+    env["FAKE_OPENCODE_STATUS"] = "failed"
+
+    completed = subprocess.run(
+        [str(WORKER)], cwd=repo, env=env, capture_output=True, text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    after_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, check=True,
+        capture_output=True, text=True,
+    ).stdout.strip()
+    assert after_head == before_head
+    # The failed attempt's evidence (the uncommitted file) stays visible for
+    # inspection, not silently committed or discarded.
+    assert (repo / "implemented.txt").exists()
+
+
 def test_worker_rejects_mismatched_context_before_opencode(tmp_path: Path):
     _init_git_repo(tmp_path)
     bundle = tmp_path / "bundle.json"
-    bundle.write_text('{"objective":"safe"}\n', encoding="utf-8")
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
     context = tmp_path / "run-manifest.json"
     context.write_text(
         json.dumps(
@@ -172,7 +265,7 @@ def test_worker_rejects_mismatched_context_before_opencode(tmp_path: Path):
 def test_worker_refuses_to_delete_a_preexisting_staging_file(tmp_path: Path):
     _init_git_repo(tmp_path)
     bundle = tmp_path / "bundle.json"
-    bundle.write_text('{"objective":"safe"}\n', encoding="utf-8")
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
     context = _manifest(bundle)
     result = tmp_path / "implementation.json"
     (tmp_path / ".kittybuilder-bundle-7.json").write_text(
@@ -196,7 +289,7 @@ def test_worker_refuses_to_delete_a_preexisting_staging_file(tmp_path: Path):
 
 def test_worker_requires_a_git_worktree(tmp_path: Path):
     bundle = tmp_path / "bundle.json"
-    bundle.write_text('{"objective":"safe"}\n', encoding="utf-8")
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
     context = _manifest(bundle)
     result = tmp_path / "implementation.json"
     fake = _fake_opencode(tmp_path)
@@ -217,7 +310,7 @@ def test_worker_requires_a_git_worktree(tmp_path: Path):
 def test_worker_falls_through_ladder_on_clean_model_failure(tmp_path: Path):
     _init_git_repo(tmp_path)
     bundle = tmp_path / "bundle.json"
-    bundle.write_text('{"objective":"safe"}\n', encoding="utf-8")
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
     context = _manifest(bundle)
     result = tmp_path / "implementation.json"
     fake = _fake_opencode(tmp_path)
@@ -242,7 +335,7 @@ def test_worker_falls_through_ladder_on_clean_model_failure(tmp_path: Path):
 def test_worker_never_falls_back_over_partial_work(tmp_path: Path):
     _init_git_repo(tmp_path)
     bundle = tmp_path / "bundle.json"
-    bundle.write_text('{"objective":"safe"}\n', encoding="utf-8")
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
     context = _manifest(bundle)
     result = tmp_path / "implementation.json"
     fake = _fake_opencode(tmp_path)
@@ -268,7 +361,7 @@ def test_worker_never_falls_back_over_partial_work(tmp_path: Path):
 def test_worker_forced_single_model_disables_the_ladder(tmp_path: Path):
     _init_git_repo(tmp_path)
     bundle = tmp_path / "bundle.json"
-    bundle.write_text('{"objective":"safe"}\n', encoding="utf-8")
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
     context = _manifest(bundle)
     result = tmp_path / "implementation.json"
     fake = _fake_opencode(tmp_path)
@@ -292,7 +385,7 @@ def test_worker_forced_single_model_disables_the_ladder(tmp_path: Path):
 def test_reviewer_copies_only_a_valid_immutable_review(tmp_path: Path):
     _init_git_repo(tmp_path)
     bundle = tmp_path / "bundle.json"
-    bundle.write_text('{"objective":"safe"}\n', encoding="utf-8")
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
     context = _manifest(bundle)
     implementation = tmp_path / "implementation.json"
     implementation.write_text('{"contract_version":1}\n', encoding="utf-8")
@@ -331,7 +424,7 @@ def test_reviewer_copies_only_a_valid_immutable_review(tmp_path: Path):
 def test_reviewer_rejects_worktree_mutation_and_does_not_publish_review(tmp_path: Path):
     _init_git_repo(tmp_path)
     bundle = tmp_path / "bundle.json"
-    bundle.write_text('{"objective":"safe"}\n', encoding="utf-8")
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
     context = _manifest(bundle)
     implementation = tmp_path / "implementation.json"
     implementation.write_text('{"contract_version":1}\n', encoding="utf-8")
@@ -370,7 +463,7 @@ def test_reviewer_rejects_worktree_mutation_and_does_not_publish_review(tmp_path
 def test_reviewer_falls_through_ladder_on_clean_model_failure(tmp_path: Path):
     _init_git_repo(tmp_path)
     bundle = tmp_path / "bundle.json"
-    bundle.write_text('{"objective":"safe"}\n', encoding="utf-8")
+    bundle.write_text('{"objective":"safe","packet_id":"pkt-1"}\n', encoding="utf-8")
     context = _manifest(bundle)
     implementation = tmp_path / "implementation.json"
     implementation.write_text('{"contract_version":1}\n', encoding="utf-8")

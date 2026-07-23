@@ -81,7 +81,17 @@ materializes one queue task per packet with a stable mapping, dry-run, and
   task `awaiting_review → done`, which unlocks dependent packets.
 - Merge remains operator-controlled; the builder never merges.
 
-### KB-S5 — Continuation loop, budgets, pause/resume, restart reconciliation
+### KB-S5 — Continuation loop, budgets, pause/resume, restart reconciliation ✅ (2026-07-22, CP-08 dogfood)
+
+Signed off by running two real unattended campaigns end to end on free
+workers through evidence-gated auto-merge (CP-06/ADR 0018), not fixtures:
+Campaign A (`cp08-campaign-a-v2`, PR #224) and Campaign B
+(`cp08-campaign-b`, prototype-gated, PRs #226/#227), 4 real free-model
+commits merged to `main`. See `docs/LEARNINGS.md` (2026-07-22 entry) for
+what fired, what didn't, and the four real infra bugs the dogfood run
+found and fixed on the way (all shipped to `main` same session). Full
+evidence: `data/kittybuilder/reports/cp08-campaign-a-v2-*.md` and
+`cp08-campaign-b-*.md` (`./kitty builder initiative report`).
 
 - `initiative run` driver: loop { next eligible packet → S2/S3 pipeline →
   S4 } until no packet is eligible (all done, or blocked awaiting operator
