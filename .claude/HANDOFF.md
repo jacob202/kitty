@@ -3,21 +3,20 @@
 <!-- kitty-handoff
 {
   "schema_version": 1,
-  "updated_at": "2026-07-23T01:39:00Z",
-  "head_sha": "00ce11a9f910a488681461430b55e2cb229d627e",
-  "branch": "claude/session-3pgcib",
+  "updated_at": "2026-07-23T02:20:00Z",
+  "head_sha": "9058c085fa7e75dc3902d73fc781f3031d5164ad",
+  "branch": "main",
   "worktree": ".",
-  "status": "in_progress",
+  "status": "done",
   "completed_items": [
-    "Campaign A clean retry merged as PR #224.",
-    "Campaign B prototype merged as PR #225 with Builder-backed validation and review evidence."
+    "KittyBuilder daily-driver plan CP-01 through CP-08 fully executed and pushed to main (9058c08). See .claude/STATE.md for the full breakdown.",
+    "KB-S5 marked shipped with evidence in docs/KITTYBUILDER_SELF_BUILDING_MVP.md; retro in docs/LEARNINGS.md (L-CAND-14, L-CAND-15)."
   ],
   "blockers": [],
-  "next_action": "Let the active Campaign B initiative driver complete; then verify the final report, record the CP-08 retrospective, and update continuity and durable memory.",
+  "next_action": "None required — nothing in flight. Optional pickup: the filed sequential-auto-merge-conflict follow-up (docs/LEARNINGS.md L-CAND-15), or author a real daily-use campaign via docs/CAMPAIGN_PLAYBOOK.md.",
   "invalidation_conditions": [
-    "origin/main advances beyond the verified Campaign B prototype merge",
-    "Campaign B reaches a terminal state",
-    "branch or registered worktree changes"
+    "HEAD changes beyond 9058c085fa7e75dc3902d73fc781f3031d5164ad",
+    "origin/main advances beyond 9058c085fa7e75dc3902d73fc781f3031d5164ad"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
@@ -26,13 +25,14 @@
 
 ## Completed
 
-- Campaign A clean retry landed as PR #224.
-- Campaign B's prototype packet landed as PR #225. It added a CP-04-derived `health_summary` to `initiative list --json` and passed its declared validation and review.
+Full KittyBuilder daily-driver plan (CP-01–08). Details and evidence links
+are in `.claude/STATE.md` — not duplicated here since nothing is in flight.
 
 ## In flight
 
-- Campaign B is still active. The human-readable health-column packet is running; the attention filter is eligible; the final tests-and-playbook packet awaits both dependencies.
+Nothing. This session's work is complete and pushed.
 
 ## Next action
 
-Wait for the single active Builder driver. When it is terminal, inspect its evidence and campaign report, write the CP-08 retrospective in `docs/LEARNINGS.md`, and refresh the session checkpoint with the actual final SHAs, checks, and any residual blocker.
+None required. See `.claude/STATE.md`'s "Known follow-up" for optional
+next work (already filed as a background task where applicable).
