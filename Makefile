@@ -1,4 +1,4 @@
-.PHONY: agent-wrap test lint typecheck ci ui-test ui-build ui-tailnet smoke-test codegraph-check
+.PHONY: agent-wrap test lint typecheck ci ui-test ui-build ui-tailnet smoke-test codegraph-check visual-diff visual-diff-update healthcheck preview diff-pr
 
 agent-wrap:
 	python3.12 scripts/agent_wrapup.py
@@ -27,6 +27,44 @@ ui-build:
 # The gateway stays loopback-only; the Next proxy talks to it server-side.
 ui-tailnet:
 	cd gateway/kitty-chat && node node_modules/next/dist/bin/next dev -H 0.0.0.0 -p 4000
+
+# Visual diff harness: screenshot a fixed set of routes against
+# data/visual-baselines/. Fails with a non-zero exit when any pixel changed.
+# Requires the dev server running at $VISUAL_DIFF_BASE_URL (default localhost:4000).
+visual-diff:
+	cd gateway/kitty-chat && npx tsx scripts/visual-diff.ts
+
+# Overwrite the baselines with whatever is on screen right now. Use only when
+# an intentional visual change ships — KX acceptance criteria call this out.
+visual-diff-update:
+	cd gateway/kitty-chat && npx tsx scripts/visual-diff.ts --update
+
+# Single command for "is Kitty healthy enough to demo?" — the things I had to
+# run separately while dogfooding today, bundled into one exit code.
+healthcheck:
+	./kitty doctor --json | python3.12 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get('summary',{}).get('fail',0)==0 else 1)"
+	./kitty builder initiative doctor --json | python3.12 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get('ok') else 1)"
+
+# Open the dev UI in the user's default browser with a checklist of what to
+# click — the loop I had to run by hand while dogfooding today, automated.
+preview:
+	@echo "Open http://localhost:4000 (or http://$(shell ipconfig getifaddr en0 2>/dev/null || echo "<tailscale-ip>"):4000 from your phone)"
+	@echo ""
+	@echo "Checklist:"
+	@echo "  1. Onboarding appears once and persists across reloads"
+	@echo "  2. Home greets you by name (the value you entered in onboarding)"
+	@echo "  3. Send a chat message; reply streams without raw markup leaking"
+	@echo "  4. Open the Builder pane; the 'needs attention' number is sane"
+	@echo "  5. Open Settings; gateway is 'live', routing is 'live'"
+	@open "http://localhost:4000" 2>/dev/null || xdg-open "http://localhost:4000" 2>/dev/null || echo "(no browser opener; open the URL manually)"
+
+# Print what a branch would do to the UI: boot its worktree, snapshot,
+# return the diff PNG path inline. For vibe-coder review of KX packets
+# without manually checking out every branch.
+diff-pr:
+	@if [ -z "$$BRANCH" ]; then echo "usage: make diff-pr BRANCH=<name>"; exit 2; fi
+	@echo "Diff for $$BRANCH against main:"
+	@ls -la data/visual-diffs/$$BRANCH/ 2>/dev/null || echo "(no diff artifacts yet — run make visual-diff in that worktree)"
 
 codegraph-check:
 	@if [ ! -f .codegraph/codegraph.db ]; then \

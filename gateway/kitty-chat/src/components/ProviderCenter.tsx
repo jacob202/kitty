@@ -1,6 +1,8 @@
 'use client'
 import type { CSSProperties } from 'react'
 import { usePlugins, useTogglePlugin, useMcpServers, useMcpTools, useGatewayModels, useImageStatus } from '@/lib/queries'
+import { Button } from '@/components/ui/Button'
+import { RefreshCw } from 'lucide-react'
 
 // Honest lanes — these are how Jacob actually reaches each thing today.
 // A subscription in a browser is not an API; don't dress it up as one.
@@ -112,17 +114,14 @@ export function ProviderCenter() {
               <span style={rowNameStyle}>{p.name}</span>
               {p.description && <span style={rowNoteStyle}>{p.description}</span>}
             </div>
-            <button
+            <Button
               onClick={() => togglePlugin.mutate({ name: p.name, enabled: !p.enabled })}
               disabled={togglePlugin.isPending}
-              style={{
-                ...toggleStyle,
-                background: p.enabled ? 'var(--c-green)' : 'var(--surface-2)',
-                color: p.enabled ? '#fff' : 'var(--ink-2)',
-              }}
+              variant={p.enabled ? 'primary' : 'secondary'}
+              size="sm"
             >
               {p.enabled ? 'enabled' : 'disabled'}
-            </button>
+            </Button>
           </div>
         ))}
       </div>
@@ -132,14 +131,15 @@ export function ProviderCenter() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={sectionLabelStyle}>image engines — gateway routed</span>
           <span style={{ flex: 1 }} />
-          <button
-            type="button"
+          <Button
             onClick={() => void imageStatusQuery.refetch()}
             disabled={imageStatusQuery.isFetching}
-            style={refreshStyle}
+            variant="ghost"
+            size="sm"
+            icon={<RefreshCw size={12} />}
           >
             {imageStatusQuery.isFetching ? 'checking…' : 'refresh'}
-          </button>
+          </Button>
         </div>
         {imageStatusQuery.isError && (
           <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>

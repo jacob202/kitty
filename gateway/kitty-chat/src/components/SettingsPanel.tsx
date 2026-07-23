@@ -2,6 +2,8 @@
 import { useState, useEffect, type CSSProperties } from 'react'
 import { useGatewayModels, usePersonality, useUpdatePersonality, useUsageSummary } from '@/lib/queries'
 import { useDashboardConfig } from '@/hooks/useDashboardConfig'
+import { Button } from '@/components/ui/Button'
+import { Palette, RotateCcw, Save } from 'lucide-react'
 
 interface Props {
   theme: 'cosmic' | 'day' | 'night'
@@ -48,9 +50,9 @@ export function SettingsPanel({ theme, onToggleTheme }: Props) {
         <div style={sectionLabelStyle}>appearance</div>
         <div style={rowStyle}>
           <span style={rowNameStyle}>theme</span>
-          <button onClick={onToggleTheme} style={buttonStyle}>
-            {theme === 'cosmic' ? '✦ cosmic — switch to day' : theme === 'day' ? '☀ day — switch to night' : '☾ night — switch to cosmic'}
-          </button>
+          <Button onClick={onToggleTheme} variant="secondary" size="sm" icon={<Palette size={12} />}>
+            {theme === 'cosmic' ? 'cosmic — switch to day' : theme === 'day' ? 'day — switch to night' : 'night — switch to cosmic'}
+          </Button>
         </div>
       </div>
 
@@ -68,9 +70,9 @@ export function SettingsPanel({ theme, onToggleTheme }: Props) {
           </label>
         ))}
         <div style={resetRowStyle}>
-          <button onClick={resetToDefaults} style={buttonStyle}>
+          <Button onClick={resetToDefaults} variant="ghost" size="sm" icon={<RotateCcw size={12} />}>
             reset to defaults
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -112,12 +114,14 @@ export function SettingsPanel({ theme, onToggleTheme }: Props) {
             />
           </label>
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button
+            <Button
               onClick={() => updatePersonality.mutate({ soul, preferences: prefs })}
-              style={buttonStyle}
+              variant="primary"
+              size="sm"
+              icon={<Save size={12} />}
             >
               save personality
-            </button>
+            </Button>
           </div>
         </div>
       </div>
