@@ -3,8 +3,8 @@
 <!-- kitty-state
 {
   "schema_version": 1,
-  "updated_at": "2026-07-23T01:15:00Z",
-  "head_sha": "4dca990d8a5a561abb6f04036c2de7764d7c9d70",
+  "updated_at": "2026-07-23T01:30:00Z",
+  "head_sha": "5d96ff05f5a5df3082e497bba5a44a293f133bb6",
   "branch": "kittybuilder/kb_mrwte23u_e2ba",
   "worktree": "/Users/jacobbrizinski/Projects/kitty/.worktrees/kittybuilder/kb_mrwte23u_e2ba",
   "status": "completed",
@@ -12,7 +12,7 @@
     "CP-08B prototype: added health_summary to `initiative list --json` output",
     "Modified builder_initiative.py:list_initiatives() to call existing initiative_status() per initiative and attach health_summary {state, stop_class, stop_class_reason}",
     "Added 3 passing tests: health_summary shape, health_summary reflects completion, CLI --json output includes health_summary",
-    "Ran full builder test suite: 550 passed, 0 failures"
+    "Attempt 3 validation: 217 passed (0 failures), bundle result written"
   ],
   "blockers": [],
   "next_action": "None — packet cp08b-proto completed",
@@ -27,11 +27,9 @@
 
 ## Current checkpoint
 
-Worktree `kittybuilder/kb_mrwte23u_e2ba` at `4dca990`, branch `kittybuilder/kb_mrwte23u_e2ba`.
-Packet cp08b-proto (initiative cp08-campaign-b) completed.
-Working tree has 2 modified files:
-  - `gateway/builder_initiative.py` — `list_initiatives()` now enriches each row with `health_summary`
-  - `tests/test_builder_initiative.py` — 3 new tests covering the health_summary feature
+Worktree `kittybuilder/kb_mrwte23u_e2ba` at `5d96ff0`, branch `kittybuilder/kb_mrwte23u_e2ba`.
+Packet cp08b-proto (initiative cp08-campaign-b) completed and validated (attempt 3).
+All changes committed. Working tree clean (only untracked bundle/context JSON files).
 
 ## Known follow-up
 
