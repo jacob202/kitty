@@ -618,6 +618,63 @@ def _cleanup_merge_check_worktree(
     run_cmd(["git", "worktree", "remove", "--force", str(path)], cwd=repo_root, check=False)
 
 
+def _rebase_check_worktree_path(repo_root: Path, task_id: str) -> Path:
+    # Separate from both the packet's own worktree and the merge-check one —
+    # this rewrites the packet branch's history, so it must never collide
+    # with a worktree a worker/reviewer/revalidation step might be using.
+    return repo_root / ".worktrees" / "kittybuilder-rebase-check" / task_id
+
+
+def _rebase_onto_main(
+    repo_root: Path, task_id: str, branch: str, *, remote: str, run_cmd: RunCmd
+) -> bool:
+    """Rebase ``branch`` onto fresh ``<remote>/main`` and force-push if clean.
+
+    Only ever touches a Builder-owned packet branch, never ``main`` or a
+    human branch — the packet branch is single-purpose and disposable once
+    merged. Returns False (never force-pushes) on any failure: fetch,
+    worktree setup, or a genuine rebase conflict.
+    """
+    path = _rebase_check_worktree_path(repo_root, task_id)
+    fetch = run_cmd(
+        ["git", "fetch", remote, "main", branch], cwd=repo_root, check=False
+    )
+    if fetch.returncode != 0:
+        return False
+
+    if path.is_dir():
+        run_cmd(
+            ["git", "worktree", "remove", "--force", str(path)],
+            cwd=repo_root,
+            check=False,
+        )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    add = run_cmd(
+        ["git", "worktree", "add", "--detach", str(path), f"{remote}/{branch}"],
+        cwd=repo_root,
+        check=False,
+    )
+    if add.returncode != 0:
+        return False
+
+    rebase = run_cmd(["git", "rebase", f"{remote}/main"], cwd=path, check=False)
+    if rebase.returncode != 0:
+        run_cmd(["git", "rebase", "--abort"], cwd=path, check=False)
+        return False
+
+    push = run_cmd(
+        ["git", "push", "--force-with-lease", remote, f"HEAD:{branch}"],
+        cwd=path,
+        check=False,
+    )
+    return push.returncode == 0
+
+
+def _cleanup_rebase_worktree(repo_root: Path, task_id: str, *, run_cmd: RunCmd) -> None:
+    path = _rebase_check_worktree_path(repo_root, task_id)
+    run_cmd(["git", "worktree", "remove", "--force", str(path)], cwd=repo_root, check=False)
+
+
 def _recent_auto_merge_outcomes(
     db_path: Path | None, limit: int = TRIPWIRE_WINDOW
 ) -> list[str]:
@@ -672,11 +729,17 @@ def merge_and_verify(
     approve + scope clean) — this function's own job is the merge and the
     post-merge safety net, not re-judging the packet.
 
+    On a first merge failure (e.g. the packet's branch went stale while a
+    sibling packet merged first — see docs/LEARNINGS.md L-CAND-15), rebases
+    the branch onto fresh main and retries the merge exactly once. A rebase
+    that itself conflicts is never force-pushed; the original merge error
+    propagates so a human resolves the real content collision.
+
     Returns ``outcome`` of ``merged``, ``reverted``, or ``skipped_tripwire``.
     """
     runner = run_cmd or _default_run
     root = _repo_root_or(repo_root)
-    _require_task(task_id, db_path)  # existence check only
+    task = _require_task(task_id, db_path)
     pr_links = bq.get_pr_links(task_id, db_path=db_path)
     if not pr_links:
         raise MergeError(f"task {task_id} has no linked PR to merge")
@@ -689,7 +752,16 @@ def merge_and_verify(
             "pr_number": pr_number,
         }
 
-    merge_info = _gh_pr_merge(pr_number, cwd=root, run_cmd=runner)
+    try:
+        merge_info = _gh_pr_merge(pr_number, cwd=root, run_cmd=runner)
+    except MergeError:
+        rebased = _rebase_onto_main(
+            root, task_id, default_branch_name(task), remote=remote, run_cmd=runner
+        )
+        _cleanup_rebase_worktree(root, task_id, run_cmd=runner)
+        if not rebased:
+            raise
+        merge_info = _gh_pr_merge(pr_number, cwd=root, run_cmd=runner)
     merge_commit_sha = merge_info["merge_commit_sha"]
 
     try:

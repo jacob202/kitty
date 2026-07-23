@@ -331,12 +331,19 @@ class TestMergeAndVerify:
         with pytest.raises(bp.MergeError, match="no linked PR"):
             bp.merge_and_verify(task["id"], validation_commands=[], db_path=db_path)
 
-    def test_raises_when_gh_merge_fails(self, tmp_path: Path, db_path: Path):
+    def test_raises_when_gh_merge_fails_and_rebase_cannot_help(
+        self, tmp_path: Path, db_path: Path
+    ):
         task = _make_pr_opened_task(db_path, tmp_path)
 
         def fake(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
             if args[:3] == ["gh", "pr", "merge"]:
                 return subprocess.CompletedProcess(args, 1, stdout="", stderr="conflict")
+            if args[:2] == ["git", "fetch"]:
+                # Rebase attempt can't even fetch — give up without a retry.
+                return subprocess.CompletedProcess(args, 1, stdout="", stderr="offline")
+            if args[:3] == ["git", "worktree", "remove"]:
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
             raise AssertionError(f"unexpected call: {args}")
 
         with pytest.raises(bp.MergeError, match="gh pr merge failed"):
@@ -344,6 +351,76 @@ class TestMergeAndVerify:
                 task["id"], validation_commands=[], repo_root=tmp_path, db_path=db_path, run_cmd=fake,
             )
         assert bq.get_task(task["id"], db_path=db_path)["state"] != bq.DONE
+
+    def test_rebase_conflict_never_force_pushes_original_error_propagates(
+        self, tmp_path: Path, db_path: Path
+    ):
+        task = _make_pr_opened_task(db_path, tmp_path)
+        calls: list[list[str]] = []
+
+        def fake(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            calls.append(list(args))
+            if args[:3] == ["gh", "pr", "merge"]:
+                return subprocess.CompletedProcess(args, 1, stdout="", stderr="conflict")
+            if args[:2] == ["git", "fetch"]:
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[:3] == ["git", "worktree", "add"]:
+                Path(args[4]).mkdir(parents=True, exist_ok=True)
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[:2] == ["git", "rebase"] and "--abort" not in args:
+                return subprocess.CompletedProcess(args, 1, stdout="", stderr="CONFLICT")
+            if args == ["git", "rebase", "--abort"]:
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[:3] == ["git", "worktree", "remove"]:
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            raise AssertionError(f"unexpected call: {args}")
+
+        with pytest.raises(bp.MergeError, match="gh pr merge failed"):
+            bp.merge_and_verify(
+                task["id"], validation_commands=[], repo_root=tmp_path, db_path=db_path, run_cmd=fake,
+            )
+        assert not any(c[:2] == ["git", "push"] for c in calls)
+        assert any(c == ["git", "rebase", "--abort"] for c in calls)
+
+    def test_rebase_and_retry_merges_on_clean_rebase(self, tmp_path: Path, db_path: Path):
+        task = _make_pr_opened_task(db_path, tmp_path)
+        merge_attempts = {"n": 0}
+        calls: list[list[str]] = []
+
+        def fake(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            calls.append(list(args))
+            if args[:3] == ["gh", "pr", "merge"]:
+                merge_attempts["n"] += 1
+                if merge_attempts["n"] == 1:
+                    return subprocess.CompletedProcess(args, 1, stdout="", stderr="stale")
+                return subprocess.CompletedProcess(args, 0, stdout="merged\n", stderr="")
+            if args[:3] == ["gh", "pr", "view"]:
+                return subprocess.CompletedProcess(
+                    args, 0, stdout=json.dumps({"mergeCommit": {"oid": "deadbeef00"}}), stderr="",
+                )
+            if args[:2] == ["git", "fetch"]:
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[:3] == ["git", "worktree", "add"]:
+                Path(args[4]).mkdir(parents=True, exist_ok=True)
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[:2] == ["git", "rebase"]:
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[:2] == ["git", "push"] and "--force-with-lease" in args:
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[:3] == ["git", "worktree", "remove"]:
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[:2] == ["git", "reset"]:
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[:2] == ["bash", "-lc"]:
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            raise AssertionError(f"unexpected call: {args}")
+
+        result = bp.merge_and_verify(
+            task["id"], validation_commands=["true"], repo_root=tmp_path, db_path=db_path, run_cmd=fake,
+        )
+        assert result["outcome"] == "merged"
+        assert merge_attempts["n"] == 2
+        assert any(c[:2] == ["git", "push"] and "--force-with-lease" in c for c in calls)
 
     def test_tripwire_skips_merge_after_two_reverts_in_window(self, tmp_path: Path, db_path: Path):
         # Two unrelated prior tasks whose auto-merge reverted.

@@ -261,7 +261,12 @@ unexercised in this session; a deliberate revert drill (§3.3 negative test
 
 ### L-CAND-15 — Sequential auto-merged packets in one initiative can genuinely conflict, and `.claude/STATE.md` guarantees they eventually will
 
-- **Status:** candidate, not yet fixed (named follow-up)
+- **Status:** fixed 2026-07-23 — both (a) and (b) below landed:
+  `merge_and_verify` now rebases + force-pushes-with-lease the packet's own
+  branch before retrying once (`gateway/builder_publish.py`, tests in
+  `tests/test_builder_publish.py::TestMergeAndVerify`), and CLAUDE.md's
+  Session State section now scopes the STATE.md/HANDOFF.md convention away
+  from isolated Builder attempts. Documented as ADR 0018 amendment 7.
 - **Date:** 2026-07-22
 - **Source session:** CP-08 dogfood, Campaign B (`cp08b-column`,
   `cp08b-filter`)

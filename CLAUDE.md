@@ -53,6 +53,8 @@ See `.claude/rules/initiative.md`. Persona and noticing rules live in `config/SO
 
 Read `.claude/HANDOFF.md` and `.claude/STATE.md` at the start of every session. Update `.claude/STATE.md` before stopping; write `.claude/HANDOFF.md` at the end of any session that leaves unfinished work.
 
+These are single shared files, not a session-scoped journal — more than one session or autonomous KittyBuilder campaign can be active in the same window (see `docs/LEARNINGS.md` L-CAND-16). Before writing either file: `git fetch` and read the live `origin/main` copy fresh, not a cached read from earlier in this conversation. If the current content is clearly a different active workstream's narrative (different mission, recent `updated_at`, unfamiliar branch/PR references), don't clobber it wholesale — either leave it alone and put your findings in chat or `docs/LEARNINGS.md`, or scope your addition narrowly. This convention is for Jacob's own interactive sessions; isolated KittyBuilder worker attempts must not touch `.claude/` at all (already enforced in their brief).
+
 ## Authority
 
 `docs/AUTHORITY_MAP.md` is the only routing map for project truth. This file is

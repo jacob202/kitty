@@ -45,14 +45,26 @@ an automatic safety net if the gate turns out to be wrong:
    merges age the old reverts out of the window.
 6. **Escape hatch**: `initiative run --gate manual` restores full
    park-and-wait for any campaign Jacob wants to eyeball by hand.
+7. **Amendment (2026-07-23, docs/LEARNINGS.md L-CAND-15):** on a first merge
+   failure, `merge_and_verify` rebases the packet's own branch onto fresh
+   `main` in an isolated worktree and force-pushes (`--force-with-lease`)
+   only if the rebase is clean, then retries the merge once. A rebase that
+   itself conflicts is never force-pushed — the original merge error
+   propagates for a human to resolve. This closes the gap where a sibling
+   packet's earlier auto-merge advances `main` and leaves the next packet's
+   branch stale, most reliably colliding on `.claude/STATE.md` since every
+   worker convention-writes there.
 
 ## What did not change
 
-The excluded-operations list stays hard: secrets/auth/.env, data deletion,
-force-push/history rewrite, and heavy new dependencies remain outside this
-path entirely — `merge_and_verify` cannot reach any of them. Shadow workers
-still never gain GitHub credentials; only the operator-context merge/publish
-path (`gateway/builder_publish.py`) touches `gh`/git remotes, same as
+The excluded-operations list stays hard for `main` and any human branch:
+secrets/auth/.env, data deletion, and history rewrite remain outside this
+path entirely. The one narrow exception (item 7 above) is force-pushing a
+Builder-owned packet branch — single-purpose, disposable, never touched
+again after merge — and only after a clean rebase; `main` itself is never
+force-pushed or rewritten. Shadow workers still never gain GitHub
+credentials; only the operator-context merge/publish path
+(`gateway/builder_publish.py`) touches `gh`/git remotes, same as
 pre-existing publish.
 
 ## Consequences
