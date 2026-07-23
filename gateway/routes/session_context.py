@@ -57,12 +57,13 @@ def _live_branch() -> str:
 
 
 def _last_session_topic(state_sections: list[tuple[str, list[str]]]) -> str | None:
-    candidates = [
-        heading
-        for heading, _ in state_sections
-        if any(marker in heading.casefold() for marker in ("session", "handoff", "pass"))
-    ]
-    return candidates[-1] if candidates else None
+    state_text = STATE_FILE.read_text(encoding="utf-8")
+    for line in state_text.splitlines():
+        if line.startswith("# ") and not line.startswith("## "):
+            topic = line[2:].strip()
+            if topic:
+                return topic
+    return None
 
 
 @router.get("/session/context")

@@ -1,6 +1,6 @@
 'use client'
 
-import type { CSSProperties } from 'react'
+import { useEffect, useRef, type CSSProperties } from 'react'
 import { AlertCircle, ArrowDownToLine, Share2 } from 'lucide-react'
 import type { AttachmentError } from '@/lib/attachment-validation'
 import type { PwaInstallState } from '@/lib/pwa'
@@ -23,6 +23,8 @@ interface Props {
   onPwaInstall?: () => void
 }
 
+const FAILS_REQUIRED = 3
+
 /**
  * One line, ranked by how much it matters to the user right now. The old
  * layout stacked up to five independent banners (pwa install, gateway
@@ -44,6 +46,18 @@ export function StatusBar({
   pwaInstalling = false,
   onPwaInstall,
 }: Props) {
+  const offlineStreakRef = useRef(0)
+
+  useEffect(() => {
+    if (gatewayOffline) {
+      offlineStreakRef.current++
+    } else {
+      offlineStreakRef.current = 0
+    }
+  }, [gatewayOffline])
+
+  const confirmedOffline = offlineStreakRef.current >= FAILS_REQUIRED
+
   if (showChatSignals && attachmentErrors.length > 0) {
     return (
       <div role="alert" style={{ ...rowStyle, color: 'var(--c-red)' }}>
@@ -57,7 +71,7 @@ export function StatusBar({
     )
   }
 
-  if (gatewayOffline) {
+  if (confirmedOffline) {
     return (
       <div role="status" style={{ ...rowStyle, justifyContent: 'space-between' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

@@ -1,6 +1,6 @@
 'use client'
 
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { useTasks } from '@/lib/queries'
 import { useGatewayRuntimeManifest } from '@/lib/queries'
 import type { GatewayTask, BuilderPacketStatus } from '@/lib/gateway'
@@ -11,6 +11,18 @@ interface ActiveItem {
   kind: 'task' | 'builder'
   state: string
   detail?: string
+}
+
+const MAX_VISIBLE = 3
+
+const TEST_DATA_PATTERNS = [
+  /^test\b/i,
+  /^task test\b/i,
+  /^\btest\b.*\btask\b/i,
+]
+
+function isTestData(label: string): boolean {
+  return TEST_DATA_PATTERNS.some((pattern) => pattern.test(label))
 }
 
 function gatewayTaskToItem(task: GatewayTask): ActiveItem {
@@ -46,23 +58,28 @@ function isActivePacket(packet: BuilderPacketStatus): boolean {
 export function ActiveTaskCards({ compact = false }: { compact?: boolean }) {
   const tasksQuery = useTasks(10)
   const runtimeQuery = useGatewayRuntimeManifest()
+  const [expanded, setExpanded] = useState(false)
 
   const gatewayItems = (tasksQuery.data ?? [])
     .filter(isActiveTask)
+    .filter((t) => !isTestData(t.goal))
     .map(gatewayTaskToItem)
 
   const builderItems = (runtimeQuery.data?.execution.builder?.value?.initiatives ?? [])
     .flatMap((i) => i.packets)
     .filter(isActivePacket)
+    .filter((p) => !isTestData(p.title))
     .map(builderPacketToItem)
 
-  const items = [...builderItems, ...gatewayItems]
+  const allItems = [...builderItems, ...gatewayItems]
+  const visible = expanded ? allItems : allItems.slice(0, MAX_VISIBLE)
+  const hidden = allItems.length - visible.length
 
-  if (items.length === 0) return null
+  if (allItems.length === 0) return null
 
   return (
     <div style={compact ? compactWrapStyle : wrapStyle} role="status" aria-label="Active tasks">
-      {items.map((item) => (
+      {visible.map((item) => (
         <div key={item.id} style={compact ? compactCardStyle : cardStyle}>
           <span style={dotStyle(item.state)} />
           <span style={kindStyle(item.kind)}>{item.kind === 'builder' ? 'build' : item.kind}</span>
@@ -71,8 +88,29 @@ export function ActiveTaskCards({ compact = false }: { compact?: boolean }) {
           {item.detail && <span style={detailStyle}>{item.detail}</span>}
         </div>
       ))}
+      {hidden > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          style={moreButtonStyle}
+        >
+          {expanded ? 'show less' : `+${hidden} more`}
+        </button>
+      )}
     </div>
   )
+}
+
+const moreButtonStyle: CSSProperties = {
+  background: 'none',
+  border: '1px solid var(--line)',
+  borderRadius: 4,
+  padding: '2px 8px',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  color: 'var(--ink-2)',
+  cursor: 'pointer',
+  alignSelf: 'flex-start',
 }
 
 const STATE_COLORS: Record<string, string> = {

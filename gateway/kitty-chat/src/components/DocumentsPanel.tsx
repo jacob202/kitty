@@ -171,7 +171,7 @@ export function DocumentsPanel() {
         )}
         {upload.data === null && !upload.isPending && upload.isSuccess && (
           <p style={{ ...mutedStyle, color: 'var(--c-red)' }}>
-            upload failed — the gateway rejected the file (size or type). check ./kitty logs.
+            upload failed — the file may be too large or the wrong type.
           </p>
         )}
         {upload.data && (

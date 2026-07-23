@@ -159,7 +159,7 @@ function ErrorCard({ message, onRetry }: { message: string; onRetry?: () => void
   );
 }
 
-const OFFLINE_FIX = 'gateway offline — start it with ./kitty up';
+const OFFLINE_FIX = 'gateway is not reachable — check if Kitty is running';
 
 // ── Health strip ─────────────────────────────────────────────────────────────
 
@@ -242,7 +242,7 @@ function HealthStrip() {
                 ? 'routing unknown'
                 : litellmOk
                   ? `routing live · ${models.data?.models.length ?? 0} models`
-                  : 'litellm unreachable — ./kitty up starts it'
+                  : 'model routing is unavailable'
             }
           />
           <HealthDot
@@ -507,7 +507,7 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
       <SectionCard title="active projects">
         <div style={emptyState}>
           {projects.length === 0
-            ? 'no projects registered — ./kitty project add <name>'
+            ? 'no projects registered — add one from the projects view'
             : 'no active projects — everything is parked or done'}
         </div>
       </SectionCard>

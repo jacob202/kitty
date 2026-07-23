@@ -104,6 +104,17 @@ function legacyChat(c: Chat): Chat {
   };
 }
 
+const SMALLTALK_PATTERNS = [
+  /^(what can you do|what do you do|who are you|how are you|good morning|good evening|good night|hello|hi|hey|yo)\b/i,
+  /^(ok|okay|k|thanks|thx|thank you|got it|nice|cool)$/i,
+  /^test/i,
+]
+
+function isSmalltalk(text: string): boolean {
+  const sanitized = text.trim().toLowerCase()
+  return SMALLTALK_PATTERNS.some((re) => re.test(sanitized))
+}
+
 function getInitials(email?: string): string {
   if (!email) return 'JB';
   const parts = email.replace(/@.*/, '').split(/[._-]/);
@@ -545,7 +556,7 @@ function KittyChatInner() {
 
       const mood = inferMood(accumulated, 'assistant');
       const extras = {
-        ...(memoryItems ? { memoryItems } : {}),
+        ...(memoryItems && !isSmalltalk(latestUserMessage.content) ? { memoryItems } : {}),
         ...(toolCalls?.length ? { toolCalls } : {}),
       };
       updateChat(chat.id, (c) => ({

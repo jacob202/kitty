@@ -1,9 +1,11 @@
 {
-  "_comment": "P3 action tiers, signed off by Jacob 2026-07-02. T0/T1 may execute automatically from proposed; T2 requires explicit per-action approval. Kinds under _disabled_v1 must not exist as executors in this packet — some may return as their own approved packets later, but not now.",
+  "_comment": "P3 action tiers, signed off by Jacob 2026-07-02. T0/T1 may execute automatically from proposed; T2 requires explicit per-action approval. Kinds under _disabled_v1 must not exist as executors in this packet — some may return as their own approved packets later, but not now. KX-05-02 repair actions added 2026-07-23 per locked decision: all chat-routable actions at T0.",
   "todo.create": "T0",
   "note.draft": "T1",
   "packet.delegate": "T1",
   "calendar.event.create": "T2",
+  "repair.check": "T0",
+  "repair.dismiss": "T0",
   "_disabled_v1": [
     "payments",
     "data.delete",

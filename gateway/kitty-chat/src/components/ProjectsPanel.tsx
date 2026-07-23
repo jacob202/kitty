@@ -36,7 +36,7 @@ export function ProjectsPanel() {
 
       {projects.length === 0 && (
         <p style={mutedStyle}>
-          no projects registered yet — POST /projects with a name and kind to add one.
+          no projects registered yet — add one using the form below.
         </p>
       )}
 

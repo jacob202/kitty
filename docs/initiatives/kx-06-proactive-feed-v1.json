@@ -1,0 +1,57 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kx-06-proactive-feed-v1",
+  "title": "KX-06: Proactive feed — signals and deadline cards on the shared Repairs primitive",
+  "description": "Companion to KX-05 (companion layer) and the 2026-07-23 audit. After the Repairs feed lands in KX-05-02, the gateway has two more notification-shaped subsystems that should reuse the same primitive: signals (gateway/signal_store + expert_inbox_log + expert_snooze — proactive expert observations today scattered across multiple empty tables) and the Home 'deadlines / phone access / what changed' cards (today's jargon boxes, three components with bespoke copy). This initiative makes the component reuse official: a single RepairsCard primitive renders any { severity, status, is_fixable, translation_key, learn_more_url, ignored } entity. Sequencing: KX-06-01 (signals feed) depends on KX-05-02 (Repairs primitive must exist); KX-06-02 (deadline cards) depends on KX-05-02 and can run in parallel with KX-06-01. Tier rule and locked decisions inherit from the KX-05 manifest.",
+  "packets": [
+    {
+      "id": "KX-06-01-signals-feed",
+      "title": "Proactive signals feed reusing the Repairs primitive",
+      "objective": "The gateway has rich proactive signal infrastructure (signal_store, expert_inbox_log with source prefix 'expert.', expert_snooze, dismiss/mark_processed) that today has zero UI surface beyond per-expert snooze controls in settings. Build one signals feed as a Home card and a chat intent ('kitty, anything to flag?') backed by /signals, returning RepairsIssue-shaped records composed from unprocessed signals, expert inbox entries, and session-end observations. Each card renders with the Repairs primitive (severity, is_fixable, dismiss, snooze). The dismiss path reuses the existing /experts/{expert_id}/snooze endpoint. The 'snooze for a day' affordance is the fix action for expert signals. The new endpoint returns the SAME shape as /repairs so the client renders both from one component. Don't add a new component; reuse the one KX-05-02 lands.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "One /signals gateway endpoint returns RepairsIssue-shaped records from signal_store + expert_inbox_log + session-end observations",
+        "Home shows a signals card that uses the Repairs primitive (one component, two data shapes)",
+        "Asking 'anything to flag' in chat returns the same feed as cards with working dismiss/snooze buttons",
+        "Dismiss action updates signal_store.mark_processed and (for expert signals) increments expert_snooze for the topic_hash",
+        "Snooze action calls the existing /experts/{expert_id}/snooze endpoint (no new mutation path)",
+        "make ui-test passes; npm run build passes; python3.12 -m pytest tests/ -q passes"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components/RepairsCard.tsx",
+        "gateway/kitty-chat/src/components/HomeState.tsx",
+        "gateway/kitty-chat/src/lib/",
+        "gateway/routes/signals.py",
+        "gateway/routes/",
+        "gateway/signal_store.py",
+        "gateway/kitty-chat/src/__tests__/",
+        "tests/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 8 },
+      "validation_commands": ["make ui-test", "npm run build", "python3.12 -m pytest tests/ -q --tb=short"]
+    },
+    {
+      "id": "KX-06-02-deadline-cards",
+      "title": "Deadline / phone / what-changed cards as Repairs primitive instances",
+      "objective": "Home has three cards today — 'deadlines' (text: 'documents and mail for due dates and obligations'), 'phone access' (text: 'ui.tailnet and make sure Tailscale is running on this Mac'), and 'what changed' (text: 'no snapshot yet — POST /state/snapshot to create a baseline') — all empty-state jargon with developer-speak. Replace with one DeadlineCard component that fetches the existing /deadlines + /phone_access + /state endpoints (and any other 'thing on your phone' surface) and renders each as a RepairsCard instance: plain-English title, status icon, action button. Same component as Repairs + Signals. The Tailscale card becomes an actionable card (translation_key='phone.tailscale_required', is_fixable=true, fix_action='tailscale.open_app'). The 'POST /state/snapshot' card is replaced with a 'mark a baseline' action button.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "One DeadlineCard component renders deadlines, phone access, and what-changed entries using the Repairs primitive",
+        "No user-facing string contains 'POST /state/snapshot', 'ui.tailnet', 'Tailscale is running', or 'use ./kitty' (snapshot test)",
+        "The phone-access card has a fix button that opens the Tailscale app or shows a graceful 'not installed on this Mac' empty state",
+        "The what-changed card has a 'mark baseline' action that POSTs to /state/snapshot without showing the route in the UI",
+        "make ui-test passes; npm run build passes; python3.12 -m pytest tests/ -q passes"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components/HomeState.tsx",
+        "gateway/kitty-chat/src/components/",
+        "gateway/kitty-chat/src/lib/",
+        "gateway/routes/",
+        "gateway/kitty-chat/src/__tests__/",
+        "tests/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 7 },
+      "validation_commands": ["make ui-test", "npm run build", "python3.12 -m pytest tests/ -q --tb=short"]
+    }
+  ]
+}
