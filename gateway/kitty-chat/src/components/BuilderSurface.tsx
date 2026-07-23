@@ -1109,11 +1109,11 @@ function BuilderInitiativeCards({ snapshot }: { snapshot: NonNullable<BuilderSta
               gap: 10,
               borderLeft: `3px solid ${statusColor}`,
             }}
-            aria-label={`${init.title}: ${statusLabel}`}
+            aria-label={`Initiative progress: ${init.title}`}
           >
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {init.title}
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {init.initiative_id}
               </span>
               <span style={{
                 fontFamily: 'var(--font-mono)',
