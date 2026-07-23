@@ -1116,6 +1116,29 @@ def _cmd_initiative_list(args: argparse.Namespace) -> int:
     from gateway.builder_initiative import list_initiatives
 
     initiatives = list_initiatives()
+
+    if args.needs_attention:
+        from gateway.builder_initiative import (
+            InitiativeNotFoundError,
+            initiative_status,
+        )
+
+        filtered: list[dict[str, Any]] = []
+        for item in initiatives:
+            try:
+                status = initiative_status(item["id"])
+            except InitiativeNotFoundError:
+                continue
+            if status.get("state") == "paused" or status.get("stop_class") == "needs_decision":
+                filtered.append(item)
+        initiatives = filtered
+        if not initiatives:
+            if args.json:
+                print(json.dumps([], indent=2))
+            else:
+                print("Nothing needs attention.")
+            return 0
+
     if args.json:
         print(json.dumps(initiatives, indent=2, default=str))
         return 0
@@ -1736,7 +1759,10 @@ COMMANDS: list[CommandSpec] = [
                  _a("--dry-run", "validate and report without mutating", action="store_true"),
                  _a("--json", "output JSON", action="store_true")]),
     CommandSpec("initiative-list", "initiative", "list", "list initiatives",
-                _cmd_initiative_list, [_a("--json", "output JSON", action="store_true")]),
+                _cmd_initiative_list, [
+                    _a("--needs-attention", "filter to initiatives needing operator attention (paused or needs_decision stop class)", action="store_true"),
+                    _a("--json", "output JSON", action="store_true"),
+                ]),
     CommandSpec("initiative-show", "initiative", "show", "show an initiative and its packet-to-task mappings",
                 _cmd_initiative_show,
                 [_a("id", "initiative ID"), _a("--json", "output JSON", action="store_true")]),
