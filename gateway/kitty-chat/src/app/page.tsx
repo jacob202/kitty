@@ -17,35 +17,18 @@ import { inferMood } from '@/lib/mood';
 import { TopBar } from '@/components/TopBar';
 import { ThreadGoal } from '@/components/ThreadGoal';
 import { SignalFeed } from '@/components/SignalCard';
-import { KittyThread } from '@/components/KittyThread';
 import { InputBar } from '@/components/InputBar';
-import { HomeState } from '@/components/HomeState';
 import { Rail } from '@/components/Rail';
 import { SessionSidebar } from '@/components/SessionSidebar';
-import { TaskPanel } from '@/components/TaskPanel';
-import { TodoPanel } from '@/components/TodoPanel';
-import { TerminalStrip } from '@/components/TerminalStrip';
-import { AgentPanel } from '@/components/AgentPanel';
-import { MonitorPanel } from '@/components/MonitorPanel';
-import { ImageGenPanel } from '@/components/ImageGenPanel';
-import { ImageStudio } from '@/components/ImageStudio';
-import { TutorPanel } from '@/components/TutorPanel';
-import { ProjectsPanel } from '@/components/ProjectsPanel';
-import { DocumentsPanel } from '@/components/DocumentsPanel';
-import { ProviderCenter } from '@/components/ProviderCenter';
-import { SettingsPanel } from '@/components/SettingsPanel';
-import { BuilderPanel } from '@/components/BuilderSurface';
 import { OnboardingModal } from '@/components/OnboardingModal';
-import { LoopWatch } from '@/components/LoopWatch';
-import { InsightFeed } from '@/components/InsightFeed';
-import { PromptToolkit } from '@/components/PromptToolkit';
 import { CommandPalette } from '@/components/CommandPalette';
 import { ActiveTaskCards } from '@/components/ActiveTaskCards';
 import { KittyRuntimeProvider } from '@/components/KittyRuntimeProvider';
-import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ViewRenderer } from '@/components/ViewRenderer';
 import { StatusBar } from '@/components/StatusBar';
 import { WobFilters, PaperGrain } from '@/components/WobFilters';
 import { CatCorner, type CatState } from '@/components/CrayonCat';
+import { useKittyState } from '@/hooks/useKittyState';
 import {
   buildGatewayModels,
   fetchGatewaySearch,
@@ -55,6 +38,7 @@ import {
 } from '@/lib/gateway';
 import { validateAttachments, type AttachmentError } from '@/lib/attachment-validation';
 import { usePwaInstall } from '@/lib/pwa';
+import { REDIRECTS } from '@/lib/views';
 import {
   useGatewayBrief,
   useGatewayModels,
@@ -67,6 +51,7 @@ import {
   usePrompts,
   useToggleLoop,
   useDismissInsight,
+  hasActiveBuilderRun,
 } from '@/lib/queries';
 
 const MOBILE_BREAKPOINT = 900;
@@ -132,51 +117,6 @@ function getInitials(email?: string): string {
 
 const USER_INITIALS = getInitials('jacobbrizinski@gmail.com');
 
-function ToolCard({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        background: 'var(--surface)',
-        border: '1.5px solid var(--line)',
-        borderRadius: 12,
-        padding: 16,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 12,
-      }}
-    >
-      <div
-        style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10,
-          fontWeight: 700,
-          letterSpacing: '0.12em',
-          textTransform: 'lowercase',
-          color: 'var(--ink-2)',
-          paddingBottom: 8,
-          borderBottom: '1px solid var(--line)',
-        }}
-      >
-        {title}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function panelPadding(isMobile: boolean): React.CSSProperties {
-  return {
-    flex: 1,
-    padding: isMobile ? '16px 12px 124px' : '24px 32px 40px',
-    display: 'grid',
-    gap: 16,
-    alignContent: 'start',
-    maxWidth: 860,
-    width: '100%',
-    margin: '0 auto',
-  };
-}
-
 function latestSearchQuery(chat: Chat | null): string {
   if (!chat) return '';
   const lastUser = [...chat.messages]
@@ -201,7 +141,10 @@ export default function KittyChat() {
 
 function KittyChatInner() {
   const [chats, setChats] = useState<Chat[]>(() => [makeChat('teal')]);
-  const [activeView, setActiveView] = useState('home');
+  const [activeView, setRawView] = useState('home');
+  const setActiveView = useCallback((v: string) => {
+    setRawView(REDIRECTS[v] ?? v)
+  }, []);
   const [activeChatId, setActiveChatId] = useState<string | null>(() => null);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -228,8 +171,6 @@ function KittyChatInner() {
   const [attachments, setAttachments] = useState<MessageAttachment[]>([]);
   // CR-07: one-shot model override — applies to the next message only.
   const [overrideModel, setOverrideModel] = useState<Model | null>(null);
-
-  const catState: CatState = isStreaming ? 'working' : (lastOutcome ?? 'idle');
 
   useEffect(() => {
     fetch('/proxy/chats')
@@ -315,6 +256,12 @@ function KittyChatInner() {
   const modelsQuery = useGatewayModels();
   const runtimeQuery = useGatewayRuntimeManifest();
   const projectsQuery = useProjects();
+
+  const catState = useKittyState({
+    isStreaming,
+    lastError: lastOutcome === 'broke',
+    builderActive: runtimeQuery.data ? hasActiveBuilderRun(runtimeQuery.data) : false,
+  });
   const activeProjectQuery = useActiveProject();
   const setActiveProject = useSetActiveProject();
   const briefQuery = useGatewayBrief();
@@ -991,159 +938,41 @@ function KittyChatInner() {
             minHeight: 0,
           }}
         >
-          <ErrorBoundary name={activeView}>
-            {activeView === 'tasks' ? (
-              <div
-                style={{
-                  flex: 1,
-                  padding: isMobile ? '16px 12px 124px' : '24px 32px 40px',
-                  display: 'grid',
-                  gap: 24,
-                  alignContent: 'start',
-                }}
-              >
-                <TaskPanel />
-                <TodoPanel />
-              </div>
-            ) : activeView === 'tools' ? (
-              <div
-                style={{
-                  flex: 1,
-                  padding: isMobile ? '16px 12px 124px' : '20px 24px 40px',
-                  display: 'grid',
-                  gridTemplateColumns: `repeat(auto-fit, minmax(${isMobile ? 280 : 340}px, 1fr))`,
-                  gap: 20,
-                  alignContent: 'start',
-                }}
-              >
-                <ToolCard title="agents">
-                  <AgentPanel />
-                </ToolCard>
-                <ToolCard title="monitors">
-                  <MonitorPanel />
-                </ToolCard>
-                <ToolCard title="image gen">
-                  <ImageGenPanel />
-                </ToolCard>
-                <ToolCard title="tutor">
-                  <TutorPanel />
-                </ToolCard>
-                <LoopWatch loops={loops} onToggle={handleLoopToggle} isLoading={loopsQuery.isLoading} />
-                <InsightFeed
-                  insights={insights}
-                  onDismiss={handleInsightDismiss}
-                  onAction={handleInsightAction}
-                  isLoading={insightsQuery.isLoading}
-                />
-                <PromptToolkit
-                  templates={promptTemplates}
-                  onSelect={(tpl) => handlePromptSelect(tpl.content)}
-                  isLoading={promptsQuery.isLoading}
-                />
-              </div>
-            ) : activeView === 'terminal' ? (
-              <div
-                style={{
-                  flex: 1,
-                  padding: isMobile ? '16px 12px 124px' : '24px 32px 40px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                }}
-              >
-                <TerminalStrip title="gateway log" maxLines={100} />
-              </div>
-            ) : activeView === 'projects' ? (
-              <div style={panelPadding(isMobile)}>
-                <ProjectsPanel />
-              </div>
-            ) : activeView === 'docs' ? (
-              <div style={panelPadding(isMobile)}>
-                <DocumentsPanel />
-              </div>
-            ) : activeView === 'providers' ? (
-              <div style={panelPadding(isMobile)}>
-                <ProviderCenter />
-              </div>
-            ) : activeView === 'agents' ? (
-              <div style={panelPadding(isMobile)}>
-                <ToolCard title="agents — spawn, watch, stop">
-                  <AgentPanel />
-                </ToolCard>
-              </div>
-            ) : activeView === 'studio' ? (
-              <ImageStudio />
-            ) : activeView === 'images' ? (
-              <div style={panelPadding(isMobile)}>
-                <ToolCard title="image lab — local pipeline">
-                  <ImageGenPanel />
-                </ToolCard>
-                <p
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 11,
-                    color: 'var(--ink-2)',
-                    lineHeight: 1.6,
-                  }}
-                >
-                  runs on the local engine via the gateway. ComfyUI stays an external service —
-                  planned, not wired.
-                </p>
-              </div>
-            ) : activeView === 'tutor' ? (
-              <div style={panelPadding(isMobile)}>
-                <ToolCard title="tutor — learn, quiz, master">
-                  <TutorPanel />
-                </ToolCard>
-              </div>
-            ) : activeView === 'settings' ? (
-              <div style={panelPadding(isMobile)}>
-                <SettingsPanel theme={theme} onToggleTheme={handleToggleTheme} />
-              </div>
-            ) : activeView === 'builder' ? (
-              <div style={panelPadding(isMobile)}>
-                <BuilderPanel onBack={() => setActiveView('home')} />
-              </div>
-            ) : activeView === 'chat' ? (
-              <KittyThread
-                messages={activeChat?.messages ?? []}
-                chatId={activeChat?.id ?? ''}
-                isStreaming={isStreaming}
-                catState={catState}
-                compact={isMobile}
-                onRetry={handleRetry}
-                onStartClick={() => textareaRef.current?.focus()}
-                onChipClick={(chip) => {
-                  setInput(chip);
-                  textareaRef.current?.focus();
-                }}
-              />
-            ) : activeView === 'home' ? (
-              <HomeState
-                compact={isMobile}
-                preferredName={preferredName}
-                onDecideInChat={handleDecideInChat}
-                onNavigate={setActiveView}
-              />
-            ) : (
-              <div
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 12,
-                  fontFamily: 'var(--font-mono)',
-                  color: 'var(--ink-2)',
-                  fontSize: 14,
-                }}
-              >
-                <span style={{ fontSize: 32, opacity: 0.3 }}>?</span>
-                <span>{activeView} view</span>
-                <span style={{ fontSize: 12, color: 'var(--ink-2)' }}>coming soon</span>
-              </div>
-            )}
-          </ErrorBoundary>
+          <ViewRenderer
+            view={activeView}
+            compact={isMobile}
+            theme={theme}
+            onToggleTheme={handleToggleTheme}
+            chatProps={{
+              messages: activeChat?.messages ?? [],
+              chatId: activeChat?.id ?? '',
+              isStreaming,
+              catState,
+              onRetry: handleRetry,
+              onStartClick: () => textareaRef.current?.focus(),
+              onChipClick: (chip: string) => { setInput(chip); textareaRef.current?.focus(); },
+            }}
+            homeProps={{
+              preferredName,
+              onDecideInChat: handleDecideInChat,
+              onNavigate: setActiveView,
+            }}
+            builderProps={{
+              onBack: () => setActiveView('home'),
+            }}
+            toolsProps={{
+              loops,
+              insights,
+              promptTemplates,
+              onLoopToggle: handleLoopToggle,
+              onInsightDismiss: handleInsightDismiss,
+              onInsightAction: handleInsightAction,
+              onPromptSelect: handlePromptSelect,
+              loopsLoading: loopsQuery.isLoading,
+              insightsLoading: insightsQuery.isLoading,
+              promptsLoading: promptsQuery.isLoading,
+            }}
+          />
         </div>
 
         {activeView === 'chat' && <ActiveTaskCards compact={isMobile} />}

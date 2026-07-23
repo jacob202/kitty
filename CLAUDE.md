@@ -102,3 +102,9 @@ If a command fails, report the failure exactly. Do not round up to passing.
 - "execution state" → Builder's durable store through supported Builder projections
 - "Goose" → external chat tool, not part of kitty runtime
 - "Honcho" → `gateway/honcho.py` — weekly pattern mirror, wired to kitty_tools route
+
+## Cross-tool knowledge base
+
+`~/kb` holds cross-tool session history and learnings (Claude Code, Codex,
+ChatGPT, OpenCode) that outlive this repo. See `~/kb/CLAUDE.md`; ingest new
+resources with the `add-new-resource` skill documented there.

@@ -1,26 +1,30 @@
-# Session State — PR 229 reconciled, INIT-1 v2 ready for B1
+# Session State — Builder cleanup + KX-05 in flight + companion harvest (in progress)
 
 <!-- kitty-state
 {
   "schema_version": 1,
-  "updated_at": "2026-07-23T03:45:00Z",
-  "head_sha": "5533deb376540309e0948cadb7a4d9e7eb815d6c",
+  "updated_at": "2026-07-23T19:45:00Z",
+  "head_sha": "050d939",
   "branch": "main",
   "worktree": ".",
   "status": "in_progress",
   "completed_items": [
-    "PR #229 reconciled: it silently collided with main's L-CAND-14/15 lessons under the same slot numbers (git's textual merge auto-resolved it by deleting main's entries) — restored both, renumbered the PR's two lessons to L-CAND-16/17, took main's current .claude/HANDOFF.md/STATE.md over the branch's stale copies. Merged as #229 (squash, 3e352a0) after all 7 checks went green.",
-    "B1-dogfood-preflight adjudicated: exhausted at 2/2 attempts on a repo:identity false-positive in builder doctor, root-cause-fixed in main (ebd1a93) after INIT-1 v1 was already applied. Manifests are immutable (InitiativeConflictError) and base_sha is resolved once at apply time, so v1 could never pick up the fix. Paused v1 with a documented reason, applied kitty-endgame-init-1-builder-closeout-v2 (same 5 packets, fresh base_sha) — B1 is eligible again.",
-    "val-cli / val-cli-fail duplicate initiatives resolved: both were CLI-validation test fixtures from 2026-07-20 (placeholder objective 'Do the first thing', validation_commands true/false), not real work. Operator-cancelled all 4 tasks across both; they now show state=failed instead of confusing duplicate 'active' Kitty Alpha build entries.",
-    "Merge rail fixed (docs/LEARNINGS.md L-CAND-15, both halves): merge_and_verify (gateway/builder_publish.py) now rebases the packet's own branch onto fresh main and force-pushes-with-lease only on a clean rebase, retrying the merge once — a rebase conflict is never force-pushed, the original error still propagates. Documented as ADR 0018 amendment 7. CLAUDE.md's Session State section now tells sessions to re-read STATE.md/HANDOFF.md fresh before writing and not clobber a different active workstream's narrative; clarified the convention is for Jacob's interactive sessions, not isolated Builder workers (whose brief already forbids touching .claude/).",
-    "Verified via runtime manifest (curl against /runtime/manifest, the exact endpoint BuilderSurface.tsx consumes): val-cli/val-cli-fail show failed, INIT-1 v1 shows paused with the documented reason, INIT-1 v2 shows active with next_packet=B1-dogfood-preflight. Started the kitty-chat dev server (was dead, PID from a prior note had died) to do this check live, not from code inspection.",
-    "All 171 focused tests pass (test_builder_publish.py, test_builder_initiative.py, test_builder_doctor.py). kitty doctor: 36 pass/8 warn/0 fail. builder initiative doctor: 13 pass/1 warn/0 fail (warn = expected paused-initiative list)."
+    "Closed 4 stale PRs (#230, #232, #233, #234); deleted 5 local + all 132 remote branches",
+    "Merged 10 branches into main; reverted fix/img01-reconcile-job-contract (broken API migration)",
+    "Created/validated KX-03 + KX-04 manifests; applied KX-03",
+    "Builder queue cleanup: backed up DB, ran queue recover, cancelled 11 zombies (closeout-v1 x5, chat-recovery x4, cp08-a x1, stray test x1). Queue: 11 queued real, 2 blocked (decisions: RE-C1 + cp08b re-queued; cp08-campaign-b resumed)",
+    "Dogfooded Kitty fresh-profile: onboarding-does-nothing, jargon Home, DSML markup leak, Builder read-only, 24-needs-attention projection bug, status-strip flapping, ActiveTaskCards junk, name unused",
+    "Drafted KX-05-companion-layer-v1.json (5 packets, validated) and APPLIED to queue: kb_mrxwv39z_76ad / kb_mrxwv3a0_8a2a / kb_mrxwv3a0_0646 / kb_mrxwv3a0_9d04 / kb_mrxwv3a0_07cf",
+    "Launched all 5 KX-05 packets in parallel (free ladder, timeout 2400s) via staggered run-packet invocations after first race hit git index.lock; all running on opencode-free workers",
+    "KB review: fixed ~/kb/wiki/skill-audit.md Gaps section to mark SHIPLOG as not-yet-built; added cross-tool KB pointer to kitty CLAUDE.md",
+    "Deep harvest: cloned assistant-ui, bolt.diy, anything-llm (sparse), OpenHands (sparse), home-assistant/frontend (sparse repairs) to /Users/jacobbrizinski/.local/share/opencode/tool-output/. Extracted: assistant-ui EDGE_CASES (10 solved problems), bolt.diy #validateShellCommand + ActionStatus discriminated union, anything-llm Citation grouping + SourceTypeCircle, OpenHands i18n-keyed event titles + trimText + should-render-event, HA RepairsIssue model + fix-flow",
+    "Wrote docs/AUDIT_COMPANION_LAYER_HARVEST_2026-07-23.md (396 lines): per-repo architecture + code-with-paths + workflows + solved-problems register (18 entries) + updated code-harvest register (13 adapt candidates) + KX-05 packet mapping"
   ],
   "blockers": [],
-  "next_action": "Jacob runs B1-dogfood-preflight (and the rest of INIT-1 v2's chain) himself via KittyBuilder's CLI/UI now that the queue is clean and the merge rail is fixed — this was his explicit ask, not something to run unattended on his behalf.",
+  "next_action": "Poll KX-05 workers; when they land, review results. If any fails, decide retry vs accept (max 2 attempts per packet).",
   "invalidation_conditions": [
-    "HEAD changes beyond 5533deb376540309e0948cadb7a4d9e7eb815d6c",
-    "origin/main advances beyond 5533deb376540309e0948cadb7a4d9e7eb815d6c"
+    "HEAD changes beyond 050d939",
+    "KX-05 worker outcomes (attempts complete or timeout)"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
@@ -29,25 +33,13 @@
 
 ## Current checkpoint
 
-`main` = `origin/main` at `5533deb`, pushed. PR #229 merged. Merge-rail gap
-(L-CAND-15) fixed and documented (ADR 0018 amendment 7). `.claude/`
-clobbering gap (L-CAND-16) fixed via a CLAUDE.md scoping addition.
+`main` at `050d939`. Builder queue clean (11 real queued, 2 decision-needed).
+KX-05 applied, 5 packets running on free workers.
+Harvest doc written; KB review fixes applied.
+Uncommitted: docs/AUDIT_COMPANION_LAYER_HARVEST_2026-07-23.md (new), docs/initiatives/kx-05-companion-layer-v1.json (applied), opencode.jsonc + this file (modified), docs/kb-skill-audit.md (new), CLAUDE.md (cross-tool pointer).
 
-## Endgame checkpoint
+## Next session
 
-`kitty-endgame-init-1-builder-closeout-v1` is paused (exhausted B1, immutable
-manifest, documented reason in its pause_reason). `-v2` is active with B1
-eligible — same 5 packets, fresh base_sha off current main. Nothing else in
-the whole queue is eligible right now, so there is no cross-initiative
-collision risk to worry about when B1 runs.
+1. Review KX-05 worker outputs; merge successes; triage failures
+2. KX-05 still open: ~/kb SHIPLOG.md, reasoning-backend v1 (now re-queued)
 
-## Known follow-up
-
-- The CP-06 tripwire and auto-revert path are still unexercised — no revert
-  has occurred in real use yet. A deliberate revert drill (daily-driver plan
-  §3.3, negative test 4) is still owed before trusting them unattended.
-- `feat/reasoning-engine-current` remains Jacob's separate live WIP,
-  untouched by this session.
-- The kitty-chat dev server needs to be started manually
-  (`cd gateway/kitty-chat && npm run dev`) — it is not managed by launchd
-  like gateway/litellm, so it doesn't survive a reboot/logout on its own.

@@ -3,8 +3,11 @@ import { CatMark } from './CrayonCat'
 
 const NAV_ITEMS: { label: string; view: string; d: string }[] = [
   { label: 'home',      view: 'home',      d: 'M3 11 L12 3 L21 11 M6 9 V20 H18 V9' },
-  { label: 'chats',     view: 'chat',      d: 'M4 5 H20 V15 H10 L5 19 V15 H4 Z' },
+  { label: 'chat',      view: 'chat',      d: 'M4 5 H20 V15 H10 L5 19 V15 H4 Z' },
+  { label: 'work',      view: 'work',      d: 'M5 4 H19 V20 H5 Z M8 8 H10 M14 8 H16 M8 12 H16 M8 16 H12' },
+  { label: 'studio',    view: 'studio',    d: 'M3 4 H21 V20 H3 Z M7 8 L10 4 L13 8 M7 14 L10 10 L13 14' },
   { label: 'builder',   view: 'builder',   d: 'M5 4 H19 V20 H5 Z M8 8 H16 M8 12 H16 M8 16 H12' },
+  { label: 'library',   view: 'library',   d: 'M4 5 H13 V19 H4 Z M17 7 H20 V17 H17 Z M17 5 L14 8' },
   { label: 'settings',  view: 'settings',  d: 'M4 7 H20 M4 12 H20 M4 17 H20 M9 5 V9 M15 10 V14 M8 15 V19' },
 ]
 
@@ -62,7 +65,7 @@ export function Rail({ activeView = 'home', onViewChange, theme = 'cosmic', onTo
               }}
             >
               <svg viewBox="0 0 24 24" style={{ width: 23, height: 23 }}>
-                <path d={d} stroke="currentColor" strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" filter="url(#wob)" />
+                <path d={d} stroke="currentColor" strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               <span style={{ fontSize: 10, letterSpacing: '0.02em', fontWeight: 600 }}>{label}</span>
             </button>
@@ -82,7 +85,7 @@ export function Rail({ activeView = 'home', onViewChange, theme = 'cosmic', onTo
         }}
       >
         <svg viewBox="0 0 24 24" style={{ width: 21, height: 21 }}>
-          <path d={themeIconPath} stroke="currentColor" strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" filter="url(#wob)" />
+          <path d={themeIconPath} stroke="currentColor" strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
 

@@ -156,7 +156,7 @@ export function useGatewayRuntimeManifest(projectId?: number) {
   })
 }
 
-function hasActiveBuilderRun(manifest: GatewayRuntimeManifest | undefined): boolean {
+export function hasActiveBuilderRun(manifest: GatewayRuntimeManifest | undefined): boolean {
   const initiatives = manifest?.execution.builder.value?.initiatives
   return initiatives?.some((initiative) => initiative.packets.some((packet) => (
     packet.run?.state === 'starting'

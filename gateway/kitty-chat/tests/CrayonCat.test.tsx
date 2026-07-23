@@ -1,6 +1,14 @@
 import { render, cleanup } from '@testing-library/react';
-import { describe, expect, it, afterEach } from 'vitest';
+import { describe, expect, it, afterEach, vi, beforeEach } from 'vitest';
 import { CatCorner } from '../src/components/CrayonCat';
+
+beforeEach(() => {
+  vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
+    matches: false,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  }))
+})
 
 describe('CrayonCat responsive mascot', () => {
   afterEach(cleanup);
