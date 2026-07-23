@@ -1,0 +1,97 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kx-03-shell-consolidation-v1",
+  "title": "KX-03: Shell decomposition and surface consolidation",
+  "description": "Continuation of the Kitty Endgame KX lane (after KX-01 resume/presentation and KX-02 chat execution). This is the structural fix behind 'the UI sucks': page.tsx is a 1314-line monolith switching 14 activeView states across 46 components, which is exactly the nine-panels-sharing-CSS-variables problem KFX-001 was chartered to kill. KX-03 decomposes the shell, collapses 14 views into the 7-surface model established by KX-01 and KX-02's rail, wires the mascot state machine to real system state per design-system/KITTY.md, and removes the root design clutter. Recommended worker tier: FREE ladder for all packets; KX-03-02 view-collapse mapping is PREMIUM-authored (it is authored inside this manifest, so execution is FREE). Sequencing: KX-03-01 and KX-03-04 may run any time after KX-01-01/KX-01-02 merge; KX-03-02 must not run concurrently with any other packet touching page.tsx. Per the Endgame plan, KX packets that do not touch Home/brief queue behind Gate M2 (first real morning use).",
+  "packets": [
+    {
+      "id": "KX-03-01-shell-decomposition",
+      "title": "Decompose page.tsx into a view registry with lazy-loaded surface modules",
+      "objective": "Extract the 14-branch activeView switcher from gateway/kitty-chat/src/app/page.tsx into a typed view registry (src/lib/views.ts) mapping view id -> { component, title, icon, railSlot }. Each surface becomes a lazy-loaded module via next/dynamic so first paint only loads the active surface. page.tsx retains: providers, shell layout (Rail/TopBar/BottomNav/RightPanel), view state, and command palette wiring. No visual change is permitted in this packet - it is a pure structural refactor verified by the existing smoke suite. Target: page.tsx under 300 lines.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "page.tsx is under 300 lines and contains no per-surface JSX beyond the registry lookup",
+        "src/lib/views.ts exports the typed registry consumed by Rail, BottomNav, and CommandPalette from one source",
+        "All 14 existing views remain reachable and render identically (screenshot diff noted in PR)",
+        "Non-active surfaces are code-split (verify via next build output showing separate chunks)",
+        "make ui-test passes; npm run build passes"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/app/page.tsx",
+        "gateway/kitty-chat/src/lib/views.ts",
+        "gateway/kitty-chat/src/lib/types.ts",
+        "gateway/kitty-chat/src/components/Rail.tsx",
+        "gateway/kitty-chat/src/components/BottomNav.tsx",
+        "gateway/kitty-chat/src/components/CommandPalette.tsx",
+        "gateway/kitty-chat/src/__tests__/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 10 },
+      "validation_commands": ["make ui-test", "npm run build"]
+    },
+    {
+      "id": "KX-03-02-view-collapse",
+      "title": "Collapse 14 views into the 7-surface model from KX-01 navigation",
+      "objective": "Apply this authored mapping (do not invent a different one): Home stays. Chat stays. Work = tasks + todos merged into one surface built on WorkCard/StatusBadge with a segmented filter, not two panels stacked. Studio = images + studio merged; ImageGenPanel becomes the generate tab inside ImageStudio. Builder stays. Library = projects + docs merged with a type filter. Settings = settings + providers (ProviderCenter becomes a Settings tab); terminal becomes a global slide-up drawer available from any surface (keep TerminalStrip as the affordance); agents/tools/tutor content moves to a 'Skills' section inside Settings until any of them earns daily use - do not delete the components, unroute them. Update the registry, rail, bottom tabs, and command palette to exactly 7 primary surfaces. Redirect stale view ids to their new home so deep links do not break.",
+      "depends_on": ["KX-03-01-shell-decomposition"],
+      "acceptance_criteria": [
+        "Rail (desktop) and bottom tab bar (mobile) show exactly 7 primary surfaces matching KX-01 and KX-02",
+        "tasks/todos render as one Work surface using shared WorkCard and StatusBadge, zero bespoke card styles",
+        "images/studio render as one Studio surface; providers reachable only under Settings",
+        "Terminal drawer opens from any surface via TerminalStrip and a palette command",
+        "All old activeView ids resolve (redirect) rather than 404 or blank-render",
+        "make ui-test passes; npm run build passes; screenshot of rail + each merged surface attached to PR"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/lib/views.ts",
+        "gateway/kitty-chat/src/app/page.tsx",
+        "gateway/kitty-chat/src/components/",
+        "gateway/kitty-chat/src/__tests__/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 9 },
+      "validation_commands": ["make ui-test", "npm run build"]
+    },
+    {
+      "id": "KX-03-03-design-clutter-cleanup",
+      "title": "Single canonical token source; archive root design clutter",
+      "objective": "Repo root currently carries 'tokens 2.css' (byte-similar 122-line sibling of design-system/tokens.css), 'Design system philosophy reimagine.zip', 'KITTY 2.md', 'kitty-studio-handoff.tar.gz', and 'PLAN.html'. Make design-system/tokens.css the single canonical token source: diff it against 'tokens 2.css', merge any deliberate deltas into the canonical file with a comment noting provenance, then move the four stale artifacts into design-system/archive/ (or delete the zip/tarball if their contents are already extracted in design-system/ - verify before deleting). Ensure gateway/kitty-chat/src/app/globals.css derives its theme variables from the canonical tokens (import or generated copy with a marker comment) so the next token change happens in exactly one file.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "Repo root contains no 'tokens 2.css', no design zip/tarball, no 'KITTY 2.md', no PLAN.html",
+        "A written diff summary of tokens.css vs 'tokens 2.css' appears in the PR body with the merge decision per delta",
+        "globals.css theme variables provably trace to design-system/tokens.css (import or generation marker)",
+        "npm run build passes; UI renders identically (screenshot diff noted in PR)"
+      ],
+      "allowed_paths": [
+        "tokens 2.css",
+        "KITTY 2.md",
+        "PLAN.html",
+        "Design system philosophy reimagine.zip",
+        "kitty-studio-handoff.tar.gz",
+        "design-system/",
+        "gateway/kitty-chat/src/app/globals.css"
+      ],
+      "policy": { "max_attempts": 2, "priority": 8 },
+      "validation_commands": ["npm run build"]
+    },
+    {
+      "id": "KX-03-04-mascot-state-machine",
+      "title": "Wire the four mascot states to real system state",
+      "objective": "Per design-system/KITTY.md the cat is 'a gauge with a face' and the state is load-bearing: idle (._.), working (o_o), done (^_^), broke (:[). Implement a single useKittyState hook deriving state from real signals: any in-flight chat stream, running Builder packet, or pending tool call -> working; last operation errored or a doctor/health probe failing -> broke; operation completed within the last N seconds -> done, then decay to idle. CrayonCat (and any other mascot render) consumes only this hook. Forbidden: ^_^ while anything is running, o_o at idle - encode both as unit tests. Cat animation respects prefers-reduced-motion per KX-01-06.",
+      "depends_on": ["KX-03-01-shell-decomposition"],
+      "acceptance_criteria": [
+        "One useKittyState hook is the sole source of mascot state; no component sets a face directly",
+        "Unit tests assert the two forbidden combinations cannot occur",
+        "State visibly transitions during a real chat stream and a failed request in the smoke run",
+        "Reduced-motion disables blink/animation loops",
+        "make ui-test passes; npm run build passes"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components/CrayonCat.tsx",
+        "gateway/kitty-chat/src/lib/",
+        "gateway/kitty-chat/src/__tests__/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 8 },
+      "validation_commands": ["make ui-test", "npm run build"]
+    }
+  ]
+}

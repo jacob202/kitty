@@ -1,0 +1,133 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "kx-04-surface-refit-v1",
+  "title": "KX-04: Secondary surfaces refit to the shared design system",
+  "description": "Mechanical application packets: each takes exactly one post-KX-03 surface and refits it to the shared primitives (ui/Button, ui/Card, ui/StatusBadge, ui/AsyncState, shared/WorkCard) and canonical tokens, killing bespoke one-off styling. All packets are FREE-tier by design - the spec is the shared component library plus KITTY.md; the work is substitution, not invention. One surface per packet, screenshot diff noted in every PR, no packet may touch another surface's files. All depend on KX-03-02 (view collapse) so they refit the merged surfaces, not the dead ones. Every packet inherits the global bar: min 12px text, unified border radius and spacing scale per KX-01-04, empty states via the shared EmptyState, loading via LoadingSkeleton/AsyncState, mobile-correct at 320px and 375px per KX-01-05, keyboard/ARIA baseline per KX-01-06.",
+  "packets": [
+    {
+      "id": "KX-04-01-work-surface",
+      "title": "Work surface (merged tasks+todos) on WorkCard end-to-end",
+      "objective": "Refit the merged Work surface: every task and todo renders as a shared WorkCard with StatusBadge; add/edit/complete flows use ui/Dialog and ui/Button; filters are one segmented control; delete all bespoke card, badge, and list styling left over from TaskPanel/TodoPanel. Empty and loading states via shared components only.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "Zero component-local card/badge CSS remains in the Work surface files",
+        "Complete/skip actions persist and reflect in the Home resume view (KX-01-03 wiring intact)",
+        "320px layout has no horizontal scroll and touch targets are at least 40px",
+        "make ui-test passes; npm run build passes; before/after screenshots in PR"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components/TaskPanel.tsx",
+        "gateway/kitty-chat/src/components/TodoPanel.tsx",
+        "gateway/kitty-chat/src/components/shared/",
+        "gateway/kitty-chat/src/__tests__/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 9 },
+      "validation_commands": ["make ui-test", "npm run build"]
+    },
+    {
+      "id": "KX-04-02-builder-surface",
+      "title": "Builder surface refit (965 lines) to shared primitives",
+      "objective": "BuilderSurface.tsx is the second-largest component in the app and predates the shared library. Refit: initiative and packet rows become WorkCards with StatusBadge mapped from queue states; action buttons become ui/Button; confirmation flows become ui/Dialog; long log/detail output gets a collapsible mono block consistent with KX-02 tool cards. Preserve read-only semantics from PR 183 - this packet changes presentation only, zero behavioral or API changes.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "Every Builder queue state renders through StatusBadge's vocabulary, no bespoke status colors",
+        "No behavioral diff: identical API calls before/after (assert in test or note request log in PR)",
+        "BuilderSurface.tsx shrinks by at least 250 lines from primitive reuse",
+        "make ui-test passes; npm run build passes; before/after screenshots in PR"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components/BuilderSurface.tsx",
+        "gateway/kitty-chat/src/components/shared/",
+        "gateway/kitty-chat/src/__tests__/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 8 },
+      "validation_commands": ["make ui-test", "npm run build"]
+    },
+    {
+      "id": "KX-04-03-studio-surface",
+      "title": "Studio surface (merged images+studio) refit",
+      "objective": "Refit the merged Studio surface: generation form controls to ui primitives; gallery grid to a consistent card treatment with ArtifactCard image type; job progress via StatusBadge and AsyncState; empty gallery via shared EmptyState. ImageGenPanel's duplicated form logic folds into ImageStudio tabs rather than living twice.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "One generation form implementation remains (grep proves no duplicated submit logic)",
+        "Gallery items render via ArtifactCard image type with provenance",
+        "In-flight generations show live StatusBadge state",
+        "make ui-test passes; npm run build passes; before/after screenshots in PR"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components/ImageStudio.tsx",
+        "gateway/kitty-chat/src/components/ImageGenPanel.tsx",
+        "gateway/kitty-chat/src/components/ImageGallery.tsx",
+        "gateway/kitty-chat/src/components/shared/",
+        "gateway/kitty-chat/src/__tests__/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 7 },
+      "validation_commands": ["make ui-test", "npm run build"]
+    },
+    {
+      "id": "KX-04-04-library-surface",
+      "title": "Library surface (merged projects+docs) refit",
+      "objective": "Refit the merged Library surface: projects and documents render as ArtifactCards (document/report/code types) with a type filter; open/preview flows via ui/Dialog; search input matches the global input treatment. Kill the two divergent list styles inherited from ProjectsPanel and DocumentsPanel.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "Projects and documents share one list/card implementation with a type filter",
+        "Preview opens in ui/Dialog with keyboard dismiss and focus return",
+        "Empty and loading states via shared components only",
+        "make ui-test passes; npm run build passes; before/after screenshots in PR"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components/ProjectsPanel.tsx",
+        "gateway/kitty-chat/src/components/DocumentsPanel.tsx",
+        "gateway/kitty-chat/src/components/shared/",
+        "gateway/kitty-chat/src/__tests__/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 6 },
+      "validation_commands": ["make ui-test", "npm run build"]
+    },
+    {
+      "id": "KX-04-05-settings-surface",
+      "title": "Settings surface (merged settings+providers) refit",
+      "objective": "Refit the merged Settings surface: tabbed sections (General, Providers, Skills, Advanced); ProviderCenter becomes the Providers tab with provider health via StatusBadge; theme toggle, model selection, and unrouted agents/tools/tutor entries live here per KX-03-02. Every form control uses ui primitives; destructive actions confirm via ui/Dialog.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "Providers reachable only via Settings tab; provider health uses StatusBadge vocabulary",
+        "Skills tab lists the unrouted agents/tools/tutor entries with a working launch path",
+        "No bespoke form styling remains in Settings files",
+        "make ui-test passes; npm run build passes; before/after screenshots in PR"
+      ],
+      "allowed_paths": [
+        "gateway/kitty-chat/src/components/SettingsPanel.tsx",
+        "gateway/kitty-chat/src/components/ProviderCenter.tsx",
+        "gateway/kitty-chat/src/components/shared/",
+        "gateway/kitty-chat/src/__tests__/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 6 },
+      "validation_commands": ["make ui-test", "npm run build"]
+    },
+    {
+      "id": "KX-04-06-coherence-audit",
+      "title": "Closing coherence audit against the KFX-001 bar",
+      "objective": "Final sweep after KX-04-01 through KX-04-05: walk all 7 surfaces and verify the KFX-001 test - does the product feel coherent, not is the feature wired. Produce docs/plans/KX_COHERENCE_AUDIT.md listing per surface: token compliance (grep for raw hex outside tokens), primitive usage, empty/loading/error state presence, 320px behavior, and any remaining bespoke styling with a fix-or-accept decision each. Fix only trivial items inline (single-line token swaps); anything larger becomes a listed follow-up, not scope creep.",
+      "depends_on": [
+        "KX-04-01-work-surface",
+        "KX-04-02-builder-surface",
+        "KX-04-03-studio-surface",
+        "KX-04-04-library-surface",
+        "KX-04-05-settings-surface"
+      ],
+      "acceptance_criteria": [
+        "Audit doc covers all 7 surfaces with explicit pass/fix/accept per criterion",
+        "Repo-wide grep for 6-digit hex in src/components returns only tokens-file references or documented accepts",
+        "Any inline fixes are single-line token/primitive swaps, listed in the PR body",
+        "make ui-test passes; npm run build passes"
+      ],
+      "allowed_paths": [
+        "docs/plans/KX_COHERENCE_AUDIT.md",
+        "gateway/kitty-chat/src/components/",
+        "gateway/kitty-chat/src/__tests__/"
+      ],
+      "policy": { "max_attempts": 2, "priority": 5 },
+      "validation_commands": ["make ui-test", "npm run build"]
+    }
+  ]
+}

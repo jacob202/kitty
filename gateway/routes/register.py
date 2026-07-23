@@ -33,6 +33,8 @@ from gateway.routes import (
     magic,
     memories,
     monitors,
+    network,
+    perf,
     personality,
     projects,
     prompts,
