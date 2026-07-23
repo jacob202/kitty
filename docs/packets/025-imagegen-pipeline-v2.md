@@ -41,7 +41,7 @@ when its API Server is enabled — `GET http://localhost:7860/` returns
 current setup; `POST /sdapi/v1/txt2img` takes the standard A1111 payload
 (prompt, negative_prompt, width, height, seed, steps, cfg_scale) and
 returns base64 images.
-Source: https://www.singleapi.net/2024/08/14/draw-things-web-api/
+Draw Things official project: https://github.com/drawthingsai/draw-things-community
 
 That compatibility is the architectural centre of this packet: **one new
 engine speaks to Draw Things locally AND to any A1111/Forge server on a

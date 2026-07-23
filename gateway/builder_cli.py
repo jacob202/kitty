@@ -1113,9 +1113,36 @@ def _cmd_initiative_apply(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_list(args: argparse.Namespace) -> int:
-    from gateway.builder_initiative import list_initiatives
+    from gateway.builder_initiative import (
+        InitiativeNotFoundError,
+        initiative_status,
+        list_initiatives,
+    )
 
     initiatives = list_initiatives()
+
+    if args.needs_attention:
+        from gateway.builder_initiative import (
+            InitiativeNotFoundError,
+            initiative_status,
+        )
+
+        filtered: list[dict[str, Any]] = []
+        for item in initiatives:
+            try:
+                status = initiative_status(item["id"])
+            except InitiativeNotFoundError:
+                continue
+            if status.get("state") == "paused" or status.get("stop_class") == "needs_decision":
+                filtered.append(item)
+        initiatives = filtered
+        if not initiatives:
+            if args.json:
+                print(json.dumps([], indent=2))
+            else:
+                print("Nothing needs attention.")
+            return 0
+
     if args.json:
         print(json.dumps(initiatives, indent=2, default=str))
         return 0
@@ -1123,9 +1150,29 @@ def _cmd_initiative_list(args: argparse.Namespace) -> int:
         print("No initiatives found.")
         return 0
     for item in initiatives:
+        # Fetch per-initiative health/stop_class for the compact indicator.
+        # N+1 is acceptable here: the list is typically short (single digits).
+        try:
+            status = initiative_status(item["id"])
+        except InitiativeNotFoundError:
+            status = {}
+        stop_class = status.get("stop_class")
+        health = status.get("health") or {}
+        stop_counts = (health.get("stop_class_counts") or {})
+        stop_str = (
+            ", ".join(f"{k}={v}" for k, v in sorted(stop_counts.items()))
+            if stop_counts
+            else ""
+        )
+        health_parts = []
+        if stop_class:
+            health_parts.append(f"stop={stop_class}")
+        if stop_str:
+            health_parts.append(f"classes={stop_str}")
+        health_indicator = f"  {'  '.join(health_parts)}" if health_parts else ""
         print(
             f"{item['id']}  [{item['state']}]  {item['title']}  "
-            f"({item['packet_count']} packet(s))"
+            f"({item['packet_count']} packet(s)){health_indicator}"
         )
     return 0
 
@@ -1736,7 +1783,10 @@ COMMANDS: list[CommandSpec] = [
                  _a("--dry-run", "validate and report without mutating", action="store_true"),
                  _a("--json", "output JSON", action="store_true")]),
     CommandSpec("initiative-list", "initiative", "list", "list initiatives",
-                _cmd_initiative_list, [_a("--json", "output JSON", action="store_true")]),
+                _cmd_initiative_list, [
+                    _a("--needs-attention", "filter to initiatives needing operator attention (paused or needs_decision stop class)", action="store_true"),
+                    _a("--json", "output JSON", action="store_true"),
+                ]),
     CommandSpec("initiative-show", "initiative", "show", "show an initiative and its packet-to-task mappings",
                 _cmd_initiative_show,
                 [_a("id", "initiative ID"), _a("--json", "output JSON", action="store_true")]),
