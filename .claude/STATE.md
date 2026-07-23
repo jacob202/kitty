@@ -7,7 +7,7 @@
   "head_sha": "9058c085fa7e75dc3902d73fc781f3031d5164ad",
   "branch": "main",
   "worktree": ".",
-  "status": "done",
+  "status": "complete",
   "completed_items": [
     "CP-01–07 (campaign playbook, manifest lint, stop classification, health metrics, campaign report, evidence-gated auto-merge/ADR 0018, worker resources) — all shipped and pushed to main.",
     "CP-08 dogfood: Campaign A (single-packet doc fix, cp08-campaign-a-v2) merged live via free workers through CP-06 auto-merge as PR #224.",

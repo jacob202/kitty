@@ -7,7 +7,7 @@
   "head_sha": "9058c085fa7e75dc3902d73fc781f3031d5164ad",
   "branch": "main",
   "worktree": ".",
-  "status": "done",
+  "status": "complete",
   "completed_items": [
     "KittyBuilder daily-driver plan CP-01 through CP-08 fully executed and pushed to main (9058c08). See .claude/STATE.md for the full breakdown.",
     "KB-S5 marked shipped with evidence in docs/KITTYBUILDER_SELF_BUILDING_MVP.md; retro in docs/LEARNINGS.md (L-CAND-14, L-CAND-15)."
