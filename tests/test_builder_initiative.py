@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -231,6 +232,209 @@ class TestValidation:
 
 
 # ---------------------------------------------------------------------------
+# Lint warnings (CP-02)
+# ---------------------------------------------------------------------------
+
+
+def _init_git_repo(tmp_path: Path) -> Path:
+    """A throwaway git repo so T3's ``git ls-files`` has something to answer,
+    independent of whatever the real kitty checkout happens to contain."""
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "t@example.com"], cwd=tmp_path, check=True
+    )
+    subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, check=True)
+    return tmp_path
+
+
+class TestWarnings:
+    # -- (a) acceptance_criteria without validation_commands -----------------
+
+    def test_missing_validation_commands_warns(self, tmp_path: Path):
+        m = _manifest(packets=[_packet("KB-W1")])
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert any("validation_commands" in w for w in warnings)
+
+    def test_present_validation_commands_no_false_positive(self, tmp_path: Path):
+        m = _manifest(
+            packets=[_packet("KB-W1", validation_commands=["pytest tests/"])]
+        )
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert not any("validation_commands" in w for w in warnings)
+
+    # -- (b) allowed_paths collision without a dependency relation -----------
+
+    def test_path_collision_without_dependency_warns(self, tmp_path: Path):
+        m = _manifest(
+            packets=[
+                _packet(
+                    "KB-C1",
+                    depends_on=[],
+                    allowed_paths=["gateway/shared/"],
+                    validation_commands=["true"],
+                ),
+                _packet(
+                    "KB-C2",
+                    depends_on=[],
+                    allowed_paths=["gateway/shared/a.py"],
+                    validation_commands=["true"],
+                ),
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert any("allowed_paths collide" in w for w in warnings)
+
+    def test_path_collision_with_dependency_no_false_positive(self, tmp_path: Path):
+        m = _manifest(
+            packets=[
+                _packet(
+                    "KB-C1",
+                    depends_on=[],
+                    allowed_paths=["gateway/shared/"],
+                    validation_commands=["true"],
+                ),
+                _packet(
+                    "KB-C2",
+                    depends_on=["KB-C1"],
+                    allowed_paths=["gateway/shared/a.py"],
+                    validation_commands=["true"],
+                ),
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert not any("allowed_paths collide" in w for w in warnings)
+
+    def test_disjoint_paths_no_false_positive(self, tmp_path: Path):
+        m = _manifest(
+            packets=[
+                _packet(
+                    "KB-C1",
+                    depends_on=[],
+                    allowed_paths=["gateway/a.py"],
+                    validation_commands=["true"],
+                ),
+                _packet(
+                    "KB-C2",
+                    depends_on=[],
+                    allowed_paths=["gateway/b.py"],
+                    validation_commands=["true"],
+                ),
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert not any("allowed_paths collide" in w for w in warnings)
+
+    # -- (c) prototype-shaped manifest without a "-proto" packet -------------
+
+    def test_t1_four_packets_no_proto_warns(self, tmp_path: Path):
+        m = _manifest(
+            packets=[
+                _packet(f"KB-T1-{n}", depends_on=[], allowed_paths=[f"gateway/f{n}.py"], validation_commands=["true"])
+                for n in range(4)
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert any("prototype-shaped" in w and "T1" in w for w in warnings)
+
+    def test_t2_two_subsystems_no_proto_warns(self, tmp_path: Path):
+        m = _manifest(
+            packets=[
+                _packet(
+                    "KB-T2-1",
+                    depends_on=[],
+                    allowed_paths=["gateway/f.py"],
+                    validation_commands=["true"],
+                ),
+                _packet(
+                    "KB-T2-2",
+                    depends_on=[],
+                    allowed_paths=["docs/f.md"],
+                    validation_commands=["true"],
+                ),
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert any("prototype-shaped" in w and "T2" in w for w in warnings)
+
+    def test_t3_new_directory_no_proto_warns(self, tmp_path: Path):
+        repo = _init_git_repo(tmp_path)
+        m = _manifest(
+            packets=[
+                _packet(
+                    "KB-T3-1",
+                    depends_on=[],
+                    allowed_paths=["gateway/brand_new_module/"],
+                    validation_commands=["true"],
+                )
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=repo)
+        assert any("prototype-shaped" in w and "T3" in w for w in warnings)
+
+    def test_tracked_directory_no_false_positive(self, tmp_path: Path):
+        repo = _init_git_repo(tmp_path)
+        (repo / "gateway").mkdir()
+        tracked = repo / "gateway" / "existing.py"
+        tracked.write_text("# tracked\n", encoding="utf-8")
+        subprocess.run(["git", "add", "gateway/existing.py"], cwd=repo, check=True)
+
+        m = _manifest(
+            packets=[
+                _packet(
+                    "KB-T3-2",
+                    depends_on=[],
+                    allowed_paths=["gateway/existing.py"],
+                    validation_commands=["true"],
+                )
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=repo)
+        assert not any("prototype-shaped" in w for w in warnings)
+
+    def test_proto_packet_suppresses_prototype_shaped_warning(self, tmp_path: Path):
+        m = _manifest(
+            packets=[
+                _packet(
+                    f"KB-P-{n}",
+                    depends_on=[],
+                    allowed_paths=[f"gateway/f{n}.py"],
+                    validation_commands=["true"],
+                )
+                for n in range(3)
+            ]
+            + [
+                _packet(
+                    "kitty-alpha-v1-proto",
+                    depends_on=[],
+                    allowed_paths=["docs/f.md"],
+                    validation_commands=["true"],
+                )
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert not any("prototype-shaped" in w for w in warnings)
+
+    def test_clean_manifest_has_no_warnings(self, tmp_path: Path):
+        repo = _init_git_repo(tmp_path)
+        (repo / "gateway").mkdir()
+        tracked = repo / "gateway" / "a.py"
+        tracked.write_text("# tracked\n", encoding="utf-8")
+        subprocess.run(["git", "add", "gateway/a.py"], cwd=repo, check=True)
+
+        m = _manifest(
+            packets=[
+                _packet(
+                    "KB-CLEAN-1",
+                    depends_on=[],
+                    allowed_paths=["gateway/a.py"],
+                    validation_commands=["pytest"],
+                )
+            ]
+        )
+        assert bi.warn_manifest(m, repo_root=repo) == []
+
+
+# ---------------------------------------------------------------------------
 # Apply
 # ---------------------------------------------------------------------------
 
@@ -421,6 +625,27 @@ class TestReadHelpers:
     def test_get_initiative_missing_returns_none(self, db_path: Path):
         assert bi.get_initiative("nope", db_path=db_path) is None
 
+    def test_list_initiatives_has_health_summary(self, db_path: Path):
+        bi.apply_manifest(_manifest(), db_path=db_path)
+        items = bi.list_initiatives(db_path=db_path)
+        assert len(items) == 1
+        hs = items[0].get("health_summary")
+        assert hs is not None
+        # A fresh applied initiative with queued tasks and no failures is active.
+        assert hs["state"] == "active"
+        assert hs["stop_class"] is None
+        assert hs["stop_class_reason"] is None
+
+    def test_list_initiatives_health_summary_reflects_completion(self, db_path: Path):
+        result = bi.apply_manifest(_manifest(), db_path=db_path)
+        for mapping in result["packets"]:
+            _drive_to_done(mapping["task_id"], db_path)
+
+        items = bi.list_initiatives(db_path=db_path)
+        hs = items[0]["health_summary"]
+        assert hs["state"] == bi.INITIATIVE_COMPLETED
+        assert hs["stop_class"] is None
+
 
 # ---------------------------------------------------------------------------
 # CLI
@@ -530,6 +755,44 @@ class TestCli:
         example = Path("docs/examples/kitty_alpha_initiative.example.json")
         assert example.exists(), "example manifest must ship with KB-S1A"
         assert main(["initiative", "validate", str(example)]) == 0
+
+    def test_validate_json_output_includes_warnings(
+        self, tmp_path: Path, cli_db, capsys
+    ):
+        path = _write_manifest(
+            tmp_path,
+            _manifest(packets=[_packet("KB-J1")]),  # no validation_commands
+        )
+        assert main(["initiative", "validate", str(path), "--json"]) == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["valid"] is True
+        assert payload["initiative_id"] == "kitty-alpha-v1"
+        assert any("validation_commands" in w for w in payload["warnings"])
+
+    def test_validate_warnings_do_not_change_exit_code(
+        self, tmp_path: Path, cli_db, capsys
+    ):
+        path = _write_manifest(
+            tmp_path, _manifest(packets=[_packet("KB-J2")])
+        )
+        assert main(["initiative", "validate", str(path)]) == 0
+        err = capsys.readouterr().err
+        assert "warning:" in err
+
+    def test_list_json_includes_health_summary(self, tmp_path: Path, cli_db, capsys):
+        path = _write_manifest(tmp_path, _manifest())
+        assert main(["initiative", "apply", str(path)]) == 0
+        capsys.readouterr()
+
+        assert main(["initiative", "list", "--json"]) == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert len(payload) == 1
+        entry = payload[0]
+        assert entry["id"] == "kitty-alpha-v1"
+        assert "health_summary" in entry
+        assert entry["health_summary"]["state"] == "active"
+        assert "stop_class" in entry["health_summary"]
+        assert "stop_class_reason" in entry["health_summary"]
 
 
 # ---------------------------------------------------------------------------
@@ -881,3 +1144,121 @@ class TestKbS1bCli:
     def test_status_missing_initiative(self, cli_db, capsys):
         assert main(["initiative", "status", "ghost"]) == 1
         assert "not found" in capsys.readouterr().err
+
+
+class TestCp04HealthMetrics:
+    """CP-04: read-only health block derived from attempts/events."""
+
+    def _implementation(self, status: str = "completed") -> dict:
+        return {
+            "contract_version": ba.CONTRACT_VERSION,
+            "status": status,
+            "summary": "did the thing",
+        }
+
+    def _review(self, verdict: str) -> dict:
+        return {
+            "contract_version": ba.CONTRACT_VERSION,
+            "verdict": verdict,
+            "summary": "reviewed",
+        }
+
+    def test_attempts_per_packet_and_first_pass_approval(self, db_path: Path):
+        manifest = _manifest(
+            packets=[
+                _packet("KB-H1", policy={"max_attempts": 3}),
+                _packet("KB-H2", depends_on=[]),
+            ]
+        )
+        bi.apply_manifest(manifest, db_path=db_path)
+
+        # KB-H1: first attempt request_changes, second attempt approve.
+        a1 = ba.start_attempt("kitty-alpha-v1", "KB-H1", db_path=db_path)
+        ba.record_implementation_result(a1["id"], self._implementation(), db_path=db_path)
+        ba.record_review_result(a1["id"], self._review("request_changes"), db_path=db_path)
+        ba.close_attempt(a1["id"], ba.ATTEMPT_FAILED, db_path=db_path)
+
+        a2 = ba.start_attempt("kitty-alpha-v1", "KB-H1", db_path=db_path)
+        ba.record_implementation_result(a2["id"], self._implementation(), db_path=db_path)
+        ba.record_review_result(a2["id"], self._review("approve"), db_path=db_path)
+        ba.close_attempt(a2["id"], ba.ATTEMPT_SUCCEEDED, db_path=db_path)
+
+        # KB-H2: single attempt, first-pass approve.
+        b1 = ba.start_attempt("kitty-alpha-v1", "KB-H2", db_path=db_path)
+        ba.record_implementation_result(b1["id"], self._implementation(), db_path=db_path)
+        ba.record_review_result(b1["id"], self._review("approve"), db_path=db_path)
+        ba.close_attempt(b1["id"], ba.ATTEMPT_SUCCEEDED, db_path=db_path)
+
+        health = bi.initiative_status("kitty-alpha-v1", db_path=db_path)["health"]
+        assert health["attempts_per_packet"]["avg"] == 1.5
+        assert health["attempts_per_packet"]["max"] == 2
+        # 1 of 2 packets had an approving *first* attempt.
+        assert health["first_pass_review_approval_rate"] == 0.5
+        assert health["exhausted_count"] == 0
+
+    def test_exhausted_count_reflects_attempt_budget_spent(self, db_path: Path):
+        manifest = _manifest(
+            packets=[_packet("KB-H1", policy={"max_attempts": 1})]
+        )
+        bi.apply_manifest(manifest, db_path=db_path)
+        attempt = ba.start_attempt("kitty-alpha-v1", "KB-H1", db_path=db_path)
+        ba.close_attempt(attempt["id"], ba.ATTEMPT_FAILED, db_path=db_path)
+
+        health = bi.initiative_status("kitty-alpha-v1", db_path=db_path)["health"]
+        assert health["exhausted_count"] == 1
+
+    def test_stop_class_counts_absent_when_no_decisions_made(self, db_path: Path):
+        bi.apply_manifest(_manifest(), db_path=db_path)
+        health = bi.initiative_status("kitty-alpha-v1", db_path=db_path)["health"]
+        assert health["stop_class_counts"] == {}
+
+    def test_stop_class_counts_tallied_from_decision_events(self, db_path: Path):
+        result = bi.apply_manifest(_manifest(), db_path=db_path)
+        task_id = result["packets"][0]["task_id"]
+        bq.append_event(
+            task_id,
+            "initiative_decision",
+            payload={"stop_class": "needs_decision", "decision": "packet_exhausted"},
+            db_path=db_path,
+        )
+        bq.append_event(
+            task_id,
+            "initiative_decision",
+            payload={"stop_class": "routine", "decision": "packet_succeeded"},
+            db_path=db_path,
+        )
+
+        health = bi.initiative_status("kitty-alpha-v1", db_path=db_path)["health"]
+        assert health["stop_class_counts"] == {"needs_decision": 1, "routine": 1}
+
+    def test_health_metrics_are_read_only(self, db_path: Path):
+        bi.apply_manifest(_manifest(), db_path=db_path)
+        before = sqlite3.connect(db_path).execute(
+            "SELECT COUNT(*) FROM events"
+        ).fetchone()[0]
+
+        bi.initiative_status("kitty-alpha-v1", db_path=db_path)
+
+        after = sqlite3.connect(db_path).execute(
+            "SELECT COUNT(*) FROM events"
+        ).fetchone()[0]
+        assert after == before
+
+    def test_health_block_present_in_cli_json_status(self, cli_db, capsys):
+        path = _write_manifest(cli_db.parent.parent, _manifest())
+        assert main(["initiative", "apply", str(path)]) == 0
+        capsys.readouterr()
+
+        assert main(["initiative", "status", "kitty-alpha-v1", "--json"]) == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert "health" in payload
+        assert "attempts_per_packet" in payload["health"]
+
+    def test_health_summary_line_in_human_readable_status(self, cli_db, capsys):
+        path = _write_manifest(cli_db.parent.parent, _manifest())
+        assert main(["initiative", "apply", str(path)]) == 0
+        capsys.readouterr()
+
+        assert main(["initiative", "status", "kitty-alpha-v1"]) == 0
+        out = capsys.readouterr().out
+        assert "health:" in out

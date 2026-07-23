@@ -75,8 +75,8 @@ review is only worth anything if it's independent.
 - The adapters verify task/attempt identity and bundle SHA-256 before any
   model runs, stage runner files into the worktree, and only copy validated
   contract JSON back out.
-- Nothing in this path pushes or merges. Publish stays operator-gated
-  (`--publish` on `initiative run` still goes through KB-S4b gates).
+- Publish auto-merges by default (`gate=auto`); pass `--gate manual` to park
+  at `awaiting_review` for operator review.
 - Free endpoints may log prompts. Public repo code and task instructions
   only — never `.env`, credentials, runtime personal data, or private
   memories.

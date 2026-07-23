@@ -1034,6 +1034,7 @@ def _cmd_initiative_validate(args: argparse.Namespace) -> int:
         load_manifest,
         manifest_sha256,
         validate_manifest,
+        warn_manifest,
     )
 
     try:
@@ -1048,6 +1049,26 @@ def _cmd_initiative_validate(args: argparse.Namespace) -> int:
         for error in errors:
             print(f"error: {error}", file=sys.stderr)
         return 1
+
+    warnings = warn_manifest(manifest)
+    for warning in warnings:
+        print(f"warning: {warning}", file=sys.stderr)
+
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "valid": True,
+                    "initiative_id": manifest["initiative_id"],
+                    "packet_count": len(manifest["packets"]),
+                    "manifest_sha256": manifest_sha256(manifest),
+                    "warnings": warnings,
+                },
+                indent=2,
+                default=str,
+            )
+        )
+        return 0
 
     print(
         f"OK: initiative {manifest['initiative_id']!r}, "
@@ -1168,6 +1189,20 @@ def _cmd_initiative_status(args: argparse.Namespace) -> int:
             print(f"    - {pid}")
     if status["failed"]:
         print(f"  failed:   {', '.join(status['failed'])}")
+    health = status.get("health") or {}
+    if health:
+        attempts = health.get("attempts_per_packet") or {}
+        approval = health.get("first_pass_review_approval_rate")
+        approval_str = f"{approval:.0%}" if approval is not None else "-"
+        stop_counts = health.get("stop_class_counts") or {}
+        stop_str = (
+            ", ".join(f"{k}={v}" for k, v in sorted(stop_counts.items())) or "-"
+        )
+        print(
+            f"  health:  attempts avg={attempts.get('avg', '-')} "
+            f"max={attempts.get('max', '-')}  first-pass-approval={approval_str}  "
+            f"exhausted={health.get('exhausted_count', 0)}  stop-classes: {stop_str}"
+        )
     for packet_id, evidence in status.get("evidence", {}).items():
         binding = evidence.get("review_binding") or {}
         review_sha = binding.get("review_sha", "-")
@@ -1180,6 +1215,23 @@ def _cmd_initiative_status(args: argparse.Namespace) -> int:
             f"pr_opened={evidence['pr_opened']} done={evidence['done']} "
             f"review_sha={review_sha}"
         )
+    return 0
+
+
+def _cmd_initiative_report(args: argparse.Namespace) -> int:
+    from gateway.builder_initiative import InitiativeNotFoundError
+    from gateway.builder_report import generate_report
+
+    try:
+        path = generate_report(args.id)
+    except InitiativeNotFoundError as exc:
+        print(f"error: initiative not found: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(json.dumps({"report_path": str(path)}, indent=2))
+    else:
+        print(f"report written: {path}")
     return 0
 
 
@@ -1331,6 +1383,7 @@ def _cmd_initiative_run(args: argparse.Namespace) -> int:
             provider=args.provider,
             timeout_seconds=args.timeout,
             publish=args.publish,
+            gate=args.gate,
             max_initiative_attempts=args.max_attempts,
             max_runtime_seconds=args.max_runtime,
         )
@@ -1674,7 +1727,8 @@ COMMANDS: list[CommandSpec] = [
     # -- initiative group ------------------------------------------------------
     CommandSpec("initiative-validate", "initiative", "validate", "validate an initiative manifest file",
                 _cmd_initiative_validate,
-                [_a("manifest", "path to the manifest JSON file")]),
+                [_a("manifest", "path to the manifest JSON file"),
+                 _a("--json", "output JSON", action="store_true")]),
     CommandSpec("initiative-apply", "initiative", "apply",
                 "apply a manifest: create the initiative and one queue task per packet",
                 _cmd_initiative_apply,
@@ -1689,6 +1743,10 @@ COMMANDS: list[CommandSpec] = [
     CommandSpec("initiative-status", "initiative", "status",
                 "roll up packet eligibility and initiative status (KB-S1B)",
                 _cmd_initiative_status,
+                [_a("id", "initiative ID"), _a("--json", "output JSON", action="store_true")]),
+    CommandSpec("initiative-report", "initiative", "report",
+                "write a bounded markdown campaign report to data/kittybuilder/reports/ (CP-05)",
+                _cmd_initiative_report,
                 [_a("id", "initiative ID"), _a("--json", "output JSON", action="store_true")]),
     CommandSpec("initiative-attempts", "initiative", "attempts", "list packet attempts for an initiative",
                 _cmd_initiative_attempts,
@@ -1753,6 +1811,7 @@ COMMANDS: list[CommandSpec] = [
                  _a("--provider", "provider identifier (metadata)"),
                  _a("--timeout", "worker timeout in seconds", type=int, default=3600),
                  _a("--publish", "run KB-S4b publish (operator-gated push + PR) on each succeeded packet", action="store_true"),
+                 _a("--gate", "with --publish: 'auto' (default, CP-06 evidence-gated auto-merge + auto-revert) or 'manual' (park at awaiting_review for a human merge)", default="auto", choices=["auto", "manual"]),
                  _a("--max-attempts", "per-initiative attempt budget; exceeding it pauses the initiative", type=int, default=None),
                  _a("--max-runtime", "per-initiative wall-clock budget (seconds); exceeding it pauses the initiative", type=int, default=None),
                  _a("--json", "output JSON", action="store_true")]),

@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import json
 
-from gateway.builder_brief import default_branch_name, render_worker_brief
+from gateway.builder_brief import (
+    default_branch_name,
+    render_worker_brief,
+    resources_for_paths,
+)
 
 
 def _task(**overrides) -> dict:
@@ -97,3 +101,49 @@ class TestRenderWorkerBrief:
     def test_no_events_no_section(self):
         brief = render_worker_brief(_task(), [], [])
         assert "Recent events" not in brief
+
+
+class TestCp07ResourcesForPaths:
+    def test_mapped_prefix_returns_scripts_and_skills(self):
+        result = resources_for_paths(["gateway/builder_loop.py"])
+        assert "scripts/kittybuilder_opencode_worker.sh" in result["scripts"]
+        assert "catchup" in result["skills"]
+
+    def test_unmapped_path_returns_empty_never_a_guess(self):
+        result = resources_for_paths(["gateway/some_brand_new_module.py"])
+        assert result == {"scripts": [], "skills": []}
+
+    def test_completely_unrelated_prefix_stays_empty(self):
+        result = resources_for_paths(["random_top_level_file.txt"])
+        assert result == {"scripts": [], "skills": []}
+
+    def test_dedupes_across_multiple_paths(self):
+        result = resources_for_paths(
+            ["gateway/builder_run.py", "gateway/builder_loop.py"]
+        )
+        assert result["scripts"].count("scripts/kittybuilder_opencode_worker.sh") == 1
+
+    def test_multiple_matching_prefixes_union(self):
+        result = resources_for_paths(["gateway/builder_x.py", "tests/test_x.py"])
+        assert "debug-fix" in result["skills"]
+        assert "catchup" in result["skills"]
+
+
+class TestCp07ResourcesInBrief:
+    def test_brief_lists_mapped_resources_for_builder_paths(self):
+        task = _task(allowed_paths=["gateway/builder_loop.py"])
+        brief = render_worker_brief(task, [], [])
+        assert "Resources (CP-07)" in brief
+        assert "scripts/kittybuilder_opencode_worker.sh" in brief
+        assert "catchup" in brief
+        assert "cite which you used" in brief
+
+    def test_brief_omits_resources_section_for_unmapped_paths(self):
+        task = _task(allowed_paths=["gateway/some_brand_new_module.py"])
+        brief = render_worker_brief(task, [], [])
+        assert "Resources (CP-07)" not in brief
+
+    def test_brief_omits_resources_section_when_no_allowed_paths(self):
+        task = _task(allowed_paths=None)
+        brief = render_worker_brief(task, [], [])
+        assert "Resources (CP-07)" not in brief

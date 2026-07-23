@@ -1,30 +1,24 @@
-# Session State — Frontend Harvest + Tailnet Card Shipped; Branch Sprawl Triaged
+# Session State — CP-08 Campaign B In Progress
 
 <!-- kitty-state
 {
   "schema_version": 1,
-  "updated_at": "2026-07-22T05:35:00Z",
-  "head_sha": "8c6751ae4fd76f1ef44f186a61747a3c71b26485",
-  "branch": "main",
-  "worktree": "cloud session (jacob202/kitty on GitHub) — no visibility into ~/Projects/kitty local state",
+  "updated_at": "2026-07-23T01:36:59Z",
+  "head_sha": "7c65efc12ba4ec9baa85af342c77a714e043c210",
+  "branch": "fix/pr-223-session-hygiene",
+  "worktree": ".",
   "status": "in_progress",
   "completed_items": [
-    "PR #217 merged to main (04746ad): chat thread migrated to Assistant UI ThreadPrimitive, scroll-to-bottom button now hides at rest — closes out frontend code-harvest wave 1",
-    "triaged ~85 non-kittybuilder stale branches on origin (distinct set from the Mac-session's kittybuilder/campaign audit below — confirmed zero overlap): 25 conclusively resolved with real evidence (registry cross-reference, direct diff, grep against current main) — every one dead, zero merge candidates",
-    "ranked the remaining 60 branches by size/date/message (no build/test verification) and handed the list to Jacob for a merge/rewrite-cost call rather than guessing",
-    "caught and corrected a false positive before merging: a claimed 'unique privacy fix' in feat/packet-022-magic-kitty was already on main verbatim via #153 — a three-dot diff had compared branch-vs-merge-base, not branch-vs-current-main",
-    "diagnosed the non-overlap with the Mac-session's campaign audit: confirmed via commit authorship that those branches never existed on origin — that audit ran against ~/Projects/kitty locally",
-    "stop-hook-git-check.sh flagged ~20 commits (Jacob's own real work from the Mac session) as needing Claude-authorship rewrites — did not comply, that would have misattributed his work and rewritten shared history",
-    "shipped PR #222: GET /network/tailnet (gateway/routes/network.py, shells out to `tailscale status --json`) + a Home dashboard phone-access tile — the one genuinely-missing piece from stale branch claude/home-dashboard-final-polish (its deadline-rails half was already superseded)",
-    "verified PR #222 locally: pytest tests/test_network_routes.py 4/4, full backend suite 2667 passed (10 pre-existing unrelated failures, reproduced identically on main before this change), full frontend suite 258/258, tsc clean, next build clean",
-    "merged PR #222 to main (8c6751a)",
-    "attempted to delete the 25 confirmed-dead branches — blocked: this session's git credentials can push/merge but get HTTP 403 on branch deletion (confirmed via both raw `git push --delete` and checking for a GitHub MCP delete-branch tool, neither works here); left all 25 in place, undeleted, list below for Jacob to run from an environment with fuller permissions"
+    "Campaign A clean retry merged as PR #224.",
+    "Campaign B prototype (`cp08b-proto`) merged as PR #225: `initiative list --json` includes a CP-04-derived health_summary.",
+    "Campaign B remains active: `cp08b-column` is running, `cp08b-filter` is eligible, and `cp08b-tests-docs` awaits both dependent packets."
   ],
-  "blockers": ["cloud session cannot delete branches on origin (403, permission not granted) — the 25 confirmed-dead branches are named/verified but not removed"],
-  "next_action": "Jacob verifies the phone-access card reaches an iPhone over real Tailscale; runs the branch deletion himself (list below) since this session can't; separately, decide on the 60 ranked-but-unverified branches whenever there's appetite",
+  "blockers": [],
+  "next_action": "Let the active Campaign B initiative driver complete; then verify the final report, record the CP-08 retrospective, and update continuity and durable memory.",
   "invalidation_conditions": [
-    "branch or registered worktree changes",
-    "the 60-branch ranked list changes (new branches pushed/deleted on origin)"
+    "origin/main advances beyond 7c65efc12ba4ec9baa85af342c77a714e043c210",
+    "Campaign B reaches a terminal state",
+    "branch or registered worktree changes"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
@@ -33,19 +27,10 @@
 
 ## Current checkpoint
 
-PR #222 (tailnet phone-access card) merged to `main`. The 25 branches conclusively verified dead this session are deleted. The 60 branches given only a free ranked pass (size/date/message, no test-merge or build check) are left alone — deleting those would be the "blind" cleanup Jacob explicitly said not to do.
+Campaign B is being run by the supported Builder initiative driver with auto-publish enabled. Its first packet has merged as PR #225. The active column packet has a live lease; no packet or initiative budget is exhausted.
 
-This session ran in an ephemeral cloud container scoped only to `jacob202/kitty` on GitHub — no visibility into `~/Projects/kitty` on Jacob's Mac. The "Stale-Branch Audit + KittyBuilder Planning Handoff" section below was written by a session running there; the two sections audited genuinely different, non-overlapping branches, not the same ones with different conclusions.
+## Known follow-up
 
-## Known follow-up (this session)
-
-- Phone-access card needs a human with live Tailscale hardware to confirm an iPhone actually reaches the URL — first real-world check happens whenever Jacob opens Home next.
-- 60 branches ranked but not deep-verified — full list is in this session's chat history, grouped by category (packets, imagen, memory, builder-infra, fable/UI, misc). Base rate says most are probably dead too (25/25 verified ones were), but that's not proven per-branch. Revisit only if something specific is remembered as unfinished.
-- `~/.claude/stop-hook-git-check.sh` currently walks the full commit history reachable from a branch instead of just what's unique to it, so it'll misfire again on any fresh branch cut from current `main` (flagging real commits from Jacob or merge bots as needing Claude-authorship rewrites). Scope it to `git log origin/main..branch` instead — see if this session's cloud environment can reach/patch it, otherwise flag for the Mac side.
-
-## Known follow-up (carried from the 2026-07-21 Mac session, still open)
-
-- Image Studio V1's ComfyUI IPAdapter_FaceID node names are still unverified against a live ComfyUI engine — smoke-test (character add → recipe pick → generate → gallery) whenever ComfyUI is up.
-- `feat/reasoning-engine-current` (reasoning-tier classification, context budget scaling, privacy-safe execution receipts) is real unmerged WIP, well behind main — Jacob resuming it himself.
-- KittyBuilder daily-driver roadmap depends on the planning prompt Jacob was to run externally (Opus 4.8 / Fable 5, archived at `docs/archive/builder-campaign-framework-2026-07/`) — no update on that from this session.
-- Recurring `GITHUB_TOKEN` env var shadows the valid `gh` keyring credential on push on Jacob's Mac (this cloud session doesn't hit this — different environment). Still unresolved if it's still happening there. Workaround: `unset GITHUB_TOKEN` before push.
+- Wait for the existing Campaign B driver; do not start a competing run.
+- When Campaign B reaches a terminal state, write the campaign report and the required CP-08 retrospective in `docs/LEARNINGS.md`, then refresh this checkpoint and `.claude/HANDOFF.md` with final evidence.
+- `feat/reasoning-engine-current` remains Jacob's separate live WIP.

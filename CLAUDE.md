@@ -46,7 +46,7 @@ See `.claude/rules/initiative.md`. Persona and noticing rules live in `config/SO
 1. Fail loud. No silent exception swallowing, fake defaults, or invented data.
 2. Verify before claiming. "Done" means a command ran and the output was read — name the command or MCP server used (e.g. `pytest tests/ -q`, `codegraph_explore`, a `claude-in-chrome` screenshot). If a claim can't actually be checked, say so explicitly instead of implying it was.
 3. Keep diffs small. Do not reformat or rewrite unrelated code.
-4. Do not push, force-push, rewrite history, delete files, touch secrets/auth/env, or add heavy dependencies without explicit confirmation.
+4. Do not push, force-push, rewrite history, delete files, touch secrets/auth/env, or add heavy dependencies without explicit confirmation. **Carve-out (ADR 0018, 2026-07-21):** Builder campaign branches merge automatically under `initiative run`'s evidence gate (validation green + reviewer approve + scope clean, auto-revert on post-merge red) — this is Jacob's standing approval for that path only, not a general push/merge exemption.
 5. New durable architecture decisions go in `docs/DECISIONS.md`; workflow lessons go in `docs/LEARNINGS.md`.
 
 ## Session State

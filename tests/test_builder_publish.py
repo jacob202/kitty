@@ -222,3 +222,155 @@ class TestPublishTask:
         task = bq.create_task("nope", db_path=db_path)
         with pytest.raises(bp.PublishError, match="cannot be published"):
             bp.publish_task(task["id"], db_path=db_path, dry_run=True)
+
+
+# ---------------------------------------------------------------------------
+# CP-06 — evidence-gated auto-merge + auto-revert
+# ---------------------------------------------------------------------------
+
+
+def _make_pr_opened_task(db_path: Path, tmp_path: Path, *, pr_number: int = 42) -> dict[str, Any]:
+    task = _make_blocked_task(db_path)
+    bq.transition_task(task["id"], bq.PR_OPENED, db_path=db_path)
+    bq.transition_task(task["id"], bq.AWAITING_REVIEW, db_path=db_path)
+    bq.attach_pr(task["id"], pr_number, pr_url=f"https://x/pull/{pr_number}", db_path=db_path)
+    return bq.get_task(task["id"], db_path=db_path)
+
+
+def _merge_stub(*, revalidate_ok: bool = True, merge_commit_sha: str = "deadbeef00"):
+    calls: list[list[str]] = []
+
+    def fake(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        calls.append(list(args))
+        if args[:3] == ["gh", "pr", "merge"]:
+            return subprocess.CompletedProcess(args, 0, stdout="merged\n", stderr="")
+        if args[:3] == ["gh", "pr", "view"]:
+            return subprocess.CompletedProcess(
+                args, 0,
+                stdout=json.dumps({"mergeCommit": {"oid": merge_commit_sha}}),
+                stderr="",
+            )
+        if args[:2] == ["git", "fetch"]:
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+        if args[:3] == ["git", "worktree", "add"]:
+            Path(args[4]).mkdir(parents=True, exist_ok=True)
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+        if args[:2] == ["git", "reset"]:
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+        if args[:2] == ["bash", "-lc"]:
+            code = 0 if revalidate_ok else 1
+            return subprocess.CompletedProcess(args, code, stdout="", stderr="")
+        if args[:2] == ["git", "revert"]:
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+        if args[:2] == ["git", "push"]:
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+        if args[:2] == ["git", "rev-parse"]:
+            return subprocess.CompletedProcess(args, 0, stdout="revertsha01\n", stderr="")
+        if args[:3] == ["git", "worktree", "remove"]:
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+        raise AssertionError(f"unexpected call: {args}")
+
+    return fake, calls
+
+
+class TestMergeAndVerify:
+    def test_merges_and_promotes_on_green_revalidation(self, tmp_path: Path, db_path: Path):
+        task = _make_pr_opened_task(db_path, tmp_path)
+        fake, calls = _merge_stub(revalidate_ok=True)
+
+        result = bp.merge_and_verify(
+            task["id"],
+            validation_commands=["true"],
+            repo_root=tmp_path,
+            db_path=db_path,
+            run_cmd=fake,
+        )
+
+        assert result["outcome"] == "merged"
+        assert result["merge_commit_sha"] == "deadbeef00"
+        assert bq.get_task(task["id"], db_path=db_path)["state"] == bq.DONE
+        assert any(c[:3] == ["gh", "pr", "merge"] for c in calls)
+        assert not any(c[:2] == ["git", "revert"] for c in calls)
+        events = {e["type"] for e in bq.list_events(task["id"], db_path=db_path)}
+        assert bp.AUTO_MERGE_OUTCOME_EVENT in events
+
+    def test_reverts_and_does_not_promote_on_red_revalidation(self, tmp_path: Path, db_path: Path):
+        task = _make_pr_opened_task(db_path, tmp_path)
+        fake, calls = _merge_stub(revalidate_ok=False)
+
+        result = bp.merge_and_verify(
+            task["id"],
+            validation_commands=["false"],
+            repo_root=tmp_path,
+            db_path=db_path,
+            run_cmd=fake,
+        )
+
+        assert result["outcome"] == "reverted"
+        assert result["revert"]["revert_commit_sha"] == "revertsha01"
+        assert bq.get_task(task["id"], db_path=db_path)["state"] != bq.DONE
+        assert any(c[:2] == ["git", "revert"] for c in calls)
+        assert any(c[:2] == ["git", "push"] for c in calls)
+        payloads = [
+            e["payload"] for e in bq.list_events(task["id"], db_path=db_path)
+            if e["type"] == bp.AUTO_MERGE_OUTCOME_EVENT
+        ]
+        assert payloads[-1]["outcome"] == "reverted"
+
+    def test_no_validation_commands_treated_as_passed(self, tmp_path: Path, db_path: Path):
+        task = _make_pr_opened_task(db_path, tmp_path)
+        fake, _ = _merge_stub()
+
+        result = bp.merge_and_verify(
+            task["id"], validation_commands=[], repo_root=tmp_path, db_path=db_path, run_cmd=fake,
+        )
+        assert result["outcome"] == "merged"
+
+    def test_raises_when_no_pr_linked(self, db_path: Path):
+        task = _make_blocked_task(db_path)
+        with pytest.raises(bp.MergeError, match="no linked PR"):
+            bp.merge_and_verify(task["id"], validation_commands=[], db_path=db_path)
+
+    def test_raises_when_gh_merge_fails(self, tmp_path: Path, db_path: Path):
+        task = _make_pr_opened_task(db_path, tmp_path)
+
+        def fake(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            if args[:3] == ["gh", "pr", "merge"]:
+                return subprocess.CompletedProcess(args, 1, stdout="", stderr="conflict")
+            raise AssertionError(f"unexpected call: {args}")
+
+        with pytest.raises(bp.MergeError, match="gh pr merge failed"):
+            bp.merge_and_verify(
+                task["id"], validation_commands=[], repo_root=tmp_path, db_path=db_path, run_cmd=fake,
+            )
+        assert bq.get_task(task["id"], db_path=db_path)["state"] != bq.DONE
+
+    def test_tripwire_skips_merge_after_two_reverts_in_window(self, tmp_path: Path, db_path: Path):
+        # Two unrelated prior tasks whose auto-merge reverted.
+        for i in range(2):
+            other = _make_pr_opened_task(db_path, tmp_path, pr_number=100 + i)
+            bq.append_event(
+                other["id"], bp.AUTO_MERGE_OUTCOME_EVENT,
+                payload={"outcome": "reverted"}, db_path=db_path,
+            )
+
+        assert bp.tripwire_active(db_path) is True
+
+        task = _make_pr_opened_task(db_path, tmp_path, pr_number=200)
+
+        def explode(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            raise AssertionError(f"tripwire should have short-circuited before {args}")
+
+        result = bp.merge_and_verify(
+            task["id"], validation_commands=[], repo_root=tmp_path, db_path=db_path, run_cmd=explode,
+        )
+        assert result["outcome"] == "skipped_tripwire"
+        assert bq.get_task(task["id"], db_path=db_path)["state"] != bq.DONE
+
+    def test_tripwire_not_triggered_by_a_single_revert(self, tmp_path: Path, db_path: Path):
+        other = _make_pr_opened_task(db_path, tmp_path, pr_number=300)
+        bq.append_event(
+            other["id"], bp.AUTO_MERGE_OUTCOME_EVENT,
+            payload={"outcome": "reverted"}, db_path=db_path,
+        )
+        assert bp.tripwire_active(db_path) is False

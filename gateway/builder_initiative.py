@@ -423,6 +423,189 @@ def validate_manifest(manifest: Any) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Lint warnings (CP-02) — mechanical checks only, never rejections.
+#
+# Hard boundary (docs/plans/KITTYBUILDER_DAILY_DRIVER_PLAN.md CP-02): no
+# semantic "is this acceptance criterion measurable" scoring. These three
+# checks are the entire scope; measurability judgment belongs to the
+# CP-01 clarification round, not code.
+#
+# Callers must only run these against a manifest that already passed
+# ``validate_manifest`` (empty error list) — the checks assume every packet
+# has a valid ``id`` and well-formed ``allowed_paths``/``depends_on`` lists.
+# ---------------------------------------------------------------------------
+
+
+def _transitive_deps(packet_id: str, deps_by_id: dict[str, list[str]]) -> set[str]:
+    """All packet ids reachable from ``packet_id`` via depends_on, any depth."""
+    seen: set[str] = set()
+    stack = list(deps_by_id.get(packet_id, []))
+    while stack:
+        dep = stack.pop()
+        if dep in seen:
+            continue
+        seen.add(dep)
+        stack.extend(deps_by_id.get(dep, []))
+    return seen
+
+
+def _path_parts(path: str) -> tuple[str, ...]:
+    return tuple(part for part in Path(path).parts if part not in (".", ""))
+
+
+def _paths_collide(path_a: str, path_b: str) -> bool:
+    """True when one path's directory components are a prefix of the other's.
+
+    Directory-prefix comparison, not exact-path equality: "gateway/" collides
+    with "gateway/foo.py" (containment), and "gateway/foo.py" collides with
+    itself, but "gateway/foo.py" does not collide with "gateway/bar.py".
+    """
+    parts_a, parts_b = _path_parts(path_a), _path_parts(path_b)
+    if not parts_a or not parts_b:
+        return False
+    shorter, longer = (
+        (parts_a, parts_b) if len(parts_a) <= len(parts_b) else (parts_b, parts_a)
+    )
+    return longer[: len(shorter)] == shorter
+
+
+def _count_subsystems(paths: list[str]) -> int:
+    """Cluster paths that collide (directory-prefix) and count the clusters."""
+    unique = list(dict.fromkeys(paths))
+    parent = {path: path for path in unique}
+
+    def find(node: str) -> str:
+        while parent[node] != node:
+            parent[node] = parent[parent[node]]
+            node = parent[node]
+        return node
+
+    for i, path_a in enumerate(unique):
+        for path_b in unique[i + 1 :]:
+            if _paths_collide(path_a, path_b):
+                root_a, root_b = find(path_a), find(path_b)
+                if root_a != root_b:
+                    parent[root_a] = root_b
+
+    return len({find(path) for path in unique})
+
+
+def _tracked_dir_is_empty(path: str, repo_root: Path) -> bool:
+    """True when ``git ls-files`` finds nothing under ``path``'s directory.
+
+    A path that looks like a file (has a suffix) is checked at its parent
+    directory; a bare directory path is checked as-is. Any git failure is
+    treated as "cannot determine" (False) so a broken git call never turns
+    into a false-positive warning.
+    """
+    target = Path(path).parent if Path(path).suffix else Path(path)
+    target_str = str(target) if str(target) not in ("", ".") else path
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "--", target_str],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if result.returncode != 0:
+        return False
+    return not result.stdout.strip()
+
+
+def warn_manifest(
+    manifest: dict[str, Any], *, repo_root: Path | None = None
+) -> list[str]:
+    """Structural lint warnings. Never rejections — see module docstring.
+
+    Precondition: ``manifest`` already passed ``validate_manifest`` with an
+    empty error list.
+    """
+    warnings: list[str] = []
+    packets = manifest.get("packets") or []
+    root = Path(repo_root) if repo_root else Path.cwd()
+
+    deps_by_id = {
+        packet["id"]: list(packet.get("depends_on") or []) for packet in packets
+    }
+
+    # (a) acceptance criteria present, but no validation commands to prove them.
+    for packet in packets:
+        if packet.get("acceptance_criteria") and not packet.get(
+            "validation_commands"
+        ):
+            warnings.append(
+                f"packet {packet['id']!r}: has acceptance_criteria but no "
+                "validation_commands"
+            )
+
+    # (b) allowed_paths collision between packets with no dependency relation.
+    for i, packet_a in enumerate(packets):
+        deps_a = _transitive_deps(packet_a["id"], deps_by_id)
+        for packet_b in packets[i + 1 :]:
+            deps_b = _transitive_deps(packet_b["id"], deps_by_id)
+            if packet_b["id"] in deps_a or packet_a["id"] in deps_b:
+                continue
+            for path_a in packet_a.get("allowed_paths") or []:
+                collided = False
+                for path_b in packet_b.get("allowed_paths") or []:
+                    if _paths_collide(path_a, path_b):
+                        warnings.append(
+                            f"packet {packet_a['id']!r} and packet "
+                            f"{packet_b['id']!r} share no dependency relation "
+                            f"but allowed_paths collide: {path_a!r} / "
+                            f"{path_b!r}"
+                        )
+                        collided = True
+                        break
+                if collided:
+                    break
+
+    # (c) prototype-shaped manifest (T1-T3) with no "-proto" packet.
+    has_proto_packet = any(
+        isinstance(packet.get("id"), str) and packet["id"].endswith("-proto")
+        for packet in packets
+    )
+    if not has_proto_packet:
+        reasons: list[str] = []
+        if len(packets) >= 4:
+            reasons.append("T1: manifest has >= 4 packets")
+
+        all_paths = [
+            path for packet in packets for path in (packet.get("allowed_paths") or [])
+        ]
+        if _count_subsystems(all_paths) >= 2:
+            reasons.append("T2: allowed_paths span >= 2 subsystems")
+
+        for packet in packets:
+            empty_path = next(
+                (
+                    path
+                    for path in packet.get("allowed_paths") or []
+                    if _tracked_dir_is_empty(path, root)
+                ),
+                None,
+            )
+            if empty_path is not None:
+                reasons.append(
+                    f"T3: packet {packet['id']!r} allowed_path {empty_path!r} "
+                    "has no tracked files"
+                )
+                break
+
+        if reasons:
+            warnings.append(
+                "manifest looks prototype-shaped ("
+                + "; ".join(reasons)
+                + ") but no packet id ends in '-proto'"
+            )
+
+    return warnings
+
+
+# ---------------------------------------------------------------------------
 # Apply
 # ---------------------------------------------------------------------------
 
@@ -606,7 +789,13 @@ def _row_to_packet(row: sqlite3.Row) -> dict[str, Any]:
 
 
 def list_initiatives(db_path: Path | None = None) -> list[dict[str, Any]]:
-    """List initiatives with packet counts, newest last."""
+    """List initiatives with packet counts and health_summary, newest last.
+
+    Each entry includes a ``health_summary`` dict with the derived
+    ``state``, ``stop_class``, and ``stop_class_reason`` per
+    ``initiative_status()`` — no new health computation, just a rollup call
+    per initiative (CP-03/CP-04 machinery).
+    """
     init_db(db_path)
     conn = bq.connect(db_path)
     try:
@@ -621,7 +810,24 @@ def list_initiatives(db_path: Path | None = None) -> list[dict[str, Any]]:
             ORDER BY i.created_at ASC, i.id ASC
             """
         ).fetchall()
-        return [dict(r) for r in rows]
+        initiatives: list[dict[str, Any]] = []
+        for r in rows:
+            initiative = dict(r)
+            try:
+                status = initiative_status(initiative["id"], db_path=db_path)
+                initiative["health_summary"] = {
+                    "state": status.get("state"),
+                    "stop_class": status.get("stop_class"),
+                    "stop_class_reason": status.get("stop_class_reason"),
+                }
+            except InitiativeNotFoundError:
+                initiative["health_summary"] = {
+                    "state": initiative.get("state"),
+                    "stop_class": None,
+                    "stop_class_reason": None,
+                }
+            initiatives.append(initiative)
+        return initiatives
     finally:
         conn.close()
 
@@ -1019,10 +1225,24 @@ def initiative_status(
 
     next_p = eligible[0] if eligible else None
     evidence = _initiative_evidence(packets, db_path)
+    stop_decision = _latest_stop_class_decision(packets, db_path)
     return {
         "initiative_id": initiative_id,
         "state": state,
         "pause_reason": initiative.get("pause_reason"),
+        # CP-03: read-only surface over builder_run.py's EVENT_DECISION
+        # payloads — no new writes, no new table. None until a run has made
+        # a classified stop decision for this initiative.
+        "stop_class": (
+            (stop_decision.get("payload") or {}).get("stop_class")
+            if stop_decision
+            else None
+        ),
+        "stop_class_reason": (
+            (stop_decision.get("payload") or {}).get("stop_class_reason")
+            if stop_decision
+            else None
+        ),
         "total_packets": len(packets),
         "eligible": [p["packet_id"] for p in eligible],
         "blocked": [p["packet_id"] for p in blocked],
@@ -1034,7 +1254,122 @@ def initiative_status(
         "next_packet": next_p["packet_id"] if next_p else None,
         "next_packet_task_id": next_p["task_id"] if next_p else None,
         "evidence": evidence,
+        "health": _initiative_health(packets, evidence, db_path),
     }
+
+
+def _initiative_health(
+    packets: list[dict[str, Any]],
+    evidence: dict[str, dict[str, Any]],
+    db_path: Path | None,
+) -> dict[str, Any]:
+    """Derive-only health metrics (CP-04) — no new writes, no new table.
+
+    Everything here is computed at read time from the same attempts/events
+    rows ``_initiative_evidence`` and ``_latest_stop_class_decision`` already
+    read. Per the plan's own sunset clause: a control that never fires
+    across the first ~10 campaigns should be deleted, not accumulated on.
+    """
+    attempts_used = [e["attempts_used"] for e in evidence.values()]
+    first_pass_results: list[bool] = []
+    stop_class_counts: dict[str, int] = {}
+    wall_clock_seconds: dict[str, float | None] = {}
+
+    for packet in packets:
+        task_id = packet["task_id"]
+        packet_id = packet["packet_id"]
+
+        attempts = ba.list_attempts(
+            packet["initiative_id"], packet_id, db_path=db_path
+        )
+        if attempts:
+            first_verdict = (attempts[0].get("review") or {}).get("verdict")
+            if first_verdict is not None:
+                first_pass_results.append(first_verdict == "approve")
+
+        if bq.get_task(task_id, db_path=db_path) is None:
+            wall_clock_seconds[packet_id] = None
+            continue
+        events = bq.list_events(task_id, db_path=db_path)
+        for event in events:
+            payload = event.get("payload") or {}
+            if event["type"] != "initiative_decision" or "stop_class" not in payload:
+                continue
+            stop_class = payload["stop_class"]
+            stop_class_counts[stop_class] = stop_class_counts.get(stop_class, 0) + 1
+        timestamps = [
+            event["created_at"] for event in events if event.get("created_at")
+        ]
+        if len(timestamps) >= 2:
+            wall_clock_seconds[packet_id] = _seconds_between(
+                min(timestamps), max(timestamps)
+            )
+        else:
+            wall_clock_seconds[packet_id] = None
+
+    return {
+        "attempts_per_packet": {
+            "avg": round(sum(attempts_used) / len(attempts_used), 2)
+            if attempts_used
+            else None,
+            "max": max(attempts_used) if attempts_used else None,
+        },
+        "first_pass_review_approval_rate": (
+            round(sum(first_pass_results) / len(first_pass_results), 2)
+            if first_pass_results
+            else None
+        ),
+        "exhausted_count": sum(1 for e in evidence.values() if e["exhausted"]),
+        "stop_class_counts": stop_class_counts,
+        "wall_clock_seconds_per_packet": wall_clock_seconds,
+    }
+
+
+def _seconds_between(start: Any, end: Any) -> float | None:
+    """Parse two sqlite TIMESTAMP values (str or datetime) into elapsed seconds."""
+    from datetime import datetime
+
+    def _parse(value: Any) -> datetime | None:
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M:%S.%f"):
+                try:
+                    return datetime.strptime(value, fmt)
+                except ValueError:
+                    continue
+        return None
+
+    start_dt, end_dt = _parse(start), _parse(end)
+    if start_dt is None or end_dt is None:
+        return None
+    return (end_dt - start_dt).total_seconds()
+
+
+def _latest_stop_class_decision(
+    packets: list[dict[str, Any]], db_path: Path | None
+) -> dict[str, Any] | None:
+    """Return the most recent ``initiative_decision`` event carrying a
+    ``stop_class`` (CP-03), across all of this initiative's packet tasks.
+
+    Read-only: ``stop_class`` has no durable column of its own — it rides
+    the existing EVENT_DECISION payload written by
+    ``gateway.builder_run.run_initiative``. Event ``id`` is a single
+    autoincrement sequence across tasks, so comparing it across packets
+    still yields correct chronological order.
+    """
+    latest: dict[str, Any] | None = None
+    for packet in packets:
+        task_id = packet["task_id"]
+        if bq.get_task(task_id, db_path=db_path) is None:
+            continue
+        for event in bq.list_events(task_id, db_path=db_path):
+            payload = event.get("payload") or {}
+            if event["type"] != "initiative_decision" or "stop_class" not in payload:
+                continue
+            if latest is None or event["id"] > latest["id"]:
+                latest = event
+    return latest
 
 
 def _initiative_evidence(
