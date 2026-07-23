@@ -409,6 +409,41 @@ class TestWorkerIdentity:
         )
         assert any(finding.category == "scope_drift" for finding in findings)
 
+    def test_session_state_residue_is_not_scope_drift(
+        self, repo: Path, db_path: Path
+    ) -> None:
+        """CP-08 dogfood finding: a worker that followed CLAUDE.md's own
+        "Session State" convention (update .claude/STATE.md before
+        stopping) failed identity verification, because this check's own
+        scope pass didn't know about the exemption builder_runner.py's
+        live check already had. Both now share the same canonical
+        builder_scope.is_expected_residue."""
+        lease = self._valid_identity(repo, db_path)
+        (repo / ".claude").mkdir(exist_ok=True)
+        (repo / ".claude" / "STATE.md").write_text("residue\n", encoding="utf-8")
+        findings = verify_worker_identity(
+            PACKET,
+            repo_root=repo,
+            db_path=db_path,
+            expected_lease_id=lease["lease_id"],
+        )
+        assert not any(finding.category == "scope_drift" for finding in findings)
+
+    def test_worker_staging_residue_is_not_scope_drift(
+        self, repo: Path, db_path: Path
+    ) -> None:
+        lease = self._valid_identity(repo, db_path)
+        (repo / ".kittybuilder-bundle-1.json").write_text(
+            "staged\n", encoding="utf-8"
+        )
+        findings = verify_worker_identity(
+            PACKET,
+            repo_root=repo,
+            db_path=db_path,
+            expected_lease_id=lease["lease_id"],
+        )
+        assert not any(finding.category == "scope_drift" for finding in findings)
+
     @pytest.mark.parametrize("stored", ["{", "{}", "[]", '["."]'])
     def test_corrupt_or_unbounded_allowlist_fails_closed(
         self, repo: Path, db_path: Path, stored: str
