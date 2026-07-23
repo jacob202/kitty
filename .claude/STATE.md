@@ -1,23 +1,23 @@
-# Session State — CP-08B Prototype: health_summary in initiative list
+# Session State — CP-08 Campaign B In Progress
 
 <!-- kitty-state
 {
   "schema_version": 1,
-  "updated_at": "2026-07-23T01:30:00Z",
-  "head_sha": "5d96ff05f5a5df3082e497bba5a44a293f133bb6",
-  "branch": "kittybuilder/kb_mrwte23u_e2ba",
-  "worktree": "/Users/jacobbrizinski/Projects/kitty/.worktrees/kittybuilder/kb_mrwte23u_e2ba",
-  "status": "completed",
+  "updated_at": "2026-07-23T01:39:00Z",
+  "head_sha": "bfa9211",
+  "branch": "fix/pr-223-session-hygiene",
+  "worktree": ".",
+  "status": "in_progress",
   "completed_items": [
-    "CP-08B prototype: added health_summary to `initiative list --json` output",
-    "Modified builder_initiative.py:list_initiatives() to call existing initiative_status() per initiative and attach health_summary {state, stop_class, stop_class_reason}",
-    "Added 3 passing tests: health_summary shape, health_summary reflects completion, CLI --json output includes health_summary",
-    "Attempt 3 validation: 217 passed (0 failures), bundle result written"
+    "Campaign A clean retry merged as PR #224.",
+    "Campaign B prototype (`cp08b-proto`) merged as PR #225: `initiative list --json` includes a CP-04-derived health_summary.",
+    "Campaign B remains active: `cp08b-column` is running, `cp08b-filter` is eligible, and `cp08b-tests-docs` awaits both dependent packets."
   ],
   "blockers": [],
-  "next_action": "None — packet cp08b-proto completed",
+  "next_action": "Let the active Campaign B initiative driver complete; then verify the final report, record the CP-08 retrospective, and update continuity and durable memory.",
   "invalidation_conditions": [
-    "HEAD changes beyond 4dca990d8a5a561abb6f04036c2de7764d7c9d70",
+    "origin/main advances beyond the verified Campaign B prototype merge",
+    "Campaign B reaches a terminal state",
     "branch or registered worktree changes"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
@@ -27,10 +27,10 @@
 
 ## Current checkpoint
 
-Worktree `kittybuilder/kb_mrwte23u_e2ba` at `5d96ff0`, branch `kittybuilder/kb_mrwte23u_e2ba`.
-Packet cp08b-proto (initiative cp08-campaign-b) completed and validated (attempt 3).
-All changes committed. Working tree clean (only untracked bundle/context JSON files).
+Campaign B is being run by the supported Builder initiative driver with auto-publish enabled. Its first packet has merged as PR #225. The active column packet has a live lease; no packet or initiative budget is exhausted.
 
 ## Known follow-up
 
-- Next packets in campaign cp08-campaign-b (if any) are defined in the bundle queue.
+- Wait for the existing Campaign B driver; do not start a competing run.
+- When Campaign B reaches a terminal state, write the campaign report and the required CP-08 retrospective in `docs/LEARNINGS.md`, then refresh this checkpoint and `.claude/HANDOFF.md` with final evidence.
+- `feat/reasoning-engine-current` remains Jacob's separate live WIP.
