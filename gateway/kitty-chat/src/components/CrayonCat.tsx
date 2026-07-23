@@ -2,6 +2,8 @@
 
 type CatState = 'idle' | 'working' | 'done' | 'broke'
 
+type ConnectionQuality = 'good' | 'degraded' | 'poor' | 'offline'
+
 const FACES: Record<CatState, string> = {
   idle: '._.',
   working: 'o_o',
@@ -14,6 +16,20 @@ const STATE_DOTS: Record<CatState, string> = {
   working: 'var(--c-yellow)',
   done: 'var(--c-green)',
   broke: 'var(--c-red)',
+}
+
+const QUALITY_DOTS: Record<ConnectionQuality, string> = {
+  good: 'var(--cat-green)',
+  degraded: 'var(--c-yellow)',
+  poor: 'var(--c-orange)',
+  offline: 'var(--c-red)',
+}
+
+const QUALITY_LABELS: Record<ConnectionQuality, string> = {
+  good: 'fast',
+  degraded: 'slow',
+  poor: 'unstable',
+  offline: 'offline',
 }
 
 export function CatCorner({ state = 'idle' }: { state?: CatState }) {
@@ -82,7 +98,15 @@ export function CatBody({ size = 120 }: { size?: number }) {
   )
 }
 
-export function CatFaceBadge({ state = 'idle' }: { state?: CatState }) {
+export function CatFaceBadge({ 
+  state = 'idle', 
+  quality = 'good',
+  showQuality = false 
+}: { 
+  state?: CatState
+  quality?: ConnectionQuality
+  showQuality?: boolean
+}) {
   return (
     <span style={{
       width: 30, height: 30, borderRadius: 99,
@@ -91,8 +115,68 @@ export function CatFaceBadge({ state = 'idle' }: { state?: CatState }) {
       fontFamily: 'var(--font-mono)', fontSize: 11,
       color: 'var(--cat-ginger)', flexShrink: 0,
       border: '1.5px solid var(--line)',
+      position: 'relative',
     }}>
       {FACES[state]}
+      {showQuality && (
+        <span
+          style={{
+            position: 'absolute',
+            bottom: -2,
+            right: -2,
+            width: 10,
+            height: 10,
+            borderRadius: 99,
+            background: QUALITY_DOTS[quality],
+            border: '2px solid var(--bg)',
+            boxShadow: '0 0 0 1px var(--line)',
+          }}
+          title={`Connection: ${QUALITY_LABELS[quality]}`}
+        />
+      )}
+    </span>
+  )
+}
+
+export function ConnectionQualityBadge({ 
+  quality = 'good',
+  showLabel = true,
+  compact = false
+}: { 
+  quality?: ConnectionQuality
+  showLabel?: boolean
+  compact?: boolean
+}) {
+  if (compact && quality === 'good') return null
+  
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: showLabel ? 4 : 0,
+        fontFamily: 'var(--font-mono)',
+        fontSize: compact ? 9 : 10,
+        color: QUALITY_DOTS[quality],
+        padding: compact ? '1px 6px' : '2px 8px',
+        border: `1px solid ${QUALITY_DOTS[quality]}`,
+        borderRadius: 99,
+        whiteSpace: 'nowrap',
+      }}
+      title={`Connection: ${QUALITY_LABELS[quality]}`}
+    >
+      <span
+        style={{
+          width: compact ? 5 : 6,
+          height: compact ? 5 : 6,
+          borderRadius: 99,
+          background: QUALITY_DOTS[quality],
+          flexShrink: 0,
+          animation: quality === 'good' ? 'throb 2s ease-in-out infinite' : 
+                    quality === 'degraded' ? 'blink 1.5s ease-in-out infinite' : 'none',
+        }}
+      />
+      {showLabel && QUALITY_LABELS[quality]}
     </span>
   )
 }
@@ -114,5 +198,22 @@ export function StateBadge({ state = 'idle' }: { state?: CatState }) {
   )
 }
 
-export { FACES, STATE_DOTS }
-export type { CatState }
+export { FACES, STATE_DOTS, QUALITY_DOTS, QUALITY_LABELS }
+export type { CatState, ConnectionQuality }
+
+const globalStyleEl = typeof document !== 'undefined' ? document.getElementById('cat-connection-keyframes') : null
+if (!globalStyleEl && typeof document !== 'undefined') {
+  const style = document.createElement('style')
+  style.id = 'cat-connection-keyframes'
+  style.textContent = `
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    @keyframes throb {
+      0%, 100% { opacity: 0.4; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.2); }
+    }
+  `
+  document.head.appendChild(style)
+}

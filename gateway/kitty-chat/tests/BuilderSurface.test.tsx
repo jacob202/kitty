@@ -226,7 +226,7 @@ describe('BuilderSurface', () => {
         isLoading={false}
       />,
     )
-    expect(screen.getByText('No Builder work is recorded yet.')).toBeInTheDocument()
+    expect(screen.getByText('ready to build something?')).toBeInTheDocument()
 
     rerender(
       <BuilderSurface

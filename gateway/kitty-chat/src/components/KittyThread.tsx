@@ -13,6 +13,9 @@ interface KittyThreadContextValue {
   catState: CatState
   compact: boolean
   onRetry?: () => void
+  onFork?: (messageId: string) => void
+  onCopyMarkdown?: (messageId: string) => void
+  onExportThread?: (messageId: string) => void
 }
 
 const KittyThreadContext = createContext<KittyThreadContextValue>({
@@ -30,6 +33,9 @@ interface KittyThreadProps {
   catState: CatState
   compact: boolean
   onRetry?: () => void
+  onFork?: (messageId: string) => void
+  onCopyMarkdown?: (messageId: string) => void
+  onExportThread?: (messageId: string) => void
   onChipClick?: (text: string) => void
   onStartClick?: () => void
 }
@@ -41,6 +47,9 @@ export function KittyThread({
   catState,
   compact,
   onRetry,
+  onFork,
+  onCopyMarkdown,
+  onExportThread,
   onChipClick,
   onStartClick,
 }: KittyThreadProps) {
@@ -51,6 +60,9 @@ export function KittyThread({
     catState,
     compact,
     onRetry,
+    onFork,
+    onCopyMarkdown,
+    onExportThread,
   }
 
   return (
@@ -103,6 +115,9 @@ function MessageList() {
                 ? ctx.onRetry
                 : undefined
             }
+            onFork={ctx.onFork}
+            onCopyMarkdown={ctx.onCopyMarkdown}
+            onExportThread={ctx.onExportThread}
           />
         </>
       )
@@ -177,6 +192,15 @@ function EmptyState({
           </button>
         ))}
       </div>
+      <div style={{ marginTop: 16, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)', opacity: 0.5 }}>
+        <kbd style={{
+          fontFamily: 'var(--font-mono)', fontSize: 9,
+          padding: '1px 5px', border: '1px solid var(--line)', borderRadius: 3,
+        }}>⌘K</kbd> commands   <kbd style={{
+          fontFamily: 'var(--font-mono)', fontSize: 9,
+          padding: '1px 5px', border: '1px solid var(--line)', borderRadius: 3,
+        }}>?</kbd> shortcuts
+      </div>
     </div>
   )
 }
@@ -198,8 +222,8 @@ function viewportStyle(compact: boolean): CSSProperties {
     minHeight: 0,
     display: 'flex',
     flexDirection: 'column',
-    gap: 18,
-    padding: compact ? '18px 14px 16px' : '30px 44px 16px',
+    gap: 14,
+    padding: compact ? '14px 14px 16px' : '20px 32px 16px',
     paddingBottom: compact ? 176 : 140,
   }
 }

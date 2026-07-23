@@ -50,52 +50,52 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
 
   return (
     <aside style={{
-      width: 268,
+      width: 224,
       background: 'var(--surface)',
       borderRight: '1.5px solid var(--line)',
       display: 'flex',
       flexDirection: 'column',
       flexShrink: 0,
     }}>
-      <div style={{ padding: '16px 14px 10px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ padding: '12px 10px 8px', display: 'flex', flexDirection: 'column', gap: 8 }}>
         <button
           onClick={onNewChat}
           style={{
-            width: '100%', border: 'none', borderRadius: 12,
+            width: '100%', border: 'none', borderRadius: 10,
             background: 'var(--primary)', color: 'var(--on-primary)',
-            padding: 11,
-            fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: 14,
+            padding: 9,
+            fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: 13,
             cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
             boxShadow: 'var(--btn-shadow)',
           }}
         >
-          <span style={{ fontSize: 18, lineHeight: 1 }}>+</span> new chat
+          <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> new chat
         </button>
 
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 8,
+          display: 'flex', alignItems: 'center', gap: 6,
           background: 'var(--surface-2)', border: '1.5px solid var(--line)',
-          borderRadius: 11, padding: '8px 11px',
+          borderRadius: 9, padding: '6px 9px',
         }}>
-          <svg viewBox="0 0 24 24" style={{ width: 15, height: 15, color: 'var(--ink-2)', flexShrink: 0 }}>
+          <svg viewBox="0 0 24 24" style={{ width: 14, height: 14, color: 'var(--ink-2)', flexShrink: 0 }}>
             <path d="M11 4 a7 7 0 1 0 0 14 a7 7 0 0 0 0 -14 M16 16 L21 21" stroke="currentColor" strokeWidth={2} fill="none" strokeLinecap="round" filter="url(#wob)" />
           </svg>
           <input
             type="text"
-            placeholder="search chats"
+            placeholder="search"
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{
               flex: 1, border: 'none', background: 'transparent',
-              fontFamily: 'var(--font-body)', fontSize: 13,
+              fontFamily: 'var(--font-body)', fontSize: 12,
               color: 'var(--ink)', outline: 'none',
             }}
           />
         </div>
       </div>
 
-      <div style={{ overflowY: 'auto', flex: 1, padding: '2px 10px 12px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ overflowY: 'auto', flex: 1, padding: '2px 8px 10px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {groups.map(g => (
           <div key={g.key} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 1, padding: '0 4px', marginBottom: 2 }}>
@@ -156,29 +156,29 @@ function SessionRow({ chat, active, dotColor, onSelect, onClose }: {
     <button
       onClick={() => onSelect(chat.id)}
       style={{
-        width: '100%', display: 'flex', alignItems: 'flex-start', gap: 9,
-        border: 'none', borderRadius: 10,
-        padding: '8px 9px', cursor: 'pointer',
+        width: '100%', display: 'flex', alignItems: 'flex-start', gap: 7,
+        border: 'none', borderRadius: 8,
+        padding: '6px 7px', cursor: 'pointer',
         background: active ? 'var(--ginger-fade)' : 'transparent',
         textAlign: 'left',
       }}
     >
       <span style={{
-        width: 9, height: 9, borderRadius: 3,
+        width: 7, height: 7, borderRadius: 3,
         background: dotColor, flexShrink: 0, marginTop: 4,
       }} />
       <span style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0, flex: 1 }}>
         <span style={{
-          fontSize: 13, fontWeight: 600, color: 'var(--ink)',
+          fontSize: 12, fontWeight: 600, color: 'var(--ink)',
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>{chat.title}</span>
         <span style={{
-          fontSize: 11.5, color: 'var(--ink-2)',
+          fontSize: 10.5, color: 'var(--ink-2)',
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>{preview}</span>
       </span>
       <span style={{
-        fontFamily: 'var(--font-mono)', fontSize: 10,
+        fontFamily: 'var(--font-mono)', fontSize: 9,
         color: 'var(--ink-2)', flexShrink: 0, marginTop: 3,
       }}>{timeAgo(chat.updatedAt)}</span>
     </button>

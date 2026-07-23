@@ -1,7 +1,8 @@
 'use client'
 import { useRef, useEffect, useState, KeyboardEvent, RefObject } from 'react'
-import { Mic, Square, Paperclip, X, Zap } from 'lucide-react'
+import { Mic, Square, Paperclip, X, Zap, AlertCircle, Target, Check, GitBranch } from 'lucide-react'
 import { MessageAttachment, Model } from '@/lib/types'
+import { useReducedMotion } from '@/hooks/useReducedMotion'
 
 interface Props {
   value: string
@@ -20,10 +21,13 @@ interface Props {
   attachments?: MessageAttachment[]
   onAddFiles?: (files: FileList) => void
   onRemoveAttachment?: (id: string) => void
-  /** CR-07: model list + one-shot override for the next message only. */
   models?: Model[]
   overrideModel?: Model | null
   onOverrideModel?: (m: Model | null) => void
+  objective?: string | null
+  onObjectiveChange?: (next: string | null) => void
+  saveState?: 'idle' | 'saving' | 'saved' | 'failed' | 'offline'
+  onRetrySave?: () => void
 }
 
 type RecState = 'idle' | 'recording' | 'transcribing'
@@ -35,8 +39,98 @@ function formatBytes(n?: number): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function ContextWindowProgress({ 
+  tokenCount = 0, 
+  maxTokens = 200000,
+  compact = false 
+}: { 
+  tokenCount?: number
+  maxTokens?: number
+  compact?: boolean
+}) {
+  const prefersReduced = useReducedMotion()
+  const percentage = Math.min((tokenCount / maxTokens) * 100, 100)
+  const isWarning = percentage >= 80
+  const isDanger = percentage >= 95
+  const strokeColor = isDanger ? 'var(--c-red)' : isWarning ? 'var(--c-yellow)' : 'var(--cat-green)'
+  const strokeWidth = compact ? 3 : 4
+  const size = compact ? 28 : 36
+  const radius = (size - strokeWidth) / 2
+  const circumference = 2 * Math.PI * radius
+  const strokeDasharray = circumference
+  const strokeDashoffset = circumference * (1 - percentage / 100)
+
+  return (
+    <div style={{ position: 'relative', flexShrink: 0 }}>
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="var(--surface-2)"
+          strokeWidth={strokeWidth}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={strokeColor}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={strokeDasharray}
+          strokeDashoffset={strokeDashoffset}
+          style={{
+            transition: prefersReduced ? 'none' : 'stroke-dashoffset 0.5s ease, stroke 0.3s ease',
+          }}
+        />
+      </svg>
+      {!compact && (
+        <span
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            fontWeight: 600,
+            color: strokeColor,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {Math.round(percentage)}%
+        </span>
+      )}
+      {isWarning && !compact && (
+        <span
+          style={{
+            position: 'absolute',
+            bottom: -16,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 9,
+            color: strokeColor,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 3,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <AlertCircle size={9} />
+          near limit
+        </span>
+      )}
+    </div>
+  )
+}
+
 export function InputBar({
   value, onChange, onSend, onStop, isStreaming, disabled,
+  modelName,
+  modelColor,
   textareaRef,
   compact = false,
   attachments = [],
@@ -45,6 +139,12 @@ export function InputBar({
   models = [],
   overrideModel = null,
   onOverrideModel,
+  tokenCount = 0,
+  maxTokens = 200000,
+  objective = null,
+  onObjectiveChange,
+  saveState = 'idle',
+  onRetrySave,
 }: Props) {
   const internalRef = useRef<HTMLTextAreaElement>(null)
   const ref = textareaRef ?? internalRef
@@ -55,6 +155,8 @@ export function InputBar({
   const chunksRef = useRef<Blob[]>([])
   const [modelMenuOpen, setModelMenuOpen] = useState(false)
   const modelMenuRef = useRef<HTMLDivElement>(null)
+  const [goalEditing, setGoalEditing] = useState(false)
+  const [goalDraft, setGoalDraft] = useState('')
 
   useEffect(() => {
     if (!modelMenuOpen) return
@@ -231,14 +333,183 @@ export function InputBar({
         </div>
       )}
 
+      <div style={{ display: 'flex', gap: 6, marginBottom: 6, paddingLeft: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+        {modelName && (
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            fontFamily: 'var(--font-mono)', fontSize: 10,
+            color: modelColor,
+            border: `1.5px solid ${modelColor}`,
+            borderRadius: 99, padding: '3px 10px',
+          }}>
+            <span style={{
+              width: 7, height: 7, borderRadius: 99,
+              background: modelColor, flexShrink: 0,
+            }} />
+            {modelName}
+          </span>
+        )}
+        {onObjectiveChange && (
+          <span>
+            {objective ? (
+              <button
+                type="button"
+                onClick={() => { setGoalDraft(objective); setGoalEditing(true); }}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  fontFamily: 'var(--font-mono)', fontSize: 10,
+                  color: 'var(--primary)',
+                  border: '1.5px solid var(--primary)',
+                  borderRadius: 99, padding: '3px 10px',
+                  background: 'transparent', cursor: 'pointer',
+                }}
+              >
+                <Target size={10} />
+                <span style={{
+                  maxWidth: 160, overflow: 'hidden',
+                  textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {objective}
+                </span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setGoalDraft(''); setGoalEditing(true); }}
+                title="set a goal for this thread"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  fontFamily: 'var(--font-mono)', fontSize: 10,
+                  color: 'var(--ink-2)',
+                  border: '1.5px dashed var(--line)',
+                  borderRadius: 99, padding: '3px 10px',
+                  background: 'transparent', cursor: 'pointer',
+                }}
+              >
+                <Target size={10} />
+                goal
+              </button>
+            )}
+          </span>
+        )}
+        {tokenCount !== undefined && maxTokens !== undefined && (() => {
+          const remaining = maxTokens - tokenCount
+          const pctUsed = (tokenCount / maxTokens) * 100
+          const isWarning = pctUsed > 85
+          const isDanger = pctUsed > 95
+          const approxMsgs = Math.max(0, Math.floor(remaining / 2000))
+          const hint = approxMsgs === 0 ? 'near limit' : `~${approxMsgs} msg${approxMsgs !== 1 ? 's' : ''} left`
+          return (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              fontFamily: 'var(--font-mono)', fontSize: 10,
+              color: isDanger ? 'var(--c-red)' : isWarning ? 'var(--c-yellow)' : 'var(--ink-2)',
+            }}>
+              <span>{(tokenCount / 1000).toFixed(1)}k / {(maxTokens / 1000).toFixed(0)}k</span>
+              {(isWarning || isDanger) && (
+                <span style={{
+                  padding: '1px 5px',
+                  borderRadius: 99,
+                  background: isDanger ? 'rgba(255,80,80,0.12)' : 'rgba(244,197,66,0.12)',
+                }}>
+                  {hint}
+                </span>
+              )}
+            </span>
+          )
+        })()}
+      </div>
+
+      {goalEditing && onObjectiveChange && (
+        <div style={{
+          display: 'flex', gap: 8, marginBottom: 8, paddingLeft: 4, alignItems: 'flex-start',
+        }}>
+          <textarea
+            value={goalDraft}
+            onChange={(e) => setGoalDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                onObjectiveChange(goalDraft.trim() || null)
+                setGoalEditing(false)
+              } else if (e.key === 'Escape') {
+                setGoalEditing(false)
+              }
+            }}
+            placeholder="what's this thread for?"
+            autoFocus
+            rows={2}
+            style={{
+              flex: 1,
+              fontFamily: 'var(--font-body)',
+              fontSize: 12,
+              lineHeight: 1.5,
+              color: 'var(--ink)',
+              background: 'var(--surface)',
+              border: '1.5px solid var(--primary)',
+              borderRadius: 10,
+              padding: '6px 10px',
+              resize: 'none',
+              outline: 'none',
+              maxWidth: compact ? '100%' : 480,
+            }}
+          />
+          <div style={{ display: 'flex', gap: 4, paddingTop: 2 }}>
+            <button
+              type="button"
+              onClick={() => {
+                onObjectiveChange(goalDraft.trim() || null)
+                setGoalEditing(false)
+              }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                fontFamily: 'var(--font-mono)', fontSize: 10,
+                color: 'var(--ink)', border: '1.5px solid var(--ink-2)',
+                borderRadius: 8, padding: '4px 10px',
+                background: 'transparent', cursor: 'pointer',
+              }}
+            >
+              <Check size={12} />
+              save
+            </button>
+            {objective && (
+              <button
+                type="button"
+                onClick={() => { onObjectiveChange(null); setGoalEditing(false); }}
+                style={{
+                  fontFamily: 'var(--font-mono)', fontSize: 10,
+                  color: 'var(--c-red)', border: '1.5px solid var(--c-red)',
+                  borderRadius: 8, padding: '4px 10px',
+                  background: 'transparent', cursor: 'pointer',
+                }}
+              >
+                clear
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setGoalEditing(false)}
+              style={{
+                fontFamily: 'var(--font-mono)', fontSize: 10,
+                color: 'var(--ink-2)', border: '1.5px solid var(--line)',
+                borderRadius: 8, padding: '4px 10px',
+                background: 'transparent', cursor: 'pointer',
+              }}
+            >
+              <X size={12} />
+            </button>
+          </div>
+        </div>
+      )}
+
       <div style={{
         display: 'flex',
         alignItems: 'center',
         gap: 11,
         background: 'var(--surface)',
-        border: '2px solid var(--primary)',
-        borderRadius: 16,
-        padding: '12px 16px',
+        border: '2.5px solid var(--primary)',
+        borderRadius: 18,
+        padding: compact ? '12px 14px' : '13px 18px',
         boxShadow: 'var(--input-glow)',
         maxWidth: compact ? '100%' : undefined,
         position: 'relative',
@@ -346,6 +617,13 @@ export function InputBar({
           </div>
         )}
 
+        {/* Context window progress ring */}
+        <ContextWindowProgress 
+          tokenCount={tokenCount} 
+          maxTokens={maxTokens} 
+          compact={compact} 
+        />
+
         <button
           type="button"
           onClick={onPickFiles}
@@ -432,6 +710,35 @@ export function InputBar({
           </button>
         ) : null}
       </div>
+
+      {compact && saveState !== 'idle' && (
+        <div style={{
+          marginTop: 6,
+          padding: '0 4px',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 9,
+          display: 'flex',
+          gap: 6,
+          alignItems: 'center',
+          color: saveState === 'failed' || saveState === 'offline' ? 'var(--c-red)' : 'var(--ink-2)',
+        }}>
+          {saveState === 'saving' ? 'saving…' : saveState === 'saved' ? 'saved' : 'save failed'}
+          {(saveState === 'failed' || saveState === 'offline') && onRetrySave && (
+            <button
+              type="button"
+              onClick={onRetrySave}
+              style={{
+                fontFamily: 'var(--font-mono)', fontSize: 9,
+                fontWeight: 600, textDecoration: 'underline',
+                color: 'inherit', background: 'none', border: 'none',
+                cursor: 'pointer', padding: 0,
+              }}
+            >
+              retry
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

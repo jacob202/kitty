@@ -1,12 +1,14 @@
 'use client'
 
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
+import { ChevronUp, ChevronDown } from 'lucide-react'
 import { useTasks } from '@/lib/queries'
 import { useGatewayRuntimeManifest } from '@/lib/queries'
 import type { GatewayTask, BuilderPacketStatus } from '@/lib/gateway'
 
 interface ActiveItem {
   id: string
+  initiativeId?: string
   label: string
   kind: 'task' | 'builder'
   state: string
@@ -22,10 +24,11 @@ function gatewayTaskToItem(task: GatewayTask): ActiveItem {
   }
 }
 
-function builderPacketToItem(packet: BuilderPacketStatus): ActiveItem {
+function builderPacketToItem(packet: BuilderPacketStatus, initiativeId?: string): ActiveItem {
   const runState = packet.run?.state
   return {
     id: packet.packet_id,
+    initiativeId,
     label: packet.title,
     kind: 'builder',
     state: runState ?? packet.task_state ?? 'queued',
@@ -44,6 +47,7 @@ function isActivePacket(packet: BuilderPacketStatus): boolean {
 }
 
 export function ActiveTaskCards({ compact = false }: { compact?: boolean }) {
+  const [collapsed, setCollapsed] = useState(false)
   const tasksQuery = useTasks(10)
   const runtimeQuery = useGatewayRuntimeManifest()
 
@@ -52,9 +56,11 @@ export function ActiveTaskCards({ compact = false }: { compact?: boolean }) {
     .map(gatewayTaskToItem)
 
   const builderItems = (runtimeQuery.data?.execution.builder?.value?.initiatives ?? [])
-    .flatMap((i) => i.packets)
-    .filter(isActivePacket)
-    .map(builderPacketToItem)
+    .flatMap((i) =>
+      i.packets
+        .filter(isActivePacket)
+        .map((p) => builderPacketToItem(p, i.initiative_id))
+    )
 
   const items = [...builderItems, ...gatewayItems]
 
@@ -62,15 +68,32 @@ export function ActiveTaskCards({ compact = false }: { compact?: boolean }) {
 
   return (
     <div style={compact ? compactWrapStyle : wrapStyle} role="status" aria-label="Active tasks">
-      {items.map((item) => (
-        <div key={item.id} style={compact ? compactCardStyle : cardStyle}>
-          <span style={dotStyle(item.state)} />
-          <span style={kindStyle(item.kind)}>{item.kind === 'builder' ? 'build' : item.kind}</span>
-          <span style={labelStyle}>{item.label}</span>
-          <span style={stateStyle}>{item.state.replace(/_/g, ' ')}</span>
-          {item.detail && <span style={detailStyle}>{item.detail}</span>}
+      <button
+        onClick={() => setCollapsed((c) => !c)}
+        aria-expanded={!collapsed}
+        aria-label={collapsed ? 'Expand active tasks' : 'Collapse active tasks'}
+        style={headerStyle}
+      >
+        <span style={headerTextStyle}>
+          Active tasks ({items.length})
+        </span>
+        <span style={chevronStyle}>
+          {collapsed ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+        </span>
+      </button>
+      {!collapsed && (
+        <div style={compact ? compactListStyle : listStyle}>
+          {items.map((item, i) => (
+            <div key={`${item.kind}-${item.initiativeId ?? ''}-${item.id ?? i}`} style={compact ? compactCardStyle : cardStyle}>
+              <span style={dotStyle(item.state)} />
+              <span style={kindStyle(item.kind)}>{item.kind === 'builder' ? 'build' : item.kind}</span>
+              <span style={labelStyle}>{item.label}</span>
+              <span style={stateStyle}>{item.state.replace(/_/g, ' ')}</span>
+              {item.detail && <span style={detailStyle}>{item.detail}</span>}
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   )
 }
@@ -167,4 +190,44 @@ const detailStyle: CSSProperties = {
   color: 'var(--ink-2)',
   opacity: 0.7,
   flexShrink: 0,
+}
+
+const headerStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: '4px 8px',
+  background: 'var(--surface-2)',
+  border: '1px solid var(--line)',
+  borderRadius: 6,
+  cursor: 'pointer',
+  userSelect: 'none',
+}
+
+const headerTextStyle: CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  fontWeight: 600,
+  color: 'var(--ink)',
+  letterSpacing: '0.04em',
+}
+
+const chevronStyle: CSSProperties = {
+  color: 'var(--ink-2)',
+  flexShrink: 0,
+  transition: 'transform 0.2s ease',
+}
+
+const listStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 4,
+  padding: '4px 0',
+}
+
+const compactListStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 3,
+  padding: '2px 0',
 }

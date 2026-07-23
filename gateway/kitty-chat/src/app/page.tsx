@@ -15,7 +15,6 @@ import {
 import { streamChat } from '@/lib/chat-client';
 import { inferMood } from '@/lib/mood';
 import { TopBar } from '@/components/TopBar';
-import { ThreadGoal } from '@/components/ThreadGoal';
 import { SignalFeed } from '@/components/SignalCard';
 import { KittyThread } from '@/components/KittyThread';
 import { InputBar } from '@/components/InputBar';
@@ -34,7 +33,7 @@ import { ProjectsPanel } from '@/components/ProjectsPanel';
 import { DocumentsPanel } from '@/components/DocumentsPanel';
 import { ProviderCenter } from '@/components/ProviderCenter';
 import { SettingsPanel } from '@/components/SettingsPanel';
-import { BuilderPanel } from '@/components/BuilderSurface';
+import { BuilderPanel, BuilderStatusBanner } from '@/components/BuilderSurface';
 import { OnboardingModal } from '@/components/OnboardingModal';
 import { LoopWatch } from '@/components/LoopWatch';
 import { InsightFeed } from '@/components/InsightFeed';
@@ -45,11 +44,13 @@ import { KittyRuntimeProvider } from '@/components/KittyRuntimeProvider';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PwaInstallBanner } from '@/components/PwaInstallBanner';
 import { WobFilters, PaperGrain } from '@/components/WobFilters';
+import { ToastProvider, useToast } from '@/components/Toast';
 import { CatCorner, type CatState } from '@/components/CrayonCat';
 import {
   buildGatewayModels,
   fetchGatewaySearch,
   uploadCaptureFile,
+  patchChatObjective,
   type GatewaySearchSnapshot,
   type GatewayTriageEntry,
 } from '@/lib/gateway';
@@ -67,6 +68,7 @@ import {
   usePrompts,
   useToggleLoop,
   useDismissInsight,
+  useTasks,
 } from '@/lib/queries';
 
 const MOBILE_BREAKPOINT = 900;
@@ -201,7 +203,7 @@ export default function KittyChat() {
 
 function KittyChatInner() {
   const [chats, setChats] = useState<Chat[]>(() => [makeChat('teal')]);
-  const [activeView, setActiveView] = useState('home');
+  const [activeView, setActiveView] = useState('chat');
   const [activeChatId, setActiveChatId] = useState<string | null>(() => null);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -325,6 +327,7 @@ function KittyChatInner() {
   const promptsQuery = usePrompts();
   const toggleLoop = useToggleLoop();
   const dismissInsight = useDismissInsight();
+  const tasksQuery = useTasks(20);
 
   const runtimeModelIds = runtimeQuery.data?.inference.available_models.value;
   const availableModels = useMemo(
@@ -352,6 +355,11 @@ function KittyChatInner() {
   const promptTemplates = promptsQuery.data ?? [];
   const activeProject = activeProjectQuery.data?.project ?? null;
   const projects = projectsQuery.data ?? [];
+  const tasks = tasksQuery.data ?? [];
+  const activeTaskCount = tasks.filter(t =>
+    t.status === 'running' || t.status === 'queued' || t.status === 'claimed'
+  ).length;
+  const { showToast } = useToast();
 
   const handleSelectProject = useCallback(
     (projectId: number) => setActiveProject.mutate(projectId),
@@ -522,11 +530,24 @@ function KittyChatInner() {
   // Server-confirmed objective from PATCH /chats/{id}/objective — keyed by
   // chat id so a response landing after a thread switch still updates the
   // right chat. undefined mirrors how loaded chats represent "no goal".
-  const handleObjectiveSaved = useCallback(
-    (chatId: string, objective: string | null) => {
+  const handleObjectiveChange = useCallback(
+    async (objective: string | null) => {
+      if (!activeChat) return;
+      const current = activeChat.objective ?? null;
+      if (objective === current) return;
+      const chatId = activeChat.id;
       updateChat(chatId, (c) => ({ ...c, objective: objective ?? undefined }));
+      try {
+        await patchChatObjective(chatId, objective);
+      } catch (err) {
+        if (err instanceof Error && err.message.includes('404')) {
+          const saved = await persistChat(activeChat);
+          if (saved) await patchChatObjective(chatId, objective);
+          else { updateChat(chatId, (c) => ({ ...c, objective: current ?? undefined })); return; }
+        }
+      }
     },
-    [updateChat],
+    [activeChat, updateChat, persistChat],
   );
 
   const handleRetrySave = useCallback(() => {
@@ -653,14 +674,25 @@ function KittyChatInner() {
         return;
       }
       setLastOutcome('broke');
+      const rawMsg = err instanceof Error ? err.message : 'error connecting to gateway';
+      const userFacing = rawMsg.includes('timed out') || rawMsg.includes('ETIMEDOUT')
+        ? 'request timed out — the model may be overloaded'
+        : rawMsg.includes('401') || rawMsg.includes('unauthorized')
+        ? 'authentication failed — check API key'
+        : rawMsg.includes('429') || rawMsg.includes('rate')
+        ? 'rate limited — wait a moment and retry'
+        : rawMsg.includes('5') && rawMsg.match(/\d{3}/)
+        ? 'gateway server error — the model may be temporarily unavailable'
+        : rawMsg;
       updateChat(chat.id, (c) => ({
         ...c,
         messages: c.messages.map((m) =>
           m.id === aiMsgId
             ? {
                 ...m,
-                content: `⚠ ${err instanceof Error ? err.message : 'error connecting to gateway'}`,
+                content: `⚠ ${userFacing}`,
                 mood: 'confused' as const,
+                turnStatus: 'failed' as const,
               }
             : m,
         ),
@@ -722,6 +754,70 @@ function KittyChatInner() {
     updateChat(activeChat.id, (c) => ({ ...c, messages: history }));
     void runStream(activeChat, history, activeChat.title);
   }, [activeChat, isStreaming, updateChat, runStream]);
+
+  const handleFork = useCallback((messageId: string) => {
+    if (!activeChat) return;
+    const messageIndex = activeChat.messages.findIndex(m => m.id === messageId);
+    if (messageIndex === -1) return;
+    // Create a new chat with messages up to and including the forked message
+    const forkedMessages = activeChat.messages.slice(0, messageIndex + 1);
+    const forkedChat = {
+      ...activeChat,
+      id: newChatId(),
+      title: `${activeChat.title} (fork)`,
+      messages: forkedMessages.map(m => ({
+        ...m,
+        id: newMsgId(),
+        parentId: undefined,
+        childIds: undefined,
+        isFork: true,
+      })),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    setChats(prev => [...prev, forkedChat]);
+    setActiveChatId(forkedChat.id);
+    setActiveView('chat');
+    showToast('forked conversation', 'info');
+  }, [activeChat, showToast]);
+
+  const handleCopyMarkdown = useCallback((messageId: string) => {
+    if (!activeChat) return;
+    const message = activeChat.messages.find(m => m.id === messageId);
+    if (!message) return;
+    const md = `> ${message.content.replace(/\n/g, '\n> ')}`;
+    navigator.clipboard.writeText(md).then(() => {
+      showToast('copied markdown', 'success');
+    });
+  }, [activeChat, showToast]);
+
+  const handleExportThread = useCallback((messageId: string) => {
+    if (!activeChat) return;
+    const messageIndex = activeChat.messages.findIndex(m => m.id === messageId);
+    if (messageIndex === -1) return;
+    // Collect all messages in this thread (walk up parents)
+    const threadMessages: Message[] = [];
+    let current: Message | undefined = activeChat.messages[messageIndex];
+    while (current) {
+      threadMessages.unshift(current);
+      if (current.parentId) {
+        current = activeChat.messages.find(m => m.id === current!.parentId);
+      } else {
+        break;
+      }
+    }
+    const md = threadMessages
+      .map(m => `**${m.role === 'user' ? 'You' : 'Kitty'}:** ${m.content}`)
+      .join('\n\n---\n\n');
+    const blob = new Blob([md], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `thread-${messageId}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('thread exported', 'success');
+  }, [activeChat, showToast]);
 
   const handleStop = useCallback(() => {
     abortRef.current?.abort();
@@ -954,16 +1050,34 @@ function KittyChatInner() {
           }
         />
 
-        {activeView === 'chat' && (
-          <ThreadGoal
-            chat={activeChat}
-            compact={isMobile}
-            onObjectiveSaved={handleObjectiveSaved}
-            onEnsurePersisted={persistChat}
-          />
+        {activeView === 'chat' && <SignalFeed compact={isMobile} />}
+
+        {activeView !== 'builder' && (
+          <div style={{ padding: '4px 16px', flexShrink: 0 }}>
+            <BuilderStatusBanner onOpen={() => setActiveView('builder')} />
+          </div>
         )}
 
-        {activeView === 'chat' && <SignalFeed compact={isMobile} />}
+        {activeView === 'chat' && activeChat?.messages.some(m => m.isFork) && (
+          <div style={{
+            padding: '3px 20px',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            color: 'var(--c-purple)',
+            borderBottom: '1px solid var(--line)',
+            flexShrink: 0,
+          }}>
+            ↳ forked from {' '}
+            <span style={{
+              color: 'var(--ink)',
+              background: 'var(--surface-2)',
+              padding: '1px 6px',
+              borderRadius: 4,
+            }}>
+              {activeChat?.title.replace(' (fork)', '')}
+            </span>
+          </div>
+        )}
 
         <PwaInstallBanner
           state={pwaInstall.state}
@@ -1179,6 +1293,9 @@ function KittyChatInner() {
                   setInput(chip);
                   textareaRef.current?.focus();
                 }}
+                onFork={handleFork}
+                onCopyMarkdown={handleCopyMarkdown}
+                onExportThread={handleExportThread}
               />
             ) : activeView === 'home' ? (
               <HomeState
@@ -1209,7 +1326,7 @@ function KittyChatInner() {
           </ErrorBoundary>
         </div>
 
-        {activeView === 'chat' && saveState !== 'idle' && (
+        {activeView === 'chat' && saveState !== 'idle' && !isMobile && (
           <div
             role="status"
             style={{
@@ -1294,6 +1411,10 @@ function KittyChatInner() {
             models={availableModels}
             overrideModel={overrideModel}
             onOverrideModel={setOverrideModel}
+            objective={activeChat?.objective ?? null}
+            onObjectiveChange={handleObjectiveChange}
+            saveState={saveState}
+            onRetrySave={handleRetrySave}
           />
         )}
       </main>
@@ -1308,6 +1429,7 @@ function KittyChatInner() {
         onSelectChat={handleSelectChat}
         onViewChange={setActiveView}
         onToggleSidebar={handleToggleSidebar}
+        activeTaskCount={activeTaskCount}
       />
     </div>
   );

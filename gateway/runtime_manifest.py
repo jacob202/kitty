@@ -355,7 +355,7 @@ async def compose_manifest(project_id: int | None = None) -> dict[str, Any]:
         "tools": _tool_fact(observed_at=observed_at, valid_until=valid_until),
         "connections": {
             "gateway": _fact(
-                {"endpoint": "local gateway", "state": "serving"},
+                {"endpoint": "local gateway", "state": "available"},
                 source="runtime manifest request",
                 observed_at=observed_at,
                 valid_until=valid_until,

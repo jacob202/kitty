@@ -53,6 +53,7 @@ export async function* streamChat(
   if (!reader) return;
 
   let buffer = '';
+  let accumulated = '';
   const toolAccum: ToolCallAccumulator[] = [];
   while (true) {
     const { done, value } = await reader.read();
@@ -97,13 +98,21 @@ export async function* streamChat(
         }
 
         const content = delta.content ?? '';
-        if (content) yield { content, done: false };
+        if (content) {
+          accumulated += content;
+          yield { content, done: false };
+        }
       } catch {
         /* skip malformed */
       }
     }
   }
   // ponytail: reader closed without [DONE] — stream was cut, not completed
+  // Don't throw; return what we got so the UI can show partial content
+  if (accumulated.length > 0 || toolAccum.length > 0) {
+    yield { content: '', done: true };
+    return;
+  }
   throw new Error('Stream closed without [DONE] — incomplete response');
 }
 

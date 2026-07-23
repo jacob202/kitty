@@ -837,14 +837,20 @@ async def iter_chat_completions_stream(payload: dict[str, Any]):
         json=payload,
         headers={"Authorization": f"Bearer {LITELLM_KEY}"},
     ) as resp:
-        async for chunk in resp.aiter_lines():
-            if not chunk or not chunk.startswith("data: "):
-                continue
-            raw_data = chunk[6:].strip()
-            if raw_data == "[DONE]":
+        try:
+            async for chunk in resp.aiter_lines():
+                if not chunk or not chunk.startswith("data: "):
+                    continue
+                raw_data = chunk[6:].strip()
+                if raw_data == "[DONE]":
+                    yield chunk.encode("utf-8") + b"\n\n"
+                    return
                 yield chunk.encode("utf-8") + b"\n\n"
-                break
-            yield chunk.encode("utf-8") + b"\n\n"
+        except Exception as e:
+            logger.warning("LiteLLM stream interrupted: %s", e)
+        # Always emit [DONE] so clients don't throw on partial streams —
+        # covers both normal stream end and exceptions.
+        yield b"data: [DONE]\n\n"
 
 
 def log_chat_trace(

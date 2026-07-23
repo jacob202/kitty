@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { SettingsPanel } from '../src/components/SettingsPanel'
+import { ToastProvider } from '../src/components/Toast'
 
 vi.mock('../src/lib/queries', () => ({
   useGatewayModels: vi.fn(() => ({
@@ -29,9 +30,13 @@ vi.mock('../src/lib/queries', () => ({
   })),
 }))
 
+function renderWithToast(ui: React.ReactElement) {
+  return render(<ToastProvider>{ui}</ToastProvider>)
+}
+
 describe('SettingsPanel', () => {
   it('shows editable personality documents and truthful model/voice state', () => {
-    render(<SettingsPanel theme="cosmic" onToggleTheme={vi.fn()} />)
+    renderWithToast(<SettingsPanel theme="cosmic" onToggleTheme={vi.fn()} />)
 
     expect(screen.getByLabelText('tone description')).toHaveValue('direct, warm, and specific\nsecond line')
     expect(screen.getByLabelText('standing preferences')).toHaveValue('- keep it brief')

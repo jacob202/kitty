@@ -2,6 +2,7 @@
 import { useState, useEffect, type CSSProperties } from 'react'
 import { useGatewayModels, usePersonality, useUpdatePersonality, useUsageSummary } from '@/lib/queries'
 import { useDashboardConfig } from '@/hooks/useDashboardConfig'
+import { useToast } from '@/components/Toast'
 
 interface Props {
   theme: 'cosmic' | 'day' | 'night'
@@ -26,6 +27,7 @@ export function SettingsPanel({ theme, onToggleTheme }: Props) {
   const personality = usePersonality()
   const updatePersonality = useUpdatePersonality()
   const usage = useUsageSummary()
+  const { showToast } = useToast()
 
   const [soul, setSoul] = useState('')
   const [prefs, setPrefs] = useState('')
@@ -36,6 +38,13 @@ export function SettingsPanel({ theme, onToggleTheme }: Props) {
       setPrefs(personality.data.preferences)
     }
   }, [personality.data])
+
+  const handleSavePersonality = () => {
+    updatePersonality.mutate({ soul, preferences: prefs }, {
+      onSuccess: () => showToast('personality saved', 'success'),
+      onError: (err) => showToast(`save failed: ${err.message}`, 'error'),
+    })
+  }
 
   return (
     <div style={{ display: 'grid', gap: 16, alignContent: 'start' }}>
@@ -113,10 +122,11 @@ export function SettingsPanel({ theme, onToggleTheme }: Props) {
           </label>
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <button
-              onClick={() => updatePersonality.mutate({ soul, preferences: prefs })}
+              onClick={handleSavePersonality}
+              disabled={updatePersonality.isPending}
               style={buttonStyle}
             >
-              save personality
+              {updatePersonality.isPending ? 'saving…' : 'save personality'}
             </button>
           </div>
         </div>

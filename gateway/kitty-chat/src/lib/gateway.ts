@@ -380,7 +380,17 @@ function hashString(value: string): number {
   return hash
 }
 
+const MODEL_LABELS: Record<string, string> = {
+  'kitty-default': 'Cheap (DeepSeek Flash)',
+  'kitty-default-or': 'Free (Qwen 3)',
+  'kitty-default-gemini': 'Fast (Gemini Flash)',
+  'kitty-sonnet': 'Smart (Claude Sonnet)',
+  'kitty-agentrouter': 'AgentRouter',
+  'kitty-openai': 'GPT (OpenAI)',
+}
+
 function prettyModelName(id: string): string {
+  if (MODEL_LABELS[id]) return MODEL_LABELS[id]
   if (!id.startsWith('kitty-')) return id
   return id.slice('kitty-'.length).replace(/-/g, ' ')
 }
@@ -1648,4 +1658,40 @@ export interface LogTailPayload {
 
 export async function fetchLogTail(file = 'gateway', lines = 100): Promise<LogTailPayload> {
   return await gfetch<LogTailPayload>(`/logs/tail?file=${encodeURIComponent(file)}&lines=${lines}`)
+}
+
+
+// ── Builder Control ──────────────────────────────────────────────────────────
+
+export interface BuildStartPayload {
+  build_id: string
+  status: string
+}
+
+export async function startBuild(goal: string, targetDir = '', autoApprove = false): Promise<BuildStartPayload> {
+  return await gfetch<BuildStartPayload>('/build/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ goal, target_dir: targetDir, auto_approve: autoApprove }),
+  })
+}
+
+export interface BuildStatusPayload {
+  build_id: string
+  status: string
+  goal?: string
+  created_at?: string
+  [key: string]: unknown
+}
+
+export async function fetchBuildStatus(buildId: string): Promise<BuildStatusPayload> {
+  return await gfetch<BuildStatusPayload>(`/build/${encodeURIComponent(buildId)}`)
+}
+
+export interface BuildListPayload {
+  builds: Array<{ build_id: string; status: string; goal?: string; created_at?: string }>
+}
+
+export async function fetchBuilds(limit = 10): Promise<BuildListPayload> {
+  return await gfetch<BuildListPayload>(`/builds?limit=${limit}`)
 }

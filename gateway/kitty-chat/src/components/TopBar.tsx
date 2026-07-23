@@ -94,14 +94,14 @@ export function TopBar({
   return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '0 26px', height: 58,
+      padding: '0 20px', height: 44,
       borderBottom: '1.5px solid var(--line)',
       background: 'var(--surface)', flexShrink: 0,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
         <span style={{
           fontFamily: 'var(--font-display)', fontWeight: 800,
-          fontSize: 23, letterSpacing: '-0.02em', color: 'var(--ink)',
+          fontSize: 18, letterSpacing: '-0.02em', color: 'var(--ink)',
         }}>kitty</span>
         <StateBadge state={catState} />
         <RuntimeBadge state={runtimeState} detail={runtimeDetail} />

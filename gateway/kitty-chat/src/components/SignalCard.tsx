@@ -52,14 +52,14 @@ export function SignalFeed({ compact = false }: { compact?: boolean }) {
       aria-live="polite"
       style={{
         flexShrink: 0,
-        maxHeight: 200,
+        maxHeight: 160,
         overflowY: 'auto',
         borderBottom: '1px solid var(--line)',
         background: 'var(--surface)',
-        padding: compact ? '8px 12px' : '8px 22px',
+        padding: compact ? '6px 14px' : '6px 20px',
         display: 'flex',
         flexDirection: 'column',
-        gap: 8,
+        gap: 6,
       }}
     >
       {signals.map((signal) => (

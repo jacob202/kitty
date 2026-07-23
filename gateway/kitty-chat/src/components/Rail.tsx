@@ -24,21 +24,21 @@ export function Rail({ activeView = 'home', onViewChange, theme = 'cosmic', onTo
 
   return (
     <nav style={{
-      width: 94,
+      width: 68,
       background: 'var(--surface-2)',
       borderRight: '1.5px solid var(--line)',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      padding: '18px 0 14px',
+      padding: '14px 0 12px',
       flexShrink: 0,
     }}>
-      <div style={{ marginBottom: 22, color: 'var(--cat-ginger)' }}>
+      <div style={{ marginBottom: 16, color: 'var(--cat-ginger)' }}>
         <CatMark />
       </div>
 
       <div style={{
-        display: 'flex', flexDirection: 'column', gap: 4,
+        display: 'flex', flexDirection: 'column', gap: 2,
         width: '100%', alignItems: 'center', flex: 1,
       }}>
         {NAV_ITEMS.map(({ label, view, d }) => {
@@ -48,23 +48,23 @@ export function Rail({ activeView = 'home', onViewChange, theme = 'cosmic', onTo
               key={view}
               onClick={() => onViewChange?.(view)}
               style={{
-                width: 62,
+                width: 52,
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                gap: 5,
-                padding: '9px 0',
+                gap: 4,
+                padding: '7px 0',
                 border: 'none',
-                borderRadius: 14,
+                borderRadius: 12,
                 cursor: 'pointer',
                 background: active ? 'var(--ginger-fade)' : 'transparent',
                 color: active ? 'var(--cat-ginger)' : 'var(--ink-2)',
               }}
             >
-              <svg viewBox="0 0 24 24" style={{ width: 23, height: 23 }}>
+              <svg viewBox="0 0 24 24" style={{ width: 18, height: 18 }}>
                 <path d={d} stroke="currentColor" strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" filter="url(#wob)" />
               </svg>
-              <span style={{ fontSize: 10, letterSpacing: '0.02em', fontWeight: 600 }}>{label}</span>
+              <span style={{ fontSize: 9, letterSpacing: '0.02em', fontWeight: 600 }}>{label}</span>
             </button>
           )
         })}

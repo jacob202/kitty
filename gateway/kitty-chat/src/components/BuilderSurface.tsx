@@ -1,9 +1,11 @@
 'use client'
 
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode, useCallback } from 'react'
 
 import { bodyText, card, cardHeader, cardMeta, cardTitle, emptyState, itemCard } from '@/lib/ui'
 import { useGatewayRuntimeManifest } from '@/lib/queries'
+import { streamChat } from '@/lib/chat-client'
+import { startBuild } from '@/lib/gateway'
 import type {
   BuilderAttemptStatus,
   BuilderFailureKind,
@@ -11,6 +13,7 @@ import type {
   BuilderStatusSnapshot,
   RuntimeFact,
 } from '@/lib/gateway'
+import type { Message } from '@/lib/types'
 
 interface BuilderSurfaceProps {
   fact?: RuntimeFact<BuilderStatusSnapshot>
@@ -80,12 +83,62 @@ export function BuilderGlance({ onOpen }: BuilderGlanceProps) {
       <p style={{ ...bodyText, margin: 0 }}>
         {builderGlanceDetail(fact, query.isLoading, query.error)}
       </p>
+      <p style={{ ...cardMeta, margin: 0 }}>
+        Builder runs automated code tasks: implement, validate, review, and publish.
+      </p>
       <div>
         <button type="button" onClick={onOpen} style={actionButton}>
           Open Builder
         </button>
       </div>
     </section>
+  )
+}
+
+/** Thin status banner for the top of the home/chat surface. */
+export function BuilderStatusBanner({ onOpen }: { onOpen?: () => void }) {
+  const query = useGatewayRuntimeManifest()
+  const fact = query.data?.execution.builder
+  const snapshot = fact?.value
+  const attention = snapshot ? attentionCount(snapshot) : 0
+  const active = snapshot ? activePacketCount(snapshot) : 0
+
+  const total = snapshot ? snapshot.queue.total : 0
+  if (query.isLoading) return null
+  if (attention === 0 && active === 0 && total === 0) return null
+
+  const dot = attention > 0
+    ? 'var(--c-red)'
+    : active > 0
+      ? 'var(--c-green)'
+      : 'var(--ink-2)'
+  const label = attention > 0
+    ? `${attention} need attention`
+    : active > 0
+      ? `${active} running`
+      : `${total} in queue`
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '4px 10px',
+        background: 'var(--surface-2)',
+        border: '1px solid var(--line)',
+        borderRadius: 99,
+        cursor: onOpen ? 'pointer' : 'default',
+        fontFamily: 'var(--font-mono)',
+        fontSize: 11,
+        color: 'var(--ink-2)',
+      }}
+    >
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: dot, flexShrink: 0 }} />
+      builder · {label}
+    </button>
   )
 }
 
@@ -158,14 +211,36 @@ export function BuilderSurface({ fact, isLoading, error, onBack }: BuilderSurfac
   return (
     <section style={surfaceLayout}>
       <SurfaceHeader onBack={onBack} observedAt={fact.observed_at} />
+      <StartBuildForm />
       {stale && <StaleNotice />}
       {fact.state === 'degraded' && fact.reason && (
         <DataQualityNotice detail={fact.reason} />
       )}
       {snapshot.initiatives.length === 0 ? (
-        <div style={card}>
-          <p style={{ ...emptyState, margin: 0 }}>No Builder work is recorded yet.</p>
-        </div>
+        <section style={{ ...card, display: 'grid', gap: 12, textAlign: 'center', padding: '24px 16px' }} aria-label="Builder empty state">
+          <strong style={{ fontFamily: 'var(--font-display)', fontSize: 22, color: 'var(--ink)' }}>
+            ready to build something?
+          </strong>
+          <p style={{ ...bodyText, margin: 0, maxWidth: 520, justifySelf: 'center' }}>
+            Describe what you want Builder to implement in the form above. It will plan the work, write the code, run tests, and open a pull request.
+          </p>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => {
+                const ta = document.querySelector<HTMLTextAreaElement>('[data-builder-goal]')
+                ta?.focus()
+                ta?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+              }}
+              style={{ ...actionButton, background: 'var(--primary, var(--c-blue))', color: 'white' }}
+            >
+              Start your first build
+            </button>
+          </div>
+          <p style={{ ...cardMeta, margin: 0 }}>
+            Or try an example: “Add a /health endpoint that returns 200 OK”
+          </p>
+        </section>
       ) : (
         <>
           <BuilderNextActionCard
@@ -190,6 +265,7 @@ export function BuilderSurface({ fact, isLoading, error, onBack }: BuilderSurfac
           )}
         </>
       )}
+      <BuilderChat />
     </section>
   )
 }
@@ -231,13 +307,13 @@ function UnavailableState({
 
 function SurfaceHeader({ onBack, observedAt }: { onBack?: () => void; observedAt?: string }) {
   return (
-    <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+    <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 12, flexWrap: 'wrap' }}>
       <div style={{ minWidth: 0 }}>
         <h1 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: 32, color: 'var(--ink)' }}>
           Builder
         </h1>
         <p style={{ ...bodyText, margin: '4px 0 0' }}>
-          Read-only execution status from durable Builder records.
+          Automated code execution system. Packets are units of work that get queued, executed, validated, and reviewed.
         </p>
         {observedAt && (
           <p style={{ ...cardMeta, margin: '4px 0 0' }}>
@@ -251,6 +327,120 @@ function SurfaceHeader({ onBack, observedAt }: { onBack?: () => void; observedAt
         </button>
       )}
     </header>
+  )
+}
+
+function HowBuilderWorks() {
+  const [open, setOpen] = useState(false)
+  return (
+    <section style={{ ...card, display: 'grid', gap: 8 }} aria-label="How Builder works">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          border: 'none',
+          background: 'transparent',
+          cursor: 'pointer',
+          padding: 0,
+          fontFamily: 'var(--font-body)',
+          color: 'var(--ink)',
+        }}
+      >
+        <strong style={{ fontSize: 14 }}>how builder works</strong>
+        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--ink-2)' }}>{open ? '▾' : '▸'}</span>
+      </button>
+      {open && (
+        <ol style={{ margin: 0, paddingLeft: 20, display: 'grid', gap: 6, color: 'var(--ink)', fontFamily: 'var(--font-body)', fontSize: 13, lineHeight: 1.5 }}>
+          <li><strong>Describe a goal</strong> — e.g., “add a /health endpoint”.</li>
+          <li><strong>Builder plans packets</strong> — small units of work.</li>
+          <li><strong>A worker implements</strong> the code in an isolated branch.</li>
+          <li><strong>Validators run tests</strong>, reviewers check quality.</li>
+          <li><strong>A pull request</strong> is created and merged.</li>
+        </ol>
+      )}
+    </section>
+  )
+}
+
+function StartBuildForm() {
+  const [goal, setGoal] = useState('')
+  const [isStarting, setIsStarting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+
+  const handleStart = useCallback(async () => {
+    if (!goal.trim() || isStarting) return
+    setIsStarting(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const result = await startBuild(goal.trim())
+      setSuccess(`Build started: ${result.build_id}`)
+      setGoal('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start build')
+    } finally {
+      setIsStarting(false)
+    }
+  }, [goal, isStarting])
+
+  return (
+    <section style={{ ...card, display: 'grid', gap: 8 }} aria-label="Start new build">
+      <div style={cardHeader}>
+        <div style={cardTitle}>start new build</div>
+        <span style={cardMeta}>submit a goal for Builder to execute</span>
+      </div>
+      <p style={{ ...bodyText, margin: 0 }}>
+        Describe what you want Builder to implement. It will create a plan, execute the code changes, validate, and optionally create a pull request.
+      </p>
+      <div style={{ display: 'grid', gap: 8 }}>
+        <textarea
+          data-builder-goal
+          value={goal}
+          onChange={(e) => setGoal(e.target.value)}
+          placeholder="e.g., Add a /health endpoint that returns 200 OK"
+          rows={3}
+          disabled={isStarting}
+          style={{
+            resize: 'vertical',
+            border: '1px solid var(--line)',
+            borderRadius: 4,
+            padding: '8px 10px',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 12,
+            background: 'var(--bg)',
+            color: 'var(--ink)',
+            outline: 'none',
+            lineHeight: 1.5,
+          }}
+        />
+        {error && (
+          <p style={{ ...bodyText, margin: 0, color: 'var(--c-red)' }}>{error}</p>
+        )}
+        {success && (
+          <p style={{ ...bodyText, margin: 0, color: 'var(--c-green)' }}>{success}</p>
+        )}
+        <div>
+          <button
+            type="button"
+            onClick={handleStart}
+            disabled={!goal.trim() || isStarting}
+            style={{
+              ...actionButton,
+              background: goal.trim() ? 'var(--primary, var(--c-blue))' : 'var(--surface)',
+              color: goal.trim() ? 'white' : 'var(--ink)',
+              opacity: goal.trim() ? 1 : 0.5,
+            }}
+          >
+            {isStarting ? 'Starting...' : 'Start Build'}
+          </button>
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -287,7 +477,7 @@ function BuilderNextActionCard({
     <section style={{ ...card, display: 'grid', gap: 8 }} aria-label="Builder next action">
       <div style={cardHeader}>
         <div style={cardTitle}>next action</div>
-        <span style={cardMeta}>read-only</span>
+        <span style={cardMeta}>what needs your attention</span>
       </div>
       <strong style={{ fontFamily: 'var(--font-body)', color: 'var(--ink)' }}>{nextAction.label}</strong>
       <p style={{ ...bodyText, margin: 0, overflowWrap: 'anywhere' }}>{nextAction.detail}</p>
@@ -345,7 +535,7 @@ function AllPacketsModal({
               All Builder packets
             </h2>
             <p style={{ ...bodyText, margin: '4px 0 0' }}>
-              Read-only status from durable Builder records.
+              Complete list of all work units across all initiatives. Click a packet to see detailed status.
             </p>
           </div>
           <button type="button" onClick={onClose} style={actionButton}>Close</button>
@@ -394,11 +584,12 @@ function BuilderOverview({
   return (
     <>
       <div style={detailGrid}>
-        <Metric label="needs attention" value={attentionCount(snapshot)} />
-        <Metric label="active work" value={activePacketCount(snapshot)} />
-        <Metric label="queued work" value={snapshot.queue.queued} />
-        <Metric label="completed" value={snapshot.queue.done} />
+        <Metric label="needs attention" value={attentionCount(snapshot)} tooltip="Packets that are blocked, failed, or need investigation before work can continue" />
+        <Metric label="active work" value={activePacketCount(snapshot)} tooltip="Packets currently being executed by a worker" />
+        <Metric label="queued work" value={snapshot.queue.queued} tooltip="Packets waiting to be picked up by a worker" />
+        <Metric label="completed" value={snapshot.queue.done} tooltip="Packets that have finished successfully" />
       </div>
+      <StatusLegend />
       {snapshot.initiatives.map((initiative) => (
         <section key={initiative.initiative_id} style={{ ...card, display: 'grid', gap: 12, minWidth: 0 }}>
           <div style={cardHeader}>
@@ -435,22 +626,33 @@ function BuilderOverview({
                   cursor: 'pointer',
                   textAlign: 'left',
                   color: 'var(--ink)',
-                  display: 'grid',
-                  gap: 5,
+                  display: 'flex',
+                  alignItems: 'start',
+                  gap: 8,
                   minWidth: 0,
                   overflowWrap: 'anywhere',
                 }}
               >
-                <span style={{ fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600 }}>
-                  {packet.title}
-                </span>
-                <span style={cardMeta}>
-                  {packetSummary(packet)}
-                  {packet.attempt_history[0]
-                    ? ` · attempt ${packet.attempt_history[0].number}`
-                    : ''}
-                </span>
-                <span style={{ ...cardMeta, opacity: 0.8 }}>{packet.packet_id}</span>
+                <span style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: packetStatusColor(packet),
+                  flexShrink: 0,
+                  marginTop: 5,
+                }} />
+                <div style={{ display: 'grid', gap: 5, minWidth: 0, flex: 1 }}>
+                  <span style={{ fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600 }}>
+                    {packet.title}
+                  </span>
+                  <span style={cardMeta}>
+                    {packetSummary(packet)}
+                    {packet.attempt_history[0]
+                      ? ` · attempt ${packet.attempt_history[0].number}`
+                      : ''}
+                  </span>
+                  <span style={{ ...cardMeta, opacity: 0.8 }}>{packet.packet_id}</span>
+                </div>
               </button>
             ))}
           </div>
@@ -482,7 +684,9 @@ function PacketDetail({
     <section style={surfaceLayout}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ minWidth: 0 }}>
-          <p style={{ ...cardMeta, margin: 0 }}>{packet.packet_id}</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+            <CopyableText value={packet.packet_id} label="packet_id" />
+          </div>
           <h2
             ref={headingRef}
             tabIndex={-1}
@@ -507,10 +711,10 @@ function PacketDetail({
         <DataQualityNotice detail={packet.data_quality.issues.join(' ')} />
       )}
       <div style={detailGrid}>
-        <Metric label="task state" value={displayState(packet.task_state ?? 'unavailable')} />
-        <Metric label="attempt budget" value={budgetLabel(packet)} />
-        <Metric label="eligibility" value={displayState(packet.eligibility.state)} />
-        <Metric label="last update" value={<TimeValue value={packet.updated_at} fallback="unavailable" />} />
+        <Metric label="task state" value={displayState(packet.task_state ?? 'unavailable')} tooltip="Current execution state of this packet (queued, running, blocked, etc.)" />
+        <Metric label="attempt budget" value={budgetLabel(packet)} tooltip="How many retry attempts have been used out of the maximum allowed" />
+        <Metric label="eligibility" value={displayState(packet.eligibility.state)} tooltip="Whether this packet can be picked up by a worker" />
+        <Metric label="last update" value={<TimeValue value={packet.updated_at} fallback="unavailable" />} tooltip="When this packet's status was last updated" />
       </div>
       <div style={{ ...card, display: 'grid', gap: 14, minWidth: 0 }}>
         <div style={cardHeader}><span style={cardTitle}>Current status</span></div>
@@ -536,9 +740,9 @@ function PacketDetail({
   )
 }
 
-function Metric({ label, value }: { label: string; value: ReactNode }) {
+function Metric({ label, value, tooltip }: { label: string; value: ReactNode; tooltip?: string }) {
   return (
-    <div style={{ ...card, display: 'grid', gap: 4, minWidth: 0 }}>
+    <div style={{ ...card, display: 'grid', gap: 4, minWidth: 0 }} title={tooltip}>
       <span style={cardMeta}>{label}</span>
       <strong style={{ fontFamily: 'var(--font-display)', fontSize: 22, color: 'var(--ink)', overflowWrap: 'anywhere' }}>
         {typeof value === 'number' && label === 'needs attention'
@@ -659,6 +863,45 @@ function EvidenceBlock({
   )
 }
 
+function CopyableText({ value, label }: { value: string; label?: string }) {
+  const [copied, setCopied] = useState(false)
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1200)
+    } catch {
+      /* clipboard unavailable — silent */
+    }
+  }, [value])
+
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-mono)' }}>
+      {label && <span style={{ color: 'var(--ink-2)', fontSize: 11 }}>{label}</span>}
+      <code style={{ color: 'var(--ink)', fontSize: 11, background: 'var(--surface-2)', padding: '2px 6px', borderRadius: 3, overflowWrap: 'anywhere' }}>
+        {value}
+      </code>
+      <button
+        type="button"
+        onClick={handleCopy}
+        aria-label={label ? `Copy ${label}` : 'Copy value'}
+        style={{
+          border: '1px solid var(--line)',
+          borderRadius: 3,
+          background: 'var(--surface)',
+          padding: '2px 6px',
+          fontSize: 10,
+          cursor: 'pointer',
+          color: 'var(--ink-2)',
+          fontFamily: 'var(--font-mono)',
+        }}
+      >
+        {copied ? 'copied' : 'copy'}
+      </button>
+    </span>
+  )
+}
+
 function RunCard({ packet }: { packet: BuilderPacketStatus }) {
   const run = packet.run
   return (
@@ -681,17 +924,17 @@ function RunCard({ packet }: { packet: BuilderPacketStatus }) {
 
 function ExecutionContextCard({ packet }: { packet: BuilderPacketStatus }) {
   return (
-    <div style={{ ...card, display: 'grid', gap: 6, minWidth: 0 }}>
+    <div style={{ ...card, display: 'grid', gap: 8, minWidth: 0 }}>
       <span style={cardTitle}>Execution context</span>
       {packet.lease ? (
         <>
           <span style={bodyText}>Active lease #{packet.lease.id}</span>
-          {packet.lease.worker_id && <span style={cardMeta}>Worker {packet.lease.worker_id}</span>}
-          {packet.lease.branch && <span style={{ ...cardMeta, overflowWrap: 'anywhere' }}>Branch {packet.lease.branch}</span>}
+          {packet.lease.worker_id && <CopyableText value={packet.lease.worker_id} label="worker" />}
+          {packet.lease.branch && <CopyableText value={packet.lease.branch} label="branch" />}
           {packet.lease.created_at && <span style={cardMeta}>Claimed <TimeValue value={packet.lease.created_at} /></span>}
         </>
       ) : <span style={bodyText}>No active branch lease.</span>}
-      {packet.base_sha && <span style={cardMeta}>Base {packet.base_sha.slice(0, 12)}</span>}
+      {packet.base_sha && <CopyableText value={packet.base_sha} label="base_sha" />}
     </div>
   )
 }
@@ -699,7 +942,7 @@ function ExecutionContextCard({ packet }: { packet: BuilderPacketStatus }) {
 function PublicationCard({ packet }: { packet: BuilderPacketStatus }) {
   const publication = packet.publication
   return (
-    <div style={{ ...card, display: 'grid', gap: 6, minWidth: 0 }}>
+    <div style={{ ...card, display: 'grid', gap: 8, minWidth: 0 }}>
       <span style={cardTitle}>Publication</span>
       {publication ? (
         <>
@@ -708,9 +951,12 @@ function PublicationCard({ packet }: { packet: BuilderPacketStatus }) {
           <span style={cardMeta}>review: {displayState(publication.review_state ?? 'unknown')}</span>
           {publication.updated_at && <span style={cardMeta}>Updated <TimeValue value={publication.updated_at} /></span>}
           {publication.pr_url && (
-            <a href={publication.pr_url} target="_blank" rel="noreferrer" style={{ ...bodyText, color: 'var(--primary)', overflowWrap: 'anywhere' }}>
-              Open pull request #{publication.pr_number}
-            </a>
+            <>
+              <a href={publication.pr_url} target="_blank" rel="noreferrer" style={{ ...bodyText, color: 'var(--primary)', overflowWrap: 'anywhere' }}>
+                Open pull request #{publication.pr_number}
+              </a>
+              <CopyableText value={publication.pr_url} label="pr_url" />
+            </>
           )}
         </>
       ) : <span style={bodyText}>No pull request recorded.</span>}
@@ -754,6 +1000,35 @@ function durationLabel(start: string, end: string | null): string {
 function budgetLabel(packet: BuilderPacketStatus): string {
   if (packet.budget.max === null) return `${packet.budget.used}/unknown`
   return `${packet.budget.used}/${packet.budget.max}`
+}
+
+function packetStatusColor(packet: BuilderPacketStatus): string {
+  if (packetNeedsAttention(packet)) return 'var(--c-red)'
+  if (isPacketActive(packet)) return 'var(--c-green)'
+  if (packet.task_state === 'done') return 'var(--ink-2)'
+  return 'var(--ink-2)'
+}
+
+function StatusLegend() {
+  const items: Array<{ color: string; label: string; description: string }> = [
+    { color: 'var(--c-red)', label: 'needs attention', description: 'blocked or failed — you must act' },
+    { color: 'var(--c-green)', label: 'active', description: 'running right now' },
+    { color: 'var(--ink-2)', label: 'queued / done', description: 'waiting or completed' },
+  ]
+  return (
+    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', padding: '6px 4px' }}>
+      {items.map((item) => (
+        <span
+          key={item.label}
+          title={item.description}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)' }}
+        >
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: item.color, flexShrink: 0 }} />
+          {item.label}
+        </span>
+      ))}
+    </div>
+  )
 }
 
 function sortPacketsForAttention(packets: BuilderPacketStatus[]): BuilderPacketStatus[] {
@@ -956,6 +1231,250 @@ function reviewLabel(verdict: BuilderAttemptStatus['review_verdict']): string | 
 
 function displayState(value: string): string {
   return value.replace(/_/g, ' ')
+}
+
+function newBuilderMsgId() {
+  return `bmsg-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function BuilderChat() {
+  const [open, setOpen] = useState(false)
+  const [messages, setMessages] = useState<Message[]>([])
+  const [input, setInput] = useState('')
+  const [isStreaming, setIsStreaming] = useState(false)
+  const abortRef = useRef<AbortController | null>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    if (open && listRef.current) {
+      listRef.current.scrollTop = listRef.current.scrollHeight
+    }
+  }, [messages, open])
+
+  const handleSend = useCallback(async () => {
+    const text = input.trim()
+    if (!text || isStreaming) return
+    setInput('')
+
+    const userMsg: Message = {
+      id: newBuilderMsgId(),
+      role: 'user',
+      content: text,
+      timestamp: new Date(),
+    }
+    setMessages((prev) => [...prev, userMsg])
+
+    const aiMsgId = newBuilderMsgId()
+    const aiMsg: Message = {
+      id: aiMsgId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date(),
+    }
+    setMessages((prev) => [...prev, aiMsg])
+    setIsStreaming(true)
+
+    const abort = new AbortController()
+    abortRef.current = abort
+
+    const history = [...messages, userMsg].map((m) => ({
+      role: m.role,
+      content: m.content,
+    })) as Message[]
+
+    let accumulated = ''
+    try {
+      for await (const chunk of streamChat('builder', history, abort.signal)) {
+        if (chunk.done) break
+        accumulated += chunk.content
+        setMessages((prev) =>
+          prev.map((m) => (m.id === aiMsgId ? { ...m, content: accumulated } : m)),
+        )
+      }
+    } catch {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === aiMsgId
+            ? { ...m, content: '⚠ error connecting to gateway' }
+            : m,
+        ),
+      )
+    } finally {
+      setIsStreaming(false)
+      abortRef.current = null
+    }
+  }, [input, isStreaming, messages])
+
+  const handleStop = useCallback(() => {
+    abortRef.current?.abort()
+  }, [])
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
+    }
+  }
+
+  return (
+    <div
+      style={{
+        borderTop: '1px solid var(--line)',
+        marginTop: 8,
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '10px 14px',
+          border: 'none',
+          background: 'transparent',
+          cursor: 'pointer',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: '0.06em',
+          textTransform: 'lowercase',
+          color: 'var(--ink-2)',
+        }}
+      >
+        <span>{open ? '▾' : '▸'} builder chat</span>
+        {isStreaming && <span style={{ color: 'var(--c-green)' }}>● streaming</span>}
+      </button>
+
+      {open && (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateRows: '1fr auto',
+            maxHeight: 320,
+            overflow: 'hidden',
+            borderTop: '1px solid var(--line)',
+          }}
+        >
+          <div
+            ref={listRef}
+            style={{
+              overflowY: 'auto',
+              padding: '8px 14px',
+              display: 'grid',
+              gap: 8,
+              alignContent: 'start',
+            }}
+          >
+            {messages.length === 0 && (
+              <p
+                style={{
+                  margin: 0,
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 11,
+                  color: 'var(--ink-2)',
+                  padding: '8px 0',
+                }}
+              >
+                Talk to the builder while it executes.
+              </p>
+            )}
+            {messages.map((m) => (
+              <div
+                key={m.id}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  background:
+                    m.role === 'user' ? 'var(--surface-2)' : 'var(--surface)',
+                  border: '1px solid var(--line)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 12,
+                  color: 'var(--ink)',
+                  lineHeight: 1.5,
+                  whiteSpace: 'pre-wrap',
+                }}
+              >
+                {m.content || (m.role === 'assistant' ? '…' : '')}
+              </div>
+            ))}
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              gap: 6,
+              padding: '6px 14px 10px',
+              borderTop: '1px solid var(--line)',
+            }}
+          >
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="talk to builder…"
+              rows={1}
+              disabled={isStreaming}
+              style={{
+                flex: 1,
+                resize: 'none',
+                border: '1px solid var(--line)',
+                borderRadius: 4,
+                padding: '6px 8px',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 12,
+                background: 'var(--bg)',
+                color: 'var(--ink)',
+                outline: 'none',
+                lineHeight: 1.5,
+              }}
+            />
+            {isStreaming ? (
+              <button
+                type="button"
+                onClick={handleStop}
+                style={{
+                  border: '1px solid var(--line)',
+                  borderRadius: 4,
+                  background: 'var(--surface)',
+                  color: 'var(--c-red)',
+                  cursor: 'pointer',
+                  padding: '4px 10px',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 11,
+                }}
+              >
+                stop
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSend}
+                disabled={!input.trim()}
+                style={{
+                  border: '1px solid var(--line)',
+                  borderRadius: 4,
+                  background: 'var(--surface)',
+                  color: 'var(--ink)',
+                  cursor: input.trim() ? 'pointer' : 'default',
+                  opacity: input.trim() ? 1 : 0.4,
+                  padding: '4px 10px',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 11,
+                  fontWeight: 600,
+                }}
+              >
+                send
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 function isExpired(validUntil: string | undefined): boolean {

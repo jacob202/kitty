@@ -3,10 +3,11 @@ import { isValidElement, useRef, useState, type ReactNode, type CSSProperties } 
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
-import { Copy, Check, RotateCcw, Paperclip, ThumbsUp, ThumbsDown } from 'lucide-react'
+import { Copy, Check, RotateCcw, Paperclip, ThumbsUp, ThumbsDown, GitBranch, FileText, Download, MessageSquare, AlertTriangle } from 'lucide-react'
 import { Message, type MemoryEvidence } from '@/lib/types'
 import { deleteMemory } from '@/lib/gateway'
 import { useSubmitMessageFeedback, type MessageFeedbackRating } from '@/lib/queries'
+import { useToast } from './Toast'
 import { CatFaceBadge, type CatState } from './CrayonCat'
 import { ToolCallList } from './ToolCallBlock'
 
@@ -20,9 +21,38 @@ interface Props {
   messageIndex: number
   /** Phone layout: reveal hover-only actions and size targets for touch. */
   compact?: boolean
+  /** Depth in conversation tree for indentation (0 = root). */
+  depth?: number
+  /** Whether this message has a parent (for connecting line). */
+  hasParent?: boolean
+  /** Whether this message has children (for connecting line down). */
+  hasChildren?: boolean
+  /** Whether this is the last child of its parent. */
+  isLastChild?: boolean
+  /** Callback when user forks from this message. */
+  onFork?: (messageId: string) => void
+  /** Callback when user copies message as markdown. */
+  onCopyMarkdown?: (messageId: string) => void
+  /** Callback when user exports thread from this message. */
+  onExportThread?: (messageId: string) => void
 }
 
-export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, chatId, messageIndex, compact = false }: Props) {
+export function ChatMessage({
+  message,
+  isStreaming,
+  catState = 'idle',
+  onRetry,
+  chatId,
+  messageIndex,
+  compact = false,
+  depth = 0,
+  hasParent = false,
+  hasChildren = false,
+  isLastChild = false,
+  onFork,
+  onCopyMarkdown,
+  onExportThread,
+}: Props) {
   const isUser = message.role === 'user'
   const isKitty = !isUser
   const attachments = message.attachments ?? []
@@ -33,13 +63,25 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
   const [focused, setFocused] = useState(false)
   const [copied, setCopied] = useState(false)
   const feedback = useSubmitMessageFeedback()
+  const { showToast } = useToast()
 
   const copyMessage = () => {
     if (!message.content) return
     void navigator.clipboard.writeText(message.content).then(() => {
       setCopied(true)
+      showToast('copied', 'success')
       window.setTimeout(() => setCopied(false), 1500)
     })
+  }
+
+  const copyAsMarkdown = () => {
+    if (!message.content) return
+    const md = `> ${message.content.replace(/\n/g, '\n> ')}`
+    void navigator.clipboard.writeText(md).then(() => {
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1500)
+    })
+    onCopyMarkdown?.(message.id)
   }
 
   const showActions = isKitty && !isStreaming && Boolean(message.content)
@@ -50,12 +92,19 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
     feedback.mutate({ chatId, messageIndex, rating })
   }
 
+  const indentSize = 16
+  const threadLineWidth = 2
+
   return (
-    <div className="msg-in" style={{
-      display: 'flex',
-      alignItems: 'flex-end',
-      gap: 10,
-      flexDirection: isKitty ? 'row' : 'row-reverse',
+    <div
+      className="msg-in"
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 10,
+        flexDirection: isKitty ? 'row' : 'row-reverse',
+        paddingLeft: depth * indentSize,
+        position: 'relative',
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -64,19 +113,105 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
         if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false)
       }}
     >
+      {/* Thread connecting line */}
+      {hasParent && (
+        <div
+          style={{
+            position: 'absolute',
+            left: depth * indentSize + 4,
+            top: -12,
+            bottom: 0,
+            width: threadLineWidth,
+            background: 'var(--line)',
+            borderRadius: threadLineWidth,
+            pointerEvents: 'none',
+            zIndex: 0,
+          }}
+        />
+      )}
+      {/* Horizontal line from thread to message bubble */}
+      {hasParent && (
+        <div
+          style={{
+            position: 'absolute',
+            left: depth * indentSize + 5,
+            top: 18,
+            width: indentSize - 2,
+            height: threadLineWidth,
+            background: 'var(--line)',
+            pointerEvents: 'none',
+            zIndex: 0,
+          }}
+        />
+      )}
+      {/* Vertical line down from this message to children */}
+      {hasChildren && !isLastChild && (
+        <div
+          style={{
+            position: 'absolute',
+            left: depth * indentSize + 5,
+            top: 36,
+            bottom: 0,
+            width: threadLineWidth,
+            background: 'var(--line)',
+            borderRadius: threadLineWidth,
+            pointerEvents: 'none',
+            zIndex: 0,
+          }}
+        />
+      )}
+      {/* Fork indicator for branched messages */}
+      {message.isFork && (
+        <div
+          style={{
+            position: 'absolute',
+            left: depth * indentSize - 8,
+            top: 14,
+            width: 14,
+            height: 14,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'var(--c-purple)',
+            borderRadius: 3,
+            color: '#fff',
+            fontSize: 8,
+            zIndex: 1,
+          }}
+          title="Forked conversation"
+        >
+          <GitBranch size={10} />
+        </div>
+      )}
+
       {isKitty && <CatFaceBadge state={catState} />}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: isKitty ? 'flex-start' : 'flex-end' }}>
-          {attachments.length > 0 && (
-            <div style={{
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 3,
+          alignItems: isKitty ? 'flex-start' : 'flex-end',
+          flex: 1,
+          minWidth: 0,
+          position: 'relative',
+          zIndex: 1,
+        }}
+      >
+        {attachments.length > 0 && (
+          <div
+            style={{
               display: 'flex',
               flexWrap: 'wrap',
               gap: 6,
               marginBottom: 2,
               justifyContent: isKitty ? 'flex-start' : 'flex-end',
-            }}>
-              {attachments.map((att) => (
-                <span key={att.id} style={{
+            }}
+          >
+            {attachments.map((att) => (
+              <span
+                key={att.id}
+                style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 5,
@@ -87,32 +222,53 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
                   fontFamily: 'var(--font-mono)',
                   fontSize: 10.5,
                   color: isKitty ? 'var(--ink-2)' : 'var(--on-primary)',
-                }}>
-                  <Paperclip size={10} />
-                  {att.display_name}
-                </span>
-              ))}
-            </div>
-          )}
-          <div style={{
+                }}
+              >
+                <Paperclip size={10} />
+                {att.display_name}
+              </span>
+            ))}
+          </div>
+        )}
+        <div
+          style={{
             maxWidth: 560,
             borderRadius: isKitty ? '5px 17px 17px 17px' : '17px 5px 17px 17px',
             padding: '11px 16px',
             background: isKitty ? 'var(--surface)' : 'var(--primary)',
             border: isKitty ? '1.5px solid var(--line)' : 'none',
             boxShadow: 'var(--shadow-soft)',
-          }}>
-            {isStreaming && !message.content && !message.toolCalls?.length ? (
-              <TypingDots />
-            ) : (
-              <>
-                <MessageContent content={message.content} isUser={isUser} />
-                {message.toolCalls && message.toolCalls.length > 0 && (
-                  <ToolCallList toolCalls={message.toolCalls} isStreaming={isStreaming} />
-                )}
-              </>
-            )}
-          </div>
+          }}
+        >
+          {isStreaming && !message.content && !message.toolCalls?.length ? (
+            <TypingDots />
+          ) : (
+            <>
+              {isStreaming && message.content && (
+                <div style={streamingIndicatorStyle}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <span
+                      style={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: 99,
+                        background: 'var(--c-yellow)',
+                        animation: 'throb 1.1s ease-in-out infinite',
+                      }}
+                    />
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}>
+                      streaming… ~{Math.round(message.content.length / 4)} tokens
+                    </span>
+                  </span>
+                </div>
+              )}
+              <MessageContent content={message.content} isUser={isUser} />
+              {message.toolCalls && message.toolCalls.length > 0 && (
+                <ToolCallList toolCalls={message.toolCalls} isStreaming={isStreaming} />
+              )}
+            </>
+          )}
+        </div>
         {isKitty && !isStreaming && message.memoryItems && message.memoryItems.length > 0 && (
           <MemoryBlock items={message.memoryItems} />
         )}
@@ -122,6 +278,22 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
               {copied ? <Check size={10} /> : <Copy size={10} />}
               <span>{copied ? 'copied' : 'copy'}</span>
             </button>
+            <button onClick={copyAsMarkdown} style={actionBtnStyle} title="copy as markdown">
+              <FileText size={10} />
+              <span>md</span>
+            </button>
+            {onFork && (
+              <button onClick={() => onFork(message.id)} style={actionBtnStyle} title="fork conversation from here">
+                <GitBranch size={10} />
+                <span>fork</span>
+              </button>
+            )}
+            {onExportThread && (
+              <button onClick={() => onExportThread(message.id)} style={actionBtnStyle} title="export thread as markdown">
+                <Download size={10} />
+                <span>export</span>
+              </button>
+            )}
             {onRetry && (
               <button onClick={onRetry} style={actionBtnStyle} title="regenerate this reply">
                 <RotateCcw size={10} />
@@ -159,12 +331,53 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
           </div>
         )}
         {showTurnStatus && (
-          <div style={{
-            ...actionRowStyle,
-            color: turnStatus === 'failed' ? 'var(--c-red)' : 'var(--ink-2)',
-          }}>
-            <span style={{ fontSize: 10 }}>{turnStatus}</span>
-          </div>
+          turnStatus === 'failed' && onRetry ? (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '8px 12px',
+                borderRadius: 10,
+                background: 'rgba(255, 80, 80, 0.08)',
+                border: '1px solid rgba(255, 80, 80, 0.25)',
+              }}
+            >
+              <AlertTriangle size={13} style={{ color: 'var(--c-red)', flexShrink: 0 }} />
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--c-red)', flex: 1 }}>
+                {message.content.replace(/^⚠ /, '')}
+              </span>
+              <button
+                onClick={onRetry}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  padding: '4px 10px',
+                  border: '1.5px solid var(--c-red)',
+                  borderRadius: 99,
+                  background: 'transparent',
+                  color: 'var(--c-red)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 10,
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                <RotateCcw size={10} />
+                retry
+              </button>
+            </div>
+          ) : (
+            <div
+              style={{
+                ...actionRowStyle,
+                color: turnStatus === 'failed' ? 'var(--c-red)' : 'var(--ink-2)',
+              }}
+            >
+              <span style={{ fontSize: 10 }}>{turnStatus}</span>
+            </div>
+          )
         )}
         {showActions && (message.model || message.routing?.length) && (
           <Attribution message={message} />
@@ -176,10 +389,12 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
 
 function MessageContent({ content, isUser }: { content: string; isUser: boolean }) {
   return (
-    <div style={{
-      ...bodyStyle,
-      color: isUser ? 'var(--on-primary)' : 'var(--ink)',
-    }}>
+    <div
+      style={{
+        ...bodyStyle,
+        color: isUser ? 'var(--on-primary)' : 'var(--ink)',
+      }}
+    >
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[[rehypeHighlight, { detect: true, ignoreMissing: true }]]}
@@ -500,4 +715,34 @@ const inlineCodeStyle: CSSProperties = {
   padding: '1px 6px', borderRadius: 4,
   background: 'var(--surface-2)', border: '1px solid var(--line)',
   color: 'var(--primary)',
+}
+
+const streamingIndicatorStyle: CSSProperties = {
+  marginTop: 6,
+  paddingLeft: 2,
+}
+
+const globalStyleEl = typeof document !== 'undefined' ? document.getElementById('chat-stream-keyframes') : null
+if (!globalStyleEl && typeof document !== 'undefined') {
+  const style = document.createElement('style')
+  style.id = 'chat-stream-keyframes'
+  style.textContent = `
+    @keyframes throb {
+      0%, 100% { opacity: 0.4; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.2); }
+    }
+    @keyframes dot1 {
+      0%, 80%, 100% { transform: scale(1); opacity: 0.4; }
+      40% { transform: scale(1.5); opacity: 1; }
+    }
+    @keyframes dot2 {
+      0%, 80%, 100% { transform: scale(1); opacity: 0.4; }
+      40% { transform: scale(1.5); opacity: 1; }
+    }
+    @keyframes dot3 {
+      0%, 80%, 100% { transform: scale(1); opacity: 0.4; }
+      40% { transform: scale(1.5); opacity: 1; }
+    }
+  `
+  document.head.appendChild(style)
 }

@@ -62,6 +62,12 @@ export interface Message {
    * field above is the fallback attribution when a single model answered.
    */
   routing?: MessageRouting[]
+  /** Parent message ID for conversation threading (branching/forking). */
+  parentId?: string
+  /** Child message IDs for conversation threading. */
+  childIds?: string[]
+  /** Whether this message is part of a forked branch. */
+  isFork?: boolean
 }
 
 /** One routed task in a Council-assembled answer. Mirrors the gateway /council `routing` field. */

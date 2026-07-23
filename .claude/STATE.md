@@ -1,26 +1,30 @@
-# Session State — PR 229 reconciled, INIT-1 v2 ready for B1
+# Session State — UI/UX fixes + leasing migration hardening
 
 <!-- kitty-state
 {
   "schema_version": 1,
-  "updated_at": "2026-07-23T03:45:00Z",
-  "head_sha": "5533deb376540309e0948cadb7a4d9e7eb815d6c",
+  "updated_at": "2026-07-23T06:40:21Z",
+  "head_sha": "68eca9e",
   "branch": "main",
   "worktree": ".",
-  "status": "in_progress",
+  "status": "complete",
   "completed_items": [
-    "PR #229 reconciled: it silently collided with main's L-CAND-14/15 lessons under the same slot numbers (git's textual merge auto-resolved it by deleting main's entries) — restored both, renumbered the PR's two lessons to L-CAND-16/17, took main's current .claude/HANDOFF.md/STATE.md over the branch's stale copies. Merged as #229 (squash, 3e352a0) after all 7 checks went green.",
-    "B1-dogfood-preflight adjudicated: exhausted at 2/2 attempts on a repo:identity false-positive in builder doctor, root-cause-fixed in main (ebd1a93) after INIT-1 v1 was already applied. Manifests are immutable (InitiativeConflictError) and base_sha is resolved once at apply time, so v1 could never pick up the fix. Paused v1 with a documented reason, applied kitty-endgame-init-1-builder-closeout-v2 (same 5 packets, fresh base_sha) — B1 is eligible again.",
-    "val-cli / val-cli-fail duplicate initiatives resolved: both were CLI-validation test fixtures from 2026-07-20 (placeholder objective 'Do the first thing', validation_commands true/false), not real work. Operator-cancelled all 4 tasks across both; they now show state=failed instead of confusing duplicate 'active' Kitty Alpha build entries.",
-    "Merge rail fixed (docs/LEARNINGS.md L-CAND-15, both halves): merge_and_verify (gateway/builder_publish.py) now rebases the packet's own branch onto fresh main and force-pushes-with-lease only on a clean rebase, retrying the merge once — a rebase conflict is never force-pushed, the original error still propagates. Documented as ADR 0018 amendment 7. CLAUDE.md's Session State section now tells sessions to re-read STATE.md/HANDOFF.md fresh before writing and not clobber a different active workstream's narrative; clarified the convention is for Jacob's interactive sessions, not isolated Builder workers (whose brief already forbids touching .claude/).",
-    "Verified via runtime manifest (curl against /runtime/manifest, the exact endpoint BuilderSurface.tsx consumes): val-cli/val-cli-fail show failed, INIT-1 v1 shows paused with the documented reason, INIT-1 v2 shows active with next_packet=B1-dogfood-preflight. Started the kitty-chat dev server (was dead, PID from a prior note had died) to do this check live, not from code inspection.",
-    "All 171 focused tests pass (test_builder_publish.py, test_builder_initiative.py, test_builder_doctor.py). kitty doctor: 36 pass/8 warn/0 fail. builder initiative doctor: 13 pass/1 warn/0 fail (warn = expected paused-initiative list)."
+    "Fixed stream closed without [DONE] error: gateway now emits [DONE] on interruption; client returns partial content instead of throwing",
+    "Fixed gateway offline warning: runtime manifest connections.gateway.state changed from 'serving' to 'available' so health badge shows green",
+    "Added streaming progress indicator: token counter + pulsing spinner in ChatMessage during streaming",
+    "Added collapse/expand for ActiveTaskCards panel with count badge",
+    "Added toast notification system: ToastProvider + useToast hook; SettingsPanel shows success/error toasts on save",
+    "Keyboard shortcuts cheatsheet: added '?' command in CommandPalette → full overlay with all 10 shortcuts",
+    "SessionSidebar search/filter already existed (no change needed)",
+    "All 261 frontend tests pass. Production build succeeds. Backend tests pass.",
+    "Fixed branch_leases: removed DEFAULT '' from initiative_id, added CHECK (initiative_id != ''), added legacy migration + new enforcement migration",
+    "All 430 builder tests pass. v1/v2 same-packet_id collision scenario verified fixed.",
+    "Removed redundant page-level ToastProvider wrapper, fixed ChatMessage JSX/type issues left in the dirty worktree, and verified frontend tests/build pass."
   ],
   "blockers": [],
-  "next_action": "Jacob runs B1-dogfood-preflight (and the rest of INIT-1 v2's chain) himself via KittyBuilder's CLI/UI now that the queue is clean and the merge rail is fixed — this was his explicit ask, not something to run unattended on his behalf.",
+  "next_action": "None for this cleanup pass; the frontend suite and production build are green.",
   "invalidation_conditions": [
-    "HEAD changes beyond 5533deb376540309e0948cadb7a4d9e7eb815d6c",
-    "origin/main advances beyond 5533deb376540309e0948cadb7a4d9e7eb815d6c"
+    "HEAD changes beyond 68eca9e"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
@@ -29,25 +33,42 @@
 
 ## Current checkpoint
 
-`main` = `origin/main` at `5533deb`, pushed. PR #229 merged. Merge-rail gap
-(L-CAND-15) fixed and documented (ADR 0018 amendment 7). `.claude/`
-clobbering gap (L-CAND-16) fixed via a CLAUDE.md scoping addition.
+`main` at `68eca9e`. The cleanup pass removed the redundant page-level toast wrapper and repaired the broken ChatMessage JSX/type errors left in the dirty worktree. Frontend tests and the production build are green.
 
-## Endgame checkpoint
+## Fixes summary
 
-`kitty-endgame-init-1-builder-closeout-v1` is paused (exhausted B1, immutable
-manifest, documented reason in its pause_reason). `-v2` is active with B1
-eligible — same 5 packets, fresh base_sha off current main. Nothing else in
-the whole queue is eligible right now, so there is no cross-initiative
-collision risk to worry about when B1 runs.
+### Streaming resilience
+- **gateway/llm_client.py**: `iter_chat_completions_stream` now catches exceptions and emits `[DONE]` so clients don't hang
+- **chat-client.ts**: returns partial content + yields `{done: true}` instead of throwing on premature close
 
-## Known follow-up
+### Gateway status sync
+- **runtime_manifest.py**: `connections.gateway.state = "available"` (was "serving") — matches frontend `RuntimeFactState` enum so green dot appears
 
-- The CP-06 tripwire and auto-revert path are still unexercised — no revert
-  has occurred in real use yet. A deliberate revert drill (daily-driver plan
-  §3.3, negative test 4) is still owed before trusting them unattended.
-- `feat/reasoning-engine-current` remains Jacob's separate live WIP,
-  untouched by this session.
-- The kitty-chat dev server needs to be started manually
-  (`cd gateway/kitty-chat && npm run dev`) — it is not managed by launchd
-  like gateway/litellm, so it doesn't survive a reboot/logout on its own.
+### Streaming progress indicator
+- **ChatMessage.tsx**: shows `streaming… ~X tokens` with pulsing yellow dot while `isStreaming && message.content`
+
+### Active tasks collapse
+- **ActiveTaskCards.tsx**: header button with chevron + count badge; list hidden when collapsed
+
+### Toast system
+- **Toast.tsx**: `ToastProvider` + `useToast()` hook with success/error/info types, auto-dismiss at 3s
+- **providers.tsx**: wraps app with `<ToastProvider>`
+- **SettingsPanel.tsx**: `showToast('personality saved', 'success')` on save; error toast on failure
+
+### Shortcuts cheatsheet
+- **CommandPalette.tsx**: `?` key or "keyboard shortcuts" item opens full overlay with 10 shortcuts (⌘K, ⌘N, ⌘B, ⌘Enter, ⌘⇧Enter, Esc, ⌘/, ↑/↓, Tab)
+
+### Leasing migration hardening
+- **Problem**: The branch_leases migration allowed empty `initiative_id` (DEFAULT '') which defeated the composite UNIQUE constraint when two initiatives used the same `packet_id` with empty strings. This meant v1 and v2 retries of the same packet (e.g., B1-dogfood-preflight) would still collide.
+- **Fix**:
+  1. Removed `DEFAULT ''` from `initiative_id` column in schema
+  2. Added `CHECK (initiative_id != '')` constraint at database level
+  3. Updated `_ensure_branch_lease_initiative_id` migration to set `'legacy-migrated'` placeholder for old rows
+  4. New `_ensure_branch_lease_initiative_id_required` migration enforces this on existing databases
+- **Files**: `gateway/builder_queue_db.py` (schema, migrations, CHECK constraint), `gateway/builder_queue_branch_leases.py` (validation already enforced `initiative_id` required), `tests/test_builder_queue_runs.py` (updated migration test expectation)
+
+## Test status
+- Frontend: 261/261 pass (including SettingsPanel test with ToastProvider wrapper)
+- Backend: `test_db.py` (8), `test_chats_store.py` (19), `test_llm_client.py` (65) all pass
+- Builder: 430/430 pass (test_builder_queue_runs, test_builder_identity, test_builder_loop, test_builder_initiative)
+- Build: `npm run build` succeeds
