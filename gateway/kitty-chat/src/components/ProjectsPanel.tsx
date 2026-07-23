@@ -2,6 +2,8 @@
 import type { CSSProperties } from 'react'
 import { useProjects, useProjectNext, useRefreshProject } from '@/lib/queries'
 import type { GatewayProject } from '@/lib/gateway'
+import { Button } from '@/components/ui/Button'
+import { RefreshCw } from 'lucide-react'
 
 export function ProjectsPanel() {
   const projectsQuery = useProjects()
@@ -74,9 +76,9 @@ function ProjectCard({
         </span>
         {touched && <span style={metaStyle}>touched {touched}</span>}
         <span style={{ flex: 1 }} />
-        <button onClick={onRefresh} disabled={refreshing} style={refreshButtonStyle}>
-          {refreshing ? 'refreshing…' : '↻ refresh'}
-        </button>
+        <Button onClick={onRefresh} variant="ghost" size="sm" disabled={refreshing} icon={<RefreshCw size={12} />}>
+          {refreshing ? 'refreshing…' : 'refresh'}
+        </Button>
       </div>
 
       {project.summary && <p style={summaryStyle}>{project.summary}</p>}
@@ -207,17 +209,6 @@ const actionStyle: CSSProperties = {
   fontSize: 13,
   color: 'var(--ink)',
   lineHeight: 1.5,
-}
-
-const refreshButtonStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 11,
-  padding: '4px 10px',
-  border: '1.5px solid var(--line)',
-  borderRadius: 8,
-  background: 'var(--surface-2)',
-  color: 'var(--ink-2)',
-  cursor: 'pointer',
 }
 
 const mutedStyle: CSSProperties = {

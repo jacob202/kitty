@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useImageStatus, useImageHistory, useGenerateImage } from '@/lib/queries'
 import { ImageGallery } from './ImageGallery'
+import { Button } from '@/components/ui/Button'
+import { RefreshCw, Sparkles } from 'lucide-react'
 
 const STYLE_CHIPS = [
   { label: 'portrait',    hint: 'portrait orientation' },
@@ -91,14 +93,15 @@ export function ImageGenPanel() {
           Start ComfyUI or Draw Things and check again. Kitty reports each configured renderer
           independently; generation stays disabled until at least one engine is reachable.
         </p>
-        <button
-          type="button"
+        <Button
           onClick={() => void statusQuery.refetch()}
           disabled={statusQuery.isFetching}
-          style={retryStyle}
+          variant="secondary"
+          size="sm"
+          icon={<RefreshCw size={12} />}
         >
           {statusQuery.isFetching ? 'checking…' : 'check again'}
-        </button>
+        </Button>
       </div>
     )
   }
@@ -155,13 +158,15 @@ export function ImageGenPanel() {
       </div>
 
       {/* Generate button */}
-      <button
+      <Button
         onClick={handleGenerate}
         disabled={!prompt.trim() || state === 'generating'}
-        style={{ ...genBtnStyle, opacity: !prompt.trim() || state === 'generating' ? 0.4 : 1 }}
+        variant="primary"
+        size="md"
+        icon={<Sparkles size={14} />}
       >
         {state === 'generating' ? 'generating…' : 'generate'}
-      </button>
+      </Button>
 
       {/* Error */}
       {state === 'error' && <p style={errorStyle}>{errMsg}</p>}
@@ -225,17 +230,6 @@ const chipStyle: CSSProperties = {
   cursor: 'pointer',
 }
 
-const genBtnStyle: CSSProperties = {
-  padding: '6px 12px',
-  background: 'rgba(232,120,69,0.12)',
-  border: '1px solid rgba(232,120,69,0.3)',
-  borderRadius: 4,
-  fontFamily: 'var(--font-mono)',
-  fontSize: 11,
-  color: 'var(--cat-ginger)',
-  cursor: 'pointer',
-  textAlign: 'left',
-}
 
 const errorStyle: CSSProperties = {
   margin: 0,
@@ -264,18 +258,6 @@ const unavailableBodyStyle: CSSProperties = {
   fontSize: 10,
   color: 'var(--ink-2)',
   lineHeight: 1.5,
-}
-
-const retryStyle: CSSProperties = {
-  marginTop: 10,
-  padding: '5px 9px',
-  background: 'transparent',
-  border: '1px solid var(--line)',
-  borderRadius: 4,
-  color: 'var(--ink-2)',
-  cursor: 'pointer',
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
 }
 
 const onlineStyle: CSSProperties = {

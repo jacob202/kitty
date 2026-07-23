@@ -1,7 +1,9 @@
 'use client'
 import { useState } from 'react'
-import type { CSSProperties } from 'react'
 import { useTodos, useAddTodo, useCompleteTodo, useDeleteTodo } from '@/lib/queries'
+import { Button } from '@/components/ui/Button'
+import { WorkCard } from '@/components/shared/WorkCard'
+import { Check, X, Plus } from 'lucide-react'
 
 export function TodoPanel() {
   const todosQuery = useTodos()
@@ -11,141 +13,67 @@ export function TodoPanel() {
   const [input, setInput] = useState('')
 
   const todos = todosQuery.data ?? []
-  const adding = addTodo.isPending
   const active = todos.filter(t => t.status === 'pending' || t.status === 'in_progress')
   const done = todos.filter(t => t.status === 'completed')
 
   function handleAdd() {
     const content = input.trim()
-    if (!content || adding) return
-    addTodo.mutate(content, {
-      onSuccess: result => {
-        if (result) setInput('')
-      },
-    })
+    if (!content || addTodo.isPending) return
+    addTodo.mutate(content, { onSuccess: result => { if (result) setInput('') } })
   }
 
   return (
-    <div style={{ display: 'grid', gap: 6 }}>
-      {active.length > 0 ? (
-        <div style={{ display: 'grid', gap: 4 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Active todos as cards */}
+      {active.length === 0 ? (
+        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-2)', margin: 0 }}>
+          no todos yet
+        </p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {active.map(t => (
-            <div key={t.id} style={rowStyle}>
-              <button onClick={() => completeTodo.mutate(t.id)} style={checkStyle} title="complete">
-                {t.status === 'in_progress' ? '▶' : '☐'}
-              </button>
-              <span style={{ ...labelStyle, flex: 1 }}>
-                {t.content}
-                {t.active_form && <em style={activeFormStyle}> — {t.active_form}</em>}
-              </span>
-              <button onClick={() => deleteTodo.mutate(t.id)} style={removeStyle} title="delete">×</button>
-            </div>
+            <WorkCard
+              key={t.id}
+              id={String(t.id)}
+              title={t.content}
+              status={t.status === 'in_progress' ? 'working' : 'scheduled'}
+              statusDetail={t.active_form ?? undefined}
+              onRetry={() => completeTodo.mutate(t.id)}
+            />
           ))}
         </div>
-      ) : (
-        <p style={emptyStyle}>no todos</p>
       )}
 
+      {/* Completed count */}
       {done.length > 0 && (
-        <p style={{ ...emptyStyle, color: 'var(--ink-2)' }}>
-          {done.length} completed
+        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)', margin: 0 }}>
+          {done.length} completed —{' '}
+          <button
+            onClick={() => done.forEach(d => deleteTodo.mutate(d.id))}
+            style={{ background: 'none', border: 'none', color: 'var(--c-red)', cursor: 'pointer', fontSize: 11, padding: 0 }}
+          >
+            clear done
+          </button>
         </p>
       )}
 
-      <div style={{ display: 'flex', gap: 5, marginTop: 2 }}>
+      {/* Add new */}
+      <div style={{ display: 'flex', gap: 8 }}>
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleAdd()}
-          placeholder="add todo…"
-          style={inputStyle}
+          onKeyDown={e => { if (e.key === 'Enter') handleAdd() }}
+          placeholder="add a todo…"
+          style={{
+            flex: 1, padding: '6px 12px', borderRadius: 10, border: '1.5px solid var(--line)',
+            background: 'var(--surface-2)', fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink)',
+            outline: 'none',
+          }}
         />
-        <button
-          onClick={handleAdd}
-          disabled={!input.trim() || adding}
-          style={{ ...addBtnStyle, opacity: !input.trim() || adding ? 0.4 : 1 }}
-        >
-          {adding ? '…' : '+'}
-        </button>
+        <Button onClick={handleAdd} size="sm" disabled={!input.trim() || addTodo.isPending} icon={<Plus size={12} />}>
+          add
+        </Button>
       </div>
     </div>
   )
-}
-
-const rowStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
-  padding: '4px 6px',
-  background: 'var(--surface-2)',
-  border: '1px solid var(--line)',
-  borderRadius: 4,
-}
-
-const labelStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 11,
-  color: 'var(--ink-2)',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-}
-
-const activeFormStyle: CSSProperties = {
-  color: 'var(--ink-2)',
-  fontStyle: 'italic',
-}
-
-const checkStyle: CSSProperties = {
-  background: 'transparent',
-  border: 'none',
-  color: 'var(--c-blue)',
-  cursor: 'pointer',
-  fontSize: 12,
-  padding: 0,
-  flexShrink: 0,
-  lineHeight: 1,
-}
-
-const removeStyle: CSSProperties = {
-  background: 'transparent',
-  border: 'none',
-  color: 'var(--ink-2)',
-  cursor: 'pointer',
-  fontSize: 13,
-  padding: '0 2px',
-  lineHeight: 1,
-  flexShrink: 0,
-}
-
-const inputStyle: CSSProperties = {
-  flex: 1,
-  background: 'var(--surface-2)',
-  border: '1px solid var(--line)',
-  borderRadius: 4,
-  padding: '4px 8px',
-  fontFamily: 'var(--font-mono)',
-  fontSize: 11,
-  color: 'var(--ink-2)',
-  outline: 'none',
-  minWidth: 0,
-}
-
-const addBtnStyle: CSSProperties = {
-  padding: '4px 10px',
-  background: 'rgba(78,201,176,0.12)',
-  border: '1px solid rgba(78,201,176,0.25)',
-  borderRadius: 4,
-  fontFamily: 'var(--font-mono)',
-  fontSize: 13,
-  color: 'var(--c-blue)',
-  cursor: 'pointer',
-  flexShrink: 0,
-}
-
-const emptyStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 10,
-  color: 'var(--ink-2)',
-  margin: 0,
 }

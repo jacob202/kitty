@@ -1,20 +1,20 @@
 {
   "manifest_version": 1,
   "initiative_id": "kx-05-companion-layer-v1",
-  "title": "KX-05: Companion layer — onboarding import, self-repairs, builder control, experts, chat polish",
-  "description": "DRAFT for Jacob's review — NOT yet applied to the Builder queue. Derived 2026-07-23 from agent dogfooding (fresh-profile browser walkthrough), chat-history mining (the 'start buidery' session), and Jacob's direction: he is not a coder, everything must be operable from the UI, onboarding must actually onboard, and experts over the local library must be easy to reach. Gaps confirmed NOT covered by KX-01..KX-04 or closeout-v2: onboarding that imports history (packet 024's extractor + idea-mine REST exist but have no UI and zero imported rows), self-diagnosis with fix actions (doctor exists CLI-only; the UI shows raw jargon banners), builder queue control beyond B7/B8's next-packet gate (pause/resume/cancel/cleanup are CLI-only; 'needs a decision' cards have no decision buttons), experts surfacing (219 books tagged by expert in data/books_manifest.json, council + knowledge routes exist, no UI), and a chat polish sweep (junk task cards eat the thread, memory over-recall, status-strip flapping, CLI copy in user-facing text). Sequencing: KX-05-03 depends on closeout-v2 B7/B8 landing (authority gate pattern); KX-05-02 and KX-05-05 are independent quick wins; KX-05-01 pairs with KX-02 approval cards for the import review; KX-05-04 pairs with KX-02 tool cards for citations.",
+  "title": "KX-05: Companion layer \u2014 onboarding import, self-repairs, builder control, experts, chat polish",
+  "description": "Companion to the 2026-07-23 audit (docs/AUDIT_COMPANION_LAYER_HARVEST_2026-07-23.md). Derived 2026-07-23 from agent dogfooding (fresh-profile browser walkthrough), chat-history mining (the 'start buidery' session), and Jacob's direction: he is not a coder, everything must be operable from the UI, onboarding must actually onboard, and experts over the local library must be easy to reach. Gaps confirmed NOT covered by KX-01..KX-04 or closeout-v2: onboarding that imports history (packet 024's extractor + idea-mine REST exist but have no UI and zero imported rows), self-diagnosis with fix actions (doctor exists CLI-only; the UI shows raw jargon banners), builder queue control beyond B7/B8's next-packet gate (pause/resume/cancel/cleanup are CLI-only; 'needs a decision' cards have no decision buttons), experts surfacing (219 books tagged by expert in data/books_manifest.json, council + knowledge routes exist, no UI), and a chat polish sweep (junk task cards eat the thread, memory over-recall, status-strip flapping, CLI copy in user-facing text). Sequencing: KX-05-03 depends on closeout-v2 B7/B8 landing (authority gate pattern); KX-05-02 and KX-05-05 are independent quick wins; KX-05-01 pairs with KX-02 approval cards for the import review; KX-05-04 pairs with KX-02 tool cards for citations. LOCKED DECISIONS (Jacob 2026-07-23): (1) Tier rule \u2014 all chat-routable actions in this initiative run at T0 (auto-execute, every execution recorded) because 'i dont like approving things, i like it just to get done'; new action kinds go into config/action_tiers.json at T0 and the gateway picks them up on restart. (2) Import staging \u2014 approved items go to idea_mine_items with user_review='approved' (conservative staging per packet 024 phases 2-3); they become queryable in chat in subsequent turns; skipped items carry user_review='skipped'. (3) Builder pane layout \u2014 attention-first by default (one 'needs you' card, the actionable decision cards, a single 'see all initiatives' link); HA Repairs is the reference; operability over completeness. (4) Import test corpus \u2014 the real-data ChatGPT export at /Users/jacobbrizinski/Downloads/data-f19e223a-7158-45b7-a76a-22c3d47efd74-1784835442-7c8da282-batch-0000/ (conversations.json + memories.json + users.json); fall back to a synthetic export under tests/fixtures/chat_goldmine/ if unavailable.",
   "packets": [
     {
       "id": "KX-05-01-onboarding-import",
       "title": "Onboarding that actually onboards: persist to gateway, import chat history",
-      "objective": "Today onboarding collects a name and theme into localStorage, then does nothing visible (the name appears nowhere) and re-runs on every new origin/device because completion is browser-local. Fix in three moves. (1) Persist onboarding completion, preferred name, and theme to the gateway app_settings table (it already stores active_project_id); the UI reads/writes through /proxy so any browser, PWA, or phone sees the same state. (2) Use the preferred name: greeting on Home, and pass it into the chat system context so Kitty addresses Jacob by name. (3) Add an optional import step to onboarding: point at a ChatGPT conversations.json export, Claude export, or a folder of transcripts; run the EXISTING scripts/curation/extract_chat_goldmine.py pipeline; show the found items in a review list backed by the EXISTING /idea-mine/review + PATCH endpoints (idea_mine_items is empty today); approved items enter memory per the packet 024 phase 2-3 rules. No new extractor is built; this is wiring and UI only.",
+      "objective": "Today onboarding collects a name and theme into localStorage, then does nothing visible (the name appears nowhere) and re-runs on every new origin/device because completion is browser-local. Fix in three moves. (1) Persist onboarding completion, preferred name, and theme to the gateway app_settings table (it already stores active_project_id); the UI reads/writes through /proxy so any browser, PWA, or phone sees the same state. (2) Use the preferred name: greeting on Home, and pass it into the chat system context so Kitty addresses Jacob by name. (3) Add an optional import step to onboarding: point at a ChatGPT conversations.json export, Claude export, or a folder of transcripts; run the EXISTING scripts/curation/extract_chat_goldmine.py pipeline; show the found items in a review list backed by the EXISTING /idea-mine/review + PATCH endpoints (idea_mine_items is empty today); approved items enter memory per the packet 024 phase 2-3 rules (conservative staging \u2014 see locked_decisions.import_staging). No new extractor is built; this is wiring and UI only. The acceptance test corpus is the ChatGPT export at /Users/jacobbrizinski/Downloads/data-f19e223a-7158-45b7-a76a-22c3d47efd74-1784835442-7c8da282-batch-0000/.",
       "depends_on": [],
       "acceptance_criteria": [
         "Completing onboarding on one browser means no other origin/device shows onboarding again (verified by fresh-profile check against the same gateway)",
         "Home greets Jacob by name within one render of load, and chat context includes the preferred name",
         "Import wizard accepts a ChatGPT conversations.json and lists extracted items with approve/skip per item",
-        "Approved items are queryable in chat within one turn (memory evidence line shows the source)",
-        "Skipped items are remembered as skipped and not re-offered on the next import",
+        "Approved items are queryable in chat within one turn (memory evidence line shows the source) and are stored in idea_mine_items with user_review='approved'",
+        "Skipped items are remembered as skipped (user_review='skipped') and not re-offered on the next import",
         "make ui-test passes; npm run build passes; python3.12 -m pytest tests/ -q passes"
       ],
       "allowed_paths": [
@@ -26,19 +26,27 @@
         "gateway/app_settings.py",
         "gateway/kitty-chat/src/__tests__/"
       ],
-      "policy": { "max_attempts": 2, "priority": 9 },
-      "validation_commands": ["make ui-test", "npm run build", "python3.12 -m pytest tests/ -q --tb=short"]
+      "policy": {
+        "max_attempts": 2,
+        "priority": 9
+      },
+      "validation_commands": [
+        "make ui-test",
+        "npm run build",
+        "python3.12 -m pytest tests/ -q --tb=short"
+      ]
     },
     {
       "id": "KX-05-02-self-repairs",
       "title": "Repairs: Kitty tells Jacob what is wrong in plain English, with fix buttons",
-      "objective": "Pattern: Home Assistant Repairs. Today system state is scattered as jargon ('partial packet records', 'POST /state/snapshot', './kitty up starts it', a flickering 'gateway offline'). Build one repairs feed: a Home card plus a chat intent ('kitty, what's wrong?') backed by the same gateway endpoint. The endpoint composes: kitty doctor checks, litellm/gateway reachability, builder queue anomalies (stale leases, exhausted budgets, zombie tasks), and disk/backup age (the queue backup warning). Each issue renders as: plain-English sentence ('the model router stopped answering 4 minutes ago'), severity, and where safe a fix button. Fix buttons go through the EXISTING action queue (gateway/routes/actions.py propose/approve/execute) so T2 approval rules stay enforced — e.g. 'restart the router', 'release the stuck builder lease', 'cancel the 11 dead tasks'. Destructive or paid actions remain approval-gated. Forbidden: raw CLI commands, file paths, or API routes in user-facing copy — encode both as snapshot tests.",
+      "objective": "Pattern: Home Assistant Repairs. Today system state is scattered as jargon ('partial packet records', 'POST /state/snapshot', './kitty up starts it', a flickering 'gateway offline'). Build one repairs feed: a Home card plus a chat intent ('kitty, what's wrong?') backed by the same gateway endpoint. The endpoint composes: kitty doctor checks, litellm/gateway reachability, builder queue anomalies (stale leases, exhausted budgets, zombie tasks), and disk/backup age (the queue backup warning). Each issue renders as: plain-English sentence ('the model router stopped answering 4 minutes ago'), severity, and where safe a fix button. Fix buttons go through the EXISTING action queue (gateway/routes/actions.py propose/execute) at T0 (auto-execute, every execution recorded) per Jacob 2026-07-23 \u2014 see locked_decisions.tier_rule. Destructive or paid actions remain approval-gated. Forbidden: raw CLI commands, file paths, or API routes in user-facing copy \u2014 encode both as snapshot tests.",
       "depends_on": [],
       "acceptance_criteria": [
         "One /repairs gateway endpoint returns issues with plain-English titles, severity, and optional action ids",
         "Home shows a repairs card; when empty it says so in one warm line, not a grid of empty boxes",
         "Asking 'what's wrong' in chat returns the same feed as cards with working fix buttons",
-        "A fix button executes through the action queue with the correct tier gate (verified by a test that a T2 action demands approval)",
+        "A fix button executes through the action queue at T0 (no approval prompt); every execution is logged (verified by a test that the audit log contains the action_id, kind, and timestamp)",
+        "New action kinds added by this packet are declared at T0 in config/action_tiers.json and the gateway picks them up on restart",
         "No user-facing string contains './kitty', 'POST /', 'curl', or a filesystem path (snapshot test)",
         "make ui-test passes; npm run build passes; python3.12 -m pytest tests/ -q passes"
       ],
@@ -51,19 +59,27 @@
         "gateway/kitty-chat/src/__tests__/",
         "tests/"
       ],
-      "policy": { "max_attempts": 2, "priority": 9 },
-      "validation_commands": ["make ui-test", "npm run build", "python3.12 -m pytest tests/ -q --tb=short"]
+      "policy": {
+        "max_attempts": 2,
+        "priority": 9
+      },
+      "validation_commands": [
+        "make ui-test",
+        "npm run build",
+        "python3.12 -m pytest tests/ -q --tb=short"
+      ]
     },
     {
       "id": "KX-05-03-builder-control-deck",
       "title": "Builder control deck: run, pause, resume, cancel, cleanup, and real decision cards",
-      "objective": "Jacob: 'in the kittybuilder plane there is nothing for me to do.' The surface is read-only by design and the one 'needs a decision' card has no buttons. Extend closeout-v2 B7/B8's authority-gate pattern into a full control deck on the Builder surface. Actions (all through the action queue with T2 gates, never direct DB writes): run next eligible packet, pause/resume an initiative, operator-cancel a task, and 'clean up dead work' (the exact zombie sweep performed by hand on 2026-07-23: cancel tasks of superseded initiatives with a summary of what will be cancelled before confirm). needs_decision pauses render as decision cards with the judgment question restated in plain English and approve/deny/edit choices. Also fix the attention projection: operator-cancelled tasks must not count as 'needs attention' (today cancelling the 11 zombies RAISED the counter to 24). Plain-English layer: 'attempt 2 · scope failure' becomes 'the worker went outside its allowed files — tap to see what changed'.",
+      "objective": "Jacob: 'in the kittybuilder plane there is nothing for me to do.' The surface is read-only by design and the one 'needs a decision' card has no buttons. Extend closeout-v2 B7/B8's authority-gate pattern into a full control deck on the Builder surface. Actions (all through the action queue at T0 \u2014 auto-execute, every execution logged \u2014 per Jacob 2026-07-23; see locked_decisions.tier_rule): run next eligible packet, pause/resume an initiative, operator-cancel a task, and 'clean up dead work' (the exact zombie sweep performed by hand on 2026-07-23: cancel tasks of superseded initiatives with a summary of what will be cancelled before confirm). needs_decision pauses render as decision cards with the judgment question restated in plain English and approve/deny/edit choices. Layout is attention-first per locked_decisions.builder_pane_layout: one 'needs you' card, the actionable decision cards, and a single 'see all initiatives' link \u2014 not the full initiative grid by default. Also fix the attention projection: operator-cancelled tasks must not count as 'needs attention' (today cancelling the 11 zombies RAISED the counter to 24). Plain-English layer: 'attempt 2 \u00b7 scope failure' becomes 'the worker went outside its allowed files \u2014 tap to see what changed'.",
       "depends_on": [],
       "acceptance_criteria": [
-        "Every control action round-trips through the action queue with tier enforcement (tests prove no direct mutation path)",
+        "Every control action round-trips through the action queue at T0 \u2014 no approval prompt, every execution logged (tests prove the audit log entry exists with action_id, kind, payload summary, timestamp)",
         "A paused initiative can be resumed and a queued task cancelled from the UI without touching the CLI",
         "The cleanup action previews the exact tasks it will cancel and requires confirm",
         "needs-decision initiatives render actionable cards; deciding one unblocks the queue end-to-end in the smoke run",
+        "Builder pane renders attention-first by default (one needs-you card + decision cards + a 'see all' link), not the full initiative grid",
         "packetNeedsAttention (or its successor) excludes operator-cancelled tasks; unit test covers the 2026-07-23 zombie sweep case",
         "make ui-test passes; npm run build passes; python3.12 -m pytest tests/ -q passes"
       ],
@@ -75,13 +91,20 @@
         "gateway/kitty-chat/src/__tests__/",
         "tests/"
       ],
-      "policy": { "max_attempts": 2, "priority": 8 },
-      "validation_commands": ["make ui-test", "npm run build", "python3.12 -m pytest tests/ -q --tb=short"]
+      "policy": {
+        "max_attempts": 2,
+        "priority": 8
+      },
+      "validation_commands": [
+        "make ui-test",
+        "npm run build",
+        "python3.12 -m pytest tests/ -q --tb=short"
+      ]
     },
     {
       "id": "KX-05-04-experts-shelf",
       "title": "Experts shelf: talk to the library, with citations",
-      "objective": "The backend already has the ingredients: 219 books tagged by expert in data/books_manifest.json, chroma knowledge collections, /ask, /knowledge, and the council router. Nothing in the UI exposes them. Build the thinnest honest version: an Experts strip on Home (one card per expert with 'what I know' in one line, derived from the manifest) and expert addressing in chat: an expert chip picker in the input bar (and '@builder why is my...' prefix) that routes the turn through the expert's filtered collection and persona prompt, then renders answers with book/passage citations as collapsible cards (KX-02 tool-card pattern). Scope discipline: experts are read-only Q&A over the existing collections — no new ingestion, no fine-tuning, no per-expert memory in this packet. If an expert's collection is empty, the card says what to add and links to the import flow from KX-05-01.",
+      "objective": "The backend already has the ingredients: 219 books tagged by expert in data/books_manifest.json, chroma knowledge collections, /ask, /knowledge, and the council router. Nothing in the UI exposes them. Build the thinnest honest version: an Experts strip on Home (one card per expert with 'what I know' in one line, derived from the manifest) and expert addressing in chat: an expert chip picker in the input bar (and '@builder why is my...' prefix) that routes the turn through the expert's filtered collection and persona prompt, then renders answers with book/passage citations as collapsible cards (KX-02 tool-card pattern). Scope discipline: experts are read-only Q&A over the existing collections \u2014 no new ingestion, no fine-tuning, no per-expert memory in this packet. If an expert's collection is empty, the card says what to add and links to the import flow from KX-05-01.",
       "depends_on": [],
       "acceptance_criteria": [
         "Home shows an experts strip generated from books_manifest (no hardcoded expert list)",
@@ -99,13 +122,20 @@
         "gateway/kitty-chat/src/__tests__/",
         "tests/"
       ],
-      "policy": { "max_attempts": 2, "priority": 7 },
-      "validation_commands": ["make ui-test", "npm run build", "python3.12 -m pytest tests/ -q --tb=short"]
+      "policy": {
+        "max_attempts": 2,
+        "priority": 7
+      },
+      "validation_commands": [
+        "make ui-test",
+        "npm run build",
+        "python3.12 -m pytest tests/ -q --tb=short"
+      ]
     },
     {
       "id": "KX-05-05-chat-polish-sweep",
       "title": "Chat polish sweep: kill the junk, tune recall, stop the flapping",
-      "objective": "Five small correctness fixes found by dogfooding on 2026-07-23, bundled because each is a few lines plus a test. (1) ActiveTaskCards: never render gateway task-queue items titled like test data, cap at 3 cards, and collapse behind 'N more' — today nine 'task test' rows consume the entire thread area on a fresh chat. (2) Memory evidence: suppress the 'kitty remembered N things' line when retrieval confidence is low or the turn is smalltalk — 13 items on 'what can you do' is noise. (3) Status strip: require 3 consecutive failed polls before showing 'gateway offline' — a single failed poll currently flips the whole header red while chat still works. (4) Fix 'last session: Next session' — the resume card renders the STATE.md section heading as the session title. (5) Purge remaining CLI/API copy from user-facing strings surfaced during the sweep (same snapshot-test rule as KX-05-02).",
+      "objective": "Five small correctness fixes found by dogfooding on 2026-07-23, bundled because each is a few lines plus a test. (1) ActiveTaskCards: never render gateway task-queue items titled like test data, cap at 3 cards, and collapse behind 'N more' \u2014 today nine 'task test' rows consume the entire thread area on a fresh chat. (2) Memory evidence: suppress the 'kitty remembered N things' line when retrieval confidence is low or the turn is smalltalk \u2014 13 items on 'what can you do' is noise. (3) Status strip: require 3 consecutive failed polls before showing 'gateway offline' \u2014 a single failed poll currently flips the whole header red while chat still works. (4) Fix 'last session: Next session' \u2014 the resume card renders the STATE.md section heading as the session title. (5) Purge remaining CLI/API copy from user-facing strings surfaced during the sweep (same snapshot-test rule as KX-05-02).",
       "depends_on": [],
       "acceptance_criteria": [
         "A fresh chat shows at most 3 task cards and zero rows matching test-data patterns (unit test with the 2026-07-23 seed data)",
@@ -123,8 +153,14 @@
         "gateway/kitty-chat/src/__tests__/",
         "gateway/kitty-chat/tests/"
       ],
-      "policy": { "max_attempts": 2, "priority": 8 },
-      "validation_commands": ["make ui-test", "npm run build"]
+      "policy": {
+        "max_attempts": 2,
+        "priority": 8
+      },
+      "validation_commands": [
+        "make ui-test",
+        "npm run build"
+      ]
     }
   ]
 }

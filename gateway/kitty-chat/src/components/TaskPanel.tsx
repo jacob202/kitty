@@ -1,344 +1,120 @@
 'use client'
 import { useState, useRef } from 'react'
-import type { CSSProperties } from 'react'
 import { type GatewayTask, type TaskType } from '@/lib/gateway'
 import { useTasks, useCreateTask, useCancelTask } from '@/lib/queries'
+import { WorkCard, type WorkStatus } from '@/components/shared/WorkCard'
+import { Button } from '@/components/ui/Button'
+import { StatusBadge } from '@/components/ui/StatusBadge'
 
-const TYPE_META: Record<TaskType, { label: string; description: string; color: string; example: string }> = {
-  research: { label: 'research', description: 'deep dive on a topic',     color: 'var(--c-purple)', example: 'e.g. summarize recent LLM evals…' },
-  ingest:   { label: 'ingest',   description: 'process & store knowledge', color: 'var(--c-purple)', example: 'e.g. index my reading list…' },
-  build:    { label: 'build',    description: 'write or modify code',      color: 'var(--cat-ginger)', example: 'e.g. add auth to the API…' },
-  cleanup:  { label: 'cleanup',  description: 'refactor, prune, tidy up', color: 'var(--c-blue)',   example: 'e.g. remove dead utility files…' },
-  dream:    { label: 'dream',    description: 'speculate freely',          color: 'var(--c-green)',   example: 'e.g. how could kitty learn music…' },
+const TYPE_META: Record<TaskType, { label: string; description: string; color: string }> = {
+  research: { label: 'research', description: 'deep dive',     color: 'var(--c-purple)' },
+  ingest:   { label: 'ingest',   description: 'store knowledge', color: 'var(--c-purple)' },
+  build:    { label: 'build',    description: 'code',           color: 'var(--cat-ginger)' },
+  cleanup:  { label: 'cleanup',  description: 'refactor',      color: 'var(--c-blue)' },
+  dream:    { label: 'dream',    description: 'speculate',     color: 'var(--c-green)' },
 }
 
-const STATUS_COLOR: Record<string, string> = {
-  queued:    'var(--ink-2)',
-  running:   'var(--cat-ginger)',
-  completed: 'var(--c-blue)',
-  failed:    '#ff5577',
-  cancelled: 'var(--ink-2)',
-}
-
-const STATUS_ICON: Record<string, string> = {
-  queued:    '○',
-  running:   '●',
-  completed: '✓',
-  failed:    '✗',
-  cancelled: '–',
+const STATUS_MAP: Record<string, WorkStatus> = {
+  queued: 'scheduled', running: 'working', completed: 'completed', failed: 'failed', cancelled: 'canceled',
 }
 
 export function TaskPanel() {
   const tasksQuery = useTasks(12)
   const createTask = useCreateTask()
   const cancelTask = useCancelTask()
-
   const tasks = tasksQuery.data ?? []
-  const launching = createTask.isPending
-
   const [goal, setGoal] = useState('')
   const [taskType, setTaskType] = useState<TaskType>('research')
   const inputRef = useRef<HTMLInputElement>(null)
 
   const activeTasks = tasks.filter(t => t.status === 'queued' || t.status === 'running')
   const recentTasks = tasks.filter(t => t.status !== 'queued' && t.status !== 'running')
-  const meta = TYPE_META[taskType]
 
   function handleLaunch() {
     const g = goal.trim()
-    if (!g || launching) return
-    createTask.mutate(
-      { goal: g, taskType },
-      { onSuccess: id => { if (id) setGoal('') } },
-    )
-  }
-
-  function handleCancel(id: string) {
-    cancelTask.mutate(id)
+    if (!g || createTask.isPending) return
+    createTask.mutate({ goal: g, taskType }, { onSuccess: () => setGoal('') })
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', minHeight: 0 }}>
-
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, flexShrink: 0 }}>
-        <div>
-          <div style={sectionLabelStyle}>task runner</div>
-          <div style={{ fontFamily: 'var(--font-body)', fontSize: 22, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.1, marginTop: 4 }}>
-            What should Kitty work on?
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
-          <StatChip label="active" value={String(activeTasks.length)} color="var(--cat-ginger)" />
-          <StatChip label="done" value={String(recentTasks.filter(t => t.status === 'completed').length)} color="var(--c-blue)" />
-          <StatChip label="failed" value={String(recentTasks.filter(t => t.status === 'failed').length)} color="#ff5577" />
-        </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <StatusBadge state="working" label={`${activeTasks.length} active`} />
+        <StatusBadge state="completed" label={`${recentTasks.filter(t => t.status === 'completed').length} done`} />
+        <StatusBadge state="failed" label={`${recentTasks.filter(t => t.status === 'failed').length} failed`} />
       </div>
 
-      {/* Type selector */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexShrink: 0 }}>
-        {(Object.keys(TYPE_META) as TaskType[]).map(type => {
-          const m = TYPE_META[type]
-          const active = taskType === type
-          return (
+      {/* New task input */}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {(Object.keys(TYPE_META) as TaskType[]).map(type => (
             <button
               key={type}
               onClick={() => setTaskType(type)}
               style={{
-                flex: 1,
-                padding: '10px 10px 10px',
-                borderRadius: 4,
-                border: `1px solid ${active ? m.color : 'var(--line)'}`,
-                background: active ? `${m.color}1a` : 'var(--bg)',
-                cursor: 'pointer',
-                textAlign: 'left',
-                transition: 'all 0.15s ease',
-              }}
-              onMouseEnter={e => {
-                if (!active) {
-                  const el = e.currentTarget as HTMLButtonElement
-                  el.style.borderColor = m.color
-                  el.style.background = `${m.color}0d`
-                }
-              }}
-              onMouseLeave={e => {
-                if (!active) {
-                  const el = e.currentTarget as HTMLButtonElement
-                  el.style.borderColor = 'var(--line)'
-                  el.style.background = 'var(--bg)'
-                }
+                padding: '4px 10px', borderRadius: 99, fontSize: 11, fontFamily: 'var(--font-mono)', cursor: 'pointer',
+                border: `1.5px solid ${type === taskType ? TYPE_META[type].color : 'var(--line)'}`,
+                background: type === taskType ? `${TYPE_META[type].color}15` : 'transparent',
+                color: type === taskType ? TYPE_META[type].color : 'var(--ink-2)',
               }}
             >
-              <div style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 11,
-                fontWeight: 700,
-                color: active ? m.color : 'var(--ink-2)',
-                letterSpacing: '0.04em',
-                marginBottom: 4,
-              }}>{m.label}</div>
-              <div style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 9,
-                color: active ? `${m.color}bb` : 'var(--ink-2)',
-                lineHeight: 1.4,
-              }}>{m.description}</div>
+              {TYPE_META[type].label}
             </button>
-          )
-        })}
-      </div>
-
-      {/* Launch form */}
-      <div style={{
-        background: 'var(--bg)',
-        border: `1px solid ${meta.color}50`,
-        borderRadius: 4,
-        padding: '16px',
-        marginBottom: 20,
-        flexShrink: 0,
-      }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          marginBottom: 10,
-        }}>
-          <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: meta.color, flexShrink: 0 }} />
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: meta.color, letterSpacing: '0.14em', textTransform: 'lowercase' as const, fontWeight: 700 }}>
-            {meta.label} task
-          </span>
-        </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <input
-            ref={inputRef}
-            value={goal}
-            onChange={e => setGoal(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleLaunch()}
-            placeholder={meta.example}
-            style={{
-              flex: 1,
-              background: 'var(--surface)',
-              border: '1px solid var(--line)',
-              borderRadius: 4,
-              padding: '10px 14px',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 12,
-              color: 'var(--ink)',
-              outline: 'none',
-              minWidth: 0,
-            }}
-          />
-          <button
-            onClick={handleLaunch}
-            disabled={!goal.trim() || launching}
-            style={{
-              flexShrink: 0,
-              padding: '10px 20px',
-              background: !goal.trim() || launching ? 'var(--surface)' : `${meta.color}22`,
-              border: `1px solid ${!goal.trim() || launching ? 'var(--line)' : meta.color}`,
-              borderRadius: 4,
-              fontFamily: 'var(--font-mono)',
-              fontSize: 12,
-              fontWeight: 700,
-              color: !goal.trim() || launching ? 'var(--ink-2)' : meta.color,
-              cursor: !goal.trim() || launching ? 'not-allowed' : 'pointer',
-              transition: 'all 0.15s ease',
-              letterSpacing: '0.04em',
-              whiteSpace: 'nowrap' as const,
-            }}
-          >
-            {launching ? '…' : 'launch →'}
-          </button>
+          ))}
         </div>
       </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          ref={inputRef}
+          value={goal}
+          onChange={e => setGoal(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') handleLaunch() }}
+          placeholder={`${TYPE_META[taskType].label}: what should kitty do?`}
+          style={{
+            flex: 1, padding: '8px 14px', borderRadius: 10, border: '1.5px solid var(--line)',
+            background: 'var(--surface)', fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink)',
+            outline: 'none',
+          }}
+        />
+        <Button onClick={handleLaunch} size="sm" disabled={!goal.trim() || createTask.isPending}>add</Button>
+      </div>
 
-      {/* Task list */}
-      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, display: 'flex', flexDirection: 'column', gap: 20 }}>
-        {activeTasks.length > 0 && (
-          <section>
-            <div style={sectionLabelStyle}>Active</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-              {activeTasks.map(task => (
-                <TaskCard key={task.task_id} task={task} onCancel={handleCancel} />
-              ))}
-            </div>
-          </section>
-        )}
+      {/* Active tasks */}
+      {activeTasks.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {activeTasks.map(task => (
+            <WorkCard
+              key={task.task_id}
+              id={task.task_id}
+              title={task.goal ?? task.task_id}
+              status={STATUS_MAP[task.status] ?? 'scheduled'}
+              statusDetail={task.task_type}
+              onCancel={() => cancelTask.mutate(task.task_id)}
+            />
+          ))}
+        </div>
+      )}
 
-        {recentTasks.length > 0 && (
-          <section>
-            <div style={sectionLabelStyle}>Recent</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
-              {recentTasks.map(task => (
-                <TaskCard key={task.task_id} task={task} onCancel={handleCancel} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {tasks.length === 0 && (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: '48px 0' }}>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 40, color: 'var(--surface-2)', lineHeight: 1 }}>◎</div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink-2)', marginBottom: 4 }}>no tasks yet</div>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)' }}>pick a type above and describe a goal</div>
-            </div>
+      {/* Completed / recent */}
+      {recentTasks.length > 0 && (
+        <details style={{ marginTop: 8 }}>
+          <summary style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-2)', cursor: 'pointer', marginBottom: 12 }}>
+            recent ({recentTasks.length})
+          </summary>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {recentTasks.map(task => (
+              <WorkCard
+                key={task.task_id}
+                id={task.task_id}
+                title={task.goal ?? task.task_id}
+                status={STATUS_MAP[task.status] ?? 'completed'}
+                statusDetail={task.task_type}
+              />
+            ))}
           </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function StatChip({ label, value, color }: { label: string; value: string; color: string }) {
-  return (
-    <div style={{
-      background: 'var(--bg)',
-      border: '1px solid var(--line)',
-      borderRadius: 4,
-      padding: '8px 14px',
-      textAlign: 'center',
-      minWidth: 48,
-    }}>
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 700, color, lineHeight: 1 }}>{value}</div>
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-2)', letterSpacing: '0.1em', textTransform: 'lowercase' as const, marginTop: 3 }}>{label}</div>
-    </div>
-  )
-}
-
-function TaskCard({ task, onCancel }: { task: GatewayTask; onCancel: (id: string) => void }) {
-  const statusColor = STATUS_COLOR[task.status] ?? 'var(--ink-2)'
-  const icon = STATUS_ICON[task.status] ?? '○'
-  const typeColor = TYPE_META[task.task_type as TaskType]?.color ?? 'var(--c-purple)'
-  const isActive = task.status === 'queued' || task.status === 'running'
-
-  return (
-    <div style={{
-      background: 'var(--bg)',
-      border: '1px solid var(--line)',
-      borderLeft: `3px solid ${statusColor}`,
-      borderRadius: '0 10px 10px 0',
-      padding: '12px 14px',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, minWidth: 0, flex: 1 }}>
-          <span style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 13,
-            color: statusColor,
-            flexShrink: 0,
-            lineHeight: 1.2,
-            marginTop: 1,
-          }}>{icon}</span>
-          <div style={{ minWidth: 0 }}>
-            <div style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 12,
-              color: 'var(--ink)',
-              lineHeight: 1.5,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap' as const,
-            }}>{task.goal}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5 }}>
-              <span style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 9,
-                color: typeColor,
-                fontWeight: 700,
-                letterSpacing: '0.1em',
-                textTransform: 'lowercase' as const,
-              }}>{task.task_type}</span>
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-2)', letterSpacing: '0.06em' }}>{task.status}</span>
-              {task.created_at && (
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--ink-2)' }}>
-                  {new Date(task.created_at * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-        {isActive && (
-          <button
-            onClick={() => onCancel(task.task_id)}
-            style={{
-              flexShrink: 0,
-              background: 'transparent',
-              border: '1px solid var(--line)',
-              borderRadius: 4,
-              fontFamily: 'var(--font-mono)',
-              fontSize: 9,
-              color: 'var(--ink-2)',
-              cursor: 'pointer',
-              padding: '3px 8px',
-              letterSpacing: '0.06em',
-            }}
-          >cancel</button>
-        )}
-      </div>
-      {task.status === 'failed' && task.error && (
-        <div style={{
-          marginTop: 8,
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10,
-          color: STATUS_COLOR.failed,
-          lineHeight: 1.4,
-          padding: '6px 8px',
-          background: 'rgba(255,85,119,0.06)',
-          borderRadius: 4,
-        }}>
-          {task.error.slice(0, 120)}
-        </div>
+        </details>
       )}
     </div>
   )
-}
-
-const sectionLabelStyle: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 9,
-  fontWeight: 700,
-  color: 'var(--ink-2)',
-  letterSpacing: '0.18em',
-  textTransform: 'lowercase',
 }
