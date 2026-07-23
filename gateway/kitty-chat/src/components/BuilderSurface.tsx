@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 
 import { bodyText, card, cardHeader, cardMeta, cardTitle, emptyState, itemCard } from '@/lib/ui'
 import { useGatewayRuntimeManifest } from '@/lib/queries'
+import { Button } from '@/components/ui/Button'
+import { ArrowLeft, Home } from 'lucide-react'
 import type {
   BuilderAttemptStatus,
   BuilderFailureKind,
