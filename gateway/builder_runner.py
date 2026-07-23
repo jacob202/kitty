@@ -370,6 +370,24 @@ def worktree_diff_sha256(path: Path, start_sha: str) -> str:
 # paths stay visible in changed_paths but never count as violations.
 _SESSION_STATE_RESIDUE = frozenset({".claude/STATE.md", ".claude/HANDOFF.md"})
 
+# CP-08 dogfood finding: scripts/kittybuilder_opencode_worker.sh (the --free
+# adapter) stages the task bundle/context/result as
+# .kittybuilder-{bundle,context,result}-<attempt_id>.json at the worktree
+# root so the model can read them via a relative path. Its own EXIT trap
+# removes them, but the live heartbeat scope check below can sample the
+# worktree mid-attempt, before that trap runs, and killed a legitimate free
+# run as a false-positive scope_violation on its own runner-owned staging
+# files (never present in a completed attempt's final diff).
+_WORKER_STAGING_PREFIXES = (
+    ".kittybuilder-bundle-",
+    ".kittybuilder-context-",
+    ".kittybuilder-result-",
+)
+
+
+def _is_worker_staging_residue(path: str) -> bool:
+    return path.startswith(_WORKER_STAGING_PREFIXES)
+
 
 def _scope_violations(
     changed_paths: list[str],
@@ -399,7 +417,9 @@ def _scope_violations(
     return [
         path
         for path in changed_paths
-        if not allowed(path) and path not in _SESSION_STATE_RESIDUE
+        if not allowed(path)
+        and path not in _SESSION_STATE_RESIDUE
+        and not _is_worker_staging_residue(path)
     ]
 
 
