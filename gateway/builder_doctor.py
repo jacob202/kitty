@@ -19,6 +19,7 @@ own preflight, scoped to the builder queue/initiative/runner subsystem.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 from dataclasses import asdict, dataclass
@@ -32,6 +33,7 @@ from gateway.paths import BUILDER_QUEUE_DB
 EXPECTED_REPO_NAME = os.environ.get("KITTY_BUILDER_REPO_NAME", "kitty")
 EXPECTED_DEFAULT_BRANCH = os.environ.get("KITTY_BUILDER_DEFAULT_BRANCH", "main")
 REQUIRED_WORKER_COMMANDS = ("bash", "git", "false")
+_REMOTE_REPO_RE = re.compile(r"(?:[:/]([^/:]+?))(?:\.git)?$")
 
 # Credential vars the runner must never let a worker see (mirrors the
 # builder_runner._EXTRA_ENV_BLOCKED sanity check below).
@@ -154,18 +156,31 @@ def _check_repo_identity(repo_root: Path | None) -> list[Check]:
     toplevel = Path(top.stdout.strip())
     checks: list[Check] = []
 
-    if toplevel.name != EXPECTED_REPO_NAME:
+    remote = _git(["config", "--get", "remote.origin.url"], cwd=toplevel)
+    remote_repo = None
+    if remote.returncode == 0:
+        match = _REMOTE_REPO_RE.search(remote.stdout.strip())
+        remote_repo = match.group(1) if match else None
+
+    # Builder workers run in task worktrees whose directory names are task IDs,
+    # not ``kitty``. Trust the configured origin identity for those worktrees;
+    # a random checkout still fails when its remote names a different repo.
+    identity_matches = toplevel.name == EXPECTED_REPO_NAME or remote_repo == EXPECTED_REPO_NAME
+    if not identity_matches:
         checks.append(
             Check(
                 "FAIL",
                 "repo:identity",
                 f"expected repo {EXPECTED_REPO_NAME!r}, found {toplevel.name!r} at "
-                f"{toplevel} — confirm you are under ~/Projects/{EXPECTED_REPO_NAME} "
-                "before running KittyBuilder",
+                f"{toplevel} (origin={remote_repo or 'unknown'}) — confirm you are "
+                f"under ~/Projects/{EXPECTED_REPO_NAME} before running KittyBuilder",
             )
         )
     else:
-        checks.append(Check("PASS", "repo:identity", str(toplevel)))
+        detail = str(toplevel)
+        if toplevel.name != EXPECTED_REPO_NAME:
+            detail += f" (worker worktree; origin={remote_repo})"
+        checks.append(Check("PASS", "repo:identity", detail))
 
     local_branch = _git(
         ["rev-parse", "--verify", "--quiet", EXPECTED_DEFAULT_BRANCH], cwd=toplevel
