@@ -327,37 +327,57 @@ class BranchLeaseRoundTripTest(unittest.TestCase):
 
     def test_claim_release_round_trip(self) -> None:
         bq.claim_branch_lease(
-            "packet-r1", "worker-r1", "branch-r1", "/tmp/wt-r1", "a" * 40,
+            "init-r1", "packet-r1", "worker-r1", "branch-r1", "/tmp/wt-r1", "a" * 40,
             db_path=self._tmp_path,
         )
-        self.assertIsNotNone(bq.verify_branch_lease("packet-r1", db_path=self._tmp_path))
-        lease = bq.verify_branch_lease("packet-r1", db_path=self._tmp_path)
+        self.assertIsNotNone(
+            bq.verify_branch_lease("init-r1", "packet-r1", db_path=self._tmp_path)
+        )
+        lease = bq.verify_branch_lease("init-r1", "packet-r1", db_path=self._tmp_path)
         bq.release_branch_lease(
             lease["lease_id"], packet_id="packet-r1", worker_id="worker-r1",
             db_path=self._tmp_path,
         )
         self.assertIsNone(
-            bq.verify_branch_lease("packet-r1", db_path=self._tmp_path)
+            bq.verify_branch_lease("init-r1", "packet-r1", db_path=self._tmp_path)
         )
 
-    def test_duplicate_claim_rejected(self) -> None:
+    def test_duplicate_claim_rejected_within_initiative(self) -> None:
         bq.claim_branch_lease(
-            "packet-r2", "worker-r2", "branch-r2", "/tmp/wt-r2", "b" * 40,
+            "init-r2", "packet-r2", "worker-r2", "branch-r2", "/tmp/wt-r2", "b" * 40,
             db_path=self._tmp_path,
         )
         with self.assertRaises(Exception) as ctx:
             bq.claim_branch_lease(
-                "packet-r2", "worker-r2", "branch-r2", "/tmp/wt-r2", "c" * 40,
+                "init-r2", "packet-r2", "worker-r2", "branch-r2", "/tmp/wt-r2", "c" * 40,
                 db_path=self._tmp_path,
             )
         self.assertIn("Conflict", type(ctx.exception).__name__)
 
-    def test_wrong_worker_release_rejected(self) -> None:
+    def test_same_packet_allowed_across_initiatives(self) -> None:
+        """Different initiatives can each lease the same packet_id."""
         bq.claim_branch_lease(
-            "packet-r3", "worker-r3", "branch-r3", "/tmp/wt-r3", "d" * 40,
+            "init-v1", "packet-shared", "worker-v1", "branch-v1",
+            "/tmp/wt-v1", "a" * 40,
             db_path=self._tmp_path,
         )
-        lease = bq.verify_branch_lease("packet-r3", db_path=self._tmp_path)
+        bq.claim_branch_lease(
+            "init-v2", "packet-shared", "worker-v2", "branch-v2",
+            "/tmp/wt-v2", "b" * 40,
+            db_path=self._tmp_path,
+        )
+        v1 = bq.verify_branch_lease("init-v1", "packet-shared", db_path=self._tmp_path)
+        v2 = bq.verify_branch_lease("init-v2", "packet-shared", db_path=self._tmp_path)
+        self.assertIsNotNone(v1)
+        self.assertIsNotNone(v2)
+        self.assertNotEqual(v1["lease_id"], v2["lease_id"])
+
+    def test_wrong_worker_release_rejected(self) -> None:
+        bq.claim_branch_lease(
+            "init-r3", "packet-r3", "worker-r3", "branch-r3", "/tmp/wt-r3", "d" * 40,
+            db_path=self._tmp_path,
+        )
+        lease = bq.verify_branch_lease("init-r3", "packet-r3", db_path=self._tmp_path)
         with self.assertRaises(Exception) as ctx:
             bq.release_branch_lease(
                 lease["lease_id"],
@@ -389,8 +409,8 @@ class IdHelpersTest(unittest.TestCase):
         self.assertRegex(run_id, r"^run_[0-9a-z]+_[0-9a-f]{4}$")
 
 
-def test_init_db_migrates_legacy_lease_ts_column(tmp_path):
-    """A pre-rename DB (branch_leases.lease_ts) is migrated to created_at."""
+def test_init_db_migrates_legacy_lease_ts_and_initiative_id(tmp_path):
+    """A pre-rename DB (branch_leases.lease_ts) is migrated to created_at + initiative_id."""
     legacy = tmp_path / "legacy.db"
     conn = sqlite3.connect(legacy)
     conn.execute(
@@ -417,7 +437,9 @@ def test_init_db_migrates_legacy_lease_ts_column(tmp_path):
 
     conn = sqlite3.connect(legacy)
     cols = {row[1] for row in conn.execute("PRAGMA table_info(branch_leases)")}
-    row = conn.execute("SELECT created_at FROM branch_leases").fetchone()
+    row = conn.execute("SELECT created_at, initiative_id FROM branch_leases").fetchone()
     conn.close()
     assert "created_at" in cols and "lease_ts" not in cols
+    assert "initiative_id" in cols
     assert row[0] is not None
+    assert row[1] == "legacy-migrated"

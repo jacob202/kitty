@@ -920,6 +920,7 @@ def run_packet(
             entry["scope_violations"] = violation_paths
 
         identity_findings = bid.verify_worker_identity(
+            initiative_id,
             packet_id,
             repo_root=expected_worktree,
             db_path=db_path,

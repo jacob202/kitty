@@ -211,23 +211,23 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_runs_one_active_per_task
     ON runs(task_id)
     WHERE state IN ('starting', 'running', 'cancel_requested');
 
--- Branch leases: exclusive per packet, worker, branch, and worktree.
+-- Branch leases: exclusive per packet within an initiative, per worker
+-- within an initiative, and unique per branch and worktree globally.
 -- base_sha is verification metadata only; several packets may share it.
+-- initiative_id scopes the packet_id and worker_id uniqueness so v1/v2
+-- retries of the same packet from different initiatives can coexist.
 CREATE TABLE IF NOT EXISTS branch_leases (
     lease_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    packet_id TEXT NOT NULL UNIQUE,
+    initiative_id TEXT NOT NULL CHECK (initiative_id != ''),
+    packet_id TEXT NOT NULL,
     worker_id TEXT NOT NULL,
     branch TEXT NOT NULL UNIQUE,
     worktree_path TEXT NOT NULL UNIQUE,
     base_sha TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (initiative_id, packet_id),
+    UNIQUE (initiative_id, worker_id)
 );
-
--- Databases created by the partial Phase 2 port did not make worker_id
--- unique. Creating the index migrates clean databases and fails loudly if
--- contradictory live leases already exist.
-CREATE UNIQUE INDEX IF NOT EXISTS idx_branch_leases_worker
-    ON branch_leases(worker_id);
 """
 
 # ---------------------------------------------------------------------------
@@ -254,6 +254,114 @@ def _apply_schema(conn: sqlite3.Connection) -> None:
     _ensure_run_columns(conn)
     _ensure_pr_link_columns(conn)
     _ensure_branch_lease_columns(conn)
+    # Run *after* _ensure_branch_lease_columns so lease_ts→created_at
+    # migration completes first; this migration rebuilds the table.
+    _ensure_branch_lease_initiative_id(conn)
+    # Ensure initiative_id is required (no default '') and has CHECK constraint.
+    _ensure_branch_lease_initiative_id_required(conn)
+
+
+def _ensure_branch_lease_initiative_id(conn: sqlite3.Connection) -> None:
+    """Migrate pre-initiative_id databases: add initiative_id + composite UNIQUE.
+
+    The original schema used ``packet_id TEXT NOT NULL UNIQUE`` and a global
+    ``idx_branch_leases_worker`` on ``worker_id`` — neither scoped by
+    initiative, so a v2 retry of the same packet (e.g. ``-v2`` after
+    ``-v1`` exhausted) could not create a lease without first deleting or
+    conflicting with v1's row. SQLite cannot alter a UNIQUE constraint in
+    place, so this rebuilds the table.
+
+    Legacy rows get a placeholder initiative_id so the NOT NULL constraint passes.
+    """
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(branch_leases)")}
+    if "initiative_id" in cols:
+        return
+    # Table rebuild: create new schema, copy, swap.
+    old_cols = [c for c in ("lease_id", "packet_id", "worker_id",
+                             "branch", "worktree_path", "base_sha",
+                             "created_at")
+                if c in cols]
+    old_list = ", ".join(old_cols)
+    conn.executescript(f"""
+        CREATE TABLE branch_leases_new (
+            lease_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            initiative_id TEXT NOT NULL CHECK (initiative_id != ''),
+            packet_id TEXT NOT NULL,
+            worker_id TEXT NOT NULL,
+            branch TEXT NOT NULL UNIQUE,
+            worktree_path TEXT NOT NULL UNIQUE,
+            base_sha TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (initiative_id, packet_id),
+            UNIQUE (initiative_id, worker_id)
+        );
+        INSERT INTO branch_leases_new (lease_id, initiative_id, {old_list})
+            SELECT lease_id, 'legacy-migrated', {old_list} FROM branch_leases;
+        DROP TABLE branch_leases;
+        ALTER TABLE branch_leases_new RENAME TO branch_leases;
+    """)
+
+
+def _ensure_branch_lease_initiative_id_required(conn: sqlite3.Connection) -> None:
+    """Ensure initiative_id is required (no default '') and add CHECK constraint.
+
+    SQLite cannot drop a DEFAULT or add a CHECK constraint in place, so this
+    rebuilds the table if the schema still has the legacy DEFAULT '' or lacks
+    the CHECK constraint.
+
+    Legacy rows with empty initiative_id are updated to a placeholder so the
+    CHECK constraint can be enforced going forward.
+    """
+    cols = {row[1]: row for row in conn.execute("PRAGMA table_info(branch_leases)")}
+    if "initiative_id" not in cols:
+        return
+    col = cols["initiative_id"]
+    # col[4] is the default value, col[5] is notnull (0 or 1)
+    has_default_empty = col[4] == ''
+    # Check for CHECK constraint on initiative_id
+    table_sql = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='branch_leases'"
+    ).fetchone()
+    has_check = table_sql and 'CHECK (initiative_id' in table_sql[0]
+
+    if not has_default_empty and has_check:
+        return
+
+    # Check if there are legacy rows with empty initiative_id
+    legacy_count = conn.execute(
+        "SELECT COUNT(*) FROM branch_leases WHERE initiative_id = ''"
+    ).fetchone()[0]
+
+    # Rebuild table with required initiative_id and CHECK constraint
+    # Use a placeholder for legacy rows so the CHECK constraint passes
+    placeholder = "legacy-migrated" if legacy_count > 0 else None
+    if legacy_count > 0:
+        conn.execute(
+            "UPDATE branch_leases SET initiative_id = ? WHERE initiative_id = ''",
+            (placeholder,),
+        )
+
+    conn.executescript("""
+        CREATE TABLE branch_leases_new (
+            lease_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            initiative_id TEXT NOT NULL CHECK (initiative_id != ''),
+            packet_id TEXT NOT NULL,
+            worker_id TEXT NOT NULL,
+            branch TEXT NOT NULL UNIQUE,
+            worktree_path TEXT NOT NULL UNIQUE,
+            base_sha TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (initiative_id, packet_id),
+            UNIQUE (initiative_id, worker_id)
+        );
+        INSERT INTO branch_leases_new (lease_id, initiative_id, packet_id, worker_id,
+                                       branch, worktree_path, base_sha, created_at)
+            SELECT lease_id, initiative_id, packet_id, worker_id,
+                   branch, worktree_path, base_sha, created_at
+            FROM branch_leases;
+        DROP TABLE branch_leases;
+        ALTER TABLE branch_leases_new RENAME TO branch_leases;
+    """)
 
 
 def _ensure_branch_lease_columns(conn: sqlite3.Connection) -> None:

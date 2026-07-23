@@ -132,6 +132,7 @@ def _finding(field: str, message: str) -> ScopeFinding:
 
 
 def verify_worker_identity(
+    initiative_id: str,
     packet_id: str,
     *,
     repo_root: Path,
@@ -144,7 +145,7 @@ def verify_worker_identity(
 ) -> list[ScopeFinding]:
     """Return all detected lease/Git/scope identity violations."""
     findings: list[ScopeFinding] = []
-    lease = bq.verify_branch_lease(packet_id, db_path=db_path)
+    lease = bq.verify_branch_lease(initiative_id, packet_id, db_path=db_path)
     if lease is None:
         return [
             _finding(
@@ -272,6 +273,7 @@ def verify_worker_identity(
 
 
 def verify_and_escalate(
+    initiative_id: str,
     packet_id: str,
     *,
     repo_root: Path,
@@ -281,6 +283,7 @@ def verify_and_escalate(
 ) -> None:
     """Raise a structured escalation when identity verification fails."""
     findings = verify_worker_identity(
+        initiative_id,
         packet_id,
         repo_root=repo_root,
         db_path=db_path,

@@ -6,13 +6,13 @@ branch leases \u00a74, events/PRs \u00a75 \u2014 split earlier in builder_queue.
 each cut owns a coherent lifecycle).
 
 Owns the ``KB-S2 atomic claim_and_start_attempt`` support: an exclusive
-lease keyed by ``(packet_id, worker_id, branch, worktree_path)`` with a
-verification-only ``base_sha`` for shared-base pinning. ``claim_branch_lease``
-inserts with a unique-index guarantee; ``verify_branch_lease`` reads
-back; ``release_branch_lease`` does an owner-fenced delete. The two
-``on_conn`` variants let sibling code (``gateway.builder_attempt`` and
-``gateway.builder_identity``) participate in the caller's transaction
-for atomic packet-launch plumbing.
+lease keyed by ``(initiative_id, packet_id, worker_id, branch, worktree_path)``
+with initiative_id scoping so v1/v2 retries of the same packet from different
+initiatives can coexist. ``claim_branch_lease`` inserts with a unique-index
+guarantee; ``verify_branch_lease`` reads back; ``release_branch_lease`` does
+an owner-fenced delete. The two ``on_conn`` variants let sibling code
+(``gateway.builder_attempt`` and ``gateway.builder_identity``) participate in
+the caller's transaction for atomic packet-launch plumbing.
 
 Public symbols are re-exported from :mod:`gateway.builder_queue` via the
 fa\u00e7ade so callers (``gateway.builder_attempt``, ``gateway.builder_identity``,
@@ -41,6 +41,7 @@ logger = logging.getLogger("kitty.builder_queue_branch_leases")
 
 
 def _validate_branch_lease_fields(
+    initiative_id: str,
     packet_id: str,
     worker_id: str,
     branch: str,
@@ -49,6 +50,7 @@ def _validate_branch_lease_fields(
 ) -> str:
     """Validate and canonicalize values shared by every lease claim path."""
     for name, value in (
+        ("initiative_id", initiative_id),
         ("packet_id", packet_id),
         ("worker_id", worker_id),
         ("branch", branch),
@@ -66,6 +68,7 @@ def _validate_branch_lease_fields(
 
 def _claim_branch_lease_on_conn(
     conn: sqlite3.Connection,
+    initiative_id: str,
     packet_id: str,
     worker_id: str,
     branch: str,
@@ -74,33 +77,40 @@ def _claim_branch_lease_on_conn(
 ) -> sqlite3.Row:
     """Insert a branch lease inside the caller's active transaction."""
     canonical_worktree = _validate_branch_lease_fields(
-        packet_id, worker_id, branch, worktree_path, base_sha
+        initiative_id, packet_id, worker_id, branch, worktree_path, base_sha
     )
     try:
         conn.execute(
             """
             INSERT INTO branch_leases
-                (packet_id, worker_id, branch, worktree_path, base_sha)
-            VALUES (?, ?, ?, ?, ?)
+                (initiative_id, packet_id, worker_id, branch, worktree_path, base_sha)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (packet_id, worker_id, branch, canonical_worktree, base_sha),
+            (initiative_id, packet_id, worker_id, branch, canonical_worktree, base_sha),
         )
     except sqlite3.IntegrityError as exc:
         existing = conn.execute(
-            "SELECT packet_id, worker_id, branch, worktree_path "
+            "SELECT initiative_id, packet_id, worker_id, branch, worktree_path "
             "FROM branch_leases "
-            "WHERE packet_id = ? OR worker_id = ? "
+            "WHERE (initiative_id = ? AND packet_id = ?) "
+            "   OR (initiative_id = ? AND worker_id = ?) "
             "   OR branch = ? OR worktree_path = ?",
-            (packet_id, worker_id, branch, canonical_worktree),
+            (
+                initiative_id, packet_id,
+                initiative_id, worker_id,
+                branch, canonical_worktree,
+            ),
         ).fetchone()
         if existing is None:
             raise BranchLeaseConflictError(
-                f"branch lease conflict for packet {packet_id!r}"
+                f"branch lease conflict for {initiative_id}/{packet_id}"
             ) from exc
         conflicting_field = "unknown"
-        if existing["packet_id"] == packet_id:
+        if (existing["initiative_id"] == initiative_id
+                and existing["packet_id"] == packet_id):
             conflicting_field = "packet_id"
-        elif existing["worker_id"] == worker_id:
+        elif (existing["initiative_id"] == initiative_id
+              and existing["worker_id"] == worker_id):
             conflicting_field = "worker_id"
         elif existing["branch"] == branch:
             conflicting_field = "branch"
@@ -108,20 +118,23 @@ def _claim_branch_lease_on_conn(
             conflicting_field = "worktree_path"
         raise BranchLeaseConflictError(
             f"branch lease conflict: {conflicting_field} is already claimed "
-            f"by packet {existing['packet_id']!r}"
+            f"by {existing['initiative_id']}/{existing['packet_id']!r}"
         ) from exc
 
     lease = conn.execute(
-        "SELECT * FROM branch_leases WHERE packet_id = ?", (packet_id,)
+        "SELECT * FROM branch_leases WHERE initiative_id = ? AND packet_id = ?",
+        (initiative_id, packet_id),
     ).fetchone()
     if lease is None:
         raise RuntimeError(
-            f"branch lease for packet {packet_id!r} was inserted but is not retrievable"
+            f"branch lease for {initiative_id}/{packet_id} was inserted "
+            f"but is not retrievable"
         )
     return lease
 
 
 def claim_branch_lease(
+    initiative_id: str,
     packet_id: str,
     worker_id: str,
     branch: str,
@@ -130,13 +143,13 @@ def claim_branch_lease(
     *,
     db_path: Path | None = None,
 ) -> dict[str, Any]:
-    """Atomically claim an exclusive packet/worker/branch/worktree lease."""
+    """Atomically claim an exclusive initiative/packet/worker/branch/worktree lease."""
     init_db(db_path)
     conn = connect(db_path)
     try:
         conn.execute("BEGIN IMMEDIATE")
         lease = _claim_branch_lease_on_conn(
-            conn, packet_id, worker_id, branch, worktree_path, base_sha
+            conn, initiative_id, packet_id, worker_id, branch, worktree_path, base_sha
         )
         conn.commit()
         return dict(lease)
@@ -148,14 +161,18 @@ def claim_branch_lease(
 
 
 def verify_branch_lease(
-    packet_id: str, *, db_path: Path | None = None
+    initiative_id: str,
+    packet_id: str,
+    *,
+    db_path: Path | None = None,
 ) -> dict[str, Any] | None:
-    """Return the active lease for ``packet_id``, or ``None`` when absent."""
+    """Return the active lease for ``initiative_id/packet_id``, or ``None`` when absent."""
     init_db(db_path)
     conn = connect(db_path)
     try:
         row = conn.execute(
-            "SELECT * FROM branch_leases WHERE packet_id = ?", (packet_id,)
+            "SELECT * FROM branch_leases WHERE initiative_id = ? AND packet_id = ?",
+            (initiative_id, packet_id),
         ).fetchone()
         return dict(row) if row is not None else None
     finally:

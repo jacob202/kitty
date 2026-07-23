@@ -77,6 +77,7 @@ def _apply(
 def _claim(
     db_path: Path,
     *,
+    initiative_id: str = INITIATIVE,
     packet_id: str = PACKET,
     worker_id: str = "worker-1",
     branch: str = "feat/identity",
@@ -84,6 +85,7 @@ def _claim(
     base_sha: str = "a" * 40,
 ) -> dict:
     return bq.claim_branch_lease(
+        initiative_id,
         packet_id,
         worker_id,
         branch,
@@ -208,14 +210,14 @@ class TestBranchLease:
                 worker_id="impostor",
                 db_path=db_path,
             )
-        assert bq.verify_branch_lease(PACKET, db_path=db_path) is not None
+        assert bq.verify_branch_lease(INITIATIVE, PACKET, db_path=db_path) is not None
         bq.release_branch_lease(
             lease["lease_id"],
             packet_id=PACKET,
             worker_id="worker-1",
             db_path=db_path,
         )
-        assert bq.verify_branch_lease(PACKET, db_path=db_path) is None
+        assert bq.verify_branch_lease(INITIATIVE, PACKET, db_path=db_path) is None
 
     def test_double_release_fails_loud(self, db_path: Path) -> None:
         lease = _claim(db_path)
@@ -273,6 +275,7 @@ class TestWorkerIdentity:
             check=True,
         )
         return bq.claim_branch_lease(
+            INITIATIVE,
             PACKET,
             "worker-1",
             "feat/identity",
@@ -284,6 +287,7 @@ class TestWorkerIdentity:
     def test_valid_identity_passes(self, repo: Path, db_path: Path) -> None:
         lease = self._valid_identity(repo, db_path)
         assert verify_worker_identity(
+            INITIATIVE,
             PACKET,
             repo_root=repo,
             db_path=db_path,
@@ -297,6 +301,7 @@ class TestWorkerIdentity:
     def test_expected_worker_drift_fails(self, repo: Path, db_path: Path) -> None:
         self._valid_identity(repo, db_path)
         findings = verify_worker_identity(
+            INITIATIVE,
             PACKET,
             repo_root=repo,
             db_path=db_path,
@@ -315,7 +320,7 @@ class TestWorkerIdentity:
             base_sha=_head(repo),
         )
         findings = verify_worker_identity(
-            PACKET, repo_root=repo, db_path=db_path
+            INITIATIVE, PACKET, repo_root=repo, db_path=db_path
         )
         assert {finding.field for finding in findings} >= {
             "branch",
@@ -331,7 +336,7 @@ class TestWorkerIdentity:
             base_sha="f" * 40,
         )
         findings = verify_worker_identity(
-            PACKET, repo_root=repo, db_path=db_path
+            INITIATIVE, PACKET, repo_root=repo, db_path=db_path
         )
         assert any(finding.field == "head" for finding in findings)
 
@@ -352,6 +357,7 @@ class TestWorkerIdentity:
             check=True,
         )
         bq.claim_branch_lease(
+            INITIATIVE,
             PACKET,
             "worker-1",
             "feat/identity",
@@ -360,7 +366,7 @@ class TestWorkerIdentity:
             db_path=db_path,
         )
         findings = verify_worker_identity(
-            PACKET, repo_root=repo, db_path=db_path
+            INITIATIVE, PACKET, repo_root=repo, db_path=db_path
         )
         assert any(finding.field == "commits" for finding in findings)
 
@@ -390,7 +396,7 @@ class TestWorkerIdentity:
         )
 
         findings = verify_worker_identity(
-            PACKET, repo_root=repo, db_path=db_path
+            INITIATIVE, PACKET, repo_root=repo, db_path=db_path
         )
 
         assert any(
@@ -402,6 +408,7 @@ class TestWorkerIdentity:
         lease = self._valid_identity(repo, db_path)
         (repo / "secret.txt").write_text("outside\n", encoding="utf-8")
         findings = verify_worker_identity(
+            INITIATIVE,
             PACKET,
             repo_root=repo,
             db_path=db_path,
@@ -422,6 +429,7 @@ class TestWorkerIdentity:
         (repo / ".claude").mkdir(exist_ok=True)
         (repo / ".claude" / "STATE.md").write_text("residue\n", encoding="utf-8")
         findings = verify_worker_identity(
+            INITIATIVE,
             PACKET,
             repo_root=repo,
             db_path=db_path,
@@ -437,6 +445,7 @@ class TestWorkerIdentity:
             "staged\n", encoding="utf-8"
         )
         findings = verify_worker_identity(
+            INITIATIVE,
             PACKET,
             repo_root=repo,
             db_path=db_path,
@@ -457,6 +466,7 @@ class TestWorkerIdentity:
             )
             conn.commit()
         findings = verify_worker_identity(
+            INITIATIVE,
             PACKET,
             repo_root=repo,
             db_path=db_path,
@@ -470,6 +480,7 @@ class TestWorkerIdentity:
         lease = self._valid_identity(repo, db_path)
         _apply(db_path, initiative_id="identity-test-2", packet_id=PACKET)
         findings = verify_worker_identity(
+            INITIATIVE,
             PACKET,
             repo_root=repo,
             db_path=db_path,
@@ -482,5 +493,5 @@ class TestWorkerIdentity:
     ) -> None:
         _apply(db_path)
         with pytest.raises(EscalationError) as exc_info:
-            verify_and_escalate(PACKET, repo_root=repo, db_path=db_path)
+            verify_and_escalate(INITIATIVE, PACKET, repo_root=repo, db_path=db_path)
         assert exc_info.value.artifact["type"] == "identity_escalation"

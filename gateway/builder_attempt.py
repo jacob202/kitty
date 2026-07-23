@@ -603,6 +603,7 @@ def claim_and_start_attempt(
 
         lease_row = bq._claim_branch_lease_on_conn(
             conn,
+            initiative_id,
             packet_id,
             worker_id,
             branch,

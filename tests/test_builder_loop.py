@@ -565,7 +565,7 @@ class TestRunPacket:
         assert manifest["outcome"] == "crashed"
         assert manifest["failure"]["sha256"]
         assert "runner exploded" not in json.dumps(manifest)
-        assert bq.verify_branch_lease(PACKET, db_path=db_path) is None
+        assert bq.verify_branch_lease(INITIATIVE, PACKET, db_path=db_path) is None
         event = next(
             event
             for event in bq.list_events(task_id, db_path=db_path)
@@ -608,7 +608,7 @@ class TestRunPacket:
         )
         assert attempt is not None
         assert attempt["outcome"] == ba.ATTEMPT_ABORTED
-        assert bq.verify_branch_lease(PACKET, db_path=db_path) is None
+        assert bq.verify_branch_lease(INITIATIVE, PACKET, db_path=db_path) is None
 
     def test_extra_env_cannot_override_credential_isolation(self, db_path: Path):
         from gateway.builder_runner import run_worker
@@ -1099,7 +1099,7 @@ class TestLeaseIdentityIntegration:
             repo_root=repo, db_path=db_path,
         )
         assert result["outcome"] == "exhausted"
-        assert bq.verify_branch_lease(PACKET, db_path=db_path) is None
+        assert bq.verify_branch_lease(INITIATIVE, PACKET, db_path=db_path) is None
         assert result["attempts"][0]["identity_findings"][0]["field"] == "commits"
 
     def test_actual_branch_mismatch_rejected_by_identity(
@@ -1128,7 +1128,7 @@ class TestLeaseIdentityIntegration:
             finding["field"] == "branch"
             for finding in result["attempts"][0]["identity_findings"]
         )
-        assert bq.verify_branch_lease(PACKET, db_path=db_path) is None
+        assert bq.verify_branch_lease(INITIATIVE, PACKET, db_path=db_path) is None
 
     def test_forbidden_path_modification_escalates(
         self, repo: Path, db_path: Path, tmp_path: Path
@@ -1198,7 +1198,7 @@ class TestLeaseIdentityIntegration:
             repo_root=repo, db_path=db_path,
         )
         assert result["outcome"] == "exhausted"
-        assert bq.verify_branch_lease(PACKET, db_path=db_path) is None
+        assert bq.verify_branch_lease(INITIATIVE, PACKET, db_path=db_path) is None
 
     def test_identity_violation_stops_before_budget_exhausted(
         self, repo: Path, db_path: Path, tmp_path: Path
@@ -1316,7 +1316,7 @@ class TestLeaseIdentityIntegration:
         assert attempt["lease_id"] is not None
         assert attempt["validation"] is not None
         assert attempt["review"] is not None
-        assert bq.verify_branch_lease(PACKET, db_path=db_path) is None
+        assert bq.verify_branch_lease(INITIATIVE, PACKET, db_path=db_path) is None
 
 
 # ---------------------------------------------------------------------------
@@ -1459,7 +1459,7 @@ class TestCrashSafeLeaseRecovery:
                 db_path=db_path,
             )
         assert ba.get_attempt(attempt["id"], db_path=db_path)["outcome"] is None
-        assert bq.verify_branch_lease(PACKET, db_path=db_path) is not None
+        assert bq.verify_branch_lease(INITIATIVE, PACKET, db_path=db_path) is not None
 
         ba.close_attempt_and_release_lease(
             attempt["id"],
@@ -1469,7 +1469,7 @@ class TestCrashSafeLeaseRecovery:
             worker_id="test-worker",
             db_path=db_path,
         )
-        assert bq.verify_branch_lease(PACKET, db_path=db_path) is None
+        assert bq.verify_branch_lease(INITIATIVE, PACKET, db_path=db_path) is None
 
     def test_atomic_claim_rejects_non_durable_base_sha(
         self, repo: Path, db_path: Path
@@ -1492,7 +1492,7 @@ class TestCrashSafeLeaseRecovery:
             )
 
         assert ba.list_attempts(INITIATIVE, PACKET, db_path=db_path) == []
-        assert bq.verify_branch_lease(PACKET, db_path=db_path) is None
+        assert bq.verify_branch_lease(INITIATIVE, PACKET, db_path=db_path) is None
 
     def test_no_committed_lease_without_attempt(
         self, repo: Path, db_path: Path, tmp_path: Path
