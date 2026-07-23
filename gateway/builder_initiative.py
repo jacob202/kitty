@@ -789,7 +789,13 @@ def _row_to_packet(row: sqlite3.Row) -> dict[str, Any]:
 
 
 def list_initiatives(db_path: Path | None = None) -> list[dict[str, Any]]:
-    """List initiatives with packet counts, newest last."""
+    """List initiatives with packet counts and health_summary, newest last.
+
+    Each entry includes a ``health_summary`` dict with the derived
+    ``state``, ``stop_class``, and ``stop_class_reason`` per
+    ``initiative_status()`` — no new health computation, just a rollup call
+    per initiative (CP-03/CP-04 machinery).
+    """
     init_db(db_path)
     conn = bq.connect(db_path)
     try:
@@ -804,7 +810,24 @@ def list_initiatives(db_path: Path | None = None) -> list[dict[str, Any]]:
             ORDER BY i.created_at ASC, i.id ASC
             """
         ).fetchall()
-        return [dict(r) for r in rows]
+        initiatives: list[dict[str, Any]] = []
+        for r in rows:
+            initiative = dict(r)
+            try:
+                status = initiative_status(initiative["id"], db_path=db_path)
+                initiative["health_summary"] = {
+                    "state": status.get("state"),
+                    "stop_class": status.get("stop_class"),
+                    "stop_class_reason": status.get("stop_class_reason"),
+                }
+            except InitiativeNotFoundError:
+                initiative["health_summary"] = {
+                    "state": initiative.get("state"),
+                    "stop_class": None,
+                    "stop_class_reason": None,
+                }
+            initiatives.append(initiative)
+        return initiatives
     finally:
         conn.close()
 
