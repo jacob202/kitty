@@ -12,19 +12,15 @@ export function OnboardingModal({ onComplete }: { onComplete: (preferences: { na
   const [importBusy, setImportBusy] = useState(false)
   const [importResult, setImportResult] = useState<{ items: number; message: string } | null>(null)
 
-  const persist = async () => {
-    try {
-      await fetch('/proxy/onboarding', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ onboarded: true, preferredName: name.trim(), theme }),
-      })
-    } catch {
-      // gateway unreachable — local state still works
-    }
+  const persist = () => {
     window.localStorage.setItem('kitty-onboarded', 'true')
     window.localStorage.setItem('kitty-preferred-name', name.trim())
     window.localStorage.setItem('kitty-theme', theme)
+    fetch('/proxy/onboarding', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ onboarded: true, preferredName: name.trim(), theme }),
+    }).catch(() => {})
     onComplete({ name: name.trim(), theme })
   }
 

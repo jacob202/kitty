@@ -175,6 +175,7 @@ export function BuilderSurface({ fact, isLoading, error, onBack }: BuilderSurfac
             onOpenAllPackets={() => setAllPacketsOpen(true)}
             allPacketsButtonRef={allPacketsButtonRef}
           />
+          <BuilderInitiativeCards snapshot={snapshot} />
           <BuilderControls
             snapshot={snapshot}
             selection={selection}
@@ -1051,6 +1052,124 @@ function reviewLabel(verdict: BuilderAttemptStatus['review_verdict']): string | 
 
 function displayState(value: string): string {
   return value.replace(/_/g, ' ')
+}
+
+/** Per-initiative progress cards showing state, progress, blocker, and next action. */
+function BuilderInitiativeCards({ snapshot }: { snapshot: NonNullable<BuilderStatusSnapshot> }) {
+  const initiatives = snapshot.initiatives
+  if (!initiatives.length) return null
+
+  return (
+    <div style={detailGrid}>
+      {initiatives.map((init) => {
+        const packets = init.packets ?? []
+        const done = packets.filter((p) => p.task_state === 'done').length
+        const total = packets.length
+        const progress = total > 0 ? Math.round((done / total) * 100) : 0
+        const nextPacket = init.next_packet
+          ? packets.find((p) => p.packet_id === init.next_packet)
+          : null
+        const blockedPacket = packets.find(
+          (p) => p.task_state === 'blocked' || p.eligibility.state === 'blocked'
+        )
+        const inFlight = packets.filter(
+          (p) => p.task_state === 'running' || p.task_state === 'claimed'
+        )
+        const isComplete = init.state === 'completed'
+        const isPaused = init.state === 'paused'
+        const isFailed = init.state === 'failed'
+
+        const statusColor = isComplete
+          ? 'var(--c-green)'
+          : isFailed
+          ? 'var(--c-red)'
+          : isPaused
+          ? 'var(--c-yellow)'
+          : 'var(--c-blue)'
+
+        const statusLabel = isComplete
+          ? 'done'
+          : isFailed
+          ? 'failed'
+          : isPaused
+          ? 'paused'
+          : inFlight.length > 0
+          ? `${inFlight.length} running`
+          : done > 0
+          ? `${done}/${total}`
+          : 'queued'
+
+        return (
+          <div
+            key={init.initiative_id}
+            style={{
+              ...card,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+              borderLeft: `3px solid ${statusColor}`,
+            }}
+            aria-label={`${init.title}: ${statusLabel}`}
+          >
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {init.title}
+              </span>
+              <span style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                fontWeight: 700,
+                color: statusColor,
+                flexShrink: 0,
+                padding: '2px 8px',
+                borderRadius: 999,
+                background: `${statusColor}15`,
+              }}>
+                {statusLabel}
+              </span>
+            </div>
+
+            {!isComplete && !isFailed && total > 0 && (
+              <div style={{ height: 3, borderRadius: 99, background: 'var(--surface-2)', overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%',
+                  width: `${Math.max(2, progress)}%`,
+                  background: statusColor,
+                  borderRadius: 99,
+                  transition: 'width 0.3s ease',
+                }} />
+              </div>
+            )}
+
+            {isPaused && init.pause_reason && (
+              <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)', margin: 0, lineHeight: 1.5 }}>
+                Paused: {init.pause_reason.slice(0, 120)}
+              </p>
+            )}
+
+            {blockedPacket && !isComplete && !isPaused && (
+              <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--c-red)', margin: 0, lineHeight: 1.5 }}>
+                Blocked: {blockedPacket.packet_id}
+                {blockedPacket.blocked_reason ? ` — ${blockedPacket.blocked_reason.slice(0, 100)}` : ''}
+              </p>
+            )}
+
+            {nextPacket && !isComplete && !isPaused && !isFailed && !blockedPacket && (
+              <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--c-blue)', margin: 0, lineHeight: 1.5 }}>
+                Next: {nextPacket.title ?? nextPacket.packet_id}
+              </p>
+            )}
+
+            {init.counts.exhausted > 0 && (
+              <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--c-yellow)', margin: 0 }}>
+                {init.counts.exhausted} packet{init.counts.exhausted > 1 ? 's' : ''} exhausted
+              </p>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 function isExpired(validUntil: string | undefined): boolean {

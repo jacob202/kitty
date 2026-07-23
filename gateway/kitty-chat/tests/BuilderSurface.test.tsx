@@ -368,7 +368,7 @@ describe('BuilderSurface', () => {
     expect(screen.getByLabelText('Builder next action')).toHaveTextContent(
       'Needs a decision: Builder UI test initiative',
     )
-    expect(screen.getAllByText('packet requires scope or identity judgment')).toHaveLength(2)
+    expect(screen.getAllByText('packet requires scope or identity judgment')).toHaveLength(3)
   })
 
   it.each<[BuilderFailureKind, string]>([
