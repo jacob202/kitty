@@ -291,9 +291,6 @@ function WhatsNext({
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
 
-  const isPending =
-    actionsQuery.isPending || needsJacob.isPending || projectsQuery.isPending || stepQueries.isPending || todosQuery.isPending || sessionContext.isPending;
-
   // ── Error checks first ──
   // These run before the loading guard so that a known failure (observed:
   // stale gateway 404'd /session/context) renders immediately with a retry
@@ -304,15 +301,15 @@ function WhatsNext({
     const retry = () => queryClient.invalidateQueries({ queryKey: ['session', 'context'] });
     return (
       <SectionCard title="what's next" span>
-        <ErrorCard message={message} onRetry={retry} />
+        <ErrorCard message={`gateway offline — ${message}`} onRetry={retry} />
       </SectionCard>
     );
   }
 
-  if (actionsQuery.isError || projectsQuery.isError || stepQueries.isError) {
+  if (actionsQuery.isError || projectsQuery.isError) {
     return (
       <SectionCard title="what's next" span>
-        <ErrorCard message="unavailable" />
+        <ErrorCard message={OFFLINE_FIX} />
       </SectionCard>
     );
   }
@@ -324,13 +321,15 @@ function WhatsNext({
     const retry = () => queryClient.invalidateQueries({ queryKey: retryKey });
     return (
       <SectionCard title="what's next" span>
-        <ErrorCard message={message} onRetry={retry} />
+        <ErrorCard message={`gateway offline — ${message}`} onRetry={retry} />
       </SectionCard>
     );
   }
 
   // ── Loading guard ──
   // Only show "loading…" when no query has already failed (all errors handled above).
+  const isPending =
+    actionsQuery.isPending || needsJacob.isPending || projectsQuery.isPending || todosQuery.isPending || sessionContext.isPending;
 
   if (isPending) {
     return (

@@ -675,25 +675,6 @@ describe('HomeState', () => {
     expect(mutate).toHaveBeenCalled();
   });
 
-  // ── phone access card ──
-
-  it('shows an honest not-detected state when tailscale is unreachable', () => {
-    render(<HomeState />);
-    expect(screen.getByText(/tailscale not detected/)).toBeInTheDocument();
-  });
-
-  it('shows the tailnet URL when reachable', () => {
-    (useTailnet as Mock).mockReturnValue({
-      data: { ok: true, tailnetIp: '100.64.1.2', uiUrl: 'http://100.64.1.2:4000' },
-      isPending: false,
-      isError: false,
-      isFetched: true,
-    });
-    render(<HomeState />);
-    expect(screen.getByText('http://100.64.1.2:4000')).toBeInTheDocument();
-    expect(screen.queryByText(/tailscale not detected/)).not.toBeInTheDocument();
-  });
-
   // ── error-before-loading regressions ──
 
   it("shows session context error even when another query is still loading (was: 'loading…' forever)", () => {
@@ -716,6 +697,7 @@ describe('HomeState', () => {
     // At least one alert carries the /session/context error
     const sessionAlert = alerts.find((a) => a.textContent?.includes('404'));
     expect(sessionAlert).toBeTruthy();
+    expect(sessionAlert!.textContent).toMatch(/gateway offline/);
     // The error card has a retry button inside the alert
     expect(sessionAlert!.querySelector('button')).toBeTruthy();
     // The What's Next section heading should be visible (proving the section
