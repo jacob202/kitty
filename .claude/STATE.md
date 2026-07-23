@@ -1,31 +1,26 @@
-# Session State — Kitty Endgame INIT-1 in progress
+# Session State — PR 229 reconciled, INIT-1 v2 ready for B1
 
 <!-- kitty-state
 {
   "schema_version": 1,
-  "updated_at": "2026-07-23T03:10:00Z",
-  "head_sha": "ccef06c3bf3f52aab98610d29bc69af95da64dae",
+  "updated_at": "2026-07-23T03:45:00Z",
+  "head_sha": "5533deb376540309e0948cadb7a4d9e7eb815d6c",
   "branch": "main",
   "worktree": ".",
   "status": "in_progress",
   "completed_items": [
-    "CP-01–07 (campaign playbook, manifest lint, stop classification, health metrics, campaign report, evidence-gated auto-merge/ADR 0018, worker resources) — all shipped and pushed to main.",
-    "CP-08 dogfood: Campaign A (single-packet doc fix, cp08-campaign-a-v2) merged live via free workers through CP-06 auto-merge as PR #224.",
-    "CP-08 dogfood: Campaign B (4-packet, prototype-gated initiative-list health dashboard) — 3/4 packets (proto, column, filter) merged live as PR #226/#227; cp08b-tests-docs stopped needs_decision on a genuine scope overreach (touched gateway/builder_cli.py outside its tests+docs allowlist) — correct behavior, not a bug.",
-    "Along the way, found and fixed 4 real infra bugs in the free-worker/auto-merge pipeline (all shipped): worker-staging-file scope false-positive, missing worker auto-commit, missing [packet_id] identity marker, and identity verification's scope check lacking the session-state residue exemption builder_runner.py already had (now centralized in builder_scope.is_expected_residue).",
-    "KB-S5 marked shipped in docs/KITTYBUILDER_SELF_BUILDING_MVP.md with evidence. Retro written in docs/LEARNINGS.md (L-CAND-14, L-CAND-15) — names what fired (scope enforcement, CP-03 classification, CP-06 auto-merge, CP-02's lint warning predicting a real later collision) and what never fired (tripwire, auto-revert — still owed a deliberate drill).",
-    "Follow-up filed (not yet started): sequential auto-merged packets in one initiative can genuinely conflict on main (most reliably on .claude/STATE.md, since every worker convention-writes to it) — two fixes named in L-CAND-15, spawned as a background task.",
-    "Cleaned up ~40GB of disk (Draw Things/ComfyUI model weights + dev caches) earlier in the session, unrelated to the Builder plan.",
-    "Host repair is green: root .env, venv/mem0, Builder worktree root, gateway/LiteLLM, UI and Tailnet checks all pass.",
-    "Kitty Endgame INIT-1 manifest was validated and applied; INIT-2 was validated but intentionally held.",
-    "Builder UI now has a truthful read-only next-action card and all-packets modal, with browser evidence over Tailnet."
+    "PR #229 reconciled: it silently collided with main's L-CAND-14/15 lessons under the same slot numbers (git's textual merge auto-resolved it by deleting main's entries) — restored both, renumbered the PR's two lessons to L-CAND-16/17, took main's current .claude/HANDOFF.md/STATE.md over the branch's stale copies. Merged as #229 (squash, 3e352a0) after all 7 checks went green.",
+    "B1-dogfood-preflight adjudicated: exhausted at 2/2 attempts on a repo:identity false-positive in builder doctor, root-cause-fixed in main (ebd1a93) after INIT-1 v1 was already applied. Manifests are immutable (InitiativeConflictError) and base_sha is resolved once at apply time, so v1 could never pick up the fix. Paused v1 with a documented reason, applied kitty-endgame-init-1-builder-closeout-v2 (same 5 packets, fresh base_sha) — B1 is eligible again.",
+    "val-cli / val-cli-fail duplicate initiatives resolved: both were CLI-validation test fixtures from 2026-07-20 (placeholder objective 'Do the first thing', validation_commands true/false), not real work. Operator-cancelled all 4 tasks across both; they now show state=failed instead of confusing duplicate 'active' Kitty Alpha build entries.",
+    "Merge rail fixed (docs/LEARNINGS.md L-CAND-15, both halves): merge_and_verify (gateway/builder_publish.py) now rebases the packet's own branch onto fresh main and force-pushes-with-lease only on a clean rebase, retrying the merge once — a rebase conflict is never force-pushed, the original error still propagates. Documented as ADR 0018 amendment 7. CLAUDE.md's Session State section now tells sessions to re-read STATE.md/HANDOFF.md fresh before writing and not clobber a different active workstream's narrative; clarified the convention is for Jacob's interactive sessions, not isolated Builder workers (whose brief already forbids touching .claude/).",
+    "Verified via runtime manifest (curl against /runtime/manifest, the exact endpoint BuilderSurface.tsx consumes): val-cli/val-cli-fail show failed, INIT-1 v1 shows paused with the documented reason, INIT-1 v2 shows active with next_packet=B1-dogfood-preflight. Started the kitty-chat dev server (was dead, PID from a prior note had died) to do this check live, not from code inspection.",
+    "All 171 focused tests pass (test_builder_publish.py, test_builder_initiative.py, test_builder_doctor.py). kitty doctor: 36 pass/8 warn/0 fail. builder initiative doctor: 13 pass/1 warn/0 fail (warn = expected paused-initiative list)."
   ],
   "blockers": [],
-  "next_action": "adjudicate B1 dogfood-preflight branch, then run the eligible INIT-1 packet",
+  "next_action": "Jacob runs B1-dogfood-preflight (and the rest of INIT-1 v2's chain) himself via KittyBuilder's CLI/UI now that the queue is clean and the merge rail is fixed — this was his explicit ask, not something to run unattended on his behalf.",
   "invalidation_conditions": [
-    "HEAD changes beyond 9058c085fa7e75dc3902d73fc781f3031d5164ad",
-    "branch or registered worktree changes",
-    "origin/main advances beyond 9058c085fa7e75dc3902d73fc781f3031d5164ad"
+    "HEAD changes beyond 5533deb376540309e0948cadb7a4d9e7eb815d6c",
+    "origin/main advances beyond 5533deb376540309e0948cadb7a4d9e7eb815d6c"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
@@ -34,33 +29,25 @@
 
 ## Current checkpoint
 
-`main` = `origin/main` at `ccef06c`, pushed. The KittyBuilder daily-driver
-plan (`docs/plans/KITTYBUILDER_DAILY_DRIVER_PLAN.md`) is fully executed:
-CP-01 through CP-07 shipped as code/docs, CP-08 dogfooded live against real
-free-worker campaigns with real evidence-gated auto-merges (PRs #224,
-#226, #227) — not fixtures. KB-S5 is signed off.
-
-Note: another concurrent session (branch `claude/session-3pgcib`, PRs
-#228/#229 visible in `gh pr list` during this session) was also active in
-this repo at the same time — some of the lease-reconciliation races hit
-during dogfooding were plausibly cross-session, not self-inflicted. Worth
-knowing if `main`'s history near this timestamp looks tangled.
+`main` = `origin/main` at `5533deb`, pushed. PR #229 merged. Merge-rail gap
+(L-CAND-15) fixed and documented (ADR 0018 amendment 7). `.claude/`
+clobbering gap (L-CAND-16) fixed via a CLAUDE.md scoping addition.
 
 ## Endgame checkpoint
 
-INIT-1 is active with B1 eligible and B2/B3/B7/B8 queued. The B1 source branch
-is a broad, already-merged/closed-PR lineage and requires adjudication before
-any branch cleanup or execution. The Builder card deliberately remains
-read-only until B7 supplies a server-side authority, lease, and audit path.
+`kitty-endgame-init-1-builder-closeout-v1` is paused (exhausted B1, immutable
+manifest, documented reason in its pause_reason). `-v2` is active with B1
+eligible — same 5 packets, fresh base_sha off current main. Nothing else in
+the whole queue is eligible right now, so there is no cross-initiative
+collision risk to worry about when B1 runs.
 
 ## Known follow-up
 
-- Sequential-packet merge-conflict gap in CP-06 auto-merge (see
-  `docs/LEARNINGS.md` L-CAND-15) — a background task was filed for it,
-  not yet started.
-- The CP-06 tripwire and auto-revert path are still unexercised — no
-  revert occurred during this session's real runs. A deliberate revert
-  drill (daily-driver plan §3.3, negative test 4) is still owed before
-  trusting them unattended.
+- The CP-06 tripwire and auto-revert path are still unexercised — no revert
+  has occurred in real use yet. A deliberate revert drill (daily-driver plan
+  §3.3, negative test 4) is still owed before trusting them unattended.
 - `feat/reasoning-engine-current` remains Jacob's separate live WIP,
   untouched by this session.
+- The kitty-chat dev server needs to be started manually
+  (`cd gateway/kitty-chat && npm run dev`) — it is not managed by launchd
+  like gateway/litellm, so it doesn't survive a reboot/logout on its own.

@@ -3,22 +3,23 @@
 <!-- kitty-handoff
 {
   "schema_version": 1,
-  "updated_at": "2026-07-23T03:10:00Z",
-  "head_sha": "ccef06c3bf3f52aab98610d29bc69af95da64dae",
+  "updated_at": "2026-07-23T03:45:00Z",
+  "head_sha": "5533deb376540309e0948cadb7a4d9e7eb815d6c",
   "branch": "main",
   "worktree": ".",
   "status": "in_progress",
   "completed_items": [
-    "KittyBuilder daily-driver plan CP-01 through CP-08 fully executed and pushed to main (9058c08). See .claude/STATE.md for the full breakdown.",
-    "KB-S5 marked shipped with evidence in docs/KITTYBUILDER_SELF_BUILDING_MVP.md; retro in docs/LEARNINGS.md (L-CAND-14, L-CAND-15).",
-    "Host repair and Tailnet UI verification are green.",
-    "Endgame INIT-1 manifests are validated/applied; Builder card/modal is read-only and browser-verified."
+    "PR #229 reconciled and merged (squash 3e352a0) after restoring a silent LEARNINGS.md content collision (L-CAND-14/15 vs the PR's own L-CAND-14/15) and taking main's current STATE/HANDOFF over the branch's stale copies.",
+    "B1-dogfood-preflight adjudicated: v1 paused (documented reason), v2 applied with a fresh base_sha off current main. B1 is eligible again.",
+    "val-cli/val-cli-fail (CLI-validation test fixtures, not real work) cancelled — no longer show as confusing duplicate active initiatives.",
+    "Merge rail fixed: merge_and_verify rebases + force-pushes-with-lease the packet's own branch on a merge failure, retrying once (ADR 0018 amendment 7). CLAUDE.md's Session State convention now scoped away from isolated Builder attempts.",
+    "Verified live via the runtime manifest endpoint the Builder UI actually consumes — not just code inspection."
   ],
   "blockers": [],
-  "next_action": "adjudicate B1 dogfood-preflight branch, then run the eligible INIT-1 packet",
+  "next_action": "Jacob runs B1-dogfood-preflight (INIT-1 v2) himself via KittyBuilder's CLI/UI — explicitly his ask, not something to run unattended.",
   "invalidation_conditions": [
-    "HEAD changes beyond 9058c085fa7e75dc3902d73fc781f3031d5164ad",
-    "origin/main advances beyond 9058c085fa7e75dc3902d73fc781f3031d5164ad"
+    "HEAD changes beyond 5533deb376540309e0948cadb7a4d9e7eb815d6c",
+    "origin/main advances beyond 5533deb376540309e0948cadb7a4d9e7eb815d6c"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
@@ -27,17 +28,21 @@
 
 ## Completed
 
-Full KittyBuilder daily-driver plan (CP-01–08). Details and evidence links
-are in `.claude/STATE.md` — not duplicated here since nothing is in flight.
+PR #229 merged. B1-dogfood-preflight adjudicated via a clean v2 retry
+(v1 paused, documented). val-cli/val-cli-fail test-fixture duplicates
+cancelled. Merge rail rebase-before-retry fix landed and tested. CLAUDE.md's
+Session State convention scoped to stop this exact class of clobber
+recurring. Full detail and evidence in `.claude/STATE.md`.
 
 ## In flight
 
-INIT-1 is active. B1 is the only eligible packet. Its source branch is broad
-and overlaps already-merged work, so adjudicate/extract before any cleanup.
-INIT-2 remains validated but unapplied by design.
+Nothing — queue is clean. `kitty-endgame-init-1-builder-closeout-v2` has
+exactly one eligible packet (B1-dogfood-preflight) and nothing else in the
+whole queue is eligible right now, so there's no collision risk for Jacob
+to worry about when he starts it.
 
 ## Next action
 
-Adjudicate B1, then run the resulting eligible packet through the supported
-Builder interface. Keep B7 mutation authority gated until its server-side
-lease/audit endpoint exists.
+Jacob runs B1 (and the rest of INIT-1 v2's chain) himself through
+KittyBuilder's CLI or the Builder UI card, now that the queue is clean, the
+doctor false-positive is fixed, and the merge rail rebases before retrying.
