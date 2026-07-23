@@ -9,7 +9,26 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from gateway import dream_insights, memory
+from gateway.memory import (
+    MemoryError,
+    delete_memory,
+    get_context_block,
+    list_memories,
+    search_memory,
+)
+
+
+def _patched_mem(side_effect=None, return_value=None):
+    """Return a mock Memory instance with configured search/get/delete behaviour."""
+    mem = MagicMock()
+    if side_effect is not None:
+        mem.search.side_effect = side_effect
+        mem.get.side_effect = side_effect
+        mem.delete.side_effect = side_effect
+    if return_value is not None:
+        mem.search.return_value = return_value
+        mem.get.return_value = return_value
+    return mem
 
 
 @pytest.fixture(autouse=True)

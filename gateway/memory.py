@@ -4,15 +4,13 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, Optional
+from typing import Optional
 
-from gateway.errors import StorageUnavailable
 from gateway.paths import DATA_DIR
 
 
-class MemoryError(StorageUnavailable):
-    """Raised when the long-term memory backend is unavailable or invalid."""
-
+class MemoryError(RuntimeError):
+    """Raised when a memory read/write operation fails unexpectedly."""
 
 logger = logging.getLogger("kitty.memory")
 

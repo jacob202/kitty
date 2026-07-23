@@ -79,18 +79,32 @@ async def test_async_search_normalizes_grouped_store_hits() -> None:
     assert result["inbox"][0]["title"] == "Capture the Sansui bias setting"
 
 
-def test_search_route_uses_async_search_without_dropping_knowledge() -> None:
-    item = Item(text="MOSFET bias notes", source=Source.KNOWLEDGE, score=0.87, metadata={"source": "sansui.pdf"})
-    graph_result = GraphResult(results={"knowledge": [item]})
+def test_search_route_flattens_all_stores_without_dropping_knowledge() -> None:
+    items = {
+        Source.KNOWLEDGE.value: [
+            Item(
+                text="MOSFET bias notes",
+                source=Source.KNOWLEDGE,
+                score=0.87,
+                metadata={"source": "sansui.pdf"},
+            )
+        ],
+    }
 
-    with patch("gateway.memory_graph.search_all", new=AsyncMock(return_value=graph_result)):
+    with patch(
+        "gateway.memory_graph.search_all",
+        new=AsyncMock(return_value=GraphResult(results=items)),
+    ):
         client = TestClient(app)
         response = client.get("/search", params={"q": "mosfet", "limit": 3})
 
     assert response.status_code == 200
     body = response.json()
-    assert body["knowledge"], "knowledge results must not be dropped from the search response"
-    assert body["knowledge"][0]["text"] == "MOSFET bias notes"
+    assert body["query"] == "mosfet"
+    assert any(
+        r["store"] == Source.KNOWLEDGE.value and "MOSFET bias notes" in r["content"]
+        for r in body["results"]
+    )
 
 
 def test_deep_research_route_uses_typed_payload() -> None:
