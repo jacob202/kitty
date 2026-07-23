@@ -3,8 +3,8 @@
 <!-- kitty-handoff
 {
   "schema_version": 1,
-  "updated_at": "2026-07-23T01:36:59Z",
-  "head_sha": "7c65efc12ba4ec9baa85af342c77a714e043c210",
+  "updated_at": "2026-07-23T01:39:00Z",
+  "head_sha": "bfa9211",
   "branch": "fix/pr-223-session-hygiene",
   "worktree": ".",
   "status": "in_progress",
@@ -15,7 +15,7 @@
   "blockers": [],
   "next_action": "Let the active Campaign B initiative driver complete; then verify the final report, record the CP-08 retrospective, and update continuity and durable memory.",
   "invalidation_conditions": [
-    "origin/main advances beyond 7c65efc12ba4ec9baa85af342c77a714e043c210",
+    "origin/main advances beyond the verified Campaign B prototype merge",
     "Campaign B reaches a terminal state",
     "branch or registered worktree changes"
   ],
