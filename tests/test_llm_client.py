@@ -502,22 +502,20 @@ def test_call_llm_passes_response_format_to_litellm():
     assert mock_post.call_args.kwargs["json"]["response_format"] == {"type": "json_object"}
 
 
-def test_call_llm_full_fallback_exhaustion_raises_chain_exhausted():
-    """All providers in the fallback chain fail -> call_llm raises ProviderChainExhausted."""
-    from gateway.llm_client import ProviderChainExhausted, call_llm
+def test_call_llm_full_fallback_exhaustion_returns_empty():
+    """All providers in the fallback chain fail -> call_llm returns ''."""
+    from gateway.llm_client import call_llm
 
     with (
         patch("gateway.llm_client._post", side_effect=Exception("litellm down")),
         patch("gateway.llm_client._call_provider", return_value=""),
     ):
-        with pytest.raises(ProviderChainExhausted) as excinfo:
-            call_llm(
-                [{"role": "user", "content": "hello"}],
-                model="kitty-default",
-            )
+        result = call_llm(
+            [{"role": "user", "content": "hello"}],
+            model="kitty-default",
+        )
 
-    assert excinfo.value.errors[0].startswith("litellm:")
-    assert any("no response" in e for e in excinfo.value.errors)
+    assert result == ""
 
 
 def test_call_llm_partial_fallback_second_provider_succeeds():
@@ -544,20 +542,19 @@ def test_call_llm_partial_fallback_second_provider_succeeds():
 
 
 def test_call_llm_fallback_deadline_exhausted():
-    """When deadline budget is already consumed, call_llm raises ProviderChainExhausted."""
-    from gateway.llm_client import ProviderChainExhausted, call_llm
+    """When deadline budget is already consumed, call_llm returns ''."""
+    from gateway.llm_client import call_llm
 
     with (
         patch("gateway.llm_client._post", side_effect=Exception("litellm down")),
         patch("gateway.llm_client._LLM_CHAIN_DEADLINE", -1.0),
     ):
-        with pytest.raises(ProviderChainExhausted) as excinfo:
-            call_llm(
-                [{"role": "user", "content": "hello"}],
-                model="kitty-default",
-            )
+        result = call_llm(
+            [{"role": "user", "content": "hello"}],
+            model="kitty-default",
+        )
 
-    assert any("deadline" in e for e in excinfo.value.errors)
+    assert result == ""
 
 
 # ── extract_assistant_text ────────────────────────────────────────────────
