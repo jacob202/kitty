@@ -67,7 +67,7 @@ def _parse_comfy(prompt: str) -> dict:
     return dict(sdxl=sdxl, explicit=explicit, w=w, h=h, steps=steps, cfg=cfg, lstr=lstr, neg=neg)
 
 
-def _wf_sd15(prompt: str, p: dict, seed: int) -> dict:
+def _wf_sd15(prompt: str, p: dict) -> dict:
     wf = {
         "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": SD15_CKPT}},
         "4": {
@@ -103,7 +103,7 @@ def _wf_sd15(prompt: str, p: dict, seed: int) -> dict:
     wf["6"] = {
         "class_type": "KSampler",
         "inputs": {
-            "seed": seed,
+            "seed": _seed(),
             "steps": p["steps"],
             "cfg": p["cfg"],
             "sampler_name": "euler_ancestral",
@@ -123,7 +123,7 @@ def _wf_sd15(prompt: str, p: dict, seed: int) -> dict:
     return wf
 
 
-def _wf_sdxl(prompt: str, p: dict, seed: int) -> dict:
+def _wf_sdxl(prompt: str, p: dict) -> dict:
     return {
         "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": SDXL_PHOTONIC}},
         "2": {"class_type": "CLIPTextEncode", "inputs": {"text": prompt, "clip": ["1", 1]}},
@@ -135,7 +135,7 @@ def _wf_sdxl(prompt: str, p: dict, seed: int) -> dict:
         "5": {
             "class_type": "KSampler",
             "inputs": {
-                "seed": seed,
+                "seed": _seed(),
                 "steps": p["steps"],
                 "cfg": p["cfg"],
                 "sampler_name": "euler",
@@ -192,8 +192,7 @@ class ComfyuiEngine:
             p["steps"] = steps
         if cfg_scale is not None:
             p["cfg"] = cfg_scale
-        gen_seed = seed if seed is not None else _seed()
-        workflow = _wf_sdxl(prompt, p, gen_seed) if p["sdxl"] else _wf_sd15(prompt, p, gen_seed)
+        workflow = _wf_sdxl(prompt, p) if p["sdxl"] else _wf_sd15(prompt, p)
 
         async with httpx.AsyncClient(timeout=30) as client:
             r = await client.post(f"{settings.comfy_url}/prompt", json={"prompt": workflow})

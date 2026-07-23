@@ -20,6 +20,8 @@ from gateway.image_jobs import (
 )
 from mcp.imagen.io import save_image
 
+# Set COMFY_URL to the cloudflared tunnel URL when running on Colab, e.g.:
+#   COMFY_URL=https://abc-xyz.trycloudflare.com
 COMFY_URL = os.environ.get("COMFY_URL", "http://127.0.0.1:8188")
 
 # Checkpoint names — update these to match what's in ComfyUI's models/checkpoints/.
@@ -57,12 +59,6 @@ COMFY_REQUIRED_NODES = frozenset(
 COMFY_IDENTITY_NODES = frozenset({"IPAdapter", "IPAdapterModelLoader"})
 
 EXPLICIT_KW = {"explicit", "erect", "hard cock", "erection", "boner", "cock", "nude explicit"}
-SDXL_KW     = {"realistic", "sdxl", "photo", "photorealistic", "high res", "high quality", "photonic"}
-
-_history: list[dict] = []
-MAX_HISTORY = 20
-
-_job_store = ImageJobStore()
 
 
 class ImageGenerationCancelled(RuntimeError):
@@ -120,41 +116,14 @@ def _seed() -> int:
     return int.from_bytes(os.urandom(8), "little") & 0xFFFFFFFFFFFFFFFF
 
 
-def _wf_sd15(prompt: str, neg: str, w: int, h: int, steps: int, cfg: float,
-             lstr: float, explicit: bool, estr: float, seed: int) -> dict:
-    wf = {
-        "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": SD15_CKPT}},
-        "4": {"class_type": "LoraLoader",
-              "inputs": {"model": ["1", 0], "clip": ["1", 1],
-                         "lora_name": BEAR_LORA, "strength_model": lstr, "strength_clip": lstr}},
-    }
-    model_node, clip_node = "4", "4"
-    if explicit:
-        wf["9"] = {"class_type": "LoraLoader",
-                   "inputs": {"model": [model_node, 0], "clip": [clip_node, 1],
-                              "lora_name": EXPLICIT_LORA, "strength_model": estr, "strength_clip": 0.0}}
-        model_node = "9"
-    wf["2"] = {"class_type": "CLIPTextEncode", "inputs": {"text": prompt, "clip": [clip_node, 1]}}
-    wf["3"] = {"class_type": "CLIPTextEncode", "inputs": {"text": neg,    "clip": [clip_node, 1]}}
-    wf["5"] = {"class_type": "EmptyLatentImage", "inputs": {"width": w, "height": h, "batch_size": 1}}
-    wf["6"] = {"class_type": "KSampler",
-               "inputs": {"seed": seed, "steps": steps, "cfg": cfg,
-                          "sampler_name": "euler_ancestral", "scheduler": "karras",
-                          "denoise": 1.0, "model": [model_node, 0],
-                          "positive": ["2", 0], "negative": ["3", 0], "latent_image": ["5", 0]}}
-    wf["7"] = {"class_type": "VAEDecode",  "inputs": {"samples": ["6", 0], "vae": ["1", 2]}}
-    wf["8"] = {"class_type": "SaveImage",  "inputs": {"filename_prefix": "Kitty", "images": ["7", 0]}}
-    return wf
-
-
-def _wf_sdxl(prompt: str, neg: str, w: int, h: int, steps: int, cfg: float, ckpt: str, seed: int) -> dict:
+def _wf_sdxl(prompt: str, neg: str, w: int, h: int, steps: int, cfg: float, ckpt: str) -> dict:
     return {
         "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": ckpt}},
         "2": {"class_type": "CLIPTextEncode", "inputs": {"text": prompt, "clip": ["1", 1]}},
         "3": {"class_type": "CLIPTextEncode", "inputs": {"text": neg,    "clip": ["1", 1]}},
         "4": {"class_type": "EmptyLatentImage", "inputs": {"width": w, "height": h, "batch_size": 1}},
         "5": {"class_type": "KSampler",
-              "inputs": {"seed": seed, "steps": steps, "cfg": cfg,
+              "inputs": {"seed": _seed(), "steps": steps, "cfg": cfg,
                          "sampler_name": "euler", "scheduler": "sgm_uniform",
                          "denoise": 1.0, "model": ["1", 0],
                          "positive": ["2", 0], "negative": ["3", 0], "latent_image": ["4", 0]}},
@@ -486,23 +455,22 @@ async def is_available() -> bool:
 async def generate(prompt: str, parent_id: str | None = None) -> dict:
     """Submit prompt to ComfyUI, poll until done, return {prompt_id, filename, job_id}."""
     p = _parse(prompt)
-    seed = _seed()
 
-    if p["sdxl"]:
-        workflow = _wf_sdxl(prompt, p["negative"], p["w"], p["h"], p["steps"], p["cfg"], SDXL_PHOTONIC, seed)
-        model, sampler, scheduler = SDXL_PHOTONIC, "euler", "sgm_uniform"
-        template = "sdxl_photonic"
-    else:
-        workflow = _wf_sd15(prompt, p["negative"], p["w"], p["h"], p["steps"], p["cfg"],
-                            p["lstr"], p["explicit"], p["estr"], seed)
-        model, sampler, scheduler = SD15_CKPT, "euler_ancestral", "karras"
-        template = "sd15_basic"
+    workflow = _wf_sdxl(prompt, p["negative"], p["w"], p["h"], p["steps"], p["cfg"], SDXL_PHOTONIC)
+    model_id, sampler, scheduler = SDXL_PHOTONIC, "euler", "sgm_uniform"
+    template = "sdxl_photonic"
 
-    job_id = _job_store.create_job(
-        engine="comfyui",
+    workflow_hash = hashlib.sha256(json.dumps(workflow, sort_keys=True).encode()).hexdigest()[:16]
+    provider_params = {"explicit": p["explicit"]}
+
+    # Record the job before submitting so it survives a crash mid-generation.
+    job = create_job(
+        provider="comfyui",
+        operation="variation" if parent_id else "txt2img",
         prompt=prompt,
         negative_prompt=p["negative"],
-        seed=seed,
+        seed=None,  # seed is embedded in workflow but not surfaced back
+        model_id=model_id,
         width=p["w"],
         height=p["h"],
         steps=p["steps"],
@@ -521,8 +489,10 @@ async def generate(prompt: str, parent_id: str | None = None) -> dict:
             if r.status_code != 200:
                 raise RuntimeError(f"ComfyUI rejected prompt: {r.text}")
             prompt_id = r.json()["prompt_id"]
-            _job_store.submit_job(job_id, prompt_id)
-            filename = await _poll(client, prompt_id)
+            update_job(job.job_id, provider_job_id=prompt_id)
+            transition(job.job_id, ImageJobStatus.SUBMITTED)
+            transition(job.job_id, ImageJobStatus.RUNNING)
+            filename = await _poll(client, prompt_id, job_id=job.job_id)
     except Exception as exc:
         _mark_failed(job.job_id, str(exc)[:500])
         raise
@@ -538,7 +508,25 @@ async def generate(prompt: str, parent_id: str | None = None) -> dict:
         transition(job.job_id, ImageJobStatus.FAILED)
         raise TimeoutError("Image generation timed out (6 min)")
 
-    _job_store.complete_job(job_id, output_path=filename)
+    # ComfyUI owns its output directory, which may be ephemeral (for example
+    # a restarted Colab process). Copy the completed artifact into Kitty's
+    # durable image store before marking the job succeeded.
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            view_response = await client.get(
+                f"{COMFY_URL}/view",
+                params={"filename": filename, "subfolder": "", "type": "output"},
+            )
+            view_response.raise_for_status()
+            if not view_response.content:
+                raise RuntimeError(
+                    f"ComfyUI returned an empty image for completed prompt {prompt_id} "
+                    f"(filename={filename!r})"
+                )
+            local_path = await asyncio.to_thread(save_image, view_response.content, prefix="comfy")
+    except Exception as exc:
+        _mark_failed(job.job_id, str(exc)[:500])
+        raise
 
     current_job = get_job(job.job_id)
     if current_job is None:

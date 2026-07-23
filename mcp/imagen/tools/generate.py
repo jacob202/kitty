@@ -3,9 +3,6 @@
 Replaces the 4 legacy generate_image* tools with one ``generate(prompt, engine=...)``
 that dispatches to the engine registry. SHA256-keyed cache returns the same path
 for identical (prompt, engine, params) inputs.
-
-IMG-01 wiring: every generation records a job in the durable image-job store,
-regardless of engine (Draw Things, ComfyUI, Nano Banana, Imagen, DALL-E).
 """
 
 from __future__ import annotations
@@ -13,15 +10,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from gateway.image_jobs import ImageJobStore
 from mcp.imagen import cache, engines
 from mcp.imagen.config import settings
 from mcp.imagen.engines.base import RefusalError
 from mcp.imagen.io import save_image
 from mcp.imagen.logger import log
 from mcp.server.fastmcp import Image
-
-_job_store = ImageJobStore()
 
 
 def generate(
@@ -62,27 +56,15 @@ def generate(
             data = cached.read_bytes()
             return [Image(data=data, format="png"), f"Cached: {cached}"]
 
-    job_id = _job_store.create_job(
-        engine=eng_name,
-        prompt=prompt,
-        seed=seed,
-    )
-
     try:
         data = eng.generate(
             prompt, aspect_ratio=aspect_ratio, photorealistic=photorealistic, seed=seed, **kwargs
         )
     except RefusalError as e:
-        _job_store.fail_job(job_id, error_type="refused", error_message=str(e)[:500])
         log.warning("engine=%s refused: %s", eng_name, str(e)[:200])
         return [{"blocked": True, "reason": str(e)}]
-    except Exception as exc:
-        _job_store.fail_job(job_id, error_type="generate_error", error_message=str(exc)[:500])
-        raise
 
     path = save_image(data, prefix=eng_name)
-    _job_store.submit_job(job_id, provider_job_id=eng_name)
-    _job_store.complete_job(job_id, output_path=str(path))
     if settings.cache_enabled:
         cache.put(cache_key, path)
     return [
