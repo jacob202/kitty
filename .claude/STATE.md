@@ -1,28 +1,25 @@
-# Session State — KX-05/KX-06 + Reasoning Backend + Dogfood — Complete
+# Session State — Reasoning Backend + Expert Swarm + KX-06 + Orchestration — Complete
 
 <!-- kitty-state
 {
   "schema_version": 1,
-  "updated_at": "2026-07-24T01:00:00Z",
-  "head_sha": "54784e0",
+  "updated_at": "2026-07-24T02:00:00Z",
+  "head_sha": "c4bd7df",
   "branch": "main",
   "worktree": ".",
   "status": "complete",
   "completed_items": [
-    "KX-05 all 5 packets: onboarding gateway persistence + import wizard, self-repairs /repairs endpoint + Home card + chat intent, builder control deck via T0 action queue, experts shelf from books_manifest, chat polish sweep (ActiveTaskCards cap, StatusBar flapping, memory evidence, CLI copy)",
-    "KX-06 both packets: /signals endpoint reusing Repairs shape + SignalsCard, PhoneAccessCard plain-English copy fix",
-    "Reasoning backend RE-C1/C2/C5 confirmed complete: classify_complexity wired into route_model + completions, tier-aware context budget 300/1200/2400, execution receipts. 105/105 tests pass.",
-    "Builder queue: 2 KX-06 packets queued (admin — code shipped), rest done/cancelled",
-    "Dogfood: onboarding wizard tested end-to-end (4 steps, name persists), experts strip verified (5 experts, 219 books), system repairs card live, signals feed with 20 items",
-    "Import wizard: tested with real export file, --source fix applied",
-    "Build: TypeScript clean, frontend tests 36/36 HomeState pass, all integration tests pass",
-    "KB: 4 new lessons in kitty-lessons-index.md (items 9-12)",
-    "Session hygiene: HANDOFF.md + STATE.md updated, lessons documented"
+    "Reasoning backend RE-C1/C2/C5: classifier wired into route_model + completions, tier-aware context budget 300/1200/2400, execution receipts in log_chat_trace, /perf/stats per-tier aggregates",
+    "Expert swarm: 8-expert review of 7-surface UI, 15 findings identified, 8 fixed (P0: view router work/library bug, VIEWS registry, P1: Home heading, expert strip hover/density, mark-point label, P2: Builder loading/empty states, BottomNav test)",
+    "KX-06: signal dismiss wired to signal_store.mark_processed, chat intent expanded (anything to flag/what's up/any signals), PhoneAccessCard dismiss + open Tailscale button, Deadlines dismiss, no Home card jargon",
+    "Orca orchestration skill: .agents/skills/orca-orchestration/SKILL.md — 5 patterns (handoff, worktree, phased, parallel, split PRs) + Kitty-specific rules",
+    "Dogfood: live UI tested via agent-browser, tier/trigger confirmed in trace log, per-tier stats endpoint working",
+    "Build: TypeScript clean, 267/267 UI tests pass, 199/203 Python tests (4 pre-existing), ruff clean on touched files"
   ],
   "blockers": [],
-  "next_action": "Dogfood the signals card on Home. Then decision: KX-07 (next UX initiative) or ship the current surface.",
+  "next_action": "Push session commits. Then: clean up stale .worktrees/kittybuilder/ dirs, run ./kitty status, dogfood the signals card on Home.",
   "invalidation_conditions": [
-    "HEAD changes beyond 54784e0"
+    "HEAD changes beyond c4bd7df"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
@@ -31,17 +28,22 @@
 
 ## Current checkpoint
 
-`main` at `54784e0`, pushed. KX-05/KX-06 code shipped. Reasoning backend confirmed done. Queue: 2 KX-06 admin items queued, everything else done/cancelled.
+`main` at `c4bd7df`. Reasoning backend confirmed live. Expert swarm fixes shipped. KX-06 code complete. Orca orchestration skill written.
 
 ## Lessons applied
 
-- Builder actions must exist in action_tiers.json AND have executor files in gateway/actions/ — paired contract
-- StatusBar flapping is a render-count problem, not a polling problem — use render-side ref counter
-- Test assertions on exact user-facing strings are brittle — prefer regex matchers
-- Builder worker pipeline has hidden initiative-level gates — manual builds faster
-- Launchd gateway processes need full unload/reload, not just ./kitty down/up
+- Views registry mapped all 7 surfaces to HomeState — metadata-only, but misleading. Fixed with PlaceholderView.
+- useViewRouter rejected 'work'/'library' — root cause of 3 surfaces showing wrong content. Vector of future bugs if view IDs aren't synced.
+- Signal dismiss was no-op (action queue only, never called mark_processed). Fixed to actually process signals.
+- ExpertStrip had 4 buttons with no hover feedback — reduced to 2 + show-all toggle with border transition.
+- `log_chat_trace` receipt fields need the `ts` field in token log to handle both string (ISO) and float timestamps — `_parse_ts` helper added.
+- Agent-browser snapshots found 2 duplicate "retry" buttons and "mark point" without label — retry from error states (correct), mark point now has aria-label.
+- Dead "install" button was PWA install in StatusBar — legitimate, not a bug.
+- Browser-injected "issues overlay"/"Dev Tools" are Next.js dev tools, not our code.
 
 ## Next actions
-1. `make preview` — dogfood the signals card + expert strip + repairs card
-2. Decision: KX-07 (next UX surface) or polish/ship the current surface
-3. Apply remaining expert swarm P2-P3 findings
+1. Push `c4bd7df` if not already pushed
+2. `make preview` — dogfood the full 7-surface rail with the routing fix
+3. Clean up stale `.worktrees/kittybuilder/` dirs
+4. Apply remaining expert swarm P2 items: search no-result state, loading skeletons across more cards
+5. KX-07 or ship: the current surface is coherent enough to ship — decision gate

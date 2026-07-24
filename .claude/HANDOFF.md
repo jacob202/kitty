@@ -1,54 +1,53 @@
-# Handoff — KX-05/KX-06 + Reasoning Backend + Dogfood — Complete
+# Handoff — Reasoning Backend + Expert Swarm + KX-06 + Orchestration — Complete
 
 ## What was done
 
-### KX-05 (Companion Layer) — 5 packets
-- **01 (onboarding):** gateway persistence via `app_settings` table, cross-device sync, ChatGPT/Claude import wizard step. New: `gateway/onboarding.py`, `gateway/routes/onboarding.py`, `gateway/routes/import_chatgpt.py`
-- **02 (self-repairs):** `/repairs` endpoint with plain-English titles + T0 action-queue fix buttons. RepairsCard on Home under "system" section. Chat intent: "what's wrong" injects repair feed. New: `gateway/actions/repair_check.py`, `repair_dismiss.py`
-- **03 (builder control):** `/builder/action` endpoint (run/pause/resume/cancel/cleanup via T0 action queue). BuilderControls component on Builder surface. Fixed `packetNeedsAttention` to exclude `cancelled`. New: `gateway/routes/builder_control.py`, 5 builder action executors
-- **04 (experts):** `/knowledge/experts` from books_manifest (5 experts: builder 81, mind 53, wisdom 52, body 25, voice 8). ExpertStrip on Home with book counts + sample titles
-- **05 (chat polish):** ActiveTaskCards capped at 3 + test-data filter + "+N more" expand. StatusBar 3-consecutive-fail threshold (no more flapping). Memory evidence suppressed on smalltalk. Session resume card reads H1 heading. CLI copy purged from 7 places
+### Reasoning Backend (RE-C1/C2/C5) — 3 packets
+- **C1:** `gateway/reasoning.py` — `classify_complexity(message, domain)` pure heuristic (<1ms). Keyword sets absorbed from `llm_client.py`. `route_model()` delegates: trivial/standard → kitty-default, deep → kitty-sonnet (KITTY_REASONING_MODEL env override). 50 new tests.
+- **C2:** `gateway/context_assembler.py` — tier-aware caps 300/1200/2400. Trivial tier skips enrichments. Byte-identical default (standard). 5 new tests.
+- **C5:** Tier/trigger in `log_chat_trace`, `/perf/stats` per-tier aggregates. `get_per_tier_stats()` reads token log, handles ISO + float timestamps. 7 new tests.
+- **Dogfood confirmed:** trace log shows tier/trigger on live traffic. Deep tier routes to kitty-sonnet (LiteLLM 401 — missing upstream key, routing correct).
+
+### Expert Swarm Review — 15 findings, 8 fixed
+- **P0 routing bug:** `useViewRouter` blocked 'work'/'library' view IDs — 3 surfaces showed wrong content.
+- **P0 VIEWS:** all 7 entries mapped to HomeState — fixed to PlaceholderView. Renamed views.ts → views.tsx.
+- **P1 Home heading:** time-aware greeting ("good morning/afternoon/evening, Jacob") on Home.
+- **P1 Expert strip:** hover feedback (border transition), collapsed to 2 experts with "show all N experts" toggle.
+- **P1 mark-point:** added aria-label="Mark current time as baseline snapshot".
+- **P2 Builder glance:** loading skeleton + empty state ("nothing queued — ready when you are").
+- **P2 BottomNav test:** fixed wrong labels (lowercase → capitalized) and prop name (onNavigate → onViewChange).
 
 ### KX-06 (Proactive Feed) — 2 packets
-- **01 (signals):** `/signals` endpoint returns RepairsIssue shape from signal_store. SignalsCard on Home with 20 Web_monitor items + Dismiss buttons
-- **02 (deadline cards):** PhoneAccessCard plain-English copy (no CLI/API jargon)
+- **01 signals:** Signal dismiss wired to `signal_store.mark_processed()`. Chat intent: "anything to flag", "what's up", "any signals", "what should I know" inject signals feed. Signals and repairs both injected when user asks.
+- **02 cards:** PhoneAccessCard dismiss + "open Tailscale" button. Deadlines dismiss. No "POST /state/snapshot", "ui.tailnet", or "use ./kitty" strings on Home. WhatChanged already clean.
 
-### Reasoning Backend (RE-C1/C2/C5) — confirmed complete
-- `gateway/reasoning.py`: `classify_complexity()` heuristic (trivial/standard/deep) wired into `route_model()` and completions pipeline. 105/105 tests pass
-- `gateway/context_assembler.py`: tier-aware caps 300/1200/2400, trivial skips enrichments
-- Execution receipts: `Receipt` + `log_receipt()` stitched into existing `log_llm_usage()` sites
+### Orca Orchestration Skill
+- `.agents/skills/orca-orchestration/SKILL.md` — 5 orchestration patterns (handoff, worktree, phased, parallel, split PRs) with concrete `orca orchestration` commands + Kitty-specific rules (never auto-merge, `env -u GITHUB_TOKEN`, STATE.md stomping).
 
-### Backend net-new files
-- `gateway/onboarding.py`, `gateway/routes/onboarding.py`, `gateway/routes/import_chatgpt.py`
-- `gateway/routes/builder_control.py`, `gateway/routes/signals.py`
-- `gateway/actions/repair_check.py`, `repair_dismiss.py`, `builder_*.py` (5 files)
-- `config/action_tiers.json` — 7 new T0 action kinds
+### Files changed
+- `gateway/reasoning.py` (new) + `tests/test_reasoning.py` (new)
+- `gateway/llm_client.py` — route_model delegates to classifier, log_chat_trace tier/trigger fields
+- `gateway/context_assembler.py` — tier param + cap
+- `gateway/perf.py` — get_per_tier_stats, _parse_ts helper
+- `gateway/routes/completions.py` — classifier + tier in route, signals intent, stray line fix
+- `gateway/routes/perf.py` — per_tier in stats response
+- `gateway/routes/repairs.py` — signal dismiss → mark_processed
+- `gateway/kitty-chat/src/hooks/useViewRouter.ts` — work/library in valid views
+- `gateway/kitty-chat/src/lib/views.tsx` — VIEWS registry PlaceholderView, ts→tsx rename
+- `gateway/kitty-chat/src/components/HomeState.tsx` — heading, expert strip, phone card, mark-point
+- `gateway/kitty-chat/src/components/BuilderSurface.tsx` — loading/empty BuilderGlance states
+- `gateway/kitty-chat/tests/BottomNav.test.tsx` — fix labels + prop name
+- `.agents/skills/orca-orchestration/SKILL.md` (new)
 
-### Dogfood results
-- ✅ Onboarding wizard: 4 steps, name "Jacob" persists across reload
-- ✅ Experts strip: 5 experts rendering with book counts + sample titles
-- ✅ System repairs: "everything looks healthy" card on Home
-- ✅ Signals: 20 Web_monitor items with Dismiss buttons
-- ✅ Import wizard: tested with real export, `--source` flag fixed
-- ✅ Builder: controls component renders pause/resume/cleanup buttons
-- ⚠️ Greeting name: wired into WhatsNext empty state (not visible when session context has data)
-
-### Verification
-- Frontend: TypeScript clean, 36/36 HomeState tests pass, 66/66 affected tests pass
-- Backend: 105/105 reasoning tests pass, 142/144 llm tests pass (2 fail on LiteLLM local)
-- Build: `npm run build` clean
-
-## Lessons learned
-
-1. Builder workers stuck as `[blocked]` need initiative-level gate cleared. Manual builds faster.
-2. Action tiers + executor files are a paired contract — add both in same commit.
-3. Test assertions by exact text are brittle — use regex matchers.
-4. StatusBar flapping is render-count, not polling. Use render-side ref, not useEffect.
-5. Launchd gateway processes need full unload/reload — `./kitty down` doesn't touch launchd.
-6. Route registration in `register.py` must include both import AND loop entry.
+## Verification
+- TypeScript build: clean
+- UI tests: 35/35 files, 267/267 tests pass
+- Python tests: 199/203 pass (4 pre-existing: ProviderChainExhausted test expectations, MemoryError constructor, close_session)
+- Ruff: clean on all touched files
+- Imports: all clean, no circular dependencies
 
 ## Blockers
-None. `.git/index.lock` reoccurs — a background process (codegraph/builder) holds git locks intermittently.
+None.
 
 ## Invalidation
-HEAD beyond `54784e0`.
+HEAD beyond `c4bd7df`.
