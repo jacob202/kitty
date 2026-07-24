@@ -16,10 +16,11 @@ from __future__ import annotations
 import json
 import logging
 import time
+from datetime import datetime
 from typing import Any
 
 from gateway.cron import list_schedules
-from gateway.paths import DATA_DIR
+from gateway.paths import DATA_DIR, KITTY_TOKEN_LOG_FILE
 
 logger = logging.getLogger("kitty.perf")
 
@@ -119,3 +120,63 @@ def get_recent_stats(limit: int = 50) -> dict:
 
     recent = list(reversed(stats[-limit:]))
     return {"stats": recent, "count": len(recent)}
+
+
+def _parse_ts(raw: object) -> float:
+    """Coerce a JSON token-log ``ts`` field to seconds since epoch."""
+    if isinstance(raw, (int, float)):
+        return float(raw)
+    if isinstance(raw, str):
+        try:
+            return datetime.fromisoformat(raw).timestamp()
+        except (ValueError, TypeError):
+            return 0.0
+    return 0.0
+
+
+def get_per_tier_stats(window_hours: int = 24) -> dict[str, dict[str, int]]:
+    """Aggregate token-usage rows by tier from the JSONL token log.
+
+    Returns a dict keyed by tier name with count, prompt tokens, and
+    completion tokens. Empty dict when no tier-tagged data exists.
+    """
+    if not KITTY_TOKEN_LOG_FILE.exists():
+        return {}
+
+    cutoff = time.time() - (window_hours * 3600)
+    per_tier: dict[str, dict[str, int]] = {}
+
+    with KITTY_TOKEN_LOG_FILE.open("r", encoding="utf-8") as f:
+        for line in f:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                row = json.loads(stripped)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(row, dict):
+                continue
+            if _parse_ts(row.get("ts")) < cutoff:
+                continue
+
+            metadata = row.get("metadata")
+            if not isinstance(metadata, dict):
+                continue
+            tier = metadata.get("tier")
+            if not isinstance(tier, str) or not tier:
+                continue
+
+            usage = row.get("usage")
+            if not isinstance(usage, dict):
+                continue
+            prompt = usage.get("prompt_tokens", 0)
+            completion = usage.get("completion_tokens", 0)
+
+            if tier not in per_tier:
+                per_tier[tier] = {"count": 0, "prompt_tokens": 0, "completion_tokens": 0}
+            per_tier[tier]["count"] += 1
+            per_tier[tier]["prompt_tokens"] += prompt
+            per_tier[tier]["completion_tokens"] += completion
+
+    return per_tier

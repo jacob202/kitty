@@ -226,6 +226,7 @@ async def assemble_context(
     domain: str | None = None,
     deps: _AssemblerDeps | None = None,
     objective: str | None = None,
+    tier: str = "standard",
 ) -> ContextBundle:
     """The single deep entry point for request-time context.
 
@@ -244,6 +245,11 @@ async def assemble_context(
         objective: Optional per-thread goal. When set, a ``Thread goal:``
             line is injected into the system prompt. When ``None`` the
             assembled output is byte-identical to pre-packet behaviour.
+        tier: Per-tier context budget and enrichment control.
+            ``trivial`` (300 tokens, no enrichments),
+            ``standard`` (1200 tokens, full enrichments — the default,
+            byte-identical to pre-packet behaviour),
+            ``deep`` (2400 tokens, full enrichments).
     """
     deps = deps or _AssemblerDeps()
     warnings: list[str] = []
@@ -268,16 +274,24 @@ async def assemble_context(
     graph_result = await graph.search_all(message)
     warnings.extend(f"memory_graph:{err}" for err in graph_result.errors)
 
-    # Policy filtering happens here, once; the render gates (privacy, budget)
-    # run once inside _select_unified_items. The same selection produces both
-    # the prompt block and the injected-memory evidence, so they cannot drift.
+    if tier == "trivial":
+        cap = 300
+    elif tier == "deep":
+        cap = 2400
+    else:
+        cap = CONTEXT_TOKEN_CAP  # 1200
+
     filtered_results = _filter_items_by_policy(graph_result.results, message)
     memory_sections, injected_memory_items = _select_unified_items(
-        filtered_results, CONTEXT_TOKEN_CAP
+        filtered_results, cap
     )
     memory_block = "\n\n".join(memory_sections)
 
-    enrichment_blocks, enrichment_warnings = await run_enrichments(deps.enrichments, message)
+    if tier == "trivial":
+        enrichment_blocks: list[str] = []
+        enrichment_warnings: list[str] = []
+    else:
+        enrichment_blocks, enrichment_warnings = await run_enrichments(deps.enrichments, message)
     warnings.extend(enrichment_warnings)
 
     system = _join_blocks(
@@ -329,17 +343,18 @@ async def get_system_prompt(
     parts_mode: bool = False,
     domain: Optional[str] = None,
     objective: str | None = None,
+    tier: str = "standard",
 ) -> str:
     """Return the joined system prompt string.
 
-    Equivalent to ``(await assemble_context(..., objective=objective)).system``.
+    Equivalent to ``(await assemble_context(..., objective=objective, tier=tier)).system``.
     Kept as a convenience wrapper for callers that only need the system string.
     """
     if objective is None:
-        bundle = await assemble_context(message, parts_mode=parts_mode, domain=domain)
+        bundle = await assemble_context(message, parts_mode=parts_mode, domain=domain, tier=tier)
     else:
         bundle = await assemble_context(
-            message, parts_mode=parts_mode, domain=domain, objective=objective
+            message, parts_mode=parts_mode, domain=domain, objective=objective, tier=tier
         )
     return bundle.system
 

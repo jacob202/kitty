@@ -891,3 +891,54 @@ def test_is_agentrouter_disabled_false():
 
     with patch.dict("os.environ", {}, clear=True):
         assert _is_agentrouter_disabled() is False
+
+
+# ── log_chat_trace receipt fields ─────────────────────────────────────────
+
+
+def test_log_chat_trace_includes_tier_and_trigger(tmp_path):
+    import json
+
+    from gateway.llm_client import log_chat_trace
+
+    log_file = tmp_path / "chat_trace.jsonl"
+    log_chat_trace(
+        log_file,
+        correlation_id="abc123",
+        user_text="explain quantum physics",
+        domain="research",
+        model="kitty-sonnet",
+        t_start=0.0,
+        tier="deep",
+        trigger="reasoning_keyword",
+    )
+    with log_file.open() as f:
+        entry = json.loads(f.readline())
+    assert entry["tier"] == "deep"
+    assert entry["trigger"] == "reasoning_keyword"
+    assert entry["user_request"] == "explain quantum physics"
+    assert "message" not in entry
+    assert "response" not in entry
+
+    # Privacy: user_request is truncated to 120 chars max
+    assert len(entry["user_request"]) <= 120
+
+
+def test_log_chat_trace_omits_tier_when_none(tmp_path):
+    import json
+
+    from gateway.llm_client import log_chat_trace
+
+    log_file = tmp_path / "chat_trace.jsonl"
+    log_chat_trace(
+        log_file,
+        correlation_id="abc",
+        user_text="hi",
+        domain="soul",
+        model="kitty-default",
+        t_start=0.0,
+    )
+    with log_file.open() as f:
+        entry = json.loads(f.readline())
+    assert "tier" not in entry
+    assert "trigger" not in entry

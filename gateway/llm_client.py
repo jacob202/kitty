@@ -699,49 +699,30 @@ def chat(model: str, messages: list[dict], max_tokens: int = 500, temperature: f
         return call_llm(messages, model=model, max_tokens=max_tokens, temperature=temperature)
 
 
-_REASONING_KEYWORDS = frozenset(
-    {
-        "explain",
-        "why",
-        "analyze",
-        "analyse",
-        "reason",
-        "think through",
-        "break down",
-        "compare",
-        "pros and cons",
-        "pros cons",
-        "step by step",
-        "walk me through",
-        "how does",
-        "what causes",
-    }
-)
-
-_BEST_TRIGGERS = frozenset(
-    {
-        "best model",
-        "use claude",
-        "use sonnet",
-        "use your best",
-        "most capable",
-        "smartest model",
-    }
-)
-
 _LITELLM_SONNET = "kitty-sonnet"
 
 
 def route_model(message: str) -> str:
-    """Route to Sonnet for reasoning/review requests; DeepSeek Flash for everything else."""
-    lower = message.lower()
-    if any(t in lower for t in _BEST_TRIGGERS):
-        logger.debug("routing: best-trigger -> %s", _LITELLM_SONNET)
+    """Delegate to the complexity classifier for tier-aware model routing.
+
+    trivial/standard → kitty-default; deep → kitty-sonnet (with
+    KITTY_REASONING_MODEL overriding the deep alias). Routing selectors
+    only among existing LiteLLM aliases.
+    """
+    from gateway.reasoning import classify_complexity
+
+    classification = classify_complexity(message)
+
+    if classification.tier == "deep":
+        load_dotenv()
+        override = os.environ.get("KITTY_REASONING_MODEL", "").strip()
+        if override:
+            logger.debug("routing: deep -> KITTY_REASONING_MODEL %s (trigger: %s)", override, classification.trigger)
+            return override
+        logger.debug("routing: deep -> %s (trigger: %s)", _LITELLM_SONNET, classification.trigger)
         return _LITELLM_SONNET
-    if any(kw in lower for kw in _REASONING_KEYWORDS):
-        logger.debug("routing: reasoning keyword -> %s", _LITELLM_SONNET)
-        return _LITELLM_SONNET
-    logger.debug("routing: default -> %s", _LITELLM_DEFAULT)
+
+    logger.debug("routing: %s -> %s (trigger: %s)", classification.tier, _LITELLM_DEFAULT, classification.trigger)
     return _LITELLM_DEFAULT
 
 
@@ -857,6 +838,10 @@ def log_chat_trace(
     *,
     runtime_revision: str | None = None,
     model_resolved: str | None = None,
+    tier: str | None = None,
+    trigger: str | None = None,
+    cap_hit: bool | None = None,
+    escalation: bool | None = None,
 ) -> None:
     import json
     import time
@@ -875,5 +860,13 @@ def log_chat_trace(
         entry["runtime_manifest_revision"] = runtime_revision
     if model_resolved:
         entry["model_resolved"] = model_resolved
+    if tier is not None:
+        entry["tier"] = tier
+    if trigger is not None:
+        entry["trigger"] = trigger
+    if cap_hit is not None:
+        entry["cap_hit"] = cap_hit
+    if escalation is not None:
+        entry["escalation"] = escalation
     with log_file.open("a") as f:
         f.write(json.dumps(entry) + "\n")

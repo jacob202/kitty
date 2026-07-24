@@ -38,7 +38,7 @@ async def import_chatgpt(file: UploadFile = File(...)):
 
         project_root = Path(__file__).resolve().parent.parent.parent
         result = subprocess.run(
-            ["python3.12", str(extractor), str(tmp_path)],
+            ["python3.12", str(extractor), "--source", str(tmp_path)],
             cwd=project_root,
             capture_output=True,
             text=True,

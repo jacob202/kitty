@@ -133,6 +133,11 @@ async def chat_completions(request: Request):
     t_start = time.monotonic()
 
     domain = classify_domain(user_text)
+    from gateway.reasoning import classify_complexity
+
+    classification = classify_complexity(user_text, domain=domain)
+    tier = classification.tier
+    trigger = classification.trigger
     content_class = body.get("content_class")
     if content_class is not None and not isinstance(content_class, str):
         raise HTTPException(
@@ -219,6 +224,7 @@ async def chat_completions(request: Request):
             parts_mode=False,
             domain=domain,
             objective=thread_objective,
+            tier=tier,
         )
         system_prompt = f"{bundle.system}\n\n{compact_runtime_context(runtime_manifest)}"
     except Exception as exc:
@@ -320,6 +326,8 @@ async def chat_completions(request: Request):
                     model,
                     t_start,
                     runtime_revision=runtime_manifest["revision"],
+                    tier=tier,
+                    trigger=trigger,
                 )
                 on_request_success()
             except Exception as exc:
@@ -368,6 +376,8 @@ async def chat_completions(request: Request):
             t_start,
             runtime_revision=runtime_manifest["revision"],
             model_resolved=resolved_model,
+            tier=tier,
+            trigger=trigger,
         )
         on_request_success()
         return {
@@ -464,13 +474,13 @@ def _build_repairs_context() -> str | None:
     try:
         from gateway.doctor import (
             Check,
+            _check_codegraph,
             _check_disk,
             _check_env,
+            _check_gateway_freshness,
+            _check_mem0,
             _check_services,
             _check_venv,
-            _check_mem0,
-            _check_gateway_freshness,
-            _check_codegraph,
             _load_env,
         )
         from gateway.routes.repairs import _to_repair
@@ -510,5 +520,3 @@ def _build_repairs_context() -> str | None:
     except Exception as exc:
         logger.warning("Failed to build repairs context: %s", exc)
         return None
-
-    return {"status": "ok", "session_id": payload.session_id}

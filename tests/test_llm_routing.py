@@ -61,3 +61,12 @@ def test_call_llm_normalizes_legacy_deepseek_alias():
 
     assert result == "ok"
     assert mock_post.call_args.kwargs["json"]["model"] == "kitty-default"
+
+
+def test_route_model_kitty_reasoning_model_override(monkeypatch):
+    """KITTY_REASONING_MODEL env var overrides the deep-tier alias."""
+    monkeypatch.setenv("KITTY_REASONING_MODEL", "anthropic/claude-sonnet-4")
+    assert route_model("explain quantum physics") == "anthropic/claude-sonnet-4"
+
+    monkeypatch.delenv("KITTY_REASONING_MODEL")
+    assert route_model("explain quantum physics") == "kitty-sonnet"

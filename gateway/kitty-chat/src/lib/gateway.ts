@@ -1731,3 +1731,13 @@ export async function fetchExpertList(): Promise<ExpertProfile[]> {
   const payload = await gfetch<{ experts: ExpertProfile[] }>('/knowledge/experts')
   return payload.experts ?? []
 }
+
+// ── Signals ────────────────────────────────────────────────────────────────────
+
+export async function fetchSignals(): Promise<RepairsPayload> {
+  try {
+    return await gfetch<RepairsPayload>('/signals', undefined, 8000)
+  } catch (err) {
+    return { ok: false, checks_run: 0, issues: 0, repairs: [], error: describeFetchError(err, null) }
+  }
+}

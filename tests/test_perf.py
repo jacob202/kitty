@@ -156,3 +156,68 @@ class TestGetRecentStats:
         result = perf.get_recent_stats(limit=10)
         assert result["count"] == 1
         assert result["stats"][0]["n"] == 1
+
+
+class TestGetPerTierStats:
+    def test_empty_when_no_token_log(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        log = tmp_path / "token_log.jsonl"
+        monkeypatch.setattr(perf, "KITTY_TOKEN_LOG_FILE", log)
+        result = perf.get_per_tier_stats(window_hours=24)
+        assert result == {}
+
+    def test_aggregates_by_tier(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        now = perf.time.time()
+        log = tmp_path / "token_log.jsonl"
+        monkeypatch.setattr(perf, "KITTY_TOKEN_LOG_FILE", log)
+        rows = [
+            {"ts": now, "metadata": {"tier": "trivial"}, "usage": {"prompt_tokens": 10, "completion_tokens": 5}},
+            {"ts": now, "metadata": {"tier": "trivial"}, "usage": {"prompt_tokens": 20, "completion_tokens": 10}},
+            {"ts": now, "metadata": {"tier": "deep"}, "usage": {"prompt_tokens": 100, "completion_tokens": 50}},
+        ]
+        log.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+        result = perf.get_per_tier_stats(window_hours=24)
+        assert result["trivial"]["count"] == 2
+        assert result["trivial"]["prompt_tokens"] == 30
+        assert result["trivial"]["completion_tokens"] == 15
+        assert result["deep"]["count"] == 1
+        assert result["deep"]["prompt_tokens"] == 100
+        assert result["deep"]["completion_tokens"] == 50
+
+    def test_filters_outside_window(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        now = perf.time.time()
+        old = now - (25 * 3600)
+        log = tmp_path / "token_log.jsonl"
+        monkeypatch.setattr(perf, "KITTY_TOKEN_LOG_FILE", log)
+        rows = [
+            {"ts": old, "metadata": {"tier": "deep"}, "usage": {"prompt_tokens": 100, "completion_tokens": 50}},
+            {"ts": now, "metadata": {"tier": "trivial"}, "usage": {"prompt_tokens": 10, "completion_tokens": 5}},
+        ]
+        log.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+        result = perf.get_per_tier_stats(window_hours=24)
+        assert "deep" not in result
+        assert result["trivial"]["count"] == 1
+
+    def test_ignores_rows_without_tier(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        now = perf.time.time()
+        log = tmp_path / "token_log.jsonl"
+        monkeypatch.setattr(perf, "KITTY_TOKEN_LOG_FILE", log)
+        rows = [
+            {"ts": now, "metadata": {}, "usage": {"prompt_tokens": 10}},
+            {"ts": now, "metadata": {"tier": "standard"}, "usage": {"prompt_tokens": 50}},
+        ]
+        log.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+        result = perf.get_per_tier_stats(window_hours=24)
+        assert list(result.keys()) == ["standard"]
+
+    def test_skips_malformed_json(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        now = perf.time.time()
+        log = tmp_path / "token_log.jsonl"
+        monkeypatch.setattr(perf, "KITTY_TOKEN_LOG_FILE", log)
+        log.write_text(
+            "not-json\n"
+            + json.dumps({"ts": now, "metadata": {"tier": "deep"}, "usage": {"prompt_tokens": 10}}) + "\n"
+            + "{broken\n",
+            encoding="utf-8",
+        )
+        result = perf.get_per_tier_stats(window_hours=24)
+        assert result["deep"]["count"] == 1

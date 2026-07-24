@@ -28,6 +28,7 @@ import {
   useRepairs,
   useExecuteRepair,
   useExpertList,
+  useSignals,
 } from '@/lib/queries';
 import type {
   GatewayAction,
@@ -290,6 +291,73 @@ function RepairsCard() {
   )
 }
 
+// ── Signals card (reuses Repairs shape) ──────────────────────────────────────
+
+function SignalsCard() {
+  const signals = useSignals()
+  const execRepair = useExecuteRepair()
+
+  if (signals.isPending || !signals.data) return null
+
+  const issues = signals.data.repairs.filter((r) => r.severity !== 'ok')
+
+  if (issues.length === 0) return null
+
+  return (
+    <SectionCard title="signals" count={issues.length}>
+      {issues.map((item) => (
+        <div key={item.id} style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: SEVERITY_COLORS[item.severity] ?? 'var(--ink-2)',
+                flexShrink: 0,
+              }}
+            />
+            <span
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--ink)',
+                flex: 1,
+              }}
+            >
+              {item.title}
+            </span>
+          </div>
+          {item.detail && (
+            <div style={{ ...bodyText, fontSize: 11, color: 'var(--ink-2)', paddingLeft: 14 }}>
+              {item.detail}
+            </div>
+          )}
+          {item.fix && (
+            <div style={{ display: 'flex', gap: 6, paddingLeft: 14 }}>
+              <button
+                type="button"
+                disabled={execRepair.isPending}
+                onClick={() =>
+                  execRepair.mutate({
+                    repairId: item.id,
+                    actionKind: item.fix!.action_kind,
+                    checkName: item.fix!.check_name,
+                  })
+                }
+                style={actionButtonStyle}
+              >
+                {execRepair.isPending ? '…' : item.fix.label}
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+    </SectionCard>
+  )
+}
+
 // ── Health strip ─────────────────────────────────────────────────────────────
 
 function HealthDot({ tone, label }: { tone: 'ok' | 'warn' | 'bad'; label: string }) {
@@ -405,9 +473,11 @@ function greeting(hour: number): string {
 function WhatsNext({
   onDecideInChat,
   onNavigate,
+  preferredName = '',
 }: {
   onDecideInChat: (entry: GatewayTriageEntry) => void;
   onNavigate: (view: string) => void;
+  preferredName?: string;
 }) {
   const actionsQuery = useActions('proposed');
   const needsJacob = useNeedsJacob();
@@ -576,9 +646,9 @@ function WhatsNext({
             <KidCatDoodle size={40} opacity={0.7} />
           </span>
       <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
-          {greeting(new Date().getHours())} — not enough signal yet
-        </span>
+          <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>
+            {greeting(new Date().getHours())}{preferredName ? `, ${preferredName}` : ''} — not enough signal yet
+          </span>
         <span>
               nothing proposed, no decisions waiting, no project next-steps, and today's list
               is empty. refresh a project in the projects tab or capture a thought below.
@@ -819,10 +889,11 @@ function PhoneAccessCard() {
   if (!tailnet.data?.ok || !tailnet.data.uiUrl) {
     return (
       <SectionCard title="phone access">
-        <div style={{ ...emptyState, textAlign: 'left', padding: '12px 2px' }}>
-          tailscale not detected — start the UI with{' '}
-          <code style={{ fontFamily: 'var(--font-mono)' }}>make ui-tailnet</code> and make sure
-          Tailscale is running on this Mac.
+        <div style={{ ...emptyState, textAlign: 'left', padding: '12px 2px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div>Tailscale is not connected on this Mac — phone access requires it.</div>
+          <div style={{ ...bodyText, fontSize: 11 }}>
+            Open the Tailscale app or install it to access Kitty from your phone.
+          </div>
         </div>
       </SectionCard>
     );
@@ -1400,9 +1471,10 @@ export function HomeState({
     >
       {visibleTiles['health'] !== false && <HealthStrip />}
       {visibleTiles['health'] !== false && <RepairsCard />}
+      {visibleTiles['health'] !== false && <SignalsCard />}
       <BuilderGlance onOpen={() => onNavigate('builder')} />
       {visibleTiles['whats-next'] !== false && (
-        <WhatsNext onDecideInChat={onDecideInChat} onNavigate={onNavigate} />
+        <WhatsNext preferredName={preferredName} onDecideInChat={onDecideInChat} onNavigate={onNavigate} />
       )}
       {visibleTiles['needs-you'] !== false && <NeedsYou onDecideInChat={onDecideInChat} />}
       {visibleTiles['deadlines'] !== false && <Deadlines />}

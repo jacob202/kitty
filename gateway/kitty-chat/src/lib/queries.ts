@@ -79,6 +79,8 @@ import {
   executeBuilderAction,
   // experts
   fetchExpertList,
+  // signals
+  fetchSignals,
   // knowledge
   fetchKnowledgeSources,
   searchKnowledge,
@@ -708,6 +710,15 @@ export function useExpertList() {
     queryKey: ['experts'],
     queryFn: fetchExpertList,
     staleTime: 300_000,
+  })
+}
+
+export function useSignals() {
+  return useQuery({
+    queryKey: ['signals'],
+    queryFn: fetchSignals,
+    refetchInterval: 60_000,
+    staleTime: 10_000,
   })
 }
 

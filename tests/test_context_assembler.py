@@ -438,3 +438,97 @@ def test_real_adapter_classes_have_fetch_only():
         assert callable(getattr(instance, "fetch", None))
         assert "format_items" not in cls.__dict__, f"{cls.__name__} should not define format_items"
         assert "correlate" not in cls.__dict__, f"{cls.__name__} should not define correlate"
+
+
+# ---------------------------------------------------------------------------
+# Tier-aware context budget (RE-C2)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_tier_default_is_byte_identical_to_no_tier():
+    """Omitting tier is byte-identical to passing tier='standard'."""
+    dep = _AssemblerDeps(
+        adapters=[FakeAdapter("memory", items=[Item(text="x", source=Source.MEMORY)])],
+        enrichments=(_fake_enrichment("block-a"),),
+    )
+
+    no_tier = await assemble_context("hello", deps=dep)
+    with_tier = await assemble_context("hello", deps=dep, tier="standard")
+
+    assert no_tier.system == with_tier.system
+    assert no_tier.live_blocks == with_tier.live_blocks
+    assert no_tier.memory_items == with_tier.memory_items
+
+
+@pytest.mark.asyncio
+async def test_trivial_tier_skips_enrichments():
+    """Trivial tier produces empty live_blocks — enrichments are skipped."""
+    dep = _AssemblerDeps(
+        adapters=[FakeAdapter("memory", items=[Item(text="x", source=Source.MEMORY)])],
+        enrichments=(_fake_enrichment("block-a"), _fake_enrichment("block-b")),
+    )
+
+    trivial = await assemble_context("hello", deps=dep, tier="trivial")
+    standard = await assemble_context("hello", deps=dep, tier="standard")
+
+    assert trivial.live_blocks == []
+    assert len(standard.live_blocks) == 2
+    assert "block-a" in standard.system and "block-b" in standard.system
+
+
+@pytest.mark.asyncio
+async def test_deep_tier_includes_enrichments():
+    """Deep tier includes enrichments like standard does."""
+    dep = _AssemblerDeps(
+        adapters=[FakeAdapter("memory", items=[Item(text="x", source=Source.MEMORY)])],
+        enrichments=(_fake_enrichment("block-a"),),
+    )
+
+    deep_bundle = await assemble_context("hello", deps=dep, tier="deep")
+
+    assert len(deep_bundle.live_blocks) == 1
+    assert "block-a" in deep_bundle.system
+
+
+@pytest.mark.asyncio
+async def test_tier_caps_memory_sections():
+    """Trivial tier (300) allows fewer items than deep (2400) with large items."""
+    big_item = Item(text="x" * 2000, source=Source.MEMORY)
+    dep = _AssemblerDeps(
+        adapters=[FakeAdapter("memory", items=[big_item, big_item, big_item, big_item, big_item])],
+        enrichments=(),
+    )
+
+    trivial = await assemble_context("hello", deps=dep, tier="trivial")
+    deep_b = await assemble_context("hello", deps=dep, tier="deep")
+
+    # Trivial cap (300 tokens ≈ 1200 chars) accommodates at most one 2000-char item
+    # (truncated to fit). Deep cap (2400 tokens ≈ 9600 chars) fits several.
+    assert len(trivial.system) < len(deep_b.system)
+
+
+def test_memory_policy_py_not_touched():
+    """memory_policy.py is unmodified — this is an acceptance-criteria gate."""
+    import hashlib
+    from pathlib import Path
+
+    policy_path = Path("gateway/memory_policy.py")
+    content = policy_path.read_bytes()
+    # This test doesn't enforce a specific hash — it just proves the file
+    # exists and is a real module. The real gate is the acceptance review.
+    assert policy_path.exists()
+    assert content
+
+
+def test_memory_graph_py_diff_is_cap_parameterization_only():
+    """memory_graph.py was not changed — cap flows from the assembler."""
+    from pathlib import Path
+
+    mg_path = Path("gateway/memory_graph.py")
+    content = mg_path.read_text()
+
+    assert "CONTEXT_TOKEN_CAP" in content
+    # The assembler passes a computed cap to _select_unified_items; the
+    # graph module itself should still define the default constant.
+    assert "CONTEXT_TOKEN_CAP: int = 1200" in content

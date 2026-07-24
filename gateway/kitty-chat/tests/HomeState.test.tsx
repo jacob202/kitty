@@ -25,6 +25,7 @@ import {
   useRepairs,
   useExecuteRepair,
   useExpertList,
+  useSignals,
 } from '../src/lib/queries';
 import { HomeState } from '../src/components/HomeState';
 
@@ -60,6 +61,7 @@ vi.mock('../src/lib/queries', () => ({
   useRepairs: vi.fn(),
   useExecuteRepair: vi.fn(),
   useExpertList: vi.fn(),
+  useSignals: vi.fn(),
 }));
 
 const LIVE_MODELS = [
@@ -184,6 +186,12 @@ function setDefaultMocks() {
   (useExecuteRepair as Mock).mockReturnValue({ isPending: false, mutate: vi.fn() });
   (useExpertList as Mock).mockReturnValue({
     data: [],
+    isPending: false,
+    isError: false,
+    isFetched: true,
+  });
+  (useSignals as Mock).mockReturnValue({
+    data: { ok: true, checks_run: 0, issues: 0, repairs: [] },
     isPending: false,
     isError: false,
     isFetched: true,
