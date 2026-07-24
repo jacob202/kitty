@@ -794,14 +794,15 @@ function ActiveProjects({ onNavigate }: { onNavigate: (view: string) => void }) 
 function ExpertStrip({ onNavigate }: { onNavigate: (view: string) => void }) {
   const expertList = useExpertList()
   const experts = expertList.data ?? []
+  const [expanded, setExpanded] = useState(false)
+  const visible = expanded ? experts : experts.slice(0, 2)
 
   if (expertList.isPending) return null
-
   if (experts.length === 0) return null
 
   return (
     <SectionCard title="experts" count={experts.length}>
-      {experts.slice(0, 4).map((expert) => (
+      {visible.map((expert) => (
         <button
           key={expert.id}
           type="button"
@@ -814,7 +815,14 @@ function ExpertStrip({ onNavigate }: { onNavigate: (view: string) => void }) {
             textAlign: 'left',
             width: '100%',
             cursor: 'pointer',
+            background: 'transparent',
+            border: '1px solid transparent',
+            borderRadius: 6,
+            padding: '8px 10px',
+            transition: 'border-color 150ms ease',
           }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--line)' }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'transparent' }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
             <span
@@ -837,9 +845,15 @@ function ExpertStrip({ onNavigate }: { onNavigate: (view: string) => void }) {
           </div>
         </button>
       ))}
-      {experts.length > 4 && (
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)', textAlign: 'center' }}>
-          +{experts.length - 4} more experts
+      {experts.length > 2 && (
+        <div style={{ textAlign: 'center' }}>
+          <button
+            type="button"
+            onClick={() => setExpanded(!expanded)}
+            style={actionButtonStyle}
+          >
+            {expanded ? 'show less' : `show all ${experts.length} experts`}
+          </button>
         </div>
       )}
     </SectionCard>
@@ -875,6 +889,9 @@ function dueTone(dueDate: string): string {
 
 function PhoneAccessCard() {
   const tailnet = useTailnet();
+  const [dismissed, setDismissed] = useState(false);
+
+  if (dismissed) return null;
 
   if (tailnet.isPending) {
     return (
@@ -890,9 +907,25 @@ function PhoneAccessCard() {
     return (
       <SectionCard title="phone access">
         <div style={{ ...emptyState, textAlign: 'left', padding: '12px 2px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div>Tailscale is not connected on this Mac — phone access requires it.</div>
+          <div>phone access isn't set up yet — it needs Tailscale running on this Mac.</div>
           <div style={{ ...bodyText, fontSize: 11 }}>
-            Open the Tailscale app or install it to access Kitty from your phone.
+            Open the Tailscale app to access Kitty from your phone.
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              type="button"
+              onClick={() => window.open('tailscale://', '_blank')}
+              style={actionButtonStyle}
+            >
+              open Tailscale
+            </button>
+            <button
+              type="button"
+              onClick={() => setDismissed(true)}
+              style={{ ...actionButtonStyle, color: 'var(--ink-2)', opacity: 0.7 }}
+            >
+              dismiss
+            </button>
           </div>
         </div>
       </SectionCard>
@@ -908,6 +941,15 @@ function PhoneAccessCard() {
         <div style={{ ...bodyText, fontFamily: 'var(--font-mono)', color: 'var(--primary)' }}>
           {tailnet.data.uiUrl}
         </div>
+        <div style={{ display: 'flex', gap: 6, paddingTop: 4 }}>
+          <button
+            type="button"
+            onClick={() => setDismissed(true)}
+            style={{ ...actionButtonStyle, color: 'var(--ink-2)', opacity: 0.7 }}
+          >
+            dismiss
+          </button>
+        </div>
       </div>
     </SectionCard>
   );
@@ -916,6 +958,9 @@ function PhoneAccessCard() {
 function Deadlines() {
   const deadlines = useDeadlines('open');
   const sweep = useDeadlineSweep();
+  const [dismissed, setDismissed] = useState(false);
+
+  if (dismissed) return null;
 
   const sweepButton = (
     <button
@@ -1037,6 +1082,7 @@ function WhatChanged() {
       type="button"
       disabled={snapshot.isPending}
       onClick={() => snapshot.mutate()}
+      aria-label="Mark current time as baseline snapshot"
       style={actionButtonStyle}
     >
       {snapshot.isPending ? '…' : 'mark point'}
@@ -1469,6 +1515,20 @@ export function HomeState({
         alignContent: 'start',
       }}
     >
+      <div style={{ gridColumn: isCosmic ? '1 / -1' : undefined }}>
+        <h1
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: compact ? 20 : 28,
+            fontWeight: 800,
+            letterSpacing: '-0.02em',
+            color: 'var(--ink)',
+            margin: 0,
+          }}
+        >
+          {greeting(new Date().getHours())}{preferredName ? `, ${preferredName}` : ''}
+        </h1>
+      </div>
       {visibleTiles['health'] !== false && <HealthStrip />}
       {visibleTiles['health'] !== false && <RepairsCard />}
       {visibleTiles['health'] !== false && <SignalsCard />}

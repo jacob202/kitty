@@ -272,10 +272,21 @@ def _check_queue_backup_age() -> list:
 
 @router.post("/repairs/dismiss")
 async def dismiss_repair(body: dict):
-    """Record a dismissed repair through the action queue."""
+    """Record a dismissed repair through the action queue. Signal-* IDs mark
+    the signal processed so it doesn't reappear on next poll."""
     repair_id = body.get("repair_id", "unknown")
     try:
         from gateway.action_queue import propose, execute
+
+        if isinstance(repair_id, str) and repair_id.startswith("signal-"):
+            signal_id_str = repair_id.replace("signal-", "", 1)
+            try:
+                signal_id = int(signal_id_str)
+                from gateway import signal_store
+                signal_store.mark_processed(signal_id)
+            except (ValueError, Exception):
+                pass
+
         action = propose(
             source_kind="repairs",
             kind="repair.dismiss",

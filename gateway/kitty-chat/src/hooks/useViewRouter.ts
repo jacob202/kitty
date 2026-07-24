@@ -1,8 +1,8 @@
 'use client'
 import { useCallback, useState } from 'react'
 
-export type KittyView = 'home' | 'chat' | 'tasks' | 'tools' | 'terminal' | 'projects' |
-  'docs' | 'providers' | 'agents' | 'images' | 'studio' | 'tutor' | 'settings' | 'builder'
+export type KittyView = 'home' | 'chat' | 'tasks' | 'work' | 'tools' | 'terminal' | 'projects' |
+  'docs' | 'providers' | 'agents' | 'images' | 'studio' | 'library' | 'tutor' | 'settings' | 'builder'
 
 export function useViewRouter(initialView: KittyView = 'home') {
   const [activeView, setActiveView] = useState<KittyView>(initialView)
@@ -11,11 +11,10 @@ export function useViewRouter(initialView: KittyView = 'home') {
   const navigateHome = useCallback(() => setActiveView('home'), [])
   const navigateChat = useCallback(() => setActiveView('chat'), [])
   const onViewChange = useCallback((view: string) => {
-    if (view === 'home' || view === 'chat' || view === 'tasks' || view === 'tools' ||
-        view === 'terminal' || view === 'projects' || view === 'docs' || view === 'providers' ||
-        view === 'agents' || view === 'images' || view === 'studio' || view === 'tutor' || view === 'settings' ||
-        view === 'builder') {
-      setActiveView(view)
+    const valid: KittyView[] = ['home', 'chat', 'work', 'tasks', 'tools', 'terminal', 'projects',
+      'docs', 'providers', 'agents', 'images', 'studio', 'library', 'tutor', 'settings', 'builder']
+    if (valid.includes(view as KittyView)) {
+      setActiveView(view as KittyView)
     }
   }, [])
 

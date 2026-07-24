@@ -123,11 +123,17 @@ async def chat_completions(request: Request):
             user_text = m.get("content", "")
             break
 
-    # KX-05-02: detect repairs intent and inject the current repair feed
+    # KX-05-02 / KX-06-01: detect repairs/signals intent and inject the current feed
     if _is_repairs_intent(user_text):
         repairs_context = _build_repairs_context()
+        signals_context = _build_signals_context()
+        combined: list[str] = []
         if repairs_context:
-            messages = [{"role": "system", "content": repairs_context}] + list(messages)
+            combined.append(repairs_context)
+        if signals_context:
+            combined.append(signals_context)
+        if combined:
+            messages = [{"role": "system", "content": "\n\n".join(combined)}] + list(messages)
 
     correlation_id = str(uuid.uuid4())[:8]
     t_start = time.monotonic()
@@ -456,12 +462,37 @@ _REPAIRS_INTENT_PATTERNS = [
     "how's the system",
     "what needs fixing",
     "any problems",
+    "anything to flag",
+    "what's up",
+    "any signals",
+    "what should I know",
 ]
 
 
 def _is_repairs_intent(user_text: str) -> bool:
     lower = user_text.strip().lower()
     return any(pattern in lower for pattern in _REPAIRS_INTENT_PATTERNS)
+
+
+def _build_signals_context() -> str | None:
+    """Build a plain-English signals summary for chat injection."""
+    try:
+        from gateway import signal_store
+        signals = signal_store.list_unprocessed(limit=20)
+        if not signals:
+            return None
+        lines = ["Active signals from your system:"]
+        for s in signals:
+            payload = s.get("payload") or {}
+            title = payload.get("title") or s.get("source", "unknown")
+            text = payload.get("text") or payload.get("summary") or ""
+            tag = s.get("source", "").replace("expert.", "")
+            lines.append(f"  [{tag}] {title}")
+            if text:
+                lines.append(f"    {text[:200]}")
+        return "\n".join(lines)
+    except Exception:
+        return None
 
 
 def _build_repairs_context() -> str | None:

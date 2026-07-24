@@ -70,17 +70,45 @@ export function BuilderGlance({ onOpen }: BuilderGlanceProps) {
   const snapshot = fact?.value
   const attention = snapshot ? attentionCount(snapshot) : 0
   const active = snapshot ? activePacketCount(snapshot) : 0
+  const total = snapshot?.queue?.total ?? 0
+
+  if (query.isLoading) {
+    return (
+      <section style={{ ...card, display: 'grid', gap: 12 }} aria-label="Builder status glance">
+        <div style={cardHeader}><div style={cardTitle}>builder</div></div>
+        <div style={{ ...bodyText, fontSize: 12, opacity: 0.5 }}>
+          loading…
+        </div>
+      </section>
+    )
+  }
+
+  if (!snapshot || total === 0) {
+    return (
+      <section style={{ ...card, display: 'grid', gap: 12 }} aria-label="Builder status glance">
+        <div style={cardHeader}><div style={cardTitle}>builder</div></div>
+        <p style={{ ...bodyText, margin: 0 }}>
+          nothing queued — ready when you are
+        </p>
+        <div>
+          <button type="button" onClick={onOpen} style={actionButton}>
+            Open Builder
+          </button>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section style={{ ...card, display: 'grid', gap: 12 }} aria-label="Builder status glance">
       <div style={cardHeader}>
         <div style={cardTitle}>builder</div>
         <span style={cardMeta}>
-          {builderGlanceLabel(fact, query.isLoading, attention, active)}
+          {builderGlanceLabel(fact, false, attention, active)}
         </span>
       </div>
       <p style={{ ...bodyText, margin: 0 }}>
-        {builderGlanceDetail(fact, query.isLoading, query.error)}
+        {builderGlanceDetail(fact, false, null)}
       </p>
       <div>
         <button type="button" onClick={onOpen} style={actionButton}>
