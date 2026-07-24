@@ -8,6 +8,7 @@ and the normalization functions.
 from __future__ import annotations
 
 import json
+import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,14 @@ def _fresh_db(tmp_path: Path):
 
     original = gp.KITTY_DB_FILE
     gp.KITTY_DB_FILE = test_db
+
+    conn = sqlite3.connect(str(test_db))
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    jobs._ensure_db(conn)
+    jobs._ensure_queue_columns(conn)
+    conn.close()
+
     yield
     gp.KITTY_DB_FILE = original
 
@@ -303,3 +312,81 @@ class TestReconcile:
 class TestImageGenIntegration:
     def test_import_does_not_crash(self) -> None:
         import gateway.image_gen  # noqa: F401
+
+
+# ── 10. Priority queue ────────────────────────────────────────────────────
+
+
+class TestPriorityQueue:
+    def test_create_with_priority(self) -> None:
+        job = _make_job(priority=5)
+        assert job.priority == 5
+
+    def test_priority_defaults_to_zero(self) -> None:
+        job = _make_job()
+        assert job.priority == 0
+
+    def test_list_queue_returns_non_terminal_ordered(self) -> None:
+        _make_job(prompt="low", priority=0)
+        _make_job(prompt="high", priority=10)
+        queue = jobs.list_queue(limit=10)
+        assert len(queue) >= 2
+        # Highest priority first
+        assert queue[0].priority >= queue[1].priority
+
+
+# ── 11. Retry / requeue ───────────────────────────────────────────────────
+
+
+class TestRetry:
+    def test_create_with_max_retries(self) -> None:
+        job = _make_job(max_retries=3)
+        assert job.max_retries == 3
+        assert job.retry_count == 0
+
+    def test_requeue_failed_job(self) -> None:
+        job = _make_job(max_retries=2)
+        jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
+        jobs.transition(job.job_id, ImageJobStatus.RUNNING)
+        jobs.transition(job.job_id, ImageJobStatus.FAILED)
+        requeued = jobs.requeue(job.job_id)
+        assert requeued.status == ImageJobStatus.CREATED
+        assert requeued.retry_count == 1
+
+    def test_requeue_not_failed_raises(self) -> None:
+        job = _make_job(max_retries=2)
+        with pytest.raises(ImageJobError, match="only FAILED jobs can be requeued"):
+            jobs.requeue(job.job_id)
+
+    def test_requeue_exhausted_raises(self) -> None:
+        job = _make_job(max_retries=1)
+        jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
+        jobs.transition(job.job_id, ImageJobStatus.RUNNING)
+        jobs.transition(job.job_id, ImageJobStatus.FAILED)
+        jobs.requeue(job.job_id)
+        jobs.transition(job.job_id, ImageJobStatus.SUBMITTED)
+        jobs.transition(job.job_id, ImageJobStatus.RUNNING)
+        jobs.transition(job.job_id, ImageJobStatus.FAILED)
+        with pytest.raises(ImageJobError, match="exhausted"):
+            jobs.requeue(job.job_id)
+
+    def test_requeue_nonexistent_raises(self) -> None:
+        with pytest.raises(JobNotFoundError):
+            jobs.requeue("job_nonexistent")
+
+
+# ── 12. Cancel queued ─────────────────────────────────────────────────────
+
+
+class TestCancelQueued:
+    def test_cancel_queued_all(self) -> None:
+        _make_job(prompt="a")
+        _make_job(prompt="b")
+        count = jobs.cancel_queued()
+        assert count == 2
+
+    def test_cancel_queued_by_provider(self) -> None:
+        _make_job(provider="comfyui", prompt="c1")
+        _make_job(provider="drawthings", prompt="d1")
+        count = jobs.cancel_queued(provider="comfyui")
+        assert count == 1
