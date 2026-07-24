@@ -68,6 +68,37 @@ FUTURE_CAPABILITIES.md, FUTURE_REASSESSMENT_SIMULATION.md, UNFAIR_ADVANTAGE_AND_
 
 ## Follow-ups for Jacob
 
-1. Ratify or kill the parked audit decisions (`~/kb/wiki/2026-07-24-unconsumed-audit-recommendations.md` — 11 decisions waiting).
+1. ~~Ratify or kill the parked audit decisions~~ — **DONE 2026-07-24: ADR-0019** (3 defer, 8 ratify, zero new work).
 2. Mempalace migration status → if done, phases/ re-review.
 3. Install pre-commit hook or delete the installer script.
+
+---
+
+## Second pass (same day): vision consolidation + codebase sweep
+
+### Vision → `docs/planning/vision-horizons.md` (canonical), originals → `archive/vision-2026-07/`
+FUTURE_CAPABILITIES, FUTURE_REASSESSMENT_SIMULATION, UNFAIR_ADVANTAGE_AND_HARNESS merged into one horizon catalog (5 user-facing ideas, 7 experience laws, 10 horizons with stress-test verdicts, 20 harness levers). KITTYBUILDER_SELF_BUILDING_MVP archived — superseded by `planning/kittybuilder-redesign-2026-07-24.md`.
+
+### Codebase sweep → `archive/codebase-sweep-2026-07/`
+
+| Item | What it was | Why moved |
+|---|---|---|
+| `backend/` | Pre-gateway Kitty orchestrator (Open WebUI endpoint) | Unreferenced anywhere; D2 made gateway the product |
+| `soul/` | 8 specialist personas + kitty.md | Unreferenced (config/SOUL.md is canonical persona). If council needs them later, they're here |
+| `design-system/` | Standalone design workspace (77 files: chats, v2-reference, tokens.css) | Unreferenced by kitty-chat |
+| `TASKS.md` | Self-declared "Superseded Status Ledger" | Superseded by ACTIVE_MISSION/PROJECT_STATUS |
+| `TODOS_NEXT.md` | Plan referencing a retired doc | Stale |
+| `PR_DESCRIPTION.md` | Description for merged branch (leverage-phase-8-9) | Leftover |
+| `kb/` (nested) | Fork KB created by parallel session | Content fully ported to `~/kb` (L-13–17) |
+| `origin` (root) | Broken self-referential symlink (created 07-24 15:16 by unknown process) | Removed via os.unlink |
+
+### Kept after verification
+- `contracts/` — imported by 5+ gateway modules (shared schemas)
+- `prompts/` — PROMPTS_DIR, load_prompt reads it
+- `mcp/` — auxiliary; ⚠️ no CI lint/type coverage (known lesson: broke invisibly before)
+- `notebooks/` — 1 colab notebook (image pipeline), harmless
+- `CODEX.md`, `run.sh`, `vercel.json` (inert), `hermes.env.example`, `SKILL_REGISTRY.md` — live entry points/templates
+- `phases/`, `superpowers/` — live code references (see first pass)
+
+### Boundary of this sweep
+`gateway/` internals and `gateway/kitty-chat/` were NOT swept — the 2026-07-24 architecture-honesty audit covers gateway subsystems, and the UI is mid-refactor by a parallel session. `scripts/` dead-script hunt is a future pass (needs per-script reference checks).

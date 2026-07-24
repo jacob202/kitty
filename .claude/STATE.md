@@ -18,7 +18,7 @@
     "kb/NOW.md and kb/INDEX.md updated"
   ],
   "blockers": [],
-  "next_action": "Task 2 (builder upgrade) can start immediately — backend-only, see docs/planning/agent-prompts-2026-07-24.md task 2. Task 3 (image system) frontend dependency resolved by this session's restructuring.",
+  "next_action": "VERIFY then commit: run 'cd gateway/kitty-chat && npm run build && npm test' before committing the ~45+ uncommitted files (frontend restructure claims green, not re-verified). Note: a parallel KB session also archived 36 docs (docs/archive/, manifest included) and ratified ADR-0019 — include in the same commit. Then task 2 (builder upgrade), see docs/planning/agent-prompts-2026-07-24.md.",
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
 }
@@ -26,7 +26,7 @@
 
 ## Current checkpoint
 
-`main` at `c4bd7df`. 43 uncommitted files. Architecture audit complete. Frontend restructured (page.tsx 179 lines). 5 downstream task briefs ready to hand off.
+`main` at `c4bd7df`. ~80 uncommitted files (two parallel sessions). Architecture audit + frontend restructure complete (build/tests claimed green, not re-verified). Parallel KB session: docs consolidation — 36 items archived, ADR-0019 ratified, vision-horizons.md created, codebase swept (backend/soul/design-system/nested-kb archived). Verify UI build/tests, then commit everything. 5 downstream task briefs ready.
 
 ## Lessons applied
 

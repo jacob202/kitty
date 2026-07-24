@@ -144,6 +144,10 @@ def _ensure_queue_columns(conn: Any) -> None:
         conn.execute("ALTER TABLE image_jobs ADD COLUMN last_error TEXT")
     if "queued_at" not in cols:
         conn.execute("ALTER TABLE image_jobs ADD COLUMN queued_at TEXT")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_image_jobs_queue ON image_jobs(priority DESC, created_at ASC)"
+        " WHERE status IN ('created', 'submitted')"
+    )
 
 
 def _ensure_db(conn: Any = None) -> None:
