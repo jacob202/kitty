@@ -11,11 +11,25 @@ Crash safety: if this runner process dies, the lease stops renewing and the
 existing recovery scan moves the task to ``blocked(stale_heartbeat)``;
 ``recover_interrupted_runs`` marks the dead run row. The worktree and log
 always survive for inspection — partial progress is never destroyed.
+
+Phase 2 upgrade — context injection:
+- ``inject_worker_context`` reads task/events/PR links, builds a context
+  manifest via ``builder_context.build_context_manifest``, writes it to the
+  run directory, and returns ``extra_env`` entries (KB_CONTEXT_BUNDLE_PATH,
+  KB_CONTEXT_MANIFEST_PATH) that ``run_worker`` adds to the child env.
+- ``validate_worker_context`` reads the manifest back after the worker exits
+  and confirms it has not been tampered with.
+
+Companion wiring:
+- ``run_agent_preset`` spawns an ``agent_runner`` agent (explorer / planner /
+  coder / reviewer / researcher) for a builder task, bridging the 5 presets
+  that were previously disconnected from the queue lifecycle.
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import shutil
 import signal
@@ -27,6 +41,8 @@ from typing import Any, NoReturn
 from gateway import builder_queue as bq
 from gateway import builder_scope as bs
 from gateway.builder_brief import default_branch_name, render_worker_brief
+from gateway.builder_context import build_context_manifest, write_run_manifest
+from gateway.models.builder import AgentPreset, AgentPresetConfig, WorkerContextBundle
 from gateway.paths import BUILDER_QUEUE_DB
 
 # Arch doc §9: Phase 1C uses a short heartbeat-based lease.
@@ -510,6 +526,289 @@ def _raise_worker_launch_error(
     ) from exc
 
 
+# ---------------------------------------------------------------------------
+# Phase 2 — Context injection
+# ---------------------------------------------------------------------------
+
+
+def inject_worker_context(
+    task_id: str,
+    run_id: str,
+    *,
+    branch: str,
+    worker: str = "local-runner",
+    model: str | None = None,
+    provider: str | None = None,
+    allowed_paths: list[str] | None = None,
+    acceptance_criteria: list[str] | None = None,
+    agent_preset: str | None = None,
+    db_path: Path | None = None,
+    repo_root: Path | None = None,
+) -> tuple[dict[str, str], WorkerContextBundle]:
+    """Build and persist a context manifest, returning extra_env entries.
+
+    Reads the task's events and PR links, builds a ``build_context_manifest``
+    with allowed_paths, writes it as a run manifest, and returns the env vars
+    the worker needs to locate the context at runtime.
+
+    Returns (extra_env, context_bundle) where extra_env includes
+    KB_CONTEXT_BUNDLE_PATH and KB_CONTEXT_MANIFEST_PATH.
+    """
+    queue_db = Path(db_path) if db_path is not None else BUILDER_QUEUE_DB
+    run_dir = queue_db.parent / "runs" / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    bundle_path = run_dir / "context-bundle.json"
+    manifest_path = run_dir / "context-manifest.json"
+
+    context: dict[str, Any] = {
+        "task_id": task_id,
+        "run_id": run_id,
+        "branch": branch,
+        "worker": worker,
+        "model": model,
+        "provider": provider,
+        "allowed_paths": allowed_paths or [],
+        "acceptance_criteria": acceptance_criteria or [],
+        "agent_preset": agent_preset,
+    }
+    if agent_preset is not None:
+        try:
+            context["agent_preset"] = AgentPreset(agent_preset).value
+        except ValueError:
+            pass
+
+    bundle_path.write_text(
+        json.dumps(context, indent=2, sort_keys=True), encoding="utf-8"
+    )
+
+    root = Path(repo_root) if repo_root is not None else Path.cwd()
+    manifest = build_context_manifest(root, bundle_path, allowed_paths=allowed_paths)
+    write_run_manifest(manifest_path, manifest)
+
+    events: list[dict[str, Any]] = []
+    pr_links: list[dict[str, Any]] = []
+    try:
+        events = bq.list_events(task_id, db_path=db_path)
+        pr_links = bq.get_pr_links(task_id, db_path=db_path)
+    except Exception:
+        pass
+
+    context_bundle = WorkerContextBundle(
+        task_id=task_id,
+        run_id=run_id,
+        branch=branch,
+        brief_path=str(run_dir / "brief.md"),
+        bundle_path=str(bundle_path),
+        result_path=str(run_dir / "implementation.json"),
+        context_manifest_path=str(manifest_path),
+        allowed_paths=allowed_paths or [],
+        acceptance_criteria=acceptance_criteria or [],
+        agent_preset=AgentPreset(agent_preset) if agent_preset and agent_preset in {p.value for p in AgentPreset} else None,
+        model=model,
+        provider=provider,
+    )
+
+    extra_env = {
+        "KB_CONTEXT_BUNDLE_PATH": str(bundle_path),
+        "KB_CONTEXT_MANIFEST_PATH": str(manifest_path),
+    }
+    return extra_env, context_bundle
+
+
+def validate_worker_context(
+    task_id: str,
+    run_id: str,
+    *,
+    db_path: Path | None = None,
+) -> list[str]:
+    """Validate that the context manifest is intact after a worker run.
+
+    Returns a list of validation issues (empty if context is valid).
+    """
+    queue_db = Path(db_path) if db_path is not None else BUILDER_QUEUE_DB
+    run_dir = queue_db.parent / "runs" / run_id
+    bundle_path = run_dir / "context-bundle.json"
+    manifest_path = run_dir / "context-manifest.json"
+
+    issues: list[str] = []
+
+    if not bundle_path.is_file():
+        issues.append(f"context bundle missing: {bundle_path}")
+    else:
+        try:
+            parsed = json.loads(bundle_path.read_text(encoding="utf-8"))
+            if not isinstance(parsed, dict):
+                issues.append("context bundle is not a JSON object")
+            elif parsed.get("task_id") != task_id:
+                issues.append(
+                    f"context bundle task_id mismatch: "
+                    f"{parsed.get('task_id')!r} != {task_id!r}"
+                )
+        except (OSError, json.JSONDecodeError) as exc:
+            issues.append(f"context bundle unreadable: {exc}")
+
+    if not manifest_path.is_file():
+        issues.append(f"context manifest missing: {manifest_path}")
+    else:
+        try:
+            parsed = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if not isinstance(parsed, dict):
+                issues.append("context manifest is not a JSON object")
+        except (OSError, json.JSONDecodeError) as exc:
+            issues.append(f"context manifest unreadable: {exc}")
+
+    return issues
+
+
+# ---------------------------------------------------------------------------
+# Companion wiring — agent preset dispatch
+# ---------------------------------------------------------------------------
+
+
+AGENT_PRESET_CONFIGS: dict[AgentPreset, AgentPresetConfig] = {
+    AgentPreset.explorer: AgentPresetConfig(
+        preset=AgentPreset.explorer,
+        description="Search and discover — wide research, finding sources, exploring topics",
+        system_prompt=(
+            "You are an explorer agent for Kitty. Your job is research and discovery.\n"
+            "Given a goal, search broadly, find relevant information, and return a "
+            "concise summary of what you found with sources."
+        ),
+        max_iterations=3,
+        temperature=0.5,
+        timeout_seconds=300,
+    ),
+    AgentPreset.planner: AgentPresetConfig(
+        preset=AgentPreset.planner,
+        description="Break down a complex goal into ordered, actionable steps",
+        system_prompt=(
+            "You are a planner agent for Kitty. Your job is to break down complex "
+            "goals into clear, ordered, actionable steps.\n"
+            "For each step, include: what needs to happen, dependencies, and estimated effort."
+        ),
+        max_iterations=2,
+        temperature=0.4,
+        timeout_seconds=300,
+    ),
+    AgentPreset.coder: AgentPresetConfig(
+        preset=AgentPreset.coder,
+        description="Analyze and implement code changes",
+        system_prompt=(
+            "You are a coder agent for Kitty. Your job is to analyze code and "
+            "propose or implement changes.\n"
+            "Explain your reasoning. Show the code changes clearly."
+        ),
+        max_iterations=5,
+        temperature=0.2,
+        timeout_seconds=600,
+    ),
+    AgentPreset.reviewer: AgentPresetConfig(
+        preset=AgentPreset.reviewer,
+        description="Review code or output for issues and suggest improvements",
+        system_prompt=(
+            "You are a reviewer agent for Kitty. Your job is to examine work "
+            "and identify issues, risks, and improvement opportunities.\n"
+            "Be constructive. Flag real problems, don't nitpick."
+        ),
+        max_iterations=2,
+        temperature=0.3,
+        timeout_seconds=300,
+    ),
+    AgentPreset.researcher: AgentPresetConfig(
+        preset=AgentPreset.researcher,
+        description="Deep technical research with structured output",
+        system_prompt=(
+            "You are a researcher agent for Kitty. Your job is deep technical research.\n"
+            "Analyze the topic thoroughly. Provide structured output."
+        ),
+        max_iterations=4,
+        temperature=0.4,
+        timeout_seconds=600,
+    ),
+}
+
+
+async def run_agent_preset(
+    goal: str,
+    preset: AgentPreset | str,
+    *,
+    task_id: str | None = None,
+    extra_context: str | None = None,
+    model: str | None = None,
+    max_iterations: int | None = None,
+    temperature: float | None = None,
+) -> dict[str, Any]:
+    """Dispatch a builder task to an agent preset.
+
+    Spawns an ``agent_runner`` agent with the given preset configuration,
+    bridging the 5 presets (explorer, planner, coder, reviewer, researcher)
+    into the builder lifecycle.
+
+    Returns ``{"session_id", "preset", "goal", "status", "output", "error"}``.
+    """
+    if isinstance(preset, str):
+        try:
+            preset = AgentPreset(preset)
+        except ValueError:
+            return {
+                "session_id": 0,
+                "preset": preset,
+                "goal": goal,
+                "status": "failed",
+                "error": f"Unknown agent preset: {preset}",
+            }
+
+    config = AGENT_PRESET_CONFIGS.get(preset)
+    if config is None:
+        return {
+            "session_id": 0,
+            "preset": preset.value,
+            "goal": goal,
+            "status": "failed",
+            "error": f"No configuration for preset: {preset.value}",
+        }
+
+    try:
+        from gateway.agent_runner import await_completion, get_output, spawn
+
+        session_id = await spawn(
+            goal,
+            agent_type=preset.value,
+            model=model or config.model,
+            max_iterations=max_iterations or config.max_iterations,
+            temperature=temperature or config.temperature,
+            extra_context=extra_context,
+            algorithm=True,
+        )
+
+        status_result = await await_completion(
+            session_id,
+            timeout=config.timeout_seconds,
+            poll=3.0,
+        )
+
+        output = get_output(session_id)
+
+        return {
+            "session_id": int(session_id),
+            "preset": preset.value,
+            "goal": goal,
+            "status": status_result.get("status", "unknown"),
+            "output": output,
+            "error": None,
+        }
+    except Exception as exc:
+        return {
+            "session_id": 0,
+            "preset": preset.value,
+            "goal": goal,
+            "status": "failed",
+            "output": None,
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+
+
 def run_worker(
     task_id: str,
     command: list[str],
@@ -524,6 +823,7 @@ def run_worker(
     db_path: Path | None = None,
     extra_env: dict[str, str] | None = None,
     base_sha: str | None = None,
+    inject_context: bool = False,
 ) -> dict[str, Any]:
     """Claim *task_id*, run *command* in its isolated worktree, record all.
 
@@ -617,6 +917,28 @@ def run_worker(
         brief_path.write_text(
             render_worker_brief(task, events, pr_links, branch=branch)
         )
+
+        # Phase 2: inject context bundle if enabled
+        context_env: dict[str, str] = {}
+        if inject_context:
+            try:
+                ctx_env, _ctx_bundle = inject_worker_context(
+                    task_id,
+                    run_id,
+                    branch=branch,
+                    worker=worker,
+                    model=model,
+                    provider=provider,
+                    allowed_paths=task.get("allowed_paths"),
+                    acceptance_criteria=task.get("acceptance_criteria"),
+                    db_path=db_path,
+                    repo_root=root,
+                )
+                context_env = ctx_env
+            except Exception as exc:
+                raise RunnerError(
+                    f"context injection failed for run {run_id}: {exc}"
+                ) from exc
 
         bq.worker_transition_task(
             task_id,
@@ -721,6 +1043,8 @@ def run_worker(
         # Additions only — validated against _EXTRA_ENV_BLOCKED up front; the
         # runner-owned KB_* vars below always win.
         child_env.update(extra_env)
+    if context_env:
+        child_env.update(context_env)
     child_env.update(
         KB_TASK_ID=task_id,
         KB_RUN_ID=run_id,
@@ -976,6 +1300,21 @@ def run_worker(
     elif scope_violations and outcome != bq.RUN_LEASE_LOST:
         outcome = bq.RUN_SCOPE_VIOLATION
 
+    # Phase 2: validate context manifest integrity after run
+    context_issues: list[str] = []
+    if inject_context:
+        try:
+            context_issues = validate_worker_context(
+                task_id, run_id, db_path=db_path
+            )
+        except Exception as exc:
+            context_issues = [f"context validation error: {exc}"]
+        if context_issues:
+            if control_error is None:
+                control_error = RunnerError(
+                    f"context validation failed: {'; '.join(context_issues)}"
+                )
+
     report = {
         "run_id": run_id,
         "outcome": outcome,
@@ -995,6 +1334,8 @@ def run_worker(
         "worker_started": True,
         "scope_violations": scope_violations,
         "worktree_state": worktree_state,
+        "context_issues": context_issues,
+        "context_injected": inject_context,
     }
     if control_error is not None:
         report["error"] = f"{type(control_error).__name__}: {control_error}"
