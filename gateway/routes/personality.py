@@ -1,4 +1,4 @@
-"""Read and update Kitty's two operator-managed personality files."""
+"""Read and update Kitty's personality documents — soul, identity, agents, and preferences."""
 
 from __future__ import annotations
 
@@ -10,12 +10,21 @@ from threading import Lock
 from fastapi import APIRouter
 from pydantic import BaseModel, Field, model_validator
 
-from gateway.paths import CONFIG_DIR
+from gateway.paths import CONFIG_DIR, PERSONALITY_DIR
+from gateway.personality import invalidate_cache
 
 router = APIRouter(tags=["settings"])
 
 SOUL_FILE = CONFIG_DIR / "SOUL.md"
 PREFERENCES_FILE = CONFIG_DIR / "PREFERENCES.md"
+
+# Personality files live in the personality/ directory
+PERSONALITY_FILES: dict[str, Path] = {
+    "soul.md": PERSONALITY_DIR / "soul.md",
+    "identity.md": PERSONALITY_DIR / "identity.md",
+    "agents.md": PERSONALITY_DIR / "agents.md",
+}
+
 _DOCUMENT_LOCK = Lock()
 
 
@@ -52,7 +61,6 @@ def _stage_document(path: Path, content: str, mode: int) -> str:
         try:
             os.unlink(temporary_path)
         except OSError:
-            # Preserve the original write error; the caller still fails loudly.
             pass
         raise
     return temporary_path
@@ -97,17 +105,23 @@ def _write_documents(soul: str, preferences: str) -> None:
 
 @router.get("/settings/personality")
 def get_personality() -> dict[str, str]:
-    """Return the exact content Kitty uses for voice and standing preferences."""
-    return {
-        "soul": SOUL_FILE.read_text(encoding="utf-8"),
-        "preferences": PREFERENCES_FILE.read_text(encoding="utf-8"),
-    }
+    """Return all personality documents — soul, identity, agents, and preferences."""
+    result: dict[str, str] = {}
+    for name, path in PERSONALITY_FILES.items():
+        try:
+            result[name] = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            result[name] = ""
+    result["soul"] = SOUL_FILE.read_text(encoding="utf-8")
+    result["preferences"] = PREFERENCES_FILE.read_text(encoding="utf-8")
+    return result
 
 
 @router.put("/settings/personality")
 def put_personality(payload: PersonalityUpdate) -> dict[str, bool]:
-    """Persist an intentional complete replacement of both personality documents."""
+    """Persist an intentional complete replacement of both legacy personality documents."""
     soul = _normalise_document(payload.soul, label="Soul")
     preferences = _normalise_document(payload.preferences, label="Preferences")
     _write_documents(soul, preferences)
+    invalidate_cache()
     return {"ok": True}
