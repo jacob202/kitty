@@ -30,7 +30,7 @@ export function BottomNav({ activeView = 'home', onViewChange }: Props) {
         display: 'flex',
         justifyContent: 'space-around',
         alignItems: 'center',
-        padding: '0 4px env(safe-area-inset-bottom)',
+        padding: '0 4px env(safe-area-inset-bottom, 0px)',
         zIndex: 50,
       }}
     >

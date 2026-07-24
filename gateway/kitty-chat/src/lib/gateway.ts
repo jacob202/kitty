@@ -1496,7 +1496,54 @@ export async function askTutor(topic: string): Promise<TutorAnswer> {
   }, 60_000)
 }
 
-export async function fetchKnowledgeSources(): Promise<KnowledgeSourcesPayload> {
+export interface TutorLearnResult {
+  ingested: number
+  status: string
+  label?: string
+}
+
+export interface TutorReviewItem {
+  term: string
+  knowledge_type: string
+  confidence: number
+  stage: string
+  last_seen: string
+}
+
+export interface TutorTermMastery {
+  term: string
+  mastery: number
+  stage: string
+  next_action: string
+}
+
+export async function tutorLearn(path: string, label?: string): Promise<TutorLearnResult> {
+  return await gfetch<TutorLearnResult>('/tutor/learn', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path, ...(label ? { label } : {}) }),
+  }, 120_000)
+}
+
+export async function fetchTutorReview(): Promise<{ due: TutorReviewItem[] }> {
+  return await gfetch<{ due: TutorReviewItem[] }>('/tutor/review', undefined, 10_000)
+}
+
+export async function postTutorGrade(term: string, answer: string, kpType = 'memory'): Promise<{ correct: boolean }> {
+  return await gfetch<{ correct: boolean }>('/tutor/grade', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ term, answer, kp_type: kpType }),
+  })
+}
+
+export async function fetchTutorTerm(term: string, kpType = 'memory'): Promise<TutorTermMastery> {
+  return await gfetch<TutorTermMastery>(
+    `/tutor/term/${encodeURIComponent(term)}?kp_type=${kpType}`,
+    undefined,
+    10_000,
+  )
+}
   return await gfetch<KnowledgeSourcesPayload>('/knowledge/sources', undefined, 10_000)
 }
 

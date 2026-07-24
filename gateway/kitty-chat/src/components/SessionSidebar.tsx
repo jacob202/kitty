@@ -40,8 +40,10 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
   const earlier = sorted.filter(c => (now - c.updatedAt.getTime()) >= dayMs * 2)
 
   const q = search.trim().toLowerCase()
+  const searchResults = q ? sorted.filter(c => c.title.toLowerCase().includes(q)) : []
+  const searchEmpty = q.length > 0 && searchResults.length === 0
   const groups: { key: string; label: string; items: Chat[] }[] = q
-    ? [{ key: 'results', label: sorted.filter(c => c.title.toLowerCase().includes(q)).length ? 'results' : 'nothing here', items: sorted.filter(c => c.title.toLowerCase().includes(q)) }]
+    ? (searchEmpty ? [] : [{ key: 'results', label: 'results', items: searchResults }])
     : [
         ...(today.length ? [{ key: 'today', label: 'today', items: today }] : []),
         ...(yesterday.length ? [{ key: 'yesterday', label: 'yesterday', items: yesterday }] : []),
@@ -96,7 +98,12 @@ export function SessionSidebar({ chats, activeChatId, onSelectChat, onNewChat, o
       </div>
 
       <div style={{ overflowY: 'auto', flex: 1, padding: '2px 10px 12px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {groups.map(g => (
+        {searchEmpty && (
+          <div style={{ textAlign: 'center', color: 'var(--ink-2)', fontSize: 12, marginTop: 20 }}>
+            no chats match &ldquo;{search}&rdquo;
+          </div>
+        )}
+        {!searchEmpty && groups.map(g => (
           <div key={g.key} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 1, padding: '0 4px', marginBottom: 2 }}>
               <span style={{

@@ -1,53 +1,85 @@
-# Handoff — Reasoning Backend + Expert Swarm + KX-06 + Orchestration — Complete
+# Handoff — Architecture Audit + Frontend Restructuring — Complete
 
 ## What was done
 
-### Reasoning Backend (RE-C1/C2/C5) — 3 packets
-- **C1:** `gateway/reasoning.py` — `classify_complexity(message, domain)` pure heuristic (<1ms). Keyword sets absorbed from `llm_client.py`. `route_model()` delegates: trivial/standard → kitty-default, deep → kitty-sonnet (KITTY_REASONING_MODEL env override). 50 new tests.
-- **C2:** `gateway/context_assembler.py` — tier-aware caps 300/1200/2400. Trivial tier skips enrichments. Byte-identical default (standard). 5 new tests.
-- **C5:** Tier/trigger in `log_chat_trace`, `/perf/stats` per-tier aggregates. `get_per_tier_stats()` reads token log, handles ISO + float timestamps. 7 new tests.
-- **Dogfood confirmed:** trace log shows tier/trigger on live traffic. Deep tier routes to kitty-sonnet (LiteLLM 401 — missing upstream key, routing correct).
+### 5-document architecture audit (docs/recon/, docs/audit/, docs/planning/)
+- `docs/recon/repo-landscape-2026-07-24.md` — surveyed 18 external projects (SkillOpt, companion-emergence, somora, bolly, 12-factor-agents, sloth-ai, etc). SkillOpt identified as most relevant for self-evolving builder skills.
+- `docs/audit/architecture-honesty-2026-07-24.md` — 11 subsystem audits with line counts. Memory system is deep (9 stores, policy, consolidation). Builder queue is mature, runner is pre-alpha. Agent presets exist but not wired to builder.
+- `docs/planning/kittybuilder-redesign-2026-07-24.md` — 5-phase redesign with concrete pydantic models, sub-task DAG schema, validation step, retry loop. 16-week realistic timeline.
+- `docs/planning/image-studio-character-system-2026-07-24.md` — 6-phase redesign. Frontend decoupling ordered first (Phase 0). Arcface vs insightface evaluated. Template marketplace cut from v2.
+- `docs/planning/kitty-vision-gap-analysis-2026-07-24.md` — strengths section + gap prioritization. Frontend elevated to P0. Companion personality reduced to moderate (memory infrastructure exists).
 
-### Expert Swarm Review — 15 findings, 8 fixed
-- **P0 routing bug:** `useViewRouter` blocked 'work'/'library' view IDs — 3 surfaces showed wrong content.
-- **P0 VIEWS:** all 7 entries mapped to HomeState — fixed to PlaceholderView. Renamed views.ts → views.tsx.
-- **P1 Home heading:** time-aware greeting ("good morning/afternoon/evening, Jacob") on Home.
-- **P1 Expert strip:** hover feedback (border transition), collapsed to 2 experts with "show all N experts" toggle.
-- **P1 mark-point:** added aria-label="Mark current time as baseline snapshot".
-- **P2 Builder glance:** loading skeleton + empty state ("nothing queued — ready when you are").
-- **P2 BottomNav test:** fixed wrong labels (lowercase → capitalized) and prop name (onNavigate → onViewChange).
+### Agent prompts for downstream tasks
+- `docs/planning/agent-prompts-2026-07-24.md` — 5 comprehensive task briefs with: file lists to read, critical review prompts, planning requirements, questions to ask Jacob, deliverables.
 
-### KX-06 (Proactive Feed) — 2 packets
-- **01 signals:** Signal dismiss wired to `signal_store.mark_processed()`. Chat intent: "anything to flag", "what's up", "any signals", "what should I know" inject signals feed. Signals and repairs both injected when user asks.
-- **02 cards:** PhoneAccessCard dismiss + "open Tailscale" button. Deadlines dismiss. No "POST /state/snapshot", "ui.tailnet", or "use ./kitty" strings on Home. WhatChanged already clean.
+### Frontend restructuring (gateway/kitty-chat/)
+- `src/state/KittyContext.tsx` [NEW] — single context provider with all state + handlers
+- `src/app/page.tsx` [MOD] — 1057→179 lines, thin shell using `useKitty()` hook
+- `src/app/providers.tsx` [MOD] — wraps with KittyProvider
+- `src/components/ViewRenderer.tsx` [MOD] — 310→81 lines, all views lazy-loaded via `next/dynamic`
+- 8 new view wrapper files: HomeView, ChatView, BuilderView, SettingsShell, WorkView, StudioView, LibraryView, TerminalView
+- `src/lib/views.tsx` [MOD] — updated PlaceholderView descriptions for accuracy
 
-### Orca Orchestration Skill
-- `.agents/skills/orca-orchestration/SKILL.md` — 5 orchestration patterns (handoff, worktree, phased, parallel, split PRs) with concrete `orca orchestration` commands + Kitty-specific rules (never auto-merge, `env -u GITHUB_TOKEN`, STATE.md stomping).
+### Session-end protocol
+- Baked 6-step session hygiene checklist into `AGENTS.md` (lines 88-102). Trigger phrases: "session end", "end session", "wrap up", "i'm done", "save my work", "ship it".
+- Skill file at `.agents/skills/session-end/SKILL.md` for kitty context assembler (belt and suspenders).
 
-### Files changed
-- `gateway/reasoning.py` (new) + `tests/test_reasoning.py` (new)
-- `gateway/llm_client.py` — route_model delegates to classifier, log_chat_trace tier/trigger fields
-- `gateway/context_assembler.py` — tier param + cap
-- `gateway/perf.py` — get_per_tier_stats, _parse_ts helper
-- `gateway/routes/completions.py` — classifier + tier in route, signals intent, stray line fix
-- `gateway/routes/perf.py` — per_tier in stats response
-- `gateway/routes/repairs.py` — signal dismiss → mark_processed
-- `gateway/kitty-chat/src/hooks/useViewRouter.ts` — work/library in valid views
-- `gateway/kitty-chat/src/lib/views.tsx` — VIEWS registry PlaceholderView, ts→tsx rename
-- `gateway/kitty-chat/src/components/HomeState.tsx` — heading, expert strip, phone card, mark-point
-- `gateway/kitty-chat/src/components/BuilderSurface.tsx` — loading/empty BuilderGlance states
-- `gateway/kitty-chat/tests/BottomNav.test.tsx` — fix labels + prop name
-- `.agents/skills/orca-orchestration/SKILL.md` (new)
+### Verification
+- TypeScript: 0 errors
+- `npm run build`: success (28.8s)
+- `npm test`: 17 suites, all passing
+- `wc -l page.tsx`: 179 (target was <200)
 
-## Verification
-- TypeScript build: clean
-- UI tests: 35/35 files, 267/267 tests pass
-- Python tests: 199/203 pass (4 pre-existing: ProviderChainExhausted test expectations, MemoryError constructor, close_session)
-- Ruff: clean on all touched files
-- Imports: all clean, no circular dependencies
+## In-flight / WIP
+
+Nothing in flight. All work from this session is complete.
 
 ## Blockers
+
 None.
 
-## Invalidation
-HEAD beyond `c4bd7df`.
+## Next move
+
+**Task 2 (builder upgrade)** — can start immediately, no frontend dependency. Backend-only changes: pydantic models, state machine tests, runner redesign. Agent prompt at `docs/planning/agent-prompts-2026-07-24.md` task 2 section.
+
+**Task 3 (image system)** — frontend restructuring is complete, so the image components can be extracted to independent routes.
+
+**Task 4 (companion personality)** — lowest-effort P0. Just needs 3 modular markdown files (soul.md/agents.md/identity.md).
+
+**Task 5 (life awareness)** — hardest P0. Calendar integration + proactive behavior. Requires knowing Jacob's calendar system.
+
+## Files changed this session
+
+### KB files (3 new)
+- `kb/wiki/2026-07-24-frontend-monolith-decomposition.md`
+- `kb/wiki/2026-07-24-architecture-audit-read-code.md`
+- `kb/wiki/2026-07-24-session-end-protocol-placement.md`
+
+### Modified
+- `kb/INDEX.md` (3 new wiki entries)
+- `kb/NOW.md` (full refresh)
+- `.claude/HANDOFF.md` (this file)
+- `.claude/STATE.md` (state file)
+- `AGENTS.md` (session-end protocol appended)
+- `gateway/kitty-chat/src/app/page.tsx` (1057→179)
+- `gateway/kitty-chat/src/app/providers.tsx` (KittyProvider)
+- `gateway/kitty-chat/src/components/ViewRenderer.tsx` (310→81)
+- `gateway/kitty-chat/src/lib/views.tsx`
+
+### New
+- `.agents/skills/session-end/SKILL.md`
+- `gateway/kitty-chat/src/state/KittyContext.tsx`
+- `gateway/kitty-chat/src/components/HomeView.tsx`
+- `gateway/kitty-chat/src/components/ChatView.tsx`
+- `gateway/kitty-chat/src/components/BuilderView.tsx`
+- `gateway/kitty-chat/src/components/SettingsShell.tsx`
+- `gateway/kitty-chat/src/components/WorkView.tsx`
+- `gateway/kitty-chat/src/components/StudioView.tsx`
+- `gateway/kitty-chat/src/components/LibraryView.tsx`
+- `gateway/kitty-chat/src/components/TerminalView.tsx`
+- `docs/recon/repo-landscape-2026-07-24.md`
+- `docs/audit/architecture-honesty-2026-07-24.md`
+- `docs/planning/kittybuilder-redesign-2026-07-24.md`
+- `docs/planning/image-studio-character-system-2026-07-24.md`
+- `docs/planning/kitty-vision-gap-analysis-2026-07-24.md`
+- `docs/planning/agent-prompts-2026-07-24.md`

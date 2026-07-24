@@ -102,7 +102,7 @@ export function OnboardingModal({ onComplete }: { onComplete: (preferences: { na
                   color: 'var(--ink-2)',
                 }}>
                   {importFile ? importFile.name : 'choose file'}
-                  <input type="file" accept=".json" onChange={(e) => setImportFile(e.target.files?.[0] ?? null)} style={{ display: 'none' }} />
+                  <input type="file" accept=".json" onChange={(e) => setImportFile(e.target.files?.[0] ?? null)} style={{ display: 'none' }} aria-label="choose conversations.json export" />
                 </label>
                 {importFile && (
                   <button type="button" onClick={() => void handleImport()} disabled={importBusy} style={buttonStyle}>

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -109,11 +110,6 @@ async def chat_completions(request: Request):
             status_code=400,
             detail=f"project_id must be a positive integer, got {raw_project_id!r}",
         )
-    try:
-        runtime_manifest = await compose_manifest(project_id=raw_project_id)
-    except Exception:
-        on_request_error()
-        raise
     messages = body.get("messages", [])
     stream = body.get("stream", True)
 
@@ -138,12 +134,28 @@ async def chat_completions(request: Request):
     correlation_id = str(uuid.uuid4())[:8]
     t_start = time.monotonic()
 
+    manifest_task = asyncio.create_task(compose_manifest(project_id=raw_project_id))
+
     domain = classify_domain(user_text)
     from gateway.reasoning import classify_complexity
 
     classification = classify_complexity(user_text, domain=domain)
+
+    try:
+        runtime_manifest = await manifest_task
+    except Exception:
+        on_request_error()
+        raise
     tier = classification.tier
     trigger = classification.trigger
+    t_classified = time.monotonic()
+    logger.info(
+        "chat %s: pre-processing %dms (tier=%s trigger=%s)",
+        correlation_id,
+        int((t_classified - t_start) * 1000),
+        tier,
+        trigger,
+    )
     content_class = body.get("content_class")
     if content_class is not None and not isinstance(content_class, str):
         raise HTTPException(
@@ -279,8 +291,19 @@ async def chat_completions(request: Request):
             nonlocal lifecycle_done
             accumulated = ""
             trailer = memory_trailer
+            first_chunk = True
             try:
                 async for chunk in iter_chat_completions_stream(payload):
+                    if first_chunk and chunk.startswith(b"data: "):
+                        raw = chunk[6:].strip()
+                        if raw != b"[DONE]":
+                            t_first = time.monotonic()
+                            logger.info(
+                                "chat %s: ttft %dms",
+                                correlation_id,
+                                int((t_first - t_start) * 1000),
+                            )
+                            first_chunk = False
                     # The trailer rides immediately before the upstream [DONE].
                     # A stream that never reaches [DONE] (error, cancellation,
                     # cut connection) gets no memory evidence.

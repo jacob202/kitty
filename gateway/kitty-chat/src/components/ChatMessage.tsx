@@ -118,12 +118,12 @@ export function ChatMessage({ message, isStreaming, catState = 'idle', onRetry, 
         )}
         {showActions && (
           <div className="msg-actions" style={{ ...actionRowStyle, opacity: actionsVisible ? 1 : 0 }}>
-            <button onClick={copyMessage} style={actionBtnStyle} title="copy message">
+            <button onClick={copyMessage} style={actionBtnStyle} title="copy message" aria-label="copy message">
               {copied ? <Check size={10} /> : <Copy size={10} />}
               <span>{copied ? 'copied' : 'copy'}</span>
             </button>
             {onRetry && (
-              <button onClick={onRetry} style={actionBtnStyle} title="regenerate this reply">
+              <button onClick={onRetry} style={actionBtnStyle} title="regenerate this reply" aria-label="retry message">
                 <RotateCcw size={10} />
                 <span>retry</span>
               </button>
@@ -192,7 +192,7 @@ function MessageContent({ content, isUser }: { content: string; isUser: boolean 
           ol: ({ children }) => <ol style={olStyle}>{children}</ol>,
           li: ({ children }) => <li style={liStyle}>{children}</li>,
           a: ({ children, href }) => (
-            <a href={href} target="_blank" rel="noreferrer" style={linkStyle}>{children}</a>
+            <a href={href} target="_blank" rel="noreferrer" style={linkStyle} aria-label={`external link: ${typeof children === 'string' ? children : href}`}>{children}</a>
           ),
           blockquote: ({ children }) => <blockquote style={quoteStyle}>{children}</blockquote>,
           hr: () => <hr style={hrStyle} />,
@@ -243,7 +243,7 @@ function CodeBlock({ children }: { children: ReactNode }) {
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-2)', letterSpacing: '0.05em' }}>
           {lang || 'code'}
         </span>
-        <button onClick={copy} style={copyBtnStyle} title="copy">
+        <button onClick={copy} style={copyBtnStyle} title="copy" aria-label="copy code">
           {copied ? <Check size={11} /> : <Copy size={11} />}
           <span>{copied ? 'copied' : 'copy'}</span>
         </button>

@@ -1,4 +1,4 @@
-.PHONY: agent-wrap test lint typecheck ci ui-test ui-build ui-tailnet smoke-test codegraph-check visual-diff visual-diff-update healthcheck preview diff-pr
+.PHONY: agent-wrap test lint typecheck ci ui-test ui-build ui-tailnet smoke-test codegraph-check visual-diff visual-diff-update swarm-review healthcheck preview diff-pr
 
 agent-wrap:
 	python3.12 scripts/agent_wrapup.py
@@ -38,6 +38,12 @@ visual-diff:
 # an intentional visual change ships — KX acceptance criteria call this out.
 visual-diff-update:
 	cd gateway/kitty-chat && npx tsx scripts/visual-diff.ts --update
+
+# Automated UI code review — runs static analysis for design-system violations,
+# accessibility gaps, mobile-safe-area issues, and common UI bugs. Zero-config.
+# Exits non-zero when errors are found (warnings + info don't fail the build).
+swarm-review:
+	cd gateway/kitty-chat && npx tsx scripts/swarm-review.ts
 
 # Single command for "is Kitty healthy enough to demo?" — the things I had to
 # run separately while dogfooding today, bundled into one exit code.

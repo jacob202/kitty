@@ -1,26 +1,24 @@
-# Session State — Reasoning Backend + Expert Swarm + KX-06 + Orchestration — Complete
+# Session State — Architecture Audit + Frontend Restructuring — Complete
 
 <!-- kitty-state
 {
   "schema_version": 1,
-  "updated_at": "2026-07-24T02:00:00Z",
-  "head_sha": "c4bd7df",
+  "updated_at": "2026-07-24T05:00:00Z",
+  "head_sha": "c4bd7df2db5cd8d59d129cab759da15b9ca3bc9a",
   "branch": "main",
   "worktree": ".",
   "status": "complete",
   "completed_items": [
-    "Reasoning backend RE-C1/C2/C5: classifier wired into route_model + completions, tier-aware context budget 300/1200/2400, execution receipts in log_chat_trace, /perf/stats per-tier aggregates",
-    "Expert swarm: 8-expert review of 7-surface UI, 15 findings identified, 8 fixed (P0: view router work/library bug, VIEWS registry, P1: Home heading, expert strip hover/density, mark-point label, P2: Builder loading/empty states, BottomNav test)",
-    "KX-06: signal dismiss wired to signal_store.mark_processed, chat intent expanded (anything to flag/what's up/any signals), PhoneAccessCard dismiss + open Tailscale button, Deadlines dismiss, no Home card jargon",
-    "Orca orchestration skill: .agents/skills/orca-orchestration/SKILL.md — 5 patterns (handoff, worktree, phased, parallel, split PRs) + Kitty-specific rules",
-    "Dogfood: live UI tested via agent-browser, tier/trigger confirmed in trace log, per-tier stats endpoint working",
-    "Build: TypeScript clean, 267/267 UI tests pass, 199/203 Python tests (4 pre-existing), ruff clean on touched files"
+    "5-document architecture audit: repo-landscape (18 projects), architecture-honesty (11 subsystems, corrected false claims), kittybuilder-redesign (concrete API design), image-studio-character-system (6 phases, frontend first), kitty-vision-gap-analysis (strengths + 3 P0 items)",
+    "5 agent task prompts written to docs/planning/agent-prompts-2026-07-24.md for downstream agents",
+    "Frontend restructuring: page.tsx 1057→179 lines, KittyContext provider extracted, 8 view components lazy-loaded via next/dynamic, all 17 test suites passing",
+    "Session-end protocol baked into AGENTS.md with trigger phrases (session end, wrap up, i'm done, ship it)",
+    "Session-end skill at .agents/skills/session-end/SKILL.md for kitty context assembler",
+    "3 KB wiki entries: frontend decomposition pattern, audit read-code rule, session-end protocol placement",
+    "kb/NOW.md and kb/INDEX.md updated"
   ],
   "blockers": [],
-  "next_action": "Push session commits. Then: clean up stale .worktrees/kittybuilder/ dirs, run ./kitty status, dogfood the signals card on Home.",
-  "invalidation_conditions": [
-    "HEAD changes beyond c4bd7df"
-  ],
+  "next_action": "Task 2 (builder upgrade) can start immediately — backend-only, see docs/planning/agent-prompts-2026-07-24.md task 2. Task 3 (image system) frontend dependency resolved by this session's restructuring.",
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
 }
@@ -28,22 +26,11 @@
 
 ## Current checkpoint
 
-`main` at `c4bd7df`. Reasoning backend confirmed live. Expert swarm fixes shipped. KX-06 code complete. Orca orchestration skill written.
+`main` at `c4bd7df`. 43 uncommitted files. Architecture audit complete. Frontend restructured (page.tsx 179 lines). 5 downstream task briefs ready to hand off.
 
 ## Lessons applied
 
-- Views registry mapped all 7 surfaces to HomeState — metadata-only, but misleading. Fixed with PlaceholderView.
-- useViewRouter rejected 'work'/'library' — root cause of 3 surfaces showing wrong content. Vector of future bugs if view IDs aren't synced.
-- Signal dismiss was no-op (action queue only, never called mark_processed). Fixed to actually process signals.
-- ExpertStrip had 4 buttons with no hover feedback — reduced to 2 + show-all toggle with border transition.
-- `log_chat_trace` receipt fields need the `ts` field in token log to handle both string (ISO) and float timestamps — `_parse_ts` helper added.
-- Agent-browser snapshots found 2 duplicate "retry" buttons and "mark point" without label — retry from error states (correct), mark point now has aria-label.
-- Dead "install" button was PWA install in StatusBar — legitimate, not a bug.
-- Browser-injected "issues overlay"/"Dev Tools" are Next.js dev tools, not our code.
-
-## Next actions
-1. Push `c4bd7df` if not already pushed
-2. `make preview` — dogfood the full 7-surface rail with the routing fix
-3. Clean up stale `.worktrees/kittybuilder/` dirs
-4. Apply remaining expert swarm P2 items: search no-result state, loading skeletons across more cards
-5. KX-07 or ship: the current surface is coherent enough to ship — decision gate
+- Architecture audits must read files, not infer from directories — memory system was deep (9 stores) but invisible to `ls gateway/memory/`
+- React monolith decomposition: single context + lazy dynamic imports = safe refactor (preserved all tests)
+- Cross-tool behavior instructions go in AGENTS.md, not kitty-specific skill files — kitty skill registry is gateway-only
+- skill_registry._triggers filters for multi-word phrases (2+ words) — single-word triggers are discarded as noise

@@ -81,8 +81,22 @@ broad scope changes.
 
 Before multi-file work, give a short plan. Prefer editing existing files over creating new structure.
 
-### Session state (read on start, update before stopping)
+### Session start
 
-- Read `.claude/HANDOFF.md` and `.claude/STATE.md` at the start of every session.
-- Update `.claude/STATE.md` before stopping with: current branch, done items, in-flight work, blockers, and next actions.
-- Write `.claude/HANDOFF.md` at the end of any session that leaves unfinished work.
+Read `.claude/HANDOFF.md` and `.claude/STATE.md` at the start of every session.
+
+### Session end protocol — triggered by: "session end", "end session", "wrap up", "i'm done", "save my work", "ship it"
+
+When the user says any of these phrases, do NOT just say goodbye. Run the full checklist:
+
+1. **Extract knowledge** — review the session for durable findings (patterns, gotchas, tool config changes, architecture decisions). Write `~/kb/wiki/YYYY-MM-DD-slug.md` with source, date, why it matters, verified-by. Append one line to `~/kb/INDEX.md`. Skip ephemera (task shuffles, typo fixes). If you got something wrong and Jacob corrected you, write `~/kb/corrections/YYYY-MM-DD-slug.md` instead. **The KB is `~/kb` (absolute), a separate repo — never write to a repo-relative `kb/` path.**
+
+2. **Update `~/kb/NOW.md`** — refresh active project, accomplishments, blockers, and sync changes. Merge, don't clobber — parallel sessions exist.
+
+3. **Write `.claude/HANDOFF.md`** — what was done, what's in-flight, blockers, next move, files changed. Make it directly actionable for the next session.
+
+4. **Write `.claude/STATE.md`** — branch, SHA, status (complete/in-progress/blocked), completed items, next action. Must include the `<!-- kitty-state -->` JSON block with `schema_version`, `updated_at`, `head_sha`, `branch`, `status`, `completed_items`, `blockers`, `next_action`.
+
+5. **Git status** — run `git status --short --branch`. Note uncommitted files. Do NOT commit or push unless explicitly asked.
+
+6. **Confirm** — show a one-line summary of every file written, then stop. Do not start new work.

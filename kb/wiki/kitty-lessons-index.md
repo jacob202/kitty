@@ -36,3 +36,19 @@ The browser snapshot found: 3 surfaces showing wrong content (routing bug), 2 du
 ## L-12: Browser-injected buttons (Next.js Dev Tools, "issues overlay") are not our code
 The snapshot showed "Open Next.js Dev Tools", "Open issues overlay", "Collapse issues badge" — these are injected by Next.js dev mode and browser extensions. **Rule: before flagging UI bugs from an accessibility snapshot, verify the element is in the source, not injected by tooling.**
 
+## L-13: Old LiteLLM processes hold port 8001 across restarts
+`./kitty down` and `./kitty up` leave a ghost LiteLLM process on 8001. The new process fails with "address already in use" and the old one serves stale config. **Rule: if model list shows old aliases after config change, `pkill -f litellm` then restart.**
+
+## L-14: `git worktree prune` doesn't remove directories
+Prune only cleans `.git/worktrees/` metadata. The `.worktrees/kittybuilder/` dirs stay. **Rule: use `python3.12 -c "import shutil,os; [shutil.rmtree(p) for p in ...]"` when `rm` is blocked by opencode.jsonc.**
+
+## L-15: `database_url: null` in LiteLLM config breaks proxy mode
+LiteLLM returns "No connected db" when `database_url` is `null`. **Rule: omit `database_url` entirely from `general_settings` for proxy-only mode.**
+
+## L-16: Module-level constants must be defined before use in class-level dicts
+`_LEGACY_MODEL_ALIASES` referenced `_LITELLM_SMALL` before it was defined in the module (it was defined inside `route_model`). **Rule: define all LiteLLM alias constants at module top, before any dict that references them.**
+
+## L-17: Mistral model IDs need the `mistral/` prefix in LiteLLM
+`mistral-large-latest` alone fails; LiteLLM requires `mistral/mistral-large-latest` to resolve the provider. **Rule: always prefix Mistral models with `mistral/` in litellm_config.yaml.**
+
+

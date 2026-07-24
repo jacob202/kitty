@@ -167,12 +167,12 @@ function EmptyState({
           {"i'm kitty. drawn by a six-year-old, allegedly. here when you need me — let's get things done."}
         </p>
       </div>
-      <button onClick={onStartClick} style={startBtnStyle}>
+      <button onClick={onStartClick} style={startBtnStyle} aria-label="start chatting">
         {"let's go →"}
       </button>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9, justifyContent: 'center', marginTop: 8 }}>
         {SUGGESTION_CHIPS.map((chip) => (
-          <button key={chip} onClick={() => onChipClick?.(chip)} style={chipStyle}>
+          <button key={chip} onClick={() => onChipClick?.(chip)} style={chipStyle} aria-label={`ask: ${chip}`}>
             {chip}
           </button>
         ))}

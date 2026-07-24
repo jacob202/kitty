@@ -28,3 +28,4 @@ detail that hasn't been promoted to a per-decision ADR remains in
 | D15 | Life-First Ordering                                 | [0016](adr/0016-life-first-ordering.md)                     |
 | D16 | Kitty → Mission → KittyBuilder Control Plane        | [0017](adr/0017-kitty-mission-builder-control-plane.md)     |
 | D17 | Evidence-Gated Auto-Merge For Campaign Work         | [0018](adr/0018-builder-campaign-auto-merge.md)              |
+| D18 | Audit-Harvest Ratifications (11 parked decisions)   | [0019](adr/0019-audit-harvest-ratifications.md)              |

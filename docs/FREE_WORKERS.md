@@ -21,23 +21,6 @@ and only that, is when paid tokens re-enter.
 
 ## One-command launch
 
-```bash
-# Drive one packet through implement → validate → review with free workers
-./kitty builder initiative run-packet <initiative-id> <packet-id> --free --watch
-
-# Drive a whole initiative, packet by packet, on free workers
-./kitty builder initiative run <initiative-id> --free --max-attempts 12
-
-# One-shot task card outside the queue (clean isolated worktree required)
-bash scripts/opencode_free_train.sh <task-card.md>
-```
-
-`--free` wires in `scripts/kittybuilder_opencode_worker.sh` as the worker and
-`scripts/kittybuilder_opencode_reviewer.sh` as the reviewer. It replaces
-`--worker-command`/`--review-command`; passing both is an error.
-
-## The free-model ladder
-
 Both adapters walk the same zero-cost ladder the free train uses
 (`opencode/deepseek-v4-flash-free` → `opencode/mimo-v2.5-free` →
 `opencode/nemotron-3-ultra-free` → `opencode/north-mini-code-free` →
@@ -95,3 +78,28 @@ The worker timeout (`--timeout`, default 3600s) covers the whole ladder walk
 for one attempt, not one model. If every free endpoint is slow the attempt
 fails loudly at the deadline; that is an availability fact worth seeing, not
 a bug in the loop.
+
+## Multi-Agent Orchestration via Orca
+
+For workflows that benefit from parallel or phased agents, use Orca
+orchestration (skill: `.agents/skills/orca-orchestration/SKILL.md`).
+
+```
+# Split independent packets across parallel free workers
+orca orchestration task-create --spec "RE-C1: classifier + routing" --json
+orca orchestration task-create --spec "RE-C2: context budget" --json
+orca orchestration dispatch --task <id> --to <term> --inject --json
+
+# Run a phased pipeline (audit → fix → review)
+orca orchestration task-create --spec "Phase 1: audit" --json
+orca orchestration task-create --spec "Phase 2: fix" --deps '["task_1"]' --json
+orca orchestration run --spec "audit pipeline" --max-concurrent 1 --json
+
+# Hand off in-progress work between agents
+orca orchestration send --to @idle --type handoff --subject "..." --body "..."
+```
+
+The Orca orchestration layer is complementary to the Builder queue — Orca
+manages live agent sessions and worktree isolation; Builder owns durable task
+state and publication rails. Use Orca for parallel execution within a session;
+use Builder for multi-session campaigns with evidence-gated auto-merge.

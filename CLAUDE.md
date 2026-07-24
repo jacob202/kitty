@@ -105,6 +105,9 @@ If a command fails, report the failure exactly. Do not round up to passing.
 
 ## Cross-tool knowledge base
 
-`~/kb` holds cross-tool session history and learnings (Claude Code, Codex,
-ChatGPT, OpenCode) that outlive this repo. See `~/kb/CLAUDE.md`; ingest new
-resources with the `add-new-resource` skill documented there.
+`~/kb` is the shared context layer for every AI tool (Claude Code, Codex,
+ChatGPT, OpenCode) that outlives this repo. Read `~/kb/INDEX.md` then
+`~/kb/NOW.md` at session start when cross-project context matters; check
+`~/kb/corrections/` before repeating failed approaches; write durable
+cross-project learnings back per `~/kb/CLAUDE.md`. Kitty-specific truth
+still lives in this repo — the KB holds what crosses tools and projects.

@@ -46,8 +46,9 @@ const DEFAULT_VIEWPORT = { width: 1280, height: 800 };
 const MOBILE_VIEWPORT = { width: 390, height: 844 };
 
 const ROUTES: Route[] = [
+  // ── Home ──
   {
-    name: 'home-desktop',
+    name: 'home-desktop-cosmic',
     path: '/',
     viewport: DEFAULT_VIEWPORT,
     setup: async (page) => {
@@ -58,7 +59,7 @@ const ROUTES: Route[] = [
     },
   },
   {
-    name: 'home-mobile',
+    name: 'home-mobile-cosmic',
     path: '/',
     viewport: MOBILE_VIEWPORT,
     setup: async (page) => {
@@ -69,10 +70,129 @@ const ROUTES: Route[] = [
     },
   },
   {
+    name: 'home-desktop-day',
+    path: '/',
+    viewport: DEFAULT_VIEWPORT,
+    setup: async (page) => {
+      await page.addInitScript(() => {
+        window.localStorage.setItem('kitty-onboarded', 'true');
+        window.localStorage.setItem('kitty-theme', 'day');
+      });
+    },
+  },
+  {
+    name: 'home-desktop-night',
+    path: '/',
+    viewport: DEFAULT_VIEWPORT,
+    setup: async (page) => {
+      await page.addInitScript(() => {
+        window.localStorage.setItem('kitty-onboarded', 'true');
+        window.localStorage.setItem('kitty-theme', 'night');
+      });
+    },
+  },
+
+  // ── Chat (desktop only — sidebar, thread goal, signals) ──
+  {
+    name: 'chat-desktop-cosmic',
+    path: '/',
+    viewport: DEFAULT_VIEWPORT,
+    setup: async (page) => {
+      await page.addInitScript(() => {
+        window.localStorage.setItem('kitty-onboarded', 'true');
+        window.localStorage.setItem('kitty-theme', 'cosmic');
+      });
+      await page.waitForTimeout(1500);
+      await page.getByRole('button', { name: /chat/i }).click().catch(() => {});
+      await page.waitForTimeout(500);
+    },
+  },
+
+  // ── Work ──
+  {
+    name: 'work-desktop',
+    path: '/',
+    viewport: DEFAULT_VIEWPORT,
+    setup: async (page) => {
+      await page.addInitScript(() => {
+        window.localStorage.setItem('kitty-onboarded', 'true');
+        window.localStorage.setItem('kitty-theme', 'cosmic');
+      });
+      await page.waitForTimeout(1500);
+      await page.getByRole('button', { name: /work/i }).click().catch(() => {});
+      await page.waitForTimeout(500);
+    },
+  },
+
+  // ── Studio ──
+  {
+    name: 'studio-desktop',
+    path: '/',
+    viewport: DEFAULT_VIEWPORT,
+    setup: async (page) => {
+      await page.addInitScript(() => {
+        window.localStorage.setItem('kitty-onboarded', 'true');
+        window.localStorage.setItem('kitty-theme', 'cosmic');
+      });
+      await page.waitForTimeout(1500);
+      await page.getByRole('button', { name: /studio/i }).click().catch(() => {});
+      await page.waitForTimeout(500);
+    },
+  },
+
+  // ── Builder ──
+  {
+    name: 'builder-desktop',
+    path: '/',
+    viewport: DEFAULT_VIEWPORT,
+    setup: async (page) => {
+      await page.addInitScript(() => {
+        window.localStorage.setItem('kitty-onboarded', 'true');
+        window.localStorage.setItem('kitty-theme', 'cosmic');
+      });
+      await page.waitForTimeout(1500);
+      await page.getByRole('button', { name: /builder/i }).click().catch(() => {});
+      await page.waitForTimeout(500);
+    },
+  },
+
+  // ── Library ──
+  {
+    name: 'library-desktop',
+    path: '/',
+    viewport: DEFAULT_VIEWPORT,
+    setup: async (page) => {
+      await page.addInitScript(() => {
+        window.localStorage.setItem('kitty-onboarded', 'true');
+        window.localStorage.setItem('kitty-theme', 'cosmic');
+      });
+      await page.waitForTimeout(1500);
+      await page.getByRole('button', { name: /library/i }).click().catch(() => {});
+      await page.waitForTimeout(500);
+    },
+  },
+
+  // ── Settings ──
+  {
+    name: 'settings-desktop',
+    path: '/',
+    viewport: DEFAULT_VIEWPORT,
+    setup: async (page) => {
+      await page.addInitScript(() => {
+        window.localStorage.setItem('kitty-onboarded', 'true');
+        window.localStorage.setItem('kitty-theme', 'cosmic');
+      });
+      await page.waitForTimeout(1500);
+      await page.getByRole('button', { name: /settings/i }).click().catch(() => {});
+      await page.waitForTimeout(500);
+    },
+  },
+
+  // ── Onboarding ──
+  {
     name: 'onboarding-fresh',
     path: '/',
     viewport: DEFAULT_VIEWPORT,
-    // No setup; the page should render the onboarding modal.
   },
 ];
 

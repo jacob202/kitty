@@ -1,6 +1,6 @@
 ---
 name: session-end
-description: "Session hygiene — write kb/wiki entry, update NOW.md, write HANDOFF.md and STATE.md, show git status before stopping. USE WHEN: session end, end session, wrap up, wrap up session, close session, finish session, session over, save my work, save and exit, i'm done, ship it, before you go, finalize session"
+description: "Session hygiene — verify live git state, extract knowledge to ~/kb, update ~/kb/NOW.md, write HANDOFF.md and STATE.md, show git status before stopping. USE WHEN: session end, end session, wrap up, wrap up session, close session, finish session, session over, save my work, save and exit, i'm done, ship it, before you go, finalize session"
 ---
 
 # Session End — Knowledge Base, Handoff, and State
@@ -10,38 +10,56 @@ to leave the next session with a complete, accurate picture of what happened.
 
 Do NOT stop after writing one file. Run through every step.
 
+**The KB is `~/kb` (absolute) — the cross-tool knowledge base, a separate repo.
+Never write to a repo-relative `kb/` path; that forks the knowledge base.**
+
+## 0. Verify live state — never write from memory
+
+```bash
+git branch --show-current && git log --oneline -1 && git status --short
+```
+
+Test counts, SHAs, and "what's done" come from commands you JUST ran. If the
+tree surprises you (parallel sessions exist), report the surprise instead of
+writing fiction over it.
+
 ## 1. Extract durable knowledge
 
 Review the session conversation. For anything worth keeping across sessions:
 
-- Write `kb/wiki/YYYY-MM-DD-slug.md` — format:
+- Write `~/kb/wiki/YYYY-MM-DD-slug.md` — format:
   ```markdown
   # Title
   **Source:** <session date, which model discovered it>
   **Date:** YYYY-MM-DD
   **Why it matters:** one sentence on why this is reusably true
-  **Verified by:** <how you confirmed it — command output, doc citation, test pass>
-  
+  **Verified:** <how you confirmed it — command output, doc citation, test pass>
+
   <the finding>
   ```
-- Append one line to `kb/INDEX.md` under the Wiki section:
-  `| YYYY-MM-DD-slug | one-line summary |`
+- Append one line to `~/kb/INDEX.md` under the Wiki section.
+- Jacob corrected you in a generalizable way → `~/kb/corrections/YYYY-MM-DD-slug.md`
+  (wrong → right → one-line rule) instead of a wiki entry.
+- Provider/model gotcha → `~/kb/models.md`.
 
 Skip entries that are:
 - Session ephemera (task queue shuffling, typo fixes)
-- Already captured in a correction (those go to `kb/corrections/` instead)
 - Things Jacob already knows from identity.md or PREFERENCES.md
 
 **If nothing is durable:** say "No durable knowledge to extract from this session."
+**If an extraction comes back empty:** that is a FAILED RUN — say so loudly,
+never commit a template. (`~/kb/corrections/seed-opencode-lessons-extraction.md`)
 
-## 2. Update NOW.md
+## 2. Update ~/kb/NOW.md
 
-Read `kb/NOW.md`. Update it to reflect:
+Read `~/kb/NOW.md`. **Merge, don't clobber** — parallel sessions in other tools
+exist. Update:
 - Which project was worked on
 - What was accomplished (the done items, not the todo items)
 - What's blocked (with specific reasons, not vague "waiting on X")
-- Any sync changes (new docs, new kb entries, new tools configured)
+- "Which tool touched what last" table
 
+Prune lines older than ~7 days. Keep under 50 lines.
 If nothing changed since the last NOW update, say "NOW.md already current."
 
 ## 3. Write HANDOFF.md
@@ -52,28 +70,27 @@ Write `.claude/HANDOFF.md`. Structure:
 # Handoff — <one-line summary>
 
 ## What was done
-- <bullet list of concrete accomplishments>
-- <include file paths where helpful>
+- <bullet list of concrete accomplishments, with file paths>
 
 ## In-flight / WIP
-- <things started but not finished>
-- <branches that exist but aren't merged>
+- <things started but not finished; branches not merged>
 
 ## Blockers
-- <anything preventing forward progress>
-- <be specific about what's needed to unblock>
+- <anything preventing forward progress — be specific>
 
 ## Next move
 - <the single highest-priority action for the next session>
-- <optional: 2-3 secondary actions>
 
 ## Files changed this session
 - <paths relative to repo root>
+
+## Verification
+- <commands run and their results — evidence, not adjectives>
 ```
 
 ## 4. Write STATE.md
 
-Write `.claude/STATE.md`. Must include the JSON frontmatter block (`<!-- kitty-state ... -->`) exactly as in existing state files. Structure:
+Write `.claude/STATE.md`. Must include the JSON frontmatter block exactly:
 
 ```markdown
 # Session State — <one-line summary>
@@ -89,34 +106,25 @@ Write `.claude/STATE.md`. Must include the JSON frontmatter block (`<!-- kitty-s
   "completed_items": [...],
   "blockers": [...],
   "next_action": "...",
+  "invalidation_conditions": ["HEAD changes beyond <sha>"],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
 }
 -->
 
 ## Current checkpoint
-
 <1-2 sentences: branch, SHA, what state the repo is in.>
 
 ## Lessons applied
-
 <patterns or gotchas that were relevant this session — bullet list>
 ```
 
-The `status` field: use `complete` if everything shipped, `in-progress` if work continues,
-`blocked` if you hit a hard stop.
-
 ## 5. Git status
 
-Run `git status --short --branch` and include the output. Note any uncommitted
-or dirty files. Do NOT commit unless the user explicitly asks.
+Run `git status --short --branch` and include the output. Note uncommitted or
+dirty files. **Do NOT commit, push, or delete unless the user explicitly asks.**
+If other agents' uncommitted work is present, name it — don't claim it.
 
 ## 6. Confirm
 
-After writing all four files, show the user a one-line summary of what was written:
-- "Wrote kb/wiki/YYYY-MM-DD-slug.md — <topic>"
-- "Updated NOW.md — <what changed>"
-- "Wrote HANDOFF.md — <status: complete/in-progress/blocked>"
-- "Wrote STATE.md — branch <name> at <short sha>"
-
-Then stop. Do not start new work after completing session hygiene.
+One-line summary of every file written, then stop. Do not start new work.

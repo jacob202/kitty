@@ -157,7 +157,7 @@ function ErrorCard({ message, onRetry }: { message: string; onRetry?: () => void
     >
       <span style={{ flex: 1 }}>{message}</span>
       {onRetry && (
-        <button type="button" onClick={onRetry} style={actionButtonStyle}>
+        <button type="button" onClick={onRetry} style={actionButtonStyle} aria-label="retry loading">
           retry
         </button>
       )}
@@ -598,7 +598,7 @@ function WhatsNext({
             needs a decision · {Math.round(entry.confidence * 100)}% confident
           </div>
           <div>
-            <button type="button" onClick={() => onDecideInChat(entry)} style={primaryButtonStyle}>
+            <button type="button" onClick={() => onDecideInChat(entry)} style={primaryButtonStyle} aria-label="decide in chat">
               decide in chat
             </button>
           </div>
@@ -611,7 +611,7 @@ function WhatsNext({
             {step.why ? `why: ${step.why}` : 'project next step'}
           </div>
           <div>
-            <button type="button" onClick={() => onNavigate('projects')} style={primaryButtonStyle}>
+            <button type="button" onClick={() => onNavigate('projects')} style={primaryButtonStyle} aria-label="open projects">
               open projects
             </button>
           </div>
@@ -621,7 +621,7 @@ function WhatsNext({
           <div style={heroTextStyle}>{todo.content}</div>
           <div style={heroMetaStyle}>top of today&apos;s list — nothing louder is waiting</div>
           <div>
-            <button type="button" onClick={() => onNavigate('tasks')} style={primaryButtonStyle}>
+            <button type="button" onClick={() => onNavigate('tasks')} style={primaryButtonStyle} aria-label="open tasks">
               open tasks
             </button>
           </div>

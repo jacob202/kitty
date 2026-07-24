@@ -1,7 +1,6 @@
 'use client'
 
-import React, { type ComponentType } from 'react'
-import { HomeState } from '@/components/HomeState'
+import type { ComponentType } from 'react'
 
 export type ViewId =
   | 'home' | 'chat' | 'builder' | 'settings'
@@ -15,12 +14,12 @@ export interface ViewEntry {
   railSlot: boolean
 }
 
-function PlaceholderView(): React.ReactElement {
-  return <div />
+function PlaceholderView() {
+  return <div style={{ padding: 24, fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink-2)' }}>loading...</div>
 }
 
 export const VIEWS: Record<ViewId, ViewEntry> = {
-  home:      { component: HomeState,       title: 'Home',     icon: 'home',     railSlot: true },
+  home:      { component: PlaceholderView, title: 'Home',     icon: 'home',     railSlot: true },
   chat:      { component: PlaceholderView, title: 'Chat',     icon: 'chat',     railSlot: true },
   work:      { component: PlaceholderView, title: 'Work',     icon: 'work',     railSlot: true },
   studio:    { component: PlaceholderView, title: 'Studio',   icon: 'studio',   railSlot: true },
@@ -49,7 +48,6 @@ export const REDIRECTS: Record<string, ViewId> = {
   providers: 'settings',
   agents: 'settings',
   images: 'studio',
-  tutor: 'settings',
 }
 
 export function getView(id: string): ViewEntry | undefined {

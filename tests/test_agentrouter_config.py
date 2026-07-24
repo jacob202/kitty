@@ -60,7 +60,7 @@ def test_resolve_agentrouter_key_order_and_strip(monkeypatch: pytest.MonkeyPatch
 def test_normalize_litellm_request_model_maps_legacy_routes_to_single_route() -> None:
     assert lc.normalize_litellm_request_model("kitty-smart") == "kitty-default"
     assert lc.normalize_litellm_request_model("kitty-agent") == "kitty-default"
-    assert lc.normalize_litellm_request_model("kitty-fallback-or") == "kitty-default"
+    assert lc.normalize_litellm_request_model("kitty-fallback-or") == "kitty-small"
 
 
 def test_normalize_litellm_request_model_passthrough_for_explicit_ids() -> None:

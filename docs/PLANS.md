@@ -1,8 +1,10 @@
 # Kitty Current Plans — 2026-07-24
 
-**Canonical single source for what Kitty is building next.** Every other plan
-doc should be referenced here, then archived once its content is absorbed. No
-more hunting across `docs/planning/`, `docs/plans/`, and `docs/initiatives/`.
+**Canonical single source.** For the post-meta-analysis optimized plan, see
+`docs/INITIATIVES_OPTIMIZED_2026-07-24.md`. For the session analysis of what
+went wrong and what to do differently, see `docs/SESSION_META_2026-07-24.md`.
+
+This file is the reference map. The other two are the action plan.
 
 ## Active Mission
 

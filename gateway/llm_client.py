@@ -131,6 +131,8 @@ OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 
 # LiteLLM virtual name (gateway/litellm_config.yaml) — valid toward localhost:8001 only.
 _LITELLM_DEFAULT = "kitty-default"
+_LITELLM_SONNET = "kitty-sonnet"
+_LITELLM_SMALL = "kitty-small"
 
 
 def _env_slug(name: str, default: str) -> str:
@@ -138,24 +140,21 @@ def _env_slug(name: str, default: str) -> str:
     v = os.environ.get(name, "").strip()
     return v if v else default
 
-
-_OPENROUTER_DEFAULT = _env_slug("KITTY_OPENROUTER_CHEAP", "deepseek/deepseek-v4-flash")
-_GEMINI_MODEL = _env_slug("KITTY_GEMINI_MODEL", "gemini-2.5-flash-image")
-
 _LITELLM_TO_OPENROUTER: dict[str, str] = {
-    _LITELLM_DEFAULT: _OPENROUTER_DEFAULT,
-    "kitty-default-or": "qwen/qwen3-235b-a22b:free",
+    _LITELLM_DEFAULT: "openrouter/deepseek/deepseek-v4-pro",
+    "kitty-default-or": "openrouter/deepseek/deepseek-v4-flash",
 }
 
 _LEGACY_MODEL_ALIASES: dict[str, str] = {
     "kitty-agent": _LITELLM_DEFAULT,
     "kitty-smart": _LITELLM_DEFAULT,
     "kitty-parts": _LITELLM_DEFAULT,
-    "kitty-fallback-or": _LITELLM_DEFAULT,
+    "kitty-fallback-or": _LITELLM_SMALL,
     "deepseek/deepseek-chat": _LITELLM_DEFAULT,
     "deepseek/deepseek-v4-flash": _LITELLM_DEFAULT,
     "google/gemini-2.0-flash-001": _LITELLM_DEFAULT,
     "google/gemini-2.0-flash-exp:free": _LITELLM_DEFAULT,
+    "kitty-default-or": _LITELLM_SMALL,
 }
 
 
@@ -699,15 +698,11 @@ def chat(model: str, messages: list[dict], max_tokens: int = 500, temperature: f
         return call_llm(messages, model=model, max_tokens=max_tokens, temperature=temperature)
 
 
-_LITELLM_SONNET = "kitty-sonnet"
-
-
 def route_model(message: str) -> str:
     """Delegate to the complexity classifier for tier-aware model routing.
 
-    trivial/standard → kitty-default; deep → kitty-sonnet (with
-    KITTY_REASONING_MODEL overriding the deep alias). Routing selectors
-    only among existing LiteLLM aliases.
+    trivial → kitty-small (cheapest); standard → kitty-default;
+    deep → kitty-sonnet (KITTY_REASONING_MODEL overrides).
     """
     from gateway.reasoning import classify_complexity
 
@@ -722,7 +717,11 @@ def route_model(message: str) -> str:
         logger.debug("routing: deep -> %s (trigger: %s)", _LITELLM_SONNET, classification.trigger)
         return _LITELLM_SONNET
 
-    logger.debug("routing: %s -> %s (trigger: %s)", classification.tier, _LITELLM_DEFAULT, classification.trigger)
+    if classification.tier == "trivial":
+        logger.debug("routing: trivial -> %s (trigger: %s)", _LITELLM_SMALL, classification.trigger)
+        return _LITELLM_SMALL
+
+    logger.debug("routing: standard -> %s (trigger: %s)", _LITELLM_DEFAULT, classification.trigger)
     return _LITELLM_DEFAULT
 
 

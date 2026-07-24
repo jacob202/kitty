@@ -1,1060 +1,179 @@
-'use client';
-import { startTransition, useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import {
-  Chat,
-  Message,
-  MessageAttachment,
-  MemoryEvidence,
-  Model,
-  MODELS,
-  COLOR_CYCLE,
-  ChatColor,
-  normalizeMemoryEvidence,
-} from '@/lib/types';
-import { streamChat } from '@/lib/chat-client';
-import { inferMood } from '@/lib/mood';
-import { TopBar } from '@/components/TopBar';
-import { ThreadGoal } from '@/components/ThreadGoal';
-import { SignalFeed } from '@/components/SignalCard';
-import { InputBar } from '@/components/InputBar';
-import { Rail } from '@/components/Rail';
-import { BottomNav } from '@/components/BottomNav';
-import { SessionSidebar } from '@/components/SessionSidebar';
-import { OnboardingModal } from '@/components/OnboardingModal';
-import { CommandPalette } from '@/components/CommandPalette';
-import { ActiveTaskCards } from '@/components/ActiveTaskCards';
-import { KittyRuntimeProvider } from '@/components/KittyRuntimeProvider';
-import { ViewRenderer } from '@/components/ViewRenderer';
-import { StatusBar } from '@/components/StatusBar';
-import { WobFilters, PaperGrain } from '@/components/WobFilters';
-import { CatCorner, type CatState } from '@/components/CrayonCat';
-import { useKittyState } from '@/hooks/useKittyState';
-import {
-  buildGatewayModels,
-  fetchGatewaySearch,
-  uploadCaptureFile,
-  type GatewaySearchSnapshot,
-  type GatewayTriageEntry,
-} from '@/lib/gateway';
-import { validateAttachments, type AttachmentError } from '@/lib/attachment-validation';
-import { usePwaInstall } from '@/lib/pwa';
-import { REDIRECTS } from '@/lib/views';
-import {
-  useGatewayBrief,
-  useGatewayModels,
-  useGatewayRuntimeManifest,
-  useActiveProject,
-  useProjects,
-  useSetActiveProject,
-  useLoops,
-  useInsights,
-  usePrompts,
-  useToggleLoop,
-  useDismissInsight,
-  hasActiveBuilderRun,
-} from '@/lib/queries';
-
-const MOBILE_BREAKPOINT = 900;
-
-let chatCounter = 0;
-function newChatId() {
-  return `chat-${++chatCounter}-${Date.now()}`;
-}
-function newMsgId() {
-  return `msg-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-function makeChat(color: ChatColor): Chat {
-  return {
-    id: newChatId(),
-    title: 'new chat',
-    messages: [],
-    model: MODELS[0].id,
-    color,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-}
-
-interface RecoveredMessage {
-  id: string
-  role: 'user' | 'assistant';
-  content: string;
-  created_at: number;
-  model?: string | null;
-  status?: string;
-  attachments?: MessageAttachment[];
-  memory_items?: unknown;
-}
-
-/** Map a saved legacy chat blob into the UI shape with Date timestamps. */
-function legacyChat(c: Chat): Chat {
-  return {
-    ...c,
-    createdAt: new Date(c.createdAt),
-    updatedAt: new Date(c.updatedAt),
-    messages: (c.messages ?? []).map((m: Message) => {
-      const memoryItems = normalizeMemoryEvidence(m.memoryItems)
-      return {
-        ...m,
-        timestamp: new Date(m.timestamp),
-        ...(memoryItems.length ? { memoryItems } : {}),
-      }
-    }),
-  };
-}
-
-const SMALLTALK_PATTERNS = [
-  /^(what can you do|what do you do|who are you|how are you|good morning|good evening|good night|hello|hi|hey|yo)\b/i,
-  /^(ok|okay|k|thanks|thx|thank you|got it|nice|cool)$/i,
-  /^test/i,
-]
-
-function isSmalltalk(text: string): boolean {
-  const sanitized = text.trim().toLowerCase()
-  return SMALLTALK_PATTERNS.some((re) => re.test(sanitized))
-}
-
-function getInitials(email?: string): string {
-  if (!email) return 'JB';
-  const parts = email.replace(/@.*/, '').split(/[._-]/);
-  return (
-    parts
-      .slice(0, 2)
-      .map((p) => p[0]?.toUpperCase() ?? '')
-      .join('') || 'ME'
-  );
-}
-
-const USER_INITIALS = getInitials('jacobbrizinski@gmail.com');
-
-function latestSearchQuery(chat: Chat | null): string {
-  if (!chat) return '';
-  const lastUser = [...chat.messages]
-    .reverse()
-    .find((message) => message.role === 'user')
-    ?.content?.trim();
-  if (lastUser) return lastUser;
-  if (chat.title !== 'new chat') return chat.title.trim();
-  return '';
-}
+'use client'
+import { useKitty } from '@/state/KittyContext'
+import { TopBar } from '@/components/TopBar'
+import { ThreadGoal } from '@/components/ThreadGoal'
+import { SignalFeed } from '@/components/SignalCard'
+import { InputBar } from '@/components/InputBar'
+import { Rail } from '@/components/Rail'
+import { BottomNav } from '@/components/BottomNav'
+import { SessionSidebar } from '@/components/SessionSidebar'
+import { OnboardingModal } from '@/components/OnboardingModal'
+import { CommandPalette } from '@/components/CommandPalette'
+import { ActiveTaskCards } from '@/components/ActiveTaskCards'
+import { KittyRuntimeProvider } from '@/components/KittyRuntimeProvider'
+import { ViewRenderer } from '@/components/ViewRenderer'
+import { StatusBar } from '@/components/StatusBar'
+import { WobFilters, PaperGrain } from '@/components/WobFilters'
+import { CatCorner } from '@/components/CrayonCat'
 
 export default function KittyChat() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
-  if (!mounted) {
-    return <div style={{ height: '100vh', background: 'var(--bg)' }} />;
-  }
-
-  return <KittyChatInner />;
-}
-
-function KittyChatInner() {
-  const [chats, setChats] = useState<Chat[]>(() => [makeChat('teal')]);
-  const [activeView, setRawView] = useState('home');
-  const setActiveView = useCallback((v: string) => {
-    setRawView(REDIRECTS[v] ?? v)
-  }, []);
-  const [activeChatId, setActiveChatId] = useState<string | null>(() => null);
-  const [input, setInput] = useState('');
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [activeModel, setActiveModel] = useState<Model>(MODELS[0]);
-
-  const [tokenCount, setTokenCount] = useState(0);
-  const [searchSnapshot, setSearchSnapshot] = useState<GatewaySearchSnapshot | null>(null);
-  const [searchGateway, setSearchGateway] = useState<{
-    live: boolean;
-    error: string | null;
-  }>({ live: true, error: null });
-  const [kittyMode, setKittyMode] = useState('default');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [theme, setTheme] = useState<'cosmic' | 'day' | 'night'>('cosmic');
-  const [preferredName, setPreferredName] = useState('');
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'failed' | 'offline'>(
-    'idle',
-  );
-  const pwaInstall = usePwaInstall();
-  const [lastOutcome, setLastOutcome] = useState<'done' | 'broke' | null>(null);
-  const [attachments, setAttachments] = useState<MessageAttachment[]>([]);
-  // CR-07: one-shot model override — applies to the next message only.
-  const [overrideModel, setOverrideModel] = useState<Model | null>(null);
-
-  useEffect(() => {
-    fetch('/proxy/chats')
-      .then((r) => (r.ok ? r.json() : null))
-      .then(async (d) => {
-        const saved: Chat[] = d?.chats ?? [];
-        if (!saved.length) return;
-        const recovered = await Promise.all(
-          saved.map(async (c: Chat) => {
-            // Prefer the durable lifecycle ledger for history when it has
-            // messages; fall back to the legacy blob otherwise. The ledger is
-            // the honest source for restart recovery.
-            try {
-              const res = await fetch(`/proxy/chats/${encodeURIComponent(c.id)}/messages`);
-              if (!res.ok) return legacyChat(c);
-              const payload = await res.json();
-              const ledgerMessages = payload?.messages ?? [];
-              if (!ledgerMessages.length) return legacyChat(c);
-              return {
-                ...c,
-                createdAt: new Date(c.createdAt),
-                updatedAt: new Date(c.updatedAt),
-                messages: ledgerMessages.map((m: RecoveredMessage) => {
-                  const memoryItems = normalizeMemoryEvidence(m.memory_items)
-                  return {
-                    id: m.id,
-                    role: m.role,
-                    content: m.content,
-                    timestamp: new Date(m.created_at * 1000),
-                    ...(m.model ? { model: m.model } : {}),
-                    ...(m.status ? { turnStatus: m.status as Message['turnStatus'] } : {}),
-                    ...(m.attachments?.length
-                      ? { attachments: m.attachments as MessageAttachment[] }
-                      : {}),
-                    ...(memoryItems.length ? { memoryItems } : {}),
-                  }
-                }),
-              };
-            } catch {
-              return legacyChat(c);
-            }
-          }),
-        );
-        setChats(recovered);
-      })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const media = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`);
-    const syncViewport = () => setIsMobile(media.matches);
-
-    syncViewport();
-    if (typeof media.addEventListener === 'function') {
-      media.addEventListener('change', syncViewport);
-      return () => media.removeEventListener('change', syncViewport);
-    }
-
-    media.addListener(syncViewport);
-    return () => media.removeListener(syncViewport);
-  }, []);
-
-  useEffect(() => {
-    if (!isMobile) {
-      setMobileSidebarOpen(false);
-    }
-  }, [isMobile]);
-
-  useEffect(() => {
-    const savedTheme = window.localStorage.getItem('kitty-theme');
-    const savedName = window.localStorage.getItem('kitty-preferred-name');
-    setPreferredName(savedName ?? '');
-    if (savedTheme === 'cosmic' || savedTheme === 'day' || savedTheme === 'night') {
-      setTheme(savedTheme);
-      document.documentElement.setAttribute('data-theme', savedTheme);
-    }
-    const hasLocal = window.localStorage.getItem('kitty-onboarded') === 'true';
-    if (hasLocal) {
-      setShowOnboarding(false);
-      return;
-    }
-    fetch('/proxy/onboarding')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (d?.onboarded) {
-          setShowOnboarding(false);
-          if (d.preferredName) setPreferredName(d.preferredName);
-          if (d.theme) {
-            setTheme(d.theme);
-            document.documentElement.setAttribute('data-theme', d.theme);
-          }
-          window.localStorage.setItem('kitty-onboarded', 'true');
-          if (d.preferredName) window.localStorage.setItem('kitty-preferred-name', d.preferredName);
-          if (d.theme) window.localStorage.setItem('kitty-theme', d.theme);
-        } else {
-          setShowOnboarding(true);
-        }
-      })
-      .catch(() => {
-        setShowOnboarding(!hasLocal);
-      });
-  }, []);
-
-  // Gateway status queries — models for TopBar, brief for the offline banner.
-  const queryClient = useQueryClient();
-  const modelsQuery = useGatewayModels();
-  const runtimeQuery = useGatewayRuntimeManifest();
-  const projectsQuery = useProjects();
-
-  const catState = useKittyState({
-    isStreaming,
-    lastError: lastOutcome === 'broke',
-    builderActive: runtimeQuery.data ? hasActiveBuilderRun(runtimeQuery.data) : false,
-  });
-  const activeProjectQuery = useActiveProject();
-  const setActiveProject = useSetActiveProject();
-  const briefQuery = useGatewayBrief();
-  // Loops/insights/prompts still bind to real data but aren't part of the
-  // console home surface — they live in the Tools view instead.
-  const loopsQuery = useLoops();
-  const insightsQuery = useInsights();
-  const promptsQuery = usePrompts();
-  const toggleLoop = useToggleLoop();
-  const dismissInsight = useDismissInsight();
-
-  const runtimeModelIds = runtimeQuery.data?.inference.available_models.value;
-  const availableModels = useMemo(
-    () => runtimeModelIds
-      ? buildGatewayModels(runtimeModelIds)
-      : modelsQuery.data?.models ?? MODELS,
-    [runtimeModelIds, modelsQuery.data?.models],
-  );
-  const modelGateway = {
-    loaded: modelsQuery.isFetched,
-    live:
-      runtimeQuery.isSuccess
-      && runtimeQuery.data?.inference.available_models.state === 'available'
-      && modelsQuery.data?.fromLiveGateway === true,
-    error: modelsQuery.data?.error ?? null,
-  };
-  const briefGateway = {
-    loaded: briefQuery.isFetched,
-    live: briefQuery.data?.fromLiveGateway ?? true,
-    error: briefQuery.data?.error ?? null,
-  };
-
-  const loops = loopsQuery.data?.loops ?? [];
-  const insights = insightsQuery.data?.insights ?? [];
-  const promptTemplates = promptsQuery.data ?? [];
-  const activeProject = activeProjectQuery.data?.project ?? null;
-  const projects = projectsQuery.data ?? [];
-
-  const handleSelectProject = useCallback(
-    (projectId: number) => setActiveProject.mutate(projectId),
-    [setActiveProject],
-  );
-
-  const abortRef = useRef<AbortController | null>(null);
-  const colorIndexRef = useRef(0);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  const activeChat = chats.find((c) => c.id === activeChatId) ?? chats[0] ?? null;
-  const userMessageCount = activeChat?.messages.filter((m) => m.role === 'user').length ?? 0;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const searchQuery = useMemo(
-    () => latestSearchQuery(activeChat),
-    [activeChatId, userMessageCount],
-  );
-
-  useEffect(() => {
-    if (chats.length > 0 && !activeChatId) {
-      setActiveChatId(chats[0].id);
-    }
-  }, [chats, activeChatId]);
-
-  // Sync activeModel with the authoritative runtime model list once it loads.
-  useEffect(() => {
-    if (!availableModels.length) return;
-    const models = availableModels;
-    setActiveModel((current) => models.find((m) => m.id === current.id) ?? models[0] ?? current);
-  }, [availableModels]);
-
-  useEffect(() => {
-    if (!searchQuery) {
-      setSearchSnapshot(null);
-      setSearchGateway({ live: true, error: null });
-      return;
-    }
-
-    const controller = new AbortController();
-
-    const timeoutId = window.setTimeout(async () => {
-      const payload = await fetchGatewaySearch(searchQuery, 3, controller.signal);
-      if (controller.signal.aborted) return;
-      startTransition(() => {
-        setSearchSnapshot(payload.snapshot);
-        setSearchGateway({ live: payload.fromLiveGateway, error: payload.error });
-      });
-    }, 400);
-
-    return () => {
-      clearTimeout(timeoutId);
-      controller.abort();
-    };
-  }, [searchQuery]);
-
-  // rough token estimate: ~4 chars per token
-  useEffect(() => {
-    if (!activeChat) return;
-    const chars = activeChat.messages.reduce((sum, m) => sum + m.content.length, 0);
-    setTokenCount(Math.round(chars / 4));
-  }, [activeChat?.messages]);
-
-  const handleNewChat = useCallback(() => {
-    const color = COLOR_CYCLE[colorIndexRef.current % COLOR_CYCLE.length];
-    colorIndexRef.current++;
-    const chat = makeChat(color);
-    chat.model = activeModel.id;
-    setChats((prev) => [...prev, chat]);
-    setActiveChatId(chat.id);
-    setInput('');
-  }, [activeModel.id]);
-
-  const handleToggleTheme = useCallback(() => {
-    setTheme((t) => {
-      const next = t === 'cosmic' ? 'day' : t === 'day' ? 'night' : 'cosmic';
-      document.documentElement.setAttribute('data-theme', next);
-      window.localStorage.setItem('kitty-theme', next);
-      return next;
-    });
-  }, []);
-
-  const handleToggleSidebar = useCallback(() => {
-    if (isMobile) {
-      setMobileSidebarOpen((open) => !open);
-      return;
-    }
-    setSidebarCollapsed((collapsed) => !collapsed);
-  }, [isMobile]);
-
-  const handleSelectChat = useCallback(
-    (id: string) => {
-      setActiveChatId(id);
-      setActiveView('chat');
-      if (isMobile) {
-        setMobileSidebarOpen(false);
-      }
-    },
-    [isMobile],
-  );
-
-  const handleSidebarNewChat = useCallback(() => {
-    handleNewChat();
-    setActiveView('chat');
-    if (isMobile) {
-      setMobileSidebarOpen(false);
-    }
-  }, [handleNewChat, isMobile]);
-
-  const handleCloseChat = useCallback(
-    (id: string) => {
-      setChats((prev) => {
-        const next = prev.filter((c) => c.id !== id);
-        if (next.length === 0) {
-          const fresh = makeChat(COLOR_CYCLE[colorIndexRef.current % COLOR_CYCLE.length]);
-          colorIndexRef.current++;
-          return [fresh];
-        }
-        return next;
-      });
-      setActiveChatId((prev) => {
-        if (prev !== id) return prev;
-        const remaining = chats.filter((c) => c.id !== id);
-        return remaining[remaining.length - 1]?.id ?? null;
-      });
-    },
-    [chats],
-  );
-
-  const handleSelectModel = useCallback(
-    (m: Model) => {
-      setActiveModel(m);
-      if (activeChat) {
-        setChats((prev) => prev.map((c) => (c.id === activeChat.id ? { ...c, model: m.id } : c)));
-      }
-    },
-    [activeChat],
-  );
-
-  const updateChat = useCallback((id: string, updater: (c: Chat) => Chat) => {
-    setChats((prev) => prev.map((c) => (c.id === id ? updater(c) : c)));
-  }, []);
-
-  // Persist a chat to SQLite via the gateway, tracking the outcome so the UI
-  // can say saved / failed / offline instead of silently dropping history.
-  // Returns whether the save landed so callers (ThreadGoal's create-then-patch
-  // path) can react instead of guessing.
-  const persistChat = useCallback(async (chat: Chat): Promise<boolean> => {
-    setSaveState('saving');
-    try {
-      const res = await fetch('/proxy/chats', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(chat),
-      });
-      if (res.ok) {
-        setSaveState('saved');
-        return true;
-      }
-      // The proxy answers 5xx when the gateway itself is unreachable.
-      setSaveState(res.status >= 500 ? 'offline' : 'failed');
-      return false;
-    } catch {
-      setSaveState('offline');
-      return false;
-    }
-  }, []);
-
-  // Server-confirmed objective from PATCH /chats/{id}/objective — keyed by
-  // chat id so a response landing after a thread switch still updates the
-  // right chat. undefined mirrors how loaded chats represent "no goal".
-  const handleObjectiveSaved = useCallback(
-    (chatId: string, objective: string | null) => {
-      updateChat(chatId, (c) => ({ ...c, objective: objective ?? undefined }));
-    },
-    [updateChat],
-  );
-
-  const handleRetrySave = useCallback(() => {
-    const chat = chats.find((c) => c.id === activeChatId);
-    if (chat) void persistChat(chat);
-  }, [chats, activeChatId, persistChat]);
-
-  /** Stream one assistant reply into `chat` given `history` (ends with a user
-   *  message). Shared by send and retry so the cat's outcome states stay honest. */
-  const runStream = useCallback(async (chat: Chat, history: Message[], title: string, attachmentIds: string[] = [], modelOverride?: Model) => {
-    const latestUserMessage = [...history].reverse().find((message) => message.role === 'user');
-    if (!latestUserMessage) {
-      throw new Error('Cannot start a chat turn without a user message');
-    }
-    // CR-07: a one-shot override applies to this turn only; the next message
-    // reverts to normal routing via activeModel.
-    const turnModel = modelOverride ?? activeModel;
-    setIsStreaming(true);
-    setLastOutcome(null);
-
-    const aiMsgId = newMsgId();
-    const aiMsg: Message = {
-      id: aiMsgId,
-      role: 'assistant',
-      content: '',
-      timestamp: new Date(),
-      model: turnModel.name,
-    };
-
-    updateChat(chat.id, (c) => ({ ...c, messages: [...history, aiMsg] }));
-
-    const abort = new AbortController();
-    abortRef.current = abort;
-
-    let accumulated = '';
-    let memoryItems: MemoryEvidence[] | undefined;
-    let toolCalls: import('@/lib/types').ToolCall[] | undefined;
-    try {
-      for await (const chunk of streamChat(
-        turnModel.id,
-        history,
-        abort.signal,
-        activeProject?.id,
-        chat.id,
-        latestUserMessage.id,
-        title,
-        attachmentIds,
-      )) {
-        if (chunk.done) break;
-        if (chunk.memoryItems?.length) {
-          memoryItems = chunk.memoryItems;
-          continue;
-        }
-        if (chunk.toolCalls?.length) {
-          toolCalls = chunk.toolCalls;
-          updateChat(chat.id, (c) => ({
-            ...c,
-            messages: c.messages.map((m) => (m.id === aiMsgId ? { ...m, toolCalls } : m)),
-          }));
-          continue;
-        }
-        accumulated += chunk.content;
-        const content = accumulated;
-        updateChat(chat.id, (c) => ({
-          ...c,
-          messages: c.messages.map((m) => (m.id === aiMsgId ? { ...m, content } : m)),
-        }));
-      }
-
-      const mood = inferMood(accumulated, 'assistant');
-      const extras = {
-        ...(memoryItems && !isSmalltalk(latestUserMessage.content) ? { memoryItems } : {}),
-        ...(toolCalls?.length ? { toolCalls } : {}),
-      };
-      updateChat(chat.id, (c) => ({
-        ...c,
-        updatedAt: new Date(),
-        messages: c.messages.map((m) =>
-          m.id === aiMsgId
-            ? { ...m, content: accumulated, mood, ...extras }
-            : m,
-        ),
-      }));
-      setLastOutcome('done');
-      window.setTimeout(() => setLastOutcome((o) => (o === 'done' ? null : o)), 2500);
-
-      void persistChat({
-        id: chat.id,
-        title,
-        model: turnModel.id,
-        color: chat.color,
-        createdAt: chat.createdAt,
-        updatedAt: new Date(),
-        messages: [
-          ...history,
-          { ...aiMsg, content: accumulated, mood, ...extras },
-        ],
-      });
-    } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        const interruptedContent = accumulated
-          ? `${accumulated}\n\n⚠ generation stopped before completion.`
-          : '⚠ generation stopped before Kitty returned a response.';
-        const interruptedMessage: Message = {
-          ...aiMsg,
-          content: interruptedContent,
-          mood: 'confused',
-          turnStatus: 'interrupted',
-        };
-        updateChat(chat.id, (c) => ({
-          ...c,
-          updatedAt: new Date(),
-          messages: c.messages.map((m) => (m.id === aiMsgId ? interruptedMessage : m)),
-        }));
-        void persistChat({
-          id: chat.id,
-          title,
-          model: turnModel.id,
-          color: chat.color,
-          createdAt: chat.createdAt,
-          updatedAt: new Date(),
-          messages: [...history, interruptedMessage],
-        });
-        return;
-      }
-      setLastOutcome('broke');
-      updateChat(chat.id, (c) => ({
-        ...c,
-        messages: c.messages.map((m) =>
-          m.id === aiMsgId
-            ? {
-                ...m,
-                content: `⚠ ${err instanceof Error ? err.message : 'error connecting to gateway'}`,
-                mood: 'confused' as const,
-              }
-            : m,
-        ),
-      }));
-      // The stream died, but the user's message still deserves to survive a
-      // restart — persist it (the ⚠ bubble stays UI-only) and show the outcome.
-      void persistChat({
-        id: chat.id,
-        title,
-        model: turnModel.id,
-        color: chat.color,
-        createdAt: chat.createdAt,
-        updatedAt: new Date(),
-        messages: history,
-      });
-    } finally {
-      setIsStreaming(false);
-      abortRef.current = null;
-    }
-  }, [activeModel, activeProject?.id, updateChat, persistChat]);
-
-  const handleSend = useCallback(async () => {
-    const text = input.trim();
-    if (!text || isStreaming || !activeChat) return;
-
-    const userMsg: Message = {
-      id: newMsgId(),
-      role: 'user',
-      content: text,
-      timestamp: new Date(),
-      attachments: attachments.length ? [...attachments] : undefined,
-    };
-
-    // derive title from first message
-    const isFirst = activeChat.messages.length === 0;
-    const title = isFirst ? text.slice(0, 32) + (text.length > 32 ? '…' : '') : activeChat.title;
-
-    updateChat(activeChat.id, (c) => ({
-      ...c,
-      title,
-      messages: [...c.messages, userMsg],
-      updatedAt: new Date(),
-    }));
-    setInput('');
-    setAttachments([]);
-    setActiveView('chat');
-    const attachmentIds = attachments.map((a) => a.id);
-    const oneShot = overrideModel ?? undefined;
-    setOverrideModel(null);
-    void runStream(activeChat, [...activeChat.messages, userMsg], title, attachmentIds, oneShot);
-  }, [input, isStreaming, activeChat, runStream, overrideModel]);
-
-
-  const handleRetry = useCallback(() => {
-    if (!activeChat || isStreaming) return;
-    const history = [...activeChat.messages];
-    while (history.length && history.at(-1)?.role === 'assistant') history.pop();
-    if (history.length === 0) return;
-    updateChat(activeChat.id, (c) => ({ ...c, messages: history }));
-    void runStream(activeChat, history, activeChat.title);
-  }, [activeChat, isStreaming, updateChat, runStream]);
-
-  const handleStop = useCallback(() => {
-    abortRef.current?.abort();
-  }, []);
-
-  const handleRuntimeSend = useCallback((text: string) => {
-    if (!text.trim() || isStreaming || !activeChat) return;
-    const userMsg: Message = {
-      id: newMsgId(),
-      role: 'user',
-      content: text.trim(),
-      timestamp: new Date(),
-    };
-    const isFirst = activeChat.messages.length === 0;
-    const title = isFirst ? text.slice(0, 32) + (text.length > 32 ? '…' : '') : activeChat.title;
-    updateChat(activeChat.id, (c) => ({
-      ...c,
-      title,
-      messages: [...c.messages, userMsg],
-      updatedAt: new Date(),
-    }));
-    setInput('');
-    setAttachments([]);
-    setActiveView('chat');
-    void runStream(activeChat, [...activeChat.messages, userMsg], title);
-  }, [isStreaming, activeChat, updateChat, runStream]);
-
-  const handlePromptSelect = useCallback((text: string) => {
-    setInput(text);
-    setActiveView('chat');
-    setTimeout(() => textareaRef.current?.focus(), 0);
-  }, []);
-
-  const [attachmentErrors, setAttachmentErrors] = useState<AttachmentError[]>([]);
-
-  const handleAddFiles = useCallback(
-    async (files: FileList) => {
-      if (!activeChat) return;
-      const { valid, errors } = validateAttachments(files);
-      if (errors.length) setAttachmentErrors(errors);
-      else setAttachmentErrors([]);
-
-      const added: MessageAttachment[] = [];
-      for (const file of valid) {
-        const result = await uploadCaptureFile(file, {
-          conversationId: activeChat.id,
-          projectId: activeProject?.id,
-        });
-        if (result?.artifact_id) {
-          added.push({
-            id: result.artifact_id,
-            display_name: file.name,
-            media_type: file.type || 'application/octet-stream',
-            size: file.size,
-          });
-        }
-      }
-      if (added.length) setAttachments((prev) => [...prev, ...added]);
-    },
-    [activeChat, activeProject?.id],
-  );
-
-  const handleRemoveAttachment = useCallback((id: string) => {
-    setAttachments((prev) => prev.filter((a) => a.id !== id));
-  }, []);
-
-  const handleDecideInChat = useCallback(
-    (entry: GatewayTriageEntry) => {
-      handlePromptSelect(`Help me decide what to do with this: ${entry.text ?? `inbox entry ${entry.inbox_id}`}`);
-    },
-    [handlePromptSelect],
-  );
-
-  const handleLoopToggle = useCallback(
-    (loopId: string) => {
-      toggleLoop.mutate(loopId);
-    },
-    [toggleLoop],
-  );
-
-  const handleInsightDismiss = useCallback(
-    (insightId: string) => {
-      dismissInsight.mutate(insightId);
-    },
-    [dismissInsight],
-  );
-
-  const handleInsightAction = useCallback((_insightId: string, _actionId: string) => {}, []);
-
-  const retryGatewayBootstrap = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['models'] });
-    queryClient.invalidateQueries({ queryKey: ['brief'] });
-    queryClient.invalidateQueries({ queryKey: ['state'] });
-    queryClient.invalidateQueries({ queryKey: ['actions'] });
-    queryClient.invalidateQueries({ queryKey: ['todos'] });
-    queryClient.invalidateQueries({ queryKey: ['inbox'] });
-    queryClient.invalidateQueries({ queryKey: ['loops'] });
-    queryClient.invalidateQueries({ queryKey: ['insights'] });
-    queryClient.invalidateQueries({ queryKey: ['prompts'] });
-  }, [queryClient]);
-
-  const handlePwaInstall = useCallback(() => {
-    void pwaInstall.install().catch((error) => {
-      console.error('Kitty install failed:', error);
-    });
-  }, [pwaInstall]);
+  const k = useKitty()
 
   return (
     <div
       style={{
-        display: 'flex',
-        height: '100vh',
-        width: '100vw',
-        overflow: 'hidden',
-        position: 'relative',
-        background: 'var(--bg)',
-        color: 'var(--ink)',
+        display: 'flex',         height: '100dvh', width: '100vw', overflow: 'hidden',
+        position: 'relative', background: 'var(--bg)', color: 'var(--ink)',
         fontFamily: 'var(--font-body)',
       }}
     >
       <WobFilters />
-      {showOnboarding && (
+
+      {k.showOnboarding && (
         <OnboardingModal
           onComplete={({ theme: selectedTheme }) => {
-            setTheme(selectedTheme);
-            setPreferredName(window.localStorage.getItem('kitty-preferred-name') ?? '');
-            document.documentElement.setAttribute('data-theme', selectedTheme);
-            setShowOnboarding(false);
+            k.setTheme(selectedTheme)
+            k.setPreferredName(window.localStorage.getItem('kitty-preferred-name') ?? '')
+            document.documentElement.setAttribute('data-theme', selectedTheme)
+            k.setShowOnboarding(false)
           }}
         />
       )}
 
-      {!isMobile && (
-        <Rail
-          activeView={activeView}
-          onViewChange={setActiveView}
-          theme={theme}
-          onToggleTheme={handleToggleTheme}
-        />
-      )}
+      {!k.isMobile && <Rail activeView={k.activeView} onViewChange={k.setActiveView} theme={k.theme} onToggleTheme={k.handleToggleTheme} />}
+      {k.isMobile && <BottomNav activeView={k.activeView} onViewChange={k.setActiveView} />}
 
-      {isMobile && <BottomNav activeView={activeView} onViewChange={setActiveView} />}
-
-      {!isMobile && activeView === 'chat' && (
+      {!k.isMobile && k.activeView === 'chat' && (
         <SessionSidebar
-          chats={chats}
-          activeChatId={activeChatId}
-          onSelectChat={handleSelectChat}
-          onNewChat={handleSidebarNewChat}
-          onCloseChat={handleCloseChat}
-          collapsed={sidebarCollapsed}
+          chats={k.chats} activeChatId={k.activeChatId}
+          onSelectChat={k.handleSelectChat} onNewChat={() => { k.handleNewChat(); k.setActiveView('chat') }}
+          onCloseChat={k.handleCloseChat} collapsed={k.sidebarCollapsed}
         />
       )}
 
-      {isMobile && mobileSidebarOpen && activeView === 'chat' && (
+      {k.isMobile && k.mobileSidebarOpen && k.activeView === 'chat' && (
         <>
-          <div
-            onClick={() => setMobileSidebarOpen(false)}
-            style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(0, 0, 0, 0.6)',
-              zIndex: 40,
-            }}
-          />
-          <div
-            style={{
-              position: 'fixed',
-              inset: '0 auto 0 0',
-              width: 'min(320px, 84vw)',
-              height: '100vh',
-              zIndex: 50,
-              boxShadow: 'var(--shadow)',
-            }}
-          >
+          <div onClick={() => k.setMobileSidebarOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.6)', zIndex: 40 }} />
+          <div style={{ position: 'fixed', inset: '0 auto 0 0', width: 'min(320px, 84vw)',         height: '100dvh', zIndex: 50, boxShadow: 'var(--shadow)' }}>
             <SessionSidebar
-              chats={chats}
-              activeChatId={activeChatId}
-              onSelectChat={handleSelectChat}
-              onNewChat={handleSidebarNewChat}
-              onCloseChat={handleCloseChat}
-              collapsed={false}
-              width="min(320px, 84vw)"
+              chats={k.chats} activeChatId={k.activeChatId}
+              onSelectChat={k.handleSelectChat}
+              onNewChat={() => { k.handleNewChat(); k.setActiveView('chat'); if (k.isMobile) k.setMobileSidebarOpen(false) }}
+              onCloseChat={k.handleCloseChat} collapsed={false} width="min(320px, 84vw)"
             />
           </div>
         </>
       )}
 
       <KittyRuntimeProvider
-        messages={activeChat?.messages ?? []}
-        isStreaming={isStreaming}
-        activeModel={activeModel}
-        onSend={handleRuntimeSend}
-        onCancel={handleStop}
-        onReload={handleRetry}
+        messages={k.activeChat?.messages ?? []} isStreaming={k.isStreaming}
+        activeModel={k.activeModel} onSend={k.handleRuntimeSend}
+        onCancel={k.handleStop} onReload={k.handleRetry}
       >
-      <main
-        style={{
-          flex: 1,
-          minWidth: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          minHeight: 0,
-          overflow: 'hidden',
-          background: 'var(--bg)',
-        }}
-      >
-        <TopBar
-          activeModel={activeModel}
-          models={availableModels}
-          onSelectModel={handleSelectModel}
-
-          isStreaming={isStreaming}
-          modelFromGateway={modelGateway.live}
-          activeView={activeView}
-          onViewChange={setActiveView}
-          kittyMode={kittyMode}
-          onKittyModeChange={setKittyMode}
-          sidebarCollapsed={sidebarCollapsed}
-          onToggleSidebar={handleToggleSidebar}
-          isMobile={isMobile}
-          catState={catState}
-          activeProject={activeProject}
-          projects={projects}
-          onSelectProject={handleSelectProject}
-          projectLoading={projectsQuery.isLoading || activeProjectQuery.isLoading}
-          projectBusy={setActiveProject.isPending}
-          runtimeState={runtimeQuery.data?.connections.gateway.state ?? 'unknown'}
-          runtimeDetail={
-            runtimeQuery.data?.connections.gateway.reason
-            ?? (runtimeQuery.error instanceof Error ? runtimeQuery.error.message : undefined)
-          }
-        />
-
-        {activeView === 'chat' && (
-          <ThreadGoal
-            chat={activeChat}
-            compact={isMobile}
-            onObjectiveSaved={handleObjectiveSaved}
-            onEnsurePersisted={persistChat}
+        <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', background: 'var(--bg)' }}>
+          <TopBar
+            activeModel={k.activeModel} models={k.availableModels} onSelectModel={k.handleSelectModel}
+            isStreaming={k.isStreaming} modelFromGateway={k.modelGateway.live}
+            activeView={k.activeView} onViewChange={k.setActiveView}
+            kittyMode="default" onKittyModeChange={() => {}}
+            sidebarCollapsed={k.sidebarCollapsed} onToggleSidebar={k.handleToggleSidebar}
+            isMobile={k.isMobile} catState={k.catState}
+            activeProject={k.activeProject} projects={k.projects} onSelectProject={k.handleSelectProject}
+            projectLoading={k.projectsQuery.isLoading || k.activeProjectQuery.isLoading}
+            projectBusy={k.setActiveProject.isPending}
+            runtimeState={k.runtimeQuery.data?.connections.gateway.state ?? 'unknown'}
+            runtimeDetail={k.runtimeQuery.data?.connections.gateway.reason ?? (k.runtimeQuery.error instanceof Error ? k.runtimeQuery.error.message : undefined)}
           />
-        )}
 
-        {activeView === 'chat' && <SignalFeed compact={isMobile} />}
+          {k.activeView === 'chat' && !k.isMobile && (
+            <ThreadGoal chat={k.activeChat} compact={k.isMobile} onObjectiveSaved={k.handleObjectiveSaved} onEnsurePersisted={k.persistChat} />
+          )}
+          {k.activeView === 'chat' && !k.isMobile && <SignalFeed compact={k.isMobile} />}
 
-        <StatusBar
-          showChatSignals={activeView === 'chat'}
-          attachmentErrors={attachmentErrors}
-          gatewayOffline={modelGateway.loaded && !modelGateway.live}
-          onRetryGateway={retryGatewayBootstrap}
-          saveState={saveState}
-          onRetrySave={handleRetrySave}
-          briefUnavailable={
-            modelGateway.loaded && modelGateway.live && briefGateway.loaded && !briefGateway.live
-          }
-          briefError={briefGateway.error}
-          pwaState={pwaInstall.state}
-          pwaError={pwaInstall.error}
-          pwaInstalling={pwaInstall.installing}
-          onPwaInstall={handlePwaInstall}
-        />
-
-        <div
-          style={{
-            flex: 1,
-            overflowY: 'auto',
-            display: 'flex',
-            flexDirection: 'column',
-            minHeight: 0,
-          }}
-        >
-          <ViewRenderer
-            view={activeView}
-            compact={isMobile}
-            theme={theme}
-            onToggleTheme={handleToggleTheme}
-            chatProps={{
-              messages: activeChat?.messages ?? [],
-              chatId: activeChat?.id ?? '',
-              isStreaming,
-              catState,
-              onRetry: handleRetry,
-              onStartClick: () => textareaRef.current?.focus(),
-              onChipClick: (chip: string) => { setInput(chip); textareaRef.current?.focus(); },
-            }}
-            homeProps={{
-              preferredName,
-              onDecideInChat: handleDecideInChat,
-              onNavigate: setActiveView,
-            }}
-            builderProps={{
-              onBack: () => setActiveView('home'),
-            }}
-            toolsProps={{
-              loops,
-              insights,
-              promptTemplates,
-              onLoopToggle: handleLoopToggle,
-              onInsightDismiss: handleInsightDismiss,
-              onInsightAction: handleInsightAction,
-              onPromptSelect: handlePromptSelect,
-              loopsLoading: loopsQuery.isLoading,
-              insightsLoading: insightsQuery.isLoading,
-              promptsLoading: promptsQuery.isLoading,
-            }}
+          <StatusBar
+            showChatSignals={k.activeView === 'chat' || k.activeView === 'home'}
+            attachmentErrors={k.attachmentErrors}
+            gatewayOffline={k.modelGateway.loaded && !k.modelGateway.live}
+            onRetryGateway={k.retryGatewayBootstrap}
+            saveState={k.saveState} onRetrySave={k.handleRetrySave}
+            briefUnavailable={k.modelGateway.loaded && k.modelGateway.live && k.briefGateway.loaded && !k.briefGateway.live}
+            briefError={k.briefGateway.error}
+            pwaState={k.pwaInstall.state} pwaError={k.pwaInstall.error}
+            pwaInstalling={k.pwaInstall.installing} onPwaInstall={() => void k.pwaInstall.install().catch(console.error)}
           />
-        </div>
 
-        {activeView === 'chat' && <ActiveTaskCards compact={isMobile} />}
+          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <ViewRenderer
+              view={k.activeView}
+              compact={k.isMobile}
+              theme={k.theme}
+              onToggleTheme={k.handleToggleTheme}
+              chatProps={{
+                messages: k.activeChat?.messages ?? [],
+                chatId: k.activeChat?.id ?? '',
+                isStreaming: k.isStreaming,
+                catState: k.catState,
+                onRetry: k.handleRetry,
+                onStartClick: () => k.textareaRef.current?.focus(),
+                onChipClick: (chip: string) => { k.setInput(chip); k.textareaRef.current?.focus() },
+              }}
+              homeProps={{
+                preferredName: k.preferredName,
+                onDecideInChat: k.handleDecideInChat,
+                onNavigate: k.setActiveView,
+              }}
+              builderProps={{ onBack: () => k.setActiveView('home') }}
+              toolsProps={{
+                loops: k.loops, insights: k.insights, promptTemplates: k.promptTemplates,
+                onLoopToggle: k.handleLoopToggle, onInsightDismiss: k.handleInsightDismiss,
+                onInsightAction: k.handleInsightAction, onPromptSelect: k.handlePromptSelect,
+                loopsLoading: k.loopsQuery.isLoading, insightsLoading: k.insightsQuery.isLoading,
+                promptsLoading: k.promptsQuery.isLoading,
+              }}
+            />
+          </div>
 
-        {activeView === 'chat' && (
-          <InputBar
-            value={input}
-            onChange={(v: string) => { setInput(v); if (attachmentErrors.length) setAttachmentErrors([]); }}
-            onSend={handleSend}
-            onStop={handleStop}
-            isStreaming={isStreaming}
-            disabled={isStreaming}
-            chatTitle={activeChat?.title}
-            modelName={activeModel.name}
-            modelColor={activeModel.color}
-            tokenCount={tokenCount}
-            maxTokens={200000}
-            textareaRef={textareaRef}
-            compact={isMobile}
-            attachments={attachments}
-            onAddFiles={handleAddFiles}
-            onRemoveAttachment={handleRemoveAttachment}
-            models={availableModels}
-            overrideModel={overrideModel}
-            onOverrideModel={setOverrideModel}
-          />
-        )}
-      </main>
+          {k.activeView === 'chat' && !k.isMobile && <ActiveTaskCards compact={k.isMobile} />}
+
+          {(k.activeView === 'chat' || k.activeView === 'home') && (
+            <InputBar
+              value={k.input}
+              onChange={(v: string) => { k.setInput(v); if (k.attachmentErrors.length) k.setAttachments([]) }}
+              onSend={k.handleSend}
+              onStop={k.handleStop}
+              isStreaming={k.isStreaming}
+              disabled={k.isStreaming}
+              chatTitle={k.activeChat?.title}
+              modelName={k.activeModel.name}
+              modelColor={k.activeModel.color}
+              tokenCount={k.tokenCount}
+              maxTokens={200000}
+              textareaRef={k.textareaRef}
+              compact={k.isMobile}
+              attachments={k.attachments}
+              onAddFiles={k.handleAddFiles}
+              onRemoveAttachment={k.handleRemoveAttachment}
+              models={k.availableModels}
+              overrideModel={k.overrideModel}
+              onOverrideModel={k.setOverrideModel}
+            />
+          )}
+        </main>
       </KittyRuntimeProvider>
 
-      <CatCorner state={catState} />
+      <CatCorner state={k.catState} />
       <div aria-live="polite" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>
-        {catState === 'working' ? 'Kitty is working' : catState === 'broke' ? 'Kitty needs attention' : catState === 'done' ? 'Kitty completed the task' : ''}
+        {k.catState === 'working' ? 'Kitty is working' : k.catState === 'broke' ? 'Kitty needs attention' : k.catState === 'done' ? 'Kitty completed the task' : ''}
       </div>
       <PaperGrain />
 
       <CommandPalette
-        chats={chats}
-        onNewChat={handleSidebarNewChat}
-        onSelectChat={handleSelectChat}
-        onViewChange={setActiveView}
-        onToggleSidebar={handleToggleSidebar}
+        chats={k.chats}
+        onNewChat={() => { k.handleNewChat(); k.setActiveView('chat') }}
+        onSelectChat={k.handleSelectChat}
+        onViewChange={k.setActiveView}
+        onToggleSidebar={k.handleToggleSidebar}
       />
     </div>
-  );
+  )
 }
