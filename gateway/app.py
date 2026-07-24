@@ -128,6 +128,30 @@ async def lifespan(app: FastAPI):
         register_action("github.poll", _action_poll_github)
         register_action("experts.poll", _action_poll_experts)
         register_action("prefetch.warm", _action_warm_prefetch)
+
+        async def _action_life_evening_reflection():
+            from gateway.life_awareness import evening_reflection
+
+            result = evening_reflection()
+            from gateway.push import push_to_jacob
+            push_to_jacob(
+                result.get("reflection", "")[:300],
+                kind="info",
+                title="Kitty Evening Reflection",
+            )
+
+        async def _action_life_morning_proactive():
+            from gateway.life_awareness import morning_proactive
+
+            result = morning_proactive()
+            suggestions = result.get("proactive_suggestions", [])
+            if suggestions:
+                from gateway.push import push_to_jacob
+                text = suggestions[0].get("text", "")
+                push_to_jacob(text, kind="info", title="Life Suggestion")
+
+        register_action("life.evening_reflection", _action_life_evening_reflection)
+        register_action("life.morning_proactive", _action_life_morning_proactive)
         cron_start()
     except Exception:
         logger.exception("cron system registration failed — all background jobs disabled")

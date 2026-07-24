@@ -112,6 +112,12 @@ async def _nudges_block(_message: str) -> str | None:
     return f"[PENDING NUDGES]\n{lines}"
 
 
+async def _meeting_block(_message: str) -> str | None:
+    from gateway.life_awareness import meeting_block_text
+
+    return meeting_block_text()
+
+
 _ENRICHMENTS: tuple[EnrichmentFn, ...] = (
     _calendar_block,
     _weather_block,
@@ -122,6 +128,7 @@ _ENRICHMENTS: tuple[EnrichmentFn, ...] = (
     _patterns_block,
     _learning_block,
     _nudges_block,
+    _meeting_block,
 )
 
 # Public alias used by ``gateway.context_assembler``.
