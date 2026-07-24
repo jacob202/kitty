@@ -52,10 +52,13 @@ preview:
 	@echo ""
 	@echo "Checklist:"
 	@echo "  1. Onboarding appears once and persists across reloads"
-	@echo "  2. Home greets you by name (the value you entered in onboarding)"
-	@echo "  3. Send a chat message; reply streams without raw markup leaking"
-	@echo "  4. Open the Builder pane; the 'needs attention' number is sane"
-	@echo "  5. Open Settings; gateway is 'live', routing is 'live'"
+	@echo "  2. Home greets you by name in the what's-next card"
+	@echo "  3. Home shows: system (repairs), signals, experts strip"
+	@echo "  4. Send a chat message; reply streams cleanly"
+	@echo "  5. Ask 'what's wrong' — gets repairs feed in chat"
+	@echo "  6. Builder surface shows controls (pause/resume/cleanup)"
+	@echo "  7. Builder 'needs attention' count is sane (no cancelled)"
+	@echo "  8. Settings: gateway live, routing live, models loaded"
 	@open "http://localhost:4000" 2>/dev/null || xdg-open "http://localhost:4000" 2>/dev/null || echo "(no browser opener; open the URL manually)"
 
 # Print what a branch would do to the UI: boot its worktree, snapshot,

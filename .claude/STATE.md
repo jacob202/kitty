@@ -1,31 +1,28 @@
-# Session State — Branch Cleanup + KX Shell/Surfaces + Builder Queue Complete
+# Session State — KX-05/KX-06 + Reasoning Backend + Dogfood — Complete
 
 <!-- kitty-state
 {
   "schema_version": 1,
-  "updated_at": "2026-07-23T23:45:00Z",
-  "head_sha": "72f0e85",
+  "updated_at": "2026-07-24T01:00:00Z",
+  "head_sha": "54784e0",
   "branch": "main",
   "worktree": ".",
   "status": "complete",
   "completed_items": [
-    "Closed 4 stale PRs, deleted all 132 remote branches — only origin/main remains",
-    "Merged 10 branches, reverted 1 (img01-reconcile-job-contract — broken API)",
-    "KX-03: View registry, 14→7 surface collapse, design cleanup, SVG mascot with useKittyState hook",
-    "KX-04: Shared primitives refit — WorkCard/Button/StatusBadge across Work/Studio/Library/Settings",
-    "KX-05: All 5 packets implemented — onboarding with gateway persistence + ChatGPT import, self-repairs endpoint + Home card + chat intent, builder control deck with run/pause/resume/cancel/cleanup through T0 action queue, experts shelf from books_manifest, chat polish sweep (ActiveTaskCards cap + test-data filter, StatusBar flapping prevention, memory evidence smalltalk suppression, session resume heading fix, CLI copy purge)",
-    "Builder queue: 15 initiatives, 11 completed, 4 failed — 0 pending tasks",
-    "B1 preflight evidence, B2 KB-S4 gap register, B8 initiative progress cards",
-    "Expert swarm: 8-identity review panel, 22 issues identified, P0-P1 fixes built",
-    "Self-repairs endpoint + Home card surfacing",
-    "Cross-tool kb: skill audit, add-new-resource, improve-system, verification language",
-    "Mobile bottom nav, personalized Home greeting, a11y landmarks, cat animations",
-    "19/19 BuilderSurface tests pass, TypeScript clean, 130/132 backend tests pass"
+    "KX-05 all 5 packets: onboarding gateway persistence + import wizard, self-repairs /repairs endpoint + Home card + chat intent, builder control deck via T0 action queue, experts shelf from books_manifest, chat polish sweep (ActiveTaskCards cap, StatusBar flapping, memory evidence, CLI copy)",
+    "KX-06 both packets: /signals endpoint reusing Repairs shape + SignalsCard, PhoneAccessCard plain-English copy fix",
+    "Reasoning backend RE-C1/C2/C5 confirmed complete: classify_complexity wired into route_model + completions, tier-aware context budget 300/1200/2400, execution receipts. 105/105 tests pass.",
+    "Builder queue: 2 KX-06 packets queued (admin — code shipped), rest done/cancelled",
+    "Dogfood: onboarding wizard tested end-to-end (4 steps, name persists), experts strip verified (5 experts, 219 books), system repairs card live, signals feed with 20 items",
+    "Import wizard: tested with real export file, --source fix applied",
+    "Build: TypeScript clean, frontend tests 36/36 HomeState pass, all integration tests pass",
+    "KB: 4 new lessons in kitty-lessons-index.md (items 9-12)",
+    "Session hygiene: HANDOFF.md + STATE.md updated, lessons documented"
   ],
   "blockers": [],
-  "next_action": "Dogfood: Open localhost:4000, verify 7-surface rail, send a chat message, check Builder progress cards. Then decide: build reasoning-backend from scratch, or move to KX-06 (proactive feed).",
+  "next_action": "Dogfood the signals card on Home. Then decision: KX-07 (next UX initiative) or ship the current surface.",
   "invalidation_conditions": [
-    "HEAD changes beyond 72f0e85"
+    "HEAD changes beyond 54784e0"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
@@ -34,21 +31,17 @@
 
 ## Current checkpoint
 
-`main` at `72f0e85`, pushed. All branches deleted. All initiatives resolved. Queue clean.
+`main` at `54784e0`, pushed. KX-05/KX-06 code shipped. Reasoning backend confirmed done. Queue: 2 KX-06 admin items queued, everything else done/cancelled.
 
 ## Lessons applied
 
-- Builder free workers hit infra errors consistently — manual builds are faster
-- Builder actions were stubs (logged, didn't execute) — fixed by wiring to CLI via subprocess
-- Test fixtures: ensure new components don't duplicate existing text that tests assert
-- Expert swarm reviews are worth doing before building — surfaced consensus issues we'd miss
-- **OpenCode session session hygiene (2026-07-23):** read HANDOFF.md + STATE.md at start, verify current git state against what the files claim, then work. The files already had accurate completion markers — no duplication.
-- **Builder worker pipeline:** 5 KX-05 packets previously stuck in `[blocked]` — building them manually in OpenCode was faster and produced working code that the workers later committed + tested
-- **BuilderSurface attention bug:** cancelled tasks counted as "needs attention", making the counter spike after cleanup — fixed by removing `cancelled` from `packetNeedsAttention`
-- **UI flapping:** single failed poll → "gateway offline" banner — replaced with 3-consecutive-fail threshold using a render-side ref counter
+- Builder actions must exist in action_tiers.json AND have executor files in gateway/actions/ — paired contract
+- StatusBar flapping is a render-count problem, not a polling problem — use render-side ref counter
+- Test assertions on exact user-facing strings are brittle — prefer regex matchers
+- Builder worker pipeline has hidden initiative-level gates — manual builds faster
+- Launchd gateway processes need full unload/reload, not just ./kitty down/up
 
 ## Next actions
-1. Dogfood the UI at localhost:4000
-2. Decide: build reasoning-backend fresh, or move to KX-06 proactive feed
+1. `make preview` — dogfood the signals card + expert strip + repairs card
+2. Decision: KX-07 (next UX surface) or polish/ship the current surface
 3. Apply remaining expert swarm P2-P3 findings
-4. Test the ChatGPT import wizard against the real export at /Users/jacobbrizinski/Downloads/data-...
