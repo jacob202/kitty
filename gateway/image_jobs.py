@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, fields as dc_fields
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
@@ -104,6 +104,11 @@ class ImageJob:
     updated_at: str
     started_at: str | None
     finished_at: str | None
+    priority: int = 0
+    retry_count: int = 0
+    max_retries: int = 0
+    last_error: str | None = None
+    queued_at: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {}
@@ -121,6 +126,24 @@ def _now_iso() -> str:
 
 def _new_job_id() -> str:
     return f"job_{uuid.uuid4().hex}"
+
+
+def _ensure_queue_columns(conn: Any) -> None:
+    """Add queue columns if they don't exist (deferred migration)."""
+    try:
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(image_jobs)").fetchall()}
+    except Exception:
+        cols = set()
+    if "priority" not in cols:
+        conn.execute("ALTER TABLE image_jobs ADD COLUMN priority INTEGER NOT NULL DEFAULT 0")
+    if "retry_count" not in cols:
+        conn.execute("ALTER TABLE image_jobs ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0")
+    if "max_retries" not in cols:
+        conn.execute("ALTER TABLE image_jobs ADD COLUMN max_retries INTEGER NOT NULL DEFAULT 0")
+    if "last_error" not in cols:
+        conn.execute("ALTER TABLE image_jobs ADD COLUMN last_error TEXT")
+    if "queued_at" not in cols:
+        conn.execute("ALTER TABLE image_jobs ADD COLUMN queued_at TEXT")
 
 
 def _ensure_db(conn: Any = None) -> None:
@@ -142,9 +165,11 @@ def _ensure_db(conn: Any = None) -> None:
 
     if conn is not None:
         _apply(conn)
+        _ensure_queue_columns(conn)
     else:
         with kitty_db.connect(_paths.KITTY_DB_FILE) as c:
             _apply(c)
+            _ensure_queue_columns(c)
 
 
 def _check_json_bounded(value: str | None, field_name: str) -> None:
@@ -212,6 +237,11 @@ def _row_to_job(row: Any) -> ImageJob:
         normalized_error=row["normalized_error"],
         provider_diagnostics_json=row["provider_diagnostics_json"],
         parent_id=row["parent_id"],
+        priority=row["priority"] if row["priority"] is not None else 0,
+        retry_count=row["retry_count"] if row["retry_count"] is not None else 0,
+        max_retries=row["max_retries"] if row["max_retries"] is not None else 0,
+        last_error=row["last_error"],
+        queued_at=row["queued_at"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         started_at=row["started_at"],
@@ -239,6 +269,8 @@ def create_job(
     workflow_hash: str | None = None,
     provider_job_id: str | None = None,
     parent_id: str | None = None,
+    priority: int = 0,
+    max_retries: int = 0,
 ) -> ImageJob:
     """Create a new image-job record. Returns the job. Raises on validation failure."""
     _check_json_bounded(provider_params_json, "provider_params_json")
@@ -281,37 +313,28 @@ def create_job(
         normalized_error=None,
         provider_diagnostics_json=None,
         parent_id=parent_id,
+        priority=priority,
+        retry_count=0,
+        max_retries=max_retries,
+        last_error=None,
+        queued_at=now if max_retries > 0 else None,
         created_at=now,
         updated_at=now,
         started_at=None,
         finished_at=None,
     )
+    field_names = [f.name for f in dc_fields(job)]
+    columns_sql = ", ".join(field_names)
+    placeholders = ", ".join(["?"] * len(field_names))
+    values = tuple(
+        getattr(job, f).value if f == "status" else getattr(job, f)
+        for f in field_names
+    )
     with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
         _ensure_db(conn)
         conn.execute(
-            """
-            INSERT INTO image_jobs (
-                job_id, provider, provider_job_id, operation, status,
-                prompt, negative_prompt, seed, model_id, preset_id,
-                width, height, steps, guidance, sampler, scheduler,
-                provider_params_json, workflow_template_id, workflow_hash,
-                artifact_id, output_path, normalized_error,
-                provider_diagnostics_json, parent_id,
-                created_at, updated_at, started_at, finished_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                job.job_id, job.provider, job.provider_job_id, job.operation,
-                job.status.value, job.prompt, job.negative_prompt, job.seed,
-                job.model_id, job.preset_id, job.width, job.height,
-                job.steps, job.guidance, job.sampler, job.scheduler,
-                job.provider_params_json, job.workflow_template_id,
-                job.workflow_hash, job.artifact_id, job.output_path,
-                job.normalized_error, job.provider_diagnostics_json,
-                job.parent_id, job.created_at, job.updated_at,
-                job.started_at, job.finished_at,
-            ),
+            f"INSERT INTO image_jobs ({columns_sql}) VALUES ({placeholders})",
+            values,
         )
     return job
 
@@ -604,6 +627,83 @@ def reconcile_stale() -> int:
     return total
 
 
+def list_queue(limit: int = 50) -> list[ImageJob]:
+    """Return queued jobs ordered by priority (highest first), then FIFO."""
+    non_terminal = [s.value for s in ImageJobStatus if not s.is_terminal()]
+    if limit <= 0 or limit > 200:
+        raise ImageJobError(f"limit must be between 1 and 200, got {limit}")
+    non_terminal = [s.value for s in ImageJobStatus if not s.is_terminal()]
+    placeholders = ",".join("?" for _ in non_terminal)
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        rows = conn.execute(
+            f"SELECT * FROM image_jobs WHERE status IN ({placeholders}) "
+            "ORDER BY priority DESC, created_at ASC LIMIT ?",
+            (*non_terminal, limit),
+        ).fetchall()
+    return [_row_to_job(r) for r in rows]
+
+
+def requeue(job_id: str) -> ImageJob:
+    """Re-queue a failed job for retry. Increments retry_count and resets state.
+
+    Raises:
+        JobNotFoundError: job does not exist.
+        ImageJobError: job is not in FAILED state, or retries exhausted.
+    """
+    job = get_job(job_id)
+    if job is None:
+        raise JobNotFoundError(f"job {job_id} not found")
+    if job.status != ImageJobStatus.FAILED:
+        raise ImageJobError(
+            f"job {job_id} is {job.status.value}; only FAILED jobs can be requeued"
+        )
+    if job.retry_count >= job.max_retries:
+        raise ImageJobError(
+            f"job {job_id} has exhausted its {job.max_retries} retries"
+        )
+
+    now = _now_iso()
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        conn.execute(
+            """UPDATE image_jobs SET
+               status = ?, retry_count = retry_count + 1,
+               normalized_error = NULL, last_error = normalized_error,
+               provider_job_id = NULL, output_path = NULL,
+               updated_at = ?, queued_at = ?,
+               started_at = NULL, finished_at = NULL
+               WHERE job_id = ?""",
+            (ImageJobStatus.CREATED.value, now, now, job_id),
+        )
+        conn.commit()
+    return get_job(job_id)  # type: ignore[return-value]
+
+
+def cancel_queued(character_id: str | None = None, provider: str | None = None) -> int:
+    """Cancel all non-terminal jobs matching optional filters. Returns count."""
+    conditions = ["status NOT IN ('succeeded', 'failed', 'canceled')"]
+    params: list[Any] = []
+    if character_id:
+        conditions.append("character_id = ?")
+        params.append(character_id)
+    if provider:
+        conditions.append("provider = ?")
+        params.append(provider)
+
+    now = _now_iso()
+    where = " AND ".join(conditions)
+    with kitty_db.connect(_paths.KITTY_DB_FILE) as conn:
+        _ensure_db(conn)
+        cur = conn.execute(
+            f"UPDATE image_jobs SET status = ?, updated_at = ?, finished_at = ? "
+            f"WHERE {where}",
+            (ImageJobStatus.CANCELED.value, now, now, *params),
+        )
+        conn.commit()
+    return cur.rowcount
+
+
 __all__ = [
     "ImageJob",
     "ImageJobStatus",
@@ -615,8 +715,11 @@ __all__ = [
     "find_by_provider",
     "list_recent",
     "list_children",
+    "list_queue",
     "transition",
     "update_job",
+    "requeue",
+    "cancel_queued",
     "normalize_drawthings_request",
     "normalize_comfyui_request",
     "reconcile_stale",
