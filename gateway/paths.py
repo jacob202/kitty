@@ -16,6 +16,7 @@ PROJECT_ROOT = ROOT  # Alias for backward compatibility
 DATA_DIR = ROOT / "data"
 LOGS_DIR = ROOT / "logs"
 PROMPTS_DIR = ROOT / "prompts"
+PERSONALITY_DIR = ROOT / "personality"
 KNOWLEDGE_DIR = DATA_DIR / "knowledge"
 KITTY_DATA_DIR = DATA_DIR / "kitty"
 KITTY_DB_FILE = KITTY_DATA_DIR / "kitty.db"

@@ -55,6 +55,7 @@ from gateway.memory_graph import (
     _select_unified_items,
 )
 from gateway.memory_policy import should_surface
+from gateway.personality import personality_block
 
 logger = logging.getLogger("kitty.context_assembler")
 
@@ -260,6 +261,10 @@ async def assemble_context(
 
     if objective:
         base_prompt = _join_blocks(base_prompt, f"Thread goal: {objective}")
+
+    personality = personality_block()
+    if personality:
+        base_prompt = _join_blocks(base_prompt, personality)
 
     user_block = user_context.load_user_context()
     if user_block:
