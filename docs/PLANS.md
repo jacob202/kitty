@@ -34,8 +34,13 @@ Done in 2026-07-24 OpenCode session:
 
 ## Stray Plans Consolidated
 
+**2026-07-25:** the dispositions below were executed, not just recorded — see
+`docs/archive/ARCHIVE_MANIFEST_2026-07-25.md` for what actually moved (5
+files) and what was checked and kept despite looking like a candidate (2
+files were still "Ready to implement," not stale).
+
 From `docs/planning/`:
-- `brainstorm-kitty-evolution-2026-07-24.md` — Jacob's raw brainstorm (18 sections) → **absorbed into this doc's future sections**
+- `brainstorm-kitty-evolution-2026-07-24.md` — Jacob's raw brainstorm (18 sections) → **absorbed into this doc's future sections; archived 2026-07-25**
 - `kitty-next-evolution-working-notes.md` — Fable UX phase (Slice 3-5 remaining) → **retained, referenced below**
 - `feature-reference-map.md` — feature↔repo map → **retained**
 - `image-studio-character-system-2026-07-24.md` — Image studio redesign → **for other Orca instance**
@@ -51,8 +56,10 @@ From `docs/plans/`:
 - `fix-council-ux-all.md` — Council UX fixes → **retained**
 - `call-llm-error-contract.md` — Error contract → **retained**
 - `feat-kittybuilder-follow-on-roadmap.md` — Builder roadmap → **retained**
-- `skill-improvement-queue.md` — Skill improvements → **retained**
-- 8 others are short/dated/single-purpose → **archive candidates**
+- `skill-improvement-queue.md` — Skill improvements → **retained** (file not found on disk as of 2026-07-25; likely renamed or already merged elsewhere)
+- `migration-health.md`, `chore-workspace-cleanup-2026-07-12.md`, `pr164-archaeology.md` — **archived 2026-07-25**, confirmed stale
+- `image-runner-and-recipe-cleanup.md`, `memory-graph-contract-enforcement.md` — checked 2026-07-25, both still say "Status: Ready to implement" → **not stale, kept**
+- `chore-master-fix-and-deepen.md`, `t1-upload-smoke-ci.md` — not short, not clearly done → **left for a real review, not archived on a guess**
 
 ## Feature Lanes (ordered by user impact)
 
