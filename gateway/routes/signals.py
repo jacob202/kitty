@@ -7,10 +7,22 @@ import logging
 from fastapi import APIRouter
 
 logger = logging.getLogger("kitty.signals")
+from pydantic import BaseModel
+from typing import Any
+
+
+class SignalsResponse(BaseModel):
+    ok: bool
+    checks_run: int
+    issues: int
+    repairs: list[dict[str, Any]]
+    error: str | None = None
+
+
 router = APIRouter(tags=["signals"])
 
 
-@router.get("/signals")
+@router.get("/signals", response_model=SignalsResponse)
 def list_signals():
     """Return unprocessed signals in the Repairs shape for the Home card."""
     from gateway import signal_store

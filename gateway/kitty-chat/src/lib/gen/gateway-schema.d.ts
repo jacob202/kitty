@@ -3617,6 +3617,15 @@ export interface components {
              */
             parts_mode: boolean;
         };
+        /** AskResponse */
+        AskResponse: {
+            /** Answer */
+            answer: string;
+            /** Model */
+            model?: string | null;
+            /** Session Id */
+            session_id?: number | null;
+        };
         /** AudioSpeechRequest */
         AudioSpeechRequest: {
             /**
@@ -3702,6 +3711,17 @@ export interface components {
             /** Reason */
             reason?: string | null;
         };
+        /** BuilderActionResult */
+        BuilderActionResult: {
+            /** Action */
+            action: string;
+            /** Initiative Id */
+            initiative_id?: string | null;
+            /** Ok */
+            ok: boolean;
+            /** Packet Id */
+            packet_id?: string | null;
+        };
         /** CalendarCreateRequest */
         CalendarCreateRequest: {
             /** End Time */
@@ -3786,42 +3806,9 @@ export interface components {
             /** State */
             state?: string | null;
         };
-        /** CouncilResponse */
-        CouncilResponse: {
-            /** Answer */
-            answer: string;
-            /** Results */
-            results: components["schemas"]["CouncilTask"][];
-            /**
-             * Routing
-             * @default []
-             */
-            routing: {
-                [key: string]: unknown;
-            }[];
-            /**
-             * Timings
-             * @default []
-             */
-            timings: {
-                [key: string]: unknown;
-            }[];
-            /**
-             * Total Ms
-             * @default 0
-             */
-            total_ms: number;
-        };
-        /** CouncilTask */
-        CouncilTask: {
-            /** Assigned To */
-            assigned_to: string;
-            /** Ok */
-            ok: boolean;
-            /** Output */
-            output: string;
-            /** Task Id */
-            task_id: string;
+        /** CouncilTaskOutput */
+        CouncilTaskOutput: {
+            [key: string]: unknown;
         };
         /** CreateProjectRequest */
         CreateProjectRequest: {
@@ -4157,6 +4144,20 @@ export interface components {
             /** Soul */
             soul: string;
         };
+        /** PromptTemplateItem */
+        PromptTemplateItem: {
+            /** Content */
+            content: string;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** PromptsResponse */
+        PromptsResponse: {
+            /** Templates */
+            templates: components["schemas"]["PromptTemplateItem"][];
+        };
         /** ProposeRequest */
         ProposeRequest: {
             /** Kind */
@@ -4196,10 +4197,54 @@ export interface components {
              */
             schedule_value: string;
         };
+        /** SearchResponse */
+        SearchResponse: {
+            /** Count */
+            count: number;
+            /** Query */
+            query: string;
+            /** Results */
+            results: components["schemas"]["SearchResultItem"][];
+        };
+        /** SearchResultItem */
+        SearchResultItem: {
+            /** Category */
+            category: string;
+            /** Id */
+            id: string;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Score */
+            score: number;
+            /**
+             * Snippet
+             * @default
+             */
+            snippet: string;
+            /** Title */
+            title: string;
+        };
         /** SectionUpdate */
         SectionUpdate: {
             /** Content */
             content: string;
+        };
+        /** SignalsResponse */
+        SignalsResponse: {
+            /** Checks Run */
+            checks_run: number;
+            /** Error */
+            error?: string | null;
+            /** Issues */
+            issues: number;
+            /** Ok */
+            ok: boolean;
+            /** Repairs */
+            repairs: {
+                [key: string]: unknown;
+            }[];
         };
         /** SkillInvokeRequest */
         SkillInvokeRequest: {
@@ -4830,7 +4875,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["AskResponse"];
                 };
             };
             /** @description Validation Error */
@@ -4979,7 +5024,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["BuilderActionResult"];
                 };
             };
             /** @description Validation Error */
@@ -5418,7 +5463,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CouncilResponse"];
+                    "application/json": components["schemas"]["CouncilTaskOutput"];
                 };
             };
             /** @description Validation Error */
@@ -8457,9 +8502,7 @@ export interface operations {
     };
     get_prompts_prompts_get: {
         parameters: {
-            query?: {
-                category?: string | null;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -8472,18 +8515,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["PromptsResponse"];
                 };
             };
         };
@@ -8682,7 +8714,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["SearchResponse"];
                 };
             };
             /** @description Validation Error */
@@ -8855,7 +8887,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["SignalsResponse"];
                 };
             };
         };

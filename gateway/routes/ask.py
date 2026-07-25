@@ -12,6 +12,12 @@ from gateway.llm_client import (
     route_model,
 )
 
+class AskResponse(BaseModel):
+    answer: str
+    model: str | None = None
+    session_id: int | None = None
+
+
 router = APIRouter(tags=["ask"])
 
 
@@ -20,7 +26,7 @@ class AskRequest(BaseModel):
     parts_mode: bool = False
 
 
-@router.post("/ask")
+@router.post("/ask", response_model=AskResponse)
 async def ask(payload: AskRequest):
     """Plain JSON chat endpoint for Siri Shortcuts and scripts."""
     message = payload.message.strip()

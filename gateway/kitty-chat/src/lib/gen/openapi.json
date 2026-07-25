@@ -96,6 +96,41 @@
         "title": "AskRequest",
         "type": "object"
       },
+      "AskResponse": {
+        "properties": {
+          "answer": {
+            "title": "Answer",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          }
+        },
+        "required": [
+          "answer"
+        ],
+        "title": "AskResponse",
+        "type": "object"
+      },
       "AudioSpeechRequest": {
         "properties": {
           "input": {
@@ -303,6 +338,46 @@
           "action"
         ],
         "title": "BuilderActionRequest",
+        "type": "object"
+      },
+      "BuilderActionResult": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "initiative_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Initiative Id"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "packet_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Packet Id"
+          }
+        },
+        "required": [
+          "ok",
+          "action"
+        ],
+        "title": "BuilderActionResult",
         "type": "object"
       },
       "CalendarCreateRequest": {
@@ -548,76 +623,10 @@
         "title": "CouncilRequest",
         "type": "object"
       },
-      "CouncilResponse": {
-        "properties": {
-          "answer": {
-            "title": "Answer",
-            "type": "string"
-          },
-          "results": {
-            "items": {
-              "$ref": "#/components/schemas/CouncilTask"
-            },
-            "title": "Results",
-            "type": "array"
-          },
-          "routing": {
-            "default": [],
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Routing",
-            "type": "array"
-          },
-          "timings": {
-            "default": [],
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "title": "Timings",
-            "type": "array"
-          },
-          "total_ms": {
-            "default": 0.0,
-            "title": "Total Ms",
-            "type": "number"
-          }
-        },
-        "required": [
-          "answer",
-          "results"
-        ],
-        "title": "CouncilResponse",
-        "type": "object"
-      },
-      "CouncilTask": {
-        "properties": {
-          "assigned_to": {
-            "title": "Assigned To",
-            "type": "string"
-          },
-          "ok": {
-            "title": "Ok",
-            "type": "boolean"
-          },
-          "output": {
-            "title": "Output",
-            "type": "string"
-          },
-          "task_id": {
-            "title": "Task Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "task_id",
-          "assigned_to",
-          "output",
-          "ok"
-        ],
-        "title": "CouncilTask",
+      "CouncilTaskOutput": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "CouncilTaskOutput",
         "type": "object"
       },
       "CreateProjectRequest": {
@@ -1593,6 +1602,45 @@
         "title": "PersonalityUpdate",
         "type": "object"
       },
+      "PromptTemplateItem": {
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "content"
+        ],
+        "title": "PromptTemplateItem",
+        "type": "object"
+      },
+      "PromptsResponse": {
+        "properties": {
+          "templates": {
+            "items": {
+              "$ref": "#/components/schemas/PromptTemplateItem"
+            },
+            "title": "Templates",
+            "type": "array"
+          }
+        },
+        "required": [
+          "templates"
+        ],
+        "title": "PromptsResponse",
+        "type": "object"
+      },
       "ProposeRequest": {
         "properties": {
           "kind": {
@@ -1686,6 +1734,70 @@
         "title": "ScheduleRequest",
         "type": "object"
       },
+      "SearchResponse": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/SearchResultItem"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "query",
+          "results",
+          "count"
+        ],
+        "title": "SearchResponse",
+        "type": "object"
+      },
+      "SearchResultItem": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "snippet": {
+            "default": "",
+            "title": "Snippet",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "category",
+          "score"
+        ],
+        "title": "SearchResultItem",
+        "type": "object"
+      },
       "SectionUpdate": {
         "properties": {
           "content": {
@@ -1697,6 +1809,49 @@
           "content"
         ],
         "title": "SectionUpdate",
+        "type": "object"
+      },
+      "SignalsResponse": {
+        "properties": {
+          "checks_run": {
+            "title": "Checks Run",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "issues": {
+            "title": "Issues",
+            "type": "integer"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "repairs": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Repairs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ok",
+          "checks_run",
+          "issues",
+          "repairs"
+        ],
+        "title": "SignalsResponse",
         "type": "object"
       },
       "SkillInvokeRequest": {
@@ -2820,7 +2975,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AskResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -3006,7 +3163,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/BuilderActionResult"
+                }
               }
             },
             "description": "Successful Response"
@@ -3545,7 +3704,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CouncilResponse"
+                  "$ref": "#/components/schemas/CouncilTaskOutput"
                 }
               }
             },
@@ -7377,46 +7536,16 @@
       "get": {
         "description": "Get prompt templates, optionally filtered by category.",
         "operationId": "get_prompts_prompts_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "category",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Category"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Prompts Prompts Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/PromptsResponse"
                 }
               }
             },
             "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
           }
         },
         "summary": "Get Prompts",
@@ -7668,7 +7797,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -7897,7 +8028,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SignalsResponse"
+                }
               }
             },
             "description": "Successful Response"

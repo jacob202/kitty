@@ -6,10 +6,29 @@ from fastapi import APIRouter
 
 from gateway import memory_graph
 
+from pydantic import BaseModel, Field
+from typing import Any
+
+
+class SearchResultItem(BaseModel):
+    id: str
+    title: str
+    category: str
+    score: float
+    snippet: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class SearchResponse(BaseModel):
+    query: str
+    results: list[SearchResultItem]
+    count: int
+
+
 router = APIRouter(tags=["search"])
 
 
-@router.get("/search")
+@router.get("/search", response_model=SearchResponse)
 async def search(q: str = "", limit: int = 5):
     """Search across memory, knowledge, and journal."""
     if not q:

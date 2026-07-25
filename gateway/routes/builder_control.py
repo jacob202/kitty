@@ -11,6 +11,16 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 logger = logging.getLogger("kitty.builder_control")
+from pydantic import BaseModel
+
+
+class BuilderActionResult(BaseModel):
+    ok: bool
+    action: str
+    initiative_id: str | None = None
+    packet_id: str | None = None
+
+
 router = APIRouter(tags=["builder"])
 
 
@@ -21,7 +31,7 @@ class BuilderActionRequest(BaseModel):
     reason: str | None = None
 
 
-@router.post("/builder/action")
+@router.post("/builder/action", response_model=BuilderActionResult)
 def builder_action(body: BuilderActionRequest):
     from gateway.action_queue import execute, propose
 

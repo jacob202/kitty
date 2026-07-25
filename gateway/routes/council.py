@@ -9,6 +9,14 @@ from pydantic import BaseModel
 
 from gateway.council import CouncilOutput, council_route
 
+from pydantic import BaseModel
+from typing import Any
+
+
+class CouncilTaskOutput(BaseModel):
+    model_config = {"extra": "allow"}
+
+
 router = APIRouter(tags=["council"])
 
 
@@ -32,7 +40,7 @@ class CouncilResponse(BaseModel):
     total_ms: float = 0.0
 
 
-@router.post("/council")
+@router.post("/council", response_model=CouncilTaskOutput)
 async def council(request: CouncilRequest) -> CouncilResponse:
     """Run a user message through the Council supervisor (route -> verify -> synthesize)."""
     out: CouncilOutput = council_route(request.message, state=request.state)
