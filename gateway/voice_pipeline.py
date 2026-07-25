@@ -250,7 +250,7 @@ class VoicePipeline:
         This is the WebSocket entry point. It maintains session state
         and routes messages to the deep pipeline.
         """
-        await ws.accept(max_size=MAX_BODY_BYTES)
+        await ws.accept()
         session = VoiceSessionState()
         self._sessions[ws] = session
         logger.info("Voice session started (mode=%s)", session.mode)

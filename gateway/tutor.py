@@ -23,6 +23,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Awaitable, Callable, Sequence
 
+from contracts.knowledge_pipeline import IngestionResult
 from gateway import knowledge
 from gateway.db import connect as db_connect
 from gateway.paths import KITTY_DATA_DIR
@@ -64,7 +65,7 @@ class TutorError(Exception):
     """Raised when the Tutor cannot answer without guessing."""
 
 
-async def ingest(path: str | Path, label: str | None = None) -> dict:
+async def ingest(path: str | Path, label: str | None = None) -> IngestionResult:
     """Ingest a document into the Tutor collection. One command, no flags."""
     return await knowledge.ingest(
         path, collection=TUTOR_COLLECTION, source_label=label, sensitivity="low"

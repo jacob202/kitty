@@ -82,7 +82,7 @@ def generate_source_summary(source_name: str, text_preview: str, doc_type: str) 
     }
 
     if doc_type in _FAST_PATH_TYPES:
-        return LibrarianReport(**default_data)
+        return LibrarianReport(**default_data)  # type: ignore[arg-type]
 
     prompt = f"""Analyze this source preview for a high-leverage personal knowledge base.
 
@@ -134,7 +134,7 @@ def generate_source_summary(source_name: str, text_preview: str, doc_type: str) 
     )
 
     if not response_text:
-        return LibrarianReport(**default_data)
+        return LibrarianReport(**default_data)  # type: ignore[arg-type]
 
     try:
         data = json.loads(response_text)
@@ -155,4 +155,4 @@ def generate_source_summary(source_name: str, text_preview: str, doc_type: str) 
         return LibrarianReport(**{**default_data, **data})
     except Exception:
         logger.warning("librarian JSON parse or validation failed for %s", source_name)
-        return LibrarianReport(**default_data)
+        return LibrarianReport(**default_data)  # type: ignore[arg-type]

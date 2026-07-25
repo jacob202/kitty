@@ -225,10 +225,10 @@ def _check_builder_health() -> list:
         detail: str
 
     try:
-        from gateway.builder_queue import connect, stale_leases
+        from gateway.builder_queue import connect, find_silent_transitions
         conn = connect()
         try:
-            leases = stale_leases(conn)
+            leases = find_silent_transitions()
             if leases:
                 return [Check("WARN", "builder:stale-leases",
                               f"{len(leases)} stale lease(s) found — some tasks may be stuck")]

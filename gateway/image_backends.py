@@ -78,7 +78,7 @@ class BackendRegistry:
     def get(self, name: str) -> ImageBackend | None:
         return self._backends.get(name)
 
-    def list(self) -> list[ImageBackend]:
+    def get_all(self) -> list[ImageBackend]:
         return list(self._backends.values())
 
     def names(self) -> list[str]:

@@ -599,7 +599,7 @@ cmd_help() {
 
 # ── Dispatch ─────────────────────────────────────────────────────────────────
 case "${1:-start}" in
-  start)     cmd_start ;;
+  start|launch)     cmd_start ;;
   up)        cmd_up ;;
   down)      cmd_down ;;
   status)    cmd_status ;;
