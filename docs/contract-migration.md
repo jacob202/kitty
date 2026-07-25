@@ -38,7 +38,7 @@ Legend: **done** = response model + gateway.ts consuming the generated type.
 | Route file | Routes | response_model | Has BaseModel | Status |
 |---|---:|---:|---|---|
 | capture.py | 2 | 2 | yes | **done** (`CaptureResult` → `CaptureResponse`) |
-| knowledge.py | 5 | 1 | yes | **partial** — see D-002 (BLOCKED on decision) |
+| knowledge.py | 5 | 5 | yes | **done** |
 | extended.py | 36 | 0 | yes | pending |
 | integrations.py | 24 | 0 | yes | pending |
 | life.py | 12 | 0 | no | pending |
@@ -109,7 +109,11 @@ expects. Each is a potential runtime bug. **Not silently resolved.**
 Fields a route returns that nothing in `gateway.ts` consumes. **Flagged only —
 do not delete in this campaign.**
 
-*(none yet)*
+*(field in source item)*
+
+- `KnowledgeSourceItem`: `authority_score`, `content_hash`, `modified_at`, `created_at` returned by GET /knowledge/sources but not consumed by gateway.ts
+- `KnowledgeSearchResultItem`: `reference.is_visual`, `reference.analysis_type`, and entire `metadata` block returned but not consumed
+- `ExpertProfileItem`: `formats` returned but not consumed*(none yet)*
 
 ## Decisions log
 
@@ -169,6 +173,11 @@ Note: `stash@{0}` is **shared** — it also holds the other session's
 
 `.claude/STATE.md` and `.claude/HANDOFF.md` are actively written by other
 sessions. This campaign does not touch them; its state lives in this ledger.
+
+- **2026-07-25 — knowledge.py complete.** 5/5 routes now have response_model.
+  C-001 resolved (status narrowed to Literal). 6 hand-written TS types migrated
+  to gerated aliases. `tsc --noEmit` clean, `next build` passes, 267 vitest
+  tests green. 2 contradictions resolved, 3 deletion candidates flagged.
 
 ## Checkpoint log
 
