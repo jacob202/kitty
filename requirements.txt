@@ -9,7 +9,7 @@ httpx==0.28.1
 requests==2.33.1
 aiohttp==3.13.5
 websockets==16.0
-python-socketio==5.16.1
+python-socketio==5.16.3
 feedparser==6.0.12
 edge-tts==7.2.8
 faster-whisper==1.2.1
