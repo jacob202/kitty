@@ -52,7 +52,7 @@ def _yesterday_start_end() -> tuple[float, float]:
     return start, end
 
 
-def _parse_event_time(ts_str: str, date_ref: str | None = None) -> float:
+def _parse_event_time(ts_str: str, _date_ref: str | None = None) -> float:
     try:
         dt = datetime.fromisoformat(ts_str)
         return dt.timestamp()
