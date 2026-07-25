@@ -31,12 +31,10 @@ import {
 } from '@/lib/queries';
 import type {
   GatewayAction,
-  GatewayDeadline,
   GatewayNextStep,
   GatewayProject,
   GatewayTriageEntry,
   StateChange,
-  RepairItem,
   ExpertProfile,
 } from '@/lib/gateway';
 
@@ -776,7 +774,7 @@ function ExpertStrip({ onNavigate }: { onNavigate: (view: string) => void }) {
   )
 }
 
-// ── Deadlines (urgent paper) ─────────────────────────────────────────────────
+// ── Combined card (deadlines + phone access + what changed) ─────────────────
 
 function daysUntil(dueDate: string): number | null {
   const due = new Date(`${dueDate}T00:00:00`);
@@ -803,48 +801,24 @@ function dueTone(dueDate: string): string {
   return 'var(--ink-2)';
 }
 
-function PhoneAccessCard() {
-  const tailnet = useTailnet();
-
-  if (tailnet.isPending) {
-    return (
-      <SectionCard title="phone access">
-        <div role="status" style={emptyState}>
-          loading…
-        </div>
-      </SectionCard>
-    );
-  }
-
-  if (!tailnet.data?.ok || !tailnet.data.uiUrl) {
-    return (
-      <SectionCard title="phone access">
-        <div style={{ ...emptyState, textAlign: 'left', padding: '12px 2px' }}>
-          tailscale not detected — start the UI with{' '}
-          <code style={{ fontFamily: 'var(--font-mono)' }}>make ui-tailnet</code> and make sure
-          Tailscale is running on this Mac.
-        </div>
-      </SectionCard>
-    );
-  }
-
-  return (
-    <SectionCard title="phone access">
-      <div style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <div style={{ fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>
-          reachable from your iPhone
-        </div>
-        <div style={{ ...bodyText, fontFamily: 'var(--font-mono)', color: 'var(--primary)' }}>
-          {tailnet.data.uiUrl}
-        </div>
-      </div>
-    </SectionCard>
-  );
+interface DeadlineCardItem {
+  id: string;
+  severity: 'ok' | 'warn' | 'error';
+  title: string;
+  detail?: string;
+  action?: React.ReactNode;
 }
 
-function Deadlines() {
+function DeadlineCard() {
   const deadlines = useDeadlines('open');
   const sweep = useDeadlineSweep();
+  const tailnet = useTailnet();
+  const changesQuery = useStateChanges();
+  const snapshot = useSnapshotState();
+  const stateNowQuery = useStateNow();
+  const runTriage = useRunInboxTriage();
+
+  const loading = deadlines.isPending || tailnet.isPending || changesQuery.isPending;
 
   const sweepButton = (
     <button
@@ -857,9 +831,21 @@ function Deadlines() {
     </button>
   );
 
-  if (deadlines.isPending) {
+  const markBaselineButton = (
+    <button
+      type="button"
+      disabled={snapshot.isPending}
+      onClick={() => snapshot.mutate()}
+      aria-label="Mark current time as baseline snapshot"
+      style={{ ...actionButtonStyle, opacity: snapshot.isPending ? 0.5 : 1 }}
+    >
+      {snapshot.isPending ? '…' : 'mark baseline'}
+    </button>
+  );
+
+  if (loading) {
     return (
-      <SectionCard title="deadlines">
+      <SectionCard title="what's on the way">
         <div role="status" style={emptyState}>
           loading…
         </div>
@@ -867,183 +853,93 @@ function Deadlines() {
     );
   }
 
-  // fetchDeadlines folds transport errors into fromLiveGateway:false so an empty
-  // list can't be mistaken for the gateway being down.
-  if (deadlines.data?.fromLiveGateway === false) {
-    return (
-      <SectionCard title="deadlines" action={sweepButton}>
-        <ErrorCard message="unavailable" />
-      </SectionCard>
-    );
-  }
+  const items: DeadlineCardItem[] = [];
 
+  // ── Subscribers- deadiler and phone access items ──
   const open = deadlines.data?.deadlines ?? [];
-
-  if (open.length === 0) {
-    return (
-      <SectionCard title="deadlines" action={sweepButton}>
-        <div style={{ ...emptyState, textAlign: 'left', padding: '12px 2px' }}>
-          no deadlines tracked yet — sweep scans your documents and mail for due
-          dates and obligations.
-          {sweep.data && sweep.data.blind_spots.length > 0 && (
-            <div style={{ marginTop: 8, color: 'var(--ink-2)' }}>
-              last sweep found nothing — {sweep.data.blind_spots.join(', ')}
-            </div>
-          )}
-        </div>
-      </SectionCard>
-    );
+  if (deadlines.data?.fromLiveGateway === false) {
+    items.push({
+      id: 'deadlines-error',
+      severity: 'error',
+      title: 'deadlines unreachable',
+      detail: 'could not check for due dates right now',
+    });
+  } else if (open.length > 0) {
+    for (const d of open.slice(0, 4)) {
+      items.push({
+        id: `deadline-${d.id}`,
+        severity: daysUntil(d.due_date) !== null && daysUntil(d.due_date)! <= 0 ? 'error' : daysUntil(d.due_date) !== null && daysUntil(d.due_date)! <= 3 ? 'warn' : 'ok',
+        title: d.obligation,
+        detail: `${dueLabel(d.due_date)}${d.amount ? ` · ${d.currency ?? ''}${d.amount}` : ''}${d.confidence === 'needs_jacob' ? ' · needs your eyes' : ''}`,
+      });
+    }
+    if (open.length > 4) {
+      items.push({
+        id: 'deadlines-more',
+        severity: 'ok',
+        title: `+${open.length - 4} more`,
+      });
+    }
   }
 
-  const nearest = open[0];
-  const rest = open.slice(1, 4);
-
-  return (
-    <SectionCard title="deadlines" count={open.length} action={sweepButton}>
-      <div style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <div
-          style={{
-            fontFamily: 'var(--font-body)',
-            fontSize: 14,
-            fontWeight: 600,
-            color: 'var(--ink)',
-          }}
+  // ── Phone access card (only show when it needs attention) ──
+  if (tailnet.data && (!tailnet.data.ok || !tailnet.data.uiUrl)) {
+    items.push({
+      id: 'phone.tailscale_required',
+      severity: 'warn',
+      title: 'phone access needs Tailscale',
+      detail: 'Tailscale must be running on this Mac so you can reach Kitty from your phone.',
+      action: (
+        <button
+          type="button"
+          onClick={() => window.open('tailscale://', '_blank')}
+          style={actionButtonStyle}
         >
-          {nearest.obligation}
-        </div>
-        <div
-          style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: dueTone(nearest.due_date) }}
-        >
-          {dueLabel(nearest.due_date)}
-          {nearest.amount ? ` · ${nearest.currency ?? ''}${nearest.amount}` : ''}
-          {nearest.confidence === 'needs_jacob' ? ' · needs your eyes' : ''}
-        </div>
-      </div>
-      {rest.map((d: GatewayDeadline) => (
-        <div
-          key={d.id}
-          style={{ ...itemCard, display: 'flex', justifyContent: 'space-between', gap: 8 }}
-        >
-          <span style={{ ...bodyText, fontSize: 12, color: 'var(--ink)' }}>{d.obligation}</span>
-          <span
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              color: dueTone(d.due_date),
-              flexShrink: 0,
-            }}
-          >
-            {dueLabel(d.due_date)}
-          </span>
-        </div>
-      ))}
-      {open.length > 4 && (
-        <div
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 10,
-            color: 'var(--ink-2)',
-            textAlign: 'center',
-          }}
-        >
-          +{open.length - 4} more
-        </div>
-      )}
-    </SectionCard>
-  );
-}
-
-// ── What changed panel ───────────────────────────────────────────────────────
-
-function WhatChanged() {
-  const { data, isError, isPending } = useStateChanges();
-  const snapshot = useSnapshotState();
-  const stateNowQuery = useStateNow();
-  const runTriage = useRunInboxTriage();
-
-  const markPoint = (
-    <button
-      type="button"
-      disabled={snapshot.isPending}
-      onClick={() => snapshot.mutate()}
-      style={actionButtonStyle}
-    >
-      {snapshot.isPending ? '…' : 'mark point'}
-    </button>
-  );
-
-  if (isPending) {
-    return (
-      <SectionCard title="what changed">
-        <div role="status" style={{ ...emptyState }}>
-          loading…
-        </div>
-      </SectionCard>
-    );
+          open Tailscale
+        </button>
+      ),
+    });
   }
 
-  if (isError || !data) {
-    return (
-      <SectionCard title="what changed">
-        <ErrorCard message="unavailable" />
-      </SectionCard>
-    );
-  }
+  // ── What changed items ──
+  let hasAnyChanges = false;
+  if (changesQuery.data && !changesQuery.isError) {
+    const { changes: stateChanges, new_signals, note } = changesQuery.data;
 
-  const { changes, new_signals, note } = data;
-  const count = changes.length + new_signals.length;
+    for (let i = 0; i < stateChanges.length; i++) {
+      hasAnyChanges = true;
+      const c = stateChanges[i];
+      items.push({
+        id: `change-${i}`,
+        severity: 'ok',
+        title: `${friendlyLabel(c.section)}${c.field ? ` · ${friendlyLabel(c.field)}` : ''}`,
+        detail: `${String(c.before ?? '–')} → ${String(c.after ?? '–')}`,
+      });
+    }
 
-  const inboxSection = stateNowQuery.data?.sections.inbox;
-  const untriagedCount =
-    inboxSection?.ok && typeof inboxSection.untriaged_count === 'number'
-      ? inboxSection.untriaged_count
-      : 0;
+    if (new_signals.length > 0) {
+      hasAnyChanges = true;
+      items.push({
+        id: 'new-signals',
+        severity: 'ok',
+        title: `${new_signals.length} new signal${new_signals.length !== 1 ? 's' : ''}`,
+        detail: 'since last snapshot',
+      });
+    }
 
-  return (
-    <SectionCard title="what changed" count={count || undefined} action={markPoint}>
-      {note && !changes.length && !new_signals.length ? <div style={emptyState}>{note}</div> : null}
-      {changes.map((c: StateChange, i: number) => (
-        <div key={i} style={itemCard}>
-          <div
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              color: 'var(--ink-2)',
-              marginBottom: 4,
-            }}
-          >
-            {friendlyLabel(c.section)}
-            {c.field ? ` · ${friendlyLabel(c.field)}` : ''}
-          </div>
-          <div style={bodyText}>
-            {String(c.before ?? '–')} → {String(c.after ?? '–')}
-          </div>
-        </div>
-      ))}
-      {new_signals.length > 0 && (
-        <div
-          style={{
-            ...itemCard,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          <span style={bodyText}>
-            {new_signals.length} new signal{new_signals.length !== 1 ? 's' : ''} since last snapshot
-          </span>
-        </div>
-      )}
-      {untriagedCount > 0 && (
-        <div
-          style={{
-            ...itemCard,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          <span style={bodyText}>{untriagedCount} untriaged in inbox</span>
+    // Untriaged count from state/now
+    const inboxSection = stateNowQuery.data?.sections.inbox;
+    const untriagedCount =
+      inboxSection?.ok && typeof inboxSection.untriaged_count === 'number'
+        ? inboxSection.untriaged_count
+        : 0;
+    if (untriagedCount > 0) {
+      hasAnyChanges = true;
+      items.push({
+        id: 'untriaged',
+        severity: 'warn',
+        title: `${untriagedCount} untriaged in inbox`,
+        action: (
           <button
             type="button"
             disabled={runTriage.isPending}
@@ -1052,14 +948,89 @@ function WhatChanged() {
           >
             {runTriage.isPending ? '…' : 'triage now'}
           </button>
-        </div>
-      )}
-      {!count && !note && !untriagedCount && (
+        ),
+      });
+    }
+
+    // Show note when there are no actual changes
+    if (!hasAnyChanges && note && open.length === 0) {
+      return (
+        <SectionCard title="what's on the way" action={sweepButton}>
+          <div style={emptyState}>{note}</div>
+        </SectionCard>
+      );
+    }
+  }
+
+  if (changesQuery.isError) {
+    items.push({
+      id: 'changes-error',
+      severity: 'error',
+      title: 'changes unavailable',
+      detail: 'could not check for recent updates',
+    });
+  }
+
+  const count = items.length || undefined;
+  const headerActions = (
+    <>
+      {sweepButton}
+      {markBaselineButton}
+    </>
+  );
+
+  // ── Empty state ──
+  if (items.length === 0) {
+    return (
+      <SectionCard title="what's on the way" action={headerActions}>
         <div style={{ ...emptyState, display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <div>nothing new since last snapshot</div>
-          <div style={{ fontSize: 10 }}>tap mark point anytime to set a fresh baseline</div>
+          <div>everything is up to date</div>
+          <div style={{ fontSize: 10 }}>
+            sweep checks for new deadlines; baseline captures the current state
+          </div>
         </div>
-      )}
+      </SectionCard>
+    );
+  }
+
+  return (
+    <SectionCard title="what's on the way" count={count} action={headerActions}>
+      {items.map((item) => (
+        <div key={item.id} style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: SEVERITY_COLORS[item.severity] ?? 'var(--ink-2)',
+                flexShrink: 0,
+              }}
+            />
+            <span
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--ink)',
+                flex: 1,
+              }}
+            >
+              {item.title}
+            </span>
+          </div>
+          {item.detail && (
+            <div style={{ ...bodyText, fontSize: 11, color: 'var(--ink-2)', paddingLeft: 14 }}>
+              {item.detail}
+            </div>
+          )}
+          {item.action && (
+            <div style={{ display: 'flex', gap: 6, paddingLeft: 14 }}>
+              {item.action}
+            </div>
+          )}
+        </div>
+      ))}
     </SectionCard>
   );
 }
@@ -1405,11 +1376,9 @@ export function HomeState({
         <WhatsNext onDecideInChat={onDecideInChat} onNavigate={onNavigate} />
       )}
       {visibleTiles['needs-you'] !== false && <NeedsYou onDecideInChat={onDecideInChat} />}
-      {visibleTiles['deadlines'] !== false && <Deadlines />}
-      {visibleTiles['phone-access'] !== false && <PhoneAccessCard />}
+      {visibleTiles['deadlines'] !== false && <DeadlineCard />}
       {visibleTiles['active-projects'] !== false && <ActiveProjects onNavigate={onNavigate} />}
       {visibleTiles['active-projects'] !== false && <ExpertStrip onNavigate={onNavigate} />}
-      {visibleTiles['what-changed'] !== false && <WhatChanged />}
       {visibleTiles['today'] !== false && (
         <TodayPanel onNavigate={onNavigate} />
       )}

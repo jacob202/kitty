@@ -146,7 +146,7 @@ function setDefaultMocks() {
     data: undefined,
   });
   (useTailnet as Mock).mockReturnValue({
-    data: { ok: false, tailnetIp: null, uiUrl: null },
+    data: { ok: true, tailnetIp: '100.100.100.1', uiUrl: 'http://kitty.local:4000' },
     isPending: false,
     isError: false,
     isFetched: true,
@@ -238,7 +238,7 @@ describe('HomeState', () => {
     expect(screen.getByText("what's next")).toBeInTheDocument();
     expect(screen.getByText('active projects')).toBeInTheDocument();
     expect(screen.getByText('needs you')).toBeInTheDocument();
-    expect(screen.getByText('what changed')).toBeInTheDocument();
+    expect(screen.getByText("what's on the way")).toBeInTheDocument();
     expect(screen.getByText('today')).toBeInTheDocument();
     expect(screen.getByText('capture')).toBeInTheDocument();
   });
@@ -252,7 +252,7 @@ describe('HomeState', () => {
     render(<HomeState />);
     expect(screen.getByText(/not enough signal yet/)).toBeInTheDocument();
     expect(screen.getByText(/no projects registered — add one from the projects view/)).toBeInTheDocument();
-    expect(screen.getByText('nothing new since last snapshot')).toBeInTheDocument();
+    expect(screen.getByText('everything is up to date')).toBeInTheDocument();
     expect(screen.getByText('nothing waiting for you')).toBeInTheDocument();
     expect(screen.getByText('nothing on the list')).toBeInTheDocument();
   });
@@ -418,6 +418,8 @@ describe('HomeState', () => {
 
   it('shows loading indicators when queries are pending', () => {
     (useStateChanges as Mock).mockReturnValue({ data: undefined, isPending: true, isError: false });
+    (useDeadlines as Mock).mockReturnValue({ data: undefined, isPending: true, isError: false });
+    (useTailnet as Mock).mockReturnValue({ data: undefined, isPending: true, isError: false });
     (useActions as Mock).mockReturnValue({ data: undefined, isPending: true, isError: false });
     (useTodos as Mock).mockReturnValue({ data: undefined, isPending: true, isError: false });
     render(<HomeState />);
@@ -432,10 +434,10 @@ describe('HomeState', () => {
     expect(screen.getAllByText('unavailable').length).toBeGreaterThan(0);
   });
 
-  it('shows an unavailable card when the state changes query fails, without repeating the gateway-offline banner', () => {
+  it('shows an error item when the state changes query fails, without repeating the gateway-offline banner', () => {
     (useStateChanges as Mock).mockReturnValue({ data: undefined, isPending: false, isError: true });
     render(<HomeState />);
-    expect(screen.getByText('unavailable')).toBeInTheDocument();
+    expect(screen.getByText('changes unavailable')).toBeInTheDocument();
   });
 
   it('shows proposed actions with approve and reject buttons in needs you', () => {
@@ -544,15 +546,15 @@ describe('HomeState', () => {
     expect(onDecideInChat).toHaveBeenCalledWith(entry);
   });
 
-  it('offers a snapshot verb on What changed regardless of state', () => {
+  it('offers a snapshot verb on DeadlineCard regardless of state', () => {
     const mutate = vi.fn();
     (useSnapshotState as Mock).mockReturnValue({ isPending: false, mutate });
     render(<HomeState />);
-    screen.getByText('mark point').click();
+    screen.getByText('mark baseline').click();
     expect(mutate).toHaveBeenCalled();
   });
 
-  it('shows an untriaged count with a triage-now verb inside What changed', () => {
+  it('shows an untriaged count with a triage-now verb inside the combined card', () => {
     (useStateNow as Mock).mockReturnValue({
       data: { ts: 0, sections: { inbox: { ok: true, untriaged_count: 3 } } },
       isPending: false,
@@ -655,14 +657,14 @@ describe('HomeState', () => {
     expect(onDecideInChat).toHaveBeenCalledWith(entry);
   });
 
-  // ── deadlines card ──
+  // ── combined DeadlineCard ──
 
-  it('shows an honest empty state when no deadlines are tracked', () => {
+  it('shows an honest empty state when nothing is tracked', () => {
     render(<HomeState />);
-    expect(screen.getByText(/no deadlines tracked yet/)).toBeInTheDocument();
+    expect(screen.getByText('everything is up to date')).toBeInTheDocument();
   });
 
-  it('surfaces the nearest deadline when the store has open items', () => {
+  it('surfaces deadlines when the store has open items', () => {
     (useDeadlines as Mock).mockReturnValue({
       data: {
         deadlines: [
@@ -678,7 +680,7 @@ describe('HomeState', () => {
     render(<HomeState />);
     expect(screen.getByText('Return the SAID income form')).toBeInTheDocument();
     expect(screen.getByText('Pay the water bill')).toBeInTheDocument();
-    expect(screen.queryByText(/no deadlines tracked yet/)).not.toBeInTheDocument();
+    expect(screen.queryByText('everything is up to date')).not.toBeInTheDocument();
   });
 
   it('shows an honest offline state for deadlines when the gateway is down', () => {
@@ -688,10 +690,10 @@ describe('HomeState', () => {
       isError: false,
     });
     render(<HomeState />);
-    expect(screen.getByText('unavailable')).toBeInTheDocument();
+    expect(screen.getByText('deadlines unreachable')).toBeInTheDocument();
   });
 
-  it('runs a sweep from the deadlines card', () => {
+  it('runs a sweep from the combined card', () => {
     const mutate = vi.fn();
     (useDeadlineSweep as Mock).mockReturnValue({ isPending: false, mutate, data: undefined });
     render(<HomeState />);
