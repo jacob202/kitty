@@ -10,13 +10,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from gateway import dream_insights, memory
-from gateway.memory import (
-    MemoryError,
-    delete_memory,
-    get_context_block,
-    list_memories,
-    search_memory,
-)
 
 
 def _patched_mem(side_effect=None, return_value=None):

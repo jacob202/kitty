@@ -1,6 +1,7 @@
 """Persisted onboarding state endpoint."""
 
 from fastapi import APIRouter
+
 from gateway.onboarding import get_onboarding_state, set_onboarding_state
 
 router = APIRouter(tags=["onboarding"])

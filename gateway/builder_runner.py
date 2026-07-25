@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import shutil
 import signal
@@ -44,6 +45,8 @@ from gateway.builder_brief import default_branch_name, render_worker_brief
 from gateway.builder_context import build_context_manifest, write_run_manifest
 from gateway.models.builder import AgentPreset, AgentPresetConfig, WorkerContextBundle
 from gateway.paths import BUILDER_QUEUE_DB
+
+logger = logging.getLogger("kitty.builder_runner")
 
 # Arch doc §9: Phase 1C uses a short heartbeat-based lease.
 DEFAULT_LEASE_SECONDS = 60
@@ -587,11 +590,9 @@ def inject_worker_context(
     manifest = build_context_manifest(root, bundle_path, allowed_paths=allowed_paths)
     write_run_manifest(manifest_path, manifest)
 
-    events: list[dict[str, Any]] = []
-    pr_links: list[dict[str, Any]] = []
     try:
-        events = bq.list_events(task_id, db_path=db_path)
-        pr_links = bq.get_pr_links(task_id, db_path=db_path)
+        bq.list_events(task_id, db_path=db_path)
+        bq.get_pr_links(task_id, db_path=db_path)
     except Exception:
         logger.warning(
             "Failed to fetch events/pr_links for task %s — "

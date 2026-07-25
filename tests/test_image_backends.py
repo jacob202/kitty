@@ -1,7 +1,6 @@
 """Tests for the abstract image backend interface and implementations."""
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -12,7 +11,6 @@ from gateway.image_backends import (
     GenerateResult,
     StabilityAIBackend,
     get_registry,
-    register_backend,
 )
 
 

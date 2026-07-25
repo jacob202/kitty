@@ -23,7 +23,7 @@ class BuilderActionRequest(BaseModel):
 
 @router.post("/builder/action")
 def builder_action(body: BuilderActionRequest):
-    from gateway.action_queue import propose, execute
+    from gateway.action_queue import execute, propose
 
     action_map = {
         "run_next": "builder.run_next",

@@ -16,13 +16,10 @@ Public API:
 
 from __future__ import annotations
 
-import json
 import logging
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
-
-from gateway.paths import PROJECT_ROOT
 
 logger = logging.getLogger("kitty.life_awareness")
 
@@ -183,7 +180,7 @@ def yesterday_recap() -> dict:
 
 def _yesterday_signals(y_start: float, y_end: float) -> list[dict]:
     try:
-        from gateway.signal_store import list_since, list_recent
+        from gateway.signal_store import list_recent
         recent = list_recent(limit=100)
         return [s for s in recent if y_start <= s.get("ts", 0) <= y_end]
     except Exception as exc:
@@ -265,7 +262,7 @@ def _build_proactive_suggestions(events: list[dict], steps: list[dict], recap: d
         suggestions.append({
             "kind": "focus_block",
             "priority": "medium",
-            "text": f"You're in a meeting until the next free block",
+            "text": "You're in a meeting until the next free block",
         })
     if events and not in_meeting:
         next_event = min(events, key=lambda e: _parse_event_time(e.get("start", "")))
@@ -285,7 +282,7 @@ def _build_proactive_suggestions(events: list[dict], steps: list[dict], recap: d
 
 def generate_evening_reflection_text() -> str:
     events = today_events()
-    recap = yesterday_recap()
+    yesterday_recap()
     steps = _life_project_steps_today()
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
     data_parts: list[str] = [f"Date: {now}"]

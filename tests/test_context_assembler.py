@@ -510,7 +510,6 @@ async def test_tier_caps_memory_sections():
 
 def test_memory_policy_py_not_touched():
     """memory_policy.py is unmodified — this is an acceptance-criteria gate."""
-    import hashlib
     from pathlib import Path
 
     policy_path = Path("gateway/memory_policy.py")

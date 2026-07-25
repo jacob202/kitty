@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import json
 import time
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -32,7 +31,7 @@ class TestMeetingDetection:
         assert life_awareness._is_in_meeting([]) is False
 
     def test_am_in_meeting_false_when_event_is_past(self):
-        now = time.time()
+        time.time()
         events = [
             {"title": "Old event", "start": "2020-01-01T09:00:00", "end": "2020-01-01T10:00:00"},
         ]
@@ -301,6 +300,7 @@ class TestLifeRoutesContract:
     def client(self):
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
+
         from gateway.routes.life import router
 
         app = FastAPI()
@@ -383,7 +383,6 @@ class TestLifeRoutesContract:
         assert resp.json()["dismissed"] == "test_signal"
 
     def test_life_events_endpoint(self, client):
-        from gateway.signal_store import init_db
 
         with patch("gateway.signal_store.list_recent", return_value=[
             {"source": "life_awareness", "kind": "test", "ts": 1000.0, "payload": {}, "id": 1},

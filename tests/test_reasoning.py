@@ -3,9 +3,9 @@
 import pytest
 
 from gateway.reasoning import (
+    _REASONING_KEYWORDS,
     Classification,
     classify_complexity,
-    _REASONING_KEYWORDS,
 )
 
 

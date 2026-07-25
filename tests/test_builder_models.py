@@ -18,8 +18,8 @@ from gateway.models.builder import (
     AgentDispatchResult,
     AgentPreset,
     AgentPresetConfig,
-    AttemptResult,
     Assumption,
+    AttemptResult,
     ContextTier,
     EvidenceCriterion,
     Mission,
@@ -35,7 +35,6 @@ from gateway.models.builder import (
     WorkerContextBundle,
     WorkerContract,
 )
-
 
 # ===========================================================================
 # Model tests
@@ -521,7 +520,6 @@ class TestValidateWorkerContext:
         db_path = tmp_path / "queue6" / "builder_queue.db"
         db_path.parent.mkdir(parents=True)
         from gateway import builder_queue as bq
-        from gateway.paths import BUILDER_QUEUE_DB
         bq.init_db(db_path)
         task = bq.create_task("test corrupt", db_path=db_path)
         claimed = bq.claim_task(task["id"], "w", db_path=db_path)
@@ -616,8 +614,9 @@ class TestAgentPresetConfigs:
 
 class TestRunAgentPreset:
     def test_unknown_preset_returns_error(self):
-        from gateway.builder_runner import run_agent_preset
         import asyncio
+
+        from gateway.builder_runner import run_agent_preset
 
         result = asyncio.run(run_agent_preset("test goal", "nonexistent"))
         assert result["status"] == "failed"
