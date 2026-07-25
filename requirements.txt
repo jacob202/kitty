@@ -26,5 +26,5 @@ google-auth-oauthlib==1.2.2
 
 # retry + memory + article extraction (for brief enrichment)
 tenacity>=8.5.0,<10
-mem0ai>=0.1.50,<0.2
+mem0ai>=0.1.118,<0.2
 trafilatura>=1.12,<3
