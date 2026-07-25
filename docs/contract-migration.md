@@ -175,4 +175,14 @@ sessions. This campaign does not touch them; its state lives in this ledger.
 - **2026-07-25 — Phase 0 complete.** Pipeline proved end-to-end, loop run twice
   with byte-identical output. 1 route file done (capture.py, 2 routes), 1
   contradiction found (C-001). `next build` green, `tsc --noEmit` clean, 267
-  vitest tests pass.
+  vitest tests pass. Python coverage 76.94% (floor 73).
+
+  **Pre-existing red on main, not caused by this campaign:**
+  `tests/test_cron.py::TestLegacyImport` — 3 failures
+  (`test_legacy_import_copies_rows`, `test_legacy_import_is_idempotent`,
+  `test_rollback_re_imports_from_intact_db`). All fail on a clean worktree at
+  `main` with no campaign changes applied. Cause is a legacy cron DB opening
+  read-only inside a pytest `tmp_path`, so it is not shared-state contamination.
+  Unrelated to contracts and out of scope here — but it means "CI green" cannot
+  mean "zero failures" until this is fixed separately. This campaign's bar is:
+  no *new* failures, coverage floor held, `next build` + `tsc` clean.
