@@ -68,7 +68,7 @@ def test_energy_does_not_go_below_zero(tmp_path):
 
 def test_state_persists_via_store():
     import gateway.buddy as b
-    import gateway.buddy_store as store
+    import gateway.stores.buddy as store
     b._state.update({
         "mood": "idle", "energy": 100, "session_turns": 0,
         "total_turns": 0, "last_active_ts": 0.0, "drift_count": 0,

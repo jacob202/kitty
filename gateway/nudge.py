@@ -47,7 +47,7 @@ def check() -> list[dict]:
 def _emit_nudge_signals(nudges: list[dict]) -> None:
     """Write each active nudge to the signal store so downstream consumers see it."""
     try:
-        from gateway.signal_store import emit
+        from gateway.stores.signal import emit
 
         for nudge in nudges:
             emit(

@@ -6,7 +6,7 @@ from datetime import date
 import pytest
 
 from gateway import deadline_store, project_store
-from gateway.deadline_store import DeadlineNotFound
+from gateway.stores.deadline import DeadlineNotFound
 
 
 @pytest.fixture(autouse=True)

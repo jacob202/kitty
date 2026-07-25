@@ -183,7 +183,7 @@ class MailConnector:
 
         # Import lazily so the module imports cheaply for callers that
         # only use the doctor check or the auth helper.
-        from gateway.signal_store import MAX_PAYLOAD_BYTES, emit
+        from gateway.stores.signal import MAX_PAYLOAD_BYTES, emit
 
         params: dict[str, str] = {"maxResults": "50"}
         if since_ts is None:

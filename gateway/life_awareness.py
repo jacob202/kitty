@@ -180,7 +180,7 @@ def yesterday_recap() -> dict:
 
 def _yesterday_signals(y_start: float, y_end: float) -> list[dict]:
     try:
-        from gateway.signal_store import list_recent
+        from gateway.stores.signal import list_recent
         recent = list_recent(limit=100)
         return [s for s in recent if y_start <= s.get("ts", 0) <= y_end]
     except Exception as exc:
@@ -200,7 +200,7 @@ def _yesterday_journal(y_start: float, y_end: float) -> list[dict]:
 
 def _yesterday_completed_tasks(y_start: float, y_end: float) -> list[dict]:
     try:
-        from gateway.signal_store import list_recent
+        from gateway.stores.signal import list_recent
         recent = list_recent(limit=200)
         task_signals = [
             s for s in recent
@@ -397,7 +397,7 @@ def evening_reflection() -> dict:
 
 def emit_life_signal(kind: str, payload: dict | None = None) -> dict | None:
     try:
-        from gateway.signal_store import emit
+        from gateway.stores.signal import emit
         return emit(
             source=LIFE_SIGNAL_SOURCE,
             kind=kind,

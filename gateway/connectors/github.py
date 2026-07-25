@@ -92,7 +92,7 @@ class GithubConnector:
         if not self._token:
             raise GithubAuthError("no token bound to connector")
 
-        from gateway.signal_store import emit
+        from gateway.stores.signal import emit
 
         new_count = 0
         deduped_count = 0

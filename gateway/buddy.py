@@ -17,7 +17,7 @@ import logging
 import time
 from typing import Literal, Optional
 
-import gateway.buddy_store as _store
+import gateway.stores.buddy as _store
 
 logger = logging.getLogger("kitty.buddy")
 

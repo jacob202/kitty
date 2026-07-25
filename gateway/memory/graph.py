@@ -278,7 +278,7 @@ class TodosAdapter(StoreAdapter):
         return Source.TODOS.value
 
     async def fetch(self, query: str) -> list[Item]:
-        from gateway.todo_store import get
+        from gateway.stores.todo import get
 
         todos = await asyncio.to_thread(get)
         terms = [term for term in query.lower().split() if term]
@@ -388,7 +388,7 @@ class SignalsAdapter(StoreAdapter):
         return "signals"
 
     async def fetch(self, query: str) -> list[Item]:
-        from gateway.signal_store import list_recent
+        from gateway.stores.signal import list_recent
 
         signals = await asyncio.to_thread(list_recent, 20)
         terms = [term for term in query.lower().split() if term]

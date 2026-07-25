@@ -221,7 +221,7 @@ def _notify_match(watch: dict, result: dict) -> None:
         logger.exception("Failed to send watch notification")
 
     try:
-        from gateway.signal_store import emit
+        from gateway.stores.signal import emit
 
         emit(
             source="web_monitor",

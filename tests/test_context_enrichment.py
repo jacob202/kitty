@@ -14,14 +14,14 @@ def test_todos_text_sync_surfaces_failure(monkeypatch) -> None:
     def boom() -> str:
         raise RuntimeError("todo store down")
 
-    import gateway.todo_store as ts
+    import gateway.stores.todo as ts
 
     monkeypatch.setattr(ts, "get_todos_text", boom)
     assert ce._TODOS_UNAVAILABLE in ce.todos_text_sync()
 
 
 def test_todos_text_sync_happy_path(monkeypatch) -> None:
-    import gateway.todo_store as ts
+    import gateway.stores.todo as ts
 
     monkeypatch.setattr(ts, "get_todos_text", lambda: "- buy milk")
     assert ce.todos_text_sync() == "- buy milk"

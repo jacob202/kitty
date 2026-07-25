@@ -83,7 +83,7 @@ async def get_current_meeting() -> dict:
 
 @router.get("/life/events")
 async def list_life_events(limit: int = 20) -> dict:
-    from gateway.signal_store import list_recent
+    from gateway.stores.signal import list_recent
     signals = list_recent(limit=limit, source=life_awareness.LIFE_SIGNAL_SOURCE)
     return {"events": signals}
 

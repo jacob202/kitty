@@ -56,7 +56,7 @@ async def _weather_block(_message: str) -> str | None:
 
 
 async def _todos_block(_message: str) -> str | None:
-    from gateway.todo_store import get_todos_text
+    from gateway.stores.todo import get_todos_text
 
     return get_todos_text()
 
@@ -218,7 +218,7 @@ def weather_text_sync() -> str:
 
 def todos_text_sync() -> str:
     try:
-        from gateway.todo_store import get_todos_text
+        from gateway.stores.todo import get_todos_text
 
         return get_todos_text() or ""
     except Exception as exc:

@@ -93,7 +93,7 @@ async def todos_update(payload: TodoUpdateRequest):
 
 @router.get("/todos")
 async def todos_get():
-    from gateway.todo_store import get
+    from gateway.stores.todo import get
 
     return {"todos": get()}
 

@@ -7,7 +7,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from gateway.desktop_store import append_text_capture, desktop_status, read_inbox
+from gateway.stores.desktop import append_text_capture, desktop_status, read_inbox
 
 router = APIRouter(tags=["desktop"])
 
