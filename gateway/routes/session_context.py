@@ -9,6 +9,14 @@ from fastapi import APIRouter
 
 from gateway.paths import ROOT
 
+from pydantic import BaseModel, Field
+from typing import Any
+
+
+class SessionContextResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
 router = APIRouter(tags=["session"])
 
 HANDOFF_FILE = ROOT / ".claude" / "HANDOFF.md"
@@ -66,7 +74,7 @@ def _last_session_topic(state_sections: list[tuple[str, list[str]]]) -> str | No
     return None
 
 
-@router.get("/session/context")
+@router.get("/session/context", response_model=SessionContextResponse)
 def get_session_context() -> dict[str, str | list[str] | None]:
     """Return the current handoff topic, active threads, and explicit next actions."""
     handoff_sections = _sections(HANDOFF_FILE)

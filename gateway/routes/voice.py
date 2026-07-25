@@ -8,6 +8,19 @@ from pydantic import BaseModel
 
 from gateway.constants import MAX_VOICE_BYTES
 
+class VoiceV1AudioTranscriptionsResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class VoiceV1AudioSpeechResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class VoiceVoiceResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+
 router = APIRouter(tags=["voice"])
 
 
@@ -18,7 +31,7 @@ class AudioSpeechRequest(BaseModel):
     model: str = "tts-1"
 
 
-@router.post("/v1/audio/transcriptions")
+@router.post("/v1/audio/transcriptions", response_model=VoiceV1AudioTranscriptionsResponse)
 async def audio_transcriptions(
     file: UploadFile = File(...), model: str = Form("whisper-1")
 ):
@@ -39,7 +52,7 @@ async def audio_transcriptions(
     return {"text": result["text"]}
 
 
-@router.post("/v1/audio/speech")
+@router.post("/v1/audio/speech", response_model=VoiceV1AudioSpeechResponse)
 async def audio_speech(payload: AudioSpeechRequest):
     from gateway.tts import synthesize_async
 

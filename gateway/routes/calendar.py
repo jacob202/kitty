@@ -8,6 +8,19 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+class CalendarCalendarTodayResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class CalendarCalendarUpcomingResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class CalendarCalendarCreateResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+
 router = APIRouter(tags=["calendar"])
 
 
@@ -21,14 +34,14 @@ async def _calendar_events_response(fetch_events):
     return {"available": True, "events": events}
 
 
-@router.get("/calendar/today")
+@router.get("/calendar/today", response_model=CalendarCalendarTodayResponse)
 async def calendar_today():
     from gateway.calendar_integration import get_today
 
     return await _calendar_events_response(get_today)
 
 
-@router.get("/calendar/upcoming")
+@router.get("/calendar/upcoming", response_model=CalendarCalendarUpcomingResponse)
 async def calendar_upcoming(days: int = 7):
     from gateway.calendar_integration import get_upcoming
 
@@ -42,7 +55,7 @@ class CalendarCreateRequest(BaseModel):
     notes: str = ""
 
 
-@router.post("/calendar/create")
+@router.post("/calendar/create", response_model=CalendarCalendarCreateResponse)
 async def calendar_create(payload: CalendarCreateRequest):
     from gateway.calendar_integration import create, is_available
 

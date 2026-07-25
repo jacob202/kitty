@@ -4,7 +4,9 @@ Backed by gateway.cron so the UI surface shows real scheduled tasks instead of
 hard-coded demo rows.
 """
 
+
 from __future__ import annotations
+from pydantic import BaseModel
 
 import json
 import time
@@ -12,6 +14,23 @@ import time
 from fastapi import APIRouter, HTTPException
 
 from gateway import cron
+
+class LoopsLoopsResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class LoopsLoopsResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class LoopsLoopLoopIdToggleResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class LoopsLoopLoopIdResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
 
 router = APIRouter(tags=["loops"])
 
@@ -44,13 +63,13 @@ def _schedule_to_loop(s: dict) -> dict:
     }
 
 
-@router.get("/loops")
+@router.get("/loops", response_model=LoopsLoopsResponse)
 async def get_loops():
     """Get all active loops from the real cron schedule store."""
     return {"loops": [_schedule_to_loop(s) for s in cron.list_schedules()]}
 
 
-@router.post("/loops")
+@router.post("/loops", response_model=LoopsLoopsResponse)
 async def create_loop(loop: dict):
     """Create a new loop as a cron schedule."""
     interval_minutes = loop.get("interval_minutes", 60)
@@ -76,7 +95,7 @@ async def create_loop(loop: dict):
     }
 
 
-@router.post("/loop/{loop_id}/toggle")
+@router.post("/loop/{loop_id}/toggle", response_model=LoopsLoopLoopIdToggleResponse)
 async def toggle_loop(loop_id: str):
     """Toggle a loop on/off."""
     new_state = cron.toggle(loop_id)
@@ -89,7 +108,7 @@ async def toggle_loop(loop_id: str):
     raise HTTPException(status_code=404, detail="Loop not found")
 
 
-@router.delete("/loop/{loop_id}")
+@router.delete("/loop/{loop_id}", response_model=LoopsLoopLoopIdResponse)
 async def delete_loop(loop_id: str):
     """Delete a loop."""
     if not cron.remove(loop_id):

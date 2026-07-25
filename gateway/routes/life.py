@@ -1,6 +1,8 @@
 """Life awareness routes — calendar, do-not-disturb, evening reflection, proactive."""
 
+
 from __future__ import annotations
+from pydantic import BaseModel
 
 import logging
 
@@ -10,35 +12,84 @@ from gateway import life_awareness
 
 logger = logging.getLogger("kitty.routes.life")
 
+class LifeLifeTodayResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class LifeLifeYesterdayResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class LifeLifeDndResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class LifeLifeProactiveResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class LifeLifeReflectionResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class LifeLifeReflectionGenerateResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class LifeLifeProactiveGenerateResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class LifeLifeDismissSignalKindResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class LifeLifeCacheInvalidateResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class LifeLifeMeetingResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class LifeLifeEventsResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class LifeLifeCheckResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+
 router = APIRouter(tags=["life"])
 
 
-@router.get("/life/today")
+@router.get("/life/today", response_model=LifeLifeTodayResponse)
 async def get_today_summary() -> dict:
     return life_awareness.today_summary()
 
 
-@router.get("/life/yesterday")
+@router.get("/life/yesterday", response_model=LifeLifeYesterdayResponse)
 async def get_yesterday_recap() -> dict:
     return life_awareness.yesterday_recap()
 
 
-@router.get("/life/dnd")
+@router.get("/life/dnd", response_model=LifeLifeDndResponse)
 async def get_do_not_disturb() -> dict:
     return life_awareness.do_not_disturb_status()
 
 
-@router.get("/life/proactive")
+@router.get("/life/proactive", response_model=LifeLifeProactiveResponse)
 async def get_proactive() -> dict:
     return life_awareness.morning_proactive()
 
 
-@router.get("/life/reflection")
+@router.get("/life/reflection", response_model=LifeLifeReflectionResponse)
 async def get_evening_reflection() -> dict:
     return life_awareness.evening_reflection()
 
 
-@router.post("/life/reflection/generate")
+@router.post("/life/reflection/generate", response_model=LifeLifeReflectionGenerateResponse)
 async def post_generate_reflection() -> dict:
     text = life_awareness.generate_evening_reflection_text()
     life_awareness.emit_life_signal(
@@ -48,7 +99,7 @@ async def post_generate_reflection() -> dict:
     return {"reflection": text}
 
 
-@router.post("/life/proactive/generate")
+@router.post("/life/proactive/generate", response_model=LifeLifeProactiveGenerateResponse)
 async def post_generate_proactive() -> dict:
     text = life_awareness.generate_proactive_text()
     life_awareness.emit_life_signal(
@@ -58,7 +109,7 @@ async def post_generate_proactive() -> dict:
     return {"proactive": text}
 
 
-@router.post("/life/dismiss/{signal_kind}")
+@router.post("/life/dismiss/{signal_kind}", response_model=LifeLifeDismissSignalKindResponse)
 async def post_dismiss(signal_kind: str) -> dict:
     life_awareness.emit_life_signal(
         life_awareness.PROACTIVE_DISMISSED,
@@ -67,13 +118,13 @@ async def post_dismiss(signal_kind: str) -> dict:
     return {"dismissed": signal_kind}
 
 
-@router.post("/life/cache/invalidate")
+@router.post("/life/cache/invalidate", response_model=LifeLifeCacheInvalidateResponse)
 async def invalidate_life_cache() -> dict:
     life_awareness.invalidate_caches()
     return {"ok": True}
 
 
-@router.get("/life/meeting")
+@router.get("/life/meeting", response_model=LifeLifeMeetingResponse)
 async def get_current_meeting() -> dict:
     meeting = life_awareness.current_meeting()
     if meeting:
@@ -81,14 +132,14 @@ async def get_current_meeting() -> dict:
     return {"in_meeting": False, "meeting": None}
 
 
-@router.get("/life/events")
+@router.get("/life/events", response_model=LifeLifeEventsResponse)
 async def list_life_events(limit: int = 20) -> dict:
     from gateway.signal_store import list_recent
     signals = list_recent(limit=limit, source=life_awareness.LIFE_SIGNAL_SOURCE)
     return {"events": signals}
 
 
-@router.get("/life/check")
+@router.get("/life/check", response_model=LifeLifeCheckResponse)
 async def get_life_check() -> dict:
     dnd = life_awareness.do_not_disturb_status()
     proactive = life_awareness.morning_proactive()

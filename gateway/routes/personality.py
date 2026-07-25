@@ -13,6 +13,15 @@ from pydantic import BaseModel, Field, model_validator
 from gateway.paths import CONFIG_DIR, PERSONALITY_DIR
 from gateway.personality import invalidate_cache
 
+class PersonalitySettingsPersonalityResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class PersonalitySettingsPersonalityResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+
 router = APIRouter(tags=["settings"])
 
 SOUL_FILE = CONFIG_DIR / "SOUL.md"
@@ -103,7 +112,7 @@ def _write_documents(soul: str, preferences: str) -> None:
                     pass
 
 
-@router.get("/settings/personality")
+@router.get("/settings/personality", response_model=PersonalitySettingsPersonalityResponse)
 def get_personality() -> dict[str, str]:
     """Return all personality documents — soul, identity, agents, and preferences."""
     result: dict[str, str] = {}
@@ -117,7 +126,7 @@ def get_personality() -> dict[str, str]:
     return result
 
 
-@router.put("/settings/personality")
+@router.put("/settings/personality", response_model=PersonalitySettingsPersonalityResponse)
 def put_personality(payload: PersonalityUpdate) -> dict[str, bool]:
     """Persist an intentional complete replacement of both legacy personality documents."""
     soul = _normalise_document(payload.soul, label="Soul")

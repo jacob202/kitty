@@ -1,6 +1,8 @@
 """Morning brief routes."""
 
+
 from __future__ import annotations
+from pydantic import BaseModel
 
 import asyncio
 import logging
@@ -8,11 +10,20 @@ import logging
 from fastapi import APIRouter
 
 logger = logging.getLogger("kitty.gateway")
+class BriefBriefResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class BriefApiBriefResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+
 router = APIRouter(tags=["brief"])
 
 
-@router.get("/brief")
-@router.get("/api/brief")
+@router.get("/brief", response_model=BriefBriefResponse)
+@router.get("/api/brief", response_model=BriefApiBriefResponse)
 async def morning_brief():
     from gateway.brief import generate_brief, generate_fast_brief, get_cached_brief
 

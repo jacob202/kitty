@@ -4,7 +4,9 @@ Every repair item has a plain-English title, severity, and optional fix button
 that dispatches through the action queue at T0 (auto-execute, logged).
 """
 
+
 from __future__ import annotations
+from pydantic import BaseModel
 
 import logging
 import time
@@ -12,12 +14,25 @@ import time
 from fastapi import APIRouter
 
 logger = logging.getLogger("kitty.repairs")
+class RepairsRepairsResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class RepairsRepairsDismissResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class RepairsRepairsCheckResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+
 router = APIRouter(tags=["repairs"])
 
 _FIXABLE_THRESHOLD = 7 * 86400  # 7 days in seconds
 
 
-@router.get("/repairs")
+@router.get("/repairs", response_model=RepairsRepairsResponse)
 async def list_repairs():
     import pathlib
     import sys
@@ -266,7 +281,7 @@ def _check_queue_backup_age() -> list:
                   f"Queue backup is {age_days:.1f} day(s) old")]
 
 
-@router.post("/repairs/dismiss")
+@router.post("/repairs/dismiss", response_model=RepairsRepairsDismissResponse)
 async def dismiss_repair(body: dict):
     """Record a dismissed repair through the action queue. Signal-* IDs mark
     the signal processed so it doesn't reappear on next poll."""
@@ -297,7 +312,7 @@ async def dismiss_repair(body: dict):
         return {"ok": False, "error": str(exc)}
 
 
-@router.post("/repairs/check")
+@router.post("/repairs/check", response_model=RepairsRepairsCheckResponse)
 async def run_repair_check(body: dict):
     """Re-run a specific health check through the action queue."""
     check_name = body.get("check_name", "unknown")

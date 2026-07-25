@@ -4,13 +4,40 @@ Phase C C3: the route reads and writes through chats_store instead of
 data/kitty/chats.json. The wire contract (paths, request/response
 shapes) is unchanged.
 """
+
 from __future__ import annotations
+from pydantic import BaseModel
 
 import json
 
 from fastapi import APIRouter, HTTPException, Request
 
 from gateway import artifact_store, chat_lifecycle, chats_store
+
+class ChatsChatsResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ChatsChatsResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ChatsChatsChatIdResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ChatsChatsChatIdObjectiveResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ChatsChatsChatIdLifecycleResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ChatsChatsChatIdMessagesResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
 
 router = APIRouter(tags=["chats"])
 
@@ -44,13 +71,13 @@ def _recover_memory_items(raw_memory: object) -> list[dict[str, str]]:
     return normalized
 
 
-@router.get("/chats")
+@router.get("/chats", response_model=ChatsChatsResponse)
 async def get_chats():
     """Return all saved chat sessions."""
     return {"chats": chats_store.list_chats()}
 
 
-@router.post("/chats")
+@router.post("/chats", response_model=ChatsChatsResponse)
 async def upsert_chat(request: Request):
     """Create or update a chat session by id."""
     chat = await request.json()
@@ -60,14 +87,14 @@ async def upsert_chat(request: Request):
     return {"ok": True}
 
 
-@router.delete("/chats/{chat_id}")
+@router.delete("/chats/{chat_id}", response_model=ChatsChatsChatIdResponse)
 async def delete_chat(chat_id: str):
     """Delete a chat session."""
     chats_store.delete_chat(chat_id)
     return {"ok": True}
 
 
-@router.patch("/chats/{chat_id}/objective")
+@router.patch("/chats/{chat_id}/objective", response_model=ChatsChatsChatIdObjectiveResponse)
 async def patch_chat_objective(chat_id: str, request: Request):
     """Set or clear a chat's per-thread objective."""
     try:
@@ -99,7 +126,7 @@ async def patch_chat_objective(chat_id: str, request: Request):
     return updated
 
 
-@router.get("/chats/{chat_id}/lifecycle")
+@router.get("/chats/{chat_id}/lifecycle", response_model=ChatsChatsChatIdLifecycleResponse)
 def get_chat_lifecycle(chat_id: str) -> dict:
     try:
         return chat_lifecycle.list_conversation(chat_id)
@@ -163,7 +190,7 @@ def _recover_messages(conversation_id: str) -> list[dict]:
     return messages
 
 
-@router.get("/chats/{chat_id}/messages")
+@router.get("/chats/{chat_id}/messages", response_model=ChatsChatsChatIdMessagesResponse)
 def get_chat_messages(chat_id: str) -> dict:
     """Recover ordered chat history from the normalized lifecycle ledger.
 

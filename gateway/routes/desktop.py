@@ -9,6 +9,19 @@ from pydantic import BaseModel, Field
 
 from gateway.desktop_store import append_text_capture, desktop_status, read_inbox
 
+class DesktopDesktopStatusResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class DesktopDesktopInboxResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class DesktopDesktopCaptureResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+
 router = APIRouter(tags=["desktop"])
 
 
@@ -20,19 +33,19 @@ class DesktopCaptureRequest(BaseModel):
     tags: list[str] = Field(default_factory=list)
 
 
-@router.get("/desktop/status")
+@router.get("/desktop/status", response_model=DesktopDesktopStatusResponse)
 async def get_desktop_status():
     return desktop_status()
 
 
-@router.get("/desktop/inbox")
+@router.get("/desktop/inbox", response_model=DesktopDesktopInboxResponse)
 async def get_desktop_inbox(limit: int = 20):
     if limit < 1 or limit > 200:
         raise HTTPException(status_code=400, detail="limit must be between 1 and 200")
     return {"entries": read_inbox(limit=limit)}
 
 
-@router.post("/desktop/capture")
+@router.post("/desktop/capture", response_model=DesktopDesktopCaptureResponse)
 async def post_desktop_capture(payload: DesktopCaptureRequest):
     entry = append_text_capture(
         text=payload.text,

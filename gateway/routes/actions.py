@@ -13,6 +13,27 @@ from pydantic import BaseModel, Field
 
 from gateway import action_queue
 
+class ActionsActionsResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ActionsActionsProposeResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ActionsActionsActionIdApproveResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ActionsActionsActionIdRejectResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ActionsActionsActionIdExecuteResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+
 router = APIRouter(tags=["actions"])
 
 
@@ -39,14 +60,14 @@ def _handle(fn, *args, **kwargs):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.get("/actions")
+@router.get("/actions", response_model=ActionsActionsResponse)
 def get_actions(status: str | None = None, limit: int = 50) -> dict:
     if limit < 1 or limit > 200:
         raise HTTPException(status_code=400, detail="limit must be between 1 and 200")
     return {"actions": action_queue.list_actions(status=status, limit=limit)}
 
 
-@router.post("/actions/propose")
+@router.post("/actions/propose", response_model=ActionsActionsProposeResponse)
 def post_propose(payload: ProposeRequest) -> dict:
     return _handle(
         action_queue.propose,
@@ -59,16 +80,16 @@ def post_propose(payload: ProposeRequest) -> dict:
     )
 
 
-@router.post("/actions/{action_id}/approve")
+@router.post("/actions/{action_id}/approve", response_model=ActionsActionsActionIdApproveResponse)
 def post_approve(action_id: int) -> dict:
     return _handle(action_queue.approve, action_id)
 
 
-@router.post("/actions/{action_id}/reject")
+@router.post("/actions/{action_id}/reject", response_model=ActionsActionsActionIdRejectResponse)
 def post_reject(action_id: int) -> dict:
     return _handle(action_queue.reject, action_id)
 
 
-@router.post("/actions/{action_id}/execute")
+@router.post("/actions/{action_id}/execute", response_model=ActionsActionsActionIdExecuteResponse)
 def post_execute(action_id: int) -> dict:
     return _handle(action_queue.execute, action_id)

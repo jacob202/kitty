@@ -1,6 +1,36 @@
 {
   "components": {
     "schemas": {
+      "ActionsActionsActionIdApproveResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ActionsActionsActionIdApproveResponse",
+        "type": "object"
+      },
+      "ActionsActionsActionIdExecuteResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ActionsActionsActionIdExecuteResponse",
+        "type": "object"
+      },
+      "ActionsActionsActionIdRejectResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ActionsActionsActionIdRejectResponse",
+        "type": "object"
+      },
+      "ActionsActionsProposeResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ActionsActionsProposeResponse",
+        "type": "object"
+      },
+      "ActionsActionsResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ActionsActionsResponse",
+        "type": "object"
+      },
       "ActiveProjectRequest": {
         "properties": {
           "project_id": {
@@ -76,6 +106,18 @@
           "goal"
         ],
         "title": "AgentSpawnRequest",
+        "type": "object"
+      },
+      "ArtifactsArtifactsArtifactIdResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ArtifactsArtifactsArtifactIdResponse",
+        "type": "object"
+      },
+      "ArtifactsArtifactsResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ArtifactsArtifactsResponse",
         "type": "object"
       },
       "AskRequest": {
@@ -269,6 +311,18 @@
         "title": "Body_studio_add_character_ref_studio_characters__character_id__references_post",
         "type": "object"
       },
+      "BriefApiBriefResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "BriefApiBriefResponse",
+        "type": "object"
+      },
+      "BriefBriefResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "BriefBriefResponse",
+        "type": "object"
+      },
       "BuildStartRequest": {
         "properties": {
           "auto_approve": {
@@ -378,6 +432,24 @@
           "action"
         ],
         "title": "BuilderActionResult",
+        "type": "object"
+      },
+      "CalendarCalendarCreateResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "CalendarCalendarCreateResponse",
+        "type": "object"
+      },
+      "CalendarCalendarTodayResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "CalendarCalendarTodayResponse",
+        "type": "object"
+      },
+      "CalendarCalendarUpcomingResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "CalendarCalendarUpcomingResponse",
         "type": "object"
       },
       "CalendarCreateRequest": {
@@ -580,6 +652,36 @@
         "title": "CharacterUpdate",
         "type": "object"
       },
+      "ChatsChatsChatIdLifecycleResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ChatsChatsChatIdLifecycleResponse",
+        "type": "object"
+      },
+      "ChatsChatsChatIdMessagesResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ChatsChatsChatIdMessagesResponse",
+        "type": "object"
+      },
+      "ChatsChatsChatIdObjectiveResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ChatsChatsChatIdObjectiveResponse",
+        "type": "object"
+      },
+      "ChatsChatsChatIdResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ChatsChatsChatIdResponse",
+        "type": "object"
+      },
+      "ChatsChatsResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ChatsChatsResponse",
+        "type": "object"
+      },
       "CloseSessionRequest": {
         "properties": {
           "messages": {
@@ -597,6 +699,30 @@
           }
         },
         "title": "CloseSessionRequest",
+        "type": "object"
+      },
+      "CompletionsApiChatCompletionsResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "CompletionsApiChatCompletionsResponse",
+        "type": "object"
+      },
+      "CompletionsApiModelsResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "CompletionsApiModelsResponse",
+        "type": "object"
+      },
+      "CompletionsSessionsCloseResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "CompletionsSessionsCloseResponse",
+        "type": "object"
+      },
+      "CompletionsV1ChatCompletionsResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "CompletionsV1ChatCompletionsResponse",
         "type": "object"
       },
       "CouncilRequest": {
@@ -659,6 +785,60 @@
           "kind"
         ],
         "title": "CreateProjectRequest",
+        "type": "object"
+      },
+      "CronCronActionsResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "CronCronActionsResponse",
+        "type": "object"
+      },
+      "CronCronScheduleResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "CronCronScheduleResponse",
+        "type": "object"
+      },
+      "CronCronScheduleSidResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "CronCronScheduleSidResponse",
+        "type": "object"
+      },
+      "CronCronScheduleSidToggleResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "CronCronScheduleSidToggleResponse",
+        "type": "object"
+      },
+      "CronCronSchedulesResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "CronCronSchedulesResponse",
+        "type": "object"
+      },
+      "DeadlinesDeadlinesDeadlineIdCloseResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "DeadlinesDeadlinesDeadlineIdCloseResponse",
+        "type": "object"
+      },
+      "DeadlinesDeadlinesDeadlineIdResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "DeadlinesDeadlinesDeadlineIdResponse",
+        "type": "object"
+      },
+      "DeadlinesDeadlinesResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "DeadlinesDeadlinesResponse",
+        "type": "object"
+      },
+      "DeadlinesDeadlinesSweepResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "DeadlinesDeadlinesSweepResponse",
         "type": "object"
       },
       "DeepResearchRequest": {
@@ -756,6 +936,42 @@
           "text"
         ],
         "title": "DesktopCaptureRequest",
+        "type": "object"
+      },
+      "DesktopDesktopCaptureResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "DesktopDesktopCaptureResponse",
+        "type": "object"
+      },
+      "DesktopDesktopInboxResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "DesktopDesktopInboxResponse",
+        "type": "object"
+      },
+      "DesktopDesktopStatusResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "DesktopDesktopStatusResponse",
+        "type": "object"
+      },
+      "DreamDreamInsightsResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "DreamDreamInsightsResponse",
+        "type": "object"
+      },
+      "DreamDreamStatusResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "DreamDreamStatusResponse",
+        "type": "object"
+      },
+      "DreamDreamTriggerResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "DreamDreamTriggerResponse",
         "type": "object"
       },
       "ExpertAnswerResponse": {
@@ -913,6 +1129,246 @@
         "title": "ExpertRequest",
         "type": "object"
       },
+      "ExpertsExpertIdSnoozeResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExpertsExpertIdSnoozeResponse",
+        "type": "object"
+      },
+      "ExpertsPauseAllResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExpertsPauseAllResponse",
+        "type": "object"
+      },
+      "ExpertsSignalsSignalIdDismissResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExpertsSignalsSignalIdDismissResponse",
+        "type": "object"
+      },
+      "ExpertsSignalsSignalIdResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExpertsSignalsSignalIdResponse",
+        "type": "object"
+      },
+      "ExpertsSignalsUnprocessedResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExpertsSignalsUnprocessedResponse",
+        "type": "object"
+      },
+      "ExtendedAgentSessionIdResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedAgentSessionIdResponse",
+        "type": "object"
+      },
+      "ExtendedAgentSessionIdStopResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedAgentSessionIdStopResponse",
+        "type": "object"
+      },
+      "ExtendedAgentSpawnResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedAgentSpawnResponse",
+        "type": "object"
+      },
+      "ExtendedAgentsResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedAgentsResponse",
+        "type": "object"
+      },
+      "ExtendedImageGenerateResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedImageGenerateResponse",
+        "type": "object"
+      },
+      "ExtendedImageHistoryResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedImageHistoryResponse",
+        "type": "object"
+      },
+      "ExtendedImageJobIdCancelResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedImageJobIdCancelResponse",
+        "type": "object"
+      },
+      "ExtendedImageStatusResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedImageStatusResponse",
+        "type": "object"
+      },
+      "ExtendedImageViewFilename_pathResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedImageViewFilename_pathResponse",
+        "type": "object"
+      },
+      "ExtendedNotifyResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedNotifyResponse",
+        "type": "object"
+      },
+      "ExtendedNotifyTestResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedNotifyTestResponse",
+        "type": "object"
+      },
+      "ExtendedSkillNameInvokeResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedSkillNameInvokeResponse",
+        "type": "object"
+      },
+      "ExtendedSkillNameResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedSkillNameResponse",
+        "type": "object"
+      },
+      "ExtendedSkillsResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedSkillsResponse",
+        "type": "object"
+      },
+      "ExtendedStudioCharactersCharacterIdQualityResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedStudioCharactersCharacterIdQualityResponse",
+        "type": "object"
+      },
+      "ExtendedStudioCharactersCharacterIdReferencesRefIdResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedStudioCharactersCharacterIdReferencesRefIdResponse",
+        "type": "object"
+      },
+      "ExtendedStudioCharactersCharacterIdReferencesResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedStudioCharactersCharacterIdReferencesResponse",
+        "type": "object"
+      },
+      "ExtendedStudioCharactersCharacterIdResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedStudioCharactersCharacterIdResponse",
+        "type": "object"
+      },
+      "ExtendedStudioCharactersResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedStudioCharactersResponse",
+        "type": "object"
+      },
+      "ExtendedStudioGenerateResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedStudioGenerateResponse",
+        "type": "object"
+      },
+      "ExtendedStudioRecipesRecipeIdResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedStudioRecipesRecipeIdResponse",
+        "type": "object"
+      },
+      "ExtendedStudioRecipesResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedStudioRecipesResponse",
+        "type": "object"
+      },
+      "ExtendedTaskCreateResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedTaskCreateResponse",
+        "type": "object"
+      },
+      "ExtendedTaskTaskIdCancelResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedTaskTaskIdCancelResponse",
+        "type": "object"
+      },
+      "ExtendedTaskTaskIdOutputResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedTaskTaskIdOutputResponse",
+        "type": "object"
+      },
+      "ExtendedTaskTaskIdResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedTaskTaskIdResponse",
+        "type": "object"
+      },
+      "ExtendedTasksResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedTasksResponse",
+        "type": "object"
+      },
+      "ExtendedTodosAddResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedTodosAddResponse",
+        "type": "object"
+      },
+      "ExtendedTodosClearResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedTodosClearResponse",
+        "type": "object"
+      },
+      "ExtendedTodosResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedTodosResponse",
+        "type": "object"
+      },
+      "ExtendedTodosTodoIdCompleteResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedTodosTodoIdCompleteResponse",
+        "type": "object"
+      },
+      "ExtendedTodosTodoIdResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ExtendedTodosTodoIdResponse",
+        "type": "object"
+      },
+      "FeedbackErrorResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "FeedbackErrorResponse",
+        "type": "object"
+      },
+      "FeedbackFeedbackResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "FeedbackFeedbackResponse",
+        "type": "object"
+      },
+      "FeedbackFeedbackStatsResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "FeedbackFeedbackStatsResponse",
+        "type": "object"
+      },
       "GlanceResponse": {
         "properties": {
           "branch": {
@@ -949,6 +1405,30 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "IdeaMineExportResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IdeaMineExportResponse",
+        "type": "object"
+      },
+      "IdeaMineItemIdReviewResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IdeaMineItemIdReviewResponse",
+        "type": "object"
+      },
+      "IdeaMineReviewResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IdeaMineReviewResponse",
+        "type": "object"
+      },
+      "IdeaMineSurfaceableResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IdeaMineSurfaceableResponse",
+        "type": "object"
+      },
       "ImageGenRequest": {
         "properties": {
           "engine": {
@@ -976,6 +1456,24 @@
           "prompt"
         ],
         "title": "ImageGenRequest",
+        "type": "object"
+      },
+      "ImportChatGPTResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ImportChatGPTResponse",
+        "type": "object"
+      },
+      "InboxInboxTriageResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "InboxInboxTriageResponse",
+        "type": "object"
+      },
+      "InboxInboxTriagedResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "InboxInboxTriagedResponse",
         "type": "object"
       },
       "IngestRequest": {
@@ -1083,6 +1581,162 @@
         "title": "IngestResponse",
         "type": "object"
       },
+      "InsightsInsightInsightIdDismissResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "InsightsInsightInsightIdDismissResponse",
+        "type": "object"
+      },
+      "InsightsInsightsResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "InsightsInsightsResponse",
+        "type": "object"
+      },
+      "IntegrationsBuildBuildIdApproveStageResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IntegrationsBuildBuildIdApproveStageResponse",
+        "type": "object"
+      },
+      "IntegrationsBuildBuildIdResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IntegrationsBuildBuildIdResponse",
+        "type": "object"
+      },
+      "IntegrationsBuildStartResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IntegrationsBuildStartResponse",
+        "type": "object"
+      },
+      "IntegrationsBuildsResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IntegrationsBuildsResponse",
+        "type": "object"
+      },
+      "IntegrationsDeployResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IntegrationsDeployResponse",
+        "type": "object"
+      },
+      "IntegrationsEvalCompareResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IntegrationsEvalCompareResponse",
+        "type": "object"
+      },
+      "IntegrationsEvalRunResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IntegrationsEvalRunResponse",
+        "type": "object"
+      },
+      "IntegrationsHealthWeeklyResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IntegrationsHealthWeeklyResponse",
+        "type": "object"
+      },
+      "IntegrationsImessageRecentResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IntegrationsImessageRecentResponse",
+        "type": "object"
+      },
+      "IntegrationsImessageSendResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IntegrationsImessageSendResponse",
+        "type": "object"
+      },
+      "IntegrationsMcpServersResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IntegrationsMcpServersResponse",
+        "type": "object"
+      },
+      "IntegrationsMcpToolsResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IntegrationsMcpToolsResponse",
+        "type": "object"
+      },
+      "IntegrationsNudgeNudgeIdDismissResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IntegrationsNudgeNudgeIdDismissResponse",
+        "type": "object"
+      },
+      "IntegrationsNudgesResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IntegrationsNudgesResponse",
+        "type": "object"
+      },
+      "IntegrationsPatternsAnnualResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IntegrationsPatternsAnnualResponse",
+        "type": "object"
+      },
+      "IntegrationsPatternsWeeklyResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IntegrationsPatternsWeeklyResponse",
+        "type": "object"
+      },
+      "IntegrationsPluginNameDisableResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IntegrationsPluginNameDisableResponse",
+        "type": "object"
+      },
+      "IntegrationsPluginNameEnableResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IntegrationsPluginNameEnableResponse",
+        "type": "object"
+      },
+      "IntegrationsPluginsResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IntegrationsPluginsResponse",
+        "type": "object"
+      },
+      "IntegrationsSyncExportResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IntegrationsSyncExportResponse",
+        "type": "object"
+      },
+      "IntegrationsSyncImportResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IntegrationsSyncImportResponse",
+        "type": "object"
+      },
+      "IntegrationsTelegramStatusResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IntegrationsTelegramStatusResponse",
+        "type": "object"
+      },
+      "IntegrationsVerifyResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IntegrationsVerifyResponse",
+        "type": "object"
+      },
+      "IntegrationsWeatherResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "IntegrationsWeatherResponse",
+        "type": "object"
+      },
       "JournalChatRequest": {
         "properties": {
           "messages": {
@@ -1103,6 +1757,78 @@
           "messages"
         ],
         "title": "JournalChatRequest",
+        "type": "object"
+      },
+      "JournalJournalChatResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "JournalJournalChatResponse",
+        "type": "object"
+      },
+      "JournalJournalPromptResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "JournalJournalPromptResponse",
+        "type": "object"
+      },
+      "JournalJournalStartResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "JournalJournalStartResponse",
+        "type": "object"
+      },
+      "JournalJournalSynthesizeResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "JournalJournalSynthesizeResponse",
+        "type": "object"
+      },
+      "JournalSessionsSessionIdMessagesMessageIdResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "JournalSessionsSessionIdMessagesMessageIdResponse",
+        "type": "object"
+      },
+      "KittyToolsInventoryPhotoResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "KittyToolsInventoryPhotoResponse",
+        "type": "object"
+      },
+      "KittyToolsLearnResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "KittyToolsLearnResponse",
+        "type": "object"
+      },
+      "KittyToolsResearchDeepResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "KittyToolsResearchDeepResponse",
+        "type": "object"
+      },
+      "KittyToolsResetResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "KittyToolsResetResponse",
+        "type": "object"
+      },
+      "KittyToolsTasksSyncResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "KittyToolsTasksSyncResponse",
+        "type": "object"
+      },
+      "KittyToolsTroubleshootResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "KittyToolsTroubleshootResponse",
+        "type": "object"
+      },
+      "KittyToolsWeeklyResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "KittyToolsWeeklyResponse",
         "type": "object"
       },
       "KnowledgeChunkMetadata": {
@@ -1495,6 +2221,78 @@
         "title": "LearnRequest",
         "type": "object"
       },
+      "LifeLifeCacheInvalidateResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "LifeLifeCacheInvalidateResponse",
+        "type": "object"
+      },
+      "LifeLifeCheckResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "LifeLifeCheckResponse",
+        "type": "object"
+      },
+      "LifeLifeDismissSignalKindResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "LifeLifeDismissSignalKindResponse",
+        "type": "object"
+      },
+      "LifeLifeDndResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "LifeLifeDndResponse",
+        "type": "object"
+      },
+      "LifeLifeEventsResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "LifeLifeEventsResponse",
+        "type": "object"
+      },
+      "LifeLifeMeetingResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "LifeLifeMeetingResponse",
+        "type": "object"
+      },
+      "LifeLifeProactiveGenerateResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "LifeLifeProactiveGenerateResponse",
+        "type": "object"
+      },
+      "LifeLifeProactiveResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "LifeLifeProactiveResponse",
+        "type": "object"
+      },
+      "LifeLifeReflectionGenerateResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "LifeLifeReflectionGenerateResponse",
+        "type": "object"
+      },
+      "LifeLifeReflectionResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "LifeLifeReflectionResponse",
+        "type": "object"
+      },
+      "LifeLifeTodayResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "LifeLifeTodayResponse",
+        "type": "object"
+      },
+      "LifeLifeYesterdayResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "LifeLifeYesterdayResponse",
+        "type": "object"
+      },
       "LogTailResponse": {
         "properties": {
           "file": {
@@ -1514,6 +2312,24 @@
           "lines"
         ],
         "title": "LogTailResponse",
+        "type": "object"
+      },
+      "LoopsLoopLoopIdResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "LoopsLoopLoopIdResponse",
+        "type": "object"
+      },
+      "LoopsLoopLoopIdToggleResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "LoopsLoopLoopIdToggleResponse",
+        "type": "object"
+      },
+      "LoopsLoopsResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "LoopsLoopsResponse",
         "type": "object"
       },
       "MagicInsightItem": {
@@ -1550,6 +2366,42 @@
         "title": "MagicInsightsResponse",
         "type": "object"
       },
+      "MemoriesMemoriesMemoryIdResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "MemoriesMemoriesMemoryIdResponse",
+        "type": "object"
+      },
+      "MemoriesMemoriesResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "MemoriesMemoriesResponse",
+        "type": "object"
+      },
+      "MonitorsMonitorCreateResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "MonitorsMonitorCreateResponse",
+        "type": "object"
+      },
+      "MonitorsMonitorMonitorIdCheckResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "MonitorsMonitorMonitorIdCheckResponse",
+        "type": "object"
+      },
+      "MonitorsMonitorMonitorIdResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "MonitorsMonitorMonitorIdResponse",
+        "type": "object"
+      },
+      "MonitorsMonitorsResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "MonitorsMonitorsResponse",
+        "type": "object"
+      },
       "NotifyRequest": {
         "properties": {
           "message": {
@@ -1581,6 +2433,30 @@
         "title": "NotifyRequest",
         "type": "object"
       },
+      "OnboardingOnboardingResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "OnboardingOnboardingResponse",
+        "type": "object"
+      },
+      "PerfPerfRecentResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "PerfPerfRecentResponse",
+        "type": "object"
+      },
+      "PerfPerfStatsResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "PerfPerfStatsResponse",
+        "type": "object"
+      },
+      "PersonalitySettingsPersonalityResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "PersonalitySettingsPersonalityResponse",
+        "type": "object"
+      },
       "PersonalityUpdate": {
         "description": "Complete, non-empty replacements for the visible personality documents.",
         "properties": {
@@ -1600,6 +2476,42 @@
           "preferences"
         ],
         "title": "PersonalityUpdate",
+        "type": "object"
+      },
+      "ProjectsProjectsNextStepsResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ProjectsProjectsNextStepsResponse",
+        "type": "object"
+      },
+      "ProjectsProjectsProjectIdNextResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ProjectsProjectsProjectIdNextResponse",
+        "type": "object"
+      },
+      "ProjectsProjectsProjectIdRefreshResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ProjectsProjectsProjectIdRefreshResponse",
+        "type": "object"
+      },
+      "ProjectsProjectsProjectIdResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ProjectsProjectsProjectIdResponse",
+        "type": "object"
+      },
+      "ProjectsProjectsProjectIdResumeResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ProjectsProjectsProjectIdResumeResponse",
+        "type": "object"
+      },
+      "ProjectsProjectsResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "ProjectsProjectsResponse",
         "type": "object"
       },
       "PromptTemplateItem": {
@@ -1700,6 +2612,36 @@
           "available"
         ],
         "title": "RecipeUpdate",
+        "type": "object"
+      },
+      "RepairsRepairsCheckResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "RepairsRepairsCheckResponse",
+        "type": "object"
+      },
+      "RepairsRepairsDismissResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "RepairsRepairsDismissResponse",
+        "type": "object"
+      },
+      "RepairsRepairsResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "RepairsRepairsResponse",
+        "type": "object"
+      },
+      "RuntimeContextProjectResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "RuntimeContextProjectResponse",
+        "type": "object"
+      },
+      "RuntimeRuntimeManifestResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "RuntimeRuntimeManifestResponse",
         "type": "object"
       },
       "ScheduleRequest": {
@@ -1811,6 +2753,12 @@
         "title": "SectionUpdate",
         "type": "object"
       },
+      "SessionContextResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "SessionContextResponse",
+        "type": "object"
+      },
       "SignalsResponse": {
         "properties": {
           "checks_run": {
@@ -1882,6 +2830,24 @@
           "duration_hours"
         ],
         "title": "SnoozeRequest",
+        "type": "object"
+      },
+      "StateStateChangesResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "StateStateChangesResponse",
+        "type": "object"
+      },
+      "StateStateNowResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "StateStateNowResponse",
+        "type": "object"
+      },
+      "StateStateSnapshotResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "StateStateSnapshotResponse",
         "type": "object"
       },
       "StudioGenerateRequest": {
@@ -2050,6 +3016,18 @@
         "title": "TasksSyncRequest",
         "type": "object"
       },
+      "TelosTelosResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "TelosTelosResponse",
+        "type": "object"
+      },
+      "TelosTelosSectionResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "TelosTelosSectionResponse",
+        "type": "object"
+      },
       "TodoAddRequest": {
         "properties": {
           "active_form": {
@@ -2199,6 +3177,48 @@
         "title": "TutorLearn",
         "type": "object"
       },
+      "TutorTutorAskResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "TutorTutorAskResponse",
+        "type": "object"
+      },
+      "TutorTutorAttemptResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "TutorTutorAttemptResponse",
+        "type": "object"
+      },
+      "TutorTutorGradeResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "TutorTutorGradeResponse",
+        "type": "object"
+      },
+      "TutorTutorLearnResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "TutorTutorLearnResponse",
+        "type": "object"
+      },
+      "TutorTutorQuizResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "TutorTutorQuizResponse",
+        "type": "object"
+      },
+      "TutorTutorReviewResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "TutorTutorReviewResponse",
+        "type": "object"
+      },
+      "TutorTutorTermTermResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "TutorTutorTermTermResponse",
+        "type": "object"
+      },
       "UpdateProjectRequest": {
         "properties": {
           "kind": {
@@ -2267,6 +3287,12 @@
         "title": "UpdateProjectRequest",
         "type": "object"
       },
+      "UsageSummaryResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "UsageSummaryResponse",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -2331,6 +3357,18 @@
           "target_dir"
         ],
         "title": "VerifyRequest",
+        "type": "object"
+      },
+      "VoiceV1AudioSpeechResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "VoiceV1AudioSpeechResponse",
+        "type": "object"
+      },
+      "VoiceV1AudioTranscriptionsResponse": {
+        "additionalProperties": true,
+        "properties": {},
+        "title": "VoiceV1AudioTranscriptionsResponse",
         "type": "object"
       },
       "iMessageSendRequest": {
@@ -2399,9 +3437,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Actions Actions Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActionsActionsResponse"
                 }
               }
             },
@@ -2442,9 +3478,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Post Propose Actions Propose Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActionsActionsProposeResponse"
                 }
               }
             },
@@ -2486,9 +3520,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Post Approve Actions  Action Id  Approve Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActionsActionsActionIdApproveResponse"
                 }
               }
             },
@@ -2530,9 +3562,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Post Execute Actions  Action Id  Execute Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActionsActionsActionIdExecuteResponse"
                 }
               }
             },
@@ -2574,9 +3604,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Post Reject Actions  Action Id  Reject Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ActionsActionsActionIdRejectResponse"
                 }
               }
             },
@@ -2616,7 +3644,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedAgentSpawnResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -2656,7 +3686,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedAgentSessionIdResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -2696,7 +3728,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedAgentSessionIdStopResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -2737,7 +3771,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedAgentsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -2766,7 +3802,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/BriefApiBriefResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -2786,7 +3824,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/CompletionsApiChatCompletionsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -2806,7 +3846,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/CompletionsApiModelsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -2888,9 +3930,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Artifacts Artifacts Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ArtifactsArtifactsResponse"
                 }
               }
             },
@@ -2932,9 +3972,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Artifact Artifacts  Artifact Id  Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ArtifactsArtifactsArtifactIdResponse"
                 }
               }
             },
@@ -3006,7 +4044,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/BriefBriefResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -3035,7 +4075,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsBuildStartResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -3075,7 +4117,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsBuildBuildIdResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -3124,7 +4168,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsBuildBuildIdApproveStageResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -3206,7 +4252,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsBuildsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -3245,7 +4293,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarCalendarCreateResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -3274,7 +4324,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarCalendarTodayResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -3305,7 +4357,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarCalendarUpcomingResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -3418,7 +4472,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ChatsChatsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -3436,7 +4492,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ChatsChatsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -3467,7 +4525,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ChatsChatsChatIdResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -3508,9 +4568,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Chat Lifecycle Chats  Chat Id  Lifecycle Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ChatsChatsChatIdLifecycleResponse"
                 }
               }
             },
@@ -3553,9 +4611,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Chat Messages Chats  Chat Id  Messages Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ChatsChatsChatIdMessagesResponse"
                 }
               }
             },
@@ -3597,7 +4653,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ChatsChatsChatIdObjectiveResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -3628,9 +4686,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Active Project Context Project Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/RuntimeContextProjectResponse"
                 }
               }
             },
@@ -3660,9 +4716,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Put Active Project Context Project Put",
-                  "type": "object"
+                  "$ref": "#/components/schemas/RuntimeContextProjectResponse"
                 }
               }
             },
@@ -3734,7 +4788,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/CronCronActionsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -3763,7 +4819,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/CronCronScheduleResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -3803,7 +4861,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/CronCronScheduleSidResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -3851,7 +4911,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/CronCronScheduleSidResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -3891,7 +4953,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/CronCronScheduleSidToggleResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -3920,7 +4984,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/CronCronSchedulesResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -3959,9 +5025,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Deadlines Deadlines Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/DeadlinesDeadlinesResponse"
                 }
               }
             },
@@ -4004,9 +5068,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Post Sweep Deadlines Sweep Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/DeadlinesDeadlinesSweepResponse"
                 }
               }
             },
@@ -4048,9 +5110,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Deadline Deadlines  Deadline Id  Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/DeadlinesDeadlinesDeadlineIdResponse"
                 }
               }
             },
@@ -4092,9 +5152,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Close Deadline Deadlines  Deadline Id  Close Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/DeadlinesDeadlinesDeadlineIdCloseResponse"
                 }
               }
             },
@@ -4134,7 +5192,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsDeployResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -4173,7 +5233,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/DesktopDesktopCaptureResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -4214,7 +5276,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/DesktopDesktopInboxResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -4243,7 +5307,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/DesktopDesktopStatusResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -4263,9 +5329,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Dream Insights Endpoint Dream Insights Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/DreamDreamInsightsResponse"
                 }
               }
             },
@@ -4286,9 +5350,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Dream Status Dream Status Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/DreamDreamStatusResponse"
                 }
               }
             },
@@ -4309,9 +5371,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Dream Trigger Dream Trigger Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/DreamDreamTriggerResponse"
                 }
               }
             },
@@ -4345,11 +5405,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "boolean"
-                  },
-                  "title": "Response Log Error Endpoint Error Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/FeedbackErrorResponse"
                 }
               }
             },
@@ -4379,7 +5435,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsEvalCompareResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -4398,7 +5456,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsEvalRunResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -4418,7 +5478,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExpertsPauseAllResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -4436,7 +5498,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExpertsPauseAllResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -4456,7 +5520,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExpertsSignalsUnprocessedResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -4487,7 +5553,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExpertsSignalsSignalIdResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -4528,7 +5596,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExpertsSignalsSignalIdDismissResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -4569,7 +5639,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExpertsExpertIdSnoozeResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -4618,7 +5690,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExpertsExpertIdSnoozeResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -4661,11 +5735,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "boolean"
-                  },
-                  "title": "Response Submit Feedback Feedback Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/FeedbackFeedbackResponse"
                 }
               }
             },
@@ -4697,9 +5767,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Feedback Stats Feedback Stats Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/FeedbackFeedbackStatsResponse"
                 }
               }
             },
@@ -4735,7 +5803,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsHealthWeeklyResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -4768,9 +5838,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Post Export Idea Mine Export Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/IdeaMineExportResponse"
                 }
               }
             },
@@ -4836,9 +5904,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Review Queue Idea Mine Review Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/IdeaMineReviewResponse"
                 }
               }
             },
@@ -4870,9 +5936,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Surfaceable Idea Mine Surfaceable Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/IdeaMineSurfaceableResponse"
                 }
               }
             },
@@ -4914,9 +5978,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Patch Review Idea Mine  Item Id  Review Patch",
-                  "type": "object"
+                  "$ref": "#/components/schemas/IdeaMineItemIdReviewResponse"
                 }
               }
             },
@@ -4956,7 +6018,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedImageGenerateResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -4997,7 +6061,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedImageHistoryResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -5026,7 +6092,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedImageStatusResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -5057,7 +6125,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedImageViewFilename_pathResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -5098,7 +6168,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedImageJobIdCancelResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -5139,7 +6211,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsImessageRecentResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -5178,7 +6252,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsImessageSendResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -5218,7 +6294,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ImportChatGPTResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -5261,9 +6339,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Post Inbox Triage Inbox Triage Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/InboxInboxTriageResponse"
                 }
               }
             },
@@ -5323,9 +6399,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Inbox Triaged Inbox Triaged Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/InboxInboxTriagedResponse"
                 }
               }
             },
@@ -5368,9 +6442,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Dismiss Insight Insight  Insight Id  Dismiss Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/InsightsInsightInsightIdDismissResponse"
                 }
               }
             },
@@ -5414,9 +6486,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Insights Insights Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/InsightsInsightsResponse"
                 }
               }
             },
@@ -5456,7 +6526,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/KittyToolsInventoryPhotoResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -5496,7 +6568,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/JournalJournalChatResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -5544,7 +6618,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/JournalJournalPromptResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -5592,7 +6668,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/JournalJournalStartResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -5622,7 +6700,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/JournalJournalSynthesizeResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -5833,7 +6913,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/KittyToolsLearnResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -5863,9 +6945,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Invalidate Life Cache Life Cache Invalidate Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/LifeLifeCacheInvalidateResponse"
                 }
               }
             },
@@ -5886,9 +6966,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Life Check Life Check Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/LifeLifeCheckResponse"
                 }
               }
             },
@@ -5920,9 +6998,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Post Dismiss Life Dismiss  Signal Kind  Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/LifeLifeDismissSignalKindResponse"
                 }
               }
             },
@@ -5953,9 +7029,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Do Not Disturb Life Dnd Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/LifeLifeDndResponse"
                 }
               }
             },
@@ -5988,9 +7062,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response List Life Events Life Events Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/LifeLifeEventsResponse"
                 }
               }
             },
@@ -6021,9 +7093,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Current Meeting Life Meeting Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/LifeLifeMeetingResponse"
                 }
               }
             },
@@ -6044,9 +7114,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Proactive Life Proactive Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/LifeLifeProactiveResponse"
                 }
               }
             },
@@ -6067,9 +7135,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Post Generate Proactive Life Proactive Generate Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/LifeLifeProactiveGenerateResponse"
                 }
               }
             },
@@ -6090,9 +7156,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Evening Reflection Life Reflection Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/LifeLifeReflectionResponse"
                 }
               }
             },
@@ -6113,9 +7177,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Post Generate Reflection Life Reflection Generate Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/LifeLifeReflectionGenerateResponse"
                 }
               }
             },
@@ -6136,9 +7198,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Today Summary Life Today Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/LifeLifeTodayResponse"
                 }
               }
             },
@@ -6159,9 +7219,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Yesterday Recap Life Yesterday Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/LifeLifeYesterdayResponse"
                 }
               }
             },
@@ -6249,7 +7307,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/LoopsLoopLoopIdResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -6290,7 +7350,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/LoopsLoopLoopIdToggleResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -6320,7 +7382,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/LoopsLoopsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -6350,7 +7414,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/LoopsLoopsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -6423,7 +7489,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsMcpServersResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -6442,7 +7510,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsMcpToolsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -6491,9 +7561,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response List Memories Memories Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/MemoriesMemoriesResponse"
                 }
               }
             },
@@ -6536,9 +7604,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Delete Memory Memories  Memory Id  Delete",
-                  "type": "object"
+                  "$ref": "#/components/schemas/MemoriesMemoriesMemoryIdResponse"
                 }
               }
             },
@@ -6582,9 +7648,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Create Monitor Monitor Create Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/MonitorsMonitorCreateResponse"
                 }
               }
             },
@@ -6627,9 +7691,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Delete Monitor Monitor  Monitor Id  Delete",
-                  "type": "object"
+                  "$ref": "#/components/schemas/MonitorsMonitorMonitorIdResponse"
                 }
               }
             },
@@ -6672,9 +7734,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Check Monitor Monitor  Monitor Id  Check Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/MonitorsMonitorMonitorIdCheckResponse"
                 }
               }
             },
@@ -6706,9 +7766,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Monitors Monitors Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/MonitorsMonitorsResponse"
                 }
               }
             },
@@ -6776,7 +7834,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedNotifyResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -6805,7 +7865,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedNotifyTestResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -6835,7 +7897,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsNudgeNudgeIdDismissResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -6864,7 +7928,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsNudgesResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -6883,7 +7949,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingOnboardingResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -6912,7 +7980,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingOnboardingResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -6941,7 +8011,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsPatternsAnnualResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -6960,7 +8032,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsPatternsWeeklyResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -6993,9 +8067,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Recent Stats Perf Recent Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/PerfPerfRecentResponse"
                 }
               }
             },
@@ -7039,9 +8111,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Perf Stats Perf Stats Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/PerfPerfStatsResponse"
                 }
               }
             },
@@ -7082,7 +8152,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsPluginNameDisableResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -7122,7 +8194,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsPluginNameEnableResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -7151,7 +8225,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsPluginsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -7189,9 +8265,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Projects Projects Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ProjectsProjectsResponse"
                 }
               }
             },
@@ -7230,9 +8304,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Post Project Projects Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ProjectsProjectsResponse"
                 }
               }
             },
@@ -7276,12 +8348,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  "title": "Response Get Next Steps Projects Next Steps Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/ProjectsProjectsNextStepsResponse"
                 }
               }
             },
@@ -7323,9 +8390,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Delete Project Projects  Project Id  Delete",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ProjectsProjectsProjectIdResponse"
                 }
               }
             },
@@ -7375,9 +8440,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Patch Project Projects  Project Id  Patch",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ProjectsProjectsProjectIdResponse"
                 }
               }
             },
@@ -7419,9 +8482,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Next Projects  Project Id  Next Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ProjectsProjectsProjectIdNextResponse"
                 }
               }
             },
@@ -7463,9 +8524,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Post Refresh Projects  Project Id  Refresh Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ProjectsProjectsProjectIdRefreshResponse"
                 }
               }
             },
@@ -7507,9 +8566,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Resume Projects  Project Id  Resume Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ProjectsProjectsProjectIdResumeResponse"
                 }
               }
             },
@@ -7561,7 +8618,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/RepairsRepairsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -7593,7 +8652,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/RepairsRepairsCheckResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -7635,7 +8696,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/RepairsRepairsDismissResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -7674,7 +8737,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/KittyToolsResearchDeepResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -7703,7 +8768,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/KittyToolsResetResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -7742,9 +8809,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Runtime Manifest Runtime Manifest Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/RuntimeRuntimeManifestResponse"
                 }
               }
             },
@@ -7830,24 +8895,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "items": {
-                          "type": "string"
-                        },
-                        "type": "array"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "title": "Response Get Session Context Session Context Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/SessionContextResponse"
                 }
               }
             },
@@ -7878,7 +8926,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/CompletionsSessionsCloseResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -7928,7 +8978,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/JournalSessionsSessionIdMessagesMessageIdResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -7959,11 +9011,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "title": "Response Get Personality Settings Personality Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/PersonalitySettingsPersonalityResponse"
                 }
               }
             },
@@ -7993,11 +9041,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "boolean"
-                  },
-                  "title": "Response Put Personality Settings Personality Put",
-                  "type": "object"
+                  "$ref": "#/components/schemas/PersonalitySettingsPersonalityResponse"
                 }
               }
             },
@@ -8060,7 +9104,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedSkillNameResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8110,7 +9156,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedSkillNameInvokeResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8157,7 +9205,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedSkillsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8188,9 +9238,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response State Changes State Changes Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/StateStateChangesResponse"
                 }
               }
             },
@@ -8212,9 +9260,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response State Now State Now Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/StateStateNowResponse"
                 }
               }
             },
@@ -8236,9 +9282,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response State Snapshot State Snapshot Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/StateStateSnapshotResponse"
                 }
               }
             },
@@ -8325,7 +9369,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedStudioCharactersResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8352,7 +9398,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedStudioCharactersResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8392,7 +9440,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedStudioCharactersCharacterIdResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8430,7 +9480,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedStudioCharactersCharacterIdResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8478,7 +9530,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedStudioCharactersCharacterIdResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8518,7 +9572,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedStudioCharactersCharacterIdQualityResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8568,7 +9624,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedStudioCharactersCharacterIdReferencesResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8617,7 +9675,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedStudioCharactersCharacterIdReferencesRefIdResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8656,7 +9716,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedStudioGenerateResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8697,7 +9759,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedStudioRecipesResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8747,7 +9811,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedStudioRecipesRecipeIdResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8776,7 +9842,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsSyncExportResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8795,7 +9863,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsSyncImportResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8824,7 +9894,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedTaskCreateResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8864,7 +9936,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedTaskTaskIdResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8904,7 +9978,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedTaskTaskIdCancelResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -8944,7 +10020,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedTaskTaskIdOutputResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9001,7 +10079,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedTasksResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9040,7 +10120,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/KittyToolsTasksSyncResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9069,7 +10151,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsTelegramStatusResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9089,7 +10173,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TelosTelosResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9130,7 +10216,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TelosTelosSectionResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9159,7 +10247,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedTodosResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9187,7 +10277,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedTodosResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9226,7 +10318,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedTodosAddResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9255,7 +10349,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedTodosClearResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9285,7 +10381,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedTodosTodoIdResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9325,7 +10423,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedTodosTodoIdCompleteResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9364,7 +10464,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/KittyToolsTroubleshootResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9405,9 +10507,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Tutor Ask Tutor Ask Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/TutorTutorAskResponse"
                 }
               }
             },
@@ -9449,9 +10549,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Tutor Attempt Tutor Attempt Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/TutorTutorAttemptResponse"
                 }
               }
             },
@@ -9493,9 +10591,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Tutor Grade Tutor Grade Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/TutorTutorGradeResponse"
                 }
               }
             },
@@ -9537,9 +10633,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Tutor Learn Tutor Learn Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/TutorTutorLearnResponse"
                 }
               }
             },
@@ -9583,9 +10677,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Tutor Quiz Tutor Quiz Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/TutorTutorQuizResponse"
                 }
               }
             },
@@ -9617,9 +10709,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Tutor Review Tutor Review Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/TutorTutorReviewResponse"
                 }
               }
             },
@@ -9662,9 +10752,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Tutor Term Tutor Term  Term  Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/TutorTutorTermTermResponse"
                 }
               }
             },
@@ -9732,9 +10820,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Usage Summary Usage Summary Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/UsageSummaryResponse"
                 }
               }
             },
@@ -9774,7 +10860,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceV1AudioSpeechResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9813,7 +10901,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceV1AudioTranscriptionsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9842,7 +10932,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/CompletionsV1ChatCompletionsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9871,7 +10963,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsVerifyResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9901,7 +10995,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsWeatherResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -9920,7 +11016,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/KittyToolsWeeklyResponse"
+                }
               }
             },
             "description": "Successful Response"

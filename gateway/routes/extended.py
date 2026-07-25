@@ -8,6 +8,151 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
+class ExtendedNotifyResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedNotifyTestResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedSkillsResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedSkillNameResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedSkillNameInvokeResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedTodosResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedTodosResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedTodosClearResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedTodosAddResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedTodosTodoIdCompleteResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedTodosTodoIdResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedAgentSpawnResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedAgentSessionIdResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedAgentsResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedAgentSessionIdStopResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedTaskCreateResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedTasksResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedTaskTaskIdResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedTaskTaskIdOutputResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedTaskTaskIdCancelResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedImageStatusResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedImageGenerateResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedImageJobIdCancelResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedImageViewFilename_pathResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedImageHistoryResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedStudioCharactersResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedStudioCharactersResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedStudioCharactersCharacterIdResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedStudioCharactersCharacterIdResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedStudioCharactersCharacterIdResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedStudioCharactersCharacterIdReferencesResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedStudioCharactersCharacterIdQualityResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedStudioCharactersCharacterIdReferencesRefIdResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedStudioRecipesResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedStudioRecipesRecipeIdResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExtendedStudioGenerateResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+
 router = APIRouter(tags=["extended"])
 
 # --- Notification endpoints ---
@@ -19,7 +164,7 @@ class NotifyRequest(BaseModel):
     url: Optional[str] = None
 
 
-@router.post("/notify")
+@router.post("/notify", response_model=ExtendedNotifyResponse)
 async def notify_send(payload: NotifyRequest):
     from gateway.notify import send
 
@@ -27,7 +172,7 @@ async def notify_send(payload: NotifyRequest):
     return {"sent": success}
 
 
-@router.get("/notify/test")
+@router.get("/notify/test", response_model=ExtendedNotifyTestResponse)
 async def notify_test():
     from gateway.notify import is_configured, send
 
@@ -43,7 +188,7 @@ async def notify_test():
 # --- Skill endpoints ---
 
 
-@router.get("/skills")
+@router.get("/skills", response_model=ExtendedSkillsResponse)
 async def skills_list(q: Optional[str] = None):
     from gateway.skill_registry import discover, search
 
@@ -52,7 +197,7 @@ async def skills_list(q: Optional[str] = None):
     return {"skills": discover()}
 
 
-@router.get("/skill/{name}")
+@router.get("/skill/{name}", response_model=ExtendedSkillNameResponse)
 async def skill_get(name: str):
     from gateway.skill_registry import get
 
@@ -66,7 +211,7 @@ class SkillInvokeRequest(BaseModel):
     context: Optional[str] = None
 
 
-@router.post("/skill/{name}/invoke")
+@router.post("/skill/{name}/invoke", response_model=ExtendedSkillNameInvokeResponse)
 async def skill_invoke(name: str, payload: SkillInvokeRequest = SkillInvokeRequest()):
     from gateway.skill_registry import invoke
 
@@ -83,7 +228,7 @@ class TodoUpdateRequest(BaseModel):
     items: list[dict] = Field(default_factory=list)
 
 
-@router.post("/todos")
+@router.post("/todos", response_model=ExtendedTodosResponse)
 async def todos_update(payload: TodoUpdateRequest):
     """Replace the entire todo list. Model-invokable structured task tracking."""
     from gateway.storage_router import replace_todos
@@ -91,14 +236,14 @@ async def todos_update(payload: TodoUpdateRequest):
     return {"todos": replace_todos(payload.items)}
 
 
-@router.get("/todos")
+@router.get("/todos", response_model=ExtendedTodosResponse)
 async def todos_get():
     from gateway.todo_store import get
 
     return {"todos": get()}
 
 
-@router.post("/todos/clear")
+@router.post("/todos/clear", response_model=ExtendedTodosClearResponse)
 async def todos_clear():
     from gateway.storage_router import clear_todos
 
@@ -112,21 +257,21 @@ class TodoAddRequest(BaseModel):
     active_form: str = ""
 
 
-@router.post("/todos/add")
+@router.post("/todos/add", response_model=ExtendedTodosAddResponse)
 async def todos_add(payload: TodoAddRequest):
     from gateway.storage_router import add_todo
 
     return add_todo(payload.content, payload.status, payload.active_form)
 
 
-@router.post("/todos/{todo_id}/complete")
+@router.post("/todos/{todo_id}/complete", response_model=ExtendedTodosTodoIdCompleteResponse)
 async def todos_complete_by_id(todo_id: int):
     from gateway.storage_router import complete_todo
 
     return {"completed": complete_todo(todo_id), "id": todo_id}
 
 
-@router.delete("/todos/{todo_id}")
+@router.delete("/todos/{todo_id}", response_model=ExtendedTodosTodoIdResponse)
 async def todos_delete(todo_id: int):
     from gateway.storage_router import delete_todo
 
@@ -145,7 +290,7 @@ class AgentSpawnRequest(BaseModel):
     extra_context: Optional[str] = None
 
 
-@router.post("/agent/spawn")
+@router.post("/agent/spawn", response_model=ExtendedAgentSpawnResponse)
 async def agent_spawn(payload: AgentSpawnRequest):
     from gateway.agent_runner import spawn
 
@@ -160,7 +305,7 @@ async def agent_spawn(payload: AgentSpawnRequest):
     return {"session_id": session_id, "status": "spawned"}
 
 
-@router.get("/agent/{session_id}")
+@router.get("/agent/{session_id}", response_model=ExtendedAgentSessionIdResponse)
 async def agent_status(session_id: int):
     from gateway.agent_runner import get_output, get_status
 
@@ -172,14 +317,14 @@ async def agent_status(session_id: int):
     return status
 
 
-@router.get("/agents")
+@router.get("/agents", response_model=ExtendedAgentsResponse)
 async def agent_list(limit: int = 20):
     from gateway.agent_runner import list_agents
 
     return {"agents": list_agents(limit=limit)}
 
 
-@router.post("/agent/{session_id}/stop")
+@router.post("/agent/{session_id}/stop", response_model=ExtendedAgentSessionIdStopResponse)
 async def agent_stop(session_id: int):
     from gateway.agent_runner import stop
 
@@ -200,7 +345,7 @@ class TaskCreateRequest(BaseModel):
     run_immediately: bool = True
 
 
-@router.post("/task/create")
+@router.post("/task/create", response_model=ExtendedTaskCreateResponse)
 async def task_create(payload: TaskCreateRequest):
     from gateway.task_runner import create
 
@@ -214,14 +359,14 @@ async def task_create(payload: TaskCreateRequest):
     return {"task_id": task_id, "status": "queued"}
 
 
-@router.get("/tasks")
+@router.get("/tasks", response_model=ExtendedTasksResponse)
 async def task_list(status: Optional[str] = None, limit: int = 20):
     from gateway.task_runner import list_tasks
 
     return {"tasks": list_tasks(status=status, limit=limit)}
 
 
-@router.get("/task/{task_id}")
+@router.get("/task/{task_id}", response_model=ExtendedTaskTaskIdResponse)
 async def task_get(task_id: str):
     from gateway.task_runner import get
 
@@ -231,7 +376,7 @@ async def task_get(task_id: str):
     return task
 
 
-@router.get("/task/{task_id}/output")
+@router.get("/task/{task_id}/output", response_model=ExtendedTaskTaskIdOutputResponse)
 async def task_output(task_id: str):
     from gateway.task_runner import get_output
 
@@ -239,7 +384,7 @@ async def task_output(task_id: str):
     return {"task_id": task_id, "output": output}
 
 
-@router.post("/task/{task_id}/cancel")
+@router.post("/task/{task_id}/cancel", response_model=ExtendedTaskTaskIdCancelResponse)
 async def task_cancel(task_id: str):
     from gateway.task_runner import cancel
 
@@ -260,7 +405,7 @@ class ImageGenRequest(BaseModel):
     parent_id: Optional[str] = None
 
 
-@router.get("/image/status")
+@router.get("/image/status", response_model=ExtendedImageStatusResponse)
 async def image_status():
     import asyncio
 
@@ -285,7 +430,7 @@ async def image_status():
     return {"available": comfy_available or drawthings_available, "backend": "comfyui", "engines": engines}
 
 
-@router.post("/image/generate")
+@router.post("/image/generate", response_model=ExtendedImageGenerateResponse)
 async def image_generate(req: ImageGenRequest):
     from gateway.image_runner import ImageRunnerError, run
 
@@ -310,7 +455,7 @@ async def image_generate(req: ImageGenRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/image/{job_id}/cancel")
+@router.post("/image/{job_id}/cancel", response_model=ExtendedImageJobIdCancelResponse)
 async def image_cancel(job_id: str):
     """Cancel a ComfyUI image job after verifying prompt ownership."""
     import httpx
@@ -338,7 +483,7 @@ async def image_cancel(job_id: str):
         ) from exc
 
 
-@router.get("/image/view/{filename:path}")
+@router.get("/image/view/{filename:path}", response_model=ExtendedImageViewFilename_pathResponse)
 async def image_view(filename: str):
     """Proxy an output image from ComfyUI (works with both local and Colab tunnel URLs)."""
     import httpx
@@ -375,7 +520,7 @@ async def image_view(filename: str):
         raise HTTPException(status_code=502, detail=f"Could not reach ComfyUI: {e}")
 
 
-@router.get("/image/history")
+@router.get("/image/history", response_model=ExtendedImageHistoryResponse)
 async def image_history(limit: int = 20):
     from gateway.image_gen import get_history
 
@@ -413,7 +558,7 @@ class StudioGenerateRequest(BaseModel):
     negative_prompt: Optional[str] = None
 
 
-@router.get("/studio/characters")
+@router.get("/studio/characters", response_model=ExtendedStudioCharactersResponse)
 async def studio_list_characters():
     from gateway.image_characters import list_characters
 
@@ -421,7 +566,7 @@ async def studio_list_characters():
     return {"characters": [c.to_dict() for c in chars]}
 
 
-@router.post("/studio/characters")
+@router.post("/studio/characters", response_model=ExtendedStudioCharactersResponse)
 async def studio_create_character(req: CharacterCreate):
     from gateway.image_characters import CharacterError, create_character
     try:
@@ -436,7 +581,7 @@ async def studio_create_character(req: CharacterCreate):
         raise HTTPException(status_code=400, detail=str(exc))
 
 
-@router.get("/studio/characters/{character_id}")
+@router.get("/studio/characters/{character_id}", response_model=ExtendedStudioCharactersCharacterIdResponse)
 async def studio_get_character(character_id: str):
     from gateway.image_characters import CharacterNotFoundError, get_character, list_character_refs
     try:
@@ -449,7 +594,7 @@ async def studio_get_character(character_id: str):
         raise HTTPException(status_code=404, detail=str(exc))
 
 
-@router.patch("/studio/characters/{character_id}")
+@router.patch("/studio/characters/{character_id}", response_model=ExtendedStudioCharactersCharacterIdResponse)
 async def studio_update_character(character_id: str, req: CharacterUpdate):
     from gateway.image_characters import CharacterError, CharacterNotFoundError, update_character
     try:
@@ -467,7 +612,7 @@ async def studio_update_character(character_id: str, req: CharacterUpdate):
         raise HTTPException(status_code=400, detail=str(exc))
 
 
-@router.delete("/studio/characters/{character_id}")
+@router.delete("/studio/characters/{character_id}", response_model=ExtendedStudioCharactersCharacterIdResponse)
 async def studio_delete_character(character_id: str):
     from gateway.image_characters import CharacterNotFoundError, soft_delete_character
     try:
@@ -477,7 +622,7 @@ async def studio_delete_character(character_id: str):
         raise HTTPException(status_code=404, detail=str(exc))
 
 
-@router.post("/studio/characters/{character_id}/references")
+@router.post("/studio/characters/{character_id}/references", response_model=ExtendedStudioCharactersCharacterIdReferencesResponse)
 async def studio_add_character_ref(character_id: str, file: UploadFile):
     from gateway.image_characters import CharacterError, CharacterNotFoundError, add_character_ref
     from gateway.image_quality import check_reference_image
@@ -510,7 +655,7 @@ async def studio_add_character_ref(character_id: str, file: UploadFile):
         raise HTTPException(status_code=400, detail=str(exc))
 
 
-@router.get("/studio/characters/{character_id}/quality")
+@router.get("/studio/characters/{character_id}/quality", response_model=ExtendedStudioCharactersCharacterIdQualityResponse)
 async def studio_character_quality(character_id: str):
     from gateway.image_characters import CharacterNotFoundError, get_character, list_character_refs
     from gateway.image_quality import check_reference_image
@@ -558,7 +703,7 @@ async def studio_character_quality(character_id: str):
     return {"quality": results}
 
 
-@router.delete("/studio/characters/{character_id}/references/{ref_id}")
+@router.delete("/studio/characters/{character_id}/references/{ref_id}", response_model=ExtendedStudioCharactersCharacterIdReferencesRefIdResponse)
 async def studio_delete_character_ref(character_id: str, ref_id: str):
     from gateway.image_characters import (
         CharacterError,
@@ -576,14 +721,14 @@ async def studio_delete_character_ref(character_id: str, ref_id: str):
 
 # --- Image Studio V1: Recipes ---
 
-@router.get("/studio/recipes")
+@router.get("/studio/recipes", response_model=ExtendedStudioRecipesResponse)
 async def studio_list_recipes(available_only: bool = False):
     from gateway.image_recipes import list_recipes
     recipes = list_recipes(available_only=available_only)
     return {"recipes": [r.to_dict() for r in recipes]}
 
 
-@router.patch("/studio/recipes/{recipe_id}")
+@router.patch("/studio/recipes/{recipe_id}", response_model=ExtendedStudioRecipesRecipeIdResponse)
 async def studio_update_recipe(recipe_id: str, req: RecipeUpdate):
     from gateway.image_recipes import RecipeError, set_recipe_available
     try:
@@ -595,7 +740,7 @@ async def studio_update_recipe(recipe_id: str, req: RecipeUpdate):
 
 # --- Image Studio V1: Generate (Auto-routed) ---
 
-@router.post("/studio/generate")
+@router.post("/studio/generate", response_model=ExtendedStudioGenerateResponse)
 async def studio_generate(req: StudioGenerateRequest):
     from gateway import image_recipes
     from gateway.image_runner import ImageRunnerError, run

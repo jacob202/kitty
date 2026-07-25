@@ -29,6 +29,23 @@ from gateway.paths import LITELLM_BASE, LITELLM_KEY, LOG_FILE
 from gateway.runtime_manifest import compact_runtime_context, compose_manifest
 
 logger = logging.getLogger("kitty.gateway")
+class CompletionsV1ChatCompletionsResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class CompletionsApiChatCompletionsResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class CompletionsApiModelsResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class CompletionsSessionsCloseResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+
 router = APIRouter(tags=["completions"])
 
 
@@ -74,7 +91,7 @@ def _assistant_text_from_result(result: dict) -> str:
     return content
 
 
-@router.post("/v1/chat/completions")
+@router.post("/v1/chat/completions", response_model=CompletionsV1ChatCompletionsResponse)
 async def chat_completions(request: Request):
     from gateway.buddy import (
         on_context_fetch,
@@ -429,13 +446,13 @@ async def chat_completions(request: Request):
         raise
 
 
-@router.post("/api/chat/completions")
+@router.post("/api/chat/completions", response_model=CompletionsApiChatCompletionsResponse)
 async def api_chat_completions(request: Request):
     """Open WebUI-compatible alias so kitty-chat can target the gateway directly."""
     return await chat_completions(request)
 
 
-@router.get("/api/models")
+@router.get("/api/models", response_model=CompletionsApiModelsResponse)
 async def api_models():
     """Return available models in OpenAI list format, sourced from LiteLLM."""
     client = await get_http_client()
@@ -464,7 +481,7 @@ async def api_models():
         ) from exc
 
 
-@router.post("/sessions/close")
+@router.post("/sessions/close", response_model=CompletionsSessionsCloseResponse)
 async def close_session(payload: CloseSessionRequest):
     """End a chat session — consolidate short-term memory to long-term."""
     from gateway.memory import consolidate_session

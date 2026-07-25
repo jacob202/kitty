@@ -4,16 +4,27 @@ Sync handlers on purpose: a triage pass blocks on LLM calls, so FastAPI
 should run it in its worker pool rather than on the event loop (same
 reasoning as the /state routes).
 """
+
 from __future__ import annotations
+from pydantic import BaseModel
 
 from fastapi import APIRouter, HTTPException
 
 from gateway import triage
 
+class InboxInboxTriageResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class InboxInboxTriagedResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+
 router = APIRouter(tags=["inbox"])
 
 
-@router.post("/inbox/triage")
+@router.post("/inbox/triage", response_model=InboxInboxTriageResponse)
 def post_inbox_triage(limit: int = 25) -> dict:
     """Classify untriaged inbox entries. Returns counts per bucket."""
     if limit < 1 or limit > 200:
@@ -21,7 +32,7 @@ def post_inbox_triage(limit: int = 25) -> dict:
     return triage.run_pass(limit=limit)
 
 
-@router.get("/inbox/triaged")
+@router.get("/inbox/triaged", response_model=InboxInboxTriagedResponse)
 def get_inbox_triaged(bucket: str | None = None, limit: int = 50) -> dict:
     """List triaged entries, newest first. Optional bucket filter."""
     if bucket is not None and bucket not in triage.BUCKETS:

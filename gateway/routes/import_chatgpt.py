@@ -15,10 +15,17 @@ from pathlib import Path
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
 logger = logging.getLogger("kitty.import_chatgpt")
+from pydantic import BaseModel
+
+
+class ImportChatGPTResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
 router = APIRouter(tags=["import"])
 
 
-@router.post("/import/chatgpt")
+@router.post("/import/chatgpt", response_model=ImportChatGPTResponse)
 async def import_chatgpt(file: UploadFile = File(...)):
     """Accept a ChatGPT conversations.json export, extract goldmine items,
     and stage them for review via the idea-mine pipeline."""

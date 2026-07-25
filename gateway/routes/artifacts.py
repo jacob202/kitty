@@ -1,15 +1,26 @@
 """Read-only artifact registry endpoints."""
 
+
 from __future__ import annotations
+from pydantic import BaseModel
 
 from fastapi import APIRouter, HTTPException, Query
 
 from gateway import artifact_store
 
+class ArtifactsArtifactsResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ArtifactsArtifactsArtifactIdResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+
 router = APIRouter(tags=["artifacts"])
 
 
-@router.get("/artifacts")
+@router.get("/artifacts", response_model=ArtifactsArtifactsResponse)
 def get_artifacts(
     project_id: int | None = None,
     conversation_id: str | None = None,
@@ -29,7 +40,7 @@ def get_artifacts(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.get("/artifacts/{artifact_id}")
+@router.get("/artifacts/{artifact_id}", response_model=ArtifactsArtifactsArtifactIdResponse)
 def get_artifact(artifact_id: str) -> dict:
     artifact = artifact_store.get_artifact(artifact_id)
     if artifact is None:

@@ -7,6 +7,35 @@ from pydantic import BaseModel, Field
 
 from gateway import tutor
 
+class TutorTutorAskResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class TutorTutorLearnResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class TutorTutorReviewResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class TutorTutorQuizResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class TutorTutorAttemptResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class TutorTutorGradeResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class TutorTutorTermTermResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+
 router = APIRouter(tags=["tutor"])
 
 
@@ -43,26 +72,26 @@ def _knowledge_type(raw: str) -> tutor.KnowledgeType:
         ) from exc
 
 
-@router.post("/tutor/ask")
+@router.post("/tutor/ask", response_model=TutorTutorAskResponse)
 async def tutor_ask(req: TutorAsk) -> dict:
     """Answer a learning question (vocab-first, grounded, never guesses)."""
     return await tutor.ask(req.topic)
 
 
-@router.post("/tutor/learn")
+@router.post("/tutor/learn", response_model=TutorTutorLearnResponse)
 async def tutor_learn(req: TutorLearn) -> dict:
     """Ingest a document into the Tutor's knowledge collection."""
     result = await tutor.ingest(req.path, label=req.label)
     return {"ingested": True, "result": str(result)}
 
 
-@router.get("/tutor/review")
+@router.get("/tutor/review", response_model=TutorTutorReviewResponse)
 async def tutor_review() -> dict:
     """List terms due for spaced-repetition review."""
     return {"due": tutor.due_review()}
 
 
-@router.get("/tutor/quiz")
+@router.get("/tutor/quiz", response_model=TutorTutorQuizResponse)
 async def tutor_quiz(limit: int = 5) -> dict:
     """Deterministic recall quiz over due terms (DTH-04c). Empty when fewer
     than two terms are due — the quiz format needs distractors."""
@@ -73,7 +102,7 @@ async def tutor_quiz(limit: int = 5) -> dict:
     return {"questions": tutor.generate_recall_quiz(terms), "due": len(due)}
 
 
-@router.post("/tutor/attempt")
+@router.post("/tutor/attempt", response_model=TutorTutorAttemptResponse)
 async def tutor_attempt(req: TutorAttempt) -> dict:
     """Record a quiz attempt (DTH-04): recompute mastery, reschedule review."""
     kp = _knowledge_type(req.kp_type)
@@ -89,7 +118,7 @@ async def tutor_attempt(req: TutorAttempt) -> dict:
     }
 
 
-@router.post("/tutor/grade")
+@router.post("/tutor/grade", response_model=TutorTutorGradeResponse)
 async def tutor_grade(req: TutorGrade) -> dict:
     """Deterministic grading (DTH-03) — no LLM variance."""
     if req.question_type not in {"choice", "short", "open"}:
@@ -104,7 +133,7 @@ async def tutor_grade(req: TutorGrade) -> dict:
     }
 
 
-@router.get("/tutor/term/{term}")
+@router.get("/tutor/term/{term}", response_model=TutorTutorTermTermResponse)
 async def tutor_term(term: str, kp_type: str = "memory") -> dict:
     """Mastery, stage, and advisory next action for one term."""
     kp = _knowledge_type(kp_type)

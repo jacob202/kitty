@@ -9,6 +9,35 @@ from pydantic import BaseModel, Field
 
 from gateway.constants import MAX_INVENTORY_BYTES
 
+class KittyToolsResetResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class KittyToolsTroubleshootResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class KittyToolsLearnResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class KittyToolsInventoryPhotoResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class KittyToolsTasksSyncResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class KittyToolsResearchDeepResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class KittyToolsWeeklyResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+
 router = APIRouter(tags=["tools"])
 
 
@@ -29,7 +58,7 @@ class DeepResearchRequest(BaseModel):
     topic: str = Field(min_length=1, max_length=1000)
 
 
-@router.get("/reset")
+@router.get("/reset", response_model=KittyToolsResetResponse)
 async def nightly_reset():
     from gateway.reset import send_nightly_reset
 
@@ -37,21 +66,21 @@ async def nightly_reset():
     return {"status": "sent" if success else "failed"}
 
 
-@router.post("/troubleshoot")
+@router.post("/troubleshoot", response_model=KittyToolsTroubleshootResponse)
 async def troubleshoot(payload: TroubleshootRequest):
     from gateway.troubleshooter import initiate_troubleshooting
 
     return {"response": await initiate_troubleshooting(payload.device, payload.symptom)}
 
 
-@router.post("/learn")
+@router.post("/learn", response_model=KittyToolsLearnResponse)
 async def learn(payload: LearnRequest):
     from gateway.learning import generate_knowledge_gate_question
 
     return {"lesson": await generate_knowledge_gate_question(payload.topic)}
 
 
-@router.post("/inventory/photo")
+@router.post("/inventory/photo", response_model=KittyToolsInventoryPhotoResponse)
 async def inventory_photo(file: UploadFile = File(...)):
     import tempfile
 
@@ -79,7 +108,7 @@ async def inventory_photo(file: UploadFile = File(...)):
     return {"message": result}
 
 
-@router.post("/tasks/sync")
+@router.post("/tasks/sync", response_model=KittyToolsTasksSyncResponse)
 async def tasks_sync(payload: TasksSyncRequest):
     from gateway.tasks import sync_next_action
 
@@ -87,7 +116,7 @@ async def tasks_sync(payload: TasksSyncRequest):
     return {"success": success}
 
 
-@router.post("/research/deep")
+@router.post("/research/deep", response_model=KittyToolsResearchDeepResponse)
 async def deep_research(payload: DeepResearchRequest):
     from gateway.researcher import deep_dive
 
@@ -95,7 +124,7 @@ async def deep_research(payload: DeepResearchRequest):
     return {"result": result}
 
 
-@router.get("/weekly")
+@router.get("/weekly", response_model=KittyToolsWeeklyResponse)
 async def weekly_mirror():
     from gateway.honcho import get_weekly_mirror
 

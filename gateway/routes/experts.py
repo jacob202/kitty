@@ -5,6 +5,35 @@ from pydantic import BaseModel
 
 from gateway import expert_state, signal_store
 
+class ExpertsSignalsUnprocessedResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExpertsExpertIdSnoozeResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExpertsExpertIdSnoozeResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExpertsPauseAllResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExpertsPauseAllResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExpertsSignalsSignalIdDismissResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ExpertsSignalsSignalIdResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+
 router = APIRouter(prefix="/experts", tags=["Experts"])
 
 
@@ -12,7 +41,7 @@ class SnoozeRequest(BaseModel):
     duration_hours: float
 
 
-@router.get("/signals/unprocessed")
+@router.get("/signals/unprocessed", response_model=ExpertsSignalsUnprocessedResponse)
 async def get_unprocessed_expert_signals():
     """Fetch all unprocessed signals emitted by proactive experts."""
     # Source must start with expert.
@@ -22,7 +51,7 @@ async def get_unprocessed_expert_signals():
     expert_signals = [s for s in unprocessed if s.get("source", "").startswith("expert.")]
     return {"signals": expert_signals}
 
-@router.post("/{expert_id}/snooze")
+@router.post("/{expert_id}/snooze", response_model=ExpertsExpertIdSnoozeResponse)
 async def snooze_expert(expert_id: str, payload: SnoozeRequest):
     """Temporarily pause an expert's proactive evaluation."""
     duration_sec = payload.duration_hours * 3600
@@ -32,7 +61,7 @@ async def snooze_expert(expert_id: str, payload: SnoozeRequest):
     return {"expert_id": expert_id, "snoozed_until": snooze_until}
 
 
-@router.delete("/{expert_id}/snooze")
+@router.delete("/{expert_id}/snooze", response_model=ExpertsExpertIdSnoozeResponse)
 async def unsnooze_expert(expert_id: str):
     """Resume an expert's proactive evaluation immediately."""
     expert_state.clear_snooze(expert_id)
@@ -41,21 +70,21 @@ async def unsnooze_expert(expert_id: str):
     return {"expert_id": expert_id, "snoozed": False}
 
 
-@router.post("/pause-all")
+@router.post("/pause-all", response_model=ExpertsPauseAllResponse)
 async def pause_all_experts():
     """Globally pause all proactive experts."""
     expert_state.set_global_pause(True)
     return {"pause_all": True}
 
 
-@router.delete("/pause-all")
+@router.delete("/pause-all", response_model=ExpertsPauseAllResponse)
 async def resume_all_experts():
     """Globally resume all proactive experts."""
     expert_state.set_global_pause(False)
     return {"pause_all": False}
 
 
-@router.post("/signals/{signal_id}/dismiss")
+@router.post("/signals/{signal_id}/dismiss", response_model=ExpertsSignalsSignalIdDismissResponse)
 async def dismiss_expert_signal(signal_id: int):
     """Dismiss a signal, suppressing similar future insights from this expert."""
     sig = signal_store.get_signal(signal_id)
@@ -87,7 +116,7 @@ async def dismiss_expert_signal(signal_id: int):
     }
 
 
-@router.delete("/signals/{signal_id}")
+@router.delete("/signals/{signal_id}", response_model=ExpertsSignalsSignalIdResponse)
 async def delete_signal(signal_id: int):
     """Delete a signal entirely (for tests/cleanup)."""
     signal_store.delete(signal_id)

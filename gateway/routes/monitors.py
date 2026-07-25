@@ -1,22 +1,41 @@
 """Monitors endpoint for Kitty UI — thin FastAPI wrapper."""
 
+
 from __future__ import annotations
+from pydantic import BaseModel
 
 from fastapi import APIRouter
 
 from gateway import monitors
 from gateway.errors import StorageNotFound, ValidationError
 
+class MonitorsMonitorsResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class MonitorsMonitorCreateResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class MonitorsMonitorMonitorIdResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class MonitorsMonitorMonitorIdCheckResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+
 router = APIRouter(tags=["monitors"])
 
 
-@router.get("/monitors")
+@router.get("/monitors", response_model=MonitorsMonitorsResponse)
 async def get_monitors() -> dict:
     """Get all active monitors."""
     return {"watches": monitors.list_monitors()}
 
 
-@router.post("/monitor/create")
+@router.post("/monitor/create", response_model=MonitorsMonitorCreateResponse)
 async def create_monitor(payload: dict) -> dict:
     """Create a new monitor."""
     if "url" not in payload:
@@ -37,7 +56,7 @@ async def create_monitor(payload: dict) -> dict:
         ) from exc
 
 
-@router.delete("/monitor/{monitor_id}")
+@router.delete("/monitor/{monitor_id}", response_model=MonitorsMonitorMonitorIdResponse)
 async def delete_monitor(monitor_id: str) -> dict:
     """Delete a monitor."""
     try:
@@ -55,7 +74,7 @@ async def delete_monitor(monitor_id: str) -> dict:
     return {"deleted": monitor_id}
 
 
-@router.get("/monitor/{monitor_id}/check")
+@router.get("/monitor/{monitor_id}/check", response_model=MonitorsMonitorMonitorIdCheckResponse)
 async def check_monitor(monitor_id: str) -> dict:
     """Manually check a monitor now."""
     try:

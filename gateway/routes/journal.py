@@ -14,6 +14,27 @@ from gateway.llm_client import (
     route_model,
 )
 
+class JournalJournalPromptResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class JournalJournalStartResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class JournalJournalSynthesizeResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class JournalJournalChatResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class JournalSessionsSessionIdMessagesMessageIdResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+
 router = APIRouter(tags=["journal"])
 
 
@@ -22,7 +43,7 @@ class JournalChatRequest(BaseModel):
     system_prompt: str = ""
 
 
-@router.get("/journal/prompt")
+@router.get("/journal/prompt", response_model=JournalJournalPromptResponse)
 async def journal_prompt(theme: Optional[str] = None):
     """Return a random journal writing prompt. Optional ?theme= filter."""
     from gateway.journal import get_random_prompt
@@ -30,7 +51,7 @@ async def journal_prompt(theme: Optional[str] = None):
     return get_random_prompt(theme)
 
 
-@router.post("/journal/start")
+@router.post("/journal/start", response_model=JournalJournalStartResponse)
 async def journal_start(theme: Optional[str] = None):
     """Begin a journal interview session. Returns Kitty's opening question."""
     from gateway.journal import build_interview_system_prompt, get_opener
@@ -41,7 +62,7 @@ async def journal_start(theme: Optional[str] = None):
     return {"opener": opener, "system_prompt": system_prompt, "theme": theme}
 
 
-@router.post("/journal/synthesize")
+@router.post("/journal/synthesize", response_model=JournalJournalSynthesizeResponse)
 async def journal_synthesize(request: Request):
     """Synthesize a completed journal interview into a first-person entry."""
     body = await request.json()
@@ -70,7 +91,7 @@ async def journal_synthesize(request: Request):
     return {"entry": entry}
 
 
-@router.post("/journal/chat")
+@router.post("/journal/chat", response_model=JournalJournalChatResponse)
 async def journal_chat(payload: JournalChatRequest):
     """Single journal interview turn — uses provided system_prompt, bypasses context assembler."""
     if not payload.messages:
@@ -88,7 +109,7 @@ async def journal_chat(payload: JournalChatRequest):
     return {"reply": extract_assistant_text(data)}
 
 
-@router.delete("/sessions/{session_id}/messages/{message_id}")
+@router.delete("/sessions/{session_id}/messages/{message_id}", response_model=JournalSessionsSessionIdMessagesMessageIdResponse)
 async def delete_message(session_id: str, message_id: str):
     """Delete a specific message from a session's journal by message_id (timestamp)."""
     from gateway.journal import delete_journal_message

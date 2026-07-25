@@ -8,22 +8,33 @@ no longer pick the handler. This module owns only the insights-specific
 paths below.
 """
 
+
 from __future__ import annotations
+from pydantic import BaseModel
 
 from fastapi import APIRouter
 
 from gateway import dream_insights
 
+class InsightsInsightsResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class InsightsInsightInsightIdDismissResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+
 router = APIRouter(tags=["insights"])
 
 
-@router.get("/insights")
+@router.get("/insights", response_model=InsightsInsightsResponse)
 async def get_insights(limit: int = 10) -> dict:
     """Get recent insights from the real dream insight store."""
     return {"insights": dream_insights.load_dream_insights(limit=limit)}
 
 
-@router.post("/insight/{insight_id}/dismiss")
+@router.post("/insight/{insight_id}/dismiss", response_model=InsightsInsightInsightIdDismissResponse)
 async def dismiss_insight(insight_id: str) -> dict:
     """Dismiss an insight."""
     dream_insights.dismiss_dream_insight(insight_id)

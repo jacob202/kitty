@@ -6,7 +6,9 @@ approved items to the inbox pipeline. Surfacing is gated by review state
 becomes always-on memory until Jacob approves it.
 """
 
+
 from __future__ import annotations
+from pydantic import BaseModel
 
 import logging
 
@@ -16,10 +18,27 @@ from gateway import idea_mine_store as store
 
 logger = logging.getLogger("kitty.routes.idea_mine")
 
+class IdeaMineReviewResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class IdeaMineSurfaceableResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class IdeaMineItemIdReviewResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class IdeaMineExportResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+
 router = APIRouter(prefix="/idea-mine", tags=["idea-mine"])
 
 
-@router.get("/review")
+@router.get("/review", response_model=IdeaMineReviewResponse)
 def get_review_queue(object_type: str | None = None, review: str | None = None) -> dict:
     """List extraction items awaiting (or having received) review."""
     if object_type is not None and object_type not in store.OBJECT_TYPES:
@@ -29,13 +48,13 @@ def get_review_queue(object_type: str | None = None, review: str | None = None) 
     return {"items": store.list_items(object_type=object_type, review=review)}
 
 
-@router.get("/surfaceable")
+@router.get("/surfaceable", response_model=IdeaMineSurfaceableResponse)
 def get_surfaceable() -> dict:
     """Items currently allowed to appear in future context (approved/edited)."""
     return {"items": store.surfaceable_items()}
 
 
-@router.patch("/{item_id}/review")
+@router.patch("/{item_id}/review", response_model=IdeaMineItemIdReviewResponse)
 def patch_review(item_id: int, review_state: str) -> dict:
     """Set an item's review state (unreviewed/approved/edited/rejected/keep_quiet)."""
     if review_state not in store.REVIEW_STATES:
@@ -45,7 +64,7 @@ def patch_review(item_id: int, review_state: str) -> dict:
     return {"id": item_id, "user_review": review_state}
 
 
-@router.post("/export")
+@router.post("/export", response_model=IdeaMineExportResponse)
 def post_export(dry_run: bool = False) -> dict:
     """Hand approved items to the inbox → triage → knowledge pipeline."""
     exported = store.export_approved_to_inbox(dry_run=dry_run)

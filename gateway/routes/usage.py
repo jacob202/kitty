@@ -12,6 +12,14 @@ from fastapi import APIRouter, HTTPException, Query
 from gateway.paths import KITTY_TOKEN_LOG_FILE
 from gateway.token_spend_report import filter_entries, summarize_usage
 
+from pydantic import BaseModel
+from typing import Any
+
+
+class UsageSummaryResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
 router = APIRouter(tags=["usage"])
 
 _USAGE_FIELDS: dict[str, type] = {
@@ -120,7 +128,7 @@ def _read_usage_ledger(path: Path | None = None) -> tuple[list[dict[str, Any]], 
     return usage_records, storage_write_records
 
 
-@router.get("/usage/summary")
+@router.get("/usage/summary", response_model=UsageSummaryResponse)
 async def get_usage_summary(
     since: date | None = Query(default=None),
     provider: str | None = Query(default=None, min_length=1),

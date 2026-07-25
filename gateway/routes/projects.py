@@ -17,6 +17,39 @@ from gateway.push import push_to_jacob
 
 logger = logging.getLogger("kitty.routes.projects")
 
+class ProjectsProjectsResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ProjectsProjectsResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ProjectsProjectsProjectIdResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ProjectsProjectsProjectIdResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ProjectsProjectsProjectIdRefreshResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ProjectsProjectsProjectIdResumeResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ProjectsProjectsNextStepsResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class ProjectsProjectsProjectIdNextResponse(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+
 router = APIRouter(tags=["projects"])
 
 
@@ -45,12 +78,12 @@ def _handle(fn, *args, **kwargs):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.get("/projects")
+@router.get("/projects", response_model=ProjectsProjectsResponse)
 def get_projects(status: str | None = None) -> dict:
     return {"projects": project_store.list_projects(status=status)}
 
 
-@router.post("/projects")
+@router.post("/projects", response_model=ProjectsProjectsResponse)
 def post_project(payload: CreateProjectRequest) -> dict:
     result = _handle(project_store.create, payload.name, payload.kind, payload.paths, payload.links)
     from gateway.sse import broadcaster
@@ -58,7 +91,7 @@ def post_project(payload: CreateProjectRequest) -> dict:
     return result
 
 
-@router.patch("/projects/{project_id}")
+@router.patch("/projects/{project_id}", response_model=ProjectsProjectsProjectIdResponse)
 def patch_project(project_id: int, payload: UpdateProjectRequest) -> dict:
     fields: dict = {}
     if payload.name is not None:
@@ -79,7 +112,7 @@ def patch_project(project_id: int, payload: UpdateProjectRequest) -> dict:
     return result
 
 
-@router.delete("/projects/{project_id}")
+@router.delete("/projects/{project_id}", response_model=ProjectsProjectsProjectIdResponse)
 def delete_project(project_id: int) -> dict:
     _handle(project_store.delete, project_id)
     from gateway.sse import broadcaster
@@ -87,7 +120,7 @@ def delete_project(project_id: int) -> dict:
     return {"status": "deleted", "id": project_id}
 
 
-@router.post("/projects/{project_id}/refresh")
+@router.post("/projects/{project_id}/refresh", response_model=ProjectsProjectsProjectIdRefreshResponse)
 def post_refresh(project_id: int) -> dict:
     refreshed = _handle(project_resume.refresh, project_id)
     # The state refresh above succeeded; a model failure here must degrade,
@@ -110,12 +143,12 @@ def post_refresh(project_id: int) -> dict:
     return {**refreshed, "next_step": {"ok": True, **step}}
 
 
-@router.get("/projects/{project_id}/resume")
+@router.get("/projects/{project_id}/resume", response_model=ProjectsProjectsProjectIdResumeResponse)
 def get_resume(project_id: int) -> dict:
     return _handle(project_resume.resume, project_id)
 
 
-@router.get("/projects/next-steps")
+@router.get("/projects/next-steps", response_model=ProjectsProjectsNextStepsResponse)
 def get_next_steps(limit: int = 3) -> list[dict]:
     """Life-first ordered next steps across all active projects (ADR 0016).
 
@@ -126,7 +159,7 @@ def get_next_steps(limit: int = 3) -> list[dict]:
     return next_step.select_steps(limit=limit)
 
 
-@router.get("/projects/{project_id}/next")
+@router.get("/projects/{project_id}/next", response_model=ProjectsProjectsProjectIdNextResponse)
 def get_next(project_id: int) -> dict:
     # 404s if the project itself doesn't exist; a project that exists but
     # has never been refreshed under this packet has genuinely no step —
