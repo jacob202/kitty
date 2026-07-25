@@ -190,6 +190,7 @@ def resolve_base_sha(repo_root: Path | None = None) -> str:
             cwd=root,
             capture_output=True,
             text=True,
+            timeout=10,
         )
         if result.returncode == 0:
             sha = result.stdout.strip()
