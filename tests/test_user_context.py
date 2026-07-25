@@ -68,7 +68,9 @@ async def test_injected_into_system_prompt(user_dir, monkeypatch):
     # wiring (TELOS injection happens in the assembler).
     import gateway.context_assembler as assembler
 
-    async def assemble_stub(message, parts_mode=False, domain=None, deps=None):
+    # **kwargs so the stub keeps working when the real assemble_context grows
+    # parameters (it gained `tier` and `objective` after this stub was written).
+    async def assemble_stub(message, parts_mode=False, domain=None, deps=None, **kwargs):
         # Re-run the assembler's user-block step so TELOS lands in the
         # prompt — same path the production code takes.
         from gateway import user_context

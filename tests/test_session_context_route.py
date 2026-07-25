@@ -11,8 +11,12 @@ def test_session_context_returns_last_topic_and_next_actions(tmp_path, monkeypat
         "# Handoff\n\n## Context\nPrevious context.\n\n## Resume here\n- Finish the queue.\n",
         encoding="utf-8",
     )
+    # The topic comes from the H1 title, which is how real STATE.md files carry it
+    # ("# Session State — Architecture Audit + Frontend Restructuring"). The old
+    # fixture had a bare "# Session State" H1 and hid the topic in a trailing
+    # section, which no real checkpoint file does.
     state_file.write_text(
-        "# Session State\n\n## Branch\n- `feature/context`\n\n## Next\n- Run verification.\n\n## UI wiring fix pass\n- Verify the live UI.\n",
+        "# UI wiring fix pass\n\n## Branch\n- `feature/context`\n\n## Next\n- Run verification.\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(session_context, "HANDOFF_FILE", handoff_file)

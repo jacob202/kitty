@@ -168,6 +168,8 @@ def test_default_migrations_preserve_existing_tables_when_adding_journal(tmp_pat
         "024_image_characters.sql",
         "025_image_references.sql",
         "026_image_recipes.sql",
+        "027_image_characters_v2.sql",
+        "028_image_jobs_queue.sql",
     ]
 
 

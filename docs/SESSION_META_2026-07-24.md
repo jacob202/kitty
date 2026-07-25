@@ -1,5 +1,9 @@
 # Session Meta-Analysis + Optimized Plan — 2026-07-24
 
+**Feeds into `docs/INITIATIVES_OPTIMIZED_2026-07-24.md`** (the roadmap
+authority per `docs/AUTHORITY_MAP.md`). This file is the rationale behind
+that plan, not a competing one.
+
 ## Part 1: What the Brainstorm Source Actually Said (Items I Missed)
 
 Re-reading the raw stream-of-consciousness revealed threads the initial

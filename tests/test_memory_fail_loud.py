@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from gateway import dream_insights, memory
 from gateway.memory import (
     MemoryError,
     delete_memory,

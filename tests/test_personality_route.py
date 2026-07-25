@@ -16,10 +16,13 @@ def test_personality_route_reads_and_updates_both_config_files(tmp_path, monkeyp
     app.include_router(personality.router)
     client = TestClient(app)
 
-    assert client.get("/settings/personality").json() == {
-        "soul": "original soul\n",
-        "preferences": "- original preference\n",
-    }
+    # Scoped to the two legacy config documents this test is about. The route
+    # also serves personality/{soul,identity,agents}.md, which are not
+    # monkeypatched here — asserting the whole dict would couple this test to
+    # unrelated files on disk.
+    body = client.get("/settings/personality").json()
+    assert body["soul"] == "original soul\n"
+    assert body["preferences"] == "- original preference\n"
 
     response = client.put(
         "/settings/personality",

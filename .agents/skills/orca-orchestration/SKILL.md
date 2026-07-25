@@ -1,3 +1,8 @@
+---
+name: orca-orchestration
+description: "Coordinate multiple agents through Orca for Kitty development: agent handoffs, worktree handovers, phased or parallel work, and splitting changes into reviewable PRs. Use when dispatching work across agents, handing a worktree to another agent, or planning multi-agent execution of a Kitty change."
+---
+
 # Orca Orchestration — Kitty Multi-Agent Workflows
 
 Use when coordinating multiple agents through Orca for Kitty development: handoffs,

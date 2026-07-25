@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 import gateway.search
+from gateway import memory_graph
 
 router = APIRouter(tags=["search"])
 
@@ -15,10 +16,9 @@ async def search(q: str = "", limit: int = 5):
     if not q:
         return {"query": "", "memories": [], "knowledge": [], "journal": [], "todos": [], "inbox": []}
 
-    if not q:
-        return {"results": [], "query": ""}
-
-    results = await search_all(q)
+    # Resolved on the module, not imported by name, so the storage layer stays
+    # patchable and reads keep going through memory_graph (see CLAUDE.md).
+    results = await memory_graph.search_all(q)
 
     all_items = []
     for store_name, items in results.results.items():

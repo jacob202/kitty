@@ -1,5 +1,30 @@
 # Handoff — Architecture Audit + Frontend Restructuring — Complete
 
+<!-- kitty-handoff
+{
+  "schema_version": 1,
+  "updated_at": "2026-07-25T02:17:23Z",
+  "head_sha": "c7828d5186cc55aa1e9fbcd72c87e409ebc93db9",
+  "branch": "main",
+  "worktree": ".",
+  "status": "in_progress",
+  "completed_items": [
+    "Architecture audit + frontend restructuring (narrative below, from the parallel session)",
+    "Tooling audit: 719 sessions mined, 3 hooks + 3 subagents + 2 commands installed, v0.1 tagged locally",
+    "Repo-root self-referential symlinks removed — KittyBuilder packet runs work again",
+    "MemoryError structured-error contract fixed (18 test failures closed)"
+  ],
+  "blockers": [],
+  "next_action": "Suite is green and pushed. Next real work: task 2 (builder upgrade, backend-only) per docs/planning/agent-prompts-2026-07-24.md. Note for whoever touches litellm_config: 'kitty-sonnet' is a vestigial LABEL that route_model returns for the deep tier and litellm maps to deepseek-v4-pro — removing it from model_list breaks deep-tier routing even though 'sonnet' is retired.",
+  "invalidation_conditions": [
+    "HEAD changes beyond c7828d5186cc55aa1e9fbcd72c87e409ebc93db9",
+    "the 27 uncommitted files get committed or reverted"
+  ],
+  "active_mission": "docs/ACTIVE_MISSION.md",
+  "pull_request": null
+}
+-->
+
 ## What was done
 
 ### 5-document architecture audit (docs/recon/, docs/audit/, docs/planning/)
@@ -30,13 +55,49 @@
 - `npm test`: 17 suites, all passing
 - `wc -l page.tsx`: 179 (target was <200)
 
+---
+
+# Appended 2026-07-25 — tooling audit + test-suite repair session
+
+*(Separate session. The narrative above is the earlier parallel session's and is
+still accurate for its own work; this section adds to it rather than replacing it.)*
+
+**Suite: 3 failed / 2983 passed / 1 skipped in 7m20s.** Was 26 failed + 32 errors.
+
+Production bugs fixed (not test-only):
+
+- `gateway/memory.py` — `MemoryError` subclassed `RuntimeError` while 11 raise sites
+  passed `details=`. Every memory failure path raised `TypeError` instead of the intended
+  structured error, and the global `KittyError` handler never saw one. Now subclasses
+  `StorageUnavailable` (503 / `storage.unavailable`). Closed 18 failures.
+- `gateway/routes/search.py` — called `search_all()` without importing it; the route
+  raised `NameError` on every non-empty query. Now resolves via `memory_graph`.
+- `gateway/routes/completions.py` — `POST /sessions/close` returned `None` instead of the
+  typed `{status, session_id}` payload.
+- `soul/` + `TASKS.md` restored from `docs/archive/codebase-sweep-2026-07/` — they were
+  archived while `gateway/knowledge.py` still reads nine specialist prompts from `soul/`.
+- 7 self-referential symlinks removed at repo root; `.worktrees -> .worktrees` had been
+  killing every KittyBuilder packet run. venv rebuilt (same disease).
+
+Stale tests updated to match confirmed intent: DeepSeek routing (Jacob confirmed
+2026-07-24), 3-tier `route_model`, fail-loud `ProviderChainExhausted` instead of silent
+`""`, migrations 027/028, `assemble_context` gaining `tier`.
+
 ## In-flight / WIP
 
-Nothing in flight. All work from this session is complete.
+Nothing in flight.
 
 ## Blockers
 
-None.
+None. The 3 remaining failures were resolved by Jacob's decisions (2026-07-24):
+
+- **No `max_budget` is deliberate** — spend is capped upstream by the OpenRouter account
+  balance, not the proxy config. The assertion was testing a policy that doesn't exist.
+- **`kitty-sonnet` is retired as a model**, so its fallback-chain assertion is gone. But
+  the *name* survives as the deep-tier route label mapping to `deepseek-v4-pro` —
+  **removing it from `model_list` will break deep-tier routing.**
+- **`last_session_topic` reads the H1 title by design.** The fixture was unrealistic and
+  was corrected, not the code.
 
 ## Next move
 

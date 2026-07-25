@@ -470,6 +470,7 @@ async def close_session(payload: CloseSessionRequest):
     from gateway.memory import consolidate_session
 
     consolidate_session(payload.session_id, payload.messages)
+    return {"status": "ok", "session_id": payload.session_id}
 
 
 _REPAIRS_INTENT_PATTERNS = [

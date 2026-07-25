@@ -4,13 +4,21 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Optional
+from typing import Any, Optional
 
+from gateway.errors import StorageUnavailable
 from gateway.paths import DATA_DIR
 
 
-class MemoryError(RuntimeError):
-    """Raised when a memory read/write operation fails unexpectedly."""
+class MemoryError(StorageUnavailable):
+    """Raised when a memory read/write operation fails unexpectedly.
+
+    Subclasses ``StorageUnavailable`` so the 11 ``raise MemoryError(msg,
+    details={...})`` sites below actually work: ``RuntimeError`` takes no
+    keyword arguments, so every one of them raised ``TypeError`` instead of
+    the structured error TL-05 intended, and the global ``KittyError`` handler
+    never saw a memory failure.
+    """
 
 logger = logging.getLogger("kitty.memory")
 

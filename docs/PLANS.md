@@ -1,10 +1,13 @@
-# Kitty Current Plans — 2026-07-24
+# Kitty Session Status — 2026-07-24
 
-**Canonical single source.** For the post-meta-analysis optimized plan, see
-`docs/INITIATIVES_OPTIMIZED_2026-07-24.md`. For the session analysis of what
-went wrong and what to do differently, see `docs/SESSION_META_2026-07-24.md`.
+**Roadmap authority: `docs/INITIATIVES_OPTIMIZED_2026-07-24.md`** (per
+`docs/AUTHORITY_MAP.md`). That file owns feature sequencing, layered
+priority (F0-V4), and what's explicitly rejected. `docs/SESSION_META_2026-07-24.md`
+is the analysis that fed into it, not a competing plan.
 
-This file is the reference map. The other two are the action plan.
+This file is a status tracker, not the roadmap: what's shipped this session,
+what's blocked, and where things live. If this file and the roadmap
+disagree on priority or sequencing, the roadmap wins.
 
 ## Active Mission
 
@@ -74,13 +77,17 @@ From `docs/plans/`:
 - Initiative + task creation flow
 - Graphical build progress map
 - Builder should launch work through Orca/Ghostty/Claude Code
-- See `docs/planning/kittybuilder-redesign-2026-07-24.md` (other Orca instance)
+- **Owned by a different tool session, not this roadmap.** Plan lives at
+  `docs/planning/kittybuilder-redesign-2026-07-24.md`; tracked in `~/kb` for
+  cross-tool visibility, not here.
 
 ### Lane 4 — Image Studio
 - Cloud compute via airforce.ai ($10 credit)
 - Character system (cards, reliable recreation)
 - Image import/upload
-- See `docs/planning/image-studio-character-system-2026-07-24.md` (other Orca instance)
+- **Owned by a different tool session, not this roadmap.** Plan lives at
+  `docs/planning/image-studio-character-system-2026-07-24.md`; tracked in
+  `~/kb` for cross-tool visibility, not here.
 
 ### Lane 5 — Documents
 - Groups and folders (currently flat)

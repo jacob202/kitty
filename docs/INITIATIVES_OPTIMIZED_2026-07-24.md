@@ -1,5 +1,10 @@
 # Kitty Initiatives — Reorganized from Session Meta-Analysis
 
+**Roadmap authority** per `docs/AUTHORITY_MAP.md` — this file owns feature
+sequencing and priority. `docs/PLANS.md` is a session status tracker that
+defers to this file; `docs/SESSION_META_2026-07-24.md` is the analysis this
+plan was built from.
+
 **Principle:** Depth first, then breadth. Every initiative must answer:
 "Does this make Kitty better at the thing it already does, or does it add
 something new?" New features only after existing features actually work.

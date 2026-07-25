@@ -102,7 +102,7 @@ Write `.claude/STATE.md`. Must include the JSON frontmatter block exactly:
   "head_sha": "<git rev-parse HEAD>",
   "branch": "<current branch>",
   "worktree": "<. or worktree name>",
-  "status": "complete | in-progress | blocked",
+  "status": "complete | in_progress | blocked | awaiting_review | cancelled | superseded",
   "completed_items": [...],
   "blockers": [...],
   "next_action": "...",

@@ -12,6 +12,7 @@ report the contradiction rather than blending the claims.
 | `engineering_doctrine` | `AGENTS.md` | Safety, verification, change, Git, and agent operating rules | Product architecture or live status |
 | `architecture` | `docs/ARCHITECTURE.md` | Current runnable system shape and component boundaries | Durable decision history or release status |
 | `decisions` | `docs/DECISIONS.md` | Index of accepted ADRs and supersession | Live status or implementation plans |
+| `roadmap` | `docs/INITIATIVES_OPTIMIZED_2026-07-24.md` | Forward-looking feature sequencing, layered priority (F0-V4), and what's explicitly rejected | Approved mission scope (`active_mission`), shipped status (`live_status`), or session-level progress tracking (see `docs/PLANS.md`, a status tracker that defers to this row) |
 | `live_status` | `docs/PROJECT_STATUS.md` | Shipped capabilities, verified baseline, known limitations | Session progress or historical narrative |
 | `active_mission` | `docs/ACTIVE_MISSION.md` | The one approved mission, scope, authorization, and acceptance contract | Builder task/run state |
 | `session_checkpoint` | `.claude/STATE.md` | Current branch checkpoint, blockers, and exact next action | Historical checkpoints or product purpose |

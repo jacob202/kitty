@@ -184,7 +184,9 @@ def test_route_model_case_insensitive():
     from gateway.llm_client import route_model
 
     assert route_model("EXPLAIN THIS TO ME") == "kitty-sonnet"
-    assert route_model("WHAT IS THIS") == "kitty-default"
+    # Routing is 3-tier now (trivial → kitty-small, standard → kitty-default,
+    # deep → kitty-sonnet); "WHAT IS THIS" classifies as trivial.
+    assert route_model("WHAT IS THIS") == "kitty-small"
 
 
 # ── resolve_agentrouter_api_key ───────────────────────────────────────────────
@@ -502,20 +504,26 @@ def test_call_llm_passes_response_format_to_litellm():
     assert mock_post.call_args.kwargs["json"]["response_format"] == {"type": "json_object"}
 
 
-def test_call_llm_full_fallback_exhaustion_returns_empty():
-    """All providers in the fallback chain fail -> call_llm returns ''."""
-    from gateway.llm_client import call_llm
+def test_call_llm_full_fallback_exhaustion_raises():
+    """All providers fail -> call_llm raises instead of returning ''.
+
+    Returning an empty string here would be the silent fake-default that
+    CLAUDE.md Non-Negotiable #1 ("fail loud") forbids — a caller cannot tell
+    it apart from a model that legitimately had nothing to say.
+    """
+    import pytest
+
+    from gateway.llm_client import ProviderChainExhausted, call_llm
 
     with (
         patch("gateway.llm_client._post", side_effect=Exception("litellm down")),
         patch("gateway.llm_client._call_provider", return_value=""),
+        pytest.raises(ProviderChainExhausted),
     ):
-        result = call_llm(
+        call_llm(
             [{"role": "user", "content": "hello"}],
             model="kitty-default",
         )
-
-    assert result == ""
 
 
 def test_call_llm_partial_fallback_second_provider_succeeds():
@@ -541,20 +549,21 @@ def test_call_llm_partial_fallback_second_provider_succeeds():
     assert call_count[0] == 2
 
 
-def test_call_llm_fallback_deadline_exhausted():
-    """When deadline budget is already consumed, call_llm returns ''."""
-    from gateway.llm_client import call_llm
+def test_call_llm_fallback_deadline_exhausted_raises():
+    """Deadline budget already consumed -> raise, don't return '' (fail loud)."""
+    import pytest
+
+    from gateway.llm_client import ProviderChainExhausted, call_llm
 
     with (
         patch("gateway.llm_client._post", side_effect=Exception("litellm down")),
         patch("gateway.llm_client._LLM_CHAIN_DEADLINE", -1.0),
+        pytest.raises(ProviderChainExhausted),
     ):
-        result = call_llm(
+        call_llm(
             [{"role": "user", "content": "hello"}],
             model="kitty-default",
         )
-
-    assert result == ""
 
 
 # ── extract_assistant_text ────────────────────────────────────────────────
@@ -732,7 +741,8 @@ def test_openrouter_fallback_model_falls_back_to_map():
 
     with patch.dict("os.environ", {}, clear=True):
         result = _openrouter_fallback_model("kitty-default")
-    assert result == "deepseek/deepseek-v4-flash"
+    # kitty-default maps to deepseek-v4-pro since the move off Anthropic.
+    assert result == "openrouter/deepseek/deepseek-v4-pro"
 
     with patch.dict("os.environ", {}, clear=True):
         result = _openrouter_fallback_model("unknown-model")
