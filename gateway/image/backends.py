@@ -110,7 +110,7 @@ class ComfyUIBackend(ImageBackend):
         return "comfyui"
 
     async def is_available(self) -> bool:
-        from gateway.image_gen import is_available
+        from gateway.image.gen import is_available
         return await is_available()
 
     async def generate(
@@ -128,7 +128,7 @@ class ComfyUIBackend(ImageBackend):
         model_id: str | None = None,
         **extra: Any,
     ) -> GenerateResult:
-        from gateway.image_gen import generate as comfy_generate
+        from gateway.image.gen import generate as comfy_generate
 
         result = await comfy_generate(prompt)
         image_path = result["filename"]
@@ -153,7 +153,7 @@ class ComfyUIBackend(ImageBackend):
         cfg: float = 4.5,
         seed: int | None = None,
     ) -> GenerateResult:
-        from gateway.image_gen import generate_with_character as comfy_generate_char
+        from gateway.image.gen import generate_with_character as comfy_generate_char
 
         result = await comfy_generate_char(
             prompt=prompt,

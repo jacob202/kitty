@@ -8,7 +8,7 @@ from typing import Optional
 
 import httpx
 
-from gateway.image_jobs import (
+from gateway.image.jobs import (
     IllegalTransitionError,
     ImageJobStatus,
     JobNotFoundError,

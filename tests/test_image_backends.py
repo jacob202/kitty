@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from gateway.image_backends import (
+from gateway.image.backends import (
     BackendRegistry,
     ComfyUIBackend,
     GenerateResult,

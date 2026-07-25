@@ -264,7 +264,7 @@ class ImageGenRequest(BaseModel):
 async def image_status():
     import asyncio
 
-    from gateway.image_gen import is_available
+    from gateway.image.gen import is_available
 
     comfy_available = await is_available()
 
@@ -287,7 +287,7 @@ async def image_status():
 
 @router.post("/image/generate")
 async def image_generate(req: ImageGenRequest):
-    from gateway.image_runner import ImageRunnerError, run
+    from gateway.image.runner import ImageRunnerError, run
 
     engine = req.engine.strip().lower()
     if engine not in {"comfyui", "drawthings"}:
@@ -315,12 +315,12 @@ async def image_cancel(job_id: str):
     """Cancel a ComfyUI image job after verifying prompt ownership."""
     import httpx
 
-    from gateway.image_gen import (
+    from gateway.image.gen import (
         CancellationConflictError,
         CancellationUnsupportedError,
         cancel,
     )
-    from gateway.image_jobs import IllegalTransitionError, JobNotFoundError
+    from gateway.image.jobs import IllegalTransitionError, JobNotFoundError
 
     try:
         return await cancel(job_id)
@@ -361,7 +361,7 @@ async def image_view(filename: str):
     if candidate.is_file():
         return FileResponse(candidate)
 
-    from gateway.image_gen import COMFY_URL
+    from gateway.image.gen import COMFY_URL
 
     url = f"{COMFY_URL}/view?filename={filename}&subfolder=&type=output"
     try:
@@ -377,7 +377,7 @@ async def image_view(filename: str):
 
 @router.get("/image/history")
 async def image_history(limit: int = 20):
-    from gateway.image_gen import get_history
+    from gateway.image.gen import get_history
 
     return {"images": get_history(limit=limit)}
 
@@ -415,7 +415,7 @@ class StudioGenerateRequest(BaseModel):
 
 @router.get("/studio/characters")
 async def studio_list_characters():
-    from gateway.image_characters import list_characters
+    from gateway.image.characters import list_characters
 
     chars = list_characters()
     return {"characters": [c.to_dict() for c in chars]}
@@ -423,7 +423,7 @@ async def studio_list_characters():
 
 @router.post("/studio/characters")
 async def studio_create_character(req: CharacterCreate):
-    from gateway.image_characters import CharacterError, create_character
+    from gateway.image.characters import CharacterError, create_character
     try:
         char = create_character(
             name=req.name,
@@ -438,7 +438,7 @@ async def studio_create_character(req: CharacterCreate):
 
 @router.get("/studio/characters/{character_id}")
 async def studio_get_character(character_id: str):
-    from gateway.image_characters import CharacterNotFoundError, get_character, list_character_refs
+    from gateway.image.characters import CharacterNotFoundError, get_character, list_character_refs
     try:
         char = get_character(character_id)
         refs = list_character_refs(character_id)
@@ -451,7 +451,7 @@ async def studio_get_character(character_id: str):
 
 @router.patch("/studio/characters/{character_id}")
 async def studio_update_character(character_id: str, req: CharacterUpdate):
-    from gateway.image_characters import CharacterError, CharacterNotFoundError, update_character
+    from gateway.image.characters import CharacterError, CharacterNotFoundError, update_character
     try:
         char = update_character(
             character_id,
@@ -469,7 +469,7 @@ async def studio_update_character(character_id: str, req: CharacterUpdate):
 
 @router.delete("/studio/characters/{character_id}")
 async def studio_delete_character(character_id: str):
-    from gateway.image_characters import CharacterNotFoundError, soft_delete_character
+    from gateway.image.characters import CharacterNotFoundError, soft_delete_character
     try:
         char = soft_delete_character(character_id)
         return char.to_dict()
@@ -479,8 +479,8 @@ async def studio_delete_character(character_id: str):
 
 @router.post("/studio/characters/{character_id}/references")
 async def studio_add_character_ref(character_id: str, file: UploadFile):
-    from gateway.image_characters import CharacterError, CharacterNotFoundError, add_character_ref
-    from gateway.image_quality import check_reference_image
+    from gateway.image.characters import CharacterError, CharacterNotFoundError, add_character_ref
+    from gateway.image.quality import check_reference_image
 
     data = await file.read()
     if len(data) > 20 * 1024 * 1024:
@@ -512,8 +512,8 @@ async def studio_add_character_ref(character_id: str, file: UploadFile):
 
 @router.get("/studio/characters/{character_id}/quality")
 async def studio_character_quality(character_id: str):
-    from gateway.image_characters import CharacterNotFoundError, get_character, list_character_refs
-    from gateway.image_quality import check_reference_image
+    from gateway.image.characters import CharacterNotFoundError, get_character, list_character_refs
+    from gateway.image.quality import check_reference_image
 
     try:
         get_character(character_id)
@@ -560,7 +560,7 @@ async def studio_character_quality(character_id: str):
 
 @router.delete("/studio/characters/{character_id}/references/{ref_id}")
 async def studio_delete_character_ref(character_id: str, ref_id: str):
-    from gateway.image_characters import (
+    from gateway.image.characters import (
         CharacterError,
         CharacterNotFoundError,
         delete_character_ref,
@@ -578,14 +578,14 @@ async def studio_delete_character_ref(character_id: str, ref_id: str):
 
 @router.get("/studio/recipes")
 async def studio_list_recipes(available_only: bool = False):
-    from gateway.image_recipes import list_recipes
+    from gateway.image.recipes import list_recipes
     recipes = list_recipes(available_only=available_only)
     return {"recipes": [r.to_dict() for r in recipes]}
 
 
 @router.patch("/studio/recipes/{recipe_id}")
 async def studio_update_recipe(recipe_id: str, req: RecipeUpdate):
-    from gateway.image_recipes import RecipeError, set_recipe_available
+    from gateway.image.recipes import RecipeError, set_recipe_available
     try:
         recipe = set_recipe_available(recipe_id, req.available)
         return recipe.to_dict()
@@ -598,7 +598,7 @@ async def studio_update_recipe(recipe_id: str, req: RecipeUpdate):
 @router.post("/studio/generate")
 async def studio_generate(req: StudioGenerateRequest):
     from gateway import image_recipes
-    from gateway.image_runner import ImageRunnerError, run
+    from gateway.image.runner import ImageRunnerError, run
 
     if not req.prompt or not req.prompt.strip():
         raise HTTPException(status_code=400, detail="prompt must not be empty")

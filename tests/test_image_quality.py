@@ -11,7 +11,7 @@ except ImportError:
 
 import pytest
 
-from gateway.image_quality import (
+from gateway.image.quality import (
     check_reference_image,
 )
 

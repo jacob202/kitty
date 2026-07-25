@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from gateway import image_jobs
-from gateway.image_jobs import ImageJobStatus
-from gateway.image_runner import ImageRunnerError, JobResult, run
+from gateway.image.jobs import ImageJobStatus
+from gateway.image.runner import ImageRunnerError, JobResult, run
 
 
 @pytest.fixture(autouse=True)

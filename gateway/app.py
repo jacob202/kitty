@@ -23,7 +23,7 @@ logging.basicConfig(level=logging.INFO)
 
 def _reconcile_image_jobs_on_startup() -> None:
     """Close image jobs whose generating gateway coroutine no longer exists."""
-    from gateway.image_jobs import reconcile_stale
+    from gateway.image.jobs import reconcile_stale
 
     reconciled = reconcile_stale()
     if reconciled:
@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
     validate_dirs()
     validate_env()
     _reconcile_image_jobs_on_startup()
-    from gateway.image_recipes import seed_default_recipes
+    from gateway.image.recipes import seed_default_recipes
     seed_default_recipes()
     try:
         from gateway.telegram_bot import is_configured as tg_configured

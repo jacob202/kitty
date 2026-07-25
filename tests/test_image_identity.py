@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 
-from gateway.image_gen import (
+from gateway.image.gen import (
     COMFY_IDENTITY_NODES,
     IPADAPTER_MODEL,
     SDXL_PHOTONIC,
@@ -100,5 +100,5 @@ class TestRequiredNodes:
         assert "IPAdapterModelLoader" in COMFY_IDENTITY_NODES
 
     def test_required_nodes_include_load_image(self):
-        from gateway.image_gen import COMFY_REQUIRED_NODES
+        from gateway.image.gen import COMFY_REQUIRED_NODES
         assert "LoadImage" in COMFY_REQUIRED_NODES

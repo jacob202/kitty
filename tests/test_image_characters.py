@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from gateway.image_characters import (
+from gateway.image.characters import (
     CharacterError,
     CharacterNotFoundError,
     GalleryItemNotFoundError,

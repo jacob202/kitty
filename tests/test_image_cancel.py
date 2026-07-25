@@ -9,11 +9,11 @@ from fastapi import HTTPException
 
 from gateway import image_gen
 from gateway import image_jobs as jobs
-from gateway.image_gen import (
+from gateway.image.gen import (
     CancellationConflictError,
     CancellationUnsupportedError,
 )
-from gateway.image_jobs import (
+from gateway.image.jobs import (
     IllegalTransitionError,
     ImageJobStatus,
     JobNotFoundError,

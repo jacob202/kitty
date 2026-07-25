@@ -15,7 +15,7 @@ from typing import Any
 import pytest
 
 from gateway import image_jobs as jobs
-from gateway.image_jobs import (
+from gateway.image.jobs import (
     IllegalTransitionError,
     ImageJobError,
     ImageJobStatus,
@@ -311,7 +311,7 @@ class TestReconcile:
 
 class TestImageGenIntegration:
     def test_import_does_not_crash(self) -> None:
-        import gateway.image_gen  # noqa: F401
+        import gateway.image.gen  # noqa: F401
 
 
 # ── 10. Priority queue ────────────────────────────────────────────────────

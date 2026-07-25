@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from gateway import image_jobs
-from gateway.image_jobs import ImageJobStatus
+from gateway.image.jobs import ImageJobStatus
 
 
 class ImageRunnerError(RuntimeError):
@@ -139,7 +139,7 @@ async def _run_comfyui(
     parent_id: str | None = None,
 ) -> JobResult:
     """Standard ComfyUI generation path (no character)."""
-    from gateway.image_gen import generate, is_available
+    from gateway.image.gen import generate, is_available
 
     if not await is_available():
         raise ImageRunnerError("ComfyUI is not running")
@@ -162,12 +162,12 @@ async def _run_comfyui_character(
     negative_prompt: str | None = None,
 ) -> JobResult:
     """ComfyUI generation with character identity preservation."""
-    from gateway.image_characters import (
+    from gateway.image.characters import (
         CharacterNotFoundError,
         get_character,
         list_character_refs,
     )
-    from gateway.image_gen import generate_with_character, is_available
+    from gateway.image.gen import generate_with_character, is_available
 
     if not await is_available():
         raise ImageRunnerError("ComfyUI is not running")

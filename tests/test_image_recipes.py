@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from gateway.image_recipes import (
+from gateway.image.recipes import (
     DEFAULT_RECIPES,
     RecipeError,
     auto_route,
