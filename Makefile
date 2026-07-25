@@ -45,6 +45,12 @@ visual-diff-update:
 swarm-review:
 	cd gateway/kitty-chat && npx tsx scripts/swarm-review.ts
 
+# Dogfood — drives Kitty through real user flows (home, chat, tutor, all surfaces).
+# Requires a running dev server (cd gateway/kitty-chat && npm run dev).
+# Exits non-zero on any flow failure. Run after every UI change.
+dogfood:
+	cd gateway/kitty-chat && npx tsx scripts/dogfood.ts
+
 # Single command for "is Kitty healthy enough to demo?" — the things I had to
 # run separately while dogfooding today, bundled into one exit code.
 healthcheck:

@@ -1544,6 +1544,8 @@ export async function fetchTutorTerm(term: string, kpType = 'memory'): Promise<T
     10_000,
   )
 }
+
+export async function fetchKnowledgeSources(): Promise<KnowledgeSourcesPayload> {
   return await gfetch<KnowledgeSourcesPayload>('/knowledge/sources', undefined, 10_000)
 }
 

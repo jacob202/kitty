@@ -91,7 +91,7 @@ export function BuilderGlance({ onOpen }: BuilderGlanceProps) {
           nothing queued — ready when you are
         </p>
         <div>
-          <button type="button" onClick={onOpen} style={actionButton}>
+          <button type="button" onClick={onOpen} style={actionButton} aria-label="open builder">
             Open Builder
           </button>
         </div>
@@ -111,7 +111,7 @@ export function BuilderGlance({ onOpen }: BuilderGlanceProps) {
         {builderGlanceDetail(fact, false, null)}
       </p>
       <div>
-        <button type="button" onClick={onOpen} style={actionButton}>
+        <button type="button" onClick={onOpen} style={actionButton} aria-label="open builder">
           Open Builder
         </button>
       </div>

@@ -76,7 +76,7 @@ export function StatusBar({
           <span style={dotStyle} />
           gateway offline
         </span>
-        <button type="button" onClick={onRetryGateway} style={retryBtnStyle} aria-label="retry gateway connection">
+        <button type="button" onClick={onRetryGateway} style={retryBtnStyle}>
           retry
         </button>
       </div>
@@ -89,7 +89,7 @@ export function StatusBar({
         <span>
           {saveState === 'failed' ? 'save failed — chat not persisted' : 'gateway offline — chat not saved'}
         </span>
-        <button type="button" onClick={onRetrySave} style={retryBtnStyle} aria-label="retry saving chat">
+        <button type="button" onClick={onRetrySave} style={retryBtnStyle}>
           retry
         </button>
       </div>
@@ -127,7 +127,7 @@ export function StatusBar({
           </span>
         </span>
         {pwaState === 'available' && onPwaInstall && (
-          <button type="button" onClick={onPwaInstall} disabled={pwaInstalling} style={retryBtnStyle} aria-label="install kitty app">
+          <button type="button" onClick={onPwaInstall} disabled={pwaInstalling} style={retryBtnStyle}>
             {pwaInstalling ? 'installing...' : 'install'}
           </button>
         )}

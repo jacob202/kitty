@@ -89,7 +89,7 @@ export function ViewRenderer({
     case 'providers':
     case 'agents':
     case 'tools':
-      return <SettingsShell isMobile={isMobile} theme={(theme as ThemeMode) ?? 'cosmic'} onToggleTheme={onToggleTheme} />
+      return <SettingsShell isMobile={isMobile} theme={(theme as 'cosmic' | 'day' | 'night') ?? 'cosmic'} onToggleTheme={onToggleTheme} />
     case 'tutor':
       return <TutorShell isMobile={isMobile} />
     case 'terminal':

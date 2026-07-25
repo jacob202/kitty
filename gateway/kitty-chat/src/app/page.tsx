@@ -43,7 +43,7 @@ export default function KittyChat() {
       {!k.isMobile && <Rail activeView={k.activeView} onViewChange={k.setActiveView} theme={k.theme} onToggleTheme={k.handleToggleTheme} />}
       {k.isMobile && <BottomNav activeView={k.activeView} onViewChange={k.setActiveView} />}
 
-      {!k.isMobile && k.activeView === 'chat' && (
+      {!k.isMobile && (k.activeView === 'chat' || k.activeView === 'home') && (
         <SessionSidebar
           chats={k.chats} activeChatId={k.activeChatId}
           onSelectChat={k.handleSelectChat} onNewChat={() => { k.handleNewChat(); k.setActiveView('chat') }}
@@ -51,7 +51,7 @@ export default function KittyChat() {
         />
       )}
 
-      {k.isMobile && k.mobileSidebarOpen && k.activeView === 'chat' && (
+      {k.isMobile && k.mobileSidebarOpen && (k.activeView === 'chat' || k.activeView === 'home') && (
         <>
           <div onClick={() => k.setMobileSidebarOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.6)', zIndex: 40 }} />
           <div style={{ position: 'fixed', inset: '0 auto 0 0', width: 'min(320px, 84vw)',         height: '100dvh', zIndex: 50, boxShadow: 'var(--shadow)' }}>

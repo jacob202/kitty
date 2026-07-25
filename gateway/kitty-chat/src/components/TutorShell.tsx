@@ -195,7 +195,7 @@ function LearnTab() {
         placeholder="optional label"
         style={{ ...inputStyle, width: '50%' }}
       />
-      <button onClick={handleLearn} disabled={loading || !path.trim()} style={learnBtnStyle}>
+      <button onClick={handleLearn} disabled={loading || !path.trim()} style={learnBtnStyle} aria-label="learn from document">
         {loading ? 'ingesting...' : 'learn'}
       </button>
       {status && <div style={{ ...statStyle, color: 'var(--c-green)' }}>{status}</div>}

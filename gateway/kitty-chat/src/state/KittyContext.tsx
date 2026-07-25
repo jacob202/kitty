@@ -456,13 +456,11 @@ export function KittyProvider({ children }: { children: ReactNode }) {
 
   const handleSelectChat = useCallback((id: string) => {
     setActiveChatId(id)
-    setActiveView('chat')
     if (isMobile) setMobileSidebarOpen(false)
   }, [isMobile])
 
   const handleSidebarNewChat = useCallback(() => {
     handleNewChat()
-    setActiveView('chat')
     if (isMobile) setMobileSidebarOpen(false)
   }, [handleNewChat, isMobile])
 
