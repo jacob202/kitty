@@ -48,7 +48,7 @@ class Check:
 
 
 def _git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
+    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, timeout=10)
 
 
 def _repo_toplevel(repo_root: Path | None) -> subprocess.CompletedProcess[str]:

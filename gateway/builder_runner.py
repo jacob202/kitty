@@ -143,6 +143,7 @@ def _repo_root(repo_root: Path | None) -> Path:
         capture_output=True,
         text=True,
         check=True,
+        timeout=10,
     )
     return Path(out.stdout.strip())
 
@@ -153,7 +154,7 @@ def worktree_path(task_id: str, *, repo_root: Path | None = None) -> Path:
 
 def _git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["git", *args], cwd=cwd, capture_output=True, text=True
+        ["git", *args], cwd=cwd, capture_output=True, text=True, timeout=15
     )
 
 
@@ -313,7 +314,7 @@ def _diff_sha256(path: Path, start_sha: str) -> str:
         (b"staged", ["diff", "--cached", "--binary"]),
     ):
         result = subprocess.run(
-            ["git", *args], cwd=path, capture_output=True, check=False
+            ["git", *args], cwd=path, capture_output=True, check=False, timeout=30
         )
         if result.returncode != 0:
             detail = result.stderr.decode(errors="replace").strip() or "no output"

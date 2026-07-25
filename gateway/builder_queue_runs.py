@@ -634,11 +634,15 @@ def finalize_run(
 
 
 def capture_process_identity(pid: int) -> str | None:
-    result = subprocess.run(
-        ["ps", "-o", "lstart=", "-p", str(pid)],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            ["ps", "-o", "lstart=", "-p", str(pid)],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except subprocess.TimeoutExpired:
+        return None
     identity = " ".join(result.stdout.split())
     if result.returncode != 0 or not identity:
         return None
