@@ -256,19 +256,15 @@ def test_execute_enforces_current_registry_tier_not_the_stored_one(monkeypatch, 
     action = _propose("todo.create", {"content": "x"})  # stamped T0 at propose
     assert action["risk_tier"] == "T0"
 
+    # Every registered executor needs a tier or _build_registry refuses to build.
+    # Derive the sheet from the live executor table so adding an executor doesn't
+    # break this test — only todo.create's escalation is what's under test here.
+    tiers: dict[str, object] = {kind: "T1" for kind in action_queue._EXECUTORS}
+    tiers["todo.create"] = "T2"
+    tiers["_disabled_v1"] = []
+
     escalated = tmp_path / "tiers.json"
-    escalated.write_text(
-        json.dumps(
-            {
-                "todo.create": "T2",
-                "note.draft": "T1",
-                "packet.delegate": "T1",
-                "calendar.event.create": "T2",
-                "_disabled_v1": [],
-            }
-        ),
-        encoding="utf-8",
-    )
+    escalated.write_text(json.dumps(tiers), encoding="utf-8")
     monkeypatch.setattr(action_queue, "ACTION_TIERS_FILE", escalated, raising=False)
     action_queue.reload_registry()
 
