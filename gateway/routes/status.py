@@ -1,12 +1,19 @@
 """Status glance endpoint — for Apple Watch / quick health checks."""
 
 from __future__ import annotations
+from pydantic import BaseModel
 
 import json
 import logging
 import subprocess
 
 from fastapi import APIRouter
+
+class GlanceResponse(BaseModel):
+    branch: str
+    uncommitted: int
+    tests: int
+
 
 from gateway.paths import DATA_DIR, ROOT
 
@@ -38,7 +45,7 @@ def _test_status() -> str:
         return "unknown"
 
 
-@router.get("/status/glance")
+@router.get("/status/glance", response_model=GlanceResponse)
 async def status_glance():
     """Quick read-only health snapshot for watch face / status bar."""
     branch = _git(["branch", "--show-current"])

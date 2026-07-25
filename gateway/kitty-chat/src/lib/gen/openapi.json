@@ -904,6 +904,29 @@
         "title": "ExpertRequest",
         "type": "object"
       },
+      "GlanceResponse": {
+        "properties": {
+          "branch": {
+            "title": "Branch",
+            "type": "string"
+          },
+          "tests": {
+            "title": "Tests",
+            "type": "integer"
+          },
+          "uncommitted": {
+            "title": "Uncommitted",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "branch",
+          "uncommitted",
+          "tests"
+        ],
+        "title": "GlanceResponse",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1463,6 +1486,61 @@
         "title": "LearnRequest",
         "type": "object"
       },
+      "LogTailResponse": {
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Lines",
+            "type": "array"
+          }
+        },
+        "required": [
+          "file",
+          "lines"
+        ],
+        "title": "LogTailResponse",
+        "type": "object"
+      },
+      "MagicInsightItem": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "value"
+        ],
+        "title": "MagicInsightItem",
+        "type": "object"
+      },
+      "MagicInsightsResponse": {
+        "properties": {
+          "insights": {
+            "items": {
+              "$ref": "#/components/schemas/MagicInsightItem"
+            },
+            "title": "Insights",
+            "type": "array"
+          }
+        },
+        "required": [
+          "insights"
+        ],
+        "title": "MagicInsightsResponse",
+        "type": "object"
+      },
       "NotifyRequest": {
         "properties": {
           "message": {
@@ -1719,6 +1797,41 @@
           "prompt"
         ],
         "title": "StudioGenerateRequest",
+        "type": "object"
+      },
+      "TailnetStatusResponse": {
+        "properties": {
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "tailnet_ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tailnet Ip"
+          },
+          "ui_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ui Url"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "TailnetStatusResponse",
         "type": "object"
       },
       "TaskCreateRequest": {
@@ -5935,9 +6048,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Logs Tail Logs Tail Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/LogTailResponse"
                 }
               }
             },
@@ -6123,9 +6234,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Magic Insights Magic Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/MagicInsightsResponse"
                 }
               }
             },
@@ -6478,9 +6587,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Tailnet Status Network Tailnet Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/TailnetStatusResponse"
                 }
               }
             },
@@ -8019,7 +8126,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/GlanceResponse"
+                }
               }
             },
             "description": "Successful Response"

@@ -9,6 +9,15 @@ from fastapi import APIRouter
 
 logger = logging.getLogger("kitty.routes.network")
 
+from pydantic import BaseModel
+
+
+class TailnetStatusResponse(BaseModel):
+    ok: bool
+    tailnet_ip: str | None = None
+    ui_url: str | None = None
+
+
 router = APIRouter(tags=["network"])
 
 UI_PORT = 4000
@@ -16,8 +25,8 @@ UI_PORT = 4000
 _NOT_CONNECTED = {"ok": False, "tailnet_ip": None, "ui_url": None}
 
 
-@router.get("/network/tailnet")
-def get_tailnet_status() -> dict:
+@router.get("/network/tailnet", response_model=TailnetStatusResponse)
+def get_tailnet_status() -> TailnetStatusResponse:
     try:
         result = subprocess.run(
             ["tailscale", "status", "--json"],

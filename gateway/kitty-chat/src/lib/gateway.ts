@@ -1656,13 +1656,9 @@ export async function fetchChatsPersistence(): Promise<ChatsPersistencePayload> 
   }
 }
 
-
 // ── Logs ──────────────────────────────────────────────────────────────────────
 
-export interface LogTailPayload {
-  file: string
-  lines: string[]
-}
+export type LogTailPayload = components['schemas']['LogTailResponse']
 
 export async function fetchLogTail(file = 'gateway', lines = 100): Promise<LogTailPayload> {
   return await gfetch<LogTailPayload>(`/logs/tail?file=${encodeURIComponent(file)}&lines=${lines}`)

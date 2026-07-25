@@ -11,6 +11,14 @@ from fastapi import APIRouter, HTTPException, Query
 
 from gateway.paths import LOGS_DIR
 
+from pydantic import BaseModel
+
+
+class LogTailResponse(BaseModel):
+    file: str
+    lines: list[str]
+
+
 router = APIRouter(tags=["logs"])
 
 _ALLOWED = {
@@ -20,7 +28,7 @@ _ALLOWED = {
 }
 
 
-@router.get("/logs/tail")
+@router.get("/logs/tail", response_model=LogTailResponse)
 def logs_tail(
     file: str = Query("gateway"),
     lines: int = Query(100, ge=1, le=500),

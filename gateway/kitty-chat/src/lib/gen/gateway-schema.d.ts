@@ -3932,6 +3932,15 @@ export interface components {
             /** Query */
             query: string;
         };
+        /** GlanceResponse */
+        GlanceResponse: {
+            /** Branch */
+            branch: string;
+            /** Tests */
+            tests: number;
+            /** Uncommitted */
+            uncommitted: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -4107,6 +4116,25 @@ export interface components {
             /** Topic */
             topic: string;
         };
+        /** LogTailResponse */
+        LogTailResponse: {
+            /** File */
+            file: string;
+            /** Lines */
+            lines: string[];
+        };
+        /** MagicInsightItem */
+        MagicInsightItem: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+        };
+        /** MagicInsightsResponse */
+        MagicInsightsResponse: {
+            /** Insights */
+            insights: components["schemas"]["MagicInsightItem"][];
+        };
         /** NotifyRequest */
         NotifyRequest: {
             /** Message */
@@ -4205,6 +4233,15 @@ export interface components {
             recipe_id?: string | null;
             /** Reference Ids */
             reference_ids?: string[] | null;
+        };
+        /** TailnetStatusResponse */
+        TailnetStatusResponse: {
+            /** Ok */
+            ok: boolean;
+            /** Tailnet Ip */
+            tailnet_ip?: string | null;
+            /** Ui Url */
+            ui_url?: string | null;
         };
         /** TaskCreateRequest */
         TaskCreateRequest: {
@@ -7367,9 +7404,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["LogTailResponse"];
                 };
             };
             /** @description Validation Error */
@@ -7517,9 +7552,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["MagicInsightsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -7800,9 +7833,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["TailnetStatusResponse"];
                 };
             };
         };
@@ -9007,7 +9038,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["GlanceResponse"];
                 };
             };
         };
