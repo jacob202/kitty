@@ -38,7 +38,7 @@ Match the existing file before introducing new patterns. Python uses 4-space ind
 
 ## Testing
 
-Use targeted tests while developing, then run the relevant full slice before claiming completion. UI changes need `npm test` and `npm run build` in `gateway/kitty-chat/`. Launch, auth, port, or env changes also need `./kitty status` and `./kitty doctor --json`.
+Do NOT run tests, lint, typecheck, or build mid-session unless explicitly asked with `/qg` or `/qg all`. CI runs the full suite on every PR and push to main. When the user does ask for quality gates, run only what's relevant: UI changes → `npm test` + `npm run build` in `gateway/kitty-chat/`; backend changes → `python3.12 -m pytest tests/ -q --tb=short`; launch/auth/port/env changes → also `./kitty status` and `./kitty doctor --json`.
 
 ## Git and PRs
 
@@ -47,6 +47,10 @@ Use small Conventional Commit messages such as `fix(auth): fail closed`. Never p
 Before any `gh` command or `git push`, check whether `GITHUB_TOKEN` is set. If `env -u GITHUB_TOKEN gh auth status` succeeds, run GitHub commands with `env -u GITHUB_TOKEN` so a stale ambient token cannot override keyring authentication. Never print token values.
 
 Before merging a PR, read the Actions **check runs** and confirm each required job is `success` — not just the combined commit `status`. They are different GitHub surfaces; a green `status` (e.g. a review bot) can hide failing lint/typecheck/pytest check runs. A broken file reached `main` this way once (see `docs/LEARNINGS.md` L-CAND-6). After any non-trivial merge, compile/import the touched files before declaring done.
+
+### PR agent review
+
+A GitHub Action (`pr-agent-review.yml`) auto-reviews every opened or updated PR using an LLM via OpenRouter. It posts a review comment on the PR. Requires `OPENROUTER_API_KEY` set as a GitHub repo secret at Settings → Secrets and variables → Actions → Repository secrets.
 
 ## KittyBuilder execution control plane
 
