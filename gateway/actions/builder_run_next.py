@@ -5,6 +5,7 @@ version: 0.2
 type: action
 kind: builder.run_next
 """
+import asyncio
 import subprocess
 from pathlib import Path
 
@@ -25,7 +26,8 @@ class Action:
         if not initiative:
             return {**body, "error": "missing initiative_id"}
 
-        result = subprocess.run(
+        result = await asyncio.to_thread(
+            subprocess.run,
             [str(KITTY_CLI), "builder", "initiative", "run", initiative, "--free", "--max-attempts", "3"],
             cwd=REPO_ROOT, capture_output=True, text=True, timeout=300
         )
