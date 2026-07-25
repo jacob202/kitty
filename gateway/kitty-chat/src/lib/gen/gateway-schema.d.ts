@@ -3873,6 +3873,47 @@ export interface components {
              */
             type: "text" | "voice_note" | "photo" | "file" | "distress_signal";
         };
+        /** ExpertAnswerResponse */
+        ExpertAnswerResponse: {
+            /** Answer */
+            answer: string;
+            /** Citations */
+            citations: components["schemas"]["ExpertCitation"][];
+            /** Expert */
+            expert: string;
+            /** Privacy */
+            privacy: string;
+            /** Supported */
+            supported: boolean;
+        };
+        /** ExpertCitation */
+        ExpertCitation: {
+            /** Chunk Index */
+            chunk_index?: number | null;
+            /** Id */
+            id: number;
+            /** Label */
+            label: string;
+            /** Page Num */
+            page_num?: number | null;
+            /** Source */
+            source: string;
+        };
+        /** ExpertProfileItem */
+        ExpertProfileItem: {
+            /** Book Count */
+            book_count: number;
+            /** Formats */
+            formats: string[];
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Sample Title */
+            sample_title: string;
+            /** Tags */
+            tags: string[];
+        };
         /**
          * ExpertRequest
          * @description A strictly local expert retrieval request.
@@ -3945,8 +3986,11 @@ export interface components {
             reason: string;
             /** Source Id */
             source_id: string;
-            /** Status */
-            status: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "success" | "skipped" | "failed" | "pending";
         };
         /** JournalChatRequest */
         JournalChatRequest: {
@@ -3959,6 +4003,104 @@ export interface components {
              * @default
              */
             system_prompt: string;
+        };
+        /** KnowledgeChunkMetadata */
+        KnowledgeChunkMetadata: {
+            /** Authority Score */
+            authority_score?: number | null;
+            /** Content Hash */
+            content_hash?: string | null;
+            /** Ingested At */
+            ingested_at?: number | null;
+            /** Primary Topic */
+            primary_topic?: string | null;
+            /** Relevance Period */
+            relevance_period?: string | null;
+            /** Sensitivity */
+            sensitivity?: string | null;
+        };
+        /** KnowledgeChunkReference */
+        KnowledgeChunkReference: {
+            /** Analysis Type */
+            analysis_type?: string | null;
+            /** Chunk Index */
+            chunk_index?: number | null;
+            /**
+             * Is Visual
+             * @default false
+             */
+            is_visual: boolean;
+            /** Page Num */
+            page_num?: number | null;
+            /** Source */
+            source: string;
+        };
+        /** KnowledgeExpertsResponse */
+        KnowledgeExpertsResponse: {
+            /** Experts */
+            experts: components["schemas"]["ExpertProfileItem"][];
+        };
+        /** KnowledgeSearchResponse */
+        KnowledgeSearchResponse: {
+            /** Count */
+            count?: number | null;
+            /** Message */
+            message?: string | null;
+            /** Query */
+            query: string;
+            /** Results */
+            results: components["schemas"]["KnowledgeSearchResultItem"][];
+        };
+        /** KnowledgeSearchResultItem */
+        KnowledgeSearchResultItem: {
+            /** Doc Type */
+            doc_type: string;
+            metadata: components["schemas"]["KnowledgeChunkMetadata"];
+            reference: components["schemas"]["KnowledgeChunkReference"];
+            /** Score */
+            score?: number | null;
+            /** Source */
+            source: string;
+            /** Text */
+            text: string;
+        };
+        /** KnowledgeSourceItem */
+        KnowledgeSourceItem: {
+            /** Authority Score */
+            authority_score?: number | null;
+            /** Chunks */
+            chunks: number;
+            /** Collection */
+            collection: string;
+            /** Content Hash */
+            content_hash?: string | null;
+            /** Created At */
+            created_at?: number | null;
+            /** Doc Types */
+            doc_types: string[];
+            /** File Path */
+            file_path?: string | null;
+            /** Ingested At */
+            ingested_at?: number | null;
+            /** Modified At */
+            modified_at?: number | null;
+            /** Name */
+            name: string;
+            /** Primary Topic */
+            primary_topic?: string | null;
+            /** Sensitivities */
+            sensitivities: string[];
+            /** Tags */
+            tags: string[];
+        };
+        /** KnowledgeSourcesResponse */
+        KnowledgeSourcesResponse: {
+            /** Sources */
+            sources: components["schemas"]["KnowledgeSourceItem"][];
+            /** Total Chunks */
+            total_chunks: number;
+            /** Total Sources */
+            total_sources: number;
         };
         /** LearnRequest */
         LearnRequest: {
@@ -6769,9 +6911,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ExpertAnswerResponse"];
                 };
             };
             /** @description Validation Error */
@@ -6800,7 +6940,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["KnowledgeExpertsResponse"];
                 };
             };
         };
@@ -6856,9 +6996,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["KnowledgeSearchResponse"];
                 };
             };
             /** @description Validation Error */
@@ -6887,9 +7025,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["KnowledgeSourcesResponse"];
                 };
             };
         };

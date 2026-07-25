@@ -749,6 +749,132 @@
         "title": "DesktopCaptureRequest",
         "type": "object"
       },
+      "ExpertAnswerResponse": {
+        "properties": {
+          "answer": {
+            "title": "Answer",
+            "type": "string"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/ExpertCitation"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "expert": {
+            "title": "Expert",
+            "type": "string"
+          },
+          "privacy": {
+            "title": "Privacy",
+            "type": "string"
+          },
+          "supported": {
+            "title": "Supported",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "expert",
+          "supported",
+          "answer",
+          "citations",
+          "privacy"
+        ],
+        "title": "ExpertAnswerResponse",
+        "type": "object"
+      },
+      "ExpertCitation": {
+        "properties": {
+          "chunk_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk Index"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "page_num": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Num"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "label"
+        ],
+        "title": "ExpertCitation",
+        "type": "object"
+      },
+      "ExpertProfileItem": {
+        "additionalProperties": false,
+        "properties": {
+          "book_count": {
+            "title": "Book Count",
+            "type": "integer"
+          },
+          "formats": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Formats",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "sample_title": {
+            "title": "Sample Title",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "book_count",
+          "tags",
+          "formats",
+          "sample_title"
+        ],
+        "title": "ExpertProfileItem",
+        "type": "object"
+      },
       "ExpertRequest": {
         "additionalProperties": false,
         "description": "A strictly local expert retrieval request.",
@@ -907,6 +1033,12 @@
             "type": "string"
           },
           "status": {
+            "enum": [
+              "success",
+              "skipped",
+              "failed",
+              "pending"
+            ],
             "title": "Status",
             "type": "string"
           }
@@ -939,6 +1071,381 @@
           "messages"
         ],
         "title": "JournalChatRequest",
+        "type": "object"
+      },
+      "KnowledgeChunkMetadata": {
+        "properties": {
+          "authority_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authority Score"
+          },
+          "content_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Hash"
+          },
+          "ingested_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ingested At"
+          },
+          "primary_topic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Topic"
+          },
+          "relevance_period": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relevance Period"
+          },
+          "sensitivity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sensitivity"
+          }
+        },
+        "title": "KnowledgeChunkMetadata",
+        "type": "object"
+      },
+      "KnowledgeChunkReference": {
+        "properties": {
+          "analysis_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analysis Type"
+          },
+          "chunk_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk Index"
+          },
+          "is_visual": {
+            "default": false,
+            "title": "Is Visual",
+            "type": "boolean"
+          },
+          "page_num": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Num"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "title": "KnowledgeChunkReference",
+        "type": "object"
+      },
+      "KnowledgeExpertsResponse": {
+        "properties": {
+          "experts": {
+            "items": {
+              "$ref": "#/components/schemas/ExpertProfileItem"
+            },
+            "title": "Experts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "experts"
+        ],
+        "title": "KnowledgeExpertsResponse",
+        "type": "object"
+      },
+      "KnowledgeSearchResponse": {
+        "properties": {
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeSearchResultItem"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "query",
+          "results"
+        ],
+        "title": "KnowledgeSearchResponse",
+        "type": "object"
+      },
+      "KnowledgeSearchResultItem": {
+        "properties": {
+          "doc_type": {
+            "title": "Doc Type",
+            "type": "string"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/KnowledgeChunkMetadata"
+          },
+          "reference": {
+            "$ref": "#/components/schemas/KnowledgeChunkReference"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "source",
+          "doc_type",
+          "reference",
+          "metadata"
+        ],
+        "title": "KnowledgeSearchResultItem",
+        "type": "object"
+      },
+      "KnowledgeSourceItem": {
+        "additionalProperties": false,
+        "properties": {
+          "authority_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authority Score"
+          },
+          "chunks": {
+            "title": "Chunks",
+            "type": "integer"
+          },
+          "collection": {
+            "title": "Collection",
+            "type": "string"
+          },
+          "content_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Hash"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "doc_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Doc Types",
+            "type": "array"
+          },
+          "file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Path"
+          },
+          "ingested_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ingested At"
+          },
+          "modified_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modified At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "primary_topic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Topic"
+          },
+          "sensitivities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sensitivities",
+            "type": "array"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "chunks",
+          "collection",
+          "tags",
+          "doc_types",
+          "sensitivities"
+        ],
+        "title": "KnowledgeSourceItem",
+        "type": "object"
+      },
+      "KnowledgeSourcesResponse": {
+        "properties": {
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeSourceItem"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "total_chunks": {
+            "title": "Total Chunks",
+            "type": "integer"
+          },
+          "total_sources": {
+            "title": "Total Sources",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sources",
+          "total_sources",
+          "total_chunks"
+        ],
+        "title": "KnowledgeSourcesResponse",
         "type": "object"
       },
       "LearnRequest": {
@@ -4874,9 +5381,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Post Expert Knowledge Expert Post",
-                  "type": "object"
+                  "$ref": "#/components/schemas/ExpertAnswerResponse"
                 }
               }
             },
@@ -4907,7 +5412,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeExpertsResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -4992,9 +5499,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Search Knowledge Search Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/KnowledgeSearchResponse"
                 }
               }
             },
@@ -5026,9 +5531,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Sources Knowledge Sources Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/KnowledgeSourcesResponse"
                 }
               }
             },

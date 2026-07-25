@@ -1405,44 +1405,15 @@ export async function runDeadlineSweep(): Promise<DeadlineSweepReport> {
 
 // ── Knowledge (Documents) ────────────────────────────────────────────────────
 
-export interface KnowledgeSource {
-  name: string
-  chunks: number
-  collection: string
-  tags: string[]
-  doc_types: string[]
-  sensitivities: string[]
-  primary_topic?: string | null
-  file_path?: string | null
-  ingested_at?: number | null
-}
+export type KnowledgeSource = components['schemas']['KnowledgeSourceItem']
 
-export interface KnowledgeSourcesPayload {
-  sources: KnowledgeSource[]
-  total_sources: number
-  total_chunks: number
-}
+export type KnowledgeSourcesPayload = components['schemas']['KnowledgeSourcesResponse']
 
-export interface KnowledgeSearchResult {
-  text: string
-  source: string
-  doc_type: string
-  score: number | null
-  reference: { source: string; chunk_index?: number | null; page_num?: number | null }
-}
+export type KnowledgeSearchResult = components['schemas']['KnowledgeSearchResultItem']
 
-export interface KnowledgeSearchPayload {
-  query: string
-  results: KnowledgeSearchResult[]
-  message?: string
-  count?: number
-}
+export type KnowledgeSearchPayload = components['schemas']['KnowledgeSearchResponse']
 
-export interface KnowledgeIngestResult {
-  status: 'success' | 'skipped' | 'failed' | 'pending'
-  source_id: string
-  reason: string
-}
+export type KnowledgeIngestResult = components['schemas']['IngestResponse']
 
 // ── Tutor (DTH-03/04 wiring) ─────────────────────────────────────────────────
 
@@ -1765,17 +1736,10 @@ export async function executeBuilderAction(
 
 // ── Experts ────────────────────────────────────────────────────────────────────
 
-export interface ExpertProfile {
-  id: string
-  label: string
-  book_count: number
-  tags: string[]
-  formats: string[]
-  sample_title: string
-}
+export type ExpertProfile = components['schemas']['ExpertProfileItem']
 
 export async function fetchExpertList(): Promise<ExpertProfile[]> {
-  const payload = await gfetch<{ experts: ExpertProfile[] }>('/knowledge/experts')
+  const payload = await gfetch<components['schemas']['KnowledgeExpertsResponse']>('/knowledge/experts')
   return payload.experts ?? []
 }
 

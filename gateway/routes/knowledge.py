@@ -12,7 +12,7 @@ import logging
 import re
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 from urllib.parse import urlparse
 
 import httpx
@@ -75,7 +75,7 @@ class IngestRequest(BaseModel):
 
 
 class IngestResponse(BaseModel):
-    status: str
+    status: Literal["success","skipped","failed","pending"]
     source_id: str
     reason: str
 
@@ -97,6 +97,97 @@ class ExpertRequest(BaseModel):
             raise ValueError("query must contain non-whitespace characters")
         return value
 
+
+
+# --- Response Models ---
+
+
+class KnowledgeSourceItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    chunks: int
+    collection: str
+    tags: list[str]
+    doc_types: list[str]
+    sensitivities: list[str]
+    authority_score: Optional[float] = None
+    primary_topic: Optional[str] = None
+    content_hash: Optional[str] = None
+    file_path: Optional[str] = None
+    ingested_at: Optional[float] = None
+    modified_at: Optional[float] = None
+    created_at: Optional[float] = None
+
+
+class KnowledgeSourcesResponse(BaseModel):
+    sources: list[KnowledgeSourceItem]
+    total_sources: int
+    total_chunks: int
+
+
+class ExpertProfileItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    label: str
+    book_count: int
+    tags: list[str]
+    formats: list[str]
+    sample_title: str
+
+
+class KnowledgeExpertsResponse(BaseModel):
+    experts: list[ExpertProfileItem]
+
+
+class KnowledgeChunkReference(BaseModel):
+    source: str
+    chunk_index: Optional[int] = None
+    page_num: Optional[int] = None
+    is_visual: bool = False
+    analysis_type: Optional[str] = None
+
+
+class KnowledgeChunkMetadata(BaseModel):
+    sensitivity: Optional[str] = None
+    content_hash: Optional[str] = None
+    primary_topic: Optional[str] = None
+    authority_score: Optional[float] = None
+    relevance_period: Optional[str] = None
+    ingested_at: Optional[float] = None
+
+
+class KnowledgeSearchResultItem(BaseModel):
+    text: str
+    source: str
+    doc_type: str
+    score: Optional[float] = None
+    reference: KnowledgeChunkReference
+    metadata: KnowledgeChunkMetadata
+
+
+class KnowledgeSearchResponse(BaseModel):
+    query: str
+    results: list[KnowledgeSearchResultItem]
+    message: Optional[str] = None
+    count: Optional[int] = None
+
+
+class ExpertCitation(BaseModel):
+    id: int
+    source: str
+    page_num: Optional[int] = None
+    chunk_index: Optional[int] = None
+    label: str
+
+
+class ExpertAnswerResponse(BaseModel):
+    expert: str
+    supported: bool
+    answer: str
+    citations: list[ExpertCitation]
+    privacy: str
 
 # --- Routes ---
 
@@ -150,8 +241,8 @@ async def post_ingest(body: IngestRequest) -> IngestResponse:
     return IngestResponse(status=status, source_id=result.source, reason=reason)
 
 
-@router.get("/knowledge/sources")
-async def get_sources() -> dict:
+@router.get("/knowledge/sources", response_model=KnowledgeSourcesResponse)
+async def get_sources() -> KnowledgeSourcesResponse:
     """List every ingested source with chunk counts and metadata."""
     from gateway import archivist
 
@@ -178,8 +269,8 @@ async def get_sources() -> dict:
     }
 
 
-@router.get("/knowledge/experts")
-def list_experts():
+@router.get("/knowledge/experts", response_model=KnowledgeExpertsResponse)
+def list_experts() -> KnowledgeExpertsResponse:
     """Return expert profiles derived from the books manifest."""
     import json
     from collections import defaultdict
@@ -221,8 +312,8 @@ def list_experts():
     return {"experts": experts}
 
 
-@router.get("/knowledge/search")
-async def get_search(q: str = "", limit: int = 5) -> dict:
+@router.get("/knowledge/search", response_model=KnowledgeSearchResponse)
+async def get_search(q: str = "", limit: int = 5) -> KnowledgeSearchResponse:
     """Search the knowledge base. Returns references per chunk.
 
     An empty result set returns an explicit message — the client should
@@ -257,8 +348,8 @@ async def get_search(q: str = "", limit: int = 5) -> dict:
     return {"query": q, "results": results, "count": len(results)}
 
 
-@router.post("/knowledge/expert")
-async def post_expert(body: ExpertRequest) -> dict:
+@router.post("/knowledge/expert", response_model=ExpertAnswerResponse)
+async def post_expert(body: ExpertRequest) -> ExpertAnswerResponse:
     """Answer from uploaded sources through the loopback-only MLX model."""
     from gateway import knowledge
 
