@@ -1,0 +1,786 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Research ↔ Repository Reconciliation — 2026-07-25</title>
+<style>
+  :root {
+    --bg: #fbfaf8; --surface: #ffffff; --ink: #16150f; --ink-2: #5d5a4e;
+    --ink-3: #8b8779; --line: #e2ded2; --accent: #b4562a; --accent-soft: #fdf3ec;
+    --good: #2f6b4f; --good-soft: #eef6f1; --bad: #a03232; --bad-soft: #fcefee;
+    --warn: #8a6d1f; --warn-soft: #fbf5e4;
+    --code-bg: #f4f1ea; --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14140f; --surface: #1c1c16; --ink: #edeade; --ink-2: #a8a494;
+      --ink-3: #77746a; --line: #2e2e26; --accent: #e08b5c; --accent-soft: #2a1f16;
+      --good: #79c79b; --good-soft: #17251d; --bad: #e58a84; --bad-soft: #2a1917;
+      --warn: #d9b95c; --warn-soft: #262013;
+      --code-bg: #211f19;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 20px; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 28px 120px; display: grid;
+          grid-template-columns: 224px minmax(0, 1fr); gap: 52px; }
+  main, nav.toc { min-width: 0; }
+  @media (max-width: 900px) { .wrap { grid-template-columns: minmax(0,1fr); gap: 0; padding: 0 20px 80px; }
+    nav.toc { position: static !important; max-height: none !important; margin-bottom: 32px; } }
+
+  header.hero { border-bottom: 1.5px solid var(--line); margin-bottom: 44px; padding: 60px 0 28px; }
+  header.hero .inner { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
+  h1 { font-size: clamp(28px, 4.2vw, 43px); line-height: 1.08; letter-spacing: -0.03em; margin: 0 0 14px; font-weight: 800; }
+  .sub { color: var(--ink-2); font-size: 17px; max-width: 64ch; margin: 0 0 22px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tag { font: 600 11px/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase;
+         background: var(--surface); border: 1.5px solid var(--line); border-radius: 99px;
+         padding: 7px 12px; color: var(--ink-2); }
+
+  nav.toc { position: sticky; top: 20px; align-self: start; max-height: calc(100vh - 40px); overflow-y: auto; }
+  nav.toc .lbl { font: 700 10px/1 var(--mono); letter-spacing: 0.12em; text-transform: uppercase;
+                 color: var(--ink-3); margin-bottom: 12px; }
+  nav.toc a { display: block; color: var(--ink-2); text-decoration: none; font-size: 13.5px;
+              padding: 5px 0 5px 11px; border-left: 2px solid var(--line); line-height: 1.4; }
+  nav.toc a:hover { color: var(--accent); border-left-color: var(--accent); }
+  nav.toc a.sec { margin-top: 14px; font-weight: 600; color: var(--ink); }
+
+  section { margin-bottom: 62px; scroll-margin-top: 20px; }
+  h2 { font-size: 26px; letter-spacing: -0.02em; margin: 0 0 6px; font-weight: 750; line-height: 1.2; }
+  h2 .num { font: 700 13px/1 var(--mono); color: var(--accent); display: block; margin-bottom: 9px; letter-spacing: 0.08em; }
+  h3 { font-size: 17px; margin: 30px 0 10px; font-weight: 700; letter-spacing: -0.01em; }
+  p { margin: 0 0 15px; max-width: 76ch; }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  ul, ol { max-width: 76ch; padding-left: 22px; margin: 0 0 15px; }
+  li { margin-bottom: 7px; }
+  code { font: 13px/1.5 var(--mono); background: var(--code-bg); padding: 1.5px 5px; border-radius: 4px; word-break: break-word; }
+  pre { background: var(--code-bg); border: 1.5px solid var(--line); border-radius: 10px;
+        padding: 14px 16px; overflow-x: auto; margin: 0 0 16px; }
+  pre code { background: none; padding: 0; font-size: 12.5px; line-height: 1.6; }
+  .lede { font-size: 17.5px; color: var(--ink-2); max-width: 72ch; margin-bottom: 26px; }
+  .fileref { font: 12.5px/1.5 var(--mono); color: var(--ink-2); }
+  hr.soft { border: none; border-top: 1.5px solid var(--line); margin: 40px 0; }
+
+  .card { background: var(--surface); border: 1.5px solid var(--line); border-radius: 13px; padding: 19px 21px; margin: 0 0 18px; }
+  .card.hot { border-color: var(--accent); background: var(--accent-soft); }
+  .card.warn { border-left: 4px solid var(--warn); }
+  .card h4 { margin: 0 0 10px; font-size: 12px; font-family: var(--mono); letter-spacing: 0.1em;
+             text-transform: uppercase; color: var(--ink-3); font-weight: 700; }
+  .card.hot h4 { color: var(--accent); }
+  .card p:last-child, .card ul:last-child, .card table:last-child { margin-bottom: 0; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 0 0 18px; }
+  .scroller { overflow-x: auto; margin-bottom: 18px; }
+  .scroller table { margin-bottom: 0; }
+  th { text-align: left; font: 700 11px/1.3 var(--mono); letter-spacing: 0.07em; text-transform: uppercase;
+       color: var(--ink-3); border-bottom: 1.5px solid var(--line); padding: 9px 11px 9px 0; vertical-align: bottom; }
+  td { border-bottom: 1px solid var(--line); padding: 10px 11px 10px 0; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+
+  .pill { display: inline-block; font: 700 10.5px/1 var(--mono); letter-spacing: 0.06em;
+          text-transform: uppercase; padding: 5px 9px; border-radius: 5px; white-space: nowrap; }
+  .p-new { background: var(--good-soft); color: var(--good); }
+  .p-dup { background: var(--bad-soft); color: var(--bad); }
+  .p-mid { background: var(--accent-soft); color: var(--accent); }
+  .p-warn { background: var(--warn-soft); color: var(--warn); }
+  .sz { font: 700 11px/1 var(--mono); background: var(--ink); color: var(--bg);
+        padding: 4px 7px; border-radius: 4px; }
+  .packet { border: 1.5px solid var(--line); border-radius: 13px; padding: 20px 22px; margin: 0 0 16px; background: var(--surface); }
+  .packet h4 { margin: 0 0 4px; font-size: 16.5px; font-weight: 700; letter-spacing: -0.01em;
+               color: var(--ink); font-family: inherit; text-transform: none; }
+  .packet .hdr { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 13px; }
+  .packet dl { margin: 0; display: grid; grid-template-columns: 128px minmax(0,1fr); gap: 7px 16px; font-size: 14.5px; }
+  .packet dt { font: 700 10.5px/1.5 var(--mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-3); padding-top: 2px; }
+  .packet dd { margin: 0; }
+  @media (max-width: 620px) { .packet dl { grid-template-columns: minmax(0,1fr); gap: 2px; } .packet dd { margin-bottom: 9px; } }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="inner">
+    <h1>Research ↔ repository reconciliation</h1>
+    <p class="sub">What the two research documents actually tell us once they are checked against the
+    code as it stands at <code>b78215e</code> — what is new, what was already shipped, what is now
+    stale, and the seven packets worth doing.</p>
+    <div class="meta">
+      <span class="tag">2026-07-25</span>
+      <span class="tag">branch research/mature-product-2026-07-25 @ 6f59e1b</span>
+      <span class="tag">14 claims re-verified against source</span>
+      <span class="tag">read-only</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<nav class="toc">
+  <div class="lbl">Contents</div>
+  <a href="#basis" class="sec">Basis &amp; method</a>
+  <a href="#q1" class="sec">1 · Genuinely new</a>
+  <a href="#q2" class="sec">2 · Already done</a>
+  <a href="#q3" class="sec">3 · Priority changes</a>
+  <a href="#q4" class="sec">4 · Stale documents</a>
+  <a href="#q5" class="sec">5 · Make permanent</a>
+  <a href="#q6" class="sec">6 · Needs runtime proof</a>
+  <a href="#q7" class="sec">7 · The packets</a>
+  <a href="#roadmap" class="sec">A · Revised roadmap</a>
+  <a href="#docsfirst" class="sec">B · Docs before code</a>
+  <a href="#disagree" class="sec">C · Where I disagree</a>
+</nav>
+
+<main>
+
+<section id="basis">
+  <h2><span class="num">Preface</span>Basis and method</h2>
+
+  <p class="lede">The handbook says its Kitty claims were verified against source. I re-checked
+  fourteen of them independently. Eleven held exactly. Three did not — and one of those three
+  invalidates a whole theme.</p>
+
+  <p>Everything below is checked against the working tree at <code>b78215e</code> (the rewound
+  <code>gateway-packages</code>, identical to <code>main</code>). The frontend was untouched by the
+  abandoned refactor, so the handbook's line numbers still resolve, drifting by one or two.</p>
+
+  <div class="card">
+    <h4>What was consolidated first</h4>
+    <p>The two research artifacts were in different places — <code>MATURE_AI_PRODUCT_RESEARCH.md</code>
+    on the salvage branch, the handbook untracked on disk — and <code>docs/PLANS.md</code> differed by
+    125 lines between them. Both are now committed on
+    <code>research/mature-product-2026-07-25</code> so this reconciliation reads one coherent tree.
+    <code>docs/contract-migration.md</code> was left untracked; it belongs to another session.</p>
+  </div>
+
+  <div class="card hot">
+    <h4>The headline</h4>
+    <p>The handbook's central claim survives independent verification: <strong>Kitty's architecture is
+    largely right and its signals are largely missing.</strong> The context gauge is computed and
+    thrown away. The stop path is narrated but nothing else is. The SSE layer has careful bounded
+    backoff and the chat stream has none.</p>
+    <p style="margin-top:12px">But the reconciliation surfaces something neither document caught, and
+    it is bigger than anything in either: <strong>Kitty's chat has no tool loop.</strong> Nothing ever
+    sends <code>tools</code> to the model, so the tool-call UI can never render. Three of the
+    handbook's eleven packets are built on that foundation.</p>
+  </div>
+</section>
+
+<hr class="soft">
+
+<section id="q1">
+  <h2><span class="num">Question 1</span>Which findings are genuinely new</h2>
+
+  <p>New means: not already recorded in <code>INITIATIVES_OPTIMIZED</code>, not in the Phase 0
+  competitive table in <code>PLANS.md</code>, and not already built. Six qualify.</p>
+
+  <div class="scroller"><table>
+    <tr><th>Finding</th><th>Evidence, re-verified</th><th>Status</th></tr>
+    <tr>
+      <td><strong>The context gauge is computed, threaded through two components, and dropped</strong></td>
+      <td><code class="fileref">InputBar.tsx:16–17</code> declares <code>tokenCount?</code> and
+      <code>maxTokens?</code> — and those two lines are the <em>only</em> occurrences in the file.
+      Never destructured, never rendered.</td>
+      <td><span class="pill p-new">New</span></td>
+    </tr>
+    <tr>
+      <td><strong>Streaming re-renders the entire thread per token</strong></td>
+      <td><code class="fileref">KittyContext.tsx:541–542</code> — <code>accumulated += chunk.content</code>
+      then <code>c.messages.map(...)</code> allocating a new object per message. Zero occurrences of
+      <code>memo</code>/<code>useMemo</code> in either <code>ChatMessage.tsx</code> or
+      <code>KittyThread.tsx</code>.</td>
+      <td><span class="pill p-new">New</span></td>
+    </tr>
+    <tr>
+      <td><strong>One silent swallow in the hottest path</strong></td>
+      <td><code class="fileref">chat-client.ts:101–103</code> — <code>catch { /* skip malformed */ }</code>.
+      Violates non-negotiable #1 in <code>CLAUDE.md</code>.</td>
+      <td><span class="pill p-new">New</span></td>
+    </tr>
+    <tr>
+      <td><strong>No <code>visualViewport</code> listener</strong></td>
+      <td>Zero matches across <code>gateway/kitty-chat/src/</code>. <code>100dvh</code> handles browser
+      chrome, not the iOS keyboard — different bug from the <code>100vh→dvh</code> item PLANS.md
+      already closed.</td>
+      <td><span class="pill p-new">New</span></td>
+    </tr>
+    <tr>
+      <td><strong>The chat stream has no identity</strong></td>
+      <td>Response lives inside a <code>fetch</code> body reader
+      (<code class="fileref">chat-client.ts:51</code>). No server-side job, no resume. The signal SSE
+      has bounded backoff; the conversation stream does not.</td>
+      <td><span class="pill p-new">New</span></td>
+    </tr>
+    <tr>
+      <td><strong>Polish dies in refactors</strong> — cline#8675, where a file split and a Tailwind
+      upgrade each deleted part of the same focus affordance</td>
+      <td>Independently corroborated <em>today</em>: the abandoned refactor silently broke
+      <code>RESOURCE_MAP</code>'s <code>"gateway/builder_"</code> prefix and
+      <code>_BUILDER_DESCRIPTION_PATHS</code>, neither of which raises.</td>
+      <td><span class="pill p-new">New</span></td>
+    </tr>
+  </table></div>
+
+  <div class="card hot">
+    <h4>And one finding in neither document</h4>
+    <p><strong>Kitty has three quarters of an agentic chat, wired to nothing.</strong> The chain,
+    verified end to end this session:</p>
+    <ul>
+      <li>The frontend request body (<code class="fileref">chat-client.ts:31–45</code>) sends
+      <code>model</code>, <code>stream</code>, <code>messages</code> and some ids. No <code>tools</code>.</li>
+      <li>The gateway payload (<code class="fileref">completions.py:263–272</code>) spreads the body
+      and adds <code>messages</code>/<code>model</code>/<code>stream</code>. No <code>tools</code>.
+      <code>grep</code> for <code>tool_call</code> in <code>completions.py</code> returns nothing.</li>
+      <li>A tool schema builder exists — <code class="fileref">mcp_tool_bridge.py:129</code>,
+      <code>get_tool_schema_for_llm()</code> — and has exactly one consumer: an HTTP endpoint that
+      hands it out (<code class="fileref">integrations.py:91–93</code>). Nothing feeds it to a
+      completion.</li>
+      <li>The frontend nonetheless parses <code>delta.tool_calls</code>
+      (<code class="fileref">chat-client.ts:82–96</code>) and renders <code>ToolCallBlock</code>.</li>
+    </ul>
+    <p style="margin-top:12px">The model is never told it has tools, so it never emits tool calls, so
+    <code>ToolCallBlock</code> never renders. The handbook's Theme 4 describes its gaps as live
+    user-facing defects. They are not reachable at all.</p>
+  </div>
+</section>
+
+<hr class="soft">
+
+<section id="q2">
+  <h2><span class="num">Question 2</span>Which findings duplicate work already done</h2>
+
+  <p class="lede">This is the highest-value section. The Phase 0 competitive table in
+  <code>PLANS.md</code> (lines 153–275) is largely stale: it lists as to-do at least five packets that
+  are already shipped, and one that was attempted and abandoned today.</p>
+
+  <div class="scroller"><table>
+    <tr><th>PLANS.md Phase 0 packet</th><th>Claimed effort</th><th>Reality</th></tr>
+    <tr><td>UX-01 Onboarding wizard (P0)</td><td>2d</td>
+        <td><code>OnboardingModal.tsx</code> is a real multi-step flow — stepped state, preferred name,
+        theme, import with busy/result states. The handbook rates it ahead of everything in its
+        eight-repo corpus. <span class="pill p-dup">Shipped</span></td></tr>
+    <tr><td>UX-02 Keyboard shortcut system (P0)</td><td>1d</td>
+        <td><code class="fileref">CommandPalette.tsx:36,45</code> binds <code>Cmd/Ctrl+K</code> with
+        <code>Escape</code> to dismiss. <span class="pill p-dup">Shipped</span></td></tr>
+    <tr><td>UX-03 Notification toast system (P0)</td><td>1d</td>
+        <td><code class="fileref">Toast.tsx:1–40</code> — success/error/info, 3s auto-dismiss, manual
+        dismiss, provider-based. <span class="pill p-dup">Shipped</span></td></tr>
+    <tr><td>MOB-03 Bottom navigation (P0)</td><td>1d</td>
+        <td><code>BottomNav.tsx</code> exists with <code>env(safe-area-inset-*)</code>.
+        <span class="pill p-dup">Shipped</span></td></tr>
+    <tr><td>MOB-04 PWA / service worker (P0)</td><td>2d</td>
+        <td>Phase E shipped per <code>PROJECT_STATUS.md</code>; <code>app/manifest.ts</code> exists and
+        has tests. <span class="pill p-dup">Shipped</span></td></tr>
+    <tr><td><strong>ARCH-01 Organize gateway/ into domain subdirs (P1)</strong></td><td>3d</td>
+        <td>Attempted 2026-07-25 as the <code>gateway-packages</code> refactor. Moved 45 modules,
+        updated zero of 190 <code>from gateway import X</code> sites, broke pytest collection
+        entirely, and silently disabled two runtime path checks. Abandoned; history at
+        <code>backup/gateway-packages-2026-07-25</code>.
+        <span class="pill p-dup">Strike it</span></td></tr>
+  </table></div>
+
+  <p>Handbook findings that describe things Kitty already does better than its corpus, and which
+  therefore generate no work:</p>
+  <ul>
+    <li><strong>Scroll handling</strong> — solved by delegation to assistant-ui's
+    <code>&lt;ThreadPrimitive.Viewport autoScroll&gt;</code> with an <code>isAtBottom</code> gate
+    (<code class="fileref">KittyThread.tsx:59,116–124</code>). Four corpus projects are still
+    hand-rolling this.</li>
+    <li><strong>Truncated streams throw rather than resolving empty</strong>
+    (<code class="fileref">chat-client.ts:106–107</code>) — Kitty already refuses open-webui#27411's
+    pattern, with a <code>ponytail:</code> comment saying why.</li>
+    <li><strong>Interruption is narrated</strong> — aborted turns write "⚠ generation stopped before
+    completion" and persist <code>turnStatus: 'interrupted'</code>. Open WebUI is still requesting
+    this in an open issue.</li>
+    <li><strong>Usage is surfaced in settings</strong> — calls and token totals from a live query
+    (<code class="fileref">SettingsPanel.tsx:30,140–150</code>).</li>
+    <li><strong>Per-turn model override that clears itself</strong>
+    (<code class="fileref">KittyContext.tsx:574–576</code>).</li>
+    <li><strong>Dead air on send→first-token is already covered</strong> — <code>&lt;TypingDots /&gt;</code>
+    renders while streaming with no content yet (<code class="fileref">ChatMessage.tsx:105</code>).
+    See disagreement C-3.</li>
+  </ul>
+</section>
+
+<hr class="soft">
+
+<section id="q3">
+  <h2><span class="num">Question 3</span>Which initiatives change priority</h2>
+
+  <div class="scroller"><table>
+    <tr><th>Initiative</th><th>Move</th><th>Why</th></tr>
+    <tr><td><strong>F2 · Latency Budget</strong></td><td><span class="pill p-new">Up → first</span></td>
+        <td>F2 currently defines TTFT targets and timing headers — the network half only. The verified
+        render defect belongs here too. A TTFT target is meaningless while the main thread re-parses
+        the whole thread per token. Absorb memoization and the <code>visualViewport</code> fix.</td></tr>
+    <tr><td><strong>F0 · Context Compaction</strong></td><td><span class="pill p-mid">Split</span></td>
+        <td>Ship the gauge (small, now) before compaction (medium, later). The handbook's argument is
+        sound: compaction landing against a display users don't trust is cline#10637, where a bar that
+        runs backwards reads as the product getting dumber.</td></tr>
+    <tr><td><strong>F3 · Dogfood Script</strong></td><td><span class="pill p-mid">Hold, sharpen</span></td>
+        <td>Keep its place, but give it two concrete assertions instead of "key flows": fail on dropped
+        stream chunks, and exercise the endpoint connection test.</td></tr>
+    <tr><td><strong>D3 · Tutor Depth</strong></td><td><span class="pill p-new">Up</span></td>
+        <td>Unchanged by the research, but it is the largest unrealized value in the repo: a working
+        backend with no frontend (Lane 2, four unwired routes). Every hour here converts existing code
+        into a usable feature.</td></tr>
+    <tr><td><strong>D4 · Builder Depth</strong></td><td><span class="pill p-dup">Down</span></td>
+        <td>Large, its value proposition is described as broken in the initiative text itself, and
+        <code>PLANS.md</code> Lane 3 says the redesign is owned by a different session. Today's
+        abandoned branch was Builder-adjacent churn. Do not start it here.</td></tr>
+    <tr><td><strong>ARCH-01</strong></td><td><span class="pill p-dup">Delete</span></td>
+        <td>Attempted and abandoned today at a cost of nine commits and a broken suite.</td></tr>
+    <tr><td><strong>I18N-01, I18N-02</strong></td><td><span class="pill p-dup">Delete</span></td>
+        <td>Kitty is a local-first single-user companion. Jacob is the user. Four days of string
+        extraction for an audience of one.</td></tr>
+    <tr><td><strong>FEAT-02 / 05 / 06, DEVOPS-01–03</strong></td><td><span class="pill p-dup">Delete or park</span></td>
+        <td>Code interpreter, Obsidian plugin, emoji picker, Docker profiles, one-liner installer,
+        Justfile. All are distribution and multi-user concerns for a product with neither.</td></tr>
+    <tr><td><strong>Resumable streams (handbook #11)</strong></td><td><span class="pill p-warn">Name, don't start</span></td>
+        <td>Correctly identified as large and correctly sequenced last. It fixes mobile backgrounding
+        at the root — worth doing only once mobile is genuinely in use.</td></tr>
+  </table></div>
+</section>
+
+<hr class="soft">
+
+<section id="q4">
+  <h2><span class="num">Question 4</span>Which documents are stale or contradictory</h2>
+
+  <div class="scroller"><table>
+    <tr><th>Document</th><th>Defect</th><th>Severity</th></tr>
+    <tr><td><code>.claude/STATE.md</code></td>
+        <td><code>head_sha: 10bebdd</code>, <code>branch: main</code>. Both wrong. Its own
+        <code>invalidation_conditions</code> name that SHA and have therefore fired. Self-invalidated,
+        and <code>tests/test_check_continuity_state.py</code> fails four assertions because of it.</td>
+        <td><span class="pill p-dup">High</span></td></tr>
+    <tr><td><code>.claude/HANDOFF.md</code></td>
+        <td>Same stale block — <code>10bebdd</code> / <code>main</code>. Restored from
+        <code>b78215e</code> during the rewind. Its <code>next_action</code> (two KX-06 packets) may
+        still be valid; its continuity header is not.</td>
+        <td><span class="pill p-dup">High</span></td></tr>
+    <tr><td><code>docs/PROJECT_STATUS.md</code></td>
+        <td>Verified 2026-07-17 against <code>167fa24</code> — eight days stale. Claims
+        <strong>"616 backend tests"</strong>; the measured baseline at <code>b78215e</code> is
+        <strong>3000 passed, 1 skipped, 2 deselected</strong>. Wrong by a factor of five.</td>
+        <td><span class="pill p-dup">High</span></td></tr>
+    <tr><td><code>docs/ACTIVE_MISSION.md</code></td>
+        <td>KFX-001 has been <code>"status": "running"</code> since 2026-07-20 against
+        <code>base_sha 082a2e8</code>. Acceptance item 8 is "PR is open for Jacob's review";
+        <code>pull_request</code> is <code>null</code> in both STATE and HANDOFF. Five days, no PR.
+        Close it or finish it.</td>
+        <td><span class="pill p-warn">Medium</span></td></tr>
+    <tr><td><code>docs/PLANS.md</code></td>
+        <td>Two defects. (a) The Phase 0 table lists five shipped packets as to-do and one abandoned
+        one as P1 — see Question 2. (b) It contradicts itself: lines 3–10 defer roadmap authority to
+        <code>INITIATIVES_OPTIMIZED</code>, and line 132 says
+        <em>"Current plans (canonical) | docs/PLANS.md (this file)"</em>.</td>
+        <td><span class="pill p-dup">High</span></td></tr>
+    <tr><td><code>CLAUDE.md</code></td>
+        <td>The voice glossary maps <em>"the agent"</em> → <code>gateway/agent.py</code>.
+        <strong>That file does not exist.</strong> It is in the bootloader every session reads first.</td>
+        <td><span class="pill p-warn">Medium</span></td></tr>
+    <tr><td><code>docs/research/MATURE_AI_PRODUCT_RESEARCH.md</code></td>
+        <td>Header reads <em>"Branch: <code>gateway-packages</code> @ <code>ac898f9</code>"</em>. That
+        branch no longer contains that commit. Also cites <code>docs/PLANS.md</code> by line number
+        (line 153), which will rot on the next edit.</td>
+        <td><span class="pill p-warn">Low</span></td></tr>
+  </table></div>
+
+  <div class="card warn">
+    <h4>The pattern in that table</h4>
+    <p>Four of the seven are continuity documents whose entire job is to state where things stand, and
+    all four state it wrongly. The suite already knows — <code>test_check_continuity_state.py</code>
+    has been failing on exactly this, and the previous session deliberately left it failing to keep a
+    repair commit scoped. That was the right call then. It is debt now.</p>
+  </div>
+</section>
+
+<hr class="soft">
+
+<section id="q5">
+  <h2><span class="num">Question 5</span>Which research becomes permanent documentation</h2>
+
+  <div class="scroller"><table>
+    <tr><th>What</th><th>Goes where</th><th>Why</th></tr>
+    <tr><td><strong>Polish dies in refactors</strong> — the meta-pattern, with cline#8675 and today's
+        <code>RESOURCE_MAP</code> / <code>_BUILDER_DESCRIPTION_PATHS</code> breakage as the two
+        independent instances</td>
+        <td><code>docs/LEARNINGS.md</code></td>
+        <td>It is a workflow lesson, which <code>CLAUDE.md</code> non-negotiable #5 routes there. It
+        has now happened twice in this repo in two days.</td></tr>
+    <tr><td><strong>The five streaming rules</strong> — deltas on the wire, one coalescer, freeze
+        everything but the tail, near-bottom gate generously sized, the stream has an id</td>
+        <td>A new one-page <code>docs/FRONTEND_PATTERNS.md</code></td>
+        <td>These are binding implementation constraints, and they are currently buried in a 74KB
+        research document nobody will re-read before touching <code>KittyContext</code>.</td></tr>
+    <tr><td><strong>The agent trust model</strong> — confirmation (Zed, Cline) vs reversibility
+        (aider)</td>
+        <td><code>docs/DECISIONS.md</code>, once decided</td>
+        <td>Genuinely unresolved industry-wide and Kitty has no stated position. But see C-1: with no
+        tool loop, this is less urgent than the handbook rates it.</td></tr>
+    <tr><td><strong>Both research documents themselves</strong></td>
+        <td>Stay in <code>docs/research/</code></td>
+        <td>They are reference, not authority. They should never appear in
+        <code>AUTHORITY_MAP.md</code>. Their conclusions graduate into the roadmap; the documents stay
+        as receipts.</td></tr>
+    <tr><td><strong>The 11-item ranked list, as written</strong></td>
+        <td><span class="pill p-dup">Nowhere</span></td>
+        <td>Three of the eleven are wrong or moot (C-1, C-2, C-3). Superseded by Question 7 below.</td></tr>
+  </table></div>
+</section>
+
+<hr class="soft">
+
+<section id="q6">
+  <h2><span class="num">Question 6</span>What needs runtime proof before it can be trusted</h2>
+
+  <p>The handbook flags two of these itself. The rest are mine, and the third one is the important
+  one — it can change a packet's size.</p>
+
+  <div class="scroller"><table>
+    <tr><th>Claim</th><th>Why source isn't enough</th></tr>
+    <tr><td><strong>That the streaming defect is perceptible</strong></td>
+        <td>The O(N²) shape is verified structurally. But the research doc's own Theme 2 records the
+        counter-evidence: markdown parsing is under 5ms for a 5KB message, which is why this ships
+        broken so often — it works on everything you test with. Kitty is single-user with short
+        threads. <strong>Profile a 2,000-token reply in a 40-message thread before ranking this
+        first.</strong></td></tr>
+    <tr><td><strong>That the gateway can emit usage on a streaming response</strong></td>
+        <td><code>gateway/routes/usage.py</code> keeps a real ledger with <code>prompt_tokens</code> /
+        <code>total_tokens</code>, and <code>completions.py:275–289</code> already has a trailer
+        mechanism to hang it on. But most providers only return usage on a streamed request when
+        <code>stream_options: {include_usage: true}</code> is set. Unverified through LiteLLM. This is
+        the difference between packet P1 being Small and being a provider investigation.</td></tr>
+    <tr><td><strong>The assistant-ui near-bottom threshold</strong></td>
+        <td>Kitty inherits scroll behaviour from a dependency. 5px versus 50px is the difference
+        between working and not, and the value is the library's. Flagged by the handbook, still
+        unchecked.</td></tr>
+    <tr><td><strong>The mobile keyboard fix</strong></td>
+        <td>Needs a real device. Kitty's own definition of done forbids closing this from code
+        inspection.</td></tr>
+    <tr><td><strong>Any TTFT number at all</strong></td>
+        <td><code>PLANS.md</code> item 8 records LiteLLM as blocked pending a restart with
+        <code>DEEPSEEK_API_KEY</code>. Until that is resolved, F2's targets cannot be measured, only
+        declared.</td></tr>
+    <tr><td><strong>The 39 a11y issues from swarm-review</strong></td>
+        <td>Static analysis output, never confirmed in a browser. Some fraction will be false
+        positives.</td></tr>
+  </table></div>
+</section>
+
+<hr class="soft">
+
+<section id="q7">
+  <h2><span class="num">Question 7</span>The packets</h2>
+  <p class="lede">Seven, not ten. Three of the handbook's eleven are struck for cause and two more are
+  already shipped. Ordered by evidence strength ÷ effort. Every one is XS or S except where noted.</p>
+
+  <div class="packet">
+    <div class="hdr"><span class="sz">XS</span><span class="pill p-new">Confidence: High</span></div>
+    <h4>P1 · Stop swallowing malformed stream deltas</h4>
+    <dl>
+      <dt>Objective</dt><dd>Replace <code>catch { /* skip malformed */ }</code> at
+        <code class="fileref">chat-client.ts:101–103</code> with a <code>console.warn</code> and a
+        per-stream counter; surface a non-zero count on the turn.</dd>
+      <dt>Acceptance</dt><dd>A malformed chunk logs once with its raw payload; the counter is readable
+        from the turn; one unit test feeds a bad chunk and asserts both; the dogfood run fails if any
+        stream drops a chunk.</dd>
+      <dt>Dependencies</dt><dd>None.</dd>
+      <dt>Impact</dt><dd>Converts a class of invisible provider-shape breakage into a visible failure.
+        A renamed delta field currently produces a short reply and nothing in the console.</dd>
+      <dt>Confidence</dt><dd>High — verified, three lines, and it closes a standing violation of
+        non-negotiable #1.</dd>
+    </dl>
+  </div>
+
+  <div class="packet">
+    <div class="hdr"><span class="sz">XS</span><span class="pill p-new">Confidence: High</span></div>
+    <h4>P2 · Delete the unreachable tool-call UI</h4>
+    <dl>
+      <dt>Objective</dt><dd>Remove <code>ToolCallBlock.tsx</code>, <code>ToolCallAccumulator</code>,
+        the <code>delta.tool_calls</code> parse branch, and the <code>toolCalls</code> field on
+        <code>Message</code> — roughly 120 lines across four files that cannot execute. <em>Or</em>
+        open a real initiative for an agentic chat loop and record it in an ADR. Not both, not
+        neither.</dd>
+      <dt>Acceptance</dt><dd>Either the code is gone and <code>grep tool_calls</code> over
+        <code>src/</code> is empty, or <code>docs/DECISIONS.md</code> carries a dated decision to build
+        the loop with a named owner and a size.</dd>
+      <dt>Dependencies</dt><dd>Jacob's call on which branch.</dd>
+      <dt>Impact</dt><dd>Removes dead code that currently reads as a shipped capability — including to
+        the research that just recommended three packets on top of it.</dd>
+      <dt>Confidence</dt><dd>High — traced end to end this session: no <code>tools</code> in the
+        request body, none in the gateway payload, and the schema builder's only consumer is an HTTP
+        endpoint.</dd>
+    </dl>
+  </div>
+
+  <div class="packet">
+    <div class="hdr"><span class="sz">XS</span><span class="pill p-new">Confidence: High</span></div>
+    <h4>P3 · Fix the onboarding short-circuit order</h4>
+    <dl>
+      <dt>Objective</dt><dd><code class="fileref">KittyContext.tsx:385–386</code> returns early on the
+        localStorage flag <em>before</em> consulting <code>/proxy/onboarding</code>. Consult the
+        server first, or revalidate in the background and correct.</dd>
+      <dt>Acceptance</dt><dd>With server <code>onboarded=false</code> and localStorage
+        <code>true</code>, onboarding shows. With the server unreachable, the cached flag is honoured
+        and the failure is logged rather than silently re-onboarding.</dd>
+      <dt>Dependencies</dt><dd>None.</dd>
+      <dt>Impact</dt><dd>A wiped database or a failed import currently leaves a user permanently marked
+        onboarded with no way back.</dd>
+      <dt>Confidence</dt><dd>High. Note this is <em>not</em> the handbook's packet — see C-2.</dd>
+    </dl>
+  </div>
+
+  <div class="packet">
+    <div class="hdr"><span class="sz">S</span><span class="pill p-warn">Confidence: Medium</span></div>
+    <h4>P4 · Render the context gauge from real numbers — or delete the dead props</h4>
+    <dl>
+      <dt>Objective</dt><dd>Return real token accounting and the active model's real limit on the
+        existing stream trailer; render it in <code>InputBar</code> where the props already arrive;
+        delete the <code>chars / 4</code> estimate and the hardcoded <code>200000</code>.</dd>
+      <dt>Acceptance</dt><dd>The gauge renders; its number matches the <code>/usage</code> ledger for
+        the same turn within rounding; <code>chars / 4</code> and <code>200000</code> are gone; one
+        test asserts the trailer carries usage. <strong>If the provider cannot emit usage on a
+        streamed response, the packet degrades to deleting the three dead props and the estimate
+        (XS)</strong> — it does not degrade to shipping a client-side guess.</dd>
+      <dt>Dependencies</dt><dd><strong>Verify first:</strong> whether LiteLLM surfaces usage on a
+        streaming completion (<code>stream_options.include_usage</code>). The trailer mechanism at
+        <code class="fileref">completions.py:275–289</code> already exists to carry it.</dd>
+      <dt>Impact</dt><dd>The user can see context filling instead of discovering it when the assistant
+        starts forgetting. Ships before F0 so compaction lands against a trusted display.</dd>
+      <dt>Confidence</dt><dd>Medium — high on the frontend half, unverified on whether the number is
+        available upstream.</dd>
+    </dl>
+  </div>
+
+  <div class="packet">
+    <div class="hdr"><span class="sz">S</span><span class="pill p-warn">Confidence: Medium</span></div>
+    <h4>P5 · Memoize <code>ChatMessage</code> and coalesce the streaming write — measure first</h4>
+    <dl>
+      <dt>Objective</dt><dd>Memo on <code>(id, content, isStreaming)</code>; one
+        <code>requestAnimationFrame</code> coalescer at the store, not two.</dd>
+      <dt>Acceptance</dt><dd><strong>A before/after profile on a 2,000-token reply in a 40-message
+        thread, recorded in the PR.</strong> Exactly one rAF in the pipeline — open-webui shipped a
+        second one and reverted it in a day because the extra frame made streaming <em>feel</em>
+        slower while measurably doing less work.</dd>
+      <dt>Dependencies</dt><dd>None, but see C-4: the measurement is the first step, not the last.</dd>
+      <dt>Impact</dt><dd>Chat stops degrading as threads grow. Long reasoning traces are the stress
+        case that breaks it.</dd>
+      <dt>Confidence</dt><dd>Medium. High that the defect exists; medium that it is perceptible at
+        Kitty's current thread lengths — hence measure-first as an acceptance criterion rather than a
+        nicety.</dd>
+    </dl>
+  </div>
+
+  <div class="packet">
+    <div class="hdr"><span class="sz">S</span><span class="pill p-warn">Confidence: Medium</span></div>
+    <h4>P6 · <code>visualViewport</code> listener for the mobile keyboard</h4>
+    <dl>
+      <dt>Objective</dt><dd>Listen to <code>visualViewport</code> resize on the shell layout so the
+        composer stays visible when the iOS keyboard opens.</dd>
+      <dt>Acceptance</dt><dd><strong>Verified on a real device</strong>, per Kitty's definition of
+        done. Input remains visible with the keyboard open; existing
+        <code>env(safe-area-inset-*)</code> behaviour on <code>InputBar</code>, <code>BottomNav</code>
+        and <code>TopBar</code> does not regress.</dd>
+      <dt>Dependencies</dt><dd>A phone. This one cannot be closed from code inspection.</dd>
+      <dt>Impact</dt><dd>Mobile is the primary access point per PLANS Lane 1, and this is the
+        most-duplicated mobile bug in the eight-repo corpus — filed four times against one project.</dd>
+      <dt>Confidence</dt><dd>Medium — high that the gap is real (zero matches in <code>src/</code>),
+        medium that the fix lands cleanly without device iteration.</dd>
+    </dl>
+  </div>
+
+  <div class="packet">
+    <div class="hdr"><span class="sz">S</span><span class="pill p-new">Confidence: High</span></div>
+    <h4>P7 · One runnable check per polish behaviour</h4>
+    <dl>
+      <dt>Objective</dt><dd>For each polish behaviour that exists or lands — near-bottom scroll gating,
+        the stop-message path, the malformed-delta counter, the safe-area insets — leave exactly one
+        assertion that fails when it breaks. Not a suite. One each.</dd>
+      <dt>Acceptance</dt><dd>Each named behaviour has a test that fails when the behaviour is removed;
+        verified by removing it and watching the test go red.</dd>
+      <dt>Dependencies</dt><dd>Lands alongside P1 and P5 rather than after them.</dd>
+      <dt>Impact</dt><dd>This is the packet that keeps the other six. Polish lives in code with no
+        test, no ticket and no owner, which is exactly what a reasonable refactor deletes — twice in
+        this repo in two days, and independently in cline#8675.</dd>
+      <dt>Confidence</dt><dd>High.</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h4>Deliberately not proposed</h4>
+    <p>A connection-test button per endpoint (handbook #9) is a good idea that duplicates
+    <code>./kitty doctor --json</code>, which already exists and already probes gateway and LiteLLM.
+    The cheaper move is surfacing doctor's existing output in Settings, and that belongs inside F3
+    rather than as its own packet. Compaction-as-a-visible-event (handbook #7) is a design constraint
+    on F0, not a packet — it should be written into F0's acceptance criteria and cost nothing extra.</p>
+  </div>
+</section>
+
+<hr class="soft">
+
+<section id="roadmap">
+  <h2><span class="num">Deliverable A</span>Revised ranked roadmap</h2>
+
+  <p>Replacing the current ordering where the evidence justifies it. The layer names are unchanged so
+  this drops into <code>INITIATIVES_OPTIMIZED_2026-07-24.md</code> without renaming anything.</p>
+
+  <div class="scroller"><table>
+    <tr><th>#</th><th>Work</th><th>Layer</th><th>Size</th><th>Change from current</th></tr>
+    <tr><td>0</td><td>Repair the four stale continuity documents (deliverable B)</td><td>—</td><td>XS</td>
+        <td><span class="pill p-new">New, and it blocks everything</span></td></tr>
+    <tr><td>1</td><td>P1 · malformed-delta counter</td><td>F3</td><td>XS</td><td>New</td></tr>
+    <tr><td>2</td><td>P2 · delete the unreachable tool-call UI</td><td>—</td><td>XS</td><td>New</td></tr>
+    <tr><td>3</td><td>P3 · onboarding short-circuit</td><td>D2</td><td>XS</td><td>Replaces handbook #8</td></tr>
+    <tr><td>4</td><td>P4 · context gauge from gateway numbers</td><td>F0</td><td>S</td><td>Pulled ahead of compaction</td></tr>
+    <tr><td>5</td><td>P5 · memoize + single coalescer <em>(profile first)</em></td><td>F2</td><td>S</td><td>New; F2 absorbs the render half</td></tr>
+    <tr><td>6</td><td>P7 · one check per polish behaviour</td><td>F3</td><td>S</td><td>New</td></tr>
+    <tr><td>7</td><td>P6 · <code>visualViewport</code> <em>(needs a device)</em></td><td>F2</td><td>S</td><td>New</td></tr>
+    <tr><td>8</td><td>F3 · dogfood script, absorbing P1's assertion + doctor surfacing</td><td>F3</td><td>M</td><td>Held, scope sharpened</td></tr>
+    <tr><td>9</td><td>F0 · context compaction, with compaction as a visible thread event</td><td>F0</td><td>M</td><td>Held; acceptance criterion added</td></tr>
+    <tr><td>10</td><td>D3 · Tutor depth — wire the four existing routes to a real view</td><td>D3</td><td>M</td><td><span class="pill p-new">Up</span> — largest unrealized value</td></tr>
+    <tr><td>11</td><td>D2 · Home depth</td><td>D2</td><td>M</td><td>Unchanged</td></tr>
+    <tr><td>12</td><td>F1 · Privacy boundaries</td><td>F1</td><td>S</td><td>Unchanged</td></tr>
+    <tr><td>13</td><td>D1 · Chat depth, minus what is now done</td><td>D1</td><td>L</td><td>Shrunk</td></tr>
+    <tr><td>14</td><td>N1 → N2 → N3, then V1–V4 research</td><td>N/V</td><td>—</td><td>Unchanged</td></tr>
+  </table></div>
+
+  <h3>Struck from the roadmap</h3>
+  <ul>
+    <li><strong>ARCH-01</strong> (gateway subdirs) — attempted and abandoned today.</li>
+    <li><strong>UX-01, UX-02, UX-03, MOB-03, MOB-04</strong> — already shipped; 7 days of listed effort
+    that does not exist.</li>
+    <li><strong>I18N-01, I18N-02</strong> — single-user product.</li>
+    <li><strong>FEAT-02, FEAT-05, FEAT-06, DEVOPS-01, DEVOPS-02, DEVOPS-03</strong> — distribution and
+    multi-user concerns Kitty does not have.</li>
+    <li><strong>D4 · Builder depth</strong> — deferred, not deleted. Owned by another session per PLANS
+    Lane 3.</li>
+    <li><strong>Resumable streams</strong> — named, sequenced last, not started.</li>
+  </ul>
+
+  <div class="card hot">
+    <h4>What this ordering is optimising for</h4>
+    <p>Items 1–7 are five XS/S packets and two small ones. Together they are perhaps three days of
+    work, and every one of them either deletes code or adds the last ten lines of something already
+    built. Nothing in the top seven requires new architecture. That is the honest read of both research
+    documents: <strong>the expensive part is already built and the cheap part is missing.</strong></p>
+  </div>
+</section>
+
+<hr class="soft">
+
+<section id="docsfirst">
+  <h2><span class="num">Deliverable B</span>Documentation to update before any engineering</h2>
+
+  <p>In order. The first three are the ones that make every subsequent session start from a false
+  premise — and one of them is already failing the suite.</p>
+
+  <ol>
+    <li><strong><code>.claude/STATE.md</code></strong> — set <code>head_sha</code>, <code>branch</code>,
+    and <code>next_action</code> to reality. Its invalidation conditions have fired;
+    <code>test_check_continuity_state.py</code> is failing four assertions on exactly this.</li>
+    <li><strong><code>.claude/HANDOFF.md</code></strong> — same header block. The KX-06 next-action may
+    still stand; verify before carrying it forward.</li>
+    <li><strong><code>docs/PROJECT_STATUS.md</code></strong> — re-verify against <code>b78215e</code>
+    and correct "616 backend tests" to the measured <strong>3000 passed, 1 skipped, 2 deselected</strong>.
+    A number wrong by 5× in the live-status authority is worse than no number.</li>
+    <li><strong><code>docs/PLANS.md</code></strong> — strike the five shipped Phase 0 packets and
+    ARCH-01; resolve the internal contradiction between line 132 ("canonical") and lines 3–10 (defers
+    to INITIATIVES_OPTIMIZED). One of those two statements has to go.</li>
+    <li><strong><code>docs/INITIATIVES_OPTIMIZED_2026-07-24.md</code></strong> — apply deliverable A.
+    Also: its "Immediate Next Actions" item 1 is "commit + push this session's changes (43 files)",
+    which happened days ago.</li>
+    <li><strong><code>docs/ACTIVE_MISSION.md</code></strong> — KFX-001 has been running five days with
+    an unmet acceptance criterion and no PR. Close it or finish it; do not leave a third state.</li>
+    <li><strong><code>CLAUDE.md</code></strong> — the glossary points <em>"the agent"</em> at
+    <code>gateway/agent.py</code>, which does not exist. One line.</li>
+    <li><strong><code>docs/LEARNINGS.md</code></strong> — add the refactor meta-pattern from
+    deliverable 5.</li>
+    <li><strong><code>docs/research/MATURE_AI_PRODUCT_RESEARCH.md</code></strong> — add a one-line note
+    that its header commit was rewound and lives at
+    <code>backup/gateway-packages-2026-07-25</code>.</li>
+  </ol>
+
+  <div class="card warn">
+    <h4>Sequencing note</h4>
+    <p>Items 1–3 should land as one commit before any packet starts. Skipping them means the next
+    session bootstraps from <code>CLAUDE.md</code>'s cold-start procedure, reads a STATE file that
+    names a SHA five commits behind on the wrong branch, and re-derives everything in this document
+    from scratch.</p>
+  </div>
+</section>
+
+<hr class="soft">
+
+<section id="disagree">
+  <h2><span class="num">Deliverable C</span>Where I disagree with the research</h2>
+
+  <p class="lede">Four substantive disagreements and one methodological one. The first is large enough
+  to remove a whole theme.</p>
+
+  <h3>C-1 · Theme 4 describes a feature that cannot run</h3>
+  <p>The handbook rates <code>ToolCallBlock</code> as <em>"Partial — shows intent, never outcome"</em>
+  and proposes packet #5 (tool-call results + per-call status, Small, D1). Both statements assume tool
+  calls reach the user. They cannot.</p>
+  <pre><code>chat-client.ts:31–45   request body: model, stream, messages, ids.   no tools
+completions.py:263–272 payload:      body spread + messages/model/stream. no tools
+completions.py         grep tool_call →  0 matches
+mcp_tool_bridge.py:129 get_tool_schema_for_llm()
+  └─ only consumer: integrations.py:93, an HTTP endpoint that returns it</code></pre>
+  <p>The model is never told it has tools, so it never emits <code>delta.tool_calls</code>, so the
+  accumulator never fills and <code>ToolCallList</code> returns <code>null</code>. The evidence for
+  the gap is real; the conclusion that it is a user-facing defect is not. It is dead code. Packet #5
+  is struck and replaced by P2 (delete it, or decide to build the loop).</p>
+  <p>This also softens handbook #10 (decide the trust model). Confirmation-versus-reversibility only
+  binds once an agent can act. Worth recording eventually; not due now.</p>
+
+  <h3>C-2 · Onboarding already checks the server</h3>
+  <p>The handbook says completion is <em>"a self-set localStorage flag"</em> and proposes deriving it
+  from real state. But <code class="fileref">KittyContext.tsx:387</code> already fetches
+  <code>/proxy/onboarding</code> and honours <code>{onboarded, preferredName, theme}</code> from the
+  gateway. The derivation exists.</p>
+  <p>The real defect is narrower and sharper: line 385–386 returns early on the cached flag
+  <em>before</em> the fetch, so a stale <code>true</code> wins over a server that says otherwise. That
+  is an ordering bug worth two lines, not a packet worth rebuilding onboarding state. P3 above is the
+  corrected version.</p>
+
+  <h3>C-3 · The dead-air packet is moot</h3>
+  <p>Handbook #6 proposes naming the gaps in <code>runStream</code>, specifically tool-call-complete →
+  first-content-token. That transition cannot occur (C-1). The general send → first-token gap it would
+  otherwise cover is already handled: <code class="fileref">ChatMessage.tsx:105</code> renders
+  <code>&lt;TypingDots /&gt;</code> while streaming with no content yet. Struck.</p>
+
+  <h3>C-4 · The #1 ranking rests on structure, not measurement</h3>
+  <p>The handbook ranks memoization first on the strength of open-webui#23733. The defect in Kitty is
+  real and I verified it. But the companion research document contains the counter-evidence in its own
+  Theme 2: <em>markdown parsing is genuinely fast for chat-length content — under 5ms for a 5KB
+  message — which is exactly why this ships broken so often.</em> Open WebUI hit the wall at 146k
+  users' worth of long reasoning traces. Kitty is one user with short threads and no reasoning-trace
+  rendering.</p>
+  <p>I have kept the packet and moved it to #5, with a profile as an acceptance criterion rather than
+  a follow-up. If the profile shows nothing, the correct outcome is to not do the work — and that
+  should be an allowed outcome, stated up front.</p>
+
+  <h3>C-5 · "Nine of eleven are small" overstates the list</h3>
+  <p>Three of the eleven are struck above. Of the remainder, one (the context gauge) has an unverified
+  upstream dependency that could change its size, and one (mobile keyboard) cannot be closed without
+  hardware. The honest version is <strong>seven packets, five of them genuinely small, one
+  conditional, one hardware-gated</strong>. The document's underlying claim — that Kitty's gaps are
+  signals rather than architecture — survives this correction intact, and it is the right claim.</p>
+
+  <h3>What held up</h3>
+  <p>Worth saying plainly, since the above is all objection: eleven of fourteen spot-checks confirmed
+  exactly, including every claim in Themes 1, 2, 3, 7 and 8. The context-gauge finding — props
+  declared at <code>InputBar.tsx:16–17</code> and never destructured — is the single sharpest
+  observation in either document, and I would not have found it. The meta-pattern about refactors
+  destroying polish was independently proven correct by this repository on the same day it was
+  written.</p>
+</section>
+
+</main>
+</div>
+</body>
+</html>
