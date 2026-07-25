@@ -6,10 +6,8 @@ that dispatches through the action queue at T0 (auto-execute, logged).
 
 from __future__ import annotations
 
-import json
 import logging
 import time
-from datetime import datetime, timedelta
 
 from fastapi import APIRouter
 
@@ -21,7 +19,6 @@ _FIXABLE_THRESHOLD = 7 * 86400  # 7 days in seconds
 
 @router.get("/repairs")
 async def list_repairs():
-    import os
     import pathlib
     import sys
 
@@ -31,13 +28,13 @@ async def list_repairs():
     try:
         from gateway.doctor import (
             Check,
+            _check_codegraph,
             _check_disk,
             _check_env,
+            _check_gateway_freshness,
+            _check_mem0,
             _check_services,
             _check_venv,
-            _check_mem0,
-            _check_gateway_freshness,
-            _check_codegraph,
             _load_env,
         )
     except ImportError:
@@ -139,12 +136,11 @@ def _pass_title(name: str, detail: str) -> str:
         "builder:zombie-tasks": "No zombie tasks found",
         "queue:backup-age": "The queue backup is recent",
     }
-    return passes.get(name, detail) if check.level == "PASS" else title
+    return passes.get(name, detail)
 
 
 def _fix_action(check) -> dict | None:
     name = check.name
-    detail = check.detail
 
     if "env" in name:
         return {
@@ -276,7 +272,7 @@ async def dismiss_repair(body: dict):
     the signal processed so it doesn't reappear on next poll."""
     repair_id = body.get("repair_id", "unknown")
     try:
-        from gateway.action_queue import propose, execute
+        from gateway.action_queue import execute, propose
 
         if isinstance(repair_id, str) and repair_id.startswith("signal-"):
             signal_id_str = repair_id.replace("signal-", "", 1)
@@ -306,7 +302,7 @@ async def run_repair_check(body: dict):
     """Re-run a specific health check through the action queue."""
     check_name = body.get("check_name", "unknown")
     try:
-        from gateway.action_queue import propose, execute
+        from gateway.action_queue import execute, propose
         action = propose(
             source_kind="repairs",
             kind="repair.check",

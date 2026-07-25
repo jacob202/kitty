@@ -1,7 +1,6 @@
 """Tests for image_characters — character CRUD and reference management (V2)."""
 from __future__ import annotations
 
-import json
 import sqlite3
 from pathlib import Path
 

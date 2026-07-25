@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-import gateway.search
 from gateway import memory_graph
 
 router = APIRouter(tags=["search"])

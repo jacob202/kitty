@@ -8,7 +8,6 @@ from __future__ import annotations
 from gateway import db as kitty_db
 from gateway.paths import KITTY_DB_FILE
 
-
 ONBOARDING_COMPLETE_KEY = "onboarding_complete"
 PREFERRED_NAME_KEY = "preferred_name"
 THEME_KEY = "theme"

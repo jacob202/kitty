@@ -361,7 +361,6 @@ def _is_finished(response: str) -> bool:
 
 def _session_status(session_id: int) -> str | None:
     """Read the persisted status without requiring a history row."""
-    import sqlite3
 
     from gateway.autonomy_state import STATE_DB
 
@@ -460,7 +459,6 @@ def list_agents(limit: int = 20) -> list[dict[str, Any]]:
 
 def stop(session_id: int) -> bool:
     """Request an agent to stop. Returns True if it was running."""
-    import sqlite3
 
     from gateway.autonomy_state import STATE_DB
 

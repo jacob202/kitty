@@ -15,10 +15,10 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from gateway.db import apply_pragmas
 from gateway import builder_attempt as ba
 from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
+from gateway.db import apply_pragmas
 
 SCHEMA_VERSION = 2
 CONTROL_PLANE_SUMMARY_VERSION = 1

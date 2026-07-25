@@ -23,8 +23,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Awaitable, Callable, Sequence
 
-from gateway.db import connect as db_connect
 from gateway import knowledge
+from gateway.db import connect as db_connect
 from gateway.paths import KITTY_DATA_DIR
 
 logger = logging.getLogger("kitty.tutor")

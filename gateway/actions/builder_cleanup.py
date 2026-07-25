@@ -27,7 +27,7 @@ class Action:
             [str(KITTY_CLI), "builder", "queue", "recover"],
             cwd=REPO_ROOT, capture_output=True, text=True, timeout=60
         )
-        msg = result.stdout.strip()[:500] or f"cleanup complete" if result.returncode == 0 else result.stderr.strip()[:500]
+        msg = result.stdout.strip()[:500] or "cleanup complete" if result.returncode == 0 else result.stderr.strip()[:500]
 
         if __event_emitter__:
             await __event_emitter__({"type": "status", "data": {"description": msg, "done": True}})

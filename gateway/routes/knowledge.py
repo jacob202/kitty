@@ -182,8 +182,8 @@ async def get_sources() -> dict:
 def list_experts():
     """Return expert profiles derived from the books manifest."""
     import json
-    from pathlib import Path
     from collections import defaultdict
+    from pathlib import Path
 
     manifest_path = Path(__file__).resolve().parent.parent.parent / "data" / "books_manifest.json"
     if not manifest_path.exists():

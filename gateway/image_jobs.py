@@ -21,7 +21,8 @@ from __future__ import annotations
 
 import json
 import uuid
-from dataclasses import dataclass, fields as dc_fields
+from dataclasses import dataclass
+from dataclasses import fields as dc_fields
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
