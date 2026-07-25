@@ -526,6 +526,29 @@ def _cmd_queue_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_queue_doctor(args: argparse.Namespace) -> int:
+    from gateway.builder_queue import find_silent_transitions
+
+    silent = find_silent_transitions()
+
+    if args.json:
+        print(json.dumps({"silent_transitions": silent}, indent=2, default=str))
+        return 0 if not silent else 1
+
+    if not silent:
+        print("OK — every non-queued task has a logged transition event.")
+        return 0
+
+    print(
+        f"NOT SAFE — {len(silent)} task(s) left 'queued' with no event trail "
+        "(state was likely changed outside the application):"
+    )
+    for task in silent:
+        bridge = f" [{task['bridge_external_id']}]" if task["bridge_external_id"] else ""
+        print(f"  {task['id']}{bridge}  state={task['state']}  {task['title']}")
+    return 1
+
+
 # ---------------------------------------------------------------------------
 # Queue — archive
 # ---------------------------------------------------------------------------
@@ -1689,6 +1712,9 @@ COMMANDS: list[CommandSpec] = [
                 [_a("id", "task ID"), _a("--json", "output JSON", action="store_true")]),
     CommandSpec("queue-status", "queue", "status", "queue summary per state",
                 _cmd_queue_status, [_a("--json", "output JSON", action="store_true")]),
+    CommandSpec("queue-doctor", "queue", "doctor",
+                "read-only integrity check: tasks whose state changed with no event trail",
+                _cmd_queue_doctor, [_a("--json", "output JSON", action="store_true")]),
     CommandSpec("queue-archive", "queue", "archive", "soft-archive terminal tasks by state and age",
                 _cmd_queue_archive,
                 [_a("--state", "terminal state to archive (done, failed, cancelled)", required=True),
