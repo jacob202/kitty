@@ -121,7 +121,7 @@ class WebChangeTracker:
                 data = json.loads(snap_file.read_text())
                 urls.add(data.get("url", ""))
             except Exception:
-                pass
+                logger.debug("WebTracker: skipping corrupt snapshot %s", snap_file)
         return list(urls)
 
     def is_available(self) -> bool:

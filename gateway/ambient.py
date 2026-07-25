@@ -142,7 +142,7 @@ def get_ambient_text() -> str:
             if result.returncode == 0:
                 lines.append(f" — {result.stdout.strip()[:100]}")
     except Exception:
-        pass
+        logger.debug("Ambient: failed to query front window for %s", app)
 
     lines.append("]")
     return "".join(lines)

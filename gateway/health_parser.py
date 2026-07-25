@@ -94,7 +94,7 @@ def get_weekly_summary(records: Optional[list[dict]] = None) -> dict:
             if HEALTH_CACHE.exists():
                 return json.loads(HEALTH_CACHE.read_text())
         except Exception:
-            pass
+            logger.debug("Health: failed to read cache file %s", HEALTH_CACHE)
         return {}
 
     now = datetime.now()
