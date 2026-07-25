@@ -1,14 +1,23 @@
 # Mature AI Product Research
 
-**Written:** 2026-07-25 · **Branch:** `gateway-packages` @ `ac898f9`
+**Written:** 2026-07-25 · **Written against:** `gateway-packages` @ `ac898f9`, a commit that
+has since been rewound out of that branch; its history is preserved at
+`backup/gateway-packages-2026-07-25`.
+
+**Status: reference, not authority.** This document records what other projects learned. It
+does not set priorities, sequencing, or effort for Kitty. Everything under a "What this means
+for Kitty" heading is a proposal, and none of it binds anything until it is decided
+separately and recorded in the roadmap authority named by `docs/AUTHORITY_MAP.md`.
 
 What mature open-source AI assistants learned the hard way, organized by theme rather than
 by project. Every claim below is either linked to a primary source I fetched, or explicitly
 labelled as inference. Where a theme is thin, it says so — a gap named is worth more than a
 gap papered over.
 
-Companion to the Phase 0 feature comparison in `docs/PLANS.md` (line 153). That document
-asks "what do they have that we don't." This one asks "what did it cost them to learn it."
+Written as a companion to the competitive comparison that was in `docs/PLANS.md` at the time.
+That section has since been removed as stale; the pointer in `docs/PLANS.md` supersedes it.
+That comparison asked "what do they have that we don't." This one asks "what did it cost them
+to learn it."
 
 Projects surveyed: Open WebUI (146k★), Goose (51k★), LibreChat (41k★), Khoj (36k★),
 Chatbot UI (33k★), AionUi (31k★).
@@ -57,10 +66,10 @@ Kitty is local-first single-user, so it has the same shape of exposure: a Next.j
 `gateway/kitty-chat/` that boots and then asks the FastAPI gateway for state. The failure
 mode is available to us.
 
-The lesson is not "build an onboarding wizard" (that's UX-01 in PLANS.md, and it's fine).
-The lesson is that **the loading state needs to distinguish causes**. A spinner that can
-say "gateway not responding" vs "gateway up, models loading" vs "no models configured" is
-worth more than a slideshow, and it's less code.
+The lesson is not "build an onboarding wizard" — Kitty already has a multi-step
+`OnboardingModal`. The lesson is that **the loading state needs to distinguish causes**.
+A spinner that can say "gateway not responding" vs "gateway up, models loading" vs "no
+models configured" is worth more than a slideshow, and it's less code.
 
 ---
 
@@ -240,8 +249,11 @@ the one you keep for compatibility gets tested by nobody.
 This is the theme most directly aimed at us, because Kitty's storage layer is mid-migration
 and has exactly this shape: reads are supposed to go through `gateway/memory_graph.py`,
 writes still go direct to stores until Phase B's write-side router lands. That's a dual
-path, and the six commits currently on `gateway-packages` just moved all of those modules
-into subpackages.
+path.
+
+(This paragraph originally added that a refactor on `gateway-packages` had just moved those
+modules into subpackages. That refactor was abandoned and the branch rewound the same day,
+so the observation no longer describes the tree. The dual-path point stands on its own.)
 
 Two rules fall out:
 
@@ -316,7 +328,8 @@ Sources: [DeepWiki architecture overview](https://deepwiki.com/open-webui/open-w
 Named so the next pass knows where to start:
 
 - **Mobile UX.** No primary sources gathered. LibreChat reportedly has a dedicated mobile
-  stylesheet (per Phase 0 notes in PLANS.md) but I did not verify it or find reasoning.
+  stylesheet (per the competitive notes that were in PLANS.md, since removed as stale) but I
+  did not verify it or find reasoning.
 - **Agent visibility / task management.** Theme identified in the handoff, no evidence
   collected. LibreChat [#11106](https://github.com/danny-avila/LibreChat/issues/11106) is
   the thread to start from.

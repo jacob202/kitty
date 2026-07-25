@@ -104,14 +104,13 @@
 <header class="hero">
   <div class="inner">
     <h1>Research ↔ repository reconciliation</h1>
-    <p class="sub">What the two research documents actually tell us once they are checked against the
-    code as it stands at <code>b78215e</code> — what is new, what was already shipped, what is now
-    stale, and the seven packets worth doing.</p>
+    <p class="sub">What the two research documents hold up once their claims are re-checked against
+    the code — what was verified, what was wrong, and what still cannot be settled from source alone.</p>
     <div class="meta">
       <span class="tag">2026-07-25</span>
-      <span class="tag">branch research/mature-product-2026-07-25 @ 6f59e1b</span>
-      <span class="tag">14 claims re-verified against source</span>
-      <span class="tag">read-only</span>
+      <span class="tag">branch research/mature-product-2026-07-25</span>
+      <span class="tag">Reference — not authoritative</span>
+      <span class="tag">Revised 2026-07-25</span>
     </div>
   </div>
 </header>
@@ -121,16 +120,12 @@
 <nav class="toc">
   <div class="lbl">Contents</div>
   <a href="#basis" class="sec">Basis &amp; method</a>
-  <a href="#q1" class="sec">1 · Genuinely new</a>
-  <a href="#q2" class="sec">2 · Already done</a>
-  <a href="#q3" class="sec">3 · Priority changes</a>
-  <a href="#q4" class="sec">4 · Stale documents</a>
-  <a href="#q5" class="sec">5 · Make permanent</a>
-  <a href="#q6" class="sec">6 · Needs runtime proof</a>
-  <a href="#q7" class="sec">7 · The packets</a>
-  <a href="#roadmap" class="sec">A · Revised roadmap</a>
-  <a href="#docsfirst" class="sec">B · Docs before code</a>
-  <a href="#disagree" class="sec">C · Where I disagree</a>
+  <a href="#q1" class="sec">1 · Verified findings</a>
+  <a href="#q2" class="sec">2 · Already built</a>
+  <a href="#disagree" class="sec">3 · Where the research was wrong</a>
+  <a href="#q6" class="sec">4 · Needs runtime proof</a>
+  <a href="#q7" class="sec">5 · Open proposals</a>
+  <a href="#scope" class="sec">6 · Scope of this document</a>
 </nav>
 
 <main>
@@ -138,21 +133,39 @@
 <section id="basis">
   <h2><span class="num">Preface</span>Basis and method</h2>
 
-  <p class="lede">The handbook says its Kitty claims were verified against source. I re-checked
-  fourteen of them independently. Eleven held exactly. Three did not — and one of those three
+  <p class="lede">The handbook says its Kitty claims were verified against source. Fourteen of them
+  were re-checked independently. Eleven held exactly. Three did not — and one of those three
   invalidates a whole theme.</p>
 
-  <p>Everything below is checked against the working tree at <code>b78215e</code> (the rewound
-  <code>gateway-packages</code>, identical to <code>main</code>). The frontend was untouched by the
-  abandoned refactor, so the handbook's line numbers still resolve, drifting by one or two.</p>
+  <p>Everything below is checked against the working tree at <code>b78215e</code>. The frontend was
+  untouched by the abandoned <code>gateway-packages</code> refactor, so the handbook's line numbers
+  still resolve, drifting by one or two — except where noted, where they were simply wrong.</p>
 
-  <div class="card">
-    <h4>What was consolidated first</h4>
-    <p>The two research artifacts were in different places — <code>MATURE_AI_PRODUCT_RESEARCH.md</code>
-    on the salvage branch, the handbook untracked on disk — and <code>docs/PLANS.md</code> differed by
-    125 lines between them. Both are now committed on
-    <code>research/mature-product-2026-07-25</code> so this reconciliation reads one coherent tree.
-    <code>docs/contract-migration.md</code> was left untracked; it belongs to another session.</p>
+  <div class="card warn">
+    <h4>Status of this document, and what was removed from it</h4>
+    <p><strong>This is reference material. It is not authoritative.</strong> It does not set
+    priorities, sequencing, effort, ownership, or what any other document should say. Roadmap
+    authority remains the file named by <code>docs/AUTHORITY_MAP.md</code>.</p>
+    <p style="margin-top:12px">The original version of this document overstepped that in five ways,
+    all since removed:</p>
+    <ul>
+      <li><strong>A revised ranked roadmap</strong> (14 rows, with layers and sizes) presented as
+      dropping into <code>INITIATIVES_OPTIMIZED_2026-07-24.md</code>. Research does not get to
+      re-sequence the roadmap.</li>
+      <li><strong>A list of continuity documents to edit before any engineering</strong> —
+      <code>.claude/STATE.md</code>, <code>.claude/HANDOFF.md</code>,
+      <code>docs/PROJECT_STATUS.md</code>, <code>docs/ACTIVE_MISSION.md</code>,
+      <code>CLAUDE.md</code>. Those files have owners and their own process; a research pass is not
+      it.</li>
+      <li><strong>Ownership and scheduling decisions</strong> — which initiative belongs to which
+      session, what "blocks everything," what to "not start here."</li>
+      <li><strong>Deletion recommendations</strong> — striking initiatives, and a packet to delete
+      ~120 lines of tool-call UI. The mismatch that motivated it is real and stated below; the
+      remedy is not this document's call.</li>
+      <li><strong>Measurements presented without evidence</strong> — a test-suite count, a module
+      count, a rewrite-site count, an accessibility-issue count. None had a command attached. All
+      are gone rather than repeated.</li>
+    </ul>
   </div>
 
   <div class="card hot">
@@ -161,20 +174,20 @@
     largely right and its signals are largely missing.</strong> The context gauge is computed and
     thrown away. The stop path is narrated but nothing else is. The SSE layer has careful bounded
     backoff and the chat stream has none.</p>
-    <p style="margin-top:12px">But the reconciliation surfaces something neither document caught, and
-    it is bigger than anything in either: <strong>Kitty's chat has no tool loop.</strong> Nothing ever
-    sends <code>tools</code> to the model, so the tool-call UI can never render. Three of the
-    handbook's eleven packets are built on that foundation.</p>
+    <p style="margin-top:12px">And the re-check surfaced something neither document caught:
+    <strong>Kitty's chat has no tool loop.</strong> Nothing ever sends <code>tools</code> to the
+    model, so the tool-call UI can never render. Three of the handbook's proposals were built on that
+    foundation.</p>
   </div>
 </section>
 
 <hr class="soft">
 
 <section id="q1">
-  <h2><span class="num">Question 1</span>Which findings are genuinely new</h2>
+  <h2><span class="num">Section 1</span>Findings that verify</h2>
 
-  <p>New means: not already recorded in <code>INITIATIVES_OPTIMIZED</code>, not in the Phase 0
-  competitive table in <code>PLANS.md</code>, and not already built. Six qualify.</p>
+  <p>Each of these was re-checked against source on 2026-07-25. The evidence column names what was
+  read; line numbers drift with any edit.</p>
 
   <div class="scroller"><table>
     <tr><th>Finding</th><th>Evidence, re-verified</th><th>Status</th></tr>
@@ -182,57 +195,61 @@
       <td><strong>The context gauge is computed, threaded through two components, and dropped</strong></td>
       <td><code class="fileref">InputBar.tsx:16–17</code> declares <code>tokenCount?</code> and
       <code>maxTokens?</code> — and those two lines are the <em>only</em> occurrences in the file.
-      Never destructured, never rendered.</td>
-      <td><span class="pill p-new">New</span></td>
+      Never destructured, never rendered. The estimate itself is
+      <code>setTokenCount(Math.round(chars / 4))</code> at
+      <code class="fileref">KittyContext.tsx:428</code>.</td>
+      <td><span class="pill p-new">Verified</span></td>
     </tr>
     <tr>
       <td><strong>Streaming re-renders the entire thread per token</strong></td>
       <td><code class="fileref">KittyContext.tsx:541–542</code> — <code>accumulated += chunk.content</code>
       then <code>c.messages.map(...)</code> allocating a new object per message. Zero occurrences of
       <code>memo</code>/<code>useMemo</code> in either <code>ChatMessage.tsx</code> or
-      <code>KittyThread.tsx</code>.</td>
-      <td><span class="pill p-new">New</span></td>
+      <code>KittyThread.tsx</code>. <strong>Structure only — no profile was taken.</strong> See
+      section 4.</td>
+      <td><span class="pill p-new">Verified</span></td>
     </tr>
     <tr>
       <td><strong>One silent swallow in the hottest path</strong></td>
       <td><code class="fileref">chat-client.ts:101–103</code> — <code>catch { /* skip malformed */ }</code>.
       Violates non-negotiable #1 in <code>CLAUDE.md</code>.</td>
-      <td><span class="pill p-new">New</span></td>
+      <td><span class="pill p-new">Verified</span></td>
     </tr>
     <tr>
       <td><strong>No <code>visualViewport</code> listener</strong></td>
       <td>Zero matches across <code>gateway/kitty-chat/src/</code>. <code>100dvh</code> handles browser
-      chrome, not the iOS keyboard — different bug from the <code>100vh→dvh</code> item PLANS.md
-      already closed.</td>
-      <td><span class="pill p-new">New</span></td>
+      chrome, not the iOS keyboard.</td>
+      <td><span class="pill p-new">Verified</span></td>
     </tr>
     <tr>
       <td><strong>The chat stream has no identity</strong></td>
       <td>Response lives inside a <code>fetch</code> body reader
       (<code class="fileref">chat-client.ts:51</code>). No server-side job, no resume. The signal SSE
       has bounded backoff; the conversation stream does not.</td>
-      <td><span class="pill p-new">New</span></td>
+      <td><span class="pill p-new">Verified</span></td>
     </tr>
     <tr>
       <td><strong>Polish dies in refactors</strong> — cline#8675, where a file split and a Tailwind
       upgrade each deleted part of the same focus affordance</td>
-      <td>Independently corroborated <em>today</em>: the abandoned refactor silently broke
-      <code>RESOURCE_MAP</code>'s <code>"gateway/builder_"</code> prefix and
-      <code>_BUILDER_DESCRIPTION_PATHS</code>, neither of which raises.</td>
-      <td><span class="pill p-new">New</span></td>
+      <td>The cline evidence is quoted from that thread, not reproduced here. The original version of
+      this row also cited a same-day breakage in this repo's own abandoned refactor as independent
+      corroboration; that branch has since been rewound, the claim was never evidenced with a
+      command, and it is withdrawn.</td>
+      <td><span class="pill p-mid">Reported</span></td>
     </tr>
   </table></div>
 
   <div class="card hot">
     <h4>And one finding in neither document</h4>
     <p><strong>Kitty has three quarters of an agentic chat, wired to nothing.</strong> The chain,
-    verified end to end this session:</p>
+    traced end to end:</p>
     <ul>
       <li>The frontend request body (<code class="fileref">chat-client.ts:31–45</code>) sends
       <code>model</code>, <code>stream</code>, <code>messages</code> and some ids. No <code>tools</code>.</li>
       <li>The gateway payload (<code class="fileref">completions.py:263–272</code>) spreads the body
-      and adds <code>messages</code>/<code>model</code>/<code>stream</code>. No <code>tools</code>.
-      <code>grep</code> for <code>tool_call</code> in <code>completions.py</code> returns nothing.</li>
+      and adds <code>messages</code>/<code>model</code>/<code>stream</code>. Because it spreads the
+      body, a <code>tools</code> key <em>would</em> pass through — nothing sends one.
+      <code>grep tool_call</code> in <code>completions.py</code> returns zero matches.</li>
       <li>A tool schema builder exists — <code class="fileref">mcp_tool_bridge.py:129</code>,
       <code>get_tool_schema_for_llm()</code> — and has exactly one consumer: an HTTP endpoint that
       hands it out (<code class="fileref">integrations.py:91–93</code>). Nothing feeds it to a
@@ -241,219 +258,158 @@
       (<code class="fileref">chat-client.ts:82–96</code>) and renders <code>ToolCallBlock</code>.</li>
     </ul>
     <p style="margin-top:12px">The model is never told it has tools, so it never emits tool calls, so
-    <code>ToolCallBlock</code> never renders. The handbook's Theme 4 describes its gaps as live
+    <code>ToolCallBlock</code> never renders. The handbook's Theme 4 described its gaps as live
     user-facing defects. They are not reachable at all.</p>
+    <p style="margin-top:12px"><strong>What this document does not do is tell anyone what to do about
+    it.</strong> Building the loop and retiring the unreachable UI are both coherent; choosing
+    between them needs product context this research does not have.</p>
   </div>
 </section>
 
 <hr class="soft">
 
 <section id="q2">
-  <h2><span class="num">Question 2</span>Which findings duplicate work already done</h2>
+  <h2><span class="num">Section 2</span>Findings that describe work already built</h2>
 
-  <p class="lede">This is the highest-value section. The Phase 0 competitive table in
-  <code>PLANS.md</code> (lines 153–275) is largely stale: it lists as to-do at least five packets that
-  are already shipped, and one that was attempted and abandoned today.</p>
+  <p class="lede">The competitive table that was in <code>docs/PLANS.md</code> listed as to-do several
+  things that exist in <code>gateway/kitty-chat/src/</code>. That section has since been removed from
+  <code>PLANS.md</code> as stale.</p>
 
   <div class="scroller"><table>
-    <tr><th>PLANS.md Phase 0 packet</th><th>Claimed effort</th><th>Reality</th></tr>
-    <tr><td>UX-01 Onboarding wizard (P0)</td><td>2d</td>
-        <td><code>OnboardingModal.tsx</code> is a real multi-step flow — stepped state, preferred name,
-        theme, import with busy/result states. The handbook rates it ahead of everything in its
-        eight-repo corpus. <span class="pill p-dup">Shipped</span></td></tr>
-    <tr><td>UX-02 Keyboard shortcut system (P0)</td><td>1d</td>
-        <td><code class="fileref">CommandPalette.tsx:36,45</code> binds <code>Cmd/Ctrl+K</code> with
-        <code>Escape</code> to dismiss. <span class="pill p-dup">Shipped</span></td></tr>
-    <tr><td>UX-03 Notification toast system (P0)</td><td>1d</td>
-        <td><code class="fileref">Toast.tsx:1–40</code> — success/error/info, 3s auto-dismiss, manual
-        dismiss, provider-based. <span class="pill p-dup">Shipped</span></td></tr>
-    <tr><td>MOB-03 Bottom navigation (P0)</td><td>1d</td>
-        <td><code>BottomNav.tsx</code> exists with <code>env(safe-area-inset-*)</code>.
-        <span class="pill p-dup">Shipped</span></td></tr>
-    <tr><td>MOB-04 PWA / service worker (P0)</td><td>2d</td>
-        <td>Phase E shipped per <code>PROJECT_STATUS.md</code>; <code>app/manifest.ts</code> exists and
-        has tests. <span class="pill p-dup">Shipped</span></td></tr>
-    <tr><td><strong>ARCH-01 Organize gateway/ into domain subdirs (P1)</strong></td><td>3d</td>
-        <td>Attempted 2026-07-25 as the <code>gateway-packages</code> refactor. Moved 45 modules,
-        updated zero of 190 <code>from gateway import X</code> sites, broke pytest collection
-        entirely, and silently disabled two runtime path checks. Abandoned; history at
-        <code>backup/gateway-packages-2026-07-25</code>.
-        <span class="pill p-dup">Strike it</span></td></tr>
+    <tr><th>Listed as to-do</th><th>What is actually in the tree</th></tr>
+    <tr><td>Onboarding wizard</td>
+        <td><code>components/OnboardingModal.tsx</code> — a multi-step flow with stepped state,
+        preferred name, theme, and an import path with busy/result states.
+        <span class="pill p-dup">Exists</span></td></tr>
+    <tr><td>Keyboard shortcut system</td>
+        <td><code class="fileref">components/CommandPalette.tsx:36</code> binds
+        <code>Cmd/Ctrl+K</code>, with <code>Escape</code> to dismiss.
+        <span class="pill p-dup">Exists</span></td></tr>
+    <tr><td>Notification toast system</td>
+        <td><code>components/Toast.tsx</code> — success/error/info, auto-dismiss, manual dismiss,
+        provider-based. <span class="pill p-dup">Exists</span></td></tr>
+    <tr><td>Bottom navigation</td>
+        <td><code>components/BottomNav.tsx</code>, with <code>env(safe-area-inset-*)</code>.
+        <span class="pill p-dup">Exists</span></td></tr>
+    <tr><td>PWA / service worker</td>
+        <td><code>app/manifest.ts</code> exists and has tests.
+        <span class="pill p-dup">Exists</span></td></tr>
+    <tr><td>Organize <code>gateway/</code> into domain subdirectories</td>
+        <td>Attempted on 2026-07-25 as the <code>gateway-packages</code> refactor and abandoned;
+        history preserved at <code>backup/gateway-packages-2026-07-25</code>. The original version of
+        this row quantified the damage — modules moved, import sites missed, commits spent — with no
+        command attached to any of it. Those numbers are withdrawn. That the attempt happened and was
+        abandoned is checkable from the branch.
+        <span class="pill p-mid">Attempted, abandoned</span></td></tr>
   </table></div>
 
-  <p>Handbook findings that describe things Kitty already does better than its corpus, and which
-  therefore generate no work:</p>
+  <p>Handbook findings that describe things Kitty already does at least as well as its corpus:</p>
   <ul>
-    <li><strong>Scroll handling</strong> — solved by delegation to assistant-ui's
+    <li><strong>Scroll handling</strong> — delegated to assistant-ui's
     <code>&lt;ThreadPrimitive.Viewport autoScroll&gt;</code> with an <code>isAtBottom</code> gate
-    (<code class="fileref">KittyThread.tsx:59,116–124</code>). Four corpus projects are still
-    hand-rolling this.</li>
+    (<code class="fileref">KittyThread.tsx:59,116–124</code>). The near-bottom threshold is the
+    library's and remains unchecked — see section 4.</li>
     <li><strong>Truncated streams throw rather than resolving empty</strong>
-    (<code class="fileref">chat-client.ts:106–107</code>) — Kitty already refuses open-webui#27411's
-    pattern, with a <code>ponytail:</code> comment saying why.</li>
+    (<code class="fileref">chat-client.ts:106–107</code>), with a <code>ponytail:</code> comment
+    saying why.</li>
     <li><strong>Interruption is narrated</strong> — aborted turns write "⚠ generation stopped before
-    completion" and persist <code>turnStatus: 'interrupted'</code>. Open WebUI is still requesting
-    this in an open issue.</li>
+    completion" and persist <code>turnStatus: 'interrupted'</code>
+    (<code class="fileref">KittyContext.tsx:552–553</code>).</li>
     <li><strong>Usage is surfaced in settings</strong> — calls and token totals from a live query
     (<code class="fileref">SettingsPanel.tsx:30,140–150</code>).</li>
     <li><strong>Per-turn model override that clears itself</strong>
     (<code class="fileref">KittyContext.tsx:574–576</code>).</li>
     <li><strong>Dead air on send→first-token is already covered</strong> — <code>&lt;TypingDots /&gt;</code>
-    renders while streaming with no content yet (<code class="fileref">ChatMessage.tsx:105</code>).
-    See disagreement C-3.</li>
+    renders while streaming with no content yet (<code class="fileref">ChatMessage.tsx:106</code>).
+    See correction 3.</li>
   </ul>
 </section>
 
 <hr class="soft">
 
-<section id="q3">
-  <h2><span class="num">Question 3</span>Which initiatives change priority</h2>
+<section id="disagree">
+  <h2><span class="num">Section 3</span>Where the research was wrong</h2>
 
-  <div class="scroller"><table>
-    <tr><th>Initiative</th><th>Move</th><th>Why</th></tr>
-    <tr><td><strong>F2 · Latency Budget</strong></td><td><span class="pill p-new">Up → first</span></td>
-        <td>F2 currently defines TTFT targets and timing headers — the network half only. The verified
-        render defect belongs here too. A TTFT target is meaningless while the main thread re-parses
-        the whole thread per token. Absorb memoization and the <code>visualViewport</code> fix.</td></tr>
-    <tr><td><strong>F0 · Context Compaction</strong></td><td><span class="pill p-mid">Split</span></td>
-        <td>Ship the gauge (small, now) before compaction (medium, later). The handbook's argument is
-        sound: compaction landing against a display users don't trust is cline#10637, where a bar that
-        runs backwards reads as the product getting dumber.</td></tr>
-    <tr><td><strong>F3 · Dogfood Script</strong></td><td><span class="pill p-mid">Hold, sharpen</span></td>
-        <td>Keep its place, but give it two concrete assertions instead of "key flows": fail on dropped
-        stream chunks, and exercise the endpoint connection test.</td></tr>
-    <tr><td><strong>D3 · Tutor Depth</strong></td><td><span class="pill p-new">Up</span></td>
-        <td>Unchanged by the research, but it is the largest unrealized value in the repo: a working
-        backend with no frontend (Lane 2, four unwired routes). Every hour here converts existing code
-        into a usable feature.</td></tr>
-    <tr><td><strong>D4 · Builder Depth</strong></td><td><span class="pill p-dup">Down</span></td>
-        <td>Large, its value proposition is described as broken in the initiative text itself, and
-        <code>PLANS.md</code> Lane 3 says the redesign is owned by a different session. Today's
-        abandoned branch was Builder-adjacent churn. Do not start it here.</td></tr>
-    <tr><td><strong>ARCH-01</strong></td><td><span class="pill p-dup">Delete</span></td>
-        <td>Attempted and abandoned today at a cost of nine commits and a broken suite.</td></tr>
-    <tr><td><strong>I18N-01, I18N-02</strong></td><td><span class="pill p-dup">Delete</span></td>
-        <td>Kitty is a local-first single-user companion. Jacob is the user. Four days of string
-        extraction for an audience of one.</td></tr>
-    <tr><td><strong>FEAT-02 / 05 / 06, DEVOPS-01–03</strong></td><td><span class="pill p-dup">Delete or park</span></td>
-        <td>Code interpreter, Obsidian plugin, emoji picker, Docker profiles, one-liner installer,
-        Justfile. All are distribution and multi-user concerns for a product with neither.</td></tr>
-    <tr><td><strong>Resumable streams (handbook #11)</strong></td><td><span class="pill p-warn">Name, don't start</span></td>
-        <td>Correctly identified as large and correctly sequenced last. It fixes mobile backgrounding
-        at the root — worth doing only once mobile is genuinely in use.</td></tr>
-  </table></div>
-</section>
+  <p class="lede">Four substantive corrections and one methodological one. The first is large enough
+  to remove a whole theme. All five have been applied to the handbook itself.</p>
 
-<hr class="soft">
+  <h3>1 · Theme 4 describes a feature that cannot run</h3>
+  <p>The handbook rated <code>ToolCallBlock</code> as <em>"Partial — shows intent, never outcome"</em>
+  and proposed carrying tool results back with per-call status. Both statements assume tool calls
+  reach the user. They cannot.</p>
+  <pre><code>chat-client.ts:31–45   request body: model, stream, messages, ids.   no tools
+completions.py:263–272 payload:      body spread + messages/model/stream. no tools
+completions.py         grep tool_call →  0 matches
+mcp_tool_bridge.py:129 get_tool_schema_for_llm()
+  └─ only consumer: integrations.py:93, an HTTP endpoint that returns it</code></pre>
+  <p>The model is never told it has tools, so it never emits <code>delta.tool_calls</code>, so the
+  accumulator never fills and the block never renders. The evidence for the gap is real; the
+  conclusion that it is a user-facing defect is not.</p>
+  <p>This also softens the proposal to decide the agent trust model.
+  Confirmation-versus-reversibility only binds once an agent can act. Worth recording eventually;
+  not due now.</p>
 
-<section id="q4">
-  <h2><span class="num">Question 4</span>Which documents are stale or contradictory</h2>
+  <h3>2 · Onboarding already checks the server</h3>
+  <p>The handbook said completion is <em>"a self-set localStorage flag"</em> and proposed deriving it
+  from real state. But <code class="fileref">KittyContext.tsx:387</code> already fetches
+  <code>/proxy/onboarding</code> and honours <code>{onboarded, preferredName, theme}</code> from the
+  gateway. The derivation exists.</p>
+  <p>The real defect is narrower and sharper: <code class="fileref">KittyContext.tsx:385–386</code>
+  returns early on the cached flag <em>before</em> the fetch, so a stale <code>true</code> wins over
+  a server that says otherwise. That is an ordering bug worth two lines, not a rebuild of onboarding
+  state.</p>
 
-  <div class="scroller"><table>
-    <tr><th>Document</th><th>Defect</th><th>Severity</th></tr>
-    <tr><td><code>.claude/STATE.md</code></td>
-        <td><code>head_sha: 10bebdd</code>, <code>branch: main</code>. Both wrong. Its own
-        <code>invalidation_conditions</code> name that SHA and have therefore fired. Self-invalidated,
-        and <code>tests/test_check_continuity_state.py</code> fails four assertions because of it.</td>
-        <td><span class="pill p-dup">High</span></td></tr>
-    <tr><td><code>.claude/HANDOFF.md</code></td>
-        <td>Same stale block — <code>10bebdd</code> / <code>main</code>. Restored from
-        <code>b78215e</code> during the rewind. Its <code>next_action</code> (two KX-06 packets) may
-        still be valid; its continuity header is not.</td>
-        <td><span class="pill p-dup">High</span></td></tr>
-    <tr><td><code>docs/PROJECT_STATUS.md</code></td>
-        <td>Verified 2026-07-17 against <code>167fa24</code> — eight days stale. Claims
-        <strong>"616 backend tests"</strong>; the measured baseline at <code>b78215e</code> is
-        <strong>3000 passed, 1 skipped, 2 deselected</strong>. Wrong by a factor of five.</td>
-        <td><span class="pill p-dup">High</span></td></tr>
-    <tr><td><code>docs/ACTIVE_MISSION.md</code></td>
-        <td>KFX-001 has been <code>"status": "running"</code> since 2026-07-20 against
-        <code>base_sha 082a2e8</code>. Acceptance item 8 is "PR is open for Jacob's review";
-        <code>pull_request</code> is <code>null</code> in both STATE and HANDOFF. Five days, no PR.
-        Close it or finish it.</td>
-        <td><span class="pill p-warn">Medium</span></td></tr>
-    <tr><td><code>docs/PLANS.md</code></td>
-        <td>Two defects. (a) The Phase 0 table lists five shipped packets as to-do and one abandoned
-        one as P1 — see Question 2. (b) It contradicts itself: lines 3–10 defer roadmap authority to
-        <code>INITIATIVES_OPTIMIZED</code>, and line 132 says
-        <em>"Current plans (canonical) | docs/PLANS.md (this file)"</em>.</td>
-        <td><span class="pill p-dup">High</span></td></tr>
-    <tr><td><code>CLAUDE.md</code></td>
-        <td>The voice glossary maps <em>"the agent"</em> → <code>gateway/agent.py</code>.
-        <strong>That file does not exist.</strong> It is in the bootloader every session reads first.</td>
-        <td><span class="pill p-warn">Medium</span></td></tr>
-    <tr><td><code>docs/research/MATURE_AI_PRODUCT_RESEARCH.md</code></td>
-        <td>Header reads <em>"Branch: <code>gateway-packages</code> @ <code>ac898f9</code>"</em>. That
-        branch no longer contains that commit. Also cites <code>docs/PLANS.md</code> by line number
-        (line 153), which will rot on the next edit.</td>
-        <td><span class="pill p-warn">Low</span></td></tr>
-  </table></div>
+  <h3>3 · The dead-air finding is moot</h3>
+  <p>The handbook proposed naming the gaps in <code>runStream</code>, specifically
+  tool-call-complete → first-content-token. That transition cannot occur (correction 1). The general
+  send → first-token gap it would otherwise cover is already handled:
+  <code class="fileref">ChatMessage.tsx:106</code> renders <code>&lt;TypingDots /&gt;</code> while
+  streaming with no content yet.</p>
 
-  <div class="card warn">
-    <h4>The pattern in that table</h4>
-    <p>Four of the seven are continuity documents whose entire job is to state where things stand, and
-    all four state it wrongly. The suite already knows — <code>test_check_continuity_state.py</code>
-    has been failing on exactly this, and the previous session deliberately left it failing to keep a
-    repair commit scoped. That was the right call then. It is debt now.</p>
-  </div>
-</section>
+  <h3>4 · The memoization ranking rests on structure, not measurement</h3>
+  <p>The handbook ranked memoization first on the strength of open-webui#23733. The defect in Kitty
+  is real and was verified. But the companion research document contains the counter-evidence in its
+  own Theme 2: <em>markdown parsing is genuinely fast for chat-length content — under 5ms for a 5KB
+  message — which is exactly why this ships broken so often.</em> Open WebUI hit the wall at a scale
+  Kitty does not have.</p>
+  <p>The correct handling is a profile before the work, with "the profile shows nothing, so we don't
+  do it" as an allowed outcome stated up front — not a ranking.</p>
 
-<hr class="soft">
+  <h3>5 · Two line citations were wrong</h3>
+  <p>The stream loop is at <code class="fileref">KittyContext.tsx:541–542</code>, cited as 543–544.
+  The token estimate is at line <code>428</code>, cited as 427–428. Small in themselves, but they
+  falsified the handbook's preface claim that every Kitty claim carried a checked file and line —
+  which is why that claim has been replaced rather than trimmed.</p>
 
-<section id="q5">
-  <h2><span class="num">Question 5</span>Which research becomes permanent documentation</h2>
-
-  <div class="scroller"><table>
-    <tr><th>What</th><th>Goes where</th><th>Why</th></tr>
-    <tr><td><strong>Polish dies in refactors</strong> — the meta-pattern, with cline#8675 and today's
-        <code>RESOURCE_MAP</code> / <code>_BUILDER_DESCRIPTION_PATHS</code> breakage as the two
-        independent instances</td>
-        <td><code>docs/LEARNINGS.md</code></td>
-        <td>It is a workflow lesson, which <code>CLAUDE.md</code> non-negotiable #5 routes there. It
-        has now happened twice in this repo in two days.</td></tr>
-    <tr><td><strong>The five streaming rules</strong> — deltas on the wire, one coalescer, freeze
-        everything but the tail, near-bottom gate generously sized, the stream has an id</td>
-        <td>A new one-page <code>docs/FRONTEND_PATTERNS.md</code></td>
-        <td>These are binding implementation constraints, and they are currently buried in a 74KB
-        research document nobody will re-read before touching <code>KittyContext</code>.</td></tr>
-    <tr><td><strong>The agent trust model</strong> — confirmation (Zed, Cline) vs reversibility
-        (aider)</td>
-        <td><code>docs/DECISIONS.md</code>, once decided</td>
-        <td>Genuinely unresolved industry-wide and Kitty has no stated position. But see C-1: with no
-        tool loop, this is less urgent than the handbook rates it.</td></tr>
-    <tr><td><strong>Both research documents themselves</strong></td>
-        <td>Stay in <code>docs/research/</code></td>
-        <td>They are reference, not authority. They should never appear in
-        <code>AUTHORITY_MAP.md</code>. Their conclusions graduate into the roadmap; the documents stay
-        as receipts.</td></tr>
-    <tr><td><strong>The 11-item ranked list, as written</strong></td>
-        <td><span class="pill p-dup">Nowhere</span></td>
-        <td>Three of the eleven are wrong or moot (C-1, C-2, C-3). Superseded by Question 7 below.</td></tr>
-  </table></div>
+  <h3>What held up</h3>
+  <p>Worth saying plainly, since the above is all objection: eleven of fourteen spot-checks confirmed
+  exactly, including every claim in Themes 1, 3, 7 and 8. The context-gauge finding — props declared
+  at <code>InputBar.tsx:16–17</code> and never destructured — is the single sharpest observation in
+  either document.</p>
 </section>
 
 <hr class="soft">
 
 <section id="q6">
-  <h2><span class="num">Question 6</span>What needs runtime proof before it can be trusted</h2>
+  <h2><span class="num">Section 4</span>What needs runtime proof before it can be trusted</h2>
 
-  <p>The handbook flags two of these itself. The rest are mine, and the third one is the important
-  one — it can change a packet's size.</p>
+  <p>Everything in section 1 was verified by reading source. None of it was verified by running
+  anything. These are the claims where that distinction changes the answer.</p>
 
   <div class="scroller"><table>
     <tr><th>Claim</th><th>Why source isn't enough</th></tr>
     <tr><td><strong>That the streaming defect is perceptible</strong></td>
-        <td>The O(N²) shape is verified structurally. But the research doc's own Theme 2 records the
-        counter-evidence: markdown parsing is under 5ms for a 5KB message, which is why this ships
-        broken so often — it works on everything you test with. Kitty is single-user with short
-        threads. <strong>Profile a 2,000-token reply in a 40-message thread before ranking this
-        first.</strong></td></tr>
+        <td>The O(N²) shape is verified structurally. But the research document's own Theme 2 records
+        the counter-evidence: markdown parsing is fast at chat length, which is why this ships broken
+        so often. Kitty is single-user with short threads. <strong>Profile a long reply in a long
+        thread before treating this as a defect worth fixing.</strong></td></tr>
     <tr><td><strong>That the gateway can emit usage on a streaming response</strong></td>
-        <td><code>gateway/routes/usage.py</code> keeps a real ledger with <code>prompt_tokens</code> /
+        <td><code>gateway/routes/usage.py</code> keeps a ledger with <code>prompt_tokens</code> /
         <code>total_tokens</code>, and <code>completions.py:275–289</code> already has a trailer
         mechanism to hang it on. But most providers only return usage on a streamed request when
-        <code>stream_options: {include_usage: true}</code> is set. Unverified through LiteLLM. This is
-        the difference between packet P1 being Small and being a provider investigation.</td></tr>
+        <code>stream_options: {include_usage: true}</code> is set. Unverified through LiteLLM. This
+        is the difference between the context-gauge proposal being small and being a provider
+        investigation.</td></tr>
     <tr><td><strong>The assistant-ui near-bottom threshold</strong></td>
         <td>Kitty inherits scroll behaviour from a dependency. 5px versus 50px is the difference
         between working and not, and the value is the library's. Flagged by the handbook, still
@@ -462,322 +418,148 @@
         <td>Needs a real device. Kitty's own definition of done forbids closing this from code
         inspection.</td></tr>
     <tr><td><strong>Any TTFT number at all</strong></td>
-        <td><code>PLANS.md</code> item 8 records LiteLLM as blocked pending a restart with
-        <code>DEEPSEEK_API_KEY</code>. Until that is resolved, F2's targets cannot be measured, only
-        declared.</td></tr>
-    <tr><td><strong>The 39 a11y issues from swarm-review</strong></td>
-        <td>Static analysis output, never confirmed in a browser. Some fraction will be false
-        positives.</td></tr>
+        <td>Targets cannot be measured until the model-routing path is confirmed running. Until then
+        they can only be declared.</td></tr>
+    <tr><td><strong>Accessibility findings from static analysis</strong></td>
+        <td>Never confirmed in a browser; some fraction will be false positives. The original version
+        of this row gave a precise count with no command attached to it, and that number is
+        withdrawn.</td></tr>
   </table></div>
 </section>
 
 <hr class="soft">
 
 <section id="q7">
-  <h2><span class="num">Question 7</span>The packets</h2>
-  <p class="lede">Seven, not ten. Three of the handbook's eleven are struck for cause and two more are
-  already shipped. Ordered by evidence strength ÷ effort. Every one is XS or S except where noted.</p>
+  <h2><span class="num">Section 5</span>Open proposals</h2>
+  <p class="lede">What the verified findings suggest someone <em>could</em> do. Deliberately
+  unordered and unsized. <strong>Nothing here is a packet, a commitment, or a recommendation to
+  delete anything.</strong> The original version of this section carried seven packets with sizes,
+  acceptance criteria, dependencies and confidence ratings, and a ranked roadmap after them; that
+  framing implied an authority this document does not have.</p>
 
   <div class="packet">
-    <div class="hdr"><span class="sz">XS</span><span class="pill p-new">Confidence: High</span></div>
-    <h4>P1 · Stop swallowing malformed stream deltas</h4>
+    <div class="hdr"><span class="pill p-new">Best supported</span></div>
+    <h4>Stop swallowing malformed stream deltas</h4>
     <dl>
-      <dt>Objective</dt><dd>Replace <code>catch { /* skip malformed */ }</code> at
-        <code class="fileref">chat-client.ts:101–103</code> with a <code>console.warn</code> and a
-        per-stream counter; surface a non-zero count on the turn.</dd>
-      <dt>Acceptance</dt><dd>A malformed chunk logs once with its raw payload; the counter is readable
-        from the turn; one unit test feeds a bad chunk and asserts both; the dogfood run fails if any
-        stream drops a chunk.</dd>
-      <dt>Dependencies</dt><dd>None.</dd>
-      <dt>Impact</dt><dd>Converts a class of invisible provider-shape breakage into a visible failure.
-        A renamed delta field currently produces a short reply and nothing in the console.</dd>
-      <dt>Confidence</dt><dd>High — verified, three lines, and it closes a standing violation of
-        non-negotiable #1.</dd>
+      <dt>Rests on</dt><dd><code class="fileref">chat-client.ts:101–103</code> —
+        <code>catch { /* skip malformed */ }</code>, verified.</dd>
+      <dt>Why</dt><dd>A provider that renames a delta field currently produces a short or empty reply
+        with nothing in the console. It is also a standing violation of non-negotiable #1.</dd>
+      <dt>Caveat</dt><dd>None. This is the one item here with no open question attached.</dd>
     </dl>
   </div>
 
   <div class="packet">
-    <div class="hdr"><span class="sz">XS</span><span class="pill p-new">Confidence: High</span></div>
-    <h4>P2 · Delete the unreachable tool-call UI</h4>
+    <div class="hdr"><span class="pill p-new">Well supported</span></div>
+    <h4>Fix the onboarding short-circuit ordering</h4>
     <dl>
-      <dt>Objective</dt><dd>Remove <code>ToolCallBlock.tsx</code>, <code>ToolCallAccumulator</code>,
-        the <code>delta.tool_calls</code> parse branch, and the <code>toolCalls</code> field on
-        <code>Message</code> — roughly 120 lines across four files that cannot execute. <em>Or</em>
-        open a real initiative for an agentic chat loop and record it in an ADR. Not both, not
-        neither.</dd>
-      <dt>Acceptance</dt><dd>Either the code is gone and <code>grep tool_calls</code> over
-        <code>src/</code> is empty, or <code>docs/DECISIONS.md</code> carries a dated decision to build
-        the loop with a named owner and a size.</dd>
-      <dt>Dependencies</dt><dd>Jacob's call on which branch.</dd>
-      <dt>Impact</dt><dd>Removes dead code that currently reads as a shipped capability — including to
-        the research that just recommended three packets on top of it.</dd>
-      <dt>Confidence</dt><dd>High — traced end to end this session: no <code>tools</code> in the
-        request body, none in the gateway payload, and the schema builder's only consumer is an HTTP
-        endpoint.</dd>
+      <dt>Rests on</dt><dd><code class="fileref">KittyContext.tsx:385–386</code> returning on the
+        cached flag before the <code>/proxy/onboarding</code> fetch at 387, verified.</dd>
+      <dt>Why</dt><dd>A wiped database or failed import leaves a user marked onboarded with no way
+        back.</dd>
+      <dt>Caveat</dt><dd>The cached flag should still win when the gateway is unreachable — the fix
+        is ordering, not removing the cache.</dd>
     </dl>
   </div>
 
   <div class="packet">
-    <div class="hdr"><span class="sz">XS</span><span class="pill p-new">Confidence: High</span></div>
-    <h4>P3 · Fix the onboarding short-circuit order</h4>
+    <div class="hdr"><span class="pill p-warn">Conditional</span></div>
+    <h4>Render the context gauge from real numbers</h4>
     <dl>
-      <dt>Objective</dt><dd><code class="fileref">KittyContext.tsx:385–386</code> returns early on the
-        localStorage flag <em>before</em> consulting <code>/proxy/onboarding</code>. Consult the
-        server first, or revalidate in the background and correct.</dd>
-      <dt>Acceptance</dt><dd>With server <code>onboarded=false</code> and localStorage
-        <code>true</code>, onboarding shows. With the server unreachable, the cached flag is honoured
-        and the failure is logged rather than silently re-onboarding.</dd>
-      <dt>Dependencies</dt><dd>None.</dd>
-      <dt>Impact</dt><dd>A wiped database or a failed import currently leaves a user permanently marked
-        onboarded with no way back.</dd>
-      <dt>Confidence</dt><dd>High. Note this is <em>not</em> the handbook's packet — see C-2.</dd>
+      <dt>Rests on</dt><dd><code class="fileref">InputBar.tsx:16–17</code> — props declared, never
+        rendered, verified.</dd>
+      <dt>Why</dt><dd>The user can see context filling instead of discovering it when the assistant
+        starts forgetting.</dd>
+      <dt>Caveat</dt><dd><strong>Blocked on an unverified question</strong> — whether LiteLLM
+        surfaces usage on a streaming completion. If it does not, the honest fallback is removing the
+        dead props, not shipping a client-side estimate dressed as a measurement.</dd>
     </dl>
   </div>
 
   <div class="packet">
-    <div class="hdr"><span class="sz">S</span><span class="pill p-warn">Confidence: Medium</span></div>
-    <h4>P4 · Render the context gauge from real numbers — or delete the dead props</h4>
+    <div class="hdr"><span class="pill p-warn">Measure first</span></div>
+    <h4>Memoize <code>ChatMessage</code> and coalesce the streaming write</h4>
     <dl>
-      <dt>Objective</dt><dd>Return real token accounting and the active model's real limit on the
-        existing stream trailer; render it in <code>InputBar</code> where the props already arrive;
-        delete the <code>chars / 4</code> estimate and the hardcoded <code>200000</code>.</dd>
-      <dt>Acceptance</dt><dd>The gauge renders; its number matches the <code>/usage</code> ledger for
-        the same turn within rounding; <code>chars / 4</code> and <code>200000</code> are gone; one
-        test asserts the trailer carries usage. <strong>If the provider cannot emit usage on a
-        streamed response, the packet degrades to deleting the three dead props and the estimate
-        (XS)</strong> — it does not degrade to shipping a client-side guess.</dd>
-      <dt>Dependencies</dt><dd><strong>Verify first:</strong> whether LiteLLM surfaces usage on a
-        streaming completion (<code>stream_options.include_usage</code>). The trailer mechanism at
-        <code class="fileref">completions.py:275–289</code> already exists to carry it.</dd>
-      <dt>Impact</dt><dd>The user can see context filling instead of discovering it when the assistant
-        starts forgetting. Ships before F0 so compaction lands against a trusted display.</dd>
-      <dt>Confidence</dt><dd>Medium — high on the frontend half, unverified on whether the number is
-        available upstream.</dd>
+      <dt>Rests on</dt><dd>Full-thread map per token at
+        <code class="fileref">KittyContext.tsx:541–542</code>; zero memoization in the two render
+        components. Verified structurally.</dd>
+      <dt>Why</dt><dd>Chat would otherwise degrade as threads grow; long reasoning traces are the
+        stress case.</dd>
+      <dt>Caveat</dt><dd><strong>Unmeasured at Kitty's scale.</strong> Profile first, and treat "the
+        profile shows nothing" as a legitimate reason not to do it. Exactly one coalescer if it does
+        happen — open-webui shipped a second one and reverted it in a day.</dd>
     </dl>
   </div>
 
   <div class="packet">
-    <div class="hdr"><span class="sz">S</span><span class="pill p-warn">Confidence: Medium</span></div>
-    <h4>P5 · Memoize <code>ChatMessage</code> and coalesce the streaming write — measure first</h4>
+    <div class="hdr"><span class="pill p-warn">Hardware-gated</span></div>
+    <h4><code>visualViewport</code> listener for the mobile keyboard</h4>
     <dl>
-      <dt>Objective</dt><dd>Memo on <code>(id, content, isStreaming)</code>; one
-        <code>requestAnimationFrame</code> coalescer at the store, not two.</dd>
-      <dt>Acceptance</dt><dd><strong>A before/after profile on a 2,000-token reply in a 40-message
-        thread, recorded in the PR.</strong> Exactly one rAF in the pipeline — open-webui shipped a
-        second one and reverted it in a day because the extra frame made streaming <em>feel</em>
-        slower while measurably doing less work.</dd>
-      <dt>Dependencies</dt><dd>None, but see C-4: the measurement is the first step, not the last.</dd>
-      <dt>Impact</dt><dd>Chat stops degrading as threads grow. Long reasoning traces are the stress
-        case that breaks it.</dd>
-      <dt>Confidence</dt><dd>Medium. High that the defect exists; medium that it is perceptible at
-        Kitty's current thread lengths — hence measure-first as an acceptance criterion rather than a
-        nicety.</dd>
+      <dt>Rests on</dt><dd>Zero matches for <code>visualViewport</code> in
+        <code>gateway/kitty-chat/src/</code>, verified.</dd>
+      <dt>Why</dt><dd>Most-duplicated mobile bug in the eight-repo corpus.</dd>
+      <dt>Caveat</dt><dd>Cannot be closed from code inspection. Needs a phone.</dd>
     </dl>
   </div>
 
   <div class="packet">
-    <div class="hdr"><span class="sz">S</span><span class="pill p-warn">Confidence: Medium</span></div>
-    <h4>P6 · <code>visualViewport</code> listener for the mobile keyboard</h4>
+    <div class="hdr"><span class="pill p-new">Principle</span></div>
+    <h4>One runnable check per polish behaviour</h4>
     <dl>
-      <dt>Objective</dt><dd>Listen to <code>visualViewport</code> resize on the shell layout so the
-        composer stays visible when the iOS keyboard opens.</dd>
-      <dt>Acceptance</dt><dd><strong>Verified on a real device</strong>, per Kitty's definition of
-        done. Input remains visible with the keyboard open; existing
-        <code>env(safe-area-inset-*)</code> behaviour on <code>InputBar</code>, <code>BottomNav</code>
-        and <code>TopBar</code> does not regress.</dd>
-      <dt>Dependencies</dt><dd>A phone. This one cannot be closed from code inspection.</dd>
-      <dt>Impact</dt><dd>Mobile is the primary access point per PLANS Lane 1, and this is the
-        most-duplicated mobile bug in the eight-repo corpus — filed four times against one project.</dd>
-      <dt>Confidence</dt><dd>Medium — high that the gap is real (zero matches in <code>src/</code>),
-        medium that the fix lands cleanly without device iteration.</dd>
+      <dt>Rests on</dt><dd>The meta-pattern in the handbook — polish lives in code with no test, no
+        ticket and no owner, which is what a reasonable refactor deletes.</dd>
+      <dt>Why</dt><dd>It is what keeps any of the above from silently regressing.</dd>
+      <dt>Caveat</dt><dd>Which behaviours are worth an assertion is a judgement call, not something
+        this document can enumerate for someone else.</dd>
     </dl>
   </div>
 
   <div class="packet">
-    <div class="hdr"><span class="sz">S</span><span class="pill p-new">Confidence: High</span></div>
-    <h4>P7 · One runnable check per polish behaviour</h4>
+    <div class="hdr"><span class="pill p-mid">Decision, not work</span></div>
+    <h4>Resolve the tool-call UI / no-tool-loop mismatch</h4>
     <dl>
-      <dt>Objective</dt><dd>For each polish behaviour that exists or lands — near-bottom scroll gating,
-        the stop-message path, the malformed-delta counter, the safe-area insets — leave exactly one
-        assertion that fails when it breaks. Not a suite. One each.</dd>
-      <dt>Acceptance</dt><dd>Each named behaviour has a test that fails when the behaviour is removed;
-        verified by removing it and watching the test go red.</dd>
-      <dt>Dependencies</dt><dd>Lands alongside P1 and P5 rather than after them.</dd>
-      <dt>Impact</dt><dd>This is the packet that keeps the other six. Polish lives in code with no
-        test, no ticket and no owner, which is exactly what a reasonable refactor deletes — twice in
-        this repo in two days, and independently in cline#8675.</dd>
-      <dt>Confidence</dt><dd>High.</dd>
+      <dt>Rests on</dt><dd>The end-to-end trace in section 1: no <code>tools</code> anywhere on the
+        path, verified.</dd>
+      <dt>Why</dt><dd>Unreachable code currently reads as a shipped capability — including to
+        research written on top of it.</dd>
+      <dt>Caveat</dt><dd><strong>This document deliberately does not recommend a resolution.</strong>
+        An earlier version proposed deleting roughly 120 lines across four files. Whether to build
+        the loop or retire the UI is a product call with context this research does not have; the
+        finding is the mismatch, not the remedy.</dd>
     </dl>
   </div>
 
   <div class="card">
-    <h4>Deliberately not proposed</h4>
-    <p>A connection-test button per endpoint (handbook #9) is a good idea that duplicates
-    <code>./kitty doctor --json</code>, which already exists and already probes gateway and LiteLLM.
-    The cheaper move is surfacing doctor's existing output in Settings, and that belongs inside F3
-    rather than as its own packet. Compaction-as-a-visible-event (handbook #7) is a design constraint
-    on F0, not a packet — it should be written into F0's acceptance criteria and cost nothing extra.</p>
+    <h4>Considered and not proposed</h4>
+    <p>A connection-test button per endpoint is a reasonable idea that overlaps
+    <code>./kitty doctor --json</code>, which already probes gateway and LiteLLM — likely a display
+    problem rather than new capability. Compaction-as-a-visible-event is a design constraint on
+    future work rather than work of its own.</p>
   </div>
 </section>
 
 <hr class="soft">
 
-<section id="roadmap">
-  <h2><span class="num">Deliverable A</span>Revised ranked roadmap</h2>
+<section id="scope">
+  <h2><span class="num">Section 6</span>Scope of this document</h2>
 
-  <p>Replacing the current ordering where the evidence justifies it. The layer names are unchanged so
-  this drops into <code>INITIATIVES_OPTIMIZED_2026-07-24.md</code> without renaming anything.</p>
+  <p>Stated plainly so nothing here is read as more settled, or more binding, than it is.</p>
 
-  <div class="scroller"><table>
-    <tr><th>#</th><th>Work</th><th>Layer</th><th>Size</th><th>Change from current</th></tr>
-    <tr><td>0</td><td>Repair the four stale continuity documents (deliverable B)</td><td>—</td><td>XS</td>
-        <td><span class="pill p-new">New, and it blocks everything</span></td></tr>
-    <tr><td>1</td><td>P1 · malformed-delta counter</td><td>F3</td><td>XS</td><td>New</td></tr>
-    <tr><td>2</td><td>P2 · delete the unreachable tool-call UI</td><td>—</td><td>XS</td><td>New</td></tr>
-    <tr><td>3</td><td>P3 · onboarding short-circuit</td><td>D2</td><td>XS</td><td>Replaces handbook #8</td></tr>
-    <tr><td>4</td><td>P4 · context gauge from gateway numbers</td><td>F0</td><td>S</td><td>Pulled ahead of compaction</td></tr>
-    <tr><td>5</td><td>P5 · memoize + single coalescer <em>(profile first)</em></td><td>F2</td><td>S</td><td>New; F2 absorbs the render half</td></tr>
-    <tr><td>6</td><td>P7 · one check per polish behaviour</td><td>F3</td><td>S</td><td>New</td></tr>
-    <tr><td>7</td><td>P6 · <code>visualViewport</code> <em>(needs a device)</em></td><td>F2</td><td>S</td><td>New</td></tr>
-    <tr><td>8</td><td>F3 · dogfood script, absorbing P1's assertion + doctor surfacing</td><td>F3</td><td>M</td><td>Held, scope sharpened</td></tr>
-    <tr><td>9</td><td>F0 · context compaction, with compaction as a visible thread event</td><td>F0</td><td>M</td><td>Held; acceptance criterion added</td></tr>
-    <tr><td>10</td><td>D3 · Tutor depth — wire the four existing routes to a real view</td><td>D3</td><td>M</td><td><span class="pill p-new">Up</span> — largest unrealized value</td></tr>
-    <tr><td>11</td><td>D2 · Home depth</td><td>D2</td><td>M</td><td>Unchanged</td></tr>
-    <tr><td>12</td><td>F1 · Privacy boundaries</td><td>F1</td><td>S</td><td>Unchanged</td></tr>
-    <tr><td>13</td><td>D1 · Chat depth, minus what is now done</td><td>D1</td><td>L</td><td>Shrunk</td></tr>
-    <tr><td>14</td><td>N1 → N2 → N3, then V1–V4 research</td><td>N/V</td><td>—</td><td>Unchanged</td></tr>
-  </table></div>
-
-  <h3>Struck from the roadmap</h3>
   <ul>
-    <li><strong>ARCH-01</strong> (gateway subdirs) — attempted and abandoned today.</li>
-    <li><strong>UX-01, UX-02, UX-03, MOB-03, MOB-04</strong> — already shipped; 7 days of listed effort
-    that does not exist.</li>
-    <li><strong>I18N-01, I18N-02</strong> — single-user product.</li>
-    <li><strong>FEAT-02, FEAT-05, FEAT-06, DEVOPS-01, DEVOPS-02, DEVOPS-03</strong> — distribution and
-    multi-user concerns Kitty does not have.</li>
-    <li><strong>D4 · Builder depth</strong> — deferred, not deleted. Owned by another session per PLANS
-    Lane 3.</li>
-    <li><strong>Resumable streams</strong> — named, sequenced last, not started.</li>
+    <li><strong>Not authoritative.</strong> This document, the handbook, and
+    <code>MATURE_AI_PRODUCT_RESEARCH.md</code> are reference. They should not appear in
+    <code>docs/AUTHORITY_MAP.md</code>. Their conclusions may graduate into the roadmap by a separate
+    decision; the documents themselves stay as receipts.</li>
+    <li><strong>Source, not runtime.</strong> Every Kitty claim here was verified by reading code.
+    None was verified by running the app. Section 4 lists where that matters.</li>
+    <li><strong>Line numbers are pointers.</strong> They were correct on 2026-07-25 and drift with
+    any edit.</li>
+    <li><strong>External-project claims are quotes, not reproductions.</strong> Counts, thresholds
+    and performance figures attributed to other repositories are what those threads report.</li>
+    <li><strong>No opinion offered on other documents.</strong> An earlier version audited the
+    continuity and status documents and prescribed edits to them. Whatever is true about their
+    freshness, correcting them is their owners' process and not a research output.</li>
   </ul>
-
-  <div class="card hot">
-    <h4>What this ordering is optimising for</h4>
-    <p>Items 1–7 are five XS/S packets and two small ones. Together they are perhaps three days of
-    work, and every one of them either deletes code or adds the last ten lines of something already
-    built. Nothing in the top seven requires new architecture. That is the honest read of both research
-    documents: <strong>the expensive part is already built and the cheap part is missing.</strong></p>
-  </div>
-</section>
-
-<hr class="soft">
-
-<section id="docsfirst">
-  <h2><span class="num">Deliverable B</span>Documentation to update before any engineering</h2>
-
-  <p>In order. The first three are the ones that make every subsequent session start from a false
-  premise — and one of them is already failing the suite.</p>
-
-  <ol>
-    <li><strong><code>.claude/STATE.md</code></strong> — set <code>head_sha</code>, <code>branch</code>,
-    and <code>next_action</code> to reality. Its invalidation conditions have fired;
-    <code>test_check_continuity_state.py</code> is failing four assertions on exactly this.</li>
-    <li><strong><code>.claude/HANDOFF.md</code></strong> — same header block. The KX-06 next-action may
-    still stand; verify before carrying it forward.</li>
-    <li><strong><code>docs/PROJECT_STATUS.md</code></strong> — re-verify against <code>b78215e</code>
-    and correct "616 backend tests" to the measured <strong>3000 passed, 1 skipped, 2 deselected</strong>.
-    A number wrong by 5× in the live-status authority is worse than no number.</li>
-    <li><strong><code>docs/PLANS.md</code></strong> — strike the five shipped Phase 0 packets and
-    ARCH-01; resolve the internal contradiction between line 132 ("canonical") and lines 3–10 (defers
-    to INITIATIVES_OPTIMIZED). One of those two statements has to go.</li>
-    <li><strong><code>docs/INITIATIVES_OPTIMIZED_2026-07-24.md</code></strong> — apply deliverable A.
-    Also: its "Immediate Next Actions" item 1 is "commit + push this session's changes (43 files)",
-    which happened days ago.</li>
-    <li><strong><code>docs/ACTIVE_MISSION.md</code></strong> — KFX-001 has been running five days with
-    an unmet acceptance criterion and no PR. Close it or finish it; do not leave a third state.</li>
-    <li><strong><code>CLAUDE.md</code></strong> — the glossary points <em>"the agent"</em> at
-    <code>gateway/agent.py</code>, which does not exist. One line.</li>
-    <li><strong><code>docs/LEARNINGS.md</code></strong> — add the refactor meta-pattern from
-    deliverable 5.</li>
-    <li><strong><code>docs/research/MATURE_AI_PRODUCT_RESEARCH.md</code></strong> — add a one-line note
-    that its header commit was rewound and lives at
-    <code>backup/gateway-packages-2026-07-25</code>.</li>
-  </ol>
-
-  <div class="card warn">
-    <h4>Sequencing note</h4>
-    <p>Items 1–3 should land as one commit before any packet starts. Skipping them means the next
-    session bootstraps from <code>CLAUDE.md</code>'s cold-start procedure, reads a STATE file that
-    names a SHA five commits behind on the wrong branch, and re-derives everything in this document
-    from scratch.</p>
-  </div>
-</section>
-
-<hr class="soft">
-
-<section id="disagree">
-  <h2><span class="num">Deliverable C</span>Where I disagree with the research</h2>
-
-  <p class="lede">Four substantive disagreements and one methodological one. The first is large enough
-  to remove a whole theme.</p>
-
-  <h3>C-1 · Theme 4 describes a feature that cannot run</h3>
-  <p>The handbook rates <code>ToolCallBlock</code> as <em>"Partial — shows intent, never outcome"</em>
-  and proposes packet #5 (tool-call results + per-call status, Small, D1). Both statements assume tool
-  calls reach the user. They cannot.</p>
-  <pre><code>chat-client.ts:31–45   request body: model, stream, messages, ids.   no tools
-completions.py:263–272 payload:      body spread + messages/model/stream. no tools
-completions.py         grep tool_call →  0 matches
-mcp_tool_bridge.py:129 get_tool_schema_for_llm()
-  └─ only consumer: integrations.py:93, an HTTP endpoint that returns it</code></pre>
-  <p>The model is never told it has tools, so it never emits <code>delta.tool_calls</code>, so the
-  accumulator never fills and <code>ToolCallList</code> returns <code>null</code>. The evidence for
-  the gap is real; the conclusion that it is a user-facing defect is not. It is dead code. Packet #5
-  is struck and replaced by P2 (delete it, or decide to build the loop).</p>
-  <p>This also softens handbook #10 (decide the trust model). Confirmation-versus-reversibility only
-  binds once an agent can act. Worth recording eventually; not due now.</p>
-
-  <h3>C-2 · Onboarding already checks the server</h3>
-  <p>The handbook says completion is <em>"a self-set localStorage flag"</em> and proposes deriving it
-  from real state. But <code class="fileref">KittyContext.tsx:387</code> already fetches
-  <code>/proxy/onboarding</code> and honours <code>{onboarded, preferredName, theme}</code> from the
-  gateway. The derivation exists.</p>
-  <p>The real defect is narrower and sharper: line 385–386 returns early on the cached flag
-  <em>before</em> the fetch, so a stale <code>true</code> wins over a server that says otherwise. That
-  is an ordering bug worth two lines, not a packet worth rebuilding onboarding state. P3 above is the
-  corrected version.</p>
-
-  <h3>C-3 · The dead-air packet is moot</h3>
-  <p>Handbook #6 proposes naming the gaps in <code>runStream</code>, specifically tool-call-complete →
-  first-content-token. That transition cannot occur (C-1). The general send → first-token gap it would
-  otherwise cover is already handled: <code class="fileref">ChatMessage.tsx:105</code> renders
-  <code>&lt;TypingDots /&gt;</code> while streaming with no content yet. Struck.</p>
-
-  <h3>C-4 · The #1 ranking rests on structure, not measurement</h3>
-  <p>The handbook ranks memoization first on the strength of open-webui#23733. The defect in Kitty is
-  real and I verified it. But the companion research document contains the counter-evidence in its own
-  Theme 2: <em>markdown parsing is genuinely fast for chat-length content — under 5ms for a 5KB
-  message — which is exactly why this ships broken so often.</em> Open WebUI hit the wall at 146k
-  users' worth of long reasoning traces. Kitty is one user with short threads and no reasoning-trace
-  rendering.</p>
-  <p>I have kept the packet and moved it to #5, with a profile as an acceptance criterion rather than
-  a follow-up. If the profile shows nothing, the correct outcome is to not do the work — and that
-  should be an allowed outcome, stated up front.</p>
-
-  <h3>C-5 · "Nine of eleven are small" overstates the list</h3>
-  <p>Three of the eleven are struck above. Of the remainder, one (the context gauge) has an unverified
-  upstream dependency that could change its size, and one (mobile keyboard) cannot be closed without
-  hardware. The honest version is <strong>seven packets, five of them genuinely small, one
-  conditional, one hardware-gated</strong>. The document's underlying claim — that Kitty's gaps are
-  signals rather than architecture — survives this correction intact, and it is the right claim.</p>
-
-  <h3>What held up</h3>
-  <p>Worth saying plainly, since the above is all objection: eleven of fourteen spot-checks confirmed
-  exactly, including every claim in Themes 1, 2, 3, 7 and 8. The context-gauge finding — props
-  declared at <code>InputBar.tsx:16–17</code> and never destructured — is the single sharpest
-  observation in either document, and I would not have found it. The meta-pattern about refactors
-  destroying polish was independently proven correct by this repository on the same day it was
-  written.</p>
 </section>
 
 </main>

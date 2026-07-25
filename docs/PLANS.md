@@ -150,125 +150,20 @@ with stale/done content should be moved to `docs/archive/`.*
 
 ---
 
-## Competitive Analysis — AI Assistant Slickness Gap (2026-07-25)
+## Competitive research (2026-07-25) — reference, not roadmap
 
-**Method:** Deep-dived 6 top open-source AI assistants (Open WebUI 146k⭐, Goose 51k⭐,
-LibreChat 41k⭐, Khoj 36k⭐, Chatbot UI 33k⭐, AionUi 31k⭐) — examined their actual
-frontend code, backend structure, config patterns, and deployment UX. Not a feature
-checklist. A design-decision and code-pattern analysis.
+A survey of mature open-source AI assistants lives in
+`docs/research/MATURE_AI_PRODUCT_RESEARCH.md`, with a source-level comparison against
+Kitty in `docs/POLISH_HANDBOOK_2026-07-25.html` and a reconciliation against the repo in
+`docs/RECONCILIATION_2026-07-25.html`.
 
-### Why Kitty isn't "slick" yet
+**None of those three documents is authoritative.** They are reference material and
+proposals. Roadmap authority remains `docs/INITIATIVES_OPTIMIZED_2026-07-24.md` per
+`docs/AUTHORITY_MAP.md`; nothing graduates from the research into sequencing without a
+separate, explicit decision recorded there.
 
-The core problem: **Kitty tries to do everything but doesn't polish any one thing.**
-The other projects do less, but what they do feels complete. Every action has a loading
-state, an error state, a success state, keyboard shortcuts, and mobile support.
-
-### 7 Initiatives Derived from the Gap Analysis
-
-**Priority: P0 = immediate (next 2 weeks), P1 = near-term (this month), P2 = backlog**
-
-#### Initiative UX — Core UI Patterns (P0)
-
-| Packet | What | Why | From | Effort |
-|--------|------|-----|------|--------|
-| UX-01 | Onboarding wizard (first-run) | Users see a blank page with no guidance | Open WebUI OnBoarding.svelte | 2d |
-| UX-02 | Keyboard shortcut system | `Cmd+K` search, `Ctrl+Enter` send | Open WebUI shortcuts.ts | 1d |
-| UX-03 | Notification toast system | Centralized success/error/info toasts | Open WebUI NotificationToast.svelte | 1d |
-| UX-04 | Loading skeletons | Placeholder UI during load, not spinners | Open WebUI, LibreChat | 2d |
-| UX-05 | Error boundary + error page | Graceful errors instead of tracebacks | Open WebUI +error.svelte | 1d |
-| UX-06 | Changelog modal | Show what's new after update | Open WebUI ChangelogModal.svelte | 0.5d |
-
-#### Initiative MOB — Mobile Experience (P0)
-
-| Packet | What | Why | From | Effort |
-|--------|------|-----|------|--------|
-| MOB-01 | Dedicated mobile stylesheet | Mobile is primary access point | LibreChat mobile.css | 2d |
-| MOB-02 | Touch-friendly interactions | Buttons, inputs sized for touch | Various | 1d |
-| MOB-03 | Bottom navigation for mobile | Thumb-friendly nav | Various | 1d |
-| MOB-04 | PWA / service worker | Offline support, app-like feel | LibreChat sw/ | 2d |
-
-#### Initiative ARCH — Architecture Cleanup (P1)
-
-| Packet | What | Why | From | Effort |
-|--------|------|-----|------|--------|
-| ARCH-01 | Organize gateway/ into domain subdirs | 160+ flat files is unmanageable | Khoj processor/, Open WebUI routers/ | 3d |
-| ARCH-02 | Single config file (kitty.example.yaml) | Config is scattered everywhere | LibreChat librechat.example.yaml | 2d |
-| ARCH-03 | Data provider layer | Abstract API calls from components | LibreChat data-provider/ | 3d |
-| ARCH-04 | Store layer for state management | Centralized state, not ad-hoc | LibreChat store/, Open WebUI stores/ | 2d |
-| ARCH-05 | Pre-commit hooks | Lint/format/typecheck before commit | AionUi, Open WebUI | 1d |
-
-#### Initiative A11Y — Accessibility (P1)
-
-| Packet | What | Why | From | Effort |
-|--------|------|-----|------|--------|
-| A11Y-01 | A11y audit | Find all issues systematically | LibreChat a11y/ | 2d |
-| A11Y-02 | Focus management | Keyboard navigation works | LibreChat a11y/ | 1d |
-| A11Y-03 | Screen reader support | aria labels, roles, live regions | LibreChat a11y/ | 2d |
-
-#### Initiative I18N — Internationalization (P2)
-
-| Packet | What | Why | From | Effort |
-|--------|------|-----|------|--------|
-| I18N-01 | Extract strings to locale files | English-only limits reach | Open WebUI i18n/, LibreChat locales/ | 3d |
-| I18N-02 | Add i18n framework | Foundation for translations | Open WebUI, LibreChat | 1d |
-
-#### Initiative FEAT — Feature Parity (P2)
-
-| Packet | What | Why | From | Effort |
-|--------|------|-----|------|--------|
-| FEAT-01 | Research pipeline | Deep research with citations | Khoj research.py | 3d |
-| FEAT-02 | Code interpreter (pyodide/sandbox) | Run code in-browser | LibreChat, Open WebUI pyodide | 5d |
-| FEAT-03 | Artifact rendering | Rendered outputs (charts, code) | LibreChat | 4d |
-| FEAT-04 | Automation/schedules UI | Scheduled research digests | Khoj api_automation.py | 2d |
-| FEAT-05 | Obsidian plugin | Reach users where they work | Khoj obsidian/ | 3d |
-| FEAT-06 | Emoji picker | Inline emoji | Open WebUI | 1d |
-
-#### Initiative DEVOPS — Deployment & DevOps (P2)
-
-| Packet | What | Why | From | Effort |
-|--------|------|-----|------|--------|
-| DEVOPS-01 | Docker compose profiles | GPU, API-only, data variants | Open WebUI (10+ compose files) | 1d |
-| DEVOPS-02 | One-liner install script | `curl | bash` or `docker run` | Goose, Open WebUI | 1d |
-| DEVOPS-03 | Justfile for dev tasks | Single command file for everything | AionUi (16KB Justfile) | 1d |
-| DEVOPS-04 | Codecov + Playwright | Coverage metrics + E2E tests | AionUi | 2d |
-
-### Key files to reference in each project
-
-**Open WebUI** (best UI patterns):
-- `src/lib/components/OnBoarding.svelte` — Onboarding wizard
-- `src/lib/components/NotificationToast.svelte` — Toast system
-- `src/lib/components/ChangelogModal.svelte` — Changelog
-- `src/lib/shortcuts.ts` — Keyboard shortcuts
-- `src/lib/components/chat/` — Chat UI components
-- `src/lib/components/common/` — Shared UI components
-- `src/lib/stores/` — Svelte stores
-- `src/lib/workers/` — Web workers
-- `src/lib/i18n/` — Internationalization
-- `src/routes/+error.svelte` — Error boundary
-
-**LibreChat** (best architecture):
-- `client/src/data-provider/` — API client abstraction
-- `client/src/store/` — State management
-- `client/src/hooks/` — Custom hooks
-- `client/src/a11y/` — Accessibility
-- `client/src/mobile.css` — Mobile styles
-- `client/src/locales/` — Translations
-- `librechat.example.yaml` — Single config file
-
-**Khoj** (best multi-surface):
-- `src/khoj/processor/` — Pipeline architecture
-- `src/khoj/routers/` — Domain-organized routers
-- `src/khoj/routers/research.py` — Research pipeline
-- `src/khoj/routers/api_automation.py` — Automation
-- `src/khoj/routers/api_phone.py` — Mobile API
-- `src/khoj/interface/` — Multi-surface interfaces
-
-**Goose** (best desktop):
-- `crates/` — Rust modular architecture
-- `ui/` — React/Tauri frontend
-- `workflow_recipes/` — Pre-built workflows
-
-**Open WebUI** (best deployment):
-- `docker-compose*.yaml` — 10+ compose files
-- `docker-run.sh` — One-liner run
-- `Dockerfile` — Build
+An earlier revision of this file carried a 7-initiative / 30-packet roadmap derived from
+that survey. It was removed on 2026-07-25: it asserted priorities and effort estimates
+this file has no authority to set, and several of its P0 packets (onboarding wizard,
+keyboard shortcuts, toast system, bottom nav, PWA) name components that already exist in
+`gateway/kitty-chat/src/`.

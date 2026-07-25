@@ -113,8 +113,8 @@
     <div class="meta">
       <span class="tag">2026-07-25</span>
       <span class="tag">8 repos</span>
-      <span class="tag">~90 opened citations</span>
-      <span class="tag">Kitty claims verified against source</span>
+      <span class="tag">Reference — not authoritative</span>
+      <span class="tag">Corrected 2026-07-25</span>
     </div>
   </div>
 </header>
@@ -133,7 +133,7 @@
   <a href="#t7" class="sec">7 · Memory &amp; context</a>
   <a href="#t8" class="sec">8 · Mobile</a>
   <a href="#meta" class="sec">The meta-pattern</a>
-  <a href="#initiatives" class="sec">Builder initiatives</a>
+  <a href="#initiatives" class="sec">Proposals, collected</a>
   <a href="#honesty" class="sec">What this doesn't cover</a>
 </nav>
 
@@ -145,13 +145,36 @@
   the residue of a specific failure that a specific user reported, argued about, and got fixed. This
   document collects the scars.</p>
 
-  <p>Every quote is verbatim from a page a tool actually opened. Every claim about Kitty was checked
-  against <code>gateway/kitty-chat/src/</code> on 2026-07-25 and carries a file and line. Nothing here
-  is inferred from a directory listing or from what the code "probably" does.</p>
-
   <p>Each theme runs the same six beats: what the best projects do, why they landed there, the
-  evidence, the reusable pattern, where Kitty stands, and at most two initiatives. The
+  evidence, the reusable pattern, where Kitty stands, and at most two proposals. The
   evidence dump behind it is <code class="fileref">~/kb/raw/2026-07-25-polish-evidence.md</code>.</p>
+
+  <div class="card" style="border-color: var(--bad)">
+    <h4>Status, and what was wrong</h4>
+    <p><strong>This document is reference material and proposals. It is not authoritative.</strong>
+    It does not set priorities, sequencing, effort, or ownership for Kitty, and nothing in it takes
+    effect until decided separately and recorded in the roadmap authority named by
+    <code>docs/AUTHORITY_MAP.md</code>. Read every "Initiatives" card below as <em>suggestions</em>.</p>
+    <p>The original version of this preface claimed every Kitty claim had been checked against
+    <code>gateway/kitty-chat/src/</code> and that nothing was inferred. <strong>That claim was
+    false.</strong> A re-check on 2026-07-25 found four defects, corrected in place and marked
+    <span class="verdict v-gap">Corrected</span> where they appear:</p>
+    <ul>
+      <li><strong>Theme 4 (tool calls)</strong> described gaps in a UI that no reachable path was
+      found to reach from the current primary chat request flow. Rewritten.</li>
+      <li><strong>Theme 5 (onboarding)</strong> claimed completion is a self-set localStorage flag.
+      A server check exists. Rewritten.</li>
+      <li><strong>Two citations pointed at the wrong lines</strong> — the streaming accumulator in
+      <code>KittyContext.tsx</code>'s <code>runStream</code> was cited as 543–544 and is around
+      541–542; the token estimate was cited as 427–428 and is around 428.</li>
+      <li>Cite the file and the symbol or component first. Line numbers throughout are from
+      2026-07-25 and drift with any edit — they are secondary navigation, not identifiers.</li>
+    </ul>
+    <p>Claims about the eight external projects are quotes from pages that were opened; they have
+    not been re-verified since, and the reported figures in Theme 1 are what those reports assert,
+    not measurements taken here. The unverified list in the appendix is part of this document, not
+    a footnote to it.</p>
+  </div>
 
   <div class="card">
     <h4>The corpus</h4>
@@ -196,12 +219,14 @@
   content the user has already seen."
   <cite>open-webui#23733, 2026-04-14</cite></blockquote>
 
-  <p>The report's headline figure — <strong>120&nbsp;GB of infrastructure traffic to deliver
-  10&nbsp;MB of tokens, a 10,000× amplification</strong> — is what the naive loop costs at scale.
-  Profiling in <a href="https://github.com/open-webui/open-webui/discussions/20878">discussion #20878</a>
-  found the frontend cost directly: over a 20-second response the markdown parser ran
-  <strong>504 times</strong> and KaTeX matched <strong>401 times</strong>, where one pass per frame
-  would be about 60 per second.</p>
+  <p>Every number in this section is <strong>reported by those threads, not measured here</strong>.
+  The report's headline figure — 120&nbsp;GB of infrastructure traffic to deliver 10&nbsp;MB of
+  tokens, a 10,000× amplification — is that reporter's accounting of what the naive loop costs at
+  scale. Profiling claimed in
+  <a href="https://github.com/open-webui/open-webui/discussions/20878">discussion #20878</a> puts the
+  frontend cost at 504 markdown-parser runs and 401 KaTeX matches over a 20-second response, where
+  one pass per frame would be about 60 per second. Neither figure was independently reproduced, and
+  neither transfers to Kitty without a profile of Kitty.</p>
 
   <h3>The reversal that matters most</h3>
   <p>Open WebUI shipped the obvious fix and pulled it in <strong>one day</strong>.</p>
@@ -291,7 +316,8 @@
     <pre><code>accumulated += chunk.content
 updateChat(chat.id, (c) => ({ ...c, messages: c.messages.map(
   (m) => (m.id === aiMsgId ? { ...m, content: accumulated } : m)) }))</code></pre>
-    <p class="fileref">state/KittyContext.tsx:543–544</p>
+    <p class="fileref">state/KittyContext.tsx:541–542 <span class="verdict v-gap">Corrected</span>
+    — originally cited as 543–544</p>
     <p>Every token maps the full message array and allocates a new object per message. Downstream,
     <code>ChatMessage</code> feeds that whole accumulated string to
     <code>ReactMarkdown</code> with <code>remarkGfm</code> and <code>rehypeHighlight</code>
@@ -318,18 +344,20 @@ updateChat(chat.id, (c) => ({ ...c, messages: c.messages.map(
     just isn't on the path that carries the actual conversation.</p>
   </div>
 
-  <h3 class="step">Initiatives</h3>
+  <h3 class="step">Proposals — non-authoritative</h3>
   <div class="card">
-    <h4>Proposed</h4>
-    <p><span class="layer">F2 · Latency Budget</span> &nbsp;<strong>Stop re-parsing the past.</strong>
+    <h4>Suggestions only. Nothing here is scheduled, owned, or decided.</h4>
+    <p><strong>Stop re-parsing the past.</strong>
     Memoize <code>ChatMessage</code> on <code>(id, content, isStreaming)</code> and coalesce the
     streaming write to one per animation frame — <em>one</em> coalescer, at the store, per
-    open-webui's reversal. F2 already commits to defining TTFT targets and surfacing timing; this is
-    the render-side half of the same budget, and it is a small diff against two files.</p>
-    <p style="margin-top:14px"><span class="layer">D1 · Chat Depth</span> &nbsp;<strong>Give the
+    open-webui's reversal. <strong>Measure first:</strong> the structural defect is verified, but the
+    research document's own Theme 2 records the counter-evidence — markdown parsing is fast at
+    chat length, which is why this ships broken so often. If a profile of a long reply in a long
+    thread shows nothing, not doing the work is the correct outcome.</p>
+    <p style="margin-top:14px"><strong>Give the
     stream an id.</strong> Server-side generation job with recorded deltas, resumable by id. This is
-    the prerequisite for the mobile backgrounding failure in Theme&nbsp;8 and it is genuinely large —
-    name it now, sequence it behind the memoization work.</p>
+    the prerequisite for the mobile backgrounding failure in Theme&nbsp;8 and it is genuinely large.
+    Named here for completeness, not advocated.</p>
   </div>
 </section>
 
@@ -400,20 +428,24 @@ updateChat(chat.id, (c) => ({ ...c, messages: c.messages.map(
     cat, hero, four suggestion chips (<span class="fileref">KittyThread.tsx:136–184</span>) — but
     <code>SUGGESTION_CHIPS</code> is a static four-element array with no filtering, so it disappears
     the moment a message exists. That is the one-shot pattern Open WebUI moved off.</p>
-    <p><span class="verdict v-gap">Gap</span> &nbsp;The #22970 dead-air gap is unguarded. Kitty
-    streams tool-call deltas and content deltas through the same loop
-    (<span class="fileref">KittyContext.tsx:536–544</span>), and between the last tool-call delta and
-    the first content token there is no state that says "still working." Same shape as the
-    open-webui issue, and Kitty has tools.</p>
+    <p><span class="verdict v-ok">Ahead <span class="verdict v-gap">Corrected</span></span>
+    &nbsp;The original version claimed the #22970 dead-air gap is unguarded, citing the
+    tool-call-complete → first-content-token transition. <strong>The inspected primary chat flow
+    does not currently produce that transition</strong> — see Theme 4. And the general
+    send → first-token gap it would otherwise cover is already handled: <code>ChatMessage</code>'s
+    <code>&lt;TypingDots /&gt;</code> branch renders while streaming with no content yet
+    (<span class="fileref">ChatMessage.tsx, around line 106</span>). No gap found on that path
+    today.</p>
+    <p class="footnote">The theme still applies to any future transition that isn't currently
+    reachable — it is simply not a present defect.</p>
   </div>
 
-  <h3 class="step">Initiatives</h3>
+  <h3 class="step">Proposals — non-authoritative</h3>
   <div class="card">
-    <h4>Proposed</h4>
-    <p><span class="layer">D1 · Chat Depth</span> &nbsp;<strong>Name every gap in the turn.</strong>
-    Enumerate the transitions in <code>runStream</code> and give each a visible state, starting with
-    tool-call-complete → first-content-token. Small, and it removes the single most common "is it
-    broken?" moment in an agentic chat.</p>
+    <h4>Suggestions only. Nothing here is scheduled, owned, or decided.</h4>
+    <p><strong>The one live item is the empty state.</strong> <code>SUGGESTION_CHIPS</code> is a
+    static array that vanishes at the first message rather than narrowing against input — the
+    one-shot pattern Open WebUI moved off. Cosmetic, and the smallest thing in this document.</p>
   </div>
 </section>
 
@@ -510,13 +542,14 @@ throw new Error('Stream closed without [DONE] — incomplete response');</code><
     architecture.</p>
   </div>
 
-  <h3 class="step">Initiatives</h3>
+  <h3 class="step">Proposals — non-authoritative</h3>
   <div class="card">
-    <h4>Proposed</h4>
-    <p><span class="layer">F3 · Dogfood Script</span> &nbsp;<strong>Close the one swallow, then assert
+    <h4>Suggestions only. Nothing here is scheduled, owned, or decided.</h4>
+    <p><strong>Close the one swallow, then assert
     on it.</strong> Log malformed deltas with a per-stream counter, surface a non-zero count in the
-    turn, and have the dogfood script fail if a run drops chunks. This converts a class of invisible
-    provider-shape breakage into a test failure — which is what F3 exists to do.</p>
+    turn, and have any end-to-end run fail if it drops chunks. This converts a class of invisible
+    provider-shape breakage into a test failure. Best-supported item in the document: three lines,
+    and it closes a standing violation of non-negotiable #1.</p>
   </div>
 </section>
 
@@ -602,41 +635,49 @@ throw new Error('Stream closed without [DONE] — incomplete response');</code><
 
   <h3 class="step">How Kitty differs today</h3>
   <div class="card kitty">
-    <h4>Verified against source, 2026-07-25</h4>
-    <p><span class="verdict v-mid">Partial</span> &nbsp;<code>ToolCallBlock</code> exists and gets
-    the basics right: collapsed by default, expandable arguments, pretty-printed JSON with a raw
-    fallback, <code>aria-expanded</code>, a live dot while streaming
-    (<span class="fileref">components/ToolCallBlock.tsx:19–38</span>). Better than most first
-    attempts.</p>
-    <p><span class="verdict v-gap">Gap</span> &nbsp;<strong>It shows intent, never outcome.</strong>
-    The accumulator carries <code>{id, name, arguments}</code> only
-    (<span class="fileref">lib/chat-client.ts:15–19, 85–96</span>) — there is no result field, so the
-    UI can render what the agent is about to do and never what came back. Every tool call is
-    permanently mid-flight from the user's point of view.</p>
-    <p><span class="verdict v-gap">Gap</span> &nbsp;<strong>Status is per-turn, not per-call.</strong>
-    <code>isStreaming</code> is threaded from the message down to every block
-    (<span class="fileref">ToolCallBlock.tsx:40–48</span>), so five tool calls in one reply all pulse
-    as "running" until the entire turn ends — including the four that finished. That is
-    open-webui#21350's lying indicator, at a different scale.</p>
-    <p><span class="verdict v-mid">Undecided</span> &nbsp;Kitty has neither model from the table
-    above. There is a global <code>handleStop</code>
+    <h4>Rewritten 2026-07-25 <span class="verdict v-gap">Corrected</span></h4>
+    <p><strong>The original version of this section overstated what it had verified.</strong> It
+    rated <code>ToolCallBlock</code> as "Partial — shows intent, never outcome" and described two
+    live user-facing defects. <strong>No reachable path was found from the current primary chat
+    request flow to either one.</strong> Nothing on the inspected path sends <code>tools</code>, so
+    nothing on that path elicits <code>delta.tool_calls</code>, so this UI has no observed input.</p>
+    <pre><code>chat-client.ts  streamChat()            request body: model, stream, messages, ids — no tools
+completions.py  chat completions route  payload: body spread + messages/model/stream — no tools
+completions.py                          grep tool_call → 0 matches
+mcp_tool_bridge.py  get_tool_schema_for_llm()
+  └─ only observed consumer: an integrations HTTP endpoint that returns the schema</code></pre>
+    <p class="footnote">Traced 2026-07-25 along the browser chat path only. Note the gateway payload
+    spreads the request body, so a <code>tools</code> key <em>would</em> pass through if a caller
+    sent one — the inspected frontend does not. <strong>This is a wiring mismatch on the traced
+    path, not a proof of universal impossibility:</strong> other API clients and entry points into
+    the completions route were not exhaustively enumerated.</p>
+    <p><span class="verdict v-mid">Narrower fact</span> &nbsp;What the evidence does support: the
+    frontend parses <code>delta.tool_calls</code> in <code>chat-client</code>'s stream reader and
+    <code>ToolCallBlock</code> renders the result, with the accumulator carrying
+    <code>{id, name, arguments}</code> and no result field, and <code>isStreaming</code> threaded
+    per-turn rather than per-call. Those would be real defects <em>if</em> the tool loop were wired.
+    On the path inspected, nothing was found to drive them.</p>
+    <p><span class="verdict v-mid">Undecided</span> &nbsp;Kitty has neither trust model from the
+    table above — there is a global <code>handleStop</code>
     (<span class="fileref">KittyContext.tsx:588</span>) and nothing between "let it run" and "kill the
-    turn" — no per-action gate, and no undo for anything an agent did outside the chat log. Given
-    Kitty's local-first, single-user, tool-using shape, this decision is now due.</p>
+    turn." The original text called this decision "now due." <strong>Inference, and probably
+    wrong:</strong> confirmation-versus-reversibility only binds once an agent can act, and in chat
+    it cannot.</p>
   </div>
 
-  <h3 class="step">Initiatives</h3>
+  <h3 class="step">Proposals — non-authoritative</h3>
   <div class="card">
-    <h4>Proposed</h4>
-    <p><span class="layer">D1 · Chat Depth</span> &nbsp;<strong>Close the tool-call loop.</strong>
-    Carry results back into the <code>ToolCall</code> type and give each block its own status —
-    pending / running / ok / failed. Small change, and it removes both the permanent-mid-flight
-    illusion and the per-turn status lie in one pass.</p>
-    <p style="margin-top:14px"><span class="layer">D4 · Builder Depth</span> &nbsp;<strong>Decide the
-    trust model, in writing.</strong> Confirmation or reversibility — pick one and record it in
-    <code>docs/DECISIONS.md</code>. Kitty's existing evidence-gate carve-out for Builder is already
-    a reversibility bet on one path; the chat agent has no stated position at all. This is a decision
-    to make before it's made accidentally.</p>
+    <h4>Suggestions only. Nothing here is scheduled, owned, or decided.</h4>
+    <p><strong>Resolve the mismatch between the tool-call UI and the unwired tool loop.</strong>
+    Two coherent directions exist — wire the loop, or retire the UI that depends on it. This
+    document takes no position on which, and explicitly does <em>not</em> recommend deleting code:
+    that is a call for whoever owns the chat surface, made with context this research does not have.
+    Confirming the mismatch holds across every entry point, rather than only the traced browser
+    path, is the first step either way.</p>
+    <p style="margin-top:14px"><strong>The agent trust model is worth recording eventually.</strong>
+    Confirmation (Zed, Cline) versus reversibility (aider) is genuinely unresolved industry-wide and
+    Kitty has no stated position. Less pressing while the tool loop appears unwired on the main
+    chat path.</p>
   </div>
 </section>
 
@@ -707,21 +748,33 @@ throw new Error('Stream closed without [DONE] — incomplete response');</code><
     <code>Cmd/Ctrl+K</code> with <code>Escape</code> to dismiss
     (<span class="fileref">components/CommandPalette.tsx:36, 45</span>) — the exact thing LibreChat
     users built a desktop wrapper to get.</p>
-    <p><span class="verdict v-gap">Gap</span> &nbsp;Onboarding completion is a self-set localStorage
-    flag, <code>kitty-onboarded</code> (<span class="fileref">OnboardingModal.tsx:16</span>). That is
-    continue#12258's failure mode in advance: the flag says the flow ran, not that it worked. Clear
-    the browser and Kitty forgets you; keep the flag and a failed import stays invisible.</p>
+    <p><span class="verdict v-gap">Gap <span class="verdict v-gap">Corrected</span></span>
+    &nbsp;<strong>The original version of this section was wrong.</strong> It said onboarding
+    completion is "a self-set localStorage flag" and proposed deriving it from real state. Kitty
+    already derives it: <span class="fileref">KittyContext.tsx:387</span> fetches
+    <code>/proxy/onboarding</code> and honours <code>{onboarded, preferredName, theme}</code> from
+    the gateway.</p>
+    <p>The verified defect is narrower and sharper — an <strong>ordering</strong> problem.
+    <span class="fileref">KittyContext.tsx:385–386</span> reads the cached flag and returns before
+    the fetch:</p>
+    <pre><code>const hasLocal = window.localStorage.getItem('kitty-onboarded') === 'true'
+if (hasLocal) { setShowOnboarding(false); return }
+fetch('/proxy/onboarding')</code></pre>
+    <p>So a stale local <code>true</code> wins over a gateway that says otherwise. A wiped database
+    or a failed import leaves the user marked onboarded with no way back. That is two lines of
+    ordering, not a rebuild of onboarding state.</p>
     <p><span class="verdict v-gap">Gap</span> &nbsp;No model or cost decision at first run — the very
-    thing cline#3352 identifies as the real onboarding problem. Kitty picks a default and moves on.</p>
+    thing cline#3352 identifies as the real onboarding problem. Kitty picks a default and moves on.
+    <em>Inference:</em> cline's framing assumes a user paying per token across many providers;
+    how much it transfers to a local-first single-user product is unverified.</p>
   </div>
 
-  <h3 class="step">Initiatives</h3>
+  <h3 class="step">Proposals — non-authoritative</h3>
   <div class="card">
-    <h4>Proposed</h4>
-    <p><span class="layer">D2 · Home Depth</span> &nbsp;<strong>Derive onboarding state, don't
-    declare it.</strong> Replace the boolean with a check of what actually exists — a name, a theme,
-    at least one chat — so a half-finished or failed first run is visible instead of marked complete.
-    Cheap, and it prevents the class of bug continue is still fixing.</p>
+    <h4>Suggestions only. Nothing here is scheduled, owned, or decided.</h4>
+    <p><strong>Consult the server before honouring the cached flag</strong>, or revalidate in the
+    background and correct — while still honouring the cache when the gateway is unreachable, and
+    logging that rather than silently re-onboarding.</p>
   </div>
 </section>
 
@@ -780,10 +833,10 @@ throw new Error('Stream closed without [DONE] — incomplete response');</code><
     misconfigured, that gap is larger for Kitty than it is for Khoj.</p>
   </div>
 
-  <h3 class="step">Initiatives</h3>
+  <h3 class="step">Proposals — non-authoritative</h3>
   <div class="card">
-    <h4>Proposed</h4>
-    <p><span class="layer">F3 · Dogfood Script</span> &nbsp;<strong>A test button next to every
+    <h4>Suggestions only. Nothing here is scheduled, owned, or decided.</h4>
+    <p><strong>A test button next to every
     endpoint.</strong> One round-trip, latency and model name back, green or red. It reuses the
     doctor path that already exists (<code>./kitty doctor --json</code>) and turns the single most
     common local-first failure into a five-second check.</p>
@@ -864,7 +917,7 @@ throw new Error('Stream closed without [DONE] — incomplete response');</code><
     renders nothing.</strong> The chain, verified end to end:</p>
     <div class="scroller"><table>
       <tr><th>Where</th><th>What</th></tr>
-      <tr><td class="fileref">KittyContext.tsx:427–428</td>
+      <tr><td class="fileref">KittyContext.tsx:428 <span class="verdict v-gap">Corrected</span></td>
           <td><code>setTokenCount(Math.round(chars / 4))</code> — a character-count estimate over the
           whole thread</td></tr>
       <tr><td class="fileref">app/page.tsx:149–150</td>
@@ -889,18 +942,20 @@ throw new Error('Stream closed without [DONE] — incomplete response');</code><
     Cline's answer was no, and it cost them a still-open issue about the product appearing to forget.</p>
   </div>
 
-  <h3 class="step">Initiatives</h3>
+  <h3 class="step">Proposals — non-authoritative</h3>
   <div class="card">
-    <h4>Proposed</h4>
-    <p><span class="layer">F0 · Context Compaction</span> &nbsp;<strong>Ship the gauge from gateway
+    <h4>Suggestions only. Nothing here is scheduled, owned, or decided.</h4>
+    <p><strong>Ship the gauge from gateway
     numbers, before compaction exists.</strong> Return real token accounting and the active model's
     real limit on the stream trailer, render it in <code>InputBar</code> where the props already
-    arrive, and delete the <code>chars / 4</code> estimate. Doing this <em>before</em> F0 means
-    compaction lands against a display users already trust — rather than F0 shipping and the first
-    thing users notice being a bar that runs backwards.</p>
-    <p style="margin-top:14px"><span class="layer">F0 · Context Compaction</span> &nbsp;<strong>Make
-    compaction a visible event.</strong> When F0 drops context, write a marker into the thread saying
-    what was summarized. This is one design decision, made now, that avoids cline#10637 entirely.</p>
+    arrive, and drop the <code>chars / 4</code> estimate. <strong>Unverified dependency:</strong>
+    whether the gateway can emit usage on a <em>streamed</em> response at all — most providers only
+    return it when <code>stream_options.include_usage</code> is set, and that has not been checked
+    through LiteLLM. If it cannot, the honest fallback is removing the dead props, not shipping a
+    client-side guess.</p>
+    <p style="margin-top:14px"><strong>If compaction is ever built, make it a visible event.</strong>
+    Write a marker into the thread saying what was summarized. A design constraint on future work
+    rather than work of its own, and it costs nothing if decided up front.</p>
   </div>
 </section>
 
@@ -976,10 +1031,10 @@ throw new Error('Stream closed without [DONE] — incomplete response');</code><
     take.</p>
   </div>
 
-  <h3 class="step">Initiatives</h3>
+  <h3 class="step">Proposals — non-authoritative</h3>
   <div class="card">
-    <h4>Proposed</h4>
-    <p><span class="layer">F2 · Latency Budget</span> &nbsp;<strong>Add the
+    <h4>Suggestions only. Nothing here is scheduled, owned, or decided.</h4>
+    <p><strong>Add the
     <code>visualViewport</code> listener.</strong> A dozen lines against the shell layout, and it
     pre-empts the single most-duplicated mobile bug in the corpus. Verify on a real device —
     per Kitty's own definition of done, code inspection doesn't close this one.</p>
@@ -1045,56 +1100,74 @@ throw new Error('Stream closed without [DONE] — incomplete response');</code><
 
 <!-- ══════════════════════ INITIATIVES ══════════════════════ -->
 <section id="initiatives">
-  <h2><span class="num">Synthesis</span>Builder initiatives, ranked</h2>
-  <p class="lede">Eleven proposals from the themes above, ordered by evidence strength × size of diff.
-  Layer assignments follow <code>docs/INITIATIVES_OPTIMIZED_2026-07-24.md</code>.</p>
+  <h2><span class="num">Synthesis</span>Proposals, collected</h2>
+  <p class="lede">The suggestions from the themes above, in one place. <strong>This is not a roadmap
+  and not a ranking anyone is bound by.</strong> No layer assignments, no effort estimates, no
+  ordering — the original version carried all three, and it had no authority to. Sequencing belongs
+  to the roadmap authority named by <code>docs/AUTHORITY_MAP.md</code>.</p>
 
   <div class="scroller"><table>
-    <tr><th>#</th><th>Initiative</th><th>Layer</th><th>Size</th><th>Why now</th></tr>
-    <tr><td>1</td><td>Memoize <code>ChatMessage</code>; single rAF coalescer on the streaming write</td>
-        <td><span class="layer">F2</span></td><td>Small</td>
-        <td>Kitty has open-webui#23733's exact defect, verified. Two files.</td></tr>
-    <tr><td>2</td><td>Render the context gauge from gateway numbers; delete <code>chars/4</code></td>
-        <td><span class="layer">F0</span></td><td>Small</td>
-        <td>Props already arrive at <code>InputBar</code> and are dropped. Ten lines from shipped.</td></tr>
-    <tr><td>3</td><td>Log malformed deltas + counter; assert in dogfood</td>
-        <td><span class="layer">F3</span></td><td>Small</td>
-        <td>The one silent swallow left, and it violates non-negotiable #1.</td></tr>
-    <tr><td>4</td><td><code>visualViewport</code> listener for the mobile keyboard</td>
-        <td><span class="layer">F2</span></td><td>Small</td>
-        <td>Most-duplicated mobile bug in the corpus; Kitty is unguarded.</td></tr>
-    <tr><td>5</td><td>Tool-call results + per-call status</td>
-        <td><span class="layer">D1</span></td><td>Small</td>
-        <td>Blocks currently show intent only, and all pulse until the turn ends.</td></tr>
-    <tr><td>6</td><td>Name the dead-air gaps in <code>runStream</code></td>
-        <td><span class="layer">D1</span></td><td>Small</td>
-        <td>open-webui closed this as intended behaviour and users still read it as a freeze.</td></tr>
-    <tr><td>7</td><td>Compaction as a visible thread event</td>
-        <td><span class="layer">F0</span></td><td>Small</td>
-        <td>One design decision, made before F0 ships, that avoids cline#10637 entirely.</td></tr>
-    <tr><td>8</td><td>Derive onboarding completion from real state</td>
-        <td><span class="layer">D2</span></td><td>Small</td>
-        <td>Self-set flag is continue#12258 waiting to happen.</td></tr>
-    <tr><td>9</td><td>Connection test button per endpoint</td>
-        <td><span class="layer">F3</span></td><td>Small</td>
-        <td>khoj#1361, and it matters more on a local-first product.</td></tr>
-    <tr><td>10</td><td>Decide and record the agent trust model</td>
-        <td><span class="layer">D4</span></td><td>Decision</td>
-        <td>Zed/Cline vs aider is unresolved industry-wide; Kitty has no stated position.</td></tr>
-    <tr><td>11</td><td>Server-side generation job — resumable streams</td>
-        <td><span class="layer">D1</span></td><td>Large</td>
-        <td>Fixes mobile backgrounding at the root. Sequence last; name it now.</td></tr>
+    <tr><th>Proposal</th><th>Rests on</th><th>Confidence</th></tr>
+    <tr><td>Memoize <code>ChatMessage</code>; single rAF coalescer on the streaming write</td>
+        <td>Verified: no <code>memo</code>/<code>useMemo</code> in <code>ChatMessage.tsx</code> or
+        <code>KittyThread.tsx</code>; full-thread map per token at
+        <code>KittyContext.tsx:541–542</code>.</td>
+        <td>Structure verified. <strong>Whether it is perceptible at Kitty's thread lengths is
+        unmeasured</strong> — see the counter-evidence in the research document's Theme 2. Profile
+        before acting.</td></tr>
+    <tr><td>Render the context gauge from real numbers; drop the <code>chars/4</code> estimate</td>
+        <td>Verified: <code>tokenCount</code>/<code>maxTokens</code> declared at
+        <code>InputBar.tsx:16–17</code> and nowhere else in the file.</td>
+        <td>Frontend half verified. Whether the gateway can emit usage on a streamed response is
+        <strong>unverified</strong>.</td></tr>
+    <tr><td>Log malformed stream deltas instead of swallowing them</td>
+        <td>Verified: <code>catch { /* skip malformed */ }</code> at
+        <code>chat-client.ts:101–103</code>; violates non-negotiable #1.</td>
+        <td>High. Smallest and best-supported item here.</td></tr>
+    <tr><td><code>visualViewport</code> listener for the mobile keyboard</td>
+        <td>Verified: zero matches for <code>visualViewport</code> across
+        <code>gateway/kitty-chat/src/</code>.</td>
+        <td>Gap is verified. The fix cannot be closed from code inspection — needs a device.</td></tr>
+    <tr><td>Resolve the tool-call UI / no-tool-loop mismatch</td>
+        <td>Verified: no <code>tools</code> in the request body or gateway payload; zero
+        <code>tool_call</code> matches in <code>completions.py</code>.</td>
+        <td>Mismatch verified. <strong>This document takes no position on the resolution</strong>
+        and does not recommend deleting anything.</td></tr>
+    <tr><td>Fix the onboarding short-circuit ordering</td>
+        <td>Verified: <code>KittyContext.tsx:385–386</code> returns on the cached flag before the
+        <code>/proxy/onboarding</code> fetch at 387.</td>
+        <td>High. Replaces the original, incorrect "derive it from real state" proposal.</td></tr>
+    <tr><td>One runnable check per polish behaviour that exists</td>
+        <td>The meta-pattern below, corroborated by cline#8675 and by this repo's own
+        <code>~/kb/corrections/2026-07-24-run-it-dont-read-it.md</code>.</td>
+        <td>High as a principle; the specific behaviours to cover are a judgement call.</td></tr>
+    <tr><td>Compaction as a visible thread event, if compaction is built</td>
+        <td>cline#10637 — reported, not reproduced here.</td>
+        <td>A design constraint on future work, not a standalone piece of work.</td></tr>
+    <tr><td>Surface a connection check per endpoint</td>
+        <td>khoj#1361. Note <code>./kitty doctor --json</code> already probes gateway and LiteLLM,
+        so this may be a display problem rather than new capability.</td>
+        <td>Low urgency; largely duplicates something that exists.</td></tr>
+    <tr><td>Record the agent trust model</td>
+        <td>Zed/Cline vs aider, unresolved industry-wide.</td>
+        <td>A decision, not a change. Not urgent while chat has no tool loop.</td></tr>
+    <tr><td>Server-side generation job — resumable streams</td>
+        <td>Verified: the response lives in a <code>fetch</code> body reader
+        (<code>chat-client.ts:51</code>) with no server-side job.</td>
+        <td>Gap verified. Genuinely large. Named here, not advocated.</td></tr>
   </table></div>
 
   <div class="card">
     <h4>The shape of that list</h4>
-    <p>Nine of eleven are small. That is not a coincidence and it is the honest summary of this whole
-    document: <strong>Kitty's architecture is largely right and its signals are largely missing.</strong>
-    The context gauge is computed and dropped. The stop path is narrated but tool calls aren't. The SSE
-    layer has careful bounded backoff, and the chat stream — the one that matters — has none. Nearly
-    every gap here is the last ten lines of something already built.</p>
-    <p>The two exceptions are #10, which is a decision rather than a diff, and #11, which is genuinely
-    large and should stay behind the rest.</p>
+    <p>The original version of this card said "nine of eleven are small," which assigned sizes this
+    research is not in a position to assign, and counted two items (tool-call status, dead-air
+    naming) that the traced chat path does not appear to reach, or that are already handled.</p>
+    <p>What survives is the underlying observation, and it is the honest summary of the whole
+    document: <strong>Kitty's architecture is largely right and its signals are largely
+    missing.</strong> The context gauge is computed and dropped. The stop path is narrated. The SSE
+    layer has careful bounded backoff and the chat stream has none. Several of the gaps here are the
+    last few lines of something already built — but which ones are worth building, and in what
+    order, is not this document's call.</p>
   </div>
 </section>
 
@@ -1106,8 +1179,30 @@ throw new Error('Stream closed without [DONE] — incomplete response');</code><
 
   <p>Stated plainly so nothing here reads as more settled than it is.</p>
 
+  <h3>Corrections applied 2026-07-25</h3>
+  <ul>
+    <li><strong>Theme 4 overstated its evidence.</strong> It described tool-call UI defects as live
+    and user-facing. The inspected primary chat flow sends no <code>tools</code>, so no reachable
+    path to those defects was found on it. Rewritten.</li>
+    <li><strong>Theme 5 was wrong.</strong> Onboarding does consult the gateway — see
+    <code>KittyContext</code>'s onboarding initialization effect; the real defect is that a cached
+    flag short-circuits before the fetch. Rewritten.</li>
+    <li><strong>Theme 2's dead-air gap was not observed.</strong> The inspected flow does not
+    currently produce the transition it named, and the general case is covered by
+    <code>&lt;TypingDots /&gt;</code>. Rewritten.</li>
+    <li><strong>Two citations pointed at the wrong lines</strong> (around 541–542, not 543–544;
+    around 428, not 427–428), which falsified the preface's original claim that every Kitty claim
+    carried a verified file and line.</li>
+    <li><strong>The ranked initiative list asserted layers, sizes, and ordering</strong> it had no
+    authority to assert. Replaced with an unordered proposal table.</li>
+  </ul>
+
   <h3>Unverified — do not act on these as fact</h3>
   <ul>
+    <li><strong>Every quantitative figure attributed to another project</strong> — the 120&nbsp;GB /
+    10,000× amplification, the 504 parser runs, the 5px and 50px thresholds, comment and reaction
+    counts — is <em>reported by those threads</em>. None was reproduced here, and none was measured
+    against Kitty.</li>
     <li><strong>Open WebUI's v0.8.6 frame-time numbers</strong> (600ms→160ms, KaTeX 570ms→117ms) come
     from a discussion thread's self-summary of "multiple commits and PRs." Those commits were never
     identified or opened.</li>
