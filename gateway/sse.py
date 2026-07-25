@@ -18,7 +18,7 @@ class SSEBroadcaster:
             try:
                 self.queues[session_id].put_nowait(None)
             except Exception:
-                pass
+                logger.warning("SSE: failed to clean up old queue for session %s", session_id)
 
         q: asyncio.Queue[str | None] = asyncio.Queue()
         self.queues[session_id] = q

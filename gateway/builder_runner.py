@@ -593,7 +593,11 @@ def inject_worker_context(
         events = bq.list_events(task_id, db_path=db_path)
         pr_links = bq.get_pr_links(task_id, db_path=db_path)
     except Exception:
-        pass
+        logger.warning(
+            "Failed to fetch events/pr_links for task %s — "
+            "context bundle will be built without event history",
+            task_id,
+        )
 
     context_bundle = WorkerContextBundle(
         task_id=task_id,
