@@ -182,7 +182,7 @@ def _check_milestones() -> list[dict]:
 
     # Check memory count
     try:
-        from gateway.memory import list_memories
+        from gateway.memory.memory import list_memories
         memories = list_memories(limit=0)
         count = len(memories) if isinstance(memories, list) else 0
         if count >= 100:

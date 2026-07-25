@@ -1,8 +1,8 @@
 """Tests for the memory policy layer — classification, surfacing, rewriting."""
 
 
-from gateway.memory_graph import Item, Source
-from gateway.memory_policy import (
+from gateway.memory.memory_graph import Item, Source
+from gateway.memory.memory_policy import (
     MemoryClass,
     classify,
     memory_display_reason,

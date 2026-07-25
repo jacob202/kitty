@@ -140,7 +140,7 @@ def trigger_dream() -> str:
     Raises when ``nightly_dream`` is unavailable or fails — the old
     code's "simulate" branch invented fake data and is gone.
     """
-    from gateway.memory_consolidation import nightly_dream
+    from gateway.memory.memory_consolidation import nightly_dream
 
     summary = nightly_dream()
     save_dream_insights(summary)
@@ -149,7 +149,7 @@ def trigger_dream() -> str:
 
 def dream_status() -> dict:
     """Return the consolidation runtime status for ``/dream/status``."""
-    from gateway.memory_consolidation import get_last_run_info
+    from gateway.memory.memory_consolidation import get_last_run_info
 
     info = get_last_run_info()
     insights = load_dream_insights(limit=0)

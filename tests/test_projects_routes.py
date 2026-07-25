@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from gateway import next_step, project_store
-from gateway.memory_graph import GraphResult
+from gateway.memory.memory_graph import GraphResult
 from gateway.routes import projects as projects_route
 
 

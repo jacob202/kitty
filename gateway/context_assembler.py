@@ -46,7 +46,7 @@ from gateway.context_enrichment import (
     EnrichmentFn,
     run_enrichments,
 )
-from gateway.memory_graph import (
+from gateway.memory.memory_graph import (
     CONTEXT_TOKEN_CAP,
     Item,
     MemoryEvidence,
@@ -54,7 +54,7 @@ from gateway.memory_graph import (
     StoreAdapter,
     _select_unified_items,
 )
-from gateway.memory_policy import should_surface
+from gateway.memory.memory_policy import should_surface
 from gateway.personality import personality_block
 
 logger = logging.getLogger("kitty.context_assembler")

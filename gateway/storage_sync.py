@@ -45,7 +45,7 @@ def _iso_now() -> str:
 
 
 def export_memories() -> list[dict]:
-    from gateway.memory import list_memories
+    from gateway.memory.memory import list_memories
 
     return list_memories(limit=1000)
 
@@ -95,7 +95,7 @@ def export_to_file(path: Path | None = None) -> Path:
 
 
 def import_memories(payload: list[dict]) -> int:
-    from gateway.memory import add_memory
+    from gateway.memory.memory import add_memory
 
     if not isinstance(payload, list):
         raise ValueError(f"memories payload must be a list, got {type(payload).__name__}")

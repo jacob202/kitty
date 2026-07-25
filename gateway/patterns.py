@@ -136,7 +136,7 @@ def annual_review() -> dict:
 
     # Add memory stats
     try:
-        from gateway.memory import list_memories
+        from gateway.memory.memory import list_memories
 
         memories = list_memories(limit=0)  # get count
         result["total_memories"] = len(memories) if isinstance(memories, list) else 0

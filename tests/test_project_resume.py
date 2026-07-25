@@ -169,6 +169,6 @@ class TestResume:
 
 
 def _empty_graph_result():
-    from gateway.memory_graph import GraphResult
+    from gateway.memory.memory_graph import GraphResult
 
     return GraphResult()

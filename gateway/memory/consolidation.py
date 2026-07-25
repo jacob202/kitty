@@ -15,7 +15,7 @@ import time
 from collections import defaultdict
 from typing import Optional
 
-from gateway.memory_policy import rewrite_sensitive_summary
+from gateway.memory.memory_policy import rewrite_sensitive_summary
 from gateway.paths import DATA_DIR, LOG_FILE
 
 logger = logging.getLogger("kitty.memory_consolidation")
@@ -183,7 +183,7 @@ def _summarize_cluster(domain: str, traces: list[dict]) -> Optional[str]:
 def _store_memory(domain: str, summary: str, traces: list[dict]) -> None:
     """Write summary into long-term memory store."""
     try:
-        from gateway.memory import add_memory
+        from gateway.memory.memory import add_memory
         ts_str = time.strftime("%Y-%m-%d")
         text = f"[{ts_str} consolidation/{domain}] {summary}"
         add_memory(text, namespace="consolidations", metadata={"domain": domain, "trace_count": len(traces)})

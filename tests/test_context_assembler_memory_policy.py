@@ -9,7 +9,7 @@ Verifies:
 import pytest
 
 from gateway.context_assembler import _AssemblerDeps, assemble_context
-from gateway.memory_graph import Item, Source, StoreAdapter
+from gateway.memory.memory_graph import Item, Source, StoreAdapter
 
 pytestmark = pytest.mark.asyncio
 
@@ -170,7 +170,7 @@ class TestInjectedMemoryEvidence:
         """should_surface is consulted once per retrieved item — no re-filtering
         anywhere downstream."""
         from gateway import context_assembler
-        from gateway.memory_policy import should_surface as real_should_surface
+        from gateway.memory.memory_policy import should_surface as real_should_surface
 
         calls: list[str] = []
 

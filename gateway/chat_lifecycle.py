@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from gateway import db as kitty_db
-from gateway.memory_graph import MemoryEvidence
+from gateway.memory.memory_graph import MemoryEvidence
 from gateway.paths import KITTY_DB_FILE
 
 LIFECYCLE_DB_FILE = KITTY_DB_FILE

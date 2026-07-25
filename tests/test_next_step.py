@@ -18,7 +18,7 @@ def isolate_stores(monkeypatch, tmp_path):
     monkeypatch.setattr(project_store, "PROJECTS_DB_FILE", db_file, raising=False)
     monkeypatch.setattr(next_step, "NEXT_STEP_DB_FILE", db_file, raising=False)
     # No real network calls for the memory/signal sources refresh() touches.
-    from gateway.memory_graph import GraphResult
+    from gateway.memory.memory_graph import GraphResult
 
     monkeypatch.setattr(project_resume, "_run_memory_search", lambda q: GraphResult())
     monkeypatch.setattr("gateway.signal_store.list_recent", lambda limit=200: [])

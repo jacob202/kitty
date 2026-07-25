@@ -132,7 +132,7 @@ class MemoryAdapter(StoreAdapter):
         return Source.MEMORY.value
 
     async def fetch(self, query: str) -> list[Item]:
-        from gateway.memory import search_memory
+        from gateway.memory.memory import search_memory
 
         rows = await asyncio.to_thread(search_memory, query, 5)
         items: list[Item] = []
@@ -427,7 +427,7 @@ class WeaveAdapter(StoreAdapter):
         return "facts"
 
     async def fetch(self, query: str) -> list[Item]:
-        from gateway.memory_weave import get_weave
+        from gateway.memory.memory_weave import get_weave
 
         weave = get_weave()
         results = await asyncio.to_thread(weave.search, query, limit=5)

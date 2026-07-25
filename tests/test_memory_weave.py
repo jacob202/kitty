@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 from gateway import memory_weave
-from gateway.memory_weave import (
+from gateway.memory.memory_weave import (
     MemoryWeave,
     SourceType,
     WeaveEdge,
