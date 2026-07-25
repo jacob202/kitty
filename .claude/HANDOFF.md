@@ -1,26 +1,26 @@
-# Handoff — 2026-07-25 — gateway-packages (research reframed, doc not written)
+# Handoff — 2026-07-25 — gateway-packages (builder collision resolved, suite unverified)
 
 <!-- kitty-handoff
 {
   "schema_version": 1,
-  "updated_at": "2026-07-25T12:00:00Z",
-  "head_sha": "ac898f9",
+  "updated_at": "2026-07-25T16:40:00Z",
+  "head_sha": "4dfbd96",
   "branch": "gateway-packages",
   "worktree": ".",
   "status": "valid",
   "completed_items": [
-    "Codebase sync: ./kitty context --agent ran, continuity check passed",
-    "Phase 0 competitive analysis appended to docs/PLANS.md line 153 — 7 initiatives, 27 packets (UX, MOB, ARCH, A11Y, I18N, FEAT, DEVOPS)",
-    "Raw research data fetched for 6 repos: Open WebUI (146k), Goose (51k), LibreChat (41k), Khoj (36k), Chatbot UI (33k), AionUi (31k)",
-    "Source pulled: OnBoarding.svelte, ChangelogModal.svelte, NotificationToast.svelte, SlideShow.svelte, shortcuts.ts, app.css, docker-run.sh (Open WebUI); download_cli.sh + AGENTS.md (Goose); directory trees for all 6",
-    "Top-voted issues mined from Open WebUI and LibreChat (list below)",
-    "Wrote docs/research/MATURE_AI_PRODUCT_RESEARCH.md — 7 themes, organized by theme not repo, every claim linked to a fetched primary source or labelled as inference",
-    "Verified prior session's issue data against the GitHub API — titles, comment counts, and reaction totals all matched"
+    "5c01d6f: repointed 106 stale imports across 65 files at the gateway subpackages; branch went from 0 tests collectible to 2909 passing",
+    "4dfbd96: resolved the gateway/builder.py vs gateway/builder/ module-package collision; api.py + projection.py, no compatibility shim",
+    "Found and fixed two silent failures from the subpackage move: RESOURCE_MAP prefix and _BUILDER_DESCRIPTION_PATHS",
+    "Repointed test_context_assembler.py memory path guards without weakening any assertion",
+    "Swept repo-wide for both collision classes — clean"
   ],
-  "blockers": [],
-  "next_action": "docs/research/MATURE_AI_PRODUCT_RESEARCH.md is written — 7 themes, primary sources verified. Gaps named in its final section: mobile UX, agent visibility, community sources (Reddit/HN/dev.to), commit archaeology. Next pass starts there. Do NOT edit docs/PLANS.md.",
+  "blockers": [
+    "Final full-suite result was never observed — the run was still in flight at session end"
+  ],
+  "next_action": "Run `python3.12 -m pytest tests/ -q` once and compare against the last known numbers (2909 passed / 20 failed / 29 errors at 5c01d6f). The 29 errors and 4 of the failures should be gone. Anything still failing is either pre-existing or new — check against the list below before assuming.",
   "invalidation_conditions": [
-    "HEAD changes beyond ac898f9",
+    "HEAD changes beyond 4dfbd96",
     "branch changes off gateway-packages"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
@@ -30,62 +30,69 @@
 
 ## State
 
-Branch `gateway-packages` at `ac898f9`. **Working tree is not clean** — `.claude/HANDOFF.md`
-and `docs/PLANS.md` are both modified and uncommitted. HEAD is six commits past the
-`b78215ef` the previous handoff referenced; those six are an unrelated package-restructure
-campaign (builder, memory, image, voice, stores moved into subpackages). That refactor is a
-separate workstream from the research below — check with Jacob before assuming either is
-finished.
+`gateway-packages` at `4dfbd96`. Two commits this session, both runtime repair.
 
-## The reframe
+The branch arrived broken: five subpackage moves (builder, memory, image, voice,
+stores) had relocated 45 modules and updated zero importers, so `pytest` failed
+collection with 75 errors and nothing ran. That is fixed.
 
-Jacob stopped the feature-comparison approach mid-session and redirected. The comparison
-table was judged too superficial. New requirements:
+## What is verified
 
-- Organize by **recurring themes across projects**, not by repository
-- Sources must include commit history, major rewrites, controversial PRs, long issue
-  threads, maintainer discussions, Reddit, HN, dev.to, engineering blogs, release notes,
-  architecture docs
-- Explain **why** decisions were made, not what was decided
-- Should read like an internal design handbook, not a bake-off
-- Existing PLANS.md work is preserved as Phase 0 hypotheses — leave it alone
-- New document: `docs/research/MATURE_AI_PRODUCT_RESEARCH.md` (directory exists, empty)
+- Every gateway module imports — `pkgutil.walk_packages`, 0 failures.
+- 298 targeted tests pass across every area touched by `4dfbd96`.
+- Both collision classes sweep clean repo-wide: no `module.py` shadowed by a
+  same-named package, no package `__init__` exporting a name that is also a
+  submodule.
+- `llm_client` is not dragged in by `import gateway.builder.<anything>`.
 
-## Data collected but unused
+## What is NOT verified
 
-Open WebUI issues (reactions / comments):
-- #23990 scrolling jumps in conversations (39/27)
-- #21564 edit-and-continue response bugs (38/42)
-- #20629 MCP server response fails (23/23)
-- #24553 API chat completions NoneType error (19/51)
-- #16303 GPT response parsing (18/65)
-- #25585 web search results not passed to model (16/54)
-- #21348 reasoning trace splits browser to halt (12/50)
+**The final full suite.** It was ~3 minutes into a ~15 minute run when the
+session ended. Its result was never seen. Do not assume green.
 
-LibreChat issues:
-- #4848 chat folders/projects (176/58)
-- #3137 admin user management (113/56)
-- #11106 agent skills support (72/27)
-- #1215 show conversation cost (69/36)
+Last observed full-suite numbers were at `5c01d6f`, *before* the collision fix:
+**2909 passed, 20 failed, 29 errors.**
 
-Code artifacts: Goose `download_cli.sh` (~1500 lines of OS detection, error handling, PATH
-management); Open WebUI onboarding = SlideShow + OnBoarding + ChangelogModal composition.
+Expected to be fixed by `4dfbd96`:
+- 29 errors in `test_integrations_routes.py` (builder shadowing)
+- 4 failures in `test_builder.py` (same)
+- 2 failures in `test_context_assembler.py` (moved memory paths)
 
-## Themes to cover
+## Known pre-existing failures — not caused by either commit
 
-1. Installation & onboarding — most data already in hand
-2. Streaming & latency masking — needs data
-3. Navigation & mobile UX — partial, from Open WebUI component structure
-4. Configuration & settings — LibreChat yaml collected
-5. Agent visibility & task management — needs data
-6. Error recovery & trust — issue data collected
-7. Extension ecosystems & discoverability — needs data
+- `tests/test_check_continuity_state.py` — 4 failures. `.claude/STATE.md` is
+  stale against HEAD, so the STATE/HANDOFF agreement check fails on
+  `head_sha`, `branch`, `next_action`. Verified identical before and after the
+  HANDOFF edit by stashing it and re-running. **Deliberately not fixed** —
+  Jacob's instruction was to keep continuity-document cleanup out of the runtime
+  repair. This handoff update will not fix it either; STATE.md still describes
+  the older `main`@`10bebdd` workstream.
+- `scripts/audit_helpers/audit_22_{split,2nd_cut}.py` do not parse — shell
+  interpolation pasted into Python. Pre-dates all of this.
 
-Plus community research (Reddit, HN, dev.to, engineering blogs) across all themes — none
-collected yet.
+That leaves roughly 14 of the 20 failures unattributed. They were never
+individually diagnosed. Do not assume they are pre-existing.
 
-## Note on the previous draft
+## Design notes for whoever picks this up
 
-The draft handoff referenced a `todos` tool "initialized with 10 items". No such state
-persists across sessions — the theme list above is the only carry-over. Don't go looking
-for it.
+`gateway.builder` is the package. `gateway/builder/api.py` is the autonomous
+build pipeline; its public API is re-exported from `__init__.py` with an explicit
+`__all__`, so `from gateway.builder import start` and `builder.status(...)` work
+unchanged. That is the `/build` route contract in
+`gateway/routes/integrations.py` and 6 monkeypatch targets.
+
+`gateway/builder/projection.py` is the read-only projection that used to be
+`builder_status.py`. It was renamed because a `status` submodule and a `status()`
+export cannot share the parent attribute — whichever imported last would win.
+
+`source="builder_status"` in `runtime_manifest.py` is deliberately still called
+that. It is a wire value the frontend carries in fixtures, and it belongs to a
+family of subsystem labels (`source="builder_queue"`), not module paths.
+
+## Do not touch
+
+- `docs/contract-migration.md` and `docs/POLISH_HANDBOOK_2026-07-25.html` are
+  untracked and belong to other concurrent workstreams. Both appeared mid-session.
+- Docstrings in ~15 test files still name pre-move paths
+  (`gateway/builder_loop.py` etc). Prose only, no functional effect. Left alone
+  to keep the repair commits scoped.
