@@ -163,7 +163,7 @@ def create_run(
     log_path: str | None = None,
     db_path: Path | None = None,
 ) -> dict[str, Any]:
-    import gateway.builder_queue_db as _db
+    import gateway.builder.queue_db as _db
 
     if not command:
         raise ValueError("command must be a non-empty list")
@@ -237,7 +237,7 @@ def create_run(
 
 
 def get_run(run_id: str, db_path: Path | None = None) -> dict[str, Any] | None:
-    import gateway.builder_queue_db as _db
+    import gateway.builder.queue_db as _db
     conn = _db.connect(db_path)
     try:
         row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
@@ -251,7 +251,7 @@ def list_runs(
     state: str | None = None,
     db_path: Path | None = None,
 ) -> list[dict[str, Any]]:
-    import gateway.builder_queue_db as _db
+    import gateway.builder.queue_db as _db
     clauses: list[WhereClause] = []
     if task_id is not None:
         clauses.append(WhereClause("task_id", "=", task_id))
@@ -283,7 +283,7 @@ def update_run(
     expected_states: frozenset[str] | None = None,
     db_path: Path | None = None,
 ) -> dict[str, Any]:
-    import gateway.builder_queue_db as _db
+    import gateway.builder.queue_db as _db
     set_parts = ["updated_at = strftime('%Y-%m-%d %H:%M:%f', 'now')"]
     params: list[Any] = []
     if state is not None:
@@ -365,8 +365,8 @@ def finalize_run(
     final_report + lease-clear into one UPDATE wiped lease_token and tripped
     the fence). The transition's `extra_where` checks the fence.
     """
-    import gateway.builder_queue as _bq
-    import gateway.builder_queue_db as _db
+    import gateway.builder.queue as _bq
+    import gateway.builder.queue_db as _db
 
     if outcome not in RUN_TERMINAL_STATES:
         raise ValueError(f"run outcome must be terminal, got {outcome!r}")
@@ -654,8 +654,8 @@ def recover_interrupted_runs(
     *,
     starting_grace_seconds: int = 30,
 ) -> dict[str, Any]:
-    import gateway.builder_queue as _bq
-    import gateway.builder_queue_db as _db
+    import gateway.builder.queue as _bq
+    import gateway.builder.queue_db as _db
 
     if starting_grace_seconds < 0:
         raise ValueError("starting_grace_seconds must be non-negative")

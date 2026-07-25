@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from gateway.builder_brief import (
+from gateway.builder.brief import (
     default_branch_name,
     render_worker_brief,
     resources_for_paths,

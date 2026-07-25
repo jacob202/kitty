@@ -37,9 +37,9 @@ from typing import Any
 from gateway import builder_attempt as ba
 from gateway import builder_identity as bid
 from gateway import builder_queue as bq
-from gateway.builder_brief import default_branch_name
-from gateway.builder_context import build_context_manifest, write_run_manifest
-from gateway.builder_runner import (
+from gateway.builder.brief import default_branch_name
+from gateway.builder.context import build_context_manifest, write_run_manifest
+from gateway.builder.runner import (
     DEFAULT_HEARTBEAT_SECONDS,
     DEFAULT_LEASE_SECONDS,
     RunnerError,

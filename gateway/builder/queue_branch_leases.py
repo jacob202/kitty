@@ -35,7 +35,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from gateway.builder_queue_db import BranchLeaseConflictError, connect, init_db
+from gateway.builder.queue_db import BranchLeaseConflictError, connect, init_db
 
 logger = logging.getLogger("kitty.builder_queue_branch_leases")
 

@@ -374,7 +374,7 @@ class TestAgentPresetConfig:
 
 class TestInjectWorkerContext:
     def test_inject_creates_files(self, tmp_path: Path):
-        from gateway.builder_runner import inject_worker_context
+        from gateway.builder.runner import inject_worker_context
 
         db_path = tmp_path / "queue" / "builder_queue.db"
         db_path.parent.mkdir(parents=True)
@@ -414,7 +414,7 @@ class TestInjectWorkerContext:
         assert bundle["acceptance_criteria"] == ["tests pass"]
 
     def test_inject_context_bundle_fields(self, tmp_path: Path):
-        from gateway.builder_runner import inject_worker_context
+        from gateway.builder.runner import inject_worker_context
 
         db_path = tmp_path / "queue2" / "builder_queue.db"
         db_path.parent.mkdir(parents=True)
@@ -449,7 +449,7 @@ class TestInjectWorkerContext:
         assert ctx_bundle.bundle_path == extra_env["KB_CONTEXT_BUNDLE_PATH"]
 
     def test_inject_context_no_events_graceful(self, tmp_path: Path):
-        from gateway.builder_runner import inject_worker_context
+        from gateway.builder.runner import inject_worker_context
 
         db_path = tmp_path / "queue3" / "builder_queue.db"
         db_path.parent.mkdir(parents=True)
@@ -476,7 +476,7 @@ class TestInjectWorkerContext:
 
 class TestValidateWorkerContext:
     def test_validate_valid_context(self, tmp_path: Path):
-        from gateway.builder_runner import inject_worker_context, validate_worker_context
+        from gateway.builder.runner import inject_worker_context, validate_worker_context
 
         db_path = tmp_path / "queue4" / "builder_queue.db"
         db_path.parent.mkdir(parents=True)
@@ -496,7 +496,7 @@ class TestValidateWorkerContext:
         assert issues == []
 
     def test_validate_missing_bundle(self, tmp_path: Path):
-        from gateway.builder_runner import validate_worker_context
+        from gateway.builder.runner import validate_worker_context
 
         db_path = tmp_path / "queue5" / "builder_queue.db"
         db_path.parent.mkdir(parents=True)
@@ -515,7 +515,7 @@ class TestValidateWorkerContext:
         assert any("context bundle missing" in i for i in issues)
 
     def test_validate_corrupted_bundle(self, tmp_path: Path):
-        from gateway.builder_runner import inject_worker_context, validate_worker_context
+        from gateway.builder.runner import inject_worker_context, validate_worker_context
 
         db_path = tmp_path / "queue6" / "builder_queue.db"
         db_path.parent.mkdir(parents=True)
@@ -539,7 +539,7 @@ class TestValidateWorkerContext:
         assert any("unreadable" in i for i in issues)
 
     def test_validate_task_id_mismatch(self, tmp_path: Path):
-        from gateway.builder_runner import inject_worker_context, validate_worker_context
+        from gateway.builder.runner import inject_worker_context, validate_worker_context
 
         db_path = tmp_path / "queue7" / "builder_queue.db"
         db_path.parent.mkdir(parents=True)
@@ -572,13 +572,13 @@ class TestValidateWorkerContext:
 
 class TestAgentPresetConfigs:
     def test_all_presets_have_configs(self):
-        from gateway.builder_runner import AGENT_PRESET_CONFIGS
+        from gateway.builder.runner import AGENT_PRESET_CONFIGS
 
         for preset in AgentPreset:
             assert preset in AGENT_PRESET_CONFIGS, f"Missing config for {preset}"
 
     def test_each_config_has_valid_structure(self):
-        from gateway.builder_runner import AGENT_PRESET_CONFIGS
+        from gateway.builder.runner import AGENT_PRESET_CONFIGS
 
         for preset, config in AGENT_PRESET_CONFIGS.items():
             assert config.preset == preset
@@ -589,7 +589,7 @@ class TestAgentPresetConfigs:
             assert config.timeout_seconds >= 30
 
     def test_explorer_config(self):
-        from gateway.builder_runner import AGENT_PRESET_CONFIGS
+        from gateway.builder.runner import AGENT_PRESET_CONFIGS
 
         cfg = AGENT_PRESET_CONFIGS[AgentPreset.explorer]
         assert cfg.max_iterations == 3
@@ -597,7 +597,7 @@ class TestAgentPresetConfigs:
         assert cfg.timeout_seconds == 300
 
     def test_coder_config(self):
-        from gateway.builder_runner import AGENT_PRESET_CONFIGS
+        from gateway.builder.runner import AGENT_PRESET_CONFIGS
 
         cfg = AGENT_PRESET_CONFIGS[AgentPreset.coder]
         assert cfg.max_iterations == 5
@@ -605,7 +605,7 @@ class TestAgentPresetConfigs:
         assert cfg.timeout_seconds == 600
 
     def test_researcher_config(self):
-        from gateway.builder_runner import AGENT_PRESET_CONFIGS
+        from gateway.builder.runner import AGENT_PRESET_CONFIGS
 
         cfg = AGENT_PRESET_CONFIGS[AgentPreset.researcher]
         assert cfg.max_iterations == 4
@@ -616,7 +616,7 @@ class TestRunAgentPreset:
     def test_unknown_preset_returns_error(self):
         import asyncio
 
-        from gateway.builder_runner import run_agent_preset
+        from gateway.builder.runner import run_agent_preset
 
         result = asyncio.run(run_agent_preset("test goal", "nonexistent"))
         assert result["status"] == "failed"

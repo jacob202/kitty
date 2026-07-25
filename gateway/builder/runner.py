@@ -41,8 +41,8 @@ from typing import Any, NoReturn
 
 from gateway import builder_queue as bq
 from gateway import builder_scope as bs
-from gateway.builder_brief import default_branch_name, render_worker_brief
-from gateway.builder_context import build_context_manifest, write_run_manifest
+from gateway.builder.brief import default_branch_name, render_worker_brief
+from gateway.builder.context import build_context_manifest, write_run_manifest
 from gateway.models.builder import AgentPreset, AgentPresetConfig, WorkerContextBundle
 from gateway.paths import BUILDER_QUEUE_DB
 

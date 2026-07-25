@@ -92,7 +92,7 @@ def build_context_manifest(
         },
     }
     if allowed_paths:
-        from gateway.builder_brief import resources_for_paths
+        from gateway.builder.brief import resources_for_paths
 
         manifest["resources"] = resources_for_paths(allowed_paths)
     return manifest

@@ -147,7 +147,7 @@ class TestRunPacket:
         task_id = _apply(db_path, repo_root=repo)
 
         def fail_preflight(*args, **kwargs):
-            from gateway.builder_runner import RunnerError
+            from gateway.builder.runner import RunnerError
 
             raise RunnerError("worktree root is not writable")
 
@@ -235,7 +235,7 @@ class TestRunPacket:
             db_path=db_path,
         )
 
-        from gateway.builder_brief import default_branch_name
+        from gateway.builder.brief import default_branch_name
 
         stale, lease = ba.claim_and_start_attempt(
             INITIATIVE,
@@ -611,7 +611,7 @@ class TestRunPacket:
         assert bq.verify_branch_lease(INITIATIVE, PACKET, db_path=db_path) is None
 
     def test_extra_env_cannot_override_credential_isolation(self, db_path: Path):
-        from gateway.builder_runner import run_worker
+        from gateway.builder.runner import run_worker
 
         with pytest.raises(ValueError, match="credential isolation"):
             run_worker(
@@ -636,7 +636,7 @@ class TestNoStaleArtifactReuse:
         Before P027 this deadlocked: ensure_worktree refuses dirty worktrees,
         so every re-entry crashed on orchestration forever."""
         from gateway import builder_runner as br
-        from gateway.builder_brief import default_branch_name
+        from gateway.builder.brief import default_branch_name
 
         task_id = _apply(db_path, repo_root=repo)
         branch = default_branch_name({"id": task_id})
@@ -966,7 +966,7 @@ class TestCli:
         self, repo: Path, db_path: Path, tmp_path: Path, capsys, monkeypatch
     ):
         from gateway import builder_loop
-        from gateway.builder_cli import main
+        from gateway.builder.cli import main
 
         monkeypatch.setattr(bq, "BUILDER_QUEUE_DB", db_path)
         _apply(db_path, repo_root=repo)
@@ -989,7 +989,7 @@ class TestCli:
         assert "succeeded" in out
 
     def test_run_packet_cli_rejects_bad_command_json(self, capsys):
-        from gateway.builder_cli import main
+        from gateway.builder.cli import main
 
         assert main(
             ["initiative", "run-packet", INITIATIVE, PACKET,
@@ -1001,7 +1001,7 @@ class TestCli:
         self, repo: Path, db_path: Path, tmp_path: Path, capsys, monkeypatch
     ):
         from gateway import builder_loop
-        from gateway.builder_cli import main
+        from gateway.builder.cli import main
 
         monkeypatch.setattr(bq, "BUILDER_QUEUE_DB", db_path)
         _apply(db_path, repo_root=repo)
@@ -1234,7 +1234,7 @@ class TestLeaseIdentityIntegration:
         """Stale lease from a crash is reconciled on next run_packet entry."""
         task_id = _apply(db_path, repo_root=repo)
 
-        from gateway.builder_brief import default_branch_name
+        from gateway.builder.brief import default_branch_name
         wt_path = repo / ".worktrees" / "kittybuilder" / task_id
         branch = default_branch_name({"id": task_id})
         base_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
@@ -1268,7 +1268,7 @@ class TestLeaseIdentityIntegration:
         """Only the lease owner can release; unrelated packets are rejected."""
         task_id = _apply(db_path, repo_root=repo)
 
-        from gateway.builder_brief import default_branch_name
+        from gateway.builder.brief import default_branch_name
         wt_path = repo / ".worktrees" / "kittybuilder" / task_id
         branch = default_branch_name({"id": task_id})
         base_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
@@ -1432,7 +1432,7 @@ class TestCrashSafeLeaseRecovery:
     ):
         """claim_and_start_attempt atomically creates both lease and attempt."""
         task_id = _apply(db_path, repo_root=repo)
-        from gateway.builder_brief import default_branch_name
+        from gateway.builder.brief import default_branch_name
         wt_path = repo / ".worktrees" / "kittybuilder" / task_id
         branch = default_branch_name({"id": task_id})
         base_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
@@ -1476,7 +1476,7 @@ class TestCrashSafeLeaseRecovery:
     ):
         """Caller-provided base metadata cannot override the packet authority."""
         task_id = _apply(db_path, repo_root=repo)
-        from gateway.builder_brief import default_branch_name
+        from gateway.builder.brief import default_branch_name
 
         with pytest.raises(ba.AttemptStateError, match="durable packet base_sha"):
             ba.claim_and_start_attempt(
@@ -1499,7 +1499,7 @@ class TestCrashSafeLeaseRecovery:
     ):
         """No lease can exist without its attempt through the atomic API."""
         task_id = _apply(db_path, repo_root=repo, max_attempts=1)
-        from gateway.builder_brief import default_branch_name
+        from gateway.builder.brief import default_branch_name
         wt_path = repo / ".worktrees" / "kittybuilder" / task_id
         branch = default_branch_name({"id": task_id})
         base_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
@@ -1531,7 +1531,7 @@ class TestCrashSafeLeaseRecovery:
     ):
         """A stale attempt with a lease is closed as crashed and lease released."""
         task_id = _apply(db_path, repo_root=repo)
-        from gateway.builder_brief import default_branch_name
+        from gateway.builder.brief import default_branch_name
         wt_path = repo / ".worktrees" / "kittybuilder" / task_id
         branch = default_branch_name({"id": task_id})
         base_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
@@ -1569,7 +1569,7 @@ class TestCrashSafeLeaseRecovery:
     ):
         """Running reconciliation twice on the same stale attempt is idempotent."""
         task_id = _apply(db_path, repo_root=repo)
-        from gateway.builder_brief import default_branch_name
+        from gateway.builder.brief import default_branch_name
         wt_path = repo / ".worktrees" / "kittybuilder" / task_id
         branch = default_branch_name({"id": task_id})
         base_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
@@ -1604,7 +1604,7 @@ class TestCrashSafeLeaseRecovery:
         """
         _apply(db_path, repo_root=repo)
         _apply_other(db_path, repo_root=repo)
-        from gateway.builder_brief import default_branch_name
+        from gateway.builder.brief import default_branch_name
 
         base_sha = ba.get_packet_base_sha(OTHER_INITIATIVE, OTHER_PACKET, db_path=db_path)
         wt_path = repo / ".worktrees" / "kittybuilder" / "other-crashed"
@@ -1642,7 +1642,7 @@ class TestCrashSafeLeaseRecovery:
     ):
         """Releasing a lease with wrong packet_id is rejected (ownership check)."""
         task_id = _apply(db_path, repo_root=repo)
-        from gateway.builder_brief import default_branch_name
+        from gateway.builder.brief import default_branch_name
         wt_path = repo / ".worktrees" / "kittybuilder" / task_id
         branch = default_branch_name({"id": task_id})
         base_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
@@ -1685,7 +1685,7 @@ class TestCrashSafeLeaseRecovery:
     ):
         """A live attempt prevents contradictory second-attempt ownership."""
         task_id = _apply(db_path, repo_root=repo)
-        from gateway.builder_brief import default_branch_name
+        from gateway.builder.brief import default_branch_name
         wt_path = repo / ".worktrees" / "kittybuilder" / task_id
         branch = default_branch_name({"id": task_id})
         base_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
@@ -1731,7 +1731,7 @@ class TestCrashSafeLeaseRecovery:
     ):
         """After stale-attempt reconciliation, the packet can claim and execute."""
         task_id = _apply(db_path, repo_root=repo)
-        from gateway.builder_brief import default_branch_name
+        from gateway.builder.brief import default_branch_name
         wt_path = repo / ".worktrees" / "kittybuilder" / task_id
         branch = default_branch_name({"id": task_id})
         base_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
@@ -1764,7 +1764,7 @@ class TestCrashSafeLeaseRecovery:
         task_id = _apply(db_path, repo_root=repo)
         original_sha = ba.get_packet_base_sha(INITIATIVE, PACKET, db_path=db_path)
 
-        from gateway.builder_brief import default_branch_name
+        from gateway.builder.brief import default_branch_name
         wt_path = repo / ".worktrees" / "kittybuilder" / task_id
         branch = default_branch_name({"id": task_id})
 

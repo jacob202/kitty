@@ -104,7 +104,7 @@ from .query_builder import WhereClause, build_where
 logger = logging.getLogger("kitty.builder_queue")
 
 __all__ = [
-    # Re-exports from gateway.builder_queue_db (DB layer; audit §2.2 first cut).
+    # Re-exports from gateway.builder.queue_db (DB layer; audit §2.2 first cut).
     "AWAITING_REVIEW",
     "BLOCKED",
     "BranchLeaseConflictError",
@@ -123,7 +123,7 @@ __all__ = [
     "RUNNING",
     "TaskNotFoundError",
     "TERMINAL_STATES",
-    # Re-exports from gateway.builder_queue_leases (lease lifecycle; audit §2.2 second cut).
+    # Re-exports from gateway.builder.queue_leases (lease lifecycle; audit §2.2 second cut).
     "claim_next",
     "claim_task",
     "operator_release_task",
@@ -195,7 +195,7 @@ def init_db(db_path: Path | None = None) -> None:
 # grouped with the schema location.
 # Run-state machine constants live in :mod:`gateway.builder_queue_runs`
 # (audit §2.2 third cut) and are re-exported via the façade so
-# ``from gateway.builder_queue import RUN_ACTIVE_STATES`` /
+# ``from gateway.builder.queue import RUN_ACTIVE_STATES`` /
 # ``bq.RUN_INTERRUPTED`` continue to work.
 
 # ---------------------------------------------------------------------------

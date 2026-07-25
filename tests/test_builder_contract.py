@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from gateway.builder_contract import (
+from gateway.builder.contract import (
     ContractError,
     load_contract,
     run_contract,

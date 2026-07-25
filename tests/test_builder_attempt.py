@@ -15,7 +15,7 @@ import pytest
 from gateway import builder_attempt as ba
 from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
-from gateway.builder_cli import main
+from gateway.builder.cli import main
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers

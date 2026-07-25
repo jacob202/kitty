@@ -225,7 +225,7 @@ def _check_builder_health() -> list:
         detail: str
 
     try:
-        from gateway.builder_queue import connect, find_silent_transitions
+        from gateway.builder.queue import connect, find_silent_transitions
         conn = connect()
         try:
             leases = find_silent_transitions()

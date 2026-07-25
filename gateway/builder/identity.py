@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from gateway import builder_queue as bq
-from gateway.builder_scope import (
+from gateway.builder.scope import (
     EscalationError,
     ScopeFinding,
     find_changed_path_violations,

@@ -431,7 +431,7 @@ def _check_github_boundary() -> list[Check]:
 
 def _check_credential_isolation() -> list[Check]:
     try:
-        from gateway.builder_runner import _EXTRA_ENV_BLOCKED
+        from gateway.builder.runner import _EXTRA_ENV_BLOCKED
     except ImportError as exc:
         return [
             Check(

@@ -234,7 +234,7 @@ def _write_manifest(tmp_path: Path, manifest: dict) -> Path:
 
 class TestCp05ReportCli:
     def test_cli_report_writes_file_and_prints_path(self, tmp_path, cli_db, capsys):
-        from gateway.builder_cli import main
+        from gateway.builder.cli import main
 
         manifest_path = _write_manifest(tmp_path, _manifest("report-cli-v1"))
 
@@ -247,7 +247,7 @@ class TestCp05ReportCli:
         assert (cli_db.parent / "reports").exists()
 
     def test_cli_report_missing_initiative(self, cli_db, capsys):
-        from gateway.builder_cli import main
+        from gateway.builder.cli import main
 
         assert main(["initiative", "report", "ghost"]) == 1
         assert "not found" in capsys.readouterr().err

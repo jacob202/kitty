@@ -20,8 +20,8 @@ from pathlib import Path
 from typing import Any, Callable
 
 from gateway import builder_queue as bq
-from gateway.builder_brief import default_branch_name
-from gateway.builder_runner import worktree_path
+from gateway.builder.brief import default_branch_name
+from gateway.builder.runner import worktree_path
 
 logger = logging.getLogger("kitty.builder_publish")
 
@@ -819,6 +819,6 @@ def merge_and_verify(
 def _repo_root_or(repo_root: Path | None) -> Path:
     if repo_root is not None:
         return repo_root
-    from gateway.builder_runner import _repo_root
+    from gateway.builder.runner import _repo_root
 
     return _repo_root(None)

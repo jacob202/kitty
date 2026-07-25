@@ -353,7 +353,7 @@ def _update_stage_status(build_id: str, stages: dict) -> None:
 
 # --- Success Criteria (ISA-lite, shared with builder_isc.py) ---
 
-from gateway.builder_isc import (  # noqa: E402
+from gateway.builder.isc import (  # noqa: E402
     all_criteria_passed,
     check_criteria,
     derive_criteria,

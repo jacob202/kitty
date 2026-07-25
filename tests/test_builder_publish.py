@@ -11,7 +11,7 @@ import pytest
 
 from gateway import builder_publish as bp
 from gateway import builder_queue as bq
-from gateway.builder_brief import default_branch_name
+from gateway.builder.brief import default_branch_name
 
 
 @pytest.fixture

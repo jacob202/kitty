@@ -77,10 +77,10 @@ class FacadeIdentityTest(unittest.TestCase):
         """The cut extracted the run functions; ``builder_queue`` must NOT
         still own them -- it should only re-export via facade import."""
         from gateway import builder_queue as module  # noqa: WPS433 - intentional
-        from gateway.builder_queue_runs import (
+        from gateway.builder.queue_runs import (
             create_run as runs_create_run,
         )
-        from gateway.builder_queue_runs import (
+        from gateway.builder.queue_runs import (
             finalize_run as runs_finalize_run,
         )
 
@@ -242,7 +242,7 @@ class RunLifecycleTest(unittest.TestCase):
         # Simulate a successful steal: another worker overrode our lease_token.
 # (Direct DB write is the cleanest way to model this without time-traveling
 # the SQLite clock.)
-        import gateway.builder_queue_db as _db
+        import gateway.builder.queue_db as _db
         stolen_conn = _db.connect(self._tmp_path)
         try:
             stolen_conn.execute(

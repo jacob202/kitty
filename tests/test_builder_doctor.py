@@ -11,7 +11,7 @@ import pytest
 from gateway import builder_doctor as doctor
 from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
-from gateway.builder_cli import build_parser, main
+from gateway.builder.cli import build_parser, main
 
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
@@ -528,6 +528,6 @@ class TestCLI:
         assert rc == 0
 
     def test_doctor_not_in_mutating_commands(self):
-        from gateway.builder_cli import _MUTATING_INITIATIVE_COMMANDS
+        from gateway.builder.cli import _MUTATING_INITIATIVE_COMMANDS
 
         assert "doctor" not in _MUTATING_INITIATIVE_COMMANDS

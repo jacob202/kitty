@@ -136,7 +136,7 @@ def _cmd_brief(args: argparse.Namespace) -> int:
 
 
 def _cmd_contract_validate(args: argparse.Namespace) -> int:
-    from gateway.builder_contract import ContractError, load_contract, run_contract
+    from gateway.builder.contract import ContractError, load_contract, run_contract
 
     try:
         spec = load_contract(Path(args.path))
@@ -160,7 +160,7 @@ def _cmd_contract_validate(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_add(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import create_task
+    from gateway.builder.queue import create_task
 
     try:
         acceptance = _parse_json_array(args.acceptance)
@@ -194,7 +194,7 @@ def _cmd_queue_add(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_edit(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import (
+    from gateway.builder.queue import (
         IllegalTransitionError,
         TaskNotFoundError,
         edit_task,
@@ -240,7 +240,7 @@ def _cmd_queue_edit(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_list(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import list_tasks
+    from gateway.builder.queue import list_tasks
 
     tasks = list_tasks(state=args.state, include_archived=args.include_archived)
 
@@ -261,7 +261,7 @@ def _cmd_queue_list(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_show(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import get_task
+    from gateway.builder.queue import get_task
 
     task = get_task(args.id)
     if task is None:
@@ -281,7 +281,7 @@ def _cmd_queue_show(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_claim(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import (
+    from gateway.builder.queue import (
         IllegalTransitionError,
         LeaseConflictError,
         TaskNotFoundError,
@@ -311,7 +311,7 @@ def _cmd_queue_claim(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_claim_next(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import claim_next
+    from gateway.builder.queue import claim_next
 
     try:
         task = claim_next(
@@ -342,7 +342,7 @@ def _cmd_queue_claim_next(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_release(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import (
+    from gateway.builder.queue import (
         LeaseConflictError,
         TaskNotFoundError,
         worker_release_task,
@@ -371,7 +371,7 @@ def _cmd_queue_release(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_operator_release(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import (
+    from gateway.builder.queue import (
         IllegalTransitionError,
         TaskNotFoundError,
         operator_release_task,
@@ -396,7 +396,7 @@ def _cmd_queue_operator_release(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_transition(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import (
+    from gateway.builder.queue import (
         IllegalTransitionError,
         LeaseConflictError,
         TaskNotFoundError,
@@ -436,7 +436,7 @@ def _cmd_queue_transition(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_events(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import TaskNotFoundError, list_events
+    from gateway.builder.queue import TaskNotFoundError, list_events
 
     try:
         events = list_events(args.id)
@@ -501,7 +501,7 @@ def _warn_if_backup_stale(total_tasks: int) -> None:
 
 
 def _cmd_queue_status(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import queue_status
+    from gateway.builder.queue import queue_status
 
     status = queue_status()
     _warn_if_backup_stale(status["total"])
@@ -527,7 +527,7 @@ def _cmd_queue_status(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_doctor(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import find_silent_transitions
+    from gateway.builder.queue import find_silent_transitions
 
     silent = find_silent_transitions()
 
@@ -555,7 +555,7 @@ def _cmd_queue_doctor(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_archive(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import archive_tasks
+    from gateway.builder.queue import archive_tasks
 
     try:
         result = archive_tasks(args.state, older_than_days=args.older_than)
@@ -576,8 +576,8 @@ def _cmd_queue_archive(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_brief(args: argparse.Namespace) -> int:
-    from gateway.builder_brief import render_worker_brief
-    from gateway.builder_queue import get_pr_links, get_task, list_events
+    from gateway.builder.brief import render_worker_brief
+    from gateway.builder.queue import get_pr_links, get_task, list_events
 
     task = get_task(args.id)
     if task is None:
@@ -601,7 +601,7 @@ def _cmd_queue_brief(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_attach_report(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import (
+    from gateway.builder.queue import (
         IllegalTransitionError,
         LeaseConflictError,
         TaskNotFoundError,
@@ -658,7 +658,7 @@ def _cmd_queue_attach_report(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_attach_pr(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import TaskNotFoundError, attach_pr
+    from gateway.builder.queue import TaskNotFoundError, attach_pr
 
     try:
         link = attach_pr(
@@ -680,7 +680,7 @@ def _cmd_queue_attach_pr(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_sync_pr(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import sync_pr_status
+    from gateway.builder.queue import sync_pr_status
 
     result = sync_pr_status()
     if args.json:
@@ -697,7 +697,7 @@ def _cmd_queue_sync_pr(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_reconcile_merges(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import detect_merged_prs
+    from gateway.builder.queue import detect_merged_prs
 
     result = detect_merged_prs()
     if args.json:
@@ -718,8 +718,8 @@ def _cmd_queue_reconcile_merges(args: argparse.Namespace) -> int:
 
 def _cmd_queue_publish(args: argparse.Namespace) -> int:
     """Operator-gated push + PR create/update (KB-S4). Never merges."""
-    from gateway.builder_publish import PublishError, publish_task
-    from gateway.builder_queue import TaskNotFoundError
+    from gateway.builder.publish import PublishError, publish_task
+    from gateway.builder.queue import TaskNotFoundError
 
     try:
         result = publish_task(
@@ -761,7 +761,7 @@ def _cmd_queue_publish(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_recover(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import (
+    from gateway.builder.queue import (
         recover_expired_leases,
         recover_interrupted_runs,
     )
@@ -809,7 +809,7 @@ def _cmd_queue_recover(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_operator_cancel(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import (
+    from gateway.builder.queue import (
         IllegalTransitionError,
         TaskNotFoundError,
         transition_task,
@@ -837,12 +837,12 @@ def _cmd_queue_operator_cancel(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_run(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import (
+    from gateway.builder.queue import (
         IllegalTransitionError,
         LeaseConflictError,
         TaskNotFoundError,
     )
-    from gateway.builder_runner import RunnerError, run_worker
+    from gateway.builder.runner import RunnerError, run_worker
 
     command = list(args.worker_command or [])
     if command and command[0] == "--":
@@ -884,7 +884,7 @@ def _cmd_queue_run(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_runs(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import list_runs
+    from gateway.builder.queue import list_runs
 
     runs = list_runs(task_id=args.task, state=args.state)
     if args.json:
@@ -899,7 +899,7 @@ def _cmd_queue_runs(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_show_run(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import get_run
+    from gateway.builder.queue import get_run
 
     run = get_run(args.run_id)
     if run is None:
@@ -925,8 +925,8 @@ def _cmd_queue_show_run(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_cancel_run(args: argparse.Namespace) -> int:
-    from gateway.builder_queue import RunNotFoundError
-    from gateway.builder_runner import RunnerError, request_cancel
+    from gateway.builder.queue import RunNotFoundError
+    from gateway.builder.runner import RunnerError, request_cancel
 
     try:
         run = request_cancel(args.run_id, kill=args.kill)
@@ -952,7 +952,7 @@ def _cmd_queue_cancel_run(args: argparse.Namespace) -> int:
 
 
 def _cmd_queue_clean_worktree(args: argparse.Namespace) -> int:
-    from gateway.builder_runner import RunnerError, remove_worktree
+    from gateway.builder.runner import RunnerError, remove_worktree
 
     try:
         path = remove_worktree(args.id)
@@ -1052,7 +1052,7 @@ def _print_task_summary(
 
 
 def _cmd_initiative_validate(args: argparse.Namespace) -> int:
-    from gateway.builder_initiative import (
+    from gateway.builder.initiative import (
         ManifestError,
         load_manifest,
         manifest_sha256,
@@ -1102,7 +1102,7 @@ def _cmd_initiative_validate(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_apply(args: argparse.Namespace) -> int:
-    from gateway.builder_initiative import (
+    from gateway.builder.initiative import (
         InitiativeConflictError,
         ManifestError,
         apply_manifest,
@@ -1136,7 +1136,7 @@ def _cmd_initiative_apply(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_list(args: argparse.Namespace) -> int:
-    from gateway.builder_initiative import (
+    from gateway.builder.initiative import (
         InitiativeNotFoundError,
         initiative_status,
         list_initiatives,
@@ -1145,7 +1145,7 @@ def _cmd_initiative_list(args: argparse.Namespace) -> int:
     initiatives = list_initiatives()
 
     if args.needs_attention:
-        from gateway.builder_initiative import (
+        from gateway.builder.initiative import (
             InitiativeNotFoundError,
             initiative_status,
         )
@@ -1201,7 +1201,7 @@ def _cmd_initiative_list(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_show(args: argparse.Namespace) -> int:
-    from gateway.builder_initiative import get_initiative
+    from gateway.builder.initiative import get_initiative
 
     initiative = get_initiative(args.id)
     if initiative is None:
@@ -1222,7 +1222,7 @@ def _cmd_initiative_show(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_status(args: argparse.Namespace) -> int:
-    from gateway.builder_initiative import (
+    from gateway.builder.initiative import (
         InitiativeNotFoundError,
         initiative_status,
     )
@@ -1289,8 +1289,8 @@ def _cmd_initiative_status(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_report(args: argparse.Namespace) -> int:
-    from gateway.builder_initiative import InitiativeNotFoundError
-    from gateway.builder_report import generate_report
+    from gateway.builder.initiative import InitiativeNotFoundError
+    from gateway.builder.report import generate_report
 
     try:
         path = generate_report(args.id)
@@ -1306,7 +1306,7 @@ def _cmd_initiative_report(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_attempts(args: argparse.Namespace) -> int:
-    from gateway.builder_attempt import list_attempts
+    from gateway.builder.attempt import list_attempts
 
     attempts = list_attempts(args.id, args.packet)
     if args.json:
@@ -1326,7 +1326,7 @@ def _cmd_initiative_attempts(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_start_attempt(args: argparse.Namespace) -> int:
-    from gateway.builder_attempt import AttemptError, start_attempt
+    from gateway.builder.attempt import AttemptError, start_attempt
 
     try:
         attempt = start_attempt(args.id, args.packet)
@@ -1351,7 +1351,7 @@ def _load_result_file(path: str) -> dict[str, Any]:
 
 
 def _cmd_initiative_record(args: argparse.Namespace) -> int:
-    from gateway.builder_attempt import (
+    from gateway.builder.attempt import (
         AttemptError,
         ResultContractError,
         record_implementation_result,
@@ -1381,9 +1381,9 @@ def _cmd_initiative_record(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
-    from gateway.builder_attempt import AttemptError
-    from gateway.builder_loop import LoopError, run_packet
-    from gateway.builder_runner import RunnerError
+    from gateway.builder.attempt import AttemptError
+    from gateway.builder.loop import LoopError, run_packet
+    from gateway.builder.runner import RunnerError
 
     try:
         worker_command, review_command = _resolve_loop_commands(args)
@@ -1432,7 +1432,7 @@ def _cmd_initiative_run_packet(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_run(args: argparse.Namespace) -> int:
-    from gateway.builder_run import run_initiative
+    from gateway.builder.run import run_initiative
 
     try:
         worker_command, review_command = _resolve_loop_commands(args)
@@ -1478,7 +1478,7 @@ def _cmd_initiative_run(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_pause(args: argparse.Namespace) -> int:
-    from gateway.builder_initiative import pause_initiative
+    from gateway.builder.initiative import pause_initiative
 
     try:
         pause_initiative(args.id, args.reason)
@@ -1490,7 +1490,7 @@ def _cmd_initiative_pause(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_resume(args: argparse.Namespace) -> int:
-    from gateway.builder_initiative import resume_initiative
+    from gateway.builder.initiative import resume_initiative
 
     try:
         resume_initiative(args.id)
@@ -1502,7 +1502,7 @@ def _cmd_initiative_resume(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_doctor(args: argparse.Namespace) -> int:
-    from gateway.builder_doctor import run_doctor
+    from gateway.builder.doctor import run_doctor
 
     result = run_doctor()
 
@@ -1528,7 +1528,7 @@ def _cmd_initiative_doctor(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_run_validation(args: argparse.Namespace) -> int:
-    from gateway.builder_attempt import AttemptError, run_validation
+    from gateway.builder.attempt import AttemptError, run_validation
 
     try:
         attempt = run_validation(
@@ -1551,7 +1551,7 @@ def _cmd_initiative_run_validation(args: argparse.Namespace) -> int:
 
 
 def _cmd_initiative_close_attempt(args: argparse.Namespace) -> int:
-    from gateway.builder_attempt import AttemptError, close_attempt
+    from gateway.builder.attempt import AttemptError, close_attempt
 
     try:
         attempt = close_attempt(args.attempt_id, args.outcome)
@@ -1567,14 +1567,14 @@ def _cmd_initiative_close_attempt(args: argparse.Namespace) -> int:
 
 def _init_queue_db() -> None:
     """Initialize the queue DB safely before command dispatch."""
-    from gateway.builder_queue import init_db
+    from gateway.builder.queue import init_db
 
     init_db()
 
 
 def _init_initiative_db() -> None:
     """Initialize queue + initiative schema before initiative dispatch."""
-    from gateway.builder_initiative import init_db
+    from gateway.builder.initiative import init_db
 
     init_db()
 

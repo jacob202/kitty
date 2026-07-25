@@ -817,7 +817,7 @@ def run_validation(
 
     if commands:
         if cwd is None:
-            from gateway.builder_runner import worktree_path
+            from gateway.builder.runner import worktree_path
 
             cwd = worktree_path(task_id)
         if not Path(cwd).is_dir():

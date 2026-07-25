@@ -11,8 +11,8 @@ import pytest
 
 from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
-from gateway.builder_identity import verify_and_escalate, verify_worker_identity
-from gateway.builder_scope import EscalationError
+from gateway.builder.identity import verify_and_escalate, verify_worker_identity
+from gateway.builder.scope import EscalationError
 
 INITIATIVE = "identity-test"
 PACKET = "ID-1"

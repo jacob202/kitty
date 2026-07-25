@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from gateway.builder_cli import build_parser, main
+from gateway.builder.cli import build_parser, main
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -430,7 +430,7 @@ class TestQueueClaim:
         assert json.loads(capsys.readouterr().out)["lease_token"] == "tok123"
 
     def test_claim_conflict(self, capsys):
-        from gateway.builder_queue import LeaseConflictError
+        from gateway.builder.queue import LeaseConflictError
 
         with patch(f"{_QUEUE_PATCH}.init_db"):
             with patch(
@@ -517,7 +517,7 @@ class TestQueueRelease:
         assert json.loads(capsys.readouterr().out)["id"] == "kb_r2"
 
     def test_release_conflict(self, capsys):
-        from gateway.builder_queue import LeaseConflictError
+        from gateway.builder.queue import LeaseConflictError
 
         with patch(f"{_QUEUE_PATCH}.init_db"):
             with patch(
@@ -566,7 +566,7 @@ class TestQueueOperatorRelease:
         assert json.loads(capsys.readouterr().out)["id"] == "kb_o3"
 
     def test_operator_release_error(self, capsys):
-        from gateway.builder_queue import IllegalTransitionError
+        from gateway.builder.queue import IllegalTransitionError
 
         with patch(f"{_QUEUE_PATCH}.init_db"):
             with patch(
@@ -626,7 +626,7 @@ class TestQueueTransition:
         assert json.loads(capsys.readouterr().out)["id"] == "kb_t3"
 
     def test_transition_conflict(self, capsys):
-        from gateway.builder_queue import LeaseConflictError
+        from gateway.builder.queue import LeaseConflictError
 
         with patch(f"{_QUEUE_PATCH}.init_db"):
             with patch(
@@ -696,7 +696,7 @@ class TestQueueEvents:
         assert parsed[0]["type"] == "created"
 
     def test_events_unknown_task(self, capsys):
-        from gateway.builder_queue import TaskNotFoundError
+        from gateway.builder.queue import TaskNotFoundError
 
         with patch(f"{_QUEUE_PATCH}.init_db"):
             with patch(
@@ -1118,7 +1118,7 @@ class TestQueueOperatorCancel:
         )
 
     def test_illegal_state_reports_error(self, capsys):
-        from gateway.builder_queue import IllegalTransitionError
+        from gateway.builder.queue import IllegalTransitionError
 
         with patch(f"{_QUEUE_PATCH}.init_db"):
             with patch(
@@ -1240,7 +1240,7 @@ class TestQueueRunnerCommands:
         assert "log file missing" in capsys.readouterr().err
 
     def test_cancel_run_signal_error_is_operator_readable(self, capsys):
-        from gateway.builder_runner import RunnerError
+        from gateway.builder.runner import RunnerError
 
         with patch(f"{_QUEUE_PATCH}.init_db"):
             with patch(
@@ -1640,7 +1640,7 @@ class TestInitiativeListHealthIndicator:
 
     def test_list_still_works_when_status_raises(self, capsys):
         """If initiative_status raises, list still shows the initiative."""
-        from gateway.builder_initiative import InitiativeNotFoundError
+        from gateway.builder.initiative import InitiativeNotFoundError
 
         with patch(f"{self._INIT_PATCH}.list_initiatives", return_value=[self._fake_initiatives()[0]]):
             with patch(

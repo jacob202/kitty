@@ -10,7 +10,7 @@ This module owns the lowest layer of the KittyBuilder persistence stack:
 * :func:`init_db` and :func:`connect` — used by every higher layer
 
 Public symbols are re-exported from :mod:`gateway.builder_queue` (which keeps
-its existing ``bq.X`` / ``from gateway.builder_queue import X`` surface), so
+its existing ``bq.X`` / ``from gateway.builder.queue import X`` surface), so
 sibling modules such as :mod:`gateway.builder_attempt`,
 :mod:`gateway.builder_runner`, :mod:`gateway.builder_initiative`, and the
 builder CLI/tests continue to work unchanged.

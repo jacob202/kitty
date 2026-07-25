@@ -35,7 +35,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-from gateway.builder_queue_db import (
+from gateway.builder.queue_db import (
     BLOCKED,
     CLAIMED,
     QUEUED,
@@ -65,7 +65,7 @@ def _claim_impl(
     # Lazy import to avoid the parent↔child cycle at module-import time;
     # ``gateway.builder_queue.append_event`` uses the caller's open txn
     # so it must be resolved per-call rather than at module load.
-    import gateway.builder_queue as _bq
+    import gateway.builder.queue as _bq
 
     if lease_seconds <= 0:
         raise ValueError("lease_seconds must be greater than zero")
@@ -139,7 +139,7 @@ def claim_task(
     db_path: Path | None = None,
 ) -> dict[str, Any]:
     """Claim a queued task for *worker_id* and return the updated task."""
-    import gateway.builder_queue as _bq
+    import gateway.builder.queue as _bq
 
     conn = connect(db_path)
     result: dict[str, Any] | None = None
@@ -173,7 +173,7 @@ def claim_next(
     db_path: Path | None = None,
 ) -> dict[str, Any] | None:
     """Claim the highest-priority eligible queued task, or ``None``."""
-    import gateway.builder_queue as _bq
+    import gateway.builder.queue as _bq
 
     if lease_seconds <= 0:
         raise ValueError("lease_seconds must be greater than zero")
@@ -255,7 +255,7 @@ def worker_transition_task(
     db_path: Path | None = None,
 ) -> dict[str, Any]:
     """Transition a task using worker lease fencing."""
-    import gateway.builder_queue as _bq
+    import gateway.builder.queue as _bq
 
     conn = connect(db_path)
     result: dict[str, Any] | None = None
@@ -298,7 +298,7 @@ def worker_release_task(
     db_path: Path | None = None,
 ) -> dict[str, Any]:
     """Release a worker-held task back to ``queued`` with lease fencing."""
-    import gateway.builder_queue as _bq
+    import gateway.builder.queue as _bq
 
     conn = connect(db_path)
     result: dict[str, Any] | None = None
@@ -345,7 +345,7 @@ def operator_release_task(
     running task first via :func:`transition_task` so the lease-scoped
     fencing semantics hold.
     """
-    import gateway.builder_queue as _bq
+    import gateway.builder.queue as _bq
 
     conn = connect(db_path)
     result: dict[str, Any] | None = None
@@ -390,7 +390,7 @@ def recover_expired_leases(*, db_path: Path | None = None) -> dict[str, int]:
     ``BEGIN IMMEDIATE`` transaction so two scans interleaving cannot
     leave inconsistent state. Returns counts for telemetry.
     """
-    import gateway.builder_queue as _bq
+    import gateway.builder.queue as _bq
 
     conn = connect(db_path)
     claimed_requeued = 0
@@ -505,7 +505,7 @@ def renew_lease(
     Raises :class:`gateway.builder_queue_db.LeaseConflictError` when fencing
     fails or the lease is expired.
     """
-    import gateway.builder_queue as _bq
+    import gateway.builder.queue as _bq
 
     if lease_seconds <= 0:
         raise ValueError("lease_seconds must be positive")

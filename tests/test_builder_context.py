@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from gateway.builder_context import build_context_manifest, write_run_manifest
+from gateway.builder.context import build_context_manifest, write_run_manifest
 
 
 def test_context_manifest_hashes_instructions_and_skills_without_contents(tmp_path: Path):
