@@ -24,7 +24,7 @@ from gateway.context_assembler import (
     assert_not_total_failure,
 )
 from gateway.context_enrichment import EnrichmentFn
-from gateway.memory.memory_graph import (
+from gateway.memory.graph import (
     Item,
     KnowledgeAdapter,
     MemoryAdapter,

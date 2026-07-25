@@ -41,7 +41,7 @@ def test_get_context_block_empty_on_no_results():
     """get_context_block returns empty string when no memories found."""
     mock_instance = MagicMock()
     mock_instance.search.return_value = {"results": []}
-    from gateway.memory.memory import get_context_block
+    from gateway.memory import get_context_block
 
     with patch("gateway.memory._get_memory", return_value=mock_instance):
         result = get_context_block("test query")
@@ -86,7 +86,7 @@ def test_add_memory_surfaces_backend_unavailability():
 @pytest.mark.integration
 def test_memory_roundtrip():
     """Write a fact, search for it, verify retrieval. Requires Ollama + OpenRouter."""
-    from gateway.memory.memory import add_memory, search_memory
+    from gateway.memory import add_memory, search_memory
 
     add_memory("Jacob's test fact: he owns a purple bicycle", namespace="facts")
     results = search_memory("bicycle", limit=3)

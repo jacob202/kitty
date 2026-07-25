@@ -83,7 +83,7 @@ class TestMemoryGraphReadsSignals:
             payload={"message": "First build"},
         )
 
-        from gateway.memory.memory_graph import SignalsAdapter
+        from gateway.memory.graph import SignalsAdapter
 
         adapter = SignalsAdapter()
         items = await adapter.fetch("")
@@ -99,7 +99,7 @@ class TestMemoryGraphReadsSignals:
             payload={"message": "Keep shipping"},
         )
 
-        from gateway.memory.memory_graph import SignalsAdapter, _format_unified_items
+        from gateway.memory.graph import SignalsAdapter, _format_unified_items
 
         adapter = SignalsAdapter()
         items = await adapter.fetch("")

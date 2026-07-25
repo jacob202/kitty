@@ -24,7 +24,7 @@ from gateway.llm_client import (
     log_chat_trace,
     route_model,
 )
-from gateway.memory.memory_graph import MemoryEvidence
+from gateway.memory.graph import MemoryEvidence
 from gateway.paths import LITELLM_BASE, LITELLM_KEY, LOG_FILE
 from gateway.runtime_manifest import compact_runtime_context, compose_manifest
 
@@ -467,7 +467,7 @@ async def api_models():
 @router.post("/sessions/close")
 async def close_session(payload: CloseSessionRequest):
     """End a chat session — consolidate short-term memory to long-term."""
-    from gateway.memory.memory import consolidate_session
+    from gateway.memory import consolidate_session
 
     consolidate_session(payload.session_id, payload.messages)
     return {"status": "ok", "session_id": payload.session_id}

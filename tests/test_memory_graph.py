@@ -7,9 +7,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-import gateway.memory.memory_graph as memory_graph_module
+import gateway.memory_graph as memory_graph_module
 from gateway import prefetcher
-from gateway.memory.memory_graph import (
+from gateway.memory.graph import (
     CONTEXT_TOKEN_CAP,
     GraphResult,
     InboxAdapter,

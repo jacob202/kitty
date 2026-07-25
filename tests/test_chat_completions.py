@@ -409,7 +409,7 @@ def test_close_session_surfaces_memory_failure() -> None:
     route deliberately lets it propagate to the global KittyError handler
     instead of reporting success while the session was silently dropped.
     """
-    from gateway.memory.memory import MemoryError as KittyMemoryError
+    from gateway.memory import MemoryError as KittyMemoryError
 
     error = KittyMemoryError(
         "memory consolidation failed (OSError)",

@@ -18,7 +18,7 @@ import re
 from enum import Enum
 from typing import Any
 
-from gateway.memory.memory_graph import Item, Source
+from gateway.memory.graph import Item, Source
 
 logger = __import__("logging").getLogger("kitty.memory_policy")
 

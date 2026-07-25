@@ -14,7 +14,7 @@ router = APIRouter(tags=["memories"])
 @router.get("/memories")
 async def list_memories(namespace: Optional[str] = None, limit: int = 50) -> dict:
     """List stored memories. Optional namespace filter: facts|patterns."""
-    from gateway.memory.memory import list_memories
+    from gateway.memory import list_memories
 
     return {"memories": list_memories(namespace=namespace, limit=limit)}
 
@@ -22,7 +22,7 @@ async def list_memories(namespace: Optional[str] = None, limit: int = 50) -> dic
 @router.delete("/memories/{memory_id}")
 async def delete_memory(memory_id: str) -> dict:
     """Delete a specific memory by ID."""
-    from gateway.memory.memory import delete_memory
+    from gateway.memory import delete_memory
 
     if not delete_memory(memory_id):
         raise StorageNotFound(

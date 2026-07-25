@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from gateway.memory.memory_graph import (
+from gateway.memory.graph import (
     InboxAdapter,
     Item,
     JournalAdapter,

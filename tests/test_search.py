@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from gateway.app import app
-from gateway.memory.memory_graph import GraphResult, Item, Source
+from gateway.memory.graph import GraphResult, Item, Source
 
 
 @pytest.mark.asyncio

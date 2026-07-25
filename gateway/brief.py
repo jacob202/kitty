@@ -387,7 +387,7 @@ No bullet points. No headers. No "Certainly!" or "Great question!". Contractions
 def _fetch_memory_snippet() -> str:
     """Fetch unified context for brief synthesis."""
     try:
-        from gateway.memory.memory_graph import unified_context
+        from gateway.memory.graph import unified_context
 
         return _run_async(unified_context("morning brief"))
     except Exception:

@@ -90,7 +90,7 @@ async def lifespan(app: FastAPI):
                     logger.warning("Monitor check failed for watch %s", w.get("watch_id"))
 
         async def _action_memory_consolidate():
-            from gateway.memory.memory_consolidation import nightly_dream
+            from gateway.memory.consolidation import nightly_dream
 
             await asyncio.to_thread(nightly_dream)
 

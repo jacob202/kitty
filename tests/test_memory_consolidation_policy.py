@@ -6,7 +6,7 @@ logic (skip on NO_DURABLE_MEMORY, rewrite sensitive summaries).
 
 from unittest.mock import patch
 
-from gateway.memory.memory_consolidation import consolidate_recent
+from gateway.memory.consolidation import consolidate_recent
 
 
 def _make_trace(text: str, domain: str = "general", ts: float = 1_000_000) -> dict:

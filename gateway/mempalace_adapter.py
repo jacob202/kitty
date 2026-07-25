@@ -28,7 +28,7 @@ import os
 import shutil
 import subprocess
 
-from gateway.memory.memory_graph import Item, Source, StoreAdapter
+from gateway.memory.graph import Item, Source, StoreAdapter
 
 logger = logging.getLogger("kitty.mempalace")
 

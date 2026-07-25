@@ -285,7 +285,7 @@ async def _run_dream(goal: str, task_id: str) -> str:
 
     # Memory consolidation (summarize traces → long-term memory)
     try:
-        from gateway.memory.memory_consolidation import nightly_dream
+        from gateway.memory.consolidation import nightly_dream
 
         summary = await asyncio.to_thread(nightly_dream)
         results.append(summary)
