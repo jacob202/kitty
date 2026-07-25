@@ -75,7 +75,7 @@ async def _process_message(chat_id: int, text: str) -> None:
             extract_assistant_text,
             route_model,
         )
-        from gateway.voice_gate import filter_response
+        from gateway.voice.gate import filter_response
 
         domain = classify_domain(text)
         system_prompt = await get_system_prompt(text, domain=domain)

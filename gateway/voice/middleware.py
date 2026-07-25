@@ -7,7 +7,7 @@ import json
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
-from gateway.voice_gate import filter_response
+from gateway.voice.gate import filter_response
 
 
 class VoiceGateMiddleware(BaseHTTPMiddleware):

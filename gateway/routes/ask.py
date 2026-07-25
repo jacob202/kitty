@@ -54,7 +54,7 @@ async def ask(payload: AskRequest):
         data = await chat_completions_non_stream(llm_payload)
         reply = extract_assistant_text(data)
 
-        from gateway.voice_gate import filter_response
+        from gateway.voice.gate import filter_response
 
         gate = filter_response(reply)
         reply = gate.cleaned

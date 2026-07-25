@@ -15,7 +15,7 @@ from gateway.constants import MAX_BODY_BYTES
 from gateway.errors import KittyError
 from gateway.paths import validate_dirs, validate_env
 from gateway.routes.register import register_routes
-from gateway.voice_middleware import VoiceGateMiddleware
+from gateway.voice.middleware import VoiceGateMiddleware
 
 logger = logging.getLogger("kitty.gateway")
 logging.basicConfig(level=logging.INFO)

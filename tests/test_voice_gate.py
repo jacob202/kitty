@@ -1,7 +1,7 @@
 """Tests for voice_gate — SOUL.md compliance filtering before response delivery."""
 import pytest
 
-from gateway.voice_gate import (
+from gateway.voice.gate import (
     VoiceGateResult,
     check,
     filter_response,
@@ -77,7 +77,7 @@ class TestFilterResponse:
         assert result.cleaned == original
 
     def test_logs_drift_on_violation(self):
-        from gateway.voice_gate import logger
+        from gateway.voice.gate import logger
         with pytest.MonkeyPatch.context() as mp:
             logged = []
             mp.setattr(logger, "warning", lambda msg, *a, **kw: logged.append(msg))

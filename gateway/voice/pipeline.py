@@ -125,7 +125,7 @@ class VoiceGateAdapter:
 
     def filter(self, text: str) -> tuple[str, List[str]]:
         """Filter response text. Returns (cleaned_text, violations)."""
-        from gateway.voice_gate import filter_response
+        from gateway.voice.gate import filter_response
 
         result = filter_response(text)
         return result.cleaned, result.violations
