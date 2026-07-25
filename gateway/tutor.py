@@ -23,6 +23,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Awaitable, Callable, Sequence
 
+from gateway.db import connect as db_connect
 from gateway import knowledge
 from gateway.paths import KITTY_DATA_DIR
 
@@ -187,7 +188,7 @@ def grade_answer(
 
 def _conn() -> sqlite3.Connection:
     MEMORY_DB.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(MEMORY_DB)
+    conn = db_connect(MEMORY_DB)
     conn.execute(
         "CREATE TABLE IF NOT EXISTS vocabulary_terms ("
         "term TEXT PRIMARY KEY, subject TEXT, last_score INTEGER, next_review TEXT)"

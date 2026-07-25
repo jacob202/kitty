@@ -293,10 +293,10 @@ def _extract_chatgpt_json(path: Path) -> str:
 
 def _extract_sqlite_journal(path: Path) -> str:
     """Extract role/content pairs from a SQLite journal table."""
-    import sqlite3
+    from gateway.db import connect as db_connect
 
     try:
-        conn = sqlite3.connect(str(path))
+        conn = db_connect(path)
         rows = conn.execute(
             "SELECT role, content FROM journal ORDER BY timestamp, id"
         ).fetchall()

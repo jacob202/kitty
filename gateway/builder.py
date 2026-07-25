@@ -26,6 +26,7 @@ import time
 import uuid
 from pathlib import Path
 
+from gateway.db import connect as db_connect
 from gateway.paths import BUILDS_DB, DATA_DIR
 
 logger = logging.getLogger("kitty.builder")
@@ -39,7 +40,7 @@ APPROVAL_REQUIRED = {"implement", "commit"}  # stages that need user approval
 
 def init_db() -> None:
     BUILD_DB.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(BUILD_DB) as conn:
+    with db_connect(BUILD_DB) as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS builds (
                 id TEXT PRIMARY KEY,
@@ -71,7 +72,7 @@ def start(
     target = target_dir or str(DATA_DIR / "builds" / build_id)
     Path(target).mkdir(parents=True, exist_ok=True)
 
-    with sqlite3.connect(BUILD_DB) as conn:
+    with db_connect(BUILD_DB) as conn:
         conn.execute(
             "INSERT INTO builds (id, goal, target_dir, status, auto_approve, created_at, updated_at) "
             "VALUES (?, ?, ?, 'running', ?, ?, ?)",
@@ -90,7 +91,7 @@ def start(
 def status(build_id: str) -> dict:
     """Get build status."""
     init_db()
-    with sqlite3.connect(BUILD_DB) as conn:
+    with db_connect(BUILD_DB) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute("SELECT * FROM builds WHERE id = ?", (build_id,)).fetchone()
     if not row:
@@ -121,7 +122,7 @@ def approve_stage(build_id: str, stage: str) -> bool:
 def get_artifact(build_id: str) -> str:
     """Get the build artifact (generated code/text)."""
     init_db()
-    with sqlite3.connect(BUILD_DB) as conn:
+    with db_connect(BUILD_DB) as conn:
         row = conn.execute("SELECT artifact FROM builds WHERE id = ?", (build_id,)).fetchone()
     return row[0] if row else ""
 
@@ -129,7 +130,7 @@ def get_artifact(build_id: str) -> str:
 def list_builds(limit: int = 10) -> list[dict]:
     """List recent builds."""
     init_db()
-    with sqlite3.connect(BUILD_DB) as conn:
+    with db_connect(BUILD_DB) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             "SELECT * FROM builds ORDER BY created_at DESC LIMIT ?", (limit,)
@@ -341,7 +342,7 @@ def _update(build_id: str, **fields) -> None:
     now = time.time()
     sets = ", ".join(f"{k} = ?" for k in fields)
     values = list(fields.values()) + [now, build_id]
-    with sqlite3.connect(BUILD_DB) as conn:
+    with db_connect(BUILD_DB) as conn:
         conn.execute(f"UPDATE builds SET {sets}, updated_at = ? WHERE id = ?", values)
         conn.commit()
 

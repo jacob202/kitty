@@ -21,6 +21,7 @@ from typing import Optional
 
 import httpx
 
+from gateway.db import connect as db_connect
 from gateway.paths import DATA_DIR
 
 logger = logging.getLogger("kitty.web_monitor")
@@ -33,7 +34,7 @@ _polling_task: asyncio.Task | None = None
 
 def init_db() -> None:
     MONITOR_DB.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(MONITOR_DB) as conn:
+    with db_connect(MONITOR_DB) as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS watches (
                 id TEXT PRIMARY KEY,
@@ -62,7 +63,7 @@ def add_watch(
     watch_id = str(uuid.uuid4())[:8]
     now = time.time()
 
-    with sqlite3.connect(MONITOR_DB) as conn:
+    with db_connect(MONITOR_DB) as conn:
         conn.execute(
             "INSERT INTO watches (id, url, label, keywords, interval_minutes, created_at) "
             "VALUES (?, ?, ?, ?, ?, ?)",
@@ -80,7 +81,7 @@ def add_watch(
 def remove_watch(watch_id: str) -> bool:
     """Remove a watch by ID."""
     init_db()
-    with sqlite3.connect(MONITOR_DB) as conn:
+    with db_connect(MONITOR_DB) as conn:
         cursor = conn.execute("DELETE FROM watches WHERE id = ?", (watch_id,))
         conn.commit()
         return cursor.rowcount > 0
@@ -89,7 +90,7 @@ def remove_watch(watch_id: str) -> bool:
 def list_watches() -> list[dict]:
     """List all watches."""
     init_db()
-    with sqlite3.connect(MONITOR_DB) as conn:
+    with db_connect(MONITOR_DB) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             "SELECT * FROM watches ORDER BY created_at DESC"
@@ -100,7 +101,7 @@ def list_watches() -> list[dict]:
 async def check_now(watch_id: str) -> dict:
     """Force-check a single watch immediately."""
     init_db()
-    with sqlite3.connect(MONITOR_DB) as conn:
+    with db_connect(MONITOR_DB) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute("SELECT * FROM watches WHERE id = ?", (watch_id,)).fetchone()
 
@@ -171,7 +172,7 @@ async def _check_watch(watch: dict) -> dict:
 
             # Update last checked time and hash
             now = time.time()
-            with sqlite3.connect(MONITOR_DB) as conn:
+            with db_connect(MONITOR_DB) as conn:
                 conn.execute(
                     "UPDATE watches SET last_hash = ?, last_checked = ?, last_result = ? WHERE id = ?",
                     (new_hash, now, text[:5000], watch["id"]),

@@ -217,7 +217,7 @@ def _import_legacy_todos_once() -> None:
 
 
 def _read_legacy_todos() -> list[sqlite3.Row]:
-    with sqlite3.connect(TODO_DB) as source:
+    with kitty_db.connect(TODO_DB) as source:
         source.row_factory = sqlite3.Row
         return source.execute(
             """

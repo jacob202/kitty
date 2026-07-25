@@ -10,14 +10,31 @@ from gateway.paths import DB_MIGRATIONS_DIR, KITTY_DB_FILE
 
 logger = logging.getLogger("kitty.db")
 
+_PRAGMAS = (
+    "PRAGMA journal_mode=WAL;",
+    "PRAGMA busy_timeout=5000;",
+    "PRAGMA foreign_keys=ON;",
+    "PRAGMA synchronous=NORMAL;",
+)
+
+
+def apply_pragmas(conn: sqlite3.Connection) -> None:
+    """Apply standard WAL/busy/foreign_keys/sync pragmas to a connection.
+
+    Safe to call on any SQLite connection regardless of how it was opened.
+    Idempotent — repeated calls are harmless.
+    """
+    for pragma in _PRAGMAS:
+        conn.execute(pragma)
+
 
 def connect(db_file: Path = KITTY_DB_FILE) -> sqlite3.Connection:
-    """Open the Kitty SQLite database with project defaults enabled."""
+    """Open a SQLite database with WAL, busy_timeout, foreign_keys, synchronous."""
     db_path = Path(db_file)
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
+    apply_pragmas(conn)
     return conn
 
 

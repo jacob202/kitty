@@ -25,6 +25,7 @@ import time
 import uuid
 from typing import Any, Optional
 
+from gateway.db import connect as db_connect
 from gateway.paths import TASK_DB, TASK_OUTPUT_DIR
 
 logger = logging.getLogger("kitty.task_runner")
@@ -40,7 +41,7 @@ _TASKS: dict[str, asyncio.Task[None]] = {}
 def init_db() -> None:
     TASK_DB.parent.mkdir(parents=True, exist_ok=True)
     TASK_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(TASK_DB) as conn:
+    with db_connect(TASK_DB) as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS tasks (
                 id TEXT PRIMARY KEY,
@@ -76,7 +77,7 @@ def create(
     task_id = str(uuid.uuid4())[:8]
     now = time.time()
 
-    with sqlite3.connect(TASK_DB) as conn:
+    with db_connect(TASK_DB) as conn:
         conn.execute(
             "INSERT INTO tasks (id, goal, task_type, status, created_at, metadata) VALUES (?, ?, ?, ?, ?, ?)",
             (task_id, goal, task_type, "queued", now, json.dumps(metadata or {})),
@@ -96,7 +97,7 @@ def create(
 def get(task_id: str) -> dict[str, Any]:
     """Get task details by ID."""
     init_db()
-    with sqlite3.connect(TASK_DB) as conn:
+    with db_connect(TASK_DB) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
     if not row:
@@ -107,7 +108,7 @@ def get(task_id: str) -> dict[str, Any]:
 def list_tasks(status: Optional[str] = None, limit: int = 20) -> list[dict[str, Any]]:
     """List tasks, newest first. Optional status filter."""
     init_db()
-    with sqlite3.connect(TASK_DB) as conn:
+    with db_connect(TASK_DB) as conn:
         conn.row_factory = sqlite3.Row
         if status and status in VALID_STATUSES:
             rows = conn.execute(
@@ -133,7 +134,7 @@ def get_output(task_id: str) -> str:
 def cancel(task_id: str) -> bool:
     """Cancel a queued or running task."""
     init_db()
-    with sqlite3.connect(TASK_DB) as conn:
+    with db_connect(TASK_DB) as conn:
         row = conn.execute(
             "SELECT status FROM tasks WHERE id = ?", (task_id,)
         ).fetchone()
@@ -337,7 +338,7 @@ def _update(task_id: str, **fields) -> None:
     init_db()
     sets = ", ".join(f"{k} = ?" for k in fields)
     values = list(fields.values()) + [task_id]
-    with sqlite3.connect(TASK_DB) as conn:
+    with db_connect(TASK_DB) as conn:
         conn.execute(f"UPDATE tasks SET {sets} WHERE id = ?", values)
         conn.commit()
 

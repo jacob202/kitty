@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from gateway.db import apply_pragmas
 from gateway import builder_attempt as ba
 from gateway import builder_initiative as bi
 from gateway import builder_queue as bq
@@ -127,6 +128,7 @@ def build_control_plane_summary(*, db_path: Path) -> dict[str, Any]:
     uri = f"{path.as_uri()}?mode=ro"
     conn = sqlite3.connect(uri, uri=True)
     conn.row_factory = sqlite3.Row
+    apply_pragmas(conn)
     try:
         conn.execute("PRAGMA query_only = ON")
         initiative_rows = conn.execute(

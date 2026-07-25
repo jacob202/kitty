@@ -30,6 +30,8 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
+from gateway.db import connect as db_connect
+
 logger = logging.getLogger("kitty.agent_runner")
 
 DEFAULT_MAX_ITERATIONS: int = 5
@@ -363,7 +365,7 @@ def _session_status(session_id: int) -> str | None:
 
     from gateway.autonomy_state import STATE_DB
 
-    with sqlite3.connect(STATE_DB) as conn:
+    with db_connect(STATE_DB) as conn:
         row = conn.execute(
             "SELECT status FROM autonomy_sessions WHERE id = ?", (session_id,)
         ).fetchone()
@@ -388,7 +390,7 @@ def get_status(session_id: int) -> dict[str, Any]:
 
     from gateway.autonomy_state import STATE_DB
 
-    with sqlite3.connect(STATE_DB) as conn:
+    with db_connect(STATE_DB) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute("SELECT * FROM autonomy_sessions WHERE id = ?", (session_id,)).fetchone()
 
@@ -434,7 +436,7 @@ def list_agents(limit: int = 20) -> list[dict[str, Any]]:
 
     init_db()
 
-    with sqlite3.connect(STATE_DB) as conn:
+    with db_connect(STATE_DB) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             "SELECT * FROM autonomy_sessions ORDER BY created_at DESC LIMIT ?", (limit,)
@@ -462,7 +464,7 @@ def stop(session_id: int) -> bool:
 
     from gateway.autonomy_state import STATE_DB
 
-    with sqlite3.connect(STATE_DB) as conn:
+    with db_connect(STATE_DB) as conn:
         row = conn.execute(
             "SELECT status FROM autonomy_sessions WHERE id = ?", (session_id,)
         ).fetchone()

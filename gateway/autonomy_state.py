@@ -11,6 +11,7 @@ import sqlite3
 import time
 from typing import Any, Dict, List, Optional
 
+from gateway.db import connect as db_connect
 from gateway.paths import DATA_DIR
 
 logger = logging.getLogger("kitty.autonomy_state")
@@ -18,7 +19,7 @@ STATE_DB = DATA_DIR / "autonomy_state.db"
 
 def init_db():
     """Initialize the autonomy state database."""
-    with sqlite3.connect(STATE_DB) as conn:
+    with db_connect(STATE_DB) as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS autonomy_sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,7 +54,7 @@ class AutonomyState:
 
         if self.session_id:
             # Resume existing session
-            with sqlite3.connect(STATE_DB) as conn:
+            with db_connect(STATE_DB) as conn:
                 row = conn.execute("SELECT MAX(turn_index) FROM autonomy_steps WHERE session_id = ?", (self.session_id,)).fetchone()
                 self.current_turn = (row[0] or 0) + 1
 
@@ -61,7 +62,7 @@ class AutonomyState:
     def start_new(cls, goal: str) -> AutonomyState:
         """Start a new autonomy session."""
         now = time.time()
-        with sqlite3.connect(STATE_DB) as conn:
+        with db_connect(STATE_DB) as conn:
             cursor = conn.execute(
                 "INSERT INTO autonomy_sessions (goal, created_at, updated_at) VALUES (?, ?, ?)",
                 (goal, now, now)
@@ -78,7 +79,7 @@ class AutonomyState:
             return
 
         now = time.time()
-        with sqlite3.connect(STATE_DB) as conn:
+        with db_connect(STATE_DB) as conn:
             conn.execute("""
                 INSERT INTO autonomy_steps (session_id, turn_index, role, content, thinking, tool_name, tool_args, tool_result, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -96,7 +97,7 @@ class AutonomyState:
         if not self.session_id:
             return []
 
-        with sqlite3.connect(STATE_DB) as conn:
+        with db_connect(STATE_DB) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
                 "SELECT * FROM autonomy_steps WHERE session_id = ? ORDER BY turn_index ASC",
@@ -110,7 +111,7 @@ class AutonomyState:
             return
 
         now = time.time()
-        with sqlite3.connect(STATE_DB) as conn:
+        with db_connect(STATE_DB) as conn:
             conn.execute("UPDATE autonomy_sessions SET status = ?, updated_at = ? WHERE id = ?", (status, now, self.session_id))
             conn.commit()
 

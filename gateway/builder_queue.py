@@ -825,6 +825,40 @@ def queue_status(
         conn.close()
 
 
+def find_silent_transitions(
+    db_path: Path | None = None,
+) -> list[dict[str, Any]]:
+    """Find tasks whose state left ``queued`` with no event trail.
+
+    ``_apply_transition`` always appends an event in the same transaction as
+    the state change, so every legitimate transition leaves a record. A task
+    that is no longer ``queued`` but has one event or fewer (just its
+    ``created`` event) never went through ``transition_task`` at all — most
+    likely a direct write to the database outside the application. This does
+    not detect *why* that happened, only *that* it happened, so it can be
+    caught immediately instead of reconstructed later from git archaeology.
+    """
+    init_db(db_path)
+    conn = connect(db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT t.id, t.title, t.state, t.bridge_external_id, t.updated_at,
+                   COUNT(e.id) AS event_count
+            FROM tasks t
+            JOIN events e ON e.task_id = t.id
+            WHERE t.archived_at IS NULL AND t.state != ?
+            GROUP BY t.id
+            HAVING event_count <= 1
+            ORDER BY t.updated_at DESC
+            """,
+            (QUEUED,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
 # ---------------------------------------------------------------------------
 # Soft archive (terminal-state-only, age-filtered)
 # ---------------------------------------------------------------------------
