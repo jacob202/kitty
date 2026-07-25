@@ -70,7 +70,8 @@ Current user-facing Builder controls remain read-only.
 | `gateway/desktop_store.py` | Quick Capture inbox writer/status helper |
 | `gateway/cron.py` | Local scheduled actions |
 | `gateway/kitty-chat/` | Next.js UI |
-| `gateway/builder_status.py` | Bounded read-only projection over Builder-owned state |
+| `gateway/builder/projection.py` | Bounded read-only projection over Builder-owned state |
+| `gateway/builder/api.py` | Autonomous build pipeline; re-exported as `gateway.builder` |
 | `gateway/context_receipt.py` | Derived repository/continuity receipt; owns no durable state |
 
 ## Domain Modules (route islands)
@@ -153,5 +154,5 @@ The following shallow modules were deleted (deepening passes):
 - `gateway/eval_domain.py` — evaluation domain types only consumed by the deleted `smoke_eval.py`.
 - `gateway/parts.py` — small parts-mode helper; folded into `gateway/context_assembler.py`.
 - `gateway/prompts_catalog.py` — template list with one route consumer; folded into `gateway/prompts.py`.
-- `gateway/success_criteria.py` — ISA-lite derive/check helper; folded into `gateway/builder.py`.
+- `gateway/success_criteria.py` — ISA-lite derive/check helper; folded into `gateway/builder/api.py`.
 - `gateway/voice_session.py` — 19-line re-export shim with no callers; deleted.

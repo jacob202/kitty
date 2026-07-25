@@ -12,7 +12,7 @@ from gateway.builder import attempt as ba
 from gateway.builder import initiative as bi
 from gateway.builder import queue as bq
 from gateway import runtime_manifest
-from gateway.builder import status as builder_status
+from gateway.builder import projection as builder_projection
 
 INITIATIVE_ID = "builder-ui-test"
 PACKET_ID = "BUILDER-UI-1"
@@ -51,7 +51,7 @@ def _manifest() -> dict:
                 "title": "Expose truthful Builder status",
                 "objective": "Render a safe read-only status surface.",
                 "acceptance_criteria": ["The status projection is bounded."],
-                "allowed_paths": ["gateway/builder_status.py"],
+                "allowed_paths": ["gateway/builder_projection.py"],
                 "policy": {"max_attempts": 2},
                 "validation_commands": ["false"],
             }
@@ -92,7 +92,7 @@ def _review_result() -> dict:
 def test_empty_snapshot_has_no_fabricated_builder_activity(tmp_path: Path):
     db_path = tmp_path / "builder.db"
 
-    snapshot = builder_status.build_status_snapshot(db_path=db_path)
+    snapshot = builder_projection.build_status_snapshot(db_path=db_path)
 
     assert snapshot["schema_version"] == 2
     assert snapshot["attempt_history_limit"] == 10
@@ -104,7 +104,7 @@ def test_control_plane_summary_does_not_create_a_missing_database(tmp_path: Path
     db_path = tmp_path / "missing" / "builder.db"
 
     with pytest.raises(FileNotFoundError, match="does not exist"):
-        builder_status.build_control_plane_summary(db_path=db_path)
+        builder_projection.build_control_plane_summary(db_path=db_path)
 
     assert not db_path.exists()
     assert not db_path.parent.exists()
@@ -114,7 +114,7 @@ def test_control_plane_summary_reads_queue_and_initiatives(tmp_path: Path):
     db_path, _repo, _task_id = _apply_manifest(tmp_path)
     before = db_path.read_bytes()
 
-    summary = builder_status.build_control_plane_summary(db_path=db_path)
+    summary = builder_projection.build_control_plane_summary(db_path=db_path)
 
     assert db_path.read_bytes() == before
     assert summary["schema_version"] == 1
@@ -168,7 +168,7 @@ def test_snapshot_exposes_bounded_attempt_evidence_and_omits_unsafe_fields(tmp_p
         db_path=db_path,
     )
 
-    snapshot = builder_status.build_status_snapshot(db_path=db_path)
+    snapshot = builder_projection.build_status_snapshot(db_path=db_path)
     packet = snapshot["initiatives"][0]["packets"][0]
 
     assert packet["attempt_count"] == 2
@@ -229,7 +229,7 @@ def test_crashed_attempt_does_not_consume_retry_budget(tmp_path: Path):
     failed = ba.start_attempt(INITIATIVE_ID, PACKET_ID, db_path=db_path)
     ba.close_attempt(failed["id"], "failed", db_path=db_path)
 
-    packet = builder_status.build_status_snapshot(db_path=db_path)["initiatives"][0]["packets"][0]
+    packet = builder_projection.build_status_snapshot(db_path=db_path)["initiatives"][0]["packets"][0]
 
     assert packet["budget"] == {"used": 1, "max": 2, "exhausted": False}
     assert [attempt["outcome"] for attempt in packet["attempt_history"]] == [
@@ -246,7 +246,7 @@ def test_cancelled_task_is_not_presented_as_an_implementation_failure(tmp_path: 
     db_path, _repo, task_id = _apply_manifest(tmp_path)
     bq.transition_task(task_id, bq.CANCELLED, db_path=db_path)
 
-    packet = builder_status.build_status_snapshot(db_path=db_path)["initiatives"][0]["packets"][0]
+    packet = builder_projection.build_status_snapshot(db_path=db_path)["initiatives"][0]["packets"][0]
 
     assert packet["task_state"] == "cancelled"
     assert packet["failure_kind"] == "cancelled"
@@ -271,7 +271,7 @@ def test_runtime_manifest_surfaces_builder_read_failures(monkeypatch):
     def unavailable_projection() -> dict:
         raise ValueError("attempt implementation contains invalid JSON")
 
-    monkeypatch.setattr(builder_status, "build_status_snapshot", unavailable_projection)
+    monkeypatch.setattr(builder_projection, "build_status_snapshot", unavailable_projection)
 
     fact = runtime_manifest._builder_fact(
         observed_at="2026-07-17T03:00:00Z",
@@ -295,7 +295,7 @@ def test_attempt_history_is_capped_and_reports_total(tmp_path: Path):
         attempt = ba.start_attempt(INITIATIVE_ID, PACKET_ID, db_path=db_path)
         ba.close_attempt(attempt["id"], "failed", db_path=db_path)
 
-    packet = builder_status.build_status_snapshot(db_path=db_path)["initiatives"][0]["packets"][0]
+    packet = builder_projection.build_status_snapshot(db_path=db_path)["initiatives"][0]["packets"][0]
 
     assert packet["attempt_count"] == 12
     assert packet["attempt_history_truncated"] is True
@@ -330,7 +330,7 @@ def test_malformed_attempt_is_isolated_as_degraded_packet(
     finally:
         conn.close()
 
-    snapshot = builder_status.build_status_snapshot(db_path=db_path)
+    snapshot = builder_projection.build_status_snapshot(db_path=db_path)
     packets = snapshot["initiatives"][0]["packets"]
 
     assert snapshot["integrity"] == {
@@ -348,7 +348,7 @@ def test_malformed_attempt_is_isolated_as_degraded_packet(
     def partial_snapshot() -> dict:
         return snapshot
 
-    monkeypatch.setattr(builder_status, "build_status_snapshot", partial_snapshot)
+    monkeypatch.setattr(builder_projection, "build_status_snapshot", partial_snapshot)
     fact = runtime_manifest._builder_fact(
         observed_at="2026-07-17T03:00:00Z",
         valid_until="2026-07-17T03:00:05Z",
@@ -381,7 +381,7 @@ def test_failure_categories_are_canonical(
 ):
     run = {"state": run_state} if run_state else None
 
-    assert builder_status._failure_kind(
+    assert builder_projection._failure_kind(
         task_state=task_state,
         exhausted=exhausted,
         attempt=attempt,
@@ -403,7 +403,7 @@ def test_publication_projection_allows_only_safe_github_links(tmp_path: Path):
         db_path=db_path,
     )
 
-    packet = builder_status.build_status_snapshot(db_path=db_path)["initiatives"][0]["packets"][0]
+    packet = builder_projection.build_status_snapshot(db_path=db_path)["initiatives"][0]["packets"][0]
 
     assert packet["publication"] == {
         "pr_number": 182,
@@ -426,7 +426,7 @@ def test_publication_projection_allows_only_safe_github_links(tmp_path: Path):
     finally:
         conn.close()
 
-    unsafe_packet = builder_status.build_status_snapshot(db_path=db_path)["initiatives"][0]["packets"][0]
+    unsafe_packet = builder_projection.build_status_snapshot(db_path=db_path)["initiatives"][0]["packets"][0]
     assert unsafe_packet["publication"]["pr_url"] is None
     assert "publication URL is not a safe GitHub HTTPS link" in unsafe_packet["data_quality"]["issues"]
 
@@ -440,7 +440,7 @@ def test_publication_projection_allows_only_safe_github_links(tmp_path: Path):
     finally:
         conn.close()
 
-    non_pr_packet = builder_status.build_status_snapshot(db_path=db_path)["initiatives"][0]["packets"][0]
+    non_pr_packet = builder_projection.build_status_snapshot(db_path=db_path)["initiatives"][0]["packets"][0]
     assert non_pr_packet["publication"]["pr_url"] is None
 
 
@@ -451,7 +451,7 @@ def test_safe_messages_redact_secrets_paths_and_bound_length():
         + "x" * 700
     )
 
-    projected = builder_status._safe_message(message)
+    projected = builder_projection._safe_message(message)
 
     assert projected is not None
     assert "super-secret-token" not in projected
@@ -479,7 +479,7 @@ def test_lease_projection_uses_composite_packet_identity(tmp_path: Path):
         db_path=db_path,
     )
 
-    snapshot = builder_status.build_status_snapshot(db_path=db_path)
+    snapshot = builder_projection.build_status_snapshot(db_path=db_path)
     packets = {
         initiative["initiative_id"]: initiative["packets"][0]
         for initiative in snapshot["initiatives"]
@@ -526,20 +526,20 @@ def test_snapshot_query_count_is_constant_with_packet_count(tmp_path: Path, monk
 
     def query_count(db_path: Path) -> int:
         select_counts.clear()
-        builder_status.build_status_snapshot(db_path=db_path)
+        builder_projection.build_status_snapshot(db_path=db_path)
         return len(select_counts)
 
     one_packet = query_count(one_packet_db)
     twelve_packets = query_count(twelve_packet_db)
 
     assert one_packet == twelve_packets
-    assert one_packet == builder_status.SNAPSHOT_QUERY_COUNT
+    assert one_packet == builder_projection.SNAPSHOT_QUERY_COUNT
 
 
 def test_snapshot_serialization_is_deterministic(tmp_path: Path):
     db_path, _repo, _task_id = _apply_manifest(tmp_path)
 
-    first = json.dumps(builder_status.build_status_snapshot(db_path=db_path), sort_keys=True)
-    second = json.dumps(builder_status.build_status_snapshot(db_path=db_path), sort_keys=True)
+    first = json.dumps(builder_projection.build_status_snapshot(db_path=db_path), sort_keys=True)
+    second = json.dumps(builder_projection.build_status_snapshot(db_path=db_path), sort_keys=True)
 
     assert first == second

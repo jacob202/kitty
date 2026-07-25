@@ -149,6 +149,16 @@ async def _run_pipeline(
     require_criteria: bool = False,
 ) -> None:
     """Execute all pipeline stages in sequence."""
+    # Imported here, not at module scope: isc pulls in llm_client, and this
+    # module is re-exported from the package __init__, so an eager import
+    # would drag llm_client into every `import gateway.builder.<anything>`.
+    from gateway.builder.isc import (
+        all_criteria_passed,
+        check_criteria,
+        derive_criteria,
+        format_criteria_block,
+    )
+
     stages_status: dict[str, str] = {}
     criteria_met = True
 
@@ -349,13 +359,3 @@ def _update(build_id: str, **fields) -> None:
 
 def _update_stage_status(build_id: str, stages: dict) -> None:
     _update(build_id, stage_status=json.dumps(stages))
-
-
-# --- Success Criteria (ISA-lite, shared with builder_isc.py) ---
-
-from gateway.builder.isc import (  # noqa: E402
-    all_criteria_passed,
-    check_criteria,
-    derive_criteria,
-    format_criteria_block,
-)

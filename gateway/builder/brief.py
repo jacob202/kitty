@@ -20,7 +20,7 @@ _EVENT_TAIL = 10
 # the matcher to reason about paths it doesn't recognize.
 RESOURCE_MAP: list[tuple[str, list[str], list[str]]] = [
     (
-        "gateway/builder_",
+        "gateway/builder/",
         [
             "scripts/kittybuilder_opencode_worker.sh",
             "scripts/kittybuilder_opencode_reviewer.sh",

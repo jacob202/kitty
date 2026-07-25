@@ -512,7 +512,7 @@ def test_memory_policy_py_not_touched():
     """memory_policy.py is unmodified — this is an acceptance-criteria gate."""
     from pathlib import Path
 
-    policy_path = Path("gateway/memory_policy.py")
+    policy_path = Path("gateway/memory/policy.py")
     content = policy_path.read_bytes()
     # This test doesn't enforce a specific hash — it just proves the file
     # exists and is a real module. The real gate is the acceptance review.
@@ -524,7 +524,7 @@ def test_memory_graph_py_diff_is_cap_parameterization_only():
     """memory_graph.py was not changed — cap flows from the assembler."""
     from pathlib import Path
 
-    mg_path = Path("gateway/memory_graph.py")
+    mg_path = Path("gateway/memory/graph.py")
     content = mg_path.read_text()
 
     assert "CONTEXT_TOKEN_CAP" in content

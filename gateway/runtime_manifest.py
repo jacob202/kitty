@@ -19,7 +19,7 @@ from typing import Any
 
 import httpx
 
-from gateway.builder import status as builder_status
+from gateway.builder import projection as builder_projection
 from gateway.stores import project as project_store
 from gateway.http_client import get_http_client
 from gateway.llm_client import PROVIDERS
@@ -220,7 +220,7 @@ def _builder_fact(*, observed_at: str, valid_until: str) -> dict[str, Any]:
             reason="KITTY_BUILDER_QUEUE_ENABLED disables the Builder queue",
         )
     try:
-        snapshot = builder_status.build_status_snapshot()
+        snapshot = builder_projection.build_status_snapshot()
         partial_packets = snapshot["integrity"]["partial_packets"]
         if partial_packets:
             noun = "record" if partial_packets == 1 else "records"

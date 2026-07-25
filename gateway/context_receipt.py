@@ -21,7 +21,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from gateway.builder import status as builder_status
+from gateway.builder import projection as builder_projection
 
 SCHEMA_VERSION = 1
 DEFAULT_RECENT_COMMITS = 5
@@ -114,7 +114,7 @@ _BUILDER_DESCRIPTION_PATHS = (
     Path("docs/NORTH_STAR.md"),
     Path("docs/PROJECT_STATUS.md"),
     Path("docs/KITTYBUILDER_QUICKSTART.md"),
-    Path("gateway/builder_cli.py"),
+    Path("gateway/builder/cli.py"),
 )
 
 
@@ -993,7 +993,7 @@ def _builder_summary(canonical_checkout: Path) -> dict[str, Any]:
     if not db_path.exists():
         return {
             "state": "unavailable",
-            "source": "gateway.builder.status.build_control_plane_summary",
+            "source": "gateway.builder.projection.build_control_plane_summary",
             "database": str(db_path),
             "reason": "Builder queue database does not exist; no empty state was inferred",
             "schema_version": None,
@@ -1001,11 +1001,11 @@ def _builder_summary(canonical_checkout: Path) -> dict[str, Any]:
             "initiatives": None,
         }
     try:
-        snapshot = builder_status.build_control_plane_summary(db_path=db_path)
+        snapshot = builder_projection.build_control_plane_summary(db_path=db_path)
     except (KeyError, OSError, RuntimeError, TypeError, ValueError, sqlite3.Error) as exc:
         return {
             "state": "unknown",
-            "source": "gateway.builder.status.build_control_plane_summary",
+            "source": "gateway.builder.projection.build_control_plane_summary",
             "database": str(db_path),
             "reason": f"Builder projection failed: {type(exc).__name__}: {exc}",
             "schema_version": None,
@@ -1019,7 +1019,7 @@ def _builder_summary(canonical_checkout: Path) -> dict[str, Any]:
     initiatives.sort(key=lambda item: str(item["initiative_id"]))
     return {
         "state": "available",
-        "source": "gateway.builder.status.build_control_plane_summary",
+        "source": "gateway.builder.projection.build_control_plane_summary",
         "database": str(db_path),
         "reason": None,
         "schema_version": snapshot.get("schema_version"),

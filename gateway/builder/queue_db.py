@@ -368,7 +368,7 @@ def _ensure_branch_lease_columns(conn: sqlite3.Connection) -> None:
     """Migrate pre-rename databases where branch_leases used ``lease_ts``.
 
     The schema renamed the column to ``created_at`` without a migration, so
-    live DBs created before the rename break every reader (builder_status's
+    live DBs created before the rename break every reader (builder projection's
     lease join being the visible one).
     """
     cols = {row[1] for row in conn.execute("PRAGMA table_info(branch_leases)")}

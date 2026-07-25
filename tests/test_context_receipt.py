@@ -325,7 +325,7 @@ def test_outdated_builder_quickstart_limitations_fail(tmp_path: Path):
 def test_outdated_builder_cli_description_fails(tmp_path: Path):
     repo, _head = _repo(tmp_path)
     _write(
-        repo / "gateway/builder_cli.py",
+        repo / "gateway/builder/cli.py",
         '"""Kitty Builder CLI — Layer 1A (coordination only)."""\n',
     )
 

@@ -6,7 +6,7 @@ import pytest
 
 class TestBuilder:
     def test_start_returns_id(self):
-        with patch("gateway.builder.asyncio.create_task"):
+        with patch("gateway.builder.api.asyncio.create_task"):
             from gateway.builder import start
             build_id = start("test build", auto_approve=False)
             assert len(build_id) == 8
