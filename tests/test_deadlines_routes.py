@@ -4,15 +4,16 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from gateway import deadline_store, project_store
+from gateway.stores import deadline as deadline_store
+from gateway.stores import project as project_store
 from gateway.routes.deadlines import router
 
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     db = tmp_path / "kitty.db"
-    monkeypatch.setattr("gateway.deadline_store.DEADLINES_DB_FILE", db)
-    monkeypatch.setattr("gateway.project_store.PROJECTS_DB_FILE", db)
+    monkeypatch.setattr("gateway.stores.deadline.DEADLINES_DB_FILE", db)
+    monkeypatch.setattr("gateway.stores.project.PROJECTS_DB_FILE", db)
     monkeypatch.setattr("gateway.db.KITTY_DB_FILE", db)
     monkeypatch.setattr("gateway.paths.KITTY_DB_FILE", db)
     deadline_store.init_db()

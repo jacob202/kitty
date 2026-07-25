@@ -1,8 +1,8 @@
 """Builder queue runs \u2014 Phase 1C-alpha run-record lifecycle.
 
-Extracted from :mod:`gateway.builder_queue` as the third cut of audit \u00a72.2
-(the DB-layer cut was \u00a72.2 first cut, into :mod:`gateway.builder_queue_db`; the
-lease lifecycle cut was \u00a72.2 second cut, into :mod:`gateway.builder_queue_leases`).
+Extracted from :mod:`gateway.builder.queue` as the third cut of audit \u00a72.2
+(the DB-layer cut was \u00a72.2 first cut, into :mod:`gateway.builder.queue_db`; the
+lease lifecycle cut was \u00a72.2 second cut, into :mod:`gateway.builder.queue_leases`).
 
 Owns the lifecycle of execution attempts against claimed tasks: create run,
 heartbeat / progress updates, finalize with fence-aware report attachment,
@@ -10,14 +10,14 @@ PID-reuse fencing via ``capture_process_identity`` (ps -o lstart), and the
 ``recover_interrupted_runs`` operator-side crash-recovery scan. Also owns
 the run-state machine constants and lifecycle exception classes.
 
-Public symbols are re-exported from :mod:`gateway.builder_queue` via the
-fa\u00e7ade so callers (``gateway.builder_runner``, ``gateway.builder_attempt``,
-``gateway.builder_initiative``, CLI, tests) work unchanged.
+Public symbols are re-exported from :mod:`gateway.builder.queue` via the
+fa\u00e7ade so callers (``gateway.builder.runner``, ``gateway.builder.attempt``,
+``gateway.builder.initiative``, CLI, tests) work unchanged.
 
 Active-mission note (:file:`.claude/STATE.md`): the chat-recovery work
 ``CR-02-thread-goals-ui`` is independent of this module.
 
-Dependency resolution: imports from ``gateway.builder_queue`` are
+Dependency resolution: imports from ``gateway.builder.queue`` are
 performed lazily inside functions to break the parent-imports-child /
 child-imports-parent cycle at module-import time (the parent loads this
 module, and any cross-module call from a run function picks up the

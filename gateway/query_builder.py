@@ -1,6 +1,6 @@
 """Typed where-clause builder for safe SQLite parameterisation (audit §2.3).
 
-Problem: many callers in :mod:`gateway.builder_queue` build SQL by
+Problem: many callers in :mod:`gateway.builder.queue` build SQL by
 string-concatenating caller-influenced clauses, e.g.
 ``where_clause = " AND ".join(where_parts)``. Today the strings come
 from programmatic, type-checked dicts and parameterised via positional

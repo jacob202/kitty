@@ -20,7 +20,7 @@ async def test_image_status_reports_each_engine(monkeypatch):
     class DrawThings:
         _adapter = Adapter()
 
-    monkeypatch.setattr("gateway.image_gen.is_available", comfy_available)
+    monkeypatch.setattr("gateway.image.gen.is_available", comfy_available)
     monkeypatch.setattr("mcp.imagen.engines.get", lambda name: DrawThings())
 
     result = await extended.image_status()

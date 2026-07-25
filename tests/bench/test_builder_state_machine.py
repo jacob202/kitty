@@ -6,7 +6,7 @@ Each test exercises one end-to-end chain.
 Packet: KB-S1 (queue state machine)
 """
 
-from gateway import builder_queue as bq
+from gateway.builder import queue as bq
 
 
 def test_full_lifecycle_queued_to_blocked(db_path):

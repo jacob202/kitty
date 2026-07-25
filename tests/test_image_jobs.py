@@ -14,7 +14,7 @@ from typing import Any
 
 import pytest
 
-from gateway import image_jobs as jobs
+from gateway.image import jobs as jobs
 from gateway.image.jobs import (
     IllegalTransitionError,
     ImageJobError,

@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 from fastapi import HTTPException
 
-from gateway import image_gen
-from gateway import image_jobs as jobs
+from gateway.image import gen as image_gen
+from gateway.image import jobs as jobs
 from gateway.image.gen import (
     CancellationConflictError,
     CancellationUnsupportedError,

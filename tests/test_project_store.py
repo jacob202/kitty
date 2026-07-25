@@ -1,7 +1,7 @@
 """Tests for project_store — the projects registry (P6, docs/packets/021)."""
 import pytest
 
-from gateway import project_store
+from gateway.stores import project as project_store
 
 
 @pytest.fixture(autouse=True)

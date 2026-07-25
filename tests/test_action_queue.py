@@ -9,7 +9,8 @@ import json
 
 import pytest
 
-from gateway import action_queue, calendar_integration, todo_store
+from gateway import action_queue, calendar_integration
+from gateway.stores import todo as todo_store
 
 
 @pytest.fixture(autouse=True)

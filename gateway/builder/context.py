@@ -63,7 +63,7 @@ def build_context_manifest(
     """Hash the bounded worker context without persisting its contents.
 
     ``allowed_paths`` (CP-07, optional) drives a mechanical resources
-    lookup (``gateway.builder_brief.resources_for_paths``) — repo scripts
+    lookup (``gateway.builder.brief.resources_for_paths``) — repo scripts
     and skills relevant to the packet's scope, so workers stop
     rediscovering what already exists. Omitted paths get an empty
     resources block, never a guess.

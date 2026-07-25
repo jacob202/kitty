@@ -14,7 +14,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from gateway import db as kitty_db
-from gateway import memory, plugin_registry, storage_sync, todo_store
+from gateway import memory, plugin_registry, storage_sync
+from gateway.stores import todo as todo_store
 
 
 @pytest.fixture(autouse=True)

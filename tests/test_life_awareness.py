@@ -250,12 +250,12 @@ class TestBuildProactiveSuggestions:
 
 class TestEmitLifeSignal:
     def test_emit_life_signal_returns_none_on_failure(self):
-        with patch("gateway.signal_store.emit", side_effect=Exception("db error")):
+        with patch("gateway.stores.signal.emit", side_effect=Exception("db error")):
             result = life_awareness.emit_life_signal("test", {})
         assert result is None
 
     def test_emit_meeting_detected(self):
-        with patch("gateway.signal_store.emit", return_value={"id": 1}) as mock:
+        with patch("gateway.stores.signal.emit", return_value={"id": 1}) as mock:
             life_awareness.emit_life_signal(life_awareness.MEETING_DETECTED, {"title": "Standup"})
         mock.assert_called_once()
 
@@ -384,7 +384,7 @@ class TestLifeRoutesContract:
 
     def test_life_events_endpoint(self, client):
 
-        with patch("gateway.signal_store.list_recent", return_value=[
+        with patch("gateway.stores.signal.list_recent", return_value=[
             {"source": "life_awareness", "kind": "test", "ts": 1000.0, "payload": {}, "id": 1},
         ]):
             resp = client.get("/life/events?limit=5")

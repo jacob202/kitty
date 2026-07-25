@@ -11,7 +11,7 @@ import asyncio
 import logging
 from typing import Any
 
-from gateway import memory_graph
+from gateway.memory import graph as memory_graph
 
 logger = logging.getLogger("kitty.search")
 

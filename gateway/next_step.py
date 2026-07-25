@@ -30,7 +30,8 @@ import time
 from typing import Any, Callable
 
 from gateway import db as kitty_db
-from gateway import project_resume, project_store, user_context
+from gateway import project_resume, user_context
+from gateway.stores import project as project_store
 from gateway.paths import CONFIG_DIR, KITTY_DB_FILE
 
 logger = logging.getLogger("kitty.next_step")
@@ -229,7 +230,7 @@ def select_steps(limit: int = 3) -> list[dict[str, Any]]:
     Returns the same dict shape as brief.py's get_next_steps_section():
     project_id, project_name, step, why.
     """
-    from gateway import project_store
+    from gateway.stores import project as project_store
 
     projects = [p for p in project_store.list_projects() if p["status"] == "active"]
 

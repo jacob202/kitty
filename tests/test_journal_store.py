@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from gateway import journal_store
+from gateway.stores import journal as journal_store
 
 
 @pytest.fixture(autouse=True)

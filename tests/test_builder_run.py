@@ -14,9 +14,9 @@ from typing import Any
 
 import pytest
 
-from gateway import builder_initiative as bi
-from gateway import builder_queue as bq
-from gateway import builder_run as br
+from gateway.builder import initiative as bi
+from gateway.builder import queue as bq
+from gateway.builder import run as br
 
 INITIATIVE = "run-test"
 

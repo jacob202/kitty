@@ -6,7 +6,7 @@ import asyncio
 import logging
 from pathlib import Path
 
-from gateway import desktop_store
+from gateway.stores import desktop as desktop_store
 from gateway.paths import INBOX_FILE
 
 logger = logging.getLogger("kitty.inbox_watcher")

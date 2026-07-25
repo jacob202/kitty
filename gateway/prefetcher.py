@@ -173,7 +173,7 @@ def put_cached(query: str, context: str) -> None:
 async def warm(k: int = 3) -> int:
     """Precompute context for the predicted next queries. Returns how many were
     freshly warmed (already-cached predictions are skipped)."""
-    from gateway import memory_graph
+    from gateway.memory import graph as memory_graph
 
     warmed = 0
     for query in predict(k=k):

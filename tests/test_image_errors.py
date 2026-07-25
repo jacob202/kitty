@@ -2,7 +2,7 @@
 
 import pytest
 
-from gateway import image_gen
+from gateway.image import gen as image_gen
 
 
 @pytest.mark.asyncio

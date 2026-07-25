@@ -13,7 +13,8 @@ import time
 import uuid
 from typing import Any
 
-from gateway import llm_client, project_store
+from gateway import llm_client
+from gateway.stores import project as project_store
 from gateway.project_resume import resume as project_resume
 
 logger = logging.getLogger("kitty.magic_kitty")

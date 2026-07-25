@@ -344,7 +344,8 @@ def _check_gateway_freshness(
 
 def _check_deadlines() -> list[Check]:
     """PASS when deadlines are being watched and last push succeeded; WARN when none watched; FAIL on last push failure."""
-    from gateway import deadline_store, push
+    from gateway import push
+    from gateway.stores import deadline as deadline_store
 
     open_deadlines = deadline_store.list_open(status="open")
     if not open_deadlines:

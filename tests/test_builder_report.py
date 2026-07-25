@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from gateway import builder_attempt as ba
-from gateway import builder_initiative as bi
-from gateway import builder_queue as bq
-from gateway import builder_report as br
+from gateway.builder import attempt as ba
+from gateway.builder import initiative as bi
+from gateway.builder import queue as bq
+from gateway.builder import report as br
 
 
 @pytest.fixture

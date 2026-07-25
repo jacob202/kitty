@@ -5,7 +5,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from gateway import next_step, project_store
+from gateway import next_step
+from gateway.stores import project as project_store
 from gateway.memory.graph import GraphResult
 from gateway.routes import projects as projects_route
 
@@ -16,7 +17,7 @@ def client(monkeypatch, tmp_path):
     monkeypatch.setattr(project_store, "PROJECTS_DB_FILE", db_file, raising=False)
     monkeypatch.setattr(next_step, "NEXT_STEP_DB_FILE", db_file, raising=False)
     monkeypatch.setattr("gateway.project_resume._run_memory_search", lambda q: GraphResult())
-    monkeypatch.setattr("gateway.signal_store.list_recent", lambda limit=200: [])
+    monkeypatch.setattr("gateway.stores.signal.list_recent", lambda limit=200: [])
     monkeypatch.setattr(
         next_step,
         "_default_llm",

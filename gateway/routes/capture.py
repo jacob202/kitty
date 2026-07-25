@@ -12,7 +12,8 @@ from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
-from gateway import artifact_store, desktop_store
+from gateway.stores import artifact as artifact_store
+from gateway.stores import desktop as desktop_store
 from gateway.paths import DATA_DIR, INBOX_FILE
 
 logger = logging.getLogger("kitty.routes.capture")

@@ -3,7 +3,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from gateway import action_queue, calendar_integration, todo_store
+from gateway import action_queue, calendar_integration
+from gateway.stores import todo as todo_store
 from gateway.routes import actions as actions_route
 
 

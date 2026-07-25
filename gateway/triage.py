@@ -26,7 +26,8 @@ import time
 from typing import Any, Callable
 
 from gateway import db as kitty_db
-from gateway import desktop_store, user_context
+from gateway import user_context
+from gateway.stores import desktop as desktop_store
 from gateway.paths import CONFIG_DIR, KITTY_DB_FILE
 
 logger = logging.getLogger("kitty.triage")

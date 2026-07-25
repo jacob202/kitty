@@ -100,7 +100,7 @@ def register_backend(backend: ImageBackend) -> None:
 
 
 class ComfyUIBackend(ImageBackend):
-    """Backend that wraps gateway.image_gen for ComfyUI generation."""
+    """Backend that wraps gateway.image.gen for ComfyUI generation."""
 
     def __init__(self, timeout: int = 360) -> None:
         self._timeout = timeout

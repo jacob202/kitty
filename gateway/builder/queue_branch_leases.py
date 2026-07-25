@@ -1,6 +1,6 @@
 """Builder queue branch leases \u2014 packet/worker/branch/worktree exclusive leases.
 
-Extracted from :mod:`gateway.builder_queue` as the fourth cut of audit
+Extracted from :mod:`gateway.builder.queue` as the fourth cut of audit
 \u00a72.2 (the order has been DB \u00a71, lease lifecycle \u00a72, run lifecycle \u00a73,
 branch leases \u00a74, events/PRs \u00a75 \u2014 split earlier in builder_queue.py so
 each cut owns a coherent lifecycle).
@@ -11,21 +11,21 @@ with initiative_id scoping so v1/v2 retries of the same packet from different
 initiatives can coexist. ``claim_branch_lease`` inserts with a unique-index
 guarantee; ``verify_branch_lease`` reads back; ``release_branch_lease`` does
 an owner-fenced delete. The two ``on_conn`` variants let sibling code
-(``gateway.builder_attempt`` and ``gateway.builder_identity``) participate in
+(``gateway.builder.attempt`` and ``gateway.builder.identity``) participate in
 the caller's transaction for atomic packet-launch plumbing.
 
-Public symbols are re-exported from :mod:`gateway.builder_queue` via the
-fa\u00e7ade so callers (``gateway.builder_attempt``, ``gateway.builder_identity``,
-``gateway.builder_loop``, CLI, tests) work unchanged.
+Public symbols are re-exported from :mod:`gateway.builder.queue` via the
+fa\u00e7ade so callers (``gateway.builder.attempt``, ``gateway.builder.identity``,
+``gateway.builder.loop``, CLI, tests) work unchanged.
 
 Active-mission note (:file:`.claude/STATE.md`): the chat-recovery work
 ``CR-02-thread-goals-ui`` is independent of this module.
 
-Dependency resolution: this module imports from ``gateway.builder_queue_db``
-only (no parent\u2194child cycle with ``gateway.builder_queue``). The branch-lease
+Dependency resolution: this module imports from ``gateway.builder.queue_db``
+only (no parent\u2194child cycle with ``gateway.builder.queue``). The branch-lease
 lifecycle never calls ``append_event`` or ``_apply_transition`` \u2014 every
 operation here is purely SQL on the ``branch_leases`` table \u2014 so the
-simple top-level import of :mod:`gateway.builder_queue_db` is safe.
+simple top-level import of :mod:`gateway.builder.queue_db` is safe.
 """
 
 from __future__ import annotations

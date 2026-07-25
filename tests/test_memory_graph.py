@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-import gateway.memory_graph as memory_graph_module
+import gateway.memory.graph as memory_graph_module
 from gateway import prefetcher
 from gateway.memory.graph import (
     CONTEXT_TOKEN_CAP,
@@ -202,7 +202,7 @@ async def test_token_budget_truncation():
 @pytest.mark.asyncio
 async def test_real_journal_fetch_smoke(tmp_path, monkeypatch):
     """JournalAdapter fetches via journal.search_entries (SQLite-backed)."""
-    from gateway import journal_store
+    from gateway.stores import journal as journal_store
 
     journal_file = tmp_path / "journal_entries.jsonl"
     db_file = tmp_path / "kitty" / "kitty.db"
@@ -229,7 +229,7 @@ async def test_real_journal_fetch_smoke(tmp_path, monkeypatch):
 async def test_real_trace_fetch_smoke(tmp_path, monkeypatch):
     """TracesAdapter._fetch_traces returns ``list[Item]`` from the trace log."""
     trace_file = tmp_path / "gateway_trace.jsonl"
-    monkeypatch.setattr("gateway.memory_graph.LOG_FILE", trace_file)
+    monkeypatch.setattr("gateway.memory.graph.LOG_FILE", trace_file)
 
     now = time.time()
     with open(trace_file, "w") as f:
@@ -266,7 +266,7 @@ async def test_real_trace_fetch_smoke(tmp_path, monkeypatch):
 async def test_inbox_adapter_resurfaces_unprocessed_captures_for_brief(tmp_path, monkeypatch):
     """Brief queries should include recent unprocessed captures as ``Item``."""
     inbox_file = tmp_path / "inbox.jsonl"
-    monkeypatch.setattr("gateway.memory_graph.INBOX_FILE", inbox_file)
+    monkeypatch.setattr("gateway.memory.graph.INBOX_FILE", inbox_file)
     inbox_file.write_text(
         "\n".join(
             [
@@ -311,7 +311,7 @@ async def test_inbox_adapter_resurfaces_unprocessed_captures_for_brief(tmp_path,
 @pytest.mark.asyncio
 async def test_inbox_adapter_matches_capture_text_and_tags(tmp_path, monkeypatch):
     inbox_file = tmp_path / "inbox.jsonl"
-    monkeypatch.setattr("gateway.memory_graph.INBOX_FILE", inbox_file)
+    monkeypatch.setattr("gateway.memory.graph.INBOX_FILE", inbox_file)
     inbox_file.write_text(
         json.dumps(
             {

@@ -1,7 +1,7 @@
 """External connectors — read-only integrations that emit signals (P3).
 
 Each connector is a thin adapter that polls its upstream on a schedule
-and writes deduped rows to ``gateway.signal_store``. The connector
+and writes deduped rows to ``gateway.stores.signal``. The connector
 shape (§17.2) is shared: cron-polled, signal-emitting, no webhooks,
 no per-connector table.
 

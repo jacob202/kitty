@@ -26,7 +26,9 @@ from concurrent.futures import TimeoutError as FutureTimeoutError
 from pathlib import Path
 from typing import Any
 
-from gateway import memory_graph, project_store, signal_store
+from gateway.memory import graph as memory_graph
+from gateway.stores import project as project_store
+from gateway.stores import signal as signal_store
 from gateway.paths import PROJECT_ROOT
 
 logger = logging.getLogger("kitty.project_resume")

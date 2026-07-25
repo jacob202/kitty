@@ -1,4 +1,4 @@
-"""Audit \u00a72.2 third-cut cross-module tests for gateway.builder_queue_runs.
+"""Audit \u00a72.2 third-cut cross-module tests for gateway.builder.queue_runs.
 
 These tests guard the \u00a72.2 third-cut extraction:
 
@@ -25,8 +25,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from gateway import builder_queue as bq
-from gateway import builder_queue_runs as bqr
+from gateway.builder import queue as bq
+from gateway.builder import queue_runs as bqr
 
 
 class FacadeIdentityTest(unittest.TestCase):
@@ -76,7 +76,7 @@ class FacadeIdentityTest(unittest.TestCase):
     def test_run_symbols_are_NOT_defined_locally_on_builder_queue(self) -> None:
         """The cut extracted the run functions; ``builder_queue`` must NOT
         still own them -- it should only re-export via facade import."""
-        from gateway import builder_queue as module  # noqa: WPS433 - intentional
+        from gateway.builder import queue as module  # noqa: WPS433 - intentional
         from gateway.builder.queue_runs import (
             create_run as runs_create_run,
         )
@@ -292,7 +292,7 @@ class BranchLeaseFacadeIdentityTest(unittest.TestCase):
     """The 4 branch-lease symbols must reach the same object via bq.* and bqbl.*."""
 
     def test_branch_lease_facade_identity(self) -> None:
-        from gateway import builder_queue_branch_leases as bqbl
+        from gateway.builder import queue_branch_leases as bqbl
 
         sym_pairs = [
             ("claim_branch_lease", "claim_branch_lease"),

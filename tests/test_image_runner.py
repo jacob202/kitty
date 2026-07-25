@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from gateway import image_jobs
+from gateway.image import jobs as image_jobs
 from gateway.image.jobs import ImageJobStatus
 from gateway.image.runner import ImageRunnerError, JobResult, run
 
@@ -15,7 +15,7 @@ def _tmp_db(tmp_path, monkeypatch):
     """Point the job store at a temp SQLite DB for isolation."""
     db_file = tmp_path / "kitty.db"
     monkeypatch.setattr("gateway.paths.KITTY_DB_FILE", db_file)
-    monkeypatch.setattr("gateway.image_jobs._paths.KITTY_DB_FILE", db_file)
+    monkeypatch.setattr("gateway.image.jobs._paths.KITTY_DB_FILE", db_file)
     from gateway import db as kitty_db
     kitty_db.migrate(db_file=db_file)
     return db_file
@@ -42,8 +42,8 @@ class TestComfyUIPath:
     async def test_success_returns_job_result(self, tmp_path):
         """Successful ComfyUI generation returns JobResult with terminal job."""
         with (
-            patch("gateway.image_gen.is_available", new_callable=AsyncMock, return_value=True),
-            patch("gateway.image_gen.generate", new_callable=AsyncMock) as mock_gen,
+            patch("gateway.image.gen.is_available", new_callable=AsyncMock, return_value=True),
+            patch("gateway.image.gen.generate", new_callable=AsyncMock) as mock_gen,
         ):
             mock_gen.return_value = {
                 "prompt_id": "p1",
@@ -59,7 +59,7 @@ class TestComfyUIPath:
     @pytest.mark.asyncio
     async def test_comfyui_not_running_raises(self):
         """When ComfyUI is down, raises ImageRunnerError."""
-        with patch("gateway.image_gen.is_available", new_callable=AsyncMock, return_value=False):
+        with patch("gateway.image.gen.is_available", new_callable=AsyncMock, return_value=False):
             with pytest.raises(ImageRunnerError, match="not running"):
                 await run("comfyui", "a landscape")
 
@@ -70,8 +70,8 @@ class TestComfyUIPath:
         recipe.recipe_id = "comfyui_sdxl_standard"
 
         with (
-            patch("gateway.image_gen.is_available", new_callable=AsyncMock, return_value=True),
-            patch("gateway.image_gen.generate", new_callable=AsyncMock) as mock_gen,
+            patch("gateway.image.gen.is_available", new_callable=AsyncMock, return_value=True),
+            patch("gateway.image.gen.generate", new_callable=AsyncMock) as mock_gen,
         ):
             mock_gen.return_value = {
                 "prompt_id": "p1",
@@ -160,9 +160,9 @@ class TestCharacterPath:
         mock_char.name = "TestChar"
 
         with (
-            patch("gateway.image_gen.is_available", new_callable=AsyncMock, return_value=True),
-            patch("gateway.image_characters.get_character", return_value=mock_char),
-            patch("gateway.image_characters.list_character_refs", return_value=[]),
+            patch("gateway.image.gen.is_available", new_callable=AsyncMock, return_value=True),
+            patch("gateway.image.characters.get_character", return_value=mock_char),
+            patch("gateway.image.characters.list_character_refs", return_value=[]),
             pytest.raises(ImageRunnerError, match="no reference images"),
         ):
             await run("comfyui", "draw my character", character_id="char_abc")
@@ -177,10 +177,10 @@ class TestCharacterPath:
         mock_ref.storage_path = str(tmp_path / "ref.png")
 
         with (
-            patch("gateway.image_gen.is_available", new_callable=AsyncMock, return_value=True),
-            patch("gateway.image_characters.get_character", return_value=mock_char),
-            patch("gateway.image_characters.list_character_refs", return_value=[mock_ref]),
-            patch("gateway.image_gen.generate_with_character", new_callable=AsyncMock) as mock_gen,
+            patch("gateway.image.gen.is_available", new_callable=AsyncMock, return_value=True),
+            patch("gateway.image.characters.get_character", return_value=mock_char),
+            patch("gateway.image.characters.list_character_refs", return_value=[mock_ref]),
+            patch("gateway.image.gen.generate_with_character", new_callable=AsyncMock) as mock_gen,
         ):
             mock_gen.return_value = {
                 "prompt_id": "p_char",
@@ -207,8 +207,8 @@ class TestValidation:
     @pytest.mark.asyncio
     async def test_invalid_engine_strips_whitespace(self):
         """Engine name is stripped and lowered."""
-        with patch("gateway.image_gen.is_available", new_callable=AsyncMock, return_value=True):
-            with patch("gateway.image_gen.generate", new_callable=AsyncMock) as mock_gen:
+        with patch("gateway.image.gen.is_available", new_callable=AsyncMock, return_value=True):
+            with patch("gateway.image.gen.generate", new_callable=AsyncMock) as mock_gen:
                 mock_gen.return_value = {"prompt_id": "p", "filename": "f", "job_id": "j"}
                 result = await run("  ComfyUI  ", "test")
                 assert result.engine == "comfyui"

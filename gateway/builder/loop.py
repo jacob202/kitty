@@ -34,9 +34,9 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from gateway import builder_attempt as ba
-from gateway import builder_identity as bid
-from gateway import builder_queue as bq
+from gateway.builder import attempt as ba
+from gateway.builder import identity as bid
+from gateway.builder import queue as bq
 from gateway.builder.brief import default_branch_name
 from gateway.builder.context import build_context_manifest, write_run_manifest
 from gateway.builder.runner import (

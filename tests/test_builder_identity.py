@@ -9,8 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from gateway import builder_initiative as bi
-from gateway import builder_queue as bq
+from gateway.builder import initiative as bi
+from gateway.builder import queue as bq
 from gateway.builder.identity import verify_and_escalate, verify_worker_identity
 from gateway.builder.scope import EscalationError
 

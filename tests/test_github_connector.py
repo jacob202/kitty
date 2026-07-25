@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 
-from gateway import signal_store
+from gateway.stores import signal as signal_store
 from gateway.connectors import github as github_module
 
 # --- Fixtures ---------------------------------------------------------------

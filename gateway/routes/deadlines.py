@@ -5,7 +5,8 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
-from gateway import deadline_extractor, deadline_store, deadline_sweep
+from gateway import deadline_extractor, deadline_sweep
+from gateway.stores import deadline as deadline_store
 from gateway.stores.deadline import DeadlineNotFound
 
 logger = logging.getLogger("kitty.routes.deadlines")

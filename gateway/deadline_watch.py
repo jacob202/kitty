@@ -9,7 +9,7 @@ import logging
 from datetime import date
 from typing import Any, Callable
 
-from gateway import deadline_store
+from gateway.stores import deadline as deadline_store
 
 logger = logging.getLogger("kitty.deadline_watch")
 

@@ -10,7 +10,7 @@ Packet: ISA-lite (success criteria module)
 
 from unittest.mock import patch
 
-from gateway import builder_isc as isc
+from gateway.builder import isc as isc
 
 SAMPLE_GOAL = "Add a --no-color flag to the CLI that suppresses ANSI output"
 SAMPLE_CRITERIA = [
@@ -36,7 +36,7 @@ SAMPLE_LLM_RESPONSE = (
 
 def test_isc_full_pipeline_derives_checks_and_passes():
     """Derive criteria from a goal, then check them against passing evidence."""
-    with patch("gateway.builder_isc.llm_client.chat") as mock_chat:
+    with patch("gateway.builder.isc.llm_client.chat") as mock_chat:
         mock_chat.side_effect = [
             "\n".join(f"- {c}" for c in SAMPLE_CRITERIA),
             SAMPLE_LLM_RESPONSE,
@@ -65,7 +65,7 @@ def test_isc_pipeline_with_failing_criteria():
         '{"criterion": "Anti: help text is not altered", "passed": true, "note": "ok"}]'
     )
 
-    with patch("gateway.builder_isc.llm_client.chat") as mock_chat:
+    with patch("gateway.builder.isc.llm_client.chat") as mock_chat:
         mock_chat.side_effect = [
             "\n".join(f"- {c}" for c in SAMPLE_CRITERIA),
             failing_response,
@@ -81,7 +81,7 @@ def test_isc_pipeline_with_failing_criteria():
 
 def test_isc_pipeline_llm_failure_is_graceful():
     """When the LLM fails, the pipeline returns empty/neutral results."""
-    with patch("gateway.builder_isc.llm_client.chat", side_effect=RuntimeError("down")):
+    with patch("gateway.builder.isc.llm_client.chat", side_effect=RuntimeError("down")):
         criteria = isc.derive_criteria(SAMPLE_GOAL)
         assert criteria == []
 
@@ -111,7 +111,7 @@ def test_isc_format_block_edge_cases():
 def test_isc_max_criteria_cap():
     """derive_criteria never returns more than MAX_CRITERIA items."""
     raw = "\n".join(f"{i}. criterion {i}" for i in range(1, 20))
-    with patch("gateway.builder_isc.llm_client.chat", return_value=raw):
+    with patch("gateway.builder.isc.llm_client.chat", return_value=raw):
         criteria = isc.derive_criteria("large goal")
     assert len(criteria) <= isc.MAX_CRITERIA
     assert len(criteria) > 0

@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from gateway import buddy_store
+from gateway.stores import buddy as buddy_store
 
 
 @pytest.fixture(autouse=True)

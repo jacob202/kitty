@@ -98,7 +98,7 @@ def test_is_journal_trigger_ignores_unrelated():
 
 def test_save_journal_entry_writes_to_file(tmp_path, monkeypatch):
     import gateway.journal as jmod
-    from gateway import journal_store
+    from gateway.stores import journal as journal_store
     db_file = tmp_path / "kitty" / "kitty.db"
     monkeypatch.setattr(jmod, "JOURNAL_LOG", tmp_path / "journal_entries.jsonl")
     monkeypatch.setattr(journal_store, "JOURNAL_DB_FILE", db_file, raising=False)
@@ -114,7 +114,7 @@ def test_save_journal_entry_writes_to_file(tmp_path, monkeypatch):
 
 def test_save_journal_entry_appends(tmp_path, monkeypatch):
     import gateway.journal as jmod
-    from gateway import journal_store
+    from gateway.stores import journal as journal_store
     db_file = tmp_path / "kitty" / "kitty.db"
     monkeypatch.setattr(jmod, "JOURNAL_LOG", tmp_path / "journal_entries.jsonl")
     monkeypatch.setattr(journal_store, "JOURNAL_DB_FILE", db_file, raising=False)
@@ -129,7 +129,7 @@ def test_save_journal_entry_appends(tmp_path, monkeypatch):
 
 def test_delete_journal_message_removes_entry(tmp_path, monkeypatch):
     import gateway.journal as jmod
-    from gateway import journal_store
+    from gateway.stores import journal as journal_store
     db_file = tmp_path / "kitty" / "kitty.db"
     monkeypatch.setattr(jmod, "JOURNAL_LOG", tmp_path / "journal_entries.jsonl")
     monkeypatch.setattr(journal_store, "JOURNAL_DB_FILE", db_file, raising=False)
@@ -155,7 +155,7 @@ def test_delete_journal_message_removes_entry(tmp_path, monkeypatch):
 
 def test_delete_journal_message_respects_session_id(tmp_path, monkeypatch):
     import gateway.journal as jmod
-    from gateway import journal_store
+    from gateway.stores import journal as journal_store
     db_file = tmp_path / "kitty" / "kitty.db"
     monkeypatch.setattr(jmod, "JOURNAL_LOG", tmp_path / "journal_entries.jsonl")
     monkeypatch.setattr(journal_store, "JOURNAL_DB_FILE", db_file, raising=False)
@@ -176,7 +176,7 @@ def test_delete_journal_message_respects_session_id(tmp_path, monkeypatch):
 
 def test_delete_journal_message_returns_false_when_not_found(tmp_path, monkeypatch):
     import gateway.journal as jmod
-    from gateway import journal_store
+    from gateway.stores import journal as journal_store
     db_file = tmp_path / "kitty" / "kitty.db"
     monkeypatch.setattr(jmod, "JOURNAL_LOG", tmp_path / "journal_entries.jsonl")
     monkeypatch.setattr(journal_store, "JOURNAL_DB_FILE", db_file, raising=False)
@@ -188,7 +188,7 @@ def test_delete_journal_message_returns_false_when_not_found(tmp_path, monkeypat
 
 def test_delete_journal_message_returns_false_on_invalid_id(tmp_path, monkeypatch):
     import gateway.journal as jmod
-    from gateway import journal_store
+    from gateway.stores import journal as journal_store
     db_file = tmp_path / "kitty" / "kitty.db"
     monkeypatch.setattr(jmod, "JOURNAL_LOG", tmp_path / "journal_entries.jsonl")
     monkeypatch.setattr(journal_store, "JOURNAL_DB_FILE", db_file, raising=False)
@@ -199,7 +199,7 @@ def test_delete_journal_message_returns_false_on_invalid_id(tmp_path, monkeypatc
 
 def test_delete_journal_message_returns_false_on_missing_entry(tmp_path, monkeypatch):
     import gateway.journal as jmod
-    from gateway import journal_store
+    from gateway.stores import journal as journal_store
     db_file = tmp_path / "kitty" / "kitty.db"
     monkeypatch.setattr(jmod, "JOURNAL_LOG", tmp_path / "nonexistent.jsonl")
     monkeypatch.setattr(journal_store, "JOURNAL_DB_FILE", db_file, raising=False)
@@ -210,7 +210,7 @@ def test_delete_journal_message_returns_false_on_missing_entry(tmp_path, monkeyp
 
 def test_search_entries_reads_from_store(tmp_path, monkeypatch):
     import gateway.journal as jmod
-    from gateway import journal_store
+    from gateway.stores import journal as journal_store
 
     db_file = tmp_path / "kitty" / "kitty.db"
     monkeypatch.setattr(jmod, "JOURNAL_LOG", tmp_path / "journal_entries.jsonl")
@@ -231,7 +231,7 @@ def test_search_entries_reads_from_store(tmp_path, monkeypatch):
 
 def test_recent_entries_reads_from_store(tmp_path, monkeypatch):
     import gateway.journal as jmod
-    from gateway import journal_store
+    from gateway.stores import journal as journal_store
 
     db_file = tmp_path / "kitty" / "kitty.db"
     monkeypatch.setattr(jmod, "JOURNAL_LOG", tmp_path / "journal_entries.jsonl")

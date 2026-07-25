@@ -12,7 +12,7 @@ import asyncio
 from dataclasses import dataclass
 from typing import Any
 
-from gateway import image_jobs
+from gateway.image import jobs as image_jobs
 from gateway.image.jobs import ImageJobStatus
 
 

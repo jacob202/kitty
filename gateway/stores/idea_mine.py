@@ -197,7 +197,7 @@ def export_approved_to_inbox(
 
     Returns the list of item ids exported (empty when ``dry_run``).
     """
-    from gateway import desktop_store
+    from gateway.stores import desktop as desktop_store
 
     candidates = surfaceable_items(db_file=db_file)
     exported_ids: list[int] = []

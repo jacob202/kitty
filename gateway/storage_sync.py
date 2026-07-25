@@ -28,7 +28,9 @@ from pathlib import Path
 from typing import Any, Callable
 
 from gateway import db as kitty_db
-from gateway import journal_store, plugin_registry, todo_store
+from gateway import plugin_registry
+from gateway.stores import journal as journal_store
+from gateway.stores import todo as todo_store
 from gateway.paths import DATA_DIR
 
 logger = logging.getLogger("kitty.storage_sync")

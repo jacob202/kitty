@@ -1,28 +1,28 @@
 """Builder queue leases — claim/release/heartbeat/fence for task workers.
 
-Extracted from :mod:`gateway.builder_queue` as the second cut of audit §2.2
-(the DB-layer cut was §2.2 first cut, into :mod:`gateway.builder_queue_db`).
+Extracted from :mod:`gateway.builder.queue` as the second cut of audit §2.2
+(the DB-layer cut was §2.2 first cut, into :mod:`gateway.builder.queue_db`).
 
 Owns the lifecycle of worker claims on individual tasks: claim/next,
 lease fencing via token + claim_version, lease heartbeat renewal
 (:func:`renew_lease`), expired-lease recovery
 (:func:`recover_expired_leases`), and operator-side release paths.
 
-Public symbols are re-exported from :mod:`gateway.builder_queue` via the
-façade so callers (``gateway.builder_attempt``,
-``gateway.builder_runner``, ``gateway.builder_initiative``, CLI, tests)
+Public symbols are re-exported from :mod:`gateway.builder.queue` via the
+façade so callers (``gateway.builder.attempt``,
+``gateway.builder.runner``, ``gateway.builder.initiative``, CLI, tests)
 work unchanged.
 
 Active-mission note (:file:`.claude/STATE.md`): the chat-recovery work
 ``CR-02-thread-goals-ui`` is independent of this module. The runner's
-heartbeat loop (:func:`gateway.builder_runner.run_worker`) calls
+heartbeat loop (:func:`gateway.builder.runner.run_worker`) calls
 :func:`renew_lease` every N seconds; preserve fencing semantics
 (``lease_token`` + ``claim_version`` match) when changing this module.
 
-Dependency resolution: imports from ``gateway.builder_queue`` are
+Dependency resolution: imports from ``gateway.builder.queue`` are
 performed lazily inside functions to break the parent-imports-child /
 child-imports-parent cycle at module-import time. The parent
-(``gateway.builder_queue``) loads this module first, and any cross
+(``gateway.builder.queue``) loads this module first, and any cross
 module call from a lease function picks up the parent's fully-loaded
 namespace at call time.
 """
@@ -63,7 +63,7 @@ def _claim_impl(
 ) -> tuple[str, int]:
     """Claim *task_id* on an open transaction and return token/version."""
     # Lazy import to avoid the parent↔child cycle at module-import time;
-    # ``gateway.builder_queue.append_event`` uses the caller's open txn
+    # ``gateway.builder.queue.append_event`` uses the caller's open txn
     # so it must be resolved per-call rather than at module load.
     import gateway.builder.queue as _bq
 
@@ -502,7 +502,7 @@ def renew_lease(
     scan owns that task now). Appends no event by design: renewals are not
     state changes and would flood the log at 10s cadence.
 
-    Raises :class:`gateway.builder_queue_db.LeaseConflictError` when fencing
+    Raises :class:`gateway.builder.queue_db.LeaseConflictError` when fencing
     fails or the lease is expired.
     """
     import gateway.builder.queue as _bq

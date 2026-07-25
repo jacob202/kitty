@@ -7,8 +7,8 @@ import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from gateway import builder_initiative as bi
-from gateway import builder_queue as bq
+from gateway.builder import initiative as bi
+from gateway.builder import queue as bq
 from gateway.context_receipt import build_context_receipt, run_continuity_checks
 
 NOW = datetime(2026, 7, 17, 12, 0, tzinfo=timezone.utc)

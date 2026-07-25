@@ -3,7 +3,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from gateway import artifact_store
+from gateway.stores import artifact as artifact_store
 from gateway.routes import artifacts as artifacts_route
 
 

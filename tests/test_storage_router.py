@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from gateway import plugin_registry, storage_router, todo_store
+from gateway import plugin_registry, storage_router
+from gateway.stores import todo as todo_store
 
 
 def _isolate_todo_store(monkeypatch, tmp_path):

@@ -10,11 +10,11 @@ def _fresh_buddy(tmp_path):
             del sys.modules[key]
 
     with patch('gateway.paths.DATA_DIR', tmp_path), \
-         patch('gateway.buddy_store.get_state', return_value={
+         patch('gateway.stores.buddy.get_state', return_value={
              "mood": "idle", "energy": 100, "session_turns": 0,
              "total_turns": 0, "last_active_ts": 0.0, "drift_count": 0,
          }), \
-         patch('gateway.buddy_store.save_state'):
+         patch('gateway.stores.buddy.save_state'):
         import gateway.buddy as b
         b._state.update({
             "mood": "idle", "energy": 100, "session_turns": 0,

@@ -30,9 +30,9 @@ from gateway.image.characters import (
 @pytest.fixture(autouse=True)
 def override_db(monkeypatch, tmp_path: Path):
     db_path = tmp_path / "test_kitty.db"
-    monkeypatch.setattr("gateway.image_characters.KITTY_DB_FILE", db_path)
+    monkeypatch.setattr("gateway.image.characters.KITTY_DB_FILE", db_path)
     monkeypatch.setattr(
-        "gateway.image_characters.CHARACTER_STORAGE_DIR",
+        "gateway.image.characters.CHARACTER_STORAGE_DIR",
         tmp_path / "chars",
     )
 

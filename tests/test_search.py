@@ -92,7 +92,7 @@ def test_search_route_flattens_all_stores_without_dropping_knowledge() -> None:
     }
 
     with patch(
-        "gateway.memory_graph.search_all",
+        "gateway.memory.graph.search_all",
         new=AsyncMock(return_value=GraphResult(results=items)),
     ):
         client = TestClient(app)

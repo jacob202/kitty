@@ -4,7 +4,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from gateway import desktop_store, triage
+from gateway import triage
+from gateway.stores import desktop as desktop_store
 
 
 @pytest.fixture(autouse=True)

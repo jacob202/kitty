@@ -21,7 +21,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from gateway import builder_status
+from gateway.builder import status as builder_status
 
 SCHEMA_VERSION = 1
 DEFAULT_RECENT_COMMITS = 5
@@ -993,7 +993,7 @@ def _builder_summary(canonical_checkout: Path) -> dict[str, Any]:
     if not db_path.exists():
         return {
             "state": "unavailable",
-            "source": "gateway.builder_status.build_control_plane_summary",
+            "source": "gateway.builder.status.build_control_plane_summary",
             "database": str(db_path),
             "reason": "Builder queue database does not exist; no empty state was inferred",
             "schema_version": None,
@@ -1005,7 +1005,7 @@ def _builder_summary(canonical_checkout: Path) -> dict[str, Any]:
     except (KeyError, OSError, RuntimeError, TypeError, ValueError, sqlite3.Error) as exc:
         return {
             "state": "unknown",
-            "source": "gateway.builder_status.build_control_plane_summary",
+            "source": "gateway.builder.status.build_control_plane_summary",
             "database": str(db_path),
             "reason": f"Builder projection failed: {type(exc).__name__}: {exc}",
             "schema_version": None,
@@ -1019,7 +1019,7 @@ def _builder_summary(canonical_checkout: Path) -> dict[str, Any]:
     initiatives.sort(key=lambda item: str(item["initiative_id"]))
     return {
         "state": "available",
-        "source": "gateway.builder_status.build_control_plane_summary",
+        "source": "gateway.builder.status.build_control_plane_summary",
         "database": str(db_path),
         "reason": None,
         "schema_version": snapshot.get("schema_version"),

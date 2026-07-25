@@ -202,7 +202,7 @@ class TestBrief:
 
         caplog.set_level(logging.WARNING)
         monkeypatch.setattr(
-            "gateway.memory_graph.unified_context",
+            "gateway.memory.graph.unified_context",
             MagicMock(side_effect=Exception("memory unavailable")),
         )
         result = _fetch_memory_snippet()

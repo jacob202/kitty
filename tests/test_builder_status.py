@@ -8,10 +8,11 @@ from pathlib import Path
 
 import pytest
 
-from gateway import builder_attempt as ba
-from gateway import builder_initiative as bi
-from gateway import builder_queue as bq
-from gateway import builder_status, runtime_manifest
+from gateway.builder import attempt as ba
+from gateway.builder import initiative as bi
+from gateway.builder import queue as bq
+from gateway import runtime_manifest
+from gateway.builder import status as builder_status
 
 INITIATIVE_ID = "builder-ui-test"
 PACKET_ID = "BUILDER-UI-1"

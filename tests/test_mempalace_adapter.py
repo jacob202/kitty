@@ -2,7 +2,7 @@
 
 import asyncio
 
-from gateway import memory_graph
+from gateway.memory import graph as memory_graph
 from gateway.memory.graph import Source
 from gateway.mempalace_adapter import MemPalaceAdapter
 

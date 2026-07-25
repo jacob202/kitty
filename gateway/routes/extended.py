@@ -597,7 +597,7 @@ async def studio_update_recipe(recipe_id: str, req: RecipeUpdate):
 
 @router.post("/studio/generate")
 async def studio_generate(req: StudioGenerateRequest):
-    from gateway import image_recipes
+    from gateway.image import recipes as image_recipes
     from gateway.image.runner import ImageRunnerError, run
 
     if not req.prompt or not req.prompt.strip():

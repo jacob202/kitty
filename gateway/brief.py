@@ -519,7 +519,7 @@ def get_deadlines_section(limit: int = 3) -> list[dict]:
     Ordered by due_date ascending. High/medium confidence first; needs_jacob
     items are surfaced only if there are fewer than `limit` confident items.
     """
-    from gateway import deadline_store
+    from gateway.stores import deadline as deadline_store
 
     open_deadlines = deadline_store.list_open(status="open")
     needs_jacob = deadline_store.list_needs_jacob()

@@ -3,7 +3,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from gateway import signal_store, state_composer
+from gateway import state_composer
+from gateway.stores import signal as signal_store
 from gateway.routes import state as state_route
 
 

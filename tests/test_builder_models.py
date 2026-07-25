@@ -378,7 +378,7 @@ class TestInjectWorkerContext:
 
         db_path = tmp_path / "queue" / "builder_queue.db"
         db_path.parent.mkdir(parents=True)
-        from gateway import builder_queue as bq
+        from gateway.builder import queue as bq
         bq.init_db(db_path)
         task = bq.create_task("test context injection", db_path=db_path)
 
@@ -418,7 +418,7 @@ class TestInjectWorkerContext:
 
         db_path = tmp_path / "queue2" / "builder_queue.db"
         db_path.parent.mkdir(parents=True)
-        from gateway import builder_queue as bq
+        from gateway.builder import queue as bq
         bq.init_db(db_path)
         task = bq.create_task("test fields", db_path=db_path)
         claimed = bq.claim_task(task["id"], "w", db_path=db_path)
@@ -453,7 +453,7 @@ class TestInjectWorkerContext:
 
         db_path = tmp_path / "queue3" / "builder_queue.db"
         db_path.parent.mkdir(parents=True)
-        from gateway import builder_queue as bq
+        from gateway.builder import queue as bq
         bq.init_db(db_path)
         task = bq.create_task("test no events", db_path=db_path)
         claimed = bq.claim_task(task["id"], "w", db_path=db_path)
@@ -480,7 +480,7 @@ class TestValidateWorkerContext:
 
         db_path = tmp_path / "queue4" / "builder_queue.db"
         db_path.parent.mkdir(parents=True)
-        from gateway import builder_queue as bq
+        from gateway.builder import queue as bq
         bq.init_db(db_path)
         task = bq.create_task("test validate", db_path=db_path)
         claimed = bq.claim_task(task["id"], "w", db_path=db_path)
@@ -500,7 +500,7 @@ class TestValidateWorkerContext:
 
         db_path = tmp_path / "queue5" / "builder_queue.db"
         db_path.parent.mkdir(parents=True)
-        from gateway import builder_queue as bq
+        from gateway.builder import queue as bq
         bq.init_db(db_path)
         task = bq.create_task("test missing bundle", db_path=db_path)
         claimed = bq.claim_task(task["id"], "w", db_path=db_path)
@@ -519,7 +519,7 @@ class TestValidateWorkerContext:
 
         db_path = tmp_path / "queue6" / "builder_queue.db"
         db_path.parent.mkdir(parents=True)
-        from gateway import builder_queue as bq
+        from gateway.builder import queue as bq
         bq.init_db(db_path)
         task = bq.create_task("test corrupt", db_path=db_path)
         claimed = bq.claim_task(task["id"], "w", db_path=db_path)
@@ -543,7 +543,7 @@ class TestValidateWorkerContext:
 
         db_path = tmp_path / "queue7" / "builder_queue.db"
         db_path.parent.mkdir(parents=True)
-        from gateway import builder_queue as bq
+        from gateway.builder import queue as bq
         bq.init_db(db_path)
         task = bq.create_task("test mismatch", db_path=db_path)
         claimed = bq.claim_task(task["id"], "w", db_path=db_path)
@@ -630,7 +630,7 @@ class TestRunAgentPreset:
 
 class TestRunWorkerContextInjection:
     def test_run_worker_creates_context_files_when_enabled(self, repo: Path, db_path: Path):
-        from gateway import builder_runner as br
+        from gateway.builder import runner as br
 
         task = _queued_task(db_path)
         run = br.run_worker(
@@ -649,7 +649,7 @@ class TestRunWorkerContextInjection:
         assert f"task={task['id']}" in log
 
     def test_run_worker_skips_context_when_disabled(self, repo: Path, db_path: Path):
-        from gateway import builder_runner as br
+        from gateway.builder import runner as br
 
         task = _queued_task(db_path)
         run = br.run_worker(
@@ -667,7 +667,7 @@ class TestRunWorkerContextInjection:
         assert "bundle=unset" in log
 
     def test_worker_receives_context_env_vars(self, repo: Path, db_path: Path):
-        from gateway import builder_runner as br
+        from gateway.builder import runner as br
 
         task = _queued_task(db_path)
         run = br.run_worker(
@@ -693,7 +693,7 @@ class TestRunWorkerContextInjection:
     def test_report_includes_context_issues_when_validation_fails(
         self, repo: Path, db_path: Path, monkeypatch
     ):
-        from gateway import builder_runner as br
+        from gateway.builder import runner as br
 
         task = _queued_task(db_path)
 
@@ -715,11 +715,11 @@ class TestRunWorkerContextInjection:
 
     def test_inject_context_repo_root(self, tmp_path: Path):
         """inject_worker_context handles repo_root for context manifest."""
-        from gateway import builder_runner as br
+        from gateway.builder import runner as br
 
         db_path = tmp_path / "queue8" / "builder_queue.db"
         db_path.parent.mkdir(parents=True)
-        from gateway import builder_queue as bq
+        from gateway.builder import queue as bq
         bq.init_db(db_path)
         task = bq.create_task("test repo root", db_path=db_path)
         claimed = bq.claim_task(task["id"], "w", db_path=db_path)
@@ -763,12 +763,12 @@ def repo(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def db_path(tmp_path: Path) -> Path:
-    from gateway import builder_queue as bq
+    from gateway.builder import queue as bq
     p = tmp_path / "queue" / "builder_queue.db"
     bq.init_db(p)
     return p
 
 
 def _queued_task(db_path: Path, **kwargs) -> dict:
-    from gateway import builder_queue as bq
+    from gateway.builder import queue as bq
     return bq.create_task("runner test task", db_path=db_path, **kwargs)

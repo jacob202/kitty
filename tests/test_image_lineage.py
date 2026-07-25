@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from gateway import image_jobs as jobs
+from gateway.image import jobs as jobs
 
 
 @pytest.fixture(autouse=True)

@@ -4,7 +4,8 @@ import time
 
 import pytest
 
-from gateway import signal_store, state_composer
+from gateway import state_composer
+from gateway.stores import signal as signal_store
 
 
 @pytest.fixture(autouse=True)
@@ -143,7 +144,10 @@ def test_new_signals_since_snapshot_are_included(stub_sources):
 
 def test_real_sources_compose_against_isolated_stores(monkeypatch, tmp_path):
     """Smoke: the default SOURCES run against isolated store paths."""
-    from gateway import chats_store, desktop_store, journal_store, todo_store
+    from gateway.stores import chats as chats_store
+    from gateway.stores import desktop as desktop_store
+    from gateway.stores import journal as journal_store
+    from gateway.stores import todo as todo_store
 
     db_file = tmp_path / "kitty" / "kitty.db"
     monkeypatch.setattr(todo_store, "TODO_DB_FILE", db_file, raising=False)

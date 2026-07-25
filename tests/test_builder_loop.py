@@ -12,10 +12,10 @@ from pathlib import Path
 
 import pytest
 
-from gateway import builder_attempt as ba
-from gateway import builder_initiative as bi
-from gateway import builder_loop as bl
-from gateway import builder_queue as bq
+from gateway.builder import attempt as ba
+from gateway.builder import initiative as bi
+from gateway.builder import loop as bl
+from gateway.builder import queue as bq
 
 INITIATIVE = "loop-test"
 PACKET = "LP-1"
@@ -635,7 +635,7 @@ class TestNoStaleArtifactReuse:
 
         Before P027 this deadlocked: ensure_worktree refuses dirty worktrees,
         so every re-entry crashed on orchestration forever."""
-        from gateway import builder_runner as br
+        from gateway.builder import runner as br
         from gateway.builder.brief import default_branch_name
 
         task_id = _apply(db_path, repo_root=repo)
@@ -965,7 +965,7 @@ class TestCli:
     def test_run_packet_cli(
         self, repo: Path, db_path: Path, tmp_path: Path, capsys, monkeypatch
     ):
-        from gateway import builder_loop
+        from gateway.builder import loop as builder_loop
         from gateway.builder.cli import main
 
         monkeypatch.setattr(bq, "BUILDER_QUEUE_DB", db_path)
@@ -1000,7 +1000,7 @@ class TestCli:
     def test_run_packet_cli_accepts_watch_flag(
         self, repo: Path, db_path: Path, tmp_path: Path, capsys, monkeypatch
     ):
-        from gateway import builder_loop
+        from gateway.builder import loop as builder_loop
         from gateway.builder.cli import main
 
         monkeypatch.setattr(bq, "BUILDER_QUEUE_DB", db_path)

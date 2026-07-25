@@ -39,8 +39,8 @@ import time
 from pathlib import Path, PurePosixPath
 from typing import Any, NoReturn
 
-from gateway import builder_queue as bq
-from gateway import builder_scope as bs
+from gateway.builder import queue as bq
+from gateway.builder import scope as bs
 from gateway.builder.brief import default_branch_name, render_worker_brief
 from gateway.builder.context import build_context_manifest, write_run_manifest
 from gateway.models.builder import AgentPreset, AgentPresetConfig, WorkerContextBundle

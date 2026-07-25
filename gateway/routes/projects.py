@@ -12,7 +12,8 @@ import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from gateway import next_step, project_resume, project_store
+from gateway import next_step, project_resume
+from gateway.stores import project as project_store
 from gateway.push import push_to_jacob
 
 logger = logging.getLogger("kitty.routes.projects")

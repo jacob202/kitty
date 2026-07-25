@@ -14,9 +14,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from gateway import builder_attempt as ba
-from gateway import builder_initiative as bi
-from gateway import builder_queue as bq
+from gateway.builder import attempt as ba
+from gateway.builder import initiative as bi
+from gateway.builder import queue as bq
 from gateway.paths import KITTYBUILDER_DIR
 
 REPORTS_DIR = KITTYBUILDER_DIR / "reports"

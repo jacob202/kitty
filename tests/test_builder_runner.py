@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from gateway import builder_queue as bq
-from gateway import builder_runner as br
+from gateway.builder import queue as bq
+from gateway.builder import runner as br
 
 
 @pytest.fixture

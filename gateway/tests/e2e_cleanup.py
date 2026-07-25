@@ -1,6 +1,7 @@
 import sys
 
-from gateway import db, project_store
+from gateway import db
+from gateway.stores import project as project_store
 from gateway.paths import SIGNALS_DB_FILE
 
 

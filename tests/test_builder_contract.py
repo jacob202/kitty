@@ -67,7 +67,7 @@ class TestLoadContract:
 class TestRunContract:
     def test_run_passes_when_criteria_pass(self, tmp_path: Path):
         with patch(
-            "gateway.builder_contract.builder_core.check_criteria",
+            "gateway.builder.contract.builder_core.check_criteria",
             return_value=[
                 {"criterion": "exit 0", "passed": True, "note": "ok"}
             ],
@@ -84,7 +84,7 @@ class TestRunContract:
 
     def test_run_fails_when_command_fails(self, tmp_path: Path):
         with patch(
-            "gateway.builder_contract.builder_core.check_criteria",
+            "gateway.builder.contract.builder_core.check_criteria",
             return_value=[
                 {"criterion": "exit 0", "passed": True, "note": "ok"}
             ],
@@ -101,7 +101,7 @@ class TestRunContract:
 
     def test_run_fails_when_criteria_fail(self, tmp_path: Path):
         with patch(
-            "gateway.builder_contract.builder_core.check_criteria",
+            "gateway.builder.contract.builder_core.check_criteria",
             return_value=[
                 {"criterion": "exit 0", "passed": False, "note": "rc=1"}
             ],

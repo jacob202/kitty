@@ -25,8 +25,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-from gateway import builder_initiative as bi
-from gateway import builder_queue as bq
+from gateway.builder import initiative as bi
+from gateway.builder import queue as bq
 
 BUNDLE_VERSION = 1
 CONTRACT_VERSION = 1

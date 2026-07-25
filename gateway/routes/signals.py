@@ -13,7 +13,7 @@ router = APIRouter(tags=["signals"])
 @router.get("/signals")
 def list_signals():
     """Return unprocessed signals in the Repairs shape for the Home card."""
-    from gateway import signal_store
+    from gateway.stores import signal as signal_store
 
     try:
         raw_signals = signal_store.list_unprocessed(limit=20)

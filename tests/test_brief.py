@@ -173,7 +173,7 @@ def test_fetch_memory_snippet_uses_unified_context():
     import gateway.brief as b
 
     with patch(
-        "gateway.memory_graph.unified_context", new=MagicMock(return_value="ctx")
+        "gateway.memory.graph.unified_context", new=MagicMock(return_value="ctx")
     ):
         with patch("gateway.brief.asyncio.run", side_effect=lambda coro: "ctx"):
             result = b._fetch_memory_snippet()
@@ -319,7 +319,8 @@ def test_detect_research_themes_integration_with_real_journal(tmp_path, monkeypa
     """
     import json
 
-    from gateway import brief, journal, journal_store
+    from gateway import brief, journal
+    from gateway.stores import journal as journal_store
 
     log = tmp_path / "journal_entries.jsonl"
     db_file = tmp_path / "kitty" / "kitty.db"
@@ -483,7 +484,8 @@ def test_synthesize_brief_includes_theme_context():
 def test_get_next_steps_section_orders_life_first_and_skips_ungenerated(tmp_path, monkeypatch):
     """P4/016 + ADR 0016: 'What's B' surfaces life projects before code projects."""
     import gateway.brief as b
-    from gateway import next_step, project_store
+    from gateway import next_step
+    from gateway.stores import project as project_store
 
     db_file = tmp_path / "kitty" / "kitty.db"
     monkeypatch.setattr(project_store, "PROJECTS_DB_FILE", db_file, raising=False)
@@ -510,7 +512,8 @@ def test_get_next_steps_section_orders_life_first_and_skips_ungenerated(tmp_path
 def test_get_next_steps_section_caps_self_dev_when_life_present(tmp_path, monkeypatch):
     """ADR 0016: at most one Kitty-self-development step when life steps exist."""
     import gateway.brief as b
-    from gateway import next_step, project_store
+    from gateway import next_step
+    from gateway.stores import project as project_store
 
     db_file = tmp_path / "kitty" / "kitty.db"
     monkeypatch.setattr(project_store, "PROJECTS_DB_FILE", db_file, raising=False)
@@ -542,7 +545,8 @@ def test_projects_next_steps_route_orders_life_first(tmp_path, monkeypatch):
     """GET /projects/next-steps returns life-first ordered steps for the Home card."""
     from fastapi.testclient import TestClient
 
-    from gateway import next_step, project_store
+    from gateway import next_step
+    from gateway.stores import project as project_store
     from gateway.app import app
 
     db_file = tmp_path / "kitty" / "kitty.db"

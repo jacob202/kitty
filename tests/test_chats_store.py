@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from gateway import chats_store
+from gateway.stores import chats as chats_store
 
 
 @pytest.fixture(autouse=True)

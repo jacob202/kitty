@@ -20,9 +20,9 @@ def _make_trace(text: str, domain: str = "general", ts: float = 1_000_000) -> di
 
 class TestNoDurableMemory:
     @patch("gateway.honcho.get_recent_traces")
-    @patch("gateway.memory_consolidation._load_last_consolidation_ts")
-    @patch("gateway.memory_consolidation._summarize_cluster")
-    @patch("gateway.memory_consolidation._store_memory")
+    @patch("gateway.memory.consolidation._load_last_consolidation_ts")
+    @patch("gateway.memory.consolidation._summarize_cluster")
+    @patch("gateway.memory.consolidation._store_memory")
     def test_skips_on_no_durable_memory(
         self, mock_store, mock_summarize, mock_load_ts, mock_traces
     ):
@@ -36,9 +36,9 @@ class TestNoDurableMemory:
         mock_store.assert_not_called(), "should not store NO_DURABLE_MEMORY"
 
     @patch("gateway.honcho.get_recent_traces")
-    @patch("gateway.memory_consolidation._load_last_consolidation_ts")
-    @patch("gateway.memory_consolidation._summarize_cluster")
-    @patch("gateway.memory_consolidation._store_memory")
+    @patch("gateway.memory.consolidation._load_last_consolidation_ts")
+    @patch("gateway.memory.consolidation._summarize_cluster")
+    @patch("gateway.memory.consolidation._store_memory")
     def test_skips_on_none_summary(
         self, mock_store, mock_summarize, mock_load_ts, mock_traces
     ):
@@ -52,9 +52,9 @@ class TestNoDurableMemory:
         mock_store.assert_not_called()
 
     @patch("gateway.honcho.get_recent_traces")
-    @patch("gateway.memory_consolidation._load_last_consolidation_ts")
-    @patch("gateway.memory_consolidation._summarize_cluster")
-    @patch("gateway.memory_consolidation._store_memory")
+    @patch("gateway.memory.consolidation._load_last_consolidation_ts")
+    @patch("gateway.memory.consolidation._summarize_cluster")
+    @patch("gateway.memory.consolidation._store_memory")
     def test_stores_normal_summary(
         self, mock_store, mock_summarize, mock_load_ts, mock_traces
     ):
@@ -68,9 +68,9 @@ class TestNoDurableMemory:
         mock_store.assert_called_once()
 
     @patch("gateway.honcho.get_recent_traces")
-    @patch("gateway.memory_consolidation._load_last_consolidation_ts")
-    @patch("gateway.memory_consolidation._summarize_cluster")
-    @patch("gateway.memory_consolidation._store_memory")
+    @patch("gateway.memory.consolidation._load_last_consolidation_ts")
+    @patch("gateway.memory.consolidation._summarize_cluster")
+    @patch("gateway.memory.consolidation._store_memory")
     def test_rewrites_sensitive_summary(
         self, mock_store, mock_summarize, mock_load_ts, mock_traces
     ):
@@ -88,9 +88,9 @@ class TestNoDurableMemory:
             "psych framing should be removed"
 
     @patch("gateway.honcho.get_recent_traces")
-    @patch("gateway.memory_consolidation._load_last_consolidation_ts")
-    @patch("gateway.memory_consolidation._summarize_cluster")
-    @patch("gateway.memory_consolidation._store_memory")
+    @patch("gateway.memory.consolidation._load_last_consolidation_ts")
+    @patch("gateway.memory.consolidation._summarize_cluster")
+    @patch("gateway.memory.consolidation._store_memory")
     def test_passes_domain_and_traces(
         self, mock_store, mock_summarize, mock_load_ts, mock_traces
     ):

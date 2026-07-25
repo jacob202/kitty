@@ -12,7 +12,7 @@ import random
 import time
 from typing import Optional
 
-from gateway import journal_store
+from gateway.stores import journal as journal_store
 from gateway.paths import DATA_DIR
 from gateway.prompts import JOURNAL_INTERVIEW_PROMPT, JOURNAL_SYNTHESIS_PROMPT
 

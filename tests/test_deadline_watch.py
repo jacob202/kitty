@@ -5,18 +5,20 @@ from datetime import date
 
 import pytest
 
-from gateway import deadline_store, deadline_watch, project_store
+from gateway import deadline_watch
+from gateway.stores import deadline as deadline_store
+from gateway.stores import project as project_store
 
 
 @pytest.fixture(autouse=True)
 def _fresh_db(tmp_path, monkeypatch):
     db = tmp_path / "test.db"
-    monkeypatch.setattr("gateway.deadline_store.DEADLINES_DB_FILE", db)
+    monkeypatch.setattr("gateway.stores.deadline.DEADLINES_DB_FILE", db)
     monkeypatch.setattr("gateway.deadline_watch.deadline_store.DEADLINES_DB_FILE", db)
     monkeypatch.setattr("gateway.db.KITTY_DB_FILE", db)
     monkeypatch.setattr("gateway.paths.KITTY_DB_FILE", db)
-    monkeypatch.setattr("gateway.project_store.PROJECTS_DB_FILE", db)
-    monkeypatch.setattr("gateway.project_store.KITTY_DB_FILE", db)
+    monkeypatch.setattr("gateway.stores.project.PROJECTS_DB_FILE", db)
+    monkeypatch.setattr("gateway.stores.project.KITTY_DB_FILE", db)
     deadline_store.init_db()
     project_store.create("benefits-admin", "admin")
 

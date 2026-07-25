@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from gateway import db as kitty_db
-from gateway import project_store
+from gateway.stores import project as project_store
 from gateway.paths import KITTY_DB_FILE
 
 ACTIVE_PROJECT_SETTING = "active_project_id"

@@ -3,7 +3,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from gateway import chats_store
+from gateway.stores import chats as chats_store
 from gateway.routes import chats as chats_route
 
 

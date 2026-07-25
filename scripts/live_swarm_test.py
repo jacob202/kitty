@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from gateway.memory_weave import get_weave
+from gateway.memory.weave import get_weave
 
 logging.basicConfig(
     level=logging.INFO,

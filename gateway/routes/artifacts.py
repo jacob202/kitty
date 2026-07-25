@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 
-from gateway import artifact_store
+from gateway.stores import artifact as artifact_store
 
 router = APIRouter(tags=["artifacts"])
 

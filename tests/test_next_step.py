@@ -8,7 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from gateway import next_step, project_resume, project_store
+from gateway import next_step, project_resume
+from gateway.stores import project as project_store
 from gateway.next_step import NextStepError
 
 
@@ -21,7 +22,7 @@ def isolate_stores(monkeypatch, tmp_path):
     from gateway.memory.graph import GraphResult
 
     monkeypatch.setattr(project_resume, "_run_memory_search", lambda q: GraphResult())
-    monkeypatch.setattr("gateway.signal_store.list_recent", lambda limit=200: [])
+    monkeypatch.setattr("gateway.stores.signal.list_recent", lambda limit=200: [])
 
 
 def _stub_llm(response: dict):

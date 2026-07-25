@@ -1,11 +1,11 @@
 """Shared ID-generation helpers.
 
-Lifted out of ``gateway.builder_queue`` and ``gateway.builder_queue_runs``
+Lifted out of ``gateway.builder.queue`` and ``gateway.builder.queue_runs``
 during the \u00a72.2 third-cut cleanup to remove the duplicated ``_to_base36``
 helper. Public utility: callers pick the bits they need.
 
 No cycle dependency on any other gateway module (does not import
-``gateway.builder_queue`` or any sibling). Safe to import from any
+``gateway.builder.queue`` or any sibling). Safe to import from any
 gateway submodule.
 """
 

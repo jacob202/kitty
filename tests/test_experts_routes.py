@@ -4,7 +4,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from gateway import db as kitty_db
-from gateway import expert_state, signal_store
+from gateway import expert_state
+from gateway.stores import signal as signal_store
 from gateway.routes import experts as experts_route
 
 

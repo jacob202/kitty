@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from gateway import idea_mine_store as store
+from gateway.stores import idea_mine as store
 from scripts.curation import extract_chat_goldmine as mine
 
 FIXTURES = Path(__file__).parent / "fixtures"

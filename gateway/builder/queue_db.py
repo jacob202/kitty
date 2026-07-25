@@ -1,6 +1,6 @@
 """Builder queue DB layer — Task 4.3 state machine + connection/init.
 
-Extracted from :mod:`gateway.builder_queue` as the first cut of audit §2.2.
+Extracted from :mod:`gateway.builder.queue` as the first cut of audit §2.2.
 This module owns the lowest layer of the KittyBuilder persistence stack:
 
 * Task-state machine constants & legal transition map
@@ -9,14 +9,14 @@ This module owns the lowest layer of the KittyBuilder persistence stack:
 * Connection pragmas, schema bootstrap, and column-add migrations
 * :func:`init_db` and :func:`connect` — used by every higher layer
 
-Public symbols are re-exported from :mod:`gateway.builder_queue` (which keeps
+Public symbols are re-exported from :mod:`gateway.builder.queue` (which keeps
 its existing ``bq.X`` / ``from gateway.builder.queue import X`` surface), so
-sibling modules such as :mod:`gateway.builder_attempt`,
-:mod:`gateway.builder_runner`, :mod:`gateway.builder_initiative`, and the
+sibling modules such as :mod:`gateway.builder.attempt`,
+:mod:`gateway.builder.runner`, :mod:`gateway.builder.initiative`, and the
 builder CLI/tests continue to work unchanged.
 
 Scope guard: business logic (claims, leases, runs, branch leases, PR
-reconciliation) stays in :mod:`gateway.builder_queue` and its subsequent
+reconciliation) stays in :mod:`gateway.builder.queue` and its subsequent
 extractions. Subsequent cuts will lift those modules into
 ``builder_queue_leases`` / ``builder_queue_runs`` / ``builder_queue_events``
 in the order recommended by the audit.
@@ -409,7 +409,7 @@ def _ensure_run_columns(conn: sqlite3.Connection) -> None:
 
 
 def _default_db_path() -> Path:
-    """Resolve the default DB path through :mod:`gateway.builder_queue`.
+    """Resolve the default DB path through :mod:`gateway.builder.queue`.
 
     The historical monkeypatch seam is ``builder_queue.BUILDER_QUEUE_DB``
     (dozens of tests patch it). After the audit §2.2 split, sibling modules
@@ -419,7 +419,7 @@ def _default_db_path() -> Path:
     """
     import sys
 
-    facade = sys.modules.get("gateway.builder_queue")
+    facade = sys.modules.get("gateway.builder.queue")
     if facade is not None:
         patched = getattr(facade, "BUILDER_QUEUE_DB", None)
         if patched is not None:

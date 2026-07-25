@@ -3,7 +3,8 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from gateway import expert_state, signal_store
+from gateway import expert_state
+from gateway.stores import signal as signal_store
 
 router = APIRouter(prefix="/experts", tags=["Experts"])
 

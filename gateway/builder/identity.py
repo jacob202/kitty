@@ -12,7 +12,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from gateway import builder_queue as bq
+from gateway.builder import queue as bq
 from gateway.builder.scope import (
     EscalationError,
     ScopeFinding,

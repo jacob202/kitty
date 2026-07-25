@@ -19,7 +19,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Callable
 
-from gateway import builder_queue as bq
+from gateway.builder import queue as bq
 from gateway.builder.brief import default_branch_name
 from gateway.builder.runner import worktree_path
 

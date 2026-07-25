@@ -46,9 +46,9 @@ def _fake_task(task_id: str = "kb_test0000_abcd", **overrides) -> dict:
     return base
 
 
-_QUEUE_PATCH = "gateway.builder_queue"
-_CLI_PATCH = "gateway.builder_cli"  # noqa
-_INITIATIVE_PATCH = "gateway.builder_initiative"
+_QUEUE_PATCH = "gateway.builder.queue"
+_CLI_PATCH = "gateway.builder.cli"  # noqa
+_INITIATIVE_PATCH = "gateway.builder.initiative"
 
 
 # ---------------------------------------------------------------------------
@@ -149,7 +149,7 @@ class TestExistingCommands:
         p = tmp_path / "contract.json"
         p.write_text('{"goal": "x", "criteria": ["y"]}')
         with patch(
-            "gateway.builder_contract.run_contract",
+            "gateway.builder.contract.run_contract",
             return_value={"passed": True, "criteria": []},
         ) as mock_run:
             rc = main(["contract", "validate", str(p)])
@@ -1147,7 +1147,7 @@ class TestQueueRunnerCommands:
         }
         with patch(f"{_QUEUE_PATCH}.init_db"):
             with patch(
-                "gateway.builder_runner.run_worker", return_value=run
+                "gateway.builder.runner.run_worker", return_value=run
             ) as mock_run:
                 rc = main(
                     [
@@ -1244,7 +1244,7 @@ class TestQueueRunnerCommands:
 
         with patch(f"{_QUEUE_PATCH}.init_db"):
             with patch(
-                "gateway.builder_runner.request_cancel",
+                "gateway.builder.runner.request_cancel",
                 side_effect=RunnerError("signaling process group 42 failed"),
             ):
                 rc = main(["queue", "cancel-run", "run_123"])
@@ -1262,7 +1262,7 @@ class TestQueueRunnerCommands:
             "signal_status": "process_identity_mismatch",
         }
         with patch(f"{_QUEUE_PATCH}.init_db"):
-            with patch("gateway.builder_runner.request_cancel", return_value=run):
+            with patch("gateway.builder.runner.request_cancel", return_value=run):
                 rc = main(["queue", "cancel-run", "run_123"])
 
         assert rc == 0
@@ -1274,7 +1274,7 @@ class TestQueueRunnerCommands:
         removed = tmp_path / ".worktrees" / "kittybuilder" / "kb_123"
         with patch(f"{_QUEUE_PATCH}.init_db"):
             with patch(
-                "gateway.builder_runner.remove_worktree", return_value=removed
+                "gateway.builder.runner.remove_worktree", return_value=removed
             ) as mock_remove:
                 rc = main(["queue", "clean-worktree", "kb_123"])
 
@@ -1301,7 +1301,7 @@ class TestInitiativeFreePreset:
 
     def test_run_packet_free_dispatches_adapter_scripts(self):
         with patch(
-            "gateway.builder_loop.run_packet", return_value=self._RESULT
+            "gateway.builder.loop.run_packet", return_value=self._RESULT
         ) as mock_rp:
             rc = main(["initiative", "run-packet", "init-1", "p1", "--free", "--json"])
 
@@ -1336,7 +1336,7 @@ class TestInitiativeFreePreset:
         import os
 
         monkeypatch.setenv("KITTYBUILDER_MODEL", "sentinel")
-        with patch("gateway.builder_loop.run_packet", return_value=self._RESULT):
+        with patch("gateway.builder.loop.run_packet", return_value=self._RESULT):
             rc = main([
                 "initiative", "run-packet", "init-1", "p1",
                 "--free", "--model", "opencode/mimo-v2.5-free", "--json",
@@ -1347,7 +1347,7 @@ class TestInitiativeFreePreset:
 
     def test_initiative_run_free_dispatches_adapter_scripts(self):
         with patch(
-            "gateway.builder_run.run_initiative", return_value=self._SUMMARY
+            "gateway.builder.run.run_initiative", return_value=self._SUMMARY
         ) as mock_run:
             rc = main(["initiative", "run", "init-1", "--free", "--json"])
 
@@ -1557,7 +1557,7 @@ class TestInitiativeListNeedsAttention:
 class TestInitiativeListHealthIndicator:
     """Compact health indicator per line in non-JSON initiative list output."""
 
-    _INIT_PATCH = "gateway.builder_initiative"
+    _INIT_PATCH = "gateway.builder.initiative"
 
     def _fake_initiatives(self) -> list[dict]:
         return [

@@ -106,7 +106,7 @@ async def test_adapter_failure_surfaces_as_warning():
 @pytest.mark.asyncio
 async def test_item_shape_uniform_across_default_adapters():
     """Every default adapter's fetch returns ``Item`` and ``item.text`` works."""
-    from gateway import memory_graph
+    from gateway.memory import graph as memory_graph
 
     default_adapters = memory_graph._default_adapters()
     assert default_adapters, "expected at least one default adapter"
@@ -144,7 +144,7 @@ def test_item_dataclass_fields():
 @pytest.mark.asyncio
 async def test_voice_gate_is_not_called_by_assembler(monkeypatch):
     """Drift-nudge is a response-time concern, never request-time."""
-    from gateway import voice_gate
+    from gateway.voice import gate as voice_gate
 
     calls: list[str] = []
     monkeypatch.setattr(

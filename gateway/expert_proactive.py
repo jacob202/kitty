@@ -15,7 +15,9 @@ from pathlib import Path
 
 import filelock
 
-from gateway import desktop_store, expert_state, knowledge, llm_client, paths, signal_store
+from gateway import expert_state, knowledge, llm_client, paths
+from gateway.stores import desktop as desktop_store
+from gateway.stores import signal as signal_store
 from gateway.researcher import DeepResearcher
 
 logger = logging.getLogger("kitty.expert_proactive")

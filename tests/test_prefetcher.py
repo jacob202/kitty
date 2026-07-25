@@ -4,7 +4,8 @@ import time
 
 import pytest
 
-from gateway import memory_graph, prefetcher
+from gateway import prefetcher
+from gateway.memory import graph as memory_graph
 
 FP = prefetcher.Fingerprint(time_slot="1-2", git_branch="feat/x", recent_files=("a.py", "b.py"))
 

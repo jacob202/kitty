@@ -12,7 +12,8 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
-from gateway import chat_lifecycle, chats_store
+from gateway import chat_lifecycle
+from gateway.stores import chats as chats_store
 from gateway.constants import MAX_BODY_BYTES
 from gateway.domain_router import classify_domain
 from gateway.http_client import get_http_client
@@ -501,7 +502,7 @@ def _is_repairs_intent(user_text: str) -> bool:
 def _build_signals_context() -> str | None:
     """Build a plain-English signals summary for chat injection."""
     try:
-        from gateway import signal_store
+        from gateway.stores import signal as signal_store
         signals = signal_store.list_unprocessed(limit=20)
         if not signals:
             return None

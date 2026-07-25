@@ -23,14 +23,12 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeoutError
 from typing import Any, Callable
 
-from gateway import (
-    calendar_integration,
-    chats_store,
-    desktop_store,
-    journal_store,
-    signal_store,
-    todo_store,
-)
+from gateway import calendar_integration
+from gateway.stores import chats as chats_store
+from gateway.stores import desktop as desktop_store
+from gateway.stores import journal as journal_store
+from gateway.stores import signal as signal_store
+from gateway.stores import todo as todo_store
 from gateway import db as kitty_db
 from gateway.paths import KITTY_DB_FILE
 

@@ -605,7 +605,8 @@ def test_check_push_channel_fail_when_last_attempt_failed(monkeypatch, tmp_path)
 
 
 def test_check_deadlines_warn_when_none_open(monkeypatch, tmp_path):
-    from gateway import db, deadline_store, doctor, paths, push
+    from gateway import db, doctor, paths, push
+    from gateway.stores import deadline as deadline_store
 
     db_file = tmp_path / "kitty.db"
     monkeypatch.setattr(deadline_store, "DEADLINES_DB_FILE", db_file)
@@ -771,14 +772,15 @@ def test_check_mail_connector_pass_with_expired_token_and_refresh(
 
 
 def test_check_deadlines_fail_on_last_push_failure(monkeypatch, tmp_path) -> None:
-    from gateway import db, deadline_store, doctor, paths, push
+    from gateway import db, doctor, paths, push
+    from gateway.stores import deadline as deadline_store
 
     db_file = tmp_path / "kitty.db"
     monkeypatch.setattr(deadline_store, "DEADLINES_DB_FILE", db_file)
     monkeypatch.setattr(db, "KITTY_DB_FILE", db_file)
     monkeypatch.setattr(paths, "KITTY_DB_FILE", db_file)
-    monkeypatch.setattr("gateway.project_store.PROJECTS_DB_FILE", db_file)
-    monkeypatch.setattr("gateway.project_store.KITTY_DB_FILE", db_file)
+    monkeypatch.setattr("gateway.stores.project.PROJECTS_DB_FILE", db_file)
+    monkeypatch.setattr("gateway.stores.project.KITTY_DB_FILE", db_file)
     log = tmp_path / "push_log.jsonl"
     log.write_text(
         '{"ts": 1, "kind": "info", "title": "Kitty", "channel": "pushover", '
@@ -787,7 +789,7 @@ def test_check_deadlines_fail_on_last_push_failure(monkeypatch, tmp_path) -> Non
     )
     monkeypatch.setattr(push, "PUSH_LOG_FILE", log)
     deadline_store.init_db()
-    from gateway import project_store
+    from gateway.stores import project as project_store
     project_store.create("benefits-admin", "admin")
     deadline_store.upsert({
         "project_id": 2, "source": "test", "due_date": "2026-08-01",
@@ -799,17 +801,18 @@ def test_check_deadlines_fail_on_last_push_failure(monkeypatch, tmp_path) -> Non
 
 
 def test_check_deadlines_pass_when_open_and_no_pushes_yet(monkeypatch, tmp_path):
-    from gateway import db, deadline_store, doctor, paths, push
+    from gateway import db, doctor, paths, push
+    from gateway.stores import deadline as deadline_store
 
     db_file = tmp_path / "kitty.db"
     monkeypatch.setattr(deadline_store, "DEADLINES_DB_FILE", db_file)
     monkeypatch.setattr(db, "KITTY_DB_FILE", db_file)
     monkeypatch.setattr(paths, "KITTY_DB_FILE", db_file)
     monkeypatch.setattr(push, "PUSH_LOG_FILE", tmp_path / "push_log.jsonl")
-    monkeypatch.setattr("gateway.project_store.PROJECTS_DB_FILE", db_file)
-    monkeypatch.setattr("gateway.project_store.KITTY_DB_FILE", db_file)
+    monkeypatch.setattr("gateway.stores.project.PROJECTS_DB_FILE", db_file)
+    monkeypatch.setattr("gateway.stores.project.KITTY_DB_FILE", db_file)
     deadline_store.init_db()
-    from gateway import project_store
+    from gateway.stores import project as project_store
     project_store.create("benefits-admin", "admin")
     deadline_store.upsert({"project_id": 2, "source": "test", "due_date": "2026-08-01", "obligation": "x", "confidence": "high"})
     checks = doctor._check_deadlines()

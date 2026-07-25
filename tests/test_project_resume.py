@@ -8,7 +8,8 @@ import subprocess
 
 import pytest
 
-from gateway import project_resume, project_store
+from gateway import project_resume
+from gateway.stores import project as project_store
 
 
 @pytest.fixture(autouse=True)
@@ -123,7 +124,7 @@ class TestMemoryAndSignalsSources:
             {"id": 2, "payload": {"label": "unrelated"}},
         ]
         monkeypatch.setattr(
-            "gateway.signal_store.list_recent", lambda limit=200: fake_signals
+            "gateway.stores.signal.list_recent", lambda limit=200: fake_signals
         )
 
         refreshed = project_resume.refresh(project["id"])

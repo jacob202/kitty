@@ -37,13 +37,13 @@ class TestComfyUIBackend:
 
     @pytest.mark.asyncio
     async def test_is_available(self):
-        with patch("gateway.image_gen.is_available", new_callable=AsyncMock, return_value=True):
+        with patch("gateway.image.gen.is_available", new_callable=AsyncMock, return_value=True):
             backend = ComfyUIBackend()
             assert await backend.is_available()
 
     @pytest.mark.asyncio
     async def test_is_available_false(self):
-        with patch("gateway.image_gen.is_available", new_callable=AsyncMock, return_value=False):
+        with patch("gateway.image.gen.is_available", new_callable=AsyncMock, return_value=False):
             backend = ComfyUIBackend()
             assert not await backend.is_available()
 
@@ -52,7 +52,7 @@ class TestComfyUIBackend:
         out_path = tmp_path / "out.png"
         out_path.write_bytes(b"fake-png-data")
         with (
-            patch("gateway.image_gen.generate", new_callable=AsyncMock) as mock_gen,
+            patch("gateway.image.gen.generate", new_callable=AsyncMock) as mock_gen,
         ):
             mock_gen.return_value = {
                 "prompt_id": "p123",
@@ -69,7 +69,7 @@ class TestComfyUIBackend:
         out_path = tmp_path / "char_out.png"
         out_path.write_bytes(b"char-png-data")
         with patch(
-            "gateway.image_gen.generate_with_character", new_callable=AsyncMock
+            "gateway.image.gen.generate_with_character", new_callable=AsyncMock
         ) as mock_gen:
             mock_gen.return_value = {
                 "prompt_id": "p_char",

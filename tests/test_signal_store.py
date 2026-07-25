@@ -1,7 +1,7 @@
 """Tests for signal_store — the append table for connector/system events (P1)."""
 import pytest
 
-from gateway import signal_store
+from gateway.stores import signal as signal_store
 
 
 @pytest.fixture(autouse=True)

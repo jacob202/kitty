@@ -278,7 +278,7 @@ async def dismiss_repair(body: dict):
             signal_id_str = repair_id.replace("signal-", "", 1)
             try:
                 signal_id = int(signal_id_str)
-                from gateway import signal_store
+                from gateway.stores import signal as signal_store
                 signal_store.mark_processed(signal_id)
             except (ValueError, Exception):
                 pass

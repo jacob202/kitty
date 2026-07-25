@@ -5,7 +5,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from gateway import desktop_store, triage
+from gateway import triage
+from gateway.stores import desktop as desktop_store
 from gateway.routes import inbox as inbox_route
 
 

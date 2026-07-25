@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from gateway import signal_store
+from gateway.stores import signal as signal_store
 
 
 @pytest.fixture(autouse=True)

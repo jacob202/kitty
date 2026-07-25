@@ -26,8 +26,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from gateway import builder_initiative as bi
-from gateway import builder_queue as bq
+from gateway.builder import initiative as bi
+from gateway.builder import queue as bq
 from gateway.paths import BUILDER_QUEUE_DB
 
 EXPECTED_REPO_NAME = os.environ.get("KITTY_BUILDER_REPO_NAME", "kitty")

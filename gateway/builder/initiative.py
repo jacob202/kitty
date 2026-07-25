@@ -32,8 +32,8 @@ from graphlib import CycleError, TopologicalSorter
 from pathlib import Path
 from typing import Any
 
-from gateway import builder_attempt as ba
-from gateway import builder_queue as bq
+from gateway.builder import attempt as ba
+from gateway.builder import queue as bq
 
 MANIFEST_VERSION = 1
 
@@ -1355,7 +1355,7 @@ def _latest_stop_class_decision(
 
     Read-only: ``stop_class`` has no durable column of its own — it rides
     the existing EVENT_DECISION payload written by
-    ``gateway.builder_run.run_initiative``. Event ``id`` is a single
+    ``gateway.builder.run.run_initiative``. Event ``id`` is a single
     autoincrement sequence across tasks, so comparing it across packets
     still yields correct chronological order.
     """

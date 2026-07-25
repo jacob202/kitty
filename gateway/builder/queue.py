@@ -34,9 +34,9 @@ from typing import Any
 
 from gateway.paths import BUILDER_QUEUE_DB
 
-from . import builder_queue_db as _queue_db
-from ._id_helpers import generate_id_with_base36
-from .builder_queue_branch_leases import (  # noqa: F401
+from . import queue_db as _queue_db
+from gateway._id_helpers import generate_id_with_base36
+from .queue_branch_leases import (  # noqa: F401
     _claim_branch_lease_on_conn,
     _release_branch_lease_on_conn,
     _validate_branch_lease_fields,
@@ -45,7 +45,7 @@ from .builder_queue_branch_leases import (  # noqa: F401
     release_branch_lease,
     verify_branch_lease,
 )
-from .builder_queue_db import (  # noqa: F401
+from .queue_db import (  # noqa: F401
     _VALID_STATES,
     AWAITING_REVIEW,
     BLOCKED,
@@ -64,7 +64,7 @@ from .builder_queue_db import (  # noqa: F401
     LeaseConflictError,
     TaskNotFoundError,
 )
-from .builder_queue_leases import (  # noqa: F401
+from .queue_leases import (  # noqa: F401
     claim_next,
     claim_task,
     operator_release_task,
@@ -73,7 +73,7 @@ from .builder_queue_leases import (  # noqa: F401
     worker_release_task,
     worker_transition_task,
 )
-from .builder_queue_runs import (  # noqa: F401
+from .queue_runs import (  # noqa: F401
     RUN_ACTIVE_STATES,
     RUN_CANCEL_REQUESTED,
     RUN_CANCELLED,
@@ -99,7 +99,7 @@ from .builder_queue_runs import (  # noqa: F401
     recover_interrupted_runs,
     update_run,
 )
-from .query_builder import WhereClause, build_where
+from gateway.query_builder import WhereClause, build_where
 
 logger = logging.getLogger("kitty.builder_queue")
 
@@ -190,10 +190,10 @@ def init_db(db_path: Path | None = None) -> None:
 # ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
 # SQLite schema (Phase 1A — tasks + events; runs/pr_links/artifacts future).
-# The DDL has moved to gateway.builder_queue_db._SCHEMA_SQL (audit §2.2).
+# The DDL has moved to gateway.builder.queue_db._SCHEMA_SQL (audit §2.2).
 # This banner stays so the surrounding run-state section remains visually
 # grouped with the schema location.
-# Run-state machine constants live in :mod:`gateway.builder_queue_runs`
+# Run-state machine constants live in :mod:`gateway.builder.queue_runs`
 # (audit §2.2 third cut) and are re-exported via the façade so
 # ``from gateway.builder.queue import RUN_ACTIVE_STATES`` /
 # ``bq.RUN_INTERRUPTED`` continue to work.
@@ -626,7 +626,7 @@ def transition_task(
     return result
 
 
-# Claiming / lease-fencing functions were extracted to :mod:`gateway.builder_queue_leases` (audit §2.2 #2).
+# Claiming / lease-fencing functions were extracted to :mod:`gateway.builder.queue_leases` (audit §2.2 #2).
 
 
 
@@ -1472,12 +1472,12 @@ def get_pr_links(
 # ``capture_process_identity``, ``recover_interrupted_runs``, plus
 # ``RunNotFoundError`` / ``ActiveRunConflictError`` /
 # ``RunStateConflictError`` / ``_validate_run_transition``) live in
-# :mod:`gateway.builder_queue_runs` (audit §2.2 third cut) and are
+# :mod:`gateway.builder.queue_runs` (audit §2.2 third cut) and are
 # re-exported via the façade below so callers keep working.
 # ---------------------------------------------------------------------------
 # Branch-lease lifecycle (``claim_branch_lease``,
 # ``verify_branch_lease``, ``get_branch_lease``,
 # ``release_branch_lease``, plus the ``_claim_branch_lease_on_conn``
 # / ``_release_branch_lease_on_conn`` / ``_validate_branch_lease_fields``
-# helpers) lives in :mod:`gateway.builder_queue_branch_leases`
+# helpers) lives in :mod:`gateway.builder.queue_branch_leases`
 # (audit §2.2 fourth cut) and is re-exported via the façade below.

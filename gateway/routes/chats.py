@@ -10,7 +10,9 @@ import json
 
 from fastapi import APIRouter, HTTPException, Request
 
-from gateway import artifact_store, chat_lifecycle, chats_store
+from gateway import chat_lifecycle
+from gateway.stores import artifact as artifact_store
+from gateway.stores import chats as chats_store
 
 router = APIRouter(tags=["chats"])
 

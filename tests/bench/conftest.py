@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from gateway import builder_queue as bq
+from gateway.builder import queue as bq
 
 
 @pytest.fixture

@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from gateway.desktop_store import append_text_capture
+from gateway.stores.desktop import append_text_capture
 from gateway.paths import INBOX_FILE
 
 

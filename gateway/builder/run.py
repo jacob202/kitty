@@ -25,11 +25,11 @@ import time
 from pathlib import Path
 from typing import Any
 
-from gateway import builder_attempt as ba
-from gateway import builder_initiative as bi
-from gateway import builder_loop as bl
-from gateway import builder_publish as bp
-from gateway import builder_queue as bq
+from gateway.builder import attempt as ba
+from gateway.builder import initiative as bi
+from gateway.builder import loop as bl
+from gateway.builder import publish as bp
+from gateway.builder import queue as bq
 
 EVENT_DECISION = "initiative_decision"
 

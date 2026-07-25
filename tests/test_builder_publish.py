@@ -9,8 +9,8 @@ from typing import Any
 
 import pytest
 
-from gateway import builder_publish as bp
-from gateway import builder_queue as bq
+from gateway.builder import publish as bp
+from gateway.builder import queue as bq
 from gateway.builder.brief import default_branch_name
 
 

@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from gateway import builder_doctor as doctor
-from gateway import builder_initiative as bi
-from gateway import builder_queue as bq
+from gateway.builder import doctor as doctor
+from gateway.builder import initiative as bi
+from gateway.builder import queue as bq
 from gateway.builder.cli import build_parser, main
 
 # ---------------------------------------------------------------------------
@@ -399,14 +399,14 @@ class TestCredentialIsolation:
         assert checks[0].level == "PASS"
 
     def test_empty_blocklist_fails(self, monkeypatch):
-        from gateway import builder_runner
+        from gateway.builder import runner as builder_runner
 
         monkeypatch.setattr(builder_runner, "_EXTRA_ENV_BLOCKED", frozenset())
         checks = doctor._check_credential_isolation()
         assert checks[0].level == "FAIL"
 
     def test_missing_expected_var_fails(self, monkeypatch):
-        from gateway import builder_runner
+        from gateway.builder import runner as builder_runner
 
         monkeypatch.setattr(builder_runner, "_EXTRA_ENV_BLOCKED", frozenset({"SSH_AUTH_SOCK"}))
         checks = doctor._check_credential_isolation()
@@ -476,7 +476,7 @@ class TestCLI:
 
     def test_main_returns_zero_when_healthy(self, cli_db, monkeypatch, capsys):
         monkeypatch.setattr(
-            "gateway.builder_doctor.run_doctor",
+            "gateway.builder.doctor.run_doctor",
             lambda **kwargs: {
                 "ok": True,
                 "summary": {"pass": 5, "warn": 0, "fail": 0},
@@ -490,7 +490,7 @@ class TestCLI:
 
     def test_main_returns_one_when_blocking(self, cli_db, monkeypatch, capsys):
         monkeypatch.setattr(
-            "gateway.builder_doctor.run_doctor",
+            "gateway.builder.doctor.run_doctor",
             lambda **kwargs: {
                 "ok": False,
                 "summary": {"pass": 0, "warn": 0, "fail": 1},
@@ -508,7 +508,7 @@ class TestCLI:
             "summary": {"pass": 1, "warn": 0, "fail": 0},
             "checks": [{"level": "PASS", "name": "x", "detail": "fine"}],
         }
-        monkeypatch.setattr("gateway.builder_doctor.run_doctor", lambda **kwargs: payload)
+        monkeypatch.setattr("gateway.builder.doctor.run_doctor", lambda **kwargs: payload)
         rc = main(["initiative", "doctor", "--json"])
         assert rc == 0
         printed = json.loads(capsys.readouterr().out)
@@ -517,7 +517,7 @@ class TestCLI:
     def test_doctor_runs_even_when_kill_switch_active(self, cli_db, monkeypatch, capsys):
         monkeypatch.setenv("KITTY_BUILDER_QUEUE_ENABLED", "0")
         monkeypatch.setattr(
-            "gateway.builder_doctor.run_doctor",
+            "gateway.builder.doctor.run_doctor",
             lambda **kwargs: {
                 "ok": True,
                 "summary": {"pass": 1, "warn": 1, "fail": 0},

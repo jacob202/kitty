@@ -160,7 +160,7 @@ class TestDismiss:
 class TestStatus:
     def test_returns_never_run_shape_when_empty(self, isolated_file: Path) -> None:
         # Don't touch the real consolidation cache; inject a fake
-        from gateway import memory_consolidation
+        from gateway.memory import consolidation as memory_consolidation
 
         monkey_info = {"last_run": None, "never": True}
         monkey_info["insights_count"] = 0
@@ -178,7 +178,7 @@ class TestStatus:
     def test_counts_persisted_insights(self, isolated_file: Path) -> None:
         import unittest.mock as mock
 
-        from gateway import memory_consolidation
+        from gateway.memory import consolidation as memory_consolidation
 
         dream_insights.save_dream_insights("Consolidated 1 cluster\nPruned 2 old entries")
         with mock.patch.object(

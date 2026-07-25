@@ -3,7 +3,7 @@ import sqlite3
 
 import pytest
 
-from gateway import todo_store
+from gateway.stores import todo as todo_store
 
 
 @pytest.fixture(autouse=True)

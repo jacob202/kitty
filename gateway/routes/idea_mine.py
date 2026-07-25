@@ -12,7 +12,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
-from gateway import idea_mine_store as store
+from gateway.stores import idea_mine as store
 
 logger = logging.getLogger("kitty.routes.idea_mine")
 

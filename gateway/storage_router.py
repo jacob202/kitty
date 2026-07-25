@@ -37,7 +37,8 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from gateway import plugin_registry, todo_store
+from gateway import plugin_registry
+from gateway.stores import todo as todo_store
 from gateway.paths import KITTY_TOKEN_LOG_FILE
 
 logger = logging.getLogger("kitty.storage_router")
