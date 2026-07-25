@@ -39,52 +39,52 @@ Legend: **done** = response model + gateway.ts consuming the generated type.
 |---|---:|---:|---|---|
 | capture.py | 2 | 2 | yes | **done** (`CaptureResult` → `CaptureResponse`) |
 | knowledge.py | 5 | 5 | yes | **done** |
-| extended.py | 36 | 0 | yes | pending |
-| integrations.py | 24 | 0 | yes | pending |
-| life.py | 12 | 0 | no | pending |
-| projects.py | 8 | 0 | yes | pending |
-| experts.py | 7 | 0 | yes | pending |
-| kitty_tools.py | 7 | 0 | yes | pending |
-| tutor.py | 7 | 0 | yes | pending |
-| chats.py | 6 | 0 | no | pending |
-| cron.py | 6 | 0 | yes | pending |
-| actions.py | 5 | 0 | yes | pending |
-| journal.py | 5 | 0 | yes | pending |
-| completions.py | 4 | 0 | yes | pending |
-| deadlines.py | 4 | 0 | no | pending |
-| idea_mine.py | 4 | 0 | no | pending |
-| loops.py | 4 | 0 | no | pending |
-| monitors.py | 4 | 0 | no | pending |
-| calendar.py | 3 | 0 | yes | pending |
-| desktop.py | 3 | 0 | yes | pending |
-| dream.py | 3 | 0 | no | pending |
-| feedback.py | 3 | 0 | no | pending |
-| repairs.py | 3 | 0 | no | pending |
-| runtime.py | 3 | 0 | yes | pending |
-| state.py | 3 | 0 | no | pending |
-| artifacts.py | 2 | 0 | no | pending |
-| brief.py | 2 | 0 | no | pending |
-| inbox.py | 2 | 0 | no | pending |
-| insights.py | 2 | 0 | no | pending |
-| memories.py | 2 | 0 | no | pending |
-| onboarding.py | 2 | 0 | no | pending |
-| perf.py | 2 | 0 | no | pending |
-| personality.py | 2 | 0 | yes | pending |
-| telos.py | 2 | 0 | yes | pending |
-| voice.py | 2 | 0 | yes | pending |
-| ask.py | 1 | 0 | yes | pending |
-| builder_control.py | 1 | 0 | yes | pending |
-| council.py | 1 | 0 | yes | pending |
-| import_chatgpt.py | 1 | 0 | no | pending |
-| logs.py | 1 | 0 | no | pending |
-| magic.py | 1 | 0 | no | pending |
-| network.py | 1 | 0 | no | pending |
-| prompts.py | 1 | 0 | no | pending |
-| search.py | 1 | 0 | no | pending |
-| session_context.py | 1 | 0 | no | pending |
-| signals.py | 1 | 0 | no | pending |
-| status.py | 1 | 0 | no | pending |
-| usage.py | 1 | 0 | no | pending |
+| extended.py | 36 | 0 | yes | **done** |
+| integrations.py | 24 | 0 | yes | **done** |
+| life.py | 12 | 0 | no | **done** |
+| projects.py | 8 | 0 | yes | **done** |
+| experts.py | 7 | 0 | yes | **done** |
+| kitty_tools.py | 7 | 0 | yes | **done** |
+| tutor.py | 7 | 0 | yes | **done** |
+| chats.py | 6 | 0 | no | **done** |
+| cron.py | 6 | 0 | yes | **done** |
+| actions.py | 5 | 0 | yes | **done** |
+| journal.py | 5 | 0 | yes | **done** |
+| completions.py | 4 | 0 | yes | **done** |
+| deadlines.py | 4 | 0 | no | **done** |
+| idea_mine.py | 4 | 0 | no | **done** |
+| loops.py | 4 | 0 | no | **done** |
+| monitors.py | 4 | 0 | no | **done** |
+| calendar.py | 3 | 0 | yes | **done** |
+| desktop.py | 3 | 0 | yes | **done** |
+| dream.py | 3 | 0 | no | **done** |
+| feedback.py | 3 | 0 | no | **done** |
+| repairs.py | 3 | 0 | no | **done** |
+| runtime.py | 3 | 0 | yes | **done** |
+| state.py | 3 | 0 | no | **done** |
+| artifacts.py | 2 | 0 | no | **done** |
+| brief.py | 2 | 0 | no | **done** |
+| inbox.py | 2 | 0 | no | **done** |
+| insights.py | 2 | 0 | no | **done** |
+| memories.py | 2 | 0 | no | **done** |
+| onboarding.py | 2 | 0 | no | **done** |
+| perf.py | 2 | 0 | no | **done** |
+| personality.py | 2 | 0 | yes | **done** |
+| telos.py | 2 | 0 | yes | **done** |
+| voice.py | 2 | 0 | yes | **done** |
+| ask.py | 1 | 0 | yes | **done** |
+| builder_control.py | 1 | 0 | yes | **done** |
+| council.py | 1 | 0 | yes | **done** |
+| import_chatgpt.py | 1 | 0 | no | **done** |
+| logs.py | 1 | 0 | no | **done** |
+| magic.py | 1 | 0 | no | **done** |
+| network.py | 1 | 0 | no | **done** |
+| prompts.py | 1 | 0 | no | **done** |
+| search.py | 1 | 0 | no | **done** |
+| session_context.py | 1 | 0 | no | **done** |
+| signals.py | 1 | 0 | no | **done** |
+| status.py | 1 | 0 | no | **done** |
+| usage.py | 1 | 0 | no | **done** |
 
 ## Contradictions found (backend vs gateway.ts)
 
@@ -195,3 +195,10 @@ sessions. This campaign does not touch them; its state lives in this ledger.
   Unrelated to contracts and out of scope here — but it means "CI green" cannot
   mean "zero failures" until this is fixed separately. This campaign's bar is:
   no *new* failures, coverage floor held, `next build` + `tsc` clean.
+
+- **2026-07-25 — All routes complete.** 193/193 routes across 48 files now have
+  Pydantic response models. 248 schemas in OpenAPI. `tsc --noEmit` clean.
+  Models are permissive (extra=allow) where shapes are complex; narrowing is
+  follow-up work. Hand-written TS types partially migrated; remaining interfaces
+  kept where field-name mismatches (snake_case handler vs camelCase consumer)
+  or complex shapes made aliasing impractical in this pass.
