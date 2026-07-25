@@ -1,4 +1,5 @@
 import { MODELS, type Model } from './types'
+import type { components } from './gen/gateway-schema'
 
 const GATEWAY_BASE = '/proxy'
 // The proxy has to cross the Next.js boundary and may wake a local gateway
@@ -1259,12 +1260,9 @@ export async function fetchNeedsJacob(limit = 20): Promise<GatewayNeedsJacobPayl
 
 // ── File Capture ─────────────────────────────────────────────────────────────
 
-export interface CaptureResult {
-  capture_id: string
-  artifact_id?: string | null
-  status: string
-  message: string
-}
+/** Generated from the FastAPI `CaptureResponse` model — see src/lib/gen/README.md.
+ *  Regenerate with `npm run gen:api-types`; do not restore a hand-written shape. */
+export type CaptureResult = components['schemas']['CaptureResponse']
 
 export async function uploadCaptureFile(
   file: File,
