@@ -1,0 +1,1155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Why Mature AI Products Feel Finished — an internal design handbook</title>
+<style>
+  :root {
+    --bg: #fbfaf8; --surface: #ffffff; --ink: #16150f; --ink-2: #5d5a4e;
+    --ink-3: #8b8779; --line: #e2ded2; --accent: #b4562a; --accent-soft: #fdf3ec;
+    --good: #2f6b4f; --good-soft: #eef6f1; --bad: #a03232; --bad-soft: #fcefee;
+    --code-bg: #f4f1ea; --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14140f; --surface: #1c1c16; --ink: #edeade; --ink-2: #a8a494;
+      --ink-3: #77746a; --line: #2e2e26; --accent: #e08b5c; --accent-soft: #2a1f16;
+      --good: #79c79b; --good-soft: #17251d; --bad: #e58a84; --bad-soft: #2a1917;
+      --code-bg: #211f19;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 20px; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 28px 120px; display: grid;
+          grid-template-columns: 232px minmax(0, 1fr); gap: 52px; }
+  main, nav.toc { min-width: 0; }
+  @media (max-width: 900px) { .wrap { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0 20px 80px; } nav.toc { position: static !important; max-height: none !important; margin-bottom: 32px; } }
+
+  header.hero { border-bottom: 1.5px solid var(--line); margin-bottom: 44px; padding: 64px 0 30px; }
+  header.hero .inner { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
+  h1 { font-size: clamp(30px, 4.4vw, 46px); line-height: 1.08; letter-spacing: -0.03em;
+       margin: 0 0 14px; font-weight: 800; }
+  .sub { color: var(--ink-2); font-size: 17px; max-width: 62ch; margin: 0 0 22px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tag { font: 600 11px/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase;
+         background: var(--surface); border: 1.5px solid var(--line); border-radius: 99px;
+         padding: 7px 12px; color: var(--ink-2); }
+
+  nav.toc { position: sticky; top: 20px; align-self: start; max-height: calc(100vh - 40px); overflow-y: auto; }
+  nav.toc .lbl { font: 700 10px/1 var(--mono); letter-spacing: 0.12em; text-transform: uppercase;
+                 color: var(--ink-3); margin-bottom: 12px; }
+  nav.toc a { display: block; color: var(--ink-2); text-decoration: none; font-size: 13.5px;
+              padding: 5px 0 5px 11px; border-left: 2px solid var(--line); line-height: 1.4; }
+  nav.toc a:hover { color: var(--accent); border-left-color: var(--accent); }
+  nav.toc a.sec { margin-top: 14px; font-weight: 600; color: var(--ink); }
+
+  section { margin-bottom: 68px; scroll-margin-top: 20px; }
+  h2 { font-size: 27px; letter-spacing: -0.02em; margin: 0 0 6px; font-weight: 750; line-height: 1.2; }
+  h2 .num { font: 700 13px/1 var(--mono); color: var(--accent); display: block; margin-bottom: 9px;
+            letter-spacing: 0.08em; }
+  h3 { font-size: 17px; margin: 32px 0 10px; font-weight: 700; letter-spacing: -0.01em; }
+  h3.step { color: var(--ink-2); font: 700 11px/1 var(--mono); letter-spacing: 0.11em;
+            text-transform: uppercase; margin: 30px 0 12px; }
+  p { margin: 0 0 15px; max-width: 74ch; }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  ul, ol { max-width: 74ch; padding-left: 22px; margin: 0 0 15px; }
+  li { margin-bottom: 7px; }
+  code { font: 13px/1.5 var(--mono); background: var(--code-bg); padding: 1.5px 5px;
+         border-radius: 4px; word-break: break-word; }
+  pre { background: var(--code-bg); border: 1.5px solid var(--line); border-radius: 10px;
+        padding: 14px 16px; overflow-x: auto; margin: 0 0 16px; }
+  pre code { background: none; padding: 0; font-size: 12.5px; line-height: 1.6; }
+
+  blockquote { margin: 0 0 16px; padding: 3px 0 3px 17px; border-left: 3px solid var(--accent);
+               color: var(--ink); font-size: 15.5px; max-width: 72ch; }
+  blockquote cite { display: block; margin-top: 7px; font-style: normal; font-size: 12.5px;
+                    color: var(--ink-3); font-family: var(--mono); }
+
+  .card { background: var(--surface); border: 1.5px solid var(--line); border-radius: 13px;
+          padding: 19px 21px; margin: 0 0 18px; }
+  .card.pattern { border-color: var(--accent); background: var(--accent-soft); }
+  .card.kitty { border-left: 4px solid var(--ink-3); }
+  .card h4 { margin: 0 0 10px; font-size: 12px; font-family: var(--mono); letter-spacing: 0.1em;
+             text-transform: uppercase; color: var(--ink-3); font-weight: 700; }
+  .card.pattern h4 { color: var(--accent); }
+  .card p:last-child, .card ul:last-child, .card table:last-child { margin-bottom: 0; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 0 0 18px; }
+  .scroller { overflow-x: auto; margin-bottom: 18px; }
+  .scroller table { margin-bottom: 0; }
+  th { text-align: left; font: 700 11px/1.3 var(--mono); letter-spacing: 0.07em; text-transform: uppercase;
+       color: var(--ink-3); border-bottom: 1.5px solid var(--line); padding: 9px 11px 9px 0; vertical-align: bottom; }
+  td { border-bottom: 1px solid var(--line); padding: 10px 11px 10px 0; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+
+  .verdict { display: inline-block; font: 700 10.5px/1 var(--mono); letter-spacing: 0.07em;
+             text-transform: uppercase; padding: 5px 9px; border-radius: 5px; white-space: nowrap; }
+  .v-ok { background: var(--good-soft); color: var(--good); }
+  .v-gap { background: var(--bad-soft); color: var(--bad); }
+  .v-mid { background: var(--accent-soft); color: var(--accent); }
+
+  .layer { display: inline-block; font: 700 10.5px/1 var(--mono); background: var(--ink);
+           color: var(--bg); padding: 4px 8px; border-radius: 4px; letter-spacing: 0.05em; }
+  .fileref { font: 12.5px/1.5 var(--mono); color: var(--ink-2); }
+  hr.soft { border: none; border-top: 1.5px solid var(--line); margin: 40px 0; }
+  .lede { font-size: 17.5px; color: var(--ink-2); max-width: 70ch; margin-bottom: 26px; }
+  .footnote { font-size: 13.5px; color: var(--ink-3); max-width: 74ch; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="inner">
+    <h1>Why mature AI products feel finished</h1>
+    <p class="sub">Eight recurring themes reverse-engineered from the issue trackers, reverted pull
+    requests, and source code of eight long-lived open-source AI assistants — and what each one says
+    about Kitty as it stands today.</p>
+    <div class="meta">
+      <span class="tag">2026-07-25</span>
+      <span class="tag">8 repos</span>
+      <span class="tag">~90 opened citations</span>
+      <span class="tag">Kitty claims verified against source</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<nav class="toc">
+  <div class="lbl">Contents</div>
+  <a href="#how" class="sec">How to read this</a>
+  <a href="#t1" class="sec">1 · Streaming &amp; latency</a>
+  <a href="#t2" class="sec">2 · Loading &amp; empty states</a>
+  <a href="#t3" class="sec">3 · Error recovery &amp; trust</a>
+  <a href="#t4" class="sec">4 · Agent visibility</a>
+  <a href="#t5" class="sec">5 · Onboarding &amp; discovery</a>
+  <a href="#t6" class="sec">6 · Settings &amp; models</a>
+  <a href="#t7" class="sec">7 · Memory &amp; context</a>
+  <a href="#t8" class="sec">8 · Mobile</a>
+  <a href="#meta" class="sec">The meta-pattern</a>
+  <a href="#initiatives" class="sec">Builder initiatives</a>
+  <a href="#honesty" class="sec">What this doesn't cover</a>
+</nav>
+
+<main>
+
+<section id="how">
+  <h2><span class="num">Preface</span>How to read this</h2>
+  <p class="lede">Polish is not a layer applied at the end. In every project studied, it is a scar —
+  the residue of a specific failure that a specific user reported, argued about, and got fixed. This
+  document collects the scars.</p>
+
+  <p>Every quote is verbatim from a page a tool actually opened. Every claim about Kitty was checked
+  against <code>gateway/kitty-chat/src/</code> on 2026-07-25 and carries a file and line. Nothing here
+  is inferred from a directory listing or from what the code "probably" does.</p>
+
+  <p>Each theme runs the same six beats: what the best projects do, why they landed there, the
+  evidence, the reusable pattern, where Kitty stands, and at most two initiatives. The
+  evidence dump behind it is <code class="fileref">~/kb/raw/2026-07-25-polish-evidence.md</code>.</p>
+
+  <div class="card">
+    <h4>The corpus</h4>
+    <p>open-webui · LibreChat · khoj · continue · cline · aider · NextChat · zed.
+    Chosen for age and traffic, not feature parity with Kitty. Two of them (aider, cline) are agents
+    rather than chat apps, which is where the agent-visibility evidence comes from.</p>
+  </div>
+
+  <div class="card">
+    <h4>The one thing to take away</h4>
+    <p>Across eight independent codebases, the defects that make software feel unfinished are
+    overwhelmingly <strong>signal defects, not capability defects</strong>. The model answered. The
+    request succeeded. The command ran. But nothing on screen said so, or something on screen said
+    the wrong thing, and the user concluded the product was broken. Six of the eight themes below are
+    variations on this.</p>
+  </div>
+</section>
+
+<hr class="soft">
+
+<!-- ══════════════════════ THEME 1 ══════════════════════ -->
+<section id="t1">
+  <h2><span class="num">Theme 01</span>Streaming and latency masking</h2>
+  <p class="lede">The hardest-won knowledge in this corpus. Every project independently discovered
+  that naive streaming is quadratic, that batching the fix can make it feel worse, and that the
+  scroll position is part of the streaming problem, not a separate one.</p>
+
+  <h3 class="step">What the best projects do</h3>
+  <p>They treat a streaming response as a <em>delta feed applied to a stable document</em>, not as a
+  document re-rendered per token. Concretely: send deltas rather than the cumulative buffer, coalesce
+  DOM writes to at most one per frame, memoize every message that isn't the streaming one, and give
+  the stream an identity that survives the connection carrying it.</p>
+
+  <h3 class="step">Why they converged there</h3>
+  <p>Because someone measured it. Open WebUI's <a href="https://github.com/open-webui/open-webui/issues/23733">#23733</a>
+  is the most complete accounting of the naive approach in the corpus:</p>
+
+  <blockquote>"During an LLM streaming response, the backend re-serializes the <strong>entire</strong>
+  accumulated output...on every SSE event."<br><br>
+  "Total bytes on the wire for an N-token response scale as <strong>O(N²)</strong>."<br><br>
+  "At 30 tok/s, the frontend main thread spends <strong>600+ ms/sec</strong> re-parsing Markdown for
+  content the user has already seen."
+  <cite>open-webui#23733, 2026-04-14</cite></blockquote>
+
+  <p>The report's headline figure — <strong>120&nbsp;GB of infrastructure traffic to deliver
+  10&nbsp;MB of tokens, a 10,000× amplification</strong> — is what the naive loop costs at scale.
+  Profiling in <a href="https://github.com/open-webui/open-webui/discussions/20878">discussion #20878</a>
+  found the frontend cost directly: over a 20-second response the markdown parser ran
+  <strong>504 times</strong> and KaTeX matched <strong>401 times</strong>, where one pass per frame
+  would be about 60 per second.</p>
+
+  <h3>The reversal that matters most</h3>
+  <p>Open WebUI shipped the obvious fix and pulled it in <strong>one day</strong>.</p>
+  <div class="scroller"><table>
+    <tr><th>Date</th><th>PR</th><th>What</th></tr>
+    <tr><td>2026-03-24</td><td><a href="https://github.com/open-webui/open-webui/pull/22947">#22947</a></td>
+        <td>"perf: batch history reactive updates to rAF in chatEventHandler" — replaced a direct store
+        write with a <code>requestAnimationFrame</code> coalescer</td></tr>
+    <tr><td>2026-03-25</td><td><a href="https://github.com/open-webui/open-webui/pull/23016">#23016</a></td>
+        <td>Reverted it. Sole commit headline: <strong>"perf: fix double-RAF streaming display lag"</strong></td></tr>
+  </table></div>
+  <p>The coalescer was correct. It sat on top of an rAF that already existed further down the render
+  path, and the resulting two-frame delay made streaming <em>feel</em> slower while measurably doing
+  less work. Perceived latency beat measured throughput, and the maintainers chose accordingly, fast.</p>
+
+  <h3>Scroll is a streaming problem</h3>
+  <p>The single most-repeated complaint in the entire corpus. Four projects, six issues, same defect:</p>
+  <div class="scroller"><table>
+    <tr><th>Issue</th><th>Title</th></tr>
+    <tr><td><a href="https://github.com/open-webui/open-webui/issues/23990">open-webui#23990</a> (27c)</td><td>Scrolling up jumps around in a conversation</td></tr>
+    <tr><td><a href="https://github.com/open-webui/open-webui/issues/25761">open-webui#25761</a></td><td>Implement scroll anchoring / stable reading view during fast generation</td></tr>
+    <tr><td><a href="https://github.com/open-webui/open-webui/issues/1195">open-webui#1195</a></td><td>Auto scroll fails to stop with small scroll amounts</td></tr>
+    <tr><td><a href="https://github.com/khoj-ai/khoj/issues/1252">khoj#1252</a></td><td>Allow disabling auto-scroll on new token</td></tr>
+    <tr><td><a href="https://github.com/cline/cline/issues/10450">cline#10450</a></td><td>Chat auto-scrolls to top when processing larger responses</td></tr>
+    <tr><td><a href="https://github.com/ChatGPTNextWeb/NextChat/issues/3409">NextChat#3409</a></td><td>Wrong loading while scrolling</td></tr>
+  </table></div>
+
+  <blockquote>"If a user tries to focus and read an answer from the top while it is actively streaming,
+  the layout constantly jumps, causing severe eye strain."<br><br>
+  "the only workaround is a manual user gesture: flicking the mouse wheel upward the millisecond text
+  generation begins to force-trigger the internal scroll lock."
+  <cite>open-webui#25761</cite></blockquote>
+
+  <p>khoj#1252 names the anti-pattern in a single line — <em>"chatContainer.scrollTop =
+  chatContainer.scrollHeight; This ensures the latest message is always visible — but it ignores
+  whether the user has manually scrolled up."</em> The fix everywhere is the same shape: a
+  near-bottom test that gates the scroll. Only the threshold differs, and the difference is large —
+  Open WebUI uses <strong>5px</strong>, Khoj uses <strong>50px</strong>. Five pixels is inside the
+  noise floor of a trackpad flick.</p>
+
+  <p>The most instructive artifact is Open WebUI's actual <code>scrollToBottom</code>, read from
+  source. It scrolls three times across two animation frames, and the comment explains why:</p>
+  <pre><code>// content-visibility: auto causes the initial scrollHeight to be based on
+// estimated sizes (contain-intrinsic-size). After we scroll, previously
+// off-screen messages become visible and the browser resolves their actual
+// heights, which shifts scrollHeight. Re-layouts can cascade across frames
+// (new sizes reveal more content, triggering further size resolution), so
+// we re-scroll across two animation frames to land at the true bottom.</code></pre>
+  <p class="footnote">— <code>src/lib/components/chat/Chat.svelte</code>, read 2026-07-25.
+  A virtualization optimization created a correctness bug in scrolling; the fix is three stacked
+  <code>scrollTo</code> calls and a paragraph justifying them. This is what polish costs at the bottom.</p>
+
+  <h3>Streams that outlive their connection</h3>
+  <p>LibreChat rebuilt streaming around a job that records deltas server-side, so a dropped socket
+  replays instead of losing the response:</p>
+  <blockquote>"On reconnect, the server rebuilds the content streamed so far from the job's recorded
+  deltas. The missing content is delivered in a single sync event. Streaming continues from the
+  current position."
+  <cite>librechat.ai/docs/features/resumable_streams</cite></blockquote>
+  <p>Stated purpose: survive "network drops, browser refreshes, and server restarts," keep tabs in
+  sync, switch devices mid-stream. The cost is real — <a href="https://github.com/danny-avila/LibreChat/issues/11702">#11702</a>
+  documents truncated responses when a subscriber connects late — but the failure it eliminates is
+  the one Open WebUI still has (see Theme&nbsp;8).</p>
+
+  <div class="card pattern">
+    <h4>Reusable patterns</h4>
+    <ul>
+      <li><strong>Deltas on the wire, deltas in the store.</strong> Never re-send or re-assign the
+      cumulative buffer. Cost scales with what changed, not with what exists.</li>
+      <li><strong>One coalescer, not two.</strong> Batching is correct exactly once per pipeline.
+      Layered rAF adds latency and subtracts nothing.</li>
+      <li><strong>Freeze everything but the tail.</strong> Only the streaming message re-renders;
+      every prior message is memoized and inert.</li>
+      <li><strong>Near-bottom gate, generously sized.</strong> Auto-scroll only when the user is
+      already at the bottom. 50px, not 5px.</li>
+      <li><strong>The stream has an id.</strong> If the response only exists inside one HTTP
+      connection, every disconnect is data loss.</li>
+    </ul>
+  </div>
+
+  <h3 class="step">How Kitty differs today</h3>
+  <div class="card kitty">
+    <h4>Verified against source, 2026-07-25</h4>
+    <p><span class="verdict v-gap">Gap</span> &nbsp;<strong>Kitty has the exact defect open-webui#23733
+    describes, at the store and render layers.</strong> The stream loop appends to a cumulative string
+    and rewrites the message list on every token:</p>
+    <pre><code>accumulated += chunk.content
+updateChat(chat.id, (c) => ({ ...c, messages: c.messages.map(
+  (m) => (m.id === aiMsgId ? { ...m, content: accumulated } : m)) }))</code></pre>
+    <p class="fileref">state/KittyContext.tsx:543–544</p>
+    <p>Every token maps the full message array and allocates a new object per message. Downstream,
+    <code>ChatMessage</code> feeds that whole accumulated string to
+    <code>ReactMarkdown</code> with <code>remarkGfm</code> and <code>rehypeHighlight</code>
+    (<span class="fileref">ChatMessage.tsx:183–215</span>) — a complete markdown parse plus syntax
+    highlight, per token. And <strong>there is no <code>React.memo</code>, <code>memo()</code>, or
+    <code>useMemo</code> anywhere in <code>ChatMessage.tsx</code> or <code>KittyThread.tsx</code></strong>
+    (grep, 2026-07-25), so prior messages re-render alongside the streaming one. A 2,000-token reply
+    in a 40-message thread is 2,000 full-thread re-renders and 2,000 full markdown parses.</p>
+
+    <p><span class="verdict v-ok">Ahead</span> &nbsp;<strong>Scroll is already solved, by delegation.</strong>
+    <code>KittyThread</code> uses assistant-ui's <code>&lt;ThreadPrimitive.Viewport autoScroll&gt;</code>
+    with a <code>ScrollToBottom</code> control gated on <code>isAtBottom</code>
+    (<span class="fileref">KittyThread.tsx:59, 116–124</span>). Kitty gets, from a dependency, the
+    behaviour four projects in this corpus are still hand-rolling. Worth a runtime check — the
+    threshold is the library's, and 5px-vs-50px is the difference between working and not — but
+    architecturally this is the right call and the reason to keep it.</p>
+
+    <p><span class="verdict v-gap">Gap</span> &nbsp;<strong>No stream identity.</strong> Chat streams
+    over a <code>fetch</code> body reader (<span class="fileref">lib/chat-client.ts:51</span>) with no
+    server-side job and no resume. If the connection dies, the reply dies. Note the asymmetry: Kitty's
+    <em>signal</em> SSE already has bounded exponential backoff, 1s doubling to 30s, with an
+    <code>onOpen</code> resync hook and a comment explaining why it owns the retry instead of trusting
+    EventSource (<span class="fileref">lib/sse.ts:41–72</span>). The care exists in the codebase; it
+    just isn't on the path that carries the actual conversation.</p>
+  </div>
+
+  <h3 class="step">Initiatives</h3>
+  <div class="card">
+    <h4>Proposed</h4>
+    <p><span class="layer">F2 · Latency Budget</span> &nbsp;<strong>Stop re-parsing the past.</strong>
+    Memoize <code>ChatMessage</code> on <code>(id, content, isStreaming)</code> and coalesce the
+    streaming write to one per animation frame — <em>one</em> coalescer, at the store, per
+    open-webui's reversal. F2 already commits to defining TTFT targets and surfacing timing; this is
+    the render-side half of the same budget, and it is a small diff against two files.</p>
+    <p style="margin-top:14px"><span class="layer">D1 · Chat Depth</span> &nbsp;<strong>Give the
+    stream an id.</strong> Server-side generation job with recorded deltas, resumable by id. This is
+    the prerequisite for the mobile backgrounding failure in Theme&nbsp;8 and it is genuinely large —
+    name it now, sequence it behind the memoization work.</p>
+  </div>
+</section>
+
+<hr class="soft">
+
+<!-- ══════════════════════ THEME 2 ══════════════════════ -->
+<section id="t2">
+  <h2><span class="num">Theme 02</span>Loading and empty states</h2>
+  <p class="lede">The theme where absence of signal is read as failure. Also the thinnest section
+  here — GitHub search returns almost nothing for "skeleton" or "empty state," because these defects
+  get filed under other names.</p>
+
+  <h3 class="step">What the best projects do</h3>
+  <p>They eliminate dead air. Any gap longer than roughly a second between one visible thing
+  finishing and the next starting gets a placeholder — and the placeholder is cancelled when its
+  subject is cancelled. Empty states carry starter content that survives contact with typing rather
+  than vanishing on the first keystroke.</p>
+
+  <h3 class="step">Why they converged there</h3>
+  <p>Because users interpret silence as a crash and act on that interpretation. Open WebUI's
+  <a href="https://github.com/open-webui/open-webui/issues/22970">#22970</a> — "No loading indicator
+  between tool call completion and LLM response, making it appear as if the response has stopped":</p>
+  <blockquote>"users sometimes assumes the conversation stuck. Tried to solve it using a filter, but
+  still not covering all the scenarios that causes this."
+  <cite>@ctcanbol on open-webui#22970</cite></blockquote>
+  <p>The maintainer's full reply is <strong>"Intended behaviour, open to discussion."</strong> A gap
+  in a streaming UI, closed as working-as-designed. It is the clearest example in the corpus of a
+  deliberate decision that reads to users as a bug, and worth holding onto as a counter-example: the
+  absence of a signal is itself a signal, and you don't get to opt out of sending it.</p>
+
+  <p>The mirror image is <a href="https://github.com/open-webui/open-webui/issues/21350">#21350</a>,
+  "Progress indicators are not cancelled then the output is stopped by the user" — a spinner that
+  outlives its subject is worse than no spinner, because it is actively lying. And
+  <a href="https://github.com/danny-avila/LibreChat/issues/4476">LibreChat#4476</a> puts the whole
+  theme in its title: <em>"Add loading indicator for file uploads to prevent system freeze
+  <strong>perception</strong>."</em> The system was never frozen.</p>
+
+  <h3>Empty states that survive typing</h3>
+  <p>Open WebUI's <code>Suggestions.svelte</code> (read from source) fuzzy-matches its starter prompts
+  against the input as the user types, using Fuse.js at <code>threshold: 0.5</code> over
+  <code>['content', 'title']</code>. The suggestions narrow instead of disappearing, so the empty
+  state stays useful into the typing state rather than being a one-shot that punishes you for
+  starting.</p>
+
+  <div class="card pattern">
+    <h4>Reusable patterns</h4>
+    <ul>
+      <li><strong>Every gap gets a name.</strong> Enumerate the transitions — tool call → model
+      response, upload → index, retry → reconnect — and give each one a visible state. Silence is not
+      a state.</li>
+      <li><strong>Indicators are owned by their subject.</strong> Whatever cancels the work cancels
+      the indicator, in the same code path.</li>
+      <li><strong>Empty states narrow, they don't vanish.</strong> Starter content that filters
+      against input is worth more than starter content that disappears at keystroke one.</li>
+    </ul>
+  </div>
+
+  <h3 class="step">How Kitty differs today</h3>
+  <div class="card kitty">
+    <h4>Verified against source, 2026-07-25</h4>
+    <p><span class="verdict v-ok">Ahead</span> &nbsp;There is a real toast system —
+    success/error/info, auto-dismiss at 3s, manual dismiss, provider-based
+    (<span class="fileref">components/Toast.tsx:1–40</span>). And a <code>lastOutcome</code> state
+    machine that flips to <code>'done'</code> and self-clears after 2.5s
+    (<span class="fileref">KittyContext.tsx:547–548</span>) — an explicit completion signal, which is
+    more than most of the corpus ships.</p>
+    <p><span class="verdict v-mid">Partial</span> &nbsp;The empty state is well-built —
+    cat, hero, four suggestion chips (<span class="fileref">KittyThread.tsx:136–184</span>) — but
+    <code>SUGGESTION_CHIPS</code> is a static four-element array with no filtering, so it disappears
+    the moment a message exists. That is the one-shot pattern Open WebUI moved off.</p>
+    <p><span class="verdict v-gap">Gap</span> &nbsp;The #22970 dead-air gap is unguarded. Kitty
+    streams tool-call deltas and content deltas through the same loop
+    (<span class="fileref">KittyContext.tsx:536–544</span>), and between the last tool-call delta and
+    the first content token there is no state that says "still working." Same shape as the
+    open-webui issue, and Kitty has tools.</p>
+  </div>
+
+  <h3 class="step">Initiatives</h3>
+  <div class="card">
+    <h4>Proposed</h4>
+    <p><span class="layer">D1 · Chat Depth</span> &nbsp;<strong>Name every gap in the turn.</strong>
+    Enumerate the transitions in <code>runStream</code> and give each a visible state, starting with
+    tool-call-complete → first-content-token. Small, and it removes the single most common "is it
+    broken?" moment in an agentic chat.</p>
+  </div>
+</section>
+
+<hr class="soft">
+
+<!-- ══════════════════════ THEME 3 ══════════════════════ -->
+<section id="t3">
+  <h2><span class="num">Theme 03</span>Error recovery and trust</h2>
+  <p class="lede">The theme with the densest evidence, and the one where Kitty is furthest ahead —
+  because <em>fail loud</em> is already written down as a non-negotiable.</p>
+
+  <h3 class="step">What the best projects do</h3>
+  <p>The mature ones make failure visible, attributable, and reversible. The immature ones swallow
+  it. A title search for <code>silently</code> across the corpus returns a dense cluster, and almost
+  all of it is still open:</p>
+  <div class="scroller"><table>
+    <tr><th>Issue</th><th>What is dropped, silently</th></tr>
+    <tr><td><a href="https://github.com/open-webui/open-webui/issues/27411">open-webui#27411</a></td><td>Errors in tool-call continuation rounds</td></tr>
+    <tr><td><a href="https://github.com/open-webui/open-webui/issues/25144">open-webui#25144</a></td><td>Unknown tool call returns empty result instead of an error</td></tr>
+    <tr><td><a href="https://github.com/open-webui/open-webui/issues/25916">open-webui#25916</a></td><td>AI note edits lost when the note is open in the editor</td></tr>
+    <tr><td><a href="https://github.com/cline/cline/issues/10984">cline#10984</a></td><td>"empty catch blocks silently swallow errors in 3 locations"</td></tr>
+    <tr><td><a href="https://github.com/cline/cline/issues/12247">cline#12247</a></td><td><code>reasoning-delta</code> stream parts dropped — wrong field name</td></tr>
+    <tr><td><a href="https://github.com/Aider-AI/aider/issues/5486">aider#5486</a></td><td>Valid diff-style output discarded by edit-format auto-selection</td></tr>
+    <tr><td><a href="https://github.com/Aider-AI/aider/issues/5376">aider#5376</a></td><td>Pre-commit hooks bypassed by default via <code>--no-verify</code></td></tr>
+  </table></div>
+
+  <p>#27411 is the canonical anatomy. Three lines of code:</p>
+  <pre><code>except Exception as e:
+    log.debug(e)
+    break</code></pre>
+  <p>What the user sees: an empty assistant message with <code>content=''</code> and
+  <code>done=true</code>. No error event to the frontend, no error field in the database, and the
+  round-one text still on screen — so it reads as <em>"the model answered with nothing."</em> The
+  reporter's fix needs no new machinery; it is to use the error path <strong>that already exists
+  elsewhere in the same function</strong>.</p>
+
+  <h3>The cost of an unhelpful error string</h3>
+  <p><a href="https://github.com/open-webui/open-webui/issues/8074">open-webui#8074</a> is the
+  most-discussed issue in the corpus at <strong>203 comments</strong>. v0.5.0 made WebSockets
+  mandatory. Everyone behind a reverse proxy that didn't forward WS got two words:
+  <strong>"Network Problem."</strong> The maintainer's reply contains the diagnosis the message
+  should have carried:</p>
+  <blockquote>"you need a proper websocket support going forward with 0.5.0+ I'll make a educated
+  guess here and say you have a network misconfiguration (most likely your reverse proxy)"
+  <cite>@tjbck on open-webui#8074</cite></blockquote>
+  <p>What users did instead:</p>
+  <blockquote>"I had the same problem and after about an hour of trying to fix it i just reverted to
+  v0.4.8."<cite>@Blygf, same thread</cite></blockquote>
+  <p>The actual fix, eventually posted by a user, is three lines of Apache <code>ProxyPass
+  ws://</code>. The knowledge existed the whole time. 203 comments is what it costs to leave it out
+  of the error message on a breaking infrastructure change.</p>
+
+  <div class="card pattern">
+    <h4>Reusable patterns</h4>
+    <ul>
+      <li><strong>An empty success is a lie.</strong> If a path can produce a zero-content result,
+      it must be able to produce an error result. <code>content=''</code> and <code>done=true</code>
+      is the worst possible pairing.</li>
+      <li><strong>Errors carry the next action.</strong> "Network Problem" costs 203 comments;
+      "WebSocket upgrade failed — your reverse proxy needs to forward <code>ws://</code>" costs zero.</li>
+      <li><strong>Use the error path you already have.</strong> In #27411 and in most of the cluster,
+      the correct handling existed metres away in the same file. Silent failure is rarely a missing
+      capability; it is an unreached branch.</li>
+      <li><strong>Reversibility can substitute for confirmation</strong> — see Theme&nbsp;4 — but
+      only if the undo is trustworthy and visible.</li>
+    </ul>
+  </div>
+
+  <h3 class="step">How Kitty differs today</h3>
+  <div class="card kitty">
+    <h4>Verified against source, 2026-07-25</h4>
+    <p><span class="verdict v-ok">Ahead</span> &nbsp;<strong>Kitty already refuses the #27411
+    pattern, deliberately.</strong> A truncated stream throws rather than resolving empty:</p>
+    <pre><code>// ponytail: reader closed without [DONE] — stream was cut, not completed
+throw new Error('Stream closed without [DONE] — incomplete response');</code></pre>
+    <p class="fileref">lib/chat-client.ts:106–107</p>
+    <p><span class="verdict v-ok">Ahead</span> &nbsp;<strong>Interruption is narrated, not inferred.</strong>
+    An aborted turn writes <em>"⚠ generation stopped before completion"</em> into the message,
+    marks <code>turnStatus: 'interrupted'</code>, and persists it
+    (<span class="fileref">KittyContext.tsx:553–558</span>). Open WebUI is still <em>requesting</em>
+    this in <a href="https://github.com/open-webui/open-webui/issues/20987">#20987</a>. Gateway errors
+    likewise surface into the message body with the real error text
+    (<span class="fileref">KittyContext.tsx:562–564</span>) rather than a generic string.</p>
+    <p><span class="verdict v-gap">Gap</span> &nbsp;<strong>One swallow, in the hottest path.</strong>
+    Malformed SSE payloads are dropped without a trace:</p>
+    <pre><code>} catch {
+  /* skip malformed */
+}</code></pre>
+    <p class="fileref">lib/chat-client.ts:101–103</p>
+    <p>This is cline#10984 and open-webui#27411 in miniature, and it violates Kitty's own
+    non-negotiable #1. A provider that changes its delta shape — exactly cline#12247, where a renamed
+    <code>reasoning-delta</code> field silently vanished — produces a short or empty reply here with
+    nothing in the console to explain it. The fix is a <code>console.warn</code> and a counter, not an
+    architecture.</p>
+  </div>
+
+  <h3 class="step">Initiatives</h3>
+  <div class="card">
+    <h4>Proposed</h4>
+    <p><span class="layer">F3 · Dogfood Script</span> &nbsp;<strong>Close the one swallow, then assert
+    on it.</strong> Log malformed deltas with a per-stream counter, surface a non-zero count in the
+    turn, and have the dogfood script fail if a run drops chunks. This converts a class of invisible
+    provider-shape breakage into a test failure — which is what F3 exists to do.</p>
+  </div>
+</section>
+
+<hr class="soft">
+
+<!-- ══════════════════════ THEME 4 ══════════════════════ -->
+<section id="t4">
+  <h2><span class="num">Theme 04</span>Agent visibility and task progress</h2>
+  <p class="lede">The theme with a genuine, unresolved architectural disagreement between mature
+  products — worth understanding before picking a side.</p>
+
+  <h3 class="step">What the best projects do</h3>
+  <p>Two coherent, opposed answers to "how does a user stay in control of an agent."</p>
+
+  <div class="scroller"><table>
+    <tr><th></th><th>Confirmation model</th><th>Reversibility model</th></tr>
+    <tr><td><strong>Who</strong></td><td>Zed, Cline</td><td>aider</td></tr>
+    <tr><td><strong>Mechanism</strong></td><td>Gate actions before they happen; per-tool-call
+        permission tiers; hunk-level accept/reject</td><td>Let it act, commit everything, make undo
+        one keystroke</td></tr>
+    <tr><td><strong>Cost</strong></td><td>Approval fatigue; users flip on auto-approve and lose the
+        benefit</td><td>Requires total git discipline; nothing to review before the fact</td></tr>
+  </table></div>
+
+  <p>Zed shows the work continuously and reviews it structurally:</p>
+  <blockquote>"Responses stream in with indicators showing which tools the model is using."<br><br>
+  "Follow the agent as it reads and edits files by clicking the crosshair icon at the bottom left of
+  the panel. Your editor will jump to each file the agent touches."<br><br>
+  "accept or reject each individual change hunk, or the whole set of changes made by the agent"
+  <cite>zed.dev/docs/ai/agent-panel</cite></blockquote>
+
+  <p>Cline gates per call, and its own docs recommend a conservative default:</p>
+  <blockquote>"Auto Approve is evaluated per tool call. When Cline is about to read a file, edit a
+  file, run a command, or use the browser, it checks your Auto Approve settings for that
+  category."<br><br>
+  "Enable <strong>Read project files</strong>" ... "Leave edits, commands, browser, and MCP off until
+  you have a specific reason."
+  <cite>docs.cline.bot/features/auto-approve</cite></blockquote>
+  <p>The stated rationale is explicitly about attention economics: <em>"It keeps you out of approval
+  popups during routine work while letting you keep tight control over high-risk actions."</em>
+  Approval is a budget, and spending it on <code>git status</code> means having none left for
+  <code>rm -rf</code>.</p>
+
+  <p>aider's maintainer refused the confirmation model for two years and counting.
+  <a href="https://github.com/Aider-AI/aider/issues/649">#649</a>, opened 2024-06-06, still open:</p>
+  <blockquote>"Right now the recommended approach is just to use <code>/undo</code> to revert a change
+  if you don't like it. Or you can turn off auto commits with <code>--no-auto-commits</code>."
+  <cite>@paul-gauthier, who then closed the issue</cite></blockquote>
+  <p>A user reopened the argument — <em>"AI tools are still not entirely accurate and always require
+  human review whenever possible before making a change"</em> — and got <em>"See my comment above. Is
+  there a reason one of those solutions doesn't work for you?"</em> This is a position, not neglect:
+  every aider change is a git commit, so reversibility is cheap and total, and the bet is that cheap
+  undo dominates expensive confirmation.</p>
+
+  <h3>What the community said about that bet</h3>
+  <p><a href="https://github.com/Aider-AI/aider/issues/3362">aider#3362</a>, "Inspiration From Claude
+  Code," 47 comments, opened by the author of aidermacs:</p>
+  <blockquote>"it's basically 'driving' the terminal to get the job done, instead of one prompt → one
+  response it takes your prompt, breaks it down into steps and uses the terminal tools available...
+  locates and looks at log files automatically with tail — looks at git logs for reference — notices
+  when a file has changed externally since the last time it read it"
+  <cite>@mneuhaus on aider#3362</cite></blockquote>
+  <p>And the dissent in the same thread, which is the more useful half:</p>
+  <blockquote>"it's easy to burn through dollars with it... With Aider at least you can explicitly
+  tell it what files you want to modify, while Claude Code might deci[de]"
+  <cite>@Ixe1, same thread</cite></blockquote>
+  <p>Explicit scoping is simultaneously a cost control and an agency feature. Neither model has won.</p>
+
+  <div class="card pattern">
+    <h4>Reusable patterns</h4>
+    <ul>
+      <li><strong>Pick one model and commit.</strong> Confirmation and reversibility both work.
+      Half-confirmation — a dialog you can't act on, or an undo that doesn't fully undo — works worse
+      than either.</li>
+      <li><strong>Permission tiers by risk, not by tool.</strong> Read is free, write is gated,
+      execute is gated harder. Uniform prompting trains users to click through.</li>
+      <li><strong>Show the call and the result.</strong> A tool call with no visible outcome is
+      Theme&nbsp;2's dead air wearing a badge.</li>
+      <li><strong>Per-item state, not per-turn state.</strong> Three tool calls in one message need
+      three independent statuses.</li>
+    </ul>
+  </div>
+
+  <h3 class="step">How Kitty differs today</h3>
+  <div class="card kitty">
+    <h4>Verified against source, 2026-07-25</h4>
+    <p><span class="verdict v-mid">Partial</span> &nbsp;<code>ToolCallBlock</code> exists and gets
+    the basics right: collapsed by default, expandable arguments, pretty-printed JSON with a raw
+    fallback, <code>aria-expanded</code>, a live dot while streaming
+    (<span class="fileref">components/ToolCallBlock.tsx:19–38</span>). Better than most first
+    attempts.</p>
+    <p><span class="verdict v-gap">Gap</span> &nbsp;<strong>It shows intent, never outcome.</strong>
+    The accumulator carries <code>{id, name, arguments}</code> only
+    (<span class="fileref">lib/chat-client.ts:15–19, 85–96</span>) — there is no result field, so the
+    UI can render what the agent is about to do and never what came back. Every tool call is
+    permanently mid-flight from the user's point of view.</p>
+    <p><span class="verdict v-gap">Gap</span> &nbsp;<strong>Status is per-turn, not per-call.</strong>
+    <code>isStreaming</code> is threaded from the message down to every block
+    (<span class="fileref">ToolCallBlock.tsx:40–48</span>), so five tool calls in one reply all pulse
+    as "running" until the entire turn ends — including the four that finished. That is
+    open-webui#21350's lying indicator, at a different scale.</p>
+    <p><span class="verdict v-mid">Undecided</span> &nbsp;Kitty has neither model from the table
+    above. There is a global <code>handleStop</code>
+    (<span class="fileref">KittyContext.tsx:588</span>) and nothing between "let it run" and "kill the
+    turn" — no per-action gate, and no undo for anything an agent did outside the chat log. Given
+    Kitty's local-first, single-user, tool-using shape, this decision is now due.</p>
+  </div>
+
+  <h3 class="step">Initiatives</h3>
+  <div class="card">
+    <h4>Proposed</h4>
+    <p><span class="layer">D1 · Chat Depth</span> &nbsp;<strong>Close the tool-call loop.</strong>
+    Carry results back into the <code>ToolCall</code> type and give each block its own status —
+    pending / running / ok / failed. Small change, and it removes both the permanent-mid-flight
+    illusion and the per-turn status lie in one pass.</p>
+    <p style="margin-top:14px"><span class="layer">D4 · Builder Depth</span> &nbsp;<strong>Decide the
+    trust model, in writing.</strong> Confirmation or reversibility — pick one and record it in
+    <code>docs/DECISIONS.md</code>. Kitty's existing evidence-gate carve-out for Builder is already
+    a reversibility bet on one path; the chat agent has no stated position at all. This is a decision
+    to make before it's made accidentally.</p>
+  </div>
+</section>
+
+<hr class="soft">
+
+<!-- ══════════════════════ THEME 5 ══════════════════════ -->
+<section id="t5">
+  <h2><span class="num">Theme 05</span>Onboarding and discoverability</h2>
+
+  <h3 class="step">What the best projects do</h3>
+  <p>Honestly? In this corpus, <strong>badly</strong> — which is itself the finding. Onboarding is
+  the least-mature theme across every project studied, and the requests are still open years later.</p>
+
+  <p>Open WebUI's <code>OnBoarding.svelte</code>, read from source, is <strong>106 lines and is a
+  splash screen</strong>: a 5-second <code>SlideShow</code>, a marquee, a gradient, a logo with a
+  dark-mode <code>onerror</code> fallback, one <code>getStartedHandler</code>. No steps, no model
+  check, no first-question guidance. It also
+  <a href="https://github.com/open-webui/open-webui/issues/16287">doesn't render its buttons on some
+  mobile browsers</a>.</p>
+
+  <p>Continue has three separate open onboarding issues, including
+  <a href="https://github.com/continuedev/continue/issues/12258">#12258</a> — "CLI: onboarding prompts
+  even when <code>~/.continue/config.yaml</code> already exists," an onboarding flow that can't detect
+  it already ran. And <a href="https://github.com/cline/cline/issues/3352">cline#3352</a> —
+  "Figure out a way to recommend cheap models, maybe part of onboarding?" — locates the real
+  first-run problem: <strong>model choice is a cost decision, and new users have no basis for making
+  it.</strong></p>
+
+  <h3>Discoverability fails the same way everywhere</h3>
+  <p><a href="https://github.com/open-webui/open-webui/issues/1008">open-webui#1008</a>, open since
+  March 2024, 36 comments, is a critique of <em>which</em> actions earn shortcuts:</p>
+  <blockquote>"There's a shortcut for settings, which are rarely accessed and not keyboard-friendly
+  anyway. On the other hand, I often edit the last prompt instead of asking followup questions and
+  there's no shortcut to start editing it."<br><br>
+  "Current WebUI shortcuts use three-key combinations, which are usually only used in text editors
+  with several dozen shortcuts."<cite>@robertvazan</cite></blockquote>
+  <p>In the same thread: <em>"I can't find the keyboard shortcuts."</em> Answer: <em>"Look at the
+  bottom right corner of the screen."</em> The feature shipped; the affordance didn't.</p>
+
+  <p><a href="https://github.com/danny-avila/LibreChat/issues/3664">LibreChat#3664</a> argues for
+  Cmd+K purely from conformity — <em>"used by popular AI chat interfaces like ChatGPT and Claude,
+  making it intuitive for users familiar with these platforms"</em> — and while it sat, a user shipped
+  an <a href="https://github.com/leikoilja/LibreChat-UI/releases/tag/v1.3.0">entire desktop wrapper</a>
+  to get "new chat" and "archive chat" on the keyboard. People will build an application shell around
+  your app to obtain two shortcuts.</p>
+
+  <div class="card pattern">
+    <h4>Reusable patterns</h4>
+    <ul>
+      <li><strong>First run must answer "which model, at what cost."</strong> It is the only
+      irreversible-feeling choice a new user faces.</li>
+      <li><strong>Shortcuts belong on the frequent action, not the impressive one.</strong> Editing
+      the last message beats opening settings, every time.</li>
+      <li><strong>Two keys, not three.</strong> Three-chord bindings are for editors with fifty of them.</li>
+      <li><strong>Onboarding must detect that it already ran</strong> — from real state, not just a
+      flag it set itself.</li>
+    </ul>
+  </div>
+
+  <h3 class="step">How Kitty differs today</h3>
+  <div class="card kitty">
+    <h4>Verified against source, 2026-07-25</h4>
+    <p><span class="verdict v-ok">Ahead</span> &nbsp;<code>OnboardingModal</code> is a real multi-step
+    flow — stepped state, preferred name, theme choice, and an import path with busy and result
+    states (<span class="fileref">components/OnboardingModal.tsx:8–18</span>). That is more onboarding
+    than anything else in this corpus, Open WebUI's slideshow included.</p>
+    <p><span class="verdict v-ok">Ahead</span> &nbsp;<code>CommandPalette</code> binds
+    <code>Cmd/Ctrl+K</code> with <code>Escape</code> to dismiss
+    (<span class="fileref">components/CommandPalette.tsx:36, 45</span>) — the exact thing LibreChat
+    users built a desktop wrapper to get.</p>
+    <p><span class="verdict v-gap">Gap</span> &nbsp;Onboarding completion is a self-set localStorage
+    flag, <code>kitty-onboarded</code> (<span class="fileref">OnboardingModal.tsx:16</span>). That is
+    continue#12258's failure mode in advance: the flag says the flow ran, not that it worked. Clear
+    the browser and Kitty forgets you; keep the flag and a failed import stays invisible.</p>
+    <p><span class="verdict v-gap">Gap</span> &nbsp;No model or cost decision at first run — the very
+    thing cline#3352 identifies as the real onboarding problem. Kitty picks a default and moves on.</p>
+  </div>
+
+  <h3 class="step">Initiatives</h3>
+  <div class="card">
+    <h4>Proposed</h4>
+    <p><span class="layer">D2 · Home Depth</span> &nbsp;<strong>Derive onboarding state, don't
+    declare it.</strong> Replace the boolean with a check of what actually exists — a name, a theme,
+    at least one chat — so a half-finished or failed first run is visible instead of marked complete.
+    Cheap, and it prevents the class of bug continue is still fixing.</p>
+  </div>
+</section>
+
+<hr class="soft">
+
+<!-- ══════════════════════ THEME 6 ══════════════════════ -->
+<section id="t6">
+  <h2><span class="num">Theme 06</span>Settings and model switching</h2>
+
+  <h3 class="step">What the best projects do</h3>
+  <p>They make settings <em>verifiable</em>. The recurring failure is not too many options — it is
+  options that don't tell you whether they took effect.</p>
+  <div class="scroller"><table>
+    <tr><th>Issue</th><th>The failure</th></tr>
+    <tr><td><a href="https://github.com/open-webui/open-webui/issues/27061">open-webui#27061</a></td>
+        <td>Web loader ignores admin UI settings — reads frozen env values. The UI shows one thing,
+        the process uses another.</td></tr>
+    <tr><td><a href="https://github.com/khoj-ai/khoj/issues/1361">khoj#1361</a></td>
+        <td>No connection test or health check for a local LLM in settings. You can enter a config
+        but not learn whether it works.</td></tr>
+    <tr><td><a href="https://github.com/cline/cline/issues/5620">cline#5620</a></td>
+        <td>Checkpoints silently re-enable after restart — a setting that resets itself.</td></tr>
+    <tr><td><a href="https://github.com/cline/cline/issues/3965">cline#3965</a></td>
+        <td>"[UI bug, dangerous impact] Settings pane continues unselected task in background"</td></tr>
+    <tr><td><a href="https://github.com/open-webui/open-webui/issues/27205">open-webui#27205</a></td>
+        <td>Model selector: tapping the info tooltip closes the whole picker on touch</td></tr>
+  </table></div>
+  <p>Note what unites the first three: <strong>the settings UI is a second source of truth that
+  drifts from the first.</strong> The eventual fix is always the same — read the value the system
+  actually uses, and give the user a way to prove it.</p>
+
+  <div class="card pattern">
+    <h4>Reusable patterns</h4>
+    <ul>
+      <li><strong>Display the effective value, not the stored one.</strong> If env can override the
+      UI, the UI must say so at the point of the control.</li>
+      <li><strong>Every external connection setting gets a test button.</strong> Config without
+      verification is a guess with a save button.</li>
+      <li><strong>Hover affordances must have touch equivalents</strong> — an info tooltip that eats
+      a tap is worse than no tooltip.</li>
+    </ul>
+  </div>
+
+  <h3 class="step">How Kitty differs today</h3>
+  <div class="card kitty">
+    <h4>Verified against source, 2026-07-25</h4>
+    <p><span class="verdict v-ok">Ahead</span> &nbsp;Settings surface real usage — calls and token
+    totals from a live query (<span class="fileref">components/SettingsPanel.tsx:30, 140–150</span>),
+    rather than only accepting input. That is the "prove it" half most of the corpus lacks.</p>
+    <p><span class="verdict v-mid">Partial</span> &nbsp;Model override is per-turn and clears itself
+    after use (<span class="fileref">KittyContext.tsx:574–576</span>, <code>oneShot</code> /
+    <code>setOverrideModel(null)</code>) — a genuinely nice touch, and cleaner than the sticky-model
+    confusion in the corpus. Undocumented, though; nothing tells the user the override was one-shot.</p>
+    <p><span class="verdict v-gap">Gap</span> &nbsp;No connection test for a local model endpoint —
+    khoj#1361 exactly. On a local-first product where the endpoint is the most likely thing to be
+    misconfigured, that gap is larger for Kitty than it is for Khoj.</p>
+  </div>
+
+  <h3 class="step">Initiatives</h3>
+  <div class="card">
+    <h4>Proposed</h4>
+    <p><span class="layer">F3 · Dogfood Script</span> &nbsp;<strong>A test button next to every
+    endpoint.</strong> One round-trip, latency and model name back, green or red. It reuses the
+    doctor path that already exists (<code>./kitty doctor --json</code>) and turns the single most
+    common local-first failure into a five-second check.</p>
+  </div>
+</section>
+
+<hr class="soft">
+
+<!-- ══════════════════════ THEME 7 ══════════════════════ -->
+<section id="t7">
+  <h2><span class="num">Theme 07</span>Memory and context presentation</h2>
+  <p class="lede">The theme where the corpus has converged hardest on a specific implementation
+  discipline, and where Kitty has a gauge that is wired up but shows nothing.</p>
+
+  <h3 class="step">What the best projects do</h3>
+  <p>They show context consumption continuously, and — critically — they source that display from the
+  same accounting the system acts on. LibreChat's
+  <a href="https://github.com/danny-avila/LibreChat/pull/13670">#13670</a>, merged 2026-06-13, is the
+  best-specified example in the corpus:</p>
+  <blockquote>"a gauge beside the chat input shows tokens used vs. max context for the currently
+  viewed message branch, with a hover breakdown of context composition (messages, system prompt, tool
+  schemas, summary, free space)"<br><br>
+  "The design mirrors the backend's existing token accounting instead of re-deriving it client-side,
+  with three layered data sources that degrade gracefully"
+  <cite>LibreChat#13670</cite></blockquote>
+  <p>Two disciplines in one paragraph: <strong>no second source of truth</strong>, and
+  <strong>layered degradation</strong> rather than a single source that breaks.</p>
+
+  <h3 class="step">Why they converged there</h3>
+  <p>Because context displays that lie are worse than no display, and the corpus is full of them:
+  <a href="https://github.com/cline/cline/issues/10148">cline#10148</a> "Impossible token count";
+  <a href="https://github.com/cline/cline/issues/10375">#10375</a> "percentage display incorrectly
+  caps at 32.8k"; <a href="https://github.com/danny-avila/LibreChat/issues/13886">LibreChat#13886</a>
+  counter includes reasoning tokens; <a href="https://github.com/danny-avila/LibreChat/issues/13795">#13795</a>
+  cache tokens double-counted.</p>
+
+  <p>And because when the number is wrong, the <em>behaviour</em> is wrong.
+  <a href="https://github.com/cline/cline/issues/10637">cline#10637</a>:</p>
+  <blockquote>"i can see context usage bar actually run backwards to lesser value like 60k. after
+  that, i often see Cline trying to redo the tasks already done before, or forgetting important
+  informations... there's no way to tell when it is happening unless you are watching the context
+  usage bar. there's no indication of context compacting"<cite>cline#10637</cite></blockquote>
+  <p>A commenter identifies the mechanism: the client hardcodes a 128k window even when the model
+  advertises 1M, so compaction fires at 128k regardless of the user's setting. <strong>Silent
+  compaction is amnesia the user experiences as the product getting dumber.</strong>
+  <a href="https://github.com/cline/cline/issues/4389">cline#4389</a> adds the endgame — <em>"Tasks
+  become unrecoverable when hitting token limits — users can only 'Retry' or 'Start New Task'"</em> —
+  alongside a user's measured session growth of 100K → 200K → 400K → 800K → 11M tokens.</p>
+
+  <h3>Everyone reinvents Projects</h3>
+  <p><a href="https://github.com/danny-avila/LibreChat/issues/4848">LibreChat#4848</a>, 58 comments.
+  Every top comment names the same external product, and the differentiator they name is not the
+  folder — it is <strong>shared context attached to the folder</strong>:</p>
+  <blockquote>"I use Claude Projects at work, it's a game changer for shared context across multiple
+  chats. The biggest downside to the Claude implementation is the limited size of document
+  context"<cite>@stitcombe on LibreChat#4848</cite></blockquote>
+  <p>The complaint about the incumbent is capacity, not concept. That is a gap a local-first product
+  is unusually well positioned to fill.</p>
+
+  <div class="card pattern">
+    <h4>Reusable patterns</h4>
+    <ul>
+      <li><strong>One accounting.</strong> The gauge reads the same numbers the truncator acts on.
+      Two counters always diverge, and the user believes the wrong one.</li>
+      <li><strong>Layered sources, graceful degradation.</strong> Provider usage → per-call events →
+      stored per-message counts. Never one source that silently fails.</li>
+      <li><strong>Compaction is an event, not a background process.</strong> If context was dropped,
+      say so, in the thread, at the moment.</li>
+      <li><strong>Estimates must be labelled as estimates.</strong> A precise-looking wrong number
+      costs more trust than an obviously approximate one.</li>
+    </ul>
+  </div>
+
+  <h3 class="step">How Kitty differs today</h3>
+  <div class="card kitty">
+    <h4>Verified against source, 2026-07-25</h4>
+    <p><span class="verdict v-gap">Gap</span> &nbsp;<strong>The context gauge is fully wired and
+    renders nothing.</strong> The chain, verified end to end:</p>
+    <div class="scroller"><table>
+      <tr><th>Where</th><th>What</th></tr>
+      <tr><td class="fileref">KittyContext.tsx:427–428</td>
+          <td><code>setTokenCount(Math.round(chars / 4))</code> — a character-count estimate over the
+          whole thread</td></tr>
+      <tr><td class="fileref">app/page.tsx:149–150</td>
+          <td><code>tokenCount={k.tokenCount} maxTokens={200000}</code> — passed down, with a
+          hardcoded ceiling</td></tr>
+      <tr><td class="fileref">InputBar.tsx:16–17</td>
+          <td><code>tokenCount?: number</code> and <code>maxTokens?: number</code> declared in the
+          props interface — <strong>and never destructured or rendered</strong></td></tr>
+    </table></div>
+    <p>So Kitty computes a context estimate, threads it through two components, and drops it. The
+    scaffolding for the exact feature LibreChat shipped in #13670 already exists; the last ten lines
+    are missing.</p>
+    <p><span class="verdict v-gap">Gap</span> &nbsp;And when it is rendered, it will be
+    <strong>a second source of truth by construction</strong> — <code>chars / 4</code> computed in the
+    browser, against a <code>200000</code> constant unrelated to the active model, while the gateway
+    does the real accounting. That is precisely what #13670's "mirrors the backend's existing token
+    accounting instead of re-deriving it client-side" was written to avoid, and precisely how
+    cline#10375 and #10148 got their impossible numbers.</p>
+    <p><span class="verdict v-mid">Watch</span> &nbsp;<strong>F0 is where cline#10637 gets decided.</strong>
+    Kitty has no compaction yet, so it has no silent compaction — a real advantage, and a temporary
+    one. The moment F0 lands, the question is whether a compaction event is visible in the thread.
+    Cline's answer was no, and it cost them a still-open issue about the product appearing to forget.</p>
+  </div>
+
+  <h3 class="step">Initiatives</h3>
+  <div class="card">
+    <h4>Proposed</h4>
+    <p><span class="layer">F0 · Context Compaction</span> &nbsp;<strong>Ship the gauge from gateway
+    numbers, before compaction exists.</strong> Return real token accounting and the active model's
+    real limit on the stream trailer, render it in <code>InputBar</code> where the props already
+    arrive, and delete the <code>chars / 4</code> estimate. Doing this <em>before</em> F0 means
+    compaction lands against a display users already trust — rather than F0 shipping and the first
+    thing users notice being a bar that runs backwards.</p>
+    <p style="margin-top:14px"><span class="layer">F0 · Context Compaction</span> &nbsp;<strong>Make
+    compaction a visible event.</strong> When F0 drops context, write a marker into the thread saying
+    what was summarized. This is one design decision, made now, that avoids cline#10637 entirely.</p>
+  </div>
+</section>
+
+<hr class="soft">
+
+<!-- ══════════════════════ THEME 8 ══════════════════════ -->
+<section id="t8">
+  <h2><span class="num">Theme 08</span>Mobile</h2>
+
+  <h3 class="step">What the best projects do</h3>
+  <p>Two failure classes dominate, and both are about the browser doing something the desktop layout
+  never has to survive.</p>
+
+  <p><strong>The keyboard.</strong> <a href="https://github.com/open-webui/open-webui/issues/20722">open-webui#20722</a>
+  — "Mobile viewport doesn't resize when the keyboard appears" — has three duplicates
+  (<a href="https://github.com/open-webui/open-webui/issues/16851">#16851</a>,
+  <a href="https://github.com/open-webui/open-webui/issues/20361">#20361</a>,
+  <a href="https://github.com/open-webui/open-webui/issues/14010">#14010</a>). The response in that
+  thread is a finding in its own right:</p>
+  <blockquote>"I poked around the FE sources but couldn't make heads-or-tails of them. Trying to be
+  helpful, I created a basic repo that illustrates how to resolve the issue."
+  <cite>@alshdavid, open-webui#20722</cite></blockquote>
+  <p>He later returned having written <em>an entire alternative frontend</em>. A user rewrote the app
+  rather than navigate its source. That is a statement about approachability as much as about the bug.</p>
+
+  <p><strong>Backgrounding.</strong> <a href="https://github.com/open-webui/open-webui/issues/26844">open-webui#26844</a>
+  and its duplicate <a href="https://github.com/open-webui/open-webui/issues/26315">#26315</a> — "Chat
+  stuck on loading-dots after backgrounding the PWA mid-stream." iOS suspends the socket, the stream
+  never resumes, the dots spin forever. This is <strong>the same failure LibreChat's resumable streams
+  were built to eliminate</strong> (Theme&nbsp;1) — mobile is simply where connection loss stops being
+  an edge case and becomes the normal way a session ends. A commenter reports it on desktop Edge too,
+  "around once per day of usage."</p>
+
+  <p>Everything else is smaller and predictable: touch targets
+  (<a href="https://github.com/open-webui/open-webui/issues/27241">#27241</a>), hover affordances that
+  eat taps (<a href="https://github.com/open-webui/open-webui/issues/27205">#27205</a>), wide markdown
+  tables scrolling the whole conversation
+  (<a href="https://github.com/danny-avila/LibreChat/issues/13535">LibreChat#13535</a>), and autofocus
+  that summons the keyboard uninvited
+  (<a href="https://github.com/open-webui/open-webui/issues/25842">#25842</a>).</p>
+
+  <div class="card pattern">
+    <h4>Reusable patterns</h4>
+    <ul>
+      <li><strong><code>visualViewport</code>, not <code>resize</code>.</strong> The keyboard doesn't
+      fire a resize on iOS. This is the fix behind four filed issues.</li>
+      <li><strong>Backgrounding is a disconnect.</strong> Mobile makes stream resume mandatory rather
+      than nice-to-have.</li>
+      <li><strong>Wide content scrolls inside its own box.</strong> A table must never move the page.</li>
+      <li><strong>Don't autofocus after a response.</strong> It summons the keyboard and eats the
+      screen the user was reading.</li>
+    </ul>
+  </div>
+
+  <h3 class="step">How Kitty differs today</h3>
+  <div class="card kitty">
+    <h4>Verified against source, 2026-07-25</h4>
+    <p><span class="verdict v-ok">Ahead</span> &nbsp;The fundamentals are right and were clearly done
+    deliberately: <code>100dvh</code> rather than <code>vh</code>
+    (<span class="fileref">app/page.tsx:25</span>) and <code>env(safe-area-inset-*)</code> on all
+    three chrome components — input, bottom nav, top bar
+    (<span class="fileref">InputBar.tsx:154, BottomNav.tsx:33, TopBar.tsx:56</span>). There is also an
+    explicit <code>compact</code> mode threaded through the view tree rather than CSS-only
+    responsiveness.</p>
+    <p><span class="verdict v-gap">Gap</span> &nbsp;<strong>No <code>visualViewport</code> listener
+    anywhere</strong> in <code>src/</code> (grep, 2026-07-25). <code>100dvh</code> handles the browser
+    chrome; it does not handle the keyboard on iOS. This is open-webui's four-times-filed bug, and
+    Kitty is currently unguarded against it.</p>
+    <p><span class="verdict v-gap">Gap</span> &nbsp;<strong>Backgrounding mid-stream loses the
+    reply</strong>, for the reason given in Theme&nbsp;1 — the response lives inside a
+    <code>fetch</code> reader with no server-side job. Kitty ships a PWA manifest
+    (<span class="fileref">app/manifest.ts</span>) and has PWA tests, so this is a path users will
+    take.</p>
+  </div>
+
+  <h3 class="step">Initiatives</h3>
+  <div class="card">
+    <h4>Proposed</h4>
+    <p><span class="layer">F2 · Latency Budget</span> &nbsp;<strong>Add the
+    <code>visualViewport</code> listener.</strong> A dozen lines against the shell layout, and it
+    pre-empts the single most-duplicated mobile bug in the corpus. Verify on a real device —
+    per Kitty's own definition of done, code inspection doesn't close this one.</p>
+  </div>
+</section>
+
+<hr class="soft">
+
+<!-- ══════════════════════ META ══════════════════════ -->
+<section id="meta">
+  <h2><span class="num">Cross-cutting</span>The meta-pattern: polish dies in refactors</h2>
+
+  <p class="lede">The most transferable finding in this research isn't in any single theme. It is
+  that these products lose polish the same way, repeatedly, and it is never through a feature.</p>
+
+  <p><a href="https://github.com/cline/cline/issues/8675">cline#8675</a> — missing focus indicators
+  on approval buttons — was investigated down to root cause, and the chain is worth reading in full:</p>
+  <blockquote>"the focus indicators were <strong>accidentally removed</strong> during a code
+  refactor."<br><br>
+  "1. <strong>July 2025</strong>: @kevinneung added focus border functionality... 2.
+  <strong>Shortly after</strong>: PR #4569 ('Splitting chat view into multiple modular files')
+  refactored the ChatView into separate files, and the focus state management was accidentally
+  dropped during this refactor. 3. <strong>Additionally</strong>: In
+  <code>webview-ui/src/main.css</code> lines 5-7, there's CSS that explicitly removes focus outlines
+  from VSCodeButton components... This was added during the Tailwind v4 upgrade in PR #6872."
+  <cite>investigation comment on cline#8675</cite></blockquote>
+
+  <p>Two independent, entirely reasonable changes — a file split and a dependency upgrade — each
+  deleted part of the same accessibility affordance. Neither was a feature change. Neither had a test
+  that failed. And it had happened before:
+  <a href="https://github.com/cline/cline/issues/4650">cline#4650</a> notes <em>"a fix was implemented
+  but later removed."</em></p>
+
+  <p>This independently corroborates <code class="fileref">~/kb/corrections/2026-07-24-run-it-dont-read-it.md</code>
+  — a cleanup commit silently killing a live subsystem — from a completely unrelated codebase. The
+  pattern generalizes: <strong>polish lives in code that has no test, no ticket, and no obvious
+  owner, which makes it exactly what a refactor drops.</strong></p>
+
+  <h3>What else got reverted</h3>
+  <div class="scroller"><table>
+    <tr><th>Change</th><th>Fate</th><th>Lesson</th></tr>
+    <tr><td><a href="https://github.com/open-webui/open-webui/pull/22947">open-webui#22947</a> rAF batching</td>
+        <td>Reverted in one day by <a href="https://github.com/open-webui/open-webui/pull/23016">#23016</a></td>
+        <td>Perceived latency outranks measured throughput</td></tr>
+    <tr><td><a href="https://github.com/cline/cline/pull/10188">cline#10188</a> "lazy teammate mode"</td>
+        <td>Removal PR touches 3 deleted + <strong>9 modified</strong> files</td>
+        <td>A joke feature threaded state through nine files. Removal cost is the real cost.</td></tr>
+    <tr><td><a href="https://github.com/open-webui/open-webui/pull/18967">open-webui#18967</a>/<a href="https://github.com/open-webui/open-webui/pull/18968">#18968</a></td>
+        <td>Same chat-preview fix reverted <em>twice</em></td>
+        <td>A fix that keeps coming back is a missing test, not a bad fix</td></tr>
+  </table></div>
+
+  <div class="card pattern">
+    <h4>The transferable rule</h4>
+    <p>Every polish behaviour worth keeping needs one runnable check that fails when it breaks —
+    focus outlines, near-bottom scroll gating, the stop-message path, the malformed-delta counter.
+    Not a suite. One assertion each. Otherwise the next reasonable refactor deletes it and nobody
+    finds out until a user files the issue for the second time.</p>
+  </div>
+</section>
+
+<hr class="soft">
+
+<!-- ══════════════════════ INITIATIVES ══════════════════════ -->
+<section id="initiatives">
+  <h2><span class="num">Synthesis</span>Builder initiatives, ranked</h2>
+  <p class="lede">Eleven proposals from the themes above, ordered by evidence strength × size of diff.
+  Layer assignments follow <code>docs/INITIATIVES_OPTIMIZED_2026-07-24.md</code>.</p>
+
+  <div class="scroller"><table>
+    <tr><th>#</th><th>Initiative</th><th>Layer</th><th>Size</th><th>Why now</th></tr>
+    <tr><td>1</td><td>Memoize <code>ChatMessage</code>; single rAF coalescer on the streaming write</td>
+        <td><span class="layer">F2</span></td><td>Small</td>
+        <td>Kitty has open-webui#23733's exact defect, verified. Two files.</td></tr>
+    <tr><td>2</td><td>Render the context gauge from gateway numbers; delete <code>chars/4</code></td>
+        <td><span class="layer">F0</span></td><td>Small</td>
+        <td>Props already arrive at <code>InputBar</code> and are dropped. Ten lines from shipped.</td></tr>
+    <tr><td>3</td><td>Log malformed deltas + counter; assert in dogfood</td>
+        <td><span class="layer">F3</span></td><td>Small</td>
+        <td>The one silent swallow left, and it violates non-negotiable #1.</td></tr>
+    <tr><td>4</td><td><code>visualViewport</code> listener for the mobile keyboard</td>
+        <td><span class="layer">F2</span></td><td>Small</td>
+        <td>Most-duplicated mobile bug in the corpus; Kitty is unguarded.</td></tr>
+    <tr><td>5</td><td>Tool-call results + per-call status</td>
+        <td><span class="layer">D1</span></td><td>Small</td>
+        <td>Blocks currently show intent only, and all pulse until the turn ends.</td></tr>
+    <tr><td>6</td><td>Name the dead-air gaps in <code>runStream</code></td>
+        <td><span class="layer">D1</span></td><td>Small</td>
+        <td>open-webui closed this as intended behaviour and users still read it as a freeze.</td></tr>
+    <tr><td>7</td><td>Compaction as a visible thread event</td>
+        <td><span class="layer">F0</span></td><td>Small</td>
+        <td>One design decision, made before F0 ships, that avoids cline#10637 entirely.</td></tr>
+    <tr><td>8</td><td>Derive onboarding completion from real state</td>
+        <td><span class="layer">D2</span></td><td>Small</td>
+        <td>Self-set flag is continue#12258 waiting to happen.</td></tr>
+    <tr><td>9</td><td>Connection test button per endpoint</td>
+        <td><span class="layer">F3</span></td><td>Small</td>
+        <td>khoj#1361, and it matters more on a local-first product.</td></tr>
+    <tr><td>10</td><td>Decide and record the agent trust model</td>
+        <td><span class="layer">D4</span></td><td>Decision</td>
+        <td>Zed/Cline vs aider is unresolved industry-wide; Kitty has no stated position.</td></tr>
+    <tr><td>11</td><td>Server-side generation job — resumable streams</td>
+        <td><span class="layer">D1</span></td><td>Large</td>
+        <td>Fixes mobile backgrounding at the root. Sequence last; name it now.</td></tr>
+  </table></div>
+
+  <div class="card">
+    <h4>The shape of that list</h4>
+    <p>Nine of eleven are small. That is not a coincidence and it is the honest summary of this whole
+    document: <strong>Kitty's architecture is largely right and its signals are largely missing.</strong>
+    The context gauge is computed and dropped. The stop path is narrated but tool calls aren't. The SSE
+    layer has careful bounded backoff, and the chat stream — the one that matters — has none. Nearly
+    every gap here is the last ten lines of something already built.</p>
+    <p>The two exceptions are #10, which is a decision rather than a diff, and #11, which is genuinely
+    large and should stay behind the rest.</p>
+  </div>
+</section>
+
+<hr class="soft">
+
+<!-- ══════════════════════ HONESTY ══════════════════════ -->
+<section id="honesty">
+  <h2><span class="num">Appendix</span>What this doesn't cover</h2>
+
+  <p>Stated plainly so nothing here reads as more settled than it is.</p>
+
+  <h3>Unverified — do not act on these as fact</h3>
+  <ul>
+    <li><strong>Open WebUI's v0.8.6 frame-time numbers</strong> (600ms→160ms, KaTeX 570ms→117ms) come
+    from a discussion thread's self-summary of "multiple commits and PRs." Those commits were never
+    identified or opened.</li>
+    <li><strong>Whether open-webui#25761's scroll anchoring shipped.</strong> The issue is closed; the
+    closing PR was never found. Closed is not shipped.</li>
+    <li><strong>Khoj's 50px near-bottom threshold</strong> is quoted from an issue comment claiming to
+    show current source, not read from the Khoj repo.</li>
+    <li><strong>LibreChat's two-phase streaming change</strong> (POST returns streamId, separate GET
+    subscribes) came from a search summary, not an opened page. The resumable-streams docs that
+    <em>were</em> opened don't describe it in those terms.</li>
+    <li><strong>cline#10188's merge state</strong> reports as closed-not-merged. The lazy-teammate
+    feature may have been removed by a different commit.</li>
+    <li><strong>Zed</strong> is documentation-only. No Zed issues, PRs, or commits were examined, so
+    every Zed claim here is stated intent rather than observed history.</li>
+  </ul>
+
+  <h3>Not researched at all</h3>
+  <p>Cursor, Windsurf, ChatGPT, and Claude's own web UI are outside the corpus — any claim about them
+  would be invention. Six themes from the original brief were cut before research began and remain
+  uncovered: notifications and toasts, theme switching, animation and transition patterns,
+  installation and Docker UX, RAG citation display, and extension ecosystems.</p>
+
+  <h3>Method limits</h3>
+  <ul>
+    <li>GitHub's search API rate-limits at 30 requests/minute, which truncated the first sweep and
+    forced sub-queries down from four per theme to two.</li>
+    <li>Multi-word GitHub searches AND their terms, so six queries returned nothing.
+    <strong>Theme&nbsp;2 is the thinnest section here</strong> — it rests on three issues rather than a
+    sweep, and its conclusions are correspondingly weaker.</li>
+    <li>Commit-level history was <em>sampled</em>, not swept. Only Themes&nbsp;1 and the meta-pattern
+    trace to specific commits.</li>
+    <li>Kitty claims are verified against source, not against a running app. Per Kitty's own
+    definition of done, the scroll behaviour (Theme&nbsp;1) and the mobile keyboard (Theme&nbsp;8)
+    need a device before either is called settled.</li>
+  </ul>
+
+  <p class="footnote" style="margin-top:28px">Evidence file:
+  <code>~/kb/raw/2026-07-25-polish-evidence.md</code> — every citation with its verbatim quote,
+  including the failure log. This document is the synthesis; that one is the receipts.</p>
+</section>
+
+</main>
+</div>
+</body>
+</html>
