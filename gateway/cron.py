@@ -67,6 +67,7 @@ def _import_legacy_cron_once() -> None:
         try:
             with sqlite3.connect(f"file:{LEGACY_CRON_DB}?mode=ro", uri=True) as legacy:
                 legacy.row_factory = sqlite3.Row
+                kitty_db.apply_pragmas(legacy)
                 rows = legacy.execute(
                     "SELECT id, name, action, schedule_type, schedule_value, "
                     "metadata, enabled, last_run, created_at FROM schedules"

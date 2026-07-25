@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 import requests
 
+from gateway.db import apply_pragmas
 from gateway.paths import MODEL_DIGEST_DB
 
 logger = logging.getLogger("kitty.model_digest")
@@ -20,6 +21,7 @@ def _get_conn() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    apply_pragmas(conn)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS model_snapshots (
             id TEXT PRIMARY KEY,

@@ -30,6 +30,7 @@ import time
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
+from gateway.db import connect as db_connect
 from gateway.paths import DATA_DIR
 
 logger = logging.getLogger("kitty.ingestion_queue")
@@ -77,7 +78,7 @@ def _classify_error(exc: BaseException) -> Tuple[str, str]:
 
 def init_db() -> None:
     """Initialize the queue database."""
-    with sqlite3.connect(str(QUEUE_DB)) as conn:
+    with db_connect(QUEUE_DB) as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS ingestion_queue (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -102,7 +103,7 @@ def init_db() -> None:
 def clear_queue() -> int:
     """Delete every row in the ingestion queue. Returns how many rows were removed."""
     init_db()
-    with sqlite3.connect(str(QUEUE_DB)) as conn:
+    with db_connect(QUEUE_DB) as conn:
         cur = conn.execute("SELECT COUNT(*) FROM ingestion_queue")
         n = int(cur.fetchone()[0])
         conn.execute("DELETE FROM ingestion_queue")
@@ -120,7 +121,7 @@ def enqueue_file(
     path = str(Path(file_path).expanduser().resolve())
     now = time.time()
     try:
-        with sqlite3.connect(str(QUEUE_DB)) as conn:
+        with db_connect(QUEUE_DB) as conn:
             conn.execute(
                 """
                 INSERT INTO ingestion_queue
@@ -137,7 +138,7 @@ def enqueue_file(
 
 def get_next_task() -> Optional[Dict]:
     """Fetch the next pending or retryable task."""
-    with sqlite3.connect(str(QUEUE_DB)) as conn:
+    with db_connect(QUEUE_DB) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute(
             """
@@ -160,7 +161,7 @@ def update_task_status(
 ) -> None:
     """Update the status of a task."""
     now = time.time()
-    with sqlite3.connect(str(QUEUE_DB)) as conn:
+    with db_connect(QUEUE_DB) as conn:
         if status == "processing":
             conn.execute(
                 """
@@ -184,7 +185,7 @@ def update_task_status(
 
 def get_error_summary() -> Dict:
     """Return a diagnostic dict with queue error statistics."""
-    with sqlite3.connect(str(QUEUE_DB)) as conn:
+    with db_connect(QUEUE_DB) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             "SELECT status, COUNT(*) AS cnt FROM ingestion_queue GROUP BY status"
