@@ -129,6 +129,12 @@ async def chat_completions(request: Request):
         if repairs_context:
             messages = [{"role": "system", "content": repairs_context}] + list(messages)
 
+    # KX-06-01: detect signals intent and inject the current signals feed
+    if _is_signals_intent(user_text):
+        signals_context = _build_signals_context()
+        if signals_context:
+            messages = [{"role": "system", "content": signals_context}] + list(messages)
+
     correlation_id = str(uuid.uuid4())[:8]
     t_start = time.monotonic()
 
@@ -511,4 +517,66 @@ def _build_repairs_context() -> str | None:
         logger.warning("Failed to build repairs context: %s", exc)
         return None
 
-    return {"status": "ok", "session_id": payload.session_id}
+
+_SIGNALS_INTENT_PATTERNS = [
+    "anything to flag",
+    "any flags",
+    "what should i know",
+    "anything i should see",
+    "what's new",
+    "proactive signals",
+    "any suggestions",
+    "what do you recommend",
+]
+
+
+def _is_signals_intent(user_text: str) -> bool:
+    lower = user_text.strip().lower()
+    return any(pattern in lower for pattern in _SIGNALS_INTENT_PATTERNS)
+
+
+def _build_signals_context() -> str | None:
+    """Build system context from the current signals feed."""
+    import pathlib
+    import sys
+
+    ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
+    sys.path.insert(0, str(ROOT))
+
+    try:
+        from gateway import signal_store, expert_state
+    except ImportError:
+        logger.warning("cannot import signal_store/expert_state", exc_info=True)
+        return None
+
+    try:
+        unprocessed = signal_store.list_unprocessed(limit=20)
+        issues = []
+        for sig in unprocessed:
+            source = sig.get("source", "unknown")
+            kind = sig.get("kind", "unknown")
+            payload = sig.get("payload", {})
+            is_expert = source.startswith("expert.")
+
+            if is_expert:
+                expert_id = source[len("expert."):]
+                title = payload.get("headline") or kind.replace(".", " ").replace("_", " ")
+                detail = payload.get("analysis") or payload.get("action") or f"Expert {expert_id} suggestion"
+                issues.append(f"  [SIGNAL] {title} — {detail} (from expert {expert_id})")
+            else:
+                title = f"{source}: {kind.replace('.', ' ').replace('_', ' ')}"
+                detail = payload.get("message") or payload.get("summary") or ""
+                issues.append(f"  [SIGNAL] {title} — {detail}" if detail else f"  [SIGNAL] {title}")
+
+        lines = ["You are Kitty's proactive signal feed. The user asked about flags or suggestions. Here are the current unprocessed signals:"]
+        if not issues:
+            lines.append("No unprocessed signals. Everything is quiet — tell the user there's nothing flagged right now.")
+        else:
+            lines.append(f"{len(issues)} signal(s) to report:")
+            lines.extend(issues)
+            lines.append("Summarize the signals for the user in plain English. Mention what each signal is about and suggest an action if appropriate. The Home view has dismiss and snooze buttons for each signal.")
+
+        return "\n".join(lines)
+    except Exception as exc:
+        logger.warning("Failed to build signals context: %s", exc)
+        return None

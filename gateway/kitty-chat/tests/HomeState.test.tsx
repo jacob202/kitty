@@ -25,6 +25,9 @@ import {
   useRepairs,
   useExecuteRepair,
   useExpertList,
+  useSignals,
+  useDismissSignal,
+  useSnoozeExpertSignal,
 } from '../src/lib/queries';
 import { HomeState } from '../src/components/HomeState';
 
@@ -60,6 +63,9 @@ vi.mock('../src/lib/queries', () => ({
   useRepairs: vi.fn(),
   useExecuteRepair: vi.fn(),
   useExpertList: vi.fn(),
+  useSignals: vi.fn(),
+  useDismissSignal: vi.fn(),
+  useSnoozeExpertSignal: vi.fn(),
 }));
 
 const LIVE_MODELS = [
@@ -188,6 +194,14 @@ function setDefaultMocks() {
     isError: false,
     isFetched: true,
   });
+  (useSignals as Mock).mockReturnValue({
+    data: { ok: true, checks_run: 0, issues: 0, repairs: [] },
+    isPending: false,
+    isError: false,
+    isFetched: true,
+  });
+  (useDismissSignal as Mock).mockReturnValue({ isPending: false, mutate: vi.fn() });
+  (useSnoozeExpertSignal as Mock).mockReturnValue({ isPending: false, mutate: vi.fn() });
 }
 
 const DEADLINE = {

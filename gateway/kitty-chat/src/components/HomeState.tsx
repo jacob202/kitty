@@ -28,6 +28,9 @@ import {
   useRepairs,
   useExecuteRepair,
   useExpertList,
+  useSignals,
+  useDismissSignal,
+  useSnoozeExpertSignal,
 } from '@/lib/queries';
 import type {
   GatewayAction,
@@ -280,6 +283,111 @@ function RepairsCard() {
           type="button"
           onClick={() => {
             queryClient.invalidateQueries({ queryKey: ['repairs'] })
+          }}
+          style={{ ...actionButtonStyle, width: '100%', textAlign: 'center' }}
+        >
+          refresh
+        </button>
+      </div>
+    </SectionCard>
+  )
+}
+
+// ── Signals card (reuses Repairs shape) ──────────────────────────────────────
+
+function SignalsCard() {
+  const signals = useSignals()
+  const dismiss = useDismissSignal()
+  const snooze = useSnoozeExpertSignal()
+  const queryClient = useQueryClient()
+
+  if (signals.isPending) return null
+
+  if (signals.isError || !signals.data) return null
+
+  const issues = signals.data.repairs.filter((r) => r.severity !== 'ok')
+
+  if (issues.length === 0) return null
+
+  /** Extract numeric signal ID from the backend's `signal-{id}` format. */
+  const extractSignalId = (repairId: string): number | null => {
+    const match = repairId.match(/^signal-(\d+)$/)
+    return match ? parseInt(match[1], 10) : null
+  }
+
+  /** Extract expert ID from check_name like `expert:builder` or from fix action. */
+  const extractExpertId = (checkName: string): string | null => {
+    const match = checkName.match(/^expert:(.+)$/)
+    return match ? match[1] : null
+  }
+
+  return (
+    <SectionCard title="signals" count={issues.length}>
+      {issues.map((item) => {
+        const signalId = extractSignalId(item.id)
+        const expertId = item.fix?.check_name ? extractExpertId(item.fix.check_name) : null
+
+        return (
+          <div key={item.id} style={{ ...itemCard, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: SEVERITY_COLORS[item.severity] ?? 'var(--ink-2)',
+                  flexShrink: 0,
+                }}
+              />
+              <span
+                style={{
+                  fontFamily: 'var(--font-body)',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: 'var(--ink)',
+                  flex: 1,
+                }}
+              >
+                {item.title}
+              </span>
+            </div>
+            {item.detail && (
+              <div style={{ ...bodyText, fontSize: 11, color: 'var(--ink-2)', paddingLeft: 14 }}>
+                {item.detail}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 6, paddingLeft: 14 }}>
+              {item.fix && expertId && (
+                <button
+                  type="button"
+                  disabled={snooze.isPending}
+                  onClick={() =>
+                    snooze.mutate({ expertId })
+                  }
+                  style={actionButtonStyle}
+                >
+                  {snooze.isPending ? '…' : item.fix.label}
+                </button>
+              )}
+              {signalId !== null && (
+                <button
+                  type="button"
+                  disabled={dismiss.isPending}
+                  onClick={() => dismiss.mutate(signalId)}
+                  style={{ ...actionButtonStyle, color: 'var(--ink-2)', opacity: 0.7 }}
+                >
+                  {dismiss.isPending ? '…' : 'dismiss'}
+                </button>
+              )}
+            </div>
+          </div>
+        )
+      })}
+      <div style={{ paddingTop: 4 }}>
+        <button
+          type="button"
+          onClick={() => {
+            queryClient.invalidateQueries({ queryKey: ['signals'] })
           }}
           style={{ ...actionButtonStyle, width: '100%', textAlign: 'center' }}
         >
@@ -1400,6 +1508,7 @@ export function HomeState({
     >
       {visibleTiles['health'] !== false && <HealthStrip />}
       {visibleTiles['health'] !== false && <RepairsCard />}
+      <SignalsCard />
       <BuilderGlance onOpen={() => onNavigate('builder')} />
       {visibleTiles['whats-next'] !== false && (
         <WhatsNext onDecideInChat={onDecideInChat} onNavigate={onNavigate} />

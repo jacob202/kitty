@@ -79,6 +79,10 @@ import {
   executeBuilderAction,
   // experts
   fetchExpertList,
+  // signals
+  fetchSignals,
+  dismissSignal,
+  snoozeExpertSignal,
   // knowledge
   fetchKnowledgeSources,
   searchKnowledge,
@@ -797,6 +801,38 @@ export function useSubmitMessageFeedback() {
       } finally {
         window.clearTimeout(timeoutId)
       }
+    },
+  })
+}
+
+// ── Signals feed ──────────────────────────────────────────────────────────────
+
+export function useSignals() {
+  return useQuery({
+    queryKey: ['signals'],
+    queryFn: fetchSignals,
+    refetchInterval: 60_000,
+    staleTime: 10_000,
+  })
+}
+
+export function useDismissSignal() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (signalId: number) => dismissSignal(signalId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['signals'] })
+    },
+  })
+}
+
+export function useSnoozeExpertSignal() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ expertId, durationHours }: { expertId: string; durationHours?: number }) =>
+      snoozeExpertSignal(expertId, durationHours ?? 24),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['signals'] })
     },
   })
 }

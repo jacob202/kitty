@@ -1731,3 +1731,46 @@ export async function fetchExpertList(): Promise<ExpertProfile[]> {
   const payload = await gfetch<{ experts: ExpertProfile[] }>('/knowledge/experts')
   return payload.experts ?? []
 }
+
+// ── Signals feed ──────────────────────────────────────────────────────────────
+
+export async function fetchSignals(): Promise<RepairsPayload> {
+  try {
+    return await gfetch<RepairsPayload>('/signals', undefined, 8000)
+  } catch (err) {
+    return { ok: false, checks_run: 0, issues: 0, repairs: [], error: describeFetchError(err, null) }
+  }
+}
+
+export async function dismissSignal(signalId: number): Promise<{ ok: boolean; error?: string }> {
+  try {
+    return await gfetch<{ ok: boolean; error?: string }>(
+      '/signals/dismiss',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ signal_id: signalId }),
+      },
+      8000,
+    )
+  } catch (err) {
+    return { ok: false, error: describeFetchError(err, null) }
+  }
+}
+
+export async function snoozeExpertSignal(expertId: string, durationHours = 24): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await gfetch(
+      `/experts/${encodeURIComponent(expertId)}/snooze`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ duration_hours: durationHours }),
+      },
+      8000,
+    )
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: describeFetchError(err, null) }
+  }
+}
