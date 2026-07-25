@@ -11,13 +11,13 @@ from typing import Any
 try:
     from pydantic import BaseModel, Field, field_validator, model_validator
 except ImportError:
-    BaseModel = object  # type: ignore[misc,assignment]
-    Field = None  # type: ignore[assignment]
+    BaseModel = object
+    Field = None
 
-    def field_validator(*args: Any, **kwargs: Any) -> Any:  # type: ignore[no-redef]
+    def field_validator(*args: Any, **kwargs: Any) -> Any:
         return lambda f: f
 
-    def model_validator(*args: Any, **kwargs: Any) -> Any:  # type: ignore[no-redef]
+    def model_validator(*args: Any, **kwargs: Any) -> Any:
         return lambda f: f
 
 

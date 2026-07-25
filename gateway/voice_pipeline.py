@@ -17,8 +17,6 @@ from typing import Dict, List, Optional
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-from gateway.constants import MAX_BODY_BYTES
-
 logger = logging.getLogger("kitty.voice_pipeline")
 
 # --- Deep entry point result types ---

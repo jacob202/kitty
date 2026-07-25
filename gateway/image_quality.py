@@ -9,7 +9,7 @@ try:
     HAS_PIL = True
 except ImportError:
     HAS_PIL = False
-    Image = None  # type: ignore[assignment]
+    Image = None
 
 
 @dataclass
