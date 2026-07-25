@@ -460,8 +460,9 @@ class TestWorkerIdentity:
         lease = self._valid_identity(repo, db_path)
         with bq.connect(db_path) as conn:
             conn.execute(
-                "UPDATE initiative_packets SET allowed_paths_json = ? "
-                "WHERE packet_id = ?",
+                "UPDATE tasks SET allowed_paths_json = ? "
+                "WHERE id = (SELECT task_id FROM initiative_packets "
+                "WHERE packet_id = ?)",
                 (stored, PACKET),
             )
             conn.commit()
@@ -473,6 +474,50 @@ class TestWorkerIdentity:
             expected_lease_id=lease["lease_id"],
         )
         assert any(finding.field == "allowed_paths" for finding in findings)
+
+    def test_operator_correction_after_apply_is_honored(
+        self, repo: Path, db_path: Path
+    ) -> None:
+        """A `queue edit` correction to the task's allowed_paths after apply
+        must be honored by identity verification, even though the frozen
+        initiative_packets manifest copy still holds the original scope."""
+        _apply(db_path, allowed_paths=["gateway/wrong-dir/"])
+        base_sha = _head(repo)
+        subprocess.run(
+            ["git", "checkout", "-q", "-b", "feat/identity"], cwd=repo, check=True
+        )
+        (repo / "gateway").mkdir()
+        (repo / "gateway" / "a.py").write_text("x = 1\n", encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "commit", "-q", "-m", "[ID-1] add a.py"], cwd=repo, check=True
+        )
+        lease = bq.claim_branch_lease(
+            INITIATIVE,
+            PACKET,
+            "worker-1",
+            "feat/identity",
+            str(repo),
+            base_sha,
+            db_path=db_path,
+        )
+        with bq.connect(db_path) as conn:
+            conn.execute(
+                "UPDATE tasks SET allowed_paths_json = ? "
+                "WHERE id = (SELECT task_id FROM initiative_packets "
+                "WHERE packet_id = ?)",
+                ('["gateway/a.py"]', PACKET),
+            )
+            conn.commit()
+        findings = verify_worker_identity(
+            INITIATIVE,
+            PACKET,
+            repo_root=repo,
+            db_path=db_path,
+            expected_lease_id=lease["lease_id"],
+        )
+        assert not any(finding.field == "allowed_paths" for finding in findings)
+        assert not any(finding.category == "scope_drift" for finding in findings)
 
     def test_duplicate_packet_ids_make_identity_ambiguous(
         self, repo: Path, db_path: Path
