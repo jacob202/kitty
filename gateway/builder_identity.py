@@ -102,12 +102,23 @@ def _changed_paths(repo_root: Path, base_sha: str) -> list[str]:
 def _get_allowed_paths(
     packet_id: str, *, db_path: Path | None = None
 ) -> list[str]:
-    """Return one unambiguous, valid durable packet allowlist."""
+    """Return one unambiguous, valid durable packet allowlist.
+
+    Reads through ``initiative_packets.task_id`` to the task's own
+    ``allowed_paths`` — the same source ``builder_runner.py``'s live scope
+    checks use — rather than ``initiative_packets.allowed_paths_json`` (the
+    frozen manifest copy, immutable by design once applied). An operator
+    can correct a task's allowed_paths after apply via ``queue edit``; if
+    this check kept reading the manifest copy, a corrected task would still
+    fail identity verification on the same stale scope it was just fixed
+    for, silently discarding an otherwise-successful attempt.
+    """
     conn = bq.connect(db_path)
     try:
         rows = conn.execute(
-            "SELECT allowed_paths_json FROM initiative_packets "
-            "WHERE packet_id = ? LIMIT 2",
+            "SELECT t.allowed_paths_json FROM initiative_packets ip "
+            "JOIN tasks t ON t.id = ip.task_id "
+            "WHERE ip.packet_id = ? LIMIT 2",
             (packet_id,),
         ).fetchall()
     finally:

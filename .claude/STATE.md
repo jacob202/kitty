@@ -1,45 +1,46 @@
-# Session State — CI automation + builder control actions — Complete
+# Session State — hardening sweep merged, mypy fixed, queue-doctor merged
 
 <!-- kitty-state
 {
   "schema_version": 1,
-  "updated_at": "2026-07-25T03:09:22Z",
-  "head_sha": "10bebdde1f7ab94f43d072cb8c40cf59252f8e97",
+  "updated_at": "2026-07-25T09:45:00Z",
+  "head_sha": "16b48a5",
   "branch": "main",
   "worktree": ".",
-  "status": "in_progress",
+  "status": "complete",
   "completed_items": [
-    "Auto PR agent review pipeline: GitHub Action + OpenRouter script + GitHub secret set",
-    "Builder control actions wired: run/pause/resume/cancel/cleanup now call ./kitty builder CLI (were no-ops)",
-    "Dogfood fixes: sidebar on home view, view-switch control, gateway.ts fetchKnowledgeSources fix, aria labels, dogfood script",
-    "AGENTS.md: no-tests-mid-session rule, PR agent review section",
-    "QUICKSTART.md: 3-command cheatsheet (catch up, ship it, /qg)",
-    "4 feature branches merged: builder-upgrade, companion-personality, life-awareness, image-system-v2",
-    "KB: wiki/2026-07-24-auto-pr-review-pipeline.md, NOW.md updated, INDEX.md updated",
-    "Earlier same day (tooling-audit session, commit e3d84e2): repo-root self-referential symlinks removed (.worktrees pointed at itself and had killed every packet run), venv rebuilt, MemoryError given a real structured-error contract, search route's missing import fixed, soul/ + TASKS.md restored from archive, suite taken from 26 failed + 32 errors to green, v0.1 tagged"
+    "Verified 7 pre-session claims",
+    "Step 1: db pragmas (WAL/busy_timeout/foreign_keys/sync)",
+    "Step 2: subprocess timeout= (7 calls)",
+    "Step 3: asyncio.to_thread (5 builder action handlers)",
+    "Step 4: bare-except → logger (5 locations)",
+    "Step 5: CI supply-chain (pip-audit, bandit, npm audit, dependabot)",
+    "Fixed pre-existing bugs: repairs.py undefined vars, duplicate test",
+    "Fixed 22 pre-existing mypy errors across 7 files",
+    "Created .kitty_cheatsheet.sh (terminal launch cheatsheet)",
+    "Added kitty launch alias to ./kitty script",
+    "Fixed gh auth setup-git SSH→HTTPS insteadof config trap",
+    "PR #236 (hardening-sweep → main) rebase-merged",
+    "PR #235 (feat/builder-queue-doctor → main) rebase-merged",
+    "git push succeeded, origin/main stable"
   ],
-  "blockers": [],
-  "next_action": "Start the two queued KX-06 packets: KX-06-01 (signals feed on Home, priority 8) then KX-06-02 (plain-English deadline/phone/what-changed cards). The Builder Run button works now, so they can be started from the UI or with ./kitty builder initiative run kx-06-proactive-feed-v1 --free --gate manual.",
-  "invalidation_conditions": [
-    "HEAD changes beyond 10bebdde1f7ab94f43d072cb8c40cf59252f8e97",
-    "either queued KX-06 packet is claimed or completed"
+  "blockers": [
+    "CI typecheck still fails — pip install mypy types-requests needs more stubs",
+    "CI hygiene fails — vulture/lychee/deptry pre-existing findings",
+    "Hardening-sweep branch still local, not deleted"
   ],
+  "next_action": "Fix CI typecheck by adding missing stubs to tests.yml, then delete hardening-sweep branch",
+  "invalidation_conditions": ["HEAD changes beyond 16b48a5"],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
 }
 -->
 
-## Checkpoint
-
-`main` at `10bebdd`, synced with origin. All work shipped.
+## Current checkpoint
+`main` at `16b48a5` — all 5 hardening steps + mypy fixes + queue doctor merged and pushed to `origin/main`. Working tree clean.
 
 ## Lessons applied
-
-- Builder control actions call `./kitty builder ...` by subprocess — changing the CLI's
-  flags or subcommand names will silently break the UI buttons again.
-- A tier in `config/action_tiers.json` with no executor in `_EXECUTORS` produces a button
-  that returns HTTP 200 and does nothing. `tests/test_builder_control_actions.py` now
-  asserts both halves exist for every builder kind.
-- Cleanup and archive commits need a smoke run: two separate ones this week killed live
-  subsystems (KittyBuilder via symlinks, knowledge experts via the `soul/` archival) while
-  leaving `git status` completely clean.
+- `gh auth setup-git` creates an `insteadof` config that silently rewrites SSH URLs to HTTPS — diagnose push failures by checking `git config --global --list | grep insteadof`
+- `BackendRegistry.list` method shadows builtin `list` → mypy `valid-type` error on `list[str]` annotations. Fix: rename method.
+- Homebrew mypy (`/opt/homebrew/bin/mypy`) doesn't see venv stubs; always use `venv/bin/mypy` in this project.
+- Lazy imports (`from x import y` inside function body) suppress module-level import errors but make them invisible until runtime — tradeoff.
