@@ -1730,6 +1730,59 @@ class TestQueueStatus:
 
 
 # ---------------------------------------------------------------------------
+# find_silent_transitions
+# ---------------------------------------------------------------------------
+
+
+class TestFindSilentTransitions:
+    def test_empty_queue(self, db_path):
+        assert bq.find_silent_transitions(db_path=db_path) == []
+
+    def test_normal_transition_is_not_flagged(self, db_path):
+        t = bq.create_task("normal", db_path=db_path)
+        bq.transition_task(
+            t["id"], bq.CANCELLED, payload={"reason": "no longer needed"}, db_path=db_path
+        )
+        assert bq.find_silent_transitions(db_path=db_path) == []
+
+    def test_still_queued_task_is_not_flagged(self, db_path):
+        bq.create_task("fresh", db_path=db_path)
+        assert bq.find_silent_transitions(db_path=db_path) == []
+
+    def test_state_changed_outside_transition_task_is_flagged(self, db_path):
+        t = bq.create_task("bypassed", db_path=db_path)
+        conn = bq.connect(db_path)
+        try:
+            conn.execute(
+                "UPDATE tasks SET state = ? WHERE id = ?",
+                (bq.CANCELLED, t["id"]),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        silent = bq.find_silent_transitions(db_path=db_path)
+        assert len(silent) == 1
+        assert silent[0]["id"] == t["id"]
+        assert silent[0]["state"] == bq.CANCELLED
+        assert silent[0]["event_count"] == 1
+
+    def test_archived_tasks_excluded(self, db_path):
+        t = bq.create_task("archived", db_path=db_path)
+        conn = bq.connect(db_path)
+        try:
+            conn.execute(
+                "UPDATE tasks SET state = ?, archived_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (bq.CANCELLED, t["id"]),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        assert bq.find_silent_transitions(db_path=db_path) == []
+
+
+# ---------------------------------------------------------------------------
 # archive_tasks
 # ---------------------------------------------------------------------------
 

@@ -5,6 +5,7 @@ version: 0.2
 type: action
 kind: builder.cancel_task
 """
+import asyncio
 import subprocess
 from pathlib import Path
 
@@ -25,7 +26,8 @@ class Action:
         if not task_id:
             return {**body, "error": "missing task_id"}
 
-        result = subprocess.run(
+        result = await asyncio.to_thread(
+            subprocess.run,
             [str(KITTY_CLI), "builder", "queue", "cancel-run", task_id],
             cwd=REPO_ROOT, capture_output=True, text=True, timeout=60
         )

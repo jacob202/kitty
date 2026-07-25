@@ -5,6 +5,7 @@ version: 0.2
 type: action
 kind: builder.cleanup
 """
+import asyncio
 import subprocess
 from pathlib import Path
 
@@ -21,7 +22,8 @@ class Action:
         pass
 
     async def action(self, body: dict, __event_emitter__=None, __user__=None) -> dict:
-        result = subprocess.run(
+        result = await asyncio.to_thread(
+            subprocess.run,
             [str(KITTY_CLI), "builder", "queue", "recover"],
             cwd=REPO_ROOT, capture_output=True, text=True, timeout=60
         )
