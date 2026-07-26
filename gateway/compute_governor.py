@@ -322,7 +322,10 @@ def record_receipt(
                 f"a settled {dispatch.task_type} pass already exists for "
                 f"{dispatch.subject_ref} at {dispatch.head_sha}; nothing changed, so nothing is owed"
             ) from exc
-    return int(cursor.lastrowid)
+    receipt_id = cursor.lastrowid
+    if receipt_id is None:
+        raise GovernorError("SQLite reported no row id for the inserted receipt")
+    return int(receipt_id)
 
 
 def decide(
@@ -362,8 +365,9 @@ def decide(
         subject_ref=dispatch.subject_ref,
         head_sha=dispatch.head_sha,
     )
+    override = (override_reason or "").strip()
     if settled is not None:
-        if not (override_reason or "").strip():
+        if not override:
             return Decision(
                 action=ACTION_REJECT,
                 route=None,
@@ -374,7 +378,7 @@ def decide(
                 ),
                 dispatch_hash=fingerprint,
             )
-        reasons: list[str] = [f"human override: {override_reason.strip()}"]
+        reasons: list[str] = [f"human override: {override}"]
     else:
         reasons = [
             f"no settled {dispatch.task_type} pass for {dispatch.subject_ref} at "
