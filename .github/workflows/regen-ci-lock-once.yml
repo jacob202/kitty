@@ -1,0 +1,38 @@
+name: Regenerate CI lockfile once
+
+on:
+  push:
+    branches:
+      - fix/restore-ci-installs
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate-lockfile:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/restore-ci-installs
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Regenerate and verify lockfile
+        working-directory: gateway/kitty-chat
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Commit generated lockfile and remove bootstrap workflow
+        run: |
+          rm .github/workflows/regen-ci-lock-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gateway/kitty-chat/package-lock.json .github/workflows/regen-ci-lock-once.yml
+          git commit -m "fix(frontend): synchronize dependency lockfile"
+          git push origin HEAD:fix/restore-ci-installs
