@@ -1,68 +1,77 @@
-# Handoff — 2026-07-24 — main
+# Handoff — Canonical next work is Phase 1 Outcome 6 on the Mac
 
 <!-- kitty-handoff
 {
   "schema_version": 1,
-  "updated_at": "2026-07-25T03:09:22Z",
-  "head_sha": "10bebdde1f7ab94f43d072cb8c40cf59252f8e97",
-  "branch": "main",
+  "updated_at": "2026-07-26T21:14:00Z",
+  "head_sha": "cf919b6aa1796a4eee9cb79f2fd007382579a693",
+  "branch": "docs/session-end-2026-07-26",
   "worktree": ".",
-  "status": "in_progress",
+  "status": "valid",
   "completed_items": [
-    "4 feature branches merged: builder-upgrade, companion-personality, life-awareness, image-system-v2",
-    "Auto PR agent review live (GitHub Action + OpenRouter, secret set)",
-    "Builder control actions wired to the CLI — the UI buttons were no-ops before",
-    "Dogfood fixes + AGENTS.md workflow rules + QUICKSTART.md",
-    "Tooling audit session (e3d84e2): dead symlinks, venv, MemoryError contract, search route, soul/ restore, suite green, v0.1 tagged"
+    "Reviewed scheduled tasks, all open pull requests including drafts, recent commits, open issues, active mission, roadmap, and session-end rules",
+    "Merged PR #272 after correcting its KTF-002 checksum gate to the macOS-compatible shasum command and verifying final CI",
+    "Closed stale planning PR #271 as superseded and preserved its strongest acceptance rules on issue #270",
+    "Consolidated the canonical execution order and evidence requirements into issue #274",
+    "Recorded the final review, durable KB sync payload, security caution, and canonical next-model prompt in docs/session-notes/CHATGPT_CLOSEOUT_2026-07-26.md"
   ],
-  "blockers": [],
-  "next_action": "Start the two queued KX-06 packets: KX-06-01 (signals feed on Home, priority 8) then KX-06-02 (plain-English deadline/phone/what-changed cards). The Builder Run button works now, so they can be started from the UI or with ./kitty builder initiative run kx-06-proactive-feed-v1 --free --gate manual.",
+  "blockers": [
+    "The authoritative Builder queue, worktrees, provider state, and immutable initiative hashes are local to the canonical Mac and were not verifiable from GitHub",
+    "The separate ~/kb repository was unavailable; the prepared durable KB payload still requires local merge and indexing",
+    "Kitty Chat tailnet/LAN mode remains unsafe to use for this proof until security issue #158 is revalidated and resolved"
+  ],
+  "next_action": "On the canonical Mac, sync clean main, inspect the local Builder queue and immutable KTF-002 state, sync the pending ~/kb payload from docs/session-notes/CHATGPT_CLOSEOUT_2026-07-26.md, then execute issue #274 exactly.",
   "invalidation_conditions": [
-    "HEAD changes beyond 10bebdde1f7ab94f43d072cb8c40cf59252f8e97",
-    "either queued KX-06 packet is claimed or completed"
+    "HEAD changes beyond cf919b6aa1796a4eee9cb79f2fd007382579a693 except the checkpoint-only commit that records STATE and HANDOFF",
+    "a new correction PR or issue claims that KTF-001, KTF-002, KTF-003, issue #274, or their gates are defective",
+    "the local Builder database already contains ktf-002-acceptance-prose-v1 with a manifest hash different from corrected main",
+    "issue #274 execution begins, pauses, or completes"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
   "pull_request": null
 }
 -->
 
-## Goal
+## What was done
 
-Ship 4 merged feature branches + wire CI automation (auto PR review, dogfood) + fix dead
-builder buttons.
+- Reviewed the active ChatGPT schedules. The set is coherent and does not justify another automation; notification delivery currently reports disabled for all active tasks.
+- Searched the full open-PR queue including drafts and found correction PR #272 plus planning PR #271.
+- Reviewed #272 and found a second defect in the proposed correction: `sha256sum` is not the canonical macOS command. Replaced it with `shasum -a 256 -c`, reran CI, marked the PR ready, and merged it as `8ff26b8f08fa186af13678d6fe6821ed36b0493c`.
+- Reviewed #271 and closed it as superseded because its checkpoint files were stale and its planning content duplicated the active mission and issue #270. Preserved its strongest acceptance rules as a durable amendment on issue #270.
+- Rewrote issue #274 as the sole canonical execution sequence: local-state inspection, KTF-003 repair, post-merge proof, Outcome 6 daylight run, evidence bundle, then issue #270.
+- Added `docs/session-notes/CHATGPT_CLOSEOUT_2026-07-26.md` with the final repository/schedule review, pending KB payload, security caution, and next-model prompt.
 
-## State
+## In-flight / WIP
 
-- **Done:** 4 feature branches merged (builder / personality / life-awareness /
-  image-system). Auto PR agent review live (GitHub Action + OpenRouter, secret set).
-  Builder control actions wired to the CLI (no longer no-ops). Dogfood script + sidebar
-  home fix + gateway.ts fix. AGENTS.md no-tests-mid-session rule + QUICKSTART.md.
-- **In flight:** nothing
-- **Untouched:** task 2–5 follow-up scope (see `docs/planning/agent-prompts-2026-07-24.md`),
-  pre-commit hook (not installed), mempalace migration status (unknown)
+- This session-end branch contains the closeout note plus refreshed `.claude/STATE.md` and `.claude/HANDOFF.md`.
+- Issue #274 remains open and unexecuted because the authoritative Builder database, worktrees, OpenCode providers, and credentials live on the canonical Mac.
+- Issue #270 is intentionally deferred until Outcome 6 is complete.
+- The durable KB entries listed in the closeout note still need to be merged into the separate local `~/kb` repository.
 
-## Gotchas
+## Blockers
 
-- `git push` blocked by OpenCode permission rules — Jacob pushes from terminal
-- Tests only run on `/qg` request or on CI — never mid-session
-- Builder control actions now call `./kitty builder ...` via subprocess — changing the CLI
-  could break the action queue
-- A tier in `config/action_tiers.json` with no matching executor gives you a button that
-  returns HTTP 200 and does nothing. That is exactly how the builder buttons were dead.
-  `tests/test_builder_control_actions.py` guards both halves now.
+- GitHub cannot establish whether `ktf-002-acceptance-prose-v1` was already applied locally before #272 changed its immutable manifest hash. The next session must check before applying it.
+- GitHub cannot prove local queue integrity, stale attempts, leases, worktree cleanliness, provider availability, or final report state.
+- Security issue #158 is not resolved for explicit tailnet/LAN mode. Use localhost only during the proof.
 
-## Queued and ready
+## Next move
 
-Two packets, both user-facing, both reusing one card component:
+On the canonical Mac, sync clean `main`, inspect the local Builder queue and immutable KTF-002 state, sync the pending `~/kb` payload from `docs/session-notes/CHATGPT_CLOSEOUT_2026-07-26.md`, then execute issue #274 exactly.
 
-- **KX-06-01** (priority 8) — signals feed on Home + "anything to flag?" in chat, with
-  dismiss/snooze.
-- **KX-06-02** (priority 7) — replace the three developer-jargon Home cards (deadlines,
-  phone access, what changed) with plain-English actionable cards.
+## Files changed this session
 
-Note: 23 of 59 queue tasks are cancelled vs 34 done. Worth understanding that scrap rate
-once these two land — the runner being broken is a likely cause.
+- `docs/session-notes/CHATGPT_CLOSEOUT_2026-07-26.md`
+- `.claude/STATE.md`
+- `.claude/HANDOFF.md`
+- GitHub issue #270 acceptance amendment
+- GitHub issue #274 canonical execution sequence
+- PR #272 manifest command and description
 
-## Next step
+## Verification
 
-`catch me up` — check what's next from agent-prompts and pick a task.
+- Repository-wide open-PR search after cleanup: no open PRs before this session-end PR.
+- Final reviewed main commit: `8ff26b8f08fa186af13678d6fe6821ed36b0493c`.
+- PR #272 final head `d2f2c29ab20771e04e8279c0dcbf87daff7449b1`: PR Agent Review passed, PR Description Check passed, full Tests workflow passed.
+- Current `gateway/kitty-chat/package.json`: default dev/start bind `127.0.0.1`; explicit tailnet scripts bind `0.0.0.0`.
+- Current proxy route injects the gateway bearer secret into forwarded requests and does not itself implement an application-level origin/auth check; localhost-only use is the safe boundary for this proof.
+- No local Kitty commands, Builder mutations, queue inspection, or `~/kb` writes were claimed from this GitHub-only environment.
