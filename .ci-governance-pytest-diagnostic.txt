@@ -1,0 +1,33 @@
+exit_status=1
+
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.1.1, pluggy-1.6.0 -- /opt/hostedtoolcache/Python/3.12.13/x64/bin/python
+cachedir: .pytest_cache
+rootdir: /home/runner/work/kitty/kitty
+configfile: pytest.ini
+plugins: cov-7.1.0, anyio-4.14.2, asyncio-1.4.0, langsmith-0.10.10
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 1 item
+
+tests/test_cold_start_acceptance.py::test_clean_reader_can_resolve_all_cold_start_questions FAILED [100%]
+
+=================================== FAILURES ===================================
+____________ test_clean_reader_can_resolve_all_cold_start_questions ____________
+
+    def test_clean_reader_can_resolve_all_cold_start_questions() -> None:
+        """No chat or inherited model memory is used by this acceptance contract."""
+        receipt = build_context_receipt(ROOT, expected_canonical=_canonical_worktree())
+        failed = [
+            check
+            for check in receipt["continuity"]["checks"]
+            if check["level"] == "FAIL"
+        ]
+>       assert receipt["ok"] is True, failed
+E       AssertionError: [{'level': 'FAIL', 'name': 'docs:authority_map', 'detail': "docs/AUTHORITY_MAP.md is missing concerns: ['builder_state', 'decisions', 'historical_records']"}]
+E       assert False is True
+
+tests/test_cold_start_acceptance.py:37: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_cold_start_acceptance.py::test_clean_reader_can_resolve_all_cold_start_questions - AssertionError: [{'level': 'FAIL', 'name': 'docs:authority_map', 'detail': "docs/AUTHORITY_MAP.md is missing concerns: ['builder_state', 'decisions', 'historical_records']"}]
+assert False is True
+============================== 1 failed in 0.57s ===============================
