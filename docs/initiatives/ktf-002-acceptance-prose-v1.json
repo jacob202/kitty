@@ -7,13 +7,13 @@
     {
       "id": "KTF-FE-03-acceptance-prose-honesty",
       "title": "Replace npm run build with make ui-build in acceptance_criteria prose",
-      "objective": "Execution class: free-exec. In each of the six files listed in allowed_paths, perform a literal text substitution and change nothing else. Apply these two replacements in this exact order, because the first is a longer match that contains the second: (1) replace every occurrence of the exact text 'npm run build in gateway/kitty-chat' with 'make ui-build'; (2) then replace every remaining occurrence of the exact text 'npm run build' with 'make ui-build'. Do not edit any other field, do not reformat or reindent the JSON, do not reorder keys, do not add or remove packets or criteria, and do not touch any file not listed in allowed_paths. STOPPING RULE: if a file does not contain the exact text 'npm run build', make no change to that file and continue to the next one. If any file fails to parse as JSON after your edit, revert that file and fail the attempt with the worktree preserved. Do not search for similar-looking text and do not repair anything else you notice. The acceptance gate compares each file against its origin/main content with the two substitutions applied, so any other edit — including deleting a criterion instead of rewriting it — fails the gate.",
+      "objective": "Execution class: free-exec. In each of the six files listed in allowed_paths, perform a literal text substitution and change nothing else. Apply these two replacements in this exact order, because the first is a longer match that contains the second: (1) replace every occurrence of the exact text 'npm run build in gateway/kitty-chat' with 'make ui-build'; (2) then replace every remaining occurrence of the exact text 'npm run build' with 'make ui-build'. Do not edit any other field, do not reformat or reindent the JSON, do not reorder keys, and do not add or remove packets or criteria. The acceptance gate is a sha256 comparison against docs/initiatives/ktf-002-expected.sha256, which records the exact intended result of those two substitutions. That checksum file is deliberately NOT in allowed_paths, so it cannot be edited to make the gate pass; any deviation at all — including deleting a criterion rather than rewriting it, or touching an unrelated field — fails. STOPPING RULE: if a file does not contain the exact text 'npm run build', make no change to that file and continue to the next one. If any file fails to parse as JSON after your edit, revert that file and fail the attempt with the worktree preserved. Do not search for similar-looking text and do not repair anything else you notice.",
       "depends_on": [],
       "acceptance_criteria": [
-        "Each of the six files is byte-identical to its origin/main content with exactly the two specified substitutions applied",
-        "No acceptance_criteria entry is deleted, reordered, or otherwise altered beyond those substitutions",
-        "No field other than the substituted text differs from origin/main",
-        "No file outside allowed_paths is modified"
+        "All six files match their recorded sha256 in docs/initiatives/ktf-002-expected.sha256",
+        "No acceptance criterion is deleted, reordered, or altered beyond the two substitutions",
+        "No field other than the substituted text differs from the base content",
+        "No file outside allowed_paths is modified, including the checksum file itself"
       ],
       "allowed_paths": [
         "docs/initiatives/kx-01-resume-work-presentation.json",
@@ -28,12 +28,7 @@
         "priority": 5
       },
       "validation_commands": [
-        "git show origin/main:docs/initiatives/kx-01-resume-work-presentation.json | sed -e 's|npm run build in gateway/kitty-chat|make ui-build|g' -e 's|npm run build|make ui-build|g' | diff - docs/initiatives/kx-01-resume-work-presentation.json",
-        "git show origin/main:docs/initiatives/kx-03-shell-consolidation-v1.json | sed -e 's|npm run build in gateway/kitty-chat|make ui-build|g' -e 's|npm run build|make ui-build|g' | diff - docs/initiatives/kx-03-shell-consolidation-v1.json",
-        "git show origin/main:docs/initiatives/kx-04-surface-refit-v1.json | sed -e 's|npm run build in gateway/kitty-chat|make ui-build|g' -e 's|npm run build|make ui-build|g' | diff - docs/initiatives/kx-04-surface-refit-v1.json",
-        "git show origin/main:docs/initiatives/kx-05-companion-layer-v1.json | sed -e 's|npm run build in gateway/kitty-chat|make ui-build|g' -e 's|npm run build|make ui-build|g' | diff - docs/initiatives/kx-05-companion-layer-v1.json",
-        "git show origin/main:docs/initiatives/kx-06-proactive-feed-v1.json | sed -e 's|npm run build in gateway/kitty-chat|make ui-build|g' -e 's|npm run build|make ui-build|g' | diff - docs/initiatives/kx-06-proactive-feed-v1.json",
-        "git show origin/main:docs/initiatives/life-first-v1-integration.json | sed -e 's|npm run build in gateway/kitty-chat|make ui-build|g' -e 's|npm run build|make ui-build|g' | diff - docs/initiatives/life-first-v1-integration.json"
+        "sha256sum -c --quiet docs/initiatives/ktf-002-expected.sha256"
       ]
     }
   ]
