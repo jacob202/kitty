@@ -1,0 +1,50 @@
+name: Diagnose Playwright once
+
+on:
+  push:
+    branches:
+      - fix/restore-ci-installs
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose-playwright:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gateway/kitty-chat
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/restore-ci-installs
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: gateway/kitty-chat/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: node node_modules/next/dist/bin/next build --webpack
+      - run: node node_modules/next/dist/bin/next start -p 4000 &
+      - run: npx wait-on http://localhost:4000 --timeout 30000
+      - run: |
+          set +e
+          npx playwright test --reporter=line > /tmp/playwright.log 2>&1
+          status=$?
+          {
+            echo "exit_status=$status"
+            echo
+            tail -n 450 /tmp/playwright.log
+          } > ../../.ci-playwright-diagnostic.txt
+          exit 0
+      - name: Commit diagnostic and remove workflow
+        working-directory: .
+        run: |
+          rm .github/workflows/diagnose-playwright-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .ci-playwright-diagnostic.txt .github/workflows/diagnose-playwright-once.yml
+          git commit -m "chore(ci): capture Playwright diagnostic"
+          git push origin HEAD:fix/restore-ci-installs
