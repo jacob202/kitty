@@ -10,18 +10,19 @@ report the contradiction rather than blending the claims.
 |---|---|---|---|
 | `product_purpose` | `docs/NORTH_STAR.md` | Why Kitty exists and the life-first outcome | Current implementation or queue state |
 | `engineering_doctrine` | `AGENTS.md` | Safety, verification, change, Git, and agent operating rules | Product architecture or live status |
-| `execution_frame` | `docs/ALIGNMENT_MAP.md` | Kitty/KittyBuilder layering, authority order, delivery phases, non-goals, and the required analysis for any architecture proposal | Live status, specific plans, or what is currently shipped |
-| `free_execution_contract` | `docs/FREE_MODEL_PACKET_STANDARD.md` | What a packet must be for an unattended free model to execute it and for a script to prove it | Which packets exist or their priority |
-| `architecture` | `docs/ARCHITECTURE.md` | Current runnable system shape and component boundaries | Durable decision history or release status |
-| `decisions` | `docs/DECISIONS.md` | Index of accepted ADRs and supersession | Live status or implementation plans |
-| `roadmap` | `docs/INITIATIVES_OPTIMIZED_2026-07-24.md` | Forward-looking feature sequencing, layered priority (F0-V4), and what's explicitly rejected | Approved mission scope (`active_mission`), shipped status (`live_status`), or session-level progress tracking (see `docs/PLANS.md`, a status tracker that defers to this row) |
-| `live_status` | `docs/PROJECT_STATUS.md` | Shipped capabilities, verified baseline, known limitations | Session progress or historical narrative |
-| `active_mission` | `docs/ACTIVE_MISSION.md` | The one approved mission, scope, authorization, and acceptance contract | Builder task/run state |
-| `session_checkpoint` | `.claude/STATE.md` | Current branch checkpoint, blockers, and exact next action | Historical checkpoints or product purpose |
-| `continuation` | `.claude/HANDOFF.md` | Current resumable handoff only when its metadata says `valid` | Append-only history |
-| `builder_state` | `data/kittybuilder/builder_queue.db` | Initiatives, packets, tasks, attempts, leases, runs, evidence, and publication state | Product intent or personal data |
+| `execution_frame` | `docs/ALIGNMENT_MAP.md` | Kitty/KittyBuilder layering, authority order, delivery phases, non-goals, and required architecture analysis | Live status or specific packet contents |
+| `free_execution_contract` | `docs/FREE_MODEL_PACKET_STANDARD.md` | What a packet must be for unattended free execution and deterministic acceptance | Packet priority or live readiness |
+| `architecture` | `docs/ARCHITECTURE.md` | Current runnable system shape and component boundaries | Durable decision history or roadmap priority |
+| `decisions` | `docs/DECISIONS.md` and `docs/adr/` | Accepted decisions, amendments, and supersession | Live status or implementation sequencing |
+| `roadmap` | `docs/ROADMAP.md` | The one active forward-looking sequence and phase exit criteria | Live Builder state or historical planning narrative |
+| `planning_inputs` | Existing files under `docs/plans/`, `docs/planning/`, `docs/packets/`, research, audits, and initiative manifests | Preserved ideas, evidence, candidate work, and executable contracts when explicitly approved | Roadmap authority merely by existing |
+| `live_status` | `docs/PROJECT_STATUS.md` | Verified shipped capabilities and known limitations at its stated SHA | Current priority or unverified present state |
+| `active_mission` | `docs/ACTIVE_MISSION.md` | The one approved current mission, authority, and acceptance contract | Builder task/run truth |
+| `session_checkpoint` | `.claude/STATE.md` | Current branch checkpoint, blockers, and exact next action only while its identity and invalidation conditions remain valid | Historical checkpoints or product purpose |
+| `continuation` | `.claude/HANDOFF.md` | Current resumable handoff only when its metadata says `valid` | Append-only history or authority after invalidation |
+| `builder_state` | `data/kittybuilder/builder_queue.db` through supported CLI/API projections | Initiatives, packets, tasks, attempts, leases, runs, evidence, and publication state | Product intent or personal data |
 | `builder_interfaces` | `docs/KITTYBUILDER_QUICKSTART.md` | Supported operator commands and execution safety rails | Live queue contents |
-| `historical_records` | `Git history` | Prior checkpoints, changes, and superseded claims | Current truth until re-verified |
+| `historical_records` | Git history | Prior checkpoints, changes, and superseded claims | Current truth until re-verified |
 | `historical_docs` | `docs/archive/README.md` | Archived narrative and retired operating material | Current instructions |
 
 Builder state must be read through supported Python/CLI projections. Do not
@@ -30,13 +31,17 @@ machine. Runtime files under `data/` are local and are never committed.
 
 ## Conflict rules
 
-1. Live Git, the current worktree, and supported runtime probes beat prose.
-2. An accepted ADR beats an older architecture claim in a non-authoritative doc.
-3. `docs/PROJECT_STATUS.md` may summarize shipped work but cannot redefine an ADR.
-4. `.claude/STATE.md` and `.claude/HANDOFF.md` are invalid when their recorded
+1. Live Git, the current worktree, GitHub, and supported runtime probes beat
+   prose.
+2. An accepted ADR beats an older architecture or plan claim.
+3. `docs/ROADMAP.md` is the only active planning sequence. Older plans are
+   inputs until explicitly absorbed, rejected, or archived.
+4. `docs/PROJECT_STATUS.md` may summarize shipped work but cannot redefine an
+   ADR, roadmap, Mission, or live runtime fact.
+5. `.claude/STATE.md` and `.claude/HANDOFF.md` are invalid when their recorded
    Git identity, mission, path, or invalidation conditions no longer match.
-5. Missing or unverifiable facts are `unknown`; they are never filled from an
-   old handoff or a plausible guess.
+6. Missing or unverifiable facts are `unknown`; they are never filled from an
+   old handoff, report, or plausible guess.
 
 ## Context receipts
 
