@@ -1,68 +1,76 @@
-# Handoff — 2026-07-24 — main
+# Handoff — Human-loop plan hardened for roadmap review
 
 <!-- kitty-handoff
 {
   "schema_version": 1,
-  "updated_at": "2026-07-25T03:09:22Z",
-  "head_sha": "10bebdde1f7ab94f43d072cb8c40cf59252f8e97",
-  "branch": "main",
-  "worktree": ".",
-  "status": "in_progress",
+  "updated_at": "2026-07-26T20:39:00Z",
+  "head_sha": "dfe8a766b506c828130c1ef171a9d3541a248184",
+  "branch": "docs/hardened-human-loop-plan-2026-07-26",
+  "worktree": "GitHub connector branch",
+  "status": "awaiting_review",
   "completed_items": [
-    "4 feature branches merged: builder-upgrade, companion-personality, life-awareness, image-system-v2",
-    "Auto PR agent review live (GitHub Action + OpenRouter, secret set)",
-    "Builder control actions wired to the CLI — the UI buttons were no-ops before",
-    "Dogfood fixes + AGENTS.md workflow rules + QUICKSTART.md",
-    "Tooling audit session (e3d84e2): dead symlinks, venv, MemoryError contract, search route, soul/ restore, suite green, v0.1 tagged"
+    "Reviewed the founding and master documents against the canonical North Star, roadmap, active mission, and current repository evidence",
+    "Replaced the initial eight-initiative translation with one bounded human outcome-loop proof",
+    "Committed docs/planning/HUMAN_LOOP_HARDENED_PLAN_2026-07-26.md",
+    "Committed docs/session-notes/CHATGPT_CLOSEOUT_2026-07-26.md with today's shipped work, recommended actions, and next-model prompt",
+    "Opened draft PR #271 for review and selective roadmap amalgamation"
   ],
-  "blockers": [],
-  "next_action": "Start the two queued KX-06 packets: KX-06-01 (signals feed on Home, priority 8) then KX-06-02 (plain-English deadline/phone/what-changed cards). The Builder Run button works now, so they can be started from the UI or with ./kitty builder initiative run kx-06-proactive-feed-v1 --free --gate manual.",
+  "blockers": [
+    "The cross-tool knowledge base at ~/kb is a separate local repository and was not writable from this GitHub-only ChatGPT environment"
+  ],
+  "next_action": "Re-verify PR #268 against current main after #269, then review PR #271 and propose only the smallest justified amendment to docs/ROADMAP.md Phase 1.",
   "invalidation_conditions": [
-    "HEAD changes beyond 10bebdde1f7ab94f43d072cb8c40cf59252f8e97",
-    "either queued KX-06 packet is claimed or completed"
+    "PR #268 changes, closes, or merges",
+    "PR #271 head changes beyond dfe8a766b506c828130c1ef171a9d3541a248184",
+    "docs/ROADMAP.md or docs/ACTIVE_MISSION.md changes"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": null
+  "pull_request": 271
 }
 -->
 
-## Goal
+## What was done
 
-Ship 4 merged feature branches + wire CI automation (auto PR review, dogfood) + fix dead
-builder buttons.
+- Added `docs/planning/HUMAN_LOOP_HARDENED_PLAN_2026-07-26.md`.
+  - Corrects the architecture-first drift in the initial insight-to-action pass.
+  - Defines one controlled proof: notice → preserve → orient → select → prepare → act → verify → resume.
+  - Separates doctrine, current-loop requirements, research hypotheses, and backlog capabilities.
+  - Adds safety corrections, measurement rules, expansion gates, and strategy-failure controls.
+  - Proposes bounded roadmap-review questions without creating a second roadmap.
+- Added `docs/session-notes/CHATGPT_CLOSEOUT_2026-07-26.md`.
+  - Summarizes the ChatGPT work.
+  - Records the Kitty work merged on 2026-07-26.
+  - Records current in-flight work and recommended next actions.
+  - Contains a ready-to-use prompt for the next model.
+- Opened draft PR #271: `docs(plan): harden the human-loop strategy for roadmap review`.
+- Re-read current GitHub state after PRs #267 and #269 merged.
 
-## State
+## In-flight / WIP
 
-- **Done:** 4 feature branches merged (builder / personality / life-awareness /
-  image-system). Auto PR agent review live (GitHub Action + OpenRouter, secret set).
-  Builder control actions wired to the CLI (no longer no-ops). Dogfood script + sidebar
-  home fix + gateway.ts fix. AGENTS.md no-tests-mid-session rule + QUICKSTART.md.
-- **In flight:** nothing
-- **Untouched:** task 2–5 follow-up scope (see `docs/planning/agent-prompts-2026-07-24.md`),
-  pre-commit hook (not installed), mempalace migration status (unknown)
+- PR #271 is a draft awaiting review. It is a planning input, not active authority.
+- PR #268 remains open and ready, but its scope assumptions predate PR #269. The old `kx-02` exclusion must be re-verified against the new combined KX manifest on `main`.
+- The durable cross-tool learning still needs to be written to `~/kb/wiki/`, indexed in `~/kb/INDEX.md`, and reflected in `~/kb/NOW.md` from an environment with local filesystem access.
 
-## Gotchas
+## Blockers
 
-- `git push` blocked by OpenCode permission rules — Jacob pushes from terminal
-- Tests only run on `/qg` request or on CI — never mid-session
-- Builder control actions now call `./kitty builder ...` via subprocess — changing the CLI
-  could break the action queue
-- A tier in `config/action_tiers.json` with no matching executor gives you a button that
-  returns HTTP 200 and does nothing. That is exactly how the builder buttons were dead.
-  `tests/test_builder_control_actions.py` guards both halves now.
+- This ChatGPT environment had GitHub repository access but no access to Jacob's separate local `~/kb` repository, so the KB update could not be honestly claimed as completed.
+- No local checkout or command runner for Kitty was available, so repository tests were not run. The PR is docs-only.
 
-## Queued and ready
+## Next move
 
-Two packets, both user-facing, both reusing one card component:
+- Inspect current `main`, PR #268, PR #269, PR #271, `docs/ROADMAP.md`, and `docs/ACTIVE_MISSION.md`; correct #268's stale scope if necessary, then propose the smallest precise roadmap amendment justified by the hardened plan.
 
-- **KX-06-01** (priority 8) — signals feed on Home + "anything to flag?" in chat, with
-  dismiss/snooze.
-- **KX-06-02** (priority 7) — replace the three developer-jargon Home cards (deadlines,
-  phone access, what changed) with plain-English actionable cards.
+## Files changed this session
 
-Note: 23 of 59 queue tasks are cancelled vs 34 done. Worth understanding that scrap rate
-once these two land — the runner being broken is a likely cause.
+- `docs/planning/HUMAN_LOOP_HARDENED_PLAN_2026-07-26.md`
+- `docs/session-notes/CHATGPT_CLOSEOUT_2026-07-26.md`
+- `.claude/HANDOFF.md`
+- `.claude/STATE.md` (session-end update follows this commit)
 
-## Next step
+## Verification
 
-`catch me up` — check what's next from agent-prompts and pick a task.
+- Read `docs/NORTH_STAR.md`, `docs/ROADMAP.md`, `docs/ACTIVE_MISSION.md`, `CLAUDE.md`, the session-end skill, and live session-state files from GitHub.
+- Re-read current PR and commit state after repository movement.
+- Verified PR #271 opened from `docs/hardened-human-loop-plan-2026-07-26` into `main` with the two substantive documents.
+- No runtime, dependency, schema, workflow, or Builder-state changes were made.
+- Tests not run: GitHub-only environment; docs-only change.
