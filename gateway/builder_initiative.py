@@ -516,21 +516,48 @@ def _tracked_dir_is_empty(path: str, repo_root: Path) -> bool:
     return not result.stdout.strip()
 
 
+_CD_PREFIX_RE = re.compile(r"\s*cd\s+([^\s&|;]+)\s*&&\s*(.*)", re.DOTALL)
+_GLOB_CHARS = ("*", "?", "[")
+
+
 def _command_path_tokens(command: str) -> list[str]:
     """Repo-relative path arguments inside a validation command.
 
-    A token counts as a path when it contains "/" or ends in ".py" — enough to
-    catch pytest targets and directory arguments without mistaking flags,
-    interpreters, shell operators or subcommands for files.
+    A leading ``cd <dir> &&`` is honoured, so tokens resolve where the shell
+    will actually look rather than against the repo root. A token counts as a
+    path when it contains "/" or ends in ".py" — enough to catch pytest and
+    vitest targets without mistaking flags, interpreters, shell operators or
+    subcommands for files.
     """
-    tokens: list[str] = []
-    for raw in command.split():
+    base = ""
+    rest = command
+    prefix = _CD_PREFIX_RE.match(command)
+    if prefix:
+        base = prefix.group(1).strip("\"'")
+        rest = prefix.group(2)
+
+    tokens = [base] if base else []
+    for raw in rest.split():
         token = raw.strip("\"'")
         if not token or token.startswith(("-", "/", "~")):
             continue
         if "/" in token or token.endswith(".py"):
-            tokens.append(token)
+            tokens.append(f"{base}/{token}" if base else token)
     return tokens
+
+
+def _path_or_glob_exists(path: str, repo_root: Path) -> bool:
+    """True when ``path`` exists, or — when it is a glob — matches anything.
+
+    ``pytest tests/test_kitty*.py`` is a real gate whenever the pattern matches
+    at least one file, so treating it as a literal path would be a false alarm.
+    """
+    if any(char in path for char in _GLOB_CHARS):
+        try:
+            return any(repo_root.glob(path))
+        except (ValueError, NotImplementedError):
+            return True
+    return (repo_root / path).exists()
 
 
 def warn_manifest(
@@ -628,7 +655,7 @@ def warn_manifest(
         allowed_paths = packet.get("allowed_paths") or []
         for command in packet.get("validation_commands") or []:
             for token in _command_path_tokens(command):
-                if (root / token).exists():
+                if _path_or_glob_exists(token, root):
                     continue
                 if any(_paths_collide(token, path) for path in allowed_paths):
                     continue

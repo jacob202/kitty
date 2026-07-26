@@ -495,6 +495,73 @@ class TestWarnings:
         warnings = bi.warn_manifest(m, repo_root=tmp_path)
         assert not any("can never pass" in w for w in warnings)
 
+    def test_cd_prefix_resolves_the_target_no_false_positive(self, tmp_path: Path):
+        nested = tmp_path / "gateway" / "kitty-chat" / "tests"
+        nested.mkdir(parents=True)
+        (nested / "Surface.test.tsx").write_text("", encoding="utf-8")
+        m = _manifest(
+            packets=[
+                _packet(
+                    "KB-D5",
+                    depends_on=[],
+                    allowed_paths=["docs/research/"],
+                    validation_commands=[
+                        "cd gateway/kitty-chat && npx vitest run tests/Surface.test.tsx"
+                    ],
+                )
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert not any("can never pass" in w for w in warnings)
+
+    def test_cd_prefix_still_catches_a_missing_target(self, tmp_path: Path):
+        (tmp_path / "gateway" / "kitty-chat").mkdir(parents=True)
+        m = _manifest(
+            packets=[
+                _packet(
+                    "KB-D6",
+                    depends_on=[],
+                    allowed_paths=["docs/research/"],
+                    validation_commands=[
+                        "cd gateway/kitty-chat && npx vitest run tests/Absent.test.tsx"
+                    ],
+                )
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert any("can never pass" in w for w in warnings)
+
+    def test_glob_that_matches_is_not_a_dead_gate(self, tmp_path: Path):
+        (tmp_path / "tests").mkdir()
+        (tmp_path / "tests" / "test_kitty_launcher.py").write_text("", encoding="utf-8")
+        m = _manifest(
+            packets=[
+                _packet(
+                    "KB-D7",
+                    depends_on=[],
+                    allowed_paths=["docs/research/"],
+                    validation_commands=["pytest tests/test_kitty*.py -q"],
+                )
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert not any("can never pass" in w for w in warnings)
+
+    def test_glob_that_matches_nothing_warns(self, tmp_path: Path):
+        (tmp_path / "tests").mkdir()
+        m = _manifest(
+            packets=[
+                _packet(
+                    "KB-D8",
+                    depends_on=[],
+                    allowed_paths=["docs/research/"],
+                    validation_commands=["pytest tests/test_cli*.py -q"],
+                )
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert any("can never pass" in w for w in warnings)
+
     # -- (e) npm run gates lie on this machine -------------------------------
 
     def test_npm_run_validation_command_warns(self, tmp_path: Path):
