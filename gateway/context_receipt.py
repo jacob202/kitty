@@ -59,6 +59,9 @@ _REQUIRED_MISSION_KEYS = {
     "base_sha",
     "authority",
 }
+_SUPPORTED_CHECKPOINT_SCHEMA_VERSIONS = {1, 2}
+_RECOMMENDATION_STATUSES = {"ready", "deferred"}
+_REQUIRED_RECOMMENDATION_KEYS = {"id", "what", "status"}
 _ACTIVE_CHECKPOINT_STATUSES = {"in_progress", "blocked", "awaiting_review"}
 _TERMINAL_CHECKPOINT_STATUSES = {"complete", "cancelled", "superseded"}
 _MISSION_STATUSES = {
@@ -227,16 +230,63 @@ def _load_json_comment(path: Path, marker: str) -> dict[str, Any]:
     return payload
 
 
+def _validate_recommendations(relative_path: Path, value: Any) -> None:
+    """Enforce that a deferred recommendation says how it gets released.
+
+    Optional field (absent in schema_version 1). When present, a deferred entry
+    without a runnable ``release_check`` is rejected: an unfalsifiable "wait for
+    the other work" note is the failure mode this field exists to prevent.
+    """
+    if value is None:
+        return
+    if not isinstance(value, list):
+        raise ValueError(f"{relative_path} recommendations must be a list")
+    seen: set[str] = set()
+    for index, entry in enumerate(value):
+        where = f"{relative_path} recommendations[{index}]"
+        if not isinstance(entry, dict):
+            raise ValueError(f"{where} must be a JSON object")
+        missing = sorted(_REQUIRED_RECOMMENDATION_KEYS - set(entry))
+        if missing:
+            raise ValueError(f"{where} is missing keys: {missing}")
+        for key in ("id", "what"):
+            if not isinstance(entry.get(key), str) or not entry[key].strip():
+                raise ValueError(f"{where} {key} must be a non-empty string")
+        if entry["id"] in seen:
+            raise ValueError(
+                f"{where} id {entry['id']!r} is duplicated; reuse one entry so "
+                "deferred_count stays truthful"
+            )
+        seen.add(entry["id"])
+        if entry["status"] not in _RECOMMENDATION_STATUSES:
+            raise ValueError(
+                f"{where} status {entry['status']!r} is not one of "
+                f"{sorted(_RECOMMENDATION_STATUSES)}"
+            )
+        count = entry.get("deferred_count", 0)
+        if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+            raise ValueError(f"{where} deferred_count must be a non-negative integer")
+        if entry["status"] != "deferred":
+            continue
+        for key in ("blocked_by", "release_check"):
+            if not isinstance(entry.get(key), str) or not entry[key].strip():
+                raise ValueError(
+                    f"{where} is deferred, so {key} must be a non-empty string"
+                )
+
+
 def _load_checkpoint(repo_root: Path, relative_path: Path, marker: str) -> dict[str, Any]:
     payload = _load_json_comment(repo_root / relative_path, marker)
     missing = sorted(_REQUIRED_CHECKPOINT_KEYS - set(payload))
     if missing:
         raise ValueError(f"{relative_path} checkpoint metadata is missing keys: {missing}")
-    if payload.get("schema_version") != 1:
+    if payload.get("schema_version") not in _SUPPORTED_CHECKPOINT_SCHEMA_VERSIONS:
         raise ValueError(
-            f"{relative_path} checkpoint schema_version must be 1, "
+            f"{relative_path} checkpoint schema_version must be one of "
+            f"{sorted(_SUPPORTED_CHECKPOINT_SCHEMA_VERSIONS)}, "
             f"got {payload.get('schema_version')!r}"
         )
+    _validate_recommendations(relative_path, payload.get("recommendations"))
     for key in ("completed_items", "blockers", "invalidation_conditions"):
         value = payload.get(key)
         if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
@@ -1114,6 +1164,7 @@ def build_context_receipt(
         "builder": builder,
         "blockers": state.get("blockers") if state else None,
         "next_action": state.get("next_action") if state else None,
+        "recommendations": state.get("recommendations") if state else None,
         "evidence": {
             "receipt_source": "gateway.context_receipt",
             "git_source": "local repository commands; no fetch performed",

@@ -54,9 +54,11 @@ def _checkpoint_metadata(
     completed_items: list[str] | None = None,
     pull_request: dict | None = None,
     updated_at: str = "2026-07-17T11:00:00Z",
+    schema_version: int = 1,
+    recommendations: list[dict] | None = None,
 ) -> str:
     payload = {
-        "schema_version": 1,
+        "schema_version": schema_version,
         "updated_at": updated_at,
         "head_sha": head_sha,
         "branch": branch,
@@ -74,6 +76,8 @@ def _checkpoint_metadata(
         "active_mission": "docs/ACTIVE_MISSION.md",
         "pull_request": pull_request,
     }
+    if recommendations is not None:
+        payload["recommendations"] = recommendations
     return f"# Checkpoint\n\n<!-- {marker}\n" + json.dumps(payload, indent=2) + "\n-->\n"
 
 
@@ -374,3 +378,82 @@ def test_future_dated_checkpoint_fails(tmp_path: Path):
 
     assert levels["state:age"] == "FAIL"
     assert levels["handoff:age"] == "FAIL"
+
+
+def _recommendation(**overrides) -> dict:
+    base = {
+        "id": "merge-kb-payload",
+        "what": "merge the staged KB payload into ~/kb",
+        "why": "the wiki entry is written but unindexed",
+        "class": "code",
+        "status": "ready",
+        "blocked_by": None,
+        "release_check": None,
+        "deferred_count": 0,
+        "first_deferred": None,
+    }
+    base.update(overrides)
+    return base
+
+
+def test_schema_version_two_carries_recommendations_into_the_receipt(tmp_path: Path):
+    repo, head = _repo(tmp_path)
+    recommendations = [
+        _recommendation(),
+        _recommendation(
+            id="wire-gmail-oauth",
+            what="finish the Gmail OAuth handshake",
+            status="deferred",
+            blocked_by="connector branch has not landed",
+            release_check="git merge-base --is-ancestor origin/feat/gmail origin/main",
+            deferred_count=2,
+            first_deferred="2026-07-20",
+        ),
+    ]
+    _write_checkpoint_pair(repo, head, schema_version=2, recommendations=recommendations)
+
+    levels = _levels(repo)
+    receipt = build_context_receipt(repo, expected_canonical=repo, now=NOW)
+
+    assert levels["state:metadata"] == "PASS"
+    assert [item["id"] for item in receipt["recommendations"]] == [
+        "merge-kb-payload",
+        "wire-gmail-oauth",
+    ]
+
+
+def test_deferred_recommendation_without_release_check_fails(tmp_path: Path):
+    # The whole point of the field: "wait for the other work" must be falsifiable.
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(
+        repo,
+        head,
+        schema_version=2,
+        recommendations=[
+            _recommendation(
+                status="deferred",
+                blocked_by="the other session is still running",
+                release_check=None,
+            )
+        ],
+    )
+
+    levels = _levels(repo)
+
+    assert levels["state:metadata"] == "FAIL"
+    assert levels["handoff:metadata"] == "FAIL"
+
+
+def test_duplicate_recommendation_ids_fail(tmp_path: Path):
+    # Reusing one entry is what keeps deferred_count honest across sessions.
+    repo, head = _repo(tmp_path)
+    _write_checkpoint_pair(
+        repo,
+        head,
+        schema_version=2,
+        recommendations=[_recommendation(), _recommendation(deferred_count=3)],
+    )
+
+    levels = _levels(repo)
+
+    assert levels["state:metadata"] == "FAIL"

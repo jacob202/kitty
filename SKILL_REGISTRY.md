@@ -38,6 +38,7 @@ the `.agents/skills/second-opinion/` copy was removed 2026-07-15.
 | journal-entry | 2026-07-15 | KEEP | Wired to Kitty journal subsystem |
 | mcp-kitty-council | 2026-07-15 | KEEP | Council routing — active |
 | provider-credit-debugging | 2026-07-15 | KEEP | Kitty-specific debugging |
+| session-end | 2026-07-26 | KEEP | Session hygiene; wired to `scripts/session_end_survey.sh`, `.claude/HANDOFF.md`, `.claude/STATE.md`, `~/kb` |
 
 **Deleted 2026-07-21** (Jacob confirmed unused; `code-review-graph` MCP confirmed not connected in this environment, superseded by `.codegraph`): `debug-issue`, `explore-codebase`, `refactor-safely`, `review-changes`.
 

@@ -31,6 +31,7 @@ Use [`0000-template.md`](0000-template.md) when adding a new ADR.
 | 0019 | [Audit-Harvest Ratifications](0019-audit-harvest-ratifications.md)                             | Accepted                       | 2026-07-24 |
 | 0020 | [One Canonical Roadmap and Planning Ownership](0020-one-canonical-roadmap.md)                  | Accepted                       | 2026-07-26 |
 | 0021 | [Proactive Builder Execution and Model Policy](0021-proactive-builder-execution.md)            | Accepted                       | 2026-07-26 |
+| 0022 | [Session-End Recommendations Carry Forward In The Checkpoint](0022-session-end-carry-forward-recommendations.md) | Proposed | 2026-07-26 |
 
 Historical decision detail remains in
 [`docs/retired/DECISIONS_AND_ROADMAP.md`](../retired/DECISIONS_AND_ROADMAP.md).
