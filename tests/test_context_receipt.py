@@ -94,7 +94,6 @@ def _authority_map() -> str:
         ("engineering_doctrine", "AGENTS.md"),
         ("architecture", "docs/ARCHITECTURE.md"),
         ("decisions", "docs/DECISIONS.md"),
-        ("roadmap", "docs/ROADMAP.md"),
         ("live_status", "docs/PROJECT_STATUS.md"),
         ("active_mission", "docs/ACTIVE_MISSION.md"),
         ("session_checkpoint", ".claude/STATE.md"),
@@ -120,7 +119,6 @@ def _start_here() -> str:
         "AGENTS.md",
         "docs/ARCHITECTURE.md",
         "docs/DECISIONS.md",
-        "docs/ROADMAP.md",
         "docs/PROJECT_STATUS.md",
         "docs/ACTIVE_MISSION.md",
         ".claude/STATE.md",
@@ -148,7 +146,6 @@ def _repo(tmp_path: Path) -> tuple[Path, str]:
     _write(repo / "docs/NORTH_STAR.md", "# Purpose\n")
     _write(repo / "docs/ARCHITECTURE.md", "# Architecture\n")
     _write(repo / "docs/DECISIONS.md", "# Decisions\n")
-    _write(repo / "docs/ROADMAP.md", "# Roadmap\n")
     _write(repo / "docs/PROJECT_STATUS.md", "# Project Status\n")
     _write(repo / "docs/KITTYBUILDER_QUICKSTART.md", "# Builder interfaces\n")
     _write(repo / "docs/archive/README.md", "# Archive\n")

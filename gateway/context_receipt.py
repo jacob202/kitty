@@ -308,7 +308,6 @@ def _load_authorities(repo_root: Path) -> dict[str, str]:
         "engineering_doctrine",
         "architecture",
         "decisions",
-        "roadmap",
         "live_status",
         "active_mission",
         "session_checkpoint",
