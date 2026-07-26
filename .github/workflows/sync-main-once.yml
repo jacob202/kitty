@@ -1,0 +1,31 @@
+name: Sync main once
+
+on:
+  push:
+    branches:
+      - claude/alignment-map-packet-audit-xbsbbi
+
+permissions:
+  contents: write
+
+jobs:
+  sync-main:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/alignment-map-packet-audit-xbsbbi
+          fetch-depth: 0
+      - name: Merge current main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git merge --no-edit origin/main
+      - name: Remove one-shot workflow and push
+        run: |
+          rm .github/workflows/sync-main-once.yml
+          git add .github/workflows/sync-main-once.yml
+          git commit -m "chore(ci): remove one-shot main sync"
+          git push origin HEAD:claude/alignment-map-packet-audit-xbsbbi
