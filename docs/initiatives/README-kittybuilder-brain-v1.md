@@ -22,7 +22,7 @@ Validation proves schema and authoring checks only. It does not promote either i
 
 Do not apply or run these manifests until all of the following are true:
 
-1. Python and frontend CI install from a clean checkout.
+1. Clean-checkout Python and frontend CI is restored on `main` (#264).
 2. PRs #261, #262, and #263 are resolved coherently.
 3. The exact remaining Phase 1 work has been recalculated from current code and evidence.
 4. At least one tiny real JSON packet has passed the `docs/FREE_MODEL_PACKET_STANDARD.md` checks and a daylight unattended run has been inspected end to end.
