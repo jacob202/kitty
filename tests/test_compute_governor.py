@@ -51,7 +51,7 @@ def test_settled_pass_blocks_a_second_pass_on_the_same_sha(db: Path):
     first = cg.decide(db, dispatch, reserve=_reserve())
     assert first.action == cg.ACTION_RUN
 
-    cg.record_receipt(db, dispatch, outcome=cg.OUTCOME_SETTLED, route=cg.ROUTE_FREE, now=NOW)
+    cg.record_receipt(db, dispatch, outcome=cg.OUTCOME_SETTLED, route=cg.ROUTE_CHEAP, now=NOW)
     second = cg.decide(db, dispatch, reserve=_reserve())
 
     assert second.action == cg.ACTION_REJECT
@@ -61,24 +61,24 @@ def test_settled_pass_blocks_a_second_pass_on_the_same_sha(db: Path):
 def test_a_failed_pass_does_not_consume_the_allowance(db: Path):
     # Work that failed is still owed. Only a settled pass spends the budget.
     dispatch = _dispatch()
-    cg.record_receipt(db, dispatch, outcome=cg.OUTCOME_FAILED, route=cg.ROUTE_FREE, retries=1, now=NOW)
+    cg.record_receipt(db, dispatch, outcome=cg.OUTCOME_FAILED, route=cg.ROUTE_CHEAP, retries=1, now=NOW)
 
     assert cg.decide(db, dispatch, reserve=_reserve()).action == cg.ACTION_RUN
 
 
 def test_recording_two_settled_passes_for_one_sha_fails_loud(db: Path):
     dispatch = _dispatch()
-    cg.record_receipt(db, dispatch, outcome=cg.OUTCOME_SETTLED, route=cg.ROUTE_FREE, now=NOW)
+    cg.record_receipt(db, dispatch, outcome=cg.OUTCOME_SETTLED, route=cg.ROUTE_CHEAP, now=NOW)
 
     with pytest.raises(cg.GovernorError, match="already exists"):
-        cg.record_receipt(db, dispatch, outcome=cg.OUTCOME_SETTLED, route=cg.ROUTE_FREE, now=NOW)
+        cg.record_receipt(db, dispatch, outcome=cg.OUTCOME_SETTLED, route=cg.ROUTE_CHEAP, now=NOW)
 
 
 def test_plan_and_review_are_budgeted_separately(db: Path):
     # One planning pass AND one review per SHA — a settled plan must not block
     # the independent review that checks it.
     plan = _dispatch(task_type="plan", work_kind="planning_pass")
-    cg.record_receipt(db, plan, outcome=cg.OUTCOME_SETTLED, route=cg.ROUTE_FREE, now=NOW)
+    cg.record_receipt(db, plan, outcome=cg.OUTCOME_SETTLED, route=cg.ROUTE_CHEAP, now=NOW)
 
     assert cg.decide(db, _dispatch(), reserve=_reserve()).action == cg.ACTION_RUN
     assert cg.decide(db, plan, reserve=_reserve()).action == cg.ACTION_REJECT
@@ -88,7 +88,7 @@ def test_plan_and_review_are_budgeted_separately(db: Path):
 
 
 def test_new_head_sha_reauthorizes_the_work(db: Path):
-    cg.record_receipt(db, _dispatch(), outcome=cg.OUTCOME_SETTLED, route=cg.ROUTE_FREE, now=NOW)
+    cg.record_receipt(db, _dispatch(), outcome=cg.OUTCOME_SETTLED, route=cg.ROUTE_CHEAP, now=NOW)
 
     moved = cg.decide(db, _dispatch(head_sha=SHA_B), reserve=_reserve())
 
@@ -116,7 +116,7 @@ def test_blocker_evidence_alone_does_not_change_the_fingerprint(db: Path):
 
 def test_human_override_reauthorizes_a_settled_pass(db: Path):
     dispatch = _dispatch()
-    cg.record_receipt(db, dispatch, outcome=cg.OUTCOME_SETTLED, route=cg.ROUTE_FREE, now=NOW)
+    cg.record_receipt(db, dispatch, outcome=cg.OUTCOME_SETTLED, route=cg.ROUTE_CHEAP, now=NOW)
 
     decision = cg.decide(db, dispatch, reserve=_reserve(), override_reason="Jacob: reviewer was wrong")
 
@@ -126,7 +126,7 @@ def test_human_override_reauthorizes_a_settled_pass(db: Path):
 
 def test_blank_override_is_not_an_override(db: Path):
     dispatch = _dispatch()
-    cg.record_receipt(db, dispatch, outcome=cg.OUTCOME_SETTLED, route=cg.ROUTE_FREE, now=NOW)
+    cg.record_receipt(db, dispatch, outcome=cg.OUTCOME_SETTLED, route=cg.ROUTE_CHEAP, now=NOW)
 
     assert cg.decide(db, dispatch, reserve=_reserve(), override_reason="   ").action == cg.ACTION_REJECT
 
@@ -160,10 +160,11 @@ def test_blocker_risk_class_requires_evidence(db: Path):
 # --- routing ---------------------------------------------------------------
 
 
-def test_routine_work_routes_to_the_free_model(db: Path):
+def test_routine_work_routes_to_the_cheap_model(db: Path):
     decision = cg.decide(db, _dispatch(), reserve=_reserve())
 
-    assert (decision.action, decision.route) == (cg.ACTION_RUN, cg.ROUTE_FREE)
+    assert (decision.action, decision.route) == (cg.ACTION_RUN, cg.ROUTE_CHEAP)
+    assert any("deepseek-v4-flash" in reason for reason in decision.reasons)
 
 
 def test_verified_blocker_routes_to_frontier(db: Path):
@@ -183,7 +184,27 @@ def test_frontier_downgrades_to_free_below_the_frontier_floor(db: Path):
 
     decision = cg.decide(db, dispatch, reserve=_reserve(spent=16.0))  # 20% left
 
-    assert (decision.action, decision.route) == (cg.ACTION_DOWNGRADE, cg.ROUTE_FREE)
+    assert (decision.action, decision.route) == (cg.ACTION_DOWNGRADE, cg.ROUTE_CHEAP)
+
+
+def test_routine_work_defers_when_it_cannot_be_afforded(db: Path):
+    # The floors guard the frontier route, but nothing may run on money that
+    # is not there. 6 CAD budget, 5.999 spent: one cheap pass costs more.
+    decision = cg.decide(db, _dispatch(), reserve=_reserve(spent=5.999, budget=6.0))
+
+    assert decision.action == cg.ACTION_DEFER
+    assert any("cheap route projects" in reason for reason in decision.reasons)
+
+
+def test_frontier_downgrades_when_the_pass_costs_more_than_is_left(db: Path):
+    # Above the ratio floor (35% left) but below the price of one frontier
+    # pass: a small weekly budget makes the ratio look healthier than the money.
+    dispatch = _dispatch(risk_class="risky")
+
+    decision = cg.decide(db, dispatch, reserve=_reserve(spent=0.13, budget=0.20))
+
+    assert (decision.action, decision.route) == (cg.ACTION_DOWNGRADE, cg.ROUTE_CHEAP)
+    assert any("rather than overrunning the week" in reason for reason in decision.reasons)
 
 
 def test_frontier_defers_below_the_hard_floor(db: Path):
@@ -195,12 +216,12 @@ def test_frontier_defers_below_the_hard_floor(db: Path):
     assert decision.route is None
 
 
-def test_reserve_pressure_never_blocks_free_routine_work(db: Path):
-    # The governor protects the paid reserve; it must not stall real repairs
-    # that cost nothing.
+def test_reserve_floors_do_not_stall_routine_work(db: Path):
+    # The ratio floors guard the frontier route only. Routine work runs while it
+    # is still affordable, because a stalled repair costs more than it saves.
     decision = cg.decide(db, _dispatch(), reserve=_reserve(spent=19.9))
 
-    assert (decision.action, decision.route) == (cg.ACTION_RUN, cg.ROUTE_FREE)
+    assert (decision.action, decision.route) == (cg.ACTION_RUN, cg.ROUTE_CHEAP)
 
 
 def test_zero_budget_reserve_fails_loud(db: Path):
@@ -213,8 +234,8 @@ def test_zero_budget_reserve_fails_loud(db: Path):
 
 def test_retries_accumulate_across_attempts_on_one_sha(db: Path):
     dispatch = _dispatch()
-    cg.record_receipt(db, dispatch, outcome=cg.OUTCOME_FAILED, route=cg.ROUTE_FREE, retries=2, now=NOW)
-    cg.record_receipt(db, dispatch, outcome=cg.OUTCOME_FAILED, route=cg.ROUTE_FREE, retries=1, now=NOW)
+    cg.record_receipt(db, dispatch, outcome=cg.OUTCOME_FAILED, route=cg.ROUTE_CHEAP, retries=2, now=NOW)
+    cg.record_receipt(db, dispatch, outcome=cg.OUTCOME_FAILED, route=cg.ROUTE_CHEAP, retries=1, now=NOW)
 
     # 3 declared retries plus the second attempt itself.
     assert cg.count_retries(db, task_type="review", subject_ref="pr/276", head_sha=SHA_A) == 4
@@ -222,12 +243,12 @@ def test_retries_accumulate_across_attempts_on_one_sha(db: Path):
 
 def test_negative_retries_are_rejected(db: Path):
     with pytest.raises(cg.GovernorError, match="retries"):
-        cg.record_receipt(db, _dispatch(), outcome=cg.OUTCOME_FAILED, route=cg.ROUTE_FREE, retries=-1)
+        cg.record_receipt(db, _dispatch(), outcome=cg.OUTCOME_FAILED, route=cg.ROUTE_CHEAP, retries=-1)
 
 
 def test_weekly_ledger_totals_by_route_and_labels_itself_an_estimate(db: Path):
     cg.record_receipt(
-        db, _dispatch(), outcome=cg.OUTCOME_SETTLED, route=cg.ROUTE_FREE,
+        db, _dispatch(), outcome=cg.OUTCOME_SETTLED, route=cg.ROUTE_CHEAP,
         model="qwen3-coder:free", estimated_usage_cad=0.0, now=NOW,
     )
     cg.record_receipt(
@@ -241,13 +262,13 @@ def test_weekly_ledger_totals_by_route_and_labels_itself_an_estimate(db: Path):
     assert ledger["runs"] == 2
     assert ledger["retries"] == 1
     assert ledger["estimated_usage_cad"] == pytest.approx(0.42)
-    assert ledger["estimated_usage_cad_by_route"] == {"free": 0.0, "frontier": 0.42}
+    assert ledger["estimated_usage_cad_by_route"] == {"cheap": 0.0, "frontier": 0.42}
     assert "NOT a provider meter" in ledger["basis"]
 
 
 def test_ledger_excludes_other_weeks(db: Path):
     cg.record_receipt(
-        db, _dispatch(), outcome=cg.OUTCOME_SETTLED, route=cg.ROUTE_FREE,
+        db, _dispatch(), outcome=cg.OUTCOME_SETTLED, route=cg.ROUTE_CHEAP,
         estimated_usage_cad=1.0, now=datetime(2026, 7, 12, tzinfo=timezone.utc),
     )
 
@@ -285,8 +306,9 @@ def test_reserve_from_ledger_reflects_recorded_spend(db: Path):
 
     reserve = cg.reserve_from_ledger(db, cg.DEFAULT_RESERVE_CONFIG, week_of=date(2026, 7, 26))
 
+    budget = cg.DEFAULT_RESERVE_CONFIG["weekly_budget_cad"]
     assert reserve.estimated_spend_cad == pytest.approx(5.0)
-    assert reserve.remaining_ratio == pytest.approx(0.75)
+    assert reserve.remaining_ratio == pytest.approx((budget - 5.0) / budget)
 
 
 # --- dispatch parsing and the dry-run explainer ----------------------------
@@ -304,3 +326,57 @@ def test_explain_names_the_action_and_every_reason(db: Path):
 
     assert text.startswith("REJECT")
     assert "acceptance_tests" in text
+
+
+# --- cost estimation -------------------------------------------------------
+
+
+def test_pass_costs_come_from_the_shared_price_registry():
+    # Recomputed by hand from gateway/token_spend_report's snapshot prices:
+    # flash 60k in @ 0.14 + 8k out @ 0.28 = 0.01064 USD; pro 120k in @ 0.435 +
+    # 15k out @ 0.87 = 0.06525 USD. Both converted at the recorded FX rate.
+    from gateway.token_spend_report import USD_TO_CAD
+
+    assert cg.estimate_pass_cost_cad(cg.ROUTE_CHEAP) == pytest.approx(0.01064 * USD_TO_CAD)
+    assert cg.estimate_pass_cost_cad(cg.ROUTE_FRONTIER) == pytest.approx(0.06525 * USD_TO_CAD)
+
+
+def test_the_free_ladder_costs_nothing():
+    assert cg.estimate_pass_cost_cad(cg.ROUTE_FREE) == 0.0
+
+
+def test_cached_input_is_priced_at_the_cached_rate():
+    plain = cg.estimate_cost_cad("deepseek-v4-pro", input_tokens=100_000, output_tokens=0)
+    cached = cg.estimate_cost_cad(
+        "deepseek-v4-pro", input_tokens=0, output_tokens=0, cached_input_tokens=100_000
+    )
+
+    assert cached < plain
+
+
+def test_an_unpriced_model_fails_loud_instead_of_costing_zero():
+    with pytest.raises(cg.GovernorError, match="no snapshot price"):
+        cg.estimate_cost_cad("some-new-model", input_tokens=1000, output_tokens=100)
+
+
+def test_unknown_route_fails_loud():
+    with pytest.raises(cg.GovernorError, match="unknown route"):
+        cg.estimate_pass_cost_cad("premium")
+
+
+def test_default_budget_covers_a_modelled_week_without_downgrading():
+    # 10 tasks x 3 head SHAs x (plan + review + implement), 85% routine.
+    config = cg.DEFAULT_RESERVE_CONFIG
+    passes = 10 * 3 * 3
+    routine = int(passes * 0.85)
+    modelled = (
+        routine * cg.estimate_pass_cost_cad(cg.ROUTE_CHEAP)
+        + (passes - routine) * cg.estimate_pass_cost_cad(cg.ROUTE_FRONTIER)
+    ) * 1.5  # retry headroom
+
+    downgrade_at = config["weekly_budget_cad"] * (1 - config["frontier_floor_ratio"])
+
+    assert modelled < downgrade_at, (
+        f"a modelled week costs CAD {modelled:.2f} but the frontier floor bites at "
+        f"CAD {downgrade_at:.2f} spent — recompute the budget"
+    )

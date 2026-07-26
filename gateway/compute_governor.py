@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Any
 
 from gateway.paths import COMPUTE_GOVERNOR_DB
+from gateway.token_spend_report import PRICE_REGISTRY_USD_PER_MTOKENS, USD_TO_CAD
 
 # Dispatch classes the governor understands. A planning pass and an independent
 # review are separately budgeted; implementation is gated by the same receipt
@@ -66,8 +67,30 @@ RISK_CLASSES = frozenset({"routine", "risky", "blocker"})
 # Only these justify a frontier model. Everything else is routine by default.
 _FRONTIER_RISK_CLASSES = frozenset({"risky", "blocker"})
 
+# Three tiers, and the difference between them is real money.
+#   free     — the zero-cost OpenCode ladder in docs/FREE_WORKERS.md
+#   cheap    — DeepSeek V4 Flash; the paid default for routine work
+#   frontier — DeepSeek V4 Pro; reserved for verified blockers and risky merges
 ROUTE_FREE = "free"
+ROUTE_CHEAP = "cheap"
 ROUTE_FRONTIER = "frontier"
+
+ROUTE_MODELS: dict[str, str | None] = {
+    ROUTE_FREE: None,
+    ROUTE_CHEAP: "deepseek-v4-flash",
+    ROUTE_FRONTIER: "deepseek-v4-pro",
+}
+
+# Token shape of one governed pass, used to price a dispatch before running it.
+# Sized from what a pass over this repository actually reads: a packet brief or
+# PR diff plus the surrounding files, and a patch-sized answer. Deliberately
+# generous — an underestimate here would let the governor authorize work the
+# reserve cannot cover.
+TYPICAL_PASS_TOKENS: dict[str, dict[str, int]] = {
+    ROUTE_FREE: {"input": 0, "output": 0},
+    ROUTE_CHEAP: {"input": 60_000, "output": 8_000},
+    ROUTE_FRONTIER: {"input": 120_000, "output": 15_000},
+}
 
 ACTION_RUN = "run"
 ACTION_DEFER = "defer"
@@ -387,10 +410,25 @@ def decide(
 
     wants_frontier = dispatch.risk_class in _FRONTIER_RISK_CLASSES
     if not wants_frontier:
-        reasons.append("routine risk class routes to the cheapest configured model")
+        cheap_cost = estimate_pass_cost_cad(ROUTE_CHEAP)
+        if cheap_cost > reserve.remaining_cad:
+            reasons.append(
+                f"even the cheap route projects CAD {cheap_cost:.4f} against CAD "
+                f"{reserve.remaining_cad:.4f} left this week"
+            )
+            return Decision(
+                action=ACTION_DEFER,
+                route=None,
+                reasons=tuple(reasons),
+                dispatch_hash=fingerprint,
+            )
+        reasons.append(
+            f"routine risk class routes to {ROUTE_MODELS[ROUTE_CHEAP]} "
+            f"(projected CAD {cheap_cost:.4f})"
+        )
         return Decision(
             action=ACTION_RUN,
-            route=ROUTE_FREE,
+            route=ROUTE_CHEAP,
             reasons=tuple(reasons),
             dispatch_hash=fingerprint,
         )
@@ -415,16 +453,32 @@ def decide(
     if remaining_ratio <= reserve.frontier_floor_ratio:
         reasons.append(
             f"estimated reserve {remaining_ratio:.0%} is at or below the frontier floor "
-            f"{reserve.frontier_floor_ratio:.0%}; downgrading to the free route"
+            f"{reserve.frontier_floor_ratio:.0%}; downgrading to {ROUTE_MODELS[ROUTE_CHEAP]}"
         )
         return Decision(
             action=ACTION_DOWNGRADE,
-            route=ROUTE_FREE,
+            route=ROUTE_CHEAP,
             reasons=tuple(reasons),
             dispatch_hash=fingerprint,
         )
 
-    reasons.append(f"estimated reserve {remaining_ratio:.0%} is above the frontier floor")
+    frontier_cost = estimate_pass_cost_cad(ROUTE_FRONTIER)
+    if frontier_cost > reserve.remaining_cad:
+        reasons.append(
+            f"a frontier pass projects CAD {frontier_cost:.4f} against CAD "
+            f"{reserve.remaining_cad:.4f} left; downgrading rather than overrunning the week"
+        )
+        return Decision(
+            action=ACTION_DOWNGRADE,
+            route=ROUTE_CHEAP,
+            reasons=tuple(reasons),
+            dispatch_hash=fingerprint,
+        )
+
+    reasons.append(
+        f"estimated reserve {remaining_ratio:.0%} is above the frontier floor; "
+        f"{ROUTE_MODELS[ROUTE_FRONTIER]} projects CAD {frontier_cost:.4f}"
+    )
     return Decision(
         action=ACTION_RUN,
         route=ROUTE_FRONTIER,
@@ -473,8 +527,55 @@ def weekly_ledger(
     }
 
 
+def estimate_cost_cad(
+    model: str | None,
+    *,
+    input_tokens: int,
+    output_tokens: int,
+    cached_input_tokens: int = 0,
+) -> float:
+    """Price a call in CAD from Kitty's own snapshot price registry.
+
+    A local estimate, not a provider meter. An unpriced model is an error
+    rather than a free ride — a silent zero would understate the reserve.
+    """
+    if model is None:
+        return 0.0
+    prices = PRICE_REGISTRY_USD_PER_MTOKENS.get(model)
+    if prices is None:
+        raise GovernorError(
+            f"no snapshot price for model {model!r}; add it to "
+            "gateway/token_spend_report.PRICE_REGISTRY_USD_PER_MTOKENS before budgeting against it"
+        )
+    cached_rate = prices.get("cached_input", prices["input"])
+    usd = (
+        input_tokens * prices["input"]
+        + cached_input_tokens * cached_rate
+        + output_tokens * prices["output"]
+    ) / 1_000_000
+    return usd * USD_TO_CAD
+
+
+def estimate_pass_cost_cad(route: str) -> float:
+    """What one governed pass on this route is expected to cost, in CAD."""
+    if route not in ROUTE_MODELS:
+        raise GovernorError(f"unknown route {route!r}; expected one of {sorted(ROUTE_MODELS)}")
+    shape = TYPICAL_PASS_TOKENS[route]
+    return estimate_cost_cad(
+        ROUTE_MODELS[route],
+        input_tokens=shape["input"],
+        output_tokens=shape["output"],
+    )
+
+
+# Derived, not guessed. At snapshot prices one cheap pass costs ~CAD 0.0146 and
+# one frontier pass ~CAD 0.0895. A working week of ~10 tasks x 3 head SHAs x
+# (plan + review + implement) at 85% routine is ~CAD 2.36, or ~CAD 3.54 with
+# retry headroom. CAD 6.00 puts the 25% frontier floor at CAD 4.50 spent — above
+# a normal week, so routine weeks never downgrade, and a bad week degrades to
+# Flash instead of stopping. Recompute if the price registry moves.
 DEFAULT_RESERVE_CONFIG: dict[str, float] = {
-    "weekly_budget_cad": 20.0,
+    "weekly_budget_cad": 6.0,
     "frontier_floor_ratio": 0.25,
     "hard_floor_ratio": 0.05,
 }

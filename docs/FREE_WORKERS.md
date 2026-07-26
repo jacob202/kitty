@@ -126,13 +126,39 @@ pass that *failed* does not consume the allowance — that work is still owed.
 These work kinds are always rejected: `analysis_only`, `prompt_polishing`,
 `repeat_audit`, `review_of_review`, `duplicate_packet`, `speculative_cleanup`.
 
-Routing follows ADR 0021: `routine` risk goes to the free ladder above;
-`risky` and `blocker` may take a frontier route, and `blocker` must name the
-verified failure. Reserve pressure only ever affects the paid route — free
-routine work is never stalled by budget, because a stalled repair costs more
-than it saves. Below `frontier_floor_ratio` a frontier dispatch downgrades to
-free; below `hard_floor_ratio` it defers. Thresholds live in
-`config/compute_governor.json`.
+Routing follows ADR 0021, in three tiers:
+
+| Route | Model | When |
+| ----- | ----- | ---- |
+| `free` | the zero-cost OpenCode ladder above | whenever a free worker can carry the packet |
+| `cheap` | `deepseek-v4-flash` | routine paid work — the default once the free ladder is not in play |
+| `frontier` | `deepseek-v4-pro` | `risky` merges and verified `blocker`s only, and `blocker` must name the failure |
+
+Reserve pressure protects the frontier route, not the work itself. Below
+`frontier_floor_ratio` a frontier dispatch downgrades to Flash; below
+`hard_floor_ratio` it defers. Routine work is never stalled by a ratio floor —
+a stalled repair costs more than it saves — but nothing runs on money that is
+not there: if a pass projects more than the reserve has left, it defers or
+downgrades on the arithmetic rather than the ratio.
+
+### Where the budget number comes from
+
+At the snapshot prices in `gateway/token_spend_report.py` (the single price
+source; the governor imports it rather than keeping its own copy):
+
+| Pass | Model | Tokens | Cost |
+| ---- | ----- | ------ | ---- |
+| routine | V4 Flash | 60k in / 8k out | CAD 0.0146 |
+| frontier | V4 Pro | 120k in / 15k out | CAD 0.0895 |
+
+A working week of ~10 tasks x 3 head SHAs x (plan + review + implement), at 85%
+routine, is **CAD 2.36** — call it **CAD 3.54** with retry headroom. The budget
+is set to **CAD 6.00/week**, which puts the 25% frontier floor at CAD 4.50
+spent: above a normal week, so routine weeks never downgrade, and a bad week
+degrades to Flash instead of stopping. Thresholds live in
+`config/compute_governor.json`; a test fails if the modelled week ever exceeds
+the downgrade point, so a price change surfaces as a red build rather than a
+surprise bill.
 
 ```bash
 ./kitty governor explain dispatch.json   # dry run: run / defer / downgrade / reject, with reasons
