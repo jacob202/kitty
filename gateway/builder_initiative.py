@@ -516,6 +516,50 @@ def _tracked_dir_is_empty(path: str, repo_root: Path) -> bool:
     return not result.stdout.strip()
 
 
+_CD_PREFIX_RE = re.compile(r"\s*cd\s+([^\s&|;]+)\s*&&\s*(.*)", re.DOTALL)
+_GLOB_CHARS = ("*", "?", "[")
+
+
+def _command_path_tokens(command: str) -> list[str]:
+    """Repo-relative path arguments inside a validation command.
+
+    A leading ``cd <dir> &&`` is honoured, so tokens resolve where the shell
+    will actually look rather than against the repo root. A token counts as a
+    path when it contains "/" or ends in ".py" — enough to catch pytest and
+    vitest targets without mistaking flags, interpreters, shell operators or
+    subcommands for files.
+    """
+    base = ""
+    rest = command
+    prefix = _CD_PREFIX_RE.match(command)
+    if prefix:
+        base = prefix.group(1).strip("\"'")
+        rest = prefix.group(2)
+
+    tokens = [base] if base else []
+    for raw in rest.split():
+        token = raw.strip("\"'")
+        if not token or token.startswith(("-", "/", "~")):
+            continue
+        if "/" in token or token.endswith(".py"):
+            tokens.append(f"{base}/{token}" if base else token)
+    return tokens
+
+
+def _path_or_glob_exists(path: str, repo_root: Path) -> bool:
+    """True when ``path`` exists, or — when it is a glob — matches anything.
+
+    ``pytest tests/test_kitty*.py`` is a real gate whenever the pattern matches
+    at least one file, so treating it as a literal path would be a false alarm.
+    """
+    if any(char in path for char in _GLOB_CHARS):
+        try:
+            return any(repo_root.glob(path))
+        except (ValueError, NotImplementedError):
+            return True
+    return (repo_root / path).exists()
+
+
 def warn_manifest(
     manifest: dict[str, Any], *, repo_root: Path | None = None
 ) -> list[str]:
@@ -602,6 +646,37 @@ def warn_manifest(
                 + "; ".join(reasons)
                 + ") but no packet id ends in '-proto'"
             )
+
+    # (d) validation command names a path that does not exist and that this
+    #     packet is not allowed to create, so the gate can never pass. pytest
+    #     exits 4 on a missing target, which reads as "validation failed"
+    #     rather than "the manifest is wrong" — this names it at authoring time.
+    for packet in packets:
+        allowed_paths = packet.get("allowed_paths") or []
+        for command in packet.get("validation_commands") or []:
+            for token in _command_path_tokens(command):
+                if _path_or_glob_exists(token, root):
+                    continue
+                if any(_paths_collide(token, path) for path in allowed_paths):
+                    continue
+                warnings.append(
+                    f"packet {packet['id']!r}: validation command {command!r} "
+                    f"references {token!r}, which does not exist and is not "
+                    "inside allowed_paths — this gate can never pass"
+                )
+
+    # (e) `npm run <script>` exits 194 silently on Jacob's machine, so the gate
+    #     reports a success it never proved. See
+    #     docs/packets/014-make-the-gates-honest.md.
+    for packet in packets:
+        for command in packet.get("validation_commands") or []:
+            if "npm run" in command:
+                warnings.append(
+                    f"packet {packet['id']!r}: validation command {command!r} "
+                    "uses 'npm run', which exits 194 silently in this repo "
+                    "(docs/packets/014-make-the-gates-honest.md) — use "
+                    "'make ui-test'/'make ui-build' or ./node_modules/.bin/*"
+                )
 
     return warnings
 
