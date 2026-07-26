@@ -4,7 +4,7 @@
 {
   "schema_version": 1,
   "mission_id": "KTF-001",
-  "status": "approved",
+  "status": "running",
   "approved_at": "2026-07-26T00:00:00Z",
   "approved_by": "Jacob",
   "base_sha": "b78215efb8d5bc2e5495f9c01d80938528be9638",
@@ -20,14 +20,14 @@ feature work.
 
 ## Why this mission exists
 
-The repository has strong execution machinery and many valuable plans, but CI
-is currently unable to validate either Python or frontend work, planning
-surfaces disagree, no packet yet meets the unattended free-model standard, and
-the existing nightly drain does not implement the proactive delivery authority
-Jacob approved.
+The repository has strong execution machinery and many valuable plans, but its
+planning surfaces disagreed, no packet was proven against the unattended
+free-model standard, and the existing nightly drain did not implement the
+proactive delivery authority Jacob approved. Clean-checkout Python and frontend
+CI were also broken at mission start; PR #264 restored them.
 
-Building another feature before fixing those conditions would create more work
-whose completion cannot be trusted.
+Building another feature before the remaining conditions are proven would
+create more work whose completion cannot be trusted.
 
 ## Scope
 
