@@ -1,85 +1,107 @@
-# Active Mission — Kitty-Wide Frontend + Product-Experience Harvest
+# Active Mission — Trust Foundation and Resume-Loop Proof
 
 <!-- kitty-mission
 {
   "schema_version": 1,
-  "mission_id": "KFX-001",
-  "status": "running",
-  "approved_at": "2026-07-20T00:00:00Z",
+  "mission_id": "KTF-001",
+  "status": "approved",
+  "approved_at": "2026-07-26T00:00:00Z",
   "approved_by": "Jacob",
-  "base_sha": "082a2e8b3d08ea87a1f4f0d6d150e4e0b8db5739",
+  "base_sha": "b78215efb8d5bc2e5495f9c01d80938528be9638",
   "authority": "docs/ACTIVE_MISSION.md"
 }
 -->
 
 ## Objective
 
-Define one coherent Kitty-wide product experience through a comprehensive
-frontend audit of all Kitty surfaces, all feature-adjacent repositories, and
-all discovered frontend references. Produce a product-experience plan, code-
-harvest register, and bounded KX initiative manifests.
+Restore a trustworthy Kitty/KittyBuilder delivery chain, consolidate planning
+authority, and prove one real resume-loop outcome end to end before expanding
+feature work.
 
-This is NOT an Image-Lab-only audit and NOT a backend architecture audit.
-It is a frontend and product-experience harvest covering every product lane.
+## Why this mission exists
 
-## Product decision
+The repository has strong execution machinery and many valuable plans, but CI
+is currently unable to validate either Python or frontend work, planning
+surfaces disagree, no packet yet meets the unattended free-model standard, and
+the existing nightly drain does not implement the proactive delivery authority
+Jacob approved.
 
-- Kitty must feel like one product, not nine panels wearing the same CSS variables.
-- Every feature lane (chat, image, tutor, memory, builder, automations,
-  integrations, evaluation) must go through the same quality process.
-- The standard is not "is the feature wired" — it's "does the product feel
-  coherent."
+Building another feature before fixing those conditions would create more work
+whose completion cannot be trusted.
 
 ## Scope
 
-1. Reconcile repository continuity state, integrate completed image branch.
-2. Inventory every Kitty product surface with live inspection.
-3. Revisit all feature-adjacent repositories from a frontend perspective.
-4. Discover additional mature frontend references.
-5. Create a code-harvest register with license disposition.
-6. Define one Kitty-wide product experience system.
-7. Render a cross-product spike with fixture data.
-8. Derive bounded, dependency-aware KX initiative manifests.
-9. Define experience acceptance gates.
-10. Commit and open the design PR.
+1. Restore functioning Python and frontend CI on clean `main`.
+2. Complete the scoped review and manifest-gate work in PRs #261 and #262.
+3. Ratify the alignment, decision amendments, canonical roadmap, and packet
+   classifications in PR #263.
+4. Reconcile stale mission, status, roadmap, and checkpoint authorities.
+5. Resolve `kx-01` / `kx-02` as one dependency-valid initiative with internal
+   phases rather than adding cross-initiative dependency machinery.
+6. Determine and close the exact remaining Builder reliability delta by
+   evidence, including restart/recovery and provider-exhaustion behavior.
+7. Author at least two JSON manifest packets that satisfy the free-model packet
+   standard and whose gates fail on the unmodified tree.
+8. Run one daylight unattended Builder pass that continues after unrelated
+   failure and safely pauses/resumes on provider exhaustion.
+9. Prove one real life-project resume loop: truthful state → one next move →
+   supported delivery → durable outcome → next action.
 
 ## Authority granted
 
-- Read the repository, Builder state, Git history, and public GitHub state.
-- Edit documentation and audit deliverables.
-- Integrate the approved feat/image-packets-current branch.
-- Repair HANDOFF.md and STATE.md with accurate continuity state.
-- Create a planning branch, commit deliverables, and open a PR for Jacob's review.
-- Run formatting, static checks, tests, and read-only doctors.
+- Read repository, Git/GitHub, supported Builder state, tests, plans, packets,
+  ADRs, research, audits, and archived material.
+- Correct governance, roadmap, mission, packet classification, and status
+  documents from verified evidence.
+- Create tightly scoped branches and PRs for this mission.
+- Under ADRs 0018 and 0021, Builder may commit, push its own packet branches,
+  open/update draft PRs, mark them ready, and merge only evidence-gated low-risk
+  work.
+- Continue with unrelated eligible approved packets after a failure.
+- Use free routes for `free-exec` work and explicit funded paid routes only for
+  packets whose policy allows them.
 
-The mission does NOT authorize pushing to main, merging without review, starting
-Builder KX initiatives, or mutating runtime code.
+## Still excluded
 
-## Deliverables
-
-- `docs/AUDIT_KITTY_FRONTEND_EXPERIENCE_HARVEST_2026-07-20.md`
-- `docs/plans/KITTY_PRODUCT_EXPERIENCE_V1.md`
-- Repaired `HANDOFF.md` and `STATE.md`
-- Updated `ACTIVE_MISSION.md` (this file)
-- PR for Jacob's review of the cross-product experience direction
+- Secrets, auth, `.env`, external messages, real-money spending, destructive
+  data operations, and material scope expansion without explicit approval.
+- Auto-merging dependencies, lockfiles, CI workflows, security boundaries,
+  schema migrations, human-judgment UI work, or unverifiable changes.
+- New feature lanes, queues, schedulers, state stores, orchestrators, event
+  systems, Builder cockpits, or memory substrates before mission exit.
 
 ## Acceptance contract
 
-The mission is complete when:
-1. Continuity checks pass (27/27).
-2. Image branch is integrated and documented.
-3. All Kitty surfaces are inventoried.
-4. All feature-adjacent repos are inspected for frontend evidence.
-5. Code-harvest register is complete with license disposition.
-6. Product-experience plan covers all 10 required domains.
-7. KX initiative program is derived with dependencies.
-8. PR is open for Jacob's review.
-9. The approval command for KX-01 is explicit and actionable.
+The mission is complete only when:
+
+1. Python and frontend CI run green from a clean checkout.
+2. PRs #261, #262, and #263 are resolved with coherent scope and evidence.
+3. `docs/ROADMAP.md` is the sole active roadmap and authority files no longer
+   contradict it or this mission.
+4. Builder recovery is proven for crashed/interrupted work and provider
+   exhaustion without fabricated success or lost evidence.
+5. At least two `free-exec` JSON packets pass the complete authoring checklist,
+   including gate falsifiability.
+6. A daylight unattended run selects eligible work proactively, survives an
+   unrelated failure, and produces a report matching Git/GitHub/Builder truth.
+7. One approved low-risk packet completes the full delivery path through merge
+   and post-merge verification.
+8. One real life project completes the resume-loop proof and surfaces the next
+   action without relying on chat archaeology.
 
 ## Evidence plan
 
-- Continuity check output (27 PASS).
-- Git log showing image branch integration + origin/main sync.
-- Frontend source code inspection (page.tsx, all 36 components, globals.css).
-- Existing audit docs cross-referenced.
-- Screenshots and browser evidence for surface inventory (to be added in spike stage).
+- Clean-checkout dependency installation and CI results.
+- PR changed-file classifications and check results.
+- Authority contradiction scan.
+- Builder run, task, attempt, lease, validation, review, publication, and
+  recovery receipts.
+- Falsifiability evidence for converted packet gates.
+- Daylight drain log and `LAST_DRAIN.md` checked against supported state.
+- Real project resume, next-step, delivery, and outcome records.
+
+## Reporting
+
+Working detail remains in repository documents and Builder artifacts. Chat
+reports only completed outcomes, failures, diagnostic conclusions, and
+questions or decisions requiring Jacob.
