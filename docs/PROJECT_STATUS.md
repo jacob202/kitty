@@ -1,76 +1,78 @@
 # Project Status
 
-**Verified:** 2026-07-17 against `origin/main` at
-`167fa24accb0ff1b574a0a833786a6cdf22957d8`
+**Verified:** 2026-07-26 against `origin/main` at
+`4a0a4c3da72c97df619c0c45ad76426fb645fb52`
 **Canonical repo:** `/Users/jacobbrizinski/Projects/kitty`
 
-Branch, worktree, dirty state, and relation to `origin/main` are derived by
-`./kitty context --agent`; they are not copied into this status document.
+Branch, worktree, dirty state, relation to `origin/main`, and local Builder state
+must be derived from `./kitty context --agent` and supported Builder commands.
+They are not copied into this document as live facts.
 
-## What's Shipped
+## What's shipped
 
-| Phase                   | Description                                                  | Status               |
-| ----------------------- | ------------------------------------------------------------ | -------------------- |
-| Phase B (B0–B5)         | Storage consolidation, SQLite seam, storage router           | ✓ Shipped            |
-| Phase C chats (C0–C6)   | Chat sessions migrated to SQLite                             | ✓ Shipped            |
-| Phase C journal (B0–B6) | Journal migrated to SQLite                                   | ✓ Shipped            |
-| Phase E                 | PWA seam (manifest, service worker, install banner)          | ✓ Shipped            |
-| Memory loop             | Session stop hook + recall-thread readback + /remember skill | ✓ Shipped (#48)      |
-| Mypy gate               | 80 gateway mypy errors cleared; typecheck now blocks CI      | ✓ Shipped (#51)      |
-| Session persistence     | Chat sessions survive restart; SOUL reads real config        | ✓ Shipped (#765caa3) |
-| Startup preflight       | Reliable preflight runs on `./kitty up`                      | ✓ Shipped (#50)      |
-| Phase 3–5 product       | Chat, brief, memory, settings polish; merged to main         | ✓ Shipped (#14f5865) |
-| Gateway deepening       | Route consolidation, fail-loud, duplicate route contracts     | ✓ Shipped (#569608b) |
-| Builder improvements    | Queue, run-loop safety rails, initiative doctor preflight     | ✓ Shipped            |
-| Builder investigation UI | Bounded status projection and read-only Home/Builder surface  | ✓ Shipped (#183)     |
-| Fail-loud sweep         | Verifier false-green, enrichment markers, model discovery     | ✓ Shipped (Card C)   |
+Kitty has substantial working product and delivery infrastructure. Verified
+shipped areas include:
 
-## Live release and Builder state
+- consolidated SQLite-backed storage for core state, chats, and journal;
+- chat, brief, memory, settings, projects/resume, next-step, phone, image, and
+  Builder investigation surfaces;
+- durable Builder queue, attempts, leases, validation, recovery rails, worker
+  identity checks, initiative tooling, operator controls, and PR publication;
+- CI gates for Python, typing, lint, hygiene, frontend tests/build, and browser
+  smoke.
 
-GitHub reported no open pull requests at the 2026-07-17 audit. PR #181 shipped
-the Engineering Leverage and Builder identity work, #183 shipped the Builder
-status/UI surface, and #184 repaired the production browser-smoke build gate.
+This list is a capability summary, not permission to replay historical packets.
+Remaining work must be calculated from current code and evidence.
 
-The supported Builder projection reported zero initiatives and one cancelled
-task, with no queued, claimed, running, blocked, review, or failed work. Builder
-doctor reported 13 pass, 1 warning, 0 failures; the warning is that the
-KittyBuilder worktree root has not yet been created. This is an observation,
-not a substitute for a fresh Builder probe.
+## Current release and open work
 
-## Last verified test state
+PR #264 restored clean-checkout Python and frontend installation and merged to
+`main`. Its final required checks passed: dependency install, full pytest with
+coverage, frontend tests, production build, browser smoke, lint, mypy, hygiene,
+PR description, and independent PR-agent review.
 
-- Builder UI release: 616 backend tests, 150 frontend tests, TypeScript, Ruff,
-  mypy, browser QA, and production Webpack compilation passed before #183/#184
-  merged.
-- The Project Control Plane mission owns its current validation ledger in
-  `.claude/STATE.md`; do not promote an old count into a current claim.
-- `./kitty doctor --json` on 2026-07-17 still reported host prerequisites that
-  need attention: missing root `.env`, missing root `venv`, and unavailable
-  mem0. Gateway and LiteLLM service probes passed. These failures are explicit
-  and are not being reclassified as code success.
+Open governance/manifest work:
 
-## Runtime Shape
+- PR #261 — reviewed KittyBuilder Brain research plus manifest-validator checks;
+- PR #262 — mechanical repair of 33 initiative validation gates;
+- PR #263 — KTF-001 mission, one canonical roadmap, authority alignment, ADR
+  amendments, and packet/autonomy policy.
 
-- Gateway: FastAPI on `127.0.0.1:8000`
-- LiteLLM proxy: `127.0.0.1:8001`
-- Data: `data/kitty/kitty.db` (SQLite), `data/chromadb/` (vectors), `data/inbox.jsonl` (capture)
-- Start: `./kitty up` | Stop: `./kitty down` | Health: `./kitty doctor --json`
+Their live state must be read from GitHub, not inferred from this paragraph.
 
-## Active Technical Debt
+## Builder state
 
-- Mission runtime and autonomous Kitty→Builder submission are not implemented;
-  ADR 0017 is a contract only.
-- Safe bounded Builder log and artifact delivery remains unavailable by design.
-- Root doctor prerequisites listed above remain unresolved and must stay loud.
+The Builder database and execution evidence are local runtime state. They were
+not available through the GitHub-only verification used for this update, so the
+current queue, initiative, attempt, lease, and provider-exhaustion state is
+**unknown here**. Use supported `./kitty builder ... --json` projections on the
+canonical machine before making a runtime claim.
 
-## What's Next
+## Current mission and priority
 
-The one approved mission is `docs/ACTIVE_MISSION.md`: establish the Project
-Control Plane / Continuity Foundation. The exact current action and blockers
-live only in `.claude/STATE.md` and must match its context receipt.
+The approved mission is KTF-001 in `docs/ACTIVE_MISSION.md`. The only active
+sequence is `docs/ROADMAP.md` Phase 1:
 
-After this mission, the next product step is to implement the versioned Mission
-runtime and governed submission bridge in a separately approved packet. Do not
-enable autonomous Builder mutation as part of the foundation.
+1. resolve PRs #261, #262, and #263 coherently;
+2. reconcile active authority/checkpoint contradictions;
+3. calculate the exact remaining Builder reliability delta;
+4. author at least two falsifiable `free-exec` JSON packets;
+5. inspect one daylight unattended delivery run end to end;
+6. prove one real life-project resume loop.
 
-Authority routing lives only in `docs/AUTHORITY_MAP.md`.
+Do not start another feature lane, queue, scheduler, state store, orchestrator,
+architecture survey, Builder cockpit, or memory substrate before the Phase 1
+exit criteria are met.
+
+## Known limitations
+
+- No existing prose packet is automatically proven `free-exec`.
+- Packet 007 emits Markdown drafts, not executable Builder manifests.
+- The current nightly drain does not yet prove cross-initiative continuation,
+  explicit resumable provider exhaustion, or the complete draft/ready/low-risk
+  merge lifecycle.
+- Builder runtime recovery and one real resume-loop outcome remain unproven by
+  current repository evidence.
+
+Authority routing lives only in `docs/AUTHORITY_MAP.md`; current priority lives
+only in `docs/ROADMAP.md` and the approved Mission.

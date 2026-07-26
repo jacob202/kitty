@@ -42,6 +42,7 @@ def test_clean_reader_can_resolve_all_cold_start_questions() -> None:
         "product_purpose": "docs/NORTH_STAR.md",
         "architecture": "docs/ARCHITECTURE.md",
         "decisions": "docs/DECISIONS.md",
+        "roadmap": "docs/ROADMAP.md",
         "live_status": "docs/PROJECT_STATUS.md",
         "active_mission": "docs/ACTIVE_MISSION.md",
         "session_checkpoint": ".claude/STATE.md",
@@ -62,13 +63,13 @@ def test_clean_reader_can_resolve_all_cold_start_questions() -> None:
     assert "Kitty is the principal product agent" in documents["architecture"]
     # 2–3. What is KittyBuilder and what is the boundary?
     assert "KittyBuilder is the execution organization" in documents["architecture"]
-    assert "approved Mission → KittyBuilder" in boundary
-    assert "does not enable autonomous submission or mutation" in boundary
+    assert "approved Mission and authored packets → KittyBuilder" in boundary
+    assert "Builder does not invent the roadmap" in boundary
     # 4. What is shipped?
-    assert "## What's Shipped" in documents["live_status"]
-    assert "Builder investigation UI" in documents["live_status"]
+    assert "## What's shipped" in documents["live_status"]
+    assert "Builder investigation" in documents["live_status"]
     # 5. What is active?
-    assert "Product-Experience Harvest" in documents["active_mission"]
+    assert "Trust Foundation and Resume-Loop Proof" in documents["active_mission"]
     assert receipt["continuity"]["active_mission"]["status"] == "running"
     # 6. What is next?
     assert isinstance(receipt["next_action"], str) and receipt["next_action"]

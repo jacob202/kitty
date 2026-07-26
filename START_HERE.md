@@ -35,10 +35,11 @@ to authorities; it does not describe current state itself.
 3. [`AGENTS.md`](AGENTS.md) — engineering doctrine and safety rules.
 4. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — current runnable system and boundaries.
 5. [`docs/DECISIONS.md`](docs/DECISIONS.md) — accepted ADR index and supersession.
-6. [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) — shipped state and verified limitations.
-7. [`docs/ACTIVE_MISSION.md`](docs/ACTIVE_MISSION.md) — the one approved active mission.
-8. [`.claude/STATE.md`](.claude/STATE.md) — current branch checkpoint and next action.
-9. [`.claude/HANDOFF.md`](.claude/HANDOFF.md) — continuation only when marked valid.
+6. [`docs/ROADMAP.md`](docs/ROADMAP.md) — the sole active delivery sequence and phase exit criteria.
+7. [`docs/PROJECT_STATUS.md`](docs/PROJECT_STATUS.md) — verified shipped state and explicit unknowns.
+8. [`docs/ACTIVE_MISSION.md`](docs/ACTIVE_MISSION.md) — the one approved active mission.
+9. [`.claude/STATE.md`](.claude/STATE.md) — current branch checkpoint and next action.
+10. [`.claude/HANDOFF.md`](.claude/HANDOFF.md) — continuation only when marked valid.
 <!-- kitty-reading-order:end -->
 
 ## Core commands

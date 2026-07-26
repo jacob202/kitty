@@ -1,42 +1,38 @@
 # ADR-0010: Kitty Is A Personal Operating Layer
 
-**Status:** Accepted
+**Status:** Accepted; amended 2026-07-26
 **Date:** 2026-07-01 (from `docs/OPERATOR_STRATEGY.md`, merged in #59)
 
 ## Context
 
-Kitty's product identity has to be one thing. Without a clear
-identity, every new packet becomes its own product: chat over
-here, capture over there, memory in a different direction, agents
-in yet another.
+Kitty's product identity has to be one thing. Without a clear identity, every
+new packet becomes its own product: chat over here, capture over there, memory
+in a different direction, agents in yet another.
 
 ## Decision
 
-Kitty is a personal operating layer: a state store,
-capture-and-triage loop, action queue with enforced approval tiers,
-and model-delegation router — worn with the SOUL persona. Chat is
-one interface to that layer, not the product.
+Kitty is a personal operating layer: a state store, capture-and-triage loop,
+action queue with enforced approval tiers, and model-delegation router — worn
+with the SOUL persona. Chat is one interface to that layer, not the product.
 
-The near-term build order is the state + action spine (packets in
-`docs/packets/`), not further consolidation, memory expansion, or
-UI polish.
+## Original near-term consequence
 
-## Consequences
+The original ADR prioritized the state + action spine over further
+consolidation, memory expansion, or UI polish and ruled out new substrates and
+fabricated state surfaces until that spine shipped.
 
-What this rules out until the spine ships:
+## Amendment — 2026-07-26
 
-- New memory substrates, typed knowledge graphs, event buses.
-- Autonomous outbound actions of any kind (draft-only until the
-  action queue has audit history).
-- Panels or endpoints that serve fabricated data; state surfaces
-  bind to real rows or do not ship.
+The state and action spine has shipped. Its old packet-order instruction is
+fulfilled and no longer controls the roadmap.
 
-What this commits to:
+The durable product decision remains:
 
-- New state-spine stores (signals, triage, actions, projects) are
-  each their own module over `kitty.db` migrations, per ADR-0008.
-- External feeds are cron-polled connectors that emit deduped
-  signal rows.
-- Every action Kitty takes is a recorded row with a preview and a
-  result; approval tiers are enforced in the executor registry,
-  in code.
+- Kitty is the personal operating layer, not a collection of disconnected
+  feature panels.
+- State surfaces bind to real rows or report unavailable/unknown; they do not
+  render fabricated success.
+- New work is sequenced by `docs/ROADMAP.md` under ADR 0020 and the life-first
+  North Star, not by the 2026-07-01 packet order.
+- The next product proof is the resume loop working end to end for a real life
+  project, after the trust foundation is restored.
