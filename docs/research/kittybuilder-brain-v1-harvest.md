@@ -43,13 +43,15 @@ License: MIT
 
 Concrete implementation surfaces:
 
-- `packages/opencode/src/session/index.ts` — session lifecycle and session-level events
-- `packages/opencode/src/session/status.ts` — typed `session.status`
-- `packages/opencode/src/session/message-v2.ts` and session processor files — messages, parts and tool activity
+- `packages/opencode/src/session/session.ts` — session lifecycle and session-level events
+- `packages/opencode/src/session/status.ts` — typed `session.status` (verified: `Info` aliases `SessionStatusEvent.Info`; `idle` drops the session from the active map)
+- `packages/opencode/src/session/message-v2.ts` and `packages/opencode/src/session/processor.ts` — messages, parts and tool activity
 - `packages/opencode/src/bus/` — event publication/subscription
-- `packages/opencode/src/server/server.ts` — headless HTTP server and authentication
-- server event route (`GET /event`) — SSE-style event delivery used by clients
-- generated OpenCode SDK/client packages — session create/list/read/prompt/abort APIs
+- `packages/opencode/src/server/server.ts` — server bootstrap only; it delegates routes to `./routes/instance/httpapi/server` and `./routes/instance/httpapi/public`
+- `packages/opencode/src/server/routes/instance/httpapi/` — actual route definitions (`api.ts`, `handlers/`, `groups/`, `websocket-tracker.ts`)
+- `packages/opencode/src/server/event.ts` — server event *schemas* (type contracts, not the endpoint)
+- `packages/opencode/src/event-manifest.ts`, `packages/opencode/src/event-v2-bridge.ts` — top-level event catalogue and v2 bridge
+- `packages/client/`, `packages/sdk-next/` — generated client SDKs, **TypeScript only**
 
 Useful behavior:
 
@@ -278,3 +280,90 @@ An Oh My Pi spike should be a separate optional packet after OpenCode integratio
 - **DeepSeek-Coder:** model option, not orchestration substrate.
 
 This is enough evidence to unblock KB-BRAIN-01 without asking a coding worker to perform another broad repository survey.
+
+## Review addendum — 2026-07-26
+
+Added during review of commit `03cce01`. The external survey holds up; the
+Kitty-side half of the packet objective ("Inspect Kitty's current Builder
+runtime/UI") was never written down, and three citations were wrong.
+
+### Citation corrections (verified at the pinned SHAs)
+
+- `packages/opencode/src/session/index.ts` **does not exist**. The directory
+  has no `index.ts`; the file is `session/session.ts`. Corrected above.
+- `packages/opencode/src/server/server.ts` is bootstrap, not routes. The
+  `GET /event` claim was the only integration surface in the document cited
+  without a file path — and it is the surface the entire adapter
+  recommendation rests on. Routes live under
+  `server/routes/instance/httpapi/`. **Transport is unconfirmed**: that
+  directory contains `websocket-tracker.ts`, so KB-BRAIN-03's "use SSE
+  unless the harvest demonstrates a need for WebSocket" rests on an
+  assumption the harvest never tested. KB-BRAIN-01 must confirm the actual
+  event transport before the envelope design is frozen.
+- OpenCode ships **no Python SDK** — `packages/client/` and
+  `packages/sdk-next/` are TypeScript. Kitty's gateway is Python, so
+  "use the generated SDK" is not available; the adapter must speak raw
+  HTTP/stream against an API with no compatibility guarantee. That is a
+  cost the ADOPT verdict should carry explicitly.
+
+Verified as accurate: both pinned SHAs resolve, the `sst/opencode` →
+`anomalyco/opencode` redirect is real, and every cited path in
+oh-my-opencode-slim, oh-my-pi and architect exists. Licenses check out
+(slim: MIT, architect: MIT).
+
+### Kitty inventory the register omitted
+
+The register names Kitty destinations but never inventories what Kitty
+already has, so three of its destinations would duplicate live code:
+
+| Harvest destination | Already exists | Consequence if ignored |
+| --- | --- | --- |
+| "replayable SSE event stream" (KB-BRAIN-03) | `gateway/sse.py` (`SSEBroadcaster`), `/stream` in `gateway/app.py`, `useSSE()` in `src/lib/sse.ts` | A second, parallel SSE stack |
+| "canonical runtime snapshot" (KB-BRAIN-02) | `gateway/builder_status.py::build_status_snapshot()` — already `schema_version: 2` with an `integrity` partial/complete signal | A second read model over the same tables |
+| "native Kitty cockpit" (KB-BRAIN-04) | `BuilderSurface.tsx` (1207 lines), polling `/runtime/manifest` every 5–15s | Rewrite framed as greenfield |
+
+The existing `SSEBroadcaster` is a **bare broadcast bus**: keyed by session,
+one queue per client, no cursor, no replay buffer, no per-packet filtering,
+and `broadcast()` fans out to every connected client. It cannot satisfy
+KB-BRAIN-03's reconnect/backpressure criteria as written. That is an
+argument for *extending* it, not for building beside it — the packet's
+`allowed_paths` have been corrected to include `gateway/sse.py` so the
+worker can do that. Same for `builder_status.py` in KB-BRAIN-02.
+
+### The shell adapter's earned behaviour is unspecified
+
+"Retain the current shell adapter as a fallback" understates what
+`scripts/kittybuilder_opencode_worker.sh` encodes. Its semantics are load-
+bearing and were paid for in CP-08 dogfood failures:
+
+- a free-model ladder with fallback **only on clean failure** — no result
+  written *and* HEAD plus worktree unchanged (fingerprint comparison), so a
+  second model never builds on the first one's debris
+- refusing a result written by a model that exited non-zero
+- committing on the worker's behalf, because models forget and publish then
+  fails on a dirty worktree
+- stamping `[<packet_id>]` into the commit subject, because
+  `builder_identity.verify_and_escalate` rejects marker-less commits
+  identically to foreign ones
+
+A `WorkerSession` contract that does not reproduce these will regress
+reliability while appearing more sophisticated. KB-BRAIN-01 should treat
+this list as acceptance criteria, not background.
+
+### Concurrency risk the manifests do not address
+
+Branch leases in `gateway/builder_queue_branch_leases.py` are keyed with
+`initiative_id` scoping, and the conflict query filters on
+`initiative_id` in both clauses — so two initiatives can hold concurrent
+leases by design. `warn_manifest` detects `allowed_paths` collisions only
+*within* one manifest.
+
+`kittybuilder-brain-v1` and `process-hardening-v1` are meant to run
+independently (see the launch README) and both claim
+`gateway/builder_loop.py` — KB-BRAIN-01/05 against PH-02/06. Nothing in the
+tooling will notice. Under the ADR 0018 carve-out those campaign branches
+auto-merge on green, so the second merge either conflicts or lands on a file
+whose tests went green against the *previous* version.
+
+Run these two initiatives sequentially, or split `builder_loop.py` out of
+one of them, until cross-initiative path collision is detected in tooling.

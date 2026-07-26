@@ -26,7 +26,7 @@
       "policy": { "max_attempts": 2, "priority": 10 },
       "validation_commands": [
         "git diff --check",
-        "python3.12 -m pytest tests/test_docs_architecture.py tests/test_docs_consistency.py -q --tb=short"
+        "python3.12 -m pytest tests/test_cold_start_acceptance.py -q --tb=short"
       ]
     },
     {
@@ -77,8 +77,9 @@
       "allowed_paths": [
         "gateway/builder_runtime.py",
         "gateway/builder_report.py",
-        "gateway/routes/builder.py",
-        "gateway/server.py",
+        "gateway/builder_status.py",
+        "gateway/routes/builder_control.py",
+        "gateway/app.py",
         "tests/test_builder_runtime.py",
         "tests/test_builder_routes.py",
         "tests/test_builder_report.py"
@@ -106,8 +107,9 @@
       "allowed_paths": [
         "gateway/builder_events.py",
         "gateway/builder_worker_session.py",
-        "gateway/routes/builder.py",
-        "gateway/server.py",
+        "gateway/sse.py",
+        "gateway/routes/builder_control.py",
+        "gateway/app.py",
         "tests/test_builder_events.py",
         "tests/test_builder_routes.py"
       ],
@@ -134,7 +136,8 @@
       ],
       "allowed_paths": [
         "gateway/kitty-chat/src/components/builder/",
-        "gateway/kitty-chat/src/components/",
+        "gateway/kitty-chat/src/components/BuilderSurface.tsx",
+        "gateway/kitty-chat/src/components/BuilderView.tsx",
         "gateway/kitty-chat/src/lib/",
         "gateway/kitty-chat/src/app/",
         "gateway/kitty-chat/src/__tests__/",
@@ -143,8 +146,7 @@
       "policy": { "max_attempts": 3, "priority": 9 },
       "validation_commands": [
         "make ui-test",
-        "cd gateway/kitty-chat && npm run typecheck",
-        "cd gateway/kitty-chat && npm run build",
+        "make ui-build",
         "git diff --check"
       ]
     },
@@ -166,7 +168,7 @@
         "gateway/builder_cli.py",
         "gateway/builder_loop.py",
         "gateway/builder_run.py",
-        "gateway/routes/builder.py",
+        "gateway/routes/builder_control.py",
         "gateway/kitty-chat/src/components/builder/",
         "gateway/kitty-chat/src/lib/",
         "gateway/kitty-chat/src/__tests__/",
@@ -177,7 +179,7 @@
       "validation_commands": [
         "python3.12 -m pytest tests/test_builder_commands.py tests/test_builder_routes.py -q --tb=short",
         "make ui-test",
-        "cd gateway/kitty-chat && npm run build",
+        "make ui-build",
         "git diff --check"
       ]
     },
@@ -198,7 +200,7 @@
       "allowed_paths": [
         "gateway/builder_brain.py",
         "gateway/builder_runtime.py",
-        "gateway/routes/builder.py",
+        "gateway/routes/builder_control.py",
         "gateway/kitty-chat/src/components/builder/",
         "gateway/kitty-chat/src/lib/",
         "tests/test_builder_brain.py",
@@ -232,7 +234,7 @@
         "gateway/builder_autopilot.py",
         "gateway/builder_commands.py",
         "gateway/builder_run.py",
-        "gateway/routes/builder.py",
+        "gateway/routes/builder_control.py",
         "gateway/kitty-chat/src/components/builder/",
         "tests/test_builder_brain.py",
         "tests/test_builder_autopilot.py",

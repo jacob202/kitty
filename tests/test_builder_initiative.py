@@ -433,6 +433,98 @@ class TestWarnings:
         )
         assert bi.warn_manifest(m, repo_root=repo) == []
 
+    # -- (d) validation command that can never pass --------------------------
+
+    def test_validation_command_missing_target_warns(self, tmp_path: Path):
+        m = _manifest(
+            packets=[
+                _packet(
+                    "KB-D1",
+                    depends_on=[],
+                    allowed_paths=["docs/research/"],
+                    validation_commands=["pytest tests/test_absent.py -q"],
+                )
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert any("can never pass" in w for w in warnings)
+
+    def test_validation_target_the_packet_creates_no_false_positive(
+        self, tmp_path: Path
+    ):
+        m = _manifest(
+            packets=[
+                _packet(
+                    "KB-D2",
+                    depends_on=[],
+                    allowed_paths=["tests/test_new.py"],
+                    validation_commands=["pytest tests/test_new.py -q"],
+                )
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert not any("can never pass" in w for w in warnings)
+
+    def test_existing_validation_target_no_false_positive(self, tmp_path: Path):
+        (tmp_path / "tests").mkdir()
+        (tmp_path / "tests" / "test_here.py").write_text("", encoding="utf-8")
+        m = _manifest(
+            packets=[
+                _packet(
+                    "KB-D3",
+                    depends_on=[],
+                    allowed_paths=["docs/research/"],
+                    validation_commands=["pytest tests/test_here.py -q --tb=short"],
+                )
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert not any("can never pass" in w for w in warnings)
+
+    def test_flags_and_subcommands_are_not_treated_as_paths(self, tmp_path: Path):
+        m = _manifest(
+            packets=[
+                _packet(
+                    "KB-D4",
+                    depends_on=[],
+                    allowed_paths=["docs/research/"],
+                    validation_commands=["git diff --check", "make ui-test"],
+                )
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert not any("can never pass" in w for w in warnings)
+
+    # -- (e) npm run gates lie on this machine -------------------------------
+
+    def test_npm_run_validation_command_warns(self, tmp_path: Path):
+        m = _manifest(
+            packets=[
+                _packet(
+                    "KB-E1",
+                    depends_on=[],
+                    allowed_paths=["gateway/kitty-chat/src/"],
+                    validation_commands=["cd gateway/kitty-chat && npm run build"],
+                )
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert any("exits 194" in w for w in warnings)
+
+    def test_make_ui_targets_no_false_positive(self, tmp_path: Path):
+        m = _manifest(
+            packets=[
+                _packet(
+                    "KB-E2",
+                    depends_on=[],
+                    allowed_paths=["gateway/kitty-chat/src/"],
+                    validation_commands=["make ui-test", "make ui-build"],
+                )
+            ]
+        )
+        warnings = bi.warn_manifest(m, repo_root=tmp_path)
+        assert not any("exits 194" in w for w in warnings)
+
 
 # ---------------------------------------------------------------------------
 # Apply
