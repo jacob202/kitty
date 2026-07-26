@@ -28,7 +28,7 @@
         "priority": 5
       },
       "validation_commands": [
-        "sha256sum -c --quiet docs/initiatives/ktf-002-expected.sha256"
+        "shasum -a 256 -c docs/initiatives/ktf-002-expected.sha256"
       ]
     }
   ]
