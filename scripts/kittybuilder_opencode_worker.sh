@@ -129,7 +129,7 @@ done
 
 if [[ -z "${chosen_model}" ]]; then
   echo "ERROR: every free model failed cleanly without producing a result: ${models[*]}" >&2
-  exit 1
+  exit 75
 fi
 echo "Free builder completed with ${chosen_model}."
 

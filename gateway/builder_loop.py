@@ -63,6 +63,9 @@ LOOP_SUCCEEDED = "succeeded"
 LOOP_EXHAUSTED = "exhausted"
 LOOP_CANCELLED = "cancelled"
 
+LOOP_PROVIDER_EXHAUSTED = "provider_exhausted"
+PROVIDER_EXHAUSTED_EXIT_CODE = 75
+
 
 class LoopError(RuntimeError):
     """Raised when the packet loop cannot proceed at all."""
@@ -126,6 +129,55 @@ def _record_infrastructure_failure(
         payload=payload,
         db_path=db_path,
     )
+
+
+def _close_provider_exhaustion(
+    *,
+    initiative_id: str,
+    packet_id: str,
+    task_id: str,
+    attempt: dict[str, Any],
+    lease: dict[str, Any],
+    entry: dict[str, Any],
+    history: list[dict[str, Any]],
+    manifest: dict[str, Any],
+    manifest_path: Path,
+    reason: str,
+    phase: str,
+    db_path: Path | None,
+) -> dict[str, Any]:
+    """Close a clean provider outage without charging the implementation budget."""
+    entry["outcome"] = ba.ATTEMPT_CRASHED
+    entry["failure"] = reason
+    entry["provider_exhausted"] = True
+    manifest["outcome"] = LOOP_PROVIDER_EXHAUSTED
+    manifest["failure"] = _text_evidence(reason)
+    write_run_manifest(manifest_path, manifest)
+    _close_bound_attempt(attempt, lease, ba.ATTEMPT_CRASHED, db_path=db_path)
+    _record_infrastructure_failure(
+        task_id,
+        reason=reason,
+        phase=phase,
+        attempt_id=attempt["id"],
+        db_path=db_path,
+    )
+    task = bq.get_task(task_id, db_path=db_path)
+    if task is not None and task["state"] == bq.BLOCKED:
+        bq.operator_release_task(
+            task_id,
+            reason="provider_exhausted_resumable_pause",
+            db_path=db_path,
+        )
+    final_task = bq.get_task(task_id, db_path=db_path)
+    return {
+        "outcome": LOOP_PROVIDER_EXHAUSTED,
+        "initiative_id": initiative_id,
+        "packet_id": packet_id,
+        "task_id": task_id,
+        "task_state": final_task["state"] if final_task else None,
+        "reason": reason,
+        "attempts": history,
+    }
 
 
 def _validation_evidence(validation: dict[str, Any]) -> dict[str, Any]:
@@ -857,6 +909,25 @@ def run_packet(
         }
         write_run_manifest(manifest_path, manifest)
 
+        if (
+            run.get("exit_code") == PROVIDER_EXHAUSTED_EXIT_CODE
+            and not run_report.get("changed_paths")
+        ):
+            return _close_provider_exhaustion(
+                initiative_id=initiative_id,
+                packet_id=packet_id,
+                task_id=task_id,
+                attempt=attempt,
+                lease=lease,
+                entry=entry,
+                history=history,
+                manifest=manifest,
+                manifest_path=manifest_path,
+                reason="all configured free worker providers were unavailable",
+                phase="worker_provider_exhaustion",
+                db_path=db_path,
+            )
+
         failure: str | None = None
         # CP-03: set only when this attempt's failure needs a human decision
         # (scope/identity escalation) rather than a routine retry. Carries
@@ -1043,6 +1114,26 @@ def run_packet(
                 },
                 timeout_seconds=review_timeout_seconds,
             )
+            if (
+                review_error is not None
+                and review_error.startswith(
+                    f"review command exited {PROVIDER_EXHAUSTED_EXIT_CODE}:"
+                )
+            ):
+                return _close_provider_exhaustion(
+                    initiative_id=initiative_id,
+                    packet_id=packet_id,
+                    task_id=task_id,
+                    attempt=attempt,
+                    lease=lease,
+                    entry=entry,
+                    history=history,
+                    manifest=manifest,
+                    manifest_path=manifest_path,
+                    reason="all configured free reviewer providers were unavailable",
+                    phase="review_provider_exhaustion",
+                    db_path=db_path,
+                )
             if review_error is not None:
                 failure = review_error
             else:

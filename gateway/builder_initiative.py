@@ -1133,11 +1133,15 @@ def _exhausted_packet_ids(
     packets: list[dict[str, Any]],
     db_path: Path | None = None,
 ) -> set[str]:
-    """Read attempts once per packet and return the ids of exhausted packets."""
+    """Read attempts once per packet and return the ids of exhausted packets.
+
+    A packet is exhausted when its attempt budget or same-signature limit is
+    spent, regardless of the current task state (queued, blocked, running, …).
+    This ensures the initiative rollup counts blocked-but-exhausted packets as
+    failed rather than pausing silently.
+    """
     exhausted: set[str] = set()
     for p in packets:
-        if p["state"] != bq.QUEUED:
-            continue
         attempts = ba.list_attempts(initiative_id, p["packet_id"], db_path=db_path)
         if _attempts_exhausted(p, attempts):
             exhausted.add(p["packet_id"])
