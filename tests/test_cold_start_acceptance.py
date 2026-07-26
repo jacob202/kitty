@@ -63,8 +63,8 @@ def test_clean_reader_can_resolve_all_cold_start_questions() -> None:
     assert "Kitty is the principal product agent" in documents["architecture"]
     # 2–3. What is KittyBuilder and what is the boundary?
     assert "KittyBuilder is the execution organization" in documents["architecture"]
-    assert "approved Mission → KittyBuilder" in boundary
-    assert "does not enable autonomous submission or mutation" in boundary
+    assert "approved Mission and authored packets → KittyBuilder" in boundary
+    assert "Builder does not invent the roadmap" in boundary
     # 4. What is shipped?
     assert "## What's shipped" in documents["live_status"]
     assert "Builder investigation" in documents["live_status"]
