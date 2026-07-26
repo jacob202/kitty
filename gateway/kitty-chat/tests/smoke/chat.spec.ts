@@ -15,7 +15,7 @@ test('chat view loads and input is accessible', async ({ page }, testInfo) => {
   await page.goto('/');
   await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
 
-  const chatsBtn = page.locator('button[aria-label="Chat"]');
+  const chatsBtn = page.getByRole('button', { name: 'chat', exact: true });
   await chatsBtn.first().click();
   await page.waitForTimeout(500);
 
@@ -39,7 +39,7 @@ test('chat view has no console errors', async ({ page }, testInfo) => {
   await page.goto('/');
   await expect(page.locator('main')).toBeVisible({ timeout: 10_000 });
 
-  const chatsBtn = page.locator('button[aria-label="Chat"]');
+  const chatsBtn = page.getByRole('button', { name: 'chat', exact: true });
   await chatsBtn.first().click();
   await page.waitForTimeout(1000);
 
