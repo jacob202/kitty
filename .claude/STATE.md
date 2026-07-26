@@ -1,45 +1,42 @@
-# Session State — CI automation + builder control actions — Complete
+# Session State — Human-loop plan awaiting roadmap review
 
 <!-- kitty-state
 {
   "schema_version": 1,
-  "updated_at": "2026-07-25T03:09:22Z",
-  "head_sha": "10bebdde1f7ab94f43d072cb8c40cf59252f8e97",
-  "branch": "main",
-  "worktree": ".",
-  "status": "in_progress",
+  "updated_at": "2026-07-26T20:40:00Z",
+  "head_sha": "818f0bff7eaa39064883fe0626a7767b8003fe19",
+  "branch": "docs/hardened-human-loop-plan-2026-07-26",
+  "worktree": "GitHub connector branch",
+  "status": "awaiting_review",
   "completed_items": [
-    "Auto PR agent review pipeline: GitHub Action + OpenRouter script + GitHub secret set",
-    "Builder control actions wired: run/pause/resume/cancel/cleanup now call ./kitty builder CLI (were no-ops)",
-    "Dogfood fixes: sidebar on home view, view-switch control, gateway.ts fetchKnowledgeSources fix, aria labels, dogfood script",
-    "AGENTS.md: no-tests-mid-session rule, PR agent review section",
-    "QUICKSTART.md: 3-command cheatsheet (catch up, ship it, /qg)",
-    "4 feature branches merged: builder-upgrade, companion-personality, life-awareness, image-system-v2",
-    "KB: wiki/2026-07-24-auto-pr-review-pipeline.md, NOW.md updated, INDEX.md updated",
-    "Earlier same day (tooling-audit session, commit e3d84e2): repo-root self-referential symlinks removed (.worktrees pointed at itself and had killed every packet run), venv rebuilt, MemoryError given a real structured-error contract, search route's missing import fixed, soul/ + TASKS.md restored from archive, suite taken from 26 failed + 32 errors to green, v0.1 tagged"
+    "Hardened the founding/master-document insights into one bounded human outcome-loop proof",
+    "Committed the planning input and ChatGPT closeout summary",
+    "Opened draft PR #271 for selective amalgamation into the canonical roadmap",
+    "Recorded current 2026-07-26 shipped Kitty work and the stale-scope risk in PR #268 after PR #269"
   ],
-  "blockers": [],
-  "next_action": "Start the two queued KX-06 packets: KX-06-01 (signals feed on Home, priority 8) then KX-06-02 (plain-English deadline/phone/what-changed cards). The Builder Run button works now, so they can be started from the UI or with ./kitty builder initiative run kx-06-proactive-feed-v1 --free --gate manual.",
+  "blockers": [
+    "~/kb is a separate local repository unavailable from this GitHub-only environment; the prepared durable learning still needs local sync"
+  ],
+  "next_action": "Re-verify PR #268 against current main after #269, then review PR #271 and propose only the smallest justified Phase 1 roadmap amendment.",
   "invalidation_conditions": [
-    "HEAD changes beyond 10bebdde1f7ab94f43d072cb8c40cf59252f8e97",
-    "either queued KX-06 packet is claimed or completed"
+    "HEAD changes beyond 818f0bff7eaa39064883fe0626a7767b8003fe19",
+    "PR #268 changes, closes, or merges",
+    "PR #271 changes, closes, or merges",
+    "docs/ROADMAP.md or docs/ACTIVE_MISSION.md changes"
   ],
   "active_mission": "docs/ACTIVE_MISSION.md",
-  "pull_request": null
+  "pull_request": 271
 }
 -->
 
-## Checkpoint
+## Current checkpoint
 
-`main` at `10bebdd`, synced with origin. All work shipped.
+Draft PR #271 is open from `docs/hardened-human-loop-plan-2026-07-26`. The substantive planning and closeout documents are committed; this branch is awaiting review and must not be treated as roadmap authority until selectively adopted.
 
 ## Lessons applied
 
-- Builder control actions call `./kitty builder ...` by subprocess — changing the CLI's
-  flags or subcommand names will silently break the UI buttons again.
-- A tier in `config/action_tiers.json` with no executor in `_EXECUTORS` produces a button
-  that returns HTTP 200 and does nothing. `tests/test_builder_control_actions.py` now
-  asserts both halves exist for every builder kind.
-- Cleanup and archive commits need a smoke run: two separate ones this week killed live
-  subsystems (KittyBuilder via symlinks, knowledge experts via the `soul/` archival) while
-  leaving `git status` completely clean.
+- Do not translate every important insight directly into a feature or initiative. Classify it as doctrine, current-loop requirement, research hypothesis, or backlog capability first.
+- Prove one end-to-end human outcome loop before expanding architecture.
+- Re-read live repository state before closeout: PRs #267 and #269 moved during this conversation, changing the correct next action.
+- A planning document can preserve a large vision without becoming a competing roadmap.
+- Do not claim local KB or test work that the available environment could not perform.
