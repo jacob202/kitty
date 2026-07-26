@@ -1,6 +1,6 @@
 # Kitty - Codex Guide
 
-Start with `START_HERE.md`, then read `docs/PROJECT_STATUS.md` before making changes.
+Start with `START_HERE.md` and follow its canonical reading order before making changes.
 
 ## How To Work Here
 
@@ -13,7 +13,7 @@ Start with `START_HERE.md`, then read `docs/PROJECT_STATUS.md` before making cha
 
 ## Current Priority
 
-Phase B prep: one storage story, one canonical documentation path, and a reliable agent handoff loop. Do not expand TELOS, PAI, agents, mobile, or cloud sync during this phase.
+Execute the approved KTF-001 mission in `docs/ACTIVE_MISSION.md` according to the sole active sequence in `docs/ROADMAP.md`. Finish the trustworthy delivery and resume-loop proof before expanding feature scope.
 
 ## Completion Standard
 
