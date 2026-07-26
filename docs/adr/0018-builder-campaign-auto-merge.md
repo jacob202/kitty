@@ -1,89 +1,88 @@
-# ADR 0018: Evidence-Gated Auto-Merge for Builder Campaign Work
+# ADR 0018: Evidence-Gated Auto-Merge for Approved Builder Work
 
-- **Status:** Accepted
+- **Status:** Accepted; amended 2026-07-26
 - **Date:** 2026-07-21
 - **Decision owner:** Jacob
-- **Supersedes:** the "human merges every PR" default described in
-  `docs/PROJECT_STATUS.md` and KB-S4's shadow-mode framing, scoped strictly
-  to campaign work executed under
-  `docs/plans/KITTYBUILDER_DAILY_DRIVER_PLAN.md`.
+- **Amended by:** ADR 0021
 
 ## Context
 
-KittyBuilder's `queue publish` opens/updates a PR and stops: a human merges.
-For daily-driver campaign use (§0 of the daily-driver plan) this makes Jacob
-the bottleneck on every packet in every initiative — the opposite of the
-"Jacob reads reports" goal the plan sets out to achieve. The first draft of
-the plan argued to keep human merge, reasoning that Jacob is "unreliable at
-best" as a live gatekeeper. Jacob overruled that in the 2026-07-21 planning
-session: a gate whose gatekeeper routinely doesn't show up isn't a gate, it's
-a stall.
+Stopping every successful Builder packet at a PR and waiting for Jacob to merge
+makes him the bottleneck in a system intended to execute approved work
+proactively. The correct gate is evidence, not Jacob's continuous presence.
+
+The original decision applied only to campaigns under the Daily-Driver Plan.
+ADR 0021 replaces that obsolete plan-specific scope with an approved-packet
+policy.
 
 ## Decision
 
-Campaign packets merge automatically once they clear an evidence gate, with
-an automatic safety net if the gate turns out to be wrong:
+An explicitly approved Builder packet may merge automatically only when all of
+the following hold:
 
-1. **Evidence gate before merge** (all required): the packet's declared
-   `validation_commands` passed, the independent reviewer's verdict was
-   `approve`, and scope enforcement reported no violations. This is exactly
-   what "packet succeeded" already means in the KB-S3b/S4b pipeline — no new
-   judgment is invented here.
-2. **Merge**: `gh pr merge` on the packet's PR (`gateway/builder_publish.py`,
-   `merge_and_verify`).
-3. **Post-merge revalidation**: the same `validation_commands` re-run against
-   fresh `main` in an isolated worktree — independent proof, not a re-read of
-   the pre-merge claim.
-4. **Auto-revert on red**: if revalidation fails, the merge commit is
-   reverted on `main` immediately and pushed. The archive's rule, applied
-   verbatim: never hotfix on main after a failed post-merge check. The
-   initiative pauses `needs_decision`.
-5. **Tripwire**: if ≥ 2 of the last 10 auto-merges (globally, not
-   per-initiative) reverted, auto-merge disables itself — subsequent packets
-   park at `awaiting_review` for a human, same as pre-ADR-0018 behavior. No
-   reset command: it is stateless, so it re-enables itself once enough clean
-   merges age the old reverts out of the window.
-6. **Escape hatch**: `initiative run --gate manual` restores full
-   park-and-wait for any campaign Jacob wants to eyeball by hand.
-7. **Amendment (2026-07-23, docs/LEARNINGS.md L-CAND-15):** on a first merge
-   failure, `merge_and_verify` rebases the packet's own branch onto fresh
-   `main` in an isolated worktree and force-pushes (`--force-with-lease`)
-   only if the rebase is clean, then retries the merge once. A rebase that
-   itself conflicts is never force-pushed — the original merge error
-   propagates for a human to resolve. This closes the gap where a sibling
-   packet's earlier auto-merge advances `main` and leaves the next packet's
-   branch stale, most reliably colliding on `.claude/STATE.md` since every
-   worker convention-writes there.
+1. Its declared validation commands passed and were runnable and falsifiable.
+2. An independent reviewer approved the exact result SHA and diff.
+3. Scope, identity, lease, and authority enforcement reported no violation.
+4. The packet is classified low-risk under ADR 0021.
+5. The target branch and required checks are current and green.
 
-## What did not change
+The publication sequence is:
 
-The excluded-operations list stays hard for `main` and any human branch:
-secrets/auth/.env, data deletion, and history rewrite remain outside this
-path entirely. The one narrow exception (item 7 above) is force-pushing a
-Builder-owned packet branch — single-purpose, disposable, never touched
-again after merge — and only after a clean rebase; `main` itself is never
-force-pushed or rewritten. Shadow workers still never gain GitHub
-credentials; only the operator-context merge/publish path
-(`gateway/builder_publish.py`) touches `gh`/git remotes, same as
-pre-existing publish.
+1. Builder commits and pushes its single-purpose branch.
+2. Builder opens or updates the packet PR and may mark it ready when the
+   evidence record is complete.
+3. The evidence gate is evaluated in operator context; workers do not receive
+   GitHub credentials or approve themselves.
+4. The PR is merged.
+5. The same packet validation runs against fresh `main` in an isolated
+   worktree.
+6. If post-merge validation fails, the merge commit is reverted immediately.
+   Do not hotfix `main`; pause the affected work with `needs_decision`.
+
+## Tripwire
+
+If at least two of the last ten auto-merges were reverted, auto-merge disables
+itself and later packets park at `awaiting_review`. It re-enables only after the
+reverts age out of the rolling window through clean reviewed merges.
+
+## Stale-branch recovery
+
+On the first merge failure caused by an advanced base, Builder may rebase its
+own disposable packet branch onto fresh `main` and force-push with
+`--force-with-lease` only when the rebase is clean. A conflict is never
+force-pushed; it becomes a visible blocked decision. `main` is never
+force-pushed or rewritten.
+
+## Manual escape hatch
+
+An approved run may explicitly use a manual gate. That parks every packet at
+`awaiting_review` and performs no merge until an operator approves it.
+
+## Excluded work
+
+Auto-merge is unavailable for the exclusions in ADR 0021, including dependency
+or lockfile changes, CI workflows, auth or secrets, security boundaries,
+destructive operations, data/schema migrations without separate approval,
+human-judgment UI work, path collisions, unverifiable gates, or scope
+expansion.
+
+Excluded packets may still be implemented, committed, pushed, and opened as
+draft PRs when their approved policy allows it. They stop before merge.
 
 ## Consequences
 
-- **Accepted risk:** an evidence gate only proves what the validation
-  commands test. A green-but-wrong feature can now land on `main` instead of
-  parking in a PR. Mitigations: this is a local-first single-user repo (blast
-  radius = Jacob's own checkout, fully revertible), every merge is visible
-  same-day in the CP-05 campaign report, and the prototype-gate convention
-  (`docs/CAMPAIGN_PLAYBOOK.md`) exists precisely to catch wrong-direction
-  work before the full build, not after.
-- **Scope:** this ADR authorizes auto-merge only for Builder campaign
-  branches under the daily-driver plan's execution contract. It does not
-  loosen `CLAUDE.md`'s general push-approval rule for any other work.
-- CLAUDE.md's "pushing requires explicit approval" line is updated to note
-  this carve-out (see that file's Non-Negotiables §4).
+- Jacob approves objectives, scope, risk, and policy rather than every routine
+  Git transition.
+- A green-but-wrong change remains possible only to the extent the declared
+  evidence is incomplete; falsifiable gates, independent review, post-merge
+  validation, auto-revert, and the tripwire constrain that risk.
+- This is a standing Builder-path authorization, not a general exemption for
+  interactive agents or human branches.
+- Every automatic decision is durable, attributable, visible in the run report,
+  and revertible.
 
 ## Revisit trigger
 
-If the tripwire fires more than once in a month of real use, or a reverted
-merge ever needed a hotfix instead of a clean revert, re-litigate this
-decision with real data before continuing.
+Revisit if the tripwire fires repeatedly, a revert requires a hotfix, or a
+low-risk classification permits a change whose consequences were not safely
+recoverable.
