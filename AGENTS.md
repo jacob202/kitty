@@ -91,16 +91,24 @@ Read `.claude/HANDOFF.md` and `.claude/STATE.md` at the start of every session.
 
 ### Session end protocol — triggered by: "session end", "end session", "wrap up", "i'm done", "save my work", "ship it"
 
-When the user says any of these phrases, do NOT just say goodbye. Run the full checklist:
+When the user says any of these phrases, do NOT just say goodbye. Run the full
+checklist. `.agents/skills/session-end/SKILL.md` is the authoritative version of
+this checklist; this section is its summary and must not diverge from it.
 
-1. **Extract knowledge** — review the session for durable findings (patterns, gotchas, tool config changes, architecture decisions). Write `~/kb/wiki/YYYY-MM-DD-slug.md` with source, date, why it matters, verified-by. Append one line to `~/kb/INDEX.md`. Skip ephemera (task shuffles, typo fixes). If you got something wrong and Jacob corrected you, write `~/kb/corrections/YYYY-MM-DD-slug.md` instead. **The KB is `~/kb` (absolute), a separate repo — never write to a repo-relative `kb/` path.**
+1. **Survey the field** — run `bash scripts/session_end_survey.sh`. Read-only inventory of worktrees, unmerged branches and the paths they touch, open PRs **including drafts**, the Builder queue, `~/kb/NOW.md` claims, and recommendations carried from the previous `.claude/STATE.md`. A section printing `UNAVAILABLE` is unverified, not clean. Other agents' work is theirs — name it, don't claim it.
 
-2. **Update `~/kb/NOW.md`** — refresh active project, accomplishments, blockers, and sync changes. Merge, don't clobber — parallel sessions exist.
+2. **Evaluate carried recommendations** — run each carried `release_check`. Exit 0 promotes it to `ready`; otherwise carry it with `deferred_count + 1`. At 3 deferrals, say out loud that the stated blocker is not the real one.
 
-3. **Write `.claude/HANDOFF.md`** — what was done, what's in-flight, blockers, next move, files changed. Make it directly actionable for the next session.
+3. **Extract knowledge** — review the session for durable findings (patterns, gotchas, tool config changes, architecture decisions). Write `~/kb/wiki/YYYY-MM-DD-slug.md` with source, date, why it matters, verified-by. Append one line to `~/kb/INDEX.md`. Skip ephemera (task shuffles, typo fixes). If you got something wrong and Jacob corrected you, write `~/kb/corrections/YYYY-MM-DD-slug.md` instead. **The KB is `~/kb` (absolute), a separate repo — never write to a repo-relative `kb/` path.**
 
-4. **Write `.claude/STATE.md`** — branch, SHA, status (complete/in-progress/blocked), completed items, next action. Must include the `<!-- kitty-state -->` JSON block with `schema_version`, `updated_at`, `head_sha`, `branch`, `status`, `completed_items`, `blockers`, `next_action`.
+4. **Update `~/kb/NOW.md`** — refresh active project, accomplishments, blockers, and sync changes. Merge, don't clobber — parallel sessions exist.
 
-5. **Git status** — run `git status --short --branch`. Note uncommitted files. Do NOT commit or push unless explicitly asked.
+5. **Build the recommendations** — at most three ranked next steps, life projects before code (ADR 0016), each one concrete action. Defer only for a real collision or dependency; "other work exists" is not a reason. Every deferred item needs a `release_check` command that exits 0 when the blocker clears.
 
-6. **Confirm** — show a one-line summary of every file written, then stop. Do not start new work.
+6. **Write `.claude/HANDOFF.md`** — what was done, what's in-flight, other work in flight that isn't yours, blockers, next move, deferred items and what releases them, files changed. Make it directly actionable for the next session.
+
+7. **Write `.claude/STATE.md`** — branch, SHA, status (complete/in-progress/blocked), completed items, next action. Must include the `<!-- kitty-state -->` JSON block with `schema_version` (write 2), `updated_at`, `head_sha`, `branch`, `status`, `completed_items`, `blockers`, `next_action`, plus `parallel_work` and `recommendations`. That block is the only carry-forward channel — do not open a separate notes file for future session-end runs (ADR 0022).
+
+8. **Git status** — run `git status --short --branch`. Note uncommitted files. Do NOT commit or push unless explicitly asked.
+
+9. **Confirm** — one line per file written, the next move, anything deferred with what releases it, and any survey section that came back `UNAVAILABLE`. Then stop. Do not start new work.
