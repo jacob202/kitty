@@ -26,7 +26,7 @@
         "gateway/kitty-chat/src/__tests__/"
       ],
       "policy": { "max_attempts": 2, "priority": 10 },
-      "validation_commands": ["make ui-test", "npm run build"]
+      "validation_commands": ["make ui-test", "make ui-build"]
     },
     {
       "id": "KX-03-02-view-collapse",
@@ -48,7 +48,7 @@
         "gateway/kitty-chat/src/__tests__/"
       ],
       "policy": { "max_attempts": 2, "priority": 9 },
-      "validation_commands": ["make ui-test", "npm run build"]
+      "validation_commands": ["make ui-test", "make ui-build"]
     },
     {
       "id": "KX-03-03-design-clutter-cleanup",
@@ -71,7 +71,7 @@
         "gateway/kitty-chat/src/app/globals.css"
       ],
       "policy": { "max_attempts": 2, "priority": 8 },
-      "validation_commands": ["npm run build"]
+      "validation_commands": ["make ui-build"]
     },
     {
       "id": "KX-03-04-mascot-state-machine",
@@ -91,7 +91,7 @@
         "gateway/kitty-chat/src/__tests__/"
       ],
       "policy": { "max_attempts": 2, "priority": 8 },
-      "validation_commands": ["make ui-test", "npm run build"]
+      "validation_commands": ["make ui-test", "make ui-build"]
     }
   ]
 }
