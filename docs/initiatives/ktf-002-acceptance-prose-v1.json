@@ -1,0 +1,40 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "ktf-002-acceptance-prose-v1",
+  "title": "KTF-002: Acceptance criteria stop naming a command that cannot run",
+  "description": "Phase 1 gate-honesty follow-up to the validation_commands repair merged in #262. That PR fixed the executable gates but deliberately left the human-readable acceptance_criteria prose untouched, so 24 criteria across six manifests still instruct a reviewer to confirm 'npm run build passes' — a command packet 014 documents as exiting 194 silently on the canonical machine, and which cannot run at the repo root at all because there is no root package.json. A reviewer following that criterion either runs nothing or trusts a false success. Authored to docs/FREE_MODEL_PACKET_STANDARD.md: one bounded outcome, every file named, a single literal substitution rule with its one edge case pre-resolved, and a gate verified to fail on the unmodified tree.",
+  "packets": [
+    {
+      "id": "KTF-FE-03-acceptance-prose-honesty",
+      "title": "Replace npm run build with make ui-build in acceptance_criteria prose",
+      "objective": "Execution class: free-exec. In each of the six files listed in allowed_paths, perform a literal text substitution and change nothing else. Apply these two replacements in this exact order, because the first is a longer match that contains the second: (1) replace every occurrence of the exact text 'npm run build in gateway/kitty-chat' with 'make ui-build'; (2) then replace every remaining occurrence of the exact text 'npm run build' with 'make ui-build'. Do not edit any other field, do not reformat or reindent the JSON, do not reorder keys, do not add or remove packets or criteria, and do not touch any file not listed in allowed_paths. STOPPING RULE: if a file does not contain the exact text 'npm run build', make no change to that file and continue to the next one. If any file fails to parse as JSON after your edit, revert that file and fail the attempt with the worktree preserved. Do not search for similar-looking text and do not repair anything else you notice. The acceptance gate compares each file against its origin/main content with the two substitutions applied, so any other edit — including deleting a criterion instead of rewriting it — fails the gate.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "Each of the six files is byte-identical to its origin/main content with exactly the two specified substitutions applied",
+        "No acceptance_criteria entry is deleted, reordered, or otherwise altered beyond those substitutions",
+        "No field other than the substituted text differs from origin/main",
+        "No file outside allowed_paths is modified"
+      ],
+      "allowed_paths": [
+        "docs/initiatives/kx-01-resume-work-presentation.json",
+        "docs/initiatives/kx-03-shell-consolidation-v1.json",
+        "docs/initiatives/kx-04-surface-refit-v1.json",
+        "docs/initiatives/kx-05-companion-layer-v1.json",
+        "docs/initiatives/kx-06-proactive-feed-v1.json",
+        "docs/initiatives/life-first-v1-integration.json"
+      ],
+      "policy": {
+        "max_attempts": 2,
+        "priority": 5
+      },
+      "validation_commands": [
+        "git show origin/main:docs/initiatives/kx-01-resume-work-presentation.json | sed -e 's|npm run build in gateway/kitty-chat|make ui-build|g' -e 's|npm run build|make ui-build|g' | diff - docs/initiatives/kx-01-resume-work-presentation.json",
+        "git show origin/main:docs/initiatives/kx-03-shell-consolidation-v1.json | sed -e 's|npm run build in gateway/kitty-chat|make ui-build|g' -e 's|npm run build|make ui-build|g' | diff - docs/initiatives/kx-03-shell-consolidation-v1.json",
+        "git show origin/main:docs/initiatives/kx-04-surface-refit-v1.json | sed -e 's|npm run build in gateway/kitty-chat|make ui-build|g' -e 's|npm run build|make ui-build|g' | diff - docs/initiatives/kx-04-surface-refit-v1.json",
+        "git show origin/main:docs/initiatives/kx-05-companion-layer-v1.json | sed -e 's|npm run build in gateway/kitty-chat|make ui-build|g' -e 's|npm run build|make ui-build|g' | diff - docs/initiatives/kx-05-companion-layer-v1.json",
+        "git show origin/main:docs/initiatives/kx-06-proactive-feed-v1.json | sed -e 's|npm run build in gateway/kitty-chat|make ui-build|g' -e 's|npm run build|make ui-build|g' | diff - docs/initiatives/kx-06-proactive-feed-v1.json",
+        "git show origin/main:docs/initiatives/life-first-v1-integration.json | sed -e 's|npm run build in gateway/kitty-chat|make ui-build|g' -e 's|npm run build|make ui-build|g' | diff - docs/initiatives/life-first-v1-integration.json"
+      ]
+    }
+  ]
+}
