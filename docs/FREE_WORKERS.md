@@ -103,3 +103,43 @@ The Orca orchestration layer is complementary to the Builder queue — Orca
 manages live agent sessions and worktree isolation; Builder owns durable task
 state and publication rails. Use Orca for parallel execution within a session;
 use Builder for multi-session campaigns with evidence-gated auto-merge.
+
+## Compute governor — spend once per unchanged SHA
+
+The free/paid split above stops paid models from doing typing work. It does not
+stop an agent from planning the same task twice, reviewing its own review, or
+re-auditing an unchanged tree on the next wake-up. `gateway/compute_governor.py`
+is the gate in front of dispatch that does.
+
+Every dispatch must declare a concrete artifact, acceptance tests, allowed
+scope, exclusions, a risk class, and a stopping condition. A dispatch missing
+any of those is rejected, not downgraded — the answer to vague work is not a
+cheaper model.
+
+One planning pass and one independent review are allowed per unchanged
+`(task_type, subject_ref, head_sha)`. Each settled pass writes a durable receipt
+to `data/compute_governor/receipts.db`. A second pass on the same SHA is
+rejected unless the head SHA moved, the dispatch fingerprint changed
+(requirements, scope, acceptance tests), or a human named an override reason. A
+pass that *failed* does not consume the allowance — that work is still owed.
+
+These work kinds are always rejected: `analysis_only`, `prompt_polishing`,
+`repeat_audit`, `review_of_review`, `duplicate_packet`, `speculative_cleanup`.
+
+Routing follows ADR 0021: `routine` risk goes to the free ladder above;
+`risky` and `blocker` may take a frontier route, and `blocker` must name the
+verified failure. Reserve pressure only ever affects the paid route — free
+routine work is never stalled by budget, because a stalled repair costs more
+than it saves. Below `frontier_floor_ratio` a frontier dispatch downgrades to
+free; below `hard_floor_ratio` it defers. Thresholds live in
+`config/compute_governor.json`.
+
+```bash
+./kitty governor explain dispatch.json   # dry run: run / defer / downgrade / reject, with reasons
+./kitty governor ledger                  # this week's local usage estimate
+./kitty governor receipts                # what was actually spent, per pass
+```
+
+The weekly ledger is **Kitty's own arithmetic over its token ledger**. It is an
+estimate for steering, not a provider invoice, and it never equals a provider's
+meter.
