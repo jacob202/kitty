@@ -32,7 +32,7 @@
       },
       "validation_commands": [
         "make ui-test",
-        "npm run build",
+        "make ui-build",
         "python3.12 -m pytest tests/ -q --tb=short"
       ]
     },
@@ -65,7 +65,7 @@
       },
       "validation_commands": [
         "make ui-test",
-        "npm run build",
+        "make ui-build",
         "python3.12 -m pytest tests/ -q --tb=short"
       ]
     },
@@ -97,7 +97,7 @@
       },
       "validation_commands": [
         "make ui-test",
-        "npm run build",
+        "make ui-build",
         "python3.12 -m pytest tests/ -q --tb=short"
       ]
     },
@@ -128,7 +128,7 @@
       },
       "validation_commands": [
         "make ui-test",
-        "npm run build",
+        "make ui-build",
         "python3.12 -m pytest tests/ -q --tb=short"
       ]
     },
@@ -159,7 +159,7 @@
       },
       "validation_commands": [
         "make ui-test",
-        "npm run build"
+        "make ui-build"
       ]
     }
   ]

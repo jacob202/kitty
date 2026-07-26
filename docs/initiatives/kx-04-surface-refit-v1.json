@@ -22,7 +22,7 @@
         "gateway/kitty-chat/src/__tests__/"
       ],
       "policy": { "max_attempts": 2, "priority": 9 },
-      "validation_commands": ["make ui-test", "npm run build"]
+      "validation_commands": ["make ui-test", "make ui-build"]
     },
     {
       "id": "KX-04-02-builder-surface",
@@ -41,7 +41,7 @@
         "gateway/kitty-chat/src/__tests__/"
       ],
       "policy": { "max_attempts": 2, "priority": 8 },
-      "validation_commands": ["make ui-test", "npm run build"]
+      "validation_commands": ["make ui-test", "make ui-build"]
     },
     {
       "id": "KX-04-03-studio-surface",
@@ -62,7 +62,7 @@
         "gateway/kitty-chat/src/__tests__/"
       ],
       "policy": { "max_attempts": 2, "priority": 7 },
-      "validation_commands": ["make ui-test", "npm run build"]
+      "validation_commands": ["make ui-test", "make ui-build"]
     },
     {
       "id": "KX-04-04-library-surface",
@@ -82,7 +82,7 @@
         "gateway/kitty-chat/src/__tests__/"
       ],
       "policy": { "max_attempts": 2, "priority": 6 },
-      "validation_commands": ["make ui-test", "npm run build"]
+      "validation_commands": ["make ui-test", "make ui-build"]
     },
     {
       "id": "KX-04-05-settings-surface",
@@ -102,7 +102,7 @@
         "gateway/kitty-chat/src/__tests__/"
       ],
       "policy": { "max_attempts": 2, "priority": 6 },
-      "validation_commands": ["make ui-test", "npm run build"]
+      "validation_commands": ["make ui-test", "make ui-build"]
     },
     {
       "id": "KX-04-06-coherence-audit",
@@ -127,7 +127,7 @@
         "gateway/kitty-chat/src/__tests__/"
       ],
       "policy": { "max_attempts": 2, "priority": 5 },
-      "validation_commands": ["make ui-test", "npm run build"]
+      "validation_commands": ["make ui-test", "make ui-build"]
     }
   ]
 }

@@ -90,7 +90,7 @@
       "validation_commands": [
         "python3.12 -m pytest tests/test_builder_cli.py tests/test_builder_initiative.py tests/test_runtime_manifest.py -q --tb=short",
         "cd gateway/kitty-chat && npm test -- --run tests/BuilderSurface.test.tsx",
-        "cd gateway/kitty-chat && npm run build"
+        "make ui-build"
       ]
     },
     {
@@ -114,7 +114,7 @@
       "policy": { "max_attempts": 2, "priority": 6 },
       "validation_commands": [
         "cd gateway/kitty-chat && npm test -- --run tests/BuilderSurface.test.tsx",
-        "cd gateway/kitty-chat && npm run build"
+        "make ui-build"
       ]
     }
   ]
