@@ -28,7 +28,7 @@
         "tests/"
       ],
       "policy": { "max_attempts": 2, "priority": 8 },
-      "validation_commands": ["make ui-test", "npm run build", "python3.12 -m pytest tests/ -q --tb=short"]
+      "validation_commands": ["make ui-test", "make ui-build", "python3.12 -m pytest tests/ -q --tb=short"]
     },
     {
       "id": "KX-06-02-deadline-cards",
@@ -51,7 +51,7 @@
         "tests/"
       ],
       "policy": { "max_attempts": 2, "priority": 7 },
-      "validation_commands": ["make ui-test", "npm run build", "python3.12 -m pytest tests/ -q --tb=short"]
+      "validation_commands": ["make ui-test", "make ui-build", "python3.12 -m pytest tests/ -q --tb=short"]
     }
   ]
 }
