@@ -25,7 +25,7 @@
         "gateway/kitty-chat/src/__tests__/shared/"
       ],
       "policy": { "max_attempts": 2, "priority": 10 },
-      "validation_commands": ["make ui-test", "make ui-build"]
+      "validation_commands": ["make ui-test", "npm run build"]
     },
     {
       "id": "KX-01-02-navigation",
@@ -53,7 +53,7 @@
         "gateway/kitty-chat/src/__tests__/"
       ],
       "policy": { "max_attempts": 2, "priority": 9 },
-      "validation_commands": ["make ui-test", "make ui-build"]
+      "validation_commands": ["make ui-test", "npm run build"]
     },
     {
       "id": "KX-01-03-home-resume",
@@ -78,7 +78,7 @@
         "gateway/kitty-chat/src/__tests__/"
       ],
       "policy": { "max_attempts": 2, "priority": 8 },
-      "validation_commands": ["make ui-test", "make ui-build"]
+      "validation_commands": ["make ui-test", "npm run build"]
     },
     {
       "id": "KX-01-04-visual-refinement",
@@ -104,7 +104,7 @@
         "gateway/kitty-chat/src/app/page.tsx"
       ],
       "policy": { "max_attempts": 2, "priority": 7 },
-      "validation_commands": ["make ui-test", "make ui-build"]
+      "validation_commands": ["make ui-test", "npm run build"]
     },
     {
       "id": "KX-01-05-mobile-layout",
@@ -128,7 +128,7 @@
         "gateway/kitty-chat/src/app/globals.css"
       ],
       "policy": { "max_attempts": 2, "priority": 6 },
-      "validation_commands": ["make ui-test", "make ui-build"]
+      "validation_commands": ["make ui-test", "npm run build"]
     },
     {
       "id": "KX-01-06-accessibility",
@@ -154,7 +154,7 @@
         "gateway/kitty-chat/src/__tests__/"
       ],
       "policy": { "max_attempts": 2, "priority": 5 },
-      "validation_commands": ["make ui-test", "make ui-build"]
+      "validation_commands": ["make ui-test", "npm run build"]
     }
   ]
 }

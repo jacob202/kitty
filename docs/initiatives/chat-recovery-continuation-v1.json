@@ -38,7 +38,7 @@
       "validation_commands": [
         "python3.12 -m pytest tests/test_context_assembler.py tests/test_chat_completions.py tests/test_chat_lifecycle.py tests/test_chats_route.py -q --tb=short",
         "cd gateway/kitty-chat && npm test -- --run ChatMessage.test.tsx chatClient.test.ts",
-        "make ui-build"
+        "cd gateway/kitty-chat && npm run build"
       ]
     },
     {
@@ -68,7 +68,7 @@
       "validation_commands": [
         "python3.12 -m pytest tests/test_chat_completions.py tests/test_llm_privacy_boundary.py tests/test_llm_routing.py -q --tb=short",
         "cd gateway/kitty-chat && npm test -- --run",
-        "make ui-build"
+        "cd gateway/kitty-chat && npm run build"
       ]
     }
   ]

@@ -31,7 +31,7 @@
       ],
       "validation_commands": [
         "python3.12 -m pytest tests/test_next_step.py tests/test_brief.py -q --tb=short",
-        "make ui-build",
+        "cd gateway/kitty-chat && npm run build",
         "cd gateway/kitty-chat && npm test -- --run --maxWorkers=1"
       ],
       "policy": { "max_attempts": 2, "priority": 10 }
