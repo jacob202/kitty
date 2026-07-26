@@ -10,6 +10,8 @@ report the contradiction rather than blending the claims.
 |---|---|---|---|
 | `product_purpose` | `docs/NORTH_STAR.md` | Why Kitty exists and the life-first outcome | Current implementation or queue state |
 | `engineering_doctrine` | `AGENTS.md` | Safety, verification, change, Git, and agent operating rules | Product architecture or live status |
+| `execution_frame` | `docs/ALIGNMENT_MAP.md` | Kitty/KittyBuilder layering, authority order, delivery phases, non-goals, and the required analysis for any architecture proposal | Live status, specific plans, or what is currently shipped |
+| `free_execution_contract` | `docs/FREE_MODEL_PACKET_STANDARD.md` | What a packet must be for an unattended free model to execute it and for a script to prove it | Which packets exist or their priority |
 | `architecture` | `docs/ARCHITECTURE.md` | Current runnable system shape and component boundaries | Durable decision history or release status |
 | `decisions` | `docs/DECISIONS.md` | Index of accepted ADRs and supersession | Live status or implementation plans |
 | `roadmap` | `docs/INITIATIVES_OPTIMIZED_2026-07-24.md` | Forward-looking feature sequencing, layered priority (F0-V4), and what's explicitly rejected | Approved mission scope (`active_mission`), shipped status (`live_status`), or session-level progress tracking (see `docs/PLANS.md`, a status tracker that defers to this row) |
