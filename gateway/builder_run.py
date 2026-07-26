@@ -507,24 +507,21 @@ def run_initiative(
 
         if loop_result["outcome"] != "succeeded":
             assert classification is not None  # set in the exhaustion branch above
-            pause_reason = f"packet {packet_id} exhausted"
-            if classification["stop_class"] == STOP_NEEDS_DECISION:
-                pause_reason += f" [needs_decision: {classification['reason']}]"
-            else:
-                pause_reason += f": {loop_result.get('reason')}"
-            bi.pause_initiative(
-                initiative_id,
-                pause_reason,
-                db_path=db_path,
+            _decide(
+                task_id,
+                {
+                    "initiative_id": initiative_id,
+                    "packet_id": packet_id,
+                    "decision": "continued_after_packet_failure",
+                    "reason": loop_result.get("reason"),
+                    "stop_class": classification["stop_class"],
+                    "stop_class_reason": classification["reason"],
+                },
+                db_path,
             )
-            return {
-                "outcome": "paused",
-                "reason": f"packet {packet_id} exhausted",
-                "stop_class": classification["stop_class"],
-                "processed": processed,
-                "succeeded": succeeded,
-                "exhausted": exhausted,
-            }
+            # The exhausted/cancelled packet stays exhausted in the DB;
+            # next_packet() skips it and its dependents in the next
+            # loop iteration, allowing unrelated eligible packets to proceed.
 
         # Continue to the next eligible packet. Dependent packets remain
         # gated until merge reconciliation promotes this task to DONE.

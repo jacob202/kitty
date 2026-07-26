@@ -164,6 +164,59 @@ class TestRunInitiative:
         status = bi.initiative_status(INITIATIVE, db_path=db_path)
         assert "P2" in status["pending"]
 
+    def test_exhausted_packet_does_not_stop_unrelated_packet(
+        self, repo: Path, db_path: Path, tmp_path: Path
+    ):
+        """P1 exhausts (max_attempts=1, validation fails) but P2 (unrelated)
+        should still be attempted in the same run_initiative invocation."""
+        _apply(
+            db_path,
+            [
+                {
+                    "id": "P1",
+                    "title": "Packet P1",
+                    "objective": "Produce nope.txt.",
+                    "acceptance_criteria": ["nope.txt exists"],
+                    "allowed_paths": ["done.txt"],
+                    "policy": {"max_attempts": 1},
+                    "validation_commands": ["test -f nope.txt"],
+                    "depends_on": [],
+                },
+                _packet("P2"),
+            ],
+            repo_root=repo,
+        )
+        summary = _run(repo, db_path, tmp_path)
+
+        # Initiative continues to idle (not paused) because P2 succeeded
+        assert summary["outcome"] == "idle", summary
+        assert summary["succeeded"] == 1, summary
+        assert summary["exhausted"] == 1, summary
+        seen = [e["packet_id"] for e in summary["processed"]]
+        assert seen == ["P1", "P2"]
+
+        # Verify continued_after_packet_failure decision was logged
+        conn = bq.connect(db_path)
+        try:
+            rows = conn.execute(
+                "SELECT payload_json FROM events WHERE type = ?",
+                (br.EVENT_DECISION,),
+            ).fetchall()
+        finally:
+            conn.close()
+        decisions = [json.loads(r["payload_json"]) for r in rows]
+        failures = [
+            d for d in decisions
+            if d.get("decision") == "continued_after_packet_failure"
+        ]
+        assert len(failures) == 1, decisions
+        assert failures[0]["packet_id"] == "P1"
+        assert failures[0]["stop_class"] in (br.STOP_ROUTINE, br.STOP_NEEDS_DECISION)
+
+        # Initiative is NOT paused
+        state = bi.get_initiative_state(INITIATIVE, db_path=db_path)
+        assert state != bi.INITIATIVE_PAUSED, state
+
 
 class TestPauseResume:
     def test_resume_clears_pause(self, db_path: Path):
@@ -281,25 +334,40 @@ class TestStopClassIntegration:
             db_path=db_path,
             repo_root=repo,
         )
-        assert summary["outcome"] == "paused"
-        assert summary["stop_class"] == br.STOP_NEEDS_DECISION
+        # Packet exhausted but no unrelated packets to continue — idle exit
+        assert summary["outcome"] == "idle"
+        assert summary["exhausted"] == 1
 
-        status = bi.initiative_status(INITIATIVE, db_path=db_path)
-        assert status["stop_class"] == br.STOP_NEEDS_DECISION
-        assert "needs_decision" in status["pause_reason"]
+        # Initiative is NOT paused (unrelated packets can still be run)
+        state = bi.get_initiative_state(INITIATIVE, db_path=db_path)
+        assert state == bi.INITIATIVE_ACTIVE
 
         conn = bq.connect(db_path)
         try:
-            row = conn.execute(
-                "SELECT payload_json FROM events WHERE type = ? "
-                "AND payload_json LIKE '%packet_exhausted%'",
+            rows = conn.execute(
+                "SELECT payload_json FROM events WHERE type = ?",
                 (br.EVENT_DECISION,),
-            ).fetchone()
+            ).fetchall()
         finally:
             conn.close()
-        payload = json.loads(row["payload_json"])
-        assert payload["stop_class"] == br.STOP_NEEDS_DECISION
-        assert payload["findings"]
+        payloads = [json.loads(r["payload_json"]) for r in rows]
+
+        # The "packet_exhausted" event carries the classification
+        exhausted = [
+            p for p in payloads if p.get("decision") == "packet_exhausted"
+        ]
+        assert len(exhausted) == 1
+        assert exhausted[0]["stop_class"] == br.STOP_NEEDS_DECISION
+        assert exhausted[0]["findings"]
+
+        # The "continued_after_packet_failure" event continues the loop
+        continued = [
+            p
+            for p in payloads
+            if p.get("decision") == "continued_after_packet_failure"
+        ]
+        assert len(continued) == 1
+        assert continued[0]["stop_class"] == br.STOP_NEEDS_DECISION
 
     def test_three_different_failures_is_routine(
         self, repo: Path, db_path: Path, tmp_path: Path
@@ -343,10 +411,25 @@ class TestStopClassIntegration:
             db_path=db_path,
             repo_root=repo,
         )
-        assert summary["outcome"] == "paused"
-        assert summary["stop_class"] == br.STOP_ROUTINE
-        status = bi.initiative_status(INITIATIVE, db_path=db_path)
-        assert status["stop_class"] == br.STOP_ROUTINE
+        assert summary["outcome"] == "idle"
+        assert summary["exhausted"] == 1
+        state = bi.get_initiative_state(INITIATIVE, db_path=db_path)
+        assert state == bi.INITIATIVE_ACTIVE
+
+        conn = bq.connect(db_path)
+        try:
+            rows = conn.execute(
+                "SELECT payload_json FROM events WHERE type = ?",
+                (br.EVENT_DECISION,),
+            ).fetchall()
+        finally:
+            conn.close()
+        payloads = [json.loads(r["payload_json"]) for r in rows]
+        exhausted = [
+            p for p in payloads if p.get("decision") == "packet_exhausted"
+        ]
+        assert len(exhausted) == 1
+        assert exhausted[0]["stop_class"] == br.STOP_ROUTINE
 
     def test_same_signature_exhaustion_needs_decision_ambiguous(
         self, repo: Path, db_path: Path, tmp_path: Path
@@ -384,13 +467,26 @@ class TestStopClassIntegration:
             db_path=db_path,
             repo_root=repo,
         )
-        assert summary["outcome"] == "paused"
-        assert summary["stop_class"] == br.STOP_NEEDS_DECISION
+        assert summary["outcome"] == "idle"
+        assert summary["exhausted"] == 1
+        state = bi.get_initiative_state(INITIATIVE, db_path=db_path)
+        assert state == bi.INITIATIVE_ACTIVE
 
-        status = bi.initiative_status(INITIATIVE, db_path=db_path)
-        assert status["stop_class"] == br.STOP_NEEDS_DECISION
-        assert status["stop_class_reason"] == "requirement may be ambiguous"
-        assert "requirement may be ambiguous" in status["pause_reason"]
+        conn = bq.connect(db_path)
+        try:
+            rows = conn.execute(
+                "SELECT payload_json FROM events WHERE type = ?",
+                (br.EVENT_DECISION,),
+            ).fetchall()
+        finally:
+            conn.close()
+        payloads = [json.loads(r["payload_json"]) for r in rows]
+        exhausted = [
+            p for p in payloads if p.get("decision") == "packet_exhausted"
+        ]
+        assert len(exhausted) == 1
+        assert exhausted[0]["stop_class"] == br.STOP_NEEDS_DECISION
+        assert exhausted[0]["stop_class_reason"] == "requirement may be ambiguous"
 
 
 class TestCp06AutoMerge:
