@@ -20,7 +20,14 @@ import os
 import sys
 from pathlib import Path
 
-import requests
+try:
+    import requests
+except ImportError as exc:  # interpreter without the venv — caller skips on exit 2
+    print(
+        f"second opinion unavailable — requests not importable under {sys.executable}: {exc}",
+        file=sys.stderr,
+    )
+    sys.exit(2)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 

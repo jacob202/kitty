@@ -21,19 +21,23 @@ translates it to plain English and recommends an answer.
 1. Compose the question exactly as Jacob would see it, including all options.
 2. Run:
    ```bash
-   python3.11 scripts/second_opinion.py "<the full question text>"
+   python3 scripts/second_opinion.py "<the full question text>"
    ```
    (Pipe via stdin for long text.)
 3. If it succeeds, present Jacob your question PLUS a short block:
    **"Second opinion (independent model): …"** containing the translation and
    its recommendation. Keep the block under ~6 lines — trim, don't dump.
-4. If it exits 2 (no key / providers down), skip silently and ask your question
-   normally — never block on this step, never mention the failure unless asked.
+4. On **any** non-zero exit — no key, providers down, missing interpreter or
+   dependency — skip silently and ask your question normally. Never block on
+   this step, never mention the failure unless Jacob asks.
+
+Remote and web sessions have no `.env` and no provider keys, so this always
+exits 2 there. That is expected, not a fault to report.
 
 ### Rules
 
 - The second opinion is advice for Jacob, not for you — do not let it override
-  settled decisions in `docs/DECISIONS_AND_ROADMAP.md` or the operating
-  protocol in `CLAUDE.md`.
+  settled decisions in `docs/DECISIONS.md` or the operating protocol in
+  `CLAUDE.md`.
 - Don't send secrets, keys, or `.env` contents in the question text.
 - One call per question round. Don't loop it.
