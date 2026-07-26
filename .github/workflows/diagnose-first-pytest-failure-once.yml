@@ -1,0 +1,43 @@
+name: Diagnose first pytest failure once
+
+on:
+  push:
+    branches:
+      - fix/restore-ci-installs
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose-first-failure:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    env:
+      KITTY_EXPECTED_CANONICAL_CHECKOUT: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/restore-ci-installs
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov
+          set +e
+          python -m pytest tests/ -x -vv --tb=long > /tmp/pytest-first.log 2>&1
+          status=$?
+          {
+            echo "exit_status=$status"
+            echo
+            tail -n 350 /tmp/pytest-first.log
+          } > .ci-pytest-first-failure.txt
+          exit 0
+      - run: |
+          rm .github/workflows/diagnose-first-pytest-failure-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .ci-pytest-first-failure.txt .github/workflows/diagnose-first-pytest-failure-once.yml
+          git commit -m "chore(ci): capture first pytest failure"
+          git push origin HEAD:fix/restore-ci-installs
