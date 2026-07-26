@@ -1,8 +1,8 @@
 # ADR 0022: Session-End Recommendations Carry Forward In The Checkpoint
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-07-26
-- **Decision owner:** Jacob
+- **Decision owner:** Jacob (approved 2026-07-26)
 - **Relates to:** ADR 0016 (life-first ordering), ADR 0020 (one canonical roadmap)
 
 ## Context

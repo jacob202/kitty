@@ -28,7 +28,7 @@ the `.agents/skills/second-opinion/` copy was removed 2026-07-15.
 | remember | 2026-07-15 | KEEP | Wired to `scripts/remember.py` + `config/PREFERENCES.md` |
 | second-opinion | 2026-07-15 | KEEP (canonical) | Independent model review before asking Jacob |
 
-### `.agents/skills/` (7 active + 8 archived)
+### `.agents/skills/` (9 active + 8 archived)
 
 | Skill | Verified | Verdict | Why |
 |---|---|---|---|
@@ -38,7 +38,9 @@ the `.agents/skills/second-opinion/` copy was removed 2026-07-15.
 | journal-entry | 2026-07-15 | KEEP | Wired to Kitty journal subsystem |
 | mcp-kitty-council | 2026-07-15 | KEEP | Council routing — active |
 | provider-credit-debugging | 2026-07-15 | KEEP | Kitty-specific debugging |
+| orca-orchestration | 2026-07-26 | KEEP | Referenced from `docs/FREE_WORKERS.md` as the parallel/phased execution layer |
 | session-end | 2026-07-26 | KEEP | Session hygiene; wired to `scripts/session_end_survey.sh`, `.claude/HANDOFF.md`, `.claude/STATE.md`, `~/kb` |
+| expert-swarm | 2026-07-26 | UNVERIFIED | 2 lifetime commits; only reference is an archived doc. Same profile as the H5 archive set — needs Jacob's confirm before archiving |
 
 **Deleted 2026-07-21** (Jacob confirmed unused; `code-review-graph` MCP confirmed not connected in this environment, superseded by `.codegraph`): `debug-issue`, `explore-codebase`, `refactor-safely`, `review-changes`.
 
@@ -59,5 +61,9 @@ This file must be re-verified when:
 - a skill's wiring (scripts, config, endpoints) changes
 - the leverage audit runs
 
-Last verified date: `2026-07-15`. If that date is older than 90 days at
+Last verified date: `2026-07-26`. If that date is older than 90 days at
 audit time, the registry should be re-walked.
+
+The 2026-07-26 re-walk found the table listing 6 skills under a heading that
+claimed 7, with three directories absent from it entirely. Verdicts above were
+re-derived from commit counts and live references, not carried forward.
