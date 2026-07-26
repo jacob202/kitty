@@ -1,0 +1,57 @@
+{
+  "manifest_version": 1,
+  "initiative_id": "ktf-001-free-exec-v1",
+  "title": "KTF-001 free-exec authority and checkpoint proof",
+  "description": "Two bounded Phase 1 packets with all implementation decisions resolved: enforce canonical roadmap ownership in context receipts, then replace the stale checkpoint pair with the exact daylight Builder proof action.",
+  "packets": [
+    {
+      "id": "KTF-FE-01-roadmap-authority-contract",
+      "title": "Require canonical roadmap authority in context receipts",
+      "objective": "Execution class: free-exec. One outcome only: make the context receipt reject an authority map that omits the canonical roadmap.\n\nIn gateway/context_receipt.py, inside _load_authorities, replace this exact text:\n\n        \"decisions\",\n        \"live_status\",\n\nwith this exact text:\n\n        \"decisions\",\n        \"roadmap\",\n        \"live_status\",\n\nIn tests/test_context_receipt.py, make exactly these four additions:\n\n1. In _authority_map(), immediately after:\n        (\"decisions\", \"docs/DECISIONS.md\"),\n   add:\n        (\"roadmap\", \"docs/ROADMAP.md\"),\n\n2. In _start_here(), immediately after:\n        \"docs/DECISIONS.md\",\n   add:\n        \"docs/ROADMAP.md\",\n\n3. In _repo(), immediately after:\n    _write(repo / \"docs/DECISIONS.md\", \"# Decisions\\n\")\n   add:\n    _write(repo / \"docs/ROADMAP.md\", \"# Roadmap\\n\")\n\n4. Append this test verbatim:\n\ndef test_receipt_requires_roadmap_authority(tmp_path: Path):\n    repo, _ = _repo(tmp_path)\n    path = repo / \"docs/AUTHORITY_MAP.md\"\n    lines = [\n        line\n        for line in path.read_text(encoding=\"utf-8\").splitlines()\n        if \"`roadmap`\" not in line\n    ]\n    path.write_text(\"\\n\".join(lines) + \"\\n\", encoding=\"utf-8\")\n\n    levels = _levels(repo)\n\n    assert levels[\"docs:authority_map\"] == \"FAIL\"\n\nChange nothing else. Stopping rule: if any quoted anchor is absent or occurs more than once, make no changes and fail the attempt. Do not search for similar text.",
+      "depends_on": [],
+      "acceptance_criteria": [
+        "The context receipt returns a FAIL-level docs:authority_map check when the authority map omits the roadmap concern.",
+        "The context-receipt test fixture includes docs/ROADMAP.md in both the authority map and canonical reading order.",
+        "The static gate fails on the unmodified tree and passes only after both the runtime requirement and regression test exist.",
+        "The targeted pytest and Ruff commands exit 0."
+      ],
+      "allowed_paths": [
+        "gateway/context_receipt.py",
+        "tests/test_context_receipt.py"
+      ],
+      "policy": {
+        "priority": 10
+      },
+      "validation_commands": [
+        "grep -q '\"roadmap\",' gateway/context_receipt.py && grep -q 'test_receipt_requires_roadmap_authority' tests/test_context_receipt.py",
+        "python3.12 -m pytest tests/test_context_receipt.py -q --tb=short",
+        "python3.12 -m ruff check gateway/context_receipt.py tests/test_context_receipt.py"
+      ]
+    },
+    {
+      "id": "KTF-FE-02-daylight-proof-checkpoint",
+      "title": "Replace stale KX-06 checkpoint with the daylight proof action",
+      "objective": "Execution class: free-exec. One outcome only: replace the stale KX-06 checkpoint pair with a machine-readable KTF-001 daylight-proof checkpoint.\n\nRun exactly the following command from the repository root. Do not edit any other file.\n\npython3.12 - <<'PY'\nfrom __future__ import annotations\n\nimport json\nimport re\nimport subprocess\nfrom datetime import datetime, timezone\nfrom pathlib import Path\n\nOLD_NEXT = 'Start the two queued KX-06 packets: KX-06-01 (signals feed on Home, priority 8) then KX-06-02 (plain-English deadline/phone/what-changed cards). The Builder Run button works now, so they can be started from the UI or with ./kitty builder initiative run kx-06-proactive-feed-v1 --free --gate manual.'\nNEW_NEXT = 'Run the KTF-001 daylight unattended Builder pass on the canonical machine, inspect task/attempt/lease/validation/PR evidence, and verify unrelated work continues after failure while provider exhaustion pauses durably.'\nPATHS = (\n    (Path(\".claude/STATE.md\"), \"kitty-state\", \"in_progress\"),\n    (Path(\".claude/HANDOFF.md\"), \"kitty-handoff\", \"valid\"),\n)\n\ndef load_payload(path: Path, marker: str) -> dict:\n    text = path.read_text(encoding=\"utf-8\")\n    match = re.search(r\"<!--\\s*\" + re.escape(marker) + r\"\\s*(\\{.*?\\})\\s*-->\", text, re.DOTALL)\n    if match is None:\n        raise SystemExit(f\"missing {marker} metadata in {path}\")\n    payload = json.loads(match.group(1))\n    if payload.get(\"next_action\") != OLD_NEXT:\n        raise SystemExit(f\"stale next_action anchor not found exactly in {path}\")\n    return payload\n\nfor path, marker, _status in PATHS:\n    load_payload(path, marker)\n\nhead = subprocess.run(\n    [\"git\", \"rev-parse\", \"HEAD\"],\n    check=True,\n    capture_output=True,\n    text=True,\n).stdout.strip()\nbranch = subprocess.run(\n    [\"git\", \"rev-parse\", \"--abbrev-ref\", \"HEAD\"],\n    check=True,\n    capture_output=True,\n    text=True,\n).stdout.strip()\nif branch == \"HEAD\":\n    raise SystemExit(\"detached HEAD; refusing to write checkpoint\")\nupdated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace(\"+00:00\", \"Z\")\n\ncompleted = [\n    \"PR #264 restored clean-checkout Python and frontend CI\",\n    \"PR #261 retained KittyBuilder Brain research and hardened manifest validation\",\n    \"PR #262 repaired 33 impossible initiative validation gates\",\n    \"PR #263 consolidated the canonical roadmap, KTF-001 mission, packet standard, and Builder authority\",\n    \"KTF-FE-01 made roadmap ownership a required context-receipt contract\",\n    \"KTF-FE-02 replaced the stale KX-06 checkpoint pair with the daylight-proof next action\",\n]\ninvalidations = [\n    \"HEAD changes beyond the checkpoint-only commit that records this payload\",\n    \"branch or worktree changes\",\n    \"docs/ACTIVE_MISSION.md no longer records KTF-001 as running\",\n    \"the KTF-001 daylight Builder pass starts or completes\",\n    \"material Builder queue, attempt, lease, provider, or PR state changes\",\n]\n\nfor path, marker, status in PATHS:\n    payload = {\n        \"schema_version\": 1,\n        \"updated_at\": updated_at,\n        \"head_sha\": head,\n        \"branch\": branch,\n        \"worktree\": \".\",\n        \"status\": status,\n        \"completed_items\": completed,\n        \"blockers\": [],\n        \"next_action\": NEW_NEXT,\n        \"invalidation_conditions\": invalidations,\n        \"active_mission\": \"docs/ACTIVE_MISSION.md\",\n        \"pull_request\": None,\n    }\n    metadata = json.dumps(payload, indent=2)\n    if marker == \"kitty-state\":\n        body = f\"\"\"# Session State — KTF-001 daylight proof ready\n\n<!-- {marker}\n{metadata}\n-->\n\n## Checkpoint\n\nKTF-001 governance and the first two free-exec packets are resolved. The next\nmutation is the daylight Builder proof on the canonical machine.\n\n## Next step\n\n{NEW_NEXT}\n\"\"\"\n    else:\n        body = f\"\"\"# Handoff — KTF-001 daylight proof\n\n<!-- {marker}\n{metadata}\n-->\n\n## Outcome\n\nCI, initiative review, validation-gate repair, and governance consolidation are\nrecorded in Git and GitHub. Builder runtime truth remains local and must be read\nthrough supported projections.\n\n## Next step\n\n{NEW_NEXT}\n\"\"\"\n    path.write_text(body, encoding=\"utf-8\")\nPY\n\nStopping rule: if either metadata block is missing, either exact OLD_NEXT value differs, Git is detached, or the command exits non-zero, make no further changes and fail the attempt. Do not search for similar text or partially rewrite one file.",
+      "depends_on": [
+        "KTF-FE-01-roadmap-authority-contract"
+      ],
+      "acceptance_criteria": [
+        "Both checkpoint files contain valid schema-version-1 metadata for KTF-001 and the exact daylight Builder proof next action.",
+        "STATE is in_progress, HANDOFF is valid, both record the current packet branch and pre-commit HEAD, and their completed items, blockers, next action, and invalidation conditions agree.",
+        "Neither checkpoint file contains KX-06-01 or the superseded KX-06 next action.",
+        "The static gate fails on the unmodified tree and the context-receipt plus cold-start acceptance tests exit 0 after the replacement."
+      ],
+      "allowed_paths": [
+        ".claude/STATE.md",
+        ".claude/HANDOFF.md"
+      ],
+      "policy": {
+        "priority": 9
+      },
+      "validation_commands": [
+        "grep -q 'daylight unattended Builder pass on the canonical machine' .claude/STATE.md && grep -q 'daylight unattended Builder pass on the canonical machine' .claude/HANDOFF.md && ! grep -q 'KX-06-01' .claude/STATE.md && ! grep -q 'KX-06-01' .claude/HANDOFF.md",
+        "python3.12 -m pytest tests/test_context_receipt.py tests/test_cold_start_acceptance.py -q --tb=short"
+      ]
+    }
+  ]
+}
