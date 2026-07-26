@@ -16,7 +16,7 @@ faster-whisper==1.2.1
 chromadb==1.5.8
 openai>=1.90.0,<1.110.0
 anthropic==0.92.0
-langgraph==1.2.9
+langgraph==1.2.2
 numpy==2.5.1
 pillow==11.3.0
 
