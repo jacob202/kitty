@@ -1,0 +1,40 @@
+name: Repair context receipt once
+
+on:
+  push:
+    branches:
+      - claude/alignment-map-packet-audit-xbsbbi
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/alignment-map-packet-audit-xbsbbi
+          fetch-depth: 0
+      - name: Restore file and require roadmap authority
+        run: |
+          git show 47d2d2f8ba2d01b73c97fd862dadb812caa8be1b:gateway/context_receipt.py > gateway/context_receipt.py
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('gateway/context_receipt.py')
+          text = path.read_text()
+          old = '        "decisions",\n        "live_status",\n'
+          new = '        "decisions",\n        "roadmap",\n        "live_status",\n'
+          if old not in text:
+              raise SystemExit('required-authority anchor not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
+      - name: Commit repair and remove workflow
+        run: |
+          rm .github/workflows/repair-context-receipt-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gateway/context_receipt.py .github/workflows/repair-context-receipt-once.yml
+          git commit -m "fix(context): restore receipt and require roadmap authority"
+          git push origin HEAD:claude/alignment-map-packet-audit-xbsbbi
