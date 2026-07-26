@@ -24,11 +24,13 @@ Verified from current GitHub history on 2026-07-26:
 - **PR #265 — First two proven KTF-001 free-exec packets.** Added bounded executable manifests with acceptance gates proven to fail on the unmodified tree.
 - **PR #267 — Packet 014/026 delta review recorded.** Closed Packet 014 as shipped, identified Packet 026's remaining judgment-bound work, and exposed `make codegraph-check` as a false-green gate.
 - **PR #269 — KX-01 and KX-02 combined.** Replaced invalid cross-manifest dependencies with one dependency-valid phased initiative and exposed 36 path-collision warnings that must be resolved before promotion.
+- **PR #268 — KTF-002 acceptance-prose repair packet.** Added a bounded free-exec packet for 24 stale acceptance criteria across six retained manifests. The packet exists on `main`; it has not yet been executed by a free worker.
 
 ## Current in-flight work
 
-- **PR #268 — KTF-002 acceptance-criteria honesty packet** is open and ready, but its assumptions must be re-verified against current `main` because PR #269 merged after it was authored. In particular, #268 excluded `kx-02` because the old manifest was invalid; #269 has now superseded that structure with a combined manifest and already substituted the broken build string there.
-- **This branch** contains the human-loop hardened planning input and session closeout. It should be reviewed and selectively amalgamated into `docs/ROADMAP.md`; it must not become a second active roadmap.
+- **Draft PR #271** contains the human-loop hardened planning input and this session closeout. It should be reviewed and selectively amalgamated into `docs/ROADMAP.md`; it must not become a second active roadmap.
+- **KTF-001 daylight delivery proof remains incomplete.** The repository now has multiple authored free-exec packets, including KTF-002, but still needs an unattended run whose report is checked against Git, GitHub, and Builder evidence.
+- **The combined KX initiative has 36 path-collision warnings.** They are a promotion gate for later KX execution, not a reason to interrupt the current Phase 1 proof.
 - The cross-tool knowledge base at `~/kb` was not writable from this GitHub-only ChatGPT environment. The durable learning is preserved in the hardened plan and should be synced to `~/kb/wiki/` and `~/kb/INDEX.md` from an environment with local filesystem access.
 
 ## Durable learning to sync into `~/kb`
@@ -41,23 +43,23 @@ When translating founding insights into execution, do not map each insight direc
 
 ## Recommended next actions
 
-1. Re-verify PR #268 against current `main` after #269. Narrow or amend it rather than merging stale assumptions.
-2. Review `docs/planning/HUMAN_LOOP_HARDENED_PLAN_2026-07-26.md` against the canonical roadmap and propose only the minimum amendments needed to clarify the Phase 1 real-project resume-loop proof.
-3. Preserve the current mission order: finish the trustworthy delivery proof and daylight free-exec run before opening a new product lane.
-4. Name the pilot life obligation and write its outcome contract before implementation. The Disability Tax Credit process is a strong candidate, not an automatic decision.
+1. Review `docs/planning/HUMAN_LOOP_HARDENED_PLAN_2026-07-26.md` against the canonical roadmap and adopt only the minimum clarification needed for Phase 1's real-project resume-loop proof.
+2. Execute the next approved eligible KTF free-exec packet in daylight and verify the full evidence chain: selection, execution, validation, review, publication policy, report, and post-run truth.
+3. Preserve the current mission order: finish the trustworthy delivery proof before opening the human-loop implementation lane.
+4. Then name the pilot life obligation and write its outcome contract. The Disability Tax Credit process is a strong candidate, not an automatic decision.
 5. Build only the minimum human loop: truthful state, deliberate capture, one next move, bounded preparation, outcome receipt, and resume after interruption.
 
 ## Prompt for the next model
 
 You are continuing Kitty's KTF-001 mission. Do not create another roadmap, feature lane, subsystem, or broad analysis.
 
-First inspect current `main`, `docs/ROADMAP.md`, `docs/ACTIVE_MISSION.md`, PR #268, PR #269, and `docs/planning/HUMAN_LOOP_HARDENED_PLAN_2026-07-26.md`. Repository evidence overrides this handoff.
+First inspect current `main`, `docs/ROADMAP.md`, `docs/ACTIVE_MISSION.md`, merged PRs #268 and #269, draft PR #271, `docs/initiatives/ktf-002-acceptance-prose-v1.json`, and `docs/planning/HUMAN_LOOP_HARDENED_PLAN_2026-07-26.md`. Repository and supported Builder evidence override this handoff.
 
-Then do two bounded reviews:
+Do two bounded tasks:
 
-1. Re-verify PR #268 against `main` after #269 merged. Its exclusion of the old `kx-02` manifest may now be stale. Correct, narrow, supersede, or close it based on the actual remaining delta; do not preserve obsolete scope for narrative consistency.
-2. Review the hardened human-loop plan as a planning input. Propose the smallest precise amendment to the canonical roadmap that strengthens Phase 1's real-project resume-loop proof without creating a second plan. Preserve the current mission order and the rule that one trustworthy end-to-end loop must finish before feature expansion.
+1. Review PR #271 as a planning input and propose the smallest precise amendment, if any, to Phase 1's real-project resume-loop proof. Preserve `docs/ROADMAP.md` as the sole authority and do not open a human-loop implementation lane yet.
+2. Determine the exact next approved eligible KTF free-exec packet and execute or prepare the daylight delivery proof using the existing Builder path. Verify selection, failure handling, provider-exhaustion behavior when encountered, validation, review, publication policy, and the final report against Git, GitHub, and Builder state. Do not invent evidence or add another execution system.
 
-The roadmap amendment should clarify only what is necessary: the human loop, pilot outcome contract, agency/correction boundaries, evidence versus self-report, failure conditions, and whether the work advances life rather than Kitty itself.
+Any roadmap amendment should clarify only what is necessary: the human loop, pilot outcome contract, agency and correction boundaries, evidence versus self-report, failure conditions, and whether the work advances life rather than Kitty itself.
 
-Do not author implementation packets for the human loop yet. Finish with a concise evidence report, exact files changed, unresolved decisions, and the single next action.
+Finish with a concise evidence report, exact files changed, unresolved decisions, and the single next action.
